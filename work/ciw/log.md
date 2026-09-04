@@ -194,6 +194,96 @@ above. `docs/perf-data/*` is PERF's and `crates/*/tests/*` is S-TCOST's;
 reading `work.py territory`'s warning on its own diff rather than
 ignoring it.
 
+## 2026-09-04 — full configuration runs reinstated (`reinstate-full-configuration-runs`)
+
+Ev authorised it in chat: *"feel free to reinstate full runs instead of
+sampling"*, because *"CI is weakened right now because of sampling only
+certain configurations to run"*. A hosted run gated one point of
+{default, `interval`} x {default eps, 1e-6, 1e-12}, drawn from the head
+SHA; it now gates all six, as two archives and twelve `test (…)` jobs.
+`_forces_interval` — the `interval-transcendentals/` lane pin — is
+deleted with the draw it existed to pre-empt.
+
+**It is not a 6x multiplier and the measurement says so.** The nextest
+archive is built per COMPILE MODE and eps is runtime env, so six points
+are two builds and twelve test legs. Over 71 code-tier runs in one 3.9-h
+window: **+15.4 job-minutes per run** (24.5 → ~40) and **+57 s of
+critical path on the half of runs that would have drawn `default`**, +0
+on the other half. That agrees with PR 1796's independent +15.6 to
+within 0.2 job-minutes; the two lanes' per-HOUR figures differ (+283 vs
++161) only because their windows differ in busyness, and both are right
+for their window. The block that supersedes
+`docs/CI-MINUTES-2026-08.md`'s 2026-08-22 sampling section carries the
+population and the derivation.
+
+**The dispatch inputs and the `CI-Config:` trailer stay, repurposed.**
+They no longer buy coverage for the lane or eps — a run has it — so they
+NARROW a run instead, which is what a fast re-gate of one axis wants, and
+they remain the only way to choose the k-lint row. Their neutral option
+was renamed `sample` → `unset`: one input list cannot carry two
+vocabularies once `lane: sample` names a draw that does not exist.
+
+**Two residues, filed rather than disclosed in prose.**
+`klint-row-still-sampled` — the third dimension is still drawn 1-in-5,
+because five unifications are five compiles rather than one archive
+replayed, and it was not re-costed. `interval-only-selection-premise-restored`
+— the 2026-08-22 reversal of the interval-only selection was forced by
+the lane draw, so its original premise holds again; restoring the
+subtraction would REDUCE what a run gates and is a cost lever with its
+own argument to make.
+
+**`scripts/ci-filter.py` is S-TCOST's and the edit was made anyway**,
+under Ev's authorisation and announced in the PR by name. No open
+S-TCOST item assumed the draw; one parked one —
+`skip-eps-battery-by-observing-oncelock` — has its premise RESTORED,
+since "the ε battery runs the whole suite at three ambient ε values" is
+true again.
+
+### 2026-09-04, the style review's fix pass
+
+Six findings, all taken. Two are the standing warning firing again on this
+lane's own work.
+
+**The wall-clock claim was wrong and it was the number that made the trade
+look free.** "The added ε legs cost ~0 wall" reasoned from the legs starting
+together; **wall follows their MAXIMUM**, and six legs have a larger maximum
+than two. Measured on TIER=all runs: **+20 s** on a run that would have drawn
+`interval` (the ε legs' own cost), **+172 s** on one that would have drawn
+`default` (mostly the interval archive), **≈ +96 s in expectation** — not the
++28 s published. The last job on the path is
+`test (interval, eps = default, 1/2)`, the first ε row's shard 1, at
+156/151/135 s across three un-sampled runs, ending at each run's wall exactly.
+
+**The trailer is now additive-only; the dispatch still narrows.** The review
+found a cut neither this lane nor the orchestrator had: the two spellings were
+one applier only while either could merely substitute one drawn point for
+another. Once one can SUBTRACT they are opposites, and `ci-filter.py`'s own
+argument decides which — a dispatch is typed by whoever is standing there, a
+trailer is copied and rides one push. So a trailer may never gate less than no
+trailer at all, and it keeps the k-lint row, which it never subtracted from. A
+narrowed run also gets a `::warning::` run-page annotation, keyed on the VALUE
+rather than on `CONFIG_SOURCE`.
+
+**Two miscounts of this lane's own.** `ci-local.sh` said "three sampled
+dimensions rather than two" where there is one — in a file this lane's own
+disposition table listed as fixed, a hundred lines below a hunk it wrote. And
+the stated sweep blind spot was wrong about itself: the survivors were not
+prose "without any of those words", they were prose the two sweep passes never
+crossed — one pass used a narrow phrase list over a broad path set, the other a
+broad pattern over ONE file — and `drawn|the draw` never matched `draws` /
+`drew` / `drawing`.
+
+**Population re-derived on a closed window: 156 runs, 72 code-tier**, against
+155/71 here and 154/72 from the review. Both were snapshots of a window still
+open. Per-tier: **+14.9** job-min TIER=closure, **+19.4** TIER=all, **+15.6**
+run-weighted — which is what the pooled figure had been measuring silently.
+
+**Filed rather than reported**: `work/issues/fillet-specs-require-a-narrowing-ci-config`
+— two live FILLET specs require `CI-Config: lane=interval` under `## Acceptance`,
+which now narrows the gate AND, since the trailer became additive-only, reds
+the classify step. Filed in `work/issues/` rather than on FILLET's slate,
+which is that program's to claim by moving.
+
 ## Unit 8 — `f3-recosting-on-a-public-repo`, measured and asked (2026-09-04)
 
 A measurement unit, so the deliverable is numbers and a question rather

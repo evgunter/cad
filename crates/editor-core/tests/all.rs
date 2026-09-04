@@ -96,6 +96,10 @@ mod cascade_delete;
 mod cert3r1_dump;
 #[path = "display_contract.rs"]
 mod display_contract;
+#[path = "docm3_union.rs"]
+mod docm3_union;
+#[path = "docm4_evaluation_identity.rs"]
+mod docm4_evaluation_identity;
 #[path = "dsc_checks.rs"]
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]

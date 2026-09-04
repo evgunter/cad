@@ -437,7 +437,7 @@ fn the_composed_die_replays_bit_identically() {
 /// is pinned at its three outcomes, the S2/S9 trio idiom.
 #[test]
 fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
-    use sweep::blend::surgery::ring_clearance;
+    use sweep::test_support::ring_clearance;
     let (pipped, _) = pipped_and_box_edges();
     let face = pipped.faces().next().unwrap().0;
     let tol = Tol::witness().get();
@@ -447,7 +447,8 @@ fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
     let err = ring_clearance(face, -0.05, band()).expect_err("a consumed ring refuses");
     match err {
         sweep::blend::BlendError::RingClearance { margin, .. } => {
-            assert!((margin - -0.05).abs() < 1e-15)
+            assert_eq!(margin.predicate, "fillet3_ring_clearance");
+            assert!(margin.value().is_some_and(|m| (m - -0.05).abs() < 1e-15));
         }
         other => panic!("expected RingClearance, got {other}"),
     }

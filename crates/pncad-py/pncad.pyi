@@ -1890,6 +1890,7 @@ class SegTag:
     AxisEdge: Final[SegTag]
     FromA: Final[SegTag]
     FromB: Final[SegTag]
+    FromMember: Final[SegTag]
     Seam: Final[SegTag]
     Merged: Final[SegTag]
     Fragment: Final[SegTag]
@@ -2810,9 +2811,14 @@ def evaluate(
     The memo is PER DOCUMENT and node-id-keyed: the lookup finds
     `prior`'s result for the SAME node id and then certifies it by
     content. An evaluation of a different document is a legal prior
-    that reuses nothing — ids are minted per document, and two
-    assemblies over the same parts at the same pins share none. Pass
-    the prior evaluation of THIS document.
+    that reuses nothing — not because the ids miss, but because the
+    memo REFUSES it: an evaluation carries the id of the document it
+    was run on, and a prior of another document is dropped whole
+    before the schedule is built. Ids alone would not decide it, since
+    two documents built from one recipe carry the same ids for the
+    same nodes. The run stays total — every node recomputed — and says
+    so: `Evaluation.reused` is 0. Pass the prior evaluation of THIS
+    document.
 
     A MEMO HIT IS SERVED WITHOUT RE-RUNNING THE SEAM'S GATES. A reused
     `InstantiatePart` node never asks the resolver, so the availability
@@ -3106,11 +3112,13 @@ class SolvedPoses:
         frame composed onto the solved relative pose. A singleton
         returns its recorded frame verbatim.
 
-        `doc` must be the document this solve is OF — passing another
-        composes this document's relative poses onto that one's
-        cluster frames, which is a pose of neither, and nothing here
-        can check it. Raises MateError when the cluster did not
-        solve."""
+        `doc` must be the document this solve is OF. Passing another
+        would compose this document's relative poses onto that one's
+        cluster frames, which is a pose of neither, so the door
+        refuses first: a `SolvedPoses` carries the id of the document
+        `solve_document` solved, and a mismatch raises MateError with
+        tag `mate_poses_of_another_document` before any frame is
+        read. Raises MateError when the cluster did not solve."""
 
 def solve_document(doc: Doc) -> SolvedPoses:
     """Solve the document's mates: the per-pair coset fold along a
@@ -3185,9 +3193,15 @@ def product(doc: Doc, evaluation: Evaluation) -> Body:
     node's value is the assembly. A pure function of the root list and
     the evaluation.
 
-    `evaluation` must be an evaluation OF `doc`: node ids are minted
-    per document, so a foreign one refuses `unknown_node` rather than
-    answering about the wrong document. Raises ProductError, typed."""
+    `evaluation` must be an evaluation OF `doc`, and the door checks
+    it: an evaluation carries the id of the document it was run on,
+    and a foreign one raises ProductError with tag
+    `evaluation_of_another_document` before the first root is read.
+    Node ids alone could not decide this — they are minted by a
+    per-document counter, so two documents built from one recipe
+    carry the same ids for the same nodes and a gather over the wrong
+    one would succeed, in full, about other geometry. Raises
+    ProductError, typed."""
 
 def product_named(doc: Doc, evaluation: Evaluation) -> tuple[Body, list[str]]:
     """The product with the stable names its entities answer to —

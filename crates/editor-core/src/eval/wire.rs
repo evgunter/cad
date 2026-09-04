@@ -207,6 +207,14 @@ where
             env.boolean_sweep,
             tol,
         ),
+        Node::Union { members } => wire_union(
+            &crate::verbs::boolean::boolean(),
+            id,
+            members,
+            results,
+            env.boolean_sweep,
+            tol,
+        ),
         Node::Transform { input, .. } => wire_transform(id, *input, results, vals, tol),
         Node::Pattern { input, kind, .. } => wire_pattern(id, *input, kind, results, vals, tol),
         Node::PlacedUnion { input, kind, .. } => wire_placed_union(
@@ -1977,6 +1985,11 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     // no silent drop, no best-effort gluing. This stays upstairs: it
     // is the document's semantics (names, freezes, refusal payloads),
     // and the kernel verb receives only the lowered arena-key form.
+    // Both operand tables are read three times downstairs — by the
+    // declare resolution, by the refusal menu and by the emitter — so
+    // they are taken once here rather than re-fetched per reader.
+    let a_table = Arc::clone(&value_of(results, a)?.name_table);
+    let b_table = Arc::clone(&value_of(results, b)?.name_table);
     let mut kernel_decls = BooleanDeclarations::none();
     if let Some(d) = declare {
         let dv = value_of(results, d)?;
@@ -1987,15 +2000,13 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
                 found: dv.payload.kind_name(),
             });
         };
-        let a_table = Arc::clone(&value_of(results, a)?.name_table);
-        let b_table = Arc::clone(&value_of(results, b)?.name_table);
         kernel_decls = resolve_declarations(pairs, doc, &a_table, &b_table)?;
     }
     let body_a = body_operand(results, a)?;
     let body_b = body_operand(results, b)?;
     match (verb.build)(op, kernel_decls)
         .run_pair(&body_a, &body_b, boolean_sweep, tol)
-        .map_err(|err| refusal_menu(results, a, b, err))?
+        .map_err(|err| refusal_menu(&a_table, &b_table, err))?
     {
         verbs::PairOut::Empty => Ok(OpOut::plain(
             ValuePayload::Boolean(BooleanValue::Empty),
@@ -2020,8 +2031,6 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
                     }));
                 }
             };
-            let a_table = Arc::clone(&value_of(results, a)?.name_table);
-            let b_table = Arc::clone(&value_of(results, b)?.name_table);
             let table = (verb.emitter)(
                 id,
                 &out.body,
@@ -2055,6 +2064,215 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     }
 }
 
+/// **The n-ary union's lowering** (DM4): the SAME pair verb, folded
+/// over the members in list order — `((m0 ∪ m1) ∪ m2) ∪ …`, through
+/// the same `run_pair` door, the same refusal menu, and one body out
+/// in the same `BooleanValue::Body` shape a pair union yields, so
+/// every consumer of a union is unchanged.
+///
+/// No new numeric decision is taken anywhere here: the geometry is the
+/// pair verb's at every step, which is what makes the fold and the
+/// chain it replaces the same body. What the node adds is the NAMING
+/// — the fold's own tables record join depth, and `names::name_union`
+/// rewrites the last one into member-keyed names.
+///
+/// **Nothing ∅-absorbing is invented** (D3, "wire, don't invent"). A
+/// member that evaluates to an empty boolean refuses `EmptyOperand`
+/// naming that member, exactly as `body_operand` refuses one for a
+/// pair. An empty INTERMEDIATE — which two non-empty operands cannot
+/// produce under union, so this is a kernel-bug path rather than an
+/// authoring one — is the empty operand the next step would be handed,
+/// and refuses the same way, naming the member the fold had reached;
+/// at the LAST step it is the typed empty success a pair union already
+/// has.
+fn wire_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
+    verb: &crate::verbs::boolean::PairVerb<T>,
+    id: RecipeNodeId,
+    members: &[RecipeNodeId],
+    results: &Results<T>,
+    boolean_sweep: topo::SweepStrategy,
+    tol: Tol,
+) -> OpResult<T> {
+    // Two or more is the node's contract, held at both edit doors
+    // (`EditError::TooFewMembers`). Reaching here with fewer means the
+    // fold has no pair to hand the verb, which is the arity class this
+    // crate already refuses typed — never a panic, and never a
+    // one-member "union" that silently denotes its own input.
+    let Some((first, rest)) = members.split_first().filter(|(_, rest)| !rest.is_empty()) else {
+        return Err(NodeErrorKind::VerbArity {
+            verb: verbs::VerbKind::Boolean(BooleanOp::Union),
+            given: verbs::Arity::One,
+        });
+    };
+    let mut acc_body = body_operand(results, *first)?;
+    // The FIRST member enters member-keyed too, so every operand of
+    // every step is already in this node's name space and nothing
+    // downstream has to recover a member from an inner name.
+    let mut acc_table = Arc::new(
+        names::member_view(id, *first, &value_of(results, *first)?.name_table)
+            .map_err(NodeErrorKind::Naming)?,
+    );
+    let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;
+    for member in rest {
+        let member_body = body_operand(results, *member)?;
+        let member_table = Arc::new(
+            names::member_view(id, *member, &value_of(results, *member)?.name_table)
+                .map_err(NodeErrorKind::Naming)?,
+        );
+        // No declarations: a declared-contact union is spelled with
+        // `Node::Boolean`, which is where the `Declare` input lives.
+        match (verb.build)(BooleanOp::Union, BooleanDeclarations::none())
+            .run_pair(&acc_body, &member_body, boolean_sweep, tol)
+            .map_err(|err| union_refusal(id, &acc_table, &member_table, err))?
+        {
+            // A union of two REAL bodies cannot be empty, and both
+            // operands here are real: `body_operand` refuses a member
+            // whose value is the typed empty before this line, and the
+            // accumulation is a body the previous step returned. So
+            // this arm is a kernel bug and is refused as one — typed,
+            // in the same channel the foreign-record check below uses.
+            // It is NOT attributed to `member`: blaming an operand that
+            // is not empty names the wrong node and sends a caller to
+            // edit a member that is fine.
+            verbs::PairOut::Empty => {
+                return Err(NodeErrorKind::Naming(names::NamingError::Emission {
+                    what: UNION_STEP_EMPTY,
+                }));
+            }
+            verbs::PairOut::Out(out) => {
+                let verbs::VerbRecord::Boolean {
+                    kind,
+                    contacts,
+                    naming,
+                } = out.record
+                else {
+                    return Err(NodeErrorKind::Naming(names::NamingError::Emission {
+                        what: verb.foreign_record,
+                    }));
+                };
+                last = Some((kind, Arc::new(contacts)));
+                // The fold's own table, minted by the PAIR emitter
+                // under THIS node's id: that id is what tells an
+                // intermediate row from a member's own name when the
+                // chain is collapsed, and it is the id the node's
+                // names carry in the end anyway. Both operand
+                // CONTEXTS name this node for the same reason: their
+                // tables are the member-keyed views, so an error this
+                // step raises about an operand is about a row in this
+                // node's space.
+                acc_table = (verb.emitter)(
+                    id,
+                    &out.body,
+                    &naming,
+                    &names::OperandCtx {
+                        node: id,
+                        table: &acc_table,
+                        body: &acc_body,
+                    },
+                    &names::OperandCtx {
+                        node: id,
+                        table: &member_table,
+                        body: &member_body,
+                    },
+                    tol,
+                )
+                .map_err(NodeErrorKind::Naming)?;
+                acc_body = Arc::new(out.body);
+            }
+        }
+    }
+    let table = names::name_union(id, &acc_body, &acc_table).map_err(NodeErrorKind::Naming)?;
+    let mut body = (*acc_body).clone();
+    // ONCE, over the finished body, and not per fold step: the stamp
+    // numbers a node's minted descriptions from zero, so a second pass
+    // would hand a later step's geometry an index an earlier step
+    // already used. Everything carried from a member keeps its own
+    // source (D1); a seam chord minted at any step gets this node's.
+    stamp_minted(&mut body, id);
+    // The LAST step's record is the result's: the kind says how the
+    // body that came out was produced, and the body that came out is
+    // that step's. The contacts are empty at every step — the fold
+    // resolves no declarations — so carrying them is carrying the
+    // channel, not a value; the absent case is the arity refusal above.
+    let Some((kind, contacts)) = last else {
+        return Err(NodeErrorKind::VerbArity {
+            verb: verbs::VerbKind::Boolean(BooleanOp::Union),
+            given: verbs::Arity::One,
+        });
+    };
+    Ok(OpOut::plain(
+        ValuePayload::Boolean(BooleanValue::Body {
+            body: Arc::new(body),
+            kind,
+            contacts,
+        }),
+        table,
+    ))
+}
+
+/// A union fold step returned the typed empty from two real bodies.
+/// Unreachable (see the arm that raises it); surfaced typed.
+const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-empty operands";
+
+/// A union's refusal, with every name it carries in the node's own
+/// published space.
+///
+/// [`refusal_menu`] resolves the raise site's face keys through the two
+/// OPERAND tables it is handed. From the second fold step on the `a`
+/// side is the ACCUMULATED table — the pair emitter's, whose rows are
+/// `FromA`/`FromB`-headed — so the name it finds is in the fold's
+/// internal space: no published table holds it, [`mod@crate::resolve`]
+/// cannot look it up, and a selector written against it matches
+/// nothing. Every name the refusal carries is therefore put through
+/// [`names::collapse_name`], the same rewrite the node's own table gets
+/// from `name_union`, so a refusal denotes member-space entities and
+/// nothing else.
+///
+/// A name that will not collapse is an emission bug in the fold's own
+/// table, and it is raised as one rather than swallowed: the union was
+/// going to fail naming for the same reason had the step succeeded, and
+/// a bug reported as a contact refusal would send a caller to edit
+/// their model over a defect in this crate.
+///
+/// **A union has no `declare` edge**, so a caller whose members touch
+/// has no in-node recourse today: the recourse is to spell that pair as
+/// a `Node::Boolean` union, which is where the `Declare` input lives.
+/// Whether the n-ary node should carry a declaration channel of its own
+/// is filed as `work/docm/n-ary-union-has-no-declaration-channel`.
+fn union_refusal(
+    id: RecipeNodeId,
+    a_table: &crate::names::NameTable,
+    b_table: &crate::names::NameTable,
+    err: verbs::VerbError,
+) -> NodeErrorKind {
+    let refused = refusal_menu(a_table, b_table, err);
+    let NodeErrorKind::UndeclaredContact { finding, diag } = refused else {
+        return refused;
+    };
+    let names::FlushFinding {
+        pair: (a, b),
+        class,
+        evidence,
+    } = *finding;
+    let (Ok(a), Ok(b)) = (names::collapse_name(id, &a), names::collapse_name(id, &b)) else {
+        return NodeErrorKind::Naming(names::NamingError::Emission {
+            what: UNION_REFUSAL_FOREIGN,
+        });
+    };
+    NodeErrorKind::UndeclaredContact {
+        finding: Box::new(names::FlushFinding {
+            pair: (a, b),
+            class,
+            evidence,
+        }),
+        diag,
+    }
+}
+
+/// A union's refusal named a row its own fold table cannot collapse.
+const UNION_REFUSAL_FOREIGN: &str =
+    "a union fold's refusal names a row the member-keying rule cannot collapse";
+
 /// The refusal-menu lift (register R3, LIB-PYG5; SELECT-DESIGN §3d):
 /// a kernel [`topo::BooleanError::UndeclaredCoincidence`] becomes
 /// [`NodeErrorKind::UndeclaredContact`] carrying the raise site's
@@ -2074,10 +2292,13 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
 /// context, so it happens here, before the shared translation: every
 /// other refusal a boolean run can carry falls through to
 /// [`verb_refused`], the same door every verb's refusal goes through.
-fn refusal_menu<T: Decide>(
-    results: &Results<T>,
-    a: RecipeNodeId,
-    b: RecipeNodeId,
+/// The two operands are given as their name TABLES rather than as node
+/// ids: the n-ary union folds the same verb over an ACCUMULATION that
+/// is no node's result, and the menu reads nothing else about an
+/// operand.
+fn refusal_menu(
+    a_table: &crate::names::NameTable,
+    b_table: &crate::names::NameTable,
     err: verbs::VerbError,
 ) -> NodeErrorKind {
     let verbs::VerbError::Boolean(topo::BooleanError::UndeclaredCoincidence {
@@ -2099,11 +2320,11 @@ fn refusal_menu<T: Decide>(
         pair
     };
     let name_of = |(operand, face): (topo::Operand, topo::FaceKey)| {
-        let node = match operand {
-            topo::Operand::A => a,
-            topo::Operand::B => b,
+        let table = match operand {
+            topo::Operand::A => a_table,
+            topo::Operand::B => b_table,
         };
-        face_name(value_of(results, node).ok()?, face)
+        face_name(table, face)
     };
     let (Some(na), Some(nb)) = (name_of(ordered[0]), name_of(ordered[1])) else {
         return NodeErrorKind::Boolean(topo::BooleanError::UndeclaredCoincidence {
@@ -2137,13 +2358,13 @@ fn refusal_menu<T: Decide>(
 /// fact). Ties or multiple denoting names resolve to the canonical
 /// least name — deterministic, and any denoting name identifies the
 /// pair for the declare arm.
-fn face_name<T: Decide>(
-    v: &super::NodeValue<T>,
+fn face_name(
+    table: &crate::names::NameTable,
     face: topo::FaceKey,
 ) -> Option<crate::names::StableName> {
     use crate::names::{EntityKey, EntityKind, EntityRef, Entry};
     let mut found: Option<&crate::names::StableName> = None;
-    for (name, entry) in v.name_table.iter() {
+    for (name, entry) in table.iter() {
         if name.kind != EntityKind::Face {
             continue;
         }

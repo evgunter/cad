@@ -15,49 +15,52 @@ Final report ≤150 lines.
 **Hosted CI is the verification of record.** Push and let it run. It runs on
 hardware not shared with any other lane and its result is a durable artifact.
 
-**It no longer covers the full matrix, and you are expected to know that**
-(2026-08-22). A run gates ONE point of {default features, `interval`} x
-{default eps, 1e-6, 1e-12}, drawn deterministically from your head SHA. The
-python suite, the gates, the discipline and parity rows and the render lanes
-are unchanged — every one of them still runs on every code-tier run. What is
-sampled is the compile mode and the tolerance row, and three things follow for
-you:
+**It covers the full lane/eps matrix again, and you are expected to know that**
+(2026-09-04, Ev's authorisation). A code-tier run gates EVERY point of {default
+features, `interval`} x {default eps, 1e-6, 1e-12} — twelve `test (…)` jobs,
+each naming its lane, its eps row and its shard. The python suite, the gates,
+the discipline and parity rows and the render lanes are unchanged and still run
+on every code-tier run. Three things follow for you:
 
-- **A green run means green at the point it drew**, which the job names carry
-  (`test (eps = 1e-6, 1/2)`). It is not a claim about the other five.
-- **A re-run of the same commit draws the same point.** Re-running a red leg
-  will not turn it green, and if you find yourself hoping it might, that is the
-  bug talking. Push a fix.
-- **If the lane matters to your change, ASK for it — do not wait for the
-  draw.** Put `CI-Config: lane=interval` (or `lane=default`) in your HEAD
-  commit's message, or dispatch the workflow with the `lane` input. The
-  request beats the draw for that dimension and leaves the others drawn, and
-  the run records it as `lane:requested` / `lane:commit-trailer` in
-  `CONFIG_SOURCE` so a reader can tell an asked-for point from a sampled one.
-  The trailer is read off the head commit and only that one, so it lasts
-  exactly one push: a later commit — a merge of main included — is sampled
-  again unless it carries the trailer too.
+- **A green run means green at all six points.** That is what the job list
+  shows: if you cannot see twelve test jobs on a code-tier run, something
+  narrowed it and you should find out what.
+- **Do NOT put a `CI-Config: lane=…` or `eps=…` trailer on your head commit
+  as a matter of course.** Between 2026-08-22 and 2026-09-04 the run drew one
+  point and the trailer was how you ASKED for the one your change was about.
+  It now does the opposite: it NARROWS the run to what you name, so a habit
+  copied from an older brief or an older spec buys you LESS gate than doing
+  nothing. Several specs still carry the old advice; the run is the authority,
+  not the spec. Use the trailer only when you deliberately want a narrow, fast
+  re-gate of one axis — and say in the PR that you narrowed it, because a
+  reader counting six test jobs where there should be twelve cannot tell a
+  narrowing from a broken matrix.
+- **The k-lint row is still drawn, one of five, from your head SHA.** That is
+  the one dimension a re-run cannot change and a trailer still buys you:
+  `CI-Config: klint=dev-probe` on the head commit, or the dispatch input. A
+  re-run of the same commit draws the same row, so re-running a red k-lint leg
+  will not turn it green; push a fix. The trailer is read off the head commit
+  and only that one, so it lasts exactly one push — a later commit, a merge of
+  main included, draws again unless it carries the trailer too. The run
+  records the source as `klint:requested` / `klint:commit-trailer` in
+  `CONFIG_SOURCE`, printed by a step that always runs.
 
-  **Then say in the PR which lane gated**, and whether it was drawn or asked
-  for. Nobody else can reconstruct that later, and a PR that does not say it
-  is asking its reviewer to assume the gate saw the axis the change was about.
-
-  A filename does not do this for you (Ev's ruling, 2026-08-29, on #1122).
+  A filename decides nothing (Ev's ruling, 2026-08-29, on #1122).
   `scripts/ci-filter.py` used to pin `LANE=interval` whenever any changed
-  file's basename contained `interval`; that arm is gone, because it could not
-  tell a rename from a semantic edit and gated a whole branch on the wrong
+  file's basename contained `interval`; that arm was removed because it could
+  not tell a rename from a semantic edit and gated a whole branch on the wrong
   axis for its entire life after a type migration touched
-  `extrude_interval.rs`. What survives is exact and narrow: a change under
-  `interval-transcendentals/`, or a changed-file list the filter could not
-  resolve at all, still pins interval and says so. A diff that merely touches
-  `*interval*` files now DRAWS its lane and the run prints an advisory telling
-  you to ask if the semantics moved. **That advisory is a reminder of this
-  paragraph, not a substitute for it** — you are the only party who knows
-  whether your edit changed interval behaviour or just its spelling.
+  `extrude_interval.rs`. The exact pin that survived it — a change under
+  `interval-transcendentals/` — is gone too, with the draw it pre-empted:
+  nothing needs to pin a lane a run already gates. What is left is an advisory
+  on one case, a run YOU narrowed to `lane=default` over a diff of
+  interval-named files.
 
-**When one point of six is not enough**, run `local-scripts/ci-local.sh`: it is
-now the only lane that runs every point on one tree. Reach for it before a
-merge that would be expensive to get wrong, not routinely.
+**When the hosted gate is not enough**, run `local-scripts/ci-local.sh`. It is
+no longer the only lane that runs every lane and eps row on one tree — hosted
+does that now — and what it still adds is all five k-lint unifications and its
+opt-in `--nightly` row. Reach for it before a merge that would be expensive to
+get wrong, not routinely.
 
 **Draft PRs do not run the gate at all.** Mark the PR ready for review when you
 want it gated; undrafting triggers a full run on the same head.
@@ -180,3 +183,19 @@ let the party with the whole board place it.
 Reporting it is not a lesser outcome. A finding with a named file and line in a
 PR body warns every reader of that PR; a duplicate item on the wrong slate
 warns nobody and costs a merge.
+
+**This says where a finding goes, never whether it gets a file**, and the two
+questions read as one until they come apart. `work/README.md` is equally
+binding the other way: *"Disclosing a residue is therefore not scheduling it —
+give it its own file at the moment you disclose it."* Both hold at once,
+because they are about different slates. **Inside your own program's fence a
+disclosed residue owes a file in the same PR that discloses it**, and a
+sentence in a merged PR body is not one. **Outside it, reporting IS the
+filing act** — you hand it over and the orchestrator writes the file, in
+`work/issues/` when no program obviously owns it. What neither document
+permits is the third thing, which is what actually happens: disclosed in a PR
+body, filed nowhere, by a lane that read this section as an exemption from
+`work/README.md`'s. When a program's directory is deleted at close, the PR
+body is not a slate and the finding is gone. (Read as a conflict by the T-2
+style review, 2026-09-04; it is not one, and this paragraph exists because it
+reads like one.)

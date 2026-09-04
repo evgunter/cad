@@ -99,6 +99,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/editor-core/tests/docm4_evaluation_identity.rs",
+        disposition: Shared, // Evaluation-literal census, code view
+    },
+    Entry {
         path: "crates/editor-core/tests/fix_loop_polygon_expr.rs",
         disposition: Shared, // polygon-close uniqueness census, code view
     },
@@ -137,6 +141,11 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/mesh/tests/all.rs",
         disposition: Shared, // eps inventory, code view
+    },
+    Entry {
+        path: "crates/pncad-py/src/prose_census.rs",
+        disposition: Shared, // every `impl Display` in the tree: code view for the
+                             // structure, literal view for the format string
     },
     Entry {
         path: "crates/pncad-py/src/tests.rs",

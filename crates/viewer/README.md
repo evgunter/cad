@@ -216,13 +216,179 @@ are never overridden here.
 | Decision | Modules |
 |---|---|
 | G1 layer 2 (document as a value, `DocEdit` + pure `apply`, evaluation service, hit-testing) | `crates/editor-core` (`crates/editor-core/README.md`) |
-| G1 layer 3 values and operations | `src/camera.rs` (`Camera`, `CameraOp`, `camera::apply`), `src/session.rs` (`DocSession`, `SessionOp`, `DocSession::perform`, `OpOutcome`), `src/history.rs` (tree-shaped undo), `src/input.rs` (`ViewportEvent`), `src/tools.rs` and the per-tool modules |
+| G1 layer 3 values and operations | `src/camera.rs` (`Camera`, `CameraOp`, `camera::apply`), `src/session.rs` (`DocSession`, `DocSession::perform`, the operation doors) and its vocabularies `session::{select, refuse, op, author, delete, probe}` (Module boundaries, below), `src/history.rs` (tree-shaped undo), `src/input.rs` (`ViewportEvent`), `src/tools.rs` and the per-tool modules |
 | G3 free-move and hiding as display state | `src/display.rs` |
 | G3 mate definition | `src/matetool.rs` |
 | Feature tree, property panel, open/save, evaluation seam, scene | `src/tree.rs`, `src/props.rs`, `src/docio.rs`, `src/evalseam.rs`, `src/scene.rs` |
 | Colour, themes, preferences | `src/theme.rs`, `src/prefs.rs`, `tests/theme.rs` |
 | GQ7 picking | `src/pick.rs` (`EDGE_PICK_RADIUS_PX`, `PickKinds`), `crates/bvh` (`Bvh::ray`) |
-| GQ6 toolkit, viewport, docking | `src/app.rs`, `src/gpu.rs`, `src/frame.rs` behind the `app` feature; `Cargo.toml` |
+| GQ6 toolkit, viewport, docking | `src/app.rs` (the frame loop and `ViewerApp`) with `src/pane/*` (the pane bodies) and `src/widgets.rs`, `src/gpu.rs`, `src/frame.rs` behind the `app` feature; `Cargo.toml`. The authoring vocabularies the panels offer are `src/forms.rs` and `src/drafts.rs`, which name no toolkit type |
+
+## Module boundaries
+
+Two files in this crate hold most of it — the session's state machine
+and the toolkit adaptation — and both accreted one titled section per
+unit until neither could be read whole. The boundary below is the rule
+that keeps them readable; it is a rule rather than a map because a map
+is out of date after the next unit and a rule is not.
+
+**Every module in this crate is a VOCABULARY or a DRIVER, and its
+`use` block says which.**
+
+- A **vocabulary** module holds values, their wording, and pure
+  functions over them. It names no driver type and no toolkit type: no
+  `DocSession`, no `ViewerApp`, no `egui`. It can be read, and tested,
+  without a session or a window existing.
+- A **driver** owns mutable state and dispatches. There are exactly
+  two: `session` (owns `DocSession`, dispatches `SessionOp`) and `app`
+  (owns `ViewerApp`, drives the frame). A driver may name any
+  vocabulary; no vocabulary may name a driver.
+
+The rule is mechanically checkable — read the `use` block — which is
+the property that makes it survive contact with the next unit. It is
+also what was already true of the good modules here (`camera`,
+`frame`, `input`, `display`) and false of the two that grew: both
+files are one driver plus a pile of vocabulary that never left.
+
+### The session's vocabularies
+
+| Module | Holds |
+|---|---|
+| `session::select` | `Selection`, `FaceSelection`, `EdgeSelection`, `Hovered`, `Standing` — what is selected and whether it still denotes anything |
+| `session::refuse` | `Refusal` with its `rank`/`preferred` ladder, its `Display`, and the recourse composers `affordance`/`exists_wording`/`offer_wording`; `NodeKindWanted` and `admits`, since they are a `Refusal` payload and its predicate |
+| `session::op` | `SessionOp` and `OpOutcome` — already the crate's shared vocabulary, read by `tools`, `pick`, `frame`, `blend`, `combine`, `matetool`, `revolvetool` |
+| `session::author` | `DatumSpec`, `PatternRuleSpec`, `datum_node`, the `ProfileShape` re-export — the authoring specs and their lowering to nodes, which hold no session state at all |
+| `session::delete` | `DeleteAffordance` and `kind_census` — the cascade's wording |
+| `session::probe` | `BoundsTarget`, `BoundsReading` and the range probe |
+
+`session` itself keeps `DocSession`, its `Gesture`, `Landing`,
+`AtRestBadge`, `perform` and the operation doors. Those are the driver
+and cannot leave it: every door returns a `Refusal` and mutates the
+session, and `perform`'s dispatch is the one place an operation becomes
+state.
+
+### The app's vocabularies
+
+| Module | Holds |
+|---|---|
+| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `PathVerb`, `ArcMode`, `DatumKind`, `ShapeKind`, `PatternKindChoice`, `BOOLEAN_OPS`, `MATE_PRIMITIVES` — are hand-maintained mirrors of a kernel or sketch enum; the field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
+| `drafts` | `Drafts` and `CommitFault`: the in-flight form state, its defaults, and its lowering of typed field values to `Expr` and `LoopProgram` — the same layer as `session::author`, and today the larger half of it |
+
+### The app driver, split for size
+
+`app` is a driver, and a driver too large to read is still a driver.
+`app.rs` keeps `ViewerApp`, `ViewerBehavior`, the frame loop,
+`perform_batch`, `sync_scene`, `apply_status`, `Pane`,
+`initial_layout` and the entry points; `pane::{viewport, features,
+properties, create, view}` hold the `*_ui` functions that draw each
+pane, one module per pane; and `widgets` holds the free helpers over
+`egui::Ui` that those panes share.
+
+**Splitting a driver across modules does not make the pieces
+vocabularies.** The test is a module's ROLE, not its size or its file:
+each of these names `egui`, and `widgets::delete_button` takes a
+`&DocSession` because the wording it draws is the session's own
+answer. That is the driver side of the rule behaving normally. Reading
+the `use` block still decides it — the check says what a module IS,
+not merely whether it is a vocabulary.
+
+`app.rs`'s header claim — *toolkit adaptation, and nothing else* — is
+true of the file rather than a claim it has outgrown.
+
+Three items move out of `app` to modules that already own their
+subject rather than to new ones: `datum_view` to `datums`, and
+`tip_mark` with `heading` to `sketch` — all three are geometry over
+values the receiving module already defines, and none names `egui`.
+
+### `Refusal`'s delegation discipline
+
+`Refusal` has two kinds of arm and the rule is where the failure's
+*owner* is:
+
+- **A delegating arm** (`Edit`, `Dimension`, `Parse`, `Io`, `Display`,
+  `SlotUnit`, `Workspace`) exists where a module below layer 3 already
+  owns the failure and its wording. Layer 3 adds nothing but the
+  ranking, so it stores the payload and forwards the text.
+- **A flat arm** exists where layer 3 is the only place the fact
+  exists: there is no gesture in flight, this boolean's operands are
+  the same node, this instance is itself, the seat wanted a different
+  node kind.
+
+`rank` stays a separate axis, and it is exhaustive over `Refusal`'s own
+arms, so a new arm is compiler-caught. It is not exhaustive one level
+down: `Display(_)` is a catch-all beneath its two named cases, so a new
+`DisplayFault` variant is ranked by default rather than by decision.
+Both costs — an arm ranked wrongly, and a delegated fault ranked by
+default — are accepted, because the alternative of deriving a rank from
+the arm's shape would make the ordering unstateable, and the ordering is
+the part users see.
+
+**A flat arm must not restate a refusal a door already gives.** That is
+where the rule bites, and `delete_node` already states it in the code:
+*an id the document does not hold takes the single-edit path so the
+typed refusal comes from the door rather than from here.* Pre-checking
+in layer 3 what `apply` refuses is two spellings of one rule, and the
+delegating arm exists to carry the door's answer unchanged.
+
+**A lookup is not a pre-check.** Opening a gesture on a parameter needs
+its dimension, and the range probe needs its value and unit; both look
+the parameter up whether or not an edit ever follows, so a flat arm is
+the honest answer when the lookup fails. What separates the two cases
+is whether an edit is about to be committed that would refuse on its
+own.
+
+### Gesture safety is data
+
+The mid-gesture policy is one exhaustive value,
+`SessionOp::permitted_during_value_gesture`, checked once in `perform`
+before dispatch: 26 operations refuse while a value gesture is open and
+13 are permitted. A fortieth operation cannot be added without
+answering for it, and the whole policy is readable in one place rather
+than inferred from every dispatch target.
+
+It says nothing about the free-move gesture, which is a different value
+with a different owner (`display::DisplayState`) and carries its own
+in-flight refusal. The name carries that limit deliberately: both
+fields are spelled `self.gesture`, and a predicate reading as a general
+guarantee would be a table that looks complete and is not.
+
+The table records behaviour rather than deciding it — `save` is
+permitted mid-gesture and `open` is refused, which is what the code did
+before the table existed. Whether that asymmetry is right is a separate
+question with its own item.
+
+### One open tool, not seven optional ones
+
+`Tools` holds one `Option<OpenTool>`, an enum with one variant per tool
+kind carrying that tool's state. Two tools open is not a state the door
+avoids, it is a state with no spelling: the invariant is unrepresentable
+rather than maintained. Each of the four per-tool rules is an arm of a
+match the compiler completes: the pick routing and the survival step
+match over the open value itself, the cursor narrowing
+(`ToolKind::pick_kinds`) and the close-on-commit edit
+(`ToolKind::commits`) over its kind. The read door
+is not one of the four — each typed accessor matches its own variant
+and answers `None` to every other, so a tool that never gets an
+accessor compiles. The `Seated` trait and its `seated!` invocation,
+which named five tool types by hand to erase them again, are gone with
+the erasure they existed for.
+
+`ToolKind::ALL` remains for the test suites that sweep the kinds, which
+are now its only readers: `Tools::open_kind` asks the open value which
+kind it is instead of scanning the list for the first field that is set,
+and the chrome names each kind it offers literally rather than
+iterating. A kind missing from `ALL` therefore narrows those sweeps
+rather than making its tool permanently unreachable. `ALL` is still the
+one list a compiler cannot force, and `ToolKind::ordinal` is still what
+makes its completeness checkable by a row.
+
+### What the boundary does not decide
+
+The rule says where things live. It does not say the wording family
+has one shape — recourse text is composed six ways across five modules,
+and `AtRestBadge` stores a refusal it has already stringified. Naming
+one shape for that family is a separate question, and the move above
+neither answers nor forecloses it.
 
 ## The three layers (G1)
 

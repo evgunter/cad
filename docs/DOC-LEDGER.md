@@ -644,6 +644,7 @@ at the parent of the commit that removed it):
 - `TCOST-K1-SPEC.md` — TCOST-K1 — the patch-flux lanes' exhausted-budget cost (removed in 9029480ee; PR 1652's body, `work/tcost/TCOST-K1.md` and the ordinal-1400 row are the record)
 - `TCOST-K2-SPEC.md` — TCOST-K2 — `offset_fit::fit_offset`'s per-station seconds: the Bernstein product weight, hoisted (last on `main` at 87d33648c; PR 1697's body, `work/tcost/TCOST-K2.md` and the ordinal-1401 row are the record)
 - `TCOST-K3-SPEC.md` — TCOST-K3 — the tier-3 gate's discarded certificate (last on `main` at 6381ebdd9; PR 1703's body, `work/tcost/TCOST-K3.md` and the ordinal-1402 row are the record)
+- `FILLET-H4-SPEC.md` — FILLET-H4 — the material-adding closed-rim band, incl. the Phase 1 re-scope (last on `main` at fc38f753b; PR 1752's body, `work/fillet/concave-closed-rim-has-no-band.md` and the ordinal-2000 row are the record)
 
 - `BOOL-1-SPEC.md` — BOOL-1 — issue 1152: coplanar-split section boundaries cite non-adjacent surfaces
 - `BOOL-2-SPEC.md` — BOOL-2 — issue 1011, the cone arm: point_in_solid learns ray×cone
@@ -756,3 +757,60 @@ residue), `PATHS-DESIGN` and `SELECT-DESIGN` (edited by live units this
 week), `MATE-7-TANGENCY-DESIGN` (ratified this week; the kissing arm
 banks on it). Reference and measurement records stay as sweep 3 left
 them.
+## Sweep 6 — 2026-09-04: VERBS leaves the tracker
+
+Sweep SHA: `c1e7ea19501d9e625dbd0de260d01a53a0384b42` — the closure
+dispositions commit, immediately before the deletion, so every path
+below is recoverable at
+`git show c1e7ea19501d9e625dbd0de260d01a53a0384b42:<PATH>`.
+
+Same rule as sweep 5: `work/` tracks work still to be done, so the
+closed program's directory leaves whole. One program, twenty files,
+`status: closed` with no live items:
+
+| program | title | closed | done-state of record |
+| --- | --- | --- | --- |
+| `verbs` | VERBS — the modeling-verb breadth program | 2026-09-04 | `docs/VERBS-EXIT-WALK.md` (ratified by Ev at PR #1793, merged `fd45920d5`; per-register-row disposition tables, the A/B instrument state at close, and the ten-item open list resolved at this sweep) |
+
+What the walk records: 28 delivered unit/PR rows (every implementation
+row of `docs/KERNEL-VERBS.md`), 2 measured-and-refused boundaries
+standing as done-states (the Steinmetz pinch family's typed refusal;
+the circle-profile rim's torus half), ~10 transfers, and the A/B
+program instrument at close (14 dual ordinals, 7 tally candidates
+pending the blinded coding, the 5.1 era boundary, the sample-number
+cascade note).
+
+### Residue — re-homed, not lost
+
+Before deletion, the dispositions commit closed
+`coplanar-cap-pair-f7-repair-half-b` (delivered by VERBS-1031B,
+PR #1671) and re-homed FOURTEEN live items to `work/issues/`:
+twelve open issues (among them `verbs-1031b-assigner-checker-
+divergence`, the parked `pinch-carrying-machinery-valence-4`, and
+the #1076/#347 register residue) plus `VERBS-C5ARMS` (PR-2
+cone×cylinder remains, spec `docs/VERBS-C5ARMS-SPEC.md`) and
+`VERBS-CONE` (operand lanes, never cut) converted to issues as
+successor-program seeds. Inbound refs re-pointed
+(`work/seat/SEAT-6.md`, `work/issues/sphere-flux-arm-refuses-
+partial-bands.md`, `work/props/m6-sense-gate-recorded-residuals.md`);
+`scripts/work.py lint` green. The A/B band (100–199) stays claimed
+in `docs/MODEL-AB-LOG.md`'s ordinal-bands section as always.
+
+## Per-merge deletion — DOCM-4's spec (2026-09-04)
+
+Recoverable at `git show c20bac059531ccfa00cded39f65ef53474f84e0d:docs/DOCM-4-SPEC.md`
+(the DOCM-4 unit head, before the state-sync commit that deleted it).
+The rule above; the unit's record is its row in `MODEL-AB-LOG.md`
+and its MERGED entry in `work/docm/log.md`.
+
+- `DOCM-4-SPEC.md` — DOCM-4, an evaluation carries its document's identity (#1808)
+
+## Per-merge deletion — DOCM-3's spec (2026-09-04)
+
+Recoverable at `git show d87d012149dfcbc917713ba8c18cbf505390040e:docs/DOCM-3-SPEC.md`
+(the DOCM-3 unit head, before the state-sync commit that deleted it;
+the file carries the stop-clause amendment as its last section). The
+rule above; the unit's record is its row in `MODEL-AB-LOG.md` and its
+MERGED entry in `work/docm/log.md`.
+
+- `DOCM-3-SPEC.md` — DOCM-3, `Node::Union`, `DocEdit::SetMembers`, pairwise-distinct inputs (#1803)

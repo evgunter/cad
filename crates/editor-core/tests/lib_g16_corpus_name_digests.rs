@@ -54,7 +54,19 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// equal. LIB-CORPUS-DIE registered it (as committed bytes the tour
 /// regenerates — `corpus::die_composed_tour`), so the hand
 /// measurement is now this number: forty-two rim arcs and twelve box
-/// edges named through twenty pairwise unions, in one pin.
+/// edges, in one pin.
+///
+/// **That number moved once, at DOCM-3, and it is the only row that
+/// did.** The die's cutting tool is one `Node::Union` over its 21 pips
+/// now instead of twenty chained pairwise unions, so every name in it
+/// below the tool is `FromMember { member, of }` — one segment, naming
+/// the pip — where it used to be a `FromA`/`FromB` descent as deep as
+/// the pip's position in the chain. The names are the whole of what
+/// moved: `docm3_union::the_dies_union_is_the_chain_it_replaced`
+/// asserts the tool's body is bit-identical to the chain's, face for
+/// face and description for description, in one document at one
+/// scalar. Every other row above and below is byte-identical, which is
+/// the receipt that the change is local to the die.
 ///
 /// Two more rows are worth a reader's second look, and neither is a bug.
 ///
@@ -129,7 +141,7 @@ const PINNED: &[(&str, u64)] = &[
     ("die_tool", 0x1826_addb_ac81_96b4),
     ("loft_prism", 0xb00f_c86f_2ce8_fcf6),
     ("die_composed", 0x9f65_6fe9_b3d7_6184),
-    ("die_composed_tour", 0xfcbc_3092_7d57_5aea),
+    ("die_composed_tour", 0xcaf7_c7bc_6bd5_0681),
     ("plate_param", 0xdf84_033a_2c18_1acc),
     ("kiss_carry", 0x8008_375b_ab91_3274),
     // LIB-TUBE. Both tables are minted by `name_revolve` — the

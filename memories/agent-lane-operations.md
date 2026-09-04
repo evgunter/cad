@@ -127,11 +127,15 @@ raw `cargo` invocations yourself.
   the next lane): "parent dead, lock still held" is the failure mode
   that looks identical to success from outside.
 - **A `CI-Config:` trailer is read from the PR-HEAD commit only — any
-  subsequent commit or merge VOIDS it silently back to sampling**
-  (met twice in one fix pass, ordinal 104). The filter reports
-  `CONFIG_SOURCE=...sampled` instead of `commit-trailer` — check that
-  field, and put the trailer on the FINAL head (an empty trailer-only
-  commit that says so in its message is the clean spelling).
+  subsequent commit or merge VOIDS it silently** (met twice in one fix
+  pass, ordinal 104). The filter reports `CONFIG_SOURCE=...unsampled` (or
+  `...sampled` for `klint`) instead of `commit-trailer` — check that field,
+  and put the trailer on the FINAL head (an empty trailer-only commit that
+  says so in its message is the clean spelling). **Since 2026-09-04 a voided
+  lane or eps trailer fails SAFE**: those two dimensions are no longer
+  sampled, so losing the trailer gives the run the whole matrix rather than
+  a different drawn point. A voided `klint=` trailer still falls back to a
+  draw.
 - **A CONFLICTING PR gets NO CI run — silently, and none retroactively
   once resolved.** GitHub skips the pull_request trigger while a PR is
   CONFLICTING; pushes during that window produce nothing, and merging
@@ -197,6 +201,18 @@ raw `cargo` invocations yourself.
 - An OOM-killed test shows as a bare "Terminated" single-row FAIL —
   check what else was running and rerun quiet before diagnosing a bug.
 
+**A piped command's exit status is the FILTER's.** Bash without
+`pipefail` reports the last command's status, so `cmd | tail -2`
+exits 0 whenever `tail` succeeds — whatever `cmd` did. A reviewer
+reported a script as "exits 0 on a usage error, so a lane gets a green
+with no build", filed it as first-hand, and was reading `tail`'s
+status through an unpipefailed pipe; the script had refused correctly
+with exit 2. **Read a subject's own output, not a pipeline's status** —
+`test result:`, `error[E0004]`, the words the tool prints — or set
+`set -o pipefail` before you trust a code. The same reviewer audited
+its other eight findings and none rested on an exit code, which is why
+the damage was one finding rather than the report.
+
 **The ways CI silently does not run.** An exhausted Actions SPENDING
 LIMIT kills every job seconds after creation — no steps, no logs,
 `failure` — which reads as runner loss; the tell is unrelated PRs'
@@ -218,11 +234,13 @@ origin/main immediately before opening a PR and whenever main moves;
 after any push, confirm jobs are actually RUNNING by reading the
 workflow **runs** list, not the PR's checks list; re-roll with a real
 code commit (an empty commit classifies docs-only); and verify coverage
-at the STEP level (`gh api .../jobs`, step conclusions). A missing row
+at the STEP level (`gh api .../jobs`, step conclusions). A missing k-lint row
 can be ASKED FOR rather than re-rolled for: a `CI-Config:
 klint=dev-probe` trailer on the head commit, or ci.yml's
-`workflow_dispatch` inputs, pin lane/eps/klint for one run
-(`docs/CI-MINUTES-2026-08.md`). **The run record is the instrument; the
+`workflow_dispatch` inputs, pin it for one run. **The same two spellings
+NARROW the lane and the eps rows rather than adding them** — since
+2026-09-04 a run gates all six lane/eps points by default, so
+`CI-Config: lane=interval` buys less gate, not more. **The run record is the instrument; the
 workflow source is not.**
 
 **Merging is destructive to checks — four rules, each guarding a silent
@@ -300,9 +318,24 @@ REF (`git push origin <sha>:refs/heads/<branch>`), or make the commit
 inside the lane's worktree while it is dead; never on the shared local
 ref. The lane then merges origin (merge-only) before its next push.
 
+**Where subagents share the orchestrator's checkout** (no per-lane
+worktree — the remote-session default), that hazard runs BOTH ways: a
+lane branching from the shared HEAD picks up the orchestrator's
+in-flight commits, and an orchestrator checkout or merge on the shared
+ref leaves the lane's own commit on no branch. Symptom: the lane
+reports a pushed sha the remote ref does not have, and any guard it
+ran (`work.py territory`, a test sweep) silently saw a tree without its
+work and reported a pass. The commit object survives — recover it with
+a merge, never a force-push, and confirm the remote ref actually moved.
+
 **The session scratchpad is SHARED between concurrently running agents
 of one session.** PR/issue bodies, logs and run artifacts go to
 LANE-PRIVATE paths (`~/.local/share/cad-work/<lane>-*.md`,
 `cad-work/<lane>/`), never the scratchpad — filenames alone leak, which
 makes it a blinding channel as well as a confusion one. Orchestrator
 briefs state this.
+- **The session scratchpad is SHARED across every lane a session spawns**
+  (`/tmp/claude-0/<project>/<session>/scratchpad/`): two concurrent
+  reviewer lanes writing `build.sh` there overwrote each other, and one
+  ran the other's script — a v6 item 5 glimpse. Every lane brief names
+  a private scratch directory of its own beside its private target dir.

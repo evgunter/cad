@@ -44,19 +44,60 @@ use topo::{Body, BooleanError, BooleanResultKind, ContactClass, ContactRecords};
 use crate::appearance::{self, AppearanceResolution};
 use crate::doc::Doc;
 use crate::expr::EvalError;
+use crate::ident::Mispaired;
 use crate::names::{NameTable, NamingError};
 use crate::node::{RecipeNodeId, SlotId, StableName};
 use crate::program::ProfileProgram;
 use geom_core::Tol;
 
 /// The result DAG (F2 verbatim, spec D2): a deterministic order plus a
-/// per-node result map, with the run's epoch, outcome, and the
-/// D4-acceptance recompute counters.
+/// per-node result map, with the run's epoch, the id of the document
+/// it is OF, its outcome, and the D4-acceptance recompute counters.
 #[derive(Debug)]
 pub struct Evaluation<T: Decide> {
     /// This evaluation's identity token (spec D5) — the caller's
     /// stale-result discrimination hook.
     pub epoch: Epoch,
+    /// **Which document this is an evaluation OF** (DI3): the id
+    /// [`Doc::id`] answered when the run started. Identity only, no
+    /// pin: within one document the per-node content keys decide
+    /// reuse, so the version half would cost a canonicalization per
+    /// run for a check the keys already make.
+    ///
+    /// THREE doors read this field to refuse a mispairing typed,
+    /// before reading anything of the value: [`product`](fn@crate::product)
+    /// (with its `_named` and `_recorded` siblings), [`crate::assemble`]
+    /// through them, and — for the solve's own twin of this stamp —
+    /// [`crate::mate::SolvedPoses::placement`]. The memo is the fourth
+    /// reader and refuses differently, below. Node ids alone could not
+    /// decide any of it: they are minted by a per-document counter, so
+    /// two documents built from one recipe carry the SAME ids for the
+    /// same nodes, and every lookup would hit.
+    ///
+    /// Other doors taking such a pair — `run_checks`,
+    /// `resolve::apply_with_names`, `stackup` and `sensitivities`,
+    /// `drive::certifying` — do NOT read it today (`assembly::mint` is
+    /// covered downstream by `product_recorded`); that gap is tracked
+    /// at
+    /// `work/docm/pair-doors-outside-the-three-do-not-check-document-identity`.
+    ///
+    /// The field is `pub` like every other field of this struct, so a
+    /// caller CAN restamp it. That is a deliberate act, not a slip, and
+    /// nothing downstream re-derives it.
+    pub document: crate::ident::DocumentId,
+    /// **A prior of another document, refused** (DI3): `Some` when
+    /// `evaluate` was handed a `prior` whose [`Evaluation::document`]
+    /// is not this document's, in which case the run had NO memo —
+    /// every node recomputed and [`Evaluation::reused`] is zero. The
+    /// payload is the same [`Mispaired`] the two erroring doors carry,
+    /// because the question is the same one.
+    ///
+    /// `evaluate` is total (it returns no `Result`) and [`EvalOutcome`]
+    /// is completed-or-canceled, so the refusal is recorded on the
+    /// value the caller already reads rather than pushed into an
+    /// outcome arm that would mean something else. `None` is both "no
+    /// prior" and "a prior of this document".
+    pub prior_refused: Option<Mispaired>,
     /// Deterministic topological order of the live nodes (spec D2:
     /// a pure function of the DAG; Kahn's algorithm, tiebreak
     /// `RecipeNodeId` ascending). Always the FULL order, even when
@@ -1668,7 +1709,10 @@ impl Default for EvalOptions {
 ///
 /// `prior` is the memo (spec D4): nodes whose content key matches the
 /// prior evaluation reuse the prior value without re-running the op;
-/// only the downstream cone of changed keys re-evaluates.
+/// only the downstream cone of changed keys re-evaluates. A prior of
+/// ANOTHER document is not a memo for this one (DI3): it is refused
+/// whole, recorded on [`Evaluation::prior_refused`], and the run
+/// recomputes every node.
 ///
 /// `cancel` is checked between nodes (sequential) or between levels
 /// (parallel) — spec D5's cooperative yield points at node
@@ -1717,13 +1761,25 @@ fn evaluate_at_descent<T>(
 where
     T: EvalScalar,
 {
+    // The memo's own door (DI3): a prior is a prior OF a document, and
+    // node ids are minted per document, so an evaluation of another
+    // document can collide on them and be mined for hits that are
+    // about other geometry. Refused HERE, once, before the schedule is
+    // even built — which is what makes the per-node lookup below
+    // (`prior.and_then(|p| p.nodes.get(&id))`) a lookup that cannot
+    // reach a foreign node, rather than a check repeated per node.
+    let (prior, prior_refused) =
+        match prior.and_then(|p| crate::ident::mispaired(doc.id(), p.document).map(|m| (p, m))) {
+            Some((_, refused)) => (None, Some(refused)),
+            None => (prior, None),
+        };
     let sched = schedule::schedule(doc);
     // D4 door (M4 PR 6): the recorded ε must BE the committed process
     // ε — otherwise every predicate below would silently decide at
     // the wrong tolerance. Refuse loudly, per node, staying total.
     let process_eps = tol.eps();
     if doc.epsilon().to_bits() != process_eps.to_bits() {
-        return refuse_tolerance_conflict(doc, sched, opts, process_eps);
+        return refuse_tolerance_conflict(doc, sched, opts, prior_refused, process_eps);
     }
     // The lane environment, built ONCE and shared by every reader
     // below (slot evaluation, the lift's second pass, the two profile
@@ -1734,7 +1790,7 @@ where
         None => doc.param_env::<T>(),
         Some(b) => match crate::analysis::param_env_over::<T, _>(doc, b) {
             Ok(env) => env,
-            Err(source) => return refuse_param_box(doc, sched, opts, source),
+            Err(source) => return refuse_param_box(doc, sched, opts, prior_refused, source),
         },
     };
     // The E4 seed rides the SAME environment (a seed is a separate act
@@ -1745,7 +1801,7 @@ where
         None => env,
         Some(name) => match crate::analysis::seed_env(doc, env, name) {
             Ok(env) => env,
-            Err(source) => return refuse_seed(doc, sched, opts, source),
+            Err(source) => return refuse_seed(doc, sched, opts, prior_refused, source),
         },
     };
     let parts = parts::PartCache::<T>::new(
@@ -1847,6 +1903,8 @@ where
 
     Evaluation {
         epoch: opts.epoch,
+        document: doc.id(),
+        prior_refused,
         order,
         nodes,
         outcome,
@@ -1862,15 +1920,18 @@ fn refuse_tolerance_conflict<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
+    prior_refused: Option<Mispaired>,
     process_eps: f64,
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     let document_eps = doc.epsilon();
-    refuse_every_node(doc, sched, opts, move || NodeErrorKind::ToleranceConflict {
-        document_eps,
-        process_eps,
+    refuse_every_node(doc, sched, opts, prior_refused, move || {
+        NodeErrorKind::ToleranceConflict {
+            document_eps,
+            process_eps,
+        }
     })
 }
 
@@ -1883,13 +1944,16 @@ fn refuse_param_box<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
+    prior_refused: Option<Mispaired>,
     source: crate::analysis::ParamBoxError,
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
-    refuse_every_node(doc, sched, opts, move || NodeErrorKind::ParamBox {
-        source: source.clone(),
+    refuse_every_node(doc, sched, opts, prior_refused, move || {
+        NodeErrorKind::ParamBox {
+            source: source.clone(),
+        }
     })
 }
 
@@ -1902,13 +1966,16 @@ fn refuse_seed<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
+    prior_refused: Option<Mispaired>,
     source: crate::analysis::SeedError,
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
-    refuse_every_node(doc, sched, opts, move || NodeErrorKind::Seed {
-        source: source.clone(),
+    refuse_every_node(doc, sched, opts, prior_refused, move || {
+        NodeErrorKind::Seed {
+            source: source.clone(),
+        }
     })
 }
 
@@ -1919,6 +1986,7 @@ fn refuse_every_node<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
+    prior_refused: Option<Mispaired>,
     kind: impl Fn() -> NodeErrorKind,
 ) -> Evaluation<T>
 where
@@ -1947,6 +2015,8 @@ where
     drop(states);
     Evaluation {
         epoch: opts.epoch,
+        document: doc.id(),
+        prior_refused,
         order,
         nodes,
         outcome: EvalOutcome::Completed,
@@ -2158,6 +2228,11 @@ where
     // is not separably re-derivable — and D9 makes the re-run's
     // geometry bit-identical, so re-running IS "reuse the geometry,
     // re-derive the names", spelled honestly.
+    //
+    // `prior` is an evaluation of THIS document: `evaluate_at_descent`
+    // drops a foreign one before the schedule is built (DI3), so this
+    // lookup cannot serve a coincidental id collision from another
+    // document.
     if let Some(NodeResult::Ok(v)) = prior.and_then(|p| p.nodes.get(&id))
         && v.content_key == content_key
         && v.naming_key == naming_key
@@ -2411,6 +2486,14 @@ where
         // quoted above a published tag is never taken back — so the
         // unpublished one moves. This is that rule applied to itself.
         Node::Datum(Datum::AxisInPlane { .. }) => 30,
+        // The n-ary union's tag. It does NOT share the pair union's 8: the two nodes carry different payloads (a list
+        // against two named operands and a `declare` slot) and mint
+        // different names, so a shared key would serve one's geometry
+        // and table for the other out of the memo. The member list
+        // itself is not written here — members are input EDGES, and
+        // the inputs' own keys carry them in list order below, which
+        // is the rule `Loft`'s profiles already run on.
+        Node::Union { .. } => 31,
     };
     // NODE-TAG-SPACE END
     h.write_tag(tag);
@@ -2639,6 +2722,10 @@ where
         | Node::Sweep { .. }
         | Node::Split { .. }
         | Node::Boolean { .. }
+        // The member list is edges, so the upstream keys carry it — in
+        // list order, and prefixed by its length, so neither a
+        // reordering nor a dropped member can alias another list.
+        | Node::Union { .. }
         | Node::Transform { .. } => {}
     }
     // Evaluated slot values, in the node's deterministic slot order.
@@ -3221,6 +3308,12 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             h.write_u64(u64::from(*of));
         }
     };
+    // SEG-TAG-SPACE BEGIN — the sentinel `seg_tag_space_is_injective`
+    // reads. Every segment tag lives INSIDE this match, written as a
+    // literal `write_tag(<number>)`; a tag written outside it is
+    // invisible to the census, so do not write one there. The nested
+    // closures above (qualifier, verdict, cap, meridian) have tag
+    // spaces of their OWN and are deliberately outside.
     match seg {
         RoleSeg::OutputBody => h.write_tag(1),
         RoleSeg::Cap(c) => {
@@ -3402,7 +3495,21 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             h.write_tag(39);
             feed_stable_name(h, n);
         }
+        // The n-ary union's member key. It does not share `FromA`'s
+        // 16: that would key a member's face and a pair operand's face
+        // identically.
+        // BOTH halves feed: two members of one union can be
+        // placements of ONE prototype and then carry the same inner
+        // name, so a key without the member edge would give their
+        // entities one key — the memo hazard this tag space exists to
+        // prevent.
+        RoleSeg::FromMember { member, of } => {
+            h.write_tag(41);
+            h.write_u64(member.0);
+            feed_stable_name(h, of);
+        }
     }
+    // SEG-TAG-SPACE END
 }
 
 #[cfg(test)]
@@ -3607,6 +3714,85 @@ mod verb_content_tag_tests {
                     .unwrap_or_default()
             );
             seen.push((tag, who));
+        }
+    }
+
+    /// **The SEGMENT tag space is injective too** — the same property
+    /// [`node_tag_space_is_injective`] holds for node tags, held for
+    /// [`feed_role_seg`]'s.
+    ///
+    /// It matters for the same reason and is a memo hazard of the same
+    /// class: two role segments sharing a tag make two different names
+    /// hash alike, and a content key that collides serves one node's
+    /// cached geometry for another's. `RoleSeg` is the enum this unit
+    /// grew (`FromMember`, tag 41) and it is the widest enum in the
+    /// crate, so the space had the most room to collide in and the
+    /// least to catch it with.
+    ///
+    /// A SOURCE census, for the reason the node one is: the tags live
+    /// in a match over `&RoleSeg`, and enumerating them by calling the
+    /// function would mean constructing one of every variant. The
+    /// sentinels bracket the match, every literal `write_tag(<number>)`
+    /// inside them is one segment tag, and nothing is hand-listed — a
+    /// tag added inside the sentinels is measured the moment it is
+    /// typed.
+    ///
+    /// What it cannot see, stated: a tag written outside the sentinels
+    /// (the sentinel comment says not to), and a tag whose arm computes
+    /// rather than names a number. Neither exists today. The nested
+    /// closures' tag spaces (qualifier, verdict, cap end, meridian end,
+    /// split half, rim support) are deliberately outside the region:
+    /// each is its own small space, keyed under a segment tag that this
+    /// census does hold unique.
+    #[test]
+    fn seg_tag_space_is_injective() {
+        const SOURCE: &str = include_str!("mod.rs");
+        let region = SOURCE
+            .split_once("SEG-TAG-SPACE BEGIN")
+            .expect("the segment match carries its opening sentinel")
+            .1
+            .split_once("SEG-TAG-SPACE END")
+            .expect("the segment match carries its closing sentinel")
+            .0;
+        // The same shared Rust reader the node census uses, so a tag
+        // number discussed in a comment or a string is not read as one.
+        let code_only = test_utils::source::code_and_literals(region);
+        let mut tags: Vec<(u8, usize)> = Vec::new();
+        for (n, code) in code_only.lines().enumerate() {
+            let Some(rest) = code.split_once("write_tag(") else {
+                continue;
+            };
+            let token: String = rest.1.chars().take_while(char::is_ascii_digit).collect();
+            if let Ok(tag) = token.parse::<u8>() {
+                tags.push((tag, n));
+            }
+        }
+        // A census that read nothing would pass vacuously. `RoleSeg`
+        // has 41 variants and every one writes a tag.
+        assert!(
+            tags.len() >= 41,
+            "the segment census found only {} tags — the sentinels or the scan have drifted from \
+             the match they are supposed to read",
+            tags.len()
+        );
+        // And the tag this unit added is in the region, which is what
+        // says the census is reading the match that grew.
+        assert!(
+            tags.iter().any(|(t, _)| *t == 41),
+            "`FromMember`'s tag 41 is not reachable from the segment match — the census is \
+             measuring the wrong region"
+        );
+        let mut seen: Vec<(u8, usize)> = Vec::new();
+        for (tag, line) in tags {
+            assert!(
+                !seen.iter().any(|(t, _)| *t == tag),
+                "segment tag {tag} is claimed twice: at region line {line} and at region line {}",
+                seen.iter()
+                    .find(|(t, _)| *t == tag)
+                    .map(|(_, l)| *l)
+                    .unwrap_or_default()
+            );
+            seen.push((tag, line));
         }
     }
 }

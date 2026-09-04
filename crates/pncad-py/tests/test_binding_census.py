@@ -561,6 +561,13 @@ BOUND_AS = {
     # `EditError` arms that share the tag namespace, so binding it
     # changed nothing about this entry except who noticed.
     #
+    # `InputFault` (DM5) is the same shape one door further: the rule
+    # is stated once on the node and rendered by three doors, and the
+    # two a Python caller can reach are edit doors, so it crosses as
+    # `EditError.variant` — `duplicate_input` and `too_few_members`.
+    # The third renderer is the load validator's `SnapshotError`, which
+    # this façade does not carry at all.
+    "InputFault": "EditError.variant",
     "NodeMap": "SplitOutcome.node_map",
     "PlacementRuleFault": "EditError.variant",
     "RootFault": "EditError.variant",
@@ -1408,6 +1415,20 @@ NOT_BOUND = {
     # neighbouring door whose opening would make this disposition stop
     # being honest, in exactly the shape `EvalOutcome`'s entry records.
     "Member": INTERIOR,
+    # DI3's pairing payload: the two document ids behind a refused
+    # pair — a prior the memo dropped (`Evaluation.prior_refused` on
+    # the Rust side), a gather handed the wrong evaluation, a solve
+    # handed the wrong document. Nothing in Python hands one out. The
+    # two ERRORING doors project their arm as a tag word
+    # (`evaluation_of_another_document`,
+    # `mate_poses_of_another_document`), which is what a Python caller
+    # branches on; the memo's arm is not an error at all, and the fact
+    # it records reaches Python where it always did, as
+    # `Evaluation.reused` being 0 with every node recomputed. Not a
+    # `gap:`: the debt, if there is one, is the `evaluate` door's
+    # PROSE about a foreign prior, which `pncad.pyi`'s own paragraph
+    # owns, not a missing binding for this payload.
+    "Mispaired": INTERIOR,
     "NameTable": INTERIOR,
     "Operand": INTERIOR,
     # The evaluation environment, and the entry that had been on the

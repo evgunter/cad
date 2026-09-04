@@ -84,12 +84,15 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
                                 runs ungated there; see JOB_ROOTS
   RUN_K_LINT=true|false         k-lint (gate) row
   LANE_ADVISORY=true|false      this diff touches `*interval*` files and this
-                                run gates the DEFAULT lane, so if interval
-                                semantics changed the author should ask for
-                                the other one. Advisory: nothing reads it to
+                                run was NARROWED to the default lane by a
+                                request, so if interval semantics changed the
+                                author narrowed away the axis they were
+                                changing. Advisory: nothing reads it to
                                 decide what runs (see below)
-  LANE=default|interval|both    which COMPILE MODE this run gates (see below)
-  EPS=default|<value>|all       which tolerance row this run gates
+  LANE=default|interval|both    which COMPILE MODE this run gates. `both`
+                                unless a request narrows it (see below)
+  EPS=default|<value>|all       which tolerance row(s) this run gates. `all`
+                                unless a request narrows it
   KLINT_ROW=<unification>|all   which of `k-lint (gate)`'s five feature
                                 unifications this run gates — drawn, or PINNED
                                 by a `tools/` change to the row that RUNS that
@@ -99,10 +102,10 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
                                 docs and for `all`>
   CONFIG_SOURCE=lane:<src> eps:<src> klint:<src>
                                 where each of the three values above came
-                                from: `sampled` (drawn from --seed),
-                                `unsampled` (no seed, so the whole matrix),
-                                `pinned` (lane or klint — `_forces_interval` /
-                                `_forces_klint` substituted it ahead of the
+                                from: `unsampled` (the whole dimension runs —
+                                always so for lane and eps), `sampled` (drawn
+                                from --seed; the k-lint row only), `pinned`
+                                (`_forces_klint` substituted it ahead of the
                                 draw), `requested` (--config) or
                                 `commit-trailer`
   TEST_FILTER=<nextest filterset expression>|<empty>
@@ -117,102 +120,159 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
                                 SEEDS, not on the closure; see
                                 `VIEWER_TOOLKIT_SEEDS`
 
-CONFIGURATION SAMPLING (2026-08-22, Ev's ask after the minutes audit).
-The hosted gate used to run every point of {default, interval} x {default,
-1e-6, 1e-12}. Those points almost always agree — that is the premise the
-`interval` feature's additivity gate and the runtime-eps contract both
-already assert — so the hosted gate now runs ONE point per run and lets
-repetition cover the matrix: with 60 runs/hour during active work, a
-break confined to one of the six points surfaces in minutes, and nothing
-is shipped, so a briefly red main is affordable.
+CONFIGURATION COVERAGE (2026-09-04, Ev's authorisation in chat: "feel free to
+reinstate full runs instead of sampling").
 
-SEEDED FROM THE COMMIT, NOT FROM RANDOMNESS. `--seed` takes the head SHA
-and the choice is `sha256(salt + seed) % len(choices)`. Two properties
+THE LANE AND THE EPS ROW ARE NOT SAMPLED. A hosted run gates EVERY point of
+{default features, `interval`} x {default eps, 1e-6, 1e-12}: this script
+prints `LANE=both` and `EPS=all` on every run, and ci.yml fans the three eps
+rows out as matrix legs over each of the two archives. A green run is a claim
+about all six points, which is what the job list shows — twelve `test (…)`
+jobs, each naming its lane, its eps row and its shard.
+
+WHAT THAT UNDOES. From 2026-08-22 to 2026-09-04 a run drew ONE of those six
+points from the head SHA and let repetition cover the rest. The premise was a
+scarce billed resource — `docs/CI-MINUTES-2026-08.md` opens with the Actions
+allowance being consumed faster than the work justified — and that premise
+died when the repository went public on 2026-09-03: standard-runner minutes
+are free and the runner is 4 vCPU / 16 GB (was 2 / 7). The sampling argument
+was sound and it was never free: each point gated about one run in six, so a
+break confined to one of them merged green and surfaced later, on a branch
+belonging to whoever next drew it. Nothing about the soundness argument
+changed; the thing it bought stopped having a price.
+
+WHY THIS IS AFFORDABLE, AND IT IS NOT A 6x MULTIPLIER. The nextest archive is
+built once per COMPILE MODE, and eps is RUNTIME env (CAD_TOLERANCE_EPS) read
+by bit-identical binaries — so six points are TWO builds and TWELVE test jobs,
+not six builds. Builds dominate; test legs are the cheap half. Measured on the
+4-vCPU runner, over the 72 code-tier runs of one 3.9-hour window: the whole
+matrix costs about **+15 job-minutes on a TIER=closure run and +19 on a
+TIER=all one**, against medians of 22 and 31.
+
+WALL CLOCK IS NOT FREE AND THE FIRST VERSION OF THIS NOTE SAID IT WAS. The eps
+legs do start together behind an archive that was already being built, but a
+run's wall follows their MAXIMUM, and the maximum of six legs is larger than
+the maximum of two: measured, ~+20 s of critical path on a run that would have
+drawn `interval` anyway, on top of the ~+172 s the interval archive adds to one
+that would have drawn `default` — about +96 s in expectation on a TIER=all run.
+The last job on that path is `test (interval, eps = default, 1/2)`, the first
+eps row's shard 1, which also carries the two editor-core steps.
+
+THE JOB-MINUTE FIGURES ARE FLOORS, NOT FORECASTS: three un-sampled runs came in
+at 54.0 / 44.4 / 49.7 job-minutes against a 30.6-minute TIER=all median. The
+population, the arithmetic and both corrections are in
+`docs/CI-MINUTES-2026-08.md`, under the 2026-08-22 sampling section this
+supersedes.
+
+THE K-LINT ROW IS STILL SAMPLED, and it is now the whole of what remains of
+the draw. `k-lint (gate)`'s five FEATURE UNIFICATIONS (see `KLINT_ROWS`) are
+drawn one per run under a salt of their own. The cost shape above does not
+hold for them: they are five separate COMPILES of demos/tour and the kernel
+crates sharing almost no artifacts, not one archive replayed under a different
+env var. That dimension was not re-costed here and is not covered by the
+authorisation above; it is filed as `work/ciw/klint-row-still-sampled.md`.
+
+SEEDED FROM THE COMMIT, NOT FROM RANDOMNESS. `--seed` takes the head SHA and
+the k-lint choice is `sha256(salt + seed) % len(choices)`. Two properties
 follow, and both are the point rather than side effects:
 
-  * A RE-RUN OF THE SAME COMMIT PICKS THE SAME POINT. True randomness
-    would let a re-run of a red gate come back green on a different
-    point, which reads as a flake and teaches a re-run habit that
-    launders real failures. Here a red commit stays red until someone
-    changes the tree.
-  * THE POINT IS RECOVERABLE FROM THE SHA ALONE, so "which configuration
-    gated this commit" is answerable after the fact, during a bisect,
-    without the run's logs.
+  * A RE-RUN OF THE SAME COMMIT PICKS THE SAME ROW. True randomness would let
+    a re-run of a red gate come back green on a different row, which reads as
+    a flake and teaches a re-run habit that launders real failures. Here a red
+    commit stays red until someone changes the tree.
+  * THE ROW IS RECOVERABLE FROM THE SHA ALONE, so "which k-lint unification
+    gated this commit" is answerable after the fact, during a bisect, without
+    the run's logs.
 
 `hashlib`, not `hash()`: the builtin is salted per process (PYTHONHASHSEED)
 and would break both properties on the first re-run.
 
-THE THIRD SAMPLED DIMENSION (2026-08-22) is `k-lint (gate)`'s five FEATURE
-UNIFICATIONS — see `KLINT_ROWS`. It is drawn under a salt of its own, like
-lane and eps, so all thirty points of the matrix stay reachable.
+AND IT IS THE DIMENSION WITH A PATH PIN (Ev's ruling, 2026-08-29). A change
+under `tools/` does not draw its k-lint row: `_forces_klint` substitutes the
+row that RUNS THAT CRATE'S OWN SUITE, from a mapping DERIVED off the job's own
+steps (`KLINT_PATH_ROWS`) — which is not the same as the row that compiles it,
+and the difference is written out there. `demos/` is deliberately not pinned
+and that scope decision is argued at the same site. The residue is stated
+there too and it is real: breakage in a path this mapping does not correlate
+still lands undrawn and persists until a later draw finds it, which is the
+sampling design's own argument. The pin narrows that hole; it does not close
+it.
 
-AND IT IS THE SECOND DIMENSION WITH A PATH PIN (Ev's ruling, 2026-08-29). A
-change under `tools/` does not draw its k-lint row: `_forces_klint` substitutes
-the row that RUNS THAT CRATE'S OWN SUITE, from a mapping DERIVED off the job's
-own steps (`KLINT_PATH_ROWS`) — which is not the same as the row that compiles
-it, and the difference is written out there. `demos/` is deliberately not pinned and that scope
-decision is argued at the same site. The residue is stated there too and it is
-real: breakage in a path this mapping does not correlate still lands undrawn
-and persists until a later draw finds it, which is the sampling design's own
-argument. The pin narrows that hole; it does not close it.
+NO SEED MEANS NO DRAW — KLINT_ROW=all. Fails OPEN into MORE work, matching
+every other signal here. `LANE` and `EPS` do not depend on the seed at all any
+more, so they read `both` / `all` either way.
 
-NO SEED MEANS NO SAMPLING — LANE=both, EPS=all, KLINT_ROW=all. Fails OPEN into MORE work,
-matching every other signal here. local-scripts/ci-local.sh passes no seed
-and therefore still runs the whole matrix: it is not billed by the minute,
-and with the hosted gate sampling, the local gate is now the only lane that
-runs every point of the matrix on one tree.
+LOCAL IS NO LONGER THE ONLY LANE THAT RUNS EVERY POINT, and that sentence used
+to be in this file, in `local-scripts/ci-local.sh` and in
+`docs/prompts/implementer-discipline.md`. `ci-local.sh` still runs both lanes
+and all three eps rows on one tree; so does the hosted gate now. What local
+still adds over hosted is the k-lint dimension (it runs all five rows) and its
+opt-in `--nightly` row.
 
-A PIN IS ANNOUNCED TWICE, AND NEITHER HALF IS OPTIONAL. `LANE` is not always
-drawn — `_forces_interval` pins it, ahead of the seed — nor is `KLINT_ROW`,
-which `_forces_klint` pins on the same terms, and a pin no reader can see is
-how a branch spends every run of its life on an axis nobody chose (#1122). Read
-`lane` for `klint` throughout the two bullets below: one wording, two
-dimensions, and the notice is composed once per pin in `main`.
+A PIN IS ANNOUNCED TWICE, AND NEITHER HALF IS OPTIONAL. `KLINT_ROW` is not
+always drawn — `_forces_klint` pins it, ahead of the seed — and a pin no
+reader can see is how a branch spends every run of its life on an axis nobody
+chose (#1122, which was the LANE's version of this before the lane stopped
+being chosen at all).
 
-  * `CONFIG_SOURCE=lane:pinned` on STDOUT. This is the half a machine and a
-    reader-after-the-fact get: `LANE=interval` reads identically whether the
-    seed chose it or the pin substituted it, so without this the run's own
-    outputs answer "which configuration gated this commit" with `lane:sampled`
-    over a lane no sample touched. It is a SOURCE, not a value — LANE stays
-    `interval` and no job condition reads CONFIG_SOURCE.
+  * `CONFIG_SOURCE=klint:pinned` on STDOUT. This is the half a machine and a
+    reader-after-the-fact get: `KLINT_ROW=dev-default` reads identically
+    whether the seed chose it or the pin substituted it, so without this the
+    run's own outputs answer "which configuration gated this commit" with
+    `klint:sampled` over a row no sample touched. It is a SOURCE, not a value
+    — KLINT_ROW stays `dev-default` and no job condition reads CONFIG_SOURCE.
   * THE REASON on STDERR, and into `--notices` when a caller asks for it. A
     path is not a matrix point and must not enter the KEY=value stream: both
     halves append stdout to $GITHUB_OUTPUT or read it with
     `IFS='=' read -r k v`, where one extra line would be one bogus output key.
-    THE WORDING LIVES HERE AND ONLY HERE. ci.yml used to restate both notices
+    THE WORDING LIVES HERE AND ONLY HERE. ci.yml used to restate the notices
     in its own prose so it could print them where a reader looks, and the two
-    copies drifted twice — one claimed the pin's reason always names a file
-    (the fail-closed arm names none), the other said "DEFAULT LANE DRAWN" over
-    a lane that had been requested. `--notices` is the relay that removed the
+    copies drifted twice — one claimed a pin's reason always names a file (the
+    fail-closed arm names none), the other said "DEFAULT LANE DRAWN" over a
+    lane that had been requested. `--notices` is the relay that removed the
     second copy.
 
-WHAT THE PIN NO LONGER COVERS, AND THE CONVENTION THAT REPLACED IT (Ev's
-ruling, 2026-08-29, on #1122). `_forces_interval` used to pin on any changed
-file whose BASENAME contained `interval`. That arm is gone: it could not tell
-a rename from a semantic edit, and it gated a whole branch on the wrong axis
-for its entire life because a type migration touched an interval-named test
-file. The lane is now asked for, by the author, who is the only party that
-knows: `CI-Config: lane=interval` on the head commit, or the dispatch input.
-`LANE_ADVISORY=true` plus a stderr note is all this script does about a
-name — it changes nothing about what runs. The rule itself lives in
-`docs/prompts/implementer-discipline.md`, which every lane reads; this
-message is a reminder of that rule, not a second copy of it.
+THE LANE IS NEITHER DRAWN NOR PINNED (2026-09-04). `_forces_interval` is gone
+with the draw it existed to pre-empt: it pinned `LANE=interval` for a change
+under `interval-transcendentals/` or an unresolvable file list, and a lane
+that always runs both compile modes has nothing left to pin. `#1122`'s ruling
+survives it in the only form that still has work to do — a filename is not
+evidence about semantics — as `_advises_interval`, which now fires in exactly
+one case: a run a REQUEST narrowed to `lane=default` over a diff touching
+`*interval*` files. Someone who narrowed away the axis their diff touches is
+the one reader that notice is still for. It changes nothing about what runs.
 
-REQUESTING A POINT INSTEAD OF DRAWING ONE (2026-08-28, Ev's ask). The draw
-is a DEFAULT, not a lock: someone who wants this tree gated at 1e-12, or at
-the k-lint row the draw keeps missing, says so and gets it. Two spellings,
-one applier, and the only thing either does is replace a drawn value before
-it is printed — no job condition, no matrix and no cache key reads anything
-but the LANE / EPS / KLINT_ROW lines, so a requested point runs the identical
-gate that point would have run had the SHA drawn it.
+NARROWING A RUN TO ONE POINT (2026-08-28, Ev's ask; repurposed and SPLIT
+2026-09-04). While the lane and eps draws existed, this was how someone ASKED
+for the point the draw kept missing, and the two spellings below were one
+applier because either could only substitute one drawn point for another.
+Un-sampled they are no longer the same act, so THEY NO LONGER HAVE THE SAME
+AUTHORITY:
 
-  --config lane=interval eps=1e-12 klint=dev-probe   THE INVOCATION says it.
-      ci.yml's `workflow_dispatch` inputs land here, so a run can be aimed at
-      a configuration with no commit and no push.
+  --config lane=interval eps=1e-12 klint=dev-probe   THE INVOCATION says it,
+      and it MAY NARROW. ci.yml's `workflow_dispatch` inputs land here, so a
+      run can be aimed at a configuration with no commit and no push — typed
+      by whoever is standing there now, which is what a deliberate narrowing
+      is.
   --config-from-message <file>                       THE COMMIT says it, in a
-      `CI-Config:` trailer line in the message (see `CONFIG_TRAILER`). ci.yml
-      reads the PR's HEAD commit, not the merge ref it is checked out at, so
-      what gates the run is what the author wrote.
+      `CI-Config:` trailer line in the message (see `CONFIG_TRAILER`), and it
+      is ADDITIVE-ONLY: it may name the k-lint row (that dimension is drawn,
+      so naming a row subtracts nothing) and it may name `lane=both` /
+      `eps=all`, which change nothing. It may not narrow. `WHOLE_BY_DEFAULT`
+      carries the rule and the argument; the short form is that a trailer is
+      COPIED rather than typed and rides one push with nobody standing over
+      it, so the failure it produces is a run gating LESS than an unmarked
+      one and looking identical. ci.yml reads the PR's HEAD commit, not the
+      merge ref it is checked out at, so what gates the run is what the
+      author wrote.
+
+Neither does anything but replace a value before it is printed — no job
+condition, no matrix and no cache key reads anything but the LANE / EPS /
+KLINT_ROW lines, so a narrowed run runs the identical gate that point runs
+inside a full one. A NARROWED RUN ANNOUNCES ITSELF ON THE RUN PAGE: ci.yml's
+`the configuration this run gates` step emits a `::warning::` annotation
+whenever LANE or EPS is not the whole dimension, which is the one channel that
+reaches a reader who never opens a job log.
 
 WHY BOTH, when either alone answers the ask. They fail at opposite ends. A
 dispatch cannot put its verdict on a pull request — its checks belong to the
@@ -220,18 +280,19 @@ run, not to the head commit's status — so it cannot be the thing a reviewer
 looks at before merging. A trailer cannot re-gate a commit that is already
 written, which is the whole of "that landed, now run it at 1e-12", because
 this repo does not rewrite history. And the trailer keeps the property the
-sampling was built around and a dispatch necessarily breaks: WHICH
-CONFIGURATION GATED THIS COMMIT IS RECOVERABLE FROM THE COMMIT. A dispatch's
-answer lives in one run's inputs, which is why CONFIG_SOURCE exists and why
-ci.yml prints it in a step that always runs.
+draw was built around and a dispatch necessarily breaks: WHICH CONFIGURATION
+GATED THIS COMMIT IS RECOVERABLE FROM THE COMMIT. A dispatch's answer lives in
+one run's inputs, which is why CONFIG_SOURCE exists and why ci.yml prints it
+in a step that always runs.
 
-PRECEDENCE is invocation over trailer over draw, PER DIMENSION: the flag was
-typed by whoever is standing here now, the trailer by whoever wrote the
-commit. A dimension nobody named is still drawn, so `--config eps=1e-12`
-means "1e-12, and surprise me twice".
+PRECEDENCE is invocation over trailer over the default, PER DIMENSION: the
+flag was typed by whoever is standing here now, the trailer by whoever wrote
+the commit. A dimension nobody names keeps its default — every lane and every
+eps row, and a drawn k-lint row — so `--config eps=1e-12` narrows one axis and
+leaves the rest whole.
 
 A REQUEST THAT NAMES NO REAL POINT IS A HARD FAILURE, not a fallback to the
-draw: an unknown key, an unknown value, a repeated key, a token that is not
+default: an unknown key, an unknown value, a repeated key, a token that is not
 `key=value`. This is the one place in this script that does not fail into
 more work, and the asymmetry is the point — every other failure here is an
 inability to classify, where running everything is the safe answer, while
@@ -239,11 +300,14 @@ this one is an INPUT ERROR whose author is standing there reading the result.
 Failing open would hand them a green run over a configuration they did not
 ask for, which is exactly the question they were asking.
 
-`eps=all` IS NOT A LEGAL REQUEST, though the no-seed path above prints it: it
-means "every row" to the local half, which loops over them, while the hosted
-eps rows put the value straight into CAD_TOLERANCE_EPS, where `all` is a
-parse error by design. `lane=both` and `klint=all` ARE legal — every job
-condition already spells those as "run every row of that dimension".
+`eps=all` IS A LEGAL REQUEST, AND WAS NOT BEFORE 2026-09-04. It used to mean
+"every row" to the local half, which loops over them, while the hosted eps
+rows put the value straight into CAD_TOLERANCE_EPS, where `all` is a parse
+error by design. The hosted half now expands `all` into three matrix legs
+before any value reaches that variable, and `all` is what this script prints
+when nobody narrows the dimension — so refusing it as a request while emitting
+it as the default would be incoherent. `lane=both` and `klint=all` are legal
+on the same terms; all three spell "every row of that dimension".
 
 THE PER-FILE TEST GATE (2026-09-02, S-TCOST lever 3; work/tcost/TCOST-1.md).
 A suite that exercises the logic of a few named source files runs on a
@@ -260,8 +324,8 @@ persists in the tree, and unsound for a detector of ABSENCE, which leaves no
 future red behind. A gated suite's break persists — the code it was written
 against is still wrong tomorrow — and the nightly's `--gated-set` row runs the
 WHOLE gated set ungated on any day main moved, so the longest a break confined
-to an unnamed path can hide is a day. This is the same argument the eps and
-lane sampling rest on, at a longer period, and `memories/test-suite-cost.md`
+to an unnamed path can hide is a day. This is the same argument the k-lint
+draw rests on, at a longer period, and `memories/test-suite-cost.md`
 already RULED the case for the first users: a fuzzer must be *"MARKED to run
 only on changes to the code it was written to test"*, and one that is not
 gated is a defect in the fuzzer.
@@ -279,8 +343,10 @@ runs, unscoped. It is for the dispatch aimed at a ref whose diff against a
 base is not the question — main after a merge, most often — where classifying
 against the default branch comes back empty. It is not a workaround for a
 base that is hard to name: with no file list the path-keyed signals fail
-CLOSED, so such a run certifies the oracle and reads `lane` as `interval`
-unless the request names a lane.
+CLOSED, so such a run certifies the oracle and pins `KLINT_ROW=all` unless the
+request names a row. The lane is not among those signals any more: every run
+gates both compile modes, so there is nothing left for an unresolvable file
+list to fail closed INTO.
 """
 
 from __future__ import annotations
@@ -829,19 +895,28 @@ VIEWER_TOOLKIT_SEEDS: frozenset[str] = frozenset({"viewer", "pncad", "bvh"})
 # to keep small.
 PNCAD_PY_SEEDS: frozenset[str] = frozenset({"pncad-py", "pncad", "editor-core"})
 
-# THE SAMPLED MATRIX. Both lists are the full set the hosted gate used to
-# run on every push; sampling picks one member of each per run.
+# THE MATRIX. Every point of LANES x EPS_ROWS runs on every hosted code-tier
+# run (2026-09-04); these two lists are also the legal values a request may
+# narrow a run to, and ci.yml's eps matrix legs are the same three rows.
 #
-# LANES are the two COMPILE MODES. `interval` is not a subset lane: when it
-# is drawn it runs the WHOLE suite, not the interval-gated difference, because
-# the default lane is not running that round and ~95% of the tests are shared.
-# (That is the opposite of what the pre-sampling gate wanted, where both lanes
-# ran and the overlap was pure re-execution.)
+# LANES are the two COMPILE MODES. `interval` is not a subset lane here: it
+# runs the WHOLE suite, not the interval-gated difference that
+# `scripts/interval-only-selection.py` computes for the local half. That
+# subtraction was correct when both lanes ran on every hosted push and the
+# overlap was pure re-execution; it was reverted for hosted on 2026-08-22
+# because a sampled run drew ONE lane and the subtracted ~93% would then have
+# been gated by nothing. Both lanes run again — so the subtraction's original
+# premise holds again and its reversal's does not. It stays reverted here:
+# restoring it would REDUCE what a run gates, which is a cost lever with its
+# own argument to make and not part of un-sampling. Filed as
+# work/ciw/interval-only-selection-premise-restored.md.
 LANES: tuple[str, ...] = ("default", "interval")
 
 # EPS rows straddle the compiled default (DEFAULT_EPS = 1e-9) three orders
 # either side, and `default` means the variable genuinely UNSET — an empty
 # CAD_TOLERANCE_EPS is a parse error by design (geom-core/src/tolerance.rs).
+# All three run on every hosted run, as three matrix legs over ONE archive:
+# eps is runtime env, so they execute bit-identical binaries.
 EPS_ROWS: tuple[str, ...] = ("default", "1e-6", "1e-12")
 
 # `k-lint (gate)`'s FIVE FEATURE UNIFICATIONS, sampled one per run
@@ -1015,61 +1090,20 @@ KLINT_PIN_ROOTS: tuple[str, ...] = tuple(
 # reds on an unnamed member rather than letting the guess stand.
 KLINT_PIN_FALLBACK = "dev-default"
 
-# WHEN THE INTERVAL LANE IS NOT LEFT TO CHANCE — AND THE NAME-SHAPED HALF THAT
-# NO LONGER IS (Ev's ruling, 2026-08-29, on #1122).
-#
-# This used to pin the lane on TWO signals. One was exact; the other guessed
-# from a filename, and the guess is gone.
-#
-#   * `interval-transcendentals/` STAYS. It is exact by construction: that
-#     tree is the interval backend's own workspace, so a change under it
-#     cannot be about anything else, and the crate's own guard jobs sit
-#     alongside this rather than depend on it.
-#   * An unresolved file list STAYS, and stays for the reason every other
-#     signal here fails closed: nothing can prove interval code held still
-#     when nothing is known about what changed.
-#   * `interval` ANYWHERE IN A BASENAME IS REMOVED. It matched a rename that
-#     touched `extrude_interval.rs` for three identifiers of an
-#     `EdgeGeometry` → `EdgeDescription` migration, and from then on every
-#     push of that branch was pinned to a lane nobody chose — a re-push is a
-#     fresh draw, but the pin ran first and short-circuited it, so the advice
-#     "re-push until the default lane lands" looped forever. The branch's
-#     whole subject was ~340 consumer sites, i.e. the default lane's battery,
-#     and it spent its entire life on the other axis. The rule could not tell
-#     a rename from a semantic edit, because a filename cannot.
-#
-# WHAT REPLACES IT IS A CONVENTION, NOT A HEURISTIC: whoever changed interval
-# semantics knows they did, and asks for the lane with a
-# `CI-Config: lane=interval` trailer on the head commit (or the dispatch
-# door). `_advises_interval` below is the reminder, not the mechanism — the
-# convention lives in `docs/prompts/implementer-discipline.md`, which every
-# lane reads, because a convention only a filter message states is one nobody
-# follows.
-#
-# AND THE PIN THAT REMAINS IS ANNOUNCED. It is not defeatable by re-pushing —
-# it runs before the seeded draw and short-circuits it — so `main` prints it
-# and its reason to stderr and `decorate` records `lane:pinned`, which is why
-# this returns the VALUE AND THE REASON rather than a bool.
-#
-# THE `(value, why)` SHAPE IS SHARED WITH `_forces_klint` ON PURPOSE. Both pins
-# feed one loop in `decorate` and one notice composer in `main`; a sibling that
-# returned only a reason would need its value hardcoded at each of those sites,
-# which is how a wording drifts from the thing it describes.
-def _forces_interval(files: list[str] | None) -> tuple[str, str] | None:
-    """`(lane, why)` when the lane is pinned, or `None` if it is drawn."""
-    # Fail CLOSED like every other signal here: an unresolved file list cannot
-    # prove interval code held still, so pin the lane rather than sample it.
-    if not files:
-        return ("interval", "the changed-file list could not be resolved")
-    for f in files:
-        if f.startswith("interval-transcendentals/"):
-            return ("interval", f"{f} is under interval-transcendentals/")
-    return None
+# THE LANE'S PIN STOOD HERE AND IS DELETED (2026-09-04). `_forces_interval`
+# substituted `LANE=interval` ahead of the seeded draw for a change under
+# `interval-transcendentals/`, or for a file list nothing could resolve. It
+# existed to stop a DRAW from missing the axis a change was about, and the
+# draw is gone: every run gates both compile modes, so the pin could only ever
+# re-state what the default already says, and a request naming `lane` beat it
+# anyway. What it can no longer do is what #1122 caught it doing — gate a
+# whole branch on one axis for its entire life, invisibly. `_advises_interval`
+# below is what survives of that ruling.
 
-
-# THE SAME SHAPE ONE DIMENSION OVER, and announced the same way: it runs before
-# the seeded draw and short-circuits it, so `main` prints the reason to stderr
-# and `decorate` records `klint:pinned`, which is why this returns the REASON
+# THE K-LINT ROW IS PINNED THE WAY THE LANE ONCE WAS, and announced the same
+# way: it runs before the seeded draw and short-circuits it, so `main` prints
+# the reason to stderr and `decorate` records `klint:pinned`, which is why this
+# returns the REASON
 # alongside the row rather than the row alone. The scope, the derivation and
 # the `demos/` exclusion are at `KLINT_PATH_ROWS`.
 def _forces_klint(files: list[str] | None) -> tuple[str, str] | None:
@@ -1119,11 +1153,14 @@ def _forces_klint(files: list[str] | None) -> tuple[str, str] | None:
 
 # THE ADVICE THAT REPLACED THE PIN. Same name-shaped observation, stripped of
 # the authority it should never have had: this changes NOTHING about what runs.
-# It exists because the ruling that removed the pin removed a reminder along
-# with it, and the case the pin was built for — someone edits interval
-# semantics, the draw goes the other way, and they find out two runs later —
-# is real even though the filename could not identify it. A name can raise the
-# question; only the author can answer it.
+# ITS POPULATION NARROWED TO ONE CASE WHEN THE LANE STOPPED BEING SAMPLED
+# (2026-09-04) and it is kept for that case rather than retired with the draw.
+# A default run gates both compile modes, so nobody can miss the interval lane
+# by accident any more; what remains is missing it ON PURPOSE — a
+# `CI-Config: lane=default` trailer, or a dispatch aimed at `lane: default`,
+# over a diff whose filenames say interval. That is someone narrowing away the
+# axis their own diff touches, and it is worth one line of stderr. A name can
+# raise the question; only the author can answer it.
 def _advises_interval(files: list[str] | None) -> list[str]:
     """EVERY changed file whose basename carries `interval`; empty if none.
 
@@ -1626,9 +1663,13 @@ def gated_check(root: str) -> int:
 def _sample(seed: str, salt: str, choices: tuple[str, ...]) -> str:
     """Deterministic choice from `choices`, keyed on (salt, seed).
 
-    Salted per dimension so lane and eps are drawn independently — an
-    unsalted second draw off the same seed would tie eps to lane and leave
-    2 of the 6 matrix points unreachable forever.
+    Salted per dimension. One dimension is drawn today (the k-lint row), so
+    the salt buys nothing on this tree and is kept for the next one: two
+    dimensions off one unsalted digest are the SAME number, which ties them
+    together and makes most of their product unreachable forever. That is
+    what it cost when lane, eps and the k-lint row were all drawn — 20 of 30
+    points — and it is a cost paid silently by whoever adds the second draw
+    back, which is why this is not simplified away with the draws that left.
     """
     digest = hashlib.sha256(f"{salt}\x00{seed}".encode()).digest()
     return choices[int.from_bytes(digest, "big") % len(choices)]
@@ -1643,14 +1684,17 @@ class ConfigError(Exception):
 # tuple plus whatever "every row of this dimension" is spelled as in the job
 # conditions that read it — `both` for the lane, `all` for the k-lint row.
 #
-# EPS HAS NO SUCH MEMBER, and the asymmetry is real rather than an oversight.
-# `EPS=all` is a LOCAL word: ci-local.sh loops the rows, while the hosted rows
-# interpolate the value into CAD_TOLERANCE_EPS, where `all` is a parse error
-# by design (geom-core/src/tolerance.rs). Requesting it hosted would ask for a
-# run whose test rows cannot start, so it is not offered.
+# EPS GAINED ITS MEMBER ON 2026-09-04, and the asymmetry it used to have is
+# worth recording because it was real rather than an oversight. `EPS=all` was
+# a LOCAL word: ci-local.sh loops the rows, while the hosted rows interpolated
+# the value straight into CAD_TOLERANCE_EPS, where `all` is a parse error by
+# design (geom-core/src/tolerance.rs) — so requesting it hosted asked for a run
+# whose test rows could not start. ci.yml now expands `all` into three matrix
+# legs and interpolates one ROW per leg, so nothing ever puts the word in the
+# variable, and `all` is what an un-narrowed run prints.
 CONFIG_DIMENSIONS: dict[str, tuple[str, tuple[str, ...]]] = {
     "lane": ("LANE", (*LANES, "both")),
-    "eps": ("EPS", EPS_ROWS),
+    "eps": ("EPS", (*EPS_ROWS, "all")),
     "klint": ("KLINT_ROW", (*KLINT_ROWS, "all")),
 }
 
@@ -1658,16 +1702,57 @@ CONFIG_DIMENSIONS: dict[str, tuple[str, tuple[str, ...]]] = {
 # accident: a git trailer at the START of a line, which prose about this
 # feature (indented, quoted, or mid-sentence) does not match. Case-insensitive
 # on purpose — `CI-config:` is a typo, and a typo that reads as "no request"
-# would put a sampled run in front of someone who asked for a chosen one, with
-# nothing anywhere saying their line was ignored.
+# would run a configuration nobody chose with nothing anywhere saying the line
+# was ignored.
 CONFIG_TRAILER = re.compile(r"^ci-config:[ \t]*(\S.*?)[ \t]*$", re.M | re.I)
 
+# THE DIMENSIONS WHOSE DEFAULT IS THE WHOLE DIMENSION, and the token that
+# spells it. `klint` is deliberately absent: its default is ONE DRAWN ROW, so
+# naming a row substitutes rather than subtracts and `all` adds.
+#
+# THIS TABLE IS WHAT MAKES THE TRAILER ADDITIVE-ONLY (2026-09-04). A TRAILER
+# MAY NEVER SHRINK THE GATE; a dispatch may.
+#
+# THE TWO SPELLINGS ARE OPPOSITES AND THE SECTION ABOVE ALREADY SAID SO — a
+# dispatch is typed by whoever is standing there now, a trailer by whoever
+# wrote the commit — and while both spellings could only SUBSTITUTE one drawn
+# point for another, that difference cost nothing. Un-sampled it decides the
+# question: a narrowing is an act someone takes deliberately, at the moment
+# they take it, which is a dispatch; a trailer is COPIED — out of an older
+# brief, an older spec, or a habit — and rides one push with nobody standing
+# over it. The failure mode that shape produces is a run gating LESS than it
+# would have gated with no line at all, which is the one outcome no mechanism
+# here may deliver silently.
+#
+# REFUSED, NOT IGNORED, and that is the same rule every other malformed
+# request here follows. Ignoring a trailer while running something else needs
+# a word for "requested and overruled" that `CONFIG_SOURCE` does not have, and
+# inventing one is a second mechanism next to the one that already works. The
+# author of a trailer IS standing there on the push that carries it — the
+# trailer lasts exactly one push, by design — so the red lands in front of the
+# person who wrote the line.
+#
+# WHAT IT REDS, said out loud: a head commit carrying `CI-Config: lane=interval`
+# or `eps=1e-12` now fails the classify step. That population is real — live
+# specs still instruct it (`work/issues/fillet-specs-require-a-narrowing-ci-config`)
+# — and the fix is to drop the line, which is one commit. A red naming the
+# dispatch is the cheapest discovery available; a notice inside one step of one
+# job is where notices go to die.
+WHOLE_BY_DEFAULT: dict[str, str] = {"lane": "both", "eps": "all"}
 
-def parse_config(tokens: list[str], source: str) -> dict[str, tuple[str, str]]:
+
+def parse_config(
+    tokens: list[str], source: str, additive_only: bool = False
+) -> dict[str, tuple[str, str]]:
     """`["lane=interval", ...]` -> `{"LANE": ("interval", source)}`, or raise.
 
     Raises rather than skipping: see the docstring's REQUEST section — an
     input error is the one failure here that must not fail open.
+
+    `additive_only` refuses any value that would gate LESS than no request at
+    all. It is a parameter rather than a test of `source` because the property
+    belongs to the CALLER's authority, not to the string it labels itself
+    with: `config_from_message` passes it, the invocation path does not.
     """
     legal_keys = ", ".join(sorted(CONFIG_DIMENSIONS))
     out: dict[str, tuple[str, str]] = {}
@@ -1684,6 +1769,14 @@ def parse_config(tokens: list[str], source: str) -> dict[str, tuple[str, str]]:
             raise ConfigError(
                 f"{source}: {key}={value!r} is not one of {', '.join(choices)}"
             )
+        if additive_only and key in WHOLE_BY_DEFAULT and value != WHOLE_BY_DEFAULT[key]:
+            raise ConfigError(
+                f"{source}: {key}={value} would NARROW this run — every {key} runs by "
+                f"default, so a trailer naming one gates LESS than no trailer at all. "
+                f"A trailer may only add: `{key}={WHOLE_BY_DEFAULT[key]}` is the one "
+                f"value it may name. To narrow deliberately, dispatch the workflow "
+                f"with the `{key}` input; to gate the whole matrix, delete the line."
+            )
         if out_key in out:
             raise ConfigError(f"{source}: {key} named twice; say it once")
         out[out_key] = (value, source)
@@ -1695,11 +1788,15 @@ def config_from_message(message: str) -> dict[str, tuple[str, str]]:
 
     Several trailer lines are read as one request, so a repeated dimension is
     the same error across lines as within one.
+
+    ADDITIVE-ONLY: see `WHOLE_BY_DEFAULT`. A trailer may substitute the k-lint
+    row (that dimension is drawn, so naming a row subtracts nothing) and may
+    say `lane=both` / `eps=all` (which change nothing); it may not narrow.
     """
     tokens: list[str] = []
     for line in CONFIG_TRAILER.findall(message):
         tokens.extend(line.split())
-    return parse_config(tokens, "commit-trailer")
+    return parse_config(tokens, "commit-trailer", additive_only=True)
 
 
 def decorate(
@@ -1815,61 +1912,59 @@ def decorate(
     else:
         seeds = set(s for s in res.get("SEEDS", "").split(",") if s)
         res["RUN_PNCAD_PY"] = "true" if seeds & PNCAD_PY_SEEDS else "false"
-    # Sampling is the LAST word and reads nothing above it: which point of
-    # the matrix a run gates is independent of which rows the change filter
-    # selected, and keeping the two apart is what lets the local gate consume
-    # the same output while ignoring these two keys entirely.
-    pins: dict[str, tuple[str, str] | None] = {"LANE": None, "KLINT_ROW": None}
+    # THE CONFIGURATION IS THE LAST WORD AND READS NOTHING ABOVE IT: which
+    # points of the matrix a run gates is independent of which rows the change
+    # filter selected, and keeping the two apart is what lets the local gate
+    # consume the same output while ignoring these keys entirely.
+    #
+    # LANE AND EPS DO NOT READ THE SEED AT ALL (2026-09-04). Every run gates
+    # every compile mode and every tolerance row; a request below is the only
+    # thing that narrows either.
+    pins: dict[str, tuple[str, str] | None] = {"KLINT_ROW": None}
+    res["LANE"], res["EPS"] = "both", "all"
     if seed is None:
-        res["LANE"], res["EPS"], res["KLINT_ROW"] = "both", "all", "all"
+        res["KLINT_ROW"] = "all"
     else:
-        # The pin is held rather than re-derived: it decides the lane AND it is
-        # what `CONFIG_SOURCE` reports below, and two calls could not disagree
-        # only because `_forces_interval` happens to be pure today.
-        pins["LANE"] = _forces_interval(files)
-        res["LANE"] = (
-            pins["LANE"][0] if pins["LANE"] is not None else _sample(seed, "lane", LANES)
-        )
-        res["EPS"] = _sample(seed, "eps", EPS_ROWS)
-        # A THIRD SALT, drawn off the same seed and independent of the other
-        # two. `_sample`'s docstring says why the salt is not optional: two
-        # dimensions off one unsalted digest are the same number, which would
-        # tie the k-lint row to the lane and leave 20 of the 30 points of this
-        # matrix unreachable for the rest of the project's life.
+        # SALTED, though it is now the only drawn dimension. `_sample`'s
+        # docstring says why: the salt is what made three draws off one seed
+        # independent, and dropping it now would tie any dimension added later
+        # to this one — a cost paid silently, by whoever adds it.
         #
-        # AND A PIN OVER IT, on the same terms as the lane's: held rather than
-        # re-derived, because it decides the row AND it is what `CONFIG_SOURCE`
-        # reports below.
+        # THE PIN IS HELD RATHER THAN RE-DERIVED, because it decides the row
+        # AND it is what `CONFIG_SOURCE` reports below; two calls could not
+        # disagree only because `_forces_klint` happens to be pure today.
         pins["KLINT_ROW"] = _forces_klint(files)
         res["KLINT_ROW"] = (
             pins["KLINT_ROW"][0] if pins["KLINT_ROW"] is not None
             else _sample(seed, "klint", KLINT_ROWS)
         )
     # THE REQUEST IS THE LAST WORD OF THE LAST WORD, and it is recorded in the
-    # same breath. A run that gates a point nobody drew is only honest if the
-    # output says so: CONFIG_SOURCE is per-dimension because the mixed case is
-    # the common one — one dimension asked for, the other two still drawn.
+    # same breath. A run that gates less than the whole matrix is only honest
+    # if the output says so: CONFIG_SOURCE is per-dimension because the mixed
+    # case is the common one — one dimension narrowed, the others whole.
     #
-    # This deliberately also overrides `_forces_interval`'s pin. The pin
-    # protects a SAMPLED run from skipping the lane the change is about;
-    # someone typing `lane=default` over an interval change has answered that
-    # question themselves, and CONFIG_SOURCE says `lane:requested` so the
-    # answer is legible in the run rather than inferred from the tree.
+    # `unsampled` IS THE WORD FOR "THE WHOLE DIMENSION RUNS", and it is now the
+    # standing value for lane and eps on every hosted run, not just the local
+    # half's seedless one. It was already that word before 2026-09-04 and is
+    # not re-spelled: a reader who learned it on a `ci-local.sh` run reads the
+    # same thing here, and the value beside it (`LANE=both`, `EPS=all`) says
+    # the same in the machine-readable half.
     source = dict.fromkeys(
-        (key for key, _ in CONFIG_DIMENSIONS.values()),
-        "sampled" if seed is not None else "unsampled",
+        (key for key, _ in CONFIG_DIMENSIONS.values()), "unsampled"
     )
+    if seed is not None:
+        source["KLINT_ROW"] = "sampled"
     # A PIN IS NOT A DRAW, AND THE MACHINE-READABLE OUTPUT HAS TO SAY WHICH.
-    # `LANE=interval` reads identically whether the seed chose it or
-    # `_forces_interval` substituted it, so a reader answering "which
-    # configuration gated this commit" off the outputs alone got `lane:sampled`
-    # for a lane no sample ever touched — the same invisibility #1122 is about,
-    # one level down from the stderr note. `pinned` is a SOURCE, not a value:
-    # LANE is still `interval`, and every job condition reads LANE.
-    # BOTH PINS ARE SOURCES, NOT VALUES, and both are overridden below by a
-    # request that names their dimension — `klint=release-budget` over a
-    # `tools/` diff is someone answering the pin's question themselves, and
-    # `klint:requested` is how the run says so.
+    # `KLINT_ROW=dev-default` reads identically whether the seed chose it or
+    # `_forces_klint` substituted it, so a reader answering "which
+    # configuration gated this commit" off the outputs alone got
+    # `klint:sampled` for a row no sample ever touched — the same invisibility
+    # #1122 is about, one level down from the stderr note. `pinned` is a
+    # SOURCE, not a value: KLINT_ROW is still `dev-default`, and every job
+    # condition reads KLINT_ROW. It is overridden below by a request that names
+    # the dimension — `klint=release-budget` over a `tools/` diff is someone
+    # answering the pin's question themselves, and `klint:requested` is how the
+    # run says so.
     for out_key, held in pins.items():
         if held is not None:
             source[out_key] = "pinned"
@@ -1881,10 +1976,14 @@ def decorate(
     )
     # THE ADVISORY, AND WHY IT IS COMPUTED LAST. It fires only when this run is
     # NOT going to gate the interval lane, which is knowable only after the
-    # pin, the draw and the request have all had their say — advising someone
-    # to ask for a lane the run already gates is noise, and noise is how a real
-    # notice stops being read. A BOOLEAN, not the reason: the reason is a path,
-    # and a path has no business in a stream both halves parse as KEY=value.
+    # request has had its say — advising someone to ask for a lane the run
+    # already gates is noise, and noise is how a real notice stops being read.
+    # Since 2026-09-04 `LANE` is `default` only when a request made it so, so
+    # this condition now selects exactly the narrowed run; it is left as a test
+    # of the VALUE rather than of the source, because what makes the notice
+    # worth printing is that the interval lane is not running.
+    # A BOOLEAN, not the reason: the reason is a path, and a path has no
+    # business in a stream both halves parse as KEY=value.
     res["LANE_ADVISORY"] = (
         "true"
         if res["LANE"] == "default" and _advises_interval(files)
@@ -2380,7 +2479,7 @@ def selftest() -> None:
 
     with tempfile.TemporaryDirectory() as t:
         _plant_fixture(t)
-        _selftest_lane_pin(t)
+        _selftest_lane_unsampled(t)
         _selftest_klint_pin(t)
     # --- THE REQUEST PATH THROUGH THE CLI. `_selftest_config` covers the
     # applier as a function; what only a subprocess can show is the wiring —
@@ -2401,18 +2500,25 @@ def selftest() -> None:
                 _selftest_invoke(t, ["--files", "-", "--seed", "deadbeef",
                                      "--config-from-message", "msg.txt"],
                                  "crates/geom-core/src/lib.rs\n"),
-                {"LANE": "both", "CONFIG_SOURCE": "lane:commit-trailer eps:sampled klint:sampled"})
+                {"LANE": "both",
+                 "CONFIG_SOURCE": "lane:commit-trailer eps:unsampled klint:sampled"})
         err = _selftest_invoke_must_fail(
             t, ["--files", "-", "--seed", "deadbeef", "--config", "eps=1e-13"],
             "crates/geom-core/src/lib.rs\n")
         if "1e-13" not in err:
             raise SystemExit(f"SELFTEST FAILED: the refusal must name the value refused: {err!r}")
+        # `--force-all` takes no diff, so the path-keyed signals fail CLOSED:
+        # the oracle tier runs and the k-lint row pins to `all`. The LANE is
+        # not one of them any more — it is `both` because it is always `both`,
+        # which is what the old `interval` expectation here was standing in
+        # for.
         _expect("--force-all must return the all tier with no diff taken",
                 _selftest_invoke(t, ["--force-all", "--seed", "deadbeef"]),
                 {"TIER": "all", "RUN_BUILD": "true", "RUN_INTERVAL_ORACLE": "true",
-                 "LANE": "interval"})
+                 "LANE": "both", "KLINT_ROW": "all"})
 
     _selftest_docs_premise()
+    _selftest_eps_rows_workflow()
     _selftest_klint_premise()
     _selftest_klint_workflow()
     _selftest_sampling()
@@ -2431,18 +2537,20 @@ def selftest() -> None:
         "executes, including one named by a spelling the scan cannot resolve; "
         "the closure follows dev-dependency "
         "edges upward only; the oracle signal fires on certified sources and lockfile and "
-        "not on their prose; the three sampled dimensions fail open with no seed, "
-        "repeat under the same seed, and are drawn independently enough that every one "
-        "of the 30 matrix points is reachable; the interval-transcendentals/ lane pin "
-        "beats a draw that went the other way, says so on stderr naming the file that "
-        "pinned it, is recorded as `lane:pinned` in CONFIG_SOURCE so the outputs alone "
-        "tell a pin from a draw, keeps the reason off stdout, stays out of unpinned and "
-        "unseeded runs, and goes quiet in both channels when a request overrides it, "
-        "while a merely interval-NAMED file draws its lane like anything else and "
-        "raises LANE_ADVISORY with the spelling of the request instead — naming every "
-        "such file rather than the first, saying whether the lane was drawn or "
-        "requested, and staying silent on a run already gating interval, on an "
-        "unseeded run, and on a diff naming no such file; the tools/ k-lint-row pin "
+        "not on their prose; the LANE and the EPS row are not sampled — `both` and "
+        "`all` on every run, seeded or not, over 4000 seeds and over the two file "
+        "lists that used to pin or advise, recorded as `lane:unsampled eps:unsampled` "
+        "so the value and the source agree, and ci.yml's eps matrix literal is "
+        "re-derived against EPS_ROWS rather than kept in step by a comment; the "
+        "k-lint row is the one drawn "
+        "dimension and fails open with no seed, repeats under the same seed and "
+        "reaches all five rows; a request NARROWS either un-sampled dimension, is "
+        "recorded as `requested`, and `eps=all` is legal because it is what an "
+        "un-narrowed run prints; LANE_ADVISORY fires on exactly the run a request "
+        "narrowed to the default lane over interval-named files — naming every such "
+        "file rather than the first and saying it was narrowed — and stays silent on "
+        "an un-narrowed run, an unseeded run and a diff naming no such file; the "
+        "tools/ k-lint-row pin "
         "substitutes the row DERIVED as RUNNING THE SUITE of what changed — every "
         "member of every pinned root has such an entry, every entry names a real "
         "directory and a real row, and the derivation is re-run against ci.yml itself, "
@@ -2453,12 +2561,17 @@ def selftest() -> None:
         "back to the most-testing row rather than to the draw on an unmapped tools/ "
         "path and says that it did, fails closed into every row when the change set "
         "cannot be resolved, yields to a requested row from either spelling, and "
-        "leaves demos/ and every ordinary diff to DRAW; --notices carries all three "
-        "notices to a relay file and is truncated when there is none; and a "
+        "leaves demos/ and every ordinary diff to DRAW; --notices carries the k-lint "
+        "pin's reason and the lane advisory to a relay file and is truncated when there "
+        "is none; and a "
         "configuration REQUESTED by hand "
         "— by flag or by `CI-Config:` commit trailer — reaches the dimension it names "
-        "and only that one, beats the interval pin, is recorded in CONFIG_SOURCE, and "
-        "reds the step rather than falling back to the draw when it names no real point; "
+        "and only that one, beats the k-lint pin, is recorded in CONFIG_SOURCE, and "
+        "reds the step rather than falling back to the draw when it names no real point "
+        "— while the TRAILER spelling is additive-only, refusing every value of every "
+        "whole-by-default dimension that would gate less than no trailer at all, in a "
+        "refusal that says so and names the dispatch, and keeping every k-lint row it "
+        "could always name; "
         "and the per-file test gate excludes a gated suite whose named paths and own file "
         "are all untouched — reading the module prefix out of the crate\'s tests/all.rs "
         "rather than off the filename, and the src/ shape off the module path — while "
@@ -2685,24 +2798,33 @@ def _selftest_gated() -> None:
 
 
 def _selftest_sampling() -> None:
-    """THE THREE DRAWS, and the one property that cannot be seen by reading a
-    single run's output: INDEPENDENCE.
+    """THE ONE DRAW LEFT, THE TWO DIMENSIONS THAT NO LONGER HAVE ONE, and the
+    property that cannot be seen by reading a single run's output.
 
-    A wrong salt here does not fail loudly. Every run still prints a lane, an
-    ε and a k-lint row, every one of them is a legal value, and the gate goes
-    green for as long as anyone cares to look — but the same digest feeding
-    two dimensions makes them one dimension, and the points that pairing
-    excludes are then unreachable FOREVER rather than rare. That is the exact
-    shape of failure the sampling premise cannot survive: "repetition covers
-    the matrix" is false about a point no seed can draw.
+    TWO CLAIMS, AND NEITHER SURVIVES BY INSPECTION.
 
-    So this walks synthetic seeds and requires the whole product to appear.
-    It is deterministic — the seeds are counted, not random — so it cannot
-    flake, and it is in-process because `decorate` is a pure function of
-    (result, files, seed) and a subprocess would only be slower.
+    THAT LANE AND EPS ARE NOT SAMPLED (2026-09-04). A re-introduced draw on
+    either would not fail loudly: every run would still print a legal `LANE=`
+    and `EPS=`, every job condition would still read them, and the gate would
+    stay green while covering a sixth of what it says it covers. So the seeded
+    path is walked over 4000 seeds and required to answer `both` / `all` every
+    time — the same walk that used to prove the draws were independent now
+    proves that two of the three are gone.
+
+    THAT THE K-LINT DRAW IS STILL INDEPENDENT. A wrong salt does not fail
+    loudly either: the run prints a legal row and the gate is green for as
+    long as anyone cares to look, while the points a shared digest excludes
+    are unreachable FOREVER rather than rare. That is the exact shape of
+    failure the k-lint sampling premise cannot survive: "repetition covers the
+    rows" is false about a row no seed can draw. One dimension cannot collide
+    with another today, so what this checks is that every row is reachable.
+
+    Deterministic — the seeds are counted, not random — so it cannot flake,
+    and in-process because `decorate` is a pure function of (result, files,
+    seed) and a subprocess would only be slower.
     """
-    # A file list that does not PIN the lane: `_forces_interval` is a floor
-    # over the sampling and would make every draw here `interval`.
+    # A file list that pins no k-lint row: `_forces_klint` is a floor over the
+    # draw and would make every seed here answer the same row.
     files = ["crates/geom-core/src/lib.rs"]
     base = {"TIER": "closure", "PKGS": "geom-core", "CARGO_SCOPE": "-p geom-core"}
 
@@ -2714,177 +2836,156 @@ def _selftest_sampling() -> None:
 
     one = decorate(dict(base), files, "deadbeef")
     two = decorate(dict(base), files, "deadbeef")
-    if (one["LANE"], one["EPS"], one["KLINT_ROW"]) != (two["LANE"], two["EPS"], two["KLINT_ROW"]):
-        raise SystemExit("SELFTEST FAILED: the same seed drew two different points — the draw is "
-                         "not a function of the SHA, so a re-run of a red gate can come back green")
+    if one["KLINT_ROW"] != two["KLINT_ROW"]:
+        raise SystemExit("SELFTEST FAILED: the same seed drew two different k-lint rows — the "
+                         "draw is not a function of the SHA, so a re-run of a red gate can come "
+                         "back green")
 
-    seen: set[tuple[str, str, str]] = set()
+    seen: set[str] = set()
     for i in range(4000):
         d = decorate(dict(base), files, f"{i:040x}")
-        seen.add((d["LANE"], d["EPS"], d["KLINT_ROW"]))
-    want_points = {(ln, e, k) for ln in LANES for e in EPS_ROWS for k in KLINT_ROWS}
-    missing = want_points - seen
+        if (d["LANE"], d["EPS"]) != ("both", "all"):
+            raise SystemExit(
+                "SELFTEST FAILED: a seed changed the lane or the eps row — got "
+                f"LANE={d['LANE']!r} EPS={d['EPS']!r} at seed {i:040x}, want 'both' / 'all'. "
+                "Those two dimensions are NOT sampled (2026-09-04, Ev's authorisation): every "
+                "run gates every compile mode and every tolerance row, and a draw here would "
+                "silently return the gate to one point in six")
+        if d["CONFIG_SOURCE"].split()[:2] != ["lane:unsampled", "eps:unsampled"]:
+            raise SystemExit(
+                "SELFTEST FAILED: an un-narrowed run reported its lane or eps as something "
+                f"other than `unsampled` — {d['CONFIG_SOURCE']!r}. The value and the source "
+                "have to agree, or a reader answering `which configuration gated this commit` "
+                "off the outputs gets two different answers")
+        seen.add(d["KLINT_ROW"])
+    missing = set(KLINT_ROWS) - seen
     if missing:
         raise SystemExit(
-            "SELFTEST FAILED: over 4000 seeds these matrix points were never drawn: "
-            f"{sorted(missing)}. Two dimensions sharing a salt (or one drawn without "
-            "one) collapse into a single number and make part of the product "
-            "unreachable — check `_sample`'s salt argument at every call site in "
-            "`decorate`")
+            "SELFTEST FAILED: over 4000 seeds these k-lint rows were never drawn: "
+            f"{sorted(missing)}. A dimension drawn without a salt, or sharing one with "
+            "another, collapses into a single number and makes part of the product "
+            "unreachable — check `_sample`'s salt argument at its call site in `decorate`")
 
 
-def _selftest_lane_pin(t: str) -> None:
-    """THE PIN THAT REMAINS, THE ONE THAT WAS REMOVED, AND THE ADVICE IN ITS PLACE.
+def _selftest_lane_unsampled(t: str) -> None:
+    """THAT THE LANE AND THE EPS ROW ARE NOT CHOSEN FOR YOU, AND THE ONE NOTICE
+    THAT SURVIVED THEIR DRAW.
 
-    `_forces_interval` runs BEFORE the seeded draw and short-circuits it, so a
-    branch that trips it is on the interval lane for every push it ever makes.
-    For `interval-transcendentals/` that is right — the tree is the backend's
-    own workspace. For a BASENAME it was not, and Ev's ruling on #1122
-    removed that arm: it gated a type migration's whole branch on the wrong
-    axis because the rename touched an interval-named test file.
+    THE PIN AND THE DRAW ARE BOTH GONE (2026-09-04). `_forces_interval` used to
+    run BEFORE the seeded draw and short-circuit it, so a branch that tripped
+    it was on the interval lane for every push it ever made; #1122 is what that
+    cost when the trip was a filename. Both are now unreachable states rather
+    than removed code paths, and an unreachable state is exactly what a reading
+    of this file cannot confirm — every run still prints a `LANE=` line, and a
+    restored pin or draw would print a legal one. So the cases below assert the
+    NEGATIVE, on the two file lists that used to trip the pin and the advisory:
+    `interval-transcendentals/` and an interval-named source.
 
-    So the cases below fix BOTH directions of that ruling, because only one of
-    them is testable by the code that replaced it: that the exact arm still
-    pins and still says so, and that a basename now DRAWS and merely ADVISES.
-    Without the second case, restoring the deleted arm would pass this file.
+    WHAT SURVIVES IS THE ADVISORY, on a population of one: a run someone
+    NARROWED to `lane=default` over a diff whose filenames say interval. It
+    changes nothing about what runs and never did; what changed is that it can
+    no longer be talking to someone who did not choose the lane.
     """
-    # The seed is FOUND, not hardcoded: the pinned case only tests the pin if
-    # the draw it overrode was `default`, and a literal SHA here would stop
-    # being that the moment `LANES` or the salt moved.
-    seed = next(
-        s for s in (f"{i:040x}" for i in range(1000))
-        if _sample(s, "lane", LANES) == "default"
-    )
+    # ANY seed: the point of the first two cases is that the seed cannot reach
+    # the lane or the eps row at all. `deadbeef` is not special and nothing
+    # here searches for a seed that draws a value, because there is no draw to
+    # search — a case that needed one would be evidence the change regressed.
+    seed = "deadbeef"
 
-    pinned = _selftest_run(t, ["--files", "-", "--seed", seed],
-                           "interval-transcendentals/src/lib.rs\n")
-    if "LANE=interval" not in pinned.stdout.splitlines():
-        raise SystemExit("SELFTEST FAILED: a change under interval-transcendentals/ did not pin "
-                         f"the lane\n{pinned.stdout}")
-    if "PINNED" not in pinned.stderr or "interval-transcendentals/src/lib.rs" not in pinned.stderr:
-        raise SystemExit("SELFTEST FAILED: the lane was pinned and the run did not say so, or "
-                         f"did not name the file that pinned it\nstderr: {pinned.stderr!r}")
-    if "PINNED" in pinned.stdout:
-        raise SystemExit("SELFTEST FAILED: the pin note reached STDOUT, where both halves read "
-                         f"KEY=value lines\n{pinned.stdout}")
-    if "CONFIG_SOURCE=lane:pinned eps:sampled klint:sampled" not in pinned.stdout.splitlines():
-        raise SystemExit("SELFTEST FAILED: a pinned lane was recorded as something other than "
-                         f"`lane:pinned` — the outputs cannot tell a pin from a draw\n{pinned.stdout}")
+    exact = _selftest_run(t, ["--files", "-", "--seed", seed],
+                          "interval-transcendentals/src/lib.rs\n")
+    if "LANE=both" not in exact.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: a change under interval-transcendentals/ did not gate "
+                         f"both lanes — this run gates one\n{exact.stdout}")
+    if "PINNED" in exact.stderr or "lane:pinned" in exact.stdout:
+        raise SystemExit("SELFTEST FAILED: the lane was PINNED. `_forces_interval` was deleted "
+                         "with the draw it pre-empted; a pin here means a run gating one compile "
+                         f"mode again\n{exact.stdout}\nstderr: {exact.stderr!r}")
+    if "CONFIG_SOURCE=lane:unsampled eps:unsampled klint:sampled" not in exact.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: a seeded run reported its lane or eps as sampled or "
+                         f"pinned — neither dimension reads the seed\n{exact.stdout}")
 
-    # THE REMOVED ARM, ASSERTED AS REMOVED. `ring_interval.rs` is the shape the
-    # old rule matched — an interval-named source, not a rename victim — so if
-    # anything ever pins on a basename again, it pins here.
-    advised = _selftest_run(t, ["--files", "-", "--seed", seed],
-                            "crates/topo/src/ring_interval.rs\n")
-    if "LANE=default" not in advised.stdout.splitlines():
-        raise SystemExit("SELFTEST FAILED: a basename carrying `interval` pinned the lane — that "
-                         f"arm was REMOVED by the #1122 ruling; the lane is asked for\n{advised.stdout}")
-    if "lane:pinned" in advised.stdout or "PINNED" in advised.stderr:
-        raise SystemExit("SELFTEST FAILED: a basename-only match was announced as a pin\n"
-                         f"{advised.stdout}\nstderr: {advised.stderr!r}")
-    if "LANE_ADVISORY=true" not in advised.stdout.splitlines():
-        raise SystemExit("SELFTEST FAILED: a diff touching *interval* files under a default lane "
-                         f"raised no advisory — the ruling replaced the pin with one\n{advised.stdout}")
-    if "CI-Config: lane=interval" not in advised.stderr:
-        raise SystemExit("SELFTEST FAILED: the advisory did not say HOW to ask for the lane, which "
-                         f"is the whole of the convention it points at\nstderr: {advised.stderr!r}")
-
-    # THE ADVISORY GOES QUIET WHERE IT WOULD BE NOISE — a run already gating
-    # `interval` needs no advice to ask for it, and an advisory that fires on
-    # runs it has nothing to say to is one nobody reads on the run it does.
-    interval_seed = next(
-        s for s in (f"{i:040x}" for i in range(1000))
-        if _sample(s, "lane", LANES) == "interval"
-    )
-    quiet = _selftest_run(t, ["--files", "-", "--seed", interval_seed],
+    # THE BASENAME CASE, ASSERTED TWICE OVER. `ring_interval.rs` is the shape
+    # the deleted arm matched — an interval-named source, not a rename victim —
+    # so if anything ever pins on a basename again, it pins here. And the
+    # advisory must stay QUIET: this run gates the interval lane, and an
+    # advisory that fires where it has nothing to say is one nobody reads where
+    # it does.
+    named = _selftest_run(t, ["--files", "-", "--seed", seed],
                           "crates/topo/src/ring_interval.rs\n")
-    if "LANE_ADVISORY=false" not in quiet.stdout.splitlines():
+    if "LANE=both" not in named.stdout.splitlines() or "lane:pinned" in named.stdout:
+        raise SystemExit("SELFTEST FAILED: a basename carrying `interval` moved the lane — that "
+                         f"arm was REMOVED by the #1122 ruling and the draw is gone\n{named.stdout}")
+    if "LANE_ADVISORY=false" not in named.stdout.splitlines():
         raise SystemExit("SELFTEST FAILED: the advisory fired on a run already gating the interval "
-                         f"lane\n{quiet.stdout}")
+                         f"lane\n{named.stdout}")
 
-    drawn = _selftest_run(t, ["--files", "-", "--seed", seed],
-                          "crates/topo/src/lib.rs\n")
-    if "LANE=default" not in drawn.stdout.splitlines():
-        raise SystemExit("SELFTEST FAILED: an ordinary basename did not fall through to the "
-                         f"draw\n{drawn.stdout}")
-    if "PINNED" in drawn.stderr:
-        raise SystemExit("SELFTEST FAILED: an unpinned run announced a pin — the note would then "
-                         f"say nothing\nstderr: {drawn.stderr!r}")
-    if "lane:pinned" in drawn.stdout:
-        raise SystemExit("SELFTEST FAILED: a drawn lane was recorded as pinned; `lane:pinned` then "
-                         f"says nothing about any run\n{drawn.stdout}")
-    if "LANE_ADVISORY=false" not in drawn.stdout.splitlines():
-        raise SystemExit("SELFTEST FAILED: an advisory fired on a diff with no interval-named file "
-                         f"at all\n{drawn.stdout}")
-
-    # A REQUEST OVERRIDES THE PIN, so the note must go quiet. `decorate` lets a
-    # requested lane beat `_forces_interval` deliberately; if the announcement
-    # did not know that, a run gating `default` by request would print that it
-    # was pinned to `interval` — naming a lane the run is not on. This case is
-    # the seam between the pin and the request path, and neither one's own
-    # cases cover it.
-    overridden = _selftest_run(
-        t, ["--files", "-", "--seed", seed, "--config", "lane=default"],
-        "interval-transcendentals/src/lib.rs\n")
-    if "LANE=default" not in overridden.stdout.splitlines():
-        raise SystemExit("SELFTEST FAILED: a requested lane did not beat the pin\n"
-                         f"{overridden.stdout}")
-    if "PINNED" in overridden.stderr:
-        raise SystemExit("SELFTEST FAILED: the pin note fired over a lane the request "
-                         f"overrode\nstderr: {overridden.stderr!r}")
-    if "lane:requested" not in overridden.stdout:
-        raise SystemExit("SELFTEST FAILED: a request that beat the pin was recorded as the pin; "
-                         f"the run would credit its lane to a file nobody chose\n{overridden.stdout}")
+    # THE ONE POPULATION THE ADVISORY HAS LEFT: a narrowed run. It fires, it
+    # names EVERY interval-named file rather than the first, and it says how to
+    # stop narrowing — all three are things only this script can see, which is
+    # why the wording lives here and not in ci.yml's relay.
+    notes = os.path.join(t, "notices.txt")
+    narrowed = _selftest_run(
+        t, ["--files", "-", "--seed", seed, "--config", "lane=default", "--notices", notes],
+        "crates/topo/src/ring_interval.rs\ncrates/sweep/tests/extrude_interval.rs\n")
+    if "LANE=default" not in narrowed.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: a requested lane did not narrow the run\n"
+                         f"{narrowed.stdout}")
+    if "LANE_ADVISORY=true" not in narrowed.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: a run narrowed to the default lane over a diff of "
+                         f"interval-named files raised no advisory\n{narrowed.stdout}")
+    if ("ring_interval.rs" not in narrowed.stderr or "extrude_interval.rs" not in narrowed.stderr
+            or "2 file(s)" not in narrowed.stderr):
+        raise SystemExit("SELFTEST FAILED: the advisory named fewer than all the interval files "
+                         f"it matched\nstderr: {narrowed.stderr!r}")
+    if "NARROWED" not in narrowed.stderr or "lane=default" not in narrowed.stderr:
+        raise SystemExit("SELFTEST FAILED: the advisory did not say the lane was NARROWED BY A "
+                         "REQUEST, which is the only way this run can be on one lane\n"
+                         f"stderr: {narrowed.stderr!r}")
 
     # THE RELAY FILE, which is the only reason ci.yml no longer restates these
     # notices in its own prose. Two properties, and the second is the one a
     # reader would never think to check: the file CARRIES the notice, and it is
-    # TRUNCATED when there is none — a relay that leaves yesterday's pin in
-    # place announces a pin the run does not have, and the consumer `cat`s it
-    # unconditionally.
-    notes = os.path.join(t, "notices.txt")
-    _selftest_run(t, ["--files", "-", "--seed", seed, "--notices", notes],
-                  "interval-transcendentals/src/lib.rs\n")
+    # TRUNCATED when there is none — a relay that leaves the previous run's
+    # notice in place announces something this run does not have, and the
+    # consumer `cat`s it unconditionally.
     with open(notes) as fh:
         relayed = fh.read()
-    if "PINNED" not in relayed or "interval-transcendentals/src/lib.rs" not in relayed:
-        raise SystemExit("SELFTEST FAILED: --notices did not carry the pin's reason, so ci.yml's "
+    if "ring_interval.rs" not in relayed:
+        raise SystemExit("SELFTEST FAILED: --notices did not carry the advisory, so ci.yml's "
                          f"relay would print nothing where it used to print prose\n{relayed!r}")
     _selftest_run(t, ["--files", "-", "--seed", seed, "--notices", notes],
                   "crates/topo/src/lib.rs\n")
     with open(notes) as fh:
         if fh.read() != "":
             raise SystemExit("SELFTEST FAILED: --notices was not truncated on a run with no "
-                             "notice — the relay would announce the PREVIOUS run's pin")
+                             "notice — the relay would announce the PREVIOUS run's advisory")
 
-    # EVERY interval-named file, not the first, and the word for how the lane
-    # was arrived at. Both are things the relay cannot re-derive, which is why
-    # the wording moved into this script.
-    many = _selftest_run(
-        t, ["--files", "-", "--seed", seed, "--notices", notes],
-        "crates/topo/src/ring_interval.rs\ncrates/sweep/tests/extrude_interval.rs\n")
-    if ("ring_interval.rs" not in many.stderr or "extrude_interval.rs" not in many.stderr
-            or "2 file(s)" not in many.stderr):
-        raise SystemExit("SELFTEST FAILED: the advisory named fewer than all the interval files "
-                         f"it matched\nstderr: {many.stderr!r}")
-    if "LANE=default (drawn)" not in many.stderr:
-        raise SystemExit("SELFTEST FAILED: the advisory did not say the lane was DRAWN\n"
-                         f"stderr: {many.stderr!r}")
-    asked = _selftest_run(
-        t, ["--files", "-", "--seed", interval_seed, "--config", "lane=default"],
-        "crates/topo/src/ring_interval.rs\n")
-    if "LANE=default (REQUESTED)" not in asked.stderr:
-        raise SystemExit("SELFTEST FAILED: the advisory called a REQUESTED lane drawn — the run "
-                         f"would credit a choice to a die nobody rolled\nstderr: {asked.stderr!r}")
+    # THE EPS ROW, ON THE SAME TERMS. It is the dimension with no pin and no
+    # advisory, so nothing else in this file would notice a draw returning to
+    # it; `_selftest_sampling` walks 4000 seeds for that, and this is the
+    # request half — narrowing works, and says it was a request.
+    one_row = _selftest_run(t, ["--files", "-", "--seed", seed, "--config", "eps=1e-12"],
+                            "crates/topo/src/lib.rs\n")
+    if "EPS=1e-12" not in one_row.stdout.splitlines() or "eps:requested" not in one_row.stdout:
+        raise SystemExit("SELFTEST FAILED: a requested eps row did not narrow the run, or did not "
+                         f"say it was requested\n{one_row.stdout}")
+    every_row = _selftest_run(t, ["--files", "-", "--seed", seed, "--config", "eps=all"],
+                              "crates/topo/src/lib.rs\n")
+    if "EPS=all" not in every_row.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: `eps=all` was refused. It became legal when the hosted "
+                         "half started expanding it into three matrix legs, and refusing a value "
+                         f"this script PRINTS as its own default is incoherent\n{every_row.stdout}")
 
-    # No seed: nothing is drawn, so there is nothing to pin OR to advise.
-    # LANE=both already runs both compile modes.
+    # No seed: nothing is drawn at all, and the lane and eps rows are what they
+    # already were.
     unseeded = _selftest_run(t, ["--files", "-"], "interval-transcendentals/src/lib.rs\n")
-    if ("LANE=both" not in unseeded.stdout.splitlines() or "PINNED" in unseeded.stderr
-            or "lane:pinned" in unseeded.stdout
+    if ("LANE=both" not in unseeded.stdout.splitlines() or "EPS=all" not in unseeded.stdout.splitlines()
+            or "PINNED" in unseeded.stderr or "lane:pinned" in unseeded.stdout
             or "LANE_ADVISORY=false" not in unseeded.stdout.splitlines()):
-        raise SystemExit("SELFTEST FAILED: an unseeded run must be LANE=both and announce neither "
-                         f"a pin nor advice\n{unseeded.stdout}\nstderr: {unseeded.stderr!r}")
+        raise SystemExit("SELFTEST FAILED: an unseeded run must be LANE=both / EPS=all and "
+                         f"announce neither a pin nor advice\n{unseeded.stdout}\n"
+                         f"stderr: {unseeded.stderr!r}")
 
 
 def _selftest_klint_pin(t: str) -> None:
@@ -2921,7 +3022,7 @@ def _selftest_klint_pin(t: str) -> None:
     if "PINNED" in pinned.stdout:
         raise SystemExit("SELFTEST FAILED: the k-lint pin note reached STDOUT, where both halves "
                          f"read KEY=value lines\n{pinned.stdout}")
-    if "CONFIG_SOURCE=lane:sampled eps:sampled klint:pinned" not in pinned.stdout.splitlines():
+    if "CONFIG_SOURCE=lane:unsampled eps:unsampled klint:pinned" not in pinned.stdout.splitlines():
         raise SystemExit("SELFTEST FAILED: a pinned k-lint row was recorded as something other "
                          f"than `klint:pinned` — the outputs cannot tell a pin from a draw\n"
                          f"{pinned.stdout}")
@@ -3144,6 +3245,53 @@ def _selftest_klint_workflow() -> None:
           + f"; rows gated per step {gated}")
 
 
+# THE ε ROWS HAVE TWO SPELLINGS AND THIS IS THE ONE THAT RECONCILES THEM.
+# `EPS_ROWS` above is the tuple this script prints and validates requests
+# against; ci.yml's `filter` job carries the same three rows AGAIN, as a JSON
+# array literal, because a matrix dimension has to be a list and this script's
+# output is a stream of words. A comment saying "keep these in sync" is what
+# that arrangement usually gets, and a comment has never stopped a list
+# drifting. `_selftest_klint_workflow` already demonstrates the alternative on
+# the k-lint dimension — read the workflow's TEXT and re-derive — so this does
+# the same one dimension over.
+#
+# WHAT DRIFT WOULD LOOK LIKE WITHOUT IT: adding a fourth ε row here would print
+# `EPS=all`, accept `eps=<new row>` as a request, and run three legs; deleting
+# one would leave the workflow expanding a row this script refuses to name. Both
+# are green runs gating a matrix nobody wrote down.
+EPS_ROWS_WORKFLOW = ".github/workflows/ci.yml"
+_EPS_ROWS_RE = re.compile(r"^\s*eps_rows:.*?'(\[[^\]]*\])'", re.M)
+
+
+def _selftest_eps_rows_workflow() -> None:
+    """ci.yml's eps matrix literal must name exactly `EPS_ROWS`."""
+    path = os.path.join(_repo_root(), EPS_ROWS_WORKFLOW)
+    try:
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+    except OSError as exc:
+        raise SystemExit(f"SELFTEST FAILED: {EPS_ROWS_WORKFLOW} cannot be read ({exc}); the eps "
+                         "matrix literal is derived from that file and cannot be checked") from exc
+    found = _EPS_ROWS_RE.findall(text)
+    if len(found) != 1:
+        raise SystemExit(
+            f"SELFTEST FAILED: expected exactly ONE `eps_rows:` output carrying a JSON array "
+            f"literal in {EPS_ROWS_WORKFLOW}; found {len(found)}. Two would be two lists to keep "
+            "in step with EPS_ROWS, which is the thing this case exists to prevent")
+    try:
+        rows = json.loads(found[0])
+    except ValueError as exc:
+        raise SystemExit(f"SELFTEST FAILED: {EPS_ROWS_WORKFLOW}'s eps matrix literal {found[0]!r} "
+                         f"is not JSON ({exc}); the matrix would expand to nothing") from exc
+    if tuple(rows) != EPS_ROWS:
+        raise SystemExit(
+            f"SELFTEST FAILED: {EPS_ROWS_WORKFLOW} expands EPS=all into {rows} and this script's "
+            f"EPS_ROWS is {list(EPS_ROWS)}. One of them gates rows the other does not name — "
+            "change both, in the same commit")
+    print(f"ci-filter selftest: {EPS_ROWS_WORKFLOW}'s eps matrix literal re-derives against "
+          f"EPS_ROWS — {', '.join(EPS_ROWS)}")
+
+
 def _selftest_klint_premise() -> None:
     """THE MAPPING, CHECKED AGAINST THE TREE IT CLAIMS TO DESCRIBE.
 
@@ -3218,9 +3366,10 @@ def _selftest_config() -> None:
     drawn = decorate(dict(base), files, seed)
     keys = [out_key for out_key, _ in CONFIG_DIMENSIONS.values()]
 
-    if drawn["CONFIG_SOURCE"] != "lane:sampled eps:sampled klint:sampled":
-        raise SystemExit("SELFTEST FAILED: an unrequested run must record every dimension as "
-                         f"sampled — CONFIG_SOURCE is {drawn['CONFIG_SOURCE']!r}")
+    if drawn["CONFIG_SOURCE"] != "lane:unsampled eps:unsampled klint:sampled":
+        raise SystemExit("SELFTEST FAILED: an unrequested SEEDED run must record the lane and the "
+                         "eps row as unsampled (they run whole) and the k-lint row as sampled — "
+                         f"CONFIG_SOURCE is {drawn['CONFIG_SOURCE']!r}")
     if decorate(dict(base), files, None)["CONFIG_SOURCE"] != (
         "lane:unsampled eps:unsampled klint:unsampled"
     ):
@@ -3239,27 +3388,30 @@ def _selftest_config() -> None:
             for other in keys:
                 if other != out_key and got[other] != drawn[other]:
                     raise SystemExit(f"SELFTEST FAILED: requesting {name} moved {other} as well "
-                                     "— the dimensions nobody named must still be drawn")
+                                     "— the dimensions nobody named must keep their default")
 
-    # THE INTERVAL PIN IS A FLOOR OVER THE DRAW, NOT OVER A PERSON. Requesting
-    # `lane=default` on a change `_forces_interval` pins must win, and must say
-    # in CONFIG_SOURCE that it did.
-    pinned = ["crates/geom-core/src/interval.rs"]
-    if decorate(dict(base), pinned, seed)["LANE"] != "interval":
-        raise SystemExit("SELFTEST FAILED: the interval pin no longer fires — this case is "
+    # THE K-LINT PIN IS A FLOOR OVER THE DRAW, NOT OVER A PERSON. Requesting a
+    # row on a `tools/` change `_forces_klint` pins must win, and must say in
+    # CONFIG_SOURCE that it did. (The lane's pin was this case's subject until
+    # 2026-09-04; it is deleted, and `_selftest_lane_unsampled` asserts that.)
+    pinned = ["tools/tess-meter/src/lib.rs"]
+    if decorate(dict(base), pinned, seed)["KLINT_ROW"] != KLINT_PIN_FALLBACK:
+        raise SystemExit("SELFTEST FAILED: the k-lint pin no longer fires — this case is "
                          "checking nothing")
-    got = decorate(dict(base), pinned, seed, parse_config(["lane=default"], "requested"))
-    if got["LANE"] != "default" or "lane:requested" not in got["CONFIG_SOURCE"]:
-        raise SystemExit("SELFTEST FAILED: a requested lane must override the interval pin and "
-                         f"record it — got {got['LANE']!r}, {got['CONFIG_SOURCE']!r}")
+    got = decorate(dict(base), pinned, seed, parse_config(["klint=dev-probe"], "requested"))
+    if got["KLINT_ROW"] != "dev-probe" or "klint:requested" not in got["CONFIG_SOURCE"]:
+        raise SystemExit("SELFTEST FAILED: a requested k-lint row must override the pin and "
+                         f"record it — got {got['KLINT_ROW']!r}, {got['CONFIG_SOURCE']!r}")
 
-    # PRECEDENCE, per dimension: the invocation over the trailer over the draw.
-    merged = dict(config_from_message("t\n\nCI-Config: lane=both eps=1e-6\n"))
+    # PRECEDENCE, per dimension: the invocation over the trailer over the
+    # default. The trailer's half of this case is `klint`, because that is the
+    # dimension a trailer may still decide — see `WHOLE_BY_DEFAULT`.
+    merged = dict(config_from_message("t\n\nCI-Config: lane=both klint=dev-probe\n"))
     merged.update(parse_config(["lane=interval"], "requested"))
     got = decorate(dict(base), files, seed, merged)
-    if (got["LANE"], got["EPS"], got["KLINT_ROW"]) != ("interval", "1e-6", drawn["KLINT_ROW"]):
-        raise SystemExit(f"SELFTEST FAILED: precedence is invocation > trailer > draw; got {got}")
-    if got["CONFIG_SOURCE"] != "lane:requested eps:commit-trailer klint:sampled":
+    if (got["LANE"], got["EPS"], got["KLINT_ROW"]) != ("interval", "all", "dev-probe"):
+        raise SystemExit(f"SELFTEST FAILED: precedence is invocation > trailer > default; got {got}")
+    if got["CONFIG_SOURCE"] != "lane:requested eps:unsampled klint:commit-trailer":
         raise SystemExit(f"SELFTEST FAILED: a mixed run must say which dimension came from where "
                          f"— got {got['CONFIG_SOURCE']!r}")
 
@@ -3270,10 +3422,10 @@ def _selftest_config() -> None:
         "Body prose that mentions ci-config: lane=both in passing.\n"
         "    CI-Config: klint=all\n"
         "\n"
-        "CI-Config: eps=1e-12 klint=dev-probe\n"
+        "CI-Config: eps=all klint=dev-probe\n"
     )
     if config_from_message(real) != {
-        "EPS": ("1e-12", "commit-trailer"),
+        "EPS": ("all", "commit-trailer"),
         "KLINT_ROW": ("dev-probe", "commit-trailer"),
     }:
         raise SystemExit("SELFTEST FAILED: the trailer must be read at the start of a line and "
@@ -3282,25 +3434,72 @@ def _selftest_config() -> None:
         raise SystemExit("SELFTEST FAILED: a message with no trailer must request nothing")
     # A TYPO IN THE CASE IS STILL A REQUEST. The alternative reading — silence
     # — is the failure this whole function is about.
-    if config_from_message("t\n\nci-Config: eps=1e-6\n") != {"EPS": ("1e-6", "commit-trailer")}:
+    if config_from_message("t\n\nci-Config: eps=all\n") != {"EPS": ("all", "commit-trailer")}:
         raise SystemExit("SELFTEST FAILED: the trailer must be case-insensitive; a miscased line "
                          "that reads as `no request` gates the wrong point silently")
 
     # LOUD ON EVERY MALFORMED REQUEST, from either spelling.
+    # `eps=all` is NOT in this list any more (2026-09-04): it became legal
+    # when the hosted half started expanding it into three matrix legs. What
+    # replaces it here is `eps=every`, a value that is still not one.
     for bad in (["lane"], ["lane="], ["=interval"], ["mode=interval"], ["lane=fast"],
-                ["eps=all"], ["lane=default", "lane=interval"]):
+                ["eps=every"], ["lane=default", "lane=interval"]):
         try:
             parse_config(bad, "requested")
         except ConfigError:
             continue
         raise SystemExit(f"SELFTEST FAILED: {bad} was accepted as a configuration request")
-    for bad_msg in ("t\n\nCI-Config: eps=1e-13\n", "t\n\nCI-Config: lane=x eps=1e-6\n",
+    for bad_msg in ("t\n\nCI-Config: eps=1e-13\n", "t\n\nCI-Config: lane=x eps=all\n",
                     "t\n\nCI-Config: lane=both\nCI-Config: lane=interval\n"):
         try:
             config_from_message(bad_msg)
         except ConfigError:
             continue
         raise SystemExit(f"SELFTEST FAILED: {bad_msg!r} was accepted as a configuration request")
+
+    # THE TRAILER IS ADDITIVE-ONLY AND THE INVOCATION IS NOT, which is one
+    # rule with two halves and neither half is testable by reading the other.
+    # A trailer that could narrow would be silent — the run would gate less
+    # than an unmarked one and look identical — so every narrowing value is
+    # required to RED here, in both spellings of the dimensions that have a
+    # whole-dimension default, while the same values are required to be
+    # ACCEPTED through the invocation.
+    for name, whole in WHOLE_BY_DEFAULT.items():
+        narrowing = [v for _, choices in [CONFIG_DIMENSIONS[name]] for v in choices if v != whole]
+        if not narrowing:
+            raise SystemExit(f"SELFTEST FAILED: {name} has no narrowing value, so this case "
+                             "proves nothing — re-derive it against CONFIG_DIMENSIONS")
+        for value in narrowing:
+            try:
+                config_from_message(f"t\n\nCI-Config: {name}={value}\n")
+            except ConfigError as exc:
+                if "NARROW" not in str(exc) or "dispatch" not in str(exc):
+                    raise SystemExit(f"SELFTEST FAILED: the refusal of a narrowing trailer must "
+                                     f"say it NARROWS and where narrowing lives — got {exc}") from exc
+            else:
+                raise SystemExit(
+                    f"SELFTEST FAILED: `CI-Config: {name}={value}` was accepted. A trailer is "
+                    "copied, not typed, and rides one push — it may never gate LESS than no "
+                    "trailer at all (see WHOLE_BY_DEFAULT)")
+            if parse_config([f"{name}={value}"], "requested")[CONFIG_DIMENSIONS[name][0]][0] != value:
+                raise SystemExit(f"SELFTEST FAILED: the INVOCATION must still narrow "
+                                 f"{name}={value}; only the trailer is additive-only")
+        if config_from_message(f"t\n\nCI-Config: {name}={whole}\n") != {
+            CONFIG_DIMENSIONS[name][0]: (whole, "commit-trailer")
+        }:
+            raise SystemExit(f"SELFTEST FAILED: `{name}={whole}` adds nothing and subtracts "
+                             "nothing, so a trailer must be allowed to say it")
+    # THE DRAWN DIMENSION IS NOT COVERED BY THE RULE, and that is the point of
+    # keeping the rule per-dimension: naming a k-lint row SUBSTITUTES one drawn
+    # row for another and gates neither more nor less, so the trailer keeps the
+    # one job it still has.
+    for value in (*KLINT_ROWS, "all"):
+        if config_from_message(f"t\n\nCI-Config: klint={value}\n") != {
+            "KLINT_ROW": (value, "commit-trailer")
+        }:
+            raise SystemExit(f"SELFTEST FAILED: a trailer must still be able to name "
+                             f"klint={value} — that dimension is drawn, so naming a row "
+                             "subtracts nothing")
 
 
 def _selftest_docs_premise() -> None:
@@ -3372,22 +3571,23 @@ def main() -> int:
         help="take no diff at all and return the `all` tier (everything runs, "
         "unscoped; the path-keyed signals then fail closed)",
     )
-    # NOT in the mutually-exclusive `src` group: the seed selects a matrix
-    # point and is orthogonal to how the file list was obtained, so it rides
+    # NOT in the mutually-exclusive `src` group: the seed draws the k-lint row
+    # and is orthogonal to how the file list was obtained, so it rides
     # alongside --base or --files rather than instead of them.
     ap.add_argument(
         "--seed",
-        help="head SHA to key the configuration sample on; omit to run the "
-        "whole matrix (LANE=both, EPS=all, KLINT_ROW=all)",
+        help="head SHA to draw the k-lint row from; omit for KLINT_ROW=all. "
+        "LANE=both and EPS=all either way — those two are not sampled",
     )
     ap.add_argument(
         "--config",
         action="extend",
         nargs="+",
         metavar="KEY=VALUE",
-        help="request a matrix point rather than drawing it, e.g. "
+        help="narrow this run to a named point, e.g. "
         "`--config lane=interval eps=1e-12 klint=dev-probe`; unnamed "
-        "dimensions are still drawn",
+        "dimensions keep their default (every lane, every eps row, a drawn "
+        "k-lint row)",
     )
     ap.add_argument(
         "--config-from-message",
@@ -3474,17 +3674,18 @@ def main() -> int:
     # the diff at all leaves `files` None, and that is the case that runs.
     out = decorate(res, files, args.seed, config)
 
-    # THE PIN, SAID OUT LOUD, TWICE OVER. `CONFIG_SOURCE` now carries
-    # `lane:pinned` — that is the machine-readable half, and it is what ci.yml's
-    # always-run "the configuration this run gates" step reads. This is the
-    # human half: the REASON, which is a filename and belongs nowhere near a
-    # KEY=value stream. `decorate` stays free of I/O — `_selftest_sampling`
-    # calls it 4000 times in-process — so it is printed here.
+    # THE PIN, SAID OUT LOUD, TWICE OVER. `CONFIG_SOURCE` carries
+    # `klint:pinned` — that is the machine-readable half, and it is what
+    # ci.yml's always-run "the configuration this run gates" step reads. This
+    # is the human half: the REASON, which is a filename and belongs nowhere
+    # near a KEY=value stream. `decorate` stays free of I/O —
+    # `_selftest_sampling` calls it 4000 times in-process — so it is printed
+    # here.
     #
-    # ONE GUARD, NOT THREE. `lane:pinned` is emitted only under a seed and only
-    # when no request overrode the pin, so both of the conditions that used to
-    # be spelled out here are already inside it; re-deriving them would let the
-    # note and the output key disagree.
+    # ONE GUARD, NOT THREE. `klint:pinned` is emitted only under a seed and
+    # only when no request overrode the pin, so both of the conditions that
+    # used to be spelled out here are already inside it; re-deriving them would
+    # let the note and the output key disagree.
     #
     # THE NOTICES ARE COMPOSED HERE AND WRITTEN TWICE, TO ONE WORDING. They go
     # to stderr, where the local half and anyone running this by hand sees
@@ -3497,23 +3698,16 @@ def main() -> int:
     # one that can see the values it is describing.
     notices: list[str] = []
 
-    # ONE COMPOSER, TWO DIMENSIONS. The two pins' notices were written out by
-    # hand side by side and differed in wording where they did not differ in
-    # meaning — which is the drift recorded three paragraphs up, arriving inside
-    # the very function that was supposed to have ended it. The skeleton (what
-    # is pinned, that re-pushing cannot change it, how to ask for something
-    # else) is shared; what differs per dimension is one middle paragraph, and
-    # that is all this table holds. The legal values in the closing line come
-    # from `CONFIG_DIMENSIONS`, so a new row of either dimension cannot leave
-    # the advice naming a set the parser no longer accepts.
+    # ONE COMPOSER, ONE DIMENSION — AND IT STAYS A LOOP OVER
+    # `CONFIG_DIMENSIONS` (2026-09-04). It was written as a table over two pins
+    # because the two had been spelled out by hand side by side and drifted;
+    # the lane's pin is now deleted, so `pin_bodies` holds one row. Collapsing
+    # the loop into a straight-line k-lint notice would put the wording back
+    # where it was before the drift, which is the thing the shape is for: the
+    # legal values in the closing line come from `CONFIG_DIMENSIONS`, so a new
+    # pinned dimension gets the skeleton and one middle paragraph, not a second
+    # copy of the sentence.
     pin_bodies = {
-        "LANE": (
-            "  This is not a coverage gap. Both lanes archive the same scope and "
-            "the interval lane only adds `--features interval`, so a pinned run "
-            "executes the same rows in a stricter compile; what it does not reach "
-            "is the loud-skip marker rows gated `cfg(not(feature = \"interval\"))` "
-            "under crates/*/tests."
-        ),
         "KLINT_ROW": (
             "  This is not a coverage gap, it is the opposite: the row that RUNS "
             "the suite of what changed is the row that runs, instead of the row a "
@@ -3527,12 +3721,11 @@ def main() -> int:
     for name, (out_key, choices) in CONFIG_DIMENSIONS.items():
         if f"{name}:pinned" not in out["CONFIG_SOURCE"]:
             continue
-        # The forcers are pure, so this re-derives exactly what `decorate`
+        # `_forces_klint` is pure, so this re-derives exactly what `decorate`
         # pinned on; the output key above is the guard, never this call. The
         # `or` arm is unreachable through that key and says so rather than
         # interpolating a `None` into a sentence a reader would have to decode.
-        forced = (_forces_interval if out_key == "LANE" else _forces_klint)(files)
-        _, why = forced or ("", "the pin's reason could not be re-derived")
+        _, why = _forces_klint(files) or ("", "the pin's reason could not be re-derived")
         notices.append(
             f"{out_key}={out[out_key]} is PINNED, not drawn: {why}.\n"
             "  Re-pushing cannot change it — the pin runs before the seeded draw "
@@ -3543,22 +3736,22 @@ def main() -> int:
             f"({', '.join(choices)})."
         )
 
-    # THE ADVISORY. It names EVERY interval-named file, and it says whether the
-    # lane it is advising about was drawn or asked for — both are things only
-    # this function can see, which is why the wording lives here.
+    # THE ADVISORY. It names EVERY interval-named file, and it fires only on a
+    # run someone NARROWED to the default lane — an un-narrowed run gates both
+    # compile modes and has nothing to advise about. It used to also report
+    # whether that lane was drawn or asked for; there is no draw left, so the
+    # word is gone rather than kept as a branch that can only take one arm.
     if out["LANE_ADVISORY"] == "true":
         hits = _advises_interval(files)
         shown = ", ".join(hits[:5]) + (f" (+{len(hits) - 5} more)" if len(hits) > 5 else "")
-        how = "REQUESTED" if "lane:sampled" not in out["CONFIG_SOURCE"] else "drawn"
         notices.append(
             f"This diff touches {len(hits)} file(s) whose basenames carry `interval` "
-            f"— {shown} — and this run gates LANE=default ({how}).\n"
-            "  The filename is NOT taken as evidence any more: it once pinned the "
-            "lane, and it pinned a rename that touched an interval-named file for "
-            "three identifiers (#1122).\n"
-            "  SO IF INTERVAL SEMANTICS CHANGED, ASK FOR THE LANE: put "
-            "`CI-Config: lane=interval` in the head commit's message, or run the "
-            "workflow_dispatch with lane=interval. Say in the PR which lane gated.\n"
+            f"— {shown} — and this run was NARROWED to LANE=default by a request.\n"
+            "  An un-narrowed run gates both compile modes, so this is the one way "
+            "left to miss the interval lane, and you chose it.\n"
+            "  IF INTERVAL SEMANTICS CHANGED, DROP THE NARROWING: remove the "
+            "`CI-Config: lane=default` trailer (or say `lane=both`), or re-run the "
+            "workflow_dispatch without narrowing the lane.\n"
             "  If they did not change, this notice is noise and you can ignore it. "
             "The convention is in docs/prompts/implementer-discipline.md."
         )

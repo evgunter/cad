@@ -342,7 +342,7 @@ impl CheckEvidence {
             d::CheckEvidence::Escalated { source } | d::CheckEvidence::Unsupported { source } => {
                 Some(source.to_string())
             }
-            d::CheckEvidence::SeparationUnavailable { reason } => Some(reason.clone()),
+            d::CheckEvidence::SeparationUnavailable { reason, .. } => Some(reason.clone()),
             _ => None,
         }
     }
