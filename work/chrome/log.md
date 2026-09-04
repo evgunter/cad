@@ -224,3 +224,50 @@ cause's full refusal text), so a fix pass is owed before it merges.
 `doc-params-carry-no-display-unit` (1776) — green, style review out.
 `viewer-first-light-on-real-hardware` (1771) — `[ev]`, and not a lane
 unit: it is a checklist only a real GPU can answer.
+
+## The prose-residue sweep, run on the six just closed (2026-09-04)
+
+PR 1776's style review found the shape `work/README.md:100-106`
+legislates against — a residue disclosed inside an item's own `Fixed`
+prose and filed nowhere, which reads as a record of work done, is
+invisible to the re-homing sweep, and dies when the program directory
+is deleted. That finding is about one item, but the rule bites hardest
+on items already CLOSED, so the six closed in this PR were swept
+before it merges.
+
+**Verdict: clean.** Every deferred thread in those six already has its
+own file — `mispaired-ids-exempts-the-empty-window` (the `MispairedIds`
+check still exempting the zero case),
+`probe-rows-assert-in-one-direction-only`,
+`session-gesture-guard-spelled-thirteen-times`,
+`fmt-cache-carries-the-toolkit-codegen`, and in `work/issues/`,
+`mate-member-vocabulary-restated-in-refactor` and
+`viewer-free-move-misses-pattern-placed-mates`.
+
+**Four disclosures were read and judged NOT to be residues**, recorded
+because the judgement is the part a later reader cannot redo:
+
+- `placed-union-has-no-session-op`'s "`DocEdit` carries no
+  replace-or-convert variant … reported rather than crossed" is a
+  REJECTED alternative, not deferred work: the pattern-consuming
+  spelling was refused on an independent ground (two sources of truth
+  for one rule), so the missing door is not wanted.
+- `viewer-render-pipeline-creation-untested`'s standing cost — the
+  app-feature run is red on a box with no Vulkan ICD — is a trap for a
+  future third invocation, but it warns at the point of failure: the
+  panic names `mesa-vulkan-drivers`. That is a durable home.
+- `viewer-chrome-not-in-nextest-archive`'s measurement that the two
+  `oracle-inari` suites execute only for a non-`push` event touching
+  `interval-transcendentals/` is a fact about a ratified sampling
+  posture, not a finding against it. Filing it would manufacture an
+  issue out of a measurement.
+- The same item's "what the pattern could not match" list names two
+  suites gating per-ITEM inside ungated files. Those files still
+  compile and their ungated rows still run, so the suites are not
+  invisible the way the three viewer ones were.
+
+**The general lesson, since this is the second shape of it today.** A
+disclosure is not a schedule, and a record's home decides whether it is
+a record at all. The rule `work/README.md` writes down for residues is
+the same rule that stranded this log on a branch with no PR; both are
+the failure to ask *who reads this after the session ends*.
