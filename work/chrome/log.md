@@ -288,3 +288,35 @@ tells the next reader to announce a persisted field that does not
 exist. The correction points at the item rather than restating it,
 which is the only version that cannot rot again — the item is where
 the re-cut lives.
+
+## Unit 7 landed, and what its CI run taught about reading green (2026-09-04)
+
+`refused-mate-badges-every-instance-row` merged as PR 1769 after a fix
+pass; its item is closed here. The style review had found it
+incomplete against its own item's second sentence, and the second
+blocking finding — `Poisoned`'s invariant strengthened on one of its
+two producers — turned out to be a LIVE DEFECT the reviewer could only
+mark `likely`, not the documentation gap the orchestrator described.
+The document that exhibits it renders a boolean pointing at a row the
+tree itself draws POISONED, reciting that row's copy of the fault: the
+filed defect's own string, on a row whose badge denies it, one row
+below the row denying it. Details in the PR.
+
+**The run looked too fast, and checking why was worth it.** Both `test`
+shards on the merged head finished in under half a minute, which reads
+like the documented "green job name over skipped step" blind spot. It
+was not. The change filter had scoped the run to the crates the diff
+touches, so the two shards executed 230 + 230 viewer tests — the whole
+viewer suite, split — in three seconds of wall time each. Two things
+made that legible from the log rather than assumed: the slowest-20
+table is entirely `viewer::all` rows, and `every_suite_file_is_aggregated`
+is among the tests that PASSED, which is what forecloses a suite file
+being silently absent from the aggregator. Recording the chain because
+next time the timing will look wrong again.
+
+**One report was genuinely absent and says so.** The "what this PR adds
+to the test suite" block skipped: no run had published a listing for
+the base tree in this lane. It states in its own output that nothing
+may be inferred from the absence and that it gates nothing — which is
+the right shape for a report that cannot run, and the opposite of the
+silent feature-skip this program's unit 2 existed to close.
