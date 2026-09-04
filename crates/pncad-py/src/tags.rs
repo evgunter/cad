@@ -386,6 +386,13 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::FaceFrameNotPlanar { .. } => "face_frame_not_planar",
         NodeErrorKind::FaceFrameReadback { .. } => "face_frame_readback",
         NodeErrorKind::DerivedFrameSection { .. } => "derived_frame_section",
+        // The projection node's two refusals (DOCM-2): a half with no
+        // material, and an instance index outside the pattern's count.
+        // Tags only — the Python surface for `Node.part` is LIB's
+        // build, and this match is exhaustive, so the crate's compile
+        // is what requires these rows.
+        NodeErrorKind::EmptyHalf { .. } => "empty_half",
+        NodeErrorKind::InstanceOutOfRange { .. } => "instance_out_of_range",
         NodeErrorKind::WitnessBifurcation { .. } => "witness_bifurcation",
         // The seam faults stay separable at the tag level:
         // "the pin does not hold" and "the tolerances disagree" are

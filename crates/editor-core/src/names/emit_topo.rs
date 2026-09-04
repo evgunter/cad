@@ -146,19 +146,14 @@ pub(crate) fn name_split<T: Decide>(
     let frag_rows: BTreeMap<FaceKey, FaceKey> = naming.face_fragments.iter().copied().collect();
     let section_keys: BTreeSet<FaceKey> = naming.sections.iter().map(|&(f, _)| f).collect();
     let mut sides: Vec<Side<'_, T>> = Vec::new();
-    if let Some(body) = above {
-        sides.push(Side {
-            body,
-            ix: 0,
-            half: SplitHalf::Above,
-        });
-    }
-    if let Some(body) = below {
-        sides.push(Side {
-            body,
-            ix: 1,
-            half: SplitHalf::Below,
-        });
+    for (half, body) in [(SplitHalf::Above, above), (SplitHalf::Below, below)] {
+        if let Some(body) = body {
+            sides.push(Side {
+                body,
+                ix: half.output_body(),
+                half,
+            });
+        }
     }
     for s in &sides {
         t.insert(
@@ -179,7 +174,11 @@ pub(crate) fn name_split<T: Decide>(
                 });
             }
         };
-        let slot = usize::from(half == SplitHalf::Below);
+        // The per-side counter is indexed by the half's OUTPUT-BODY
+        // index — the one mapping, not a second one.
+        let slot = usize::try_from(half.output_body()).map_err(|_| NamingError::Emission {
+            what: "a split half's output-body index exceeds usize",
+        })?;
         let section = per_side_ix[slot];
         per_side_ix[slot] += 1;
         // The face is live in exactly the side that kept it.

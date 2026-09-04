@@ -252,6 +252,25 @@ fn face_frame_sense_matches_the_stored_flag_on_every_corpus_face() {
     }
 }
 
+/// The leading `//!` block of a Rust file, read through the shared
+/// reader's PROSE view.
+///
+/// [`test_utils::source::comments_only`] blanks code and literals and
+/// keeps every comment byte, so the leading run of `//!` lines comes
+/// back exactly as written — while a refusal sentence spelled in a
+/// string literal can no longer answer for one spelled in the docs.
+/// The `//!` line test is the selection the module doc sanctions for a
+/// caller that means inner docs rather than any comment; it is not a
+/// second lexer. This site's ledger row is in
+/// `crates/test-utils/tests/reader_census.rs`.
+fn module_prose(text: &str) -> String {
+    test_utils::source::comments_only(text)
+        .lines()
+        .take_while(|l| l.starts_with("//!"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// **Rule 1 says NUMERIC.** The sentence that listed "is this face
 /// planar" among the refusals is gone from both statements of the
 /// rule, and both say which predicates a door does not decide.
@@ -259,16 +278,8 @@ fn face_frame_sense_matches_the_stored_flag_on_every_corpus_face() {
 fn rule_one_names_numeric_predicates_in_both_statements() {
     const KERNEL: &str = include_str!("../../topo/src/readback.rs");
     const DOOR: &str = include_str!("../src/names/interrogate.rs");
-    let kernel_doc: String = KERNEL
-        .lines()
-        .take_while(|l| l.starts_with("//!"))
-        .collect::<Vec<_>>()
-        .join("\n");
-    let door_doc: String = DOOR
-        .lines()
-        .take_while(|l| l.starts_with("//!"))
-        .collect::<Vec<_>>()
-        .join("\n");
+    let kernel_doc = module_prose(KERNEL);
+    let door_doc = module_prose(DOOR);
     for (label, text) in [("readback.rs", &kernel_doc), ("interrogate.rs", &door_doc)] {
         assert!(
             text.contains("NUMERIC predicate"),

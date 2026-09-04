@@ -243,32 +243,61 @@
 # AND `rustdoc::broken_intra_doc_links` IS ALLOWED IN PASS 3 — ONLY
 # THERE, AND THIS IS THE COST OF THE WIDENING RATHER THAN A TIDINESS
 # FLAG. With F off, every link into F-gated code is unresolvable BY
-# CONSTRUCTION. MEASURED 2026-08-31, on the derived root set of that
-# date: a `-D warnings` pass 3 reddens 15 CORRECT link SITES — 13 in
-# `geom-core` over five identifiers (`Interval`, `DualInterval`,
-# `Probe`, `start_recording`, `take_samples`, across `dual.rs`,
-# `k_stats.rs` and `real.rs`) and 2 in `topo`'s boolean prose
-# (`SweepStrategy::Idealized`, `boolean/mod.rs:27` and
-# `boolean/reduce.rs:18`). That is the SAME false-positive population
-# the FEATURES paragraph above adopted --all-features to kill, arriving
-# from the other side. Reds on prose that is correct under the gate's
-# own primary selection are how a gate gets routed around, so the lint
-# that cannot tell "this link is broken" from "this link's target is in
-# the other half" is off in this pass. The count and the names are
-# DATED because they are a reading of the tree and not a property of it:
-# a number written here that disagrees with the run is the drift this
-# gate is about, which is the same rule the root count above obeys.
+# CONSTRUCTION. RE-MEASURED 2026-09-04, on the derived root set of that
+# date (seven roots): a `-D warnings` pass 3 reddens 25 CORRECT link
+# SITES over 15 identifiers, in FOUR roots. AN IDENTIFIER IS A LINK
+# SPELLING (`Probe` and `crate::Probe` are two, which is how rustdoc
+# reports them), and the enumeration below is COMPLETE, not
+# illustrative: `geom-core` ×15 over eight (`Interval`, `DualInterval`,
+# `Probe`, `start_recording`, `take_samples`, `crate::Interval`,
+# `crate::Probe`, `crate::Interval::sign_within`, across `dual.rs`,
+# `k_stats.rs`, `real.rs` and `sym.rs`), `editor-core` ×7 over five
+# (`crate::clearance`, `crate::clearance::min_separation`,
+# `crate::clearance::FaceScope`, `crate::report`, `geom_core::Interval`,
+# across `measure.rs`, `eval/measure.rs` and `eval/mod.rs`), `topo` ×2
+# over one (`SweepStrategy::Idealized`, `boolean/mod.rs` and
+# `boolean/reduce.rs`) and `sweep` ×1 over one
+# (`ring_clearance_for_tests`, `blend/surgery.rs`). Line numbers are
+# deliberately NOT carried: they are the half of a citation that rots
+# fastest, and the 2026-08-31 reading this supersedes had already
+# drifted one (`boolean/mod.rs:27` is now `:31`) with nothing saying so.
+#
+# THE POPULATION GREW AND SPREAD, AND THE LIKE-FOR-LIKE PAIR IS SITES —
+# 15 on 2026-08-31 and 25 now, two roots then and four now, both over
+# the whole derived root set. The identifier figures are NOT comparable
+# and nothing rests on them: the superseded "five" was `geom-core`'s
+# share alone (its two-root total was six) and collapsed spellings this
+# reading counts apart. What the growth is evidence of cuts both ways
+# and both are said: it strengthens the case for ALLOWING the lint here,
+# and it is a reading of how fast an UNWATCHED number rots — 67% in five
+# days, into two roots it was not in, with nothing going red. The second
+# is not an argument for a register; §Q6/#651 draws that line, and the
+# lint's case does not turn on the magnitude.
+#
+# IT IS THE SAME FALSE-POSITIVE POPULATION the FEATURES paragraph above
+# adopted --all-features to kill, arriving from the other side. Reds on
+# prose that is correct under the gate's own primary selection are how a
+# gate gets routed around, so the lint that cannot tell "this link is
+# broken" from "this link's target is in the other half" is off in this
+# pass. The count and the names are DATED because they are a reading of
+# the tree and not a property of it: a number written here that
+# disagrees with the run is the drift this gate is about, which is the
+# same rule the root count above obeys.
 #
 # THE PER-ROOT DENY LIST, CONSIDERED AND REJECTED. Allowing the lint on
-# `geom-core` and `topo` alone — the two roots that carry cross-half
-# prose today — looks tighter and is worse: it makes the LINT SET a
-# function of which crate currently happens to have such prose, so the
-# first correct cross-half link written in `mesh` reds for being
-# correct, and the remedy a reader reaches for at 2am is to delete the
-# link. A blind spot that is uniform is one sentence; a blind spot that
-# is per-root is a roster, and the paragraphs above are about rosters.
+# the roots that carry cross-half prose today looks tighter and is
+# worse: it makes the LINT SET a function of which crate currently
+# happens to have such prose, so the first correct cross-half link
+# written in `mesh` reds for being correct, and the remedy a reader
+# reaches for at 2am is to delete the link. A blind spot that is uniform
+# is one sentence; a blind spot that is per-root is a roster, and the
+# paragraphs above are about rosters. THAT IS NOW MEASURED RATHER THAN
+# PREDICTED: `geom-core, topo` when the list was rejected on 2026-08-31,
+# `geom-core, topo, editor-core, sweep` today — the roster drifted
+# inside five days, in a tree where nothing was trying to make it.
 #
-# THE BLIND SPOT THAT LEAVES, NAMED, AND SCHEDULED AT ISSUE #1317: a
+# THE BLIND SPOT THAT LEAVES, NAMED, AND ACCEPTED PERMANENTLY (issue
+# #1317, answered 2026-09-04): a
 # genuinely broken intra-doc link written INSIDE a `not(feature)` half
 # is still reported by nothing. The lint is on in pass 1 and pass 2, so
 # it covers the whole tree under --all-features and only this one shape
@@ -279,21 +308,98 @@
 # doc build, so prose on an item that stopped existing is a hard error
 # rather than a silence.
 #
-# THE SIBLING AXIS PASS 3 DOES NOT COVER, swept and named rather than
-# left to be rediscovered, AND SCHEDULED AT ISSUE #1317 alongside the
-# blind spot above: `#[cfg(not(debug_assertions))]`. `cargo doc` runs
-# the dev profile, so `debug_assertions` is ON in every pass here and
-# that half is compiled out of all three — the same shape as the
-# feature axis, one profile over, and no feature selection reaches it.
-# Sixteen sites carry it as of 2026-08-31
+# ACCEPTED, AND NOT DEFERRED, BECAUSE THE DIFFERENTIAL RUN BANKED AS
+# THE ALTERNATIVE CANNOT WORK — derived here so the next reader does
+# not re-reach for it. The idea was to document each root at BOTH
+# selections and red only on a site both runs report. What kills it is
+# that the two runs never see the same site: a link inside a `not(F)`
+# half is reported at
+# `--no-default-features`; at `--all-features` its ENCLOSING ITEM is not
+# compiled, so rustdoc says nothing about it — not "resolved", nothing.
+# The intersection therefore contains none of the sites the differential
+# was for, and its difference is the whole 25-site false-positive
+# population above. THAT ARGUMENT IS THE WHOLE OF IT and stands alone.
+#
+# A SECOND ARGUMENT STOOD HERE AND WAS FALSE; it is corrected rather
+# than deleted, because a wrong reason removed without a trace is one
+# the next reader re-derives. It read "features are additive, so no
+# selection compiles the `not(F)` half while the `F` half's targets
+# exist". Additivity constrains ONE crate's own feature set and not a
+# DEPENDENCY's, which cargo lets you set independently: measured
+# 2026-09-04, `cargo doc -p editor-core --no-default-features --features
+# geom-core/interval` compiles editor-core with its own `interval` OFF
+# while `geom_core::Interval` exists, 7 unresolved sites down to 6 — and
+# `interval = ["geom-core/interval", …]` forwarding is the shape this
+# workspace is built out of. Only the intra-crate claim survives, and
+# the differential does not need it.
+#
+# A `--output-format json` census at --all-features could
+# answer "does this NAME exist in the crate" but not "does this LINK
+# resolve" — intra-doc resolution is scope-sensitive, so a name check
+# both over- and under-approximates it, and it would buy the format
+# instability that is its own open question. So the hole is one
+# sentence, uniform, said here and once more where a contributor meets
+# it (README's build block), rather than a second instrument. THE README
+# DOES NOT RESTATE THIS COUNT: it carries its own reader's reading —
+# default features, public items — which is a different population,
+# dated there.
+#
+# THE SIBLING AXIS, ANSWERED AT THE SAME TIME AND BY MEASUREMENT:
+# `#[cfg(not(debug_assertions))]`. Banked as a cost question — "covering
+# it means a `--release` doc pass" — it is not one, because THAT PASS
+# WOULD READ NOTHING. Measured on the pinned toolchain (1.97.0,
+# 2026-09-04): cargo passes no `-C debug-assertions` to rustdoc at all,
+# so `cargo doc --release` skips the `not` half exactly as dev does; and
+# rustdoc IGNORES the flag handed to it directly, where rustc under it
+# compiles that half (probe: a `#[cfg(not(debug_assertions))]
+# compile_error!`, firing for rustc and never for rustdoc). No rustdoc
+# invocation reaches this axis, so no pass can be written that does. A
+# SECOND, INDEPENDENT reason on THIS tree: the root `[profile.release]`
+# sets `debug-assertions = true`.
+#
+# WHAT IT WOULD HAVE COST, since the point of measuring was to decide:
+# +81.0 s cold / +40.1 s warm for a fourth pass over the workspace less
+# `viewer`, +25.1 s / +3.3 s for the minimal derived selection
+# (`-p geom-core -p topo`) — 4 vCPU / 15 GB, the public repo's
+# standard-runner class, `doc_pass`'s two-invocation shape, cold being
+# the first build at that profile's fingerprints. Free minutes make it
+# affordable; it is still not worth a second, the coverage being zero.
+#
+# AND THE AXIS IS NOT UNCOVERED, WHICH IS THE OTHER HALF OF THE ANSWER.
+# Swept 2026-09-04, same family matcher this file's `not(feature)`
+# derivation uses: 14 `#[cfg(not(debug_assertions))]` ATTRIBUTES
 # (`crates/geom-core/src/spline/knots.rs` ×1,
-# `crates/topo/src/review_d18.rs` ×12,
-# `crates/topo/src/review_m1_pr2/release_corruption.rs` ×3), every one a
-# statement or expression block rather than a documented item, so the
-# axis is LATENT here rather than live: there is no prose behind it
-# today to be unread. Covering it means a `--release` doc pass, which is
-# a cost decision and not a spelling one, and it is not taken on this
-# gate's own authority.
+# `crates/topo/src/review_d18.rs` ×11,
+# `crates/topo/src/review_m1_pr2/release_corruption.rs` ×2), plus two
+# hits of the shape inside `//!` prose — the 2026-08-31 reading of "16"
+# was the raw grep, attributes and prose together. THIRTEEN OF THE
+# FOURTEEN ARE INSIDE `#[cfg(test)]` MODULES (`crates/topo/src/lib.rs`
+# gates both), which no `cargo doc` compiles at ANY profile, so a
+# working `--release` pass would not have read them either; the
+# fourteenth is a bare expression block in a function body, which
+# rustdoc does not document. ALL FOURTEEN ARE TYPE-CHECKED TODAY, by
+# nightly.yml's `corrupt-input suites, release profile` job — it pins
+# `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"` over the whole graph
+# precisely so those halves compile.
+#
+# THAT IS ABOUT THESE FOURTEEN, NOT ABOUT THE AXIS. The job's reach is
+# `-p topo --lib` plus topo's closure (`bvh`, `geom`, `geom-brep`,
+# `geom-core`), and all fourteen happen to sit inside it today; a
+# FIFTEENTH in `mesh`, `sweep`, `editor-core`, `viewer` or `step-*`
+# would be compiled by no job at debug-assertions-off AND read by no doc
+# pass, with nothing going red. So: owned by that job WHERE IT REACHES,
+# owned by nothing outside topo's closure — today's tree, dated like the
+# counts above.
+#
+# THE LATENCY IS NOT "no prose behind the cfg", which the earlier
+# reading said: items behind this cfg DO carry prose, three of them with
+# intra-doc links in it (`review_d18`'s `OPS`, `tear_landed`, `hammer`).
+# It is latent because all of those sit inside `#[cfg(test)]`, unread
+# for a SECOND reason, and the one site outside documents nothing. An
+# item outside `cfg(test)` growing prose behind this cfg is what no gate
+# would say anything about, and it does not exist today. The two
+# selftest arms below pin the mechanism so this stays a decision rather
+# than a forgetting.
 #
 # WHAT PASS 3 COSTS, so the next reader prices it rather than
 # rediscovers it. It is a DISTINCT FEATURE UNIFICATION, which is F6's
@@ -307,6 +413,14 @@
 # +22.5 s the fixtures). THE NUMBER GREW EVERY TIME IT WAS RE-READ,
 # which is the honest headline: plan against the largest and re-read it
 # rather than quoting the first.
+#
+# THE PROFILE-AXIS PAIR BELOW IS PRICED TOO, since a pass this file
+# DECLINES is priced to a tenth of a second and the arms it SHIPS would
+# otherwise not be priced at all: 7.0-7.4 s standing alone, and
+# `--selftest` end to end 85.0 -> 94.5 s, i.e. +9.5 s warm (2026-09-04,
+# 4 vCPU / 15 GB, three paired runs). That lands on every PR, in the
+# same `fmt` job the paragraph below records as already past F6's 2
+# billed minutes.
 #
 # HOSTED, WARM AGAINST WARM, WHICH IS THE READING THAT DECIDES THE BILL:
 # the `fmt` job's `rustdoc (gate)` step goes 110 s -> 153 s and the job
@@ -1161,6 +1275,56 @@ plant_untracked_worktree_with_broken_link() {
   } > "$1/.claude/worktrees/agent-x/src/lib.rs"
 }
 
+# THE PROFILE AXIS, PINNED IN BOTH DIRECTIONS — the pair that makes the
+# `not(debug_assertions)` answer in the header a thing that runs rather
+# than a paragraph someone re-derives in a year.
+#
+# ONE PLANTER, PARAMETERISED ON THE CFG, and two thin wrappers — the
+# shape `plant_doc_error_behind_not_a_feature` above already uses. The
+# pair differs in the cfg expression and in NOTHING else, and that is
+# the whole content of the experiment: same break, same file, same
+# invocation, one bit changed. Two copies of the body would let the
+# bodies drift apart, which would make the pair prove less than it
+# looks like it proves.
+plant_broken_link_behind_cfg() {
+  {
+    printf '\n#[cfg(%s)]\n' "$2"
+    printf '/// Links to [`no_such_item`].\npub fn documented() {}\n'
+  } >> "$1/crates/clean/src/lib.rs"
+}
+
+# The FIRST plants the break behind `#[cfg(debug_assertions)]` and must
+# FIRE. WHAT IT CONTROLS FOR IS NARROW, and narrower than it first
+# looks: `plant_broken_link_in_member` already appends the
+# byte-identical break to the byte-identical path and fires in every
+# mode, so "the fixture reaches rustdoc at all" is pinned without this
+# arm. What this one adds is that a `#[cfg(…)]` ATTRIBUTE standing over
+# the item does not by itself suppress the lint — so the second arm's
+# green is about WHICH cfg, not about there being one.
+plant_broken_link_behind_debug_assertions() {
+  plant_broken_link_behind_cfg "$1" 'debug_assertions'
+}
+
+# The SECOND plants the SAME break behind `#[cfg(not(debug_assertions))]`
+# and must PASS — because rustdoc compiles that half in no invocation
+# this repo can spell, which is the measured finding the header records.
+# Note the lint here is the FULL set: this half is read (or not) by pass
+# 1, not by pass 3, so `broken_intra_doc_links` is DENIED and the only
+# thing standing between this fixture and a red is the cfg itself.
+#
+# IT IS A TRIPWIRE, AND SAYING SO IS THE POINT. A future rustdoc that
+# honours `-C debug-assertions`, or a cargo that passes the profile's
+# codegen options through to rustdoc, turns this arm RED. That is not a
+# fixture to repair: it is the header's cost paragraph becoming
+# answerable again, and the response is to re-price the fourth pass
+# against whatever prose the axis carries by then — not to reach for
+# `#[allow]`. THE PRICE IS NOT RESTATED HERE, for the reason
+# `plant_link_from_the_disarmed_half_into_the_gated_one` gives above:
+# the header owns that measurement and is one grep away.
+plant_broken_link_behind_not_debug_assertions() {
+  plant_broken_link_behind_cfg "$1" 'not(debug_assertions)'
+}
+
 # --document-private-items, pinned. Without the flag rustdoc never
 # renders a private item and so never resolves its links, and this
 # fixture goes green — which is precisely how the flag could be dropped
@@ -1291,6 +1455,12 @@ gate_selftest() {
     plant_excepted_root_paired_module_plus_a_gated_break
   gate_selftest_passes "a cargo root the repository does not track (an agent worktree under .claude/)" \
     plant_untracked_worktree_with_broken_link
+  # THE PROFILE AXIS, BOTH DIRECTIONS. The FIRES arm is the positive
+  # control that keeps the PASSES arm from being vacuous; the PASSES arm
+  # is the tripwire on a rustdoc that starts reading the other half.
+  gate_selftest_case "$want" plant_broken_link_behind_debug_assertions
+  gate_selftest_passes "a broken link behind not(debug_assertions) — no rustdoc invocation compiles that half" \
+    plant_broken_link_behind_not_debug_assertions
   # THE TWO READERS. Both decide whether pass 2 covers anything, and
   # neither had ever been shown to fail — S157's class, in the gate
   # whose subject is that a guard never shown to fire is not a guard.
@@ -1371,7 +1541,7 @@ gate_selftest() {
   gate_selftest_rejects "an empty --scope, which silently widened to --workspace" \
     "empty selection" --pr --scope ""
 
-  printf '%s selftest OK: passes a clean three-root fixture, a public link to a private sibling, a link from a not(feature) half into the gated one, prose behind the excepted root'"'"'s feature (whether or not pass 3 also reads that root), and an untracked worktree checkout; fires on a broken link in a workspace member and in a root outside the workspace — in each of their same-named binaries and examples — on a private item, on an excluded root'"'"'s feature-gated prose, on a doc error inside a not(feature) half in each of the gate'"'"'s three root treatments, and when either cargo or git cannot answer; prints the derived root set under --print-roots, and diagnoses rather than shortening it when a reader fails; and, per MODE: --pr still fires on the workspace pass and deliberately does NOT read the excluded roots or the not(feature) halves (nightly.yml re-takes both), prints exactly one root for the cache, honours a --scope selection in both directions, documents `viewer` at DEFAULT features under --skip-viewer-toolkit with and without an explicit selection, and REFUSES a malformed or EMPTY scope instead of falling back to one nobody asked for\n' \
+  printf '%s selftest OK: passes a clean three-root fixture, a public link to a private sibling, a link from a not(feature) half into the gated one, prose behind the excepted root'"'"'s feature (whether or not pass 3 also reads that root), an untracked worktree checkout, and a broken link behind not(debug_assertions) — the profile axis no rustdoc invocation reaches; fires on a broken link in a workspace member and in a root outside the workspace — in each of their same-named binaries and examples — on a private item, on an excluded root'"'"'s feature-gated prose, on a doc error inside a not(feature) half in each of the gate'"'"'s three root treatments, behind cfg(debug_assertions) (the control for the arm above), and when either cargo or git cannot answer; prints the derived root set under --print-roots, and diagnoses rather than shortening it when a reader fails; and, per MODE: --pr still fires on the workspace pass and deliberately does NOT read the excluded roots or the not(feature) halves (nightly.yml re-takes both), prints exactly one root for the cache, honours a --scope selection in both directions, documents `viewer` at DEFAULT features under --skip-viewer-toolkit with and without an explicit selection, and REFUSES a malformed or EMPTY scope instead of falling back to one nobody asked for\n' \
     "$(gate_name)"
 }
 

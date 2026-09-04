@@ -140,6 +140,11 @@ const PINNED: &[(&str, u64)] = &[
     ("heat_sink_fins", 0x774b_b1fa_e9c3_ea5a),
     ("die_tool", 0x8842_6c6d_a225_7e5c),
     ("face_sketch", 0x9686_16cf_e0bc_7e15),
+    // DOCM-2. Two `Part`s of one split and one of a pattern: the
+    // projection mints nothing, so every name in the document is the
+    // split's, the pattern's, or the union's over them, and the row's
+    // arrival moved no other row.
+    ("part_select", 0xef49_6789_be45_f431),
     ("loft_prism", 0x28f4_e9c8_5810_f1a9),
     ("die_composed", 0xf533_e226_f499_6617),
     ("die_composed_tour", 0x10a8_8610_60a2_49eb),
