@@ -3,6 +3,7 @@
 //! data against the kernel ops.
 
 use crate::expr::{Dimension, Expr};
+use crate::names::SplitHalf;
 // The contact vocabulary is the KERNEL's (CONTACT-DESIGN C4, M9-1
 // PR-1). Imported, never redefined: the boolean's own refusals must
 // carry the same words this node authors, and `crate::names::flush`
@@ -39,6 +40,7 @@ macro_rules! name_free_node {
             | $crate::node::Node::Union { .. }
             | $crate::node::Node::Transform { .. }
             | $crate::node::Node::Pattern { .. }
+            | $crate::node::Node::Part { .. }
             | $crate::node::Node::PlacedUnion { .. }
             | $crate::node::Node::InstantiatePart { .. }
             | $crate::node::Node::Assertion { .. }
@@ -325,6 +327,13 @@ pub enum SlotId {
     /// A pattern's instance count — the STRUCTURAL slot (spec D3/A8:
     /// Count-typed, edited only via `SetStructuralParam`).
     Count,
+    /// A [`crate::Node::Part`]'s INSTANCE INDEX into a pattern's
+    /// value — STRUCTURAL (Count-typed, edited only via
+    /// `SetStructuralParam`): which body the projection selects is
+    /// structure, not a continuous quantity. Its own slot rather than
+    /// a reuse of [`SlotId::Count`]: a panel that spelled an index
+    /// "count" would be lying about it.
+    Instance,
     /// A loft's / sweep's v-direction interpolation degree (Book
     /// §10.3) — STRUCTURAL: changing it changes the produced
     /// surface's knot vector, so it is Count-typed like every other
@@ -474,7 +483,7 @@ impl SlotId {
             | Self::Step
             | Self::TubeWindowStart
             | Self::TubeWindowEnd => Dimension::Angle,
-            Self::Count | Self::VDegree | Self::Stations => Dimension::Count,
+            Self::Count | Self::VDegree | Self::Stations | Self::Instance => Dimension::Count,
             // Profile-program roles carry V2's per-role table; none is
             // Count, so `is_structural` stays false for every StepArg
             // (LIB-SWITCH §4c — program structure is the STEP LIST,
@@ -518,6 +527,7 @@ impl SlotId {
             Self::Spacing => "spacing".to_owned(),
             Self::Step => "angular step".to_owned(),
             Self::Count => "count".to_owned(),
+            Self::Instance => "instance".to_owned(),
             Self::VDegree => "v degree".to_owned(),
             Self::Stations => "stations".to_owned(),
             Self::Profile { loop_, step, arg } => {
@@ -566,6 +576,7 @@ impl SlotId {
             | Self::Spacing
             | Self::Step
             | Self::Count
+            | Self::Instance
             | Self::VDegree
             | Self::Stations
             | Self::Profile { .. } => None,
@@ -885,6 +896,24 @@ pub enum PatternKind {
     Explicit(Vec<crate::placement::Frame>),
 }
 
+/// **Which body of a multi-body value a [`Node::Part`] selects**
+/// (DOCM-REFERENCES-DESIGN DM3): the named half of a split, or one
+/// instance of a pattern by index.
+///
+/// The two are one enum because the node is one sentence — "this
+/// body, out of those" — and the value it reads decides which arm is
+/// well-typed: a half against a split, an index against a pattern's
+/// instances, and any other pairing refuses at evaluation.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub enum PartSelect {
+    /// The named half of a [`Node::Split`] value.
+    SplitHalf(SplitHalf),
+    /// The `i`-th instance of a [`Node::Pattern`] value — a
+    /// Count-typed STRUCTURAL slot ([`SlotId::Instance`]).
+    Instance(Expr),
+}
+
 /// **The `Expr`s a node carries OUTSIDE its slots**, in deterministic
 /// order — `None` for the nodes that carry none, which is every node
 /// but the two the measurement vocabulary adds.
@@ -923,6 +952,7 @@ pub fn payload_exprs<P>(node: &Node<P>) -> Option<Vec<&Expr>> {
         | Node::Union { .. }
         | Node::Transform { .. }
         | Node::Pattern { .. }
+        | Node::Part { .. }
         | Node::PlacedUnion { .. }
         | Node::Declare { .. }
         | Node::InstantiatePart { .. }
@@ -1479,6 +1509,32 @@ pub enum Node<P> {
         /// The replication rule.
         kind: PatternKind,
     },
+    /// **One body out of a multi-body value** (DOCM-REFERENCES-DESIGN
+    /// DM3): the named half of a [`Node::Split`] value or the `i`-th
+    /// instance of a [`Node::Pattern`] value, as a `Body` value every
+    /// body-consuming node takes. The recipe's way of saying "union
+    /// the upper half of that split into this block" or "subtract
+    /// instance 3 of that pattern".
+    ///
+    /// A projection, not an operation: the selected body is the
+    /// half's or the instance's own (the same `Arc`, no clone, no
+    /// re-stamp), and the node's name table is the input's table
+    /// restricted to that body with every name VERBATIM — a
+    /// pass-through in `Transform`'s sense, contributing no role
+    /// segment, so every selector already spelled against that half
+    /// or that instance resolves here unchanged.
+    ///
+    /// A node rather than a selector inside every consumer's operand:
+    /// one meaning, one node, and every consumer's operand door stays
+    /// as it is ([`Node::PlacedUnion`]'s ruling). A bare split or
+    /// pattern is still refused at a body seat; this node is how a
+    /// user says which body they meant.
+    Part {
+        /// The split or pattern whose value is read.
+        of: RecipeNodeId,
+        /// Which body of it.
+        select: PartSelect,
+    },
     /// **The group boolean** (GROUP-BOOLEAN-DESIGN, ratified A′): ONE
     /// prototype, a placement rule, ONE BODY OUT — the union of the
     /// prototype placed at each placement.
@@ -1857,6 +1913,7 @@ impl<P> Node<P> {
             // is pairwise distinct at the edit door, so no edge repeats.
             Node::Union { members } => members.clone(),
             Node::Transform { input, .. } => vec![*input],
+            Node::Part { of, .. } => vec![*of],
             // The two placement-rule nodes take the same edges: the
             // body, plus the datum a circular rule turns about.
             Node::Pattern { input, kind, .. } | Node::PlacedUnion { input, kind, .. } => {
@@ -1902,6 +1959,7 @@ impl<P> Node<P> {
             | Node::Boolean { .. }
             | Node::Transform { .. }
             | Node::Pattern { .. }
+            | Node::Part { .. }
             | Node::PlacedUnion { .. }
             | Node::Declare { .. }
             | Node::InstantiatePart { .. }
@@ -2004,6 +2062,7 @@ impl<P> Node<P> {
             | Node::Boolean { .. }
             | Node::Transform { .. }
             | Node::Pattern { .. }
+            | Node::Part { .. }
             | Node::PlacedUnion { .. }
             | Node::Declare { .. }
             | Node::InstantiatePart { .. }
@@ -2114,6 +2173,12 @@ impl<P> Node<P> {
                 // (the frames are structural data, D8).
                 PatternKind::Explicit(_) => Vec::new(),
             },
+            // A half is recipe payload, not a number anyone sets; an
+            // index is the one structural slot the projection carries.
+            Node::Part { select, .. } => match select {
+                PartSelect::SplitHalf(_) => Vec::new(),
+                PartSelect::Instance(_) => vec![SlotId::Instance],
+            },
         }
     }
 
@@ -2177,6 +2242,13 @@ impl<P> Node<P> {
             (Node::Transform { rotation_angle, .. }, S::RotationAngle) => Some(rotation_angle),
             (Node::Pattern { count, kind, .. }, s) => rule_expr(Some(count), kind, s),
             (Node::PlacedUnion { count, kind, .. }, s) => rule_expr(count.as_ref(), kind, s),
+            (
+                Node::Part {
+                    select: PartSelect::Instance(index),
+                    ..
+                },
+                S::Instance,
+            ) => Some(index),
             // EXHAUSTIVE on the NODE axis, open on the slot axis: a new
             // node kind must be classified here or the compile breaks,
             // while "this node does not carry that slot" stays the
@@ -2196,6 +2268,7 @@ impl<P> Node<P> {
                 | Node::Boolean { .. }
                 | Node::Union { .. }
                 | Node::Transform { .. }
+                | Node::Part { .. }
                 | Node::Declare { .. }
                 | Node::InstantiatePart { .. }
                 | Node::Mate { .. }
@@ -2263,6 +2336,13 @@ impl<P> Node<P> {
             (Node::Transform { rotation_angle, .. }, S::RotationAngle) => Some(rotation_angle),
             (Node::Pattern { count, kind, .. }, s) => rule_expr_mut(Some(count), kind, s),
             (Node::PlacedUnion { count, kind, .. }, s) => rule_expr_mut(count.as_mut(), kind, s),
+            (
+                Node::Part {
+                    select: PartSelect::Instance(index),
+                    ..
+                },
+                S::Instance,
+            ) => Some(index),
             // EXHAUSTIVE on the NODE axis, open on the slot axis (the
             // `expr` rule).
             (
@@ -2278,6 +2358,7 @@ impl<P> Node<P> {
                 | Node::Boolean { .. }
                 | Node::Union { .. }
                 | Node::Transform { .. }
+                | Node::Part { .. }
                 | Node::Declare { .. }
                 | Node::InstantiatePart { .. }
                 | Node::Mate { .. }
@@ -2459,6 +2540,7 @@ impl<P> Node<P> {
             | Node::Boolean { .. }
             | Node::Union { .. }
             | Node::Transform { .. }
+            | Node::Part { .. }
             | Node::Declare { .. }
             | Node::InstantiatePart { .. }
             | Node::Mate { .. }

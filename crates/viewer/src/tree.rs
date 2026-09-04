@@ -169,6 +169,7 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Union { .. } => "Union",
         Node::Split { .. } => "Split",
         Node::Pattern { .. } => "Pattern",
+        Node::Part { .. } => "Part",
         Node::PlacedUnion { .. } => "PlacedUnion",
         Node::Datum(Datum::Plane { .. }) => "Datum plane",
         Node::Datum(Datum::Frame { .. }) => "Datum frame",

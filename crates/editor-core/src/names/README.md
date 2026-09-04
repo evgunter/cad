@@ -36,7 +36,8 @@ with `i` recipe-structural. Role arguments are themselves names; profile locator
 (`ProfileEdgeRef`, `ProfileVertexRef`) are the profile crate's canonical
 combinatorial identities, never enumeration indices.
 Names contain no floats and no arena keys; a pass-through op (Transform,
-split-intact entity) adds no segment, so `node` stays the original minter. Names
+split-intact entity, a `Part`'s projection of one half or one instance) adds no
+segment, so `node` stays the original minter. Names
 are document-local; assembly wrapping is `ASSEMBLY.md`'s.
 
 **N1, the revolve poles.** `Pole(v)` names the ONE body vertex an on-axis
@@ -117,7 +118,7 @@ transform composes into `expr` (`SourceExpr::Placed`), `revert` flips `orient`
 same `GeomSource` ⇒ bit-identical descriptions (D9); the converse is not
 claimed, so equal bits without a shared source stay unglued. The declared
 coincidence rung is this lookup (`merge_faces.rs`, `oriented_plane_eq`); the bit
-comparison survives only as the debug assertion `plane_bits_agree`, and the gate
+comparison survives only as the debug assertions behind `plane_bits_witness`, and the gate
 `scripts/gates/bit-identity-consumer.sh` keeps the production allowlist empty.
 Identity holds per evaluation against the current document only.
 
