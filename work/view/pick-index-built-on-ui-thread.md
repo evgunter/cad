@@ -274,3 +274,49 @@ full build** before the index is right. On the 13.4 s row that is a
 it — because the step is uninterruptible, which is Q3's premise. The
 three answers to Q3 are therefore not independent of Q2: whichever
 policy Q2 takes has to hold for twice the window when Q3 answers 3.
+
+## Correction: Q2's third answer does not exist (VIEW orchestrator, 2026-09-04)
+
+**Withdrawn.** I recommended the GPU id-buffer fallback as "the only
+answer still correct at 13.4 s". It is not correct at all.
+
+The id pass renders from `ViewportCallback.scene`
+(`crates/viewer/src/pane/viewport.rs:387`), which is `ViewerApp::scene`
+— **the same stale mesh the viewport is drawing**. Falling back to it
+answers picks against a picture of the document that is gone. It is
+not a second, independent path; it is the stale read wearing a second
+hat, and the disagreement rule `frame` owns for the two picking paths
+is about them disagreeing on the SAME picture, not about one of them
+being newer.
+
+So Q2 has two answers, not three: pick against the stale index
+(explicitly, with a retention policy), or refuse.
+
+### Two facts the question was missing
+
+**The scene mesh comes from the index too.** `sync_scene` returns early
+when there is no index (`crates/viewer/src/app.rs:643`) and the drawn
+mesh is `index.scene_focused(...)` (`:650`), so during the window the
+viewport holds the previous document's `Arc<SceneMesh>`. The window is
+not empty and it is not current: **the user is already looking at a
+known-outdated state and cannot tell.** That makes an indicator
+load-bearing rather than cosmetic.
+
+**A pick with no index silently does nothing today.** Every pick path
+guards on `Option<&PickIndex>` (`viewport.rs:155`, `:202`, `:346`,
+`:353`). Whatever Q2 answers, the pick path has to distinguish *not
+indexed yet* from *nothing under the cursor*, or the fix is a
+better-looking version of the same silence.
+
+### What this does to Q1
+
+If the index is never read while stale it is not derived data that can
+be WRONG — it is current or absent, and "absent, showing an older
+picture" is a state GUI-3 already ratified, inventoried and built
+chrome for (`app.rs:1095-1112`, three states, with the written
+argument that a spinner over no running work would be a lie).
+
+**Then the inventory gains no third shape and GQ6 needs no new
+sentence.** The question this item opened partly dissolves, and it
+dissolves in the direction of the cheaper answer. Awaiting Ev's
+ruling on the PR before this is written as the answer.
