@@ -2,10 +2,11 @@
 id: prose-gate-has-no-mechanical-guard
 kind: issue
 title: the prose gate is enforced only where someone remembered: no row renders every Display-reachable refusal at its struct-shaped payload variants
-status: review
+status: closed
 branch: fix/prose-gate-guard
 opened: 2026-09-04
 pr: 1809
+closed: 2026-09-04
 ---
 
 
