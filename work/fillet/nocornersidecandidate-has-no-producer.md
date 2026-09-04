@@ -2,11 +2,12 @@
 id: nocornersidecandidate-has-no-producer
 kind: issue
 title: `NoCornerReason::NoCornerSideCandidate` has no producer reachable through a shipped door (machinery with no producer)
-status: open
+status: closed
 opened: 2026-08-30
 github: 1280
 refs: [1267]
-needs_ev: true
+closed: 2026-09-04
+pr: 1733
 ---
 
 ## From GitHub issue 1280
@@ -41,3 +42,36 @@ Not fixed in PR #1267: manufacturing a witness for a reason nobody can reach wou
 ## Home
 
 `work/issues/` — the taxonomy in `crates/profile`'s fillet refusal family was S-BLEND's ground; S-BOOL lists `crates/profile/*` as territory but its charter is boolean reach, not the fillet refusal vocabulary.
+
+## For Ev — keep the variant as a stated defensive arm, or delete it?
+
+The producer is one branch: `sugar::arc_fillet_trims`
+(`crates/profile/src/sugar.rs:640`) returns `NoCornerSideCandidate` when
+the offset carriers DO meet, every candidate was computed, none survived
+the corner-side reach gate, and no candidate's failure was an anchor
+overrun. Since the enclosing class refuses earlier, no construction is
+known to reach it (the four searches above, blind spots stated).
+
+1. **Keep it, as a defensive arm with its reason stated in one line
+   (recommended).** Deleting the variant does not delete the branch:
+   `survivors.is_empty() && overrun.is_none()` is a real code path, and
+   without the variant it must either fold into
+   `OffsetCarriersDisjoint` (a lie — the offset carriers met) or panic
+   (D9). The precedent is `fillet_bulge`'s major-arc branch. The doc
+   comment shrinks to the invariant — "the reach gate's own failure
+   arm; no known producer since the enclosing class refuses first" —
+   and the measurement narrative goes to git history.
+2. **Delete it; the branch becomes `unreachable!` with a geometric
+   argument.** Honest only once someone proves that a circle of radius
+   r tangent to two carriers that are both non-enclosing (ρ > 0)
+   always touches each carrier on the corner side. Nobody has; the
+   searches are evidence, not a proof. Cheaper API, riskier.
+3. **Delete it; fold the branch into `OffsetCarriersDisjoint`.**
+   Rejected: it names the wrong situation.
+
+A 👍 on 1 closes this as a one-line doc edit riding the next unit that
+opens `validate.rs`; 2 becomes a unit with a proof obligation.
+
+**Ruled (Ev, 👍 on PR 1733, 2026-09-04): option 1.** The variant stays
+as a stated defensive arm; its doc comment now states the invariant in
+one sentence and cites the ruling. Closed with that edit.
