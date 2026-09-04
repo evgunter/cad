@@ -139,3 +139,84 @@ fn the_subject_door_refuses_a_foreign_evaluation_under_no_body_roots() {
         Err(other) => panic!("expected the pairing refusal, got {other}"),
     }
 }
+
+/// **RED PROBE — `run_checks` with the separation resident OFF now
+/// refuses a document it used to report on.**
+///
+/// Before the subject door, the gather lived inside the separation
+/// resident, so a config that turned that resident off never reached
+/// it: the registry answered `Ok`, with `Separation` in `skipped`.
+/// The wrapper gathers before it reads the config, so the same call
+/// now raises `ChecksError::Product` — an observable change at a
+/// public door, on a configuration the DOCM-4 review already had a
+/// probe for.
+#[test]
+fn the_wrapper_with_separation_off_does_not_need_a_subject() {
+    let tol = Tol::witness();
+    let cfg = ChecksConfig {
+        separation: editor_core::Advisory::Off,
+        ..ChecksConfig::default()
+    };
+    let a = twin_pair("docm5r2-off-a", 0.4);
+    let b = twin_pair("docm5r2-off-b", 4.0);
+    let ev_a: Evaluation<f64> = corpus::eval(&a);
+
+    let report = run_checks(&b, &ev_a, &cfg, tol)
+        .expect("with the resident that needs a subject off, there is nothing to gather for");
+    assert!(
+        report.skipped.contains(&editor_core::CheckId::Separation),
+        "and the skip is visible"
+    );
+}
+
+/// **MEASURED — `run_checks` with the separation resident OFF pays for
+/// a gather nothing reads.**
+///
+/// The gather is ~30x the registry (the unit's own measurement). With
+/// `Separation: Off` the only consumer of the subject is skipped, so
+/// the whole of that ~30x is waste — on the same document the unit
+/// states its numbers for. Reported as a ratio against the same call
+/// with the resident on, so the row does not pin a millisecond.
+#[test]
+fn the_wrapper_with_separation_off_still_pays_for_the_gather() {
+    use std::time::Instant;
+    let tol = Tol::witness();
+    let doc = editor_core::apply(
+        &corpus::documents()
+            .into_iter()
+            .find(|d| d.name == "heat_sink")
+            .expect("the corpus carries the heat sink")
+            .doc,
+        &editor_core::DocEdit::SetDocParam {
+            name: editor_core::ParamName::new("fins"),
+            value: editor_core::DocParam::Count { value: 40 },
+        },
+        tol,
+    )
+    .expect("the fin count is a document parameter")
+    .doc;
+    let ev: Evaluation<f64> = corpus::eval(&doc);
+    let off = ChecksConfig {
+        separation: editor_core::Advisory::Off,
+        ..ChecksConfig::default()
+    };
+
+    let subject = product_recorded(&doc, &ev, tol).expect("the heat sink gathers");
+    let t0 = Instant::now();
+    run_checks_on(&doc, &ev, Subject::Product(&subject), &off, tol).expect("the door runs");
+    let door = t0.elapsed();
+    let t0 = Instant::now();
+    run_checks(&doc, &ev, &off, tol).expect("and so does the wrapper");
+    let wrapper = t0.elapsed();
+
+    println!(
+        "separation off: door {:?}, wrapper {:?} ({:.1}x)",
+        door,
+        wrapper,
+        wrapper.as_secs_f64() / door.as_secs_f64().max(f64::MIN_POSITIVE)
+    );
+    assert!(
+        wrapper < door * 4,
+        "the wrapper pays a gather no resident reads: door {door:?}, wrapper {wrapper:?}"
+    );
+}
