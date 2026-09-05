@@ -4,6 +4,7 @@ kind: issue
 title: docs/TESS-BUDGET.md's headline finding block is a hand-transcribed census of a sweep it no longer describes
 status: open
 opened: 2026-09-03
+track: K
 ---
 
 
