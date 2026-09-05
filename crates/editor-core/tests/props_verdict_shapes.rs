@@ -23,16 +23,14 @@
 //!    still net to nothing — the blind spot `vdiff`'s module docs
 //!    document, here as a row rather than a sentence.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-#![cfg(feature = "interval")]
 
 use std::sync::Arc;
 
 use crate::fixture;
 
-use editor_core::drive::VerdictVector;
 use editor_core::{
-    CancelToken, EvalOptions, Evaluation, NodeResult, ProfileDoc, RecipeNodeId, diff_verdicts,
-    evaluate,
+    CancelToken, EvalOptions, Evaluation, NodeResult, ProfileDoc, RecipeNodeId, VerdictVector,
+    diff_verdicts, evaluate,
 };
 use fixture::on_frame;
 use geom_core::k_stats::Verdict;

@@ -136,7 +136,8 @@ use topo::Body;
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
 use crate::doc::{Doc, DocParam, ParamName};
-use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, Receipt, VerdictVectorKey};
+use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, Receipt};
+use crate::resolve::VerdictVectorKey;
 use crate::eval::{
     BooleanValue, CancelToken, ContentKey, DatumValue, EvalOptions, EvalOutcome, Evaluation,
     NodeErrorKind, NodeResult, ProfileLift, SplitSide, ValuePayload, evaluate,

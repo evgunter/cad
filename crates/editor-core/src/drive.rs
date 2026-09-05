@@ -91,7 +91,6 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom_core::interval::Interval;
-use geom_core::k_stats::Verdict;
 use geom_core::{MarginDiag, Sym, SymCounts, Tol};
 
 #[cfg(feature = "probe")]
@@ -105,6 +104,10 @@ use crate::eval::{
 use crate::node::{Node, RecipeNodeId};
 use crate::program::ProfileProgram;
 use crate::resolve::{FlipSet, diff_verdicts};
+// The two derived verdict forms live in one module (`resolve::vdiff`);
+// this driver is the strict form's certifying consumer, and names it at
+// `drive::` because that is where every consumer already reaches for it.
+pub use crate::resolve::{VerdictRow, VerdictVector, VerdictVectorKey};
 use crate::witness::WitnessBifurcation;
 
 /// The per-axis split budget: how many times ONE axis of the box may be
@@ -351,93 +354,14 @@ impl Default for DriveConfig {
     }
 }
 
-/// How one node's replay came out, as scalar-independent data.
+/// **The certification projection of a [`VerdictVector`].**
 ///
-/// The verdict rows alone do not separate "this node built and decided
-/// nothing" from "this node failed before deciding anything", and a
-/// certificate that could not tell those apart would certify a leaf
-/// whose build refused. The tag closes that.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReplayOutcome {
-    /// The node produced a value.
-    Built,
-    /// The node itself refused.
-    Refused,
-    /// An ancestor refused; this node never ran.
-    Poisoned,
-}
-
-/// One node's row of a [`VerdictVector`].
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VerdictRow {
-    /// The node.
-    pub node: RecipeNodeId,
-    /// How its replay came out.
-    pub outcome: ReplayOutcome,
-    /// Every definite decision it made, in decision order.
-    pub verdicts: Vec<Verdict>,
-}
-
-/// An evaluation's verdict vector: one [`VerdictRow`] per node, in the
-/// evaluation's deterministic order.
-///
-/// Float-free, so equality is exact and means what it says. This is the
-/// object leaf certification compares, and the ONLY thing it compares.
-///
-/// # Why this is not `resolve::vdiff`'s `NodeVerdicts`
-///
-/// Two shapes, two questions, and the driver asks both.
-///
-/// - **"Is this leaf the witness build?"** wants the STRICTEST
-///   available test, because a false yes is a false certificate. Order
-///   included, outcome tags included, no cancellation anywhere: that is
-///   this type, and it is what [`drive`] gates on.
-/// - **"What differs, and what should the report call it?"** wants a
-///   test that survives permutation, because construction order inside
-///   an op is itself predicate-steered — `vdiff`'s populations, which
-///   [`FlipEvidence`] carries verbatim.
-///
-/// The population form is deliberately WEAKER (a pure sign exchange in
-/// one node nets to nothing), so it can name but must not gate; this
-/// form cannot explain a difference it detects, so it gates but does
-/// not name. Neither subsumes the other. `NodeVerdicts` is `vdiff`'s
-/// own serializable spelling of its population form, so the tree
-/// carries two derived shapes over one substrate rather than three
-/// unrelated ones. Whether the split should stay a split is issue
-/// #1255, filed so it is a decision on the record.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct VerdictVector {
-    /// The rows, in evaluation order.
-    pub rows: Vec<VerdictRow>,
-}
-
+/// The strict form and its key are `resolve::vdiff`'s, beside the
+/// population form they are the counterpart of. WHICH ROWS A GATE
+/// EXCLUDES is this driver's policy and nothing else's, so it is
+/// written here: a consumer of the diff engine gets the vector of an
+/// evaluation, and only a consumer that CERTIFIES gets this.
 impl VerdictVector {
-    /// The vector of an evaluation, in its own `order`.
-    pub fn of<T: geom_core::Decide>(ev: &Evaluation<T>) -> Self {
-        let rows = ev
-            .order
-            .iter()
-            .map(|&node| {
-                let (outcome, verdicts) = match ev.nodes.get(&node) {
-                    Some(NodeResult::Ok(v)) => (ReplayOutcome::Built, v.verdicts.to_vec()),
-                    Some(NodeResult::Failed(_)) => (ReplayOutcome::Refused, Vec::new()),
-                    // A node with no entry at all (a canceled prefix)
-                    // has run nothing, which is what `Poisoned` says
-                    // about the rows below it too.
-                    Some(NodeResult::Poisoned { .. }) | None => {
-                        (ReplayOutcome::Poisoned, Vec::new())
-                    }
-                };
-                VerdictRow {
-                    node,
-                    outcome,
-                    verdicts,
-                }
-            })
-            .collect();
-        Self { rows }
-    }
-
     /// **The CERTIFYING vector**: [`Self::of`] with the rows of nodes
     /// that only report left out.
     ///
@@ -474,42 +398,6 @@ impl VerdictVector {
             .rows
             .retain(|row| !matches!(doc.node(row.node), Some(Node::Assertion { .. })));
         vector
-    }
-
-    /// The vector's content key — the `verdict_vector_key` a certified
-    /// leaf carries. Derived, never persisted (E10).
-    pub fn key(&self) -> VerdictVectorKey {
-        let mut h = KeyHasher::new();
-        h.write_tag(0xE6);
-        h.write_u64(self.rows.len() as u64);
-        for row in &self.rows {
-            h.write_u64(row.node.0);
-            h.write_tag(match row.outcome {
-                ReplayOutcome::Built => 1,
-                ReplayOutcome::Refused => 2,
-                ReplayOutcome::Poisoned => 3,
-            });
-            h.write_u64(row.verdicts.len() as u64);
-            for v in &row.verdicts {
-                h.write_str(v.predicate);
-                h.write_tag(sign_tag(v.sign));
-            }
-        }
-        VerdictVectorKey(h.finish().0)
-    }
-}
-
-/// The identity of a [`VerdictVector`] — what a certified leaf carries
-/// instead of a copy of the vector, since every certified leaf's vector
-/// is the witness's by definition.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct VerdictVectorKey(pub u128);
-
-fn sign_tag(s: geom_core::Sign) -> u8 {
-    match s {
-        geom_core::Sign::Negative => 1,
-        geom_core::Sign::Zero => 2,
-        geom_core::Sign::Positive => 3,
     }
 }
 
