@@ -27,6 +27,7 @@ use pncad::document::{
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use pncad::workspace::Workspace;
+use viewer::display::DisplayFault;
 use viewer::parts::{PartChooser, PartEntry};
 use viewer::session::{DocSession, Refusal, SessionOp};
 use viewer::tree::{self, RowStatus};
@@ -174,10 +175,26 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
+    let [superseded] = &outcome.superseded[..] else {
+        panic!(
+            "exactly one placement is superseded: {:?}",
+            outcome.superseded
+        )
+    };
     assert_eq!(
-        outcome.superseded,
-        vec![shelf_i],
+        superseded.instance, shelf_i,
         "the mate supersedes the probe on the instance it constrains"
+    );
+    assert!(
+        matches!(
+            &superseded.cause,
+            DisplayFault::MateConstrained { instance, mates }
+                if *instance == shelf_i && !mates.is_empty()
+        ),
+        "and the outcome carries WHY it went, not only which went — the \
+         fault's own PAYLOAD, which is what would go red if the prune paired \
+         the right fault with the wrong instance: {}",
+        superseded.cause
     );
     session.pump();
     assert!(!tree::has_faults(&session.tree_rows()));
