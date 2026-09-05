@@ -9,7 +9,7 @@ opened: 2026-09-05
 ## Finding
 
 FILLET-H7's ruled carve records its cut-off arcs in `BlendNaming::arcs`
-(`(edge, source vertex, source edge)`, `crates/sweep/src/blend/surgery.rs`,
+(`(edge, source vertex, source edge)`, `crates/sweep/src/blend/open/ruled.rs`,
 `ruled_phase`), the row the planar open band uses for its CORNER arcs.
 `crates/editor-core/src/names/emit_blend.rs` keys that row as
 `RoleSeg::CornerArc { vertex, edge }` — so a transverse cap's cut-off arc

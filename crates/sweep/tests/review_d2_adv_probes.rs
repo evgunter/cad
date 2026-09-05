@@ -544,7 +544,8 @@ fn d2_reached_variants() {
 /// a tier-1-invalid body with no kernel bug in the trace.
 ///
 /// All 46 sites sit BELOW `blend_surgery`'s entry gate
-/// (`solids != 1 || shells != 1` — `surgery.rs:212`). This row pins
+/// (`solids != 1 || shells != 1` — `blend_surgery`'s entry gate in
+/// `blend/surgery.rs`). This row pins
 /// the arithmetic that decides whether the witness can get there in
 /// the scenario the refutation describes — *a caller keeps the body it
 /// already had*: a graft ADDS a solid (`graft_disjoint_all_keyed`
@@ -590,7 +591,7 @@ fn d2_a_grafted_destination_is_stopped_at_the_entry_gate() {
         Err(BlendError::UnsupportedBody { solids, shells }) => {
             println!(
                 "d2_a_grafted_destination_is_stopped_at_the_entry_gate: \
-                 {solids} solid(s), {shells} shell(s) — refused at surgery.rs:212, \
+                 {solids} solid(s), {shells} shell(s) — refused at `blend_surgery`'s entry gate, \
                  above all 46 `BodyNotIntact` sites"
             );
         }
