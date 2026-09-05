@@ -1485,3 +1485,132 @@ adjudicated it here.
 hand, per `memories/agent-lane-operations.md`. The box was at 12 GB
 free with the 6b lane's target at 9.4 GB and still growing, which is
 the one lane that must not meet a full disk.
+
+## 6b is built and green; the dispatcher was wrong about the worker (2026-09-05)
+
+**#1888, CI green** on `d1fca1a8` — run 33932680543, 37 jobs, all
+twelve `test (…)` points, all five `k-lint (gate, …)` unifications,
+both render lanes. Four commits. Under **correctness review**, which is
+the review this unit was singled out for at dispatch; the style review
+follows it rather than running beside it, to keep this session's
+concurrency down after the rate limit below.
+
+### The dispatcher correction, and it is the design
+
+My brief claimed the `EvalService` seam "can carry a second payload
+kind without being redesigned". **Half wrong, and the wrong half is the
+worker.** The submit-cancels-and-restarts half holds. But an index
+build is **uninterruptible and takes seconds**, so a shared queue would
+put it in front of the next evaluation — and an edit made during an
+index build would then wait for that build to finish. That silently
+weakens the cancel-and-restart promise GUI-3 ratified *above* it:
+**a seam cannot keep a promise from behind a queue it does not
+control.** So the unit reuses the vocabulary and duplicates the
+worker, and says so in the module docs rather than only in the PR.
+
+That is the ninth dispatcher correction this program has taken and the
+third against a decision rather than a detail. It is also the argument
+for the posture that produces them: the brief said the claim was a
+claim.
+
+### The three shape decisions
+
+- **No `cancel` on the index trait at all** — not a cancel that
+  quietly does nothing, but no door. Ev's Q3 answer made structural, so
+  a later lane cannot wire a token through without meeting the
+  argument first.
+- **The key is the pair `(generation, δ)`, carried on the ANSWER.** The
+  refusal arm has no index to read a generation off, and δ is an input
+  to the tessellation but not to the evaluation — so an index for the
+  document on screen at a δ nobody asked for any more is the same class
+  of wrong as one for the wrong document, and only the pair separates
+  them.
+- **The cache drops its index at the SUBMIT, not when the replacement
+  lands**, which is what makes Ev's Q1 answer true rather than
+  aspirational: current or absent, never behind. That is the
+  correctness review's first claim to falsify.
+
+### What the window looks like, which is the ruling in the tree
+
+The viewport keeps drawing the previous document's mesh (an older
+picture, which the ruling permits), a **click** is refused typed and
+visible as `pick::NotIndexed`, the toolbar says `indexing…` with the
+refusal's own sentence as hover text and **no Cancel button** — the
+weaker promise showing through the chrome. The fourth chrome condition
+went into the existing block as `frame::progress(busy, running,
+indexing)`, a total function of three booleans, so two spinners cannot
+be lit for one wait.
+
+**A hover is deliberately left unrefused**, because it is pushed on
+every frame the pointer is in the pane and refusing it would rewrite
+the status line sixty times a second. The lane flagged that as its own
+judgement for a reviewer to check, which is the right thing to have
+done with it; it is named in the correctness brief as the likeliest
+place a confident wrong answer hides.
+
+### The claim I doubted, and was wrong to
+
+I told the lane that `Send` on the index and its BVH was "the likeliest
+place my brief is wrong". It was not — they are `Send`, and the lane
+did not leave it to a grep: a `const _: fn()` in `evalseam` asserts it
+for both payload types on **every** target, including wasm, where the
+threaded implementation that would otherwise force it is compiled out.
+A doubt that turns out to be misplaced and gets closed by a
+compile-time assertion instead of a sentence is the cheapest possible
+outcome.
+
+### A filing collision, resolved in the lane's favour
+
+The lane filed `work/view/ui-thread-work-after-the-index-seam.md` on
+its own branch (commit `2622d14f`) before my message telling it not to
+arrived — reading `docs/prompts/implementer-discipline.md` §6's *inside
+your own program's fence a disclosed residue owes a file in the same
+PR*, which is correct and is the rule. **Its file stands and I write
+none.** The collision is my doing: I told it to report rather than file
+in order to keep `work/view/` clear for my orchestrator branch, which
+is a convenience of mine set against a rule of the project's. The rule
+wins; the lesson is that the orchestrator's own branch is not a reason
+to suspend §6, and future briefs should say "file it, I will merge
+around you" instead.
+
+That file covers three further UI-thread costs the sweep found and
+**does not measure**: `scene::fit_delta`'s probe tessellation (~1/8 of
+a full one, once per document that arrives), `scene_focused`'s walk
+over every drawn triangle including on hide/focus changes, and
+`DocSession::land`'s gather plus check registry plus A5 certification.
+It overlaps `scene-gathers-the-landed-product-twice-more` on the second
+and asks a different question of it — where the cost runs, not that the
+product is gathered twice.
+
+### Territory, clean
+
+Nothing from `crates/mesh/` or `crates/bvh/` was needed or nearly
+needed — Q3's answer is precisely what removed the need and the
+no-cancel-door shape is what keeps it removed. **No `session.rs` line
+was touched**, so both live sibling lanes are untouched; the request is
+built from `landed_pair()` and `evaluation_arc()`, which already
+existed. The one cost is cloning the `Doc` into each request rather
+than sharing the session's `Arc` — once per attempt, and it needs no
+new door on the driver.
+
+## The session hit a rate limit and killed three agents at once (2026-09-05)
+
+At 00:38 UTC all three running agents died mid-flight on a session
+limit (reset 02:00). **Nothing was lost, and the recovery is worth
+recording because the tracker's own rules are what made it cheap:**
+
+- the 6b lane had already pushed four commits and had a green run, so
+  its state was entirely on the remote and only its *report* was
+  missing;
+- the clearing-walk review had done nothing yet and restarted clean;
+- **the prune-report fix pass had an uncommitted working tree**, which
+  is the only real exposure. Committed by the orchestrator as
+  `0350f832` with a message naming exactly what it is and what it is
+  not, and pushed, then the lane resumed and told to read that diff
+  rather than trust its memory of where it got to.
+
+The rule that made the first two free is `implementers commit AND push
+after every coherent unit` (`memories/agent-lane-operations.md`). The
+third is the case it exists for. Five concurrent agents is what
+exhausted the budget; the correctness review runs alone rather than
+beside a style review as a result.
