@@ -820,12 +820,24 @@ mod threaded {
                     Ok(done) => {
                         self.running = false;
                         match self.waiting.take() {
-                            // `done` answers a request the caller has
-                            // already superseded. It dies HERE rather
-                            // than travelling up to be discarded by
-                            // key.
-                            Some(next) => self.dispatch(next),
-                            None => return Some(done),
+                            // **Superseded is decided by KEY, not by
+                            // position.** A waiting request for the
+                            // picture `done` already IS is what a δ
+                            // moved away and back produces, and
+                            // rebuilding it would cost a second full
+                            // build of an answer in hand — the one
+                            // wasted build this seam accepts, paid
+                            // twice for nothing.
+                            Some(next)
+                                if (next.generation, next.delta)
+                                    != (done.generation, done.delta) =>
+                            {
+                                // Genuinely superseded: it dies HERE
+                                // rather than travelling up to be
+                                // discarded by key.
+                                self.dispatch(next);
+                            }
+                            _ => return Some(done),
                         }
                     }
                     Err(TryRecvError::Empty) => return None,

@@ -930,8 +930,14 @@ fn the_chrome_has_one_progress_state_and_evaluation_outranks_indexing() {
     );
     assert_eq!(
         frame::progress(true, false, false),
-        Some(frame::Progress::Canceled),
+        Some(frame::Progress::Canceled { indexing: false }),
         "a spinner over no running work would be a lie",
+    );
+    assert_eq!(
+        frame::progress(true, false, true),
+        Some(frame::Progress::Canceled { indexing: true }),
+        "a cancel with an index build still running is one state that \
+         carries the work, not a second indicator beside it",
     );
     assert_eq!(
         frame::progress(false, false, true),
@@ -942,6 +948,20 @@ fn the_chrome_has_one_progress_state_and_evaluation_outranks_indexing() {
         Some(frame::Progress::Evaluating),
         "an index for a superseded generation is about to be discarded",
     );
+    // The last two of the eight. `busy` is "the picture is older than
+    // the document" and `running` is "the seam has work", so a seam
+    // with work outstanding always has a generation the picture has
+    // not caught up to: NOT busy while running is unreachable through
+    // `DocSession`. The function is total anyway, and what it answers
+    // there is written down rather than left to be discovered.
+    for indexing in [false, true] {
+        assert_eq!(
+            frame::progress(false, true, indexing),
+            frame::progress(false, false, indexing),
+            "with the picture current, a running evaluation the session \
+             cannot report changes nothing",
+        );
+    }
 }
 
 // --- the pairing sweep ----------------------------------------------

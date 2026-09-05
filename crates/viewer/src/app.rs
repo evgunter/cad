@@ -1147,11 +1147,23 @@ impl eframe::App for ViewerApp {
                         // collect it.
                         ui.ctx().request_repaint();
                     }
-                    Some(frame::Progress::Canceled) => {
+                    Some(frame::Progress::Canceled { indexing }) => {
                         ui.separator();
+                        // The recourse first, and unconditionally: the
+                        // cancel is what the reader has to act on, and
+                        // an index build behind it must not take the
+                        // button away for the seconds it runs.
+                        if indexing {
+                            ui.spinner();
+                        }
                         ui.label("canceled — showing an older result");
                         if ui.button("Re-evaluate").clicked() {
                             ops.push(SessionOp::Reevaluate);
+                        }
+                        if indexing {
+                            ui.weak("indexing…")
+                                .on_hover_text(crate::pick::NotIndexed::Building.to_string());
+                            ui.ctx().request_repaint();
                         }
                     }
                     // No Cancel button beside it, and that is the

@@ -506,6 +506,66 @@ fn the_threaded_index_seam_restarts_without_canceling_and_answers_once() {
     assert!(results[0].index.is_ok());
 }
 
+/// **A δ moved away and back does not pay for a second build of an
+/// answer already in hand.** The waiting request and the finished one
+/// name the same picture, so the finished one IS the answer: dropping
+/// it by position rather than by key would dispatch an identical
+/// build, and on the fine-δ row that is thirteen seconds for nothing.
+///
+/// **How the row can tell which build answered.** Two builds of one
+/// key are indistinguishable by their results — which is the whole
+/// difficulty — so the waiting request here carries a BROKEN document
+/// under the key the worker is already building the good one for.
+/// Production never mints two payloads for one key; this row does, so
+/// that "the seam kept the answer it had" and "the seam rebuilt" have
+/// different observable answers instead of the same one.
+#[cfg(not(target_family = "wasm"))]
+#[test]
+fn the_threaded_index_seam_keeps_an_answer_a_waiting_request_asks_for() {
+    let tol = Tol::witness();
+    let (doc, extrude) = viewer::scene::plate_with_hole(tol).expect("the plate authors");
+    let mut session = DocSession::inline(doc.clone(), tol);
+    session.pump();
+    let generation = session.landed_generation().expect("a landed generation");
+
+    let mut broken = DocSession::inline(doc, tol);
+    broken.perform(SessionOp::SetSlot {
+        node: extrude,
+        slot: SlotId::Distance,
+        value: SlotValue::Continuous(0.0),
+    });
+    broken.pump();
+
+    let mut seam = viewer::evalseam::ThreadIndexer::spawn().expect("the worker starts");
+    seam.submit(index_request(&session, generation));
+    // A second submit while the first is with the worker, so the third
+    // is only WAITING rather than dispatched — and the third asks for
+    // the picture the worker is already building.
+    let mut other = index_request(&session, generation);
+    other.delta = index_delta().scaled(2.0).expect("a positive delta");
+    seam.submit(other);
+    seam.submit(index_request(&broken, generation));
+
+    let mut results = Vec::new();
+    for _ in 0..10_000 {
+        while let Some(done) = seam.poll() {
+            results.push(done);
+        }
+        if !seam.busy() && !results.is_empty() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert!(!seam.busy());
+    assert_eq!(results.len(), 1, "one answer for one picture");
+    assert_eq!(results[0].generation, generation);
+    assert_eq!(results[0].delta, index_delta());
+    assert!(
+        results[0].index.is_ok(),
+        "the answer in hand was kept, not thrown away and rebuilt",
+    );
+}
+
 /// The index seam's traffic is `Send` too — checked here as well as by
 /// the compile-time assertion in the module, because the threaded
 /// implementation that would otherwise force it is absent on wasm.

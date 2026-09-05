@@ -682,7 +682,15 @@ crosses (`src/evalseam.rs`, two seams and two workers), keyed by the
 **What that window looks like, exactly.** `PickCache` drops the index
 it holds at the moment it submits, not when the replacement lands, so
 between the two there is no index at all — the state is **current or
-absent, never behind**. The viewport goes on drawing the mesh it last
+absent, never behind**. Replacing one picture's key with another's is
+what keeps it that way for every ordinary transition, and the one
+transition with no next key — a document opened or authored while a
+build is still with the seam — is where the invariant has to be
+enforced by hand: `PickCache::sync`'s nothing-landed arm FORGETS the
+outstanding attempt, so the build that finishes afterwards has no key
+to match and is discarded. Leaving it a key was a state in which the
+index of a replaced document installed over the scene of the one
+before it, with nothing running and nothing said. The viewport goes on drawing the mesh it last
 received, which is the previous document's, and three things say so
 rather than letting it pass for the current one: the toolbar shows one
 progress state and it reads `indexing…` (`frame::progress` — one

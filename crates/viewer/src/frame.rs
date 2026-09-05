@@ -437,10 +437,24 @@ pub enum Progress {
     /// A run is in flight: the picture is older than the document and
     /// someone is doing something about it.
     Evaluating,
-    /// The picture is older than the document and **nothing is
-    /// running** — what a cancel leaves behind. A spinner here would
-    /// be a lie about work nobody is doing.
-    Canceled,
+    /// The picture is older than the document and **no EVALUATION is
+    /// running** — what a cancel leaves behind. A spinner over that
+    /// alone would be a lie about work nobody is doing.
+    ///
+    /// `indexing` is whether the OTHER seam is nonetheless busy, and
+    /// it is carried here rather than answered by a second indicator
+    /// because this is the one state where the two seams disagree
+    /// about whether anything is happening: an index build submitted
+    /// before the cancel is still running, and it will change the
+    /// picture. The rule the payload buys is **the spinner follows the
+    /// work, never the name** — so a canceled evaluation with a live
+    /// index build spins, and the status line's own *still being
+    /// indexed* refusal agrees with the toolbar instead of describing
+    /// the same moment a second way.
+    Canceled {
+        /// Whether an index build is in flight behind the cancel.
+        indexing: bool,
+    },
     /// The document is evaluated and its index is being built: the
     /// picture is the last one that finished, and picks are refused
     /// until this lands ([`crate::pick::unindexed`]).
@@ -458,7 +472,7 @@ pub enum Progress {
 pub fn progress(busy: bool, running: bool, indexing: bool) -> Option<Progress> {
     match (busy, running, indexing) {
         (true, true, _) => Some(Progress::Evaluating),
-        (true, false, _) => Some(Progress::Canceled),
+        (true, false, indexing) => Some(Progress::Canceled { indexing }),
         (false, _, true) => Some(Progress::Indexing),
         (false, _, false) => None,
     }
