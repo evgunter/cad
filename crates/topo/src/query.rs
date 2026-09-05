@@ -301,12 +301,12 @@ pub fn edge_carrier_kind<T: Real>(body: &Body<T>, e: EdgeKey) -> Option<CurveKin
 }
 
 /// The surface kind of a face, or `None` for a dangling key or an
-/// unreadable surface reference.
+/// unreadable surface reference: the flattening of the typed readback
+/// door [`crate::readback::face_carrier_kind`], which is the one
+/// reading of a face's carrier tag.
 #[must_use]
 pub fn face_surface_kind<T: Real>(body: &Body<T>, f: FaceKey) -> Option<SurfaceKind> {
-    body.get_face(f)
-        .and_then(|face| body.get_surface(face.surface))
-        .map(SurfaceKind::of)
+    crate::readback::face_carrier_kind(body, f).ok()
 }
 
 /// The surface kind on one side of an edge, or `None` where the
@@ -314,8 +314,7 @@ pub fn face_surface_kind<T: Real>(body: &Body<T>, f: FaceKey) -> Option<SurfaceK
 fn face_kind_across<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<SurfaceKind> {
     let h = body.get_half_edge(he)?;
     let f = body.get_loop(h.parent_loop)?.face;
-    body.get_surface(body.get_face(f)?.surface)
-        .map(SurfaceKind::of)
+    face_surface_kind(body, f)
 }
 
 /// EXACT: whether the edge's certified carrier kind is a member of

@@ -2,9 +2,10 @@
 id: face-kind-read-has-two-homes
 kind: unit
 title: topo::query::face_surface_kind and readback::face_carrier_kind read one tag from two homes
-status: dispatched
+status: review
 opened: 2026-09-04
 branch: topo/two-homes-face-kind
+pr: 1959
 ---
 
 DOCM-1 (PR #1829, DM2) added `topo::readback::face_carrier_kind(body,
