@@ -915,3 +915,10 @@ the unit's record is its item's `## Closed` section (an E rider outside
 the A/B experiment — no `MODEL-AB-LOG.md` row).
 
 - `PROPS-LILY-VEC3-SPEC.md` — PROPS lily-vec3, the lily authored in `Vec3<f64>` through the kernel's own doors, lifted at the boundary (#1954)
+
+## Per-merge deletion — PROPS ONB-measure's spec (2026-09-05)
+
+Recoverable at `git show 8dd230c1c2964da6f5cefe27dac0836b74312bba:docs/PROPS-ONB-MEASURE-SPEC.md`
+(the unit's last head; merged as PR 1939 at 48383a44c).
+
+- `PROPS-ONB-MEASURE-SPEC.md` — PROPS ONB-measure — the four evidence-only measurements deciding the orthonormal-basis sign hull (PR 1939's body carries the tables; `work/props/interval-orthonormal-basis-sign-hull.md` is the record; no A/B row)

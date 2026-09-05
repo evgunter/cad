@@ -4,7 +4,8 @@ kind: issue
 title: Vec3::orthonormal_basis returns a sign-hulled frame at Interval when n.z encloses zero
 status: open
 opened: 2026-09-03
-refs: [1191]
+refs: [1191, 1939]
+needs_ev: true
 pr: 1939
 ---
 
@@ -48,8 +49,9 @@ so nothing that only evaluates points is wrong. What breaks is any
 consumer that REFINES the chart: `Surface::eval` over a `(u, v)`
 sub-rectangle of such a plane returns the whole face's box however far
 the rectangle is narrowed, because the frame vector itself spans both
-signs. A subdivision over the chart cannot converge at all; it burns
-its budget and refuses.
+signs. The measured cost (PR #1939, table 4) is a 2× enclosure — the mirrored
+face is hulled in — not a stalled refinement: `refines` is true at both
+a metre-scale and an ε-scaled window today.
 
 M10-5's clearance engine met this directly. It works around it by
 re-charting planar carriers at its own door
@@ -112,6 +114,60 @@ Corrections to the premise above, at `main` today:
   move under (c′)). That measurement is the next lane on this file;
   its numbers go to Ev as an `[ev]` ruling with (c)/(c′) argued.
   M10-5's `in_plane_axis`/`chart_frame` workaround retires after.
+
+## Question for Ev (PROPS orchestrator, 2026-09-05) — which Interval-only fix
+
+The four measurements are merged as PR #1939 (instruments committed,
+tables in its body). What they decide:
+
+1. **The backend does not carry a signed zero through `*` and `/`.**
+   `interval.rs` wraps the in-repo `interval-transcendentals`, not
+   inari (a stale comment says otherwise). `from_f64(±0.0)`, `+`, `−`
+   and unary `−` keep the bit; `(−1)·[+0,+0]` gives `[+0,+0]` where
+   f64 gives `−0.0`, and `normalize((1,0,−0)).z` likewise — and
+   `normalize` is on every `newell_plane` path. So option **(c)** —
+   transfer the sign bit at a point-zero enclosure — is NOT sound as
+   the tree stands: the Interval replay sees `+0` where the f64
+   program saw `−0` and the enclosure would exclude the f64 frame.
+   Making it sound means a backend invariant (signed zeros preserved
+   by every op on every path), which is a heavier discipline than the
+   hull it would replace.
+2. **Census, 815 planar faces over three corpora**: exactly 12 walls
+   carry `n.z = −0.0`, all in `die` and `kiss_assembly`, all minted
+   by the boolean's face reversal (an extruded cube has four `+0.0`
+   walls; `cube − cutter` has four `−0.0` walls); a Newell sum itself
+   never mints `−0.0`. Zero in the wild corpus and the Band 4 corpus;
+   zero faces in the `|z| < 1e-12` nonzero class anywhere.
+3. **Under (c′)** — canonicalise at f64, `s = copysign(1, n.z + 0)` —
+   all 12 move: 8 `DIRECTION` records in two byte-golden STEP fixtures
+   (`die.step`, `kiss_assembly.step`); four of the twelve flip `u_ref`
+   by a half-turn. No `FaceFrame` sits on any of them; the committed
+   `.pncad` documents carry no `FaceFrame` at all.
+4. **Payoff on M10-5's 12-gon prism**: 6 of 12 walls narrow `u_ref.z`
+   from width 2 to ≤ 7.4e-15 and halve the cell's z-enclosure; 4 were
+   already exact (`n.x = 0`); **2 stay hulled** because their `n.z` is
+   `[−2.2e-16, 2.2e-16]` at Interval though exactly `0.0` at f64 — an
+   honestly wide input, not this item's defect.
+
+**Recommendation: (c′)**, inside `orthonormal_basis` so every producer
+is covered: `copysign(1, n.z + 0)` at f64 makes the frame independent
+of the zero's sign, and then an Interval point-zero arm answering `+`
+encloses the f64 program by construction, whatever the backend does
+with sign bits. Cost, stated plainly: the 12 corpus walls' stored
+`u_ref` moves (4 flip), the 8 STEP records re-derive, and **any user
+document with a `FaceFrame` on a boolean-reversed vertical wall would
+rotate by a half-turn at its next evaluation** — none in any corpus,
+but the document format has no migration channel for it, so this is
+the one thing to accept or refuse. (c) is rejected on point 1; option
+1 (a different frame construction) was rejected in §Sized on the same
+silent-rotation cost at every wall rather than twelve.
+
+If (c′): the unit lands the respell, the point-zero arm, the 8
+re-derived records with the reason, a doc line at `Datum::FaceFrame`
+naming the class, and closes this item; M10-5's `chart_frame`
+workaround retires for the point-zero class only (the two
+`[−2.2e-16, 2.2e-16]` walls keep needing it). If refused: the item
+records the hull as a decision and the workaround stays.
 
 ## Home
 
