@@ -1,9 +1,8 @@
 ---
 id: tree-wide-guards-outside-the-change-closure
 kind: issue
-title: Tree-wide guards are unreachable from the change closure: two main breaks in one night, and restoring F3's push test rows would have caught neither
+title: Tree-wide guards are unreachable from the change closure - two main breaks in one night, and Ev's ruling: the closure reaches them
 status: open
-needs_ev: true
 opened: 2026-09-05
 refs: [f3-recosting-on-a-public-repo, merge-order-semantic-break-reaches-main, main-latently-red-at-tier-all, 1829, 1859, 1871, 1884]
 ---
@@ -254,43 +253,52 @@ larger. A "tree-shaped guards" row that covers `test-utils` and
 `geom-core` is ~25 s of cargo; one that covers `editor-core` too is a
 real build.
 
-## What is being decided
+## THE RULING (Ev, 2026-09-05)
 
-`work/ciw/program.md`'s `keep_out`: *"what a main push re-gates is an
-[ev] ruling before any change to the F3 trim"*. **Nothing about F3 is
-changed by this item.** The question for Ev is which of these to take:
+> "oh yeah the closure should reach tree wide guards"
 
-**(a) Add a test row to `main`'s push run.** Measured above: it does not
-work for this class, because the push run re-draws the merge's own
-closure. The variant that does work is `--force-all` on every push —
-the scheduled full run declined 2026-08-22, at 442 s and a 57 %
-cancellation rate.
+That is the **fourth shape** this item named and declined to propose —
+not one of the three it put up for decision. It supersedes them, so the
+(a)/(b)/(c) question is moot and is recorded below only as what was
+measured, not as anything still open.
 
-**(b) Leave F3 as it stands and accept the fleet as the detector.**
-Tonight's measured price: 3 h 48 m of exposure, 5 red PR runs, 35 failed
-jobs, 4 innocent branches, two CIW lanes consumed. Detection cost 2–11
-minutes; the rest was repair. This is a real option — the price is small
-and the detector, though only 12 % efficient tonight, was fast twice.
+**Nothing about F3 changes, and the `keep_out` gate is not reached.**
+With the closure reaching these guards, both of tonight's breaks would
+have red on the PR that introduced them, before merge. The push run
+never enters it. `work/ciw/program.md`'s *"what a main push re-gates is
+an [ev] ruling"* governs a change this item no longer proposes.
 
-**(c) A narrow unscoped guard row that runs the tree-shaped guards
-without a workspace build.** For `test-utils` this is measured at ~7 s of
-cargo and ~40 s of job, on the push side, the PR side, or both — and on
-the PR side it prevents the class rather than detecting it. It does not
-touch F3, does not touch the archive, and does not touch the tier.
-Extending it past `test-utils` costs a real build per crate added, so a
-row scoped to the two leaf-housed guards (`test-utils`, `geom-core`) is
-the natural stopping point at ~25 s of cargo.
+Ev also ruled on who does it: *"don't hand the unit to tcost; you can
+take it"*. `scripts/ci-filter.py` is in S-TCOST's `paths` and S-TCOST is
+**open** — 6 open items, 2 parked, no orchestrator activity since
+2026-09-03 — so this is taken as an **announced cross-fence change**:
+CIW writes it, names S-TCOST in the PR, and no `program.md` is edited.
+The lighter, reversible form; if the closure keeps proving to be CIW's
+problem in practice, moving the path is a later decision made on
+purpose.
 
-There is a fourth shape — **make the closure reach guards that are
-tree-wide**, by pinning `test-utils` into every closure or by rehoming
-the guards. That is `scripts/ci-filter.py`, which this program's
-`keep_out` assigns to S-TCOST, so it is named and not proposed.
+## The three options, as measured — superseded, kept as the record
 
-**CIW's reading**, offered as a reading and not as a decision: (c) on
-the **pull-request** side is the only option that puts the red on the
-author who caused it, and the only one whose cost was measured at
-seconds rather than minutes. (a) is measured not to work. But the
-decision is Ev's, and (b) is defensible on tonight's numbers.
+**(a) Add a test row to `main`'s push run.** Measured not to work for
+this class: the push run re-draws the merge's own closure. The variant
+that does work is `--force-all` on every push — the scheduled full run
+declined 2026-08-22, at 442 s and a 57 % cancellation rate.
+
+**(b) Leave F3 and accept the fleet as the detector.** Tonight's price:
+3 h 48 m exposure, 5 red PR runs, 35 failed jobs, 4 innocent branches,
+two CIW lanes. Detection cost 2-11 minutes; the rest was repair.
+
+**(c) A narrow unscoped guard row.** ~7 s of cargo and ~40 s of job for
+`test-utils`; on the PR side it prevents rather than detects. Extending
+past `test-utils` costs a real build per crate, so the two leaf-housed
+guards were the natural stopping point at ~25 s.
+
+**Why the ruling beats all three.** (c) was CIW's own reading, and it
+still needs a human to remember to add each future tree-wide guard to a
+hand-listed row. The closure fix removes the requirement for that
+memory: a guard is reached because of what it reads, not because someone
+listed it. The five rows this item found were found by a sweep, and a
+sixth written next week would not have been.
 
 ## What is not established here
 
