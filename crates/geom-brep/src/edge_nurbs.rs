@@ -417,8 +417,8 @@ where
         // The same refusal `plane_nurbs_limbs` states before it gets here, kept at
         // the producer too: the mvfs placeholder is a mid-surgery "no
         // description yet" fact, and projecting onto it would return
-        // feet of a surface that does not exist. `lane` still checks
-        // first, so its own refusal ORDER is unchanged.
+        // feet of a surface that does not exist. `plane_nurbs_limbs`
+        // still checks first, so its own refusal ORDER is unchanged.
         return Err(PlaneNurbsRefusal::Unsupported {
             what: "the mvfs placeholder is a mid-surgery 'no description yet' fact, never a \
                    surface to derive a chart image on",

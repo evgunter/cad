@@ -2262,7 +2262,16 @@ impl<T: Decide + geom_core::CertifiedBounds> Body<T> {
     /// effect: nothing runs, nothing refuses, the call cannot be
     /// formed.
     ///
-    /// ```compile_fail,E0277
+    /// The code is **`E0599`, not `E0277`**, and the difference is
+    /// where the bound sits: this is an INHERENT METHOD on an `impl`
+    /// block whose bound `Dual` fails, so the method is not in scope
+    /// at all and the compiler says *method exists … but its trait
+    /// bounds were not satisfied: `Dual<f64>: CertifiedEnclosure`*
+    /// rather than reporting an unsatisfied bound on a call it
+    /// resolved. A free function with the same bound gives `E0277`
+    /// (`geom_brep::plane_nurbs_limbs`' own row does).
+    ///
+    /// ```compile_fail,E0599
     /// use geom_core::{Dual64, Tol};
     /// use topo::{Body, EdgeCurveSpec, entity::EdgeKey};
     /// fn lane_door(b: &mut Body<Dual64>, e: EdgeKey, c: EdgeCurveSpec<Dual64>, tol: Tol) {
@@ -2270,10 +2279,17 @@ impl<T: Decide + geom_core::CertifiedBounds> Body<T> {
     /// }
     /// ```
     ///
+    /// **What that annotation is worth, said out loud** (`S216`): on
+    /// stable, rustdoc does NOT compare the emitted code to the one
+    /// written here — the row passes green whichever code is named, so
+    /// the annotation documents the expectation and checks nothing.
+    /// The live check is the twin below: it differs in exactly one
+    /// identifier and every path either row names resolves, so the
+    /// failing row can only be failing on the bound. Read the pair,
+    /// never the annotation alone.
+    ///
     /// The DEFAULT door is open to it, which is the capability this
-    /// separation exists to keep — the two rows differ in one
-    /// identifier and every path either names resolves, so the failing
-    /// one is failing on the bound:
+    /// separation exists to keep:
     ///
     /// ```
     /// use geom_core::{Dual64, Tol};

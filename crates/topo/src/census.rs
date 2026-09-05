@@ -489,7 +489,12 @@ fn pair_holds_edges<T: Decide>(
 /// opposite-sided candidate pair) — correctness first, the cache is
 /// PERF-PLAN's if it ever shows up in a profile. A scalar with no
 /// certified region lane (dual) answers `None` at Door 2 and lands in
-/// the same non-answer.
+/// the same non-answer — and that half of the swallow is the one with a
+/// loud twin of its own: the confirm pass reports it as
+/// [`ValidationError::CensusLaneUnsupported`], distinct from the
+/// geometry refusals, so a reader of the vector can tell *replay this
+/// at a certifying scalar* from *this pair's geometry is outside the
+/// lane* without knowing which arm swallowed what.
 fn pair_region_verified<T: Decide + crate::chart_region::ChartRegionLane>(
     body: &Body<T>,
     fa: FaceKey,
@@ -2775,8 +2780,14 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
         // the chart being either the structural one or the declared
         // pair's shared world carrier.
         match T::declared_overlap(body, c.face_a, body, c.face_b, door_one, band) {
+            // The SCALAR has no certified region lane, exactly as at
+            // the sweep arm and split from the geometry refusals below
+            // for the same reason: this absence is a fact about the
+            // RUN, the same record is confirmed at every certifying
+            // scalar, and the recourse is a replay rather than a change
+            // to the geometry.
             None => {
-                errors.push(ValidationError::CensusUnsupported {
+                errors.push(ValidationError::CensusLaneUnsupported {
                     subject: CensusSubject::FacePair(c.face_a, c.face_b),
                 });
             }

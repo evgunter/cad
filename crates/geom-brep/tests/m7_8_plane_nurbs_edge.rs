@@ -331,3 +331,55 @@ fn the_at_rest_re_derivation_of_this_class_needs_the_injected_lane() {
         ),
     }
 }
+
+/// **What a lane-free re-certification of this class does NOT report** —
+/// a reviewer probe, adopted, because it states the skip's true width.
+///
+/// Check 2 calls `recertify_via` ONCE per edge, and without the lane the
+/// description resolver refuses `Unimplemented` before the endpoint,
+/// interval and chart-image checks run. So the skip is whole-edge: a
+/// defect with nothing to do with the plane × NURBS limbs — here an
+/// endpoint that drifted — is reported through the lane-injected call and
+/// is indistinguishable from the class's standing refusal without it.
+/// That is why a door which cannot name the lane skips the edge instead
+/// of reporting what it got, and why the certified twins exist.
+#[test]
+fn without_the_lane_a_non_lane_defect_on_this_class_is_indistinguishable_from_the_refusal() {
+    let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
+    let ends = (carrier.eval(0.0), carrier.eval(1.0));
+    let (arena, spec) = door_spec(transverse_plane(), quarter_cylinder_wall(), carrier);
+    let edge = EdgeCurve::certify_nurbs_lane(spec, ends.0, ends.1, &arena, band())
+        .expect("the stated carrier certifies through the attach door");
+
+    // A drifted start point: a check-2 finding of a class the lane has
+    // nothing to do with.
+    let drifted = Point3::new(1.0, 0.0, -0.25);
+    assert!(
+        edge.needs_nurbs_lane(&arena),
+        "this edge is the M7-8 class, so check 2 gates on the lane either way"
+    );
+
+    let with_lane = edge.recertify_via(
+        drifted,
+        ends.1,
+        &arena,
+        band(),
+        Some(&geom_brep::plane_nurbs_limbs::<f64>),
+    );
+    println!("M7-8 lane-free skip: with_lane -> {with_lane:?}");
+    assert!(
+        with_lane.is_err(),
+        "the endpoint drift is a real check-2 finding: {with_lane:?}"
+    );
+    assert!(
+        !matches!(with_lane, Err(CertifyError::Unimplemented)),
+        "and it is NOT the class's standing refusal: {with_lane:?}"
+    );
+
+    let without = edge.recertify_via(drifted, ends.1, &arena, band(), None);
+    println!("M7-8 lane-free skip: without_lane -> {without:?}");
+    assert!(
+        matches!(without, Err(CertifyError::Unimplemented)),
+        "without the lane the drift is the class refusal and nothing else: {without:?}"
+    );
+}

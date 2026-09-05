@@ -716,8 +716,10 @@ pub fn classify_shells<T: PropsQuadLane>(
 ///
 /// The supertrait is [`geom_brep::PcurveFittedLane`], not bare
 /// [`Decide`], and the bundling is deliberate rather than incidental:
-/// it is **the same split, over the same four scalars, for the same
-/// reason**. A fitted (rung-3) pcurve's between-samples obligation is a
+/// it is **the same split, over the same scalars, for the same
+/// reason** — five of them since the symbolic tier landed (`f64`, the
+/// telemetry probe, the interval scalar, `Sym` over any of those, and
+/// the refusing dual). A fitted (rung-3) pcurve's between-samples obligation is a
 /// C9-ring hull bound reached through a scalar's bracket, exactly as
 /// the quadrature's flux enclosures are; `f64`, the telemetry probe and
 /// the interval scalar can derive both, and the dual scalar can derive
@@ -1125,7 +1127,7 @@ impl AtRestPolicy for f64 {
         contacts: &ContactRecords,
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
-        crate::validate::validate_pseudomanifold(body, contacts, tol)
+        crate::validate::validate_pseudomanifold_certified(body, contacts, tol)
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -1141,7 +1143,7 @@ impl AtRestPolicy for geom_core::Probe {
         contacts: &ContactRecords,
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
-        crate::validate::validate_pseudomanifold(body, contacts, tol)
+        crate::validate::validate_pseudomanifold_certified(body, contacts, tol)
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -1157,7 +1159,7 @@ impl AtRestPolicy for geom_core::interval::Interval {
         contacts: &ContactRecords,
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
-        crate::validate::validate_pseudomanifold(body, contacts, tol)
+        crate::validate::validate_pseudomanifold_certified(body, contacts, tol)
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -1181,7 +1183,7 @@ where
         contacts: &ContactRecords,
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
-        crate::validate::validate_pseudomanifold(body, contacts, tol)
+        crate::validate::validate_pseudomanifold_certified(body, contacts, tol)
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -1245,12 +1247,18 @@ mod at_rest_policy_tests {
             "gate_at_rest must be validate_geometric verbatim at a certifying scalar"
         );
         let contacts = ContactRecords::default();
-        let door = crate::validate::validate_pseudomanifold(&b, &contacts, tol);
+        // The CERTIFIED twin, and the door name is the assertion: a
+        // certifying arm takes the door whose bound names the right it
+        // has, so check 2 re-derives the M7-8 carrier class here. The
+        // lane-keeping `validate_pseudomanifold` is the dual-admitting
+        // sibling and is not what this arm runs.
+        let door = crate::validate::validate_pseudomanifold_certified(&b, &contacts, tol);
         assert!(door.is_err(), "the seed body must refuse the census door");
         assert_eq!(
             T::gate_at_rest_declared(&b, &contacts, tol),
             door.map(|()| AtRestOutcome::Validated),
-            "gate_at_rest_declared must be validate_pseudomanifold verbatim at a certifying scalar"
+            "gate_at_rest_declared must be validate_pseudomanifold_certified verbatim at a \
+             certifying scalar"
         );
     }
 

@@ -806,6 +806,14 @@ impl<T: Decide> EdgeCurve<T> {
     /// to distinguish *"this edge's claim is outside my rights"* from
     /// *"this edge failed"*, and those are the same
     /// [`CertifyError::Unimplemented`] after the fact.
+    ///
+    /// **It is the same rule and not a copy of it**: this function and
+    /// the resolver both call `plane_nurbs_pair`, which is the ONE home
+    /// of "a plane and a described NURBS wall", so the two cannot drift
+    /// on the pairing. What a reader must also hold is not a second
+    /// rule but this module's stated contract at [`NurbsLane`] — that
+    /// the class certifies through the lane and there is no third
+    /// outcome — which is why `true` here means `Unimplemented` there.
     pub fn needs_nurbs_lane(&self, surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>) -> bool {
         let EdgeDescription::Intersection { s1, s2, .. } = self.description else {
             return false;
