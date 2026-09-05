@@ -146,12 +146,12 @@ pub(crate) const CHAMFER_SLOTS: BlendSlots = BlendSlots {
 
 /// The fillet's kernel payload. A named function rather than a closure
 /// so it can be a plain `fn` pointer in the struct above.
-fn build_fillet<T>(edges: Vec<EdgeKey>, radius: T) -> Verb<T> {
+fn build_fillet<T: geom_core::Real>(edges: Vec<EdgeKey>, radius: T) -> Verb<T> {
     Verb::Fillet { edges, radius }
 }
 
 /// The chamfer's kernel payload.
-fn build_chamfer<T>(edges: Vec<EdgeKey>, distance: T) -> Verb<T> {
+fn build_chamfer<T: geom_core::Real>(edges: Vec<EdgeKey>, distance: T) -> Verb<T> {
     Verb::Chamfer { edges, distance }
 }
 

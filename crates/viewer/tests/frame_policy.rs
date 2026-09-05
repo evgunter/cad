@@ -20,8 +20,12 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use common::asm;
-use pncad::document::{Doc, Frame, Node, ParamName, ProfileProgram, RecipeNodeId, SlotId};
+use pncad::document::{
+    CheckEvidence, CheckFinding, CheckId, ChecksReport, Doc, Frame, Node, ParamName, ProductError,
+    ProfileProgram, RecipeNodeId, SlotId,
+};
 use pncad::geom_core::{Point3, Tol, Vec3};
+use pncad::prelude::{EntityKind, StableName};
 use pncad::select::{ContactClass, Ray};
 use viewer::camera::{Camera, CameraOp};
 use viewer::display::{DisplayFault, DisplayView};
@@ -30,8 +34,10 @@ use viewer::frame::{self, IdQueryLog, IdStep, StatusUpdate};
 use viewer::input::{self, InputMap, ViewportSize};
 use viewer::pick::{self, CacheStep, IdMap, IndexLanding, PickCache, PickIndex};
 use viewer::props::SlotValue;
-use viewer::scene::{self, DisplayTolerance, PLATE_EXTENT};
-use viewer::session::{DocSession, FaceSelection, Hovered, Refusal, Selection, SessionOp};
+use viewer::scene::{self, DisplayTolerance, FittedDelta, PLATE_EXTENT};
+use viewer::session::{
+    AtRestBadge, DocSession, FaceSelection, Hovered, Refusal, Selection, SessionOp,
+};
 
 fn delta() -> DisplayTolerance {
     DisplayTolerance::new(2.0e-4).expect("a positive delta")
@@ -89,7 +95,14 @@ fn a_clean_action_clears_and_a_refusal_shows_even_from_a_hover_batch() {
     // if one ever did.
     let refusal = viewer::session::Refusal::NothingToDo;
     let shown = frame::batch_status(&[SessionOp::Hover(None)], Some(&refusal));
-    assert_eq!(shown, StatusUpdate::Show(refusal.to_string()));
+    assert_eq!(
+        shown,
+        StatusUpdate::Show(frame::Message::new(
+            frame::Subject::Document,
+            refusal.to_string()
+        )),
+        "the document's answer to the act is about the document"
+    );
     assert!(!refusal.to_string().is_empty());
 }
 
@@ -109,7 +122,10 @@ fn a_clean_action_clears_and_a_refusal_shows_even_from_a_hover_batch() {
 #[test]
 fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
     let declined = [SessionOp::Select(Selection::None)];
-    let notice = "blend tool: the held edges are on feature 3 body 0".to_owned();
+    let notice = frame::Message::new(
+        frame::Subject::Document,
+        "blend tool: the held edges are on feature 3 body 0",
+    );
 
     // The batch policy alone: the frame acted, nothing refused, so the
     // line is cleared. This is the seam.
@@ -130,7 +146,10 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
     let refusal = Refusal::NothingToDo;
     assert_eq!(
         frame::frame_status(std::slice::from_ref(&notice), &declined, Some(&refusal)),
-        StatusUpdate::Show(refusal.to_string())
+        StatusUpdate::Show(frame::Message::new(
+            frame::Subject::Document,
+            refusal.to_string()
+        ))
     );
 
     // With no notices the frame policy is the batch policy, verdict
@@ -152,13 +171,334 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
     // `status` from each in turn keeps the last and loses the rest,
     // which is the keep-last defect the batch policy already exists to
     // stop for refusals.
-    let second = "blend tool: an edit removed 6 of the picked edges".to_owned();
+    let second = frame::Message::new(
+        frame::Subject::Document,
+        "blend tool: an edit removed 6 of the picked edges",
+    );
     let both = frame::frame_status(&[notice.clone(), second.clone()], &declined, None);
     let StatusUpdate::Show(line) = &both else {
         panic!("two notices are shown, got {both:?}");
     };
-    assert!(line.contains(&notice) && line.contains(&second), "{line}");
-    assert_eq!(*line, [notice, second].join(frame::NOTICE_SEPARATOR));
+    assert!(
+        line.text().contains(notice.text()) && line.text().contains(second.text()),
+        "{line}"
+    );
+    assert_eq!(
+        line.text(),
+        [notice.text(), second.text()].join(frame::NOTICE_SEPARATOR)
+    );
+    assert_eq!(
+        line.subject(),
+        frame::Subject::Document,
+        "notices that agree on a subject are joined under it, so the \
+         joined line still knows what retires it"
+    );
+}
+
+/// **Every subject this unit assigned, pinned.**
+///
+/// The reason this row exists: a subject chosen inside an `app`-gated
+/// draw path is unfalsifiable — the reviewer of this unit changed the
+/// projection writer's subject from `Camera` to `Preferences` and the
+/// whole suite stayed green, because no headless row executes a pane's
+/// paint. The doors moved that decision into `frame`; this is what
+/// makes moving it worth anything.
+///
+/// One assertion per door, so a flipped subject reds exactly the line
+/// that names it.
+#[test]
+fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
+    let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
+    let projection = camera
+        .view_projection(0.0)
+        .expect_err("a zero aspect has no projection");
+    assert_eq!(
+        frame::projection_refusal(&projection).subject(),
+        frame::Subject::Camera,
+        "a projection that could not be formed is about where the view \
+         is pointed"
+    );
+
+    let disagreement = frame::Disagreement {
+        from_gpu: None,
+        from_ray: None,
+    };
+    assert_eq!(
+        disagreement.notice().subject(),
+        frame::Subject::Cursor,
+        "what the two picking paths said is about THIS cursor"
+    );
+
+    let delta = DisplayTolerance::new(0.0).expect_err("zero is not a δ");
+    for (message, what) in [
+        (frame::delta_refusal(&delta), "a δ the display refused"),
+        (
+            frame::scene_refusal(&delta),
+            "a scene that could not be built",
+        ),
+        (
+            frame::index_refusal(&pick::PickIndexError::DrawnTwice {
+                node: RecipeNodeId(3),
+                body: 0,
+            }),
+            "a pick-index build that refused",
+        ),
+        (
+            frame::unindexed_refusal(&pick::NotIndexed::Building),
+            "a pick against an index still building",
+        ),
+        (
+            frame::delta_not_a_number("2,5", &"2,5".parse::<f64>().expect_err("not a number")),
+            "a δ field holding something that is not a number",
+        ),
+    ] {
+        assert_eq!(
+            message.subject(),
+            frame::Subject::Display,
+            "{what} is about the picture drawn from the document"
+        );
+    }
+
+    assert_eq!(
+        frame::store_refusal(&viewer::prefs::StoreError {
+            doing: "write",
+            because: "read-only file system".to_owned(),
+        })
+        .subject(),
+        frame::Subject::Preferences,
+        "a preferences file that could not be written is about that file"
+    );
+    let startup = frame::startup_notices(&["preferences: unknown setting `x`".to_owned()])
+        .expect("a notice at startup is news");
+    assert_eq!(startup.subject(), frame::Subject::Preferences);
+    assert_eq!(
+        frame::startup_notices(&[]),
+        None,
+        "and a file with nothing to say says nothing"
+    );
+
+    for (message, what) in [
+        (
+            frame::pick_refusal(&pick::PickError::Camera(projection)),
+            "a cursor action the pick index refused",
+        ),
+        (
+            frame::tool_news("blend: the held edges are on another body"),
+            "what a tool has to say",
+        ),
+    ] {
+        assert_eq!(
+            message.subject(),
+            frame::Subject::Document,
+            "{what} answers an act aimed at the document"
+        );
+    }
+}
+
+/// **The rank-2 join's subject, including the arm nothing reached.**
+///
+/// `joined_subject`'s disagreeing arm is the one reviewable call in
+/// this unit and had no row: mutating its fallback left every other
+/// row green.
+#[test]
+fn a_joined_line_keeps_a_shared_subject_and_falls_back_when_they_differ() {
+    let acted = [SessionOp::Select(Selection::None)];
+    let cursor = |text: &str| frame::Message::new(frame::Subject::Cursor, text);
+
+    // Agreeing notices keep the subject, so the joined line is still
+    // retired by that subject's own event.
+    let StatusUpdate::Show(shown) =
+        frame::frame_status(&[cursor("one"), cursor("two")], &acted, None)
+    else {
+        panic!("two notices are news");
+    };
+    assert_eq!(shown.subject(), frame::Subject::Cursor);
+    let mut status = Some(shown);
+    frame::apply(&mut status, frame::cursor_status(IdStep::Ask { serial: 3 }));
+    assert_eq!(
+        status, None,
+        "and it really is retired by that event, not merely labelled"
+    );
+
+    // Disagreeing notices fall back, because no single recurring event
+    // can retire a sentence about several things at once: expiring the
+    // whole line on a cursor move would delete the clause that was not
+    // about the cursor.
+    let mixed = [
+        cursor("the picking paths disagree"),
+        frame::tool_news("blend: the held edges are on another body"),
+    ];
+    let StatusUpdate::Show(shown) = frame::frame_status(&mixed, &acted, None) else {
+        panic!("two notices are news");
+    };
+    assert_eq!(
+        shown.subject(),
+        frame::Subject::Document,
+        "the fallback, and it is the conservative one: `Document` has \
+         no `Expire` issuer, so the joined line is swept only by an act \
+         the document accepts"
+    );
+    let mut status = Some(shown);
+    frame::apply(&mut status, frame::cursor_status(IdStep::Ask { serial: 4 }));
+    assert!(
+        status.is_some(),
+        "a cursor move must not take the half of the line that was not \
+         about the cursor"
+    );
+}
+
+/// **Every badge's silence is a row now**, which is the whole reason
+/// the family became a vocabulary: the checks badge's "only when there
+/// are findings" rule used to be an `&&` inside a `ui` closure, where
+/// no test could reach it and nothing but a human eye said whether it
+/// was right.
+#[test]
+fn a_badge_that_has_nothing_to_say_says_nothing() {
+    assert_eq!(frame::at_rest_badge(None), None, "no assembly, no verdict");
+    assert_eq!(
+        frame::checks_badge(None),
+        None,
+        "nothing landed, or the registry refused"
+    );
+    assert_eq!(
+        frame::checks_badge(Some(&ChecksReport {
+            findings: Vec::new(),
+            skipped: Vec::new(),
+        })),
+        None,
+        "checked and fine is not a finding — the rule that lived in a \
+         `ui` closure until this type existed"
+    );
+    assert_eq!(
+        frame::checks_badge(Some(&ChecksReport {
+            findings: Vec::new(),
+            skipped: vec![CheckId::Connectedness],
+        })),
+        None,
+        "and a SKIPPED check does not light it either: not checked and \
+         checked-and-found-something are different answers, and the \
+         window is where that distinction is drawn"
+    );
+    assert_eq!(frame::delta_badge(None), None, "the user's own δ");
+    assert_eq!(frame::product_badge(None), None);
+}
+
+/// The tone split is the actionable-or-not rule, stated by a value
+/// rather than picked at four call sites — the rule `pane::features`
+/// argues explicitly for poisoned rows and that nothing used to say.
+#[test]
+fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
+    let certified = frame::at_rest_badge(Some(&AtRestBadge::Certified { minted: 4 }))
+        .expect("a certified assembly badges");
+    assert_eq!(
+        certified.tone(),
+        frame::Tone::Advisory,
+        "good news is a report: {}",
+        certified.label()
+    );
+    assert!(
+        certified.label().starts_with("at rest: "),
+        "{}",
+        certified.label()
+    );
+    assert!(certified.label().contains('4'), "{}", certified.label());
+
+    let refused = frame::at_rest_badge(Some(&AtRestBadge::Refused {
+        message: "the gate declined to certify".to_owned(),
+    }))
+    .expect("a refusal badges");
+    assert_eq!(
+        refused.tone(),
+        frame::Tone::Actionable,
+        "and the reader is the only one who can answer a refusal"
+    );
+    assert!(
+        refused.label().ends_with("the gate declined to certify"),
+        "the typed refusal's own words, unaltered: {}",
+        refused.label()
+    );
+
+    let fitted = FittedDelta::as_requested(DisplayTolerance::new(1.0e-3).expect("a positive δ"));
+    assert_eq!(
+        frame::delta_badge(Some(&fitted)),
+        None,
+        "a fit with nothing to say is the second half of this badge's \
+         `None`, and it used to be a second condition at the call site"
+    );
+}
+
+/// The checks badge is a BUTTON, and that is ratified rather than
+/// incidental: a tooltip is the wrong home for text a reader needs to
+/// keep open while they act on it, because it is gone the moment the
+/// pointer moves toward the feature it names. A uniformity pass over
+/// the family must not flatten it, so the value says so.
+#[test]
+fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
+    let report = ChecksReport {
+        findings: vec![CheckFinding {
+            check: CheckId::Connectedness,
+            root: RecipeNodeId(3),
+            output_ix: 0,
+            evidence: CheckEvidence::Connectedness {
+                actual: 2,
+                expected: 1,
+            },
+        }],
+        skipped: Vec::new(),
+    };
+    let badge = frame::checks_badge(Some(&report)).expect("a finding badges");
+    assert_eq!(badge.affordance(), frame::Affordance::Opens);
+    assert_eq!(badge.tone(), frame::Tone::Actionable);
+    assert_eq!(badge.label(), "checks: 1 finding(s)");
+    assert!(
+        badge.detail().is_some(),
+        "and it says what opening it does — the hover is the invitation, \
+         never the findings themselves"
+    );
+    assert!(
+        !badge.label().contains("component"),
+        "the findings' own sentences live in the window it opens, so the \
+         badge composes no prose about them: {}",
+        badge.label()
+    );
+
+    // The other three, each NAMED and each required to be present. The
+    // previous spelling ran `.flatten()` over a list whose
+    // `product_badge(NoBodyRoots)` entry is `None` by design and whose
+    // δ member was missing altogether: it promised three labels and
+    // asserted about one, and stayed green with either affordance
+    // flipped.
+    let node = RecipeNodeId(2);
+    let collision = ProductError::Naming {
+        node,
+        name: Box::new(StableName {
+            kind: EntityKind::Face,
+            node,
+            path: Vec::new(),
+        }),
+    };
+    let budget = FittedDelta {
+        delta: DisplayTolerance::new(1.0e-3).expect("a positive δ"),
+        requested: DisplayTolerance::new(1.0e-6).expect("a positive δ"),
+        predicted: 1_000,
+        requested_cost: Some(9_000_000),
+    };
+    for (which, badge) in [
+        (
+            "at rest",
+            frame::at_rest_badge(Some(&AtRestBadge::Certified { minted: 0 })),
+        ),
+        ("product", frame::product_badge(Some(&collision))),
+        ("δ", frame::delta_badge(Some(&budget))),
+    ] {
+        let badge = badge.unwrap_or_else(|| panic!("the {which} badge is drawn for this input"));
+        assert_eq!(
+            badge.affordance(),
+            frame::Affordance::Read,
+            "the {which} badge is a label, not a control: {}",
+            badge.label()
+        );
+    }
 }
 
 #[test]
@@ -205,10 +545,10 @@ fn an_empty_dialog_is_loud_only_under_a_confidently_absent_backend() {
     let StatusUpdate::Show(message) = frame::dialog_status(ChooserBackend::Absent, false) else {
         panic!("an empty-handed dialog with no backend reaches the status line");
     };
-    assert_eq!(message, frame::NO_CHOOSER_BACKEND);
-    assert!(message.contains("zenity"));
-    assert!(message.contains("xdg-desktop-portal"));
-    assert!(message.contains("command line"));
+    assert_eq!(message.text(), frame::NO_CHOOSER_BACKEND);
+    assert!(message.text().contains("zenity"));
+    assert!(message.text().contains("xdg-desktop-portal"));
+    assert!(message.text().contains("command line"));
     // A plausibly-present backend reads `None` as a genuine cancel,
     // which should not nag.
     for backend in [
@@ -1345,9 +1685,10 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     // it has to model every producer that feeds the notices there —
     // both withdrawal channels, not just the one this row provokes. A
     // half-mirror would pass while the real loop dropped the other.
-    let notices: Vec<String> = frame::supersession_notice(&outcome.superseded)
+    let notices: Vec<frame::Message> = frame::Withdrawal::superseded(&outcome.superseded)
         .into_iter()
-        .chain(frame::dropped_hide_notice(&outcome.dropped_hides))
+        .chain(frame::Withdrawal::dropped_hide(&outcome.dropped_hides))
+        .map(|withdrawal| withdrawal.notice())
         .collect();
     assert_eq!(
         notices.len(),
@@ -1364,8 +1705,15 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
         panic!("a discarded placement is news, not silence: {update:?}");
     };
     assert!(
-        message.contains(&format!("instance {}", bench.post_b.0)),
+        message
+            .text()
+            .contains(&format!("instance {}", bench.post_b.0)),
         "the line names which of the user's placements went: {message}"
+    );
+    assert_eq!(
+        message.subject(),
+        frame::Subject::Document,
+        "and it is about the document that superseded it"
     );
 
     // The counterfactual, so this row is not asserting about a frame

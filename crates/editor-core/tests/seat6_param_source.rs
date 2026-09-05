@@ -6,20 +6,25 @@
 //! the claim under test is exactly that: what a boolean germ would read
 //! off two carriers built by two recipe nodes.
 //!
-//! # The reachable subset, stated
+//! # The reachable subset of THIS file, stated
 //!
 //! The acceptance the design sketches is "the cyl×cyl equal-radius germ
 //! reaches its closed form end to end from a document declaring one
-//! shared radius parameter". The germ half of that is pinned in `topo`
-//! (`boolean::join`'s frame-dispatch rows) because a boolean OVER a
-//! filleted body is not reachable at all today — the kernel refuses
-//! `FallbackExtentUnsupported` on the sphere octants every fillet result
-//! carries, a frontier that predates this channel and is pinned executed
-//! in `m6_5_downstream.rs`. So the document half is pinned here at the
-//! evidence function over real evaluated fillet carriers, and the germ
-//! half is pinned there over the dispatch; what is NOT pinned anywhere,
-//! and is said out loud rather than implied, is the single run that
-//! passes through both.
+//! shared radius parameter". These rows are its BLEND half: the
+//! evidence function asked over real evaluated fillet carriers. They do
+//! not reach the germ, and cannot — a boolean OVER a filleted body is
+//! still not reachable at all, because the kernel refuses
+//! `FallbackExtentUnsupported` on the sphere octants every fillet
+//! result carries, a frontier that predates this channel and is pinned
+//! executed in `m6_5_downstream.rs`.
+//!
+//! **The single run that passes through both is pinned**, on the other
+//! carrier: `seat7_sweep_lowering.rs`'s
+//! `one_declared_radius_reaches_the_germ_from_a_document` unions two
+//! extruded circles drawn at one declared `r` and reads `Declared` off
+//! the germ's own refusal. The sweeps' walls are what made it
+//! authorable — they carry the channel and take no fillet's octants
+//! with them.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
