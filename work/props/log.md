@@ -519,3 +519,21 @@ BOOL. A/B row recorded: ordinal 2402, **sample #142**, no tally
 candidate. **Block PROPS-B1 concluded** — its record and the six stored
 briefs merged with #1978; the next kernel unit draws PROPS-B2. Lane
 reclaimed. Live: the linalg riders lane.
+
+**vec3-doors reviewed (2026-09-05).** Style review on `1e168c607`
+(#1977): APPROVE-WITH-FIXES, MAJOR 0 / MINOR 2 / NOTE 6 / style 6;
+rubric 4 / 4 / 4. Every executable claim held — bit identity of the
+frame over 2535 frames at `f64` and `Interval` (sign patterns, NaN,
+±inf, non-orthogonal pairs), the `const` doctest red on main with
+`E0015` ×4, the `map` doc's normal widths measured as written. Fixes:
+the deferral's carrier issue does not cover `lily.rs`'s sites as
+written (extend it); the profile TEST file is a fence deviation to
+disclose (BOOL's seam amended); `Mat3::from_cols` and
+`Affine3::from_parts` are literal bodies and go `const` too; two doc
+overstatements ("transcribed", "not the same plane"); the signed-zero
+corpus widened to its prose; the duplicated test helpers given one
+home; the obligation rule one home; `Point2` points at the ruling. A
+non-tour consumer of the lift found by the review
+(`eval/wire.rs:1132` through `anchor::embed_affine`) is filed, not
+fixed — editor-core is outside the fence. Fix pass implementer-inherited,
+sequenced after the rotation-floor unit's PR opens.
