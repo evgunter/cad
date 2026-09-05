@@ -2,10 +2,11 @@
 id: direction-normalization-two-doors-one-home
 kind: issue
 title: Direction normalization has two doors (eval_direction_norm / datum_unit_norm) and three direction spellings — decide the family's one home
-status: spec
+status: closed
 opened: 2026-09-02
 github: 1570
 refs: [1564, 1372, 1527]
+closed: 2026-09-05
 ---
 
 ## From GitHub issue 1570
@@ -40,3 +41,35 @@ stated at `mate/solve.rs` and in `unit()`'s successor. `Dir::from_unit`
 gets issue-1527's treatment. The options and the state measured at
 main `097a8ea5` that this ruling answered: see this file's history at
 the `[ev]` PR. Unit: SEAT-DN (`docs/SEAT-DN-SPEC.md`), block SEAT-B3.
+
+## Closed by SEAT-DN (2026-09-05)
+
+The ruling above is executed in `work/seat/SEAT-DN.md`'s PR.
+
+- **One body.** `topo::query::unit_direction` is the workspace's only
+  decide/normalize/refuse for a 3-D direction length: finiteness
+  through `is_finite_length`, then `Margin::norm3(v)` against the band
+  at a funnel site the CALLER passes as a `&'static str`, then the
+  normalized ray or a typed `UnitVec3Error`. `UnitVec3::new` is that
+  call under `DATUM_UNIT_NORM`; `editor-core::eval::wire::unit` is
+  that call under `EVAL_DIRECTION_NORM`, mapping the kernel refusal
+  onto its three `NodeErrorKind` arms with the role word preserved.
+- **Two names, ratified where they are read.** No K-REPORT row moved
+  and no census count re-baselined; the funnel-site census rows
+  (`m4_pr2_wire`, `m10_3_driver_interval`) are green untouched. The
+  prose that read "two doors, not one" / "tolerated" / "issue 1570 is
+  where this is homed" now states the ratified reason — the layer that
+  owns a value is the layer whose telemetry names its length decision
+  — at `unit()`'s successor, at `mate/solve.rs`'s two-road paragraph,
+  at `DATUM_AXIS_ROLE`, and in `docs/K-REPORT.md`. MATE-1's collapse
+  of `mate_pattern_direction_norm` onto `eval_direction_norm` is
+  restated as holding.
+- **`Dir::from_unit`** (DN-3): callers measured; every ray reaching it
+  was already decided at the door that built it, or is an exact
+  negation, and none holds an angle — so no re-spelling through the
+  angle door and no new K carrier row. Stated at the constructor and
+  pinned. The residue that measurement DID find — `profile`'s 2-D
+  director doors classify a length's sign without first asking whether
+  it is finite, and cannot reach `is_finite_length` from where they
+  are — is filed as
+  `work/seat/two-d-director-doors-skip-the-finiteness-question`.

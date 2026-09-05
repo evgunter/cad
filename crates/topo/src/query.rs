@@ -60,13 +60,18 @@
 //!   **[`is_finite_length`] is a second thing here that is not a
 //!   selection question**, and unlike the one above it is public. It
 //!   takes a bare scalar, reads no [`Body`] and reaches no funnel: it
-//!   is the value-channel question `UnitVec3::new` asks before
-//!   deciding a length, shared so that the evaluation layer's own
-//!   direction door asks it in the same words rather than a second
-//!   spelling. Whether it belongs here at all — `geom-core` holds
-//!   `Real`, `is_poison` and `Vec3::normalize`'s own overflow note —
-//!   is an open question for this seat's owner, filed as
-//!   `is-finite-length-homed-in-the-query-seat`.
+//!   is the value-channel question that comes BEFORE a direction's
+//!   length is classified, asked in exactly one place —
+//!   [`unit_direction`], the workspace's one decide/normalize/refuse
+//!   for a 3-D direction, which both this crate's datum constructor
+//!   and the evaluation layer's own direction door call under their
+//!   own funnel names. Whether the predicate belongs here at all —
+//!   `geom-core` holds `Real`, `is_poison` and `Vec3::normalize`'s own
+//!   overflow note — is an open question for this seat's owner, filed
+//!   as `is-finite-length-homed-in-the-query-seat`; a live consequence
+//!   of the answer is that `profile`, which depends on `geom-core`
+//!   alone, cannot ask this question at all today
+//!   (`work/seat/two-d-director-doors-skip-the-finiteness-question`).
 //!
 //! # Where an entity IS, for the decided door
 //!

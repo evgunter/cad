@@ -84,3 +84,11 @@ place.
   `topo::query::unit_direction`.
 - The 3-D precedent and the class: SEAT-DV (PR #1564), whose review
   found the same order-of-questions defect at the datum door.
+- **Interlocks with `work/fix/is-finite-length-homed-in-the-query-seat`**
+  (FIX's slate, open): that item asks SEAT whether the predicate
+  should live in `geom-core` beside `Real`/`is_poison` rather than in
+  the query seat. Answering it "yes" is option (1) above and is what
+  makes this hole closable without a second spelling, so the two want
+  to be decided together. That item's closing line still cites issue
+  1570 as the open family question; the ruling closed it, and only
+  that item's owner can update it.
