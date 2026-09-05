@@ -50,9 +50,11 @@ fn aabb(pts: &[Point3<f64>]) -> ([f64; 3], [f64; 3]) {
 
 /// **R2-1: re-measure lily wall 1 from the scene itself.**
 ///
-/// Prints, and asserts, the four things the PR's deviation 1 rests on:
-/// which pair the gate names, the two exact loci's separation, the two
-/// tube radii, and whether the whole-torus box is what overlaps.
+/// Prints the four things PR #1477's deviation 1 rested on: which pair
+/// the gate names, the two exact loci's separation, the two tube
+/// radii, and what box overlaps. The assertion is on the CURRENT
+/// reading — a weld pair at the annular gap — because the whole-ring
+/// box the deviation measured is gone.
 #[test]
 fn r2_lily_wall_one_remeasured() {
     let tol = Tol::witness();
@@ -133,18 +135,28 @@ fn r2_lily_wall_one_remeasured() {
         );
     }
 
+    // **The re-aim, pinned.** PR #1477's deviation 1 measured this
+    // pair at 2.08 m — the arch's FAR cap, inside the stem wall's
+    // whole-RING box and nowhere near its locus. With the wall boxed
+    // by the chart window its own boundary states, the gate names a
+    // WELD pair instead, and that pair is a real approach: the stem
+    // tube's end circle (radius 0.060) against the arch's start disc
+    // (radius 0.052), concentric and coplanar, so the two loci stand
+    // 0.008 m apart. `docs/CURVED-TORUS-SPEC.md` §R3 is why no box can
+    // retire the refusal: every AABB of that circle contains that
+    // disc.
     assert!(
-        best > 0.5,
-        "R2: the two named loci must be far apart if the PR's 'never approach' claim holds; \
-         measured {best}"
+        best < 0.02,
+        "R2: the named pair is now the weld's annular gap, not the 2.08 m far-cap \
+         box artifact; measured {best}"
     );
 }
 
-/// **R2-2: is the named other-face really the arch's FAR cap?**
-/// Prints every planar face of the arch with its origin so the "far
-/// cap" identification can be checked rather than assumed — and
-/// asserts unconditionally (the shipped row's assertion is inside an
-/// `if let` and goes vacuous when the `find` misses).
+/// **R2-2: which planar face of the arch does the gate name?**
+/// Prints every planar face of the arch with its origin so the
+/// identification can be checked rather than assumed — and asserts
+/// unconditionally that the far cap EXISTS, so a `find` that misses
+/// cannot make a row vacuous. The named face is no longer that cap.
 #[test]
 fn r2_the_arch_far_cap_identification_is_not_conditional() {
     let tol = Tol::witness();
