@@ -640,7 +640,7 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — `topo:
 /// face carrying one arc of the rim, or with ONE face carrying them all.
 /// The second is the pole-touching body whose merged cap hosts every arc
 /// on one plane face, and it carves through the annulus band's HOSTLESS
-/// crossing (README A3-2; [`super::surgery`]'s `HostFoot`).
+/// crossing (README A3-2; the surgery's `HostFoot`).
 ///
 /// **The condition on that second half is load-bearing and was measured
 /// missing**: the host must carry NO RING of its own and the rim must be

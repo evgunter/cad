@@ -3417,7 +3417,7 @@ struct ArcPlan<T: Real> {
 ///    crossing by one edge that dies at step 6;
 /// 3. `mef` on each host support between the halves at its feet that
 ///    start the rim-side and the far-side seam pieces — or, hostless,
-///    the strut halves flanking the arc ([`strut_chords`]) — the host
+///    the strut halves flanking the arc ([`flanking_chords`]) — the host
 ///    trim, carving that support's outer strip off the shrunk face;
 /// 4. `mef` likewise on each mate support;
 /// 5. `kef` each rim arc, merging its two strips into one sector;
