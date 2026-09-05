@@ -156,3 +156,26 @@ items; the shared op is a one-function widening of the S-TCOST seam,
 announced); the class and the census weakness filed on S-TCOST's slate
 with the reviewer's stricter row embedded; D287's two stale premises
 relayed to S-BOOL. Two reviewer probes handed to the fix pass.
+
+## S330 delivered; dual out at ordinal 2700 (2026-09-05)
+
+`topo/s330-described-nurbs-arm` delivered as PR 1923, head `55931a3e`,
+full matrix green (run 33944671747). Phase 1 corrected the spec: the
+fixture named there (`ops_cube`) is not tier-3-clean — every face
+carries the placeholder — so the unit built on `coplanar_pillow`; and
+the measurement is stronger than the row claimed: the finite and the
+poisoned described net draw IDENTICAL check-2 lists, so before this
+unit nothing in tier 3 could tell corrupt described geometry from
+honest — now a committed assertion. The arm, a new variant, named
+no-op arms for every `Surface` variant, the interval row, and the S94
+rider (both ladders replaced by a test-only `strum` derive) landed.
+Five deviations disclosed; one forced outside the fence
+(`editor-core/src/assembly.rs:913`, a wildcard-free classify that does
+not compile until the variant is placed). One residue filed
+(`quadric-datums-unchecked-at-rest`). One inherited red on main
+(FILLET-ATTR merged under a cancelled gate; the roster line here is
+the port; FILLET's board told). Outside-fence findings held for the
+adjudication: `n2r1_probes.rs`'s prose is now false, `BooleanErrorKind`
+is a hand-written discriminant companion (S-BOOL). Dual dispatched on
+the frozen head: ordinal 2700 claimed, parity byte 119 ⇒ R1 FABLE,
+R2 OPUS; briefs stored with sha256 privately.
