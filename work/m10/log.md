@@ -810,3 +810,12 @@ and pins the strict-vs-population split. `classify`'s gate, `FlipEvidence`
 and the symbolic dials are untouched; the lane reads M10-8's diff before
 starting so its hunks sit off that branch's lines. Signed (PROPS
 orchestrator).
+
+## Announced seam from PROPS (2026-09-05): `dual.rs`, one impl signature
+
+The Span sweep (`work/props/span-carries-its-knot-vector.md`, Ev's
+ruling A; spec `docs/PROPS-SPAN-SPEC.md`) gives `SpanLocate::locate_spans`
+a method-level lifetime, so the trait's `Dual<T>` impl in
+`crates/geom-core/src/dual.rs` changes by signature only — no arithmetic,
+no policy. Named here because `dual.rs` is M10's; the PR body lists the
+edit. Signed (PROPS orchestrator).

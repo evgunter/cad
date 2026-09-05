@@ -123,13 +123,15 @@ edit on anyone's ground — say so per crate.
   index proved against one container and used on another; `InteriorKnot`
   is the known member); hit list with disposition; what reading cannot
   match.
-- **Companion note** beside the code, present tense, with a clause id
-  in the file's existing convention: `crates/geom-core/README.md`'s
-  spline clause states the new invariant — a span is a borrow of the
-  vector it indexes; `SurfaceWindow` a borrow of its surface — and
-  names the one pairing left open. `docs/DESIGN.md` is not edited
-  (the ruling is Ev's in-chat and lands as the README clause per
-  `CLAUDE.md`'s convention for finished work).
+- **Companion note** beside the code, present tense, with a clause id:
+  `crates/geom-core/README.md` does not exist yet — create it in the
+  shape of `crates/topo/README.md` (read it for the convention), with
+  one clause, `SPLINE-DESIGN S1`, stating the invariant — a span is a
+  borrow of the vector it indexes; `SurfaceWindow` a borrow of its
+  surface — and naming the one pairing left open; add its row to
+  `docs/DESIGN.md`'s companion table (§Companion documents — the table
+  row only, no decision text; the ruling is Ev's in-chat and lands as
+  the clause per `CLAUDE.md`'s convention for finished work).
 - **Review:** standard v6 dual (block PROPS-B1 slot 1; ordinal claims
   at review dispatch). Reviewers' first target: the borrow does what A
   claims — construct the mismatch every way the old API allowed and
