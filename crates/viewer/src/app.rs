@@ -357,16 +357,16 @@ pub struct ViewerApp {
     /// The last thing that went wrong, kept so a refused operation is
     /// visible instead of silently dropped.
     status: Option<String>,
-    /// **What the open tool said about THIS frame** — declined picks
-    /// and survival drops, collected as they happen and applied with
-    /// the batch verdict rather than before it.
+    /// **What THIS frame has to say that is not a refusal** — the open
+    /// tool's declined picks and survival drops, and the display state
+    /// the frame's own operations withdrew (the free-move placements
+    /// superseded and the hides dropped) — collected as they happen
+    /// and applied with the batch verdict rather than before it.
     ///
-    /// They cannot be written straight to [`ViewerApp::status`]: the
-    /// batch of the same frame is performed afterwards, and a clean
-    /// acting batch clears the line, so a notice assigned early lives
-    /// for zero frames (`frame::frame_status` carries the argument).
-    /// Drained every frame by `perform_batch`, so nothing here
-    /// survives into the next one.
+    /// They cannot be written straight to [`ViewerApp::status`] —
+    /// `frame::frame_status` carries that argument, and it is the one
+    /// place it is made. Drained every frame by `perform_batch`, so
+    /// nothing here survives into the next one.
     notices: Vec<String>,
     /// Whether the environment can show a file dialog at all — probed
     /// once at startup ([`frame::chooser_backend`]); the Open/Save As
@@ -763,7 +763,7 @@ impl ViewerApp {
         // without queueing an op — a survival drop on a document the
         // seam just landed — is exactly the frame that needs its
         // notice shown.
-        let notices = core::mem::take(&mut self.notices);
+        let mut notices = core::mem::take(&mut self.notices);
         if ops.is_empty() && notices.is_empty() {
             return;
         }
@@ -777,7 +777,18 @@ impl ViewerApp {
             performed.push(op.clone());
             let opened = matches!(op, SessionOp::Open(_));
             let tool_edit = self.tools.commits_open_tool(&op);
-            match self.session.perform(op).refusal {
+            let outcome = self.session.perform(op);
+            // **Where a supersession reaches the user**: the free-move
+            // placements this operation's document transition
+            // discarded, onto the frame's notices like every other
+            // one (`frame::frame_status` carries the argument).
+            notices.extend(frame::supersession_notice(&outcome.superseded));
+            // And the hides the same transition dropped, ranked
+            // beside them — the same class of fact (display state an
+            // accepted edit withdrew) and a different sentence
+            // (`frame::dropped_hide_notice` carries the argument).
+            notices.extend(frame::dropped_hide_notice(&outcome.dropped_hides));
+            match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 // A replaced document owes a re-frame AND a fresh δ
                 // — both taken when its scene actually lands, not on

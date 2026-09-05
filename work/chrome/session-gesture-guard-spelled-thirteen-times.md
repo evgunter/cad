@@ -2,10 +2,9 @@
 id: session-gesture-guard-spelled-thirteen-times
 kind: issue
 title: session.rs spells the gesture-in-flight guard thirteen times in two styles
-status: parked
+status: open
 opened: 2026-09-04
 refs: [1386]
-blocked_on: [viewer-session-god-module-split]
 ---
 
 Found by CHROME's style lane on PR 1746, answering the brief's Q8 —
@@ -57,3 +56,13 @@ by residue: re-home it to VIEW at CHROME's close rather than treating
 it as a CHROME unit.
 
 Signed: (CHROME orchestrator)
+
+## Un-parked — the trigger fired (2026-09-04)
+
+`viewer-session-god-module-split` closed on 2026-09-04, so this row's
+only blocker is gone and the row is dispatchable. Un-parked here, from
+VIEW's PR #1857, rather than by CHROME: on Ev's ruling there, `work.py
+lint` now REFUSES a `parked` row whose every blocker is closed, and a
+program cannot un-park another program's rows in the PR that closes
+their trigger — `work/README.md`'s one-file-one-item rule makes that a
+merge conflict by design.

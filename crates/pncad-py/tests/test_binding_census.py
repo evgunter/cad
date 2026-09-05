@@ -734,6 +734,15 @@ FAMILIES = {
         "carries a derived frame, and cannot author one or ask a face "
         "its kind"
     ),
+    "B-PART": (
+        "the projection node's Python surface (DOCM-2, "
+        "DOCM-REFERENCES-DESIGN DM3); closing it binds `Node.part` (a "
+        "`PartSelect` constructor pair: a split's half by `SplitHalf`, "
+        "a pattern's instance by a Count expression) and the "
+        "`SlotId.Instance` structural slot it carries. Today Python can "
+        "evaluate and read a document that carries a Part — its value "
+        "is a plain body — and cannot author one"
+    ),
 }
 
 #: Curated names with no Python spelling at all, by family.
@@ -1487,6 +1496,41 @@ NOT_BOUND = {
     # The predicate; `Member` above carries the argument for both.
     "member_of": INTERIOR,
     "validated": INTERIOR,
+    # **The gathered-product doors, one family.** `Product` is the
+    # document's product with everything the gather knows about it,
+    # `product_recorded` is the gather that builds one, `Subject` is
+    # what the check registry runs over, and `run_checks_on` /
+    # `assemble_gathered` are the two doors that take a product a
+    # caller already holds. Python binds the WRAPPERS of both —
+    # `run_checks` and `assemble` — and each gathers for itself, so
+    # there is nothing here a Python caller cannot ASK: every question
+    # these five answer is answered by a door already bound, and
+    # `product` / `product_named` are the curated gathers for a caller
+    # who wants the body or the table.
+    #
+    # What Python cannot do through them is ask both questions on ONE
+    # gather, which is a COST rather than an unsayable question — and
+    # it is a cost with a Rust-side reason: `assemble_gathered`
+    # CONSUMES the product, so sharing one is an ownership order, and
+    # an ownership order is exactly what does not cross this boundary.
+    # `resolve_loops` above is the same disposition for the same
+    # reason.
+    "Product": INTERIOR,
+    "Subject": INTERIOR,
+    "assemble_gathered": INTERIOR,
+    "product_recorded": INTERIOR,
+    "run_checks_on": INTERIOR,
+    # The gather's debug-only witness: how many products this thread
+    # has gathered, for a consumer asserting it gathers once per
+    # operation. Not a question about a document at all.
+    #
+    # `cfg(debug_assertions)` gates the counter, the increment and this
+    # reader alike — which is NOT the same as "absent from a release
+    # build" in this workspace, whose `[profile.release]` keeps
+    # `debug-assertions` on until publish. Every binary this repo
+    # produces carries it; cargo's own release defaults are what strip
+    # it. Either way it is not a Python door.
+    "gathers_on_this_thread": INTERIOR,
     # --- gap: the SWEEP half of G2, still banked -------------------
     # The tube half closed at LIB-TUBE; `sweep_body` did not, and the
     # reason is not "no binding was written" — `wire_sweep` refuses
@@ -1515,6 +1559,10 @@ NOT_BOUND = {
     # The Rust door is DOCM-1's; its Python twin, with `Datum.face_frame`
     # and `Pose.sense`, is LIB's and the family charters all three.
     "face_carrier_kind": f"{GAP}: B-FACE-FRAME the derived frame's surface",
+    # --- gap: the projection node's selector (census-owned) --
+    # The Rust node is DOCM-2's; its Python twin, `Node.part`, is
+    # LIB's and the family charters it.
+    "PartSelect": f"{GAP}: B-PART the projection node's surface",
     "WrittenAngle": f"{GAP}: B-NOTATION authored notation",
     "WrittenLength": f"{GAP}: B-NOTATION authored notation",
     "DistributionFault": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",

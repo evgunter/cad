@@ -195,9 +195,10 @@ pub enum Refusal {
     Io(Box<DocIoError>),
     /// Undo at the root, or redo at the tip of the current branch.
     NothingToDo,
-    /// A display-state operation refused (hide on a non-instance, a
-    /// free-move on a mate-constrained instance, a gesture out of
-    /// order) — the fault's own typed vocabulary, unaltered.
+    /// A display-state operation refused (a display op on an id the
+    /// document does not hold, hide on a non-instance, a free-move on
+    /// a mate-constrained instance, a gesture out of order) — the
+    /// fault's own typed vocabulary, unaltered.
     Display(DisplayFault),
     /// A written-unit change refused — the panel model's own typed
     /// vocabulary, unaltered.

@@ -1,0 +1,616 @@
+//! **FILLET-H5 Phase 1: what a plane-hosted closed rim actually is.**
+//!
+//! The unit `repaired-pole-rim-serves-no-closed-door` is about a closed
+//! rim whose arcs are hosted by ONE plane face in that face's OWN OUTER
+//! CYCLE — one host, no ring, and crossings the coplanar-merge repair
+//! left TRIVALENT (two rim arcs plus the mate's seam, the host's seam
+//! having been merged away). These rows pin what that shape is, where
+//! it comes from, and what the doors say about it, so the measurement
+//! the spec's Phase 1 asks for is a gate rather than a transcript.
+//!
+//! Two of them state NEGATIVE structural facts and are the ones that
+//! earn their place: a full revolve of a pole-touching profile splits
+//! EVERY wall, not only the walls that touch the axis, so the shape has
+//! no native revolve instance
+//! (`work/fillet/plane-hosted-rim-has-no-native-instance.md`); and a
+//! repaired ANNULAR plane hosts its rim in a RING rather than in its
+//! outer cycle, which routes it to the ladder and into a ring-clearance
+//! refusal of a nested trim circle
+//! (`work/fillet/ring-clearance-refuses-a-nested-trim-circle.md`).
+//!
+//! The row that carries the unit's own claim is
+//! `the_plane_hosted_rim_carves_on_either_material_side`: every fixture
+//! there is the shape, and every one of them carves — five convex, one
+//! concave — at the same census delta.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use geom::Surface;
+use geom_core::{Point2, Sign, Tol};
+use profile::ProfileVertex;
+use sweep::Revolution;
+use sweep::blend::BlendError;
+use sweep::blend::build::fillet_edges;
+use sweep::test_support::{
+    assert_naming_totality, bowl, hemisphere_on_flat_base, lantern, plane_sphere_cut,
+    revolved_about_y, rim_arcs_at, waisted, wedge_fill,
+};
+use topo::{Body, EdgeKey, FaceKey, LoopBoundary, VertexKey, mass_properties, validate_geometric};
+
+fn tol() -> Tol {
+    Tol::witness()
+}
+
+fn volume(body: &Body<f64>) -> f64 {
+    mass_properties(body, tol())
+        .expect("mass properties compute")
+        .volume
+}
+
+/// The two faces an edge separates.
+fn faces_of(body: &Body<f64>, e: EdgeKey) -> (FaceKey, FaceKey) {
+    let ed = body.get_edge(e).unwrap();
+    let f = |he| {
+        body.get_loop(body.get_half_edge(he).unwrap().parent_loop)
+            .unwrap()
+            .face
+    };
+    (f(ed.he_plus), f(ed.he_minus))
+}
+
+fn is_plane(body: &Body<f64>, f: FaceKey) -> bool {
+    matches!(
+        body.get_surface(body.get_face(f).unwrap().surface).unwrap(),
+        Surface::Plane { .. }
+    )
+}
+
+/// The distinct planar supports of a rim's arcs.
+fn planar_supports(body: &Body<f64>, arcs: &[EdgeKey]) -> Vec<FaceKey> {
+    let mut out = Vec::new();
+    for &a in arcs {
+        let (fa, fb) = faces_of(body, a);
+        for f in [fa, fb] {
+            if is_plane(body, f) && !out.contains(&f) {
+                out.push(f);
+            }
+        }
+    }
+    out
+}
+
+/// A loop's edges in cycle order.
+fn loop_edges(body: &Body<f64>, lp: topo::LoopKey) -> Vec<EdgeKey> {
+    let LoopBoundary::Cycle { first } = body.get_loop(lp).unwrap().boundary else {
+        return Vec::new();
+    };
+    body.loop_cycle(first)
+        .unwrap()
+        .into_iter()
+        .map(|he| body.get_half_edge(he).unwrap().edge)
+        .collect()
+}
+
+/// The rim's own vertices, in first-seen order.
+fn rim_vertices(body: &Body<f64>, arcs: &[EdgeKey]) -> Vec<VertexKey> {
+    let mut vs = Vec::new();
+    for &a in arcs {
+        let ed = body.get_edge(a).unwrap();
+        for he in [ed.he_plus, ed.he_minus] {
+            let s = body.get_half_edge(he).unwrap().start;
+            if !vs.contains(&s) {
+                vs.push(s);
+            }
+        }
+    }
+    vs
+}
+
+fn valence(body: &Body<f64>, v: VertexKey) -> Vec<EdgeKey> {
+    let he = body.get_vertex(v).unwrap().emanating.unwrap();
+    let mut out: Vec<EdgeKey> = body
+        .vertex_orbit(he)
+        .unwrap()
+        .into_iter()
+        .map(|h| body.get_half_edge(h).unwrap().edge)
+        .collect();
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+
+/// Whether an edge is a chart seam: the same SURFACE on both sides.
+fn co_surface(body: &Body<f64>, e: EdgeKey) -> bool {
+    let (fa, fb) = faces_of(body, e);
+    body.get_face(fa).unwrap().surface == body.get_face(fb).unwrap().surface
+}
+
+// ------------------------------------------------------------------
+// The fixtures.
+// ------------------------------------------------------------------
+
+/// **The boss**: a cylinder of radius 1 and height 1 whose flat top
+/// runs in to radius 0.5, where a hemispherical dome of radius 0.5
+/// rises to the pole. `up` false is its dimple twin — the same pocket
+/// dipping to `(0, 0.5)` instead.
+fn boss(up: bool) -> Body<f64> {
+    let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
+    revolved_about_y(
+        vec![
+            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
+            ProfileVertex::new(Point2::new(1.0, 0.0), 0.0),
+            ProfileVertex::new(Point2::new(1.0, 1.0), 0.0),
+            ProfileVertex::new(Point2::new(0.5, 1.0), if up { q } else { -q }),
+            ProfileVertex::new(Point2::new(0.0, if up { 1.5 } else { 0.5 }), 0.0),
+        ],
+        Revolution::Full,
+        tol(),
+    )
+}
+
+fn repaired(mut body: Body<f64>) -> Body<f64> {
+    body.merge_coplanar_faces(tol())
+        .expect("the pole-split caps repair");
+    body
+}
+
+// ------------------------------------------------------------------
+// The rows.
+// ------------------------------------------------------------------
+
+/// **The shape, and its carve, on every fixture that carries it.** One
+/// planar host, the rim in that face's own OUTER cycle and in no ring,
+/// and every crossing TRIVALENT — two rim arcs plus exactly one
+/// co-surface mate seam, the host's seam having been merged away by the
+/// repair. Each one carves through the hostless-crossing annulus to a
+/// tier-3-valid solid carrying ONE band, with closed-form mass
+/// properties, and the CENSUS DELTA is the same `(+2, +3, +1)` on all
+/// six because the Euler walk is the same six moves per crossing and
+/// per arc whatever the supports' kinds are.
+///
+/// **Both material sides**: the five convex rims lose material to the
+/// band and the bowl's concave floor gains it, through one carve.
+#[test]
+fn the_plane_hosted_rim_carves_on_either_material_side() {
+    let fixtures: Vec<(&str, Body<f64>, f64, f64, bool)> = vec![
+        ("lantern neck", repaired(lantern(tol())), 1.0, 0.0, false),
+        ("lantern lip", repaired(lantern(tol())), 0.2, 1.2, false),
+        (
+            "hemisphere equator",
+            repaired(hemisphere_on_flat_base(1.0, tol())),
+            1.0,
+            0.0,
+            false,
+        ),
+        ("waisted base", repaired(waisted(tol())), 1.0, 0.0, false),
+        ("waisted top", repaired(waisted(tol())), 1.0, 1.0, false),
+        ("bowl floor", repaired(bowl(tol())), 1.0, 1.0, true),
+    ];
+    for (name, body, r, y, concave) in &fixtures {
+        let arcs = rim_arcs_at(body, *r, *y);
+        assert_eq!(arcs.len(), 2, "{name}: the repair leaves the rim two arcs");
+
+        let hosts = planar_supports(body, &arcs);
+        assert_eq!(hosts.len(), 1, "{name}: ONE plane face hosts every arc");
+        let host = hosts[0];
+        let fd = body.get_face(host).unwrap();
+        assert!(
+            fd.rings.is_empty(),
+            "{name}: the plane host carries no ring of its own"
+        );
+        let outer = loop_edges(body, fd.outer);
+        assert_eq!(
+            outer.len(),
+            2,
+            "{name}: the host's outer cycle is exactly the rim"
+        );
+        assert!(
+            arcs.iter().all(|a| outer.contains(a)),
+            "{name}: the rim lies in the host's OUTER cycle, not in a ring"
+        );
+
+        for v in rim_vertices(body, &arcs) {
+            let inc = valence(body, v);
+            assert_eq!(inc.len(), 3, "{name}: a crossing is trivalent");
+            let seams: Vec<EdgeKey> = inc.iter().copied().filter(|e| !arcs.contains(e)).collect();
+            assert_eq!(seams.len(), 1, "{name}: one seam meets a crossing");
+            assert!(
+                co_surface(body, seams[0]),
+                "{name}: that seam is a co-surface chart meridian"
+            );
+            assert!(
+                !is_plane(body, faces_of(body, seams[0]).0),
+                "{name}: the surviving seam is the MATE's, not the host's"
+            );
+        }
+
+        let before = mass_properties(body, tol()).expect("mass properties compute");
+        let census = |b: &Body<f64>| {
+            (
+                b.vertices().count() as i64,
+                b.edges().count() as i64,
+                b.faces().count() as i64,
+            )
+        };
+        let c0 = census(body);
+        let out = fillet_edges(body, &arcs, 0.05, tol())
+            .unwrap_or_else(|e| panic!("{name}: the hostless-crossing rim carves, got {e:?}"));
+        validate_geometric(&out.body, tol())
+            .unwrap_or_else(|e| panic!("{name}: tier-3 valid at rest, got {e:?}"));
+        assert_eq!(out.band_faces.len(), 1, "{name}: ONE band over both arcs");
+        let c1 = census(&out.body);
+        assert_eq!(
+            (c1.0 - c0.0, c1.1 - c0.1, c1.2 - c0.2),
+            (2, 3, 1),
+            "{name}: the two-crossing Euler walk's census delta"
+        );
+        // Euler's formula on the one shell, before and after: the carve
+        // is a genus-preserving surgery, not a topology change.
+        assert_eq!(c0.0 - c0.1 + c0.2, 2, "{name}: the source is a sphere");
+        assert_eq!(c1.0 - c1.1 + c1.2, 2, "{name}: and so is the carve");
+
+        let after = mass_properties(&out.body, tol()).expect("mass properties compute");
+        assert_eq!(
+            after.volume_pad, 0.0,
+            "{name}: every face of the carve is closed-form"
+        );
+        let delta = after.volume - before.volume;
+        assert_eq!(
+            delta > 0.0,
+            *concave,
+            "{name}: a concave rim's band ADDS material and a convex one's removes it \
+             (delta {delta})"
+        );
+    }
+}
+
+/// **The seam-split annulus could not take it either, and the gate that
+/// stops it is the HALF-BAND one.** `resolve_seam_split_rim` requires
+/// every support face to carry exactly ONE of the chain's arcs; the
+/// repaired plane carries both, which is the structural fact that
+/// refusal reads. Pinned here rather than by relaxing the ladder
+/// discriminant, so the fact is measured on the body and not on a
+/// scaffolded build.
+#[test]
+fn the_plane_host_carries_both_arcs_which_is_the_half_band_gates_own_fact() {
+    let body = repaired(lantern(tol()));
+    let arcs = rim_arcs_at(&body, 1.0, 0.0);
+    let host = planar_supports(&body, &arcs)[0];
+    let carried: Vec<EdgeKey> = loop_edges(&body, body.get_face(host).unwrap().outer)
+        .into_iter()
+        .filter(|e| arcs.contains(e))
+        .collect();
+    assert_eq!(
+        carried.len(),
+        2,
+        "the repaired host carries BOTH rim arcs, so the half-band \
+         discipline the seam-split resolver needs does not hold of it"
+    );
+    // The MATE side does hold it: one arc per face, which is why only
+    // the host side needs a new way to reach its foot.
+    for &a in &arcs {
+        let (fa, fb) = faces_of(&body, a);
+        let mate = if is_plane(&body, fa) { fb } else { fa };
+        let mate_arcs: Vec<EdgeKey> = loop_edges(&body, body.get_face(mate).unwrap().outer)
+            .into_iter()
+            .filter(|e| arcs.contains(e))
+            .collect();
+        assert_eq!(
+            mate_arcs,
+            vec![a],
+            "a mate face carries exactly its own arc"
+        );
+    }
+}
+
+/// **Both material sides are reachable in this shape.** The bowl's
+/// floor rim is an inside corner and its carve ADDS material; the
+/// lantern's neck rim is an outside one and its carve removes it. Both
+/// measured on the RAW (unrepaired) bodies, where the seam-split
+/// annulus already serves them — so the sides are a property of the
+/// geometry and not of the door, and the repaired twins above inherit
+/// them.
+#[test]
+fn the_plane_hosted_shape_reaches_either_material_side() {
+    for (name, body, r, y, adds) in [
+        ("bowl floor", bowl(tol()), 1.0, 1.0, true),
+        ("lantern neck", lantern(tol()), 1.0, 0.0, false),
+    ] {
+        let arcs = rim_arcs_at(&body, r, y);
+        let before = volume(&body);
+        let out = fillet_edges(&body, &arcs, 0.05, tol())
+            .unwrap_or_else(|e| panic!("{name} carves before the repair, got {e:?}"));
+        let delta = volume(&out.body) - before;
+        assert_eq!(
+            delta > 0.0,
+            adds,
+            "{name}: a concave rim's band adds material and a convex one's removes it \
+             (delta {delta})"
+        );
+    }
+}
+
+/// **The shape has no NATIVE revolve instance.** A full revolve of a
+/// pole-touching profile is the wire case, which sweeps every segment
+/// of the loop in two π-bands — the split is a property of the BODY,
+/// not of the segment, so a plane annulus that does not touch the axis
+/// is minted as two half-annuli just the same. The spec's own "dome on
+/// a wider flat top" is therefore the ordinary seam-split annulus:
+/// TWO planar supports, valence-4 crossings, and it carves today.
+#[test]
+fn a_pole_touching_revolve_splits_the_walls_that_do_not_touch_the_axis_too() {
+    for up in [true, false] {
+        let name = if up { "boss" } else { "dimple" };
+        let body = boss(up);
+        assert_eq!(
+            body.faces().count(),
+            8,
+            "{name}: four profile segments, every one of them split in two"
+        );
+        let arcs = rim_arcs_at(&body, 0.5, 1.0);
+        assert_eq!(arcs.len(), 2, "{name}: the rim is two arcs");
+        assert_eq!(
+            planar_supports(&body, &arcs).len(),
+            2,
+            "{name}: the flat top is TWO half-annuli, not one face"
+        );
+        for v in rim_vertices(&body, &arcs) {
+            assert_eq!(
+                valence(&body, v).len(),
+                4,
+                "{name}: a crossing carries a co-surface seam per SIDE"
+            );
+        }
+        fillet_edges(&body, &arcs, 0.1, tol())
+            .unwrap_or_else(|e| panic!("{name} is the seam-split annulus and carves, got {e:?}"));
+    }
+}
+
+/// **Repairing the boss does not produce the shape either — it produces
+/// a ring-hosted ladder rim that refuses on ring clearance.** The
+/// merged flat top is an ANNULUS, so its rim lands in a RING of it and
+/// routes to the ladder; the ladder's own gates pass, and the exact
+/// outer-boundary check then applies its EXTERNAL-separation form to a
+/// boundary circle that CONTAINS the trim circle. The margin is
+/// `−(trim radius + boundary radius)` on concentric circles — a
+/// refusal of a carve that is geometrically fine
+/// (`work/fillet/ring-clearance-refuses-a-nested-trim-circle.md`).
+#[test]
+fn a_repaired_boss_is_ring_hosted_and_refuses_on_a_nested_trim_circle() {
+    for up in [true, false] {
+        let name = if up { "boss" } else { "dimple" };
+        let body = repaired(boss(up));
+        let arcs = rim_arcs_at(&body, 0.5, 1.0);
+        let hosts = planar_supports(&body, &arcs);
+        assert_eq!(hosts.len(), 1, "{name}: the repair leaves one plane host");
+        let fd = body.get_face(hosts[0]).unwrap();
+        assert_eq!(
+            fd.rings.len(),
+            1,
+            "{name}: the merged flat top is an annulus"
+        );
+        assert!(
+            arcs.iter()
+                .all(|a| loop_edges(&body, fd.rings[0]).contains(a)),
+            "{name}: the rim lies in that RING, not in the outer cycle — a ladder rim"
+        );
+        match fillet_edges(&body, &arcs, 0.1, tol()).map_err(|e| e.error) {
+            Err(BlendError::RingClearance { margin, .. }) => {
+                assert_eq!(margin.predicate, "fillet3_ring_clearance");
+                assert_eq!(margin.sign, Sign::Negative);
+                // Concentric circles: the external form reads
+                // `0 − trim − boundary`, while the containment margin
+                // `boundary − trim` is comfortably positive.
+                let read = margin.value().expect("a definite reading");
+                assert!(
+                    read < -1.0,
+                    "{name}: the reading is minus the SUM of the two radii, got {read}"
+                );
+            }
+            other => panic!("{name}: expected a ring-clearance refusal, got {other:?}"),
+        }
+    }
+}
+
+// ------------------------------------------------------------------
+// Closed forms, on both material sides.
+// ------------------------------------------------------------------
+
+/// **Both material sides at their closed forms, derived by hand.**
+///
+/// The BOWL's floor rim is CONCAVE: at `K = (1, 1)` the floor runs
+/// toward the axis along `(-1, 0)` with material below it, and the lip
+/// runs out along `(1, 1)/2^(1/2)` with material below that — so the
+/// VOID wedge between those two rays is 135 degrees, the ball rests in
+/// it, and the band ADDS the curvilinear triangle between the corner
+/// and the arc.
+///
+/// The WAISTED body's base rim is its convex twin: at `K = (1, 0)` the
+/// floor runs toward the axis along `(-1, 0)` and the wall runs up-in
+/// along `(-1, 1)/2^(1/2)`, with material between them, so the MATERIAL
+/// wedge is 45 degrees, the ball rests on it, and the band REMOVES the
+/// same shape of region.
+///
+/// One `wedge_fill` serves both because the region is the same one; the
+/// SIGN is the material side and it is the whole difference. The oracle
+/// uses no kernel quantity — only the profile's own corner and its two
+/// generator directions — so a carve agreeing with a wrong arm would
+/// still be caught here.
+#[test]
+fn the_hostless_carves_match_their_hand_closed_forms() {
+    let r = 0.05;
+    let s2 = core::f64::consts::SQRT_2;
+    for (name, body, rim, k, da, db, adds) in [
+        (
+            "bowl floor (concave)",
+            repaired(bowl(tol())),
+            (1.0, 1.0),
+            (1.0, 1.0),
+            (-1.0, 0.0),
+            (1.0 / s2, 1.0 / s2),
+            true,
+        ),
+        (
+            "waisted base (convex)",
+            repaired(waisted(tol())),
+            (1.0, 0.0),
+            (1.0, 0.0),
+            (-1.0, 0.0),
+            (-1.0 / s2, 1.0 / s2),
+            false,
+        ),
+    ] {
+        let arcs = rim_arcs_at(&body, rim.0, rim.1);
+        let before = mass_properties(&body, tol()).unwrap();
+        let out = fillet_edges(&body, &arcs, r, tol())
+            .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
+        validate_geometric(&out.body, tol())
+            .unwrap_or_else(|e| panic!("{name} tier-3 valid, got {e:?}"));
+        let after = mass_properties(&out.body, tol()).unwrap();
+        assert_eq!(after.volume_pad, 0.0, "{name}: closed-form faces only");
+        let measured = after.volume - before.volume;
+        let want = if adds {
+            wedge_fill(k, da, db, r)
+        } else {
+            -wedge_fill(k, da, db, r)
+        };
+        assert!(
+            (measured - want).abs() <= 1e-12 * want.abs().max(1.0),
+            "{name}: the carve's volume delta is the hand form \
+             (measured {measured}, closed form {want})"
+        );
+    }
+}
+
+// ------------------------------------------------------------------
+// Naming totality and composition.
+// ------------------------------------------------------------------
+
+/// **Naming totality on a HOSTLESS band, all three directions.** The
+/// direction this shape adds sites to is (a) on VERTICES: each crossing
+/// mints a STRUT foot instead of splitting a seam, so the foot is a
+/// `rim_feet` row and nothing else names it — dropping that row leaves
+/// an output vertex unaccounted for. It also loads (b) and (c): the
+/// strut is minted AND consumed inside the call, so it must appear in
+/// neither the births nor the retirements, and a stray death row for it
+/// would fail (b)'s "a retirement names a SOURCE key".
+#[test]
+fn a_hostless_band_is_naming_total() {
+    let source = repaired(lantern(tol()));
+    let arcs = rim_arcs_at(&source, 1.0, 0.0);
+    let out = fillet_edges(&source, &arcs, 0.05, tol()).expect("the repaired neck carves");
+    assert_naming_totality(&source, &out, &arcs, "the repaired lantern neck");
+}
+
+/// **A hostless rim composes with a second rim on the shared MATE wall
+/// in one call, and the result IS the sequential composition** — the
+/// #935 claim, extended to the crossing whose host foot is a strut.
+///
+/// The repaired lantern's neck `(1, 0)` is hostless (one plane host,
+/// the sphere's two half-caps as its mates); its shoulder
+/// `(0.8, 0.6)` is an ordinary seam-split annulus on that SAME sphere
+/// wall. So the second band's plan names seam meridians the first
+/// band's carve has already split, which is what `refresh_annulus_seams`
+/// re-reads — and it must carry a `HostFoot::Strut` through untouched
+/// rather than hunt for a host seam that was never there.
+///
+/// Both sequential orders are taken, because the one-call plan sorts
+/// rims by first edge and neither request order may reach the carve.
+#[test]
+fn a_hostless_rim_composes_with_a_shared_wall_neighbour() {
+    let r = 0.05;
+    let neck = (1.0, 0.0);
+    let shoulder = (0.8, 0.6);
+    let source = repaired(lantern(tol()));
+
+    let mut both = rim_arcs_at(&source, neck.0, neck.1);
+    both.extend(rim_arcs_at(&source, shoulder.0, shoulder.1));
+    assert_eq!(both.len(), 4, "two rims of two arcs each");
+    let one_call = fillet_edges(&source, &both, r, tol())
+        .expect("the hostless neck and the shoulder carve in ONE call");
+    validate_geometric(&one_call.body, tol()).expect("the one-call result is tier-3 valid");
+    assert_eq!(one_call.band_faces.len(), 2, "one band per rim");
+    let one = mass_properties(&one_call.body, tol()).unwrap();
+    assert_eq!(one.volume_pad, 0.0, "closed-form faces only");
+
+    for order in [[neck, shoulder], [shoulder, neck]] {
+        let mut body = repaired(lantern(tol()));
+        for (rim_r, rim_y) in order {
+            let arcs = rim_arcs_at(&body, rim_r, rim_y);
+            body = fillet_edges(&body, &arcs, r, tol())
+                .unwrap_or_else(|e| panic!("the ({rim_r}, {rim_y}) rim carves alone, got {e:?}"))
+                .body;
+        }
+        validate_geometric(&body, tol()).expect("the sequential result is tier-3 valid");
+        let seq = mass_properties(&body, tol()).unwrap();
+        assert_eq!(
+            seq.volume_pad, 0.0,
+            "closed-form faces only, order {order:?}"
+        );
+        assert_eq!(
+            one.volume.to_bits(),
+            seq.volume.to_bits(),
+            "the one-call result IS the sequential composition, bit for bit \
+             (order {order:?})"
+        );
+    }
+}
+
+/// **The plane-times-SPHERE hostless carve at its closed form** — the
+/// shape `p4` is about, and the one the tour's lily reaches.
+///
+/// The lantern's neck and the hemisphere's equator have the SAME local
+/// geometry: the unit sphere centred at the origin meeting the plane
+/// `y = 0` at the rim of radius 1, material above the plane and inside
+/// the sphere. So one derivation serves both, and the two measured
+/// deltas agreeing to within an ulp or two is itself evidence that
+/// neither carve is reading anything but that geometry.
+///
+/// The ball of radius `r` rests on the material side: `r` above the
+/// floor and internally tangent to the sphere, so its centre is
+/// `C = (sqrt((1-r)^2 - r^2), r)` and its feet are `F_a = (C_x, 0)` on
+/// the floor and `F_b = C/(1-r)` on the sphere. The REMOVED meridian
+/// region is bounded by the floor from `F_a` to the corner `K = (1, 0)`,
+/// the sphere's own arc from `K` to `F_b`, and the fillet arc back to
+/// `F_a`. Cut it at the chord `K`–`F_b`:
+///
+/// - the kite `K, F_a, C, F_b` (two triangles), PLUS
+/// - the circular SEGMENT of the unit circle between that chord and its
+///   arc — the arc bulges away from the centre, so the true region
+///   holds it and the straight-sided kite does not, MINUS
+/// - the sector at `C` between the two feet, which is the ball itself
+///   and stays.
+///
+/// Pappus revolves the three pieces. Nothing of the kernel enters.
+#[test]
+fn the_plane_sphere_hostless_carve_matches_its_hand_closed_form() {
+    let r: f64 = 0.05;
+    let removed = plane_sphere_cut(1.0, r);
+    assert!(
+        removed > 0.0,
+        "the convex plane-sphere rim's band removes material: {removed}"
+    );
+
+    for (name, body) in [
+        ("the lantern's neck", repaired(lantern(tol()))),
+        (
+            "the hemisphere's equator",
+            repaired(hemisphere_on_flat_base(1.0, tol())),
+        ),
+    ] {
+        let arcs = rim_arcs_at(&body, 1.0, 0.0);
+        let before = mass_properties(&body, tol()).unwrap();
+        let out = fillet_edges(&body, &arcs, r, tol())
+            .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
+        validate_geometric(&out.body, tol())
+            .unwrap_or_else(|e| panic!("{name} tier-3 valid, got {e:?}"));
+        let after = mass_properties(&out.body, tol()).unwrap();
+        assert_eq!(after.volume_pad, 0.0, "{name}: closed-form faces only");
+        let measured = before.volume - after.volume;
+        assert!(
+            (measured - removed).abs() <= 1e-12 * removed,
+            "{name}: the removed volume is the hand form \
+             (measured {measured}, closed form {removed})"
+        );
+    }
+}

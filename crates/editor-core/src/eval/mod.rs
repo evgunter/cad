@@ -46,7 +46,7 @@ use crate::doc::Doc;
 use crate::expr::EvalError;
 use crate::ident::Mispaired;
 use crate::names::{NameTable, NamingError};
-use crate::node::{RecipeNodeId, SlotId, StableName};
+use crate::node::{PartSelect, RecipeNodeId, SlotId, StableName};
 use crate::program::ProfileProgram;
 use geom_core::Tol;
 
@@ -629,6 +629,29 @@ pub enum NodeErrorKind {
         /// The empty input node.
         input: RecipeNodeId,
     },
+    /// A [`crate::Node::Part`] selected a split half that holds no
+    /// material — the tool plane missed the target on that side. Its
+    /// own arm rather than [`NodeErrorKind::EmptyOperand`]: that
+    /// one's prose is a boolean's, and what is empty here is a side
+    /// of a cut, which has a name.
+    EmptyHalf {
+        /// The split node whose value was read.
+        input: RecipeNodeId,
+        /// The empty half.
+        half: crate::names::SplitHalf,
+    },
+    /// A [`crate::Node::Part`] indexed a pattern's instances outside
+    /// `0..count`. A negative index lands here too — the index is
+    /// neither wrapped nor clamped, because either would be a body the
+    /// author did not name.
+    InstanceOutOfRange {
+        /// The pattern node whose value was read.
+        input: RecipeNodeId,
+        /// The index as authored (resolved through its slot).
+        index: i64,
+        /// How many instances the value holds.
+        count: usize,
+    },
     /// A direction-valued vector decided to zero length (datum
     /// normal/direction, transform rotation axis, pattern direction).
     DegenerateDirection {
@@ -737,6 +760,14 @@ pub enum NodeErrorKind {
     /// emission bug, a kernel-emission gap, or an in-band N2
     /// discriminator escalation — carried unaltered.
     Naming(NamingError),
+    /// The lowered parameter-identity attach refused (VERB-SEAT-DESIGN
+    /// P2): the kernel's per-field door would not take a token on a
+    /// key or a field the attach pass just read off the same body. A
+    /// broken invariant of `param_source::attach_blend` — its doc says
+    /// why neither refusal can fire — surfaced typed rather than
+    /// discarded, so that a channel fed nothing is never mistaken for
+    /// a channel that refused.
+    ParamSourceAttach(topo::ParamAttachError),
     /// A `Declare` pair failed to resolve through the operands' name
     /// tables (F5, M4 PR 5) — the N5 typed error VERBATIM: a Declare
     /// naming a vanished/ambiguous/deleted name refuses loudly; no
@@ -1189,6 +1220,26 @@ impl core::fmt::Display for NodeErrorKind {
                 "input {} is the empty value — the body ops take real bodies",
                 input.0
             ),
+            Self::EmptyHalf { input, half } => write!(
+                f,
+                "the split's {} half (node {}) holds no material",
+                match half {
+                    crate::names::SplitHalf::Above => "above",
+                    crate::names::SplitHalf::Below => "below",
+                },
+                input.0
+            ),
+            Self::InstanceOutOfRange {
+                input,
+                index,
+                count,
+            } => write!(
+                f,
+                "instance index {index} is outside the pattern's {count} instances (node {}; \
+                 the admitted indices are 0 to {})",
+                input.0,
+                count.saturating_sub(1)
+            ),
             // Every role word is already a complete noun phrase for the
             // vector ("pattern direction", "transform rotation axis"),
             // so the sentence names the role and nothing after it.
@@ -1261,6 +1312,10 @@ impl core::fmt::Display for NodeErrorKind {
             // kernel refusal riding the variant — it has no other route
             // to a human, so it is carried through rather than dropped.
             Self::Naming(e) => write!(f, "name emission failed: {e}"),
+            Self::ParamSourceAttach(e) => write!(
+                f,
+                "the parameter-identity attach refused on a carrier the blend just minted: {e}"
+            ),
             Self::DeclareResolve { error } => write!(
                 f,
                 "a declared name failed to resolve through the operands' tables: {error}"
@@ -2534,7 +2589,16 @@ where
     // existing node reaches is strictly additive and is the case the
     // rule does not cover. A future channel that any existing node
     // writes into gets the bump.
-    h.write_tag(3);
+    //
+    // Key format v4 (SEAT-6): a blend node's flow-bearing size slot
+    // feeds its lowered EXPRESSION beside its value (`feed_blend`,
+    // through `param_source::feed_content_key`). An existing node
+    // writes into the channel, so by the rule above this is the bump,
+    // not the exception: every key moves, and no pre-bump memo entry
+    // is reused — which is what the channel needs, since a body minted
+    // before its spelling was part of the key could carry a token the
+    // current document does not hold.
+    h.write_tag(4);
     let tol = tol.get();
     h.write_f64_bits(tol.eps);
     h.write_f64_bits(tol.k);
@@ -2641,6 +2705,14 @@ where
         // and one spin slot against nine slots), and a shared tag
         // would let a memo entry for one serve the other's geometry.
         Node::Datum(Datum::FaceFrame { .. }) => 32,
+        // The projection node: two tags, as `Pattern`'s rule kinds are
+        // two. A half and an index are different payloads read off
+        // different value kinds, and a memo entry for one must never
+        // serve the other.
+        Node::Part { select, .. } => match select {
+            PartSelect::SplitHalf(_) => 33,
+            PartSelect::Instance(_) => 34,
+        },
     };
     // NODE-TAG-SPACE END
     h.write_tag(tag);
@@ -2807,11 +2879,21 @@ where
         // blends of the same size on different edges are different
         // nodes (M6-5). Canonical order (the construction doors) is
         // what makes this a set hash rather than an order hash.
-        Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => {
-            h.write_u64(selection.len() as u64);
-            for n in selection {
-                feed_stable_name(&mut h, n);
-            }
+        //
+        // Its size slot's EXPRESSION is an input too, when the verb's
+        // declared flow lands that parameter in a stored field: the
+        // minted body then carries the expression's lowered identity
+        // in its field rows, so two spellings of one value are two
+        // different bodies and must not serve each other from the
+        // memo (SEAT-6, key format v4). The fillet's radius is
+        // flow-bearing; the chamfer's setback reaches no field and
+        // feeds nothing — the rule is read off the declaration rather
+        // than written per verb.
+        Node::Fillet { selection, .. } => {
+            feed_blend(&mut h, node, selection, crate::verbs::blend::FILLET_SLOTS);
+        }
+        Node::Chamfer { selection, .. } => {
+            feed_blend(&mut h, node, selection, crate::verbs::blend::CHAMFER_SLOTS);
         }
         // A measure's REFERENCES and its measured EXPRESSION are both
         // recipe payload rather than slots: two measures with the same
@@ -2865,6 +2947,17 @@ where
         // differ in exactly this name. `at` is an input edge and is
         // carried by the upstream keys.
         Node::Datum(Datum::FaceFrame { face, .. }) => feed_stable_name(&mut h, face),
+        // The HALF is recipe payload outside the slots: two Parts of
+        // the two halves of one split share a tag, an upstream key and
+        // no slot at all, and differ in exactly this — so it feeds as
+        // a tag, or a memo hit would serve one half's body for the
+        // other. The INDEX is a slot and rides the resolved-slot
+        // stream below like every slot; `of` is an input edge and is
+        // carried by the upstream keys.
+        Node::Part { select, .. } => match select {
+            PartSelect::SplitHalf(half) => h.write_u64(split_half_tag(*half)),
+            PartSelect::Instance(_) => {}
+        },
         // Fully expressed by tag plus slots: their whole recipe payload
         // is either an input edge (excluded from the key by design — the
         // inputs' own keys carry it) or a slot expression, fed below.
@@ -3404,6 +3497,27 @@ fn dimension_tag(dim: crate::expr::Dimension) -> u8 {
 /// a name is an identity, and two names differing anywhere are two
 /// different recipe payloads. Names are float-free by construction
 /// (pure tags and integers), so nothing here is eps-dependent.
+/// A blend node's recipe payload beyond its slot values: the canonical
+/// selection, and — for a flow-bearing size parameter — the lowered
+/// spelling of its slot (`content_key`'s blend arms).
+fn feed_blend(
+    h: &mut KeyHasher,
+    node: &crate::node::Node<ProfileProgram>,
+    selection: &[StableName],
+    slots: crate::verbs::blend::BlendSlots,
+) {
+    h.write_u64(selection.len() as u64);
+    for n in selection {
+        feed_stable_name(h, n);
+    }
+    if crate::param_source::flow_bearing(slots.size_param)
+        && let Some(expr) = node.expr(slots.size_slot)
+    {
+        h.write_tag(43);
+        crate::param_source::feed_content_key(h, expr);
+    }
+}
+
 fn feed_stable_name(h: &mut KeyHasher, name: &StableName) {
     use crate::names::EntityKind;
     h.write_tag(match name.kind {
@@ -3419,10 +3533,21 @@ fn feed_stable_name(h: &mut KeyHasher, name: &StableName) {
     }
 }
 
+/// A split half's key tag — ONE spelling, read by the role-segment
+/// feed (every split segment carries a half) and by the projection
+/// node's payload feed (a `Part` of a half carries the half itself).
+fn split_half_tag(half: crate::names::SplitHalf) -> u64 {
+    use crate::names::SplitHalf;
+    match half {
+        SplitHalf::Above => 1,
+        SplitHalf::Below => 2,
+    }
+}
+
 /// Feeds one role segment (closed enum — every variant tagged; the
 /// tags are part of the key format version).
 fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
-    use crate::names::{CapEnd, MeridianEnd, Qualifier, RoleSeg, SideVerdict, SplitHalf};
+    use crate::names::{CapEnd, MeridianEnd, Qualifier, RoleSeg, SideVerdict};
     let cap = |c: CapEnd| match c {
         CapEnd::End => 1u64,
         CapEnd::Start => 2,
@@ -3433,10 +3558,7 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         MeridianEnd::Seam => 3,
         MeridianEnd::Pi => 4,
     };
-    let half = |s: SplitHalf| match s {
-        SplitHalf::Above => 1u64,
-        SplitHalf::Below => 2,
-    };
+    let half = split_half_tag;
     let rim = |s: crate::names::RimSupport| match s {
         crate::names::RimSupport::Host => 1u64,
         crate::names::RimSupport::Mate => 2,

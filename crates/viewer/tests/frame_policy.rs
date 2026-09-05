@@ -16,11 +16,12 @@
 
 use crate::common;
 
-use pncad::document::{Doc, Node, ParamName, ProfileProgram, RecipeNodeId, SlotId};
+use common::asm;
+use pncad::document::{Doc, Frame, Node, ParamName, ProfileProgram, RecipeNodeId, SlotId};
 use pncad::geom_core::{Point3, Tol, Vec3};
-use pncad::select::Ray;
+use pncad::select::{ContactClass, Ray};
 use viewer::camera::{Camera, CameraOp};
-use viewer::display::DisplayView;
+use viewer::display::{DisplayFault, DisplayView};
 use viewer::evalseam::Generation;
 use viewer::frame::{self, IdQueryLog, IdStep, StatusUpdate};
 use viewer::input::{self, InputMap, ViewportSize};
@@ -914,4 +915,109 @@ fn the_preferences_path_follows_the_xdg_rules() {
     {
         assert!(path.is_absolute(), "{} is not absolute", path.display());
     }
+}
+
+/// **A superseded free move reaches the line — driven the way the
+/// frame loop drives it.**
+///
+/// The value the session computes here is the one the chrome used to
+/// drop: `OpOutcome::superseded`, which nothing outside the test suite
+/// read. This row fails if it goes silent again, and it is built from
+/// a REAL outcome — a real mate landing on a real assembly — because a
+/// hand-made `OpOutcome` would assert about a shape rather than about
+/// the path.
+#[test]
+fn a_superseded_free_move_is_news_the_ranking_shows() {
+    let tol = Tol::witness();
+    let bench = asm::bench("framepolicy-supersede", tol);
+    let mut session = asm::open_bench(&bench, tol);
+
+    // The user places the unconstrained post by hand and COMMITS it —
+    // only a committed placement is ever reported superseded.
+    for op in [
+        SessionOp::BeginFreeMove {
+            instance: bench.post_b,
+        },
+        SessionOp::PreviewFreeMove {
+            frame: Frame::translation([0.04, 0.0, 0.0]),
+        },
+        SessionOp::CommitFreeMove,
+    ] {
+        let outcome = session.perform(op);
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    }
+    assert!(
+        session.display().free_move_of(bench.post_b).is_some(),
+        "the placement is held, so there is something to discard"
+    );
+
+    // Then they mate it, and that placement is discarded under them.
+    let mate = SessionOp::AddMate {
+        a: asm::in_part(bench.post_b, &bench.post_top),
+        b: asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        class: ContactClass::Rest,
+        alignment: asm::seat_alignment(asm::SHELF_LENGTH / 2.0, None),
+    };
+    let outcome = session.perform(mate.clone());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let [superseded] = &outcome.superseded[..] else {
+        panic!(
+            "exactly one placement is superseded: {:?}",
+            outcome.superseded
+        )
+    };
+    assert_eq!(
+        superseded.instance, bench.post_b,
+        "the mate discards the hand placement"
+    );
+    // The PAYLOAD, not the variant: the variant is what the op this row
+    // just performed already implies.
+    let DisplayFault::MateConstrained { instance, mates } = &superseded.cause else {
+        panic!(
+            "a mate landing supersedes with its own fault: {}",
+            superseded.cause
+        )
+    };
+    assert_eq!(*instance, bench.post_b, "the fault names the same instance");
+    assert!(
+        !mates.is_empty(),
+        "and names the mate that landed, which is what the line then reads"
+    );
+
+    // What the chrome does with it, in `perform_batch`'s order. This
+    // is a HAND-WRITTEN MIRROR of app-gated code no row can reach, so
+    // it has to model every producer that feeds the notices there —
+    // both withdrawal channels, not just the one this row provokes. A
+    // half-mirror would pass while the real loop dropped the other.
+    let notices: Vec<String> = frame::supersession_notice(&outcome.superseded)
+        .into_iter()
+        .chain(frame::dropped_hide_notice(&outcome.dropped_hides))
+        .collect();
+    assert_eq!(
+        notices.len(),
+        1,
+        "a mate landing on a probed instance withdraws a placement and no \
+         hide, so the second producer is silent here rather than absent"
+    );
+    let update = frame::frame_status(
+        &notices,
+        core::slice::from_ref(&mate),
+        outcome.refusal.as_ref(),
+    );
+    let StatusUpdate::Show(message) = update else {
+        panic!("a discarded placement is news, not silence: {update:?}");
+    };
+    assert!(
+        message.contains(&format!("instance {}", bench.post_b.0)),
+        "the line names which of the user's placements went: {message}"
+    );
+
+    // The counterfactual, so this row is not asserting about a frame
+    // where nothing had to survive anything: the SAME frame, with the
+    // supersession dropped on the floor as it used to be, clears the
+    // line instead of saying any of that.
+    assert_eq!(
+        frame::frame_status(&[], core::slice::from_ref(&mate), outcome.refusal.as_ref()),
+        StatusUpdate::Clear,
+    );
 }
