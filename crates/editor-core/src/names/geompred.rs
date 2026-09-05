@@ -247,9 +247,11 @@ pub enum SelectRefusal {
     PairInBand {
         /// The face-name pair whose margin was indeterminate.
         pair: Box<(StableName, StableName)>,
-        /// The verify-door funnel site (a `bool_plane_*` predicate —
-        /// detection reuses the C4 verifier's own sites and mints
-        /// none of its own).
+        /// The verify-door funnel site — `bool_plane_*` on the
+        /// planar rung, `carrier_sphere_*` / `carrier_cyl_*` /
+        /// `carrier_torus_*` on the curved ones, since detection
+        /// reuses the C4 verifier's own sites per carrier kind and
+        /// mints none of its own.
         predicate: &'static str,
         /// The funnel's own diagnostic (margin, band, recourse).
         source: geom_core::Indeterminate,

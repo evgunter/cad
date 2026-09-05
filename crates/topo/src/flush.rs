@@ -17,34 +17,35 @@
 //! verifier
 //!
 //! The detector has NO predicate triple of its own. It enumerates
-//! candidate pairs and asks [`flush_pair_relation`], and that call
-//! **converges with verify-at-use one link down** — which is the
-//! honest statement of the property, and worth stating as a chain
-//! because the two are not the same function:
+//! candidate pairs and asks
+//! [`carrier_pair_relation`]
+//! in `declared: false` mode — **the same function verify-at-use
+//! calls**, not a second one that agrees with it. Detection and
+//! verification are one door asked two questions:
 //!
-//! 1. this module calls `flush_pair_relation`, which builds the
-//!    sense-folded plane descriptions and the oriented identity
-//!    evidence and hands them to `oriented_plane_eq`;
-//! 2. verify-at-use (`verify_declared_pairs`, and the op's front-door
-//!    contact check) calls the kind-generalized
-//!    [`carrier_pair_relation`](crate::boolean::carrier_pair_relation),
-//!    which builds the SAME description from the same face sense and
-//!    the same identity record;
-//! 3. `carrier_eq`'s `(Plane, Plane)` arm delegates to
-//!    `oriented_plane_eq_verdict` — the function
-//!    `oriented_plane_eq` is a projection of. **That delegation is
-//!    the load-bearing link**: one verdict ladder, one set of
-//!    `decide` sites, one verification arm, so a pair this detector
-//!    calls flush cannot be a pair the declared rung then contradicts.
+//! - `declared: true` is verify-at-use (`verify_declared_pairs`, and
+//!   the op's front-door contact check): "the recipe says these are
+//!   one carrier — is that true?";
+//! - `declared: false` is this module: "no one has declared these —
+//!   would a declaration verify?", whose `Undeclared` refusal with a
+//!   definite-zero coincidence margin IS the affirmative answer.
+//!
+//! So a pair this detector calls flush cannot be a pair the declared
+//! rung then contradicts — one verdict ladder, one set of `decide`
+//! sites, one verification arm, reached by one call, and both
+//! postures decided out of the same `data_rungs` traversal.
 //!
 //! Consequences, all deliberate:
 //!
-//! - detect-then-declare can never disagree with verify-at-use, by the
-//!   convergence above rather than by care;
+//! - detect-then-declare can never disagree with verify-at-use, by
+//!   the identity above rather than by care;
 //! - detection's decisions go through the funnel at the VERIFIER'S
-//!   sites (`bool_plane_parallel` / `bool_plane_orient` /
-//!   `bool_plane_offset`) — the detector mints no site of its own and
-//!   owes no ledger row. It interprets nothing the verifier doesn't.
+//!   sites — `bool_plane_parallel` / `bool_plane_orient` /
+//!   `bool_plane_offset` on the planar rung, and the curved rungs'
+//!   own sites (`carrier_sphere_*`, `carrier_cyl_*`,
+//!   `carrier_torus_*`) on the others. The detector mints no site of
+//!   its own and owes no ledger row. It interprets nothing the
+//!   verifier doesn't.
 //!
 //! # Findings are DEFINITE; in-band pairs refuse
 //!
@@ -70,19 +71,46 @@
 //! pair its own name-order walk meets, and this door is deliberately
 //! identical to it.)
 //!
-//! # Scope: planar `Rest`, v1
+//! **A curved pair can now be that pair, and that is a widened
+//! FAILURE surface, not only a widened answer.** While the door
+//! enumerated over the planar projection, a curved pair had no
+//! description to compare and was `Ok(None)` — no candidate, no
+//! margin, no way to refuse. It reaches the ladder now, so a bore
+//! whose radius misses its peg's by less than the band makes this
+//! whole query refuse `PairInBand` where it used to answer with the
+//! pairs it could decide. That is D4's fail-loud posture applied to a
+//! question that could not previously be asked: the alternative is
+//! reporting a partial answer over an undecidable pair, which is the
+//! one thing a definite-findings door may never do. A caller that
+//! `expect`s the query (the tour's helper does) turns it into a
+//! panic, deliberately — a scene whose own contacts do not decide is
+//! a scene to fix.
 //!
-//! The detector detects what [`flush_pair_relation`] verifies: the
-//! coincident-plane contact class. The `Rest` verify ladder itself is
-//! wider — [`carrier_pair_relation`](crate::boolean::carrier_pair_relation)
-//! carries sphere, cylinder and torus rungs and is what
-//! `verify_declared_pairs` runs — so a curved cosurface pair is
-//! DECLARABLE today and not DETECTABLE; that scope step is a widening
-//! of this door, not of a verify table, and it is deliberately not
-//! taken here (`docs/SEAT-LOG.md`). `Tangent` findings wait on a
-//! locus the verifier can check
+//! # Scope: `Rest`, every carrier the ladder verifies
+//!
+//! The detector detects what
+//! [`carrier_pair_relation`]
+//! verifies, rung for rung: **plane, sphere, cylinder and torus**
+//! cosurface pairs — a peg's convex wall against its bore's concave
+//! wall is reported exactly as two flush plates' faces are, because
+//! it is the same verdict off the same door. A face whose kind is
+//! outside that inventory (cone, NURBS, `Approx`) has no description
+//! to compare and is honestly no candidate.
+//!
+//! The scope is therefore not a property of this module at all: it is
+//! the `Rest` table's, and this door has no narrower one. Detection
+//! and declarability coincide — a curved cosurface pair that is
+//! DECLARABLE is DETECTABLE, which is what makes a finding a faithful
+//! offer rather than a subset of one.
+//!
+//! What a finding still does not promise is that the op will BUILD:
+//! the reduction's own frontiers lie downstream of verification
+//! (`CurvedPierceUnsupported` on a purely cylindrical mate, for one),
+//! and a true declaration meets them unchanged. `Tangent` findings
+//! wait on a locus the verifier can check
 //! ([`tangent_locus`](crate::boolean::tangent_locus)), per
-//! SELECT-DESIGN §3's closing note.
+//! SELECT-DESIGN §3's closing note — tangency, unlike cosurfacing, is
+//! a class the ladder has no verdict for yet.
 //!
 //! # The no-fusion boundary (SELECT-DESIGN GS-Q3, RULED)
 //!
@@ -96,7 +124,8 @@ use geom_core::{Band, BandError, Decide, Indeterminate, MarginDiag, Tol};
 
 use crate::body::Body;
 use crate::boolean::{
-    BooleanDeclarations, FacePairDeclaration, PlaneEqError, PlaneRelation, flush_pair_relation,
+    BooleanDeclarations, CarrierEqError, CarrierRelation, FacePairDeclaration,
+    carrier_pair_relation,
 };
 use crate::contact::ContactClass;
 use crate::entity::FaceKey;
@@ -118,16 +147,17 @@ pub enum FlushRung {
 /// constrains evidence to the door's own verdict).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FlushEvidence {
-    /// The door's definite verdict: [`PlaneRelation::SameOpposite`]
-    /// (resting contact) or [`PlaneRelation::SameOriented`] (flush
+    /// The door's definite verdict: [`CarrierRelation::SameOpposite`]
+    /// (resting contact) or [`CarrierRelation::SameOriented`] (flush
     /// walls, the merge-stage flavor). Never `Distinct` — a distinct
-    /// pair is no finding at all.
-    pub relation: PlaneRelation,
+    /// pair is no finding at all. (`PlaneRelation` is this same type
+    /// under the spelling `plane_eq`'s callers use.)
+    pub relation: CarrierRelation,
     /// Which rung decided.
     pub rung: FlushRung,
 }
 
-/// One flush-plane finding: "this face pair would verify as declared
+/// One flush finding: "this face pair would verify as declared
 /// contact" — a VALUE, inspectable, never itself a declaration
 /// (SELECT-DESIGN §3a).
 ///
@@ -186,9 +216,9 @@ impl core::error::Error for FlushRefusal {}
 /// **One candidate pair through the verify door**, in
 /// candidate-generation mode: `Ok(Some(_))` = definitely flush (with
 /// the door's relation and deciding rung), `Ok(None)` = definitely not
-/// a candidate (a non-planar face, or definitely distinct planes),
-/// `Err` = the door could not decide definitively (in-band,
-/// escalated, or poisoned).
+/// a candidate (a face kind outside the `Rest` ladder's inventory, or
+/// definitely distinct carriers), `Err` = the door could not decide
+/// definitively (in-band, escalated, or poisoned).
 ///
 /// This is the rung both seats delegate to: the body seat's
 /// [`find_flush_candidates`] enumerates over it, and the document
@@ -197,16 +227,14 @@ impl core::error::Error for FlushRefusal {}
 /// resolution, the tie trilean, refusal payloads) upstairs.
 ///
 /// Everything — descriptions, oriented sources, AND the verification
-/// arm — comes from [`flush_pair_relation`], whose verdict ladder is
-/// the one verify-at-use reaches through `carrier_eq`'s plane
-/// delegation (module docs, the three-link chain). ONE call, in
-/// `declared: false` mode: its `Undeclared` refusal with the
+/// arm — comes from [`carrier_pair_relation`] (module docs). ONE
+/// call, in `declared: false` mode: its `Undeclared` refusal with the
 /// verifier's definite-zero encoding ([`MarginDiag::Invalid`]) is
 /// precisely "would verify if declared", and the refusal itself
-/// carries the orientation the ladder decided — the same
-/// `bool_plane_orient` verdict the declared rung re-decides
-/// deterministically at use, so the carried relation and the
-/// verify-at-use verdict cannot disagree.
+/// carries the orientation the ladder decided — the same orientation
+/// verdict the declared rung re-decides deterministically at use, so
+/// the carried relation and the verify-at-use verdict cannot
+/// disagree.
 ///
 /// # Errors
 ///
@@ -219,18 +247,20 @@ pub fn pair_finding<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<Option<FlushEvidence>, Indeterminate> {
-    let Some(relation) = flush_pair_relation(a, fa, b, fb, false, band) else {
-        // Not a planar pair: not a v1 candidate, honestly.
+    let Some(relation) = carrier_pair_relation(a, fa, b, fb, false, band) else {
+        // A kind outside the `Rest` ladder's inventory (cone, NURBS,
+        // `Approx`): there is no description to compare, so the pair
+        // is not a candidate, honestly.
         return Ok(None);
     };
     match relation {
-        Ok(PlaneRelation::Distinct) => Ok(None),
+        Ok(CarrierRelation::Distinct) => Ok(None),
         // Rung 1 fired: same recipe source, exact verdict.
         Ok(relation) => Ok(Some(FlushEvidence {
             relation,
             rung: FlushRung::SharedSource,
         })),
-        Err(PlaneEqError::Undeclared { diag, relation }) => {
+        Err(CarrierEqError::Undeclared { diag, relation }) => {
             if matches!(diag.margin, MarginDiag::Invalid) {
                 // The verifier's definite-zero-offset encoding: the
                 // pair would verify if declared, with the orientation
@@ -240,7 +270,7 @@ pub fn pair_finding<T: Decide>(
                 // nothing the verifier doesn't) — C4's verify-at-use
                 // is the backstop for geometry broken this early.
                 match relation {
-                    PlaneRelation::SameOriented | PlaneRelation::SameOpposite => {
+                    CarrierRelation::SameOriented | CarrierRelation::SameOpposite => {
                         Ok(Some(FlushEvidence {
                             relation,
                             rung: FlushRung::DecidedCoincident,
@@ -249,26 +279,28 @@ pub fn pair_finding<T: Decide>(
                     // Unreachable by the variant's contract (an
                     // Undeclared refusal never carries `Distinct`);
                     // typed, never silent.
-                    PlaneRelation::Distinct => Err(diag),
+                    CarrierRelation::Distinct => Err(diag),
                 }
             } else {
                 // In-band coincidence: not definite, not droppable.
                 Err(diag)
             }
         }
-        Err(PlaneEqError::Escalated(diag)) => Err(diag),
+        Err(CarrierEqError::Escalated(diag)) => Err(diag),
         // Unreachable with `declared: false`; kept typed.
-        Err(PlaneEqError::Contradicted(diag)) => Err(diag),
+        Err(CarrierEqError::Contradicted(diag)) => Err(diag),
     }
 }
 
 /// A finding from a pair and the evidence the verify door reported —
 /// **the one place the reported CLASS is minted**, for either seat.
 ///
-/// `Rest` is not a default here, it is the whole v1 detector: this
-/// door reports coincident-plane contact and nothing else. When a
-/// second class becomes detectable, this function is where it is
-/// decided, once, rather than at each seat's own push.
+/// `Rest` is not a default here, it is the whole detector: this door
+/// reports cosurface contact — on any carrier the `Rest` ladder
+/// verifies — and nothing else. When a second CLASS becomes
+/// detectable (`Tangent`, once the verifier has a locus for it), this
+/// function is where it is decided, once, rather than at each seat's
+/// own push.
 #[must_use]
 pub fn finding<P>(pair: P, evidence: FlushEvidence) -> FlushFinding<P> {
     FlushFinding {
@@ -278,7 +310,7 @@ pub fn finding<P>(pair: P, evidence: FlushEvidence) -> FlushFinding<P> {
     }
 }
 
-/// **The cross-body flush-plane candidates between two bodies** — the
+/// **The cross-body flush candidates between two bodies** — the
 /// C4 verifier run in candidate-generation mode (module docs).
 ///
 /// Every face of `a` is asked against every face of `b` through

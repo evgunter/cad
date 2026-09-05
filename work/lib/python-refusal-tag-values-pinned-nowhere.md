@@ -124,13 +124,19 @@ pinned, `"sel_datum_distance"` at
 
 * `InBand` — `SEL_DATUM_DISTANCE` = `"sel_datum_distance"`, one
   construction site, `names/geompred.rs:486`.
-* `PairInBand` — `source.predicate.unwrap_or("flush_pair_relation")` at
-  `crates/editor-core/src/names/flush.rs:267`, where `source` is the
-  verify door's `Indeterminate`; the funnel sites it can carry are
-  `"bool_plane_parallel"`, `"bool_plane_orient"` and
-  `"bool_plane_offset"`
-  (`crates/topo/src/boolean/plane_eq.rs:203,225,242,274,282,301,311`),
-  plus the `"flush_pair_relation"` fallback.
+* `PairInBand` — `source.predicate.unwrap_or("carrier_pair_relation")`
+  at `crates/editor-core/src/names/flush.rs:270`, where `source` is the
+  verify door's `Indeterminate`; the funnel sites it can carry are the
+  C4 ladder's own, per carrier kind: `"bool_plane_parallel"`,
+  `"bool_plane_orient"`, `"bool_plane_offset"`
+  (`crates/topo/src/boolean/plane_eq.rs:203,225,242,274,282,301,311`)
+  and, since SEAT-FW pointed the detector at the whole ladder,
+  `"carrier_sphere_*"` / `"carrier_cyl_*"` / `"carrier_torus_*"`
+  (`crates/topo/src/boolean/carrier_eq.rs:254,289,324` and their
+  neighbours) — plus the `"carrier_pair_relation"` fallback. (The
+  inventory this item pins therefore GREW, which is the failure this
+  item predicts, arriving: an unpinned name moved and only a courtesy
+  edit caught it.)
 
 Not taken here, and the reason is not scope discipline alone: **neither
 arm is constructible from `pncad-py`** — `select_refusal_tags_are_stable`

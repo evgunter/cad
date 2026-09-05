@@ -2813,9 +2813,12 @@ fn face_name(
 /// Resolves one Declare payload's name pairs against the two operand
 /// tables into the kernel's [`BooleanDeclarations`] (F5, M4 PR 5).
 ///
-/// v1 vocabulary: cross-operand Face–Face pairs (coincident-plane
-/// glue intents) and same-operand Vertex–Vertex / Vertex–Face pairs
-/// (carried 3′ contacts). Everything else refuses typed. Resolution
+/// v1 vocabulary: cross-operand Face–Face pairs (cosurface glue
+/// intents — the resolver is carrier-agnostic and always was: it
+/// pushes a `FacePairDeclaration` whatever the two faces' surface
+/// kinds are, and the kernel's ladder is what verifies it) and
+/// same-operand Vertex–Vertex / Vertex–Face pairs (carried 3′
+/// contacts). Everything else refuses typed. Resolution
 /// scope is deliberately the OPERANDS' tables (spec D4: "resolve
 /// through the operands' name tables") — a name minted elsewhere in
 /// the document is Vanished HERE even if some other node still
@@ -2874,7 +2877,8 @@ fn resolve_declarations(
             cross_operand: o1 != o2,
         };
         match ((o1, k1), (o2, k2)) {
-            // Cross-operand face pair: the coincident-plane intent.
+            // Cross-operand face pair: the cosurface glue intent, on
+            // whatever carrier the two faces share.
             ((Operand::A, EntityKey::Face(fa)), (Operand::B, EntityKey::Face(fb)))
             | ((Operand::B, EntityKey::Face(fb)), (Operand::A, EntityKey::Face(fa))) => {
                 out.coincident_faces

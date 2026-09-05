@@ -613,3 +613,48 @@ branch) and an `[ev]` PR follows the merge. LIB's north-star audit
 moved (G19 closed, row 38 flipped) — logged here as courtesy. v6 dual
 dispatches on frozen head f72fc053b: parity byte 200 → **R1 opus + R2
 fable**. Difficulty M was logged pre-draw. Full row recorded at merge.
+
+## SEAT-FW MERGED (2026-09-05, PR 1974)
+
+The flush detector detects what the `Rest` verifier verifies: one
+identifier moved in `topo::flush::pair_finding` and no verify table
+did; the anti-twin rule is now IDENTITY (one function, two postures —
+`declared: false` detects, `declared: true` verifies, one `data_rungs`
+traversal deciding both, so a finding cannot be a declaration the
+ladder refuses) and SELECT-DESIGN §3(b) says so. twopeg's eighteen
+cylindrical hand declarations and the lily's socket assemble through
+the detector; `declare_all` glues twopeg at volume 48 where it refused,
+with a differential row proving the curved declarations do the
+unlocking; the stem-glue pin STAYS (tori about ring centres 3.9 m
+apart, refused on kinds before declarations are read; the socket
+declares, verifies, and refuses one door later at #1032's arm); every
+`flush_declarations` consumer is measured by carrier kind; the tour's
+outputs are byte-identical on base and head (both review arms rebuilt
+and re-rendered it in separate targets). The dual (R1 opus + R2 fable)
+found zero correctness defects; its converged prose findings (§3(b)
+stating the opposite of the code; the "flush-plane" scope class
+half-swept on the public doors — the sweep's single-line pattern could
+not see `coincident\nplanes`, a blind spot now stated) and R1's one
+substantive addition — an in-band curved pair now refuses the WHOLE
+query where it used to yield nothing silently, the D4 consequence,
+undisclosed — all closed at the fix, the refusal pinned at both seats
+naming `carrier_cyl_radius`. Both arms corrected the orchestrator's
+brief: the boolean's undeclared-contact recourse is two-armed by the
+#256 ruling, not three. Register lines moved (cross-program courtesy,
+updated in place and listed in the PR): twopeg 55-60/472-484/130-147,
+`lily.rs:3931-4018`, `booleans.rs:60-120`, and two `work/lib/` items'
+citations of the moved fallback predicate string
+(`select-refusal-predicate-names-are-unpinned`,
+`python-refusal-tag-values-pinned-nowhere` — their own predicted
+failure, arrived). LIB's north-star audit moved: G19 closed, row 38
+flipped. Class notes: `face_carrier`'s Plane arm hand-multiplies
+`sense_sign` where `face_plane` goes through `face_outward_normal`, a
+pre-existing twin now load-bearing for the identity claim (disclosed
+in that test's inventory); a scope-claim sweep must cross line breaks.
+Residues homed: `flush-pair-relation-has-no-caller` (S-BOOL's module;
+kept, filed) and the Ev-gated `verb-seat-design-s3-names-the-planar-
+verifier` (an `[ev]` PR follows this merge). Full row: MODEL-AB-LOG
+SEATFW (ordinal 1009, sample #143 at merge); `docs/SEAT-FW-SPEC.md`
+deleted at this merge per `docs/DOC-LEDGER.md`.
+
+Next: the S3 `[ev]`; then SEAT-DN on block SEAT-B3's third slot.
