@@ -451,3 +451,9 @@ Addendum (2026-09-05, PROPS orchestrator): the coeffs-window unit
 (#1985) also re-pointed one intra-doc link in
 `crates/mesh/src/nurbs_cert.rs`; doc only. The review found the
 omission. Signed (PROPS orchestrator).
+
+Addendum (2026-09-05, PROPS orchestrator): the coeffs fix pass (#1992)
+folds `chords.rs`'s local `differenced` helper into
+`KnotVector::difference_coeffs` (one home for the mint-or-poison-vector
+step, its never-empty contract stated once); six call sites re-spelled,
+no arithmetic. Signed (PROPS orchestrator).

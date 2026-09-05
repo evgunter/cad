@@ -712,3 +712,25 @@ and the blind spot); the dual's 3,403-row corpus and type rows adopted.
 All four digests unchanged. The territory tool's full 40-path output is
 in the PR body (the unit's body listed three). Item stays closed; no
 ledger line.
+
+**coeffs fix pass MERGED (2026-09-05)** —
+[#1992](https://github.com/evgunter/cad/pull/1992), head `16d2a3cf8`,
+merge `55954a432`, green on the full matrix (run 33973104802). Items
+A–J all taken, none refuted: the pair is two types (`SplineCoeffs` with
+the non-rational doors, minted by `KnotVector::with_coeffs`;
+`RationalCoeffs` + `RationalWindow` with the rational doors, minted by
+`with_rational_coeffs`) so both mis-directions are D2 row 0, pinned by
+two more `compile_fail` rows (E0599) with twins; the triplicated
+differencing helper has one home, `KnotVector::difference_coeffs`;
+mints are verbs, the pair accessor is `pair()`, five silent accessors
+deleted; every stale sentence and the misapplied assertion messages
+fixed; the three dead mint-refusal arms documented; the sweep residue
+filed as `coefficient-vector-pairing-survivors`; the reviewers' rows
+adopted (`coeffs_pair_identity.rs`, the 3 403-row `coeffs_bit_identity_ext.rs`,
+unchanged with no re-capture — the receipt that B and C move no
+arithmetic). The unit's false territory sentence and the undisclosed
+`docs/DESIGN.md` edit are corrected on the record in #1992's body.
+Seams: TRIM (`ssi.rs`, `ssi/certify.rs` — the mint rename and two
+comments), MESH (`chords.rs` — the helper fold). The fix-pass usage is
+in the row. Lane reclaimed. No lane live; the sphere lane waits on
+#1924 and MESH-12 (#1617); the sign-hull unit waits on #1944.
