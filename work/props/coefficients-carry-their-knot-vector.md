@@ -167,3 +167,34 @@ a hull door, each length-checked, none this unit's.
 `InteriorKnot` the deliberate exception), its row in `docs/DESIGN.md`'s
 companion table. The spec is deleted and ledgered (`docs/DOC-LEDGER.md`,
 "Per-merge deletion — PROPS coeffs' spec").
+
+## Fix pass
+
+The dual review's findings (APPROVE-WITH-FIXES, both arms) landed as
+PR #1992 (`props/coeffs-fixpass`). The pair is **two types**: `SplineCoeffs<'a, E>`
+(knots + coefficients, minted by `KnotVector::with_coeffs`) carries the
+nonrational doors and no other; `RationalCoeffs<'a, E>` (knots +
+coefficients + weights, minted by `KnotVector::with_rational_coeffs`)
+carries the rational doors and no other, `RationalWindow::hull_rational`
+on its window — so a rational claim without weights and a nonrational
+bound that would ignore weights are both unrepresentable (D2 row 0),
+`compile_fail` rows (d) and (e) with twins, `E0599` read off rustc
+1.97.0. Weight positivity stays per window. The triplicated
+mint-then-difference helper (`net.rs`, `quad.rs`, `chords.rs`) has one
+home, `KnotVector::difference_coeffs`, with the never-empty contract
+stated once; `quad.rs`'s two spellings of the range hull are one. Mints
+are verb phrases, the window's pair accessor is `pair()`; the six
+silent accessors are cut to `SplineCoeffs::knots` and
+`CoeffWindow::{pair, span, window}`. Doc rot and history phrasing fixed;
+the body's false "exactly what the retired door answered" corrected
+(the three arms are unreachable by construction and answer
+equivalent-or-safer — empty chain, `None`, poison — stated at each
+site). The sweep residue is filed as
+`coefficient-vector-pairing-survivors`. Digests: the 960/480-row
+coefficient digest and `geom`'s span digests unchanged; the dual's
+3,403-row extended corpus and its type rows adopted
+(`coeffs_bit_identity_ext.rs`, `coeffs_pair_identity.rs`). The
+`docs/DESIGN.md` companion-row edit in #1985 was warranted and
+undisclosed; disclosed in the fix-pass body. The territory tool's full
+output for the fix pass is in that body (the unit's body under-reported
+it: `quad.rs` is cert's until #1924, not PROPS').

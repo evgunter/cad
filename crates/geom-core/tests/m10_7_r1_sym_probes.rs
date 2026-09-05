@@ -108,12 +108,19 @@ fn r1_coincidence_radius_equals_distance_at_nominal_only() {
     }
 }
 
-/// D4's family, reproduced at the scalar: `c + r·(q−c)/‖q−c‖ − q` with
-/// `q = c + (r, 0)` is zero for every `r > 0` and the tier cannot see it
-/// (`sqrt(r²) = r` needs the sign of `r`). Pins the miss as a miss.
+/// **The DISCLOSED LIMIT of the top-residual fold** — the arc rim's
+/// full endpoint residual `c + r·(q−c)/‖q−c‖ − q` with `q = c + (r, 0)`.
+/// The radius fact it needs — `sqrt(r²) = r` — is on the norm `‖q−c‖`
+/// buried INSIDE the outer distance sqrt's argument, and the atom
+/// algebra folds atoms that appear in the residual, not atoms nested
+/// inside another atom's argument. So this decides NUMERICALLY, at a
+/// point where the numeric channel answers Zero — which is exactly what
+/// the real two-hole plate shows: `carrier_endpoint_start` is not
+/// discharged by any rule and remains the plate's ceiling. The clean
+/// `sqrt(r²) − r` shape (next test) IS reached; this nested one is not.
 #[test]
-fn r1_the_arc_endpoint_family_is_not_reached_pinned() {
-    let (ok, s, _) = sym(|| {
+fn r1_the_nested_arc_endpoint_residual_is_not_reached_pinned() {
+    let family = || {
         let r = p("r", 1.25e-3);
         let (cx, cy) = (p("cx", 1.55e-3), lit(0.0));
         let (qx, qy) = (cx + r, cy);
@@ -122,24 +129,31 @@ fn r1_the_arc_endpoint_family_is_not_reached_pinned() {
         let ex = cx + r * dx / n - qx;
         let ey = cy + r * dy / n - qy;
         (ex * ex + ey * ey).sqrt()
-    });
-    // Numerically zero at the point; symbolically NOT discharged.
+    };
+    let (ok, counts) = with_session(budget(), || zero(family()));
     assert!(ok, "at a point the numeric channel answers Zero");
     assert_eq!(
-        s, 0,
-        "the arc-endpoint family is the tier's disclosed miss (D4)"
+        counts.sign_gated + counts.symbolic_zero,
+        0,
+        "the nested radius sqrt is buried in the outer sqrt's argument, \
+         out of the top-residual fold's reach: {counts:?}"
     );
 }
 
-/// The same family with the norm written as `sqrt(r·r)` where the
-/// argument's FORM is exactly `r²`: still an atom, still not `r`.
+/// `sqrt(r·r) − r` where the argument's FORM is exactly `r²`: rule C
+/// (`sqrt(Q²)=Q` by a certified sign) would discharge it, but rule C is
+/// FILED UNBUILT — reading `r`'s sign at the lane scalar conflicts with
+/// the bit-identity discipline — so the atom stays opaque and the
+/// decision is numeric. Pinned so the day rule C is built is a visible
+/// move (sign_gated goes from 0 to 1).
 #[test]
-fn r1_sqrt_of_r_squared_is_not_r() {
-    let (_, s, _) = sym(|| {
+fn r1_sqrt_of_r_squared_stays_numeric_rule_c_is_filed() {
+    let (ok, counts) = with_session(budget(), || {
         let r = p("r", 2.0);
-        (r * r).sqrt() - r
+        zero((r * r).sqrt() - r)
     });
-    assert_eq!(s, 0);
+    assert!(ok, "numerically zero at the point");
+    assert_eq!(counts.sign_gated + counts.symbolic_zero, 0, "{counts:?}");
 }
 
 // --------------------------------------------- claim 2: the quotient (D1)
@@ -271,19 +285,18 @@ fn r1_atoms_over_the_zero_form_fold_to_their_values() {
     assert!(ok && s == 1, "{ok} {s}");
 }
 
-/// Atoms keyed by arguments: `min(x, x) − x`, `abs(x) − abs(−x)`,
-/// `floor(1) − 1`, `max(x, y) − max(y, x)` — none is reached (the
-/// conservative direction); pinned so a future fold is a visible move.
+/// Atoms keyed by arguments: `min(x, x) − x`, `floor(1) − 1`,
+/// `max(x, y) − max(y, x)`, `copysign(x, 1) − |x|`, `abs(x) − abs(−x)`
+/// — none is reached (the conservative direction). `abs(x) − abs(−x)`
+/// would be rule C's second shape (`|x| = ±x` by a certified sign), but
+/// rule C is FILED UNBUILT, so it too stays opaque. Pinned so a future
+/// fold is a visible move.
 #[test]
 fn r1_argument_keyed_atoms_stay_conservative() {
     let cases: [fn() -> Sym<f64>; 5] = [
         || {
             let x = p("x", 0.4);
             x.min(x) - x
-        },
-        || {
-            let x = p("x", 0.4);
-            x.abs() - (-x).abs()
         },
         || lit(1.0).floor() - lit(1.0),
         || {
@@ -294,10 +307,18 @@ fn r1_argument_keyed_atoms_stay_conservative() {
             let x = p("x", 0.4);
             x.copysign(lit(1.0)) - x.abs()
         },
+        || {
+            let x = p("x", 0.4);
+            x.abs() - (-x).abs()
+        },
     ];
     for (i, f) in cases.into_iter().enumerate() {
-        let (_, s, _) = sym(f);
-        assert_eq!(s, 0, "case {i} decided symbolically");
+        let (_, counts) = with_session(budget(), || zero(f()));
+        assert_eq!(
+            counts.symbolic_zero + counts.sign_gated,
+            0,
+            "case {i} decided symbolically: {counts:?}"
+        );
     }
 }
 
@@ -317,19 +338,23 @@ fn r1_copysign_of_zero_by_a_poisoned_sign() {
 
 // ----------------------------------------------- claim 3: freezing (D6)
 
-/// A deliberate i128 overflow: a chain of products of a literal with a
-/// 50-bit odd mantissa. `(m)^k` with `m ≈ 2^50` odd overflows the odd
-/// part after ~2 multiplications... the coefficient is `m^k`, which
-/// exceeds i128 at `k ≥ 3` for a 50-bit odd `m`. The form must freeze
+/// A deliberate coefficient blow-up past the ring's bit bound
+/// (`COEFF_BITS`, 256 bits — M10-8 widened the coefficient from `i128`
+/// to arbitrary precision under that bound): a chain of products of a
+/// literal with a 53-bit odd mantissa, `(m)^k`, whose odd part carries
+/// `53·k` bits and crosses the bound at `k ≥ 5`. The form must freeze
 /// (counted) and the identity `c·x − c·x` must STILL cancel because both
 /// sides are the same frozen node — while `c·x − x·c` (different node
 /// ids, both frozen) must NOT be claimed.
 #[test]
-fn r1_i128_overflow_freezes_and_is_counted() {
+fn r1_a_coefficient_past_the_bit_bound_freezes_and_is_counted() {
     // 0.1 has a 53-bit odd mantissa (3602879701896397 · 2^-55).
     let (out, counts) = with_session(budget(), || {
         let x = p("x", 0.5);
-        let c = lit(0.1) * lit(0.1) * lit(0.1) * lit(0.1);
+        let mut c = lit(1.0);
+        for _ in 0..100 {
+            c = c * lit(0.1);
+        }
         let a = c * x;
         let b = x * c;
         (zero(a - a), zero(a - b))
@@ -347,8 +372,14 @@ fn r1_i128_overflow_freezes_and_is_counted() {
     // Two DIFFERENT overflowing constants are two atoms and never cancel.
     let (out3, counts3) = with_session(budget(), || {
         let x = p("x", 0.5);
-        let c = lit(0.1) * lit(0.1) * lit(0.1) * lit(0.1);
-        let d = lit(0.3) * lit(0.3) * lit(0.3) * lit(0.3);
+        // 1.1 and 1.3 both carry 53-bit odd mantissas, and their
+        // hundredth powers (1.4e4 and 2.5e11) differ by far more than
+        // the band, so the numeric channel is definite.
+        let (mut c, mut d) = (lit(1.0), lit(1.0));
+        for _ in 0..100 {
+            c = c * lit(1.1);
+            d = d * lit(1.3);
+        }
         // c ≠ d numerically, so f64 says Negative; the tier must agree.
         decide("r1_two_frozen", Margin::of(c * x - d * x), band())
     });
@@ -356,25 +387,32 @@ fn r1_i128_overflow_freezes_and_is_counted() {
 }
 
 /// A large dyadic exponent: `2^1000 · x − 2^1000 · x` cancels (exponent
-/// arithmetic is i32), and `2^1000 · x + 2^-1000 · x − (…)` needs a
-/// shift of 2000 bits to align, which overflows and freezes.
+/// arithmetic is i32), and `2^100 · x + 2^-100 · x − (…)` needs a shift
+/// of 200 bits to align. At `i128` a 2000-bit shift overflowed and the
+/// form FROZE — this row pinned the freeze. Under the bounded
+/// arbitrary-precision ring (M10-8, 256 bits) a shift within the bound
+/// aligns exactly and the identity is a theorem with nothing frozen;
+/// the freeze past the bound is pinned at the ring itself
+/// (`sym::tests::an_alignment_past_the_coefficient_bound_freezes`).
 #[test]
-fn r1_dyadic_exponent_alignment_overflow_freezes() {
+fn r1_dyadic_exponent_alignment_within_the_bound_cancels() {
     let big = 2f64.powi(1000);
-    let small = 2f64.powi(-1000);
     let (ok, s, _) = sym(|| {
         let x = p("x", 0.5);
         lit(big) * x - lit(big) * x
     });
     assert!(ok && s == 1);
-    let (_, counts) = with_session(budget(), || {
+    let big = 2f64.powi(100);
+    let small = 2f64.powi(-100);
+    let (ok, counts) = with_session(budget(), || {
         let x = p("x", 0.5);
         let sum = lit(big) * x + lit(small) * x;
         zero(sum - sum)
     });
-    assert!(
-        counts.frozen >= 1,
-        "the alignment overflow freezes: {counts:?}"
+    assert!(ok, "the aligned sum cancels against itself: {counts:?}");
+    assert_eq!(
+        counts.frozen, 0,
+        "a 200-bit alignment is within the ring's bound: {counts:?}"
     );
 }
 

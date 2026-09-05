@@ -667,3 +667,70 @@ review` and "do not merge; the orchestrator lands after the dual" in
 those words. The lane's three findings for placement (the
 `bspline_eval_ring*` evaluators, the tensor grids, `to_bezier_spans`)
 wait on the dual.
+
+**coeffs-window dual adjudicated (2026-09-05).** R1 A-W-F 0/4/4 (idiom
+4 / tests 4 / docs 3); R2 A-W-F 1/5/4 (4 / 5 / 3). Held under both by
+execution: the bit-identity digests are REAL — each reviewer rebuilt the
+merge base in a scratch tree and re-ran them through the retired free
+functions (R1 over 10 556 + 2 639 rows, R2 over 3 403; no ulp
+anywhere); the three `compile_fail` codes compiled at 1.97.0; the
+replacement rows mutation-tested; no live consumer mis-pairs. The one
+MAJOR (R2) is the territory section: three paths listed against 23
+reported — shell's `offset_meters.rs` and mesh's `nurbs_cert.rs` touched
+by doc-link edits unannounced, and `quad.rs`/`patch_bound.rs` called
+PROPS' where they are cert's until #1924 merges (my spec said the same;
+disclosed) — converged with R1's MINOR 3, a severity divergence, **no
+tally candidate**. Converged besides: one mint-or-poison helper in three
+byte-identical copies across three crates; the one-type-with-`Option`-
+weights design leaves a weighted pair answering the non-rational doors
+and vice versa (both arms, opposite directions); the sweep residue
+unscheduled; the `docs/DESIGN.md` row edit undisclosed; stale doc
+sentences. Unilateral (all MINOR/NOTE): R2's false assertion message ×13
+and the `pub bspline_green_integral` door; R1's spline-module header and
+the dangling test doc. Ruling for the fix pass (its own PR, items A–J):
+two types so both directions are unrepresentable; one home for the
+helper beside the mint; mints renamed as verbs; silent accessors pruned;
+the residue filed as `coefficient-vector-pairing-survivors`; the
+reviewers' rows adopted. Seams posted to SHELL and MESH for the doc-link
+edits. A/B row recorded: ordinal 2403, **sample #144**, no tally
+candidate; block PROPS-B2 slot 0 concluded (fix-pass usage at its merge).
+
+**coeffs-window fix pass (2026-09-05)** — PR
+[#1992](https://github.com/evgunter/cad/pull/1992), branch `props/coeffs-fixpass`,
+the dual's APPROVE-WITH-FIXES (0/4/4 and 1/5/4) on the merged head
+`4521bd658`. Taken in full: the pair split into `SplineCoeffs` /
+`RationalCoeffs` with the rational and nonrational doors partitioned by
+type (both directions D2 row 0, `compile_fail` rows (d)/(e)); the
+triplicated differencing helper folded to `KnotVector::difference_coeffs`
+and `quad.rs`'s two range-hull spellings to one; the mints renamed
+`with_coeffs` / `with_rational_coeffs`, the pair accessor `pair()`, four
+silent accessors deleted; doc rot at `spline/mod.rs`, `hull.rs`,
+`spline_hull.rs`, `span_window_pairing.rs` fixed; the three dead
+refusal arms annotated; the sweep residue filed
+(`coefficient-vector-pairing-survivors`, with the reviewers' additions
+and the blind spot); the dual's 3,403-row corpus and type rows adopted.
+All four digests unchanged. The territory tool's full 40-path output is
+in the PR body (the unit's body listed three). Item stays closed; no
+ledger line.
+
+**coeffs fix pass MERGED (2026-09-05)** —
+[#1992](https://github.com/evgunter/cad/pull/1992), head `16d2a3cf8`,
+merge `55954a432`, green on the full matrix (run 33973104802). Items
+A–J all taken, none refuted: the pair is two types (`SplineCoeffs` with
+the non-rational doors, minted by `KnotVector::with_coeffs`;
+`RationalCoeffs` + `RationalWindow` with the rational doors, minted by
+`with_rational_coeffs`) so both mis-directions are D2 row 0, pinned by
+two more `compile_fail` rows (E0599) with twins; the triplicated
+differencing helper has one home, `KnotVector::difference_coeffs`;
+mints are verbs, the pair accessor is `pair()`, five silent accessors
+deleted; every stale sentence and the misapplied assertion messages
+fixed; the three dead mint-refusal arms documented; the sweep residue
+filed as `coefficient-vector-pairing-survivors`; the reviewers' rows
+adopted (`coeffs_pair_identity.rs`, the 3 403-row `coeffs_bit_identity_ext.rs`,
+unchanged with no re-capture — the receipt that B and C move no
+arithmetic). The unit's false territory sentence and the undisclosed
+`docs/DESIGN.md` edit are corrected on the record in #1992's body.
+Seams: TRIM (`ssi.rs`, `ssi/certify.rs` — the mint rename and two
+comments), MESH (`chords.rs` — the helper fold). The fix-pass usage is
+in the row. Lane reclaimed. No lane live; the sphere lane waits on
+#1924 and MESH-12 (#1617); the sign-hull unit waits on #1944.

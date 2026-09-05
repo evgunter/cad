@@ -67,8 +67,12 @@ mod cert3r1_probes;
 mod certified_door;
 #[path = "coeffs_bit_identity.rs"]
 mod coeffs_bit_identity;
+#[path = "coeffs_bit_identity_ext.rs"]
+mod coeffs_bit_identity_ext;
 #[path = "coeffs_bit_identity_interval.rs"]
 mod coeffs_bit_identity_interval;
+#[path = "coeffs_pair_identity.rs"]
+mod coeffs_pair_identity;
 #[path = "d8_knot_queries_adversarial.rs"]
 mod d8_knot_queries_adversarial;
 #[path = "decoration_seam.rs"]
@@ -168,5 +172,10 @@ mod unit_segment;
 #[path = "props1_evidence.rs"]
 mod props1_evidence;
 
+#[path = "m10_8_r1_sym_probes.rs"]
+mod m10_8_r1_sym_probes;
 #[path = "props1_review_rows.rs"]
 mod props1_review_rows;
+
+#[path = "m10_8_r2_sym_probes.rs"]
+mod m10_8_r2_sym_probes;

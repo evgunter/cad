@@ -247,6 +247,15 @@ pub struct SymbolicDials {
     pub max_terms: usize,
     /// The largest total degree one normal form may reach.
     pub max_degree: u32,
+    /// The atom-algebra rules the normal form applies
+    /// ([`geom_core::SymRules`]): the shipped set by default
+    /// ([`geom_core::SymRules::shipped`], chosen by measurement); each
+    /// switchable alone, and [`geom_core::SymRules::none`] is the
+    /// quotient form with every atom opaque — the tier exactly as it
+    /// stood before the algebra, so the effect of each rule on a
+    /// document is a measurement taken through this dial rather than
+    /// an assumption.
+    pub rules: geom_core::SymRules,
 }
 
 /// The shipped term budget ([`SymbolicDials`]).
@@ -277,7 +286,7 @@ impl SymbolicDials {
     /// certified-leaf consumer takes ([`crate::eval::LeafLane`]).
     pub(crate) fn lane(self) -> crate::eval::LeafLane {
         if self.enabled {
-            crate::eval::LeafLane::Symbolic(self.budget())
+            crate::eval::LeafLane::Symbolic(self.budget(), self.rules)
         } else {
             crate::eval::LeafLane::Numeric
         }
@@ -290,6 +299,8 @@ impl Default for SymbolicDials {
             enabled: true,
             max_terms: DEFAULT_SYM_MAX_TERMS,
             max_degree: DEFAULT_SYM_MAX_DEGREE,
+            // The shipped atom-algebra set ([`geom_core::SymRules::shipped`]).
+            rules: geom_core::SymRules::default(),
         }
     }
 }
@@ -761,11 +772,18 @@ impl ParamBoxVerdict {
         // which is what makes the tier-off differential a byte
         // comparison rather than a filtered one.
         if self.decisions != SymCounts::default() {
-            let _ = writeln!(
+            let _ = write!(
                 s,
                 "decisions symbolic_zero={} numeric={} frozen={}",
                 self.decisions.symbolic_zero, self.decisions.numeric, self.decisions.frozen
             );
+            // The clause-3 count by the same rule as the line itself:
+            // present only when there is one, so a drive with that rule
+            // off serializes the pre-algebra line byte for byte.
+            if self.decisions.sign_gated != 0 {
+                let _ = write!(s, " sign_gated={}", self.decisions.sign_gated);
+            }
+            let _ = writeln!(s);
         }
         let _ = write!(s, "{}", self.accounting.serialize());
         s
@@ -809,12 +827,17 @@ impl ParamBoxVerdict {
             } else {
                 100.0 * (d.symbolic_zero as f64) / (total as f64)
             };
-            let _ = writeln!(
+            let _ = write!(
                 s,
-                "  {} of {total} decisions were symbolic identities ({share:.1}%); \
-                 {} form(s) frozen",
-                d.symbolic_zero, d.frozen
+                "  {} of {total} decisions were symbolic identities ({share:.1}%)",
+                d.symbolic_zero
             );
+            // The clause-3 count only where there is one (rule C off, or
+            // nothing folded, prints the pre-algebra line).
+            if d.sign_gated != 0 {
+                let _ = write!(s, ", {} more by a certified sign", d.sign_gated);
+            }
+            let _ = writeln!(s, "; {} form(s) frozen", d.frozen);
         }
         let _ = write!(
             s,
@@ -1310,11 +1333,12 @@ fn classify(
         ..lane_opts()
     };
     if symbolic.enabled {
-        let (leaf, counts) = geom_core::sym::with_session(symbolic.budget(), || {
-            let leaf: Evaluation<Sym<Interval>> =
-                evaluate(doc, None, &CancelToken::new(), &opts, tol);
-            leaf
-        });
+        let (leaf, counts) =
+            geom_core::sym::with_session_rules(symbolic.budget(), symbolic.rules, || {
+                let leaf: Evaluation<Sym<Interval>> =
+                    evaluate(doc, None, &CancelToken::new(), &opts, tol);
+                leaf
+            });
         return (
             classify_replay(
                 doc,
@@ -1697,7 +1721,7 @@ fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, symbolic: Symbolic
     // driver's own population. Running it at bare `Probe` would report a
     // population the driver did not produce.
     if symbolic.enabled {
-        let _ = geom_core::sym::with_session(symbolic.budget(), || {
+        let _ = geom_core::sym::with_session_rules(symbolic.budget(), symbolic.rules, || {
             let ev: Evaluation<Sym<geom_core::Probe>> =
                 evaluate(doc, None, &CancelToken::new(), &opts, tol);
             ev

@@ -98,10 +98,18 @@ fn r2_identities_by_different_routes_decide_zero_at_every_width() {
 /// **A COINCIDENCE at the nominal never decides symbolically, and its
 /// enclosure widens with the box** — the distinction E12 claims the
 /// tier can make and no enclosure can.
+///
+/// The half-widths are ε-RELATIVE: the linear band's zero width is ε
+/// (`Band::linear`), so a coincidence's enclosure decides Zero
+/// NUMERICALLY — correctly, inside the band — whenever the box is
+/// narrower than ε. The first cut wrote `1e-9` and was red at
+/// ε = 1e-6, where a `4e-9`-wide enclosure sits inside a `1e-6` band;
+/// at `10 · ε` and up the enclosure straddles the band at every row.
 #[test]
 fn r2_a_nominal_coincidence_never_decides_symbolically_and_widens() {
+    let eps = Tol::witness().eps();
     let mut widths = Vec::new();
-    for half in [1e-9_f64, 1e-6, 1e-3] {
+    for half in [10.0 * eps, 1e3 * eps, 1e6 * eps] {
         let (w, counts) = with_session(budget(), || {
             // A radius equal to a distance AT THE NOMINAL only.
             let r = p("r", 1.0 - half, 1.0 + half);
@@ -109,8 +117,8 @@ fn r2_a_nominal_coincidence_never_decides_symbolically_and_widens() {
             let m = r - d;
             let s = sign_of(m);
             assert!(
-                s != Ok(Sign::Zero) || half < 1e-12,
-                "half-width {half}: a coincidence decided Zero"
+                s != Ok(Sign::Zero),
+                "half-width {half:e} at eps={eps:e}: a coincidence decided Zero"
             );
             geom_core::Bounds::hi(m) - geom_core::Bounds::lo(m)
         });
@@ -279,7 +287,6 @@ fn r2_the_kink_atoms_never_claim_a_cancellation() {
         vec![
             ("min(x,x)−x", sign_of(x.min(x) - x)),
             ("max(x,x)−x", sign_of(x.max(x) - x)),
-            ("abs(x)−abs(−x)", sign_of(x.abs() - (-x).abs())),
             ("floor(n)−n", sign_of(n.floor() - n)),
             ("copysign(x,x)−x", sign_of(x.copysign(x) - x)),
         ]
@@ -288,10 +295,26 @@ fn r2_the_kink_atoms_never_claim_a_cancellation() {
     // degenerate box is a legitimate NUMERIC zero, so the sign alone
     // cannot carry the row.
     assert_eq!(
-        counts.symbolic_zero, 0,
+        counts.symbolic_zero + counts.sign_gated,
+        0,
         "an atom keyed by its arguments claimed an identity it has no \
          argument for, among {out:?}"
     );
+    // `abs(x) − abs(−x)` would be rule C's shape (`|x| = ±x` by a
+    // certified sign), but rule C is FILED UNBUILT — so it stays opaque
+    // and the two `abs` atoms do not cancel. Over an interval box the
+    // numeric channel cannot see the identity either (`[1,2] − [1,2] =
+    // [-1,1]` straddles), so it is INDETERMINATE at every width — the
+    // exact widening the symbolic tier exists to beat, and does not here
+    // because the rule that would is not built.
+    for (lo, hi) in [(1.0, 2.0), (-1.0, 2.0)] {
+        let (s, counts) = with_session(budget(), || {
+            let x = p("x", lo, hi);
+            sign_of(x.abs() - (-x).abs())
+        });
+        assert_ne!(s, Ok(Sign::Zero), "rule C is filed, so |x|−|−x| widens");
+        assert_eq!(counts.sign_gated + counts.symbolic_zero, 0, "{counts:?}");
+    }
     // The one fold these DO license: min/max/copysign of zero forms.
     let (folds, _) = with_session(budget(), || {
         let x = p("x", 1.0, 2.0);
@@ -309,10 +332,12 @@ fn r2_the_kink_atoms_never_claim_a_cancellation() {
 
 // ---------------------------------------------- claim 3: freezing
 
-/// **An i128 coefficient overflow FREEZES**, and a frozen form never
-/// decides Zero falsely: the same expression that is an identity still
-/// decides Zero (frozen nodes with equal ids cancel), while a
-/// non-identity built past the overflow decides numerically.
+/// **A coefficient past the ring's bit bound FREEZES**, and a frozen
+/// form never decides Zero falsely: the same expression that is an
+/// identity still decides Zero (frozen nodes with equal ids cancel),
+/// while a non-identity built past the bound decides numerically. (The
+/// bound was `i128` when this row was cut and is 256 bits since M10-8
+/// widened the coefficient; the freeze is the same sound outcome.)
 #[test]
 fn r2_a_coefficient_overflow_freezes_and_never_decides_falsely() {
     // A literal with a huge dyadic exponent, squared repeatedly: the
@@ -323,8 +348,8 @@ fn r2_a_coefficient_overflow_freezes_and_never_decides_falsely() {
     let (frozen_seen, counts) = with_session(budget(), || {
         let mut acc = lit(1.0);
         // 3^k with odd numerators: 3, 9, 27 … the product's numerator
-        // overflows i128 after ~80 factors.
-        for _ in 0..96 {
+        // passes 256 bits after 162 factors.
+        for _ in 0..2700 {
             acc = acc * lit(3.0);
         }
         let r = acc - acc; // still an identity: the frozen node cancels

@@ -58,7 +58,7 @@ fn the_hull_window_is_the_spans_window_and_the_basis_reads_the_same_one() {
         for index in k.first_span()..=k.last_span() {
             let Some(span) = k.span(index) else { continue };
             let base = base_coeffs(n);
-            let hull0 = k.coeffs(&base).unwrap().span(index).unwrap().hull();
+            let hull0 = k.with_coeffs(&base).unwrap().span(index).unwrap().hull();
             assert!(!hull0.is_poison(), "{name}: span {index} must bound");
             let mid = 0.5 * (k.knots()[index] + k.knots()[index + 1]);
             let value0 = eval(&k, &base, mid);
@@ -67,7 +67,7 @@ fn the_hull_window_is_the_spans_window_and_the_basis_reads_the_same_one() {
                 for outlier in [HIGH, LOW] {
                     let mut coeffs = base.clone();
                     coeffs[moved] = outlier;
-                    let win = k.coeffs(&coeffs).unwrap().span(index).unwrap();
+                    let win = k.with_coeffs(&coeffs).unwrap().span(index).unwrap();
                     assert_eq!(win.span(), span, "the pair mints the vector's own span");
                     let h = win.hull();
                     // The hull moves iff the coefficient is in the
@@ -126,7 +126,7 @@ fn the_rational_window_refuses_on_exactly_its_own_weights() {
                 let mut weights = vec![1.0; n];
                 weights[bad] = 0.0;
                 let h = k
-                    .coeffs_rational(&coeffs, &weights)
+                    .with_rational_coeffs(&coeffs, &weights)
                     .unwrap()
                     .span(index)
                     .unwrap()
@@ -154,7 +154,7 @@ fn the_derivative_window_is_the_window_minus_its_top() {
             let Some(span) = k.span(index) else { continue };
             let base = base_coeffs(n);
             let d0 = k
-                .coeffs(&base)
+                .with_coeffs(&base)
                 .unwrap()
                 .span(index)
                 .unwrap()
@@ -169,7 +169,7 @@ fn the_derivative_window_is_the_window_minus_its_top() {
                 let mut coeffs = base.clone();
                 coeffs[moved] = HIGH;
                 let d = k
-                    .coeffs(&coeffs)
+                    .with_coeffs(&coeffs)
                     .unwrap()
                     .span(index)
                     .unwrap()
@@ -252,7 +252,7 @@ fn nonemptiness_implies_the_index_bound_under_clamped_v1() {
 
 /// **The mint's count refusal, kept as one behavioural row.** A
 /// coefficient array that is not `control_count()` long is refused at
-/// [`KnotVector::coeffs`] and [`KnotVector::coeffs_rational`] — the
+/// [`KnotVector::with_coeffs`] and [`KnotVector::with_rational_coeffs`] — the
 /// bound that keeps every window inside the array, and the only
 /// relation a length can state. It is the one check the free doors
 /// used to carry per call, done once here instead.
@@ -264,17 +264,17 @@ fn the_mint_refuses_exactly_the_wrong_length() {
         for len in [n - 1, n, n + 1] {
             let coeffs = base_coeffs(len);
             assert_eq!(
-                k.coeffs(&coeffs).is_some(),
+                k.with_coeffs(&coeffs).is_some(),
                 len == n,
                 "{name}: {len} coefficients against control_count {n}"
             );
             assert_eq!(
-                k.coeffs_rational(&coeffs, &ones).is_some(),
+                k.with_rational_coeffs(&coeffs, &ones).is_some(),
                 len == n,
                 "{name}: {len} coefficients, {n} weights"
             );
             assert_eq!(
-                k.coeffs_rational(&base_coeffs(n), &vec![1.0; len])
+                k.with_rational_coeffs(&base_coeffs(n), &vec![1.0; len])
                     .is_some(),
                 len == n,
                 "{name}: {n} coefficients, {len} weights"
@@ -297,7 +297,7 @@ fn every_window_answers_what_the_domain_door_hulls_over_it() {
         let mut coeffs = base_coeffs(n);
         // One outlier so the per-window hulls differ from each other.
         coeffs[n / 2] = HIGH;
-        let pair = k.coeffs(&coeffs).unwrap();
+        let pair = k.with_coeffs(&coeffs).unwrap();
         let mut acc: Option<(f64, f64)> = None;
         for index in k.first_span()..=k.last_span() {
             let Some(win) = pair.span(index) else {
@@ -307,7 +307,7 @@ fn every_window_answers_what_the_domain_door_hulls_over_it() {
                 );
                 continue;
             };
-            assert_eq!(win.coeffs(), pair);
+            assert_eq!(win.pair(), pair);
             assert_eq!(win.span(), k.span(index).unwrap());
             let (lo, hi) = coeffs[win.window()]
                 .iter()

@@ -89,8 +89,8 @@ seam by `geom_core::k_stats::decide_flagged(name, margin, band, row)`
 — the finding lane: no `Margin` is constructed, the row id is a
 compile-time argument at the site, and grepping `decide_flagged`
 enumerates the clause-(i) debt exactly (F2 ×4,
-F10 ×1 — one loop over seven rigidity residuals — F13 ×1, F14 ×1 —
-7 shipped sites, tracked as issue #214 and pinned by
+F10 ×1 — one loop over seven rigidity residuals — F13 ×1, F14 ×1,
+F16 ×1 — 8 shipped sites, tracked as issue #214 and pinned by
 `geom-core/tests/flagged_census.rs`: no new site ships without a row
 here, and the count only moves together with this section).
 
@@ -763,6 +763,30 @@ Flagged, NOT fixed here (dispositions):
   distance between non-adjacent faces, so a coincidence at the run's
   tolerance is the violation the check exists to find. One name with
   two readings would put two populations under one K row.
+
+- **F18** (added by M10-8's fix pass, found by scoping the recorder's
+  name) `editor-core/src/expr.rs` `refuse_non_finite`: the ruled
+  door-2 finiteness check on a FINAL evaluated value, `value · 0`
+  against the band `(1e-100, 1e-50)` — exactly zero for every finite
+  value, poison otherwise. The comparand carries `value`'s dimension,
+  whatever the expression's was (a length, an angle, a count, a ratio),
+  so no `Margin` door fits, and the check is not a geometric margin at
+  all: it is the evaluator's refusal of a non-finite result. **Carried
+  as `k_stats::check_unlogged(.., "F18")`** — the recorder's named
+  evaluator door, which classifies through the one funnel body and
+  stays OUT of the verdict log (the check fires once per expression
+  evaluation, a count the witness and a leaf do not share; logged, it
+  refused every M10-6 min-clearance box on a vector mismatch). It is
+  therefore not a `decide_flagged` site and `LEDGER_FLAGGED_SITES`
+  does not move. The finding that put it here:
+  this site called `sign_within` directly, outside any named
+  `classify`, and every K sample it recorded was charged to whichever
+  predicate had classified LAST — 1,054 samples in the corpus sweep at
+  ε = 1e-6 (`m4_pr8_k_probe`'s `<unnamed>` guard went red the moment
+  the name was scoped). Every one of those samples is a `Definite(Zero)`
+  at margin 0 and never a rule sample, so no K claim moves; what moves
+  is the per-predicate attribution of 1,054 rows, now under their own
+  name.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

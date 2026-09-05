@@ -1,8 +1,11 @@
 //! **Control-coefficient hull bounds** — the C2.2 sup-norm mechanism,
 //! built on the C9 ring (M5 PR 2). Data in, bounds out: every door
 //! here reads coefficient brackets and knot structure through one
-//! borrow and returns a [`RingInterval`] enclosing the spline's
-//! *values*, with no evaluation and no sampling anywhere.
+//! borrow and answers with no evaluation and no sampling anywhere —
+//! a [`RingInterval`] enclosing the spline's *values* at the hull
+//! doors, that enclosure's magnitude at the `sup_norm_bound` doors,
+//! and one enclosure per derivative coefficient at
+//! [`SplineCoeffs::derivative_coeffs`].
 //!
 //! # Why a hull is a bound (the convexity fact)
 //!
@@ -29,14 +32,36 @@
 //! # The pairing (SPLINE-DESIGN S1, one level down)
 //!
 //! A coefficient array is a proof about the knot vector it was fitted
-//! or composed against, so it travels with that vector: a
-//! [`SplineCoeffs`] borrows both, is minted only by
-//! [`KnotVector::coeffs`] and [`KnotVector::coeffs_rational`], and a
-//! span of that vector is taken FROM the pair — [`SplineCoeffs::span`]
-//! and [`SplineCoeffs::span_at`] mint a [`CoeffWindow`], which holds the
-//! pair beside a [`Span`] of ITS vector. "A span of another vector
-//! against these coefficients" has no spelling, and no door here takes
-//! a coefficient array beside anything.
+//! or composed against, so it travels with that vector, and it travels
+//! as one of **two types** according to the claim it licenses:
+//!
+//! - [`SplineCoeffs`] — knots and coefficients, minted only by
+//!   [`KnotVector::with_coeffs`]. It carries the **nonrational** doors
+//!   and no other: [`SplineCoeffs::domain_hull`],
+//!   [`SplineCoeffs::derivative_coeffs`],
+//!   [`SplineCoeffs::derivative_domain_hull`],
+//!   [`SplineCoeffs::sup_norm_bound`] over the domain, and per window
+//!   [`CoeffWindow::hull`], [`CoeffWindow::derivative_hull`],
+//!   [`CoeffWindow::sup_norm_bound`].
+//! - [`RationalCoeffs`] — knots, coefficients and the weights, minted
+//!   only by [`KnotVector::with_rational_coeffs`]. It carries the
+//!   **rational** doors and no other:
+//!   [`RationalCoeffs::domain_hull_rational`],
+//!   [`RationalCoeffs::sup_norm_bound_rational`], and per window
+//!   [`RationalWindow::hull_rational`].
+//!
+//! A span of the vector is taken FROM the pair — `span` and `span_at`
+//! on either type mint its window type, which holds the pair beside a
+//! [`Span`] of ITS vector. So "a span of another vector against these
+//! coefficients" has no spelling; neither has "a rational claim on a
+//! pair minted without weights", nor "a nonrational bound on a pair
+//! minted with them" — a pair whose weights were never read has no
+//! door that reads them, and a pair carrying weights has no door that
+//! ignores them. All three are D2 addendum row 0, unrepresentable, and
+//! each is a `compile_fail` doctest with a legal twin on the type it
+//! concerns. No free function here takes a coefficient array; the one
+//! door beside the mints that takes one,
+//! [`KnotVector::difference_coeffs`], mints first.
 //!
 //! The one relation a mint checks is the count: an array that is not
 //! `control_count()` long is refused (`None`) at the mint, once, and
@@ -54,17 +79,15 @@
 //! nonnegative. The hull of the control values is then a bound on the
 //! rational curve too, with no extra arithmetic. The precondition is a
 //! type invariant upstream (`SplineError::NonPositiveWeight`,
-//! `spline::algebra`, `geom::curves::nurbs`), but the rational doors
-//! here **re-check it on the span's weights** rather than trust the
+//! `spline::algebra`, `geom::curves::nurbs`), but the rational door
+//! here **re-checks it on the window's weights** rather than trust the
 //! slice the mint was handed: the check is three `f64` comparisons on
 //! structure, and the alternative is an unsound bound. It stays a
-//! per-span check rather than a mint-time refusal because it is a
+//! per-window check rather than a mint-time refusal because it is a
 //! *value* precondition of the claim on exactly the weights a window
 //! reads — a bad weight poisons the windows that read it and no other
 //! — where the count is a *pairing* fact about the whole array, which
-//! is the mint's business. A pair minted without weights licenses no
-//! rational claim, and its rational doors answer poison for that
-//! reason.
+//! is the mint's business.
 //!
 //! # What is deliberately not here
 //!
@@ -76,7 +99,8 @@
 //!   formula in [`SplineCoeffs::derivative_coeffs`] is the nonrational
 //!   one; a rational derivative needs the homogeneous curve plus a
 //!   quotient rule, whose enclosure belongs with the consumer that owns
-//!   the homogeneous form.
+//!   the homogeneous form. That is why [`RationalCoeffs`] has no
+//!   derivative door at all rather than one that ignores its weights.
 //! - **No comparisons on a generic scalar.** The coefficient type is
 //!   read only through [`CertifiedEnclosure`] — one fallible bracket
 //!   accessor — so nothing here can accidentally decide anything about an
@@ -96,26 +120,26 @@ use super::knots::{KnotVector, Span};
 use crate::real::CertifiedEnclosure;
 use crate::ring_interval::RingInterval;
 
-/// A coefficient array **with the knot vector it is a proof about**,
-/// and optionally the weights that license a rational claim on it.
+/// A coefficient array **with the knot vector it is a proof about** —
+/// the pair that licenses the **nonrational** bounds.
 ///
-/// Minted only by [`KnotVector::coeffs`] and
-/// [`KnotVector::coeffs_rational`], which are where the count relation
-/// (`coeffs.len() == control_count()`) is checked — once. Every door
-/// on this type and on the [`CoeffWindow`]s it mints reads the knots,
-/// the coefficients and the weights from this one borrow, so there is
-/// no second vector or second array for any of them to disagree with.
+/// Minted only by [`KnotVector::with_coeffs`], which is where the
+/// count relation (`coeffs.len() == control_count()`) is checked —
+/// once. Every door on this type and on the [`CoeffWindow`]s it mints
+/// reads the knots and the coefficients from this one borrow, so there
+/// is no second vector or second array for any of them to disagree
+/// with. The rational claim lives on [`RationalCoeffs`], a different
+/// type, so this one has no door that could make it.
 ///
-/// `Copy`: two references (three with weights), allocation-free.
+/// `Copy`: two references, allocation-free.
 ///
-/// # The three shapes that have no spelling
+/// # The shapes that have no spelling
 ///
 /// These are library doctests: they run under
 /// `cargo test -p geom-core --doc`, so the claims below redden if the
-/// borrow is undone rather than merely dating a comment. Each shape
-/// is one the length-only relation used to answer finitely and
-/// wrongly: two vectors of equal control count, so a length check
-/// cannot tell them apart, and a span of the OTHER vector hulled over
+/// borrow is undone rather than merely dating a comment. Each of the
+/// first three is two vectors of equal control count — which a length
+/// check cannot tell apart — with a span of the OTHER vector asked over
 /// these coefficients.
 ///
 /// **(a) Same degree, different interior knots.** A window is minted
@@ -127,7 +151,7 @@ use crate::ring_interval::RingInterval;
 /// let mine = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
 /// let theirs = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.75, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
 /// let coeffs = vec![0.0f64; mine.control_count()];
-/// let pair = mine.coeffs(&coeffs).unwrap();
+/// let pair = mine.with_coeffs(&coeffs).unwrap();
 /// let _ = pair.span(theirs.span_at(0.3)).unwrap().hull();
 /// ```
 ///
@@ -138,7 +162,7 @@ use crate::ring_interval::RingInterval;
 /// use geom_core::spline::KnotVector;
 /// let mine = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
 /// let coeffs = vec![0.0f64; mine.control_count()];
-/// let pair = mine.coeffs(&coeffs).unwrap();
+/// let pair = mine.with_coeffs(&coeffs).unwrap();
 /// let _ = pair.span_at(0.3).hull();
 /// ```
 ///
@@ -152,8 +176,8 @@ use crate::ring_interval::RingInterval;
 /// let mine = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
 /// let theirs = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
 /// let coeffs = vec![0.0f64; mine.control_count()];
-/// let pair = mine.coeffs(&coeffs).unwrap();
-/// let win = CoeffWindow { coeffs: pair, span: theirs.span(4).unwrap() };
+/// let pair = mine.with_coeffs(&coeffs).unwrap();
+/// let win = CoeffWindow { pair, span: theirs.span(4).unwrap() };
 /// ```
 ///
 /// The twin differs in where the span comes from, and its answer is
@@ -163,7 +187,7 @@ use crate::ring_interval::RingInterval;
 /// use geom_core::spline::KnotVector;
 /// let mine = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
 /// let coeffs = vec![0.0f64; mine.control_count()];
-/// let pair = mine.coeffs(&coeffs).unwrap();
+/// let pair = mine.with_coeffs(&coeffs).unwrap();
 /// assert!(pair.span(4).is_none());
 /// ```
 ///
@@ -177,7 +201,7 @@ use crate::ring_interval::RingInterval;
 /// let mine = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
 /// let quad = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.3, 0.6, 0.8, 1.0, 1.0, 1.0], 2).unwrap();
 /// let coeffs = vec![0.0f64; mine.control_count()];
-/// let pair = mine.coeffs(&coeffs).unwrap();
+/// let pair = mine.with_coeffs(&coeffs).unwrap();
 /// let _ = pair.span_at(0.7).sup_norm_bound(quad.span_at(0.7));
 /// ```
 ///
@@ -187,24 +211,47 @@ use crate::ring_interval::RingInterval;
 /// use geom_core::spline::KnotVector;
 /// let mine = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
 /// let coeffs = vec![0.0f64; mine.control_count()];
-/// let pair = mine.coeffs(&coeffs).unwrap();
+/// let pair = mine.with_coeffs(&coeffs).unwrap();
 /// assert!(pair.span_at(0.7).sup_norm_bound().is_finite());
+/// ```
+///
+/// **(d) A rational claim on a pair minted without weights.** There
+/// is no weight for the claim to be checked against, and the type has
+/// no door to make it:
+///
+/// ```compile_fail,E0599
+/// use geom_core::spline::KnotVector;
+/// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+/// let coeffs = vec![0.0f64; kv.control_count()];
+/// let pair = kv.with_coeffs(&coeffs).unwrap();
+/// let _ = pair.span_at(0.3).hull_rational();
+/// ```
+///
+/// The twin differs in one respect — the pair is minted with the
+/// weights the claim reads, and is a [`RationalCoeffs`]:
+///
+/// ```
+/// use geom_core::spline::KnotVector;
+/// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+/// let coeffs = vec![0.0f64; kv.control_count()];
+/// let weights = vec![1.0f64; kv.control_count()];
+/// let pair = kv.with_rational_coeffs(&coeffs, &weights).unwrap();
+/// assert!(!pair.span_at(0.3).hull_rational().is_poison());
 /// ```
 ///
 /// **What these rows do and do not check.** Stable rustdoc checks only
 /// that a `compile_fail` block fails to build; the `,E0308` / `,E0451`
-/// / `,E0061` annotation beside it is **not** verified there (that is
-/// a nightly rustdoc feature), so a row could be red for a typo
-/// instead of for its subject. That is what each twin is for: it
-/// differs from its block in exactly one respect and it compiles, so
-/// a typo shared by both would redden the twin. The codes themselves
-/// were read off `rustc` directly on each snippet at the pinned
-/// toolchain.
+/// / `,E0061` / `,E0599` annotation beside it is **not** verified
+/// there (that is a nightly rustdoc feature), so a row could be red
+/// for a typo instead of for its subject. That is what each twin is
+/// for: it differs from its block in exactly one respect and it
+/// compiles, so a typo shared by both would redden the twin. The codes
+/// themselves were read off `rustc` directly on each snippet at the
+/// pinned toolchain (1.97.0).
 #[derive(Clone, Copy)]
 pub struct SplineCoeffs<'a, E: CertifiedEnclosure> {
     knots: &'a KnotVector,
     coeffs: &'a [E],
-    weights: Option<&'a [f64]>,
 }
 
 /// The borrows are printed as ADDRESSES, never followed: a derived
@@ -218,37 +265,101 @@ impl<E: CertifiedEnclosure> core::fmt::Debug for SplineCoeffs<'_, E> {
             .field("knots", &core::ptr::from_ref(self.knots))
             .field("coeffs", &self.coeffs.as_ptr())
             .field("len", &self.coeffs.len())
-            .field("weights", &self.weights.map(<[f64]>::as_ptr))
             .finish()
     }
 }
 
-/// Equality is address equality on the vector and on both arrays: a
+/// Equality is address equality on the vector and on the array: a
 /// pair is a proof about *those* coefficients against *that* vector,
 /// and neither is [`Eq`] by value (the knots are `f64`).
 impl<E: CertifiedEnclosure> PartialEq for SplineCoeffs<'_, E> {
     fn eq(&self, other: &Self) -> bool {
-        core::ptr::eq(self.knots, other.knots)
-            && core::ptr::eq(self.coeffs, other.coeffs)
-            && match (self.weights, other.weights) {
-                (None, None) => true,
-                (Some(a), Some(b)) => core::ptr::eq(a, b),
-                _ => false,
-            }
+        core::ptr::eq(self.knots, other.knots) && core::ptr::eq(self.coeffs, other.coeffs)
     }
 }
 
 impl<E: CertifiedEnclosure> Eq for SplineCoeffs<'_, E> {}
 
+/// A coefficient array with the knot vector it is a proof about **and
+/// the weights that license a rational claim on it** — the pair that
+/// carries the **rational** bounds, and only those.
+///
+/// Minted only by [`KnotVector::with_rational_coeffs`], where both
+/// counts are checked once. Weight *positivity* is not checked at the
+/// mint: it is the per-window precondition of
+/// [`RationalWindow::hull_rational`] (module docs), and a bad weight
+/// poisons the windows that read it and no other.
+///
+/// `Copy`: three references, allocation-free.
+///
+/// **(e) A nonrational bound on a pair minted WITH weights** has no
+/// spelling either: a bound that ignores the weights it was handed is
+/// a different claim, and this type has no door that makes it — the
+/// hull, derivative and sup-norm doors are [`SplineCoeffs`]'s:
+///
+/// ```compile_fail,E0599
+/// use geom_core::spline::KnotVector;
+/// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+/// let coeffs = vec![0.0f64; kv.control_count()];
+/// let weights = vec![2.0f64; kv.control_count()];
+/// let pair = kv.with_rational_coeffs(&coeffs, &weights).unwrap();
+/// let _ = pair.derivative_coeffs();
+/// ```
+///
+/// The twin differs in one respect — the pair is minted without the
+/// weights, as a [`SplineCoeffs`], whose derivative formula is the
+/// nonrational one by its own doc:
+///
+/// ```
+/// use geom_core::spline::KnotVector;
+/// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+/// let coeffs = vec![0.0f64; kv.control_count()];
+/// let pair = kv.with_coeffs(&coeffs).unwrap();
+/// assert_eq!(pair.derivative_coeffs().len(), kv.control_count() - 1);
+/// ```
+///
+/// The code was read off `rustc` 1.97.0 on the snippet; stable
+/// rustdoc verifies only that the block fails (see [`SplineCoeffs`]).
+#[derive(Clone, Copy)]
+pub struct RationalCoeffs<'a, E: CertifiedEnclosure> {
+    knots: &'a KnotVector,
+    coeffs: &'a [E],
+    weights: &'a [f64],
+}
+
+/// Address-printed, never followed (see [`SplineCoeffs`]).
+impl<E: CertifiedEnclosure> core::fmt::Debug for RationalCoeffs<'_, E> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("RationalCoeffs")
+            .field("knots", &core::ptr::from_ref(self.knots))
+            .field("coeffs", &self.coeffs.as_ptr())
+            .field("len", &self.coeffs.len())
+            .field("weights", &self.weights.as_ptr())
+            .finish()
+    }
+}
+
+/// Address equality on the vector and on both arrays (see
+/// [`SplineCoeffs`]).
+impl<E: CertifiedEnclosure> PartialEq for RationalCoeffs<'_, E> {
+    fn eq(&self, other: &Self) -> bool {
+        core::ptr::eq(self.knots, other.knots)
+            && core::ptr::eq(self.coeffs, other.coeffs)
+            && core::ptr::eq(self.weights, other.weights)
+    }
+}
+
+impl<E: CertifiedEnclosure> Eq for RationalCoeffs<'_, E> {}
+
 /// A [`SplineCoeffs`] beside a [`Span`] of **its** knot vector — the
-/// window every span-restricted hull door reads from. Minted only by
-/// [`SplineCoeffs::span`] and [`SplineCoeffs::span_at`], so the span
-/// and the coefficients name the same vector by construction.
+/// window every span-restricted nonrational door reads from. Minted
+/// only by [`SplineCoeffs::span`] and [`SplineCoeffs::span_at`], so
+/// the span and the coefficients name the same vector by construction.
 ///
 /// `Copy`, one pair and one `Span` wide, allocation-free.
 #[derive(Clone, Copy)]
 pub struct CoeffWindow<'a, E: CertifiedEnclosure> {
-    coeffs: SplineCoeffs<'a, E>,
+    pair: SplineCoeffs<'a, E>,
     span: Span<'a>,
 }
 
@@ -256,7 +367,7 @@ pub struct CoeffWindow<'a, E: CertifiedEnclosure> {
 impl<E: CertifiedEnclosure> core::fmt::Debug for CoeffWindow<'_, E> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("CoeffWindow")
-            .field("coeffs", &self.coeffs)
+            .field("pair", &self.pair)
             .field("span", &self.span)
             .finish()
     }
@@ -264,46 +375,96 @@ impl<E: CertifiedEnclosure> core::fmt::Debug for CoeffWindow<'_, E> {
 
 impl<E: CertifiedEnclosure> PartialEq for CoeffWindow<'_, E> {
     fn eq(&self, other: &Self) -> bool {
-        self.coeffs == other.coeffs && self.span == other.span
+        self.pair == other.pair && self.span == other.span
     }
 }
 
 impl<E: CertifiedEnclosure> Eq for CoeffWindow<'_, E> {}
 
+/// A [`RationalCoeffs`] beside a [`Span`] of **its** knot vector — the
+/// window [`RationalWindow::hull_rational`] reads from. Minted only by
+/// [`RationalCoeffs::span`] and [`RationalCoeffs::span_at`].
+///
+/// `Copy`, one pair and one `Span` wide, allocation-free.
+#[derive(Clone, Copy)]
+pub struct RationalWindow<'a, E: CertifiedEnclosure> {
+    pair: RationalCoeffs<'a, E>,
+    span: Span<'a>,
+}
+
+/// Address-printed like the pair it holds (see [`SplineCoeffs`]).
+impl<E: CertifiedEnclosure> core::fmt::Debug for RationalWindow<'_, E> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("RationalWindow")
+            .field("pair", &self.pair)
+            .field("span", &self.span)
+            .finish()
+    }
+}
+
+impl<E: CertifiedEnclosure> PartialEq for RationalWindow<'_, E> {
+    fn eq(&self, other: &Self) -> bool {
+        self.pair == other.pair && self.span == other.span
+    }
+}
+
+impl<E: CertifiedEnclosure> Eq for RationalWindow<'_, E> {}
+
 impl KnotVector {
-    /// `coeffs` as a proof about **this** vector — `None` unless the
-    /// array is exactly [`KnotVector::control_count`] long, which is
-    /// the one relation a length can state and the bound that keeps
-    /// every window of the pair inside the array. This and
-    /// [`KnotVector::coeffs_rational`] are the only ways to obtain a
-    /// [`SplineCoeffs`].
-    pub fn coeffs<'a, E: CertifiedEnclosure>(
+    /// Mint `coeffs` as a proof about **this** vector — `None` unless
+    /// the array is exactly [`KnotVector::control_count`] long, which
+    /// is the one relation a length can state and the bound that keeps
+    /// every window of the pair inside the array. This is the only way
+    /// to obtain a [`SplineCoeffs`].
+    pub fn with_coeffs<'a, E: CertifiedEnclosure>(
         &'a self,
         coeffs: &'a [E],
     ) -> Option<SplineCoeffs<'a, E>> {
         (coeffs.len() == self.control_count()).then_some(SplineCoeffs {
             knots: self,
             coeffs,
-            weights: None,
         })
     }
 
-    /// [`KnotVector::coeffs`] with the weights that license a rational
-    /// claim carried beside: `None` unless both arrays are
-    /// [`KnotVector::control_count`] long. Weight *positivity* is not
-    /// checked here — it is the rational doors' per-window precondition
-    /// (module docs), and a bad weight poisons the windows that read it.
-    pub fn coeffs_rational<'a, E: CertifiedEnclosure>(
+    /// Mint `coeffs` with the `weights` that license a rational claim
+    /// on them — `None` unless both arrays are
+    /// [`KnotVector::control_count`] long. This is the only way to
+    /// obtain a [`RationalCoeffs`]. Weight *positivity* is not checked
+    /// here: it is the rational door's per-window precondition (module
+    /// docs), and a bad weight poisons the windows that read it.
+    pub fn with_rational_coeffs<'a, E: CertifiedEnclosure>(
         &'a self,
         coeffs: &'a [E],
         weights: &'a [f64],
-    ) -> Option<SplineCoeffs<'a, E>> {
+    ) -> Option<RationalCoeffs<'a, E>> {
         let n = self.control_count();
-        (coeffs.len() == n && weights.len() == n).then_some(SplineCoeffs {
+        (coeffs.len() == n && weights.len() == n).then_some(RationalCoeffs {
             knots: self,
             coeffs,
-            weights: Some(weights),
+            weights,
         })
+    }
+
+    /// `coeffs` minted against this vector and differenced once —
+    /// [`SplineCoeffs::derivative_coeffs`] — or a **one-element poison
+    /// vector** when the mint refuses the array (a length that is not
+    /// [`KnotVector::control_count`]). The returned length is never
+    /// zero: the mint's answer has `control_count() − 1 ≥ 1` entries
+    /// (the invariant at [`SplineCoeffs::derivative_coeffs`]), and the
+    /// refusal is one entry, so a consumer that differences a line of
+    /// a net or a ladder level reads a short answer as the structure
+    /// error it is, never as an empty line.
+    ///
+    /// This is the one door beside the mints that takes a coefficient
+    /// array, and it takes it only to mint: every consumer of it holds
+    /// its coefficients as an owned `Vec` beside a vector (a tensor
+    /// net's lines, a derivative ladder's levels), and a door on the
+    /// pair would make each of them spell the same mint-then-map.
+    pub fn difference_coeffs<E: CertifiedEnclosure>(&self, coeffs: &[E]) -> Vec<RingInterval> {
+        self.with_coeffs(coeffs).map_or_else(
+            || vec![RingInterval::poison()],
+            SplineCoeffs::derivative_coeffs,
+        )
     }
 }
 
@@ -314,24 +475,13 @@ impl<'a, E: CertifiedEnclosure> SplineCoeffs<'a, E> {
         self.knots
     }
 
-    /// The coefficient brackets, `control_count()` of them.
-    pub fn coeffs(self) -> &'a [E] {
-        self.coeffs
-    }
-
-    /// The weights, when the pair was minted rationally; `None` says
-    /// the pair licenses no rational claim.
-    pub fn weights(self) -> Option<&'a [f64]> {
-        self.weights
-    }
-
     /// The window of this pair at span `index` — `None` when the index
     /// is out of range or names an **empty** span (interior knot
     /// multiplicity), exactly as [`KnotVector::span`] refuses it. The
     /// emptiness check and the window construction are one operation.
     pub fn span(self, index: usize) -> Option<CoeffWindow<'a, E>> {
         Some(CoeffWindow {
-            coeffs: self,
+            pair: self,
             span: self.knots.span(index)?,
         })
     }
@@ -341,7 +491,7 @@ impl<'a, E: CertifiedEnclosure> SplineCoeffs<'a, E> {
     /// an end span, NaN lands on the first).
     pub fn span_at(self, t: f64) -> CoeffWindow<'a, E> {
         CoeffWindow {
-            coeffs: self,
+            pair: self,
             span: self.knots.span_at(t),
         }
     }
@@ -365,29 +515,6 @@ impl<'a, E: CertifiedEnclosure> SplineCoeffs<'a, E> {
                 continue;
             };
             let h = win.hull();
-            acc = if seeded {
-                RingInterval::hull(acc, h)
-            } else {
-                h
-            };
-            seeded = true;
-        }
-        acc
-    }
-
-    /// Whole-domain enclosure of the rational scalar spline: the hull
-    /// over spans of [`CoeffWindow::hull_rational`]. Poison if any
-    /// span's weights fail the precondition, or if the pair carries no
-    /// weights.
-    pub fn domain_hull_rational(self) -> RingInterval {
-        let mut acc = RingInterval::poison();
-        let mut seeded = false;
-        for index in self.knots.first_span()..=self.knots.last_span() {
-            // Emptiness check and window construction are one step.
-            let Some(win) = self.span(index) else {
-                continue;
-            };
-            let h = win.hull_rational();
             acc = if seeded {
                 RingInterval::hull(acc, h)
             } else {
@@ -436,9 +563,17 @@ impl<'a, E: CertifiedEnclosure> SplineCoeffs<'a, E> {
     /// Enclosures of **every** derivative coefficient of the nonrational
     /// scalar B-spline: `control_count() − 1` values, index `i` giving
     /// `Q_i`. A bad knot difference or a poisoned coefficient poisons
-    /// that entry. The returned length is never zero: a clamped vector
-    /// refuses degree 0 and has at least `2(p + 1)` knots, so the pair
-    /// has at least two coefficients and one derivative coefficient.
+    /// that entry.
+    ///
+    /// The returned length is never zero. Every [`KnotVector`]
+    /// constructor holds `control_count() ≥ degree + 1 ≥ 2`:
+    /// `KnotVector::clamped` refuses degree 0 and fewer than
+    /// `2(degree + 1)` knots, `KnotVector::unit_segment` takes a
+    /// `NonZeroUsize` degree and builds exactly `2(degree + 1)` knots,
+    /// and the crate-internal `from_algebra` debug-asserts `clamped`'s
+    /// acceptance of what a plan produced — so the pair has at least
+    /// two coefficients and this door at least one entry, and the
+    /// `len − 1` below cannot underflow.
     ///
     /// See the module docs for why the rational case is not here.
     pub fn derivative_coeffs(self) -> Vec<RingInterval> {
@@ -462,16 +597,72 @@ impl<'a, E: CertifiedEnclosure> SplineCoeffs<'a, E> {
         acc
     }
 
-    /// A certified upper bound on `|f|` over the whole domain. See
-    /// [`CoeffWindow::sup_norm_bound`].
+    /// A certified upper bound on `|f|` over the **whole domain** —
+    /// the magnitude of [`SplineCoeffs::domain_hull`]. The per-span
+    /// reading is [`CoeffWindow::sup_norm_bound`]; `NaN` for every
+    /// poison path, as there.
     pub fn sup_norm_bound(self) -> f64 {
         self.domain_hull().mag()
     }
+}
 
-    /// The rational counterpart of [`SplineCoeffs::sup_norm_bound`]: an
-    /// upper bound on `|f|` over the whole domain of the rational scalar
-    /// spline, `NaN` unless every weight satisfies the positivity
-    /// precondition.
+impl<'a, E: CertifiedEnclosure> RationalCoeffs<'a, E> {
+    /// The window of this pair at span `index` — `None` exactly when
+    /// [`KnotVector::span`] refuses the index (out of range, or empty).
+    pub fn span(self, index: usize) -> Option<RationalWindow<'a, E>> {
+        Some(RationalWindow {
+            pair: self,
+            span: self.knots.span(index)?,
+        })
+    }
+
+    /// The window containing `t` — total on all of `f64` for exactly
+    /// the reasons [`KnotVector::span_at`] is.
+    pub fn span_at(self, t: f64) -> RationalWindow<'a, E> {
+        RationalWindow {
+            pair: self,
+            span: self.knots.span_at(t),
+        }
+    }
+
+    /// The same coefficients as a proof about the same vector, with
+    /// the weights set aside — what the rational door hulls once the
+    /// weights have licensed the claim. Private: handing this out
+    /// would give a rational pair the nonrational doors it must not
+    /// have (row (e) on the type).
+    fn plain(self) -> SplineCoeffs<'a, E> {
+        SplineCoeffs {
+            knots: self.knots,
+            coeffs: self.coeffs,
+        }
+    }
+
+    /// Whole-domain enclosure of the rational scalar spline: the hull
+    /// over spans of [`RationalWindow::hull_rational`]. Poison if any
+    /// span's weights fail the precondition.
+    pub fn domain_hull_rational(self) -> RingInterval {
+        let mut acc = RingInterval::poison();
+        let mut seeded = false;
+        for index in self.knots.first_span()..=self.knots.last_span() {
+            // Emptiness check and window construction are one step.
+            let Some(win) = self.span(index) else {
+                continue;
+            };
+            let h = win.hull_rational();
+            acc = if seeded {
+                RingInterval::hull(acc, h)
+            } else {
+                h
+            };
+            seeded = true;
+        }
+        acc
+    }
+
+    /// A certified upper bound on `|f|` over the **whole domain** of
+    /// the rational scalar spline — the magnitude of
+    /// [`RationalCoeffs::domain_hull_rational`], `NaN` unless every
+    /// weight satisfies the positivity precondition.
     pub fn sup_norm_bound_rational(self) -> f64 {
         self.domain_hull_rational().mag()
     }
@@ -479,8 +670,8 @@ impl<'a, E: CertifiedEnclosure> SplineCoeffs<'a, E> {
 
 impl<'a, E: CertifiedEnclosure> CoeffWindow<'a, E> {
     /// The pair this window is a window of.
-    pub fn coeffs(self) -> SplineCoeffs<'a, E> {
-        self.coeffs
+    pub fn pair(self) -> SplineCoeffs<'a, E> {
+        self.pair
     }
 
     /// The knot span this window selects — a span of the pair's own
@@ -489,22 +680,9 @@ impl<'a, E: CertifiedEnclosure> CoeffWindow<'a, E> {
         self.span
     }
 
-    /// The vector both halves name (`SplineCoeffs::knots`).
-    pub fn knots(self) -> &'a KnotVector {
-        self.coeffs.knots
-    }
-
-    /// The span index (`Span::index`).
-    pub fn index(self) -> usize {
-        self.span.index()
-    }
-
-    /// The first coefficient of the window (`Span::first_control`).
-    pub fn first_control(self) -> usize {
-        self.span.first_control()
-    }
-
-    /// The inclusive coefficient window, `Span::window`.
+    /// The inclusive coefficient window this span's doors read,
+    /// `Span::window` — the indices a test hulls independently to
+    /// check [`CoeffWindow::hull`] against.
     pub fn window(self) -> core::ops::RangeInclusive<usize> {
         self.span.window()
     }
@@ -521,7 +699,7 @@ impl<'a, E: CertifiedEnclosure> CoeffWindow<'a, E> {
     /// span's construction, and `index ≤ last_span() = control_count()
     /// − 1 = coeffs.len() − 1` by the mint, so it indexes in range.
     pub fn hull(self) -> RingInterval {
-        let coeffs = self.coeffs.coeffs;
+        let coeffs = self.pair.coeffs;
         let (first, last) = (self.span.first_control(), self.span.index());
         let mut acc = RingInterval::poison();
         // Fixed ascending reduction order (D9).
@@ -535,40 +713,6 @@ impl<'a, E: CertifiedEnclosure> CoeffWindow<'a, E> {
             };
         }
         acc
-    }
-
-    /// Whether every weight active on this span is strictly positive
-    /// and finite — the precondition that licenses the hull bound for
-    /// a rational spline (module docs). A pair minted without weights
-    /// licenses nothing.
-    fn weights_positive(self) -> bool {
-        let Some(weights) = self.coeffs.weights else {
-            return false;
-        };
-        let (first, last) = (self.span.first_control(), self.span.index());
-        // `w > 0.0` is false for NaN, so a NaN weight refuses (the spline
-        // substrate's NaN-catching discipline, in its positive form).
-        // Indexing justified: last ≤ control_count() − 1 = weights.len() − 1.
-        weights[first..=last]
-            .iter()
-            .all(|w| *w > 0.0 && w.is_finite())
-    }
-
-    /// Enclosure of the **rational** scalar spline's values over this
-    /// span, from the brackets of the active control values and their
-    /// weights.
-    ///
-    /// The returned bound is the same hull as [`CoeffWindow::hull`] —
-    /// the weights buy no tightness, they buy the *right to make the
-    /// claim*: with all active weights strictly positive the rational
-    /// basis is a nonnegative partition of unity, so the value is still
-    /// a convex combination of the control values. A non-positive or
-    /// non-finite weight, or a pair carrying no weights, is poison.
-    pub fn hull_rational(self) -> RingInterval {
-        if !self.weights_positive() {
-            return RingInterval::poison();
-        }
-        self.hull()
     }
 
     /// Enclosure of the **derivative** of the nonrational scalar
@@ -588,7 +732,7 @@ impl<'a, E: CertifiedEnclosure> CoeffWindow<'a, E> {
         let mut acc = RingInterval::poison();
         // Fixed ascending reduction order (D9). Range: [span − p, span − 1].
         for (n, i) in (first..last).enumerate() {
-            let q = self.coeffs.deriv_coeff(i);
+            let q = self.pair.deriv_coeff(i);
             acc = if n == 0 {
                 q
             } else {
@@ -598,15 +742,52 @@ impl<'a, E: CertifiedEnclosure> CoeffWindow<'a, E> {
         acc
     }
 
-    /// A certified upper bound on `|f|` over this span — the scalar
-    /// sup-norm reading of [`CoeffWindow::hull`], and the shape C2.2's
-    /// honesty limb consumes (`window.sup_norm_bound() <= eps`
-    /// certifies the span).
+    /// A certified upper bound on `|f|` over **this span** — the
+    /// scalar sup-norm reading of [`CoeffWindow::hull`], and the shape
+    /// C2.2's honesty limb consumes (`window.sup_norm_bound() <= eps`
+    /// certifies the span). The whole-domain reading is
+    /// [`SplineCoeffs::sup_norm_bound`].
     ///
     /// Returns `NaN` for every poison path, which fails that comparison
     /// under every direction (D4 ¶2). The value is an upper bound on
     /// the true supremum, never an approximation of it.
     pub fn sup_norm_bound(self) -> f64 {
         self.hull().mag()
+    }
+}
+
+impl<E: CertifiedEnclosure> RationalWindow<'_, E> {
+    /// Whether every weight active on this span is strictly positive
+    /// and finite — the precondition that licenses the hull bound for
+    /// a rational spline (module docs).
+    fn weights_positive(self) -> bool {
+        let (first, last) = (self.span.first_control(), self.span.index());
+        // `w > 0.0` is false for NaN, so a NaN weight refuses (the spline
+        // substrate's NaN-catching discipline, in its positive form).
+        // Indexing justified: last ≤ control_count() − 1 = weights.len() − 1.
+        self.pair.weights[first..=last]
+            .iter()
+            .all(|w| *w > 0.0 && w.is_finite())
+    }
+
+    /// Enclosure of the **rational** scalar spline's values over this
+    /// span, from the brackets of the active control values and their
+    /// weights.
+    ///
+    /// The returned bound is the same hull [`CoeffWindow::hull`] gives
+    /// the weightless pair — the weights buy no tightness, they buy
+    /// the *right to make the claim*: with all active weights strictly
+    /// positive the rational basis is a nonnegative partition of unity,
+    /// so the value is still a convex combination of the control
+    /// values. A non-positive or non-finite weight is poison.
+    pub fn hull_rational(self) -> RingInterval {
+        if !self.weights_positive() {
+            return RingInterval::poison();
+        }
+        CoeffWindow {
+            pair: self.pair.plain(),
+            span: self.span,
+        }
+        .hull()
     }
 }

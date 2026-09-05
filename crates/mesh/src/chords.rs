@@ -51,24 +51,11 @@ use geom::Curve3;
 use geom_brep::Pcurve;
 use geom_core::ring_interval::RingInterval;
 use geom_core::spline::KnotVector;
-use geom_core::spline::SplineCoeffs;
 use topo::{Body, EdgeKey};
 
 use crate::nurbs_cert::{FaceBounds, face_bound};
 use crate::sizing::{ceil_count, curvature_step, ellipse_step, sagitta_step, torus_step};
 use crate::types::TessellateError;
-
-/// One knot-differencing step of `coeffs` as `kv`'s
-/// ([`SplineCoeffs::derivative_coeffs`]): the nets here are built from
-/// the very curve `kv` was read from, so the mint's count refusal has
-/// no reachable case, and its arm answers the one-element poison a
-/// bound reads as structure it cannot license.
-fn differenced(kv: &KnotVector, coeffs: &[RingInterval]) -> Vec<RingInterval> {
-    kv.coeffs(coeffs).map_or_else(
-        || vec![RingInterval::poison()],
-        SplineCoeffs::derivative_coeffs,
-    )
-}
 
 /// The chord pass's output: every edge's chord-point ids and the
 /// parameter schedule they were sampled at.
@@ -249,7 +236,7 @@ fn nurbs_chord_count(
                     })
                 })
                 .collect();
-            let q1 = differenced(kv, &coeffs);
+            let q1 = kv.difference_coeffs(&coeffs);
             let inner = kv.derivative_knot_slice().to_vec();
             let Ok(kv1) = KnotVector::clamped(inner, p - 1) else {
                 return Err(TessellateError::UnsupportedCurve {
@@ -258,7 +245,7 @@ fn nurbs_chord_count(
                            materialise — outside the certified chord inventory",
                 });
             };
-            let q2 = differenced(&kv1, &q1);
+            let q2 = kv1.difference_coeffs(&q1);
             let mut hull = RingInterval::poison();
             for (k, q) in q2.iter().enumerate() {
                 hull = if k == 0 {
@@ -300,7 +287,7 @@ fn nurbs_chord_count(
 /// `sup|C − c| ≤ max_active |P − c|` (positive weights — the licence
 /// the caller checked — make the rational basis a nonnegative
 /// partition of unity), `sup|Ã'|`/`sup|Ã″|`/`sup|w′|`/`sup|w″|` are
-/// iterated [`SplineCoeffs::derivative_coeffs`] hulls, and the divisor is the span's
+/// iterated [`geom_core::spline::SplineCoeffs::derivative_coeffs`] hulls, and the divisor is the span's
 /// weight range: for a SUP bound with a nonnegative numerator the
 /// conservative division is by `w_min` (the mirror image of the speed
 /// meter's lower-bound `w_max` choice — the interval division by
@@ -350,8 +337,8 @@ fn rational_carrier_m_bound(
         .iter()
         .map(|w| RingInterval::point(*w))
         .collect();
-    let dw = differenced(kv, &w_pts);
-    let ddw = differenced(&kv1, &dw);
+    let dw = kv.difference_coeffs(&w_pts);
+    let ddw = kv1.difference_coeffs(&dw);
     let comp = |c: usize| -> Vec<RingInterval> {
         refined
             .control()
@@ -370,8 +357,8 @@ fn rational_carrier_m_bound(
     let a_nets: Vec<(Vec<RingInterval>, Vec<RingInterval>)> = (0..3)
         .map(|c| {
             let a = comp(c);
-            let da = differenced(kv, &a);
-            let dda = differenced(&kv1, &da);
+            let da = kv.difference_coeffs(&a);
+            let dda = kv1.difference_coeffs(&da);
             (da, dda)
         })
         .collect();

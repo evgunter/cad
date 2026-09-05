@@ -7,7 +7,7 @@
 //!
 //! A tensor patch's partials are themselves tensor-product B-splines
 //! whose coefficient nets come from knot differencing **per direction**
-//! (The NURBS Book Eq. 3.24 — [`SplineCoeffs::derivative_coeffs`],
+//! (The NURBS Book Eq. 3.24 — [`super::hull::SplineCoeffs::derivative_coeffs`],
 //! iterated across lines of the net). That iteration — transpose, apply
 //! the one-dimensional step down each line, scatter the result back —
 //! is the same operation for every consumer, and it had been written
@@ -25,7 +25,7 @@
 //! one-dimensional step as a closure. A caller whose direction is a
 //! clamped [`KnotVector`] passes [`TensorNet::diff_u_knots`] /
 //! [`TensorNet::diff_v_knots`], which is
-//! [`SplineCoeffs::derivative_coeffs`]. A caller carrying a direction
+//! [`super::hull::SplineCoeffs::derivative_coeffs`]. A caller carrying a direction
 //! the clamped invariant cannot spell — a derivative whose interior
 //! multiplicity equals the parent degree, so it is genuinely
 //! discontinuous — passes its own step and keeps its own structure.
@@ -69,21 +69,8 @@
 
 use core::ops::RangeInclusive;
 
-use super::hull::SplineCoeffs;
 use super::knots::KnotVector;
 use crate::ring_interval::RingInterval;
-
-/// The clamped-knot-vector differencing step for one line: the line
-/// minted against `kv` and differenced once, or a one-element poison
-/// answer when the mint refuses it (a line that is not `kv`'s length)
-/// — never an empty one, so the caller reads a short answer as the
-/// structure error it is.
-fn knot_step(kv: &KnotVector, line: &[RingInterval]) -> Vec<RingInterval> {
-    kv.coeffs(line).map_or_else(
-        || vec![RingInterval::poison()],
-        SplineCoeffs::derivative_coeffs,
-    )
-}
 
 /// A rectangular tensor coefficient net of ring enclosures, stored
 /// **row-major** (`u`-major): entry `(i, j)` — `u` index `i`, `v` index
@@ -315,20 +302,20 @@ impl TensorNet {
     }
 
     /// [`TensorNet::diff_u`] with the clamped-knot-vector step
-    /// ([`SplineCoeffs::derivative_coeffs`]): a line this vector does
+    /// ([`KnotVector::difference_coeffs`]): a line this vector does
     /// not admit — one the mint refuses — yields a poisoned derivative
     /// rather than a widened one, because the step then short-answers
-    /// and the line poisons.
+    /// (one poison entry, never zero) and the line poisons.
     #[must_use]
     pub fn diff_u_knots(&self, kv: &KnotVector) -> Self {
-        self.diff_u(|c| knot_step(kv, c))
+        self.diff_u(|c| kv.difference_coeffs(c))
     }
 
     /// [`TensorNet::diff_v`] with the clamped-knot-vector step
     /// ([`TensorNet::diff_u_knots`]).
     #[must_use]
     pub fn diff_v_knots(&self, kv: &KnotVector) -> Self {
-        self.diff_v(|c| knot_step(kv, c))
+        self.diff_v(|c| kv.difference_coeffs(c))
     }
 }
 
