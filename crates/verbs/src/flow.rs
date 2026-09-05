@@ -11,15 +11,17 @@
 //!
 //! # Who consumes it
 //!
-//! `editor-core`'s lowering (`param_source::attach_blend`), at mint
-//! time: the document layer knows a slot's expression, reads this flow
-//! for the parameter that slot is, and attaches the lowered token to
-//! exactly the fields the flow says the parameter reached. The
+//! `editor-core`'s lowering, at mint time — one door per source kind
+//! (`param_source::attach_blend` for a verb's own scalar,
+//! `param_source::attach_swept` for a scalar the operand profile
+//! carries per edge). The document layer knows the expression, reads
+//! this flow for the source that expression is, and attaches the
+//! lowered token to exactly the fields the flow says it reached. The
 //! declaration itself stays plain data in this crate — no consumer
 //! here — and its own acceptance is that it is exhaustive over the
-//! vocabulary's scalar parameters and names only role families the
-//! birth record really mints, which `tests/param_flow.rs` executes
-//! rather than asserts.
+//! vocabulary's sources and names only role families the birth record
+//! really mints, which `tests/param_flow.rs` executes rather than
+//! asserts.
 //!
 //! # Where a value can COME from
 //!

@@ -358,3 +358,52 @@ one door under one name or two; recommendation B), and
 but waits on a joint `[ev]` with SHELL over the doors' raw fit
 tolerance, SEAT-1's own residue. Difficulties logged pre-draw in the
 orchestrator's private state; the draw happens at SEAT-B2's close.
+
+## SEAT-7 DELIVERED (2026-09-05, PR PENDING)
+
+Extrude and revolve are on the substrate. `Verb<T>` gains
+`Extrude { distance }` and `Revolve { axis, revolution }` — kernel values
+both, the revolution CLASSIFIED upstairs because the full-vs-partial
+predicate is a document-layer funnel site (F14) whose escalation is a
+document-layer refusal; the payload carries geometry for the first time,
+which costs the enum its `T: Real` bound and its derived `PartialEq`
+(`geom-core`'s points carry no equality, deliberately, and synthesising
+one here would put coordinate comparison in the verb vocabulary).
+
+The two design points the dispatch named were both argued, neither taken
+silently. **The arity** is a third variant, `Arity::Profile`, with its own
+door `run_profile(&ValidatedProfile<T>, tol) -> VerbRecord<T>`: the
+operand is borrowed like every other, never in the payload, and the enum's
+reading moves from "how many bodies" to "what the operand is" — the honest
+reading of `One`/`Two` was always "one body"/"two bodies". The door hands
+back the RECORD alone rather than a `VerbOut`, because a sweep's bundle IS
+its record with the body inside it, and splitting it would restate the
+bundle. **The flow's second source kind** is `FlowSource::ProfileEdge`,
+closed beside `FlowSource::Param` with its own census: the extrude's
+distance and the revolve's angle are extents and declare empty rows (the
+chamfer precedent), while a CIRCULAR profile edge's radius is what the
+swept wall stores — a cylinder's `radius` for the extrusion, a torus's
+`minor_radius` for the revolution. Measured and NOT declared: a revolved
+straight edge's cylinder radius is its distance from the axis, derived
+across three nodes, and the profile layer holds no slot for it; a chain
+loop's per-step arc radii would need the step→segment map that has no home
+(`work/issues/authored-step-to-canonical-segment-map-has-no-home.md`), so
+the row is scoped to the carrier loop forms, where one radius is the whole
+loop's and the canonical→program anchor is all the address needed.
+
+The §6 end-to-end acceptance is MET and the residue item closes: two
+extruded circles at one declared `r`, spun off the pinch, unioned, and the
+germ's pinch refusal carries `Declared` from a document — with the
+kernel-direct twin at the same radii carrying `None`. The five
+sweep-carrying corpus digests reproduce on the extracted merge base, and
+the corpus-wide goldens (`m10_p_fence`, `lib_g16_corpus_name_digests`)
+needed no re-blessing at all.
+
+One behavior change is disclosed rather than implied: a carrier loop's
+radius EXPRESSION now feeds the profile node's content key (format v5),
+because two spellings of one value are two different bodies downstream —
+the stale-token class SEAT-6's fix pass closed for the blend's own slot.
+`switch_program_key`'s resolved-value row is re-authored to say so, with a
+new row pinning that the exception is one expression wide (a carrier
+centre re-spelled still keys identically).
+
