@@ -249,6 +249,13 @@ impl<'a, T: Decide> PartCache<'a, T> {
         }
     }
 
+    /// The descent chain this evaluation was reached through — empty
+    /// at the top level, ending in this document's own reference
+    /// below it. What `param_source::ParamScope::of` reads.
+    pub(crate) fn chain(&self) -> &'a [DocRef] {
+        self.chain
+    }
+
     /// How many referenced-document evaluations ran at or below this
     /// level.
     pub(crate) fn evaluations(&self) -> usize {

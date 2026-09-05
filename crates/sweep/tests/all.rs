@@ -338,6 +338,8 @@ mod ring_r1_probes;
 mod s16_box_soundness;
 #[path = "s49_census_jurisdiction.rs"]
 mod s49_census_jurisdiction;
+#[path = "seat6_germ_channel.rs"]
+mod seat6_germ_channel;
 #[path = "turning_orientation.rs"]
 mod turning_orientation;
 #[path = "verbs_1031b_arcwind.rs"]
@@ -350,7 +352,6 @@ mod verbs_arms1_r1_probes;
 mod verbs_arms2_arms;
 #[path = "verbs_arms2_bud.rs"]
 mod verbs_arms2_bud;
-
 #[path = "verbs_arms3.rs"]
 mod verbs_arms3;
 #[path = "verbs_chamfer.rs"]
