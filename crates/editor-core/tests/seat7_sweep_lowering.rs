@@ -56,8 +56,9 @@ use crate::fixture;
 
 use corpus::{body_of, eval, failures};
 use editor_core::{
-    Datum, Dimension, DocEdit, DocParam, DocumentId, Expr, LoopProgram, Node, ParamName,
-    ProfileDoc, ProfileProgram, RecipeNodeId, persist,
+    CancelToken, Datum, Dimension, DocEdit, DocParam, DocumentId, EvalOptions, Evaluation, Expr,
+    LoopProgram, Node, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, StepArg,
+    evaluate, persist,
 };
 use fixture::{ang, axis_in_plane, insert, len, scl, square, step};
 use geom_brep::RadiusEvidence;
@@ -71,6 +72,9 @@ fn tol() -> Tol {
 /// The declared radius every document below draws its circles at,
 /// meters (dyadic).
 const R: f64 = 1.0;
+/// The second declared radius — a hole's, and the peg the outer wall
+/// must NOT declare against (dyadic).
+const Q: f64 = 0.25;
 /// The extrusion half-height (dyadic).
 const H: f64 = 1.2;
 /// The spin that takes both seams off the pinch — the germ fixture's
@@ -635,6 +639,268 @@ fn the_extent_slots_reach_no_field() {
             );
         }
     }
+}
+
+/// A profile of `loops` on a frame at `z`, extruded — returns the doc,
+/// the profile node and the swept body node.
+fn extruded(
+    doc: ProfileDoc,
+    z: f64,
+    loops: Vec<LoopProgram>,
+) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(Datum::Frame {
+            origin: [len(0.0), len(0.0), len(z)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+    );
+    let (doc, profile) = insert(doc, Node::Profile(ProfileProgram { plane, loops }));
+    let (doc, body) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(2.0 * H),
+        },
+    );
+    (doc, profile, body)
+}
+
+/// A circle at the origin of the given radius expression.
+fn circle_loop(radius: Expr) -> LoopProgram {
+    LoopProgram::Circle {
+        centre: [len(0.0), len(0.0)],
+        radius,
+    }
+}
+
+/// Every cylindrical face of `body`, with the radius its carrier
+/// stores — the test's own way of asking WHICH wall it is holding. The
+/// claim under test is read through the evidence door below; this only
+/// picks the face.
+fn cylinder_walls(body: &Body<f64>) -> Vec<(FaceKey, f64)> {
+    topo::query::all_faces(body)
+        .into_iter()
+        .filter_map(|f| {
+            let s = body.get_surface(body.get_face(f)?.surface)?;
+            match s {
+                geom::Surface::Cylinder { radius, .. } => Some((f, *radius)),
+                _ => None,
+            }
+        })
+        .collect()
+}
+
+/// The evidence between two named cylinder faces.
+fn wall_evidence(a: &Body<f64>, fa: FaceKey, b: &Body<f64>, fb: FaceKey) -> RadiusEvidence {
+    topo::field_source_evidence(a, fa, b, fb, SurfaceField::CylinderRadius)
+}
+
+/// **A HOLED profile authored hole-first**: every loop's walls carry
+/// that loop's own radius, and the canonical→program anchor is what
+/// makes that true.
+///
+/// Canonicalization puts the OUTER loop first whatever the author
+/// wrote, so a profile authored `[hole, outer]` is a transposition:
+/// canonical loop 0 is program loop 1. The walls a sweep's record
+/// exports are indexed by CANONICAL loop; the expressions live at
+/// PROGRAM loops. Reading the program loops in canonical order — the
+/// one-line mistake available at this site — swaps the two radii here
+/// and stamps every outer wall with the hole's expression, which no
+/// single-loop row can see and which the germ would then read as a
+/// declaration between two bodies that share no parameter.
+///
+/// Two pegs make it visible through the evidence door alone: a
+/// single-circle extrude at `r` and another at `q`. The annulus's
+/// outer walls must declare against `r`'s peg and NOT against `q`'s,
+/// and its hole walls the other way round.
+#[test]
+fn each_loop_of_a_hole_first_profile_carries_its_own_radius() {
+    let doc = doc_with_r("seat7-hole-first");
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetDocParam {
+            name: ParamName::new("q"),
+            value: DocParam::continuous(Dimension::Length, Q),
+        },
+    );
+    // Hole first, deliberately.
+    let (doc, _, annulus) = extruded(
+        doc,
+        -H,
+        vec![circle_loop(param("q")), circle_loop(param("r"))],
+    );
+    let (doc, _, peg_r) = extruded(doc, 10.0, vec![circle_loop(param("r"))]);
+    let (doc, _, peg_q) = extruded(doc, 20.0, vec![circle_loop(param("q"))]);
+    let ev = eval::<f64>(&doc);
+    let bad = failures(&ev);
+    assert!(bad.is_empty(), "hole-first document:\n{}", bad.join("\n"));
+    let (annulus, peg_r, peg_q) = (
+        body_of(&ev, annulus),
+        body_of(&ev, peg_r),
+        body_of(&ev, peg_q),
+    );
+    let (face_r, _) = cylinder_walls(peg_r)[0];
+    let (face_q, _) = cylinder_walls(peg_q)[0];
+    let walls = cylinder_walls(annulus);
+    assert_eq!(walls.len(), 4, "two loops, two semicircular walls each");
+    for (wall, radius) in walls {
+        let ((same, same_face), (other, other_face), which) = if radius == R {
+            ((peg_r, face_r), (peg_q, face_q), "an outer")
+        } else {
+            assert_eq!(radius, Q, "a wall at neither declared radius");
+            ((peg_q, face_q), (peg_r, face_r), "a hole")
+        };
+        assert_eq!(
+            wall_evidence(annulus, wall, same, same_face),
+            RadiusEvidence::Declared,
+            "{which} wall must declare against the peg at its own parameter"
+        );
+        assert_eq!(
+            wall_evidence(annulus, wall, other, other_face),
+            RadiusEvidence::None,
+            "{which} wall declared against the OTHER parameter's peg"
+        );
+    }
+}
+
+/// **The other carrier loop form, at a subdivision the anchor cannot
+/// hide behind**: `circle_split` at n = 3 mints three walls, and all
+/// three carry the one expression the loop is drawn at — pairwise, and
+/// against a plain circle at the same parameter.
+///
+/// One radius per LOOP is the whole claim the per-edge source rests
+/// on, and a split is where it would break if a wall were addressed by
+/// anything finer than its loop.
+#[test]
+fn every_wall_of_a_split_carrier_carries_the_loops_one_radius() {
+    let doc = doc_with_r("seat7-split");
+    let (doc, _, split) = extruded(
+        doc,
+        -H,
+        vec![LoopProgram::CircleSplit {
+            centre: [len(0.0), len(0.0)],
+            radius: param("r"),
+            n: 3,
+            phase: ang(0.3),
+        }],
+    );
+    let (doc, _, plain) = extruded(doc, 10.0, vec![circle_loop(param("r"))]);
+    let ev = eval::<f64>(&doc);
+    let bad = failures(&ev);
+    assert!(bad.is_empty(), "split document:\n{}", bad.join("\n"));
+    let (split, plain) = (body_of(&ev, split), body_of(&ev, plain));
+    let walls = cylinder_walls(split);
+    assert_eq!(walls.len(), 3, "n = 3 mints three walls");
+    let (plain_face, _) = cylinder_walls(plain)[0];
+    for &(w, _) in &walls {
+        assert_eq!(
+            wall_evidence(split, w, plain, plain_face),
+            RadiusEvidence::Declared,
+            "a split wall must declare against the plain circle at the same parameter"
+        );
+        for &(w2, _) in &walls {
+            assert_eq!(
+                wall_evidence(split, w, split, w2),
+                RadiusEvidence::Declared,
+                "two walls of one loop must declare against each other"
+            );
+        }
+    }
+}
+
+/// One evaluation, optionally served from a prior one.
+fn memo_eval(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
+    evaluate::<f64>(
+        doc,
+        prior,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol(),
+    )
+}
+
+/// **The memo never serves a sweep a token the document no longer
+/// holds** — SEAT-6's stale-token row, for the source the OPERAND
+/// carries.
+///
+/// SEAT-6 closed this class for a verb's own slot, and the key feed
+/// for the profile's carrier radius (format v5) is the same fix at the
+/// node that HOLDS the expression. What pins it there today is a key
+/// INEQUALITY (`switch_program_key::resolved_values_feed_the_key`),
+/// which is a fact about a hash and not about a served body. This is
+/// the served-body row: A and B extrude circles at `r`, then A's
+/// profile radius is re-spelled as the literal of the same value. The
+/// geometry is bit-identical, so a key over resolved values alone
+/// would hand A's profile — and with it A's extrude — straight back
+/// out of the memo, carrying `r`'s token while the document says A is
+/// a literal. The evidence would read `Declared` between two walls
+/// that share no expression, and when `r` then moves, B re-runs at the
+/// new radius while A stays at the old one: two radii under one token.
+///
+/// The third step runs that move, so the row fails on the value as
+/// well as on the channel if the memo ever does serve the stale entry.
+#[test]
+fn the_memo_never_serves_a_stale_sweep_token() {
+    let doc = doc_with_r("seat7-memo");
+    let (doc, profile_a, a) = extruded(doc, -H, vec![circle_loop(param("r"))]);
+    let (doc, _, b) = extruded(doc, 10.0, vec![circle_loop(param("r"))]);
+    let ev1 = memo_eval(&doc, None);
+    assert!(failures(&ev1).is_empty(), "{:?}", failures(&ev1));
+    assert_eq!(
+        cyl_evidence(body_of(&ev1, a), body_of(&ev1, b)),
+        RadiusEvidence::Declared,
+        "two circles at one parameter declare"
+    );
+
+    // A's carrier radius becomes the LITERAL of the same value.
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetParam {
+            node: profile_a,
+            slot: SlotId::Profile {
+                loop_: 0,
+                step: 0,
+                arg: StepArg::Radius,
+            },
+            expr: len(R),
+        },
+    );
+    let ev2 = memo_eval(&doc, Some(&ev1));
+    assert!(failures(&ev2).is_empty(), "{:?}", failures(&ev2));
+    assert!(
+        ev2.reused > 0,
+        "B's half of the document is memo-served, or the row proves nothing about the memo"
+    );
+    assert_eq!(
+        cyl_evidence(body_of(&ev2, a), body_of(&ev2, b)),
+        RadiusEvidence::None,
+        "A is a literal in the document and B is `r`; a memo-served wall would still say `r`"
+    );
+
+    // Now move `r`. B re-runs at the new radius; A must not be left at
+    // the old one under a token that claims `r`.
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetDocParam {
+            name: ParamName::new("r"),
+            value: DocParam::continuous(Dimension::Length, 2.0 * R),
+        },
+    );
+    let ev3 = memo_eval(&doc, Some(&ev2));
+    assert!(failures(&ev3).is_empty(), "{:?}", failures(&ev3));
+    let (ba, bb) = (body_of(&ev3, a), body_of(&ev3, b));
+    let (ra, rb) = (cylinder_walls(ba)[0].1, cylinder_walls(bb)[0].1);
+    assert!(
+        (ra - rb).abs() > 1e-9,
+        "the fixture needs two radii after the move: {ra} vs {rb}"
+    );
+    assert_eq!(
+        cyl_evidence(ba, bb),
+        RadiusEvidence::None,
+        "radii {ra} vs {rb} under one token would be a document-reachable contradiction"
+    );
 }
 
 // ------------------------------------------------------------------

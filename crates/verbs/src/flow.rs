@@ -62,8 +62,12 @@ pub enum ScalarParam {
     ChamferDistance,
     /// [`Verb::Extrude`]'s `distance`.
     ExtrudeDistance,
-    /// [`Verb::Revolve`]'s angle — the scalar inside its
-    /// `Revolution`.
+    /// [`Verb::Revolve`]'s angle — the scalar a `Revolution::Partial`
+    /// carries. `Revolution::Full` carries none, and the name still
+    /// covers it: the flow is keyed on the parameter's NAME, and the
+    /// row this name owns is empty for either spelling (an angle is an
+    /// extent and reaches no stored field), so a full revolve has
+    /// nothing to declare rather than a row that does not apply.
     RevolveAngle,
 }
 
@@ -92,10 +96,14 @@ impl ScalarParam {
 /// place a stored field's value can come from.
 ///
 /// Closed, and one variant today because one is what the migrated
-/// vocabulary reaches: a profile edge's carrier radius. It is a
-/// property of the EDGE, not of the loop or the profile, which is why
-/// the flow can be honoured per minted wall — the wall swept from an
-/// edge stores that edge's radius and no other edge's.
+/// vocabulary reaches: a profile edge's carrier radius. The VALUE is
+/// per edge — the wall swept from an edge stores that edge's radius
+/// and no other edge's, which is what makes the flow honourable per
+/// minted wall — but the ADDRESS the document holds it at need not be
+/// that fine, and today it is not: a carrier loop is drawn at one
+/// radius, so every edge it replays to reads the same expression at
+/// one per-LOOP slot. A per-edge address is what a loop form with more
+/// than one radius would need, and no consumer has one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum EdgeScalar {
     /// The radius of a CIRCULAR profile edge — the arc's carrier
@@ -154,8 +162,11 @@ pub enum RoleFamily {
     /// The wall faces a sweep mints, per profile loop, per profile
     /// edge (`Extruded::side_faces`, `Revolved::walls`). The family
     /// whose rows are addressed BY THE OPERAND's entities rather than
-    /// by the verb's — which is what makes a per-edge source
-    /// honourable at all.
+    /// by the verb's — which is what lets an operand-carried source be
+    /// honoured at all. The record groups the rows by LOOP, and that
+    /// is the grouping the flow's consumer keys on, because the
+    /// address the document holds a carrier radius at is per loop
+    /// ([`EdgeScalar`]).
     SweptWalls,
 }
 

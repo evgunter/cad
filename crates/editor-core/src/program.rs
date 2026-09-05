@@ -673,6 +673,19 @@ impl LoopProgram {
     /// reads a chain's radii, so the map stays unbuilt rather than
     /// guessed at.
     ///
+    /// **The obligation that `None` carries.** The memo's guard on
+    /// this channel is scoped at the ATTACH, not at the key: the
+    /// content key writes a carrier radius's spelling whenever ANY
+    /// migrated verb declares the profile edge's radius into a field
+    /// (`param_source::operand_flow_bearing`), which is already true,
+    /// so it cannot notice that chain radii are un-attached. Widen
+    /// this door to answer per segment and the stale-token class
+    /// reopens silently for exactly those loops — a chain radius
+    /// re-spelled value-preservingly would be attached to a wall
+    /// while its key still says the value alone. So chain radii enter
+    /// the key in the same change that attaches them, and the feed at
+    /// `eval::content_key` carries the same sentence.
+    ///
     /// The address is the loop's `Radius` slot
     /// (`SlotId::Profile { loop_, step: 0, arg: StepArg::Radius }`);
     /// this hands back the expression that slot holds, which is what a

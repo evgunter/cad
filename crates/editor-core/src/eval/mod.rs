@@ -2813,6 +2813,37 @@ where
             // The rule is read off the declaration, never per node: the
             // moment no verb declares the profile edge's radius into a
             // field, nothing is written and the keys are the v4 ones.
+            //
+            // **How wide this is, stated rather than implied.** Three
+            // separate breadths, none of which moves a VALUE — keys are
+            // process-internal and never persisted (spec D3), so what
+            // widens here is memo hit rate and nothing else.
+            //
+            // 1. The predicate is GLOBAL. `operand_flow_bearing` asks
+            //    the whole vocabulary, not this document, so tag 45 is
+            //    written for every profile with a carrier loop in every
+            //    document — one that no sweep ever consumes included.
+            // 2. Keys FOLD upstream keys, so a carrier radius
+            //    re-spelled invalidates the whole downstream subtree,
+            //    not only its sweeps: a loft, a section or a boolean
+            //    over that profile re-runs too, and none of them
+            //    attaches anything.
+            // 3. The format-version bump moves every key in the
+            //    document, sweeps or not, once.
+            //
+            // A narrower guard is constructible — per document (does
+            // any node consume this profile through a sweep?) or per
+            // consumer (write the tag at the sweep instead of the
+            // profile) — and is not worth its cost. Per consumer is the
+            // one that would fix (2), and `content_key` has no document
+            // handle with which to reach a sweep's operand payload, so
+            // it means threading one through the whole key surface for
+            // a hit-rate gain on a re-spelling edit, which is rare by
+            // construction (a value-preserving edit is a deliberate
+            // rewrite, not a drag). Per document costs a reachability
+            // walk per profile node per key. Both trade a real
+            // invariant — the rule read off the declaration alone — for
+            // an unmeasured saving.
             if crate::param_source::operand_flow_bearing(verbs::FlowSource::ProfileEdge(
                 verbs::EdgeScalar::Radius,
             )) {
@@ -2825,6 +2856,15 @@ where
                         h.write_tag(45);
                         crate::param_source::feed_content_key(&mut h, expr);
                     }
+                    // A CHAIN loop answers `None` above and writes
+                    // nothing, which is correct exactly while nothing
+                    // attaches its per-segment arc radii either. The
+                    // guard cannot see the difference — the declaration
+                    // this feed reads is true of the profile edge's
+                    // radius already — so chain radii enter the key in
+                    // the same change that attaches them
+                    // (`LoopProgram::carrier_radius` carries the same
+                    // obligation at the door that would widen).
                 }
             }
         }

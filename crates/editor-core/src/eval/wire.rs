@@ -1221,7 +1221,7 @@ fn wire_swept<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane, A>(
         .map_err(verb_refused)?;
     // Eager N4 emission from the emitter's own maps, inside the reader,
     // BEFORE the structural handoff is taken apart.
-    let out = (verb.read)(id, record)?;
+    let out = (verb.read)(id, record, verb.foreign_record)?;
     let table = anchored(out.table, &vp.naming)?;
     let mut body = out.body;
     // The sweep's own surfaces, curves and points are minted HERE
@@ -1236,7 +1236,7 @@ fn wire_swept<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane, A>(
     // (every polygon) yields no token and attaches nothing, which is
     // the declaration being obeyed rather than a case skipped.
     let scope = crate::param_source::ParamScope::of(doc.id(), env.parts.chain());
-    let tokens = profile_radius_tokens(doc, profile, &vp.naming, scope);
+    let tokens = crate::param_source::profile_radius_tokens(doc, profile, &vp.naming, scope);
     crate::param_source::attach_swept(
         &mut body,
         flow,
@@ -1246,42 +1246,6 @@ fn wire_swept<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane, A>(
     )
     .map_err(NodeErrorKind::ParamSourceAttach)?;
     Ok(OpOut::plain(ValuePayload::Body(Arc::new(body)), table))
-}
-
-/// **Each canonical profile loop's carrier radius, lowered** — the
-/// per-edge flow source's expression side, indexed by CANONICAL loop so
-/// it lines up with the walls a sweep's record exports.
-///
-/// The anchor is what makes the two line up: a canonical loop names the
-/// PROGRAM loop it was canonicalized from (`LoopAnchor::program_loop`),
-/// and the program loop is where the authored expression lives. No
-/// segment address is needed — a carrier loop is drawn at ONE radius,
-/// so every wall swept from it carries that one expression.
-///
-/// `None` at a loop is an answer: a chain loop holds no single radius
-/// (`LoopProgram::carrier_radius` says why), and a node that is not a
-/// profile cannot be an operand here at all — the caller has already
-/// refused that typed.
-fn profile_radius_tokens(
-    doc: &crate::doc::Doc<ProfileProgram>,
-    profile: RecipeNodeId,
-    naming: &ProfileNaming,
-    scope: crate::param_source::ParamScope,
-) -> Vec<Option<topo::ParamSource>> {
-    let Some(Node::Profile(program)) = doc.node(profile) else {
-        return Vec::new();
-    };
-    naming
-        .loops
-        .iter()
-        .map(|anchor| {
-            program
-                .loops
-                .get(anchor.program_loop as usize)
-                .and_then(crate::program::LoopProgram::carrier_radius)
-                .map(|expr| crate::param_source::lower(scope, expr))
-        })
-        .collect()
 }
 
 /// **Extrudes a profile along its sketch normal** — the distance slot
@@ -1345,6 +1309,12 @@ fn wire_revolve<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     tol: Tol,
 ) -> OpResult<T> {
     let pv = value_of(results, profile)?;
+    // `wire_swept` re-checks this and refuses identically, so the only
+    // thing this pre-check decides is ORDER: a node whose profile input
+    // is not a profile AND whose axis is not an in-plane axis must
+    // refuse on the profile, because that is the operand the reader
+    // named first and re-authoring a wrong axis for a document whose
+    // profile was never one is a wasted edit.
     if !matches!(pv.payload, ValuePayload::Profile(_)) {
         return Err(NodeErrorKind::WrongOperand {
             input: profile,

@@ -39,6 +39,18 @@
 //! which is the wart SEAT-4 removed from the blends' correspondence.
 //! A future profile verb writes its own reader and never opens this
 //! file's siblings.
+//!
+//! The two readers below are NEAR-TWINS, and the third profile verb
+//! adds a third of the same shape: match this family's arm, call this
+//! family's emitter, destructure the bundle, export the walls, refuse
+//! every other arm by name. What differs is the last two steps only —
+//! `Extruded::side_faces` is already the per-loop wall list, while
+//! `Revolved::walls` is per canonical SEGMENT and optional. The shared
+//! part is not extractable while the record arm, the bundle type and
+//! the emitter are all per family: a generic body would take three
+//! function pointers and a match it cannot write, which is the
+//! vocabulary match again with extra steps. The join to make, if a
+//! third reader wants one, is on the WALL EXPORT alone.
 
 use std::sync::Arc;
 
@@ -70,10 +82,12 @@ pub(crate) struct SweptOut<T: Decide> {
     pub(crate) walls: Vec<Vec<FaceKey>>,
 }
 
-/// A profile verb's record reader: this node's id and the record the
-/// run door returned, in.
+/// A profile verb's record reader: this node's id, the record the run
+/// door returned, and the sentence a WRONG-FAMILY record is refused
+/// with (the correspondence's own `foreign_record`, threaded because
+/// the reader is where the family's arm is pulled out).
 pub(crate) type RecordReader<T> =
-    fn(RecipeNodeId, VerbRecord<T>) -> Result<SweptOut<T>, NodeErrorKind>;
+    fn(RecipeNodeId, VerbRecord<T>, &'static str) -> Result<SweptOut<T>, NodeErrorKind>;
 
 /// **One profile-operand verb's correspondence**, as data — everything
 /// the generic lowering needs once the node's own semantics have been
@@ -90,6 +104,13 @@ pub(crate) struct ProfileVerb<T: Decide, A> {
     /// This verb's record reader — its family's own arm of the closed
     /// channel, its emitter, and its wall export.
     pub(crate) read: RecordReader<T>,
+    /// What a WRONG-FAMILY record is called when this verb's result
+    /// arrives carrying another family's channel — the blends' and the
+    /// boolean's `foreign_record` field, same class and same home: a
+    /// kernel bug surfaced typed, unreachable while the doors and the
+    /// correspondences agree, with the sentence naming the door so the
+    /// refusal does too.
+    pub(crate) foreign_record: &'static str,
 }
 
 /// The extrude's kernel payload.
@@ -102,17 +123,9 @@ fn build_revolve<T: Decide>((axis, revolution): (RevolveAxis<T>, Revolution<T>))
     Verb::Revolve { axis, revolution }
 }
 
-/// What a WRONG-FAMILY record is called when an extrude's result
-/// arrives carrying another family's channel — the blends'
-/// `foreign_record` class exactly: a kernel bug surfaced typed,
-/// unreachable while the doors and the correspondences agree.
-const FOREIGN_EXTRUDE: &str = "the extrude returned a record that is not an extrude's";
-
-/// The revolve's twin of [`FOREIGN_EXTRUDE`].
-const FOREIGN_REVOLVE: &str = "the revolve returned a record that is not a revolve's";
-
 /// A wrong-family refusal, in the naming vocabulary the blends' and the
-/// boolean's use for the same class.
+/// boolean's use for the same class. The sentence is the
+/// correspondence's own ([`ProfileVerb::foreign_record`]).
 fn foreign(what: &'static str) -> NodeErrorKind {
     NodeErrorKind::Naming(names::NamingError::Emission { what })
 }
@@ -123,6 +136,7 @@ fn foreign(what: &'static str) -> NodeErrorKind {
 fn read_extrude<T: Decide>(
     id: RecipeNodeId,
     record: VerbRecord<T>,
+    foreign_record: &'static str,
 ) -> Result<SweptOut<T>, NodeErrorKind> {
     match record {
         VerbRecord::Extrude(built) => {
@@ -137,7 +151,7 @@ fn read_extrude<T: Decide>(
             })
         }
         VerbRecord::Blend(_) | VerbRecord::Boolean { .. } | VerbRecord::Revolve(_) => {
-            Err(foreign(FOREIGN_EXTRUDE))
+            Err(foreign(foreign_record))
         }
     }
 }
@@ -146,9 +160,20 @@ fn read_extrude<T: Decide>(
 /// OPTIONAL — an on-axis segment sweeps no wall at all — so the absent
 /// ones are dropped rather than represented: a flow attaches to faces,
 /// and a segment that minted none has none to attach to.
+///
+/// **The flatten DESTROYS the segment index**, and that is the door to
+/// widen the day a per-segment source is declared. Today every wall of
+/// a loop carries that loop's one radius, so which segment a wall came
+/// from is not a question the attach asks; a chain loop's per-step arc
+/// radii are per segment, and honouring them means keeping the
+/// `Option` positions here — an absent wall is a position, not a hole
+/// to close — so that a token list indexed by canonical segment lines
+/// up with them. `LoopProgram::carrier_radius` carries the rest of
+/// that obligation, the content key's half included.
 fn read_revolve<T: Decide>(
     id: RecipeNodeId,
     record: VerbRecord<T>,
+    foreign_record: &'static str,
 ) -> Result<SweptOut<T>, NodeErrorKind> {
     match record {
         VerbRecord::Revolve(built) => {
@@ -161,7 +186,7 @@ fn read_revolve<T: Decide>(
             Ok(SweptOut { body, table, walls })
         }
         VerbRecord::Blend(_) | VerbRecord::Boolean { .. } | VerbRecord::Extrude(_) => {
-            Err(foreign(FOREIGN_REVOLVE))
+            Err(foreign(foreign_record))
         }
     }
 }
@@ -175,6 +200,7 @@ pub(crate) fn extrude<T: Decide>() -> ProfileVerb<T, T> {
     ProfileVerb {
         build: build_extrude,
         read: read_extrude,
+        foreign_record: "the extrude returned a record that is not an extrude's",
     }
 }
 
@@ -183,6 +209,7 @@ pub(crate) fn revolve<T: Decide>() -> ProfileVerb<T, (RevolveAxis<T>, Revolution
     ProfileVerb {
         build: build_revolve,
         read: read_revolve,
+        foreign_record: "the revolve returned a record that is not a revolve's",
     }
 }
 
@@ -229,10 +256,11 @@ mod tests {
     #[test]
     fn each_reader_refuses_a_foreign_record() {
         let id = RecipeNodeId(1);
-        let Err(e) = read_extrude::<f64>(id, VerbRecord::Blend(None)) else {
+        let (ec, rc) = (extrude::<f64>(), revolve::<f64>());
+        let Err(e) = (ec.read)(id, VerbRecord::Blend(None), ec.foreign_record) else {
             panic!("the extrude's reader accepted a blend's record");
         };
-        let Err(r) = read_revolve::<f64>(id, VerbRecord::Blend(None)) else {
+        let Err(r) = (rc.read)(id, VerbRecord::Blend(None), rc.foreign_record) else {
             panic!("the revolve's reader accepted a blend's record");
         };
         let (e, r) = (format!("{e}"), format!("{r}"));

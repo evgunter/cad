@@ -359,7 +359,7 @@ but waits on a joint `[ev]` with SHELL over the doors' raw fit
 tolerance, SEAT-1's own residue. Difficulties logged pre-draw in the
 orchestrator's private state; the draw happens at SEAT-B2's close.
 
-## SEAT-7 DELIVERED (2026-09-05, PR PENDING)
+## SEAT-7 DELIVERED (2026-09-05, PR 1910)
 
 Extrude and revolve are on the substrate. `Verb<T>` gains
 `Extrude { distance }` and `Revolve { axis, revolution }` — kernel values
@@ -387,7 +387,7 @@ swept wall stores — a cylinder's `radius` for the extrusion, a torus's
 straight edge's cylinder radius is its distance from the axis, derived
 across three nodes, and the profile layer holds no slot for it; a chain
 loop's per-step arc radii would need the step→segment map that has no home
-(`work/issues/authored-step-to-canonical-segment-map-has-no-home.md`), so
+(`work/docm/authored-step-to-canonical-segment-map-has-no-home.md`), so
 the row is scoped to the carrier loop forms, where one radius is the whole
 loop's and the canonical→program anchor is all the address needed.
 

@@ -67,22 +67,35 @@
 //! # The memo
 //!
 //! A memo-served body carries the tokens it was minted with, so the
-//! token has to be part of what the content key certifies: a slot
-//! whose expression changed to another spelling of the SAME value
-//! would otherwise hit the memo and hand back a body whose field rows
-//! name an expression the document no longer holds. [`feed_content_key`]
-//! writes a flow-bearing slot's lowered expression into the key beside
-//! its value — only the slots whose declared flow reaches a stored
-//! field, because only those put an expression's identity into the
-//! value; every other slot reaches the value through its number alone.
+//! token has to be part of what the content key certifies: an
+//! expression that changed to another spelling of the SAME value would
+//! otherwise hit the memo and hand back a body whose field rows name
+//! an expression the document no longer holds. [`feed_content_key`]
+//! writes such an expression into the key beside its value — only the
+//! expressions whose declared flow reaches a stored field, because only
+//! those put an expression's identity into the value; every other one
+//! reaches the value through its number alone.
+//!
+//! **Which expressions those are is two questions, because a value has
+//! two places to come from.** A verb's own SLOT is one ([`flow_bearing`],
+//! read off that verb's declaration). The other is an expression the
+//! OPERAND holds and a downstream verb lands in a field it mints — a
+//! profile's carrier radius is nobody's slot, so no single verb's
+//! declaration answers for it and [`operand_flow_bearing`] asks the
+//! whole vocabulary instead.
 //!
 //! # The attach
 //!
-//! [`attach_blend`] walks the verb's DECLARED parameter→field flow
-//! (`verbs::ParamFlow`) and stamps the token on exactly the fields it
-//! names, found through the operation's own birth record. Nothing here
-//! knows what a fillet is: it knows a flow, a record, and the rule that
-//! a role family's carriers are the faces that family's rows name.
+//! One door per source kind, because what the consumer must lower
+//! differs per kind and nothing else does. [`attach_blend`] takes the
+//! ONE token a verb scalar is and stamps it on the fields the verb's
+//! own flow rows name; [`attach_swept`] takes one token per canonical
+//! profile loop and stamps each on the walls swept from that loop.
+//! Both walk the DECLARED parameter→field flow (`verbs::ParamFlow`)
+//! and find their carriers through the operation's own birth record.
+//! Nothing here knows what a fillet or an extrude is: each knows a
+//! flow, a record, and the rule that a role family's carriers are the
+//! faces that family's rows name.
 //!
 //! The kernel never mints, composes or interprets one of these — see
 //! `topo::param_source`.
@@ -253,11 +266,17 @@ pub(crate) fn feed_content_key(h: &mut KeyHasher, expr: &Expr) {
     h.write_bytes(&bytes);
 }
 
-/// **Whether a scalar parameter's expression reaches the value at all**
-/// — the rule for which slots [`feed_content_key`] applies to. A
-/// parameter whose declared flow names no field (the chamfer's setback)
-/// puts nothing but its number into the body, so its spelling is not
-/// an input to the value and re-spelling it is rightly a memo hit.
+/// **Whether a VERB SCALAR's expression reaches the value at all** —
+/// the rule for which of a verb node's own slots [`feed_content_key`]
+/// applies to. A parameter whose declared flow names no field (the
+/// chamfer's setback) puts nothing but its number into the body, so
+/// its spelling is not an input to the value and re-spelling it is
+/// rightly a memo hit.
+///
+/// This answers for slots a verb owns and for nothing else. An
+/// expression an OPERAND holds — a profile's carrier radius — is no
+/// verb's parameter and has no `ScalarParam` to ask about;
+/// [`operand_flow_bearing`] is that question.
 pub(crate) fn flow_bearing(param: ScalarParam) -> bool {
     param
         .verb()
@@ -430,12 +449,17 @@ pub(crate) fn attach_blend<T: Real>(
     let mut stamps: Vec<(topo::SurfaceKey, SurfaceField)> = Vec::new();
     for &role in row.fields {
         for face in family_faces(role.family(), rec) {
-            let Some(surface_key) = body.get_face(face).map(|f| f.surface) else {
-                continue;
-            };
-            let Some(carrier) = body.get_surface(surface_key) else {
-                continue;
-            };
+            // A face the record names, and its carrier, are the same
+            // invariant `set_surface_field_source` refuses a stale key
+            // for: the record was minted off THIS body a moment ago,
+            // so a lookup that misses is a broken record, not a case.
+            let surface_key = body
+                .get_face(face)
+                .map(|f| f.surface)
+                .ok_or(ParamAttachError::StaleKey)?;
+            let carrier = body
+                .get_surface(surface_key)
+                .ok_or(ParamAttachError::StaleKey)?;
             if let Some(field) = field_of(role, carrier) {
                 stamps.push((surface_key, field));
             }
@@ -445,6 +469,53 @@ pub(crate) fn attach_blend<T: Real>(
         body.set_surface_field_source(surface_key, field, token.clone())?;
     }
     Ok(())
+}
+
+/// **Each canonical profile loop's carrier radius, lowered** — the
+/// operand-carried flow source's expression side, indexed by CANONICAL
+/// loop so it lines up with the walls a sweep's record exports.
+///
+/// It sits here rather than in the lowering because it is one of the
+/// two expression-side halves this module owns: [`flow_bearing`] and
+/// [`attach_blend`] answer for a verb's own slot, this and
+/// [`attach_swept`] for an expression the OPERAND holds.
+///
+/// **The anchor is what makes the two line up, and it is the whole of
+/// the address.** A canonical loop names the PROGRAM loop it was
+/// canonicalized from (`LoopAnchor::program_loop`), and the program
+/// loop is where the authored expression lives — canonicalization
+/// reorders loops (the outer goes first, whatever the author wrote)
+/// and may reverse them, so reading `program.loops[i]` for canonical
+/// `i` would hand a holed profile its hole's radius. No segment
+/// address is needed beyond that: a carrier loop is drawn at ONE
+/// radius, so every wall swept from it carries that one expression.
+///
+/// `None` at a loop is an answer: a chain loop holds no single radius
+/// ([`LoopProgram::carrier_radius`](crate::program::LoopProgram::carrier_radius)
+/// says why). The empty vector for a node that is not a profile is
+/// unreachable — the caller has already refused a non-profile operand
+/// typed — and is the shape a `Vec` return has for a case that cannot
+/// arise.
+pub(crate) fn profile_radius_tokens(
+    doc: &crate::doc::Doc<crate::program::ProfileProgram>,
+    profile: crate::node::RecipeNodeId,
+    naming: &crate::eval::ProfileNaming,
+    scope: ParamScope,
+) -> Vec<Option<ParamSource>> {
+    let Some(crate::node::Node::Profile(program)) = doc.node(profile) else {
+        return Vec::new();
+    };
+    naming
+        .loops
+        .iter()
+        .map(|anchor| {
+            program
+                .loops
+                .get(anchor.program_loop as usize)
+                .and_then(crate::program::LoopProgram::carrier_radius)
+                .map(|expr| lower(scope, expr))
+        })
+        .collect()
 }
 
 /// **Attach-at-mint for a per-edge flow source**: stamp each profile
@@ -501,12 +572,17 @@ pub(crate) fn attach_swept<T: Real>(
                 continue;
             };
             for &face in faces {
-                let Some(surface_key) = body.get_face(face).map(|f| f.surface) else {
-                    continue;
-                };
-                let Some(carrier) = body.get_surface(surface_key) else {
-                    continue;
-                };
+                // Loud for the reason the doc gives: the walls came out
+                // of this run's own record, so a face key that does not
+                // resolve — or a carrier that does not — is the broken
+                // invariant, not a wall to skip.
+                let surface_key = body
+                    .get_face(face)
+                    .map(|f| f.surface)
+                    .ok_or(ParamAttachError::StaleKey)?;
+                let carrier = body
+                    .get_surface(surface_key)
+                    .ok_or(ParamAttachError::StaleKey)?;
                 if let Some(field) = field_of(role, carrier) {
                     stamps.push((surface_key, field, token.clone()));
                 }

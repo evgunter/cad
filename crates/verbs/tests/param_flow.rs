@@ -34,16 +34,15 @@
 
 use std::collections::BTreeSet;
 
-use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
-use profile::{Profile, SketchPlane, ValidatedProfile};
+use geom_core::{Affine3, Vec3};
+use sweep::Revolution;
 use sweep::blend::naming::BlendNaming;
-use sweep::{Revolution, RevolveAxis};
 use topo::{Body, BooleanDeclarations, BooleanOp, SweepStrategy};
-use verbs::{EdgeScalar, FlowSource, PairOut, RoleFamily, ScalarParam, Verb, VerbKind, VerbRecord};
+use verbs::{
+    Arity, EdgeScalar, FlowSource, PairOut, RoleFamily, ScalarParam, Verb, VerbKind, VerbRecord,
+};
 
-fn tol() -> Tol {
-    Tol::witness()
-}
+use crate::fixture::{disc, offset_disc, tol, x_axis};
 
 /// Every scalar parameter in the vocabulary is named by exactly one
 /// flow row, on the verb it belongs to.
@@ -267,33 +266,34 @@ fn the_booleans_flow_is_empty_beside_a_real_record() {
     }
 }
 
-/// A disc of radius `r` on the sketch xy plane, centred at the
-/// origin — the extrude fixture, and the shape whose walls carry the
-/// declared radius.
-fn disc(r: f64) -> ValidatedProfile<f64> {
-    let lp = profile::circle(Point2::new(0.0, 0.0), r, tol()).expect("a circle of positive radius");
-    Profile::new(SketchPlane::xy(), vec![lp.into()])
-        .validate(tol())
-        .expect("a circle is a valid profile")
-}
-
-/// A disc of radius `r` centred at `(0, −d)` — the revolve fixture,
-/// clear of the x axis it is spun about, so its walls are tori. The
-/// sign is the door's own half-plane convention: the signed radial
-/// coordinate about `(origin, dir)` is `(p − origin).perp_dot(dir)`,
-/// which for the +x axis is `−y`, so the profile lives at negative y.
-fn offset_disc(r: f64, d: f64) -> ValidatedProfile<f64> {
-    let lp = profile::circle(Point2::new(0.0, -d), r, tol()).expect("a circle of positive radius");
-    Profile::new(SketchPlane::xy(), vec![lp.into()])
-        .validate(tol())
-        .expect("a circle is a valid profile")
-}
-
-/// The x axis, in sketch coordinates.
-fn x_axis() -> RevolveAxis<f64> {
-    RevolveAxis {
-        origin: Point2::new(0.0, 0.0),
-        dir: Vec2::new(1.0, 0.0),
+/// **A profile-edge source may be declared only by a verb whose
+/// operand IS a profile.**
+///
+/// Nothing in the types stops a one-body verb from writing a
+/// `FlowSource::ProfileEdge` row, and the consequence would be silent
+/// rather than typed: the row would attach nothing — a blend's record
+/// has no swept walls, and `attach_swept` is reached only from the
+/// profile lowering — while still flipping the GLOBAL predicate
+/// `editor-core` reads to decide whether a carrier radius's spelling
+/// enters a profile node's content key. Every profile in every
+/// document would key differently for a row that reaches no field
+/// anywhere. So the census is the guard: the source kind names the
+/// operand, and the operand is the arity.
+#[test]
+fn only_profile_operand_verbs_declare_a_profile_edge_source() {
+    for kind in VerbKind::ALL {
+        for flow in kind.param_flow() {
+            let FlowSource::ProfileEdge(scalar) = flow.source else {
+                continue;
+            };
+            assert_eq!(
+                kind.arity(),
+                Arity::Profile,
+                "{kind:?} declares the operand-carried {scalar:?} but its operand is \
+                 {:?}, so nothing would ever attach it — and the key feed would widen anyway",
+                kind.arity()
+            );
+        }
     }
 }
 

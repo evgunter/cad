@@ -16,16 +16,13 @@
 
 use std::fmt::Write as _;
 
-use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
-use profile::{Profile, SketchPlane, ValidatedProfile};
+use geom_core::{Affine3, Vec3};
 use sweep::blend::build::{chamfer_edges, fillet_edges};
-use sweep::{Extrusion, Revolution, RevolveAxis};
+use sweep::{Extrusion, Revolution};
 use topo::{Body, BooleanDeclarations, BooleanOp, BooleanResult, SweepStrategy, boolean_op_with};
 use verbs::{Arity, PairOut, Verb, VerbError, VerbKind, VerbRecord};
 
-fn tol() -> Tol {
-    Tol::witness()
-}
+use crate::fixture::{disc, offset_disc, tol, x_axis};
 
 /// Every vertex point's BITS, plus the entity census — enough that a
 /// carve differing anywhere in position or structure differs here.
@@ -316,21 +313,35 @@ fn each_door_refuses_the_undeclared_arity() {
     }
 }
 
-/// A disc of radius `r` on the sketch xy plane — the profile door's
-/// operand.
-fn disc(r: f64) -> ValidatedProfile<f64> {
-    let lp = profile::circle(Point2::new(0.0, 0.0), r, tol()).unwrap();
-    Profile::new(SketchPlane::xy(), vec![lp.into()])
-        .validate(tol())
-        .unwrap()
-}
-
-/// The x axis, in sketch coordinates.
-fn x_axis() -> RevolveAxis<f64> {
-    RevolveAxis {
-        origin: Point2::new(0.0, 0.0),
-        dir: Vec2::new(1.0, 0.0),
+/// **The arity refusal's sentence, pinned.**
+///
+/// It is the one refusal string this door owns rather than forwards,
+/// and it reads the verb's DECLARED operand out of `VerbKind::arity`
+/// while naming the door it was handed to — so a shape added to
+/// `Arity` changes what it says without any match to visit. That is
+/// worth having and worth pinning: the sentence is what a direct
+/// caller who picked the wrong door gets, and nothing else asserts a
+/// word of it.
+#[test]
+fn the_arity_refusal_names_the_declared_operand_and_the_door() {
+    let err = Verb::Fillet {
+        edges: Vec::new(),
+        radius: 0.1_f64,
     }
+    .run_profile(&disc(0.5), tol())
+    .expect_err("a fillet is not a profile verb");
+    assert_eq!(
+        err.to_string(),
+        "the Fillet verb declares a One operand and was run through the Profile door"
+    );
+
+    let err = Verb::Extrude { distance: 1.0_f64 }
+        .run(&sweep::test_support::cube(1.0, tol()), tol())
+        .expect_err("an extrude is not a one-body verb");
+    assert_eq!(
+        err.to_string(),
+        "the Extrude verb declares a Profile operand and was run through the One door"
+    );
 }
 
 #[test]
@@ -356,16 +367,15 @@ fn the_extrude_dispatch_is_the_extrude_door() {
         format!("{:?}", door.strut_edges),
         format!("{:?}", via.strut_edges)
     );
+    assert_eq!(format!("{:?}", door.solid), format!("{:?}", via.solid));
+    assert_eq!(format!("{:?}", door.shell), format!("{:?}", via.shell));
 }
 
 #[test]
 fn the_revolve_dispatch_is_the_revolve_door() {
     // Negative y: the door's half-plane about the +x axis is
     // `(p − origin).perp_dot(dir) ≥ 0`, which is `−y`.
-    let lp = profile::circle(Point2::new(0.0, -1.0), 0.25, tol()).unwrap();
-    let profile = Profile::new(SketchPlane::xy(), vec![lp.into()])
-        .validate(tol())
-        .unwrap();
+    let profile = offset_disc(0.25, 1.0);
     let door = sweep::revolve(&profile, x_axis(), Revolution::Full, tol()).unwrap();
     let via = Verb::Revolve {
         axis: x_axis(),
@@ -386,6 +396,12 @@ fn the_revolve_dispatch_is_the_revolve_door() {
     assert_eq!(format!("{:?}", door.rims), format!("{:?}", via.rims));
     assert_eq!(format!("{:?}", door.poles), format!("{:?}", via.poles));
     assert_eq!(format!("{:?}", door.kind), format!("{:?}", via.kind));
+    assert_eq!(format!("{:?}", door.solid), format!("{:?}", via.solid));
+    assert_eq!(format!("{:?}", door.shell), format!("{:?}", via.shell));
+    assert_eq!(
+        format!("{:?}", door.cavities),
+        format!("{:?}", via.cavities)
+    );
 }
 
 /// **A sweep refusal crosses unaltered**, both doors. The fixtures are
@@ -405,10 +421,7 @@ fn a_sweep_refusal_crosses_the_dispatch_unaltered() {
     assert_eq!(format!("{door:?}"), format!("{carried:?}"));
     assert_eq!(door.to_string(), carried.to_string());
 
-    let lp = profile::circle(Point2::new(0.0, -1.0), 0.25, tol()).unwrap();
-    let off = Profile::new(SketchPlane::xy(), vec![lp.into()])
-        .validate(tol())
-        .unwrap();
+    let off = offset_disc(0.25, 1.0);
     let door = sweep::revolve(&off, x_axis(), Revolution::Partial(0.0), tol()).unwrap_err();
     let via = Verb::Revolve {
         axis: x_axis(),
