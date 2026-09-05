@@ -10,6 +10,7 @@ tag: (S-CERT orchestrator)
 ab_band: 700-799
 paths: [crates/geom-brep/src/props/*, crates/geom-brep/src/offset_fit.rs, crates/geom-brep/src/patch_bound.rs, crates/geom-core/src/*, crates/geom/src/*, crates/bvh/src/*]
 keep_out: [the bvh interval lift is M10's (f64 box quality only here), dual.rs and the AtRestPolicy seam and product.rs Dual arms are M10's, props/quad.rs consolidation (C3 and D30) is Track R's, ssi* and pcurve_cache are Track Q ground behind PCURVE P-2, PR 883 (lane H-g) stays parked as lane H-f and is not this program's to unpark]
+needs_ev: true
 ---
 
 Certified enclosures that are wrong-but-green or uselessly wide: the sphere
