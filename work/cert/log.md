@@ -1295,3 +1295,16 @@ contract, `[ev]` PR 1878; the lane-keeping at-rest doors' default name,
 `work/cert/lane-keeping-at-rest-doors-skip-the-m7-8-class.md`). Next:
 the exit walk (`docs/S-CERT-EXIT-WALK.md`, PROPOSED for Ev) with the
 blinded tally adjudication queued at it.
+
+## Exit walk PROPOSED (2026-09-05)
+
+Both absorbed tracks done — CERT-M3 (#1877, ordinal 713, sample #133) and
+CERT-N3 (#1879, ordinal 714, sample #134) merged; Track N empty, Track M a
+schedule of three questions for Ev. `docs/S-CERT-EXIT-WALK.md` PROPOSED on
+an `[ev]` PR: eleven criteria walked verbatim against main 37eaf5b9b (nine
+MET / MET-WITH-RECORDED-HONESTY on delivered code, row 10 on the tracker's
+items, row 11 on the merge record); the A/B record 700–714; the v6 tally
+candidates queued for the blinded coding; the residue's proposed homes for
+the closing sweep. Merging the walk ratifies it (Ev's S-MATE convention);
+the sweep then re-homes the residue, deletes this directory and ledgers the
+deletion. `needs_ev` set on the program item.
