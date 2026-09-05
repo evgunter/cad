@@ -247,12 +247,12 @@ DocEdit.set_placement(solid, (0 * m, 0 * m, 1 * m))  # ty: error
 # not a root list.
 DocEdit.set_roots(solid)  # ty: error
 
-# A mate's references are stable NAME TEXT, the alphabet
-# `Evaluation.select` answers in — never node ids, which name a
-# recipe step and not an entity of its product.
+# A mate's reference is a node AND a name: the node it is read at, then
+# the stable NAME TEXT `Evaluation.select` answers in. A node id where
+# the name goes names a recipe step and not an entity of its product.
 seat = MateFrame((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0))
 meeting = Alignment(seat, seat, MatePrimitive.frame_coincidence(), AxisSense.Aligned)
-Node.mate(solid, solid, ContactClass.Rest, meeting)  # ty: error
+Node.mate(solid, solid, solid, solid, ContactClass.Rest, meeting)  # ty: error
 
 # A mate frame's origin is three LENGTHS and its axis three plain
 # numbers: a direction carries no dimension, and swapping the two is

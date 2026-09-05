@@ -152,7 +152,7 @@ pub use names::{
 };
 pub use node::{
     Axis3, BooleanOp, Datum, InputFault, InterfaceCrossing, InterfaceRecord, MeasureNodeFault,
-    MeasureRef, Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, SlotId, StepArg,
+    Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, SitedRef, SlotId, StepArg,
     TubeWindow, VectorSlot,
 };
 pub use parse::{ParseError, parse_expr};

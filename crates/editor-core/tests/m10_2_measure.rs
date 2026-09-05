@@ -18,9 +18,9 @@ use editor_core::UnitSym;
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Datum, Dimension, DocEdit, DocParam,
     DocParamValue, DocumentId, EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr,
-    MeasurePrimitive, MeasureRef, Node, NodeErrorKind, NodeResult, ParamName, ProfileDoc,
-    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SlotId, StableName, ValuePayload,
-    apply, evaluate,
+    MeasurePrimitive, Node, NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram,
+    ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, SlotId, StableName, ValuePayload, apply,
+    evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -161,7 +161,7 @@ fn faces_of_kind(
     ev: &Evaluation<f64>,
     body: RecipeNodeId,
     kind: geom_brep::SurfaceKind,
-) -> Vec<MeasureRef> {
+) -> Vec<SitedRef> {
     use editor_core::{EntityKind, GeomPred, NamePat, Selector, SurfaceKindSet, select_where};
     let mut faces = select_where(
         ev,
@@ -178,7 +178,7 @@ fn faces_of_kind(
     // geometry.
     faces
         .into_iter()
-        .map(|name| MeasureRef::new(body, name))
+        .map(|name| SitedRef::new(body, name))
         .collect()
 }
 
@@ -194,7 +194,7 @@ fn no_params() -> editor_core::ParamEnv<f64> {
 /// carrier (the disc lowers to two half-circle arcs), and the closed
 /// form reads the carrier — so either face answers for the hole, and
 /// the first in canonical order is taken.
-fn hole_walls(ev: &Evaluation<f64>, holes: [RecipeNodeId; 2]) -> Vec<MeasureRef> {
+fn hole_walls(ev: &Evaluation<f64>, holes: [RecipeNodeId; 2]) -> Vec<SitedRef> {
     holes
         .into_iter()
         .map(|hole| {
@@ -260,17 +260,17 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 }
 
 /// A named cap of a prism, read at the node that owns it.
-fn cap(ev: &Evaluation<f64>, node: RecipeNodeId, end: editor_core::CapEnd) -> MeasureRef {
+fn cap(ev: &Evaluation<f64>, node: RecipeNodeId, end: editor_core::CapEnd) -> SitedRef {
     use editor_core::{EntityKind, NamePat, SegPat, SegTag, Selector, select};
     let sel =
         Selector::of(NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end)));
     let mut found = select(ev, node, &sel);
     assert_eq!(found.len(), 1, "one {end:?} cap on node {node:?}");
-    MeasureRef::new(node, found.remove(0))
+    SitedRef::new(node, found.remove(0))
 }
 
 /// One cylindrical wall of a circular extrude, read at that extrude.
-fn hole_wall_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> MeasureRef {
+fn hole_wall_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> SitedRef {
     let mut walls = faces_of_kind(ev, node, geom_brep::SurfaceKind::Cylinder);
     assert!(!walls.is_empty(), "node {node:?} has a cylindrical wall");
     walls.remove(0)
@@ -556,7 +556,7 @@ fn plane_angle_between_opposed_caps_is_pi() {
     // The caps are the two faces whose chart normals are +/-z; the
     // side walls are the rest. Picked by NAME (the cap role), not by
     // measuring, so the oracle stays independent of the arm.
-    let caps: Vec<MeasureRef> = {
+    let caps: Vec<SitedRef> = {
         use editor_core::{CapEnd, EntityKind, NamePat, SegPat, SegTag, Selector, select};
         let pick = |end| {
             let sel = Selector::of(
@@ -564,7 +564,7 @@ fn plane_angle_between_opposed_caps_is_pi() {
             );
             let mut found = select(&ev, body, &sel);
             assert_eq!(found.len(), 1, "one {end:?} cap");
-            MeasureRef::new(body, found.remove(0))
+            SitedRef::new(body, found.remove(0))
         };
         vec![pick(CapEnd::End), pick(CapEnd::Start)]
     };
@@ -636,7 +636,7 @@ fn a_plane_gap_over_an_aligned_pair_negates_under_a_role_swap() {
     let top_of_lower = cap(&ev, lower, editor_core::CapEnd::End);
     let top_of_upper = cap(&ev, upper, editor_core::CapEnd::End);
 
-    let read = |o: MeasureRef, i: MeasureRef| {
+    let read = |o: SitedRef, i: SitedRef| {
         let doc = push(
             &doc,
             &DocEdit::InsertNode {
@@ -911,8 +911,8 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
             node: Node::measure(
                 MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
                 vec![
-                    MeasureRef::new(solid, vname.clone()),
-                    MeasureRef::new(placed, vname),
+                    SitedRef::new(solid, vname.clone()),
+                    SitedRef::new(placed, vname),
                 ],
             )
             .expect("indices in range"),
@@ -978,7 +978,7 @@ fn a_reference_that_stops_resolving_refuses_typed() {
     let mut walls = hole_walls(&eval(&doc), holes);
     // A FACE name at the body role: well-formed, minted by a live
     // node, and carried by no table — the `Vanished` rung.
-    walls[1] = MeasureRef::new(
+    walls[1] = SitedRef::new(
         holes[1],
         StableName {
             kind: EntityKind::Face,
@@ -1039,11 +1039,10 @@ fn an_unsupported_carrier_pair_refuses_naming_the_pair() {
     use editor_core::{EntityKind, NamePat, Selector, select};
     let (doc, body, _) = plate();
     let ev = eval(&doc);
-    let whole: Vec<MeasureRef> =
-        select(&ev, body, &Selector::of(NamePat::of_kind(EntityKind::Body)))
-            .into_iter()
-            .map(|name| MeasureRef::new(body, name))
-            .collect();
+    let whole: Vec<SitedRef> = select(&ev, body, &Selector::of(NamePat::of_kind(EntityKind::Body)))
+        .into_iter()
+        .map(|name| SitedRef::new(body, name))
+        .collect();
     assert_eq!(whole.len(), 1, "one output body");
     let doc = push(
         &doc,
@@ -1104,11 +1103,10 @@ fn an_assertion_over_a_failed_measure_is_poisoned() {
     use editor_core::{EntityKind, NamePat, Selector, select};
     let (doc, body, _) = plate();
     let ev = eval(&doc);
-    let whole: Vec<MeasureRef> =
-        select(&ev, body, &Selector::of(NamePat::of_kind(EntityKind::Body)))
-            .into_iter()
-            .map(|name| MeasureRef::new(body, name))
-            .collect();
+    let whole: Vec<SitedRef> = select(&ev, body, &Selector::of(NamePat::of_kind(EntityKind::Body)))
+        .into_iter()
+        .map(|name| SitedRef::new(body, name))
+        .collect();
     let doc = push(
         &doc,
         &DocEdit::InsertNode {

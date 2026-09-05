@@ -865,7 +865,7 @@ fn wire_datum<T: Decide>(
             origin: need_point3(vals, SlotId::Origin)?,
             dir: datum_unit(
                 need_vec3(vals, SlotId::Direction)?,
-                "datum axis direction",
+                DATUM_AXIS_ROLE,
                 band(tol)?,
             )?,
         },
@@ -920,7 +920,7 @@ fn wire_datum<T: Decide>(
                 // authored pair is, which is why the sketch direction
                 // above can go to the kernel unnormalized and still get
                 // the same refusal a 3-D axis would.
-                dir: datum_unit(lift(plane_dir), "datum axis direction", band(tol)?)?,
+                dir: datum_unit(lift(plane_dir), DATUM_AXIS_ROLE, band(tol)?)?,
             }
         }
         // **The frame read off a face** (DM1). Its value is exactly an
@@ -1967,7 +1967,7 @@ impl<T: Decide> Selected<'_, T> {
 /// # Where a reference resolves
 ///
 /// At the node the reference NAMES AS ITS READING SITE
-/// ([`crate::MeasureRef::at`]), which is what makes the answer the
+/// ([`crate::SitedRef::at`]), which is what makes the answer the
 /// PLACED carrier rather than the authored one — a transform is
 /// identity-preserving, so the minting node's value still holds the
 /// unmoved geometry. `at` is a DAG edge ([`Node::inputs`]), so it has
@@ -1989,7 +1989,7 @@ impl<T: Decide> Selected<'_, T> {
 fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
     node: &Node<ProfileProgram>,
     expr: &crate::measure::MeasureExpr,
-    refs: &[crate::node::MeasureRef],
+    refs: &[crate::node::SitedRef],
     leaves: Option<&[T]>,
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
@@ -2913,6 +2913,44 @@ fn resolve_declarations(
     Ok(out)
 }
 
+/// The role word a transform's rotation axis is normalized under —
+/// one spelling, so the evaluation and the mate solve name the same
+/// vector in the same refusal and the K census sees one predicate
+/// role rather than two.
+pub(crate) const TRANSFORM_AXIS_ROLE: &str = "transform rotation axis";
+
+/// The role word a stepped rule's LINEAR direction is normalized
+/// under, for the same reason and with the same two callers: the
+/// evaluation's own rule ([`stepped_map`]) and the mate solve's
+/// re-derivation of it from the recipe.
+pub(crate) const PATTERN_DIRECTION_ROLE: &str = "pattern direction";
+
+/// The role word a DATUM AXIS's direction is normalized under. Three
+/// callers, and they do not all take the same road — the evaluation
+/// decides it under `datum_unit`, the mate solve under
+/// `eval_direction_norm` — so the constant is what keeps the ROLE one
+/// word wherever the refusal comes from (issue 1570 is where the two
+/// roads meeting is homed).
+pub(crate) const DATUM_AXIS_ROLE: &str = "datum axis direction";
+
+/// **The rigid map a [`crate::node::Node::Transform`] applies** — the
+/// one home of that construction, read by the evaluation and by the
+/// mate solve's derived offset, so a transform under a mate and a
+/// transform under the gather move a body by the same arithmetic.
+///
+/// PR 1's die convention: rotate about the axis THROUGH THE WORLD
+/// ORIGIN by `angle`, then translate. `axis` is already unit — the
+/// callers normalize it through [`unit()`] under
+/// [`TRANSFORM_AXIS_ROLE`], where the degenerate and non-finite cases
+/// refuse.
+pub(crate) fn transform_map<T: Decide>(
+    translation: Vec3<T>,
+    axis: Vec3<T>,
+    angle: T,
+) -> Affine3<T> {
+    Affine3::from_parts(Mat3::rotation_about(axis, angle), translation)
+}
+
 fn wire_transform<T: Decide + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     input: RecipeNodeId,
@@ -2924,13 +2962,11 @@ fn wire_transform<T: Decide + geom_brep::PcurveFittedLane>(
     let translation = need_vec3(vals, SlotId::Translation)?;
     let rot_axis = unit(
         need_vec3(vals, SlotId::RotationAxis)?,
-        "transform rotation axis",
+        TRANSFORM_AXIS_ROLE,
         band(tol)?,
     )?;
     let angle = need_scalar(vals, SlotId::RotationAngle)?;
-    // PR 1's die convention: rotate about the axis THROUGH THE WORLD
-    // ORIGIN by `angle`, then translate.
-    let map = Affine3::from_parts(Mat3::rotation_about(rot_axis, angle), translation);
+    let map = transform_map(translation, rot_axis, angle);
     let mut placed = transform_rigid(&body, &map, tol).map_err(NodeErrorKind::Transform)?;
     // N6 composition: `transform_rigid` cleared the source records
     // (its geometric rewrite invalidates the bit-identity claim); the
@@ -3014,7 +3050,7 @@ fn stepped_map<T: Decide>(
         PatternKind::Linear { .. } => SteppedOperands::Linear {
             direction: unit(
                 need_vec3(vals, SlotId::Direction)?,
-                "pattern direction",
+                PATTERN_DIRECTION_ROLE,
                 band(tol)?,
             )?,
             spacing: need_scalar(vals, SlotId::Spacing)?,
