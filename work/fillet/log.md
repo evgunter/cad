@@ -723,3 +723,11 @@ a move: the two open bands leave `surgery.rs` behind the compound-bound
 entry re-scoped, `--color-moved` clean, bit-identical by the dump) and
 dispatches into block B3 slot 1 (FABLE) now that nothing contends the
 file.
+
+**The `anchor_span` roster, tidied (2026-09-05, orchestrator-direct).**
+ATTR's presentation sort key reached main unrostered; TOPO and H7's fix
+pass each added a roster line in parallel and `bounds_census` accepted
+both (MSOLVE's lane filed it in `work/issues/`). One PR: the `Payload`
+row stands (the door's own argument), the `HandedOff` twin goes, and the
+census gains `the_roster_names_each_door_once`. Closes the two fillet
+items and the `work/issues/` item.
