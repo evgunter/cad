@@ -1000,14 +1000,18 @@ fn intersecting_cylinder_axes<T: Decide>(
         // Refusals that cannot come out of a cylinder pair this
         // dispatch admitted: the kinds were matched above, the
         // coaxial-equal-radius pose was refused at the parallelism
-        // gate, and no coaxiality, torus or conic-carrier question is
-        // asked of two cylinders with meeting axes.
+        // gate, no coaxiality, torus or conic-carrier question is
+        // asked of two cylinders with meeting axes, and no arm this
+        // pair reaches states a locus off the extent it was handed
+        // (the cylinder pair's ellipses stand on the operands
+        // themselves).
         Err(
             geom_brep::SectionError::WrongLane { .. }
             | geom_brep::SectionError::CoaxialDeclarationContradicted
             | geom_brep::SectionError::DegenerateOperand { .. }
             | geom_brep::SectionError::CoincidentSurfaces
             | geom_brep::SectionError::DegenerateTorus
+            | geom_brep::SectionError::BeyondOperandExtent { .. }
             | geom_brep::SectionError::Carrier(_),
         ) => FrameError::Desync(
             "the declared equal-radius cylinder section refused at the germ pair \
