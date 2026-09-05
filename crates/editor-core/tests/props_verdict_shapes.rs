@@ -22,6 +22,12 @@
 //!    signs at one node. Every site's sign changed, and the populations
 //!    still net to nothing — the blind spot `vdiff`'s module docs
 //!    document, here as a row rather than a sentence.
+//!
+//! A third row is the positive control the other two are read against:
+//! one predicate really changes sign, the engine names exactly one
+//! flip, and the key moves too. Silence in rows 1 and 2 is evidence
+//! about the population form only because this row shows the engine is
+//! not silent on the same fixture.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
@@ -36,8 +42,9 @@ use fixture::on_frame;
 use geom_core::k_stats::Verdict;
 use geom_core::{Sign, Tol};
 
-/// A one-node document, evaluated at f64. The geometry is irrelevant —
-/// what the rows need is a node with a value whose log they can set.
+/// A frame and a profile drawn on it (two nodes), evaluated at f64.
+/// The geometry is irrelevant — what the rows need is one node with a
+/// value whose log they can set.
 fn run() -> (Evaluation<f64>, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("props_verdict_shapes", Tol::witness());
     let (doc, profile) = on_frame(
@@ -102,6 +109,26 @@ fn permuted_log_names_no_flip_and_moves_the_vector_key() {
         ],
     );
     assert_silent_engine_moved_key(&a, &b);
+}
+
+/// The positive control: a real sign change is NAMED, and moves the key
+/// as well. Both forms answer; they differ only where rows 1 and 2 put
+/// them.
+#[test]
+fn a_real_sign_change_is_named_and_moves_the_vector_key() {
+    let (a, b) = pair(
+        vec![v("side_of", Sign::Negative)],
+        vec![v("side_of", Sign::Positive)],
+    );
+    let flips = diff_verdicts(&a, &b).report();
+    assert_eq!(flips.len(), 1, "one flip: {flips:?}");
+    let (_, flip) = flips[0];
+    assert_eq!(flip.predicate, "side_of");
+    assert_eq!(
+        (flip.from, flip.to, flip.count),
+        (Sign::Negative, Sign::Positive, 1)
+    );
+    assert_ne!(VerdictVector::of(&a).key(), VerdictVector::of(&b).key());
 }
 
 /// Row 2: two instances of one predicate exchange signs. Every site

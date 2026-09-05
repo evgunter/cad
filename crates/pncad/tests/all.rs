@@ -3110,12 +3110,9 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   hold: the flip evidence a refusal carries (read through the
 ///   refusal's own `Display`), the two scalar CAPABILITY seams and
 ///   their env plumbing, and `sensitivities` — the intermediate whose
-///   answer `stackup` already carries. The verdict-vector vocabulary
-///   (`VerdictVector`, `VerdictRow`, `VerdictVectorKey`) is interior
-///   too and is listed with the instrumentation family above, which is
-///   where it lives now: it is the STRICT form of the verdict diff,
-///   beside the population form, and a certification identity rather
-///   than a report either way.
+///   answer `stackup` already carries. `VerdictVector`, `VerdictRow`
+///   and `VerdictVectorKey` are the STRICT form of the verdict diff and
+///   are argued with the instrumentation family above.
 const NOT_CARRIED: [&str; 90] = [
     "AppearanceLoss",
     "AppearanceLossCause",

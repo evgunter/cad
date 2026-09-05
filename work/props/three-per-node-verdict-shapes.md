@@ -2,12 +2,13 @@
 id: three-per-node-verdict-shapes
 kind: issue
 title: Three shapes for per-node verdicts: consolidate or record the split deliberately
-status: review
+status: closed
 opened: 2026-08-29
 github: 1255
 refs: [1231]
 pr: 1920
 branch: props/verdict-shapes
+closed: 2026-09-05
 ---
 
 ## From GitHub issue 1255
@@ -58,3 +59,9 @@ All three questions answered yes, with one shape kept:
 3. `VerdictSummary` is named as the only persisted shape at `NodeValue::verdicts`, at `VerdictVector` and in `vdiff`'s module docs.
 
 The strict/permutation-invariant split STAYS, and is now pinned executably in `crates/editor-core/tests/props_verdict_shapes.rs`.
+
+## Closed
+
+Landed as PR #1920: the strict form (`VerdictVector`, `VerdictRow`, `VerdictVectorKey`) lives in `crates/editor-core/src/resolve/vdiff.rs` beside the population form; `ReplayOutcome` is retired into `RunStatus`, which distinguishes `Absent`; the certification policy is `drive::certifying_vector`, a free function, so the driver's gate policy is not a method on the diff module's type; and `VerdictSummary` is named as the only persisted shape at all three sites.
+
+The split itself is pinned in `crates/editor-core/tests/props_verdict_shapes.rs` — two silence rows (permutation; sign exchange within one node) read against a positive control where a real sign change IS named. The spec's pin (b) asked for a sign exchange "between two predicates"; that does not cancel, since populations are per-predicate, and the row encodes the exchange between two instances of ONE predicate, which is the blind spot `vdiff` actually documents (PR #1920, deviation 1).

@@ -80,14 +80,13 @@ use super::derivation_nodes;
 
 /// A node's standing in one run — the outcome tag BOTH derived forms
 /// carry: the population form's [`NodeVerdicts::status`] and the strict
-/// form's [`VerdictRow::outcome`]. One enum, because the two are read
-/// off the same `NodeResult` discriminants and a second spelling of
-/// them was a second thing to keep in step.
+/// form's [`VerdictRow::outcome`]. One enum, read off the `NodeResult`
+/// discriminants by [`status`], so the two forms cannot disagree about
+/// a node's standing.
 ///
 /// Serializable: it rides in [`VerdictSummary`], the cross-process ε
-/// audit's persist-grade seam. Its tag bytes in
-/// [`VerdictVector::key`] are ordinals of this enum and nothing else,
-/// so a variant added here moves every key that carries it.
+/// audit's persist-grade seam. Its key tag bytes are chosen at
+/// [`VerdictVector::key`], not derived from this enum's shape.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum RunStatus {
@@ -218,6 +217,12 @@ fn status<T: Decide>(run: &Evaluation<T>, id: RecipeNodeId) -> RunStatus {
 
 const SIGNS: [Sign; 3] = [Sign::Negative, Sign::Zero, Sign::Positive];
 
+/// THE sign ladder, in both places a sign is turned into a number: the
+/// column a verdict is counted in
+/// ([`NodeVerdicts::populations`], indexed Negative/Zero/Positive) and,
+/// plus one, the tag byte [`VerdictVector::key`] writes for it. The
+/// offset is what the minted keys carry, so it is fixed rather than
+/// free; the ladder itself is written once so the two cannot drift.
 fn sign_ix(s: Sign) -> usize {
     match s {
         Sign::Negative => 0,
@@ -569,13 +574,12 @@ pub struct VerdictVector {
 impl VerdictVector {
     /// The vector of an evaluation, in its own `order`.
     ///
-    /// The outcome tag is [`status`]' — the same four-way standing the
-    /// population form records, so a node ABSENT from the run reads as
-    /// absent here rather than as poisoned. The verdict rows alone do
-    /// not separate "this node built and decided nothing" from "this
-    /// node failed before deciding anything", and a certificate that
-    /// could not tell those apart would certify a leaf whose build
-    /// refused; the tag closes that.
+    /// Every node of the order gets a row, tagged with [`status`]' four-
+    /// way standing — the same standing the population form records.
+    /// The verdict rows alone do not separate "this node built and
+    /// decided nothing" from "this node failed before deciding
+    /// anything", and a certificate that could not tell those apart
+    /// would certify a leaf whose build refused; the tag closes that.
     pub fn of<T: Decide>(ev: &Evaluation<T>) -> Self {
         let rows = ev
             .order
@@ -599,6 +603,13 @@ impl VerdictVector {
         h.write_u64(self.rows.len() as u64);
         for row in &self.rows {
             h.write_u64(row.node.0);
+            // The tag alphabet is hand-written literals, so the enum's
+            // declaration order decides nothing: reordering
+            // [`RunStatus`] moves no key. `Ok`/`Failed`/`Poisoned` carry
+            // the bytes every key already minted was built from, and
+            // `Absent` is appended rather than inserted. The match is
+            // exhaustive, which is what forces a new variant to be given
+            // a byte here before it can reach a key.
             h.write_tag(match row.outcome {
                 RunStatus::Ok => 1,
                 RunStatus::Failed => 2,
@@ -622,9 +633,5 @@ impl VerdictVector {
 pub struct VerdictVectorKey(pub u128);
 
 fn sign_tag(s: Sign) -> u8 {
-    match s {
-        Sign::Negative => 1,
-        Sign::Zero => 2,
-        Sign::Positive => 3,
-    }
+    sign_ix(s) as u8 + 1
 }
