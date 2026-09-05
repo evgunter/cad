@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-05
 branch: seat/shell-arm
 refs: [shell-doors-take-tolerance-beside-tol, 1904, LIB-G17]
-pr: 0
+pr: 1995
 ---
 
 
