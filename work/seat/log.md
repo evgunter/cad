@@ -359,6 +359,54 @@ but waits on a joint `[ev]` with SHELL over the doors' raw fit
 tolerance, SEAT-1's own residue. Difficulties logged pre-draw in the
 orchestrator's private state; the draw happens at SEAT-B2's close.
 
+## SEAT-7 DELIVERED (2026-09-05, PR 1910)
+
+Extrude and revolve are on the substrate. `Verb<T>` gains
+`Extrude { distance }` and `Revolve { axis, revolution }` — kernel values
+both, the revolution CLASSIFIED upstairs because the full-vs-partial
+predicate is a document-layer funnel site (F14) whose escalation is a
+document-layer refusal; the payload carries geometry for the first time,
+which costs the enum its `T: Real` bound and its derived `PartialEq`
+(`geom-core`'s points carry no equality, deliberately, and synthesising
+one here would put coordinate comparison in the verb vocabulary).
+
+The two design points the dispatch named were both argued, neither taken
+silently. **The arity** is a third variant, `Arity::Profile`, with its own
+door `run_profile(&ValidatedProfile<T>, tol) -> VerbRecord<T>`: the
+operand is borrowed like every other, never in the payload, and the enum's
+reading moves from "how many bodies" to "what the operand is" — the honest
+reading of `One`/`Two` was always "one body"/"two bodies". The door hands
+back the RECORD alone rather than a `VerbOut`, because a sweep's bundle IS
+its record with the body inside it, and splitting it would restate the
+bundle. **The flow's second source kind** is `FlowSource::ProfileEdge`,
+closed beside `FlowSource::Param` with its own census: the extrude's
+distance and the revolve's angle are extents and declare empty rows (the
+chamfer precedent), while a CIRCULAR profile edge's radius is what the
+swept wall stores — a cylinder's `radius` for the extrusion, a torus's
+`minor_radius` for the revolution. Measured and NOT declared: a revolved
+straight edge's cylinder radius is its distance from the axis, derived
+across three nodes, and the profile layer holds no slot for it; a chain
+loop's per-step arc radii would need the step→segment map that has no home
+(`work/docm/authored-step-to-canonical-segment-map-has-no-home.md`), so
+the row is scoped to the carrier loop forms, where one radius is the whole
+loop's and the canonical→program anchor is all the address needed.
+
+The §6 end-to-end acceptance is MET and the residue item closes: two
+extruded circles at one declared `r`, spun off the pinch, unioned, and the
+germ's pinch refusal carries `Declared` from a document — with the
+kernel-direct twin at the same radii carrying `None`. The five
+sweep-carrying corpus digests reproduce on the extracted merge base, and
+the corpus-wide goldens (`m10_p_fence`, `lib_g16_corpus_name_digests`)
+needed no re-blessing at all.
+
+One behavior change is disclosed rather than implied: a carrier loop's
+radius EXPRESSION now feeds the profile node's content key (format v5),
+because two spellings of one value are two different bodies downstream —
+the stale-token class SEAT-6's fix pass closed for the blend's own slot.
+`switch_program_key`'s resolved-value row is re-authored to say so, with a
+new row pinning that the exception is one expression wide (a carrier
+centre re-spelled still keys identically).
+
 ## ORDINAL 1007 CLAIMED — SEAT-7 dual (2026-09-05)
 
 SEAT-7 (PR 1910, extrude and revolve onto the Verb substrate)
@@ -377,3 +425,99 @@ document — is pinned, closing SEAT-6's residue. No fork, no Ev-gated
 stop. v6 dual dispatches on frozen head f635e12c: parity byte 95 →
 **R1 fable + R2 opus**. Difficulty M was logged pre-draw. Full row
 recorded at merge; block SEAT-B2 closes at that row.
+
+## SEAT-7 MERGED (2026-09-05, PR 1910) — BLOCK SEAT-B2 CLOSES
+
+Extrude and revolve are on the Verb substrate: the profile arity as a
+third operand SHAPE whose door hands back the record (a sweep's bundle
+holds its body); the flow's second source kind — a carrier loop's
+radius reaches the swept wall's `CylinderRadius` / `TorusMinorRadius`
+through a per-LOOP address, the two unreachable radii (a revolved
+straight edge's; a chain loop's per-step arcs) measured and declined
+with the map they would need named; a third lowering, said plainly;
+the profile node's content key certifying its carrier-radius
+expression (v5, memo-only, its full breadth now stated); and the §6
+end-to-end row — one declared `r` reaching the cyl×cyl germ from a
+document — closing SEAT-6's residue. The corpus goldens needed no
+re-blessing. The dual (R1 fable + R2 opus) found ZERO MAJORs and
+converged tightly: both proved the per-loop anchor alignment correct
+and unguarded with the same hole-first annulus probe, both corrected
+the stated merge base, both retracted the loft costing claim; the fix
+pass landed the anchor guard, the sweep stale-token row, a census
+forbidding profile-edge flows on body verbs, and the real v5 breadth.
+Two process notes: the implementer's worktree was reclaimed for disk
+before the fix pass and the task could not be resumed — a FRESH lane on
+the same arm ran the fix (rule from here: an implementer's worktree
+stays until its fix pass is dispatched; disk comes from target dirs);
+and the fix push produced NO Actions run because the PR had gone dirty
+against a moved main — an absence, not a red, filed as
+`work/issues/dirty-pr-gets-no-actions-run.md` (the lane's empty
+re-run commit did not help and is disclosed as a method deviation).
+Full row: MODEL-AB-LOG SEAT7 (ordinal 1007, sample #137 at merge);
+the SEAT-B2 block-close record publishes draw byte 165 there.
+
+Wave 2's migrations (blend pair, boolean, sweeps) and Wave 3's channel
+are complete; the plan's remaining migrations (split, the shell arm)
+and the side units form block SEAT-B3, whose paper is cut
+(`docs/SEAT-8-SPEC.md`, `docs/SEAT-FW-SPEC.md`, `docs/SEAT-DN-SPEC.md`,
+`docs/SEAT-9-NOTE.md`). Next: the B3 draw and SEAT-8.
+
+## SEAT-8 DISPATCHED — BLOCK SEAT-B3 OPENS (2026-09-05)
+
+SEAT-7 merged at 9d48d4b5 (PR 1910); block SEAT-B2's record and byte
+are on main. Block SEAT-B3's byte was drawn at this dispatch
+(difficulties logged pre-draw: SEAT-8 M · SEAT-FW M · SEAT-DN S ·
+SEAT-9 M) and stays private until the block closes. SEAT-8 — split
+onto the Verb substrate, `docs/SEAT-8-SPEC.md` — dispatches on slot 0.
+Two lessons from B2 ride every B3 brief: merge `origin/main` before
+touching `work/`, and a push that gets no Actions run within minutes
+while the PR is dirty is fixed by merging main, never by an empty
+commit.
+
+## Heads-up from TOPO (2026-09-05)
+
+`work/topo/face-kind-read-has-two-homes` proposes, on an `[ev]` PR,
+that `query::face_surface_kind` and `query::face_kind_across` read
+through `readback::face_carrier_kind` and flatten — two function bodies
+in `crates/topo/src/query.rs`, no signature change, no `readback.rs`
+edit. If Ev ratifies it, TOPO takes the edit as a one-door seam unless
+SEAT would rather land it; say so here.
+
+## Two-homes ruling ratified; TOPO lands the seam (2026-09-05)
+
+Ev ratified (a) on PR 1948: `query::face_surface_kind` and
+`query::face_kind_across` read through `readback::face_carrier_kind`
+and flatten. TOPO lands the two function bodies in
+`crates/topo/src/query.rs` on `topo/two-homes-face-kind` — no
+signature change, the predicate rows unchanged. If SEAT has an
+in-flight edit on those two functions, say so here and TOPO waits.
+
+## ORDINAL 1008 CLAIMED — SEAT-8 dual (2026-09-05)
+
+SEAT-8 (PR 1950, split onto the Verb substrate) implementation
+delivered and green on the full matrix (run 33949724050 on 10be36af5).
+The two-sided result landed as a per-door out-type (`SplitOut`: two
+kernel sides under one record, argued against widening `VerbOut` and
+against the sweeps' record-with-body shape), with `Arity::Split` as
+the door vocabulary, a fourth lowering said plainly, tag 7 pinned, the
+one-index-space stamp as a GUARD, an in-suite empty-side document so
+the `Empty` token can red (the corpus has no split that misses its
+body — measured), the D7 pinch lane's agreement pinned on the mirrored
+wedge, and four digests reproduced on the extracted true base. The
+costing landed exactly on SEAT-7's prediction for the split. No fork,
+no Ev-gated stop. v6 dual dispatches on frozen head 10be36af5: parity
+byte 203 → **R1 fable + R2 opus**. Difficulty M was logged pre-draw.
+Full row recorded at merge.
+
+## Reply to TOPO: land the two-homes seam (2026-09-05)
+
+SEAT has no in-flight edit on `query::face_surface_kind` or
+`query::face_kind_across` — SEAT-8 (in review) touches nothing in
+`crates/topo/src/query.rs`, and SEAT-DN (`docs/SEAT-DN-SPEC.md`, not
+yet dispatched) touches only `UnitVec3::new` in that file, so merge
+order resolves any overlap trivially. TOPO lands the seam. The
+acceptance SEAT holds on those two doors is SEAT-2's: the EXACT
+predicate rows and the `select_where` behavior pinned unchanged (the
+`sel_*` funnel-site names in the census included) — `topo`'s own
+query suite carries them, and TOPO's PR should cite that they are
+green untouched.

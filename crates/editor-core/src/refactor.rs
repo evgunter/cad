@@ -144,6 +144,34 @@ pub enum SplitError {
         /// Whether the CONSUMER is the cut-side endpoint.
         consumer_is_cut: bool,
     },
+    /// A mate and the OPERAND one of its references is read at land
+    /// on opposite sides of the cut — the reading-edge twin of
+    /// [`SplitError::SeveredEdge`], and refused for the same reason.
+    ///
+    /// An operand is not a consuming edge, so D-2's closure rule does
+    /// not reach it; but a mate whose operand is on the far side of a
+    /// cut can be carried by neither document. Kept, its operand names
+    /// a node the remainder no longer has, and nothing downstream
+    /// notices until the solve refuses a dangling reference. Cut, the
+    /// part document has no node to remap the operand onto. Both are
+    /// refused HERE, at the door, naming the mate, the side and the
+    /// operand — the repair is to widen the cut, or to re-author the
+    /// mate at a node on the side it is staying.
+    ///
+    /// A mate that WELDS a cluster meets `TornCluster` first, because
+    /// the cut also splits the cluster its two members share. This
+    /// arm is what catches the rest: a mate whose reference resolves
+    /// to no member welds nothing, and its operand still crosses.
+    OperandSeveredFromMate {
+        /// The mate whose reference is severed.
+        mate: RecipeNodeId,
+        /// Which of its two references.
+        side: crate::mate::MateSide,
+        /// The operand node on the far side of the cut.
+        operand: RecipeNodeId,
+        /// Whether the MATE is the cut-side endpoint.
+        mate_is_cut: bool,
+    },
     /// The cut TEARS a placement cluster: some of the cluster's
     /// instances are cut and some are kept (ASM-R2a; review MAJOR-2).
     ///
@@ -258,6 +286,25 @@ impl core::fmt::Display for SplitError {
                 "split: the new document id {id} collides with the split document or a \
                  document the cut references — supply a fresh identity"
             ),
+            Self::OperandSeveredFromMate {
+                mate,
+                side,
+                operand,
+                mate_is_cut,
+            } => {
+                let (cut, kept) = if *mate_is_cut {
+                    (mate.0, operand.0)
+                } else {
+                    (operand.0, mate.0)
+                };
+                write!(
+                    f,
+                    "split: the cut severs mate {}'s {} reference from the node it is read at                      (node {} — node {cut} is cut, node {kept} is kept); widen the cut, or                      re-author the mate at a node on its own side",
+                    mate.0,
+                    side.name(),
+                    operand.0
+                )
+            }
             Self::SeveredEdge {
                 consumer,
                 input,
@@ -863,16 +910,24 @@ fn remap_node(
         },
         Node::InstantiatePart { .. } => node.clone(),
         // A mate's references cross the cut like any other name
-        // reference: both heads remap, or the cut severed the mate and
-        // the remap MISSES loudly.
+        // reference, and BOTH halves of each remap: the NAME through
+        // the name door, and the OPERAND through the id door, because
+        // an operand is a node id. Either one the cut severed makes
+        // the remap MISS loudly.
         Node::Mate {
             a,
             b,
             class,
             alignment,
         } => Node::Mate {
-            a: nm(a)?,
-            b: nm(b)?,
+            a: crate::node::SitedRef {
+                at: id(a.at)?,
+                name: nm(&a.name)?,
+            },
+            b: crate::node::SitedRef {
+                at: id(b.at)?,
+                name: nm(&b.name)?,
+            },
             class: *class,
             alignment: *alignment,
         },
@@ -888,7 +943,7 @@ fn remap_node(
             refs: refs
                 .iter()
                 .map(|r| {
-                    Ok(crate::node::MeasureRef {
+                    Ok(crate::node::SitedRef {
                         at: id(r.at)?,
                         name: nm(&r.name)?,
                     })
@@ -1001,6 +1056,52 @@ pub fn split(
                 gauge,
                 instance,
                 gauge_is_cut,
+            });
+        }
+    }
+    // The READING edge's own closure rule (A12). An operand is not an
+    // input, so the severed-edge loop never sees it — and a mate separated
+    // from the node its reference is read at is expressible in
+    // neither document: the remainder would keep an id it no longer
+    // has, and the part has no node to remap onto. Checked in BOTH
+    // directions.
+    //
+    // The exception is the interface crossing (below): a kept mate
+    // whose name re-anchors carries its at-mint operand with it.
+    //
+    // AFTER the cluster precondition on purpose: a mate that WELDS
+    // its two members is the case `TornCluster` already speaks to,
+    // and it is the more informative refusal — it names the cluster
+    // the cut tears rather than one of its edges. This arm catches
+    // what is left: a mate whose reference resolves to no member
+    // welds nothing, and its operand still crosses.
+    for &mate in doc.order() {
+        let Some(Node::Mate { a, b, .. }) = doc.node(mate) else {
+            continue;
+        };
+        let mate_is_cut = cut.contains(&mate);
+        for (side, r) in [(crate::mate::MateSide::A, a), (crate::mate::MateSide::B, b)] {
+            if cut.contains(&r.at) == mate_is_cut {
+                continue;
+            }
+            // THE ONE CROSSING THAT IS ALREADY CARRIED, and it is the
+            // interface crossing this module is built around: a KEPT
+            // mate whose reference is read AT ITS OWN MINT and whose
+            // NAME lies wholly inside the cut. That name re-anchors
+            // through the minted instance's `InPart` wrapper below,
+            // and `Rebind` moves an at-mint operand with the name it
+            // rewrites — so the operand arrives at the new instance
+            // with everything else. Nothing here to refuse.
+            let carried_by_the_rebind =
+                !mate_is_cut && r.at == r.name.node && derivation_nodes(&r.name).is_subset(cut);
+            if carried_by_the_rebind {
+                continue;
+            }
+            return Err(SplitError::OperandSeveredFromMate {
+                mate,
+                side,
+                operand: r.at,
+                mate_is_cut,
             });
         }
     }
@@ -1282,21 +1383,19 @@ pub fn split(
     // is banked as ASM-XSPLIT. Exhausted over every subset of two
     // recipes in `rev_fix_xsplit_unreachable.rs`.
     //
-    // A mate with a DANGLING head — one resolving to no member at all
-    // — is not an edge and contributes NO crossing, however its names
-    // fall across the cut. Such a mate never solved, so a record
+    // A mate with a DANGLING reference — one resolving to no member at
+    // all — is not an edge and contributes NO crossing, however its
+    // names fall across the cut. Such a mate never solved, so a record
     // minted from it would be trusted-at-rest state. Unlike (1)-(3),
     // this arm is NOT forced by the cut rules: a nested-pattern head
     // welds no cluster, so its mate's ends do reach opposite sides of
     // an accepted cut, and the gate is the only thing that skips it.
-    // That is AQ8 option (b), SKIP — ruled at the ASM-R2b review but
-    // NOT carried into `crates/editor-core/ASSEMBLY.md`, whose AQ8
-    // clause states only the weld/`TornCluster` half; the ruling is
-    // recorded in `asm_r2b_assembly.rs`'s rows-5-and-6 header and
-    // pinned by `row5_d`. The mate itself stays in the document (N5)
-    // and its names rebind like any other; it simply says nothing
-    // about the seam.
-    let is_mate_edge_end = |name: &StableName| crate::mate::member_of(doc, name).is_some();
+    // That is AQ8 option (b), SKIP — its home is
+    // `crates/editor-core/ASSEMBLY.md`'s AQ8 clause, and `row5_d` in
+    // `asm_r2b_assembly.rs` pins it. The mate itself stays in the
+    // document (N5) and its names rebind like any other; it simply
+    // says nothing about the seam.
+    let is_mate_edge_end = |r: &crate::node::SitedRef| crate::mate::member_of(doc, r).is_some();
     let mut crossings: Vec<InterfaceCrossing> = Vec::new();
     for &id in doc.order() {
         if cut.contains(&id) {
@@ -1310,9 +1409,9 @@ pub fn split(
             continue;
         }
         let inside = |name: &StableName| derivation_nodes(name).is_subset(cut);
-        let (outer, inner) = match (inside(a), inside(b)) {
-            (false, true) => (a, b),
-            (true, false) => (b, a),
+        let (outer, inner) = match (inside(&a.name), inside(&b.name)) {
+            (false, true) => (&a.name, &b.name),
+            (true, false) => (&b.name, &a.name),
             _ => continue,
         };
         // The part-side reference is stored in the PART's own names:

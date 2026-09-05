@@ -505,3 +505,41 @@ unrostered. TOPO's S330 lane hit it on PR 1923 and carries one
 `HandedOff` roster line beside the sibling door as the port so lanes
 stop failing on it; the disposition is this program's to sharpen
 (`Selection`/DL5(b) may be the truer one) and the debt is FILLET-ATTR's.
+
+**H7 merged; block FILLET-B2 concluded (2026-09-05).** PR
+[#1897](https://github.com/evgunter/cad/pull/1897) merged at `235d05241`,
+**sample #136**, ordinal 2005; the fix pass took all fourteen decisions —
+the lever pinned at its call site through `run_battery` at two lengths
+(the `T::one()` mutant red), the concave ruled band pinned through the
+extrude door, both halves of the `seam_split_param` change disclosed,
+`corner_at` returning the ratified tag so "classifies" is true, one
+chord-site core and one `cap_incidence` home, `assert_naming_totality`
+generic (and catching a double-recorded fragment in `split_rim` on the
+way), four issues filed, an inherited sole-`Bounds` door given its roster
+line. `docs/FILLET-H7-SPEC.md` deleted, ledgered at the merge SHA.
+**Block B2 is concluded** — H6 (OPUS, #135), ATTR (OPUS, #134), H7
+(FABLE, #136) — and its record reaches main with this sync. Every unit
+of the plan's seven, plus the two the rulings grew, is merged.
+**FILLET-T specced** (`docs/FILLET-T-SPEC.md`, S / STRUCTURAL): Track T's
+`D325` + `D326` as one unit now that no lane contends `surgery.rs`; block
+FILLET-B3 opens branch-side for it.
+
+**FILLET-T landed (2026-09-05)** on PR [#1943](https://github.com/evgunter/cad/pull/1943),
+head `9290f0b21`, full matrix green (run 33948095965). Phase 1: EIGHT
+`kef` sites (the spec's six plus H7's two), every one killing a face the
+surgery's own `mef` minted — two of them (the rim strut and the annulus
+seam-crossing) with no local argument at all before this, the strongest
+evidence for `D326`'s premise; the stop clause did not fire. Landed:
+`CornerLinks::sorted` seeded (`(first, rest)`, the minimum carried as the
+walk runs), the arc-mint body hoisted into one closure, `first_arc` an
+`EdgeKey` with its `unreachable!` deleted (24 → 23 in the file);
+`kef_minted` the ONE `kef` door in `surgery.rs` (`grep -c 'body.kef('`
+= 1), refusing a half whose face is a source face — and refusing an
+EMPTY source set, the one way past the door that would leave no trace;
+`D323`'s five-sentence argument at `naming::Retired` cut to two; dump
+identical over all 9 armed rows / 13 files. Filed:
+`ruled-band-has-no-bit-identity-corpus-row` (no dump row reaches
+`ruled_phase` — H7's two `kef` sites sit outside every blend PR's C1).
+**FILLET-T dual dispatched** on frozen `9290f0b21`: ordinal **2006**,
+parity byte 129 ⇒ R1 FABLE / R2 OPUS, briefs stored with sha256,
+concurrent, isolated.
