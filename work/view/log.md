@@ -3108,3 +3108,74 @@ retirement is **more** evidence for the open ruling, not the end of it.
 Written at the deletion site beside `interval-square-allowlist.sh`'s
 equivalent argument, which is where a reader of the deletion will meet
 it.
+
+## #1953's style review: the gate fix re-minted the defect its own library forbids (2026-09-05)
+
+The review **reproduced the gate story** rather than accepting it (pre-fix script with an empty list exits 1, zero output), confirmed all 27 test rewrites faithful, and confirmed the fifth self-test arm independent. Then it found the fix.
+
+### The finding
+
+`scripts/gates/lib.sh:113-141` exists because of exactly this: *"the
+trailing `|| true` that an exclusion filter legitimately needs for exit
+1 swallowed the rest along with it… A scanning pipeline writes
+`gate_grep` everywhere it wrote `grep`."*
+
+The fix wrote `|| true` on a plain `grep -v`, **on the whole pipeline**
+— so `awk`, `sort` and `grep` exiting **2** all become "no hits" and
+the gate greens with no marker for `gate_ok` to refuse over.
+
+**A gate that could not pass a clean tree was fixed by giving it a way
+to pass a broken one.** In the directory that owns the contract against
+that, two days after this program built the gate.
+
+**And it is a class in the same function** — three more sites, of which
+`:458` is the worst: its pattern is *interpolated from an exception
+entry*, so a malformed needle empties `hits` and greens the gate rather
+than reddening it.
+
+The fix also has **no negative control**: it is covered only because an
+empty list makes the clean fixture plant nothing, which is verbatim the
+mechanism the lane's own comment says let the original bug survive.
+
+### A class this session has now seen three times
+
+**Inserting an item above an existing one silently steals its doc
+comment.** `PartCensus` was inserted inside `PartChooser`'s doc and
+inherited its first paragraph, so rustdoc would publish `PartCensus`'s
+summary as text describing `PartChooser`, and `PartChooser` opens on an
+orphan sentence.
+
+Third instance: `draw_badge`/`chrome` and
+`Disagreement::notice`/`disagreement` were the first two, both in the
+sibling lane, both found by review rather than by any gate. Told to
+file it as a class. It is also, precisely, what check 2 of this
+program's own module-kinds gate catches one level up — a header whose
+claim is false while rustdoc publishes it.
+
+### The same invariant-not-held finding, twice in two units
+
+Both new types have **all-`pub` fields and no constructor**, so the
+invariant each doc claims — *"a caller cannot pick up a generation
+without the pair it describes"* — is not held by the type. `LandedRun`
+one file away does it correctly. The sibling lane took the identical
+finding on `Badge` and `Message` last round.
+
+Two lanes independently wrote a doc-comment invariant where a private
+field would hold it, in one session. That is worth watching as a
+pattern rather than treating as two nits.
+
+### Prose
+
+*"The **four** move together because they are SET together"* enumerates
+**three** and asserts it of four: `tol` is a construction-time field
+`land` never writes. Written at three sites. `PickCache`'s docs still
+describe the shape the unit removed. The README names
+`PickIndex::sync`, which does not exist, one line from where the same
+file spells `PickCache::sync` correctly. And the D103 restatement in
+the README reads as if **D103 has been decided** — it is unruled, track
+K, as this program's own gate header says.
+
+The reversibility argument is written in full at **three code sites
+plus the item**, with #1883 narrated at nine sites across five files —
+a justification longer than the code it defends, and the shape that
+goes stale in five places at once. Told to keep one home.
