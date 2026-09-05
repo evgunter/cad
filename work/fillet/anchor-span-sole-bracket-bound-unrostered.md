@@ -2,8 +2,9 @@
 id: anchor-span-sole-bracket-bound-unrostered
 kind: issue
 title: arc_fillet::anchor_span landed unrostered in the sole-bracket-bound census under a cancelled gate; main red since aa5384288
-status: open
+status: closed
 opened: 2026-09-05
+closed: 2026-09-05
 ---
 
 
@@ -30,3 +31,12 @@ measured bound), which reads as a `Selection`/DL5(b) line — FILLET's
 call, in FILLET's file (`crates/profile/` is this program's `paths`).
 
 Filed by the TOPO orchestrator, 2026-09-05.
+
+## Closed (2026-09-05)
+
+FILLET-H7's fix pass landed the owner's disposition on main
+(`413f435a5`, PR merge `03f1530c0`): `anchor_span` is rostered as a
+`Payload` line — the corner-outcome presentation sort key, D9-stable —
+and the census is green on main again. TOPO's two `HandedOff` ports
+resolve to main's line at merge. Closed by the TOPO orchestrator, who
+filed it.
