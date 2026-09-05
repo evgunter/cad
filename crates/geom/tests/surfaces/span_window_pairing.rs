@@ -72,8 +72,8 @@ fn vbits(v: Vec3<f64>) -> (u64, u64, u64) {
 }
 
 /// Every component of the second-order jet, as bits.
-fn jbits(s: &NurbsSurface<f64>, win: geom::SurfaceWindow, u: f64, v: f64) -> [(u64, u64, u64); 6] {
-    let j = s.ders_in_span(win, u, v);
+fn jbits(win: geom::SurfaceWindow<'_, f64>, u: f64, v: f64) -> [(u64, u64, u64); 6] {
+    let j = win.ders_in_span(u, v);
     [
         pbits(j.point),
         vbits(j.du),
@@ -96,8 +96,8 @@ fn check(ku: KnotVector, kv: KnotVector) {
             };
             let u = 0.5 * (ku.knots()[iu] + ku.knots()[iu + 1]);
             let v = 0.5 * (kv.knots()[iv] + kv.knots()[iv + 1]);
-            let e0 = pbits(base.eval_in_span(win, u, v));
-            let j0 = jbits(&base, win, u, v);
+            let e0 = pbits(win.eval_in_span(u, v));
+            let j0 = jbits(win, u, v);
             for a in 0..nu {
                 for b in 0..nv {
                     // Membership from the two SPANS — independent of
@@ -107,9 +107,16 @@ fn check(ku: KnotVector, kv: KnotVector) {
                         win.span_u().window().contains(&a) && win.span_v().window().contains(&b);
                     let moved = a * nv + b;
                     let moved_surface = perturbed(&base, moved);
-                    // The window is a fact about the knot vectors and
-                    // the control COUNTS, both unchanged.
-                    let e1 = pbits(moved_surface.eval_in_span(win, u, v));
+                    // The window is minted afresh on the perturbed
+                    // surface: it borrows the surface it evaluates, so
+                    // "the same window on a different net" has no
+                    // spelling. Its SHAPE is a fact about the knot
+                    // vectors and the control counts, both unchanged,
+                    // so the two windows name the same indices.
+                    let moved_win = moved_surface
+                        .window(iu, iv)
+                        .expect("the perturbation keeps the knot vectors");
+                    let e1 = pbits(moved_win.eval_in_span(u, v));
                     assert_eq!(
                         e1 != e0,
                         in_window,
@@ -120,7 +127,7 @@ fn check(ku: KnotVector, kv: KnotVector) {
                         win.span_v().window(),
                         if in_window { "did not move" } else { "moved" },
                     );
-                    let j1 = jbits(&moved_surface, win, u, v);
+                    let j1 = jbits(moved_win, u, v);
                     for (k, name) in COMPONENTS.iter().enumerate() {
                         assert_eq!(
                             j1[k] != j0[k],
@@ -178,250 +185,41 @@ fn interior_multiplicity_reads_exactly_its_tensor_window() {
 }
 
 // ---------------------------------------------------------------
-// The foreign window: refused, not indexed
+// The foreign window: unrepresentable, not refused
 // ---------------------------------------------------------------
 //
-// A `SurfaceWindow` is not branded to its surface, so a window minted
-// on surface A is a representable argument to surface B's evaluators.
-// `NurbsSurface::admits` decides that pairing in three integer
-// compares — both directions' `KnotVector::admits`, plus
-// `stride == knots_v.control_count()` — and the three doors answer a
-// window it refuses with all-poison rather than an out-of-bounds index
-// into `control`/`weights` (D9: the kernel never panics on any input).
+// A `SurfaceWindow` borrows the surface it was minted from, and the
+// three evaluators live on the window and read that surface. A window
+// minted on surface A therefore evaluates surface A wherever it goes;
+// "surface B's evaluator applied to A's window" has no spelling,
+// because no door takes a surface beside a window. The rows that drove
+// the old three-compare refusal — a bigger surface's window, an
+// equal-sized one of another degree, a mismatched stride, an index
+// past the target, an empty target span — each named a state that
+// cannot be built now, and are `compile_fail` doctests on `Span` in
+// `geom_core::spline::knots` instead.
 //
-// Each row below is built so that ONE of the three compares is the
-// only thing standing between it and a panic: delete that compare and
-// the row goes red, delete either other and it stays green. That is
-// the property a shared fixture list cannot be relied on to have —
-// a guard whose suite exercises half of it passes while half-broken.
+// What the rows below pin is what replaced them: the window answers
+// for its own surface, both knot vectors and the stride come out of
+// that one borrow, and the residue one level down — a control net
+// related to its knot vectors by COUNT alone — is still open.
 
 fn is_poison_point(p: Point3<f64>) -> bool {
     p.x.is_nan() && p.y.is_nan() && p.z.is_nan()
 }
 
-fn is_poison_vec(v: Vec3<f64>) -> bool {
-    v.x.is_nan() && v.y.is_nan() && v.z.is_nan()
-}
-
-/// Every one of the three doors refuses `win` on `s`, and refuses it
-/// with poison in **every** component — a partly-finite jet would be a
-/// door that took the window after all.
-fn all_three_doors_refuse(
-    s: &NurbsSurface<f64>,
-    win: geom::SurfaceWindow,
-    u: f64,
-    v: f64,
-    why: &str,
-) {
-    assert!(!s.admits(win), "{why}: the window should not be admitted");
-    assert!(
-        is_poison_point(s.eval_in_span(win, u, v)),
-        "{why}: eval_in_span must poison a foreign window"
-    );
-    let j = s.ders_in_span(win, u, v);
-    assert!(
-        is_poison_point(j.point)
-            && is_poison_vec(j.du)
-            && is_poison_vec(j.dv)
-            && is_poison_vec(j.duu)
-            && is_poison_vec(j.duv)
-            && is_poison_vec(j.dvv),
-        "{why}: ders_in_span must poison a foreign window in every component"
-    );
-    let j3 = s.ders3_in_span(win, u, v);
-    assert!(
-        is_poison_point(j3.jet.point)
-            && is_poison_vec(j3.jet.du)
-            && is_poison_vec(j3.jet.dv)
-            && is_poison_vec(j3.jet.duu)
-            && is_poison_vec(j3.jet.duv)
-            && is_poison_vec(j3.jet.dvv)
-            && is_poison_vec(j3.duuu)
-            && is_poison_vec(j3.duuv)
-            && is_poison_vec(j3.duvv)
-            && is_poison_vec(j3.dvvv),
-        "{why}: ders3_in_span must poison a foreign window in every component"
-    );
-}
-
-/// The demonstrated defect, inverted. Two degree-2 surfaces, 4×4 and
-/// 3×3 control nets, public constructors throughout: `big`'s window at
-/// `(0.75, 0.75)` used to index `small`'s 9-element arrays at 9 and
-/// panic. It is refused now.
+/// **A window answers for the surface it borrows.** Two surfaces of
+/// equal degrees and equal control counts but different interior knots
+/// and different control nets: each window's answer is its own
+/// surface's, and the two differ — so a window is not a shape token
+/// that any surface of the right shape could interpret.
 ///
-/// `window_at` is TOTAL, so making `window_of` private does not reach
-/// this: the window is minted through a public door and is simply
-/// handed to the wrong surface.
+/// Under the retired guard this pairing was *admitted and wrong*: the
+/// compares related a window to a surface's shape, never to its knot
+/// values, so `b.eval_in_span(a.window_at(..), ..)` answered finitely
+/// with `a`'s spans over `b`'s net. That expression no longer exists.
 #[test]
-fn a_bigger_surfaces_window_is_refused_not_indexed() {
-    let big = surface(
-        clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2),
-        clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2),
-    );
-    let small = surface(
-        clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2),
-        clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2),
-    );
-    assert_eq!(big.control_counts(), (4, 4));
-    assert_eq!(small.control_counts(), (3, 3));
-
-    let win = big.window_at(0.75, 0.75);
-    // This pair is OVER-DETERMINED and the row says so rather than
-    // implying otherwise: the span index is out of `small`'s range AND
-    // the stride is 4 against `small`'s 3, so two of the three
-    // compares refuse it independently. It is here because it is the
-    // construction that was demonstrated to panic, not because it
-    // isolates anything — `an_index_that_only_the_index_compare_
-    // catches` below is the isolating row for the index compare.
-    assert_eq!(win.span_u().index(), 3);
-    assert_eq!(small.knots_u().last_span(), 2);
-    assert_ne!(win.stride(), small.knots_v().control_count());
-    all_three_doors_refuse(
-        &small,
-        win,
-        0.5,
-        0.5,
-        "span index out of the shorter vector",
-    );
-
-    // And the surface that DID mint it still evaluates finitely — the
-    // guard refuses foreign windows, not all of them.
-    assert!(!is_poison_point(big.eval_in_span(win, 0.75, 0.75)));
-}
-
-/// Same control counts, different degree — so `index <= last_span()`
-/// holds in both directions and only the DEGREE compare separates the
-/// pair. A degree-1 span's window is 2 wide; the degree-2 surface
-/// reads 3 basis terms off it and walks a row past the end.
-#[test]
-fn an_equal_sized_surface_of_another_degree_is_refused() {
-    let linear = surface(
-        clamped(vec![0.0, 0.0, 1.0, 2.0, 3.0, 3.0], 1),
-        clamped(vec![0.0, 0.0, 1.0, 2.0, 3.0, 3.0], 1),
-    );
-    let quadratic = surface(
-        clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0], 2),
-        clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0], 2),
-    );
-    assert_eq!(linear.control_counts(), quadratic.control_counts());
-    assert_eq!(
-        linear.knots_u().last_span(),
-        quadratic.knots_u().last_span(),
-        "the index compare must not be what separates this pair"
-    );
-
-    let win = linear.window(3, 3).expect("nonempty span pair");
-    assert_eq!(win.stride(), quadratic.knots_v().control_count());
-    all_three_doors_refuse(&quadratic, win, 1.5, 1.5, "degree disagreement");
-}
-
-/// Both directions admit and only the STRIDE compare separates the
-/// pair — the term with no one-dimensional analogue. A 4×4 net's
-/// window is handed to a 4×2 net: `span_u.index() = 3 <= 3` and
-/// `span_v.index() = 1 <= 1`, degrees agree, and the stride of 4
-/// carries `row(1)` to flat index 12 in an 8-element array.
-#[test]
-fn a_window_whose_spans_both_admit_is_still_refused_on_stride() {
-    let wide = surface(
-        clamped(vec![0.0, 0.0, 1.0, 2.0, 3.0, 3.0], 1),
-        clamped(vec![0.0, 0.0, 1.0, 2.0, 3.0, 3.0], 1),
-    );
-    let narrow = surface(
-        clamped(vec![0.0, 0.0, 1.0, 2.0, 3.0, 3.0], 1),
-        clamped(vec![0.0, 0.0, 1.0, 1.0], 1),
-    );
-    assert_eq!(wide.control_counts(), (4, 4));
-    assert_eq!(narrow.control_counts(), (4, 2));
-
-    let win = wide.window(3, 1).expect("nonempty span pair");
-    // The two `KnotVector::admits` compares BOTH pass against
-    // `narrow` — stated as an assertion, not as prose, because it is
-    // the whole reason the third compare exists.
-    assert!(narrow.knots_u().admits(win.span_u()));
-    assert!(narrow.knots_v().admits(win.span_v()));
-    assert_ne!(win.stride(), narrow.knots_v().control_count());
-    all_three_doors_refuse(&narrow, win, 2.5, 0.5, "stride from a wider net");
-}
-
-/// Same degrees and the same **v** control count — so the stride
-/// compare and both degree compares pass — and what separates the pair
-/// is the u span index, which the 3×3 net does not have. Without it a
-/// window from the 4×3 net puts `row(2) + 2` at flat index 11 in the
-/// 3×3 net's 9-element arrays.
-///
-/// **This row cannot isolate `index <= last_span()` from
-/// `span_is_nonempty(index)`, and no row can**: on a clamped vector the
-/// second implies the first. Every index above `last_span()` lands in
-/// the trailing run of `degree + 1` equal knots, where
-/// `knots[i] == knots[i+1]`, so it is empty; and `KnotVector` has no
-/// unclamped constructor. The two compares inside `KnotVector::admits`
-/// are therefore one separable fact here, and the row goes red when
-/// either both are deleted or the surviving one is.
-#[test]
-fn a_span_index_past_the_target_is_refused() {
-    let shared_v = || clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2);
-    let tall = surface(
-        clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2),
-        shared_v(),
-    );
-    let short = surface(clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2), shared_v());
-    assert_eq!(tall.control_counts(), (4, 3));
-    assert_eq!(short.control_counts(), (3, 3));
-
-    let win = tall.window(3, 2).expect("nonempty span pair");
-    // Everything except the u index compare passes against `short` —
-    // asserted, because that is what makes this row isolating.
-    assert_eq!(win.stride(), short.knots_v().control_count());
-    assert_eq!(win.span_u().degree(), short.knots_u().degree());
-    assert!(short.knots_v().admits(win.span_v()));
-    assert!(win.span_u().index() > short.knots_u().last_span());
-    all_three_doors_refuse(
-        &short,
-        win,
-        0.75,
-        0.5,
-        "u span index past the shorter vector",
-    );
-}
-
-/// An admitted-shape window whose u span is EMPTY on the target is
-/// refused too, and the compare that does it is **#846's third**, which
-/// `KnotVector::admits` gained on review after this lane's first pass.
-/// It is not needed for the index bound — nothing here is out of range
-/// — but it is what stops the surface dividing by a zero knot
-/// difference and returning a plausible answer over a window its own
-/// basis never reads. The row is here so the inheritance is pinned
-/// rather than assumed.
-#[test]
-fn an_admitted_shape_with_an_empty_target_span_is_refused() {
-    let shared_v = || clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2);
-    let source = surface(
-        clamped(vec![0.0, 0.0, 0.0, 1.0, 1.5, 2.0, 2.0, 2.0], 2),
-        shared_v(),
-    );
-    let target = surface(
-        clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 2.0], 2),
-        shared_v(),
-    );
-    assert_eq!(source.control_counts(), target.control_counts());
-
-    let win = source.window(3, 2).expect("nonempty in the source");
-    // Shape agrees in every respect this lane's own compares can see.
-    assert_eq!(win.stride(), target.knots_v().control_count());
-    assert_eq!(win.span_u().degree(), target.knots_u().degree());
-    assert!(win.span_u().index() <= target.knots_u().last_span());
-    // And span 3 is empty on the target, so it is refused anyway.
-    assert!(!target.knots_u().span_is_nonempty(win.span_u().index()));
-    all_three_doors_refuse(&target, win, 1.2, 0.5, "empty span on the target");
-}
-
-/// The residue, pinned so it is a decision rather than an oversight:
-/// two surfaces of equal degrees and equal control counts but
-/// different interior knots admit each other's windows, and evaluation
-/// is then a **wrong answer rather than a refusal**. Closing this wants
-/// a brand, not a compare.
-#[test]
-fn equal_shape_different_knots_is_admitted_and_wrong() {
+fn a_window_answers_for_its_own_surface() {
     let a = surface(
         clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0], 2),
         clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0], 2),
@@ -430,16 +228,76 @@ fn equal_shape_different_knots_is_admitted_and_wrong() {
         clamped(vec![0.0, 0.0, 0.0, 1.9, 2.0, 2.0, 2.0], 2),
         clamped(vec![0.0, 0.0, 0.0, 0.1, 2.0, 2.0, 2.0], 2),
     );
-    let win = a.window_at(1.5, 1.5);
-    assert!(b.admits(win), "the compares relate shapes, not knot values");
-    let p = b.eval_in_span(win, 1.5, 1.5);
-    assert!(
-        !is_poison_point(p),
-        "admitted: a finite answer, not a refusal"
+    assert_eq!(a.control_counts(), b.control_counts());
+
+    let wa = a.window_at(1.5, 1.5);
+    let wb = b.window_at(1.5, 1.5);
+    let (pa, pb) = (wa.eval_in_span(1.5, 1.5), wb.eval_in_span(1.5, 1.5));
+    assert!(!is_poison_point(pa) && !is_poison_point(pb));
+    assert_ne!(
+        pbits(pa),
+        pbits(pb),
+        "the two surfaces must disagree here, or this row proves nothing"
     );
-    let q = b.eval_in_span(b.window_at(1.5, 1.5), 1.5, 1.5);
-    assert!(
-        pbits(p) != pbits(q),
-        "and the wrong one — the residue this check does not close"
+    // Each window's answer is the whole-surface door's at the same
+    // parameters — the door that locates its own span pair.
+    assert_eq!(pbits(pa), pbits(a.eval(1.5, 1.5)));
+    assert_eq!(pbits(pb), pbits(b.eval(1.5, 1.5)));
+    // And the borrow is what says so: the window names its surface.
+    assert!(core::ptr::eq(wa.surface(), &a));
+    assert!(core::ptr::eq(wb.surface(), &b));
+}
+
+/// **Both knot vectors and the stride come from the one borrow.** The
+/// stride was the term with no one-dimensional analogue and the one a
+/// span pair alone could not fix: a window whose spans both fit but
+/// whose stride came from a wider net walked past the end of a shorter
+/// row. It is now `knots_v.control_count()` of the window's own
+/// surface, so a surface of a different v control count simply has a
+/// different window.
+#[test]
+fn the_stride_and_both_vectors_come_from_the_windows_surface() {
+    let wide = surface(
+        clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0], 2),
+        clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.5, 2.0, 2.0, 2.0], 2),
     );
+    let narrow = surface(
+        clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0], 2),
+        clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0], 2),
+    );
+    let (ww, wn) = (wide.window_at(1.5, 1.5), narrow.window_at(1.5, 1.5));
+    assert_ne!(ww.stride(), wn.stride());
+    assert_eq!(ww.stride(), wide.control_counts().1);
+    assert_eq!(wn.stride(), narrow.control_counts().1);
+    assert!(core::ptr::eq(ww.span_u().knots(), wide.knots_u()));
+    assert!(core::ptr::eq(ww.span_v().knots(), wide.knots_v()));
+    // Both evaluate finitely, each on its own net; nothing indexes out
+    // of the other's row.
+    assert!(!is_poison_point(ww.eval_in_span(1.5, 1.5)));
+    assert!(!is_poison_point(wn.eval_in_span(1.5, 1.5)));
+}
+
+/// The residue one level down, pinned so it stays a decision: a
+/// `NurbsSurface` relates its control net to its two knot vectors by
+/// COUNT alone, so two nets of the same shape are interchangeable at
+/// construction and the window inherits that. Same species as
+/// `span_hull`'s coefficient count.
+/// (`work/props/coefficients-carry-their-knot-vector.md`.)
+#[test]
+fn the_net_is_related_to_the_vectors_by_count_alone() {
+    let ku = clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0], 2);
+    let kv = clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0], 2);
+    let mine = surface(ku.clone(), kv.clone());
+    // Another surface's net, same counts, accepted without complaint.
+    let mut theirs = mine.control().to_vec();
+    theirs[0] = Point3::new(1.0e6, -1.0e6, 1.0e6);
+    let hybrid = NurbsSurface::new(ku, kv, theirs, mine.weights().to_vec())
+        .expect("the count relation is all `new` checks");
+    let p = mine.window_at(0.25, 0.25).eval_in_span(0.25, 0.25);
+    let q = hybrid.window_at(0.25, 0.25).eval_in_span(0.25, 0.25);
+    assert!(
+        !is_poison_point(q),
+        "a foreign net is answered, not refused"
+    );
+    assert_ne!(pbits(p), pbits(q));
 }

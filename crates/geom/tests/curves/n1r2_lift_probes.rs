@@ -317,7 +317,7 @@ fn retired_ders_in_span(
     span: Span,
     t: f64,
 ) -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
-    let ders = ders_basis_funs(c.knots(), span, t, 2);
+    let ders = ders_basis_funs(span, t, 2);
     let base = span.first_control();
     let mut x = [0.0f64; 3];
     let mut y = [0.0f64; 3];

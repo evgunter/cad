@@ -50,14 +50,14 @@
 //!   every scalar. For `t` outside the span's knot interval the result
 //!   is the span's **polynomial extension** (documented garbage-out —
 //!   detecting it would need the comparison [`Real`] deliberately
-//!   lacks). A [`Span`] is validated against the vector it was drawn
-//!   from and carries its own control window, so the window base is an
-//!   addition rather than a `span − degree` that could underflow — but
-//!   it carries no borrow of that vector, so each evaluator asks
-//!   [`KnotVector::admits`] and answers a span this curve's knots do
-//!   not admit with an **all-poison** point/derivative triple rather
-//!   than an out-of-bounds index (D9: the kernel never panics on any
-//!   input).
+//!   lacks). A [`Span`] borrows the vector it is a proof about and
+//!   carries its own control window, so the window base is an addition
+//!   rather than a `span − degree` that could underflow, and each
+//!   evaluator reads the basis from the span's own knots rather than
+//!   from `self.knots` beside them — there is no second vector to
+//!   disagree with, no pairing check and no refusal. What remains
+//!   related by count alone is this curve's control points against
+//!   that vector; see [`NurbsCurve3::eval_in_span`].
 //! - **Full evaluators** (`eval`/`deriv`/`deriv2`): span selection via
 //!   the sealed [`SpanLocate`] seam (per-instantiation semantics
 //!   documented in `geom_core::spline::locate`), then the core per
@@ -242,26 +242,29 @@ macro_rules! nurbs_curve {
             /// generic core (module docs: the span contract; the fixed
             /// single-ascending-pass association).
             ///
-            /// A span this curve's knot vector does not admit
-            /// ([`KnotVector::admits`]) yields the **all-poison**
-            /// point; `t` outside the span's interval still yields the
-            /// span's polynomial extension (documented garbage-out).
-            pub fn eval_in_span(&self, span: Span, t: T) -> $Point<T> {
-                // The pairing check, before any indexing: a `Span` of
-                // some other vector is a representable input, and
-                // `admits` is what makes `base + j` below in range for
-                // THIS curve's arrays.
-                if !self.knots.admits(span) {
-                    return net::poison_point::<T, $Point<T>>();
-                }
-                let basis = spline::basis::basis_funs(&self.knots, span, t);
+            /// **The basis is read from the SPAN's knot vector**, never
+            /// from `self.knots` beside it: a [`Span`] borrows the
+            /// vector it is a proof about, so there is no second vector
+            /// here for one to disagree with and no refusal to answer.
+            /// What that leaves is the control points: they are related
+            /// to the span's vector by `control.len() ==
+            /// kv.control_count()` and by nothing else, so a span drawn
+            /// from a *different* curve's vector of the same control
+            /// count evaluates this curve's control points on that
+            /// curve's basis — wrong rather than refused, the one
+            /// pairing still open (`Span`'s docs; the `hull` module's).
+            ///
+            /// `t` outside the span's interval still yields the span's
+            /// polynomial extension (documented garbage-out).
+            pub fn eval_in_span(&self, span: Span<'_>, t: T) -> $Point<T> {
+                let basis = spline::basis::basis_funs(span, t);
                 // The window's base, subtracted once inside `Span` — so
                 // the underflow-prone `span − p` is gone from here, and
                 // what remains is an addition. Indexing (not `zip`)
                 // deliberately: `basis` is `degree + 1` long and the
-                // window is `degree + 1` wide, one `degree` by the
-                // check above, and if that ever ceased to hold this
-                // must PANIC rather than silently drop control points.
+                // window is `degree + 1` wide — one `degree`, the
+                // span's — and if that ever ceased to hold this must
+                // PANIC rather than silently drop control points.
                 let base = span.first_control();
                 $(let mut $c = T::zero();)+
                 let mut w_acc = T::zero();
@@ -278,19 +281,17 @@ macro_rules! nurbs_curve {
             /// The homogeneous accumulators through order `N − 1` —
             /// per coordinate channel `A⁽ᵏ⁾ = Σⱼ N⁽ᵏ⁾ⱼ·wⱼ·xⱼ` and the
             /// weight channel `w⁽ᵏ⁾ = Σⱼ N⁽ᵏ⁾ⱼ·wⱼ`, `k < N` — from
-            /// one basis pass of order `N − 1`. `None` for a span this
-            /// curve's knot vector does not admit (the pairing check of
-            /// [`Self::eval_in_span`], asked before any indexing).
+            /// one basis pass of order `N − 1`, read from the span's own
+            /// knot vector ([`Self::eval_in_span`] for what that closes
+            /// and what it leaves open). Total: there is no pairing
+            /// left to refuse.
             ///
             /// The one homogeneous pass every derivative evaluator
             /// reads; the ORDER is the caller's, so a first derivative
             /// runs an order-1 basis and never computes the order-2
             /// row it would discard.
-            fn homogeneous<const N: usize>(&self, span: Span, t: T) -> Option<([[T; N]; $dim], [T; N])> {
-                if !self.knots.admits(span) {
-                    return None;
-                }
-                let ders = spline::basis::ders_basis_funs(&self.knots, span, t, N - 1);
+            fn homogeneous<const N: usize>(&self, span: Span<'_>, t: T) -> ([[T; N]; $dim], [T; N]) {
+                let ders = spline::basis::ders_basis_funs(span, t, N - 1);
                 // Indexed off the window base, exactly as
                 // [`Self::eval_in_span`]. A `zip` against a window slice
                 // would be the wrong shape here: `ders`' row length and
@@ -310,7 +311,7 @@ macro_rules! nurbs_curve {
                         w_hom[k] = w_hom[k] + cw;
                     }
                 }
-                Some(([$($c),+], w_hom))
+                ([$($c),+], w_hom)
             }
 
             /// Point, first, and second derivative at `t` in the given
@@ -319,15 +320,9 @@ macro_rules! nurbs_curve {
             /// ([`rational_corrections`]), exactly as written:
             /// `C = A⁰/w⁰`, `C′ = (A¹ − C·w¹)/w⁰`,
             /// `C″ = (A² − C·w² − C′·w¹·2)/w⁰`.
-            /// Same totality contract as [`Self::eval_in_span`]: a span
-            /// this curve's knot vector does not admit yields an
-            /// all-poison triple.
-            pub fn ders_in_span(&self, span: Span, t: T) -> ($Point<T>, $Vector<T>, $Vector<T>) {
-                let Some(([$($c),+], w_hom)) = self.homogeneous::<3>(span, t) else {
-                    $(let $c = T::from_f64(f64::NAN);)+
-                    let poison = $Vector::new($($c),+);
-                    return (net::poison_point::<T, $Point<T>>(), poison, poison);
-                };
+            /// Same totality contract as [`Self::eval_in_span`].
+            pub fn ders_in_span(&self, span: Span<'_>, t: T) -> ($Point<T>, $Vector<T>, $Vector<T>) {
+                let ([$($c),+], w_hom) = self.homogeneous::<3>(span, t);
                 $(let $c = rational_corrections($c, w_hom);)+
                 (
                     $Point::new($($c[0]),+),
@@ -347,14 +342,9 @@ macro_rules! nurbs_curve {
             /// order-0 row of the derivative recursion is the same
             /// recursion, same accumulation order, same division) and
             /// the derivative is [`Self::deriv_in_span`]'s bit for bit
-            /// (it IS this, projected). Same totality contract: a span
-            /// this curve's knot vector does not admit yields an
-            /// all-poison pair.
-            pub fn ders1_in_span(&self, span: Span, t: T) -> ($Point<T>, $Vector<T>) {
-                let Some(([$($c),+], w_hom)) = self.homogeneous::<2>(span, t) else {
-                    $(let $c = T::from_f64(f64::NAN);)+
-                    return (net::poison_point::<T, $Point<T>>(), $Vector::new($($c),+));
-                };
+            /// (it IS this, projected). Same totality contract.
+            pub fn ders1_in_span(&self, span: Span<'_>, t: T) -> ($Point<T>, $Vector<T>) {
+                let ([$($c),+], w_hom) = self.homogeneous::<2>(span, t);
                 $(let $c = rational_corrections($c, w_hom);)+
                 ($Point::new($($c[0]),+), $Vector::new($($c[1]),+))
             }
@@ -365,7 +355,7 @@ macro_rules! nurbs_curve {
             /// [`Self::ders_in_span`]'s middle component runs, bit for
             /// bit, without the order-2 row that component would
             /// discard. Same totality contract.
-            pub fn deriv_in_span(&self, span: Span, t: T) -> $Vector<T> {
+            pub fn deriv_in_span(&self, span: Span<'_>, t: T) -> $Vector<T> {
                 self.ders1_in_span(span, t).1
             }
 
@@ -374,7 +364,7 @@ macro_rules! nurbs_curve {
             /// `C` and `C′`, so nothing the pass computes is surplus to
             /// it; the point and first derivative are only not
             /// returned).
-            pub fn deriv2_in_span(&self, span: Span, t: T) -> $Vector<T> {
+            pub fn deriv2_in_span(&self, span: Span<'_>, t: T) -> $Vector<T> {
                 self.ders_in_span(span, t).2
             }
 

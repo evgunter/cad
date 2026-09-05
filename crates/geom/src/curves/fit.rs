@@ -228,7 +228,7 @@ pub struct FitOutcome<C> {
 /// ascending `j` (D9).
 fn rational_row(kv: &KnotVector, weights: &[f64], t: f64) -> (usize, Vec<f64>) {
     let span = kv.span_at(t);
-    let n = basis::basis_funs(kv, span, t);
+    let n = basis::basis_funs(span, t);
     let first = span.first_control();
     let mut den = 0.0f64;
     for (j, nj) in n.iter().enumerate() {

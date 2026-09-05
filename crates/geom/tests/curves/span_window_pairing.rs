@@ -119,319 +119,134 @@ fn degree_one_and_degree_five_read_exactly_their_windows() {
 }
 
 // ---------------------------------------------------------------------
-// S14(a), half two: the pairing refusal, and the panic it replaces.
+// The pairing, and the panic that is now unwritable.
 //
-// A `Span` carries "in range and nonempty" for the vector it was drawn
-// from, and no borrow of that vector — so a span of a DIFFERENT
-// `KnotVector` is a representable input at every door that takes one.
-// Handed to a curve built on a shorter vector, it used to index past
-// the end of that curve's control array and panic, through public
-// constructors only, in safe Rust, with no kernel bug in the trace:
-// a violation of D9's "the kernel never panics on any input".
+// A `Span` borrows the `KnotVector` it is a proof about, and the curve
+// doors read the basis from THAT vector — never from `self.knots`
+// beside it, and they take no knot vector of their own. So a span
+// drawn from a longer vector cannot be handed to a shorter curve's
+// evaluator *together with the shorter vector*: there is no second
+// vector, and the old panic — window base 1, basis row 3 long,
+// `control[3]` of a 3-element array — has no spelling. The rows that
+// used to drive it are `compile_fail` doctests on `Span` in
+// `geom_core::spline::knots` now.
 //
-// `KnotVector::admits` is the refusal — two integer compares — and
-// these rows are its evidence. Two of them are the two compares: the
-// first fails only the index bound, the second only the degree
-// agreement, so deleting either compare turns exactly one of them red.
-// The third and fourth are the other direction, which is the failure
-// mode a guard has when it cannot fail: that nothing correctly paired
-// is refused, and that the refusal is actually reached.
-//
-// What is NOT closed, and no row here should be read as claiming it:
-// two vectors of equal degree and equal control count but different
-// interior knots admit each other's spans, and evaluation is then a
-// wrong answer rather than a refusal. `admits` relates a span to a
-// vector's SHAPE, never to its knot values.
+// What is NOT closed is one level down, and these rows are its
+// evidence: the curve's control points are related to the span's
+// vector by COUNT alone, so a span from another vector of the same
+// control count evaluates this curve's points on that vector's basis.
+// Wrong rather than refused, and the rows below pin exactly that — in
+// particular that the basis comes from the SPAN's vector, which is the
+// claim the whole change rests on.
 
-/// A span drawn from a **longer** vector of the same degree names a
-/// control point the shorter curve does not have. This is the row that
-/// panicked: window base 1, basis row 3 long, `control[3]` of a
-/// 3-element array. It must now poison.
-#[test]
-fn a_span_from_a_longer_vector_is_refused_by_a_shorter_curve() {
-    // Degree 2, three control points, one span (index 2).
-    let short = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("valid");
-    // Degree 2, four control points, two spans (indices 2 and 3).
-    let long = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).expect("valid");
-    assert_eq!(short.degree(), long.degree());
-    assert_eq!((short.control_count(), long.control_count()), (3, 4));
-
-    // Public, checked constructor: `span` returns `Some` because span 3
-    // IS in range and nonempty — for `long`.
-    let span = long.span(3).expect("span 3 is valid for `long`");
-
-    // Exactly one of the three conditions separates this pairing: the
-    // degrees agree, the index does not fit. (`short` has one span, so
-    // emptiness has nothing to say either.)
-    assert_eq!(span.degree(), short.degree());
-    assert!(span.index() > short.last_span());
-
-    let curve = NurbsCurve3::<f64>::new(
-        short,
-        vec![
-            Point3::new(0.0, 0.0, 0.0),
-            Point3::new(1.0, 1.0, 0.0),
-            Point3::new(2.0, 0.0, 0.0),
-        ],
-        vec![1.0, 1.0, 1.0],
-    )
-    .expect("valid curve");
-
-    let p = curve.eval_in_span(span, 0.75);
-    assert!(
-        p.x.is_nan() && p.y.is_nan() && p.z.is_nan(),
-        "a refused span must poison, not answer: {p:?}"
-    );
-    let (c, d1, d2) = curve.ders_in_span(span, 0.75);
-    // Every channel: a refused span answers ALL-poison, and a
-    // first-channel read would pass on a partially poisoned answer.
-    assert!(c.x.is_nan() && c.y.is_nan() && c.z.is_nan());
-    for v in [d1, d2] {
-        assert!(v.x.is_nan() && v.y.is_nan() && v.z.is_nan());
-    }
-    for v in [
-        curve.deriv_in_span(span, 0.75),
-        curve.deriv2_in_span(span, 0.75),
-    ] {
-        assert!(v.x.is_nan() && v.y.is_nan() && v.z.is_nan());
-    }
-
-    // LAST, deliberately. This one is an assertion about the guard, so
-    // deleting the compare reds it tautologically and it is evidence of
-    // nothing downstream. The four calls above are this row's evidence:
-    // they are what panicked before the guard existed, and they are
-    // what must red if it stops working.
-    assert!(!curve.knots().admits(span));
-}
-
-/// A span of a **lower degree** whose index is in range for the curve
-/// AND names a nonempty span of it — so the other two conditions both
-/// pass and only the degree compare can refuse.
+/// **The basis is read from the span's vector, not from the curve's.**
 ///
-/// Getting that combination right took a correction worth recording:
-/// the obvious choice, a degree-1 span at index 1 against a cubic
-/// Bezier, is *also* an empty span of that cubic (`knots[1] == knots[2]`
-/// in the leading clamp), so it was separated by two conditions at once
-/// and was never degree-compare-only evidence. A clamped Bezier's only
-/// nonempty span is its last, which is what forces the shape below.
+/// Two cubics with the same degree and the same control count but
+/// different interior knots. A span of the second, handed to a curve
+/// built on the first, must produce the value the SECOND vector's
+/// basis gives against the first curve's control points — not the
+/// value the first vector's own span of that index gives.
 ///
-/// Without the degree compare, `base = index − degree` is larger than
-/// the window this curve's basis row indexes from, and
-/// `control[base + p]` runs one past the end.
+/// Computed independently of the door, from `basis_funs` on each
+/// vector, so this row would still separate the two if the door
+/// silently went back to reading `self.knots`.
 #[test]
-fn a_lower_degree_span_is_refused_although_its_index_and_span_are_valid() {
-    // Degree 2, four control points: span 3 is [0.5, 1), nonempty.
-    let quad = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).expect("valid");
-    let span = quad.span(3).expect("span 3 is valid for the quadratic");
-
-    // Degree 3 Bezier: four control points, last span 3, nonempty.
-    let cubic =
-        KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).expect("valid");
-    assert_eq!(quad.control_count(), cubic.control_count());
-    assert!(
-        span.index() <= cubic.last_span(),
-        "only evidence about the degree compare if the index compare passes"
-    );
-    assert!(
-        cubic.span_is_nonempty(span.index()),
-        "only evidence about the degree compare if the emptiness compare passes"
-    );
-    assert_ne!(span.degree(), cubic.degree());
-
-    let curve = NurbsCurve3::<f64>::new(
-        cubic,
-        vec![
-            Point3::new(0.0, 0.0, 0.0),
-            Point3::new(1.0, 2.0, 0.0),
-            Point3::new(2.0, 2.0, 0.0),
-            Point3::new(3.0, 0.0, 0.0),
-        ],
-        vec![1.0, 1.0, 1.0, 1.0],
-    )
-    .expect("valid curve");
-
-    let p = curve.eval_in_span(span, 0.5);
-    assert!(p.x.is_nan() && p.y.is_nan() && p.z.is_nan(), "{p:?}");
-    let c0 = curve.ders_in_span(span, 0.5).0;
-    assert!(c0.x.is_nan() && c0.y.is_nan() && c0.z.is_nan());
-
-    // LAST, for the reason given in the row above: this is an assertion
-    // about the guard, not about what the guard prevents.
-    assert!(!curve.knots().admits(span));
-}
-
-/// A foreign span of the **same degree and the same control count**
-/// whose index names an EMPTY span of this curve — so the degree and
-/// index compares both pass and only the emptiness compare refuses.
-///
-/// The curve door's failure here is not an out-of-bounds read: the
-/// window is in range, and the span's zero knot gap divides in
-/// `basis_funs`, which at `f64` gives a row of `±inf` and `NaN` and a
-/// point built from it. That is a wrong number rather than a panic,
-/// which is exactly why it is worth a compare — `geom-core`'s
-/// `sup_norm_bound_span` is the exit where a wrong number certifies.
-#[test]
-fn a_span_empty_in_this_curve_is_refused_although_it_is_in_range() {
-    let uni = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 1.0, 1.0, 1.0, 1.0], 3)
+fn the_curve_door_reads_the_basis_from_the_spans_own_vector() {
+    let mine = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 1.0, 1.0, 1.0, 1.0], 3)
         .expect("valid");
-    let mult = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0], 3)
+    let theirs = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.75, 1.0, 1.0, 1.0, 1.0], 3)
         .expect("valid");
-    let empty = (mult.first_span()..=mult.last_span())
-        .find(|i| mult.span(*i).is_none() && uni.span(*i).is_some())
-        .expect("the two cubics must disagree about some index");
-    let span = uni.span(empty).expect("nonempty in the uniform cubic");
+    assert_eq!(mine.control_count(), theirs.control_count());
 
-    assert_eq!(span.degree(), mult.degree());
-    assert!(span.index() <= mult.last_span());
-    assert_eq!(uni.control_count(), mult.control_count());
+    let c = curve(mine.knots().to_vec(), mine.degree());
+    let index = 4;
+    let t = 0.6;
+    let own = mine.span(index).expect("nonempty in `mine`");
+    let foreign = theirs.span(index).expect("nonempty in `theirs`");
 
-    // NOT the doubled knot value itself. At `t == knots[empty]` every
-    // term of the recursion is `0 * inf`, so the row comes out all-NaN
-    // with or without the compare and the assertion below would be
-    // satisfied by the bug it is meant to catch. Off the knot, the
-    // zero denominator survives as a signed infinity.
-    let t = 0.3;
-    let c = curve(mult.knots().to_vec(), mult.degree());
-    let p = c.eval_in_span(span, t);
-    assert!(
-        p.x.is_nan() && p.y.is_nan() && p.z.is_nan(),
-        "an empty span must poison, not answer: {p:?}"
-    );
-    let c0 = c.ders_in_span(span, t).0;
-    assert!(c0.x.is_nan() && c0.y.is_nan() && c0.z.is_nan());
-
-    // The two assertions above do NOT discriminate, and saying so is
-    // the point: at this door an empty span yields NaN coordinates with
-    // or without the compare, because the zero knot gap divides and the
-    // poison reaches the coordinates through the weight accumulator.
-    // The basis row this point is built from is where the difference
-    // is visible — unguarded it is `[-inf, NaN, NaN, inf]`.
-    let row = geom_core::spline::basis::basis_funs::<f64>(c.knots(), span, t);
-    assert!(
-        row.iter().all(|n| n.is_nan()),
-        "the empty span's basis row is live, not poison: {row:?}"
-    );
-
-    // LAST, for the reason given two rows above.
-    assert!(!c.knots().admits(span));
-}
-
-/// The other direction, which is how a guard fails when it cannot fail:
-/// **every** span of a vector — by index and by location — is admitted
-/// by that vector, at every degree the suite builds. A guard that
-/// refused a correctly paired span would red here rather than in a
-/// caller three crates away.
-#[test]
-fn a_vector_admits_every_span_of_its_own() {
-    let mut checked = 0usize;
-    for (knots, p) in span_families() {
-        let kv = KnotVector::clamped(knots, p).expect("valid");
-        for index in kv.first_span()..=kv.last_span() {
-            if let Some(span) = kv.span(index) {
-                assert!(kv.admits(span), "p{p} refused its own span {index}");
-                checked += 1;
-            }
+    // The oracle: the rational combination of THIS curve's control
+    // points against the given vector's basis row, written out here so
+    // the row does not test the door against itself.
+    let oracle = |span: geom_core::spline::Span<'_>| {
+        let n = geom_core::spline::basis::basis_funs::<f64>(span, t);
+        let first = span.first_control();
+        let (mut num, mut den) = (Point3::new(0.0, 0.0, 0.0), 0.0);
+        for (j, nj) in n.iter().enumerate() {
+            let i = first + j;
+            let cw = nj * c.weights()[i];
+            let p = c.control()[i];
+            num = Point3::new(num.x + cw * p.x, num.y + cw * p.y, num.z + cw * p.z);
+            den += cw;
         }
-        let (lo, hi) = kv.domain();
-        for t in [lo, hi, f64::NAN, lo - 1.0, hi + 1.0, 0.5 * (lo + hi)] {
-            assert!(
-                kv.admits(kv.span_at(t)),
-                "p{p} refused its own located span at {t}"
-            );
-            checked += 1;
-        }
-    }
-    assert!(
-        checked >= 40,
-        "the family stopped covering spans: {checked}"
+        (num.x / den, num.y / den, num.z / den)
+    };
+
+    let with_own = pbits(c.eval_in_span(own, t));
+    let with_foreign = pbits(c.eval_in_span(foreign, t));
+    let (ox, oy, oz) = oracle(own);
+    let (fx, fy, fz) = oracle(foreign);
+    assert_eq!(with_own, (ox.to_bits(), oy.to_bits(), oz.to_bits()));
+    assert_eq!(
+        with_foreign,
+        (fx.to_bits(), fy.to_bits(), fz.to_bits()),
+        "the door read a basis the span did not name"
+    );
+    assert_ne!(
+        with_own, with_foreign,
+        "the two vectors must disagree at this index, or the row proves nothing"
     );
 }
 
-/// The whole cross product of the family against itself: **no pairing
-/// panics**, which is the D9 claim.
+/// The residue, stated as behaviour: a span from another curve's
+/// vector of the same control count is **answered, not refused** —
+/// with that vector's basis over this curve's control points.
 ///
-/// The three outcome classes are counted separately and each floored —
-/// admitted, and one per compare `admits` makes — because a class that
-/// reaches zero means the family stopped exercising that compare, and
-/// the row would be green over a guard part of which it never drove.
-/// Classified by the FIRST condition that fails, which is the only
-/// partition that attributes a refusal to one compare.
+/// Nothing panics anywhere in the cross product, which is D9's claim
+/// and the reason the retired guard existed: every span names a window
+/// inside its own vector's control count, so a curve of the same
+/// control count is indexed in range whatever span it is given.
 #[test]
-fn no_cross_vector_pairing_panics_and_every_outcome_occurs() {
+fn no_cross_vector_pairing_of_equal_control_count_panics() {
     let vectors: Vec<KnotVector> = span_families()
         .into_iter()
         .map(|(knots, p)| KnotVector::clamped(knots, p).expect("valid"))
         .collect();
-    let (mut admitted, mut by_degree, mut by_index, mut by_empty) =
-        (0usize, 0usize, 0usize, 0usize);
+    let (mut same_answer, mut different_answer) = (0usize, 0usize);
     for source in &vectors {
         for index in source.first_span()..=source.last_span() {
             let Some(span) = source.span(index) else {
                 continue;
             };
             for target in &vectors {
+                if target.control_count() != source.control_count() {
+                    // The count relation is the one guard left, and it
+                    // lives at construction: a curve simply has no
+                    // control point at the window this span names.
+                    continue;
+                }
                 let c = curve(target.knots().to_vec(), target.degree());
-                let pt = c.eval_in_span(span, 0.5);
-                let (_, d1, _) = c.ders_in_span(span, 0.5);
-                // The contract, written independently of the guard:
-                // what MUST be refused. Behaviour is asserted against
-                // THIS, not against `admits` — gating on `admits` would
-                // reclassify when a compare is deleted and assert
-                // nothing.
-                let refuse = span.degree() != target.degree()
-                    || span.index() > target.last_span()
-                    || !target.span_is_nonempty(span.index());
-                assert_eq!(
-                    target.admits(span),
-                    !refuse,
-                    "`admits` disagrees with the span contract"
-                );
-                if !refuse {
-                    admitted += 1;
+                if span.index() >= c.control().len() {
+                    continue;
+                }
+                let pt = pbits(c.eval_in_span(span, 0.3));
+                let own = target
+                    .span(index)
+                    .map(|s| pbits(c.eval_in_span(s, 0.3)))
+                    .unwrap_or(pt);
+                if pt == own {
+                    same_answer += 1;
                 } else {
-                    if span.degree() != target.degree() {
-                        by_degree += 1;
-                    } else if span.index() > target.last_span() {
-                        by_index += 1;
-                    } else {
-                        by_empty += 1;
-                    }
-                    assert!(
-                        pt.x.is_nan()
-                            && pt.y.is_nan()
-                            && pt.z.is_nan()
-                            && d1.x.is_nan()
-                            && d1.y.is_nan()
-                            && d1.z.is_nan(),
-                        "a refused pairing answered instead of poisoning"
-                    );
-                    // The discriminating one. At the curve door an
-                    // EMPTY span already yields NaN coordinates without
-                    // any guard (the zero knot gap divides, and the
-                    // poison reaches the coordinates through `w_acc`),
-                    // so the assertion above cannot separate that class.
-                    // The basis row can: unguarded it is
-                    // `[-inf, NaN, .., inf]`, and `-inf` is not NaN.
-                    // Off any knot value, so a zero denominator shows
-                    // up as a signed infinity rather than as `0 * inf`
-                    // — see the note in the empty-span row above.
-                    let row = geom_core::spline::basis::basis_funs::<f64>(target, span, 0.3);
-                    assert!(
-                        row.iter().all(|n| n.is_nan()),
-                        "a refused pairing produced a live basis row: {row:?}"
-                    );
+                    different_answer += 1;
                 }
             }
         }
     }
-    for (class, n) in [
-        ("admitted", admitted),
-        ("refused on the degree compare", by_degree),
-        ("refused on the index compare", by_index),
-        ("refused on the emptiness compare", by_empty),
-    ] {
-        assert!(n > 0, "the family no longer produces any pairing {class}");
-    }
+    assert!(
+        different_answer > 0,
+        "the family stopped producing a cross-vector disagreement, so this \
+         row no longer exercises the residue"
+    );
+    assert!(same_answer > 0, "the family produced no agreeing pairing");
 }
 
 /// The knot vectors the two sweeps above range over: several degrees,
