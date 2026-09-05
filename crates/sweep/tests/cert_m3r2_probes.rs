@@ -180,7 +180,10 @@ fn report(tag: &str, body: &Body<f64>, edge: topo::EdgeKey) {
         }
         kinds.sort();
         kinds.dedup();
-        format!("n={} target_edge_certification_errors={hit} kinds={kinds:?}", v.len())
+        format!(
+            "n={} target_edge_certification_errors={hit} kinds={kinds:?}",
+            v.len()
+        )
     };
     println!(
         "M3R2|{tag}|validate_geometric        |{}",
@@ -202,8 +205,7 @@ fn report(tag: &str, body: &Body<f64>, edge: topo::EdgeKey) {
     );
     println!(
         "M3R2|{tag}|validate_geom_structural  |{}",
-        topo::validate_geometric_structural(body, tol)
-            .map_or_else(|e| names(&e), |()| "OK".into())
+        topo::validate_geometric_structural(body, tol).map_or_else(|e| names(&e), |()| "OK".into())
     );
 }
 

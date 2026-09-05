@@ -59,10 +59,7 @@ fn m3r2_a_non_lane_defect_on_an_m7_8_edge_is_unreachable_without_the_lane() {
     // A drifted endpoint: nothing to do with the plane x NURBS lane.
     let drifted = Point3::new(1.0, 0.0, -0.25);
 
-    println!(
-        "M3R2|needs_nurbs_lane={}",
-        edge.needs_nurbs_lane(&arena)
-    );
+    println!("M3R2|needs_nurbs_lane={}", edge.needs_nurbs_lane(&arena));
     let with_lane = edge.recertify_via(
         drifted,
         ends.1,

@@ -67,6 +67,8 @@ mod cert5_arm_and_cells;
 #[path = "cert5_r1_patch_probes.rs"]
 mod cert5_r1_patch_probes;
 
+#[path = "cert_m3r2_lane_probes.rs"]
+mod cert_m3r2_lane_probes;
 #[path = "decoration_plane_mint.rs"]
 mod decoration_plane_mint;
 #[path = "imported_chart_arc_rim.rs"]
@@ -83,8 +85,6 @@ mod m5_pr12_circle_certificate;
 mod m5_pr7_ssi;
 #[path = "m5_pr9_tangent.rs"]
 mod m5_pr9_tangent;
-#[path = "cert_m3r2_lane_probes.rs"]
-mod cert_m3r2_lane_probes;
 
 #[path = "m7_8_plane_nurbs_edge.rs"]
 mod m7_8_plane_nurbs_edge;
