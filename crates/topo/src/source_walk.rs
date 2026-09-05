@@ -19,7 +19,7 @@
 //! every consumer's search — runs over blanked text, in which every
 //! comment, string literal and char literal is spaces with byte
 //! positions preserved. That is a structural rule, not a convention:
-//! [`CodeOnly::public_fns`] is a method, so there is no way to run the
+//! [`CodeOnly::fns`] is a method, so there is no way to run the
 //! item scan over un-blanked text, and no way to hand one of the
 //! bracket walks below a view that would make its depth count a
 //! guess.
@@ -90,16 +90,15 @@ pub(crate) fn crate_sources() -> Vec<std::path::PathBuf> {
 /// constructs a needle can hide in — nested block comments, every
 /// string prefix, a lifetime that is not an opening quote — are
 /// modelled and pinned. The type exists for the structural rule the
-/// module docs state: the item scan is [`Self::public_fns`], a
-/// method, so nothing in this walk can read raw text, and the bracket
-/// walks below can assume every bracket they see is a real one.
+/// module docs state: the item scan is [`Self::fns`], a method, so
+/// nothing in this walk can read raw text, and the bracket walks below
+/// can assume every bracket they see is a real one.
 ///
 /// **Two gaps the view does not close, both real and both dormant.**
-/// Blanking does not expand macros, so a `pub fn` inside a
-/// `macro_rules!` body is counted as an item and one inside an
-/// `include!`d file is not seen at all. In `topo/src` today there are
-/// two `macro_rules!`, neither containing a `pub fn`, and no
-/// `include!`.
+/// Blanking does not expand macros, so a `fn` inside a `macro_rules!`
+/// body is counted as an item and one inside an `include!`d file is
+/// not seen at all. In `topo/src` today there are two `macro_rules!`,
+/// neither containing a `pub fn`, and no `include!`.
 pub(crate) struct CodeOnly(String);
 
 impl CodeOnly {
@@ -113,15 +112,20 @@ impl CodeOnly {
         &self.0
     }
 
-    /// Every `pub fn` item in this file, as `(name, parameter list,
-    /// body)` — all three slices of the blanked text.
+    /// Every `fn` item with a body in this file — [`FnItem`] per item,
+    /// every slice a view of the blanked text.
     ///
     /// **Scanned on the `fn` token, not on a `pub fn ` literal.** The
     /// literal misses `pub const fn`, `pub async fn`, `pub unsafe fn`
-    /// and `pub extern "C" fn`; walking back from `fn` over the
-    /// qualifiers to a bare `pub` finds all of them and still rejects
-    /// `pub(crate) fn`, whose preceding token is `)`.
-    pub(crate) fn public_fns(&self) -> Vec<(&str, &str, &str)> {
+    /// and `pub extern "C" fn`; scanning the token finds all of them,
+    /// and leaves the visibility to [`FnItem::lead`] rather than
+    /// deciding it in the scan.
+    ///
+    /// **A `fn` token with no name declares no item.** `fn(K) -> V` in
+    /// a parameter list is a function-POINTER type, and skipping it is
+    /// not a dropped item: an item always has a name. Every other
+    /// unreadable head reaches [`gave_up`].
+    pub(crate) fn fns(&self) -> Vec<FnItem<'_>> {
         let code = &self.0;
         let b = code.as_bytes();
         let mut out = Vec::new();
@@ -129,30 +133,42 @@ impl CodeOnly {
         while let Some(rel) = code[at..].find("fn") {
             let kw = at + rel;
             at = kw + 2;
-            if !is_token(b, kw, 2) || !public_qualifiers_precede(b, kw) {
+            if !is_token(b, kw, 2) {
                 continue;
             }
-            // From here the head IS a public `fn`, so every remaining
+            let Some((name, after_name)) = ident_after(code, at) else {
+                continue;
+            };
+            // From here the head IS a named `fn`, so every remaining
             // exit is either a bodiless declaration or a defect. See
             // `gave_up` below: this scan does not get to skip one
             // quietly, because skipping one quietly is what it did —
             // which is why the carve's THIRD answer is read as a
             // defect and not as a declaration.
             let parsed = (|| {
-                let (name, after_name) = ident_after(code, at)?;
                 let open = param_list_start(b, after_name)?;
                 let close = test_utils::source::balanced_end(code, open)?;
                 match test_utils::source::item_body(code, close) {
-                    test_utils::source::ItemBody::Body(body) => Some((name, open, close, body)),
+                    test_utils::source::ItemBody::Body(body) => Some((open, close, body)),
                     _ => None,
                 }
             })();
             match parsed {
-                Some((name, open, close, body)) => {
-                    // The carve includes both braces; the body slice
-                    // this walk hands out never has the closing one.
-                    out.push((name, &code[open..close], &code[body.start..body.end - 1]));
-                    at = body.end;
+                Some((open, close, body)) => {
+                    let (start, end) = (body.start, body.end);
+                    at = end;
+                    out.push(FnItem {
+                        name,
+                        lead: &code[code[..kw].rfind('\n').map_or(0, |n| n + 1)..kw],
+                        params: &code[open..close],
+                        returns: &code[close + 1..start],
+                        // The carve includes both braces; the body
+                        // slice this walk hands out never has the
+                        // closing one.
+                        body: &code[start..end - 1],
+                        span: body,
+                        kw,
+                    });
                 }
                 None if matches!(
                     test_utils::source::item_body(code, at),
@@ -163,6 +179,48 @@ impl CodeOnly {
         }
         out
     }
+
+    /// Every `pub fn` item in this file, as `(name, parameter list,
+    /// body)` — the [`Self::fns`] scan narrowed to the items a bare
+    /// `pub` precedes, across any run of `const` / `async` / `unsafe` /
+    /// `extern` qualifiers. `pub(crate) fn` is rejected: its preceding
+    /// token is `)`.
+    pub(crate) fn public_fns(&self) -> Vec<(&str, &str, &str)> {
+        let b = self.0.as_bytes();
+        self.fns()
+            .into_iter()
+            .filter(|item| public_qualifiers_precede(b, item.kw))
+            .map(|item| (item.name, item.params, item.body))
+            .collect()
+    }
+}
+
+/// One `fn` item as the item scan reads it. Every slice is a view of
+/// the [`CodeOnly`] text, so a needle found in one is code and not
+/// prose.
+pub(crate) struct FnItem<'a> {
+    /// The item's name.
+    pub(crate) name: &'a str,
+    /// The item's line up to the `fn` token — where the visibility
+    /// keyword and the qualifiers stand. Visibility is left here rather
+    /// than decided in the scan because the two consumers want opposite
+    /// answers: one keeps the `pub` items, the other asserts an item is
+    /// NOT public.
+    pub(crate) lead: &'a str,
+    /// The parameter list, opening parenthesis included and closing one
+    /// excluded.
+    pub(crate) params: &'a str,
+    /// Everything between the parameter list and the body: the return
+    /// type, and a `where` clause when the item has one.
+    pub(crate) returns: &'a str,
+    /// The body, opening brace included and closing one excluded.
+    pub(crate) body: &'a str,
+    /// The body's byte range in the blanked text, both braces included
+    /// — what a caller needs to say which item a match elsewhere in the
+    /// file fell inside.
+    pub(crate) span: std::ops::Range<usize>,
+    /// The byte offset of the `fn` token.
+    pub(crate) kw: usize,
 }
 
 /// A public `fn` head this scan recognised and then could not read.
@@ -444,6 +502,46 @@ pub fn not_a_door(&self) {}
             ],
             "a door was lost, or its body classified from prose"
         );
+    }
+
+    /// **Every named `fn` item, and nothing that merely spells the
+    /// keyword.**
+    ///
+    /// The scan is this crate's one home for reading its own items, so
+    /// it returns the PRIVATE ones too and leaves visibility in
+    /// `lead` — a guard asserting that an item is not public cannot be
+    /// built on a walk that only returns the public ones, and
+    /// `public_fns` is that same scan narrowed rather than a second
+    /// one.
+    ///
+    /// A function-POINTER type spells `fn` and declares no item. It has
+    /// no name, which is the tell, and reading one as an item would put
+    /// a nameless entry in every table built on this walk.
+    #[test]
+    fn the_item_scan_reads_named_items_only_and_carries_their_visibility() {
+        let src = "
+type Namer = fn(K) -> EntityId;
+const fn ctor(he: K) -> Self { Self(he) }
+pub(crate) fn require<K: Key, V>(a: &S<K, V>, id: fn(K) -> EntityId) -> Result<(), E> { a.c(k) }
+pub async unsafe fn open(&mut self) -> Option<Live> { self.get(he) }
+";
+        let code = CodeOnly::of(src);
+        let read: Vec<(&str, &str, &str)> = code
+            .fns()
+            .iter()
+            .map(|item| (item.name, item.lead.trim(), item.returns.trim()))
+            .collect();
+        assert_eq!(
+            read,
+            vec![
+                ("ctor", "const", "-> Self"),
+                ("require", "pub(crate)", "-> Result<(), E>"),
+                ("open", "pub async unsafe", "-> Option<Live>"),
+            ],
+            "the scan lost an item, read a function-pointer type as one, or mis-carved a head"
+        );
+        let public: Vec<&str> = code.public_fns().iter().map(|(n, _, _)| *n).collect();
+        assert_eq!(public, vec!["open"], "the narrowing over that same scan");
     }
 
     /// The walk over the real tree, which is the only place the two
