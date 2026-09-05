@@ -5,10 +5,15 @@
 //! operation does not mint, or forgot a parameter entirely. These rows
 //! are what make it a checked claim instead of a comment:
 //!
-//! 1. **Every scalar parameter has exactly one row.** Computed over
-//!    `ScalarParam::ALL`, so a verb the vocabulary gains is measured
+//! 1. **Every scalar parameter has exactly one row, and every flow
+//!    SOURCE is declared somewhere.** Computed over `ScalarParam::ALL`
+//!    and `FlowSource::ALL`, so a verb the vocabulary gains is measured
 //!    the moment its parameter is named — never a per-verb count copied
-//!    into an assertion.
+//!    into an assertion. The two censuses differ in shape because the
+//!    two source kinds do: a verb scalar belongs to exactly one verb, so
+//!    it is declared exactly once, while an operand-carried scalar is
+//!    declared by every verb that sweeps that operand — the extrude and
+//!    the revolve both name the profile edge's radius.
 //! 2. **Every field a row names belongs to the verb whose row it is**,
 //!    and no field is claimed twice within a row.
 //! 3. **Every role family a row names is one the birth record really
@@ -29,10 +34,14 @@
 
 use std::collections::BTreeSet;
 
-use geom_core::{Affine3, Tol, Vec3};
+use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
+use profile::{Profile, SketchPlane, ValidatedProfile};
 use sweep::blend::naming::BlendNaming;
+use sweep::{RevolveAxis, Revolution};
 use topo::{Body, BooleanDeclarations, BooleanOp, SweepStrategy};
-use verbs::{PairOut, RoleFamily, ScalarParam, Verb, VerbKind, VerbRecord};
+use verbs::{
+    EdgeScalar, FlowSource, PairOut, RoleFamily, ScalarParam, Verb, VerbKind, VerbRecord,
+};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -45,15 +54,18 @@ fn every_scalar_parameter_has_one_flow_row() {
     let mut rows: Vec<ScalarParam> = Vec::new();
     for kind in VerbKind::ALL {
         for flow in kind.param_flow() {
+            let FlowSource::Param(param) = flow.source else {
+                continue;
+            };
             assert_eq!(
-                flow.param.verb(),
+                param.verb(),
                 *kind,
                 "{:?}'s flow declares {:?}, which belongs to {:?}",
                 kind,
-                flow.param,
-                flow.param.verb()
+                param,
+                param.verb()
             );
-            rows.push(flow.param);
+            rows.push(param);
         }
     }
     rows.sort_unstable();
@@ -62,6 +74,37 @@ fn every_scalar_parameter_has_one_flow_row() {
     assert_eq!(
         rows, expected,
         "the flow declarations do not cover the scalar-parameter census exactly once each"
+    );
+}
+
+/// **Every source in the vocabulary is declared by some verb, and no
+/// verb declares one twice.**
+///
+/// The "exactly once" census above cannot cover an operand-carried
+/// source: the profile edge's radius belongs to the OPERAND, so every
+/// verb that sweeps a profile declares it and the count is two, not
+/// one. What is checkable — and what a dead vocabulary entry would
+/// break — is coverage: a source nothing declares is a name with no
+/// meaning, and a source declared twice by one verb would make a
+/// consumer stamp one field from two rows.
+#[test]
+fn every_flow_source_is_declared_and_never_twice_by_one_verb() {
+    let mut seen: BTreeSet<FlowSource> = BTreeSet::new();
+    for kind in VerbKind::ALL {
+        let mut here: BTreeSet<FlowSource> = BTreeSet::new();
+        for flow in kind.param_flow() {
+            assert!(
+                here.insert(flow.source),
+                "{kind:?} declares {:?} twice",
+                flow.source
+            );
+        }
+        seen.extend(here);
+    }
+    let all: BTreeSet<FlowSource> = FlowSource::ALL.iter().copied().collect();
+    assert_eq!(
+        seen, all,
+        "the declared sources are not the source vocabulary"
     );
 }
 
@@ -78,7 +121,7 @@ fn no_flow_row_repeats_a_field() {
                 flow.fields.len(),
                 "{:?}'s {:?} row repeats a field: {:?}",
                 kind,
-                flow.param,
+                flow.source,
                 flow.fields
             );
         }
@@ -222,6 +265,115 @@ fn the_booleans_flow_is_empty_beside_a_real_record() {
         assert!(
             VerbKind::Boolean(op).param_flow().is_empty(),
             "the boolean has no scalar parameters; a row appeared with nothing to declare"
+        );
+    }
+}
+
+/// A disc of radius `r` on the sketch xy plane, centred at the
+/// origin — the extrude fixture, and the shape whose walls carry the
+/// declared radius.
+fn disc(r: f64) -> ValidatedProfile<f64> {
+    let lp = profile::circle(Point2::new(0.0, 0.0), r, tol()).expect("a circle of positive radius");
+    Profile::new(SketchPlane::xy(), vec![lp.into()])
+        .validate(tol())
+        .expect("a circle is a valid profile")
+}
+
+/// A disc of radius `r` centred at `(0, −d)` — the revolve fixture,
+/// clear of the x axis it is spun about, so its walls are tori. The
+/// sign is the door's own half-plane convention: the signed radial
+/// coordinate about `(origin, dir)` is `(p − origin).perp_dot(dir)`,
+/// which for the +x axis is `−y`, so the profile lives at negative y.
+fn offset_disc(r: f64, d: f64) -> ValidatedProfile<f64> {
+    let lp =
+        profile::circle(Point2::new(0.0, -d), r, tol()).expect("a circle of positive radius");
+    Profile::new(SketchPlane::xy(), vec![lp.into()])
+        .validate(tol())
+        .expect("a circle is a valid profile")
+}
+
+/// The x axis, in sketch coordinates.
+fn x_axis() -> RevolveAxis<f64> {
+    RevolveAxis {
+        origin: Point2::new(0.0, 0.0),
+        dir: Vec2::new(1.0, 0.0),
+    }
+}
+
+/// **The sweeps' flow names a family their records really mint**, and
+/// the walls it names are non-empty on both fixtures — the row that
+/// fires if a sweep stopped exporting its per-loop wall lists, which is
+/// the only thing a per-edge source can be attached through.
+#[test]
+fn the_sweeps_flow_names_the_wall_family_their_records_mint() {
+    let extruded = Verb::Extrude { distance: 1.0 }
+        .run_profile(&disc(0.5), tol())
+        .expect("the disc extrudes");
+    let VerbRecord::Extrude(built) = extruded else {
+        panic!("an extrude run produced another family's record");
+    };
+    assert!(
+        built.side_faces.iter().any(|loop_| !loop_.is_empty()),
+        "the extruded disc minted no side walls"
+    );
+
+    let revolved = Verb::Revolve {
+        axis: x_axis(),
+        revolution: Revolution::Full,
+    }
+    .run_profile(&offset_disc(0.25, 1.0), tol())
+    .expect("the offset disc revolves");
+    let VerbRecord::Revolve(built) = revolved else {
+        panic!("a revolve run produced another family's record");
+    };
+    assert!(
+        built.walls.iter().flatten().any(Option::is_some),
+        "the revolved disc minted no walls"
+    );
+
+    // Every family the two flows name is the wall family, and it is the
+    // one both records just filled.
+    for kind in [VerbKind::Extrude, VerbKind::Revolve] {
+        for flow in kind.param_flow() {
+            for field in flow.fields {
+                assert_eq!(
+                    field.family(),
+                    RoleFamily::SweptWalls,
+                    "{kind:?}'s flow names {field:?}, whose family no sweep record mints"
+                );
+            }
+        }
+    }
+}
+
+/// **The two extents' rows are empty beside real records.** The
+/// distance and the angle are how far the sweep runs, and a sweep that
+/// ran is what makes the emptiness a statement rather than a constant:
+/// both fixtures above produced bodies, and neither verb's own scalar
+/// reaches a field of them.
+#[test]
+fn the_sweep_extents_reach_no_field() {
+    for (kind, param) in [
+        (VerbKind::Extrude, ScalarParam::ExtrudeDistance),
+        (VerbKind::Revolve, ScalarParam::RevolveAngle),
+    ] {
+        let row = kind
+            .param_flow()
+            .iter()
+            .find(|row| row.source == FlowSource::Param(param))
+            .expect("the extent's row must be present, not absent");
+        assert!(
+            row.fields.is_empty(),
+            "{param:?} reaches no stored field: an extent is not a surface's data"
+        );
+        let edge = kind
+            .param_flow()
+            .iter()
+            .find(|row| row.source == FlowSource::ProfileEdge(EdgeScalar::Radius))
+            .expect("the profile edge's row must be present");
+        assert!(
+            !edge.fields.is_empty(),
+            "{kind:?} declares the profile edge's radius and lands it nowhere"
         );
     }
 }

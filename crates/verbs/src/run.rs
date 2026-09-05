@@ -4,8 +4,10 @@
 use core::fmt;
 
 use geom_core::{Bounds, Decide, Real, Tol};
+use profile::ValidatedProfile;
 use sweep::blend::BlendRefusal;
 use sweep::blend::naming::BlendNaming;
+use sweep::{Extruded, ExtrudeError, Revolved, RevolveError};
 use topo::{
     Body, BooleanError, BooleanNaming, BooleanResult, BooleanResultKind, ContactRecords,
     SweepStrategy, boolean_op_with,
@@ -33,7 +35,7 @@ pub struct VerbOut<T: Real> {
     /// The operation's output body.
     pub body: Body<T>,
     /// The operation's own record of the result, per family.
-    pub record: VerbRecord,
+    pub record: VerbRecord<T>,
 }
 
 /// **The record channel, one variant per record family** — the
@@ -47,8 +49,17 @@ pub struct VerbOut<T: Real> {
 /// handed another family's variant is holding a kernel bug and refuses
 /// typed rather than emitting names from the wrong record (the same
 /// class as a blend body arriving with `None` records).
+///
+/// **The sweep families carry their door's whole bundle, body
+/// included**, and that is why the profile door hands back a record
+/// rather than a [`VerbOut`]. A blend's and a boolean's records are
+/// beside their body; `Extruded` and `Revolved` are records WITH the
+/// body in them, and the naming door each family owns reads the whole
+/// bundle — so splitting the body out would either restate the bundle
+/// field by field (the thing this channel exists not to do) or hand
+/// the consumer a record its own emitter cannot be called with.
 #[derive(Debug)]
-pub enum VerbRecord {
+pub enum VerbRecord<T: Real> {
     /// A blend door's per-entity birth records. The `Option` is the op
     /// door's own and its whole point is that an EMPTY record must not
     /// be constructible: `None` says "this body has no birth records",
@@ -67,6 +78,12 @@ pub enum VerbRecord {
         /// Mint-time naming facts the naming layer consumes.
         naming: BooleanNaming,
     },
+    /// The extrude door's whole bundle — body, solid, shell, caps,
+    /// side walls per loop, struts per loop.
+    Extrude(Extruded<T>),
+    /// The revolve door's whole bundle — body, solid, shell,
+    /// cavities, walls, rims, poles and the case split's own keys.
+    Revolve(Revolved<T>),
 }
 
 /// **What a two-operand verb produced**: the typed empty success, or a
@@ -101,7 +118,11 @@ pub enum VerbError {
     Blend(BlendRefusal),
     /// The boolean pipeline refused.
     Boolean(BooleanError),
-    /// A run door was handed a different operand count than the verb
+    /// The extrude door refused.
+    Extrude(ExtrudeError),
+    /// The revolve door refused.
+    Revolve(RevolveError),
+    /// A run door was handed a different operand shape than the verb
     /// declares ([`VerbKind::arity`]) — a caller wiring bug surfaced
     /// typed, never a panic. Unreachable through a lowering that
     /// consults the declaration; a direct caller that picks the wrong
@@ -109,7 +130,7 @@ pub enum VerbError {
     Arity {
         /// The verb whose door refused.
         verb: VerbKind,
-        /// The operand count the door was handed (the door's own
+        /// The operand shape the door was handed (the door's own
         /// arity, so the declared one is `verb.arity()`).
         given: Arity,
     },
@@ -120,9 +141,11 @@ impl fmt::Display for VerbError {
         match self {
             Self::Blend(refusal) => write!(f, "{refusal}"),
             Self::Boolean(refusal) => write!(f, "{refusal}"),
+            Self::Extrude(refusal) => write!(f, "{refusal}"),
+            Self::Revolve(refusal) => write!(f, "{refusal}"),
             Self::Arity { verb, given } => write!(
                 f,
-                "the {verb:?} verb declares {:?} operand(s) and was run through the {given:?}-operand door",
+                "the {verb:?} verb declares a {:?} operand and was run through the {given:?} door",
                 verb.arity()
             ),
         }
@@ -144,7 +167,8 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
     /// verbatim; the door's own docs
     /// (`sweep::blend::build::fillet_edges`,
     /// `sweep::blend::build::chamfer_edges`) enumerate the cases.
-    /// [`VerbError::Arity`] if this verb declares two operands.
+    /// [`VerbError::Arity`] if this verb's operand is two bodies or a
+    /// profile.
     pub fn run(&self, operand: &Body<T>, tol: Tol) -> Result<VerbOut<T>, VerbError> {
         let blended = match self {
             Self::Fillet { edges, radius } => {
@@ -153,7 +177,7 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
             Self::Chamfer { edges, distance } => {
                 sweep::blend::build::chamfer_edges(operand, edges, *distance, tol)
             }
-            Self::Boolean { .. } => {
+            Self::Boolean { .. } | Self::Extrude { .. } | Self::Revolve { .. } => {
                 return Err(VerbError::Arity {
                     verb: self.kind(),
                     given: Arity::One,
@@ -179,7 +203,8 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
     ///
     /// [`VerbError::Boolean`] carrying the pipeline's [`BooleanError`]
     /// verbatim (`topo::boolean_op_with` enumerates the cases);
-    /// [`VerbError::Arity`] if this verb declares one operand.
+    /// [`VerbError::Arity`] if this verb's operand is one body or a
+    /// profile.
     pub fn run_pair(
         &self,
         a: &Body<T>,
@@ -213,10 +238,53 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
                     }
                 }
             }
-            Self::Fillet { .. } | Self::Chamfer { .. } => Err(VerbError::Arity {
+            Self::Fillet { .. }
+            | Self::Chamfer { .. }
+            | Self::Extrude { .. }
+            | Self::Revolve { .. } => Err(VerbError::Arity {
                 verb: self.kind(),
                 given: Arity::Two,
             }),
+        }
+    }
+
+    /// **Run this profile-operand verb against its operand profile.**
+    ///
+    /// The validated profile comes in BORROWED, never in the payload:
+    /// it is the thing operated on, and a declaration owning a clone
+    /// of it is what the operand rule exists to prevent.
+    ///
+    /// What comes back is the record alone, not a [`VerbOut`], for the
+    /// reason [`VerbRecord`]'s docs give: a sweep door's bundle IS its
+    /// record and the body is a field of it, so a consumer takes the
+    /// body out of the record after its emitter has read it.
+    ///
+    /// # Errors
+    ///
+    /// [`VerbError::Extrude`] / [`VerbError::Revolve`] carrying the
+    /// door's own typed refusal verbatim (`sweep::extrude` and
+    /// `sweep::revolve` enumerate the cases); [`VerbError::Arity`] if
+    /// this verb's operand is one or two bodies.
+    pub fn run_profile(
+        &self,
+        operand: &ValidatedProfile<T>,
+        tol: Tol,
+    ) -> Result<VerbRecord<T>, VerbError> {
+        match self {
+            Self::Extrude { distance } => {
+                sweep::extrude(operand, sweep::Extrusion::Distance(*distance), tol)
+                    .map(VerbRecord::Extrude)
+                    .map_err(VerbError::Extrude)
+            }
+            Self::Revolve { axis, revolution } => sweep::revolve(operand, *axis, *revolution, tol)
+                .map(VerbRecord::Revolve)
+                .map_err(VerbError::Revolve),
+            Self::Fillet { .. } | Self::Chamfer { .. } | Self::Boolean { .. } => {
+                Err(VerbError::Arity {
+                    verb: self.kind(),
+                    given: Arity::Profile,
+                })
+            }
         }
     }
 }

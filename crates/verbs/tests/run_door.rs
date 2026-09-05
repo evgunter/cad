@@ -16,8 +16,10 @@
 
 use std::fmt::Write as _;
 
-use geom_core::{Affine3, Tol, Vec3};
+use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
+use profile::{Profile, SketchPlane, ValidatedProfile};
 use sweep::blend::build::{chamfer_edges, fillet_edges};
+use sweep::{Extrusion, RevolveAxis, Revolution};
 use topo::{Body, BooleanDeclarations, BooleanOp, BooleanResult, SweepStrategy, boolean_op_with};
 use verbs::{Arity, PairOut, Verb, VerbError, VerbKind, VerbRecord};
 
@@ -53,7 +55,7 @@ fn dump(body: &Body<f64>) -> String {
 }
 
 /// The blend channel of a run's record, or a loud failure.
-fn blend_record(record: VerbRecord) -> Option<sweep::blend::naming::BlendNaming> {
+fn blend_record(record: VerbRecord<f64>) -> Option<sweep::blend::naming::BlendNaming> {
     let VerbRecord::Blend(naming) = record else {
         panic!("a blend run produced another family's record: {record:?}");
     };
@@ -254,6 +256,11 @@ fn sample(kind: VerbKind) -> Verb<f64> {
             edges: Vec::new(),
             distance: 0.1,
         },
+        VerbKind::Extrude => Verb::Extrude { distance: 1.0 },
+        VerbKind::Revolve => Verb::Revolve {
+            axis: x_axis(),
+            revolution: Revolution::Full,
+        },
         VerbKind::Boolean(op) => Verb::Boolean {
             op,
             declare: BooleanDeclarations::none(),
@@ -274,28 +281,144 @@ fn sample(kind: VerbKind) -> Verb<f64> {
 fn each_door_refuses_the_undeclared_arity() {
     let a = sweep::test_support::cube(1.0, tol());
     let b = shifted_cube(Vec3::new(0.5, 0.5, 0.5));
+    let disc = disc(0.5);
 
     for kind in VerbKind::ALL {
         let verb = sample(*kind);
-        match kind.arity() {
-            Arity::One => {
-                let err = verb
-                    .run_pair(&a, &b, SweepStrategy::Realized, tol())
-                    .unwrap_err();
-                let VerbError::Arity { verb: who, given } = err else {
-                    panic!("{kind:?} at the pair door refused with {err:?}, not Arity");
-                };
-                assert_eq!(who, *kind);
-                assert_eq!(given, Arity::Two);
-            }
-            Arity::Two => {
-                let err = verb.run(&a, tol()).unwrap_err();
-                let VerbError::Arity { verb: who, given } = err else {
-                    panic!("{kind:?} at the one-operand door refused with {err:?}, not Arity");
-                };
-                assert_eq!(who, *kind);
-                assert_eq!(given, Arity::One);
-            }
+        // Every door but this verb's own, so no shape is left untried:
+        // the refusal must come back from each of them, naming the verb
+        // and the door that refused.
+        let refusals: Vec<(Arity, VerbError)> = [
+            (Arity::One, verb.run(&a, tol()).err()),
+            (
+                Arity::Two,
+                verb.run_pair(&a, &b, SweepStrategy::Realized, tol()).err(),
+            ),
+            (Arity::Profile, verb.run_profile(&disc, tol()).err()),
+        ]
+        .into_iter()
+        .filter(|(door, _)| *door != kind.arity())
+        .map(|(door, err)| {
+            (
+                door,
+                err.unwrap_or_else(|| panic!("{kind:?} ran through the {door:?} door")),
+            )
+        })
+        .collect();
+        assert_eq!(refusals.len(), 2, "there are three doors, not three-plus");
+        for (door, err) in refusals {
+            let VerbError::Arity { verb: who, given } = err else {
+                panic!("{kind:?} at the {door:?} door refused with {err:?}, not Arity");
+            };
+            assert_eq!(who, *kind);
+            assert_eq!(given, door);
         }
     }
+}
+
+/// A disc of radius `r` on the sketch xy plane — the profile door's
+/// operand.
+fn disc(r: f64) -> ValidatedProfile<f64> {
+    let lp = profile::circle(Point2::new(0.0, 0.0), r, tol()).unwrap();
+    Profile::new(SketchPlane::xy(), vec![lp.into()])
+        .validate(tol())
+        .unwrap()
+}
+
+/// The x axis, in sketch coordinates.
+fn x_axis() -> RevolveAxis<f64> {
+    RevolveAxis {
+        origin: Point2::new(0.0, 0.0),
+        dir: Vec2::new(1.0, 0.0),
+    }
+}
+
+#[test]
+fn the_extrude_dispatch_is_the_extrude_door() {
+    let profile = disc(0.5);
+    let door = sweep::extrude(&profile, Extrusion::Distance(1.0), tol()).unwrap();
+    let via = Verb::Extrude { distance: 1.0 }
+        .run_profile(&profile, tol())
+        .unwrap();
+
+    let VerbRecord::Extrude(via) = via else {
+        panic!("an extrude run produced another family's record");
+    };
+    assert_eq!(dump(&door.body), dump(&via.body));
+    assert_eq!(
+        format!("{:?}", door.side_faces),
+        format!("{:?}", via.side_faces),
+        "the birth record is carried across, not rebuilt"
+    );
+    assert_eq!(format!("{:?}", door.top), format!("{:?}", via.top));
+    assert_eq!(format!("{:?}", door.bottom), format!("{:?}", via.bottom));
+    assert_eq!(
+        format!("{:?}", door.strut_edges),
+        format!("{:?}", via.strut_edges)
+    );
+}
+
+#[test]
+fn the_revolve_dispatch_is_the_revolve_door() {
+    // Negative y: the door's half-plane about the +x axis is
+    // `(p − origin).perp_dot(dir) ≥ 0`, which is `−y`.
+    let lp = profile::circle(Point2::new(0.0, -1.0), 0.25, tol()).unwrap();
+    let profile = Profile::new(SketchPlane::xy(), vec![lp.into()])
+        .validate(tol())
+        .unwrap();
+    let door = sweep::revolve(&profile, x_axis(), Revolution::Full, tol()).unwrap();
+    let via = Verb::Revolve {
+        axis: x_axis(),
+        revolution: Revolution::Full,
+    }
+    .run_profile(&profile, tol())
+    .unwrap();
+
+    let VerbRecord::Revolve(via) = via else {
+        panic!("a revolve run produced another family's record");
+    };
+    assert_eq!(dump(&door.body), dump(&via.body));
+    assert_eq!(
+        format!("{:?}", door.walls),
+        format!("{:?}", via.walls),
+        "the birth record is carried across, not rebuilt"
+    );
+    assert_eq!(format!("{:?}", door.rims), format!("{:?}", via.rims));
+    assert_eq!(format!("{:?}", door.poles), format!("{:?}", via.poles));
+    assert_eq!(format!("{:?}", door.kind), format!("{:?}", via.kind));
+}
+
+/// **A sweep refusal crosses unaltered**, both doors. The fixtures are
+/// each door's own degenerate-extent gate — a zero distance and a zero
+/// angle — which is the refusal reachable without building a
+/// degenerate profile.
+#[test]
+fn a_sweep_refusal_crosses_the_dispatch_unaltered() {
+    let profile = disc(0.5);
+    let door = sweep::extrude(&profile, Extrusion::Distance(0.0), tol()).unwrap_err();
+    let via = Verb::Extrude { distance: 0.0 }
+        .run_profile(&profile, tol())
+        .unwrap_err();
+    let VerbError::Extrude(carried) = via else {
+        panic!("an extrude refusal crossed as another family's: {via:?}");
+    };
+    assert_eq!(format!("{door:?}"), format!("{carried:?}"));
+    assert_eq!(door.to_string(), carried.to_string());
+
+    let lp = profile::circle(Point2::new(0.0, -1.0), 0.25, tol()).unwrap();
+    let off = Profile::new(SketchPlane::xy(), vec![lp.into()])
+        .validate(tol())
+        .unwrap();
+    let door = sweep::revolve(&off, x_axis(), Revolution::Partial(0.0), tol()).unwrap_err();
+    let via = Verb::Revolve {
+        axis: x_axis(),
+        revolution: Revolution::Partial(0.0),
+    }
+    .run_profile(&off, tol())
+    .unwrap_err();
+    let VerbError::Revolve(carried) = via else {
+        panic!("a revolve refusal crossed as another family's: {via:?}");
+    };
+    assert_eq!(format!("{door:?}"), format!("{carried:?}"));
+    assert_eq!(door.to_string(), carried.to_string());
 }
