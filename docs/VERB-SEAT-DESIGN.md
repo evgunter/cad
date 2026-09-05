@@ -87,6 +87,16 @@ to the layer whose types it serves:
   (`k_stats` is `geom-core`, already below `topo`; the site moves,
   it is not twinned). Datum-node resolution — `RecipeNodeId` →
   `DatumValue` — stays in `editor-core`'s `prepare`.
+- **`rim_of(&Body<T>, EdgeKey) -> Result<Vec<EdgeKey>, RimError>`** —
+  the rim an arc belongs to, whole (FILLET, `docs/FILLET-RIM-SPEC.md`;
+  Ev's ruling on PR 1735, entered by announced seam in `work/seat/log.md`).
+  EXACT by the same standard as the atoms above — stored tags and stored
+  carrier fields read BIT for bit, no funnel, no margin — but a
+  SET-returning door, so it refuses typed where a predicate answers NO:
+  an empty set and a partial set are both answers a caller would act on,
+  and a rim handed back short is a fillet request that stalls at a seam
+  vertex. It adds no vocabulary beyond `RimError`; naming a rim is the
+  names vocabulary's question, not this door's.
 
 **S2 — `select_where` becomes a wrapper.** The engine is already
 factored for this: after `prepare`
