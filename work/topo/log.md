@@ -263,3 +263,19 @@ names versus a tag read, and #1902's "one kernel door, callers keep
 their names" is this item's (a)). Ratified (a). The item is a unit,
 dispatched on `topo/two-homes-face-kind` as a one-door seam on SEAT's
 `query.rs`, announced; single style review, no row.
+
+## D50 delivered; style review out (2026-09-05)
+
+`topo/d50-live-guard` delivered as PR 1949, head `e69760e1`, full
+matrix green (run 33950634858). The guard is one row in `live.rs` over
+the shared `code_only` view: the declaration and `new` carry no
+visibility, every door reaches a closed lookup vocabulary before its
+first construction, and the doors and sites are pinned to the header's
+list plus the crate-wide "no other file builds one". Three mutants red
+by name. `D260` is one sentence. Two deviations: `source_walk.rs`'s
+item scan widened from `pub fn` to every named `fn` (the doors are
+`pub(crate)`), with its own row; and one `Shared` line in the reader
+census, forced by the census's own detector (S-TCOST's file — noted on
+its board at adjudication). One residue filed: the guard proves
+ordering, not that the key looked up is the key wrapped. Single style
+review dispatched on the frozen head.
