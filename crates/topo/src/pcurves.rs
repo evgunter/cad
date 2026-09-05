@@ -157,9 +157,10 @@ use geom_brep::{
 use geom_core::Tol;
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
-use geom_core::{Decide, Indeterminate, Margin, Real, Sign};
+use geom_core::{Bounds, Decide, Indeterminate, Margin, Point2, Real, Sign, SpanLocate};
 
 use crate::body::Body;
+use crate::chart_bound::{ChartBound, ChartEdge, ChartLoop};
 use crate::entity::{FaceKey, HalfEdgeKey, LoopKey};
 use crate::null::CurveGeom;
 
@@ -191,6 +192,21 @@ pub enum PcurveMintError {
     LoopNotClosed {
         /// The face whose loop failed to close.
         face: FaceKey,
+    },
+    /// A loop's chart walk closed only by a whole period of the chart
+    /// (or, on a sphere chart, through the involution): the walk is a
+    /// LIFT, not a closed chart polygon, so it bounds no chart region
+    /// and [`chart_boundary`] refuses rather than describing the
+    /// polygon of an open lift.
+    ///
+    /// No head constructor makes one — a closed wall carries a wrap
+    /// strut or a seam chain, and its walk closes exactly — so this is
+    /// a fence, not a path.
+    LoopWraps {
+        /// The face whose loop wraps the chart.
+        face: FaceKey,
+        /// The wrapping loop.
+        r#loop: LoopKey,
     },
     /// A half-edge carries no stored pcurve at rest although its face
     /// carries some: the face's cache set is incomplete. A face with
@@ -232,6 +248,11 @@ impl core::fmt::Display for PcurveMintError {
                 f,
                 "pcurve minting: the chart walk of a loop of face {face:?} did not close \
                  (its azimuth advance is neither zero nor one full period)"
+            ),
+            Self::LoopWraps { face, r#loop: lp } => write!(
+                f,
+                "chart boundary: the chart walk of loop {lp:?} of face {face:?} closes one \
+                 whole period off — it lifts the chart rather than bounding a chart polygon"
             ),
             Self::MissingCache { half_edge } => write!(
                 f,
@@ -924,7 +945,10 @@ fn derive_chart_foot<T: PcurveFittedLane>(
 
 /// Is `half_edge` the `he_plus` of its edge (so the loop traverses it
 /// forward in the carrier parameter)?
-fn is_plus<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> Result<bool, PcurveMintError> {
+pub(crate) fn is_plus<T: Decide>(
+    body: &Body<T>,
+    half_edge: HalfEdgeKey,
+) -> Result<bool, PcurveMintError> {
     let he = body
         .get_half_edge(half_edge)
         .ok_or(PcurveMintError::Corrupt)?;
@@ -1204,7 +1228,7 @@ fn loop_closes<T: Decide>(
 }
 
 /// One half-edge's minted chart curve, before certification.
-struct Walked<T: Real> {
+pub(crate) struct Walked<T: Real> {
     half_edge: HalfEdgeKey,
     pcurve: Pcurve<T>,
     t0: T,
@@ -1398,7 +1422,7 @@ fn mint_face<T: PcurveFittedLane>(
 
 /// The one-branch walk of a single loop (module docs). Appends the
 /// branch-pinned chart curves to `out`.
-fn walk_loop<T: PcurveFittedLane>(
+pub(crate) fn walk_loop<T: PcurveFittedLane>(
     body: &Body<T>,
     face: FaceKey,
     lp: LoopKey,
@@ -1575,6 +1599,203 @@ fn walk_loop<T: PcurveFittedLane>(
         return Err(PcurveMintError::LoopNotClosed { face });
     }
     Ok(())
+}
+
+/// A `Harmonic` channel that is an EXACT structural zero — the C6
+/// idiom, read here exactly as `chart_region.rs` reads it: a
+/// numerically-almost-zero channel is deliberately NOT a zero, so the
+/// straightness of a chart image is a fact about the variant's
+/// coefficients and never a measurement.
+fn exact_zero<T: Bounds>(x: T) -> bool {
+    x.lo() == x.hi() && x.lo() == 0.0
+}
+
+/// The chart image of one walked half-edge, in loop direction.
+///
+/// # Errors
+///
+/// [`PcurveMintError::Certify`] with [`PcurveCertifyError::UnsupportedCarrier`]
+/// for a `General` image carrying no stored certificate: its envelope
+/// is the only statement bounding the image against its carrier, and
+/// inventing one would widen nothing while claiming a bound.
+fn chart_edge<T: PcurveFittedLane + SpanLocate + Bounds>(
+    body: &Body<T>,
+    walked: &Walked<T>,
+    plus: bool,
+) -> Result<ChartEdge<T>, PcurveMintError> {
+    let (entry_t, exit_t) = if plus {
+        (walked.t0, walked.t1)
+    } else {
+        (walked.t1, walked.t0)
+    };
+    let a = walked.pcurve.eval(entry_t);
+    let b = walked.pcurve.eval(exit_t);
+    let straight = match &walked.pcurve {
+        // Straight by VARIANT: `IsoLine` is `p0 + pl·t`, and an
+        // `IsoArc`'s UV image is the segment `p0 → p0 + pd` (only the
+        // parameterization along it is transcendental).
+        Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => true,
+        // Straight iff both trig channels are exact-structural zeros:
+        // every line edge of a plane chart lands here (`carrier_harmonic`
+        // gives a `Line` carrier `a = b = 0` exactly, and the plane arm
+        // maps the coefficients through one by one), and so does a rim
+        // on an axis-aligned cylinder.
+        Pcurve::Harmonic { pa, pb, .. } => {
+            exact_zero(pa.x) && exact_zero(pa.y) && exact_zero(pb.x) && exact_zero(pb.y)
+        }
+        Pcurve::Fitted(_) | Pcurve::General(_) => false,
+    };
+    if straight {
+        return Ok(ChartEdge::Segment { a, b });
+    }
+    match &walked.pcurve {
+        // A fitted or general image's box is its CONTROL HULL (the
+        // convex-hull property), and what stands between that image
+        // and the carrier is the stored certificate's envelope — in
+        // metres, so `metred` is where it widens the box.
+        Pcurve::Fitted(_) | Pcurve::General(_) => {
+            let cache = body
+                .pcurve(walked.half_edge)
+                .ok_or(PcurveMintError::Certify {
+                    half_edge: walked.half_edge,
+                    error: PcurveCertifyError::UnsupportedCarrier,
+                })?;
+            let hull = walked.pcurve.chart_box(walked.t0, walked.t1);
+            Ok(ChartEdge::Envelope {
+                a,
+                b,
+                image: Point2::new(
+                    hull.u_min.enclosure_hull(hull.u_max),
+                    hull.v_min.enclosure_hull(hull.v_max),
+                ),
+                slack: cache.certificate().envelope,
+            })
+        }
+        // The closed-form image is exact in its family, so its span
+        // enclosure IS the certified box and the slack is zero. At a
+        // POINT scalar the span hull is poison, the box is poison, and
+        // the outside test certifies nothing against it — which is the
+        // safe direction.
+        _ => Ok(ChartEdge::Envelope {
+            a,
+            b,
+            image: walked.pcurve.eval(walked.t0.enclosure_hull(walked.t1)),
+            slack: T::zero(),
+        }),
+    }
+}
+
+/// **The face's boundary in a chart the CALLER names** — the certified
+/// outer description a subdivision consumer intersects its carrier
+/// window with, and tests its cells against
+/// ([`crate::chart_bound::MetredBound::certifies_outside`]).
+///
+/// `chart`'s locus must be the face's carrier. It is a parameter
+/// rather than the stored surface because a consumer may legitimately
+/// re-chart a plane — a stored `u_ref` sign-hulled at the interval
+/// scalar makes the stored chart useless on a vertical wall — and a
+/// description in a chart the consumer does not use answers a question
+/// nobody asked. The azimuth charts pass their stored surface.
+///
+/// Nothing is read from the pcurve CACHES except a `Fitted`/`General`
+/// image's certificate: every chart image is re-derived by the loop
+/// walk, exactly as [`mint_pcurves`] derives it, so a body that never
+/// ran the minting pass (every extrude) describes perfectly well.
+///
+/// # Errors
+///
+/// [`PcurveMintError`] — the loop walk's own refusals (a corrupt key,
+/// a typed chart refusal such as [`PcurveCertifyError::UnsupportedCarrier`]
+/// for a `Nurbs` carrier on an analytic chart, a discontinuous or
+/// unclosed walk), plus [`PcurveMintError::LoopWraps`] for a walk that
+/// closes a whole period off.
+pub fn chart_boundary<T: PcurveFittedLane + SpanLocate + Bounds>(
+    body: &Body<T>,
+    face: FaceKey,
+    chart: &Surface<T>,
+    band: Band,
+) -> Result<ChartBound<T>, PcurveMintError> {
+    let face_data = body.get_face(face).ok_or(PcurveMintError::Corrupt)?;
+    let loops: Vec<LoopKey> = core::iter::once(face_data.outer)
+        .chain(face_data.rings.iter().copied())
+        .collect();
+    // The period is decided by surface KIND. `chart_u_period` answers
+    // `τ` for a PLANE — it defaults every non-spline chart to the
+    // azimuth period — so it is asked only where its answer is about a
+    // spline chart's own knot domain.
+    let period = match *chart {
+        Surface::Plane { .. } => None,
+        Surface::Cylinder { .. }
+        | Surface::Cone { .. }
+        | Surface::Sphere { .. }
+        | Surface::Torus { .. } => Some(T::tau()),
+        Surface::Nurbs(_) | Surface::Approx(_) => chart_u_period(chart, band),
+    };
+    let mut outer: Option<ChartLoop<T>> = None;
+    let mut rings: Vec<ChartLoop<T>> = Vec::new();
+    for (index, lp) in loops.iter().enumerate() {
+        let mut walked: Vec<Walked<T>> = Vec::new();
+        walk_loop(body, face, *lp, chart, band, &mut walked)?;
+        let (Some(first), Some(last)) = (walked.first(), walked.last()) else {
+            // An empty loop bounds nothing to describe.
+            continue;
+        };
+        // The walk certified that the loop CLOSES; it accepts a
+        // closure one whole period off (the seam case) and, on a
+        // sphere chart, one through the involution. Neither is a
+        // closed chart polygon: the chord from the last exit back to
+        // the first entry is spurious, and a polygon built on it would
+        // bound a region the face does not have. Re-decided here on
+        // the walk's own arms and under the walk's own rows — the same
+        // quantity at a second site — with NO period allowed.
+        let start = first.pcurve.eval(if is_plus(body, first.half_edge)? {
+            first.t0
+        } else {
+            first.t1
+        });
+        let end = last.pcurve.eval(if is_plus(body, last.half_edge)? {
+            last.t1
+        } else {
+            last.t0
+        });
+        let arm = azimuth_arm(chart, start.y);
+        let closes = matches!(
+            decide(
+                "pcurve_loop_closure",
+                Margin::levered(end.x - start.x, arm),
+                band
+            ),
+            Ok(Sign::Zero)
+        ) && matches!(
+            decide(
+                "pcurve_loop_closure_height",
+                Margin::metered(end.y - start.y, v_meter(chart)),
+                band
+            ),
+            Ok(Sign::Zero)
+        );
+        if !closes {
+            return Err(PcurveMintError::LoopWraps { face, r#loop: *lp });
+        }
+        let mut edges = Vec::with_capacity(walked.len());
+        for w in &walked {
+            edges.push(chart_edge(body, w, is_plus(body, w.half_edge)?)?);
+        }
+        let described = ChartLoop {
+            edges,
+            ring: index > 0,
+        };
+        if index == 0 {
+            outer = Some(described);
+        } else {
+            rings.push(described);
+        }
+    }
+    // A face whose OUTER loop describes nothing bounds no chart region;
+    // there is no honest description to return and no empty one that
+    // would not be a claim.
+    let outer = outer.ok_or(PcurveMintError::Corrupt)?;
+    Ok(ChartBound::assembled(outer, rings, period))
 }
 
 /// The at-rest pcurve pass the tier-3 validator runs (spec §5:
