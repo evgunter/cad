@@ -4075,7 +4075,7 @@ Draw 2026-09-05: /dev/urandom byte **92** (accepted, < 252) ⇒ 92 mod 3 = **2**
 
 | slot | arm | unit | pre-draw fields |
 |---|---|---|---|
-| 0 | OPUS | S330 (`topo/s330-described-nurbs-arm`, spec `docs/TOPO-S330-SPEC.md`) | difficulty S/M, task class STRUCTURAL — DISCLOSED: written after the byte was drawn |
+| 0 | OPUS | S330 — CONCLUDED 2026-09-05 at merge `d9b7b26dc`, ordinal 2700, sample #138 (one tally candidate recorded in the row, under 3(b)'s doc exclusion) | difficulty S/M, task class STRUCTURAL — DISCLOSED: written after the byte was drawn |
 | 1 | OPUS | banked (next kernel-answer unit) | |
 | 2 | FABLE | banked | |
 
