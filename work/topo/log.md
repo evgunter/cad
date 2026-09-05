@@ -50,3 +50,57 @@ is on this slate because `readback.rs` is this program's, but its other
 door is `query.rs`, which is **SEAT's**. The ruling can be made here;
 the edit on SEAT's side is announced on SEAT's board and agreed there
 before it lands. Nothing has been taken from SEAT.
+
+## Orchestration opens (2026-09-05)
+
+Picked up on Ev's direction (in-chat, 2026-09-05: "look at work/topo
+and see if it's ready to orchestrate; if so, get started"). Single-
+orchestrator remote box, no away-channel, no `gh`: GitHub goes through
+the MCP tools, lanes are Agent-tool worktrees with private
+`CARGO_TARGET_DIR`s seeded from one warm `topo` test build, at most two
+heavy lanes at once (four cores). The orchestrator branch is the
+session's designated `claude/work-topo-orchestration-mm0itt` rather
+than `topo/orchestrator`; unit branches keep the plan's `topo/` prefix.
+
+Decisions taken unilaterally at opening:
+
+- **The opener is `S330`, not `S331`.** The plan cut `S331` first on
+  the belief it sits in `validate.rs`; it does not. `validate_pcurves`
+  is `crates/topo/src/pcurves.rs:1602`, which `program.md`'s `keep_out`
+  and TRIM's `paths` both give to TRIM, and the mechanism the row asks
+  about (`mint_pcurves` swallowing `UnsupportedCarrier` and clearing
+  the face, `pcurves.rs:1261-1267`) is next to TRIM's own `D36`. So
+  `S331` is a question TOPO holds — what at-rest validation may claim —
+  whose edit, if any, lands on TRIM's file by announced seam. TRIM's
+  board carries the heads-up (`work/trim/log.md`, this date); the
+  proposal comes after `S330` lands and before any edit. `S330` is the
+  same silence class in the file this program actually owns.
+- **Review posture, settled for now** (the plan left it open): one
+  style review per unit; a full v6 dual only where a unit moves a
+  kernel answer. `S330` moves one (a refusal check 1 does not make
+  today) and draws the band's first ordinal at its review dispatch.
+  The reader collapse (`D261`+`D264`) and the `live.rs` pair
+  (`D260`+`D50`) run outside the experiment with one style review each
+  and record no row, S-TCOST's and FILLET's precedent for non-dual
+  units. `work/meta/ab-log-v6-stream-is-past-its-stopping-rule-unadjudicated`
+  is read: until Ev rules, duals continue and each records "+N
+  candidate" per the H4 precedent.
+- **`S94` rides with `S330`.** The code-quality plan folds the two
+  `VARIANTS` ladders into the first lane that opens `validate.rs`;
+  that is this one, and the fold is bounded in the spec (compiler-
+  derived count and index, one spelling for both files).
+- **Block TOPO-B1 drawn** (three slots, {opus, opus, fable}; the
+  record is branch-side on `topo/b1-block` until the block concludes,
+  so no unstarted slot reaches a surface reviewers read). Disclosed:
+  the byte was drawn a few minutes BEFORE `S330`'s difficulty was
+  written down, so the S/M guess on that one row was made knowing the
+  slot's arm. The guess follows from the diff's shape (one arm, one
+  public method, one test row, a rider that swaps a count for a
+  derive) and is recorded as contaminated for the covariate anyway.
+- **One seam announced on S-CERT's board** (`work/cert/log.md`): the
+  poison predicate the arm needs is `pub(crate)` in
+  `crates/geom/src/net.rs`, S-CERT's ground; the unit adds one public
+  method on `NurbsSurface` delegating to it and nothing else in `geom`.
+
+Spec: `docs/TOPO-S330-SPEC.md`. `S330` dispatched on
+`topo/s330-described-nurbs-arm`.

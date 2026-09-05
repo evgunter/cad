@@ -1074,3 +1074,11 @@ directory's item files and in `work/STATUS.md`; this log stays the
 narrative. Items created at migration: CERT-M3 (dispatched), CERT-N3
 (dispatched). PR 883 (lane H-g) stays parked as lane H-f and is recorded in
 the program header's keep-outs, not as an item of this program.
+
+## Seam announced by TOPO (2026-09-05)
+
+TOPO enters `crates/geom/src/surfaces/nurbs.rs` for ONE public method:
+the complement of `NurbsSurface::is_placeholder`, delegating to
+`net::any_poison` (spec `docs/TOPO-S330-SPEC.md` §Phase 2 (a)). Tier-3
+check 1 gains its described-NURBS arm on it. Nothing else in `geom`
+moves; the channel walk stays spelled once, in `net.rs`.
