@@ -523,34 +523,6 @@ const STEM_R: f64 = 0.060;
 /// Where the foot's root end stops, below the corm.
 const FOOT_BOTTOM_Z: f64 = -0.92;
 
-/// Every cylindrical face of `body` carried by a cylinder of radius
-/// `r` about the world z-axis.
-///
-/// **A library finding, recorded where it was met** (the demos'
-/// purpose rule). The author knows exactly which contact he means —
-/// "the socket wall against the foot's wall" — and there is no
-/// selector on the plain `Body` API to say it with: the intent has to
-/// be re-derived by walking every face in the arena and matching
-/// stored surface parameters. It comes back as THREE faces on the
-/// foot (the three-arc split) and TWO on the corm (a full revolve
-/// halves every wall at its seam), so ONE contact in the author's head
-/// is spelled as SIX `FacePairDeclaration`s. `crate::twopeg` meets the
-/// same gap and mints its own matcher for it; the document layer has
-/// selection (`GeoSelect`), the kernel-level `Body` does not, and a
-/// declared contact is a kernel-level object.
-fn axial_walls<S: Scalar>(body: &Body<S>, r: f64) -> Vec<pncad::topo::FaceKey> {
-    body.faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(pncad::geom::Surface::Cylinder { radius, .. })
-                    if (radius.f() - r).abs() < 1e-12
-            )
-        })
-        .map(|(k, _)| k)
-        .collect()
-}
-
 /// A **bud**: three pre-tepals, each a PARTIAL revolve of the same
 /// [`meridian`], on three axes that form a narrow TRIPOD about the
 /// bud's own axis and are rolled so the wedges nest like a pinwheel.
@@ -2317,16 +2289,14 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //     here, face pair by face pair, because the author knows which
     //     wall meets which.
     //
-    //     Face pair by face pair is what the SCOPE of the flush
-    //     detector leaves: `topo::flush::find_flush_candidates` (which
-    //     `crate::booleans::flush_declarations` now runs for every
-    //     planar mate in this file) enumerates over the planar door,
-    //     and this mate has no planar contact anywhere on it. That is
-    //     a limit of the detector, not of the verification the
-    //     declarations below get — `twopeg::seat3_measurements`
-    //     measures the carrier ladder verifying a cylindrical
-    //     cosurface pair, and reporting one as would-verify in its
-    //     detector posture.
+    //     It is said through the DETECTOR, not face pair by face pair:
+    //     `crate::booleans::flush_declarations` reports this mate's
+    //     bore-wall pairs and declares them, because the detector's
+    //     reach is the `Rest` ladder's reach and this contact is a
+    //     cylindrical rung of it. The scene used to assemble the pairs
+    //     itself, filtering both arenas for a wall at `STEM_R`, while
+    //     the detector was planar and had nothing to say about a mate
+    //     with no planar contact anywhere on it.
     //
     //     It refuses one door short of the zip, and the door is the
     //     reduction's curved-face arm rather than the declaration
@@ -2363,18 +2333,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //     structure, so neither the minted rim nor the full-period
     //     face a revolve makes is the cause.
     let (corm_body, foot_body) = (by("lily_corm"), by("lily_foot"));
-    let mut bore_decls = pncad::topo::BooleanDeclarations::none();
-    for &fa in &axial_walls(corm_body, STEM_R) {
-        for &fb in &axial_walls(foot_body, STEM_R) {
-            bore_decls
-                .coincident_faces
-                .push(pncad::topo::FacePairDeclaration::new(
-                    fa,
-                    fb,
-                    pncad::topo::ContactClass::Rest,
-                ));
-        }
-    }
+    let bore_decls = crate::booleans::flush_declarations(corm_body, foot_body, tol);
     wall(
         12,
         "thread the corm onto the stem's foot at their shared cylinder wall \
@@ -4056,6 +4015,130 @@ mod verbs_gate_r1_probes {
             "wall 2 must name a lantern CONE against the arch's tube — the pair the \
              gate has no arm for, with the two loci sharing one circle: {welded:?}"
         );
+    }
+
+    /// **What the flush detector's curved rungs changed on this
+    /// plant, measured** — two mates, two different answers, kept as
+    /// a row because the second is the one to re-read if it moves.
+    ///
+    /// 1. The corm/foot SOCKET is the detector's own report now: the
+    ///    scene used to assemble those pairs itself by filtering both
+    ///    arenas for a wall at `STEM_R`, and the detector reports
+    ///    exactly that set — the corm's one bore wall against the
+    ///    foot's three arcs. Wall 12's refusal is unmoved, which
+    ///    is the point: what changed is who wrote the declaration
+    ///    down, not what the kernel does with it.
+    /// 2. The stem GLUE (wall 1) declares exactly what it declared
+    ///    while the detector was planar — the two arcs' shared disk.
+    ///    Their tube walls are tori about DIFFERENT ring centres, so
+    ///    the curved rungs have nothing to add to this mate, and its
+    ///    refusal is the operand gate's on KINDS either way. The
+    ///    plant's other two consumers of the shared helper — the
+    ///    flower weld and the leaf sheath — are measured here too, so
+    ///    that every one of this scene's declaration sets is read by
+    ///    KIND rather than inferred from an unchanged render.
+    #[test]
+    fn the_curved_rungs_declare_the_socket_and_leave_the_stem_glue_alone() {
+        let tol = Tol::witness();
+        let pieces = plant::<f64>(tol);
+        let by = |name: &str| {
+            &pieces
+                .iter()
+                .find(|p| p.name == name)
+                .expect("named lily piece")
+                .body
+        };
+        let (corm, foot) = (by("lily_corm"), by("lily_foot"));
+        let socket = crate::booleans::flush_declarations(corm, foot, tol);
+        println!("lily socket declarations: {:?}", socket.coincident_faces);
+        assert_eq!(
+            socket.coincident_faces.len(),
+            3,
+            "the socket is the corm's ONE bore wall against the foot's three arcs, \
+             all on the one carrier — the same set the scene used to assemble by \
+             filtering both arenas, now reported by the door that verifies it: {:?}",
+            socket.coincident_faces
+        );
+        for d in &socket.coincident_faces {
+            assert_eq!(
+                pncad::prelude::query::face_surface_kind(corm, d.a),
+                Some(SurfaceKind::Cylinder),
+                "the socket's contact is cylindrical on both sides"
+            );
+            assert_eq!(
+                pncad::prelude::query::face_surface_kind(foot, d.b),
+                Some(SurfaceKind::Cylinder)
+            );
+        }
+
+        let (stem, arch) = (by("lily_stem"), by("lily_arch"));
+        let glue = pncad::topo::flush::find_flush_candidates(stem, arch, tol)
+            .expect("the stem's mate decides definitely");
+        assert!(!glue.is_empty(), "the two arcs share their disk");
+        for f in &glue {
+            assert_eq!(
+                pncad::prelude::query::face_surface_kind(stem, f.pair.0),
+                Some(SurfaceKind::Plane),
+                "the stem glue is the shared DISK and nothing else — the arcs' tube \
+                 walls are distinct torus carriers: {f:?}"
+            );
+        }
+
+        // The plant's other two helper consumers, to complete the
+        // inventory `booleans::consumer_census` starts: the flower
+        // weld (wall 2's probe) and the leaf sheath (wall 8). Both are
+        // planar-only, so the widening reaches neither.
+        let lant = by("lily_lantern");
+        let weld = pncad::topo::flush::find_flush_candidates(lant, arch, tol)
+            .expect("the weld's pairs decide definitely");
+        assert_eq!(
+            weld.len(),
+            2,
+            "the throat disk arrives as two half-faces: {weld:?}"
+        );
+        for f in &weld {
+            assert_eq!(
+                pncad::prelude::query::face_surface_kind(lant, f.pair.0),
+                Some(SurfaceKind::Plane),
+                "the weld's declared contact is plane x plane: {f:?}"
+            );
+        }
+        let sheath = {
+            let base_section = leaf_a_plan().base;
+            lofted_blade::<f64>(
+                LEAF_A_BASE,
+                -LEAF_A_DIR,
+                LEAF_A_UP,
+                0.34,
+                0.85,
+                Plan {
+                    base: base_section,
+                    belly: base_section,
+                    belly_at: 0.5,
+                    tip: base_section,
+                    roll0: 0.0,
+                    twist: 0.0,
+                    twist_ease: 1.0,
+                },
+                9,
+                tol,
+            )
+        };
+        let leaf = by("lily_leaf_a");
+        let graft = pncad::topo::flush::find_flush_candidates(leaf, &sheath, tol)
+            .expect("the sheath's shared rectangle decides definitely");
+        assert!(
+            !graft.is_empty(),
+            "the sheath and the blade share their base cap"
+        );
+        for f in &graft {
+            assert_eq!(
+                pncad::prelude::query::face_surface_kind(leaf, f.pair.0),
+                Some(SurfaceKind::Plane),
+                "the graft's contact is the shared base RECTANGLE, planar on both \
+                 sides — the skinned walls are NURBS and no candidate at all: {f:?}"
+            );
+        }
     }
 
     /// The axis-aligned box of the named cone frusta of the lantern,

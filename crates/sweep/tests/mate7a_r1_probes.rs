@@ -396,10 +396,10 @@ fn p2_the_g1_chain_price_is_the_measured_53_rows() {
                 .push(FacePairDeclaration::new(fa, fb, ContactClass::Tangent));
         }
     }
-    geom_core::k_stats::start_verdict_log();
+    let bracket = geom_core::k_stats::Bracket::open();
     let err = topo::union_with(&seg_a, &seg_b, &decls, Tol::witness())
         .expect_err("the chain refuses at the routing");
-    let log = geom_core::k_stats::take_verdict_log();
+    let log = bracket.finish().verdicts;
     // The variant SPLIT after this probe was written (fix-pass MIN-6):
     // the pi arm is built, so the seam case no longer borrows a name
     // that calls its arm unbuilt. Same claim, current spelling.

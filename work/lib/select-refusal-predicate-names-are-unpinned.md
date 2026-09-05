@@ -28,12 +28,17 @@ Five names reachable, one pinned:
   `crates/editor-core/src/names/geompred.rs:486`. **Pinned**, at
   `crates/pncad-py/tests/test_selectors.py:124` — in the Python
   suite, not on the no-interpreter row.
-* `PairInBand` — `source.predicate.unwrap_or("flush_pair_relation")`
-  (`crates/editor-core/src/names/flush.rs:267`). The funnel sites it
-  can carry are `"bool_plane_parallel"`, `"bool_plane_orient"` and
+* `PairInBand` — `source.predicate.unwrap_or("carrier_pair_relation")`
+  (`crates/editor-core/src/names/flush.rs:270`). The funnel sites it
+  can carry are the C4 ladder's own, per carrier kind:
+  `"bool_plane_parallel"`, `"bool_plane_orient"`,
   `"bool_plane_offset"`
   (`crates/topo/src/boolean/plane_eq.rs:203,225,242,274,282,301,311`),
-  plus the `"flush_pair_relation"` fallback. **None pinned.**
+  and, since SEAT-FW pointed the detector at the whole ladder,
+  `"carrier_sphere_*"`, `"carrier_cyl_*"` and `"carrier_torus_*"`
+  (`crates/topo/src/boolean/carrier_eq.rs:254,289,324` and their
+  neighbours) — plus the `"carrier_pair_relation"` fallback. **None
+  pinned.**
 
 ## Why the cheap fix is the wrong one
 

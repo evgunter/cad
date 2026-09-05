@@ -2284,9 +2284,11 @@ class PlaneRelation:
     Distinct: Final[PlaneRelation]
 
 class ContactClass:
-    """The contact class a declaration asserts. `Rest` (coincident
-    planes) is the only class the flush DETECTOR mints, so it is the
-    only one a `FlushFinding` from `find_flush_candidates` carries;
+    """The contact class a declaration asserts. `Rest` (cosurface
+    contact, on any carrier the verify ladder names — plane, sphere,
+    cylinder, torus) is the only class the flush DETECTOR mints, so
+    it is the only one a `FlushFinding` from
+    `find_flush_candidates` carries;
     `Tangent` crossed the mirror with M9-1 and is nameable here
     because a class the binding cannot name would refuse typed at the
     crossing instead."""
@@ -2303,11 +2305,13 @@ class FlushRung:
     DecidedCoincident: Final[FlushRung]
 
 class FlushFinding:
-    """One flush-plane finding: "this face pair would verify as
-    declared contact" — a VALUE to inspect and declare, never itself
-    a declaration. `a`/`b` are the pair's names in the same OPAQUE
-    text alphabet every materializer speaks (store them, hand them
-    back; never parse). `class_` spells `class` (a Python keyword)
+    """One flush finding: "this face pair would verify as declared
+    contact" — a VALUE to inspect and declare, never itself a
+    declaration. The detector's reach is the `Rest` ladder's, so a
+    pair may be cosurface on a plane, a sphere, a cylinder or a
+    torus. `a`/`b` are the pair's names in the same OPAQUE text
+    alphabet every materializer speaks (store them, hand them back;
+    never parse). `class_` spells `class` (a Python keyword)
     with the `or_` trailing-underscore precedent."""
 
     @property
@@ -2734,8 +2738,8 @@ class Evaluation:
         name."""
 
     def find_flush_candidates(self, a: NodeId, b: NodeId) -> list[FlushFinding]:
-        """The cross-body flush-plane candidates between `a`'s and
-        `b`'s outputs, as of THIS evaluation — the detect arm of the
+        """The cross-body flush candidates between `a`'s and `b`'s
+        outputs, as of THIS evaluation — the detect arm of the
         detect/declare protocol, run by the C4 verifier itself (a
         finding cannot disagree with the boolean's verify-at-use).
         Findings are DEFINITE and canonically ordered; empty when

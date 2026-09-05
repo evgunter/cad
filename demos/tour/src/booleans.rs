@@ -70,9 +70,10 @@ pub fn try_intersect_declared<S: Scalar>(
 /// The scene's flush contacts, DETECTED and then DECLARED — the two
 /// library doors a user would reach for, spelled the way a user would
 /// spell them: [`pncad::topo::flush::find_flush_candidates`] reports
-/// the cross-body planar `Rest` pairs the boolean's own verifier would
-/// accept, and [`pncad::topo::flush::declare_all`] turns the findings
-/// the caller has seen into the declarations the op takes. The scene
+/// the cross-body `Rest` pairs the boolean's own verifier would accept
+/// — every carrier that verifier has a rung for, plane through torus
+/// — and [`pncad::topo::flush::declare_all`] turns the findings the
+/// caller has seen into the declarations the op takes. The scene
 /// author BUILT the contact deliberately; this writes the intent down.
 /// Certification still happens inside the op through the verified
 /// declared rung.
@@ -82,16 +83,31 @@ pub fn try_intersect_declared<S: Scalar>(
 /// detects and declares in one call, and this helper is the tour's
 /// one place that does both in sequence.
 ///
-/// PLANAR only, and that is the detector's scope rather than this
-/// helper's choice — which matters here, because scenes whose curved
-/// contacts must keep REFUSING call it (the lily's stem glue).
+/// It declares EVERY finding, which is what makes it a helper rather
+/// than a scene's own voice: a scene that means some of its contacts
+/// and not others picks out of the report itself (`twopeg` does).
+/// Scenes whose contacts must keep REFUSING call this too — the
+/// lily's stem glue and its socket — and they still do: a declaration
+/// unlocks the declared rung, not the lanes past it.
 pub fn flush_declarations<S: Scalar>(
     a: &Body<S>,
     b: &Body<S>,
     tol: Tol,
 ) -> pncad::topo::BooleanDeclarations {
-    let found = pncad::topo::flush::find_flush_candidates(a, b, tol)
-        .expect("the tour's flush contacts are authored exactly, so they decide definitely");
+    // The `expect` is the demo doctrine's shape, not an oversight, and
+    // it asserts MORE since the detector's reach became the `Rest`
+    // ladder's: a curved pair whose margins land in the band refuses
+    // the whole query now, where before it was no candidate at all. A
+    // tour scene builds its own contacts, so one that cannot decide
+    // them is a scene to fix or a kernel to fix — never a refusal to
+    // route around, and never a partial declaration set assembled
+    // from the pairs that happened to decide.
+    let found = pncad::topo::flush::find_flush_candidates(a, b, tol).expect(
+        "the tour's contacts are authored exactly, so every cross-body pair — planar or \
+         curved — decides definitely",
+    );
+    #[cfg(test)]
+    census::record(a, b, &found);
     pncad::topo::flush::declare_all(&found)
 }
 
@@ -176,5 +192,90 @@ pub fn expect_seamed<S: Scalar>(what: &str, v: Verdict<S>, expected: f64) -> Boo
             b
         }
         other => panic!("{what} failed: {}", describe(&other, expected)),
+    }
+}
+
+/// **What this helper has declared, by CARRIER KIND** — a test-only
+/// census, so the claim "every scene that declares through this helper
+/// declares planar contacts, except the plant's socket" is MEASURED
+/// rather than read off the renders, which can only say that nothing
+/// moved and never what was declared.
+///
+/// It lives here because this is the tour's one detection site: a
+/// per-scene assertion would rebuild each scene's operands and would
+/// still miss the next consumer added.
+#[cfg(test)]
+pub(crate) mod census {
+    use super::{Body, Scalar};
+    use core::cell::RefCell;
+    use pncad::geom_brep::SurfaceKind;
+    use pncad::prelude::query;
+
+    type KindPair = (Option<SurfaceKind>, Option<SurfaceKind>);
+
+    thread_local! {
+        static DECLARED: RefCell<Vec<KindPair>> = const { RefCell::new(Vec::new()) };
+    }
+
+    /// Records the carrier-kind pair of every finding the helper is
+    /// about to declare.
+    pub(crate) fn record<S: Scalar>(
+        a: &Body<S>,
+        b: &Body<S>,
+        found: &[pncad::topo::flush::FacePairFinding],
+    ) {
+        DECLARED.with(|d| {
+            d.borrow_mut().extend(found.iter().map(|f| {
+                (
+                    query::face_surface_kind(a, f.pair.0),
+                    query::face_surface_kind(b, f.pair.1),
+                )
+            }));
+        });
+    }
+
+    /// Takes and clears what this thread has recorded.
+    pub(crate) fn drain() -> Vec<KindPair> {
+        DECLARED.with(|d| core::mem::take(&mut *d.borrow_mut()))
+    }
+}
+
+#[cfg(test)]
+mod consumer_census {
+    use super::*;
+    use pncad::geom_brep::SurfaceKind;
+
+    /// **Every consumer of [`flush_declarations`] declares PLANAR
+    /// contacts, except the plant's socket** — the claim the flush
+    /// detector's widening rests on, measured at the helper rather
+    /// than inferred from renders being byte-identical.
+    ///
+    /// The scenes run for their effect on the census: the cross-lap's
+    /// declared mate, the table's four corner-aligned legs and the
+    /// letterforms' declared intersect. The plant's own four pairs —
+    /// the stem glue, the leaf sheath, the socket and the flower weld
+    /// — are measured in `lily`'s probe module instead, beside the
+    /// walls they belong to, because running the whole plant here
+    /// would rebuild it a second time in one suite for nothing.
+    #[test]
+    fn every_planar_consumer_of_the_helper_declares_planes_only() {
+        let tol = Tol::witness();
+        let _ = census::drain();
+        let _ = crate::crosslap::build::<f64>(tol);
+        let _ = crate::bool_bodies::table::<f64>(tol);
+        let _ = crate::letterforms::build::<f64>(tol);
+        let declared = census::drain();
+        assert!(
+            declared.len() >= 3,
+            "three scenes declare through this helper; census {declared:?}"
+        );
+        for pair in &declared {
+            assert_eq!(
+                *pair,
+                (Some(SurfaceKind::Plane), Some(SurfaceKind::Plane)),
+                "these scenes' contacts are planar; a curved one here would be a scene \
+                 change, not a detector change: {declared:?}"
+            );
+        }
     }
 }

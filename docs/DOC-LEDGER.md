@@ -955,3 +955,75 @@ is PR 1952's body, `work/props/span-carries-its-knot-vector.md` and the
 residue item `work/props/coefficients-carry-their-knot-vector.md`.
 
 - `PROPS-SPAN-SPEC.md` — PROPS span, `Span<'a>` carries its `KnotVector` (#1952)
+
+## Per-merge deletion — PROPS vec3-doors' spec (2026-09-05)
+
+Recoverable at
+`git show 552b9cb0f35c1f1bc44d1b512df97d57f6f8a628:docs/PROPS-VEC3-DOORS-SPEC.md`
+(the last commit carrying it, before the state-sync commit that deleted
+it; unamended — no stop clause fired: the generic `const fn` compiled
+at 1.97.0, so the fallback shape was never picked). Every clause was
+met as written; the unit's PR argues three small choices rather than
+deviations (one doctest reading all four constants; the 2-D twin named
+in the one refusal sentence; the `skinned.rs` measurement taken as the
+corpus row). The rule above; the unit's record is its item's `## Closed`
+section (`work/props/vec3-point3-const-and-conversion-doors.md`, which
+carries the `From` ruling) and its MERGED entry in `work/props/log.md`
+(an E rider outside the A/B experiment — no `MODEL-AB-LOG.md` row).
+
+- `PROPS-VEC3-DOORS-SPEC.md` — PROPS vec3-doors, `const fn new` on the four vector types, `Affine3::from_frame` as the one home, `SketchPlane::map`, the `Vec → Point` conversion refused at the type (#1977)
+## Per-merge deletion — PROPS k-stats' spec (2026-09-05)
+
+Recoverable at `git show 1d847bc84cfb4667eb296acf6233f2c3a88f4723:docs/PROPS-KSTATS-SPEC.md`
+(the k-stats fix-pass head, before the state-sync commit that deleted
+it; unamended). The ruling held — the bracket with a stack, the
+returned value measured (530 call sites, 261 enclosing functions) and
+declined in writing. Five clauses were argued rather than met, all in
+PR 1969's body: `NodeError` carries the escalation channel beside
+`NodeValue` (the named fixture fails its node, so the value cannot);
+one shielding bracket on the part cache's miss path in `eval/parts.rs`
+outside the named fence (an instantiate node's log is its own op's,
+hit or miss, under both schedules); `Ok` nodes with escalations
+bisect; the M10-6 accounting goldens and M10-7's tier-off copies re-cut
+for the class the acceptance moves; and the acceptance's "did any
+predicate escalate" holds for funnel predicates only — the op-minted
+family, the raw `sign_within` calls and the mate solve are filed as
+`work/props/escalation-channel-misses-op-minted-indeterminates.md`.
+The dual's fix pass replaced the mis-nesting rule (frame ids; defined
+in every profile) and the completeness claim. The rule above; the
+unit's record is its item's `## Closed` section
+(`work/props/k-stats-escalation-channel-and-redo.md`), PR 1969's body
+and the six issues it filed.
+
+- `PROPS-KSTATS-SPEC.md` — PROPS k-stats, the verdict log as a bracket with a stack and the escalation channel beside it (#1969)
+
+## Per-merge deletion — PROPS rotation-floor's spec (2026-09-05)
+
+Recoverable at
+`git show 92dac21117c66ac8190eda9f80028bf1b49cce77:docs/PROPS-ROTATION-FLOOR-SPEC.md`
+(the last commit carrying it, before the state-sync commit that deleted
+it; unamended — no stop clause fired). A doc unit: every clause was met
+as written — the ~17 % / 0 % pair re-verified at the head and unmoved,
+the paragraph at `Mat3::rotation_about`, the composition rider filed at
+`work/issues/mapped-curve-restrict-composes-placements-per-split.md`
+(no program's `paths:` names `mapped.rs`, so `issues/` rather than a
+program's slate), the item closed with the ruling. The rule above; the
+unit's record is its item's `## Closed` section
+(`work/props/rotation-about-diagonal-width-floor.md`) and its entry in
+`work/props/log.md` (an E rider outside the A/B experiment — no
+`MODEL-AB-LOG.md` row).
+
+- `PROPS-ROTATION-FLOOR-SPEC.md` — PROPS rotation-floor, the diagonal's width floor documented at `rotation_about` rather than respelled; the composition rider re-homed (#1980)
+
+## Per-merge deletion — SEAT-FW's spec (2026-09-05)
+
+Recoverable at `git show 3fbfd1b9ae93931273f7855d33983a29b924e7ed:docs/SEAT-FW-SPEC.md`
+(the SEAT-FW fix-pass head, before the state-sync commit that deleted
+it; unamended — one Ev-gated stop fired and was honored by NOT editing
+the ratified charter: `work/seat/verb-seat-design-s3-names-the-planar-
+verifier.md` carries it to an `[ev]` PR). Every clause was met as
+written; FW-2's scrutiny point resolved the way the spec allowed for —
+the stem-glue pin stays because the refusal was never the detector's
+blindness. The rule above; the unit's record is its item's `## Closed`
+section (`work/seat/SEAT-FW.md`) and its MERGED entry in
+`work/seat/log.md`; its A/B row is MODEL-AB-LOG SEATFW.
