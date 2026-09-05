@@ -609,15 +609,20 @@ impl ViewerApp {
         // carries the method and the numbers; `TRIANGLE_BUDGET` says
         // why there is a budget at all.
         //
-        // A fit that refuses leaves δ alone: the document is one whose
-        // roots do not gather or whose probe will not tessellate, and
-        // the index build below is about to say so with its own typed
-        // refusal. Two opinions about that would be one too many.
-        if self.fit_delta_on_scene
-            && let Some((doc, evaluation)) = self.session.landed_pair()
-        {
+        // A fit that cannot run leaves δ alone: the document is one
+        // whose roots do not gather (no landed body) or whose probe
+        // will not tessellate, and the index build below is about to
+        // say so with its own typed refusal. Two opinions about that
+        // would be one too many.
+        if self.fit_delta_on_scene && self.session.landed_pair().is_some() {
             self.fit_delta_on_scene = false;
-            if let Ok(fitted) = scene::fit_delta(doc, evaluation, self.delta, self.session.tol()) {
+            // The body is the LANDING's — gathered once when the
+            // result landed, not again here (`DocSession::landed_body`
+            // carries what asking costs and when).
+            let tol = self.session.tol();
+            if let Some(body) = self.session.landed_body()
+                && let Ok(fitted) = scene::fit_delta(&body, self.delta, tol)
+            {
                 self.delta = fitted.delta;
                 self.budget_delta = fitted.requested_cost.map(|_| fitted);
             }

@@ -97,6 +97,79 @@ fn an_assembly_shaped_document_lands_on_one_gather() {
     );
 }
 
+/// **The landing's body is handed on, not gathered again.** The
+/// display fit and the scene both want the aggregate the landing
+/// already produced; asking for it costs nothing on the two paths
+/// where the landing still owns it, which is what stops `Open` from
+/// paying a second whole gather.
+#[test]
+fn asking_for_the_landed_body_costs_no_gather() {
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    assert_eq!(session.pump(), vec![Landing::Landed]);
+
+    let before = gathers_on_this_thread();
+    let body = session.landed_body().expect("the plate gathers");
+    assert_eq!(
+        gathers_on_this_thread() - before,
+        0,
+        "the landing's own gather is the only one"
+    );
+    assert!(body.solids().count() > 0, "and it is the drawable body");
+
+    // A second asker is free too, which is the property that lets the
+    // fit and a scene build share one gather.
+    let before = gathers_on_this_thread();
+    let again = session.landed_body().expect("still there");
+    assert_eq!(gathers_on_this_thread() - before, 0);
+    assert!(Arc::ptr_eq(&body, &again), "and it is the same body");
+}
+
+/// **A certified assembly hands its body back too.** The A5 gate
+/// consumes the product it judges, and a certification returns the
+/// same aggregate on its `Assembly` — so the one path that could have
+/// lost the body to the gate does not.
+#[test]
+fn a_certified_assembly_keeps_the_body_the_gate_was_given() {
+    let tol = Tol::witness();
+    let bench = common::asm::bench("landed-body-assembly", tol);
+    let mut session = common::asm::open_bench(&bench, tol);
+    assert!(
+        matches!(session.at_rest(), Some(AtRestBadge::Certified { .. })),
+        "this row's premise is a certified gate: {:?}",
+        session.at_rest()
+    );
+
+    let before = gathers_on_this_thread();
+    assert!(session.landed_body().is_some(), "the aggregate is kept");
+    assert_eq!(
+        gathers_on_this_thread() - before,
+        0,
+        "the gate handed it back rather than eating it"
+    );
+}
+
+/// **A gather refusal has no body to hand out, and asking does not
+/// re-run the refusal.** `None` here means the pair has no product at
+/// all, which is what `product_fault` is already saying.
+#[test]
+fn a_refused_gather_hands_out_no_body_and_gathers_nothing() {
+    let tol = Tol::witness();
+    let (doc, _extrude, _transform) = common::broken_document(tol);
+    let mut session = DocSession::inline(doc, tol);
+    assert_eq!(session.pump(), vec![Landing::Landed]);
+    assert!(session.product_fault().is_some(), "the gather refuses");
+
+    let before = gathers_on_this_thread();
+    assert!(session.landed_body().is_none());
+    assert_eq!(
+        gathers_on_this_thread() - before,
+        0,
+        "a refusal is not re-derived by asking for its body"
+    );
+}
+
 /// **A4 — a gather refusal lands as it always did**: the fault is the
 /// gather's own refusal, the report is ABSENT rather than clean ("not
 /// checked" is not "checked and fine"), and the landing still costs one

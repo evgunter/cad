@@ -717,26 +717,27 @@ pub fn product_body(doc: &Doc<ProfileProgram>, tol: Tol) -> Result<Body<f64>, Sc
     product(doc, &evaluation, tol).map_err(SceneError::NoProduct)
 }
 
-/// The scene of a document under an evaluation SOMEONE ELSE ran.
+/// The scene of a product SOMEONE ELSE gathered.
 ///
-/// The door the evaluation seam feeds: a result DAG arrives from
-/// wherever it was computed, and the picture is gathered and
-/// tessellated from it. [`scene_of`] is this function with an
-/// evaluation of its own, kept for callers that have no seam — the two
-/// share every step after the result exists, so a document drawn from
-/// a background run and one drawn inline cannot differ.
+/// **Takes the aggregate, never the pair that would produce one.** A
+/// gather is the expensive step on this path, and a landing has
+/// already paid for one ([`crate::session::DocSession::landed_body`]);
+/// a door that took `(doc, evaluation)` here would gather the same
+/// product a second time, and would do it once per FRAME the day
+/// anything wired it. [`scene_of`] is this function with a gather of
+/// its own, kept for callers that have no seam — the two share every
+/// step after the body exists, so a document drawn from a background
+/// run and one drawn inline cannot differ.
 ///
 /// # Errors
 ///
-/// Every arm of [`SceneError`] except the δ one.
-pub fn scene_of_evaluation(
-    doc: &Doc<ProfileProgram>,
-    evaluation: &pncad::document::Evaluation<f64>,
+/// Every arm of [`SceneError`] except the δ and gather ones.
+pub fn scene_of_body(
+    body: &Body<f64>,
     delta: DisplayTolerance,
     tol: Tol,
 ) -> Result<SceneMesh, SceneError> {
-    let body = product(doc, evaluation, tol).map_err(SceneError::NoProduct)?;
-    let mesh = tessellate(&body, delta.get(), tol).map_err(SceneError::NotTessellated)?;
+    let mesh = tessellate(body, delta.get(), tol).map_err(SceneError::NotTessellated)?;
     SceneMesh::build(&mesh, delta)
 }
 
@@ -902,21 +903,28 @@ impl FittedDelta {
 /// (0.000%), because the graft moves solids into one body without
 /// re-cutting their faces.
 ///
+/// # What it is handed
+///
+/// **The gathered body, not the pair it came from.** The landing this
+/// fit follows already gathered the product once
+/// ([`crate::session::DocSession::land`]), and a fit that gathered
+/// again would pay a whole second gather on the one path a user reads
+/// as "how long Open takes". Measured on a 165-root, 990-face
+/// document (dev profile, this lane): 87 ms to gather, against 2.4 ms
+/// to clone the body that gather produced.
+///
 /// # Errors
 ///
-/// [`SceneError::NoProduct`] if the roots do not gather,
 /// [`SceneError::NotTessellated`] if the probe refuses, and
 /// [`SceneError::InvalidDisplayTolerance`] if the solved δ is not a
 /// usable one.
 pub fn fit_delta(
-    doc: &Doc<ProfileProgram>,
-    evaluation: &pncad::document::Evaluation<f64>,
+    body: &Body<f64>,
     requested: DisplayTolerance,
     tol: Tol,
 ) -> Result<FittedDelta, SceneError> {
-    let body = product(doc, evaluation, tol).map_err(SceneError::NoProduct)?;
     let probe_delta = requested.scaled(PROBE_FACTOR)?;
-    let probe = tessellate(&body, probe_delta.get(), tol).map_err(SceneError::NotTessellated)?;
+    let probe = tessellate(body, probe_delta.get(), tol).map_err(SceneError::NotTessellated)?;
     let probe_triangles: usize = probe
         .patches
         .iter()
@@ -961,8 +969,7 @@ pub fn scene_of(
     tol: Tol,
 ) -> Result<SceneMesh, SceneError> {
     let body = product_body(doc, tol)?;
-    let mesh = tessellate(&body, delta.get(), tol).map_err(SceneError::NotTessellated)?;
-    SceneMesh::build(&mesh, delta)
+    scene_of_body(&body, delta, tol)
 }
 
 fn length(metres: f64) -> Result<Expr, SceneDocError> {

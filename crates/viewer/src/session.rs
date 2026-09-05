@@ -56,12 +56,13 @@ use pncad::document::{
     Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
     DocEdit, DocParam, DocRef, DocumentId, Evaluation, Expr, LoopProgram, Node, ParamName,
     PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId, Subject, apply,
-    assemble_gathered, cascade_delete_order, parse_expr, product_recorded, run_checks_on,
+    assemble_gathered, cascade_delete_order, parse_expr, product, product_recorded, run_checks_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
 use pncad::select::{Resolution, RunCtx, resolve};
+use pncad::topo::Body;
 
 use crate::blend::BlendKindChoice;
 use crate::combine::{self, PatternOutputChoice};
@@ -328,6 +329,25 @@ struct LandedRun {
     /// ([`DocSession::checks`]); `None` when the registry itself
     /// refused.
     checks: Option<ChecksReport>,
+    /// **The aggregate the landing's own gather produced**, kept so
+    /// that a consumer which needs the product does not gather it a
+    /// second time ([`DocSession::landed_body`], which is also the
+    /// only writer of this field after `land`).
+    ///
+    /// `None` in two cases that are not the same:
+    ///
+    /// - the gather refused, so there is no body and never was — the
+    ///   `fault` beside this says which refusal;
+    /// - the gather succeeded and the A5 gate CONSUMED it. The gate
+    ///   takes the product by value, and its refusal is the one exit
+    ///   that does not hand the body back (a certification returns it
+    ///   on `Assembly`). Nothing is cloned to close that gap: on this
+    ///   lane's measurement a body clone is 2.7% of a gather but is
+    ///   paid per LANDING, while the gather it would save is paid per
+    ///   opened document — the wrong trade for an edit session.
+    ///   [`DocSession::landed_body`] gathers once, there, and memoizes
+    ///   into this field.
+    body: Option<Arc<Body<f64>>>,
 }
 
 /// The A5 at-rest verdict for the landed pair — a mated document's
@@ -536,6 +556,37 @@ impl DocSession {
         self.derived.bounds.as_ref()
     }
 
+    /// **The gathered product of the landed run** — the aggregate a
+    /// display fit sizes itself on, and the aggregate a scene is
+    /// tessellated from.
+    ///
+    /// **Handed over rather than re-derived.** The landing gathered
+    /// this document's product once ([`DocSession::land`]) and every
+    /// consumer above is served from that one gather; a consumer that
+    /// took the pair and gathered for itself would pay a second whole
+    /// gather, which on this lane's 165-root, 990-face measurement is
+    /// 87 ms against the 2.4 ms of handing the same body on.
+    ///
+    /// **`&mut` because asking can cost a gather, exactly once.** The
+    /// A5 gate consumes the product when it refuses, so a refused
+    /// assembly is the one landing that kept no body; this door
+    /// gathers there and memoizes into the landing, so the second
+    /// asker is free and no landing gathers twice. `None` means the
+    /// pair has no product at all — nothing has landed, or the gather
+    /// refused ([`DocSession::product_fault`] says which).
+    pub fn landed_body(&mut self) -> Option<Arc<Body<f64>>> {
+        let run = self.derived.landed.as_ref()?;
+        if let Some(body) = run.body.as_ref() {
+            return Some(Arc::clone(body));
+        }
+        if run.fault.is_some() {
+            return None;
+        }
+        let gathered = Arc::new(product(&run.doc, &run.evaluation, self.tol).ok()?);
+        self.derived.landed.as_mut()?.body = Some(Arc::clone(&gathered));
+        Some(gathered)
+    }
+
     /// The advisory-check report for the landed pair — findings in
     /// deterministic order, and the residents that were configured
     /// `Off`. `None` before anything lands, or when the registry
@@ -701,7 +752,8 @@ impl DocSession {
         // whether the document is one is a fact about the document
         // rather than about its product — readable on either arm.
         let assembly_shaped = assembly_shaped(doc);
-        let (fault, checks, at_rest) = match product_recorded(doc, &done.evaluation, self.tol) {
+        let (fault, checks, at_rest, body) = match product_recorded(doc, &done.evaluation, self.tol)
+        {
             Ok(product) => {
                 // The advisory registry. It REPORTS — a document with
                 // findings still draws, which is the whole point of
@@ -719,8 +771,19 @@ impl DocSession {
                     self.tol,
                 )
                 .ok();
-                let at_rest = assembly_shaped.then(|| badge(assemble_gathered(product, self.tol)));
-                (None, checks, at_rest)
+                // **The gate is still last, and still the only
+                // consumer** (DOCM-5's order). What changed is that
+                // the body it does not consume is kept rather than
+                // dropped: a certification hands the aggregate back on
+                // `Assembly`, and a document with no gate to run never
+                // gave it away.
+                let (at_rest, body) = if assembly_shaped {
+                    let (verdict, kept) = badge(assemble_gathered(product, self.tol));
+                    (Some(verdict), kept)
+                } else {
+                    (None, Some(Arc::new(product.body)))
+                };
+                (None, checks, at_rest, body)
             }
             Err(fault) => {
                 // **The product's own verdict.** The gather is the only
@@ -743,7 +806,7 @@ impl DocSession {
                 let at_rest = assembly_shaped.then(|| AtRestBadge::Refused {
                     message: AssemblyError::product_refusal(&fault),
                 });
-                (Some(fault), checks, at_rest)
+                (Some(fault), checks, at_rest, None)
             }
         };
         // The landed pair and its verdicts become the session's as ONE
@@ -755,6 +818,7 @@ impl DocSession {
             fault,
             at_rest,
             checks,
+            body,
         });
         Landing::Landed
     }
@@ -1639,15 +1703,28 @@ fn assembly_shaped(doc: &Doc<ProfileProgram>) -> bool {
 
 /// One A5 verdict as the badge that shows it — the gate's own
 /// vocabulary either way: a certification with its minted count, or
-/// the typed refusal rendered by its own `Display`.
-fn badge(verdict: Result<Assembly<f64>, AssemblyError>) -> AtRestBadge {
+/// the typed refusal rendered by its own `Display` — **and the
+/// aggregate the gate hands back with it**.
+///
+/// The gate CONSUMES the product it judges. A certification returns
+/// the same body on its `Assembly` and a refusal returns nothing, so
+/// the body is an `Option` here for the same reason
+/// [`LandedRun::body`] is one, and this is the one place that fact is
+/// read off the gate's own result type.
+fn badge(verdict: Result<Assembly<f64>, AssemblyError>) -> (AtRestBadge, Option<Arc<Body<f64>>>) {
     match verdict {
-        Ok(assembly) => AtRestBadge::Certified {
-            minted: assembly.minted.len(),
-        },
-        Err(refusal) => AtRestBadge::Refused {
-            message: refusal.to_string(),
-        },
+        Ok(assembly) => (
+            AtRestBadge::Certified {
+                minted: assembly.minted.len(),
+            },
+            Some(Arc::new(assembly.body)),
+        ),
+        Err(refusal) => (
+            AtRestBadge::Refused {
+                message: refusal.to_string(),
+            },
+            None,
+        ),
     }
 }
 
