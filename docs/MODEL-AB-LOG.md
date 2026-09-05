@@ -3924,6 +3924,17 @@ the `ThreeConcaveEdges` mint (`[ev]` PR 1935; S / STRUCTURAL if "mint").
 If either is declined its slot stays empty and the block closes short,
 recorded here.
 
+Block FILLET-B3 draw (2026-09-05, after the pre-draw fields above; v3
+triple {opus, opus, fable}, one /dev/urandom byte, reject ≥252): byte
+**199**, 199 mod 3 = 1 = fable's position ⇒ **fable at slot 1**.
+So: slot 0 FILLET-T = OPUS, slot 1 (the split, if approved) = FABLE,
+slot 2 (the mint, if "mint") = OPUS. Recorded branch-side
+(`fillet/b3-block`); this record reaches main when the block concludes —
+or closes short with the program's exit — and each ordinal claim at
+review dispatch goes to main on its own.
+
+Block FILLET-B3 slot record (branch-side, appended as each slot concludes):
+
 ## FILLET-RIM review ordinal fixed at dispatch (2026-09-04)
 
 FILLET-RIM (`no-public-rim-arc-selector`, PR #1821 open — frozen head
