@@ -63,3 +63,20 @@ Not an `[ev]` after all: PR 592's addendum comment carries Ev's 👍
 ratifying option (b). The clause joins the weld half in `ASSEMBLY.md`;
 `aq8-skip-half-is-cited-as-ratified-and-is-not` closed. Orchestrator
 PR 1913 (spec and cut) merged.
+
+## MSOLVE-1 dispatched, landed, in review (2026-09-05)
+
+Dispatched on `msolve/1-mate-operand` against `docs/MSOLVE-1-SPEC.md`.
+The lane took the two item-7 measurements first: the blindness was
+never class-dependent (a residual tree edge refuses `Under` before any
+pose exists, with or without the transform; only a DETERMINING fold
+showed it), and it covers rotation (an x-π/6 transform tilts the placed
+block, `Opposed` broken in the product, nothing refused). PR 1929
+green on the full matrix at `03d812228`; the reference type is
+`SitedRef` (`EntityRef` was taken by N4's arena key); one row's
+expectation changed by the PR 1731 ruling (pattern-of-transform now
+places). Style review and correctness arm dispatched on that head.
+Findings reported outside the fence, placed at state-sync: `Node::Part
+{ Instance(i) }` is a third identity-transparent node the walk refuses
+(MSOLVE-2's decision); `Frame::rotate_then_translate` normalizes with a
+bare `.normalize()` (filed here).

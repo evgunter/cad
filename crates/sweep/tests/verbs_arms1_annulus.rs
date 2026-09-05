@@ -44,7 +44,7 @@ use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::battery::chain_g1;
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::revolved_about_y;
+use sweep::test_support::{assert_naming_totality, revolved_about_y};
 use topo::{Body, EdgeKey, FaceSurface, ValidationError, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
@@ -164,109 +164,7 @@ fn every_annulus_output_entity_is_a_recorded_mint_or_a_survivor() {
         "a lone closed rim fills no open-chain record"
     );
 
-    let mut minted_f: Vec<_> = rec.bands.iter().map(|(f, _)| *f).collect();
-    let mut minted_e: Vec<_> = rec
-        .rim_trims
-        .iter()
-        .map(|(e, _, _)| *e)
-        .chain(rec.meridian_remnants.iter().map(|(e, _)| *e))
-        .chain(rec.slits.iter().map(|(e, _)| *e))
-        .collect();
-    let mut minted_v: Vec<_> = rec
-        .rim_feet
-        .iter()
-        .map(|(v, _)| *v)
-        .chain(rec.meridian_splits.iter().map(|(v, _)| *v))
-        .collect();
-    minted_e.sort_unstable();
-    minted_e.dedup();
-    minted_v.sort_unstable();
-    minted_v.dedup();
-    minted_f.sort_unstable();
-    minted_f.dedup();
-
-    // No mint is a survivor — except the two record kinds that are
-    // documented to name a SURVIVING fragment (a split's remaining
-    // piece keeps the parent's key when the parent is that piece).
-    for f in &minted_f {
-        assert!(source.get_face(*f).is_none(), "a minted face reused a key");
-    }
-    let fragments: Vec<EdgeKey> = rec
-        .meridian_remnants
-        .iter()
-        .chain(rec.slits.iter())
-        .map(|(e, _)| *e)
-        .collect();
-    for e in &minted_e {
-        if !fragments.contains(e) {
-            assert!(source.get_edge(*e).is_none(), "a minted edge reused a key");
-        }
-    }
-    for v in &minted_v {
-        assert!(
-            source.get_vertex(*v).is_none(),
-            "a minted vertex reused a key"
-        );
-    }
-
-    // output ⊆ source ⊎ minted.
-    for (f, _) in out.body.faces() {
-        assert!(
-            minted_f.contains(&f) || source.get_face(f).is_some(),
-            "an output face is neither minted nor a survivor"
-        );
-    }
-    for (e, _) in out.body.edges() {
-        assert!(
-            minted_e.contains(&e) || source.get_edge(e).is_some(),
-            "an output edge is neither minted nor a survivor"
-        );
-    }
-    for (v, _) in out.body.vertices() {
-        assert!(
-            minted_v.contains(&v) || source.get_vertex(v).is_some(),
-            "an output vertex is neither minted nor a survivor"
-        );
-    }
-
-    // (source − retired) ⊆ output, and every retirement names a SOURCE
-    // key — which is exactly what the conditional dead-edge push has to
-    // get right.
-    for e in &rec.dead.edges {
-        assert!(
-            source.get_edge(*e).is_some(),
-            "a retirement names a key the source never had"
-        );
-        assert!(out.body.get_edge(*e).is_none(), "a retired edge survived");
-    }
-    for v in &rec.dead.vertices {
-        assert!(
-            source.get_vertex(*v).is_some(),
-            "a retirement names a non-source vertex"
-        );
-        assert!(
-            out.body.get_vertex(*v).is_none(),
-            "a retired vertex survived"
-        );
-    }
-    for (e, _) in source.edges() {
-        assert!(
-            rec.dead.edges.contains(&e) || out.body.get_edge(e).is_some(),
-            "a source edge vanished without a retirement record"
-        );
-    }
-    for (v, _) in source.vertices() {
-        assert!(
-            rec.dead.vertices.contains(&v) || out.body.get_vertex(v).is_some(),
-            "a source vertex vanished without a retirement record"
-        );
-    }
-    for (f, _) in source.faces() {
-        assert!(
-            out.body.get_face(f).is_some(),
-            "a source face vanished; supports shrink, they do not die"
-        );
-    }
+    assert_naming_totality(&source, &out, &[rim], "the dome's annulus");
 }
 
 /// **The wrap-around G1 site.** A self-closed link registers no
