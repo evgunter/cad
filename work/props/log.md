@@ -171,3 +171,31 @@ R2's class finding on the mechanism: a closure-tier run seeded from
 `profile` excludes `geom-core`, so a whole-tree census living in a leaf
 crate's test binary cannot see a door arrive from any other seed — a
 CIW-shaped gap, to be filed.
+
+**PROPS-1 dual adjudicated (2026-09-05).** Both arms on frozen
+`acc0719ad`: R1 A-W-F 2/10/8, R2 A-W-F 0/8/5 (rubric R1 idiom 4 / tests
+2 / docs 2; R2 4 / 3 / 2). **Soundness upheld by both by execution**
+(R1: 21 600 mirror + 3 200 rejection rows against a formula-free
+geometric characterisation; R2: 2 400 × 16 and 3 000 × 16 containment
+sweeps, both lanes) and every headline number reproduced. **The two
+MAJORs are CONVERGED substances with a severity divergence** — R2 found
+both at MINOR: (1) `reject_from`'s new form amplifies a WIDE `onto`
+through two cross products (up to 34×, worst 1022× on a zero-straddling
+component) and the corpus has no `onto`-width dimension, so no pin could
+see it; (2) the new totality clause ("bands unchanged") is false — the
+numerator scales as `|onto|²·|self|`. No unilateral MAJOR; the severity
+split is calibration data. Convergent MINORs: the wide-normal "1.0–1.12×"
+and the oblique factors do not reproduce; the soundness pins compare the
+shipped formula with itself (a sign-flipped rejection passes); "never
+wider" is vacuous on exact-anchor rows and pin (a) does not hold per
+component there (a silent spec deviation); history clauses; "nine pins".
+Unilateral MINORs adopted: R1's `replace_face`→`translate_curve` stored-
+curve path missing from the drift accounting, the `4 ulps` metric
+mismatch and unguarded numbers, the grouping rule broken at the mirror
+site; R2's negative-axis signed-zero row, the x-only geom test, the
+rider's missing counter-argument. **Ruling on the regression**: keep the
+shipped form — every in-tree `onto` is an exact stored axis and `self`
+the computed vector — and make the contract honest with an `ONTO_RADII`
+corpus dimension and a pin of the measured bound. Fix pass
+implementer-inherited, 10 items A–J, all taken; the reviewers' probe
+rows named for adoption. Row and sample number at merge.
