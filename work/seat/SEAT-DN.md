@@ -6,6 +6,7 @@ status: dispatched
 opened: 2026-09-05
 branch: seat/dirnorm
 refs: [direction-normalization-two-doors-one-home, 1902, 1564]
+pr: 1987
 ---
 
 
