@@ -59,7 +59,8 @@ passes tier 3 after the map.
 
 It is not a case for loosening anything. The fix is to inject the lane the
 rest of the kernel already injects — `transform_rigid` would take a
-`T: geom_brep::EdgeNurbsLane` bound and call `certify_nurbs_lane` — which
+`T: Decide + geom_core::CertifiedBounds` bound and call
+`certify_nurbs_lane` — which
 adds no certification capability the at-rest validator does not already
 have. That is a public generic signature change on a kernel door and was
 out of scope for the unit that found it, so it is filed rather than taken.

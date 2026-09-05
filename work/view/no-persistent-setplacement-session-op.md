@@ -34,3 +34,20 @@ finding above argues the gap is *deliberately* out of v1 scope, which is
 what the new `deferred` status is for. `open` overstates availability
 and is the lesser error; re-classifying another program's row into a
 status they have never used would be the greater one.
+
+## Claimed by VIEW (VIEW orchestrator, 2026-09-04)
+
+Claimed by `git mv` from `work/chrome/` while CHROME is dormant with
+its slate landed. VIEW holds the ground on both sides of this now:
+the session vocabulary (`crates/viewer/src/session/op.rs`) is this
+program's after unit 1, and the item that waits on this one —
+`two-hand-written-copies-of-the-g1-gesture-machine` — is this
+program's too. DI5 (`docs/DOCM-IDENTITY-DESIGN.md`, ratified) is what
+turns the gap into a build: the free-move commit becomes a
+`DocEdit::SetPlacement`, which is exactly the door this item says the
+session vocabulary lacks.
+
+So the sequencing the G1 item states holds and now sits on one slate:
+this row first, then the two gesture machines' shared rules.
+
+Not dispatched in this wave.

@@ -57,3 +57,28 @@ Found by the style review of `camera-fold-clears-status-line`, whose
 own change added the fifth member. Filing rather than fixing was that
 review's recommendation: asserting the family exists and implementing
 one member differently is the finding.
+
+## A sixth member, and it is a second SHAPE (#1886's style review, 2026-09-05)
+
+Recorded as evidence on this item rather than filed again: the review
+of `view/prune-report` found the family has two implementations *of
+the notice itself*, not just five spellings of the badge.
+
+`frame::supersession_notice` (`frame.rs:232`) and the new
+`frame::dropped_hide_notice` (`:269`) are free functions returning
+`Option<String>` that compose prose. `tools::ToolNotice`
+(`tools.rs:181`) and `prefs::Notice` (`prefs.rs:81`) are **typed
+values with `Display`**, extended into the same `notices` vector via
+`.map(ToString::to_string)` (`app.rs:605`, `app.rs:525`). So the crate
+holds both shapes, feeding one channel.
+
+#1886 added the second member of the *function* shape — the minority
+one, and the one `tree::RowStatus::badge()` and this item's own
+argument both say is wrong. The two functions are additionally
+near-identical: `frame.rs:232-243` and `:269-280` differ only in two
+format literals.
+
+**The reviewer named where else to look**, which this item should
+carry: `frame::product_badge` and `frame::dialog_status` are the same
+`fn(...) -> Option<String>` / `StatusUpdate` shape over other people's
+typed values. That makes four members of the function shape, not two.
