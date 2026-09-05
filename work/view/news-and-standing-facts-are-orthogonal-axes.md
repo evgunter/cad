@@ -4,6 +4,7 @@ kind: issue
 title: News and standing fact are orthogonal to subject, and three facts of one class got two answers
 status: open
 opened: 2026-09-05
+needs_ev: true
 ---
 
 
@@ -57,3 +58,41 @@ reading the three above are all badges (they are reads of seam state)
 and their subject is what would retire the badge, not what retires a
 sentence. That is a change to `Badge` as well as to `Subject`, which is
 why it is a decision and not a fix.
+
+## Put to Ev (VIEW orchestrator, 2026-09-05)
+
+**This is the sweep's remaining blocker.** #1883 ruled the two
+vocabularies and #1933 built them; `status-line-writers-bypass-the-
+ranking` is the twenty-site sweep that consumes them, and it cannot
+start until the classification rule exists. Nothing else on this board
+is blocked.
+
+**What #1933 committed to, so the question is concrete.** Three facts
+of one class — a seam refused, and the picture is stale until that seam
+succeeds — got two subjects in one diff: `scene_refusal` and
+`index_refusal`/`unindexed_refusal` are `Subject::Display`,
+`projection_refusal` is `Subject::Camera`. Meanwhile the sweep item
+calls all three **standing facts wanting a badge**, and #1883's ruling
+text names the projection refusal among its four **news** instances.
+Every one of those is defensible and no rule distinguishes them.
+
+**The orchestrator's reading, offered as an argument.** The reviewer's
+diagnosis is right and it dissolves rather than decides: *"is it news
+or a standing fact"* asks whether a fact outlives its frame; *"what is
+its subject"* asks which event retires it. A fact whose lifetime is
+"until the camera moves" answers **yes** to the first and **`Camera`**
+to the second. They were designed as one axis and are two.
+
+So the answer is probably to state both, with the rule the section
+above names: **a badge is a read of held state a reader consults; a
+line message is the outcome of something that just happened** — and
+either can carry a subject, because a subject only says what retires
+it. Under that rule the three above are all badges, and their subject
+is what retires the *badge*.
+
+**Why it is a decision and not a fix.** It changes `Badge` as well as
+`Subject` — a badge would gain a subject it does not have today — and
+it re-sorts most of the sweep's standing-fact list. Getting it wrong
+costs twenty sites written against the wrong rule, which is the thing
+the fence around #1933 was built to prevent and the reason that unit
+stopped where it did.
