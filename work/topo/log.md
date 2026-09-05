@@ -104,3 +104,15 @@ Decisions taken unilaterally at opening:
 
 Spec: `docs/TOPO-S330-SPEC.md`. `S330` dispatched on
 `topo/s330-described-nurbs-arm`.
+
+## Second lane out: the reader collapse (2026-09-05)
+
+`D261` (+`D264` riding) dispatched on `topo/d261-reader-collapse`, the
+brief in the item file. Outside the experiment (single style review,
+no row). Two seams announced: S-TCOST's board for the census entries
+and the ceiling re-derivation, S-BOOL's for the one call-site re-point
+in `face_normal.rs` that deleting `fixtures::code_only` forces. Noted
+while reading `live.rs` for the third lane: its header no longer names
+`D50` by row (main reads "a source-level guard can, and is owed"), so
+`D260`'s premise is already false; `D260` closes with `D50`'s guard, as
+one sentence, and is not a unit on its own.
