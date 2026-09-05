@@ -477,6 +477,14 @@ mod tcost_k3_certificate;
 mod fillet_h4_concave_rim;
 #[path = "fillet_h4_concave_rim_interval.rs"]
 mod fillet_h4_concave_rim_interval;
+#[path = "fillet_h5_hostless_rim.rs"]
+mod fillet_h5_hostless_rim;
+#[path = "fillet_h5_hostless_rim_interval.rs"]
+mod fillet_h5_hostless_rim_interval;
+#[path = "fillet_h5_r2_probes.rs"]
+mod fillet_h5_r2_probes;
+#[path = "review_fillet_h5_r1_probes.rs"]
+mod review_fillet_h5_r1_probes;
 
 #[path = "blend_recourse_followability.rs"]
 mod blend_recourse_followability;
