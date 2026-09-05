@@ -2423,6 +2423,7 @@ where
         &upstream_keys,
         doc.witness(id),
         op_env.poses.placement(doc, id).ok(),
+        MateAnswer::of(op_env.poses, id),
         tol,
     );
     let naming_key = naming_key(content_key, &upstream_naming);
@@ -2527,6 +2528,54 @@ fn verb_content_tag(kind: verbs::VerbKind) -> u8 {
     }
 }
 
+/// **The solve's answer for one node**, as the content key reads it.
+///
+/// A mate DENOTES the solve's answer — `wire`'s `Node::Mate` arm
+/// evaluates a faulted mate to `Err` and any other to its role — so
+/// the answer is one of the node's inputs and belongs in its key, the
+/// way an instance's solved placement already does. It travels as an
+/// argument read off `SolvedPoses` at the call site rather than as
+/// something [`content_key`] reaches for, so the key stays a pure
+/// function of what it is handed.
+///
+/// The fault's CONTENT is deliberately absent. A faulted mate
+/// evaluates to `Err`, the memo serves only `NodeResult::Ok` priors,
+/// so two different faults on one mate can never be confused through
+/// reuse; `faulted` exists for the `Ok -> Err` direction, where a
+/// prior success would otherwise be served into an evaluation that
+/// refuses the mate.
+#[derive(Debug, Clone, Copy)]
+struct MateAnswer {
+    /// The role the solve assigned, `None` when the node is not a
+    /// live mate.
+    role: Option<crate::mate::MateRole>,
+    /// Whether the solve recorded a fault against the node.
+    faulted: bool,
+}
+
+impl MateAnswer {
+    /// What `poses` answers for `id`.
+    fn of(poses: &crate::mate::SolvedPoses, id: RecipeNodeId) -> Self {
+        Self {
+            role: poses.role(id),
+            faulted: poses.fault(id).is_some(),
+        }
+    }
+
+    /// The answer's tags, in the key's own space: one per `MateRole`
+    /// variant plus one for "not a live mate", and the fault flag.
+    fn feed(self, h: &mut KeyHasher) {
+        use crate::mate::MateRole;
+        h.write_tag(match self.role {
+            None => 0,
+            Some(MateRole::Determining) => 1,
+            Some(MateRole::Declaring) => 2,
+            Some(MateRole::Refused) => 3,
+        });
+        h.write_tag(u8::from(self.faulted));
+    }
+}
+
 /// The content key (spec D4): op kind, structural params, evaluated
 /// expression values AS BITS, upstream keys — plus the ambient
 /// tolerance (ε, k), which parameterizes every decision the kernel
@@ -2552,6 +2601,7 @@ fn content_key<T>(
     upstream_keys: &[ContentKey],
     witness: Option<&crate::witness::WitnessDatum>,
     placement: Option<crate::placement::Frame>,
+    mate_answer: MateAnswer,
     tol: Tol,
 ) -> ContentKey
 where
@@ -2621,6 +2671,20 @@ where
     // needs, since a body minted before the profile's spelling was part
     // of the key could carry a token the current document does not
     // hold.
+    //
+    // THE MATE'S SOLVE ANSWER (MSOLVE-4) does NOT bump, and it is an
+    // existing node kind writing into a new channel, so the exception
+    // is written down rather than assumed. The bump's stated purpose
+    // is that no key minted under a narrower input set is served under
+    // a wider one; keys are process-internal and never persisted (spec
+    // D3), so within any one process there is exactly one key function
+    // and the only keys a mate can collide with are its own — which
+    // the channel itself separates, since a faulted mate and a placed
+    // one now write different bytes. What a bump would additionally
+    // buy is nothing, and what it would cost is the property this
+    // change is measured against: a document with no mate keying
+    // byte-for-byte as it did, because the mate arm is the only one
+    // that writes here.
     h.write_tag(5);
     let tol = tol.get();
     h.write_f64_bits(tol.eps);
@@ -2933,11 +2997,24 @@ where
                 feed_stable_name(&mut h, inner);
             }
         }
-        // A mate's own key is its references, its class and its
-        // alignment: the recipe payload that decides what it says. A
-        // reference is a NAME AND AN OPERAND, and both are fed —
-        // two mates differing only in the node they are read at say
-        // different things about different geometry.
+        // A mate's key is its RECIPE PAYLOAD AND THE SOLVE'S ANSWER,
+        // because a mate's value IS the solve's answer for it.
+        //
+        // The payload is its references, its class and its alignment:
+        // what the mate says. A reference is a NAME AND AN OPERAND,
+        // and both are fed — two mates differing only in the node
+        // they are read at say different things about different
+        // geometry.
+        //
+        // The answer is the role the solve assigned and whether it
+        // faulted the mate (`MateAnswer`, read off `SolvedPoses` at
+        // the call site the way an instance's placement is). The
+        // solve runs afresh every evaluation and a mate is a DAG
+        // leaf, so without it an unedited mate keeps whatever it
+        // answered last time: `Ok` in the evaluation whose fault
+        // names it, or a stale role after an edit elsewhere joined or
+        // split its pair. The fault's CONTENT feeds nothing, and
+        // `MateAnswer` carries why.
         Node::Mate {
             a,
             b,
@@ -2950,6 +3027,7 @@ where
             feed_stable_name(&mut h, &b.name);
             h.write_tag(contact_class_tag(*class));
             feed_alignment(&mut h, alignment);
+            mate_answer.feed(&mut h);
         }
         Node::Declare { pairs } => {
             h.write_u64(pairs.len() as u64);
