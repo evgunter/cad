@@ -45,7 +45,7 @@ fn eval(k: &KnotVector, coeffs: &[f64], t: f64) -> f64 {
     let span = k.span_at(t);
     let first = span.first_control();
     let mut acc = 0.0;
-    for (j, nj) in basis_funs::<f64>(k, span, t).iter().enumerate() {
+    for (j, nj) in basis_funs::<f64>(span, t).iter().enumerate() {
         acc += nj * coeffs[first + j];
     }
     acc
@@ -58,7 +58,7 @@ fn the_hull_window_is_the_spans_window_and_the_basis_reads_the_same_one() {
         for index in k.first_span()..=k.last_span() {
             let Some(span) = k.span(index) else { continue };
             let base = base_coeffs(n);
-            let hull0 = hull::span_hull(&k, &base, span);
+            let hull0 = hull::span_hull(&base, span);
             assert!(!hull0.is_poison(), "{name}: span {index} must bound");
             let mid = 0.5 * (k.knots()[index] + k.knots()[index + 1]);
             let value0 = eval(&k, &base, mid);
@@ -67,7 +67,7 @@ fn the_hull_window_is_the_spans_window_and_the_basis_reads_the_same_one() {
                 for outlier in [HIGH, LOW] {
                     let mut coeffs = base.clone();
                     coeffs[moved] = outlier;
-                    let h = hull::span_hull(&k, &coeffs, span);
+                    let h = hull::span_hull(&coeffs, span);
                     // The hull moves iff the coefficient is in the
                     // window; when it does, the outlier IS the new
                     // extremum, which is the tightness claim too.
@@ -123,7 +123,7 @@ fn the_rational_window_refuses_on_exactly_its_own_weights() {
             for bad in 0..n {
                 let mut weights = vec![1.0; n];
                 weights[bad] = 0.0;
-                let h = hull::span_hull_rational(&k, &coeffs, &weights, span);
+                let h = hull::span_hull_rational(&coeffs, &weights, span);
                 assert_eq!(
                     h.is_poison(),
                     span.window().contains(&bad),
@@ -146,7 +146,7 @@ fn the_derivative_window_is_the_window_minus_its_top() {
         for index in k.first_span()..=k.last_span() {
             let Some(span) = k.span(index) else { continue };
             let base = base_coeffs(n);
-            let d0 = hull::derivative_span_hull(&k, &base, span);
+            let d0 = hull::derivative_span_hull(&base, span);
             assert!(!d0.is_poison(), "{name}: span {index} derivative bound");
             for moved in 0..n {
                 // `Q_i` mixes `c_i` and `c_{i+1}`, so a coefficient is
@@ -156,7 +156,7 @@ fn the_derivative_window_is_the_window_minus_its_top() {
                 let touches = span.window().contains(&moved);
                 let mut coeffs = base.clone();
                 coeffs[moved] = HIGH;
-                let d = hull::derivative_span_hull(&k, &coeffs, span);
+                let d = hull::derivative_span_hull(&coeffs, span);
                 let moved_bound =
                     d.lo().to_bits() != d0.lo().to_bits() || d.hi().to_bits() != d0.hi().to_bits();
                 assert_eq!(
@@ -171,107 +171,25 @@ fn the_derivative_window_is_the_window_minus_its_top() {
 }
 
 // ---------------------------------------------------------------------
-// The pairing refusal at `geom-core`'s own doors.
+// The pairing at `geom-core`'s own doors, and what is left of it.
 //
 // `basis_funs`, `ders_basis_funs` and every span-restricted `hull`
-// entry point are `pub` and take a `(kv, span)` pair that nothing tied
-// together. A span of a different vector used to index past the knot
-// array (or underflow below it) and panic; each door now asks
-// `KnotVector::admits` and poisons instead.
+// entry point take a `Span<'_>` and no knot vector: the span borrows
+// the vector it is a proof about and the door reads its knots from
+// that borrow, so there is no second vector for one to disagree with
+// and nothing here to refuse. The rows that used to drive a foreign
+// span through these doors have no argument to write; the claim they
+// made is a `compile_fail` claim now, and it lives on `Span` in
+// `spline/knots.rs` as doctests.
 //
-// The residue these rows must NOT be read as excluding: a span from a
-// different vector of the same degree and control count, nonempty at
-// that index in both, is admitted, and the bound is then computed over
-// the wrong window — wrong rather than refused. `admits` relates a span
-// to a vector's shape only, never to its knot values.
+// What is NOT closed, and is what the rows below drive: the
+// coefficients. `span_hull` relates `coeffs` to the span's vector by
+// LENGTH alone, so a same-length array from another curve passes and
+// the bound is computed over the wrong data — wrong rather than
+// refused.
 
-/// Every `(source, target)` pair of the spread, at every span: nothing
-/// panics, and a pair the target refuses yields **poison** from the
-/// hull doors and an all-NaN basis row.
-///
-/// The outcome classes are counted **separately** and each floored —
-/// admitted, and one per compare `admits` makes — because a class that
-/// reaches zero means the spread stopped exercising that compare, and
-/// the row would then be green over a guard part of which it never
-/// drove. Classified by the FIRST condition to fail, the only partition
-/// that attributes a refusal to one compare.
-///
-/// That is not hypothetical: the shared [`vectors()`] fixture has five
-/// vectors of four distinct degrees and its two cubics are the same
-/// length, so on that list alone the index compare never separates
-/// anything. [`same_degree_different_length`] is what supplies it.
-#[test]
-fn a_foreign_span_poisons_every_span_door_and_panics_at_none() {
-    let (mut admitted, mut by_degree, mut by_index, mut by_empty) =
-        (0usize, 0usize, 0usize, 0usize);
-    for (source_name, source) in spread() {
-        for index in source.first_span()..=source.last_span() {
-            let Some(span) = source.span(index) else {
-                continue;
-            };
-            for (target_name, target) in spread() {
-                let coeffs = base_coeffs(target.control_count());
-                let weights = vec![1.0; target.control_count()];
-                let h = hull::span_hull(&target, &coeffs, span);
-                let r = hull::span_hull_rational(&target, &coeffs, &weights, span);
-                let d = hull::derivative_span_hull(&target, &coeffs, span);
-                let s = hull::sup_norm_bound_span(&target, &coeffs, span);
-                let row = basis_funs::<f64>(&target, span, 0.5);
-                let ders = geom_core::spline::basis::ders_basis_funs::<f64>(&target, span, 0.5, 2);
-                assert_eq!(row.len(), target.degree() + 1);
-                assert_eq!(ders.len(), 3);
-                // The contract, written independently of the guard:
-                // what MUST be refused. Asserting behaviour against
-                // this rather than against `admits` is what makes the
-                // row red when a compare is deleted — gating on
-                // `admits` would simply reclassify and assert nothing.
-                let where_ = format!("{source_name} span {index} against {target_name}");
-                let refuse = span.degree() != target.degree()
-                    || span.index() > target.last_span()
-                    || !target.span_is_nonempty(span.index());
-                assert_eq!(
-                    target.admits(span),
-                    !refuse,
-                    "{where_}: `admits` disagrees with the span contract"
-                );
-                if !refuse {
-                    admitted += 1;
-                } else {
-                    if span.degree() != target.degree() {
-                        by_degree += 1;
-                    } else if span.index() > target.last_span() {
-                        by_index += 1;
-                    } else {
-                        by_empty += 1;
-                    }
-                    assert!(h.is_poison(), "{where_}: span_hull answered");
-                    assert!(r.is_poison(), "{where_}: span_hull_rational answered");
-                    assert!(d.is_poison(), "{where_}: derivative_span_hull answered");
-                    assert!(s.is_nan(), "{where_}: sup_norm_bound_span answered {s}");
-                    assert!(
-                        row.iter().all(|n| n.is_nan()),
-                        "{where_}: basis_funs answered"
-                    );
-                    assert!(
-                        ders.iter().flatten().all(|n| n.is_nan()),
-                        "{where_}: ders_basis_funs answered"
-                    );
-                }
-            }
-        }
-    }
-    for (class, n) in [
-        ("admitted", admitted),
-        ("refused on the degree compare", by_degree),
-        ("refused on the index compare", by_index),
-        ("refused on the emptiness compare", by_empty),
-    ] {
-        assert!(n > 0, "the spread no longer produces any pairing {class}");
-    }
-}
-
-/// **Why the index compare has no behavioural evidence, pinned as the
-/// fact it rests on.**
+/// **Why [`KnotVector::span`]'s index compare has no behavioural
+/// evidence, pinned as the fact it rests on.**
 ///
 /// On a clamped-v1 vector, `span_is_nonempty(i)` *implies* `first_span()
 /// <= i <= last_span()`: the leading run `knots[0..=degree]` is
@@ -291,6 +209,9 @@ fn a_foreign_span_poisons_every_span_door_and_panics_at_none() {
 /// the emptiness compare goes on looking sufficient. So the redundancy
 /// is **checked here rather than assumed**: if it ever stops holding,
 /// this row reds and the index compare gets its evidence back.
+///
+/// The compares live in `KnotVector::span`, which is where a span is
+/// minted and therefore the only place either can now fail.
 #[test]
 fn nonemptiness_implies_the_index_bound_under_clamped_v1() {
     let mut nonempty = 0usize;
@@ -314,100 +235,66 @@ fn nonemptiness_implies_the_index_bound_under_clamped_v1() {
     assert!(nonempty > 0, "the spread produced no nonempty spans");
 }
 
-/// **The two `pub` predicates on one `KnotVector` must not disagree
-/// about one index**, and the exit where disagreeing is worst.
+/// **The one pairing the borrow does not close, as an executed fact.**
 ///
-/// `KnotVector::span(i)` returns `None` for an index that names an
-/// empty span; before the emptiness compare, `admits` accepted the same
-/// index when the `Span` came from another vector of the same shape.
-/// Two public predicates on the same type, contradicting each other
-/// about the same index, through public constructors in safe Rust.
+/// A [`Span`] carries its knot vector, so `span_hull`'s knots and its
+/// span always agree. Its `coeffs` do not travel with either: they are
+/// related to the span's vector by `coeffs.len() ==
+/// kv.control_count()` and by nothing else, so a same-length array
+/// from a **different** curve passes the count and the bound is
+/// computed over the wrong data.
 ///
-/// What made it worth a compare rather than a paragraph is the exit:
-/// this module reads **no knots** on the hull path, so nothing poisons
-/// by arithmetic — `span_hull` returned a perfectly finite bound over a
-/// window the basis never reads, and `sup_norm_bound_span(..) <= eps`
-/// is the C2.2 honesty limb. A finite wrong bound there **certifies a
-/// span it never bounded**, which is a worse failure than the panic
-/// this whole change is about.
+/// This row constructs that case and asserts the bound is *finite and
+/// wrong* rather than poison — it is the residue stated as behaviour,
+/// so that closing it later reds here instead of going unnoticed.
+/// (`work/props/coefficients-carry-their-knot-vector.md`.)
 #[test]
-fn an_empty_span_of_this_vector_is_refused_however_it_was_minted() {
-    // Two cubics, same length, same control count. `0.5` is doubled in
-    // `mult`, so span 5 is empty there and nonempty in `uni`.
+fn the_coefficient_pairing_is_still_length_only() {
+    // Two cubics of the same length and the same control count, so
+    // either curve's coefficient array passes the other's count.
     let uni = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 1.0, 1.0, 1.0, 1.0], 3)
         .expect("valid");
-    let mult = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0], 3)
+    let other = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.75, 1.0, 1.0, 1.0, 1.0], 3)
         .expect("valid");
-    assert_eq!(uni.degree(), mult.degree());
-    assert_eq!(uni.control_count(), mult.control_count());
-    assert_eq!(uni.last_span(), mult.last_span());
+    assert_eq!(uni.control_count(), other.control_count());
 
-    // Derived, not hard-coded: the index `mult` refuses and `uni` does
-    // not. Writing the number in by hand got it wrong once already, and
-    // a wrong index here makes the row assert nothing.
-    let empty = (mult.first_span()..=mult.last_span())
-        .find(|i| mult.span(*i).is_none() && uni.span(*i).is_some())
-        .expect("the two cubics must disagree about some index");
-    let span = uni.span(empty).expect("nonempty in the uniform cubic");
-    // The other two compares have nothing to say about this pairing.
-    assert_eq!(span.degree(), mult.degree());
-    assert!(span.index() <= mult.last_span());
+    let n = uni.control_count();
+    let mine = base_coeffs(n);
+    // The other curve's coefficients: same length, different values,
+    // with one driven far out so the two hulls cannot coincide.
+    let mut theirs = base_coeffs(n);
+    theirs[0] = HIGH;
 
-    let coeffs = base_coeffs(mult.control_count());
-    let weights = vec![1.0; mult.control_count()];
-    assert!(hull::span_hull(&mult, &coeffs, span).is_poison());
-    assert!(hull::span_hull_rational(&mult, &coeffs, &weights, span).is_poison());
-    assert!(hull::derivative_span_hull(&mult, &coeffs, span).is_poison());
-    // The honesty limb: NaN fails `<= eps` under every direction, so a
-    // span that was never bounded can no longer be certified.
-    let bound = hull::sup_norm_bound_span(&mult, &coeffs, span);
+    let span = uni.span(uni.first_span()).expect("nonempty");
+    let right = hull::span_hull(&mine, span);
+    let wrong = hull::span_hull(&theirs, span);
+    assert!(!right.is_poison(), "the correct pairing must answer");
     assert!(
-        bound.is_nan(),
-        "sup_norm_bound_span certified an empty span with a finite bound: {bound}"
+        !wrong.is_poison(),
+        "the length-only relation still admits a foreign coefficient array"
     );
-    // `!(x <= eps)` is deliberate, not `x > eps`: the claim is that a
-    // poisoned bound fails the certificate comparison in the direction
-    // the honesty limb actually writes it, and NaN makes BOTH `<=` and
-    // `>` false. Same NaN-catching form as `net::validate_counts`.
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    {
-        assert!(!(bound <= 1.0e9), "a poisoned bound must fail `<= eps`");
-    }
-
-    // And the basis row, which divides by the zero knot gap. Without
-    // the compare this is `[-inf, NaN, NaN, inf]`, so `all(is_nan)` is
-    // the discriminating assertion, not a restatement of the guard.
-    // Off the doubled knot value: at `t == knots[empty]` the recursion
-    // is all `0 * inf` and comes out all-NaN with or without the
-    // compare, which would satisfy this assertion by accident.
-    let row = basis_funs::<f64>(&mult, span, 0.3);
+    assert_ne!(
+        (right.lo(), right.hi()),
+        (wrong.lo(), wrong.hi()),
+        "the foreign array must give a DIFFERENT bound — otherwise this \
+         row would pass without exercising the residue"
+    );
+    // And the honesty limb answers a finite number on it, which is the
+    // shape of the residue that matters: `sup_norm_bound_span(..) <= eps`
+    // can certify a curve whose coefficients were never bounded.
+    let bound = hull::sup_norm_bound_span(&theirs, span);
     assert!(
-        row.iter().all(|n| n.is_nan()),
-        "an empty span's basis row is not all-poison: {row:?}"
+        bound.is_finite(),
+        "the residue is a wrong answer, not a refusal: {bound}"
     );
 
-    // LAST, deliberately: an assertion ABOUT the guard, tautologically
-    // red if a compare is deleted and therefore evidence of nothing
-    // downstream. The bounds and the row above are this row's evidence.
-    // It is kept because the disagreement it names — two public
-    // predicates on one `KnotVector` contradicting each other about one
-    // index — is the finding, and it belongs where it was found.
-    assert!(
-        !mult.admits(span),
-        "`span({empty})` refuses and `admits` accepts — two public \
-         predicates on one KnotVector disagreeing about one index"
-    );
-
-    // The mirror: `mult`'s own span 4 is nonempty and `uni` admits it —
-    // the residue, still open, stated as an executed fact rather than
-    // as prose.
-    let shared = (mult.first_span()..=mult.last_span())
-        .find(|i| mult.span(*i).is_some() && uni.span(*i).is_some())
-        .expect("the two cubics must share some nonempty index");
-    assert!(
-        uni.admits(mult.span(shared).expect("nonempty")),
-        "the residue this row must not be read as closing"
-    );
+    // The counts still refuse, which is what keeps the indexing in
+    // range: a coefficient array of the wrong LENGTH is poison.
+    let short = base_coeffs(n - 1);
+    assert!(hull::span_hull(&short, span).is_poison());
+    assert!(hull::derivative_span_hull(&short, span).is_poison());
+    let weights = vec![1.0; n - 1];
+    assert!(hull::span_hull_rational(&short, &weights, span).is_poison());
 }
 
 /// [`vectors()`] plus two vectors that are the **same degree as an
