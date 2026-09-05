@@ -224,6 +224,10 @@ const LEDGER: &[Entry] = &[
         disposition: Unconverted("Track Q — raw text"),
     },
     Entry {
+        path: "crates/topo/src/live.rs",
+        disposition: Shared, // the `Live` door guard, code view carved by `balanced_end`
+    },
+    Entry {
         path: "crates/topo/src/review_d18.rs",
         disposition: Shared, // the announcing body, code view carved by `balanced_end`
     },
