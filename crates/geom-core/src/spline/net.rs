@@ -7,7 +7,7 @@
 //!
 //! A tensor patch's partials are themselves tensor-product B-splines
 //! whose coefficient nets come from knot differencing **per direction**
-//! (The NURBS Book Eq. 3.24 — [`SplineCoeffs::derivative_coeffs`],
+//! (The NURBS Book Eq. 3.24 — [`super::hull::SplineCoeffs::derivative_coeffs`],
 //! iterated across lines of the net). That iteration — transpose, apply
 //! the one-dimensional step down each line, scatter the result back —
 //! is the same operation for every consumer, and it had been written
@@ -25,7 +25,7 @@
 //! one-dimensional step as a closure. A caller whose direction is a
 //! clamped [`KnotVector`] passes [`TensorNet::diff_u_knots`] /
 //! [`TensorNet::diff_v_knots`], which is
-//! [`SplineCoeffs::derivative_coeffs`]. A caller carrying a direction
+//! [`super::hull::SplineCoeffs::derivative_coeffs`]. A caller carrying a direction
 //! the clamped invariant cannot spell — a derivative whose interior
 //! multiplicity equals the parent degree, so it is genuinely
 //! discontinuous — passes its own step and keeps its own structure.
