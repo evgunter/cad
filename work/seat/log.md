@@ -331,3 +331,15 @@ Full row: MODEL-AB-LOG SEAT6 (ordinal 1006, sample #131 at merge).
 
 Next: SEAT-7 (extrude/revolve onto Verb) closes block SEAT-B2; its
 merge publishes the block's draw byte.
+
+## SEAT-7 DISPATCHED (2026-09-05)
+
+SEAT-6 merged at 9df5b7a2 (PR 1593). SEAT-7 — extrude and revolve onto
+the Verb substrate, the profile arity, the profile-edge-carried flow,
+and the §6 end-to-end row that closes SEAT-6's residue — dispatches on
+block SEAT-B2's last slot (difficulty M logged pre-draw). Two design
+points are the unit's to argue, not to take silently: the profile
+operand's arity (the substrate declares bodies only today) and the
+flow's second source kind (a profile slot, not a verb scalar); an
+Ev-gated shape stops and reports. The block-close record and its draw
+byte publish at this unit's merge.
