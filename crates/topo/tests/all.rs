@@ -236,3 +236,6 @@ mod verbs_f7_r2_probes;
 
 #[path = "rim_of.rs"]
 mod rim_of;
+
+#[path = "rim_of_r1_probes.rs"]
+mod rim_of_r1_probes;

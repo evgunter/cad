@@ -494,3 +494,9 @@ mod rim_of_rows;
 
 #[path = "rim_of_rows_interval.rs"]
 mod rim_of_rows_interval;
+
+#[path = "rim_of_r1_probes.rs"]
+mod rim_of_r1_probes;
+
+#[path = "rim_of_r1_probes_interval.rs"]
+mod rim_of_r1_probes_interval;
