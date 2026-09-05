@@ -25,3 +25,34 @@ Two things this program starts with that most do not:
 
 The territory overlap with DOCM is announced on their orchestrator PR,
 not assumed. Nothing has been taken from them.
+
+## Ruled and cut (2026-09-05)
+
+Orchestrator's first session. Ev's rulings, in chat:
+
+- **The gate's fix shape.** The plan's "`derived_offset` sibling that
+  walks the input chain" is well-defined only for a pattern head; a
+  bare transform is invisible in a mate's data (N1: no segment, so a
+  mate through a transform is byte-identical to a mate on the
+  instance). Three shapes weighed: (a) a transform mints a segment —
+  rejected, it changes what a name IS and renames every entity
+  downstream of every transform, in persisted documents too, against
+  what `emit_union` and the measure door were built on; (b) the mate
+  stores the node each side is read at, the measurement reference's
+  shape — **ruled in**; (c) refuse a mate whose instance has a placing
+  consumer until (b) lands — not needed once (b) is the unit. Ev's
+  framing that decided it: a transform is represented only as a DAG
+  parent of the thing it transforms; the operand IS that, provided the
+  edge is A12's reading kind, not consuming (A10's roots).
+- **Territory:** touch whatever, resolve conflicts as they come.
+- **The first `[ev]` question** was already answered by
+  `ASSEMBLY.md`'s A11 (5); withdrawn, no PR.
+- The `DanglingHead` catch-all ruled in by this program (S-MATE's
+  successor) as `MSOLVE-3`; AQ8's SKIP half stays Ev's, a short `[ev]`
+  PR to come.
+
+Cut: `MSOLVE-1` (spec `docs/MSOLVE-1-SPEC.md`), `MSOLVE-2` parked on
+it, `MSOLVE-3` open; the three issues they answer parked on them. Two
+items re-homed here by the 2026-09-04 sweep read and placed on the
+slate (the memo key: a unit after 1; the lever's extent: an `[ev]`
+question). Next: dispatch MSOLVE-1 on `msolve/1-mate-operand`.

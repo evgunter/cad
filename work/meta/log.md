@@ -46,3 +46,43 @@ the opener and not behind it.
 
 No unit is cut and no branch exists yet. The first dispatch claims its
 ordinal from the band above and records it in `docs/MODEL-AB-LOG.md`.
+
+## First pass was a correction of its own opening (2026-09-05)
+
+The opening commit's tree-wide double-claim census — the measurement
+that was meant to settle the lint rule's shape — **miscounted three of
+its own figures**: 17 program pairs for 16, four `keep_out`-recorded
+overlaps for three, eleven `*/tests/*` pairs for nine. It also listed
+DOCM/MSOLVE as a recorded overlap when it is recorded on **one side
+only**. Corrected on the item by re-deriving against merged main at
+`a2bcab785` rather than by patching the numbers, with the method
+written down so the next run can be diffed against this one.
+
+Two things came out of the correction that are worth more than the
+numbers were:
+
+- **DOCM/MSOLVE is the live one-sided record.** MSOLVE's `keep_out`
+  names DOCM at length and says the overlap is "announced, not
+  assumed"; DOCM's does not name MSOLVE at all. Neither program did
+  anything wrong — MSOLVE opened a day ago and followed the rule — and
+  that is the point: a one-sided record is invisible from the side that
+  was there first, which is what the lint would have asked DOCM for on
+  the same day. It is now the worked example inside item (1).
+- **The lint's rule is settled by the data**: an overlap is an error
+  unless BOTH programs' `keep_out` name the other. It passes three
+  pairs today and fires on thirteen, nine of them the `*/tests/*`
+  family, which wants the Track W seam encoded once rather than nine
+  `keep_out` lines. That is the one question left inside the item.
+
+TOPO's opening count was wrong the same way and in the same commit
+(47 unowned `crates/topo/src` files for 55, and "~25 remaining" for
+35 — a figure read off one line of a directory-grouped scan that
+dropped two subdirectories). Corrected in `work/topo/plan.md`,
+`work/topo/log.md` and the tracks addendum.
+
+**The pattern is the program's own subject.** Both errors are
+hand-run censuses published as measurements with nothing that reads
+them back, which is the class this program exists to close — and the
+mechanised version of the first one is exactly what item (1) builds.
+Recorded here rather than quietly fixed, because a census that has been
+wrong once is a census whose next reader should know it.

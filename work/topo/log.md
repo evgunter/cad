@@ -10,7 +10,9 @@ Opened on Ev's direction (in-chat, 2026-09-04) after a re-read of
 `work/issues/` and the code-quality K–X partition against every open
 program's `paths`. The measurement that produced this program:
 
-- **47 files in `crates/topo/src/` are in no open program's `paths`** —
+- **55 of the 102 `.rs` files under `crates/topo/src/` are in no open
+  program's `paths`** (re-derived 2026-09-05; the opening commit said
+  47, off by the two subdirectories a directory-grouped scan dropped) —
   the largest unowned kernel territory in the tree, and the one
   `docs/WORK-TRACKS-2026-09.md` named ("37 `crates/topo/src` files")
   and then cut eleven tracks around without closing.
@@ -36,7 +38,7 @@ program's directory keeping its id, `track:` letter and body").
 `crates/topo/src/*` would double-claim five programs' ground, and
 `scripts/work.py territory` is blind to a double claim
 (`work/meta/territory-cannot-see-a-path-two-programs-both-claim`, the
-FIX/SHELL collision on `transform.rs`). The ~25 remaining `topo/src`
+FIX/SHELL collision on `transform.rs`). The 35 remaining `topo/src`
 files are recorded as unowned-and-not-finished rather than swept in.
 
 No unit is cut and no branch exists yet. The first dispatch is `S331`

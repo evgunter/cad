@@ -2,10 +2,11 @@
 id: nested-pattern-mate-heads-refuse
 kind: issue
 title: Nested patterns and pattern-of-transform mate heads refuse DanglingHead — narrower than the A11 rider's literal text
-status: open
+status: parked
 opened: 2026-08-31
 github: 1411
 refs: [1400]
+blocked_on: [MSOLVE-2]
 ---
 
 ## From GitHub issue 1411
