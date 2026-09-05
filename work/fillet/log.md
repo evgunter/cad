@@ -481,3 +481,27 @@ deleted, ledgered at the merge SHA. **Block B1 is concluded** — H4 (FABLE,
 #126), RIM (OPUS, #131), H5 (OPUS, #132) — and its record reaches main
 with this sync. Block B2 runs: H6 in its fix pass, ATTR under review, H7
 implementing.
+
+**ATTR dual delivered; union fix pass sent (2026-09-05).** Both
+MERGEABLE-AFTER-FIXES (R1 0/3/7, R2 1/5/14); the fence holds by both
+diffs (no gate, band, window or margin moved), Phase 1's grid reproduces
+exactly at the head, the ORDER rule holds on all 2 512 two-entry envelopes,
+the Python surface 493/493 by both. Bilateral: the Display header's "n
+derived corners" counts ENTRIES — a false fact about the geometry on
+76.5 % of grid-A refusals (adjudicated MAJOR: the program's own class);
+whole-pair construction refusals (`AlreadyTangent` and kin) now lose to a
+window entry about the OTHER crossing — a silent precedence inversion the
+PR body denies, witnessed red by one lane and argued unreachable by the
+other; C4's abort pinned at ε = 1e-12 only; exact refusal pins turned
+existential in the migration; the in-fence residues (probe headers, the
+`sugar.rs:612` candidate discard — instrumented: 232 discards on grid A,
+every one with different payload numbers) unscheduled; C1's fence
+defence does not follow and the spec is internally inconsistent about
+"every corner tried". Orchestrator's calls: whole-pair refusals outrank
+the envelope as at the base (no silent discard), the header made true,
+the spec's C1 amended to the channel rule with the acceptance row as its
+reason, the C4 abort pinned at every ε, exact pins restored, the two
+residues filed, the `NoTangentCircle` sub-kinds carried by the tag. No
+unilateral MAJOR — tally +0; pair FAIR. Row at merge, ordinal 2004.
+Block B1's record reached main (PR
+[#1901](https://github.com/evgunter/cad/pull/1901)).
