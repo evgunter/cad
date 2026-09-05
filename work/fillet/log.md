@@ -561,3 +561,13 @@ review content. Q8 from both: `surgery.rs` at 4395 lines holds four
 surgeries; the split (`blend/open/{planar,ruled}.rs` behind one
 ratification of the compound-bound allowlist) goes to Ev as an `[ev]`
 issue. Row at merge, ordinal 2005.
+
+**`[ev]` raised: the surgery module (2026-09-05).** Both H7 reviewers'
+Q8 finding — `blend/surgery.rs` at ~4 300 lines holds four surgeries, and
+H7's carve landed there only because the compound-bound allowlist names
+`blend/(battery|build|surgery).rs` — filed as
+`surgery-module-holds-four-surgeries` (`needs_ev`) and put to Ev on PR
+[#1916](https://github.com/evgunter/cad/pull/1916): may the ratification
+be re-scoped for a `blend/open/{planar,ruled}.rs` split, a file move
+bit-identical by the dump? Subscribed for comments; nothing moves until
+ruled.
