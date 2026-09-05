@@ -637,15 +637,27 @@ impl ViewerApp {
         // carries the method and the numbers; `TRIANGLE_BUDGET` says
         // why there is a budget at all.
         //
-        // A fit that refuses leaves δ alone: the document is one whose
-        // roots do not gather or whose probe will not tessellate, and
-        // the index build below is about to say so with its own typed
-        // refusal. Two opinions about that would be one too many.
+        // A fit that cannot run leaves δ alone: the document is one
+        // whose roots do not gather (no landed body) or whose probe
+        // will not tessellate, and the index build below is about to
+        // say so with its own typed refusal. Two opinions about that
+        // would be one too many.
         if self.fit_delta_on_scene
             && let Some((doc, evaluation)) = self.session.landed_pair()
         {
             self.fit_delta_on_scene = false;
-            if let Ok(fitted) = scene::fit_delta(doc, evaluation, self.delta, self.session.tol()) {
+            // The LANDING's body, which its own gather already paid
+            // for. The gather below runs for one landing shape only —
+            // an assembly whose A5 gate refused ate the product it
+            // judged — and is spelled out rather than hidden behind
+            // the getter, so the one path that costs a gather is the
+            // one path that names one.
+            let fitted = match self.session.landed_body() {
+                Some(body) => scene::fit_delta(body, self.delta, self.session.tol()),
+                None => scene::product_of_evaluation(doc, evaluation, self.session.tol())
+                    .and_then(|body| scene::fit_delta(&body, self.delta, self.session.tol())),
+            };
+            if let Ok(fitted) = fitted {
                 self.delta = fitted.delta;
                 self.budget_delta = fitted.requested_cost.map(|_| fitted);
             }

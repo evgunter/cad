@@ -348,13 +348,26 @@ writes its cleared value, at one site, by hand. That is the whole
 mechanism — one site to update instead of three, and a compiler error
 instead of a silent omission.
 
-`LandedRun` is the same rule one level down. The six things a landing
-produces — the evaluation, the document it answers, its generation,
-the gather's refusal, the A5 badge and the advisory report — are
-statements about one (document, evaluation) pair, computed once in
-`land`. As one value they cannot come from different runs, which is
-the property `landed_pair` needs: it returns two of the six, and the
-two it returns are the pair a single run answered. `bounds` sits in
+`LandedRun` is the same rule one level down. The seven things a
+landing produces — the evaluation, the document it answers, its
+generation, the gather's refusal, the A5 badge, the advisory report
+and the gathered body — are statements about one (document,
+evaluation) pair, taken from that pair's single gather in `land`. As
+one value they cannot come from different runs, which is the property
+`landed_pair` needs: it returns two of the seven, and the two it
+returns are the pair a single run answered.
+
+The body is the one of the seven that is not always there, and the one
+with a cost on the other side of the ledger. It is kept so that the
+display fit does not gather the same product a second time — 87 ms
+against an `Arc` clone, on a 165-root, 990-face document — and the
+price is that the session retains one gathered aggregate for the life
+of a landing, beside the `Doc` and `Evaluation` it already holds. One
+at a time: the next landing replaces it, and `Open` drops it with the
+rest of `Derived`. It is absent when the gather refused, and when the
+A5 gate refused and so consumed the product it was judging; the
+consumer that needs one there gathers it itself, at a door that says
+so (`scene::product_of_evaluation`). `bounds` sits in
 `Derived` but is discarded on a stricter rule than the block's: every
 submit drops it (`request_eval`), because a range is a statement about
 one document and a commit or an undo already invalidates it. Both
