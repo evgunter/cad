@@ -47,28 +47,19 @@ on:
   # scripts/ci-filter.py's CONFIGURATION COVERAGE note is the argument. These
   # inputs no longer buy COVERAGE on any dimension, because a run already has
   # it; what they buy is a NARROWED run, which is what a fast re-gate of one
-  # axis wants, and a dispatch is now the ONLY way to narrow one — a
-  # `CI-Config:` trailer is additive-only on all three.
+  # axis wants. THIS DISPATCH IS THE ONLY WAY TO NARROW ONE.
   #
-  # THE OTHER SPELLING IS A COMMIT TRAILER — `CI-Config: eps=1e-12` in the
-  # head commit's message — and it is read on ORDINARY pull_request runs by
-  # the same `filter` job. The two are not redundant. A dispatch's checks
-  # belong to the run and never appear on a pull request's head commit, so it
-  # cannot be the thing a reviewer looks at before merging; and a trailer
-  # cannot re-gate a commit already written, which is the whole of "that
-  # landed, now run it at 1e-12" in a repository that does not rewrite
-  # history. ci-filter.py's REQUESTING A POINT section carries the full
-  # argument and the precedence rule (invocation > trailer > the whole
-  # dimension, per dimension).
-  #
-  # THE TRAILER IS READ OFF THE HEAD COMMIT AND ONLY THAT ONE, so a narrowing
-  # lasts exactly one push: the next commit — a merge of main into the branch
-  # included — runs the whole matrix again unless it carries the trailer too.
-  # That is the deliberate reading, and since 2026-09-04 it fails in the safe
-  # direction: forgetting the trailer now gives you MORE gate on every
-  # dimension, where it used to give you a different drawn point. Asking
-  # again is one line, and the step below prints which of the three
-  # dimensions was asked for on every run.
+  # THERE WAS A SECOND SPELLING — a `CI-Config:` trailer in the head commit's
+  # message, read on ordinary pull_request runs by the same `filter` job — AND
+  # IT IS DELETED (2026-09-04, Ev: "i see in 1855 it's still talking about the
+  # ci config trailer; that code should be deleted since it's no longer live").
+  # It was additive-only: it could never gate less than an unmarked run. Once
+  # un-sampling reached the last dimension, every dimension already ran whole,
+  # so the only values the trailer could legally name were the whole-dimension
+  # ones it was already getting — it could restate the default or red the
+  # classify step, and nothing else. ci-filter.py's NARROWING A RUN TO ONE
+  # POINT section carries what is left of the argument: precedence is the
+  # invocation over the whole dimension, per dimension.
   #
   # WHAT IT COSTS: a dispatch costs what a code-tier run costs and buys a
   # SECOND gate over a tree, since the ordinary run already happened. Narrowing
@@ -434,9 +425,9 @@ jobs:
       # is where a constant belongs.
       run_k_lint: ${{ steps.classify.outputs.RUN_K_LINT }}
       # THE MATRIX THIS RUN GATES (scripts/ci-filter.py, CONFIGURATION
-      # COVERAGE). `both` / `all` unless a dispatch input or a `CI-Config:`
-      # trailer in the head commit NARROWED it; `config_source` below says
-      # which of the three that happened to. Every compile-mode job reads
+      # COVERAGE). `both` / `all` unless a dispatch input NARROWED it, which
+      # is the only spelling that can; `config_source` below says which of the
+      # three that happened to. Every compile-mode job reads
       # `lane`; the two archive-run matrices read `eps_rows`.
       lane: ${{ steps.classify.outputs.LANE }}
       eps: ${{ steps.classify.outputs.EPS }}
@@ -490,10 +481,12 @@ jobs:
       run_viewer_toolkit: ${{ steps.classify.outputs.RUN_VIEWER_TOOLKIT }}
       # WHERE THE THREE VALUES ABOVE CAME FROM — `unsampled` for a dimension
       # that runs whole, which since 2026-09-04 is what all three do unless
-      # someone says otherwise; `requested` for one a dispatch input named,
-      # `commit-trailer` for one the head commit's `CI-Config:` line named.
-      # `sampled` and `pinned` were the draw's and the pin's words and no run
-      # can print them any more. No job reads it; it is published so that
+      # someone says otherwise; `requested` for one a dispatch input named.
+      # THOSE ARE THE ONLY TWO WORDS. `sampled` and `pinned` were the draw's
+      # and the pin's, `commit-trailer` was the deleted `CI-Config:` line's,
+      # and no run can print any of them any more — a source vocabulary that
+      # names a thing that cannot happen is a reader's wrong turn.
+      # No job reads it; it is published so that
       # "which configuration gated this run, and did anyone choose it" is
       # answerable from the run's outputs rather than from a log line, and it
       # is printed in a step of its own.
@@ -534,12 +527,11 @@ jobs:
         # path is tier `all`, not a wrong answer.
         env:
           RUSTUP_TOOLCHAIN: stable
-          # THE HEAD COMMIT, whose message carries any `CI-Config:` trailer.
-          # NOT the merge ref this job is checked out at: that commit's message
-          # is written by GitHub, and what was asked for is what the author
-          # wrote. It was also the draw's seed until 2026-09-04; nothing is
-          # drawn now, so this is a message address and nothing else.
-          HEAD_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+          # `HEAD_COMMIT` STOOD HERE AND IS GONE (2026-09-04). It addressed the
+          # PR's head commit for two readers that no longer exist: the k-lint
+          # draw's seed, retired earlier the same day, and the `CI-Config:`
+          # trailer, whose whole path is deleted. Nothing in this job reads the
+          # head commit's message any more.
           DRAFT: ${{ github.event.pull_request.draft }}
           # The dispatch inputs (empty on every other event). `unset` is the
           # dispatch's own spelling of "do not narrow this dimension", and the
@@ -586,26 +578,28 @@ jobs:
             echo "changed files:"
             git diff --name-only "$BASE"...HEAD || true
           fi
-          # THE CONFIGURATION REQUEST, in its two spellings. Both are optional,
-          # both are per-dimension, and the invocation wins over the trailer —
-          # ci-filter.py's REQUESTING A POINT section is the argument for all
-          # of that. The trailer is read off the PR's HEAD commit rather than
-          # off the merge ref this job is checked out at: the merge commit's
-          # message is written by GitHub, and what was asked for is what the
-          # author wrote.
+          # THE CONFIGURATION REQUEST, in the one spelling there is: the
+          # dispatch inputs, optional and per-dimension. ci-filter.py's
+          # NARROWING A RUN TO ONE POINT section is the argument.
+          #
+          # THE COMMIT-TRAILER SPELLING STOOD HERE AND IS DELETED (2026-09-04).
+          # This step used to write the PR head commit's message to a file and
+          # pass it as `--config-from-message`. That path was additive-only, so
+          # once every dimension ran whole by default it could only restate the
+          # default or red this step; the flag is gone from ci-filter.py and
+          # passing it now reds, which is this file's standing answer to an
+          # input the filter cannot make sense of.
           CONFIG=()
           for pair in "lane=$IN_LANE" "eps=$IN_EPS" "klint=$IN_KLINT"; do
             case "$pair" in *=|*=unset) continue ;; esac
             CONFIG+=(--config "$pair")
           done
-          git log -1 --format=%B "$HEAD_COMMIT" > commit-message.txt
           echo "classification:"
           # `--seed` STOOD ON THIS LINE AND IS GONE (2026-09-04). It handed the
           # head SHA to the k-lint draw; the draw is retired, the option is
           # deleted rather than left to accept a value it ignores, and passing
           # one now reds this step.
-          scripts/ci-filter.py "${FILTER[@]}" \
-            --config-from-message commit-message.txt "${CONFIG[@]}" \
+          scripts/ci-filter.py "${FILTER[@]}" "${CONFIG[@]}" \
             --notices filter-notices.txt > filter.out
           # DRAFT PRs SKIP THE GATE (2026-08-22, Ev's ask; F5 of the
           # minutes audit, which called it "the largest single lever
@@ -688,9 +682,9 @@ jobs:
           printf 'lane=%s eps=%s klint_row=%s\n' "$LANE" "$EPS" "$KLINT_ROW"
           printf 'source: %s\n' "$CONFIG_SOURCE"
           case "$CONFIG_SOURCE" in
-            *requested*|*commit-trailer*)
+            *requested*)
               echo "CHOSEN BY HAND: at least one dimension above was named" \
-                   "(a workflow_dispatch input, or a CI-Config: trailer in the head commit)."
+                   "by a workflow_dispatch input."
               ;;
           esac
           # A NARROWED RUN GETS A RUN-PAGE ANNOTATION, and this is the only
@@ -702,12 +696,13 @@ jobs:
           # legs. An annotation is rendered on the run page and on the PR's
           # checks tab without anyone opening a job.
           #
-          # KEYED ON THE VALUE, NOT ON `CONFIG_SOURCE`. A trailer can no
-          # longer narrow ANY dimension (ci-filter.py's `WHOLE_BY_DEFAULT`
-          # refuses it on all three since 2026-09-04), so a source-keyed test
-          # would fire on `lane:commit-trailer` — which can only be `lane=both`,
-          # a narrowing of nothing — and stay silent on any future path that
-          # narrows some other way. What matters is what the run GATES.
+          # KEYED ON THE VALUE, NOT ON `CONFIG_SOURCE`. A source-keyed test
+          # fires on a request that narrowed nothing — `--config lane=both`
+          # names a dimension and gates all of it — and stays silent on any
+          # future path that narrows some other way. What matters is what the
+          # run GATES. (It also outlived the source it was first written
+          # against: `commit-trailer` was a value CONFIG_SOURCE could print
+          # until that spelling was deleted on 2026-09-04.)
           #
           # THE K-LINT ROW IS IN THIS TEST NOW, and it was not while it was
           # drawn: a drawn row was not a narrowing by anyone, so warning about
@@ -715,7 +710,7 @@ jobs:
           # annotation. Un-sampled, `KLINT_ROW` is one row only when someone
           # asked for one, which is exactly the population this warning is for.
           if [ "$LANE" != both ] || [ "$EPS" != all ] || [ "$KLINT_ROW" != all ]; then
-            echo "::warning title=CI narrowed: this run does NOT gate the whole matrix::lane=$LANE eps=$EPS klint=$KLINT_ROW (source: $CONFIG_SOURCE). An un-narrowed run gates {default,interval} x {default,1e-6,1e-12} as twelve test jobs and all five k-lint unifications as five k-lint jobs; this one gates fewer. Re-run without the dispatch input, or drop the CI-Config: trailer, to gate all of it."
+            echo "::warning title=CI narrowed: this run does NOT gate the whole matrix::lane=$LANE eps=$EPS klint=$KLINT_ROW (source: $CONFIG_SOURCE). An un-narrowed run gates {default,interval} x {default,1e-6,1e-12} as twelve test jobs and all five k-lint unifications as five k-lint jobs; this one gates fewer. Re-run without the dispatch input to gate all of it."
             {
               echo "### CI narrowed by hand"
               echo
@@ -737,8 +732,8 @@ jobs:
           # This step used to carry its own prose for both notices, and both
           # copies drifted from the script's: one asserted that a pin's reason
           # names a file, which the fail-closed arm cannot, and the other said
-          # "DEFAULT LANE DRAWN" over a lane that a CI-Config trailer had
-          # REQUESTED. The script can see those values and this step cannot, so
+          # "DEFAULT LANE DRAWN" over a lane a request had NARROWED. The
+          # script can see those values and this step cannot, so
           # the wording belongs there and only there.
           if [ -s filter-notices.txt ]; then
             cat filter-notices.txt
@@ -790,8 +785,8 @@ jobs:
       #
       # ONE CAUSE, DERIVED FROM THE ACTUAL PRODUCER. `RUN_BUILD=false` has
       # exactly three possible producers and they compose, so the first shape
-      # of this step got them wrong in both directions: a draft PR whose head
-      # carried a `CI-Config:` trailer was told its TIER classified the change
+      # of this step got them wrong in both directions: a draft PR that also
+      # carried a configuration request was told its TIER classified the change
       # as non-triggering (the DRAFT zeroing had done it, and `DRAFT` sat in
       # this step's env unread), and a docs-tier run with a request printed
       # "GATE SKIPPED" and "gate active" in the same breath. So the branches
@@ -811,7 +806,7 @@ jobs:
           CONFIG_SOURCE: ${{ steps.classify.outputs.CONFIG_SOURCE }}
         run: |
           requested=no
-          case "$CONFIG_SOURCE" in *requested*|*commit-trailer*) requested=yes ;; esac
+          case "$CONFIG_SOURCE" in *requested*) requested=yes ;; esac
 
           if [ "$RUN_BUILD" = "true" ]; then
             echo "gate active: tier=$TIER run_build=true."
@@ -2617,7 +2612,7 @@ jobs:
       #
       # THE ROWS ARE A MATRIX DIMENSION AND NOT THREE JOBS, and they come
       # from `needs.filter.outputs.eps_rows` rather than a literal here: a
-      # dispatch or a `CI-Config: eps=` trailer narrows that list to one
+      # dispatch's `eps` input narrows that list to one
       # row, and a narrowed run then runs two legs instead of six with
       # nothing else in this job changing.
       #
@@ -4623,12 +4618,11 @@ jobs:
   #
   #   * TWO OF THE NAMES ARE COMPUTED. `test (eps = …, …/2)` and
   #     `test (interval, eps = …, …/2)` interpolate
-  #     `needs.filter.outputs.eps_rows`, which a `workflow_dispatch` or a
-  #     `CI-Config:` trailer can still narrow. Neither spelling can reach a
-  #     merge_group run (a group's head commit message is GitHub's own, and a
-  #     queue takes no inputs) — but a required-check list is SHARED with pull
-  #     requests, where both can. A gate whose names a commit message can shrink
-  #     is a gate a commit message can shrink.
+  #     `needs.filter.outputs.eps_rows`, which a `workflow_dispatch` can still
+  #     narrow. It cannot reach a merge_group run (a queue takes no inputs) —
+  #     but a required-check list is SHARED with pull requests, where a
+  #     dispatch's narrowed names show up. A gate whose names a run's inputs
+  #     can shrink is a gate those inputs can shrink.
   #   * A LIST GOES STALE SILENTLY. A job added to this file and forgotten in a
   #     branch-protection setting is a gate nobody removed and nobody runs. The
   #     sweep below is what makes that impossible, and it is why this job reads

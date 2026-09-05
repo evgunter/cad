@@ -2,11 +2,12 @@
 id: prune-drops-a-hidden-instance-silently
 kind: issue
 title: prune discards a user's hide choice with no report, the same class as superseded and in the same function
-status: dispatched
+status: closed
 opened: 2026-09-04
-refs: [opoutcome-superseded-has-no-production-reader, prune-discards-the-fault-that-explains-the-supersession]
 branch: view/prune-report
-rides_with: prune-discards-the-fault-that-explains-the-supersession
+pr: 1886
+closed: 2026-09-05
+refs: [opoutcome-superseded-has-no-production-reader, prune-discards-the-fault-that-explains-the-supersession]
 ---
 
 Found by the VIEW-6 review (2026-09-04).
@@ -68,3 +69,23 @@ and the two are ranked together. Worth deciding at the same time
 whether re-showing a fused instance is a supersession at all or a
 different sentence — the user's choice was not superseded by a
 constraint, it stopped being expressible.
+
+## Closed by PR #1886
+
+The hidden set rides `PruneReport` as `dropped_hides`, `OpOutcome`
+grows the field, and `frame::dropped_hide_notice` renders it.
+
+**The open question is answered: re-showing a fused instance is NOT a
+supersession**, and gets its own sentence. A supersession is a
+substitution — the mate answers the placement question better than the
+hand placement did. A dropped hide is superseded by nothing: the user
+asked for the instance not to be *drawn*, and the document made that
+question unaskable rather than answering it differently. The two arms
+of `display_check` are why one sentence could not carry both — on a
+fuse the part is drawn *again*, on a delete nothing reappears — so the
+preamble says only what is true of both and the fault says which
+happened.
+
+`assembly_display::a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported`
+drives both arms through the session; before it, no row anywhere
+covered a prune dropping a hide.

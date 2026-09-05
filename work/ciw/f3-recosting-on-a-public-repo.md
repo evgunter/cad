@@ -1084,3 +1084,42 @@ the change filter's basis under `merge_group` ("unverified here") is
 right with no edit, because a merge group's first parent is the group
 before it, so `git rev-parse HEAD^1` yields exactly the one pull request
 that group adds.
+
+## 2026-09-05: THE OPTION THIS DOCUMENT RECOMMENDED DOES NOT EXIST HERE
+
+**Read this before acting on anything above.** *THE OPTIONS, RE-PRICED*,
+*THE RECOMMENDATION, REVISED* and *Ev's ruling (2026-09-04)* all turn on
+a merge queue, and **a merge queue is not available to this
+repository.** `github/docs@main`,
+`data/reusables/gated-features/merge-queue.md`: *"Pull request merge
+queues are available in any public repository owned by an organization,
+or in private repositories owned by organizations using GitHub
+Enterprise Cloud."* `evgunter/cad` is public and its owner reports
+`"type": "User"`, so it is outside both arms; Ev has ruled
+(2026-09-05) that the repository is not moving to an organization.
+`work/ciw/merge-queue-trial` is closed on that, and carries the whole
+finding and the process failure behind it.
+
+Three consequences for this document specifically:
+
+1. **The `merge queue` row of the options table, and the recommendation
+   built on it, are unavailable options.** They are left standing as the
+   record of what was argued, not as a live recommendation.
+2. **Both of that row's numbers were wrong anyway, and in mechanism.**
+   `44 job-min/h` at "batch ≤5" came from a simulation in which batching
+   reduces the number of CI runs; GitHub builds one merge group **per
+   queued pull request**, so a queue costs one full gate per PR at any
+   batch size. Re-derived post-un-sampling that is ~99 job-min/h, and
+   the latency figures (median 442 s, p90 676 s, max 857 s) were
+   re-simulated to 528 s flat at build concurrency ≥ 4. **Do not quote
+   the 44 or the 442 forward.**
+3. **The fallback named here is now the only surviving option for the
+   composition-defect class**: the FULL push job set plus the per-SHA
+   concurrency design pass, 48 job-min/h — never the tests-only variant,
+   which catches 0 of the 2 recorded instances. It is not reopened by
+   this note; taking it is a new ruling for Ev, because Ev's 2026-09-04
+   ruling explicitly declined to restore the push gate *in favour of the
+   queue*, and the queue is gone.
+
+**F3 itself still needs no revision**, which this document argued under
+either answer.

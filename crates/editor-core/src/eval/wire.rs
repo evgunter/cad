@@ -181,6 +181,7 @@ where
             doc,
             results,
             vals,
+            env,
             tol,
         ),
         Node::Chamfer {
@@ -193,6 +194,7 @@ where
             doc,
             results,
             vals,
+            env,
             tol,
         ),
         Node::Split { target, tool } => wire_split(id, *target, *tool, results, tol),
@@ -1552,7 +1554,8 @@ fn verb_refused(refusal: verbs::VerbError) -> NodeErrorKind {
 /// side is ready; the kernel side is not.
 // The 8th is the verb's correspondence — which is what collapses two
 // of these functions into one, so it is the parameter that REMOVES
-// duplication rather than adding a duty.
+// duplication rather than adding a duty; the 9th is the evaluation
+// environment, read for the descent chain the token's scope is.
 #[allow(clippy::too_many_arguments)]
 fn wire_blend<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     verb: &crate::verbs::blend::BlendVerb<T>,
@@ -1562,15 +1565,18 @@ fn wire_blend<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
+    env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
     let body = body_operand(results, target)?;
-    let size = need_scalar(vals, verb.size_slot)?;
+    let size = need_scalar(vals, verb.slots.size_slot)?;
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
     let edges = resolve_selection(verb.selection_label, selection, doc, &target_table)?;
-    let out = (verb.build)(edges, size)
-        .run(&body, tol)
-        .map_err(verb_refused)?;
+    let built = (verb.build)(edges, size);
+    // The verb's own declaration of where its scalar lands, read off
+    // the value the correspondence just built (VERB-SEAT-DESIGN V1).
+    let flow = built.param_flow();
+    let out = built.run(&body, tol).map_err(verb_refused)?;
     // The record channel is per-family; a blend's run produces the
     // blend variant by construction, so another family here is a
     // kernel bug — refused typed, exactly like the `None` record below.
@@ -1595,6 +1601,30 @@ fn wire_blend<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     // (D1/N6); the supports' pass-through descriptions keep the source
     // they arrived with.
     stamp_minted(&mut body, id);
+    // **Attach-at-mint for the lowered parameter-identity channel**
+    // (VERB-SEAT-DESIGN P2). The size slot's expression lowers to an
+    // opaque token under THIS evaluation's scope — the document's own
+    // table, or the reference a part was reached through — and the
+    // verb's DECLARED flow says which stored fields of which minted
+    // carriers that scalar became; the two meet here and nowhere
+    // else. A slot the document does not hold cannot have produced the
+    // value above, so its absence is not a case — but it is a lookup,
+    // so it degrades to attaching nothing rather than asserting.
+    // Nothing downstream is entitled to a token: the channel is opt-in
+    // and its absence refuses typed (P3). The attach's own refusals
+    // cannot fire (its doc says why) and are surfaced typed if they
+    // ever do, never discarded.
+    if let Some(expr) = doc.node(id).and_then(|n| n.expr(verb.slots.size_slot)) {
+        let scope = crate::param_source::ParamScope::of(doc.id(), env.parts.chain());
+        crate::param_source::attach_blend(
+            &mut body,
+            flow,
+            verb.slots.size_param,
+            &crate::param_source::lower(scope, expr),
+            &rec,
+        )
+        .map_err(NodeErrorKind::ParamSourceAttach)?;
+    }
     Ok(OpOut::plain(ValuePayload::Body(Arc::new(body)), table))
 }
 

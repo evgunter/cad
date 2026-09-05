@@ -228,9 +228,18 @@ fn a_document_with_no_body_lands_a_clean_report() {
 ///
 /// The behavioural half — that the counter counts what it claims to —
 /// is the rows above, which read it across a real landing.
+///
+/// The read goes through the shared reader's CODE view
+/// ([`test_utils::source::code_only`]): every anchor below is a code
+/// fragment — an attribute above the item it gates — and the count
+/// beside them is a count of SITES, so a mention of the cell in a
+/// comment must not answer for one and must not inflate the total.
+/// The view keeps every code byte at its own offset, so the three
+/// anchors and the count are exactly what the raw text offered. This
+/// site's ledger row is in `crates/test-utils/tests/reader_census.rs`.
 #[test]
 fn every_site_of_the_gather_counter_carries_the_debug_gate() {
-    let source = include_str!("../../editor-core/src/product.rs");
+    let source = test_utils::source::code_only(include_str!("../../editor-core/src/product.rs"));
     let gated = [
         "#[cfg(debug_assertions)]\nthread_local! {\n    static GATHERS",
         "#[cfg(debug_assertions)]\n    GATHERS.with(",
