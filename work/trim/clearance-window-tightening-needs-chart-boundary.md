@@ -5,6 +5,7 @@ title: Clearance windows are bounding rectangles: tightening needs the face boun
 status: dispatched
 opened: 2026-09-03
 branch: trim/3-chart-bound
+pr: 1911
 ---
 
 ## What
