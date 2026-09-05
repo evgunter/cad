@@ -3614,6 +3614,53 @@ band; the #1095 shape). v6 DUAL, parity byte 208 ⇒ R1 OPUS +
 R2 FABLE, concurrent, briefs symmetric. Sample number AT MERGE
 in main's order. Row at merge.
 
+## FILLET program rows (work/fillet/plan.md; band 2000–2099; blocks named FILLET-B<n>)
+
+Opened 2026-09-04 (`work/fillet/log.md`); single-orchestrator remote
+box, no away-channel. The program's three E openers run outside the
+experiment (the ratified charter gives them a single style review; v6
+is a dual-per-row protocol) and record NO row; only the H units do,
+under v6. Block FILLET-B1's draw and slot record live branch-side
+(`fillet/b1-block`) until the block concludes, per the block-draw
+redaction ruling; the record follows.
+
+Block FILLET-B1 pre-draw fields (2026-09-04, logged before the draw):
+slot 0 = FILLET-H4 (`docs/FILLET-H4-SPEC.md`,
+`concave-closed-rim-has-no-band`) — difficulty **L**, task-class
+**NUMERIC** (the material-adding closed-rim band; a Pappus closed form
+is the oracle and any fold found hardcoded convex is a sign decision).
+Slots 1–2 bank for the next H units in dispatch order
+(`repaired-pole-rim-serves-no-closed-door`, then
+`extrude-cap-rim-smooth-arm-noop`), pre-draw fields at their specs.
+
+Block FILLET-B1 draw (2026-09-04, after the pre-draw fields above; v3
+triple {opus, opus, fable}, one /dev/urandom byte, reject ≥252): byte
+**111**, 111 mod 3 = 0 = fable's position ⇒ **fable at slot 0**.
+So: slot 0 FILLET-H4 = FABLE, slot 1 = OPUS, slot 2 = OPUS. Recorded
+branch-side; this record reaches main when the block's last slot's
+reviews conclude; each ordinal claim at review dispatch goes to main on
+its own.
+
+Block FILLET-B1 slot record (branch-side, appended as each slot concludes):
+slot 0 = FILLET-H4 (FABLE) — concluded 2026-09-04 at merge fc38f753b, ordinal 2000, sample #126 (tally candidate recorded in the row).
+slot 1 = FILLET-RIM (OPUS) — concluded 2026-09-05 at merge 40d50f272, ordinal 2001, sample #131 (one tally candidate recorded in the row, a second flagged for the blinded adjudication).
+slot 2 = FILLET-H5 (OPUS) — concluded 2026-09-05 at merge 91e6d4309, ordinal 2002, sample #132 (no tally candidate; pair FAIR).
+**Block FILLET-B1 CONCLUDED (2026-09-05)** — three slots, three duals (ordinals 2000–2002, samples #126, #131, #132); the block record reaches main with this sync. Block FILLET-B2's record lives on `fillet/b2-block` until it concludes.
+Reorder (2026-09-04, before any slot-1 dispatch): slot 1 = FILLET-RIM
+(`docs/FILLET-RIM-SPEC.md`, `no-public-rim-arc-selector`; pre-draw
+**S / STRUCTURAL**, logged at the spec), slot 2 = H5
+(`repaired-pole-rim-serves-no-closed-door`); H6 moves to block
+FILLET-B2's first slot. Reason: Ev's ruling on the selector (PR 1735)
+arrived at opening, and the door unblocks the tour's consumers and the
+fixture-copy class. The draw is untouched — a slot's arm does not
+depend on which unit takes it.
+Slot 0 FILLET-H4 re-logged at its Phase 1 redirect (2026-09-04, before
+Phase 2 work began): the unit's substance moved from "gate + surgery
+audit" to "arm fold + gate + surgery audit" (`docs/FILLET-H4-SPEC.md`
+§"Re-scope at Phase 1"); difficulty **L** and task-class **NUMERIC**
+stand; same lane, same arm.
+Slot 2 FILLET-H5 re-logged at its Phase 1 redirect (2026-09-04, before Phase 2 work began): the spec's native-instance claim was false and its fixture list rewritten to the repaired bodies (`docs/FILLET-H5-SPEC.md` §"Re-scope at Phase 1"); difficulty **M** and task-class **STRUCTURAL** stand; same lane, same arm.
+
 ## SHELL program rows (work/shell/; band 2300–2399; blocks named SHELL-B<n>)
 
 SHELL-1 review ordinal fixed at dispatch (2026-09-04, PR #1756 open —
