@@ -401,6 +401,7 @@ fn class(e: &BlendError) -> &'static str {
         BlendError::UnsupportedRunOut { .. } => "UnsupportedRunOut(row 2)",
         BlendError::UnsupportedGeometry { .. } => "UnsupportedGeometry(row 2)",
         BlendError::BodyNotIntact { .. } => "BodyNotIntact(row 1)",
+        BlendError::SurgeryInvariant { .. } => "SurgeryInvariant(row 4)",
         BlendError::RingClearance { .. } => "RingClearance",
         BlendError::Certify { .. } => "Certify",
         BlendError::Op { .. } => "Op",

@@ -5,8 +5,8 @@
 //! is inspected, nothing derived is stored beside the DAG. The
 //! entry points, in the order the layers use them:
 //!
-//! - [`reading_edges`] — A12's second sort of edge, RECOMPUTED from
-//!   the name heads every time it is wanted.
+//! - [`reading_edges`] — A12's second sort of edge, RECOMPUTED by
+//!   walking from each reference's OPERAND every time it is wanted.
 //! - [`relative_freedom_components`] — A9's partition, over consuming
 //!   ∪ reading edges (so mates couple components).
 //! - [`clusters`] — A11's placement clusters, the finer partition over
@@ -161,17 +161,20 @@ impl SolvedPoses {
 
 // ---- A12: reading edges, recomputed ----
 
-/// **The member a mate reference's head names** (A11's member
-/// vocabulary): a live `InstantiatePart`, or a pattern-placed instance
-/// — the `Pattern` node with its `Instance(i)` qualifier.
+/// **The member a mate reference resolves to** (A11's member
+/// vocabulary): a live `InstantiatePart`, reached from the
+/// reference's operand through any number of transforms and at most
+/// one pattern level.
 ///
-/// A member is more than its cluster-graph vertex: mates to SIBLING
-/// copies of one pattern relate the same pair of instances through
-/// different static offsets, so the copy is part of the member's
-/// identity — it is what makes a second sibling mate close a LOOP
+/// A member is more than its cluster-graph vertex. Two references
+/// that reach one instance through DIFFERENT placings relate the same
+/// pair of instances through different static offsets, so what stands
+/// between the reference and the instance is part of the member's
+/// identity — it is what makes a second such mate close a LOOP
 /// (non-tree, declaring) instead of folding into the first mate's
-/// pair.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+/// pair. Two kinds of placing say so: the pattern COPY, and the
+/// OPERAND the reference was read at.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Member {
     /// The cluster-graph vertex this member stands on: the head
     /// instance itself, or — for a pattern-placed member — the
@@ -183,95 +186,235 @@ pub struct Member {
     /// Which pattern copy this member is — `(pattern node, structural
     /// index)` — `None` for a plain instance head.
     pub copy: Option<(RecipeNodeId, u32)>,
+    /// The OPERAND the reference was read at: the node whose geometry
+    /// the mate speaks about. Two references to one instance through
+    /// two different transforms are two members over one instance, so
+    /// they key `by_pair` as different pairs and the second mate
+    /// closes a loop rather than folding into the first.
+    pub at: RecipeNodeId,
 }
 
-/// **The member a reference's HEAD names**, or `None` for a head
+/// **The member key, written out.** `Member` is the `BTreeMap` key
+/// `by_pair` and `edge_of` are built on and the order the spanning
+/// tree picks its edges by, so the ordering is stated rather than
+/// derived: `(instance, copy, at)`, with the OPERAND last.
+///
+/// Last is load-bearing. In a document whose every reference is read
+/// at its own mint the operand is a function of the other two fields,
+/// so this order is the pre-operand `(instance, copy)` order refined
+/// and no such document's pair set, spanning tree or solve moves. A
+/// derive would tie that guarantee to the order the fields happen to
+/// be written in, where an edit that reads as cosmetic could change
+/// which mate a cluster takes as its tree edge.
+impl Ord for Member {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        (self.instance, self.copy, self.at).cmp(&(other.instance, other.copy, other.at))
+    }
+}
+
+impl PartialOrd for Member {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// One pose-bearing node the member walk passed, with what it
+/// contributes to the reference's static offset.
+#[derive(Debug, Clone, Copy)]
+enum Placer {
+    /// A pattern, at the structural index the reference named.
+    Pattern {
+        /// The pattern node.
+        node: RecipeNodeId,
+        /// The copy index.
+        i: u32,
+    },
+    /// A transform: the one production node that moves a body and
+    /// mints no name.
+    Transform(RecipeNodeId),
+}
+
+impl Placer {
+    /// The recipe node this placer is — what a refusal names.
+    fn node(self) -> RecipeNodeId {
+        match self {
+            Self::Pattern { node, .. } | Self::Transform(node) => node,
+        }
+    }
+}
+
+/// What the member walk yields: the member, and the pose-bearing
+/// nodes between the operand and the minting instance, OUTERMOST
+/// first (the order the geometry composes them in, so the fold below
+/// reads left to right).
+struct Walk {
+    member: Member,
+    chain: Vec<Placer>,
+}
+
+/// **The walk from a reference's operand down to its name's head** —
+/// the single traversal admission and the static offset share.
+///
+/// Structural only: no expression is evaluated here (the vocabulary
+/// is decided on node kinds and name segments alone), so the cluster
+/// partition never depends on a slot value.
+///
+/// # Errors
+///
+/// The node the walk STOPPED at: the one that is neither a
+/// pass-through it can continue through nor a live instance it can
+/// stand a member on. That is the node a refusal names, and it is not
+/// in general the reference's own head — a stranded operand stops the
+/// walk before the head is ever reached.
+fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedRef) -> Result<Walk, RecipeNodeId> {
+    let mut at = r.at;
+    let mut name = &r.name;
+    let mut copy = None;
+    let mut chain = Vec::new();
+    loop {
+        if at != name.node {
+            // Not the head yet: only a transform may stand between an
+            // operand and the material it places, because it is the
+            // one production node that moves a body and contributes
+            // no `RolePath` segment. Anything else — a boolean, a
+            // union, a split — is a different body, not this one
+            // moved.
+            let Some(Node::Transform { input, .. }) = doc.node(at) else {
+                return Err(at);
+            };
+            chain.push(Placer::Transform(at));
+            at = *input;
+            continue;
+        }
+        match doc.node(at) {
+            Some(Node::InstantiatePart { .. }) => {
+                return Ok(Walk {
+                    member: Member {
+                        instance: at,
+                        copy,
+                        at: r.at,
+                    },
+                    chain,
+                });
+            }
+            // A pattern's copy: the name must SAY which copy, and the
+            // walk continues at the pattern's input under the name
+            // inside the qualifier. A second pattern level is outside
+            // this vocabulary — a nested member's identity needs the
+            // whole chain of copies, which is MSOLVE-2's change to
+            // `Member::copy` and its keying.
+            Some(Node::Pattern { input, .. }) if copy.is_none() => {
+                let Some(RoleSeg::Instance { i, of }) = name.path.first() else {
+                    return Err(at);
+                };
+                copy = Some((at, *i));
+                chain.push(Placer::Pattern { node: at, i: *i });
+                name = of;
+                at = *input;
+            }
+            _ => return Err(at),
+        }
+    }
+}
+
+/// **The member a reference resolves to**, or `None` for a reference
 /// outside A11's member vocabulary.
 ///
 /// This is the vocabulary's one home — the admission rule the solve
 /// reads and any authoring door must gate on, so a door cannot admit
-/// a head the solve will refuse (or refuse one it would place).
+/// a reference the solve will refuse (or refuse one it would place).
+///
+/// The rule is a WALK, from the operand `r.at` down the consuming
+/// edges to `r.name`'s head, which must be a live `InstantiatePart`.
+/// Between them it admits exactly the nodes that place a body without
+/// renaming it: any number of `Transform`s, and at most one `Pattern`
+/// level, which must carry its `Instance(i)` qualifier in the name.
 ///
 /// Structural only — no expression is evaluated here, so the cluster
 /// partition never depends on a slot value. Outside the vocabulary: a
-/// non-instance node; a pattern whose name carries no `Instance(i)`
-/// qualifier; a pattern whose input is not itself a live instance — a
-/// patterned boolean, a nested pattern.
+/// non-instance head; a pattern whose name carries no `Instance(i)`
+/// qualifier; anything the chain meets that is neither a transform
+/// nor that one pattern — a boolean, a union, a split, a head the
+/// chain never reaches at all. **A NESTED pattern is outside it too**:
+/// a nested member's identity needs the whole chain of copies, where
+/// [`Member::copy`] carries one level, and growing it is MSOLVE-2's
+/// change to the pair keying and the spanning tree, not this one's.
 ///
 /// [`crate::refactor::split`]'s interface-crossing collector is one of
-/// those gates: a collector admitting a head the cluster graph does
-/// not weld would mint a record for a mate that never solved, which is
-/// what AQ8 option (b) SKIP refuses (ruled at the ASM-R2b review;
-/// recorded in `asm_r2b_assembly.rs`'s rows-5-and-6 header, not in
-/// `ASSEMBLY.md`'s AQ8 clause).
-pub fn member_of<P>(doc: &Doc<P>, name: &crate::names::StableName) -> Option<Member> {
-    let head = name.node;
-    match doc.node(head) {
-        Some(Node::InstantiatePart { .. }) => Some(Member {
-            instance: head,
-            copy: None,
-        }),
-        Some(Node::Pattern { input, .. }) => match name.path.first() {
-            Some(RoleSeg::Instance { i, .. })
-                if matches!(doc.node(*input), Some(Node::InstantiatePart { .. })) =>
-            {
-                Some(Member {
-                    instance: *input,
-                    copy: Some((head, *i)),
-                })
-            }
-            _ => None,
-        },
-        _ => None,
-    }
+/// those gates: a collector admitting a reference the cluster graph
+/// does not weld would mint a record for a mate that never solved,
+/// which is what AQ8 option (b) SKIP refuses (`ASSEMBLY.md`'s AQ8
+/// clause).
+pub fn member_of<P>(doc: &Doc<P>, r: &crate::node::SitedRef) -> Option<Member> {
+    walk(doc, r).ok().map(|w| w.member)
 }
 
-/// The member a mate reference's HEAD names, or the typed
+/// The member a mate reference resolves to, or the typed
 /// dangling-head refusal (N5) — [`member_of`] with the mate and side
 /// that attribute the refusal.
+///
+/// The `head` it names is the node the WALK STOPPED AT, which is
+/// where the reference stopped resolving: a stranded operand, or the
+/// first node the chain met that no member stands on. Naming the
+/// reference's own head instead would attribute the refusal to a node
+/// that is often perfectly live and perfectly fine.
 fn head_of<P>(
     doc: &Doc<P>,
     mate: RecipeNodeId,
     side: MateSide,
-    name: &crate::names::StableName,
+    r: &crate::node::SitedRef,
 ) -> Result<Member, MateFault> {
-    member_of(doc, name).ok_or(MateFault::DanglingHead {
-        mate,
-        side,
-        head: name.node,
-    })
+    walk(doc, r)
+        .map(|w| w.member)
+        .map_err(|head| MateFault::DanglingHead { mate, side, head })
 }
 
-/// **The pattern-derived offset** of a pattern-placed member: the
-/// rigid map the pattern's evaluation composes onto its input's
-/// placement for structural index `i` — THE evaluation's own stepped
-/// rule ([`crate::eval::stepped_rule_map`], the single home of that
-/// math), fed the pattern's authored slots evaluated at the document's
-/// own parameter bindings (document coordinates, LEFT-composed).
-/// `None` is the identity: a plain member, or copy 0, whose map is the
-/// identity by the rule's own construction — kept as absence so the
-/// no-pattern solve composes nothing and stays bit-for-bit what it
-/// was.
+/// **The reference's derived offset**: the rigid map every
+/// pose-bearing node BETWEEN the operand and the minting instance
+/// composes onto that instance's placement, in evaluation order — the
+/// map nearest the instance applied first, so a pattern `M(i)` over a
+/// transform `T` yields `M(i) ∘ T`.
+///
+/// The two placers and where their math lives:
+///
+/// - a pattern contributes [`crate::eval::stepped_rule_map`] at the
+///   named index — THE evaluation's own stepped rule, fed the
+///   pattern's authored slots evaluated at the document's own
+///   parameter bindings;
+/// - a transform contributes [`crate::eval::transform_map`] — the
+///   same construction `wire_transform` places the body by, fed the
+///   node's own expressions at those same bindings.
+///
+/// Both are document-coordinate maps and both are LEFT-composed, for
+/// the reason `wire_transform` and `wire_pattern` compose them
+/// outside the placement.
+///
+/// `None` is the identity: an empty chain, or a chain whose every
+/// placer is itself the identity (copy 0's map is the identity by the
+/// stepped rule's own construction). Kept as absence, so a document
+/// with no transform and no pattern composes nothing and its solve
+/// stays bit-for-bit what it was.
 ///
 /// The offset is STATIC: nothing here depends on any solved pose,
-/// which is how a mate to `Instance(i)` can never create per-instance
-/// freedom — the copy rides its master wherever the solve puts it.
+/// which is how a mate through a placer can never create per-instance
+/// freedom — the placed body rides its instance wherever the solve
+/// puts it.
 ///
 /// # Errors
 ///
-/// A head whose derived pose does not exist resolves to no member of
+/// A chain whose derived pose does not exist resolves to no member of
 /// the vocabulary and refuses [`MateFault::DanglingHead`] — an index
-/// at or beyond the count, a rule whose slots do not evaluate, a
-/// degenerate or non-finite direction, an explicit-rule pattern
-/// (whose count spelling the pattern node itself refuses). This
-/// door's job is to refuse rather than guess a pose. An in-band
+/// at or beyond the count, a rule or a transform whose slots do not
+/// evaluate, a degenerate or non-finite direction, an explicit-rule
+/// pattern (whose count spelling the pattern node itself refuses).
+/// This door's job is to refuse rather than guess a pose. An in-band
 /// direction-norm decision escalates [`MateFault::Indeterminate`], as
 /// every decided predicate here does.
 ///
 /// **The direction refusals say less than they know, and the
 /// difference is not recoverable elsewhere.** A rule whose direction
 /// has zero or non-finite length is announced as a dangling head for
-/// a head that resolves; the pattern node that could name the length
+/// a reference that resolves; the node that could name the length
 /// does not, because a mate fault poisons the document and that node
 /// evaluates to `Poisoned` rather than to its own
 /// `DegenerateDirection`/`NonFiniteDirection`. Carrying the
@@ -282,96 +425,121 @@ fn derived_offset<P>(
     doc: &Doc<P>,
     mate: RecipeNodeId,
     side: MateSide,
-    member: Member,
+    r: &crate::node::SitedRef,
     band: Band,
 ) -> Result<Option<Affine3<f64>>, Box<MateFault>> {
-    let Some((pattern, i)) = member.copy else {
-        return Ok(None);
-    };
-    let dangling = || {
-        Box::new(MateFault::DanglingHead {
-            mate,
-            side,
-            head: pattern,
-        })
-    };
-    let Some(Node::Pattern { count, kind, .. }) = doc.node(pattern) else {
-        return Err(dangling());
-    };
+    let w = walk(doc, r).map_err(|head| Box::new(MateFault::DanglingHead { mate, side, head }))?;
     let env = doc.param_env::<f64>();
-    let n = crate::expr::eval_count(count, &env).map_err(|_| dangling())?;
-    if i64::from(i) >= n {
-        return Err(dangling());
-    }
-    if i == 0 {
-        return Ok(None);
-    }
-    let scalar = |e: &crate::expr::Expr| crate::expr::eval(e, &env).map_err(|_| dangling());
-    let triple = |es: &[crate::expr::Expr; 3]| -> Result<Vec3<f64>, Box<MateFault>> {
-        Ok(Vec3::new(scalar(&es[0])?, scalar(&es[1])?, scalar(&es[2])?))
-    };
-    // The evaluation's own direction normalization (the
-    // `eval_direction_norm` door), decided — never a raw comparison,
-    // never a silent zero direction.
-    //
-    // It normalizes BOTH rules' directions here, and for the circular
-    // rule that means a DATUM's axis direction: this derivation reads
-    // the recipe node and re-derives from the expressions, rather than
-    // taking the evaluated `DatumValue` whose `UnitVec3` already
-    // normalized the same triple under `datum_unit_norm`. So one datum
-    // direction is decided under two predicate names depending on
-    // which road reaches it — same arithmetic, same refusal shape,
-    // different name in the K census. The ROLE word is the one thing
-    // the two roads do agree on: each rule names the vector it
-    // actually normalized, so a circular rule's refusal says "datum
-    // axis direction" here exactly as it does on the eval road.
-    // Whether the two roads should meet is a family question, homed at
-    // issue 1570; nothing is migrated here.
-    let unit = |v: Vec3<f64>, role: &'static str| -> Result<Vec3<f64>, Box<MateFault>> {
-        crate::eval::unit_direction(v, role, band).map_err(|e| match e {
-            crate::eval::NodeErrorKind::Escalated { source, .. } => {
-                Box::new(MateFault::Indeterminate {
-                    mate,
-                    diag: Box::new(source),
-                })
+    let mut composed: Option<Affine3<f64>> = None;
+    for placer in &w.chain {
+        let head = placer.node();
+        let dangling = || Box::new(MateFault::DanglingHead { mate, side, head });
+        let scalar = |e: &crate::expr::Expr| crate::expr::eval(e, &env).map_err(|_| dangling());
+        let triple = |es: &[crate::expr::Expr; 3]| -> Result<Vec3<f64>, Box<MateFault>> {
+            Ok(Vec3::new(scalar(&es[0])?, scalar(&es[1])?, scalar(&es[2])?))
+        };
+        // The evaluation's own direction normalization (the
+        // `eval_direction_norm` door), decided — never a raw
+        // comparison, never a silent zero direction.
+        //
+        // It normalizes every rule's direction here, and for the
+        // circular rule that means a DATUM's axis direction: this
+        // derivation reads the recipe node and re-derives from the
+        // expressions, rather than taking the evaluated `DatumValue`
+        // whose `UnitVec3` already normalized the same triple under
+        // `datum_unit_norm`. So one datum direction is decided under
+        // two predicate names depending on which road reaches it —
+        // same arithmetic, same refusal shape, different name in the
+        // K census. The ROLE word is the one thing the two roads do
+        // agree on: each rule names the vector it actually
+        // normalized, so a circular rule's refusal says "datum axis
+        // direction" here exactly as it does on the eval road.
+        // Whether the two roads should meet is a family question,
+        // homed at issue 1570; nothing is migrated here.
+        let unit = |v: Vec3<f64>, role: &'static str| -> Result<Vec3<f64>, Box<MateFault>> {
+            crate::eval::unit_direction(v, role, band).map_err(|e| match e {
+                crate::eval::NodeErrorKind::Escalated { source, .. } => {
+                    Box::new(MateFault::Indeterminate {
+                        mate,
+                        diag: Box::new(source),
+                    })
+                }
+                _ => dangling(),
+            })
+        };
+        let map = match *placer {
+            Placer::Pattern { node, i } => {
+                let Some(Node::Pattern { count, kind, .. }) = doc.node(node) else {
+                    return Err(dangling());
+                };
+                let n = crate::expr::eval_count(count, &env).map_err(|_| dangling())?;
+                if i64::from(i) >= n {
+                    return Err(dangling());
+                }
+                if i == 0 {
+                    // Copy 0's map is the identity by the stepped
+                    // rule's own construction; composing it would be
+                    // a no-op that costs bits.
+                    continue;
+                }
+                let ops = match kind {
+                    PatternKind::Linear { direction, spacing } => SteppedOperands::Linear {
+                        direction: unit(triple(direction)?, crate::eval::PATTERN_DIRECTION_ROLE)?,
+                        spacing: scalar(spacing)?,
+                    },
+                    PatternKind::Circular { axis, step } => {
+                        let Some(Node::Datum(Datum::Axis { origin, direction })) = doc.node(*axis)
+                        else {
+                            return Err(dangling());
+                        };
+                        SteppedOperands::Circular {
+                            origin: Point3::origin() + triple(origin)?,
+                            dir: unit(triple(direction)?, crate::eval::DATUM_AXIS_ROLE)?,
+                            step: scalar(step)?,
+                        }
+                    }
+                    // The list-rule pattern's count has two spellings,
+                    // which the pattern node itself refuses; no copy
+                    // of it has a derived pose to stand a member on.
+                    PatternKind::Explicit(_) => return Err(dangling()),
+                };
+                crate::eval::stepped_rule_map(&ops, i64::from(i))
             }
-            _ => dangling(),
-        })
-    };
-    let ops = match kind {
-        PatternKind::Linear { direction, spacing } => SteppedOperands::Linear {
-            direction: unit(triple(direction)?, "pattern direction")?,
-            spacing: scalar(spacing)?,
-        },
-        PatternKind::Circular { axis, step } => {
-            let Some(Node::Datum(Datum::Axis { origin, direction })) = doc.node(*axis) else {
-                return Err(dangling());
-            };
-            SteppedOperands::Circular {
-                origin: Point3::origin() + triple(origin)?,
-                dir: unit(triple(direction)?, "datum axis direction")?,
-                step: scalar(step)?,
+            Placer::Transform(node) => {
+                let Some(Node::Transform {
+                    translation,
+                    rotation_axis,
+                    rotation_angle,
+                    ..
+                }) = doc.node(node)
+                else {
+                    return Err(dangling());
+                };
+                crate::eval::transform_map(
+                    triple(translation)?,
+                    unit(triple(rotation_axis)?, crate::eval::TRANSFORM_AXIS_ROLE)?,
+                    scalar(rotation_angle)?,
+                )
             }
-        }
-        // The list-rule pattern's count has two spellings, which the
-        // pattern node itself refuses; no copy of it has a derived
-        // pose to stand a member on.
-        PatternKind::Explicit(_) => return Err(dangling()),
-    };
-    Ok(Some(crate::eval::stepped_rule_map(&ops, i64::from(i))))
+        };
+        composed = Some(match composed {
+            None => map,
+            Some(held) => held * map,
+        });
+    }
+    Ok(composed)
 }
 
 /// **A12's reading edges**, recomputed from the recipe:
-/// `(mate, instance)` for every mate reference whose head resolves to
-/// a member of the A11 vocabulary. The edge lands on the MEMBER's
-/// instance — the head instance itself, or the pattern's INPUT
-/// instance for a pattern-placed head — which is the vertex the
-/// A9/A11 partitions see.
+/// `(mate, instance)` for every mate reference that resolves to a
+/// member of the A11 vocabulary. The edge lands on the MEMBER's
+/// instance — the one the walk from the operand ends on — which is the
+/// vertex the A9/A11 partitions see.
 ///
-/// Never stored — the DAG stays the single structure, and a head that
-/// resolves to no member simply contributes no edge until `Rebind`
-/// repairs it (N5). Deterministic order: document order of the mate,
-/// then `a` before `b`.
+/// Never stored — the DAG stays the single structure, and a reference
+/// that resolves to no member simply contributes no edge (N5).
+/// Deterministic order: document order of the mate, then `a` before
+/// `b`.
 pub fn reading_edges<P>(doc: &Doc<P>) -> Vec<(RecipeNodeId, RecipeNodeId)> {
     let mut out = Vec::new();
     for &id in doc.order() {
@@ -774,31 +942,36 @@ pub fn fold_pair<P>(
 /// where `F` is the cluster's recorded frame (the offsets are document
 /// -coordinate maps the evaluation composes OUTSIDE the placement, so
 /// relative poses must un-wind `F` around them), and `O` is each
-/// member's derived offset. `None` when both members are plain — the
-/// factor is then the identity BY CONSTRUCTION, not numerically, so a
-/// document without pattern members composes nothing and its solve
-/// stays bit-for-bit what it was.
+/// reference's derived offset. `None` when neither reference passes a
+/// placer — the factor is then the identity BY CONSTRUCTION, not
+/// numerically, so a document with no transform and no pattern between
+/// its mates and their instances composes nothing and its solve stays
+/// bit-for-bit what it was.
 ///
-/// The faults a member's offset can raise are attributed through
+/// The faults a reference's offset can raise are attributed through
 /// `mate` — the pair's first mate, whose sides name these members.
 fn pair_left_factor<P>(
     doc: &Doc<P>,
     gauge: RecipeNodeId,
     parent: Member,
-    child: Member,
     mate: RecipeNodeId,
     band: Band,
 ) -> Result<Option<Affine3<f64>>, Box<MateFault>> {
     // The authored sides for attribution: whichever of the pair the
-    // parent member is, the other is the child.
-    let (parent_side, child_side) = match doc.node(mate) {
-        Some(Node::Mate { a, .. }) if head_of(doc, mate, MateSide::A, a) == Ok(parent) => {
-            (MateSide::A, MateSide::B)
-        }
-        _ => (MateSide::B, MateSide::A),
+    // parent member is, the other is the child. The pair's mates all
+    // relate these two members, so the FIRST mate's own two
+    // references are the ones the offsets are derived from.
+    let Some(Node::Mate { a, b, .. }) = doc.node(mate) else {
+        return Ok(None);
     };
-    let op = derived_offset(doc, mate, parent_side, parent, band)?;
-    let oc = derived_offset(doc, mate, child_side, child, band)?;
+    let ((parent_side, parent_ref), (child_side, child_ref)) =
+        if head_of(doc, mate, MateSide::A, a) == Ok(parent) {
+            ((MateSide::A, a), (MateSide::B, b))
+        } else {
+            ((MateSide::B, b), (MateSide::A, a))
+        };
+    let op = derived_offset(doc, mate, parent_side, parent_ref, band)?;
+    let oc = derived_offset(doc, mate, child_side, child_ref, band)?;
     let middle = match (oc, op) {
         (None, None) => return Ok(None),
         (Some(oc), Some(op)) => oc.inverse() * op,
@@ -1006,7 +1179,7 @@ fn solve_cluster<P>(
                 }));
             }
             let mut pose = poses[&parent] * coset.representative;
-            if let Some(left) = pair_left_factor(doc, gauge, pm, cm, mates[0], band)? {
+            if let Some(left) = pair_left_factor(doc, gauge, pm, mates[0], band)? {
                 pose = left * pose;
             }
             poses.insert(child, pose);

@@ -2,7 +2,7 @@
 id: SEAT-8
 kind: unit
 title: split migrates onto the Verb substrate — the two-sided out-type
-status: dispatched
+status: review
 opened: 2026-09-05
 branch: seat/splitverb
 refs: [SEAT-7, 1910]
