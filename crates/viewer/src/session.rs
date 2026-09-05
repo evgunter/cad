@@ -71,6 +71,7 @@ use crate::docio::{self, DirResolver};
 use crate::evalseam::{EvalRequest, EvalService, Generation, InlineEvaluator};
 use crate::history::History;
 use crate::parts;
+use crate::pick;
 use crate::props::{self, SlotDriver, SlotValue};
 use crate::tree::{self, TreeRow};
 
@@ -1013,6 +1014,44 @@ impl DocSession {
             .ok_or(Refusal::NoDocumentDirectory)?;
         parts::catalogue(resolver, self.committed_doc().id())
             .map_err(|error| Refusal::Workspace(Box::new(error)))
+    }
+
+    /// **One scan of the document's directory, as a value**
+    /// ([`parts::PartCensus`]) — the directory that was read and what
+    /// reading it answered, taken together because they are about one
+    /// moment.
+    ///
+    /// The chooser is a vocabulary and may not name this driver
+    /// (`crates/viewer/README.md`, Module boundaries), so the read is
+    /// hoisted to here rather than the rule widened; the derivation
+    /// moving into the driver is what that costs.
+    #[must_use]
+    pub fn part_census(&self) -> parts::PartCensus {
+        parts::PartCensus {
+            dir: self.resolve_dir().map(Path::to_path_buf),
+            offered: self.part_catalogue(),
+        }
+    }
+
+    /// **What a pick index is built from** ([`pick::IndexInputs`]):
+    /// the landed pair, the generation it answered and the ε to
+    /// tessellate at — or `None` when nothing has landed, which is the
+    /// cache's own "forget everything" case.
+    ///
+    /// The four are read here, together, for the same reason the pair
+    /// is one value: they are set together, so a caller cannot pick up
+    /// a generation without the run it describes. `pick` is a
+    /// vocabulary and may not name this driver, so the read is hoisted
+    /// rather than the rule widened.
+    #[must_use]
+    pub fn index_inputs(&self) -> Option<pick::IndexInputs<'_>> {
+        let run = self.derived.landed.as_ref()?;
+        Some(pick::IndexInputs {
+            generation: run.generation,
+            doc: run.doc.as_ref(),
+            evaluation: &run.evaluation,
+            tol: self.tol,
+        })
     }
 
     /// Insert an instance of the part `id` names, minting its

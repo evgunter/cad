@@ -484,34 +484,42 @@ subject rather than to new ones: `datum_view` to `datums`, and
 `tip_mark` with `heading` to `sketch` — all three are geometry over
 values the receiving module already defines, and none names `egui`.
 
-### Two vocabularies that read the session
+### What a vocabulary reads, it is handed
 
-`pick` and `parts` each take a `&DocSession` as a read-only argument —
+`pick` and `parts` each took a `&DocSession` as a read-only argument —
 `PickIndex::sync`, `PartChooser::opened` and `PartChooser::rescan` —
-so the rule as stated above is **already false of the tree at two
-sites**, which is what the first pass of `viewer-module-kinds.sh` found.
-They are named in that gate as its only exceptions, and the exemption
-is **site-granular**: an entry is a file, the name it is exempt from,
-and the number of sites that were argued for. A sixth `&DocSession`
-reds; a `use eframe::egui;` in the same file reds, because the
-exemption covers the reason it was granted and nothing else; and
-fixing a site without lowering the count reds too, so the entry cannot
-outlive its reason. A file-granular entry would have ratified every
-line later added to those two files, which is the class
-`work/code-quality/D103.md` records against the bounds allowlist and
-leaves unruled.
+which made the rule above false of the tree at five sites, and false
+before `viewer-module-kinds.sh` existed to find them. Ev ruled
+(`#1883`) to **hoist the read**, not to widen the rule: the session
+mints `pick::IndexInputs` (the landed pair, its generation, ε) and
+`parts::PartCensus` (the directory scanned and what the scan answered),
+and the two vocabularies take those. *No vocabulary may name a driver*
+stays unqualified.
 
-Both headers say so in their own text. A module header reading *"it
-names no driver type"* nine lines above naming one is the defect this
-whole section exists to record, published through rustdoc, so the gate
-requires an exempted module to state its exception and refuses the
-claim from a module it does not cover.
+**The reason generalises and is worth more than the answer.** The two
+branches are not symmetric in reversibility. Hoisting keeps widening
+available: if the values turn out to be a bad trade, the rule can still
+be widened. Widening first does not keep hoisting available — the
+clause gets relied on, and by the time anyone wants it back there is a
+set of sites written against it. *"Easy to switch to b later and hard
+to do the reverse"* is the test for any fork between a strict rule and
+a rule with a clause, and this is its worked instance.
 
-Whether the fix is to hoist what those two read behind a value the
-session hands out, or to widen the rule for a read-only borrow, is not
-settled here; the tracker carries it. What is settled is that the two
-are recorded rather than silent, and that they cannot grow to three
-without a decision.
+What it costs is a value per reader and the derivation moving into the
+driver, which is the direction the boundary already allows: a driver
+may name a vocabulary. What it buys, besides the rule, is that the
+reads are now stated — `IndexInputs`'s four fields are read together
+because they are SET together, which the old three-accessor
+destructuring spelled out by hand at the call site.
+
+The gate's exception machinery stays, empty. An entry is
+`FILE|NEEDLE|COUNT` and is site-granular, so it cannot outlive its
+reason: fixing a site without lowering the count reds, which is how
+these two retired in the same PR as the seam they described. That
+granularity was offered as evidence to `work/code-quality/D103.md`
+(*"the allowlist is file-granular while its justifications are
+per-seam, so later bounds inherit ratification"*), and **its retirement
+is more evidence for the same ruling, not a withdrawal of it**.
 
 ### `Refusal`'s delegation discipline
 

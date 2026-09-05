@@ -28,11 +28,11 @@
 //! the version the author is looking at and the one A4 says a fresh
 //! reference should carry.
 //!
-//! Module kind: **vocabulary**, with a recorded exception — it
-//! takes a `&DocSession` as a read-only argument at the sites
-//! `scripts/gates/viewer-module-kinds.sh` records, and names no
-//! other driver type and no `app`-only crate
-//! (`crates/viewer/README.md`, Two vocabularies that read the session).
+//! Module kind: **vocabulary** (`crates/viewer/README.md`, Module
+//! boundaries). It took a `&DocSession` as a read-only argument until
+//! #1883 ruled the read hoisted rather than the rule widened: the
+//! session mints [`PartCensus`] and this module takes that, so it
+//! names no driver type and no `app`-only crate.
 
 use std::path::{Path, PathBuf};
 
@@ -40,7 +40,7 @@ use pncad::document::DocumentId;
 use pncad::workspace::WorkspaceError;
 
 use crate::docio::DirResolver;
-use crate::session::{DocSession, Refusal};
+use crate::session::Refusal;
 
 /// One document the catalogue offers, as the chooser shows it: which
 /// part it is, which file it lives in, and whether it is the open
@@ -126,6 +126,31 @@ pub fn catalogue(
 /// The `Add part…` chooser's held state: the catalogue as of its
 /// scan, and the directory it was taken in.
 ///
+/// **One scan of the document's directory**, as the session hands it
+/// out ([`crate::session::DocSession::part_census`]).
+///
+/// The two halves are taken together and are about one moment: the
+/// directory that was read, and what reading it answered. A chooser
+/// built from one and a listing from the other would show a path that
+/// did not produce the entries under it.
+///
+/// **It exists so that this module names no driver.**
+/// [`PartChooser::opened`] took a `&DocSession` and read exactly these
+/// two things off it; the rule (`crates/viewer/README.md`, Module
+/// boundaries) is that no vocabulary may name a driver, and the read is
+/// hoisted rather than the rule widened — Ev's ruling on `#1883`. The
+/// asymmetry is the reason: hoisting keeps widening available later,
+/// widening does not keep hoisting available.
+#[derive(Debug)]
+pub struct PartCensus {
+    /// The directory the scan read, or `None` for a session with no
+    /// backing file.
+    pub dir: Option<PathBuf>,
+    /// What that scan answered: the parts on offer, or the typed
+    /// refusal to render in place of a list.
+    pub offered: Result<Vec<PartEntry>, Refusal>,
+}
+
 /// Layer-3 state and nothing else — it never enters the document,
 /// never enters the history, and dies with the chooser (G1's
 /// transient-state rule, the mate tool's posture one size down).
@@ -139,18 +164,18 @@ pub struct PartChooser {
 }
 
 impl PartChooser {
-    /// Open a chooser over `session`, taking the scan now.
-    pub fn opened(session: &DocSession) -> Self {
+    /// Open a chooser over a census the session has already taken.
+    pub fn opened(census: PartCensus) -> Self {
         Self {
-            dir: session.resolve_dir().map(Path::to_path_buf),
-            offered: session.part_catalogue(),
+            dir: census.dir,
+            offered: census.offered,
         }
     }
 
-    /// Re-take the scan, in place: the answer to a directory that
+    /// Replace the scan, in place: the answer to a directory that
     /// changed while the chooser was open.
-    pub fn rescan(&mut self, session: &DocSession) {
-        *self = Self::opened(session);
+    pub fn rescan(&mut self, census: PartCensus) {
+        *self = Self::opened(census);
     }
 
     /// The directory the entries came from, for the chooser's header.

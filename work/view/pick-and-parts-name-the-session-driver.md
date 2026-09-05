@@ -2,9 +2,11 @@
 id: pick-and-parts-name-the-session-driver
 kind: issue
 title: pick and parts are vocabularies that name DocSession, so the boundary rule is false at two sites
-status: open
+status: closed
 opened: 2026-09-04
-refs: [1848]
+closed: 2026-09-05
+pr: 1949
+refs: [1848, 1883, exception-arms-untested-while-the-list-is-empty]
 ---
 
 
@@ -154,3 +156,45 @@ tidier one.
   should say so where the entries are deleted, the way
   `interval-square-allowlist.sh:125-133` argues about its own retired
   entries.
+
+## Closed
+
+Hoisted, per the ruling. The session mints two values and the two
+vocabularies take them:
+
+- `pick::IndexInputs<'a>` — `generation`, `doc`, `evaluation`, `tol`.
+  `PickCache::sync` took a `&DocSession` and destructured three
+  accessors by hand to get exactly these; it now takes
+  `Option<IndexInputs>` and keeps its "nothing landed → forget" arm as
+  the `None` case, so the behaviour is unchanged and the property the
+  destructuring spelled out (the four are read together because they
+  are SET together) is now the value's own.
+- `parts::PartCensus` — `dir` and `offered`, which is precisely what
+  `PartChooser::opened` used to read off the session and store.
+
+`DocSession::index_inputs` and `DocSession::part_census` are the
+minting doors. A driver naming a vocabulary is the direction the rule
+allows, so nothing moved the wrong way.
+
+Both `VOCAB_EXCEPTIONS` entries are gone, both module headers stopped
+claiming an exception, and `crates/viewer/README.md`'s section is
+rewritten as **What a vocabulary reads, it is handed** — carrying Ev's
+reversibility argument as the general test it is, not just this fork's
+answer. The gate's site-granular machinery stays, empty, and the
+argument it offered to `work/code-quality/D103.md` is restated at the
+deletion site: the entries retired in the same PR as the seam they
+described, without anyone having to notice, which is the property a
+file-granular entry does not have. That is evidence FOR the ruling.
+
+## What the retirement turned up
+
+Emptying the list exposed a latent crash in the gate: with no hits at
+all the union pipeline's `grep -v` matched nothing and `set -euo
+pipefail` killed the run with exit 1 and NO diagnosis — a gate that
+could not pass a clean tree. Fixed here, with the reason written at the
+line. It had survived because the clean self-test fixture plants the
+exempted files, so no run had ever had zero hits.
+
+Four of the self-test's five exception arms aim at a live entry and so
+stop running with the list empty:
+`exception-arms-untested-while-the-list-is-empty`.

@@ -954,9 +954,15 @@ fn a_refused_index_is_attempted_once_per_generation_and_not_once_per_frame() {
     session.pump();
     let (seam, submits) = CountingIndexer::new();
     let mut cache = PickCache::new(seam);
-    assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
+    assert_eq!(
+        cache.sync(session.index_inputs(), delta()),
+        CacheStep::Submitted
+    );
     assert_eq!(cache.pump(), vec![IndexLanding::Built]);
-    assert_eq!(cache.sync(&session, delta()), CacheStep::Current);
+    assert_eq!(
+        cache.sync(session.index_inputs(), delta()),
+        CacheStep::Current
+    );
     assert!(cache.index().is_some());
     assert!(cache.error().is_none());
     assert_eq!(submits.load(Ordering::Relaxed), 1);
@@ -970,7 +976,10 @@ fn a_refused_index_is_attempted_once_per_generation_and_not_once_per_frame() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
 
-    assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
+    assert_eq!(
+        cache.sync(session.index_inputs(), delta()),
+        CacheStep::Submitted
+    );
     assert_eq!(
         cache.pump(),
         vec![IndexLanding::Refused],
@@ -985,11 +994,11 @@ fn a_refused_index_is_attempted_once_per_generation_and_not_once_per_frame() {
     // whole row — before the fix, both of these were another full
     // rebuild attempt.
     assert_eq!(
-        cache.sync(&session, delta()),
+        cache.sync(session.index_inputs(), delta()),
         CacheStep::Held,
         "a refused build is not retried on the next frame"
     );
-    assert_eq!(cache.sync(&session, delta()), CacheStep::Held);
+    assert_eq!(cache.sync(session.index_inputs(), delta()), CacheStep::Held);
     assert!(cache.pump().is_empty(), "and nothing was sent to answer");
     assert_eq!(
         submits.load(Ordering::Relaxed),
@@ -1018,14 +1027,23 @@ fn a_new_generation_or_a_new_delta_earns_one_fresh_attempt() {
     let (mut session, extrude) = plate_session(tol);
     let (seam, submits) = CountingIndexer::new();
     let mut cache = PickCache::new(seam);
-    assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
+    assert_eq!(
+        cache.sync(session.index_inputs(), delta()),
+        CacheStep::Submitted
+    );
     assert_eq!(cache.pump(), vec![IndexLanding::Built]);
     // δ is part of the key: the parts are the tessellations the picture
     // is drawn from.
     let coarser = delta().scaled(2.0).expect("a positive delta");
-    assert_eq!(cache.sync(&session, coarser), CacheStep::Submitted);
+    assert_eq!(
+        cache.sync(session.index_inputs(), coarser),
+        CacheStep::Submitted
+    );
     assert_eq!(cache.pump(), vec![IndexLanding::Built]);
-    assert_eq!(cache.sync(&session, coarser), CacheStep::Current);
+    assert_eq!(
+        cache.sync(session.index_inputs(), coarser),
+        CacheStep::Current
+    );
 
     session.perform(SessionOp::SetSlot {
         node: extrude,
@@ -1033,7 +1051,10 @@ fn a_new_generation_or_a_new_delta_earns_one_fresh_attempt() {
         value: SlotValue::Continuous(PLATE_EXTENT[2] * 1.5),
     });
     session.pump();
-    assert_eq!(cache.sync(&session, coarser), CacheStep::Submitted);
+    assert_eq!(
+        cache.sync(session.index_inputs(), coarser),
+        CacheStep::Submitted
+    );
     assert_eq!(cache.pump(), vec![IndexLanding::Built]);
     assert_eq!(submits.load(Ordering::Relaxed), 3);
 }
@@ -1045,7 +1066,10 @@ fn a_cache_with_nothing_landed_has_nothing_to_do() {
     // No `pump`, so nothing has landed.
     let session = DocSession::inline(doc, tol);
     let mut cache = PickCache::inline();
-    assert_eq!(cache.sync(&session, delta()), CacheStep::Nothing);
+    assert_eq!(
+        cache.sync(session.index_inputs(), delta()),
+        CacheStep::Nothing
+    );
     assert!(cache.index().is_none());
     assert!(!cache.indexing());
 }
@@ -1059,7 +1083,10 @@ fn between_a_submit_and_its_answer_there_is_no_index_to_pick_from() {
     let tol = Tol::witness();
     let (mut session, extrude) = plate_session(tol);
     let mut cache = PickCache::inline();
-    assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
+    assert_eq!(
+        cache.sync(session.index_inputs(), delta()),
+        CacheStep::Submitted
+    );
     assert_eq!(cache.pump(), vec![IndexLanding::Built]);
     let first = cache.index().expect("the plate indexes").generation();
 
@@ -1069,7 +1096,10 @@ fn between_a_submit_and_its_answer_there_is_no_index_to_pick_from() {
         value: SlotValue::Continuous(PLATE_EXTENT[2] * 1.5),
     });
     session.pump();
-    assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
+    assert_eq!(
+        cache.sync(session.index_inputs(), delta()),
+        CacheStep::Submitted
+    );
     assert!(
         cache.index().is_none(),
         "the index for the previous document is dropped at the SUBMIT, \
@@ -1078,7 +1108,10 @@ fn between_a_submit_and_its_answer_there_is_no_index_to_pick_from() {
     assert!(cache.indexing(), "and the chrome has something to say");
     // Asked again on the next frame: still waiting, and nothing is
     // resubmitted.
-    assert_eq!(cache.sync(&session, delta()), CacheStep::Indexing);
+    assert_eq!(
+        cache.sync(session.index_inputs(), delta()),
+        CacheStep::Indexing
+    );
 
     assert_eq!(cache.pump(), vec![IndexLanding::Built]);
     assert!(!cache.indexing());
@@ -1106,7 +1139,10 @@ fn a_build_in_flight_when_the_document_is_replaced_installs_nothing() {
     let tol = Tol::witness();
     let (mut session, extrude) = plate_session(tol);
     let mut cache = PickCache::inline();
-    assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
+    assert_eq!(
+        cache.sync(session.index_inputs(), delta()),
+        CacheStep::Submitted
+    );
     assert_eq!(cache.pump(), vec![IndexLanding::Built]);
 
     // An edit lands, and its index build is submitted but not answered
@@ -1117,7 +1153,10 @@ fn a_build_in_flight_when_the_document_is_replaced_installs_nothing() {
         value: SlotValue::Continuous(PLATE_EXTENT[2] * 1.5),
     });
     session.pump();
-    assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
+    assert_eq!(
+        cache.sync(session.index_inputs(), delta()),
+        CacheStep::Submitted
+    );
     assert!(cache.index().is_none());
 
     // The document is replaced mid-build. The session's landed run
@@ -1127,7 +1166,10 @@ fn a_build_in_flight_when_the_document_is_replaced_installs_nothing() {
         name: "fresh".to_owned(),
     });
     assert!(session.landed_generation().is_none());
-    assert_eq!(cache.sync(&session, delta()), CacheStep::Nothing);
+    assert_eq!(
+        cache.sync(session.index_inputs(), delta()),
+        CacheStep::Nothing
+    );
     assert!(
         !cache.indexing(),
         "nothing the chrome should promise an answer for",
@@ -1148,7 +1190,10 @@ fn a_build_in_flight_when_the_document_is_replaced_installs_nothing() {
     // The new document lands: an ordinary fresh attempt, not a state
     // the cache has to be talked out of.
     session.pump();
-    assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
+    assert_eq!(
+        cache.sync(session.index_inputs(), delta()),
+        CacheStep::Submitted
+    );
 }
 
 /// **The ordinary half of the same replacement**, which the row above
@@ -1167,9 +1212,15 @@ fn replacing_the_document_drops_a_current_index_with_no_build_in_flight() {
     let tol = Tol::witness();
     let (session, _extrude) = plate_session(tol);
     let mut cache = PickCache::inline();
-    assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
+    assert_eq!(
+        cache.sync(session.index_inputs(), delta()),
+        CacheStep::Submitted
+    );
     assert_eq!(cache.pump(), vec![IndexLanding::Built]);
-    assert_eq!(cache.sync(&session, delta()), CacheStep::Current);
+    assert_eq!(
+        cache.sync(session.index_inputs(), delta()),
+        CacheStep::Current
+    );
     assert!(cache.index().is_some());
 
     let mut session = session;
@@ -1179,7 +1230,10 @@ fn replacing_the_document_drops_a_current_index_with_no_build_in_flight() {
     assert!(session.landed_generation().is_none());
     assert!(!cache.indexing(), "nothing was outstanding to begin with");
 
-    assert_eq!(cache.sync(&session, delta()), CacheStep::Nothing);
+    assert_eq!(
+        cache.sync(session.index_inputs(), delta()),
+        CacheStep::Nothing
+    );
     assert!(
         cache.index().is_none(),
         "the picture is the replaced document's, and a pick answered from \
@@ -1208,7 +1262,10 @@ fn an_answer_for_a_superseded_generation_is_discarded_not_installed() {
         value: SlotValue::Continuous(PLATE_EXTENT[2] * 1.5),
     });
     session.pump();
-    assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
+    assert_eq!(
+        cache.sync(session.index_inputs(), delta()),
+        CacheStep::Submitted
+    );
 
     let landing = cache.land(IndexDone {
         generation: stale.generation(),
@@ -1239,7 +1296,10 @@ fn an_answer_built_at_another_delta_is_discarded_too() {
 
     let mut cache = PickCache::inline();
     let finer = delta().scaled(0.5).expect("a positive delta");
-    assert_eq!(cache.sync(&session, finer), CacheStep::Submitted);
+    assert_eq!(
+        cache.sync(session.index_inputs(), finer),
+        CacheStep::Submitted
+    );
     let landing = cache.land(IndexDone {
         generation,
         delta: delta(),
