@@ -954,3 +954,16 @@ is PR 1952's body, `work/props/span-carries-its-knot-vector.md` and the
 residue item `work/props/coefficients-carry-their-knot-vector.md`.
 
 - `PROPS-SPAN-SPEC.md` — PROPS span, `Span<'a>` carries its `KnotVector` (#1952)
+
+## Per-merge deletion — SEAT-FW's spec (2026-09-05)
+
+Recoverable at `git show 3fbfd1b9ae93931273f7855d33983a29b924e7ed:docs/SEAT-FW-SPEC.md`
+(the SEAT-FW fix-pass head, before the state-sync commit that deleted
+it; unamended — one Ev-gated stop fired and was honored by NOT editing
+the ratified charter: `work/seat/verb-seat-design-s3-names-the-planar-
+verifier.md` carries it to an `[ev]` PR). Every clause was met as
+written; FW-2's scrutiny point resolved the way the spec allowed for —
+the stem-glue pin stays because the refusal was never the detector's
+blindness. The rule above; the unit's record is its item's `## Closed`
+section (`work/seat/SEAT-FW.md`) and its MERGED entry in
+`work/seat/log.md`; its A/B row is MODEL-AB-LOG SEATFW.
