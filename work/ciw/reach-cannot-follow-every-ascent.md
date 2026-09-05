@@ -33,8 +33,8 @@ level, or through a helper in another crate. Neither is measured as needed:
 the tree today spells every ascent five ways and the resolver reads all five
 (`crates/test-utils/tests/reader_census.rs:284`,
 `crates/geom-core/tests/bounds_census.rs:381`,
-`crates/geom-core/tests/flagged_census.rs:234`,
-`crates/bvh/tests/aggregator_headers.rs:63`,
+`crates/geom-core/tests/flagged_census.rs:235`,
+`crates/bvh/tests/aggregator_headers.rs:65`,
 `crates/pncad-py/src/prose_census.rs:170`,
 `crates/mesh/tests/profile_overrides.rs:104`), and no sixth spelling exists to
 measure against.
