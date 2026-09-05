@@ -79,7 +79,7 @@ fn lead<'a>(p: &'a Poly, ids: &[u128]) -> Option<(&'a Mono, Rat)> {
     p.terms
         .iter()
         .max_by(|(a, _), (b, _)| key(a, ids).cmp(&key(b, ids)))
-        .map(|(m, c)| (m, *c))
+        .map(|(m, c)| (m, c.clone()))
 }
 
 /// The monomial whose square is `m`, if every exponent is even.
@@ -125,7 +125,7 @@ pub(super) fn poly_sqrt(x: &Poly, budget: SymBudget) -> Option<Poly> {
     let (lm, lc) = lead(x, &ids)?;
     let r0m = mono_sqrt(lm)?;
     let r0c = lc.sqrt_exact()?;
-    let twice = r0c.add(r0c)?;
+    let twice = r0c.add(&r0c)?;
     let mut root = Poly::zero();
     root.insert(r0m.clone(), r0c)?;
     for _ in 0..ROOT_TERMS {
@@ -135,31 +135,20 @@ pub(super) fn poly_sqrt(x: &Poly, budget: SymBudget) -> Option<Poly> {
         }
         let (tm, tc) = lead(&rem, &ids)?;
         let nm = mono_div(tm, &r0m)?;
-        let nc = tc.mul(twice.recip()?)?;
+        let nc = tc.mul(&twice.recip()?)?;
         root.insert(nm, nc)?;
     }
     None
 }
 
-/// A rational coefficient as a ring enclosure: the `f64` conversion
-/// rounds at most twice (numerator and denominator each to nearest, the
-/// power of two exact in range), so four ulps outward on each side is a
-/// conservative bracket. Out-of-range exponents are poison rather than
-/// a flushed zero, which would not be conservative.
-fn rat_enclosure(c: Rat) -> RingInterval {
-    if c.exp2.abs() > 1000 {
-        return RingInterval::poison();
+/// A rational coefficient as a ring enclosure ([`Rat::f64_bracket`]):
+/// poison where the value is out of `f64`'s range rather than a flushed
+/// zero, which would not be conservative.
+fn rat_enclosure(c: &Rat) -> RingInterval {
+    match c.f64_bracket() {
+        Some((lo, hi)) => RingInterval::from_bounds(lo, hi),
+        None => RingInterval::poison(),
     }
-    let v = (c.num as f64) / (c.den as f64) * 2f64.powi(c.exp2);
-    if !v.is_finite() {
-        return RingInterval::poison();
-    }
-    let (mut lo, mut hi) = (v, v);
-    for _ in 0..4 {
-        lo = lo.next_down();
-        hi = hi.next_up();
-    }
-    RingInterval::from_bounds(lo, hi)
 }
 
 /// The enclosure of `p` over the parameter brackets, or `None` where
@@ -167,7 +156,7 @@ fn rat_enclosure(c: Rat) -> RingInterval {
 fn enclose(p: &Poly, params: &IndetMap<(f64, f64)>) -> Option<RingInterval> {
     let mut acc = RingInterval::zero();
     for (m, c) in &p.terms {
-        let mut term = rat_enclosure(*c);
+        let mut term = rat_enclosure(c);
         for &(id, e) in m {
             let x = if id == INDET_PI {
                 RingInterval::from_bounds(PI.next_down(), PI.next_up())
@@ -328,8 +317,8 @@ mod tests {
     #[test]
     fn the_rational_enclosure_is_outward() {
         let c = Rat::new(1, 3, 0).unwrap();
-        let e = rat_enclosure(c);
+        let e = rat_enclosure(&c);
         assert!(e.lo() < 1.0 / 3.0 && e.hi() > 1.0 / 3.0);
-        assert!(rat_enclosure(Rat::new(1, 1, 2000).unwrap()).is_poison());
+        assert!(rat_enclosure(&Rat::new(1, 1, 2000).unwrap()).is_poison());
     }
 }

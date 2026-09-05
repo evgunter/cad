@@ -338,19 +338,23 @@ fn r1_copysign_of_zero_by_a_poisoned_sign() {
 
 // ----------------------------------------------- claim 3: freezing (D6)
 
-/// A deliberate i128 overflow: a chain of products of a literal with a
-/// 50-bit odd mantissa. `(m)^k` with `m ≈ 2^50` odd overflows the odd
-/// part after ~2 multiplications... the coefficient is `m^k`, which
-/// exceeds i128 at `k ≥ 3` for a 50-bit odd `m`. The form must freeze
+/// A deliberate coefficient blow-up past the ring's bit bound
+/// (`COEFF_BITS`, 4096 bits — M10-8 widened the coefficient from `i128`
+/// to arbitrary precision under that bound): a chain of products of a
+/// literal with a 53-bit odd mantissa, `(m)^k`, whose odd part carries
+/// `53·k` bits and crosses the bound at `k ≥ 78`. The form must freeze
 /// (counted) and the identity `c·x − c·x` must STILL cancel because both
 /// sides are the same frozen node — while `c·x − x·c` (different node
 /// ids, both frozen) must NOT be claimed.
 #[test]
-fn r1_i128_overflow_freezes_and_is_counted() {
+fn r1_a_coefficient_past_the_bit_bound_freezes_and_is_counted() {
     // 0.1 has a 53-bit odd mantissa (3602879701896397 · 2^-55).
     let (out, counts) = with_session(budget(), || {
         let x = p("x", 0.5);
-        let c = lit(0.1) * lit(0.1) * lit(0.1) * lit(0.1);
+        let mut c = lit(1.0);
+        for _ in 0..100 {
+            c = c * lit(0.1);
+        }
         let a = c * x;
         let b = x * c;
         (zero(a - a), zero(a - b))
@@ -368,8 +372,14 @@ fn r1_i128_overflow_freezes_and_is_counted() {
     // Two DIFFERENT overflowing constants are two atoms and never cancel.
     let (out3, counts3) = with_session(budget(), || {
         let x = p("x", 0.5);
-        let c = lit(0.1) * lit(0.1) * lit(0.1) * lit(0.1);
-        let d = lit(0.3) * lit(0.3) * lit(0.3) * lit(0.3);
+        // 1.1 and 1.3 both carry 53-bit odd mantissas, and their
+        // hundredth powers (1.4e4 and 2.5e11) differ by far more than
+        // the band, so the numeric channel is definite.
+        let (mut c, mut d) = (lit(1.0), lit(1.0));
+        for _ in 0..100 {
+            c = c * lit(1.1);
+            d = d * lit(1.3);
+        }
         // c ≠ d numerically, so f64 says Negative; the tier must agree.
         decide("r1_two_frozen", Margin::of(c * x - d * x), band())
     });
@@ -378,9 +388,15 @@ fn r1_i128_overflow_freezes_and_is_counted() {
 
 /// A large dyadic exponent: `2^1000 · x − 2^1000 · x` cancels (exponent
 /// arithmetic is i32), and `2^1000 · x + 2^-1000 · x − (…)` needs a
-/// shift of 2000 bits to align, which overflows and freezes.
+/// shift of 2000 bits to align. At `i128` that shift overflowed and the
+/// form FROZE — this row pinned the freeze. Under the arbitrary-precision
+/// ring (M10-8) it aligns exactly and the identity is a theorem with
+/// nothing frozen; the ring's own bound (4096 bits) is out of any
+/// finite `f64`'s reach (its exponents span ±1074), so the freeze past
+/// the bound is pinned at the ring itself
+/// (`sym::tests::an_alignment_past_the_coefficient_bound_freezes`).
 #[test]
-fn r1_dyadic_exponent_alignment_overflow_freezes() {
+fn r1_dyadic_exponent_alignment_within_the_bound_cancels() {
     let big = 2f64.powi(1000);
     let small = 2f64.powi(-1000);
     let (ok, s, _) = sym(|| {
@@ -388,14 +404,15 @@ fn r1_dyadic_exponent_alignment_overflow_freezes() {
         lit(big) * x - lit(big) * x
     });
     assert!(ok && s == 1);
-    let (_, counts) = with_session(budget(), || {
+    let (ok, counts) = with_session(budget(), || {
         let x = p("x", 0.5);
         let sum = lit(big) * x + lit(small) * x;
         zero(sum - sum)
     });
-    assert!(
-        counts.frozen >= 1,
-        "the alignment overflow freezes: {counts:?}"
+    assert!(ok, "the aligned sum cancels against itself: {counts:?}");
+    assert_eq!(
+        counts.frozen, 0,
+        "a 2000-bit alignment is within the ring's bound: {counts:?}"
     );
 }
 

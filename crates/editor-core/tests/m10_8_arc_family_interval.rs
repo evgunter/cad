@@ -60,22 +60,43 @@ fn budget() -> SymBudget {
     }
 }
 
-/// The rule sets the table is cut against — the two BUILDABLE rules,
-/// isolated and together. Rule C (clause 3) is filed unbuilt, so there
-/// is no `C` column here; the table's job is to show what A and B reach
-/// (and, measured, that on these documents they reach nothing the plain
-/// form did not, because the arc-family forms freeze first).
-fn rule_sets() -> [(&'static str, SymRules); 4] {
-    let only = |sqrt_square, pythagoras| SymRules {
-        sqrt_square,
-        pythagoras,
-        ..SymRules::none()
-    };
+/// The rule LADDER the table is cut against, each rung adding one
+/// mechanism to the last: `none` is M10-7's tier; `A0` the constant
+/// fold in the plain form; `A0+AB_top` rules A/B over the top residual;
+/// `A0+AB_early` the early walk alongside; `all` adds rule C's fold to
+/// that walk. Reading the columns left to right says what each
+/// mechanism reaches that the previous ones did not.
+fn rule_sets() -> [(&'static str, SymRules); 5] {
+    let n = SymRules::none();
     [
-        ("none", SymRules::none()),
-        ("A", only(true, false)),
-        ("B", only(false, true)),
-        ("A+B", SymRules::all()),
+        ("none", n),
+        (
+            "A0",
+            SymRules {
+                const_fold: true,
+                ..n
+            },
+        ),
+        (
+            "A0+AB_top",
+            SymRules {
+                const_fold: true,
+                sqrt_square: true,
+                pythagoras: true,
+                ..n
+            },
+        ),
+        (
+            "A0+AB_early",
+            SymRules {
+                const_fold: true,
+                sqrt_square: true,
+                pythagoras: true,
+                early: true,
+                ..n
+            },
+        ),
+        ("all", SymRules::all()),
     ]
 }
 
@@ -204,20 +225,27 @@ fn m10_8_table_per_predicate_under_each_rule_set() {
             }
             println!();
         }
-        // Per rule, which predicates it moved OFF the numeric channel
-        // relative to `none`, and which it moved ONTO it (a regression).
+        // Per rung, which predicates it moved relative to `none` — the
+        // WHOLE split compared (theorem, gated, numeric), so a theorem
+        // re-labelled as gated, or a numeric decision that became a
+        // theorem, both show. `helped` is more discharged; `HURT` is a
+        // theorem lost (fewer theorems, or fewer discharged in all).
         for (i, (label, _)) in rule_sets().iter().enumerate().skip(1) {
-            let helped: Vec<&str> = table
+            let cell = |s: &Split| format!("{}/{}/{}", s.theorem, s.gated, s.numeric());
+            let helped: Vec<String> = table
                 .iter()
-                .filter(|(_, c)| c[i].numeric() < c[0].numeric())
-                .map(|(p, _)| *p)
+                .filter(|(_, c)| c[i].theorem + c[i].gated > c[0].theorem + c[0].gated)
+                .map(|(p, c)| format!("{p}:{}->{}", cell(&c[0]), cell(&c[i])))
                 .collect();
-            let hurt: Vec<&str> = table
+            let hurt: Vec<String> = table
                 .iter()
-                .filter(|(_, c)| c[i].numeric() > c[0].numeric())
-                .map(|(p, _)| *p)
+                .filter(|(_, c)| {
+                    c[i].theorem < c[0].theorem
+                        || c[i].theorem + c[i].gated < c[0].theorem + c[0].gated
+                })
+                .map(|(p, c)| format!("{p}:{}->{}", cell(&c[0]), cell(&c[i])))
                 .collect();
-            println!("   rule {label:<6} helped {helped:?}  HURT {hurt:?}");
+            println!("   rung {label:<12} helped {helped:?}\n        HURT   {hurt:?}");
         }
 
         println!("== {name}: WHOLE-BOX replay at the real study, rules A+B (every buildable rule)");

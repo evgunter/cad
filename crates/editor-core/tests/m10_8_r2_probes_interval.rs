@@ -213,19 +213,18 @@ fn nominal_box(analyzed: &editor_core::analysis::AnalyzedBox) -> ParamBox {
 
 // ------------------------------------------------- the asserting rows
 
-/// **§1's per-predicate table moves between two replays of the SAME
-/// rule set.** The shape report attributes each decision to
-/// `k_stats`'s CURRENT predicate name, which is a thread-local set by
-/// the last NAMED classification and never reset — so every decision
-/// made outside a named classification inherits whatever the previous
-/// replay left behind. Replaying `none` twice therefore produces two
-/// different tables, exactly as replaying `none` then `A` does.
-///
-/// This is what makes M10-8's headline reading of that table — "every
-/// rule set is identical; no predicate's split moves" — an artifact:
-/// the split that moves under `A` moves under `none` too.
+/// **The shape report attributes each decision to its own door.** R2's
+/// review found `report::record` charging a decision to
+/// `k_stats::current_predicate()`, a thread-local the last named
+/// `classify` set and nothing reset — so each replay's first decisions
+/// were charged to the previous replay's last predicate (`assert_bound`
+/// read 1 decision on the first replay and 10 on the second, and the
+/// unit's §1 table was cut from that). The name is scoped now
+/// (`k_stats::classify` restores it on the way out), and two identical
+/// replays attribute identically; decisions taken outside any named
+/// door land under the unnamed default, which this row prints.
 #[test]
-fn r2_the_shape_report_attributes_by_a_stale_predicate_name() {
+fn r2_the_shape_report_attributes_each_decision_to_its_own_door() {
     let tol = Tol::witness();
     let doc = crate::m10_7_plate::plate(5.0e-5, 1.0e-5, tol).0;
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
@@ -233,34 +232,38 @@ fn r2_the_shape_report_attributes_by_a_stale_predicate_name() {
     let split = |run: usize| {
         let (shapes, _, _) = replay(&doc, &nominal, SymRules::none(), tol);
         let mut n = 0usize;
+        let mut unnamed = 0usize;
         for s in &shapes {
             if s.predicate == "assert_bound" {
                 n += 1;
             }
+            if s.predicate == "<unnamed>" {
+                unnamed += 1;
+            }
         }
-        println!("   replay {run} under `none`: assert_bound recorded {n} decision(s)");
+        println!(
+            "   replay {run} under `none`: assert_bound recorded {n} decision(s), {unnamed} outside any named door"
+        );
         n
     };
     let first = split(1);
     let second = split(2);
-    assert_ne!(
+    assert_eq!(
         first, second,
-        "the per-predicate attribution is stable across two identical \
-         replays — this row is the record that it was NOT when M10-8 \
-         cut its §1 table, and should be re-derived if it goes green"
+        "the per-predicate attribution is stable across two identical replays"
     );
 }
 
-/// **The shipped bracket-ceiling pin cannot see the failure it is
-/// written against.** `m10_8_the_bracket_ceiling_is_unmoved_by_the_algebra`
-/// asserts only that the two rule sets AGREE at one scale, and both
-/// answers there are `false` — so the row is `false == false` and stays
-/// green if a future change made the bracket certify under BOTH, which
-/// destroys the "factor 1.0 / certifies nothing" claim it exists to
-/// carry. Recorded here as the missing anti-vacuity end (the plate pin
-/// beside it has one; this one does not).
+/// **The bracket at `1e-7` of its study certifies under the shipped
+/// tier and NOT under M10-7's.** R2's review found the first cut of the
+/// bracket pin asserting only that two rule sets AGREE at this scale,
+/// both `false` — a `false == false` that would have stayed green had
+/// the mechanism moved. It moved: A0 (the constant fold, shipped) lifts
+/// the bracket's whole-certifying ceiling past this scale, so the two
+/// sides DIFFER here, and that difference is what this row pins. The
+/// ceiling itself is pinned ε-relative in `m10_8_pins_interval`.
 #[test]
-fn r2_the_bracket_pin_passes_with_both_sides_certifying() {
+fn r2_the_bracket_at_1e_7_certifies_under_the_shipped_tier_only() {
     let tol = Tol::witness();
     let doc = crate::m10_7_r2_probes_interval::bracket(1.0e-7, tol).0;
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
@@ -281,12 +284,15 @@ fn r2_the_bracket_pin_passes_with_both_sides_certifying() {
         )
         .is_ok_and(|v| v.receipt().certified == 1)
     };
-    let (on, off) = (whole(SymRules::all()), whole(SymRules::none()));
-    println!("   bracket at x1e-7: algebra on {on}, off {off}");
+    let (shipped, off) = (whole(SymRules::shipped()), whole(SymRules::none()));
+    println!("   bracket at x1e-7: shipped {shipped}, M10-7's tier {off}");
     assert!(
-        !on && !off,
-        "the pin's equality is `false == false` here; if this row goes \
-         green with a `true` the shipped pin has become vacuous"
+        shipped,
+        "the shipped tier certifies the bracket whole at 1e-7"
+    );
+    assert!(
+        !off,
+        "M10-7's tier does not — the mechanism moved the ceiling"
     );
 }
 

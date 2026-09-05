@@ -88,16 +88,19 @@ fn variants() -> Vec<(&'static str, SymRules)> {
                 ..n
             },
         ),
-        // A0 ALONGSIDE the plain form (the early memo carries the fold,
-        // the plain form is M10-7's): can it lose a theorem?
+        // The early walk carrying ONLY rule C (no A/B substitution):
+        // what the clause-3 fold reaches on its own.
         (
-            "A0_alongside",
+            "A0+C_early",
             SymRules {
                 const_fold: true,
                 early: true,
+                signed_root: true,
                 ..n
             },
         ),
+        // Everything: A0, the early walk with A/B, and rule C.
+        ("all", SymRules::all()),
     ]
 }
 

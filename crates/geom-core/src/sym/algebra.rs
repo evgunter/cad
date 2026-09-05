@@ -45,11 +45,15 @@ struct Square {
 }
 
 /// The `1 − cos(θ)²` of one argument, as a form — rule B's substitution
-/// for `sin(θ)²`. The `cos` twin's id is `indet_atom(Cos, 0,
-/// [arg.digest()])`, the same key a `cos(θ)` node mints, so a `sin` and
-/// a `cos` of one argument reduce into one indeterminate and cancel.
-fn one_minus_cos_squared(arg: &Form) -> Option<Form> {
-    let cos = indet_atom(SymOp::Cos.tag(), 0, &[arg.digest()]);
+/// for `sin(θ)²`. The `cos` twin's id is `indet_atom(Cos, payload,
+/// [arg.digest()])` with the `sin` atom's OWN payload — the same key a
+/// `cos(θ)` node mints (a `sin`/`cos` pair from one `sin_cos` carries
+/// one payload), so a `sin` and a `cos` of one argument reduce into one
+/// indeterminate and cancel. The payload is read from the atom's
+/// record rather than assumed zero, so a node that ever carried one
+/// would still find its twin.
+fn one_minus_cos_squared(arg: &Form, payload: u64) -> Option<Form> {
+    let cos = indet_atom(SymOp::Cos.tag(), payload, &[arg.digest()]);
     let mut cos2 = Poly::zero();
     cos2.insert(vec![(cos, 2)], Rat::new(-1, 1, 0)?)?;
     Some(Form::poly(Poly::one().add(&cos2)?))
@@ -79,7 +83,7 @@ fn find_square(f: &Form, rules: SymRules, atoms: &IndetMap<AtomInfo>) -> Option<
                     SymOp::Sin if rules.pythagoras => {
                         return Some(Square {
                             id,
-                            x: one_minus_cos_squared(arg)?,
+                            x: one_minus_cos_squared(arg, info.payload)?,
                         });
                     }
                     _ => {}
@@ -100,7 +104,7 @@ fn poly_subst_square(poly: &Poly, id: u128, repl: &Form, budget: SymBudget) -> O
         let e = mono.iter().find(|(i, _)| *i == id).map_or(0, |(_, e)| *e);
         let rest: Mono = mono.iter().filter(|(i, _)| *i != id).copied().collect();
         let mut rp = Poly::zero();
-        rp.insert(rest, *coeff)?;
+        rp.insert(rest, coeff.clone())?;
         let mut term = Form::poly(rp);
         if e > 0 {
             let mut factor = powi_form(repl, e / 2, budget)?;

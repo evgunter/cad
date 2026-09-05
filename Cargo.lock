@@ -1198,7 +1198,10 @@ version = "0.0.0"
 dependencies = [
  "interval-transcendentals",
  "libm",
+ "num-bigint",
  "num-dual",
+ "num-integer",
+ "num-traits",
  "proptest",
  "test-utils",
 ]

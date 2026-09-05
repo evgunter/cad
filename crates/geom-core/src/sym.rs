@@ -146,38 +146,25 @@
 //! frozen nodes still share an id and therefore still cancel. Every
 //! freeze is counted ([`SymCounts::frozen`]).
 //!
-//! **The coefficients are an in-tree dyadic-scaled `i128` rational**
-//! rather than `num-rational`/`num-bigint`, which are already in the
-//! lock. Two reasons, both about this crate: `geom-core`'s runtime
-//! dependency set is `libm` and nothing else, and an arbitrary-precision
-//! coefficient has unbounded cost in a test run thousands of times per
-//! leaf. The freezing budget exists either way; an overflow freeze is the
-//! same sound outcome as a term-count freeze.
-//!
-//! **What that costs, measured on CURVED geometry** — which is the case
-//! the first measurement missed, having been taken on the slab alone.
-//! On a filleted L-bracket with two bores, at the shipped budget AND at
-//! one 256 times wider (`max_terms` 2^20, `max_degree` 4096), the drive
-//! reports **`frozen: 0`** with 3,819 symbolic decisions against 2,740
-//! numeric ones. Not one form on that document reaches either dial or
-//! overflows `i128`.
-//!
-//! Two reviewers measured overflow freezes on curved documents at an
-//! earlier head (172 forms per leaf on one bracket; 7.3% of 164,703
-//! decisions on another), so the number moved, and it moved for a
-//! reason worth naming: the `Decide` impl now skips the normal form
-//! entirely when the numeric channel has already proved the margin
-//! non-zero. The forms that were overflowing were, on those fixtures,
-//! mostly the ones nobody needed — a definite margin's form cannot be
-//! the zero polynomial, so building it answered a question already
-//! answered.
-//!
-//! So the case for a wider coefficient is currently unmade on the
-//! evidence available: nothing measured here is losing cancellation to
-//! `i128`. What a wider coefficient WOULD buy, if a fixture ever does
-//! freeze on overflow, is exactly the cancellations behind those
-//! freezes — and the frozen count on the verdict is how that would be
-//! noticed, which is why it is a receipt field and not a log line.
+//! **The coefficients are arbitrary-precision dyadic-scaled rationals**
+//! ([`Rat`], over `num-bigint`), bounded at [`COEFF_BITS`] bits. They
+//! were an in-tree `i128` through M10-7, on the argument that
+//! `geom-core`'s runtime dependencies were `libm` alone and that
+//! nothing measured was losing a cancellation to the overflow — the
+//! whole-box replays reported `frozen: 0` on the bracket because the
+//! `Decide` impl skips the form of a margin the numeric channel has
+//! already proved non-zero. M10-8 measured the case the whole-box
+//! replays cannot see: at a document's NOMINAL, where every identity
+//! margin is near zero and every form is built, the plate froze 1,056
+//! forms, R2's bracket 1,978 and R1's annulus 1,034 — and the plate's
+//! own ceiling residual (`carrier_endpoint_start`, the rim's
+//! `‖q − c‖ = r`) is a polynomial of degree 12 in a radius whose nominal
+//! is an `f64` literal with a 53-bit mantissa. Three such factors
+//! overflow an `i128`; the residual has twelve. The overflow was the
+//! freeze, the freeze was the ceiling, and no rule can reach an atom
+//! inside a frozen form. The bound keeps the freeze discipline: a
+//! coefficient past it is refused exactly as an overflow was, so a
+//! blow-up is a counted freeze and never an allocation to the ceiling.
 //!
 //! # The census: which identity-shaped predicates this tier reaches
 //!
@@ -310,6 +297,10 @@ use core::cell::{Cell, RefCell};
 use core::ops::{Add, Div, Mul, Neg, Sub};
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
+
+use num_bigint::BigInt;
+use num_integer::Integer;
+use num_traits::{One, Signed, ToPrimitive, Zero};
 
 use crate::predicate::{Band, Decide, Indeterminate, MarginDiag, Sign};
 use crate::real::{Bounds, CertifiedEnclosure, Real};
@@ -575,79 +566,89 @@ impl SymNode {
 /// The power of two is factored out rather than left in the pair
 /// because every `f64` literal IS `m · 2^e`: keeping `e` in its own
 /// field leaves the odd part alone, so the round constants a recipe is
-/// full of (`1`, `½`, `2`, `¼`) never grow the `i128` at all and the
-/// budget bites on genuine term growth instead of on scaling.
+/// full of (`1`, `½`, `2`, `¼`) never grow the integers at all.
 ///
-/// Every operation is CHECKED and answers `None` on overflow, which the
-/// caller turns into a freeze (module docs).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// **The integers are arbitrary-precision** (M10-8). They were `i128`,
+/// and that was measured to be the arc family's freeze: a document's
+/// dimensions are `f64` literals with 53-bit mantissas, so the product
+/// of THREE of them overflows an `i128`, and every polynomial of degree
+/// three or more in a parameter with such a nominal froze — which is
+/// what the plate's rim residual is (`sqrt(…)^12`). The size discipline
+/// the `i128` gave for free is kept explicitly: an integer past
+/// [`COEFF_BITS`] is refused by [`Rat::new`] and the caller freezes, so
+/// a coefficient blow-up is still a bounded cost, not an allocation to
+/// the ceiling. Every operation is CHECKED and answers `None` on that
+/// bound (module docs).
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct Rat {
-    num: i128,
-    den: i128,
+    num: BigInt,
+    den: BigInt,
     exp2: i32,
 }
 
-/// The greatest common divisor of two non-negative `i128`s.
-/// The greatest common divisor of two MAGNITUDES.
-///
-/// Unsigned on purpose: the signed spelling took `num.unsigned_abs() as
-/// i128` at its one call site, which wraps `i128::MIN` back to a
-/// NEGATIVE value, and a negative `g` then flipped the sign of the
-/// reduced numerator — `Rat::new(i128::MIN, 1, 0)` would have answered
-/// `+2^127/1`. There is no `i128` that can hold `|i128::MIN|`, so the
-/// magnitude is a `u128` and the conversion back is checked by the
-/// caller.
-fn gcd(mut a: u128, mut b: u128) -> u128 {
-    while b != 0 {
-        let t = a % b;
-        a = b;
-        b = t;
-    }
-    a
-}
+/// The most bits either integer of a coefficient may carry before the
+/// coefficient is refused and its form freezes. The plate's rim residual
+/// needs a few hundred; the bound is the freeze discipline's, not a
+/// measured ceiling.
+const COEFF_BITS: u64 = 4096;
 
 /// Strips factors of two out of `v`, answering the odd part and how many
 /// were removed. `v == 0` keeps zero and removes none.
-fn strip_twos(v: i128) -> (i128, u32) {
-    if v == 0 {
-        return (0, 0);
+fn strip_twos(v: BigInt) -> (BigInt, u64) {
+    if v.is_zero() {
+        return (v, 0);
     }
-    let k = v.trailing_zeros();
+    let k = v.trailing_zeros().unwrap_or(0);
     (v >> k, k)
 }
 
 impl Rat {
-    const ZERO: Self = Self {
-        num: 0,
-        den: 1,
-        exp2: 0,
-    };
+    fn zero() -> Self {
+        Self {
+            num: BigInt::zero(),
+            den: BigInt::one(),
+            exp2: 0,
+        }
+    }
 
-    /// Reduces `num / den · 2^exp2` to the canonical shape.
+    fn one() -> Self {
+        Self {
+            num: BigInt::one(),
+            den: BigInt::one(),
+            exp2: 0,
+        }
+    }
+
+    /// `num / den · 2^exp2` from machine integers — the door literals
+    /// and small constants come through.
     fn new(num: i128, den: i128, exp2: i32) -> Option<Self> {
-        if den == 0 {
+        Self::from_parts(BigInt::from(num), BigInt::from(den), exp2)
+    }
+
+    /// Reduces `num / den · 2^exp2` to the canonical shape, refusing a
+    /// zero denominator and an integer past [`COEFF_BITS`].
+    fn from_parts(num: BigInt, den: BigInt, exp2: i32) -> Option<Self> {
+        if den.is_zero() {
             return None;
         }
-        if num == 0 {
-            return Some(Self::ZERO);
+        if num.is_zero() {
+            return Some(Self::zero());
         }
-        let (num, den) = if den < 0 {
-            (num.checked_neg()?, den.checked_neg()?)
+        let (num, den) = if den.is_negative() {
+            (-num, -den)
         } else {
             (num, den)
         };
-        // `g` divides both magnitudes, and `den > 0` here, so `g > 0`
-        // and both quotients fit: `|num| / g <= |num| <= 2^127` with
-        // equality only when `g == 1` and `num == i128::MIN`, which
-        // `i128::try_from` then refuses rather than wrapping.
-        let g = gcd(num.unsigned_abs(), den.unsigned_abs());
-        let g = i128::try_from(g).ok()?;
-        let (num, den) = (num.checked_div(g)?, den.checked_div(g)?);
+        let g = num.gcd(&den);
+        let (num, den) = (num / &g, den / &g);
         let (num, nz) = strip_twos(num);
         let (den, dz) = strip_twos(den);
         let exp2 = exp2
             .checked_add(i32::try_from(nz).ok()?)?
             .checked_sub(i32::try_from(dz).ok()?)?;
+        if num.bits() > COEFF_BITS || den.bits() > COEFF_BITS {
+            return None;
+        }
         Some(Self { num, den, exp2 })
     }
 
@@ -658,7 +659,7 @@ impl Rat {
             return None;
         }
         if x == 0.0 {
-            return Some(Self::ZERO);
+            return Some(Self::zero());
         }
         let bits = x.to_bits();
         let sign = if bits >> 63 == 1 { -1i128 } else { 1i128 };
@@ -674,117 +675,132 @@ impl Rat {
         Self::new(sign * mantissa, 1, exp)
     }
 
-    fn is_zero(self) -> bool {
-        self.num == 0
+    fn is_zero(&self) -> bool {
+        self.num.is_zero()
     }
 
-    fn add(self, other: Self) -> Option<Self> {
+    fn is_negative(&self) -> bool {
+        self.num.is_negative()
+    }
+
+    fn add(&self, other: &Self) -> Option<Self> {
         if self.is_zero() {
-            return Some(other);
+            return Some(other.clone());
         }
         if other.is_zero() {
-            return Some(self);
+            return Some(self.clone());
         }
         // Align on the smaller exponent, shifting the other numerator up.
-        let (lo, hi) = (self.exp2.min(other.exp2), self.exp2.max(other.exp2));
-        let shift = u32::try_from(hi.checked_sub(lo)?).ok()?;
-        let scale = 1i128.checked_shl(shift)?;
-        let (a, b) = if self.exp2 <= other.exp2 {
-            (
-                self,
-                Self {
-                    num: other.num.checked_mul(scale)?,
-                    ..other
-                },
-            )
-        } else {
-            (
-                Self {
-                    num: self.num.checked_mul(scale)?,
-                    ..self
-                },
-                other,
-            )
+        let lo = self.exp2.min(other.exp2);
+        let shift = |r: &Self| -> Option<BigInt> {
+            let k = usize::try_from(r.exp2.checked_sub(lo)?).ok()?;
+            if k as u64 > COEFF_BITS {
+                return None;
+            }
+            Some(&r.num << k)
         };
-        let num = a
-            .num
-            .checked_mul(b.den)?
-            .checked_add(b.num.checked_mul(a.den)?)?;
-        Self::new(num, a.den.checked_mul(b.den)?, lo)
+        let (a, b) = (shift(self)?, shift(other)?);
+        let num = a * &other.den + b * &self.den;
+        Self::from_parts(num, &self.den * &other.den, lo)
     }
 
-    fn neg(self) -> Option<Self> {
+    fn neg(&self) -> Option<Self> {
         Some(Self {
-            num: self.num.checked_neg()?,
-            ..self
+            num: -&self.num,
+            den: self.den.clone(),
+            exp2: self.exp2,
         })
     }
 
-    fn mul(self, other: Self) -> Option<Self> {
-        if self.is_zero() || other.is_zero() {
-            return Some(Self::ZERO);
+    fn abs(&self) -> Self {
+        Self {
+            num: self.num.abs(),
+            den: self.den.clone(),
+            exp2: self.exp2,
         }
-        Self::new(
-            self.num.checked_mul(other.num)?,
-            self.den.checked_mul(other.den)?,
+    }
+
+    fn mul(&self, other: &Self) -> Option<Self> {
+        if self.is_zero() || other.is_zero() {
+            return Some(Self::zero());
+        }
+        Self::from_parts(
+            &self.num * &other.num,
+            &self.den * &other.den,
             self.exp2.checked_add(other.exp2)?,
         )
     }
 
     /// The reciprocal; `None` for zero.
-    fn recip(self) -> Option<Self> {
-        Self::new(self.den, self.num, self.exp2.checked_neg()?)
+    fn recip(&self) -> Option<Self> {
+        Self::from_parts(self.den.clone(), self.num.clone(), self.exp2.checked_neg()?)
     }
 
     /// The EXACT square root of a non-negative rational, or `None`
     /// where it is not rational (rule A0's coefficient fold and rule
-    /// C's polynomial root both need exactly this). `num/den · 2^e` with `e` made
-    /// even by moving one factor of two into `num`; the root is
+    /// C's polynomial root both need exactly this). `num/den · 2^e` with
+    /// `e` made even by moving one factor of two into `num`; the root is
     /// `isqrt(num)/isqrt(den) · 2^(e/2)` when both are exact.
-    fn sqrt_exact(self) -> Option<Self> {
-        if self.num < 0 {
+    fn sqrt_exact(&self) -> Option<Self> {
+        if self.is_negative() {
             return None;
         }
-        if self.num == 0 {
-            return Some(Self::ZERO);
+        if self.is_zero() {
+            return Some(Self::zero());
         }
         let (num, exp2) = if self.exp2 % 2 != 0 {
-            (self.num.checked_mul(2)?, self.exp2.checked_sub(1)?)
+            (&self.num << 1usize, self.exp2.checked_sub(1)?)
         } else {
-            (self.num, self.exp2)
+            (self.num.clone(), self.exp2)
         };
-        let sn = isqrt_exact(num.unsigned_abs())?;
-        let sd = isqrt_exact(self.den.unsigned_abs())?;
-        Self::new(i128::try_from(sn).ok()?, i128::try_from(sd).ok()?, exp2 / 2)
+        let sn = isqrt_exact(&num)?;
+        let sd = isqrt_exact(&self.den)?;
+        Self::from_parts(sn, sd, exp2 / 2)
     }
 
-    /// Feeds the coefficient to a content hash (the atom-keying digest).
-    fn feed(self, h: Hash128) -> Hash128 {
-        h.wide(self.num as u128)
-            .wide(self.den as u128)
-            .word(u64::from(self.exp2 as u32))
+    /// A conservative `f64` bracket of the value — the two rounded
+    /// conversions and the division each cost at most an ulp, and the
+    /// bracket is opened by four on each side. `None` when the power of
+    /// two is out of `f64`'s range (a flushed zero would not be
+    /// conservative).
+    fn f64_bracket(&self) -> Option<(f64, f64)> {
+        if self.exp2.abs() > 1000 {
+            return None;
+        }
+        let v = self.num.to_f64()? / self.den.to_f64()? * 2f64.powi(self.exp2);
+        if !v.is_finite() {
+            return None;
+        }
+        let (mut lo, mut hi) = (v, v);
+        for _ in 0..4 {
+            lo = lo.next_down();
+            hi = hi.next_up();
+        }
+        Some((lo, hi))
+    }
+
+    /// Feeds the coefficient to a content hash (the atom-keying digest):
+    /// the sign, every 32-bit digit of both integers, and the exponent.
+    fn feed(&self, mut h: Hash128) -> Hash128 {
+        h = h.word(u64::from(self.num.is_negative()));
+        for part in [&self.num, &self.den] {
+            let (_, digits) = part.to_u32_digits();
+            h = h.word(digits.len() as u64);
+            for d in digits {
+                h = h.word(u64::from(d));
+            }
+        }
+        h.word(u64::from(self.exp2 as u32))
     }
 }
 
-/// `Some(r)` iff `r·r == n` exactly.
-fn isqrt_exact(n: u128) -> Option<u128> {
-    if n < 2 {
-        return Some(n);
+/// `Some(r)` iff `r·r == n` exactly, for `n >= 0`.
+fn isqrt_exact(n: &BigInt) -> Option<BigInt> {
+    if n.is_negative() {
+        return None;
     }
-    let mut x = (n as f64).sqrt() as u128;
-    if x == 0 {
-        x = 1;
-    }
-    for _ in 0..8 {
-        x = (x + n / x) / 2;
-    }
-    while x.checked_mul(x).is_none_or(|s| s > n) {
-        x -= 1;
-    }
-    while (x + 1).checked_mul(x + 1).is_some_and(|s| s <= n) {
-        x += 1;
-    }
-    (x * x == n).then_some(x)
+    let r = n.sqrt();
+    (&r * &r == *n).then_some(r)
 }
 
 // ----------------------------------------------------------- the form
@@ -807,11 +823,7 @@ impl Poly {
     }
 
     fn one() -> Self {
-        Self::constant(Rat {
-            num: 1,
-            den: 1,
-            exp2: 0,
-        })
+        Self::constant(Rat::one())
     }
 
     fn constant(c: Rat) -> Self {
@@ -825,14 +837,7 @@ impl Poly {
     /// The form of a single indeterminate, coefficient one.
     fn indet(id: u128) -> Self {
         let mut terms = BTreeMap::new();
-        terms.insert(
-            vec![(id, 1)],
-            Rat {
-                num: 1,
-                den: 1,
-                exp2: 0,
-            },
-        );
+        terms.insert(vec![(id, 1)], Rat::one());
         Self { terms }
     }
 
@@ -843,10 +848,10 @@ impl Poly {
     /// The value of a CONSTANT polynomial (no indeterminate).
     fn as_constant(&self) -> Option<Rat> {
         match self.terms.len() {
-            0 => Some(Rat::ZERO),
+            0 => Some(Rat::zero()),
             1 => {
                 let (m, c) = self.terms.iter().next()?;
-                m.is_empty().then_some(*c)
+                m.is_empty().then(|| c.clone())
             }
             _ => None,
         }
@@ -870,7 +875,7 @@ impl Poly {
                 self.terms.insert(mono, c);
             }
             Some(existing) => {
-                let sum = existing.add(c)?;
+                let sum = existing.add(&c)?;
                 if !sum.is_zero() {
                     self.terms.insert(mono, sum);
                 }
@@ -882,7 +887,7 @@ impl Poly {
     fn add(&self, other: &Self) -> Option<Self> {
         let mut out = self.clone();
         for (m, c) in &other.terms {
-            out.insert(m.clone(), *c)?;
+            out.insert(m.clone(), c.clone())?;
         }
         Some(out)
     }
@@ -924,7 +929,7 @@ impl Poly {
         let mut out = Self::zero();
         for (ma, ca) in &self.terms {
             for (mb, cb) in &other.terms {
-                out.insert(mono_mul(ma, mb)?, ca.mul(*cb)?)?;
+                out.insert(mono_mul(ma, mb)?, ca.mul(cb)?)?;
             }
         }
         Some(out)
@@ -1569,7 +1574,7 @@ fn unary_at_zero(op: SymOp) -> Option<Form> {
             let mut p = Poly::indet(INDET_PI);
             let half = Rat::new(1, 2, 0)?;
             for c in p.terms.values_mut() {
-                *c = c.mul(half)?;
+                *c = c.mul(&half)?;
             }
             Some(Form::poly(p))
         }
@@ -1680,17 +1685,10 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
                 }
                 let n = a.num.as_constant()?;
                 let d = a.den.as_constant()?;
-                let c = Rat::new(
-                    n.num.checked_mul(d.den)?,
-                    n.den.checked_mul(d.num)?,
-                    n.exp2.checked_sub(d.exp2)?,
-                )?;
+                let c = n.mul(&d.recip()?)?;
                 match node.op {
                     SymOp::Sqrt => c.sqrt_exact(),
-                    _ => Some(Rat {
-                        num: c.num.checked_abs()?,
-                        ..c
-                    }),
+                    _ => Some(c.abs()),
                 }
             })();
             match folded {
@@ -2793,6 +2791,35 @@ mod tests {
         assert_eq!(a, build_forward());
     }
 
+    /// **The coefficient ring's bound is a freeze, not a panic**: an
+    /// alignment or a product that would need more than `COEFF_BITS`
+    /// bits answers `None` — exactly what an `i128` overflow answered —
+    /// and everything under the bound is exact.
+    #[test]
+    fn an_alignment_past_the_coefficient_bound_freezes() {
+        let big = Rat::new(1, 1, 5000).unwrap();
+        let small = Rat::new(1, 1, -5000).unwrap();
+        assert!(
+            big.add(&small).is_none(),
+            "a 10 000-bit shift is past the bound"
+        );
+        assert!(big.add(&big).is_some(), "aligned already: exact");
+        // A product whose odd part crosses the bound is refused too, and
+        // one just under it is exact.
+        let m = Rat::of_f64(0.1).unwrap();
+        let mut acc = Rat::one();
+        let mut steps = 0;
+        while let Some(next) = acc.mul(&m) {
+            acc = next;
+            steps += 1;
+            assert!(steps < 200, "0.1^k must cross 4096 bits before k = 200");
+        }
+        assert!(
+            steps >= 77,
+            "0.1 carries 53 odd bits, so 77 factors fit: {steps}"
+        );
+    }
+
     /// The rational is exact on every `f64` it accepts, and refuses the
     /// ones that are not real numbers.
     #[test]
@@ -2801,8 +2828,8 @@ mod tests {
             let r = Rat::of_f64(x).expect("a finite float is a dyadic rational");
             // num/den · 2^exp2 back to a float, when the parts are small
             // enough for the round trip to be exact.
-            if r.num.unsigned_abs() < (1 << 53) && r.den == 1 {
-                let back = (r.num as f64) * 2f64.powi(r.exp2);
+            if r.num.bits() <= 53 && r.den.is_one() {
+                let back = r.num.to_f64().unwrap() * 2f64.powi(r.exp2);
                 assert_eq!(back.to_bits(), x.to_bits(), "round trip of {x}");
             }
         }

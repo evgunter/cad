@@ -324,10 +324,12 @@ fn r2_the_kink_atoms_never_claim_a_cancellation() {
 
 // ---------------------------------------------- claim 3: freezing
 
-/// **An i128 coefficient overflow FREEZES**, and a frozen form never
-/// decides Zero falsely: the same expression that is an identity still
-/// decides Zero (frozen nodes with equal ids cancel), while a
-/// non-identity built past the overflow decides numerically.
+/// **A coefficient past the ring's bit bound FREEZES**, and a frozen
+/// form never decides Zero falsely: the same expression that is an
+/// identity still decides Zero (frozen nodes with equal ids cancel),
+/// while a non-identity built past the bound decides numerically. (The
+/// bound was `i128` when this row was cut and is 4096 bits since M10-8
+/// widened the coefficient; the freeze is the same sound outcome.)
 #[test]
 fn r2_a_coefficient_overflow_freezes_and_never_decides_falsely() {
     // A literal with a huge dyadic exponent, squared repeatedly: the
@@ -338,8 +340,8 @@ fn r2_a_coefficient_overflow_freezes_and_never_decides_falsely() {
     let (frozen_seen, counts) = with_session(budget(), || {
         let mut acc = lit(1.0);
         // 3^k with odd numerators: 3, 9, 27 … the product's numerator
-        // overflows i128 after ~80 factors.
-        for _ in 0..96 {
+        // passes 4096 bits after 2585 factors.
+        for _ in 0..2700 {
             acc = acc * lit(3.0);
         }
         let r = acc - acc; // still an identity: the frozen node cancels
