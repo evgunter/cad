@@ -2749,3 +2749,77 @@ The PR offers Ev an escape hatch that costs him less than the general
 rule: answering only *is `projection: {error}` a badge or a line
 message* unblocks the sweep, and this program takes the general rule as
 whatever that implies.
+
+## #1933 MERGED; the sweep's last blocker is on Ev's desk (2026-09-05)
+
+Merged at `dd8e91da`, green on `495af188`. Two conflicts on the
+orchestrator branch, both the same shape as before — `status:
+dispatched` here against `status: closed` written by the lane in its
+own PR. Main's side taken both times; the lane's closure is the true
+state.
+
+### The fix pass did three things better than asked
+
+**Type-pinned rather than tested.** I asked for rows pinning the
+subject at each writer. It built **ten doors in `frame`**, each taking
+one *typed* refusal and answering the subject from it, so nine of
+eleven **cannot be got wrong at all** — calling the wrong door does not
+compile, and `Message::new` no longer appears outside `frame`. A row
+that can go red is the standard; a shape that cannot go wrong is
+better. Same move VIEW-1b made with the gesture table.
+
+The two it could not type-pin are **stated per site**, not left
+silent: `startup_notices` takes notices already rendered from three
+sources with three types, and `tool_news` arrives as text through
+`ToolKind::says` — filed as `document-news-has-no-home` with the real
+blocker named (`says` returning a bare `String`).
+
+**Swept the class, not the instance.** I named `draw_badge` swallowing
+`chrome`'s doc; it found `Disagreement::notice` had swallowed
+`disagreement`'s too, and checked the other two insertions clean.
+
+**Gave a negative result a mechanism.** On the `prose_census.rs`
+coupling I warned it about, it did not report "clean" — it showed why:
+the surviving positional site is `Disagreement`'s own `Display`,
+untouched, and the `{typed:?}` this pass moved into `frame.rs` is
+inlined in a plain function, so it is neither positional nor a raise
+site. A negative result without a mechanism is worth nothing.
+
+### Why I merged over the lane's reservation, and what it answered back
+
+The lane held the branch twice, correctly, because
+`news-and-standing-facts-are-orthogonal-axes` questions the
+classification this diff commits to. I merged because the question is
+now filed, argued and on Ev's desk: holding a green, ruled,
+twice-reviewed unit for a fork its own item schedules holds it
+indefinitely, and the classification bites at the **sweep**, a
+different unit, which is where twenty sites get written.
+
+**The lane agreed and then improved the argument**, which is the part
+worth keeping. It observed that **the recorded inconsistency on main is
+not behaviourally symmetric**: `Subject::Camera` has an `Expire` issuer
+(`fold_status`, every clean fold) and `Subject::Display` has none. So
+of the three facts of one class, `projection_refusal` is **now retired
+on the next camera move — exactly what #1883 ruled for it** — and the
+two `Display` ones are **swept only by `Clear`, unchanged from before
+the unit**.
+
+One writer improved in the ruled direction, two left exactly as they
+were, nothing regressed. The inconsistency is a difference in *how far
+along* three writers are, not two rival behaviours fighting — so the
+fork can be answered on its merits rather than under time pressure, and
+the answer either way is three call sites and one variant's issuer
+rather than an unwind. Added to #1945, because it changes what the
+decision costs.
+
+### [#1945](https://github.com/evgunter/cad/pull/1945)
+
+`[ev]`, subscribed. **News vs standing fact** asks whether a fact
+outlives its frame; **`Subject`** asks which event retires it. A fact
+whose lifetime is "until the camera moves" answers yes to the first and
+`Camera` to the second — designed as one axis, and they are two.
+
+The PR offers an escape hatch cheaper than the general rule: answering
+only *is `projection: {error}` a badge or a line message* unblocks the
+sweep, and this program takes the general rule as whatever that
+implies.

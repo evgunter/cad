@@ -2,11 +2,7 @@
 id: the-news-vocabulary-has-no-expiry
 kind: issue
 title: Nothing owns when news stops being news, so a stale-but-true complaint sits on the line indefinitely
-<<<<<<< HEAD
-status: dispatched
-=======
 status: closed
->>>>>>> origin/main
 opened: 2026-09-04
 closed: 2026-09-05
 refs: [camera-fold-clears-status-line, status-line-writers-bypass-the-ranking, opoutcome-superseded-has-no-production-reader]
