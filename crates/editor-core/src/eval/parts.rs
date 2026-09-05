@@ -270,6 +270,19 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
     /// makes "evaluated ONCE" true when two instances of one part race,
     /// and a nested evaluation builds its own cache, so the lock is
     /// never re-entered.
+    ///
+    /// **The miss path runs inside its own verdict bracket, whose frame
+    /// is discarded.** This door is called from inside an instantiate
+    /// op, so the innermost open frame is that node's, and every
+    /// decision the miss path makes outside the nested run's own node
+    /// brackets — the part's whole-document mate solve, its profile
+    /// pre-passes, the gather and validation of its product — would
+    /// land there, on whichever instance took the miss. A node's log is
+    /// the decisions ITS op made about ITS content, the same on a hit
+    /// and on a miss (same content key ⇒ same decisions, D9); the
+    /// part's are the part's — its nodes record their own frames, and
+    /// the unbracketed remainder goes where a top-level evaluation's
+    /// goes, which is nowhere.
     pub(crate) fn get(&self, doc_ref: &DocRef, tol: Tol) -> Result<PartValue<T>, PartFault> {
         let key = (*doc_ref, self.eps_bits);
         let mut entries = match self.entries.lock() {
@@ -282,7 +295,9 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         if let Some(hit) = entries.get(&key) {
             return hit.clone();
         }
+        let own = geom_core::k_stats::Bracket::open();
         let value = self.resolve_and_evaluate(doc_ref, tol);
+        drop(own.finish());
         entries.insert(key, value.clone());
         value
     }

@@ -1371,18 +1371,20 @@ fn classify_replay<T: geom_core::Decide>(
     // escalation and the profile lift's guided abort — are the two E6
     // names as the cue to bisect.
     //
-    // WHY IT CANNOT SIMPLY ASK. `k_stats` records definite outcomes
-    // (the verdict log) and nothing at all for indeterminate ones, so
-    // "was every predicate here definite" has no observable form; an
-    // escalation reaches this loop wrapped inside whichever op's error
-    // enum raised it, ~40 variants across five crates. The channel that
-    // would answer it directly is issue #1254 — filed together with the
-    // verdict log's own banked redo, because both are one mechanism and
-    // `k_stats`' module docs forbid deepening the current one. Until it
-    // lands, a terminal sliver that surfaces through an op's own error
-    // (rather than through `NodeErrorKind::Escalated`) is priced
-    // `Budget` instead of `SliverTerminal`: a worse answer for the same
-    // mass, never a wrong one.
+    // HOW IT ASKS. Every indeterminate outcome the funnel produced
+    // while a node's op ran is on the node's escalation log — on its
+    // value if the op built anyway, on its error if it did not — so
+    // "was every predicate here definite" is read off the log, and an
+    // escalation an op wrapped in its own error enum (a sweep's
+    // `ExtrusionEscalated`, ~40 such variants across five crates) is
+    // seen without matching on any of them. The FIRST escalation in
+    // decision order speaks for the node: a sliver, or the cue to
+    // bisect. A later sliver behind a refinable escalation does not
+    // argue — refinement may never reach it on the branch a definite
+    // first decision takes — so that order is the conservative one.
+    // The two error arms below stay for an `Indeterminate` minted
+    // outside the funnel (none is known); they cannot see anything the
+    // log does not already carry.
     // ITERATION ORDER IS NODE ID, and where a leaf carries several
     // refusing nodes that decides which one speaks: the FIRST
     // indeterminacy in node-id order settles the leaf as a sliver or a
@@ -1394,6 +1396,17 @@ fn classify_replay<T: geom_core::Decide>(
     // is refused mass either way, and the receipt does not change.
     let mut structure_flips = Vec::new();
     for (&node, result) in &leaf.nodes {
+        let escalations = match result {
+            NodeResult::Ok(v) => &v.escalations,
+            NodeResult::Failed(e) => &e.escalations,
+            NodeResult::Poisoned { .. } => continue,
+        };
+        if let Some(first) = escalations.first() {
+            if let Some(p) = sliver(&first.source) {
+                return LeafVerdict::Refused(RefusalReason::SliverTerminal { predicate: p });
+            }
+            return LeafVerdict::Bisect;
+        }
         let NodeResult::Failed(err) = result else {
             continue;
         };

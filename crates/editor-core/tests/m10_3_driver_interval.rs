@@ -935,6 +935,75 @@ fn a_terminal_sliver_refuses_naming_its_predicate_and_is_not_refined() {
     assert!(mass > 0.0, "sliver mass priced at {mass}");
 }
 
+/// **A sliver that reaches the driver inside the op's own error is
+/// still a sliver.** The planted-flip box `20ε ± 40ε` covers the
+/// ambiguity band on both sides of zero — `(ε, Kε)` and `(−Kε, −ε)` —
+/// and a leaf whose depth enclosure sits wholly inside either is
+/// deciding `extrusion_normal_component` on a quantity that IS in the
+/// band, so no refinement moves it out. That escalation does not
+/// surface as `NodeErrorKind::Escalated`: the extrude op wraps it in
+/// its own `ExtrudeError` first. The driver reads the node's
+/// ESCALATION LOG — the funnel's own record of the indeterminate
+/// outcome — rather than the error enum, so the leaf is priced
+/// `SliverTerminal`, naming the predicate, and never refined to the
+/// depth floor as `Budget` mass.
+///
+/// The band's share of the box is the pin: `2 · (K − 1)ε / 80ε` with
+/// `K = 10` is 22.5%, and the sliver mass has to be that, up to the
+/// leaves straddling the band's four edges. What the depth budget may
+/// still price `Budget` here is the coincidence zone `(−ε, ε)` — 2.5%
+/// of the box — where the depth decides `Zero` and the extrude refuses
+/// `DegenerateExtrusion`: a DEFINITE refusal, not an escalation, which
+/// this driver refines to the floor. That zone is a different class
+/// from this row's and is bounded here, not claimed.
+#[test]
+fn a_sliver_wrapped_in_the_ops_own_error_is_priced_sliver_terminal_not_budget() {
+    let doc = slab(20.0 * eps(), 40.0 * eps());
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let v = drive(&doc, &analyzed, &config(4096), Tol::witness()).expect("the nominal builds");
+    assert!(v.receipt().holds());
+    let classes: Vec<_> = v.refused().iter().map(|l| l.reason.class()).collect();
+    let slivers: Vec<&'static str> = v
+        .refused()
+        .iter()
+        .filter_map(|l| match &l.reason {
+            RefusalReason::SliverTerminal { predicate } => Some(*predicate),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        slivers
+            .iter()
+            .all(|p| *p == "extrusion_normal_component"),
+        "every sliver here is the extrude's normal component: {slivers:?}"
+    );
+    let sliver_mass = v
+        .accounting()
+        .refused
+        .get(&ReasonClass::SliverTerminal)
+        .cloned()
+        .map_or(0.0, |m| m.unwrap());
+    let budget_mass = v
+        .accounting()
+        .refused
+        .get(&ReasonClass::Budget)
+        .cloned()
+        .map_or(0.0, |m| m.unwrap());
+    let k = Tol::witness().k();
+    let band_share = 2.0 * (k - 1.0) * eps() / (80.0 * eps());
+    assert!(
+        (sliver_mass - band_share).abs() < 1e-3,
+        "the band's share of the box is sliver mass: sliver {sliver_mass}, budget \
+         {budget_mass}, band share {band_share}; classes {classes:?}"
+    );
+    let coincidence_share = 2.0 * eps() / (80.0 * eps());
+    assert!(
+        budget_mass <= coincidence_share + 1e-3,
+        "only the coincidence zone and the band's edge leaves may reach the depth floor: \
+         budget mass {budget_mass}, coincidence zone {coincidence_share}"
+    );
+}
+
 // ------------------------------------------------------------ budgets
 
 /// Budgets refuse typed and PRICED, and the receipt still holds: a
