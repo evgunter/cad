@@ -77,3 +77,16 @@ Decisions taken unilaterally at opening:
 
 PROPS-1 dispatched on `props/1-linalg-lost-correlation`; spec
 `docs/PROPS-1-SPEC.md` on this branch.
+
+**Verdict shapes decided and dispatched (2026-09-05).** A read-only
+census (three shapes, one substrate; M10-8 touches none of them; no
+test pins the strict-vs-population claim) settled the D half:
+consolidate the modules and the outcome enums, keep the split, add the
+pin. Unit `three-per-node-verdict-shapes` (converted in place, FILLET's
+convention), spec `docs/PROPS-VERDICT-SHAPES-SPEC.md`, branch
+`props/verdict-shapes`, dispatched now rather than after M10-8 since the
+overlap measured nil on the shapes themselves. An E rider — single style
+review, outside the experiment — so it draws no block slot; the
+`drive.rs` seam is announced in `work/m10/log.md`. Ruling PR for Span:
+[#1906](https://github.com/evgunter/cad/pull/1906). Subscription works
+for PRs this session opened and fails for others.
