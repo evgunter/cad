@@ -223,7 +223,17 @@ amended:
      2026-09-04, when Ev opened it ahead of VERBS' exit (in-chat; the
      SHELL log's opening entry), so SHELL draws from 2300 on; infra-only
      and test-only units in CIW and CHROME record no row)**,
-     with **2600+ unallocated** — the orchestrator opening the next
+     · MSOLVE 2600–2699 (claimed in `work/msolve/program.md` at its
+     2026-09-04 opening; recorded here on 2026-09-04 by the TOPO/META
+     opening, which needed the next free band and found this claim
+     live in the tracker but absent from this roster — the omission is
+     the rule's first miss and is why the two below are recorded in
+     the same commit that opens them) · TOPO 2700–2799 · META
+     2800–2899 (both claimed 2026-09-04 at their opening; TOPO draws
+     from 2700 on and runs a full dual only where a unit moves a
+     kernel answer, META is infra-and-prose and claims its band for
+     bookkeeping only, the CIW/CHROME posture),
+     with **2900+ unallocated** — the orchestrator opening the next
      program takes the next free band and records it HERE in the
      same commit that opens the program. **1–99 is CLOSED
      HISTORY**: the pre-banding global sequence, which reached 85.
