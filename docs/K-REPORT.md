@@ -1734,28 +1734,50 @@ would be seen if a fixture ever produced one. A future document that
 measures a distance across a tilted plane pair will land here scaled by
 `L_new / 1 m`, and this paragraph is the record of what that scaling is.
 
-## M10-8 addendum (2026-09-04): the `sign_gated` outcome, and the atom algebra measured inert
+## M10-8 addendum (2026-09-05): the `sign_gated` outcome, the constant fold that ships, and a mis-charged K population
 
-M10-8 added the arc-family atom algebra behind the `SymRules` dial and a
-fourth-and-a-half outcome to the funnel; both touch this report.
+M10-8 built the arc-family atom algebra behind the `SymRules` dial,
+measured it per mechanism on four documents, shipped the one mechanism
+that moved a ceiling, and — by scoping the recorder's predicate name —
+found a shipped decide path whose samples had been charged to the
+wrong predicate since the funnel was built. All three touch this
+report.
 
 ### The `sign_gated` outcome
 
 `geom_core::k_stats::SampleOutcome::SignGated` (serialized `sign_gated`)
-joins `SymbolicZero` as a RESERVED outcome: it would record a decision
-the symbolic tier answered through a clause-3 fold (`sqrt(Q²)=Q` on a `Q`
-whose sign the funnel certified over the leaf box) — a theorem
-CONDITIONAL on that one read value. That fold (rule C) is filed UNBUILT
-— reading a value at the lane scalar conflicts with the bit-identity
-discipline — so **nothing produces `sign_gated`; it is always 0.** The
-token stands so the day a value-reading fold is built within the
-discipline is a wiring change and not a vocabulary one. Like
-`symbolic_zero` it is NEVER a rule sample: no margin is classified
-against the band. `k-lint` learns the token in its own column
-(`Scan::sign_gated`), the vocabulary keeps its one home on
-`SampleOutcome::token()`/`ALL` with the cross-workspace pin (`k-lint`'s
-`tests/outcome_vocabulary.rs`), and the per-file and TOTAL lines now
-print `symbolic_zero` and `sign_gated` side by side.
+joins `SymbolicZero`: it records a decision the symbolic tier answered
+through a clause-3 fold — rule C, `sqrt(X) = R` where `X = R²` as forms
+and `R`'s sign is certified over the leaf box (`geom_core::sym::signed`,
+the one value the tier reads, as the parameter's `f64` bracket through
+the ring) — a theorem CONDITIONAL on that read. Rule C is BUILT and
+unit-pinned (the positive fold, the negated root, the straddling and
+unbracketed refusals), and **does not ship**: it folds on none of the
+plate, the bracket, the annulus or the pad at the shipped coefficient
+bound, moves no ceiling at any bound, and costs 2× per leaf for the
+early walk it rides. So `sign_gated` reads **0** in every driver CSV,
+and the reason is measured rather than "unbuilt". Like `symbolic_zero`
+it is NEVER a rule sample: no margin is classified against the band.
+`k-lint` learns the token in its own column (`Scan::sign_gated`), the
+vocabulary keeps its one home on `SampleOutcome::token()`/`ALL` with
+the cross-workspace pin (`k-lint`'s `tests/outcome_vocabulary.rs`), and
+the per-file and TOTAL lines print `symbolic_zero` and `sign_gated`
+side by side.
+
+### What ships, and what it does to the K population
+
+The constant fold **A0** (`geom_core::SymRules::shipped`): `sqrt(c)`
+and `abs(c)` of a constant form fold to the exact rational, over a
+coefficient ring widened from `i128` to arbitrary precision under a
+256-bit bound (`geom_core::sym::COEFF_BITS`, an `i128` inline and a
+heap integer only past it). It moves R2's filleted bracket's
+whole-certifying box from `3.7e1 · ε` to `3.9e2 · ε` (10.4×) and R1's
+annulus from `2.0e1 · ε` to `7.8e2 · ε` (39×), certifies M10-4's
+stepped shaft's real ±0.1 study whole, and leaves the two-hole plate at
+`7.81e2 · ε` — all at no cost per leaf over M10-7's tier (plate 0.35 →
+0.37 s, bracket 1.47 → 1.46 s). More `symbolic_zero` samples, fewer
+classified ones, no new rule sample: the population moves in the
+direction the tier exists to move it.
 
 ### The driver population, with an arc fixture
 
@@ -1763,29 +1785,43 @@ print `symbolic_zero` and `sign_gated` side by side.
 tour's plate scaled to `1e3 · ε` of its real study, just above its
 whole-certifying ceiling (`7.81e2 · ε` at every ε row: the ceiling is
 the numeric channel's and scales with the band), so the driver splits
-once and certifies leaves whose certified-midpoint replay carries the
-arc family. The scale is ε-relative like the slabs': as the constant
-`1e-6` it was 1280× the ceiling at ε = 1e-12 and the fixture certified
-nothing on that row (hosted run 33950882617). Measured at ε = 1e-6,
-1e-9 and 1e-12 alike, the plate certifies 2 leaves and contributes
-2,826 samples; each CSV lints clean (rule 1 = 0), with 33,074
-`symbolic_zero` (the plate's carriers discharge through the PLAIN
-quotient form) and **`sign_gated` = 0**.
+once and certifies two leaves whose certified-midpoint replays carry
+the arc family. The scale is ε-relative like the slabs': as the
+constant `1e-6` it was 1280× the ceiling at ε = 1e-12 and the fixture
+certified nothing on that row (hosted run 33950882617). Measured at
+ε = 1e-6, 1e-9 and 1e-12 alike under M10-7's tier, the plate
+certifies 2 leaves and contributes 2,826 samples; each CSV lints clean
+(rule 1 = 0). The slabs contribute `symbolic_zero` too (their
+straight-walled identities discharge through the plain form); what
+only this fixture contributes is the arc family's. The final head's
+numbers, per ε row, are quoted from the hosted log in the PR body.
 
-`sign_gated` is 0 because rule C is filed unbuilt (nothing produces it),
-and `symbolic_zero` here comes from the PLAIN quotient form (M10-7),
-which discharges the plate's carriers with the atom algebra off. This is
-the honest state — the token is wired, linted and unit/CLI-tested, and
-reads 0 in the driver because the mechanism it counts is not built. The
-slabs remain straight-walled and contribute neither `symbolic_zero` nor
-`sign_gated` from the arc family.
+### A mis-charged K population, found and named (ledger F18)
 
-### Why the atom algebra is filed (the §1 measurement)
+`k_stats::classify` sets the recorder's predicate name in a
+thread-local and, until M10-8, never reset it — so a decision taken
+OUTSIDE any named `classify` was recorded under whichever predicate had
+classified last. M10-8 scoped the name (restored on the way out) for
+its shape-report instrument, and the M4 corpus sweep's `<unnamed>`
+guard went red at once: **1,054 samples at ε = 1e-6** had been
+recorded with no name of their own. Their one source:
+`editor_core::expr::refuse_non_finite`, the evaluator's door-2
+finiteness check (`value · 0` against the band `(1e-100, 1e-50)`),
+which called `sign_within` directly. Every one of those samples is a
+`Definite(Zero)` at margin 0 and never a rule sample, so no K claim in
+this report moves; what moves is the per-predicate attribution of
+1,054 rows that used to inflate whichever predicate preceded them. The
+site now goes through the finding lane under its own name,
+`expr_non_finite`, with ledger row **F18**
+(`docs/predicate-dimension-audit.md`: `value · 0` carries `value`'s
+dimension, so no `Margin` door fits), and the guard is green by naming
+— it was never relaxed.
 
-Rules A and B are correct on small forms but inert on the three M10-8
-documents: the arc-family forms freeze before a top-residual reduction
-reaches them, so neither moves a ceiling or changes a row's split. The
-default tier is the M10-7 quotient form bit for bit;
-`work/cert/symbolic-tier-census.md`'s rule column records "plain" for
-every discharging row. `docs/M10-8-SPEC.md`'s reserve is measured and
-not taken.
+### The rest of the algebra, measured and filed off
+
+Rules A/B over the top residual add no discharge on any document once
+A0 has run; per node (`SymRules::early_ab`) they reach the plate's
+nested `sqrt(…)²` at minutes per replay (138 s for the plate's
+nominal). Both stay dial-selectable and off; the census's rule column
+(`work/cert/symbolic-tier-census.md`) records which mechanism
+discharges each row.
