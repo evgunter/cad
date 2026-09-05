@@ -2,8 +2,9 @@
 id: flush-detector-widening-to-curved-rungs
 kind: issue
 title: Widening the flush detector to the curved Rest rungs is a one-identifier door swap that changes the document detector's answers
-status: open
+status: closed
 opened: 2026-09-02
+closed: 2026-09-05
 github: 1537
 refs: [1531]
 ---
@@ -23,3 +24,24 @@ Opened 2026-09-02; 0 comments.
 ## Home
 
 `work/seat/` — `crates/topo/src/flush.rs` is a SEAT territory glob and the flush detector at the body seat is §1 of `docs/VERB-SEAT-DESIGN.md`, SEAT's charter.
+
+## Closed
+
+SEAT-FW (PR PRNUM, 2026-09-05). The swap is one identifier in
+`topo::flush::pair_finding` and no verify table moved, exactly as
+measured here; the unit was the content review it forces. Both seats'
+answers grew curved findings (the twopeg parts go from 7 findings to
+25 — the eighteen peg-against-bore pairs), twopeg's eighteen hand
+declarations and the lily's socket now come out of the detector's own
+report, and every one of the tour's 45 scenes renders byte-identical
+STL and STEP: the declared sets are the same sets by another road.
+The stem-glue pin STAYS — its refusal was never the detector's
+blindness (the stem and arch share only their disk; their tube walls
+are tori about different ring centres) — and the socket's refusal
+stays too, at the reduction's curved-face arm, which is #1032 and not
+this door. G19 closed at the document seat with it
+(`docs/guide/north-star-audit.md` row 38).
+
+Two residues, each with its own file:
+`work/seat/flush-pair-relation-has-no-caller.md` and
+`work/seat/verb-seat-design-s3-names-the-planar-verifier.md`.

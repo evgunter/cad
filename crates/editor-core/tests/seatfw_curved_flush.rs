@@ -64,9 +64,10 @@ fn peg_in_bore(bore_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         centre: [len(0.0), len(0.0)],
         radius: len(r),
     };
-    let (doc, peg_plane) = insert(doc, fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [
-        0.0, 1.0, 0.0,
-    ]));
+    let (doc, peg_plane) = insert(
+        doc,
+        fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
     let (doc, peg_profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -81,9 +82,10 @@ fn peg_in_bore(bore_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             distance: len(1.0),
         },
     );
-    let (doc, block_plane) = insert(doc, fixture::frame([0.0, 0.0, -0.5], [1.0, 0.0, 0.0], [
-        0.0, 1.0, 0.0,
-    ]));
+    let (doc, block_plane) = insert(
+        doc,
+        fixture::frame([0.0, 0.0, -0.5], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
     let (doc, block_profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -182,7 +184,10 @@ fn a_bore_on_another_carrier_is_no_finding_at_either_seat() {
     let (a, b) = (body_of(&ev, peg), body_of(&ev, block));
     let keys = topo::flush::find_flush_candidates(a, b, Tol::witness())
         .expect("a definite radius difference decides");
-    assert!(keys.is_empty(), "distinct cylinders are no contact: {keys:?}");
+    assert!(
+        keys.is_empty(),
+        "distinct cylinders are no contact: {keys:?}"
+    );
     let names =
         find_flush_candidates(&ev, peg, block, Tol::witness()).expect("the document seat decides");
     assert!(names.is_empty(), "{names:?}");
@@ -209,7 +214,8 @@ fn a_bore_on_another_carrier_is_no_finding_at_either_seat() {
 fn a_declared_curved_finding_verifies_and_then_meets_the_lane_frontier() {
     let (doc, peg, block) = peg_in_bore(PEG_R);
     let ev = eval(&doc);
-    let findings = find_flush_candidates(&ev, peg, block, Tol::witness()).expect("the pairs decide");
+    let findings =
+        find_flush_candidates(&ev, peg, block, Tol::witness()).expect("the pairs decide");
     assert!(!findings.is_empty());
     let (doc, decl) = declare_all(&doc, &findings, Tol::witness()).expect("findings declare");
     let (doc, union) = insert(

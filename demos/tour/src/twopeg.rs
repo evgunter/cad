@@ -67,9 +67,9 @@
 
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Affine3, Point2, Tol, Vec3};
+use pncad::prelude::{SurfaceKindSet, query};
 use pncad::profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, circle_split};
 use pncad::sweep::{Extrusion, extrude};
-use pncad::prelude::{SurfaceKindSet, query};
 use pncad::topo::{Body, BooleanBody, BooleanDeclarations};
 
 use crate::booleans::{check, expect_seamed, try_union};
@@ -303,7 +303,9 @@ fn plate_with_holes<S: Scalar>(tol: Tol) -> Body<S> {
 fn cylinders<S: Scalar>(body: &Body<S>) -> Vec<pncad::topo::FaceKey> {
     query::all_faces(body)
         .into_iter()
-        .filter(|&k| query::face_surface_matches(body, k, SurfaceKindSet::just(SurfaceKind::Cylinder)))
+        .filter(|&k| {
+            query::face_surface_matches(body, k, SurfaceKindSet::just(SurfaceKind::Cylinder))
+        })
         .collect()
 }
 
