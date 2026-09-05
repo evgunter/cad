@@ -333,41 +333,59 @@ state.
 
 ### What the session knows because of the document is one value
 
-`DocSession` holds a `Derived`: what is picked out of the document,
-what a drag previews over it, what the last run said about it
-(`LandedRun`), and what a range probe found in it. `Open` and
+`DocSession` holds a `Derived`: what is selected, what is hovered,
+what a drag previews over the document, what the last run said about
+it (`LandedRun`), and what a range probe found in it. `Open` and
 `NewDocument` install a different document under a live session, and
-every one of those is a statement about the document that was there
+all five of those are statements about the document that was there
 before — left in place they answer about the previous model until the
 first run lands. Both doors therefore reset the whole block by
 construction (`Derived::none`) rather than field by field, and the
 constructor writes that same value, which makes it the one spelling of
-"nothing is known yet": a field added there is cleared by being
-declared rather than by being remembered at three call sites.
+"nothing is known yet". A field added to `Derived` does not become
+correct on its own: `Derived::none` stops compiling until someone
+writes its cleared value, at one site, by hand. That is the whole
+mechanism — one site to update instead of three, and a compiler error
+instead of a silent omission.
 
 `LandedRun` is the same rule one level down. The six things a landing
 produces — the evaluation, the document it answers, its generation,
 the gather's refusal, the A5 badge and the advisory report — are
 statements about one (document, evaluation) pair, computed once in
-`land`, so they are one value and `landed_pair` cannot hand out half
-of it. `bounds` sits in `Derived` but is discarded on a stricter rule
-than the block's: every submit drops it (`request_eval`), because a
-range is a statement about one document and a commit or an undo
-already invalidates it.
+`land`. As one value they cannot come from different runs, which is
+the property `landed_pair` needs: it returns two of the six, and the
+two it returns are the pair a single run answered. `bounds` sits in
+`Derived` but is discarded on a stricter rule than the block's: every
+submit drops it (`request_eval`), because a range is a statement about
+one document and a commit or an undo already invalidates it. Both
+doors consequently drop it twice, which is redundant on purpose — the
+walk names every field it invalidates rather than leaving one to a
+route its reader cannot see.
 
 Three neighbours stay outside `Derived`, and the reasons are the
 interesting part. `DisplayState` is `clear`ed rather than rebuilt,
 since its revision counter is the chrome's rebuild key and must not go
 backwards; its own `clear` closes the same hazard inside it. `gesture`
-is cleared by nothing and must not be — a value drag is refused while
-either door is asked for (`permitted_during_value_gesture`), because a
-gesture dissolved under the pointer is the half-acted state that
-refusal exists to prevent — so the reset ASSERTS that guarantee
-instead of relying on it silently, and relaxing the table's row fails
-loudly rather than leaving a drag pointed at a document that is gone.
-`path` and `resolver` are facts about the backing file rather than
-about the document, and are the part of the two doors that genuinely
-differs: `Open` sets both, `NewDocument` clears both.
+is cleared by nothing and must not be, and the refusal runs the other
+way round from the sentence one reaches for: while a value drag is in
+flight the DOOR is refused (`permitted_during_value_gesture`, checked
+once in `perform`) and the drag is left untouched, because a gesture
+dissolved under the pointer is the half-acted state that refusal
+exists to prevent. So the precondition is established before either
+door writes anything, and the reset re-checks nothing — a check there
+could only fire with the session already half-replaced. `path` and
+`resolver` are facts about the backing file rather than about the
+document, and are the part of the two doors that genuinely differs:
+`Open` sets both, `NewDocument` clears both.
+
+**That table governs value gestures only.** The free-move drag
+`DisplayState` owns is a different value with a different owner, and
+no door refuses a replacement while one is open: `clear`ing the
+display discards an in-flight free move with no refusal and no report,
+which is the walk applying to one gesture kind the opposite of what it
+says about the other. The behaviour is older than the block above and
+has its own item
+(`work/view/free-move-drag-dissolved-by-open.md`).
 
 ### The app's vocabularies
 

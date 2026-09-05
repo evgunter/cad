@@ -1,11 +1,11 @@
 ---
 id: session-clearing-walk-is-hand-maintained-three-times
 kind: issue
-title: the constructor, open, new_document and land hand-maintain the same clearing walk, so a new landed_* field is silently missed
+title: the constructor, open and new_document hand-maintain one clearing walk and land re-writes its landed_* half, so a new derived field is silently missed
 status: closed
 opened: 2026-09-04
 closed: 2026-09-04
-refs: [viewer-session-god-module-split]
+refs: [viewer-session-god-module-split, free-move-drag-dissolved-by-open, debug-for-docsession-is-a-fourth-hand-maintained-walk, new-document-owes-the-reframe-open-gets, display-clear-drops-free-move-placements-silently-while-prune-reports-them]
 pr: 1885
 ---
 
@@ -71,6 +71,13 @@ copies of a walk.
 
 ## Closed
 
+**A correction to this file's own title, from the #1885 style review:**
+`land` never wrote `selection`, `hover`, `scratch` or `bounds` — only
+the six `landed_*`. So the walk had THREE sites (the constructor,
+`open`, `new_document`), which is what the filename said, and `land`
+was a fourth site for the `landed_*` half alone. Title fixed above; the
+body below reads as filed.
+
 `DocSession` holds one `Derived` — `selection`, `hover`, `scratch`,
 `landed` and `bounds` — reset by `Derived::none()` at the constructor
 and at both doors, and the six `landed_*` fields are one `LandedRun`
@@ -94,3 +101,18 @@ revision counter across the reset, so reconstructing it would send the
 chrome's rebuild key backwards. It stays a `clear()` call beside the
 one assignment, and its own `clear` closes the same hazard for fields
 inside it.
+
+## Residue, filed
+
+Four findings the #1885 style review turned up around this walk, each
+with its own file on this slate:
+
+- `free-move-drag-dissolved-by-open` — the walk's `display.clear()`
+  dissolves the OTHER drag, silently, and no table refuses it.
+- `debug-for-docsession-is-a-fourth-hand-maintained-walk` —
+  `Debug for DocSession` still lists fields by hand.
+- `new-document-owes-the-reframe-open-gets` — `app.rs` re-frames for
+  `Open` only, though both doors replace the document.
+- `display-clear-drops-free-move-placements-silently-while-prune-reports-them`
+  — the same placements, announced on one path and swallowed on the
+  other.

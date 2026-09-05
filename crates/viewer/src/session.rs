@@ -222,16 +222,25 @@ pub struct DocSession {
 ///   reset, so a fresh value would send it backwards and a scene
 ///   built under the old count would read as current. Its own
 ///   `clear` closes the same hazard inside it.
-/// - [`DocSession::gesture`] is cleared by nothing, and must not be:
-///   a value drag is REFUSED while `Open` or `NewDocument` is asked
-///   for ([`SessionOp::permitted_during_value_gesture`]), because a
-///   gesture silently dissolved under the pointer is the half-acted
-///   state that refusal exists to prevent. A walk that cleared it
-///   would encode the opposite policy.
-///   [`DocSession::clear_for_new_document`] therefore ASSERTS the
-///   table's guarantee instead of depending on it silently — relaxing
-///   that row fails loudly there rather than leaving a drag pointed
-///   at a document that is gone.
+/// - [`DocSession::gesture`] is cleared by nothing, and must not be.
+///   The refusal runs the other way round: while a value drag is in
+///   flight the DOOR is refused — `Open` and `NewDocument` are two of
+///   the rows [`SessionOp::permitted_during_value_gesture`] says no
+///   to, checked once in [`DocSession::perform`] — and the drag is
+///   left untouched, because a gesture silently dissolved under the
+///   pointer is the half-acted state that refusal exists to prevent.
+///   A walk that cleared it would encode the opposite policy. The
+///   precondition is therefore ESTABLISHED at `perform`, before a
+///   door writes anything, which is also why neither door restates it
+///   and why nothing here re-checks it: a check inside this function
+///   could only fire with the session already half-replaced.
+///
+///   **The table governs VALUE gestures only.** The free-move drag
+///   [`DisplayState`] owns is a different value with a different
+///   owner, no door refuses either replacement while one is open, and
+///   the `display.clear()` below discards it with no refusal and no
+///   report. That is what the walk does today, not a policy this
+///   value decides: `work/view/free-move-drag-dissolved-by-open.md`.
 /// - `path` and `resolver` are facts about the backing FILE rather
 ///   than about the document, and are the part of the two doors that
 ///   genuinely differs: `Open` sets both, `NewDocument` clears both.
@@ -262,7 +271,11 @@ struct Derived {
     /// exist to prevent. That discard is at every submit
     /// ([`DocSession::request_eval`]) and so is STRICTER than this
     /// value's own reset: a commit or an undo drops the probe without
-    /// touching anything else here.
+    /// touching anything else here. Both doors therefore drop it
+    /// twice, once with this value and again at the submit each ends
+    /// with. The redundancy is deliberate — the walk names every
+    /// field it invalidates rather than leaving one of them to a route
+    /// a reader of the walk cannot see.
     bounds: Option<BoundsReading>,
 }
 
@@ -1288,18 +1301,21 @@ impl DocSession {
     /// because its revision counter must not go backwards
     /// ([`Derived`]'s own docs carry that and the other two
     /// exclusions).
+    ///
+    /// **Nothing is checked here, and that is the point.** Two things
+    /// hold on entry and neither is this function's to enforce: no
+    /// value gesture is open, because `perform` refused both doors
+    /// while one was (the table's guarantee, a different guarantee
+    /// from the one below), and `scratch` is already `None`, because a
+    /// preview never outlives the gesture that wrote it (`Derived`'s
+    /// own invariant, which is what makes clearing it below a no-op
+    /// rather than half a dissolved drag). A check placed here could
+    /// only fire after a caller had already written `history` and the
+    /// file-shaped fields, which is the half-replaced session the
+    /// refusal exists to prevent — so the precondition lives at
+    /// `perform`, where refusing costs a `Refusal` and nothing has
+    /// moved yet.
     fn clear_for_new_document(&mut self) {
-        // The mid-gesture table refuses both doors
-        // ([`SessionOp::permitted_during_value_gesture`]), so no drag
-        // can be open here and the preview cleared below is already
-        // absent. Asserted rather than assumed: a relaxed table would
-        // otherwise leave a gesture previewing against a document that
-        // no longer exists, silently, with nothing in either door
-        // naming the field.
-        assert!(
-            self.gesture.is_none() && self.derived.scratch.is_none(),
-            "a value gesture must be refused before the document under it is replaced"
-        );
         self.derived = Derived::none();
         self.display.clear();
     }
