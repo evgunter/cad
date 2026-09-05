@@ -642,7 +642,7 @@ area `kernel`; prefix `props/`; tag `(PROPS orchestrator)`; ab_band `2400-2499`.
 |---|---|---|---|---|---|
 | `certified-lane-non-real-contract-audit` | issue | open | Contract - what a certified enclosure lane owes when a value goes non-real (poison absorbs vs widens) |  |  |
 | `contribution-bounds-via-dual-interval` | issue | open | E5 contribution bounds from Dual<Interval> derivative enclosures (M10-4 deviation 3) |  |  |
-| `interval-orthonormal-basis-sign-hull` | issue | open | Vec3::orthonormal_basis returns a sign-hulled frame at Interval when n.z encloses zero |  |  |
+| `interval-orthonormal-basis-sign-hull` | issue | open | Vec3::orthonormal_basis returns a sign-hulled frame at Interval when n.z encloses zero |  | #1939 |
 | `k-stats-escalation-channel-and-redo` | issue | open | k_stats: an escalation channel beside the verdict log (and the redo that channel is already owed) |  |  |
 | `m6-sense-gate-recorded-residuals` | issue | open | M6-6 sense-gate residuals — the recorded classes outside the gate, with their flip conditions |  |  |
 | `rotation-about-diagonal-width-floor` | issue | open | Mat3::rotation_about's diagonal carries a width floor at exact angles (1 − cos plus cos's own enclosure), and Affine3 composition through MappedCurve::restrict grows it per split |  |  |
