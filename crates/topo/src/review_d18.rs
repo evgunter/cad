@@ -369,6 +369,77 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
 // C1 — the headline: neither new `unreachable!` is input-reachable.
 // =====================================================================
 
+/// The head this guard carves from. Ends on the `(` of the parameter
+/// list, which is where [`code_body`] starts counting brackets.
+const LINK_HALF_EDGES: &str = "pub(crate) fn link_half_edges(";
+
+/// The body of the item whose head is `head`, carved out of `source`
+/// **as code** — comments and literal bodies blanked by the shared
+/// lexer, and the region taken by bracket depth.
+///
+/// **The view and the carve are one decision.** Over a blanked view
+/// every bracket is a real bracket, so `balanced_end` is the whole
+/// parse; over raw text this was a search for `"\n    }\n"`, which
+/// ends the body at whichever line happens to be indented like a
+/// method's close — a `}` in a string or in commented-out code among
+/// them — and which cannot tell a live call from one that has been
+/// commented out.
+fn code_body(source: &str, head: &str) -> String {
+    assert!(head.ends_with('('), "a head ends on its parameter list");
+    let code = test_utils::source::code_only(source);
+    let at = code
+        .find(head)
+        .unwrap_or_else(|| panic!("`{head}` must still exist"));
+    let params = at + head.len() - 1;
+    let close = test_utils::source::balanced_end(&code, params).expect("a parameter list closes");
+    let brace = close + code[close..].find('{').expect("a function body");
+    let end = test_utils::source::balanced_end(&code, brace).expect("a body closes");
+    code[brace..=end].to_string()
+}
+
+/// **The carve reads the code, not the text**, so a call that has been
+/// commented out stops counting. That direction is the whole point of
+/// the guard below: over raw source the text of a commented-out
+/// `unreachable!` stays in the file, the count does not move, and the
+/// guard is green over exactly the change it exists to catch. The
+/// third assertion is that raw read, on the same fixture, not moving.
+#[test]
+fn a_commented_out_announcement_stops_counting() {
+    let live = "\
+impl Body {
+    pub(crate) fn link_half_edges(&mut self, a: Live, b: Live) {
+        let Some(he) = self.get_half_edge_mut(a.key()) else {
+            unreachable!(\"link_half_edges: `a`'s proof outlived its key\")
+        };
+        he.next = b.key();
+        let Some(he) = self.get_half_edge_mut(b.key()) else {
+            unreachable!(\"link_half_edges: `b`'s proof outlived its key\")
+        };
+    }
+}
+";
+    assert_eq!(
+        code_body(live, LINK_HALF_EDGES)
+            .matches("unreachable!")
+            .count(),
+        2,
+        "the clean fixture must carve both announcements"
+    );
+    let planted = live.replacen("unreachable!", "// unreachable!", 1);
+    assert_eq!(
+        code_body(&planted, LINK_HALF_EDGES)
+            .matches("unreachable!")
+            .count(),
+        1,
+        "commenting an announcement out must MOVE the count"
+    );
+    assert_eq!(
+        planted.matches("unreachable!").count(),
+        2,
+        "the raw text does not move, which is why the carve is over the code view"
+    );
+}
+
 /// Pins the SHAPE the sweep below assumes, which is the one way that
 /// sweep could go quietly vacuous: if `link_half_edges` ever went back
 /// to discarding a failed lookup, a torn-body hammer would report green
@@ -378,12 +449,7 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
 fn link_half_edges_still_announces_rather_than_discards() {
     let source = std::fs::read_to_string(crate::source_walk::src_root().join("euler.rs"))
         .expect("euler.rs must be readable");
-    let at = source
-        .find("pub(crate) fn link_half_edges(")
-        .expect("link_half_edges must still exist");
-    let body = &source[at..];
-    let end = body.find("\n    }\n").expect("a function body");
-    let body = &body[..end];
+    let body = code_body(&source, LINK_HALF_EDGES);
     assert_eq!(
         body.matches("unreachable!").count(),
         2,

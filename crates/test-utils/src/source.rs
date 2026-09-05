@@ -819,13 +819,21 @@ mod tests {
     ];
 
     /// Genuine code reads of `eps`, which no view of the code may lose.
-    const CODE_READS: [&str; 6] = [
+    ///
+    /// The last two are the pair a LINE-PREFIX comment test cannot
+    /// read: code that FOLLOWS a blanked region on the same line, and
+    /// a double-quote CHAR literal, which a naive quote scanner takes
+    /// for an opening string and which then blanks every read after
+    /// it to the next quote.
+    const CODE_READS: [&str; 8] = [
         "gap * lever < eps",
         "let eps = tol.eps();",
         "f(a, b, eps)",
         "struct T<'a> { eps: &'a f64 }",
         "let c = 'e'; let d = eps;",
         "let c = b'e'; let d = eps;",
+        "/* a block */ let d = eps;",
+        "if line.contains('\"') { let d = eps; }",
     ];
 
     /// S13's ratified shape for a text-matching guard: **a clean

@@ -7,21 +7,21 @@
 //! module's subject is canonical well-formed bodies, this one's is a
 //! Rust reader, and one header cannot describe both.
 //!
-//! # One lexer, for this walk
+//! # One lexer, and it is not in this crate
 //!
-//! [`CodeOnly`] is the only thing **in this module** that knows Rust's
-//! lexical grammar, and the only reader the mutation-door walk uses.
-//! It is **not** the only one in the crate: [`crate::fixtures`] has a
-//! `code_only` of its own, serving `face_normal`'s re-fork guard, whose
-//! own docs record that it does not model raw strings. Two readers of
-//! different competence in one crate is S117/D61's subject, and the
-//! two arrived in the same merge — this module does not get to claim
-//! otherwise. Everything else — the item scan, the mutation-door walk,
-//! every consumer's search — runs over its output, in which every
-//! comment, string literal and char literal has been blanked to
-//! spaces with byte positions preserved. That is a structural rule,
-//! not a convention: [`CodeOnly::public_fns`] is a method, so there is
-//! no way to run the item scan over un-blanked text.
+//! Nothing here knows Rust's lexical grammar. The reader is
+//! `test_utils::source::code_only` — the repository's one home for
+//! *is this text code*, with the raw-string, nested-block-comment and
+//! lifetime-versus-char cases modelled and a red row per construct.
+//! [`CodeOnly`] is this walk's HANDLE on that view, not a second
+//! reader: everything else — the item scan, the mutation-door walk,
+//! every consumer's search — runs over blanked text, in which every
+//! comment, string literal and char literal is spaces with byte
+//! positions preserved. That is a structural rule, not a convention:
+//! [`CodeOnly::public_fns`] is a method, so there is no way to run the
+//! item scan over un-blanked text, and no way to hand one of the
+//! bracket walks below a view that would make its depth count a
+//! guess.
 //!
 //! # Why text and not a parser
 //!
@@ -57,38 +57,21 @@
 /// `cargo test` (where the baked-in `CARGO_MANIFEST_DIR` is the tree
 /// that is here) and a nextest ARCHIVE replayed on a different runner
 /// (where that absolute path need not exist, but `--workspace-remap`
-/// has pointed the per-test cwd at the crate root).
+/// has pointed the per-test cwd at the crate root). Both ways are
+/// `test_utils::source::crate_dir`'s answer, which is where that
+/// six-line fallback and its paragraph live for the whole tree.
 pub(crate) fn src_root() -> std::path::PathBuf {
-    let baked = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    if baked.is_dir() {
-        return baked;
-    }
-    let cwd = std::env::current_dir()
-        .expect("a working directory")
-        .join("src");
-    assert!(cwd.is_dir(), "neither {baked:?} nor {cwd:?} is topo's src/");
-    cwd
+    test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src")
 }
 
-/// Every `.rs` file under `dir`, recursively.
-pub(crate) fn collect_rs(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
-    for entry in std::fs::read_dir(dir).expect("a readable source directory") {
-        let path = entry.expect("a readable directory entry").path();
-        if path.is_dir() {
-            collect_rs(&path, out);
-        } else if path.extension().is_some_and(|e| e == "rs") {
-            out.push(path);
-        }
-    }
-}
-
-/// Every `.rs` file under this crate's `src/`, with the walk's own
-/// sanity check: a broken or empty walk would otherwise let every
-/// guard built on it pass by finding nothing.
+/// Every `.rs` file under this crate's `src/`, with the floor this
+/// crate's own guards need on top of the shared walk's: `topo/src` is
+/// a large tree with a `lib.rs`, so a walk that reads some OTHER
+/// directory successfully is still not the one every guard here
+/// believes it is asking for.
 pub(crate) fn crate_sources() -> Vec<std::path::PathBuf> {
     let src = src_root();
-    let mut files = Vec::new();
-    collect_rs(&src, &mut files);
+    let files = test_utils::source::rust_sources(&src);
     assert!(
         files.len() > 20 && files.iter().any(|f| f.ends_with("lib.rs")),
         "the walk of {src:?} found {} file(s) and no lib.rs — it is not reading topo/src",
@@ -97,45 +80,21 @@ pub(crate) fn crate_sources() -> Vec<std::path::PathBuf> {
     files
 }
 
-/// Rust source with every comment, string literal and char literal
-/// blanked to spaces. Byte length and line structure are preserved,
-/// and each input byte is either copied or blanked, so a multi-byte
-/// character is never half-erased.
+/// One file of this crate's source, as CODE: every comment, string
+/// literal and char literal blanked to spaces by the shared lexer,
+/// with byte length and line structure preserved.
 ///
-/// **The only lexer this walk uses**, by construction: the item scan
-/// is [`Self::public_fns`], a method, so nothing can run it over raw
-/// text. See the module docs for why that is a rule — and for the
-/// second reader in [`crate::fixtures`], which this one does not
-/// replace and which S117/D61 owns.
+/// **A handle on that view, not a reader.** [`Self::of`] is the only
+/// door and it calls `test_utils::source::code_only`, where the
+/// constructs a needle can hide in — nested block comments, every
+/// string prefix, a lifetime that is not an opening quote — are
+/// modelled and pinned. The type exists for the structural rule the
+/// module docs state: the item scan is [`Self::public_fns`], a
+/// method, so nothing in this walk can read raw text, and the bracket
+/// walks below can assume every bracket they see is a real one.
 ///
-/// Handled: line comments; block comments, which nest in Rust; string
-/// literals plain, raw, byte and C-string (`"…"`, `r#"…"#`, `b"…"`,
-/// `br#"…"#`, `c"…"`, `cr#"…"#`); and char literals, including `'"'`
-/// and `'\''`, which a naive scanner reads as opening a string.
-/// Lifetimes are left alone. Every one of those has a row in
-/// [`self::tests`] that reds if it stops being handled.
-///
-/// # The proof, and how to re-run it
-///
-/// The rows in [`self::tests`] are examples. The *proof* is a
-/// differential against **rustc's own lexer**, and it is cheap to
-/// reproduce: generate Rust snippets that plant a call to an undefined
-/// function — `NEEDLE()` — inside every construct in the list above,
-/// compile each one, and take rustc's `E0425 cannot find function
-/// NEEDLE` as ground truth for *"this text is code"*. Agreement with
-/// [`Self::of`] is then mechanical in both directions: a snippet rustc
-/// resolves and the blanker erases is an over-strip, one rustc ignores
-/// and the blanker keeps is the finding S92 was about.
-///
-/// Run against **2,021 generated snippets and 70 hand-built cases at
-/// rustc 1.97.0: agreement everywhere, 0 silent and 0 loud.** Written
-/// down here rather than left in a report because *"I did not prove it
-/// against a grammar"* was this reader's standing caveat, and the
-/// answer is a method someone can re-run rather than an argument
-/// someone has to re-make.
-///
-/// **Two gaps the method also measured, both real and both dormant.**
-/// The blanker does not expand macros, so a `pub fn` inside a
+/// **Two gaps the view does not close, both real and both dormant.**
+/// Blanking does not expand macros, so a `pub fn` inside a
 /// `macro_rules!` body is counted as an item and one inside an
 /// `include!`d file is not seen at all. In `topo/src` today there are
 /// two `macro_rules!`, neither containing a `pub fn`, and no
@@ -145,138 +104,14 @@ pub(crate) struct CodeOnly(String);
 impl CodeOnly {
     /// Blank `text`'s comments and literals.
     pub(crate) fn of(text: &str) -> Self {
-        let b = text.as_bytes();
-        let mut out: Vec<u8> = Vec::with_capacity(b.len());
-        let mut i = 0usize;
-        // Blank `n` bytes from `i`, preserving newlines.
-        macro_rules! blank {
-            ($n:expr) => {{
-                let end = (i + $n).min(b.len());
-                out.extend(
-                    b[i..end]
-                        .iter()
-                        .map(|c| if *c == b'\n' { b'\n' } else { b' ' }),
-                );
-                i = end;
-            }};
-        }
-        while i < b.len() {
-            if let Some((open, hashes)) = raw_string_open(b, i) {
-                // The prefix and opening quote are code; the content
-                // and closing delimiter are not.
-                let head = (i + open).min(b.len());
-                out.extend_from_slice(&b[i..head]);
-                i = head;
-                let mut j = i;
-                let close = loop {
-                    if j >= b.len() {
-                        break b.len();
-                    }
-                    if b[j] == b'"' && b[j + 1..].iter().take(hashes).all(|c| *c == b'#') {
-                        break (j + 1 + hashes).min(b.len());
-                    }
-                    j += 1;
-                };
-                blank!(close - i);
-                continue;
-            }
-            match b[i] {
-                b'/' if b.get(i + 1) == Some(&b'/') => {
-                    let end = text[i..].find('\n').map_or(b.len(), |r| i + r);
-                    blank!(end - i);
-                }
-                b'/' if b.get(i + 1) == Some(&b'*') => {
-                    let (mut depth, mut j) = (1usize, i + 2);
-                    while j < b.len() && depth > 0 {
-                        if b[j] == b'/' && b.get(j + 1) == Some(&b'*') {
-                            depth += 1;
-                            j += 2;
-                        } else if b[j] == b'*' && b.get(j + 1) == Some(&b'/') {
-                            depth -= 1;
-                            j += 2;
-                        } else {
-                            j += 1;
-                        }
-                    }
-                    blank!(j - i);
-                }
-                b'"' => {
-                    let mut j = i + 1;
-                    while j < b.len() && b[j] != b'"' {
-                        j += usize::from(b[j] == b'\\') + 1;
-                    }
-                    blank!((j + 1).min(b.len()) - i);
-                }
-                b'\'' if char_literal_len(b, i).is_some() => {
-                    let n = char_literal_len(b, i).expect("just matched");
-                    blank!(n);
-                }
-                c => {
-                    out.push(c);
-                    i += 1;
-                }
-            }
-        }
-        Self(String::from_utf8(out).expect("blanking never splits a character"))
+        Self(test_utils::source::code_only(text))
     }
 
     /// The blanked text.
     pub(crate) fn as_str(&self) -> &str {
         &self.0
     }
-}
 
-/// The `(prefix length up to and including the opening quote, `#`
-/// count)` of the raw-string literal opening at `i` — `r"`, `r#"`,
-/// `br"`, `cr#"` and so on — or `None` when `i` does not open one.
-///
-/// The byte and C-string prefixes are here rather than falling through
-/// to the plain-string arm because that arm honours `\` escapes, which
-/// a raw string does not have: `br"x\"` would be read as an unclosed
-/// string and blank the rest of the file.
-fn raw_string_open(b: &[u8], i: usize) -> Option<(usize, usize)> {
-    // The prefix must start a token.
-    if i > 0 && (b[i - 1].is_ascii_alphanumeric() || b[i - 1] == b'_') {
-        return None;
-    }
-    let mut j = i;
-    if matches!(b.get(j), Some(b'b' | b'c')) {
-        j += 1;
-    }
-    if b.get(j) != Some(&b'r') {
-        return None;
-    }
-    j += 1;
-    let mut h = 0usize;
-    while b.get(j + h) == Some(&b'#') {
-        h += 1;
-    }
-    (b.get(j + h) == Some(&b'"')).then_some((j + h + 1 - i, h))
-}
-
-/// The byte length of the char literal at `i`, or `None` when the
-/// quote opens a lifetime instead.
-fn char_literal_len(b: &[u8], i: usize) -> Option<usize> {
-    if b.get(i + 1) == Some(&b'\\') {
-        // `'\n'`, `'\''`, `'\\'`, `'\u{1F600}'`. The scan starts AT the
-        // backslash, so the escape skip applies to it — starting one
-        // byte later reads `'\''` as ending early and `'\\'` as
-        // unterminated.
-        let mut j = i + 1;
-        while j < b.len() && b[j] != b'\'' {
-            j += usize::from(b[j] == b'\\') + 1;
-        }
-        return (j < b.len()).then_some(j + 1 - i);
-    }
-    // One character, then a closing quote. A multi-byte char is one
-    // char and several bytes, so step by the character's own width.
-    let rest = std::str::from_utf8(b.get(i + 1..)?).ok()?;
-    let c = rest.chars().next()?;
-    let w = c.len_utf8();
-    (b.get(i + 1 + w) == Some(&b'\'')).then_some(w + 2)
-}
-
-impl CodeOnly {
     /// Every `pub fn` item in this file, as `(name, parameter list,
     /// body)` — all three slices of the blanked text.
     ///
@@ -387,8 +222,9 @@ fn bodiless_declaration(b: &[u8], at: usize) -> bool {
 /// moving at all. **The depth counting in [`body_start`] handles the
 /// constructs someone thought of; this panic is what makes the next
 /// one visible.** If you are here because a legitimate signature does
-/// not parse, the fix is to teach the reader that construct and add a
-/// row to [`self::tests`] — not to make this a `continue`.
+/// not parse, the fix is to teach the item scan that construct and
+/// add a row to this module's `tests` — not to make this a
+/// `continue`.
 fn gave_up(code: &str, kw: usize) -> ! {
     let line = code[..kw].bytes().filter(|c| *c == b'\n').count() + 1;
     let snippet: String = code[kw..].chars().take(80).collect();
