@@ -5,7 +5,7 @@ title: ChartRegionLane's contract — is the census's minus-one-arm completeness
 status: open
 opened: 2026-09-04
 needs_ev: true
-refs: [CERT-M3, H5]
+refs: [H5, 1877, 1878]
 ---
 
 
