@@ -2,9 +2,10 @@
 id: chart-region-lane-contract
 kind: ruling
 title: ChartRegionLane's contract — is the census's minus-one-arm completeness sentence one Ev will have in the tree?
-status: deferred
+status: closed
 opened: 2026-09-04
 refs: [H5, 1877, 1878]
+closed: 2026-09-05
 ---
 
 
@@ -88,7 +89,7 @@ answer is **defer**. `ChartRegionLane` stays unsplit; the completeness
 sentence above is NOT written into the tree; the split waits on the C9
 exclusion ring's first step (`CONTACT-DESIGN` C2 step 1), after which the
 question is re-asked against a census whose remaining arms can be shown
-complete. This item is `deferred` under `work/README.md`'s rule — ratified
-as not-now, this comment thread the citation, nothing it waits on that
-lint could see — and `H5` carries the pointer. Nothing in code moved for
+complete. A ruling is `open` or `closed` (`work/README.md`), so this item CLOSES
+with the answer DEFER; the not-now itself is carried by `H5` (kind unit),
+which names the exclusion ring as the trigger. Nothing in code moved for
 this ruling.
