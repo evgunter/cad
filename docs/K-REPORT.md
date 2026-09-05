@@ -153,9 +153,9 @@ gathered across M2's full pipeline.
   k-lint unification stopped being sampled on 2026-09-04 (`KLINT_ROWS`,
   `scripts/ci-filter.py`). From 2026-08-22 to that day the row was drawn
   1 in 5 and a `tools/` change pinned `dev-default` instead, so a merge
-  could go green without gating this row at all; the trailer that used
-  to ask for it by name — `CI-Config: klint=dev-probe` — now REDS the
-  classify step, because a trailer may only add. And
+  could go green without gating this row at all; the commit trailer that
+  used to ask for it by name was deleted on 2026-09-04, once every run
+  gated every row and it had nothing left to ask for. And
   `tools/k-lint` lints **that fresh sweep** against constants
   pinned in `tools/k-lint/src/lib.rs` (`BASELINE_FLOOR_MARGIN = 4.0e-5`
   and the rule set). Nothing under `docs/k-report-data/` is opened at

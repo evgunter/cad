@@ -2,8 +2,9 @@
 id: aq8-skip-half-is-cited-as-ratified-and-is-not
 kind: issue
 title: AQ8's (b)-SKIP half is cited as ratified across the tree and lives only in a test comment and a commit message
-status: open
+status: closed
 opened: 2026-09-04
+closed: 2026-09-05
 ---
 
 
@@ -61,3 +62,15 @@ this filing's to make.
 `work/issues/` — the sites span `editor-core` and the doc is shared;
 S-MATE's charter covers the assembly design and would be the natural
 claimant.
+
+## Closed (MSOLVE orchestrator, 2026-09-05)
+
+The SKIP half was already ratified: Ev's 👍 on the addendum comment of
+PR 592 (2026-08-17, "👍 on THIS comment ratifies option (b)") is the
+ratification, and the ASM orchestrator's reply on that thread records
+it. What was missing was the doc home. Carried into
+`crates/editor-core/ASSEMBLY.md`'s AQ8 clause with its condition
+(a record for a mate that never solved is trusted-at-rest state), and
+the citations that said "not in `ASSEMBLY.md`" re-pointed: the two
+test headers here, the two in `mate/solve.rs` and `refactor.rs` on
+MSOLVE-1's branch, which rewrites both sites.

@@ -17,6 +17,7 @@ the one channel to Ev (below).
 work/
   README.md            this contract
   STATUS.md            GENERATED on main by CI — never hand-edited
+  issues/README.md     this directory's signpost (unparsed)
   issues/<name>.md     issues no program owns yet (kind: issue)
   <program>/
     program.md         the program: charter, prefix, band, territory
@@ -130,6 +131,13 @@ only closed items.
   therefore not scheduling it — **give it its own file at the moment
   you disclose it**, on this program's slate or in `work/issues/`, and
   let the Closed section point at that file.
+- **`work/issues/` is for issues with no home yet, not a waiting room.**
+  When the owning program is clear, file the item straight onto that
+  program's slate — a lane does not need the owner's permission to put
+  a finding where it belongs, and routing it through `issues/` only
+  delays the owner seeing it. `issues/` is for the genuine case: a
+  finding whose owner is undecided or disputed. Claiming one MOVES the
+  file (header edit and `git mv`), never copies it. (Ev, 2026-09-04.)
 - **A rides-along is its own file** with `rides_with:` naming its
   carrier. Closing the carrier does not close the passenger; lint
   refuses a live passenger on a closed carrier.

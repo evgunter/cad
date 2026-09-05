@@ -123,12 +123,17 @@ pub use blend::{BlendError, BlendEvent, BlendKindChoice, BlendTarget, BlendTool,
 pub use camera::{Camera, CameraError, CameraOp, CameraOpError};
 pub use datums::{DatumDraw, DatumKind};
 pub use docio::DocIoError;
-pub use evalseam::{EvalDone, EvalRequest, EvalService, Generation, InlineEvaluator};
+pub use evalseam::{
+    EvalDone, EvalRequest, EvalService, Generation, IndexDone, IndexRequest, IndexService,
+    InlineEvaluator, InlineIndexer,
+};
 // The two seam lanes are meant to be interchangeable, so they are named
 // the same way. `ThreadEvaluator` carries the `cfg` its module does.
-pub use display::{DisplayFault, DisplayState, DisplayView, free_move_check, mates_naming};
+pub use display::{
+    DisplayFault, DisplayState, DisplayView, PruneReport, Withdrawn, free_move_check, mates_naming,
+};
 #[cfg(not(target_family = "wasm"))]
-pub use evalseam::{SpawnError, ThreadEvaluator};
+pub use evalseam::{SpawnError, ThreadEvaluator, ThreadIndexer, Worker};
 pub use history::{History, HistoryId};
 pub use input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
 pub use matetool::{
@@ -138,8 +143,8 @@ pub use matetool::{
 pub use parts::{PartChooser, PartEntry};
 pub use pick::{
     EDGE_PICK_RADIUS_PX, EdgeId, EdgeNameFault, EdgeOverlay, EdgePick, Highlight, IdMap,
-    IdMapError, PatchId, PickError, PickIndex, PickIndexError, PickKinds, cursor_projection,
-    edge_id_segments, edge_overlay, edge_segments, highlight,
+    IdMapError, NotIndexed, PatchId, PickError, PickIndex, PickIndexError, PickKinds,
+    cursor_projection, edge_id_segments, edge_overlay, edge_segments, highlight, unindexed,
 };
 pub use prefs::{Notice, Prefs, PrefsError, PrefsStore, StoreError};
 pub use props::{SlotDriver, SlotFault, SlotRow, SlotValue};

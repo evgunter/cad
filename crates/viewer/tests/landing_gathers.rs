@@ -1,13 +1,15 @@
 //! **One gather per landing**, and the landing's observables around it.
 //!
-//! `DocSession::land` has three consumers of the document's product —
-//! the product's own verdict, the advisory registry, and the A5 badge —
-//! and each used to derive it for itself. What replaced that is an
-//! ORDER (fault, registry, badge) in which one gather is enough,
-//! because only the last of the three consumes the product. An order is
-//! not a thing a reader can see holding, so it is counted: the gather
-//! carries a debug-only counter and these rows read the DIFFERENCE
-//! across one `land`.
+//! `DocSession::land` has four consumers of the document's product —
+//! the product's own verdict, the advisory registry, the A5 badge, and
+//! the session itself, which KEEPS the body for the display fit — and
+//! each of the first three used to derive it for itself. What replaced
+//! that is an ORDER (fault, registry, badge) in which one gather is
+//! enough, because only the badge consumes the product; the fourth
+//! consumer takes what the badge did not eat. An order is not a thing
+//! a reader can see holding, so it is counted: the gather carries a
+//! debug-only counter and these rows read the DIFFERENCE across one
+//! `land`, or across a read that must not gather at all.
 //!
 //! The counter is `cfg(debug_assertions)` and so is this suite, so
 //! these rows are evidence only where assertions are on. That is every
@@ -29,8 +31,9 @@ use pncad::document::{
     Dimension, Doc, Expr, Node, ProductError, ProfileProgram, gathers_on_this_thread,
 };
 use pncad::geom_core::Tol;
+use pncad::select::ContactClass;
 use viewer::evalseam::EvalDone;
-use viewer::session::{AtRestBadge, DocSession, Landing};
+use viewer::session::{AtRestBadge, DocSession, Landing, SessionOp};
 
 /// Re-land the result a session already holds, and answer how many
 /// times the gather ran while it did.
@@ -94,6 +97,123 @@ fn an_assembly_shaped_document_lands_on_one_gather() {
         matches!(session.at_rest(), Some(AtRestBadge::Certified { .. })),
         "and the A5 badge is taken: {:?}",
         session.at_rest()
+    );
+}
+
+/// **The landing's body is handed on, not gathered again**, on a part
+/// document — the path with no A5 gate to give it away.
+///
+/// Delete `land`'s `Some(Arc::new(product.body))` and this row goes
+/// red on the `expect`, where the certified-assembly row below stays
+/// green; make `DocSession::landed_body` gather instead of borrow and
+/// it goes red on the count while the assembly row's count also
+/// moves.
+#[test]
+fn a_part_documents_body_is_borrowed_from_its_landing() {
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    assert_eq!(session.pump(), vec![Landing::Landed]);
+
+    let before = gathers_on_this_thread();
+    let solids = session
+        .landed_body()
+        .expect("a part document's landing keeps its body")
+        .solids()
+        .count();
+    assert_eq!(
+        gathers_on_this_thread() - before,
+        0,
+        "the landing's own gather is the only one"
+    );
+    assert!(solids > 0, "and it is the drawable body");
+}
+
+/// **A certified assembly hands its body back too.** The A5 gate
+/// consumes the product it judges, and a certification returns the
+/// same aggregate on its `Assembly` — so the one path that could have
+/// lost the body to the gate does not.
+///
+/// Take the body from `badge`'s `Ok` arm and return `None` there and
+/// this row goes red where the part-document row above stays green:
+/// the two differ in exactly the gate, which is the claim.
+#[test]
+fn a_certified_assembly_keeps_the_body_the_gate_was_given() {
+    let tol = Tol::witness();
+    let bench = common::asm::bench("landed-body-assembly", tol);
+    let session = common::asm::open_bench(&bench, tol);
+    assert!(
+        matches!(session.at_rest(), Some(AtRestBadge::Certified { .. })),
+        "this row's premise is a certified gate: {:?}",
+        session.at_rest()
+    );
+
+    let before = gathers_on_this_thread();
+    assert!(session.landed_body().is_some(), "the aggregate is kept");
+    assert_eq!(
+        gathers_on_this_thread() - before,
+        0,
+        "the gate handed it back rather than eating it"
+    );
+}
+
+/// **A REFUSED A5 gate is the one landing that keeps no body**, and it
+/// is not the same `None` as a refused gather: the product gathered
+/// fine, and the gate ate it in refusing.
+///
+/// This is the path `scene::product_of_evaluation` exists for. Make
+/// `badge` hand the body back on its `Err` arm — by cloning before the
+/// gate, the trade `LandedRun::body` rejects — and this row goes red on
+/// the `is_none`, alone among the three.
+#[test]
+fn a_refused_a5_gate_eats_the_body_and_says_so_by_its_absence() {
+    let tol = Tol::witness();
+    let bench = common::asm::bench("landed-body-refused-gate", tol);
+    let mut session = common::asm::open_bench(&bench, tol);
+    session.perform(SessionOp::AddMate {
+        a: common::asm::in_part(bench.post_b, &bench.post_top),
+        b: common::asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        class: ContactClass::Tangent,
+        alignment: common::asm::seat_alignment(common::asm::SHELF_LENGTH / 2.0, None),
+    });
+    session.pump();
+    assert!(
+        matches!(session.at_rest(), Some(AtRestBadge::Refused { .. })),
+        "this row's premise is a refused gate: {:?}",
+        session.at_rest()
+    );
+
+    assert!(
+        session.product_fault().is_none(),
+        "the GATHER succeeded — this is not the refused-gather case"
+    );
+    assert!(
+        session.landed_body().is_none(),
+        "and the body went into the gate that refused"
+    );
+}
+
+/// **A gather refusal has no body to hand out, and asking does not
+/// re-run the refusal.** `None` here means the pair has no product at
+/// all, which is what `product_fault` is already saying — the other
+/// `None` from the row above.
+///
+/// Make `landed_body` gather when the field is empty and this row goes
+/// red on the count, where every other row in this file stays green.
+#[test]
+fn a_refused_gather_hands_out_no_body_and_gathers_nothing() {
+    let tol = Tol::witness();
+    let (doc, _extrude, _transform) = common::broken_document(tol);
+    let mut session = DocSession::inline(doc, tol);
+    assert_eq!(session.pump(), vec![Landing::Landed]);
+    assert!(session.product_fault().is_some(), "the gather refuses");
+
+    let before = gathers_on_this_thread();
+    assert!(session.landed_body().is_none());
+    assert_eq!(
+        gathers_on_this_thread() - before,
+        0,
+        "a refusal is not re-derived by asking for its body"
     );
 }
 
@@ -228,9 +348,18 @@ fn a_document_with_no_body_lands_a_clean_report() {
 ///
 /// The behavioural half — that the counter counts what it claims to —
 /// is the rows above, which read it across a real landing.
+///
+/// The read goes through the shared reader's CODE view
+/// ([`test_utils::source::code_only`]): every anchor below is a code
+/// fragment — an attribute above the item it gates — and the count
+/// beside them is a count of SITES, so a mention of the cell in a
+/// comment must not answer for one and must not inflate the total.
+/// The view keeps every code byte at its own offset, so the three
+/// anchors and the count are exactly what the raw text offered. This
+/// site's ledger row is in `crates/test-utils/tests/reader_census.rs`.
 #[test]
 fn every_site_of_the_gather_counter_carries_the_debug_gate() {
-    let source = include_str!("../../editor-core/src/product.rs");
+    let source = test_utils::source::code_only(include_str!("../../editor-core/src/product.rs"));
     let gated = [
         "#[cfg(debug_assertions)]\nthread_local! {\n    static GATHERS",
         "#[cfg(debug_assertions)]\n    GATHERS.with(",

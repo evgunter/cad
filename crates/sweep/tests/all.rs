@@ -338,6 +338,8 @@ mod ring_r1_probes;
 mod s16_box_soundness;
 #[path = "s49_census_jurisdiction.rs"]
 mod s49_census_jurisdiction;
+#[path = "seat6_germ_channel.rs"]
+mod seat6_germ_channel;
 #[path = "turning_orientation.rs"]
 mod turning_orientation;
 #[path = "verbs_1031b_arcwind.rs"]
@@ -350,7 +352,6 @@ mod verbs_arms1_r1_probes;
 mod verbs_arms2_arms;
 #[path = "verbs_arms2_bud.rs"]
 mod verbs_arms2_bud;
-
 #[path = "verbs_arms3.rs"]
 mod verbs_arms3;
 #[path = "verbs_chamfer.rs"]
@@ -476,6 +477,14 @@ mod tcost_k3_certificate;
 mod fillet_h4_concave_rim;
 #[path = "fillet_h4_concave_rim_interval.rs"]
 mod fillet_h4_concave_rim_interval;
+#[path = "fillet_h5_hostless_rim.rs"]
+mod fillet_h5_hostless_rim;
+#[path = "fillet_h5_hostless_rim_interval.rs"]
+mod fillet_h5_hostless_rim_interval;
+#[path = "fillet_h5_r2_probes.rs"]
+mod fillet_h5_r2_probes;
+#[path = "review_fillet_h5_r1_probes.rs"]
+mod review_fillet_h5_r1_probes;
 
 #[path = "blend_recourse_followability.rs"]
 mod blend_recourse_followability;
@@ -488,3 +497,35 @@ mod review_h4_r1_probes;
 
 #[path = "fillet_h4_r2_probes.rs"]
 mod fillet_h4_r2_probes;
+#[path = "rim_of_rows.rs"]
+mod rim_of_rows;
+
+#[path = "rim_of_rows_interval.rs"]
+mod rim_of_rows_interval;
+
+#[path = "rim_of_r1_probes.rs"]
+mod rim_of_r1_probes;
+
+#[path = "rim_of_r1_probes_interval.rs"]
+mod rim_of_r1_probes_interval;
+
+#[path = "r2_rim_interval_probes.rs"]
+mod r2_rim_interval_probes;
+
+#[path = "n3r1_d31.rs"]
+mod n3r1_d31;
+#[path = "n3r1_prune.rs"]
+mod n3r1_prune;
+#[path = "n3r2_d31_bitid.rs"]
+mod n3r2_d31_bitid;
+#[path = "r2_rim_corpus_probes.rs"]
+mod r2_rim_corpus_probes;
+
+#[path = "fillet_h6_cap_rim.rs"]
+mod fillet_h6_cap_rim;
+
+#[path = "review_fillet_h6_r1_probes.rs"]
+mod review_fillet_h6_r1_probes;
+
+#[path = "review_fillet_h6_r2_probes.rs"]
+mod review_fillet_h6_r2_probes;
