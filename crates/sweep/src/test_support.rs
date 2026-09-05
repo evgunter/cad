@@ -197,40 +197,91 @@ pub fn closed_plane_sphere_rim(body: &Body<f64>, rim_r: f64) -> EdgeKey {
         1,
         "exactly one closed plane–sphere rim of radius {rim_r}"
     );
-    hits[0]
+    one_edge_rim(body, hits[0])
+}
+
+/// **The one-edge rim `seed` belongs to, through the kernel door.**
+///
+/// The fixture-side spelling for a body whose latitude rims are single
+/// closed edges: a suite names the arc it means by whatever analytic
+/// handle its fixture states — radius, station, support kinds — and
+/// this asks [`topo::query::rim_of`] whether that arc IS the rim,
+/// rather than assuming it. Returns the door's answer, so the key a
+/// row blends is the key the door named.
+///
+/// # Panics
+///
+/// If the door refuses, or answers with more than one arc: either is a
+/// statement about the fixture, and a fixture that stopped minting a
+/// one-edge rim should say so loudly rather than blend a different set.
+#[must_use]
+pub fn one_edge_rim(body: &Body<f64>, seed: EdgeKey) -> EdgeKey {
+    let rim = topo::query::rim_of(body, seed)
+        .unwrap_or_else(|e| panic!("the selected arc is a whole rim, got {e}"));
+    match rim[..] {
+        [only] => only,
+        ref many => panic!("this fixture's rim is one closed edge, got {many:?}"),
+    }
 }
 
 /// **Every arc of the latitude rim at radius `rim_r` and station
-/// `rim_y`**, in key order — the selector four suites had each
-/// hand-rolled a copy of.
+/// `rim_y`** — a FIXTURE SELECTION that names one of the rim's arcs,
+/// and the kernel door that hands back the rest.
 ///
 /// A rim a chart seam has SPLIT is several edges, and the fillet verbs
 /// take exactly its set: adding one edge more refuses `TangentialEdge`
-/// at margin zero, one edge fewer stops at a seam vertex. So the scan
-/// has two halves and the second is the one that is easy to omit:
+/// at margin zero, one edge fewer stops at a seam vertex. Producing
+/// that set is [`topo::query::rim_of`]'s job and not a fixture's, so
+/// this scan does the half only a fixture can do — find the arc the
+/// suite means, by the radius and station it stated analytically — and
+/// asks the door for the rim whole.
 ///
-/// 1. circular carriers on the given radius and centre station, and
-/// 2. **only those whose two supports are DIFFERENT surfaces**. A
-///    sphere's seam meridian is a great circle that can share a rim's
-///    radius and centre exactly, so a radius scan alone returns the
-///    chart seams too — and a request carrying one of those refuses on
-///    the co-surface tangency before any rim door is reached.
+/// The scan still reads the co-surface exclusion, because it is
+/// choosing a SEED: a sphere's seam meridian is a great circle that can
+/// share a rim's radius and centre exactly, and seeding the door with
+/// one refuses `CoSurface` rather than naming the rim beside it.
 ///
 /// Comparison is against a fixed `1e-9`: fixtures state their rims
 /// analytically, so this is a fixture-selection tolerance and not a
-/// kernel predicate. There is no PUBLIC door for this yet (the kernel
-/// offers no "give me this rim's arcs" selector; that gap is
-/// evgunter/cad issue 1246, filed on two independent consumer reports),
-/// which is exactly why the test-side copy is homed here rather than
-/// left in four suites.
+/// kernel predicate. The door it feeds carries no tolerance at all.
 ///
 /// Generic over the scalar so the interval lane selects its rims through
 /// the same door: the comparison reads both bounds of the stored
 /// enclosure, which at `f64` is the value itself. The bound is the SOLE
 /// `Bounds` the scope rule allows a driver to write (`Real` comes with
 /// it); nothing here decides — a fixture selector reads.
+///
+/// # Panics
+///
+/// If the door refuses the arc this scan chose. Every refusal is a
+/// statement about the FIXTURE (its rim is open, its arcs are not one
+/// rim), so it is louder as a panic here than as an empty answer.
+/// A radius and station no arc sits at stays an empty answer, which is
+/// what a suite asserting a rim's absence means by it.
 #[must_use]
 pub fn rim_arcs_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<EdgeKey> {
+    match arcs_at(body, rim_r, rim_y).first() {
+        None => Vec::new(),
+        Some(seed) => topo::query::rim_of(body, *seed).unwrap_or_else(|e| {
+            panic!("the rim at radius {rim_r}, station {rim_y} is one rim, got {e}")
+        }),
+    }
+}
+
+/// **The circle edges at radius `rim_r` and station `rim_y` whose two
+/// supports are different surfaces**, in key order — the raw scan, and
+/// deliberately NOT a rim.
+///
+/// [`rim_arcs_at`] seeds the rim door from this, and one suite wants
+/// the scan itself: a PARTIALLY revolved body's equator is a set of
+/// open arcs on one circle that no rim door will hand back, because
+/// they are not one. Selecting them is a fixture's job; what the door
+/// says about them is the row's subject.
+///
+/// The `1e-9` and the sole [`Bounds`] bound are [`rim_arcs_at`]'s, for
+/// its reasons.
+#[must_use]
+pub fn arcs_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<EdgeKey> {
     let surface_of = |he| -> Option<topo::SurfaceKey> {
         let l = body.get_half_edge(he)?.parent_loop;
         Some(body.get_face(body.get_loop(l)?.face)?.surface)
