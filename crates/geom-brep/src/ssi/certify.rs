@@ -547,12 +547,13 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
     // One pair per coordinate channel, minted once outside the span
     // walk. The coordinates and the knots are both read from `fine` —
     // the SAME refined curve — so the count relation is
-    // `NurbsCurve3::new`'s fact, and a pair that failed to mint is an
-    // empty chain, which limb 3 reads as a definite refusal.
+    // `NurbsCurve3::new`'s fact and the refusal arm is unreachable by
+    // construction; it returns an EMPTY chain, which limb 3 reads as a
+    // definite refusal (no box, so nothing banked).
     let (Some(cx), Some(cy), Some(cz)) = (
-        kv.coeffs(&coords[0]),
-        kv.coeffs(&coords[1]),
-        kv.coeffs(&coords[2]),
+        kv.with_coeffs(&coords[0]),
+        kv.with_coeffs(&coords[1]),
+        kv.with_coeffs(&coords[2]),
     ) else {
         return out;
     };
@@ -650,9 +651,10 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
     let coords = pcurve.ring_coords();
     // One pair per chart channel, minted once: the coordinates and the
     // knots are both the pcurve's, so the count is `NurbsCurve2::new`'s
-    // fact; a pair that failed to mint probes no span, and an empty
-    // probe is the structural `None` below.
-    let (Some(cu), Some(cv)) = (kv.coeffs(&coords[0]), kv.coeffs(&coords[1])) else {
+    // fact and the refusal arm is unreachable by construction; it
+    // returns `None` — no span probed, the structural refusal below —
+    // which is a stricter answer than any finite probe.
+    let (Some(cu), Some(cv)) = (kv.with_coeffs(&coords[0]), kv.with_coeffs(&coords[1])) else {
         return None;
     };
     let mut worst = f64::INFINITY;

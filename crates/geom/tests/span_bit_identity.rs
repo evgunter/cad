@@ -178,12 +178,14 @@ fn rows() -> Vec<(String, u64)> {
                 .map(|i| (i % 5) as f64 * 0.5 - 1.0)
                 .collect();
             let w: Vec<f64> = c.weights().to_vec();
-            let pair = k.coeffs(&coeffs).expect("minted against its own vector");
+            let pair = k
+                .with_coeffs(&coeffs)
+                .expect("minted against its own vector");
             let cw = pair
                 .span(index)
                 .expect("the span the curve minted is nonempty");
             let rw = k
-                .coeffs_rational(&coeffs, &w)
+                .with_rational_coeffs(&coeffs, &w)
                 .expect("minted against its own vector")
                 .span(index)
                 .expect("the same span");

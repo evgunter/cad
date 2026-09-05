@@ -1069,7 +1069,7 @@ fn pcurve_windows(p: &NurbsCurve2<f64>, pad_u: f64, pad_v: f64) -> Vec<UvRect> {
     // the count relation is `NurbsCurve2::new`'s fact. A pair that
     // failed to mint banks no window at all — the same direction as a
     // window this pass cannot bound (below).
-    let (Some(cu), Some(cv)) = (kv.coeffs(&coords[0]), kv.coeffs(&coords[1])) else {
+    let (Some(cu), Some(cv)) = (kv.with_coeffs(&coords[0]), kv.with_coeffs(&coords[1])) else {
         return out;
     };
     for index in kv.first_span()..=kv.last_span() {

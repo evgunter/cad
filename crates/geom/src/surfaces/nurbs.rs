@@ -141,7 +141,7 @@ pub struct SurfaceJet3<T: Real> {
 /// **The count relation, stated rather than implied away**: a
 /// `NurbsSurface` relates its control net to its two knot vectors by
 /// *count* (`control.len() == nu·nv`), checked once at construction —
-/// the same relation [`geom_core::spline::KnotVector::coeffs`] checks
+/// the same relation [`geom_core::spline::KnotVector::with_coeffs`] checks
 /// once at its mint. It is what makes every window's `row(i) + j` a
 /// construction fact; the pairing itself is closed by the borrow, here
 /// as there.

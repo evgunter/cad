@@ -167,7 +167,7 @@ fn the_certified_door_refuses_a_violated_decoration() {
 /// `RingInterval` through a public door.
 fn hull_bound(c: Interval) -> RingInterval {
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    kv.coeffs(&[c, Interval::from_f64(1.0)])
+    kv.with_coeffs(&[c, Interval::from_f64(1.0)])
         .unwrap()
         .domain_hull()
 }

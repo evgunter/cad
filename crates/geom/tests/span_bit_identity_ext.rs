@@ -18,7 +18,7 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use geom::{NurbsCurve3, NurbsSurface};
-use geom_core::spline::{CoeffWindow, KnotVector, Span, basis};
+use geom_core::spline::{CoeffWindow, KnotVector, RationalWindow, Span, basis};
 use geom_core::{Bounds, Dual64, Interval, Point3, Real, Vec3};
 
 // The doors, one name each. The review lane's build put its
@@ -34,7 +34,7 @@ fn dbf<T: Real>(s: Span<'_>, t: T, n: usize) -> Vec<Vec<T>> {
 fn sh(w: CoeffWindow<'_, f64>) -> geom_core::RingInterval {
     w.hull()
 }
-fn shr(w: CoeffWindow<'_, f64>) -> geom_core::RingInterval {
+fn shr(w: RationalWindow<'_, f64>) -> geom_core::RingInterval {
     w.hull_rational()
 }
 fn dsh(w: CoeffWindow<'_, f64>) -> geom_core::RingInterval {
@@ -164,9 +164,11 @@ fn rows() -> Rows {
         let n = k.control_count();
         let coeffs: Vec<f64> = (0..n).map(|i| ((i * 3) % 7) as f64 * 0.5 - 1.25).collect();
         let w: Vec<f64> = c.weights().to_vec();
-        let pair = k.coeffs(&coeffs).expect("minted against its own vector");
+        let pair = k
+            .with_coeffs(&coeffs)
+            .expect("minted against its own vector");
         let rpair = k
-            .coeffs_rational(&coeffs, &w)
+            .with_rational_coeffs(&coeffs, &w)
             .expect("minted against its own vector");
         // parameters: every knot value, every span midpoint, both domain ends
         let mut ts: Vec<f64> = k.knots().to_vec();

@@ -1339,10 +1339,11 @@ macro_rules! nurbs_curve {
                 // `w′`'s coefficient enclosures, once for the curve:
                 // index `i` holds `q_i`, poison for a bad knot
                 // difference (which then poisons this bound).
-                let Some(weight_spline) = self.knots.coeffs(&self.weights) else {
-                    // Unreachable: `new` relates the weights to the knots
-                    // by count. Kept as the poison the bound answers for
-                    // any structure it cannot license.
+                let Some(weight_spline) = self.knots.with_coeffs(&self.weights) else {
+                    // Unreachable by construction: `new` relates the
+                    // weights to the knots by count. The arm returns the
+                    // poisoned bound — the answer for any structure the
+                    // bound cannot license, and never an indexed read.
                     return poison;
                 };
                 let dw = weight_spline.derivative_coeffs();

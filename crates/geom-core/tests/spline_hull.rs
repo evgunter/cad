@@ -125,7 +125,9 @@ fn span_and_domain_bounds_contain_every_sample() {
                 let kv = random_kv(&mut rng, degree, interior);
                 let n = kv.control_count();
                 let coeffs: Vec<f64> = (0..n).map(|_| rng.range(-1e3, 1e3)).collect();
-                let pair = kv.coeffs(&coeffs).expect("minted against its own vector");
+                let pair = kv
+                    .with_coeffs(&coeffs)
+                    .expect("minted against its own vector");
                 let domain = pair.domain_hull();
                 assert!(!domain.is_poison());
                 for index in kv.first_span()..=kv.last_span() {
@@ -184,7 +186,7 @@ fn rational_bounds_contain_every_sample_under_adversarial_weights() {
                 // magnitude, all strictly positive (the precondition).
                 let weights: Vec<f64> = (0..n).map(|_| 10f64.powf(rng.range(-4.0, 4.0))).collect();
                 let pair = kv
-                    .coeffs_rational(&coeffs, &weights)
+                    .with_rational_coeffs(&coeffs, &weights)
                     .expect("minted against its own vector");
                 let domain = pair.domain_hull_rational();
                 assert!(!domain.is_poison());
@@ -212,7 +214,7 @@ fn rational_bounds_contain_every_sample_under_adversarial_weights() {
                 let mut bad = weights.clone();
                 bad[rng.below(n)] = 0.0;
                 let rational = |w: &[f64]| {
-                    kv.coeffs_rational(&coeffs, w)
+                    kv.with_rational_coeffs(&coeffs, w)
                         .expect("its own vector")
                         .domain_hull_rational()
                 };
@@ -246,14 +248,22 @@ fn planted_corruption_is_caught_by_recomputation() {
             let n = kv.control_count();
             let mut coeffs: Vec<f64> = (0..n).map(|_| rng.range(-0.5, 0.5)).collect();
             // The certificate, computed BEFORE the corruption: passes.
-            assert!(kv.coeffs(&coeffs).expect("its own vector").sup_norm_bound() <= BAND);
+            assert!(
+                kv.with_coeffs(&coeffs)
+                    .expect("its own vector")
+                    .sup_norm_bound()
+                    <= BAND
+            );
             // Plant an excursion just past the band. A degree-p basis
             // function peaks below 1 away from the clamps, so a coarse
             // sample schedule can miss it entirely.
             let victim = rng.below(n);
             coeffs[victim] = 1.2 * if rng.next_u64() & 1 == 0 { 1.0 } else { -1.0 };
             // The recomputed certificate refuses.
-            let fresh_sup = kv.coeffs(&coeffs).expect("its own vector").sup_norm_bound();
+            let fresh_sup = kv
+                .with_coeffs(&coeffs)
+                .expect("its own vector")
+                .sup_norm_bound();
             assert!(
                 fresh_sup > BAND,
                 "corruption not caught: sup {fresh_sup:e} — {}",
@@ -300,7 +310,7 @@ fn refinement_tightens_the_bound() {
             let kv = random_kv(&mut rng, degree, 0);
             let n = kv.control_count();
             let coeffs: Vec<f64> = (0..n).map(|_| rng.range(-10.0, 10.0)).collect();
-            let pair = kv.coeffs(&coeffs).expect("its own vector");
+            let pair = kv.with_coeffs(&coeffs).expect("its own vector");
             let coarse = pair.domain_hull();
             // Refine by halving: every span's own hull is a subset of the
             // whole-domain hull, and the tightest span bound is at least
@@ -330,7 +340,7 @@ fn derivative_coefficient_bounds_contain_the_slope() {
             let kv = random_kv(&mut rng, degree, interior);
             let n = kv.control_count();
             let coeffs: Vec<f64> = (0..n).map(|_| rng.range(-1.0, 1.0)).collect();
-            let pair = kv.coeffs(&coeffs).expect("its own vector");
+            let pair = kv.with_coeffs(&coeffs).expect("its own vector");
             let qs = pair.derivative_coeffs();
             assert_eq!(qs.len(), n - 1);
             assert!(
@@ -393,8 +403,8 @@ fn bounds_are_bit_identical_across_repeats_and_coefficient_types() {
             let coeffs: Vec<f64> = (0..n).map(|_| rng.range(-1e6, 1e6)).collect();
             let rings: Vec<RingInterval> = coeffs.iter().map(|c| RingInterval::point(*c)).collect();
             let (pf, pr) = (
-                kv.coeffs(&coeffs).expect("its own vector"),
-                kv.coeffs(&rings).expect("its own vector"),
+                kv.with_coeffs(&coeffs).expect("its own vector"),
+                kv.with_coeffs(&rings).expect("its own vector"),
             );
             let a = pf.domain_hull();
             let b = pf.domain_hull();
@@ -422,47 +432,46 @@ fn bounds_are_bit_identical_across_repeats_and_coefficient_types() {
 
 #[test]
 fn structural_errors_poison_rather_than_panic() {
-    let kv = KnotVector::unit_segment(const { NonZeroUsize::new(3).expect("its own vector") });
+    let kv = KnotVector::unit_segment(const { NonZeroUsize::new(3).expect("3 is nonzero") });
     let n = kv.control_count();
     let coeffs: Vec<f64> = (0..n).map(|i| i as f64).collect();
     // Wrong coefficient count — the ONE structural relation a length
     // can state, and it is refused at the mint: there is no door to
     // answer poison, because there is no pair.
-    assert!(kv.coeffs(&coeffs[..n - 1]).is_none());
-    assert!(kv.coeffs(&coeffs).is_some());
-    // The out-of-range-span cases this test used to enumerate are gone:
-    // `KnotVector::span` refuses them, so they are not constructible;
-    // so is a span of another vector beside these coefficients (the
-    // `compile_fail` rows on `SplineCoeffs`).
+    assert!(kv.with_coeffs(&coeffs[..n - 1]).is_none());
+    assert!(kv.with_coeffs(&coeffs).is_some());
+    // An out-of-range span is not constructible (`KnotVector::span`
+    // refuses it), nor is a span of another vector beside these
+    // coefficients (the `compile_fail` rows on `SplineCoeffs`), so
+    // neither has a poison row here.
     // A poisoned coefficient poisons every bound it participates in.
     let mut poisoned: Vec<RingInterval> = coeffs.iter().map(|c| RingInterval::point(*c)).collect();
     poisoned[0] = RingInterval::poison();
-    let pp = kv.coeffs(&poisoned).expect("its own vector");
+    let pp = kv.with_coeffs(&poisoned).expect("its own vector");
     assert!(pp.domain_hull().is_poison());
     assert!(
         pp.span(kv.first_span())
-            .expect("its own vector")
+            .expect("the first span is nonempty")
             .hull()
             .is_poison()
     );
     // A NaN f64 coefficient is the same poison through the Enclosure seam.
     let mut nans = coeffs.clone();
     nans[n - 1] = f64::NAN;
-    let pn = kv.coeffs(&nans).expect("its own vector");
+    let pn = kv.with_coeffs(&nans).expect("its own vector");
     assert!(pn.domain_hull().is_poison());
     assert!(pn.sup_norm_bound().is_nan());
-    // Weight-count mismatch is refused at the rational mint too; a
-    // valid weight vector mints, and a pair minted WITHOUT weights
-    // licenses no rational claim.
+    // Weight-count mismatch is refused at the rational mint too, and a
+    // valid weight vector mints. A rational claim on a pair minted
+    // WITHOUT weights is not a poison row: it has no spelling (row (d)
+    // on `SplineCoeffs`, a `compile_fail` doctest with its twin).
     let ones = vec![1.0; n];
-    assert!(kv.coeffs_rational(&coeffs, &ones[..n - 1]).is_none());
-    assert!(kv.coeffs_rational(&coeffs[..n - 1], &ones).is_none());
-    let rational = kv.coeffs_rational(&coeffs, &ones).expect("its own vector");
+    assert!(kv.with_rational_coeffs(&coeffs, &ones[..n - 1]).is_none());
+    assert!(kv.with_rational_coeffs(&coeffs[..n - 1], &ones).is_none());
+    let rational = kv
+        .with_rational_coeffs(&coeffs, &ones)
+        .expect("its own vector");
     assert!(!rational.domain_hull_rational().is_poison());
-    let plain = kv.coeffs(&coeffs).expect("its own vector");
-    assert!(plain.domain_hull_rational().is_poison());
-    assert!(plain.sup_norm_bound_rational().is_nan());
-    assert!(plain.span_at(0.5).hull_rational().is_poison());
 }
 
 /// A certification helper written against `Enclosure` only — the seam

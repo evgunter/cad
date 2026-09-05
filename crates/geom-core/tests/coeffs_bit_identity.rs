@@ -115,9 +115,11 @@ pub fn drive<E: CertifiedEnclosure>(
     coeffs: &[E],
     w: &[f64],
 ) {
-    let pair = kv.coeffs(coeffs).expect("minted against its own vector");
+    let pair = kv
+        .with_coeffs(coeffs)
+        .expect("minted against its own vector");
     let rational = kv
-        .coeffs_rational(coeffs, w)
+        .with_rational_coeffs(coeffs, w)
         .expect("minted against its own vector");
     for index in kv.first_span()..=kv.last_span() {
         let Some(win) = pair.span(index) else {
