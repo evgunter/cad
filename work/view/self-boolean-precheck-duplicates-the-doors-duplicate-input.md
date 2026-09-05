@@ -2,11 +2,11 @@
 id: self-boolean-precheck-duplicates-the-doors-duplicate-input
 kind: issue
 title: add_boolean pre-checks a==b, which DocEdit::InsertNode already refuses as EditError::DuplicateInput
-status: dispatched
+status: closed
 opened: 2026-09-04
+closed: 2026-09-05
+pr: 1932
 refs: [set-param-prechecks-what-the-door-refuses, refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake, 1846]
-branch: view/edit-door-wording
-rides_with: refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake
 ---
 
 
@@ -98,3 +98,45 @@ Fix `DuplicateInput`'s wording (DOCM), then delete the layer-3 arm
 branch, and it costs a written exception in
 `crates/viewer/README.md` saying why this one fact is layer 3's when
 the door refuses it — which is the clause #1846 just had to correct.
+
+## Closed
+
+`Refusal::SelfBoolean` is gone — the variant, its `rank` arm, its
+`Display` and the pre-check in `add_boolean`. One node in both seats
+now reaches `EditError::DuplicateInput` off `Node::input_fault`'s
+pairwise-distinct rule, which is the same rule for a split or a list
+and is stated once where every node kind reaches it.
+
+The sequencing this item asked for held: the door's wording was fixed
+first, and **this item was right about the sentence** — an earlier
+draft of this section said its "names no recourse" was a reading of
+the doubled-prefix rendering, and that was wrong.
+`a node's inputs are pairwise distinct` is a RULE, not a recourse, and
+nothing told the user to pick a different second body. The accurate
+account is that the item was right and the fix was smaller than it
+asked for: no rewrite of the forwarded fault was needed, only the
+door's own frame.
+
+The frame carried a second defect the item did not see, and the review
+of the first fix caught it: `DuplicateInput`'s `node` is the id
+`InsertNode` WOULD have minted, so the refusal named a node that does
+not exist and never will. The frame no longer names it — the id a
+reader can act on is `input`, which the forwarded fault carries and
+which is live on both of `check_node_inputs`' callers. The sentence
+now reads:
+
+> the node this edit writes would be invalid: node 7 is taken as an
+> input twice — a node's inputs are pairwise distinct. Replace one of
+> the two with a different node.
+
+and `combine_ops.rs` pins it whole rather than by substring, because a
+sampled assertion is what let the phantom id through.
+
+The ordering claim was verified rather than assumed: `require_kind`
+still runs first in `add_boolean`, so two PROFILES in both seats are
+still reported as "that is not a body", and `combine_ops.rs`'s second
+half still pins it.
+
+Both false statements are corrected: `combine_ops.rs`'s "the DAG would
+take it, the door does not" (it would not), and `session/op.rs`'s
+sentence about which layer refuses the pair.

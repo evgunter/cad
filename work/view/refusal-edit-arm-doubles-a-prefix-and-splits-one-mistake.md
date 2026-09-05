@@ -2,10 +2,11 @@
 id: refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake
 kind: issue
 title: Refusal::Edit's wrapper doubles EditError's prefix, and one mistyped parameter now gets two sentences
-status: dispatched
+status: closed
 opened: 2026-09-04
-refs: [set-param-prechecks-what-the-door-refuses, 1846]
-branch: view/edit-door-wording
+closed: 2026-09-05
+pr: 1932
+refs: [refusal-has-no-all-to-walk, converged-recourse-has-no-home, set-param-prechecks-what-the-door-refuses, 1846]
 ---
 
 
@@ -89,3 +90,41 @@ whether `edit: ` belongs in a library error's text); VIEW then decides
 whether `Refusal::Edit` still needs a wrapper and whether the two routes
 above should converge; CHROME's test walks the vocabulary instead of one
 arm.
+
+## Closed
+
+**The prefix.** `EditError`'s 54 `Display` arms no longer open with
+`edit: ` and its 9 `{:?}` payload interpolations render bare, under the
+narrow amendment Ev authorised (`work/view/program.md`'s `keep_out`).
+The frame belongs to whoever received the refusal: the viewer composes
+"the edit was refused: …" and the bindings raise it under an error
+class that already says Edit, so a category prefix inside the sentence
+was a second spelling of the caller's own words. The rendering rule
+stated above the impl (LIB-DOORS F6) said textual identifiers render
+via `Debug` "because they ARE the location"; that clause is rewritten
+rather than contradicted in silence.
+
+**The wrapper stays.** `Refusal::Edit` still frames — "the edit was
+refused: {error}" — because with the prefix gone there is nothing
+doubled, and layer 3 saying which of its doors refused is the frame
+the status line needs.
+
+**The two routes.** Converged on what the user must DO, not on the
+sentence: `Refusal::NoSuchParam` now names the same recourse the edit
+door names ("declare it first") over the same fact. That clause is now
+a literal in each crate, held in step by a test and not by a home,
+because the home would be editor-core API surface rather than
+`Display` wording — `converged-recourse-has-no-home`. The frames stay
+apart and the decision is written at the variant: the door's sentence
+is about an edit that was refused, and a drag has no edit behind it, so
+a gesture borrowing the door's frame would report a refusal of
+something nobody attempted. `panel_edits.rs` pins that the two routes
+name one recourse.
+
+**The test that claimed the universal** now walks five arms through
+five real ops instead of one, and says in its own title and docs that
+it is a hand-maintained list — the gap is
+`refusal-has-no-all-to-walk`. (The item said that row was CHROME's;
+CHROME's slate landed on 2026-09-04 and `crates/viewer/tests/*` is
+VIEW's by Ev's word, recorded in this program's `keep_out`, so it was
+this unit's to fix.)

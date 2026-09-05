@@ -2,11 +2,11 @@
 id: save-permitted-row-argues-only-half-of-save
 kind: issue
 title: The Save row's argument for being permitted mid-gesture covers save_path and not the resolver rebind
-status: dispatched
+status: closed
 opened: 2026-09-04
+closed: 2026-09-05
+pr: 1932
 refs: [save-is-not-gesture-guarded]
-branch: view/edit-door-wording
-rides_with: refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake
 ---
 
 
@@ -58,3 +58,13 @@ getting a branch of its own; it is a comment.
 ## Home
 
 VIEW's: `crates/viewer/src/session/op.rs`.
+
+## Closed
+
+`session/op.rs`'s `Save` row now names both effects and why the second
+is safe: the committed-history write the old argument covered, and the
+save-as resolver rebind that re-evaluates the SHOWN document — the
+scratch, mid-gesture. Safe because it is a re-evaluation and not an
+edit: the history is untouched, the gesture previews against its own
+base, and the picture being dragged is the one the new directory's
+references resolve for, which is the directory rule following the file.

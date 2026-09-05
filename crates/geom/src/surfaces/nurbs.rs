@@ -243,6 +243,48 @@ impl SurfaceWindow {
 }
 
 /// A validated tensor-product NURBS surface (module docs; immutable
+/// **The three states a NURBS control net can be in.** This enum's
+/// docs are the one statement of the distinction; every consumer that
+/// tells the states apart matches on [`NurbsSurface::net_state`] and
+/// points here rather than restating the table.
+///
+/// The discriminator is the net's poison, and which values count as
+/// poison is the scalar's own answer ([`geom_core::Real::is_poison`]),
+/// so the SET of nets in each state differs between `f64`, the
+/// interval scalar and `Dual` — the crate docs' totality-and-poison
+/// section says why, and a consumer reasoning about which nets reach
+/// its arm has to reason at its own scalar.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum NetState {
+    /// **No description yet.** Every channel of every control point is
+    /// poison — the state the `mvfs` seed mints, and a legitimate
+    /// mid-surgery fact about a body still being built. Nothing can be
+    /// certified against it, and nothing about it is a claim that
+    /// turned out to be false; a consumer's answer here is a benign
+    /// "there is nothing to answer".
+    Placeholder,
+
+    /// **Real geometry.** No channel of any control point is poison, so
+    /// the net describes a locus and every evaluation on it is data.
+    /// What remains to check about such a surface is checked wherever
+    /// that surface's claims are checked — never here.
+    Described,
+
+    /// **Corrupt described geometry.** Poison in some channel of some
+    /// control point, but not in every channel of every one: this net
+    /// is NOT the placeholder, it claims to describe a locus, and it
+    /// cannot evaluate one. Evaluation carries the poison in the
+    /// poisoned channel and finite values in the others, so a consumer
+    /// reading only the finite channels gets an answer the geometry
+    /// does not support.
+    ///
+    /// This is the state that must fail at every consumer's described
+    /// arm rather than be handed [`NetState::Placeholder`]'s benign
+    /// one — the width rule's whole point, `net`'s
+    /// `is_placeholder` doc.
+    Poisoned,
+}
+
 /// after construction — every knot-algebra operation returns a new
 /// surface).
 #[derive(Clone, Debug)]
@@ -302,6 +344,28 @@ impl<T: Real> NurbsSurface<T> {
     /// the surface and curve halves answer it identically.
     pub fn is_placeholder(&self) -> bool {
         net::is_placeholder(&self.control)
+    }
+
+    /// Which of the three states this payload's control net is in —
+    /// the whole state question, asked once.
+    ///
+    /// [`NetState`]'s own docs are the single statement of what the
+    /// three states are and why they differ; this method is the door
+    /// that answers it for a surface. A consumer that must treat the
+    /// states differently matches on the answer rather than composing
+    /// two predicates, so no call site carries a guard order.
+    ///
+    /// [`NurbsSurface::is_placeholder`] remains for the callers that
+    /// only ask the placeholder question, and agrees with this by
+    /// construction — both read `net`'s one implementation.
+    pub fn net_state(&self) -> NetState {
+        if net::is_placeholder(&self.control) {
+            NetState::Placeholder
+        } else if net::any_poison(&self.control) {
+            NetState::Poisoned
+        } else {
+            NetState::Described
+        }
     }
 
     /// The u-direction knot vector.

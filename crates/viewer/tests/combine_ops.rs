@@ -25,8 +25,9 @@ use crate::common;
 use common::{ang, body_volume, insert, len, len2, len3, near, scl2, scl3, shape};
 use pncad::document::SplitSide;
 use pncad::document::{
-    Axis3, BooleanOp, Datum, Dimension, DimensionError, Doc, Expr, LoopProgram, Node, NodeError,
-    NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileProgram, RecipeNodeId, SlotId,
+    Axis3, BooleanOp, Datum, Dimension, DimensionError, Doc, EditError, Expr, LoopProgram, Node,
+    NodeError, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileProgram, RecipeNodeId,
+    SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
@@ -277,17 +278,41 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
             );
         }
     }
-    // One body in both seats: the DAG would take it, the door does
-    // not.
+    // One body in both seats: the EDIT DOOR refuses it, as it refuses
+    // any node reached twice through one node's edges. Layer 3 does
+    // not pre-check it — the rule is `Node::input_fault`'s and is the
+    // same rule for a split or a list.
     let refused = session.perform(SessionOp::AddBoolean {
         op: BooleanOp::Subtract,
         a,
         b: a,
     });
+    let Some(Refusal::Edit(ref error)) = refused.refusal else {
+        panic!(
+            "expected the edit door's refusal, got {:?}",
+            refused.refusal
+        )
+    };
     assert!(
-        matches!(refused.refusal, Some(Refusal::SelfBoolean { node }) if node == a),
-        "{:?}",
-        refused.refusal
+        matches!(**error, EditError::DuplicateInput { input, .. } if input == a),
+        "{error:?}"
+    );
+    // **The WHOLE sentence, deliberately.** This is what a person reads
+    // when they pick one body into both seats, and it is the sentence
+    // that replaced a layer-3 arm — so the row pins it exactly rather
+    // than sampling substrings out of it. Two things substring
+    // assertions let through and this does not: an id the reader cannot
+    // act on (`DuplicateInput` also carries the id `InsertNode` WOULD
+    // have minted, which does not exist and never will if the edit is
+    // refused), and a rule with no action beside it.
+    assert_eq!(
+        refused.refusal.as_ref().expect("refused").to_string(),
+        format!(
+            "the edit was refused: the node this edit writes would be invalid: \
+             node {} is taken as an input twice — a node's inputs are pairwise \
+             distinct. Replace one of the two with a different node.",
+            a.0
+        )
     );
     // And the kind gate speaks FIRST: two profiles in both seats is
     // reported as "that is not a body", the fact a user can act on.
@@ -1058,7 +1083,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
         assert!(
             matches!(
                 refused.refusal,
-                Some(Refusal::WrongNodeKind { .. } | Refusal::SelfBoolean { .. })
+                Some(Refusal::WrongNodeKind { .. } | Refusal::Edit(_))
             ),
             "{:?}",
             refused.refusal
