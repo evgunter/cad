@@ -220,3 +220,16 @@ then FILLET's own roster line for the inherited red), both resolved by
 the orchestrator in a throwaway worktree and pushed by ref, the
 second by taking main's line outright. The seeded floor is filed on
 S-MESH's slate (`cert10-strict-gap-floor-gates-on-a-varying-seed`).
+
+## S330 merged; block TOPO-B1 slot 0 concluded (2026-09-05)
+
+PR 1923 merged at `d9b7b26d` (green run 33947772289 on `c90a6752`,
+full matrix). `S330` and `S94` closed; `quadric-datums-unchecked-at-rest`
+open on this slate, widened at review to the poison case and the
+`Plane` frame. The A/B row is recorded at merge (ordinal 2700, sample
+#138) in `docs/MODEL-AB-LOG.md`'s TOPO section; block TOPO-B1's record
+on `topo/b1-block` marks slot 0 concluded, slots 1–2 banked. Sixteen
+items on the slate, two closed today (`D261`, `D264`) plus these two.
+Next: the `live.rs` pair — `D50`'s source-level guard on the shared
+lexer now that `D261` has landed it, `D260` as one sentence in the
+same PR, single style review, no row.

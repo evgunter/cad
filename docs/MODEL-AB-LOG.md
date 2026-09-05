@@ -4158,3 +4158,48 @@ applying to BOTH arms equally (not a relaxation): the pair runs on one
 4-core cloud box beside one other lane, every lane at `-j2`; R1's
 target directory is the implementer's warm one, R2's is seeded from an
 older warm build — a wall-clock asymmetry, not an instrument one.
+
+S330 row, recorded AT MERGE (2026-09-05, merge `d9b7b26dc`, PR #1923;
+`work/topo/S330.md` + rider `S94`): tier-3 check 1's described-NURBS
+arm — the three-state read of a NURBS net becomes `geom::NetState`
+with `net_state()` as the one door, check 1 matches exhaustively on it,
+a new `PoisonedSurfaceDescription` variant, named no-op arms for every
+`Surface` variant, red-first + control + state-ladder + interval rows;
+S94: both hand-kept `VARIANTS` ladders replaced by a test-only
+`strum::EnumDiscriminants` derive with the iteration-order premise
+asserted. Difficulty **S/M**, task class STRUCTURAL (logged AFTER the
+block byte was drawn — disclosed above; the covariate is contaminated
+for this row). Implementer arm **OPUS** (block TOPO-B1 slot 0, byte
+92). **DUAL: ordinal 2700; sample #138; byte 119 parity 1 ⇒ R1 FABLE +
+R2 OPUS; CONCURRENT same-head on frozen `55931a3e`; briefs stored with
+sha256 before dispatch, identical modulo lane paths.** R1
+MERGEABLE, counts 0/3/6, rubric idiom 4 / tests 4 / docs 4; R2
+MERGEABLE-AFTER-FIXES, counts 1/4/5, rubric 4/4/2. Spec deviations:
+5 reported (fixture swap — the spec's `ops_cube` datum was false;
+`assembly.rs` forced placement; derive lines on `EulerOpError`'s
+declaration; `interval_body.rs` outside `paths`; a roster line for an
+inherited main red, later dropped for FILLET's own), silent 0 (R1) / 2
+(R2: two `geom` crate-doc sentences the arm made false, undisclosed).
+**One unilateral executed MAJOR (R2): the `Plane` no-op arm's
+justification is false** — a zero or poisoned plane frame describes no
+locus, check 1 says nothing, and checks 3/4/5 refuse it by escalation
+with an `Invalid` margin, the "answered by accident" shape the unit
+closed for NURBS; the quadric arms' "no check reads them" loose the
+same way. Adjudicated as a claim on a comment plus a residue-scope gap,
+not shipped behaviour — the comments rewritten, the residue item
+widened with the executed table, no row pinning the escalations —
+**recorded as a tally candidate under 3(b)'s doc exclusion for the
+blinded adjudication** (H4 precedent). Convergent style finding from
+both arms (the guard pair whose order a comment held → a state type)
+taken at the fix pass. Method relaxations: none; the shared-box note
+above applies to both arms; R2's target was seeded colder than R1's
+(wall-clock asymmetry only). Fix pass by the implementer lane
+(inherited arm), eight items, union of both reviews; one R2 probe
+adopted as the state-ladder row. Tokens: impl ≈190k / verification
+≈90k (lane's split of ≈280k), fix ≈55k, R1 ≈202k, R2 ≈210k. Wall: impl
+≈50 min (25 implementing, 25 verifying across two CI rounds), R1 ≈14
+min, R2 ≈21 min, fix ≈35 min; gaps: the inherited `bounds_census` red
+on main (FILLET-ATTR under a cancelled gate) cost one red round and a
+port, and the PR went conflicting twice against a moving main
+(resolved by the orchestrator in throwaway worktrees). Tally after
+this entry: unchanged; candidates +1.
