@@ -545,3 +545,47 @@ its **own** row: a PR green on row X can be ejected by row Y, the author
 cannot reproduce it by re-running, and re-queueing draws again. Ev has
 authorised un-sampling k-lint; that lands first
 (`klint-row-still-sampled`), then the switch.
+
+## 2026-09-05 — F3's residue, measured twice, and the mechanism is scope not event
+
+`reader_census`'s tree-wide row
+(`crates/test-utils/tests/reader_census.rs:538`) reddened `main` twice on
+2026-09-04 — `fde85c50` (PR 1829) held for **3 h 00 m 50 s** until
+`5a1317e5` (PR 1859); `2a924eb2` (PR 1871) held for **47 m 26 s** until
+`5d711eea` (PR 1884). **5 red `pull_request` runs, 35 failed jobs, 4
+innocent branches**, and two CIW lanes spent repairing it. Filed as
+`tree-wide-guards-outside-the-change-closure`, `needs_ev`.
+
+**The reading this was opened on is false and the item says so.** PR
+1871 did not go green *on the census*: run **33927923370** was green on
+all 37 checks and **never built the census**. Its job **101201002362**
+logs `Extracting 8 binaries` / `808 tests run` where the red runs log 35
+binaries and 3017 tests, and the real classifier
+(`scripts/ci-filter.py --files` over `2a924eb2^1...2a924eb2`) returns
+`CARGO_SCOPE=-p editor-core -p pncad -p pncad-py -p viewer`.
+`test-utils` is scoped out of both breaking merges.
+
+The closure is over **dependents**, so a crate is reachable only from
+itself and what it depends on. `test-utils` has zero dependencies by
+design (`crates/test-utils/Cargo.toml:10`), which makes it **1 of 18**
+members — the repository's most tree-wide guard housed in its least
+reachable crate. Four more rows share the shape; `geom-core`'s two are
+at **2 of 18**.
+
+**What that does to the F3 question.** `ci.yml:582` bases a push run on
+`HEAD^1` and diffs `HEAD^1...HEAD`, so a restored `build` + `test` on
+push re-draws the merge's own closure — **it would have caught neither
+break**. Measured against that: a `test-utils`-only guard row forces no
+workspace build at all (cold from an empty target dir: **2.69 s** to
+compile, **4.86 s** end-to-end, 3.65 s to run; 0.477 s inside CI's
+archive), because the crate depends on nothing. `main`'s push run today
+compiles nothing either — `cache-prime`'s only build step is gated on a
+cache miss (`ci.yml:2230`) — so the row is additive at ~40 s, not a new
+build.
+
+Three options are put to Ev with their real costs and no thumb on the
+scale: add a row to the push run (measured ineffective for this class
+without `--force-all`), leave F3 and price the fleet as the detector
+(tonight's numbers), or a narrow unscoped guard row — which on the
+**pull-request** side would have red both PRs before they merged.
+Nothing about F3 was touched.
