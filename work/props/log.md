@@ -519,3 +519,15 @@ BOOL. A/B row recorded: ordinal 2402, **sample #142**, no tally
 candidate. **Block PROPS-B1 concluded** — its record and the six stored
 briefs merged with #1978; the next kernel unit draws PROPS-B2. Lane
 reclaimed. Live: the linalg riders lane.
+
+**rotation-floor LANDED (2026-09-05)** —
+[#1980](https://github.com/evgunter/cad/pull/1980). Ruled NO RESPELL on
+the item's own numbers, re-taken at the head by the `cert3_evidence`
+rows and unmoved (`t` alone 100 % / 133 %; `t` and `c` 83 % at the
+start sample, 100 % at full period): a present-tense paragraph at
+`Mat3::rotation_about` states the floor as the sum of the two
+enclosures, what each respell recovers, why `identity_minus_rotation_about`
+differs, and that the floor is the backend's. The composition rider is
+its own file in `work/issues/` (`mapped.rs` is in no program's paths),
+with the composition-side fix named: compose in the parameter, keep one
+placement. Item closed; spec deleted and ledgered in the per-merge form.
