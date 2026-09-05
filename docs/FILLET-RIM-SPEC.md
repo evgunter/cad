@@ -45,16 +45,39 @@ Refusals, typed, in `RimError` beside the door:
   (or there is no certified carrier: say which).
 - `CoSurface { edge, surface }` — the seed's two sides are one surface: a
   seam meridian, not a rim edge.
-- `NotOneRim { arcs, gap }` — the matched arcs do not tile the full circle
-  without gap or overlap and shared vertices between consecutive arcs (the
-  partial revolve's open rim is the honest instance; `gap` names the
-  parameter at which the tiling fails). A partial set is never returned.
+- `NotOneRim { arcs, gap }` — the arcs that MATCHED the seed do not form
+  one closed chain on shared vertices: the walk dangles, branches, or
+  closes leaving matched arcs unused (the partial revolve's open rim is
+  the honest instance; `gap` names the parameter of the vertex the walk
+  stopped at). A partial set is never returned.
+
+  **Amended at the fix pass (was "tile the full circle without gap or
+  overlap").** The test is topological and OVERLAP IS NOT DETECTED: arcs
+  covering one part of the circle twice and another not at all still
+  chain, and the door answers them as a rim. Issue
+  `rim-door-admits-a-double-cover` is the durable home; the alternative
+  is a parametric test, and a rim's arcs are minted one per chart with a
+  seam each, so their stored intervals are each in their own frame and
+  comparing them across arcs needs a decided comparison this door does
+  not have.
 - `NotIntact(EntityId)` — a dangling key or an unreadable reference on the
   way; the `sweep::blend` `not_intact` shape.
 
-Nothing here decides: same circle means the stored carriers' `center` and
-`radius` bit-equal and `axis` equal or negated (the same set of points);
-same surfaces means equal `SurfaceKey`s. That is a tag read, the module's
+Nothing here decides: same circle means the stored carriers' `center`,
+`radius` and `axis` each bit-equal; same surfaces means equal
+`SurfaceKey`s.
+
+**Amended at the fix pass (was "`axis` equal or negated").** A negated
+axis is the same point SET, and admitting it cost the order contract: an
+arc stored on `-axis` runs its `he_plus` the other way round the circle,
+so a three-arc rim carrying one answers `[a, b, c]` from one seed and
+`[c, b, a]` from another — a reversal, not the rotation D9 and this spec
+promise. Phase 1 measured no negated axis on any rim of any corpus class
+(the implementer's sweep, R1's re-read over every circle edge of six
+classes, R2's boolean and extrude corpus probe), so the narrower rule
+refuses nothing that exists, and it makes the rotation claim
+unconditional instead of true-except-when. `topo/tests/rim_of_r1_probes.rs`
+holds the counterexample body that forced the choice. That is a tag read, the module's
 EXACT class ("total tag reads, no funnel, no margin"), and it is honest
 exactly when the bodies consumers hold store one rim's arcs on one carrier
 — which Phase 1 measures rather than assumes.
