@@ -3179,3 +3179,92 @@ The reversibility argument is written in full at **three code sites
 plus the item**, with #1883 narrated at nine sites across five files —
 a justification longer than the code it defends, and the shape that
 goes stale in five places at once. Told to keep one home.
+
+## #1957's style review: the rule over-claims, and "held" is author-chosen (2026-09-05)
+
+Twenty-one findings, the most severe review of this session. It
+reproduced both mutations, confirmed the `prose_census` roster
+untouched and correct, and confirmed the `unindexed_refusal`
+escalation is **done right** — accurate citation, real schedule.
+
+**Corrected me twice.** My brief said this unit appended to
+`frame-module-has-eight-concerns-and-no-holds-row`; it did not — that
+was #1933, and I carried the claim forward without checking. Sixteenth
+correction, and the second running where I repeated a lane's report as
+fact.
+
+### Three findings that compound into one problem
+
+`frame.rs:29` says of the mechanical restatement **"That is the whole
+test."** It is not:
+
+- **The headline example is false about the signature it cites.** The
+  header and README say `unindexed_refusal` "takes this frame's pick
+  stream". **It takes `&NotIndexed`** — the pick stream is
+  `pick::unindexed`'s. So a test stated *at the door* sorts the unit's
+  own boundary case wrongly when applied literally at the door; it
+  works only by tracing transitively to the caller, which is the move
+  that would also badge `Disagreement`.
+- **`Disagreement` confirms held-state is necessary and not
+  sufficient** — every input held, none an event stream, recomputed
+  every frame the cursor holds still. What sorts it is the words the
+  restatement **drops**: *a reader consults*.
+- **And "held" is a property the author chooses, so the mechanical test
+  is circular.** `scene_fault` and `projection_fault` **did not exist
+  before this unit**; they were added so the fact would be held state.
+  Any outcome can be badged by storing it — and the sweep item says so
+  openly for the prefs notices: *"which means the notices have to be
+  HELD rather than rendered once."*
+
+**That last one is the deepest thing found this session.** Ev's rule is
+sound as a rule; what this unit discovered by building it is that its
+mechanical restatement cannot decide alone, because one side of the
+test is under the author's control. The fix is not a different rule —
+it is prose that says so, with `Disagreement` as the worked case and
+"consults" marked load-bearing. **The next unit sorts twenty writers on
+that paragraph**, so a paragraph claiming completeness it lacks is
+worse for the sweep than an honest one.
+
+### Claims that were false
+
+`SeamSubject`'s *"the two answers are the same answer by
+construction"* — the pick-index seam's two channels read **two
+different consts on two different types**, each a `Subject::Display`
+literal, kept equal by a test rather than by construction. The trait's
+headline property is not delivered for the seam that motivated it.
+
+*"Nothing retires a badge, because nothing stores one"* — contradicted
+by two of the three badges the unit adds: `scene_fault = None` and
+`projection_fault = None` are hand-written retirements, the same
+bookkeeping spelled as an assignment.
+
+**And the defect the unit fixed is real while the reason given for it
+is wrong, in four places.** Both production `land()` calls sit inside
+`viewport_ui` before `view_projection` with no return between, so the
+`Expire(Camera)` story does not reproduce. The real mechanism is that
+`perform_batch` is the last statement of `update()` and the line is
+drawn in the toolbar **before** the panes — `Clear` erased the sentence
+and it was never drawn on an acting frame. A true fix with a false
+causal story enshrined at four sites is precisely what
+`memories/review-and-dependency-policy.md` warns the dispatcher about,
+arriving from the other direction.
+
+### A behaviour regression to verify
+
+`projection_fault` may go **permanently** stale: `viewport_ui` returns
+early when `aspect()` is `None`, before either writer, and nothing else
+writes the field. A pane dragged to zero extent or tabbed away leaves
+the last value standing forever. **Under the old code the same
+condition left a stale sentence that the next `Clear` swept — a badge
+has no sweeper.** The unit's own doc argues the one-frame lag is benign
+and does not consider the no-frame case. Told to verify and file it
+whether or not it is fixed here.
+
+### The Holds row, three units deferred
+
+No `Holds` row was taken, the README's app-vocabularies table still has
+no `frame` entry, and this unit **grew the prose section beneath that
+table from 29 to ~46 lines** — the exact shape the item names as the
+problem. `frame.rs` 2036 → 2229. **Third unit running to skip the cheap
+half while making the file bigger.** Told to take it in this PR and to
+append what deferring it three times cost.
