@@ -112,23 +112,75 @@ fn corpus() -> Vec<(String, Body<f64>, Body<f64>)> {
     let cyl = cylinder();
     let rounded = rounded_plate();
     let mut v = vec![
-        ("cylinder x nested box".to_string(), cyl.clone(), nested_box(-0.3, 0.05)),
-        ("cylinder x box beside".to_string(), cyl.clone(), nested_box(3.0, 0.2)),
-        ("cylinder x crossing box".to_string(), cyl.clone(), nested_box(0.45, 0.2)),
-        ("cylinder x plate across x-extreme".to_string(), cyl.clone(), rim_plate(-0.499)),
-        ("cylinder x plate at -0.45".to_string(), cyl.clone(), rim_plate(-0.45)),
-        ("cylinder x top plate at 0.499".to_string(), cyl.clone(), top_rim_plate(0.499)),
-        ("rounded x box clear of round".to_string(), rounded.clone(), plate((1.2, 1.6), (0.36, 0.6), (0.2, 0.5))),
-        ("rounded x box grazing round".to_string(), rounded.clone(), plate((1.18, 1.6), (0.33, 0.6), (0.2, 0.5))),
-        ("rounded x corner box".to_string(), rounded, plate((1.1, 1.6), (0.2, 0.6), (0.2, 0.5))),
-        ("cylinder x cylinder 1e-3 apart".to_string(), cyl.clone(), cylinder_at(1.001)),
-        ("cylinder x cylinder shifted 0.3".to_string(), cyl.clone(), cylinder_at(0.3)),
+        (
+            "cylinder x nested box".to_string(),
+            cyl.clone(),
+            nested_box(-0.3, 0.05),
+        ),
+        (
+            "cylinder x box beside".to_string(),
+            cyl.clone(),
+            nested_box(3.0, 0.2),
+        ),
+        (
+            "cylinder x crossing box".to_string(),
+            cyl.clone(),
+            nested_box(0.45, 0.2),
+        ),
+        (
+            "cylinder x plate across x-extreme".to_string(),
+            cyl.clone(),
+            rim_plate(-0.499),
+        ),
+        (
+            "cylinder x plate at -0.45".to_string(),
+            cyl.clone(),
+            rim_plate(-0.45),
+        ),
+        (
+            "cylinder x top plate at 0.499".to_string(),
+            cyl.clone(),
+            top_rim_plate(0.499),
+        ),
+        (
+            "rounded x box clear of round".to_string(),
+            rounded.clone(),
+            plate((1.2, 1.6), (0.36, 0.6), (0.2, 0.5)),
+        ),
+        (
+            "rounded x box grazing round".to_string(),
+            rounded.clone(),
+            plate((1.18, 1.6), (0.33, 0.6), (0.2, 0.5)),
+        ),
+        (
+            "rounded x corner box".to_string(),
+            rounded,
+            plate((1.1, 1.6), (0.2, 0.6), (0.2, 0.5)),
+        ),
+        (
+            "cylinder x cylinder 1e-3 apart".to_string(),
+            cyl.clone(),
+            cylinder_at(1.001),
+        ),
+        (
+            "cylinder x cylinder shifted 0.3".to_string(),
+            cyl.clone(),
+            cylinder_at(0.3),
+        ),
     ];
     for &x_max in &[-0.5003, -0.5006, -0.501, -0.502, -0.51, -0.6] {
-        v.push((format!("cylinder x rim plate clear by {:.1e}", -0.5 - x_max), cyl.clone(), rim_plate(x_max)));
+        v.push((
+            format!("cylinder x rim plate clear by {:.1e}", -0.5 - x_max),
+            cyl.clone(),
+            rim_plate(x_max),
+        ));
     }
     for &y_min in &[0.5006, 0.502, 0.51] {
-        v.push((format!("cylinder x top rim plate clear by {:.1e}", y_min - 0.5), cyl.clone(), top_rim_plate(y_min)));
+        v.push((
+            format!("cylinder x top rim plate clear by {:.1e}", y_min - 0.5),
+            cyl.clone(),
+            top_rim_plate(y_min),
+        ));
     }
     v
 }
@@ -155,7 +207,11 @@ fn digest(r: &Result<BooleanResult<f64>, topo::BooleanError>) -> String {
 
 #[test]
 fn n3r1_prune_and_jet_count() {
-    let arm = if std::env::var_os("N3R1_BASE_ARM").is_some() { "BASE" } else { "HEAD" };
+    let arm = if std::env::var_os("N3R1_BASE_ARM").is_some() {
+        "BASE"
+    } else {
+        "HEAD"
+    };
     let mut total_prune_pairs = 0usize;
     for (name, a, b) in corpus() {
         let real = sweep_traces(&a, &b, SweepStrategy::Realized, None, Tol::witness());
@@ -175,8 +231,14 @@ fn n3r1_prune_and_jet_count() {
         let before = topo::N3R1_CONIC_JET.load(Ordering::Relaxed);
         let sub = topo::boolean::subtract(&a, &b, Tol::witness());
         let jets = topo::N3R1_CONIC_JET.load(Ordering::Relaxed) - before;
-        if rx != usize::MAX { total_prune_pairs += rx + ry; }
-        let ideal_s = if ideal.is_err() { "ideal REFUSED".to_string() } else { format!("accepted {ax}+{ay} lost {lost}") };
+        if rx != usize::MAX {
+            total_prune_pairs += rx + ry;
+        }
+        let ideal_s = if ideal.is_err() {
+            "ideal REFUSED".to_string()
+        } else {
+            format!("accepted {ax}+{ay} lost {lost}")
+        };
         eprintln!(
             "N3R1[{arm}] {name}: examined {rx}+{ry}; {ideal_s}; jets {jets}; subtract {}",
             digest(&sub)

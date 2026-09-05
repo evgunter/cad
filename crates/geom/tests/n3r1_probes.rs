@@ -18,7 +18,12 @@
 //!
 //! Row 3: at `Dual64` — the box is the `f64` box of the values.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::too_many_lines)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::too_many_lines
+)]
 
 use bvh::Aabb;
 use geom::Curve3;
@@ -73,7 +78,11 @@ fn frames() -> Vec<(Vec3<f64>, Vec3<f64>, String)> {
         }
     }
     // The extremal-angle-exactly-π frame (u_ref = −x): φ_x = π.
-    out.push((Vec3::unit_z(), -Vec3::unit_x(), "u_ref = -x (phi_x = pi)".into()));
+    out.push((
+        Vec3::unit_z(),
+        -Vec3::unit_x(),
+        "u_ref = -x (phi_x = pi)".into(),
+    ));
     out.push((Vec3::unit_z(), -Vec3::unit_y(), "u_ref = -y".into()));
     out
 }
@@ -114,7 +123,11 @@ fn spans(extremals: &[f64]) -> Vec<(f64, f64, String)> {
     }
     out.push((6.0, 7.0, "wraps past 2pi".into()));
     out.push((TAU - 1e-9, TAU + 2.0, "starts 1e-9 short of 2pi".into()));
-    out.push((PI - 1e-9, PI + 1.0, "starts 1e-9 short of pi (atan2 cut)".into()));
+    out.push((
+        PI - 1e-9,
+        PI + 1.0,
+        "starts 1e-9 short of pi (atan2 cut)".into(),
+    ));
     out.push((PI, PI + 1.0, "starts exactly at pi".into()));
     out.push((-PI, -PI + 1.0, "starts exactly at -pi".into()));
     out.push((-1e-12, 0.5, "starts at -1e-12".into()));
@@ -192,7 +205,8 @@ fn n3r1_f64_adversarial_corpus_is_contained_at_zero_pad() {
             for &c in &centers {
                 let carrier = circle(c, axis, r, u_ref);
                 let scale = r + c.x.abs().max(c.y.abs()).max(c.z.abs());
-                let dense = r == 1.0 && c.x == 0.0 && c.y == 0.0 && c.z == 0.0 && fname.contains("octant");
+                let dense =
+                    r == 1.0 && c.x == 0.0 && c.y == 0.0 && c.z == 0.0 && fname.contains("octant");
                 let n = if dense { 100_000 } else { 1_000 };
                 for (t0, t1, sname) in spans(&extremal_angles(r, r, u_ref, v_ref)) {
                     let (e0, e1) = (carrier.eval(t0), carrier.eval(t1));
@@ -206,7 +220,13 @@ fn n3r1_f64_adversarial_corpus_is_contained_at_zero_pad() {
             }
         }
         // Ellipses: axis ratios to 1e3, both ways round.
-        for &(a, bm) in &[(1.0, 1e-3), (1e3, 1.0), (2.0, 0.7), (1e-4, 1e-4 * 0.3), (1e4, 10.0)] {
+        for &(a, bm) in &[
+            (1.0, 1e-3),
+            (1e3, 1.0),
+            (2.0, 0.7),
+            (1e-4, 1e-4 * 0.3),
+            (1e4, 10.0),
+        ] {
             let carrier = ellipse(Point3::origin(), axis, a, bm, u_ref);
             let scale = a.max(bm);
             for (t0, t1, sname) in spans(&extremal_angles(a, bm, u_ref, v_ref)) {
@@ -274,10 +294,18 @@ fn check_interval_dominates(
                                 radius,
                                 u_ref,
                             } => circle(
-                                Point3::new(pick(center.x, kc), pick(center.y, kc), pick(center.z, kc)),
+                                Point3::new(
+                                    pick(center.x, kc),
+                                    pick(center.y, kc),
+                                    pick(center.z, kc),
+                                ),
                                 Vec3::new(pick(axis.x, ka), pick(axis.y, ka), pick(axis.z, ka)),
                                 pick(*radius, kr),
-                                Vec3::new(pick(u_ref.x, ku), pick(u_ref.y, 2 - ku), pick(u_ref.z, ku)),
+                                Vec3::new(
+                                    pick(u_ref.x, ku),
+                                    pick(u_ref.y, 2 - ku),
+                                    pick(u_ref.z, ku),
+                                ),
                             ),
                             Curve3::Ellipse {
                                 center,
@@ -286,11 +314,19 @@ fn check_interval_dominates(
                                 minor,
                                 u_ref,
                             } => ellipse(
-                                Point3::new(pick(center.x, kc), pick(center.y, kc), pick(center.z, kc)),
+                                Point3::new(
+                                    pick(center.x, kc),
+                                    pick(center.y, kc),
+                                    pick(center.z, kc),
+                                ),
                                 Vec3::new(pick(axis.x, ka), pick(axis.y, ka), pick(axis.z, ka)),
                                 pick(*major, kr),
                                 pick(*minor, 2 - kr),
-                                Vec3::new(pick(u_ref.x, ku), pick(u_ref.y, 2 - ku), pick(u_ref.z, ku)),
+                                Vec3::new(
+                                    pick(u_ref.x, ku),
+                                    pick(u_ref.y, 2 - ku),
+                                    pick(u_ref.z, ku),
+                                ),
                             ),
                             _ => unreachable!(),
                         };
@@ -341,7 +377,11 @@ fn n3r1_interval_brackets_are_dominated_by_the_box() {
         ((-1.0, -0.9), (-0.05, 0.0), "rotated: v touches zero at hi"),
         ((-1.0, -0.9), (0.0, 0.0), "rotated: v width zero at 0"),
         ((-1.0, -1.0), (-0.05, 0.05), "rotated: u width zero"),
-        ((-1.0, 0.0), (-0.05, 0.05), "u.hi = 0 exactly (origin on edge)"),
+        (
+            (-1.0, 0.0),
+            (-0.05, 0.05),
+            "u.hi = 0 exactly (origin on edge)",
+        ),
         ((-0.5, 0.5), (-0.5, 0.5), "origin inside (both cuts)"),
         ((0.0, 0.9), (0.0, 0.05), "touches +u axis at a corner"),
         ((0.0, 0.9), (-0.05, 0.05), "u.lo = 0, v straddles"),
@@ -398,7 +438,10 @@ fn n3r1_interval_brackets_are_dominated_by_the_box() {
     for (what, c, t0, t1, scale) in &cases {
         check_interval_dominates(what, c, *t0, *t1, *scale);
     }
-    eprintln!("n3r1 interval corpus: {} bracket cases dominated", cases.len());
+    eprintln!(
+        "n3r1 interval corpus: {} bracket cases dominated",
+        cases.len()
+    );
 }
 
 #[test]
@@ -411,11 +454,20 @@ fn n3r1_dual64_box_is_the_value_box() {
         radius: d(0.75),
         u_ref: Vec3::new(k(-1.0), k(0.0), k(0.0)),
     };
-    let cf = circle(Point3::new(1.0, 2.0, 3.0), Vec3::unit_z(), 0.75, -Vec3::unit_x());
+    let cf = circle(
+        Point3::new(1.0, 2.0, 3.0),
+        Vec3::unit_z(),
+        0.75,
+        -Vec3::unit_x(),
+    );
     for &(t0, t1) in &[(0.0, 1.0), (2.5, 4.0), (PI, PI + 1e-6), (0.2, 6.2)] {
         let bd = conic_arc_aabb(&cd, k(t0), k(t1), cd.eval(k(t0)), cd.eval(k(t1))).unwrap();
         let bf = conic_arc_aabb(&cf, t0, t1, cf.eval(t0), cf.eval(t1)).unwrap();
-        assert_eq!(format!("{bd:?}"), format!("{bf:?}"), "dual vs f64 at [{t0}, {t1}]");
+        assert_eq!(
+            format!("{bd:?}"),
+            format!("{bf:?}"),
+            "dual vs f64 at [{t0}, {t1}]"
+        );
         let mut worst = f64::NEG_INFINITY;
         check_contains("dual", &bd, &cf, t0, t1, 20_000, 4.0, &mut worst);
     }
@@ -429,10 +481,16 @@ fn n3r1_extremal_angle_exactly_pi_is_a_point_interval() {
     let cf = circle(Point3::origin(), Vec3::unit_z(), 1.0, -Vec3::unit_x());
     // x = −cos t: min at t = 0 (x = −1), max at t = π (x = +1).
     let b = circle_arc_aabb(&cf, 0.5, 2.5, cf.eval(0.5), cf.eval(2.5)).unwrap();
-    assert!(b.max_x < 0.81 && b.max_x > 0.80, "run [0.5, 2.5] must end at the endpoint -cos 2.5 = 0.801, not reach x = +1: {b:?}");
+    assert!(
+        b.max_x < 0.81 && b.max_x > 0.80,
+        "run [0.5, 2.5] must end at the endpoint -cos 2.5 = 0.801, not reach x = +1: {b:?}"
+    );
     assert!(b.min_x < -0.87, "min_x is the endpoint at 0.5: {b:?}");
     let b = circle_arc_aabb(&cf, 2.5, 3.5, cf.eval(2.5), cf.eval(3.5)).unwrap();
-    assert!((b.max_x - 1.0).abs() < 1e-12, "run [2.5, 3.5] reaches x = +1: {b:?}");
+    assert!(
+        (b.max_x - 1.0).abs() < 1e-12,
+        "run [2.5, 3.5] reaches x = +1: {b:?}"
+    );
 }
 
 #[cfg(feature = "interval")]
@@ -447,7 +505,10 @@ fn n3r1_extremal_angle_exactly_pi_is_a_point_interval_at_interval() {
         u_ref: Vec3::new(iv(-1.0), iv(0.0), iv(0.0)),
     };
     let b = conic_arc_aabb(&ci, iv(0.5), iv(2.5), ci.eval(iv(0.5)), ci.eval(iv(2.5))).unwrap();
-    assert!(b.max_x < 0.81 && b.max_x > 0.80, "interval: run [0.5, 2.5] must end at 0.801, not reach x = +1: {b:?}");
+    assert!(
+        b.max_x < 0.81 && b.max_x > 0.80,
+        "interval: run [0.5, 2.5] must end at 0.801, not reach x = +1: {b:?}"
+    );
 }
 
 /// Item 9 (C24): `deriv(t)` + `deriv2(t)` on the conic arms against a
@@ -485,6 +546,9 @@ fn n3r1_c24_timing() {
         }
         let one = t0.elapsed().as_secs_f64() / f64::from(n) * 1e9;
         black_box(acc);
-        eprintln!("n3r1 c24 {name}: deriv+deriv2 {two:.1} ns, fused {one:.1} ns, saving {:.1} ns", two - one);
+        eprintln!(
+            "n3r1 c24 {name}: deriv+deriv2 {two:.1} ns, fused {one:.1} ns, saving {:.1} ns",
+            two - one
+        );
     }
 }

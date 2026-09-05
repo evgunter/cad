@@ -5,7 +5,12 @@
 //! independent corpus; knots, control points and weights are compared
 //! bit for bit. Probe branch only.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::too_many_lines)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::too_many_lines
+)]
 
 use geom::curves::nurbs::NurbsCurve3;
 use geom_core::Point3;
@@ -50,7 +55,10 @@ fn retired_skin_union(elevated: &[NurbsCurve3<f64>]) -> Vec<NurbsCurve3<f64>> {
 }
 
 // ---- retired spelling B: geom/src/curves/fit.rs @ b7f347254 (verbatim body) ----
-fn retired_fit_pair(this: &NurbsCurve3<f64>, reference: &NurbsCurve3<f64>) -> (NurbsCurve3<f64>, NurbsCurve3<f64>) {
+fn retired_fit_pair(
+    this: &NurbsCurve3<f64>,
+    reference: &NurbsCurve3<f64>,
+) -> (NurbsCurve3<f64>, NurbsCurve3<f64>) {
     let mut need: Vec<(f64, usize)> = Vec::new();
     for kv in [this.knots(), reference.knots()] {
         for (u, m) in kv.interior_knots() {
@@ -118,7 +126,11 @@ fn quarter_arc() -> NurbsCurve3<f64> {
     let w = core::f64::consts::FRAC_1_SQRT_2;
     NurbsCurve3::new(
         kv,
-        vec![Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 1.0, 0.0), Point3::new(0.0, 1.0, 0.0)],
+        vec![
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+        ],
         vec![1.0, w, 1.0],
     )
     .unwrap()
@@ -145,7 +157,10 @@ fn n3r1_d31_bit_identity_against_both_retired_spellings() {
         ),
         (
             "insertion ORDER differs between the retired spellings (0.7 before 0.3)",
-            vec![curve(2, &[(0.7, 1)], 31, true), curve(2, &[(0.3, 1)], 32, false)],
+            vec![
+                curve(2, &[(0.7, 1)], 31, true),
+                curve(2, &[(0.3, 1)], 32, false),
+            ],
         ),
         (
             "rational arc + non-rational quadratic with interior knots",
@@ -153,11 +168,17 @@ fn n3r1_d31_bit_identity_against_both_retired_spellings() {
         ),
         (
             "already on the union (empty plans)",
-            vec![curve(2, &[(0.5, 1)], 51, true), curve(2, &[(0.5, 1)], 52, true)],
+            vec![
+                curve(2, &[(0.5, 1)], 51, true),
+                curve(2, &[(0.5, 1)], 52, true),
+            ],
         ),
         (
             "one curve holds a knot at multiplicity = degree",
-            vec![curve(3, &[(0.5, 3)], 61, true), curve(3, &[(0.5, 1), (0.8, 1)], 62, true)],
+            vec![
+                curve(3, &[(0.5, 3)], 61, true),
+                curve(3, &[(0.5, 1), (0.8, 1)], 62, true),
+            ],
         ),
     ];
     let mut compared = 0usize;
@@ -179,24 +200,50 @@ fn n3r1_d31_bit_identity_against_both_retired_spellings() {
                 }
                 let (p, q) = retired_fit_pair(&set[i], &set[j]);
                 let r = NurbsCurve3::refine_to_union([&set[i], &set[j]]).unwrap();
-                assert_eq!(bits(&p), bits(&r[0]), "{what}: fit spelling ({i},{j}) self differs");
-                assert_eq!(bits(&q), bits(&r[1]), "{what}: fit spelling ({i},{j}) reference differs");
+                assert_eq!(
+                    bits(&p),
+                    bits(&r[0]),
+                    "{what}: fit spelling ({i},{j}) self differs"
+                );
+                assert_eq!(
+                    bits(&q),
+                    bits(&r[1]),
+                    "{what}: fit spelling ({i},{j}) reference differs"
+                );
                 compared += bits(&p).len() + bits(&q).len();
             }
         }
         // Every output shares one bit-identical knot vector.
         for y in &b {
-            assert_eq!(y.knots().knots(), b[0].knots().knots(), "{what}: not on one vector");
+            assert_eq!(
+                y.knots().knots(),
+                b[0].knots().knots(),
+                "{what}: not on one vector"
+            );
         }
     }
     // Mixed degrees through the public skin door vs elevate + retired loop.
-    let mixed = vec![curve(1, &[(0.5, 1)], 71, false), curve(2, &[(0.3, 1)], 72, true), curve(3, &[(0.5, 2)], 73, true)];
+    let mixed = vec![
+        curve(1, &[(0.5, 1)], 71, false),
+        curve(2, &[(0.3, 1)], 72, true),
+        curve(3, &[(0.5, 2)], 73, true),
+    ];
     let head = make_compatible(&mixed).unwrap();
-    let elevated: Vec<NurbsCurve3<f64>> = mixed.iter().map(|c| c.elevate_degree(3 - c.knots().degree()).unwrap()).collect();
+    let elevated: Vec<NurbsCurve3<f64>> = mixed
+        .iter()
+        .map(|c| c.elevate_degree(3 - c.knots().degree()).unwrap())
+        .collect();
     let retired = retired_skin_union(&elevated);
     for (x, y) in head.iter().zip(&retired) {
-        assert_eq!(bits(x), bits(y), "mixed degrees: make_compatible vs retired spelling differ");
+        assert_eq!(
+            bits(x),
+            bits(y),
+            "mixed degrees: make_compatible vs retired spelling differ"
+        );
         compared += bits(x).len();
     }
-    eprintln!("n3r1 d31: {compared} u64 components compared bit-identical over {} sets + mixed", sets.len());
+    eprintln!(
+        "n3r1 d31: {compared} u64 components compared bit-identical over {} sets + mixed",
+        sets.len()
+    );
 }
