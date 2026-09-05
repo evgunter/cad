@@ -3808,6 +3808,21 @@ names no model.
 
 
 
+Block FILLET-B2 pre-draw fields (2026-09-05, logged before the draw;
+opened with every FILLET-B1 slot dispatched — slot 0 merged, slot 1 in
+its fix pass, slot 2 under review): slot 0 = FILLET-H6
+(`docs/FILLET-H6-SPEC.md`, `extrude-cap-rim-smooth-arm-noop`) —
+difficulty **S**, task-class **STRUCTURAL** (Phase 1 measures whether
+extrude's cap-rim `Smooth` arm is reachable; either way the must-carry
+rule gets ONE home its sibling arms call). Slot 1 = FILLET-ATTR
+(`docs/FILLET-ATTR-SPEC.md`, `fillet-refusal-describes-unbracketed-crossing`)
+— **M / STRUCTURAL** (the `NoCornerOfPair` envelope reporting every
+refusing crossing nearest-anchors-first, per Ev's ruling on PR 1734).
+Slot 2 = FILLET-H7 (`docs/FILLET-H7-SPEC.md`,
+`fillet-ruled-spine-arms-no-surgery`) — **L / NUMERIC** (the ruled band
+with the transverse cut-off at perpendicular caps; new predicate
+`fillet3_cap_transverse`; vocabulary ratified by PR 1819's merge).
+
 ## FILLET-RIM review ordinal fixed at dispatch (2026-09-04)
 
 FILLET-RIM (`no-public-rim-arc-selector`, PR #1821 open — frozen head
