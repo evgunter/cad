@@ -628,7 +628,7 @@ that lands here resolves without opening the walk:
 - `S-QA-EXIT-WALK.md` — S-QA exit walk — criteria vs evidence
 - `S-MATE-EXIT-WALK.md` — S-MATE exit walk — criteria vs evidence
 
-### Per-unit specs, unit merged (48 files)
+### Per-unit specs, unit merged (47 files)
 
 The standing rule (`work/README.md`: a spec is deleted at merge; the
 item file, the program log entry and the `MODEL-AB-LOG.md` row are the
@@ -652,7 +652,6 @@ at the parent of the commit that removed it):
 - `FILLET-H7-SPEC.md` — FILLET-H7 — the ruled band and its transverse cut-off (`CornerConfig::TransverseCap` / `RunOutPolicy::CutOffAtTransverseCap`, ratified on PR 1819), incl. the fix-pass amendments (last on `main` at 235d05241; PR 1897's body, `work/fillet/fillet-ruled-spine-arms-no-surgery.md` and the ordinal-2005 row are the record)
 - `FILLET-T-SPEC.md` — FILLET-T — Track T's `D325` + `D326`: the corner fusion's first arc a value, one `kef` door over a snapshot of the input body's faces (last on `main` at b1cc95604; PR 1943's body, `work/fillet/D325.md`, `work/fillet/D326.md` and the ordinal-2006 row are the record)
 - `PROPS-VERDICT-SHAPES-SPEC.md` — PROPS verdict-shapes — the two derived per-node verdict forms in one module (`resolve/vdiff.rs`), `ReplayOutcome` folded into `RunStatus` with `Absent` kept distinct, the strict-vs-population split pinned (last on `main` at 8ba880fda; PR 1920's body and `work/props/three-per-node-verdict-shapes.md` are the record; an E rider outside the A/B experiment, no row)
-- `PROPS-ONB-MEASURE-SPEC.md` — PROPS ONB-measure — the four evidence-only measurements deciding the orthonormal-basis sign hull (PR 1939's body carries the tables; `work/props/interval-orthonormal-basis-sign-hull.md` is the record; no A/B row)
 
 - `BOOL-1-SPEC.md` — BOOL-1 — issue 1152: coplanar-split section boundaries cite non-adjacent surfaces
 - `BOOL-2-SPEC.md` — BOOL-2 — issue 1011, the cone arm: point_in_solid learns ray×cone
@@ -916,3 +915,10 @@ the unit's record is its item's `## Closed` section (an E rider outside
 the A/B experiment — no `MODEL-AB-LOG.md` row).
 
 - `PROPS-LILY-VEC3-SPEC.md` — PROPS lily-vec3, the lily authored in `Vec3<f64>` through the kernel's own doors, lifted at the boundary (#1954)
+
+## Per-merge deletion — PROPS ONB-measure's spec (2026-09-05)
+
+Recoverable at `git show 8dd230c1c2964da6f5cefe27dac0836b74312bba:docs/PROPS-ONB-MEASURE-SPEC.md`
+(the unit's last head; merged as PR 1939 at 48383a44c).
+
+- `PROPS-ONB-MEASURE-SPEC.md` — PROPS ONB-measure — the four evidence-only measurements deciding the orthonormal-basis sign hull (PR 1939's body carries the tables; `work/props/interval-orthonormal-basis-sign-hull.md` is the record; no A/B row)
