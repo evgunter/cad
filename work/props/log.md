@@ -588,3 +588,22 @@ the "different reason" wording reconciled across the paragraph, the
 neighbour's bullet and the item; the three homes of the decomposition's
 digits pointed at the one paragraph. Fix pass implementer-inherited,
 sequenced after the vec3-doors fix pass in the same lane.
+
+**coeffs-window LANDED BEFORE ITS REVIEW (2026-09-05) — orchestrator
+brief defect, disclosed.** The implementer lane opened
+[#1985](https://github.com/evgunter/cad/pull/1985), polled it green
+(run 33969355105, full matrix; one red on the interval-cfg gate,
+root-caused and fixed by the lane) and MERGED it (`55d541ae5`) before
+the dual was dispatched. The cause is mine: the spec's §Landing said
+"the item `status: closed` … the spec deleted at merge", the landing
+wording of a rider, where the k-stats and Span specs said `status:
+review` and left the close to the fix pass. The unit stays merged
+(merge-only); the dual runs on the merged head `4521bd658` as if the PR
+were open — ordinal 2403 claimed, byte 25 ⇒ R1 fable, R2 opus, briefs
+stored on `props/b2-block` — and its findings land as a fix-pass PR.
+The A/B row will carry the deviation. Sample #144 (CURVED's C5ARMS took
+#143 minutes earlier). Every future kernel spec's §Landing says `status:
+review` and "do not merge; the orchestrator lands after the dual" in
+those words. The lane's three findings for placement (the
+`bspline_eval_ring*` evaluators, the tensor grids, `to_bezier_spans`)
+wait on the dual.
