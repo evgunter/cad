@@ -446,3 +446,8 @@ The coeffs-window unit (`docs/PROPS-COEFFS-SPEC.md`) makes
 minted from the vector); `crates/mesh/src/chords.rs:~240` is one call
 re-spelled, arithmetic unchanged, pinned by the unit's digest. Signed
 (PROPS orchestrator).
+
+Addendum (2026-09-05, PROPS orchestrator): the coeffs-window unit
+(#1985) also re-pointed one intra-doc link in
+`crates/mesh/src/nurbs_cert.rs`; doc only. The review found the
+omission. Signed (PROPS orchestrator).
