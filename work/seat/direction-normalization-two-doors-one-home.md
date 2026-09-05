@@ -68,8 +68,12 @@ The ruling above is executed in `work/seat/SEAT-DN.md`'s PR.
   was already decided at the door that built it, or is an exact
   negation, and none holds an angle — so no re-spelling through the
   angle door and no new K carrier row. Stated at the constructor and
-  pinned. The residue that measurement DID find — `profile`'s 2-D
-  director doors classify a length's sign without first asking whether
-  it is finite, and cannot reach `is_finite_length` from where they
-  are — is filed as
-  `work/seat/two-d-director-doors-skip-the-finiteness-question`.
+  pinned. The residue that measurement DID find is a CLASS, filed with
+  its five members and three executed reproductions as
+  `work/seat/two-d-director-doors-skip-the-finiteness-question`:
+  direction doors that classify a length's sign without first asking
+  whether it is finite (`geom-core`'s `definitely_positive`, `sweep`'s
+  revolve axis, `topo`'s `sector_shape`, `profile`'s two director
+  doors) — each in another program's territory, and four of them
+  unlocked at once by FIX's
+  `is-finite-length-homed-in-the-query-seat`.

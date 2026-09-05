@@ -518,7 +518,7 @@ fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
 /// the mate solve's re-derivation of both from the recipe.
 ///
 /// It reaches the funnel as an argument to
-/// [`topo::query::unit_direction`] rather than as a literal at the
+/// [`topo::query::decide_unit_direction`] rather than as a literal at the
 /// `decide` call, so it is a roster carrier (`docs/K-REPORT.md`, "The
 /// inventory method, restated"), and it is a constant so that the
 /// name the telemetry records and the name an escalation reports
@@ -529,7 +529,7 @@ pub(crate) const EVAL_DIRECTION_NORM: &str = "eval_direction_norm";
 /// decided-zero length refuses, in-band indeterminacy escalates.
 ///
 /// **The decision is the kernel's one body**
-/// ([`topo::query::unit_direction`]): finiteness asked first through
+/// ([`topo::query::decide_unit_direction`]): finiteness asked first through
 /// the value channel every scalar has, then which side of zero the
 /// length lies on, then normalize or refuse. This function is that
 /// call plus the two things the evaluation layer owns — the funnel
@@ -563,14 +563,29 @@ pub(crate) fn unit<T: Decide>(
     role: &'static str,
     band: Band,
 ) -> Result<Vec3<T>, NodeErrorKind> {
-    query::unit_direction(v, EVAL_DIRECTION_NORM, band).map_err(|e| match e {
+    query::decide_unit_direction(v, EVAL_DIRECTION_NORM, band)
+        .map_err(|e| refusal(e, role, EVAL_DIRECTION_NORM))
+}
+
+/// **The kernel refusal in this layer's vocabulary** — the ONE map,
+/// for both roads.
+///
+/// The two doors above and below decide the same three things under
+/// two funnel names, so the arms and the role word are one function
+/// and the name is its parameter: a map per road is how the arms come
+/// to disagree, which is the defect one body was collapsed to fix and
+/// would be silly to re-introduce at the mapping.
+///
+/// `role` names the vector the CALLER passed, which is what a user
+/// reads; `predicate` names the funnel site the length was decided
+/// under, which is what an escalation is comparable by. They are
+/// different words on purpose and both travel.
+fn refusal(e: UnitVec3Error, role: &'static str, predicate: &'static str) -> NodeErrorKind {
+    match e {
         UnitVec3Error::NonFiniteLength => NodeErrorKind::NonFiniteDirection { role },
         UnitVec3Error::Degenerate => NodeErrorKind::DegenerateDirection { role },
-        UnitVec3Error::Escalated(source) => NodeErrorKind::Escalated {
-            predicate: EVAL_DIRECTION_NORM,
-            source,
-        },
-    })
+        UnitVec3Error::Escalated(source) => NodeErrorKind::Escalated { predicate, source },
+    }
 }
 
 /// A Length-valued `[Expr; 3]` triple as a point.
@@ -613,21 +628,17 @@ fn need_point2<T: Decide>(
 }
 
 /// A slot's vector as a datum direction, through the kernel type's own
-/// constructor: the normalization and the two refusals live there, and
-/// this layer only names the ROLE the refusal is about.
+/// constructor: the decision and its three refusals live there, this
+/// layer names the ROLE, and the refusal reaches the node error
+/// through the same [`refusal`] map the evaluation layer's own
+/// direction door uses — under [`DATUM_UNIT_NORM`], because on this
+/// road the kernel type owns the value.
 fn datum_unit<T: Decide>(
     v: Vec3<T>,
     role: &'static str,
     band: Band,
 ) -> Result<UnitVec3<T>, NodeErrorKind> {
-    UnitVec3::new(v, band).map_err(|e| match e {
-        UnitVec3Error::Degenerate => NodeErrorKind::DegenerateDirection { role },
-        UnitVec3Error::NonFiniteLength => NodeErrorKind::NonFiniteDirection { role },
-        UnitVec3Error::Escalated(source) => NodeErrorKind::Escalated {
-            predicate: DATUM_UNIT_NORM,
-            source,
-        },
-    })
+    UnitVec3::new(v, band).map_err(|e| refusal(e, role, DATUM_UNIT_NORM))
 }
 
 /// **A profile's `f64` placement, where the document HOLDS one** — an

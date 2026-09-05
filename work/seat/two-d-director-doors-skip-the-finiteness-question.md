@@ -1,94 +1,90 @@
 ---
 id: two-d-director-doors-skip-the-finiteness-question
 kind: issue
-title: profile's 2-D director doors decide a length they never asked to be finite (the SEAT-DV overflow class, in 2-D)
+title: four direction doors decide a length they never asked to be finite — the SEAT-DV overflow class, swept (profile ×2, sweep, geom-core, topo)
 status: open
 opened: 2026-09-05
+refs: [1564, 1738, is-finite-length-homed-in-the-query-seat]
 ---
 
+## The class
 
-## What was measured (SEAT-DN, DN-3)
+A direction door that classifies its length's SIGN without first
+asking whether that length is a FINITE NUMBER admits a `1e200`
+component out of a DECIDED path: the norm overflows to `+∞`, an
+infinite margin reads maximally definite POSITIVE to `sign_within`,
+and the division that follows collapses the direction to zero. The
+door then reports success. SEAT-DV's review (PR #1564) found this at
+the datum constructor and fixed it there; PR #1738 fixed the same
+order-of-questions at `editor-core`'s `unit()`; SEAT-DN collapsed
+those two into one body, `topo::query::decide_unit_direction`, which
+asks finiteness first through `topo::query::is_finite_length`.
 
-DN-3 sent the unit to `profile::path::Dir<T>::from_unit` to give it
-issue-1527's treatment. Measuring its callers first — as the spec
-required — found that constructor is NOT where the hole is: every ray
-reaching it was already decided at the door that built it, and the
-finding is one level up, at those doors.
+**Every remaining instance is below.** They were measured while
+executing SEAT-DN's DN-3, which sent that unit to
+`profile::path::Dir::from_unit` — the constructor turned out not to be
+the hole (every ray reaching it is already decided or an exact
+negation, stated and pinned there); its two producing DOORS are, and
+so are three more the sweep found.
 
-**The three producing callers** (`crates/profile/src/path.rs:1774`):
+| # | door | margin | measured |
+|---|---|---|---|
+| 1 | `geom-core` `linalg::frame::definitely_positive` (`frame.rs:205`), normalizing at `:287`, `:291`, `:330`, `:443` | `Margin::of(len)` | `mirror_across_plane(origin, (1e200,0,0), Tol::witness())` → `Ok(IDENTITY)` — a mirror that mirrors nothing, definite and silent |
+| 2 | `sweep` `revolve::axis::AxisFrame::build` (`revolve/axis.rs:55`) | `Margin::norm2(axis.dir)` | `decide("revolve_axis_direction", Margin::norm2((1e200,0)))` = `Ok(Positive)`, `normalize()` → `(0,0)`; the frame builds with `dir_sk = (0,0)` |
+| 3 | `topo` `sector_shape` (`sector_shape.rs:223`) | `Margin::of(min(arm))` | same arithmetic: both arms normalize to the zero vector after a definite-positive decision |
+| 4 | `profile` `unit_from_components` (`path.rs:2818`) | `path_director_norm`, hand norm | `unit_from_components(1e200, 0.0, Tol::witness())` → `Ok(Dir { unit: (0,0), ang: 0 })` |
+| 5 | `profile` `arc_fillet::carrier_tangent` (`arc_fillet.rs:901`) | `path_arc_center_radius` | same shape at `|P−O| ≳ 1e154` (not executed) |
 
-| caller | what it holds | decided under |
-|---|---|---|
-| `unit_from_components` (`path.rs:2818`) | authored components | `path_director_norm` |
-| `arc_fillet::carrier_tangent` (`path/arc_fillet.rs:901`) | τ·(P−O)⟂/R | `path_arc_center_radius` |
-| `Dir::reversed` (`path.rs:1791`) | the negation of a stored unit ray | unit by construction |
+Rows 1, 2 and 4 were executed; row 3's arithmetic is row 2's with a
+3-D norm; row 5's is row 2's.
 
-No caller holds an ANGLE (deriving the ray from one is what the VQ4
-exactness contract exists to prevent), and no caller holds an
-undecided ray. So neither branch of DN-3 applied: nothing to re-spell
-through the angle door, and no new K-REPORT carrier row owed. That is
-stated at `from_unit` and pinned by
-`path::tests::every_ray_a_director_is_built_from_was_decided_at_its_own_door`.
+**Two of these are reachable from a public door with no
+pre-validation**: `pncad-py`'s `Frame.mirror_across_plane`
+(`crates/pncad-py/src/py/place.rs:162`) and `RevolveAxis` through
+`pncad::prelude` (`prelude.rs:202`). The recipe road into the revolve
+is guarded, but upstream and for another reason —
+`editor-core`'s `wire.rs:937-948` validates `lift(plane_dir)` through
+the datum door first, so the sweep's own door is never reached with a
+non-finite direction from that road. That is #1738's shape exactly:
+the right outcome, from a guard that does not know it is the guard.
 
-## The hole those two doors DO have
+## What separates them, and why SEAT-DN fixed none of them
 
-Both classify their length's SIGN and neither asks first whether that
-length is a FINITE NUMBER — the exact order SEAT-DV's review found
-wrong in 3-D and the finiteness gate fixed
-(`topo::query::unit_direction`, `is_finite_length`).
+The rule has ONE spelling — `topo::query::is_finite_length` — and
+reachability decides the cost:
 
-Measured on this unit's branch, at `f64`, through the public door:
+- **`sweep` (row 2) can call it today.** `sweep` depends on `topo`.
+  One line before the decide, plus a `RevolveError` arm for the new
+  refusal (and its census/K consequence, which is that door's owner's
+  to place).
+- **`topo` (row 3) is already in the crate that holds it.**
+- **`geom-core` (row 1) is BELOW it**, and is the crate FIX's
+  `work/fix/is-finite-length-homed-in-the-query-seat` proposes as the
+  predicate's natural home (`Real`, `is_poison` and
+  `Vec3::normalize`'s own overflow note are there).
+- **`profile` (rows 4, 5) cannot reach it at all**: `profile` depends
+  on `geom-core` alone. Closing those two means either the move above
+  or a second spelling of the rule, which is what this family's ruling
+  is against. Both also need a new public `PathError` arm, its
+  sentence, its `PathErrorKind` row, and whatever the python tag
+  census pins about that surface.
 
-```
-unit_from_components(1e200, 0.0, Tol::witness())
-  -> Ok(Dir { unit: (0, 0), ang: 0 })
-```
+So `is-finite-length-homed-in-the-query-seat` is not a neighbouring
+question — **it is the ruling that unlocks four of these five rows at
+once**. Answering it "`geom-core`" makes every door above able to ask
+in the one spelling; answering it "stays in the query seat" leaves
+rows 1, 4 and 5 needing a second spelling or a layering change, and
+that answer should be given knowing there is live silently-wrong
+behaviour behind it.
 
-Components of `1e200` are finite VALUES, so the expression layer
-passes them; `(dx² + dy²).sqrt()` overflows to `+∞`; an infinite
-margin reads MAXIMALLY DEFINITE positive to `sign_within`, so the
-door decides "this names a direction"; and `dx / ∞` then collapses
-the ray to `(0, 0)` with angle `0`. A director that names no
-direction is admitted out of a decided path, and every leg built on
-it steps by nothing.
+SEAT-DN touched none of them: each door belongs to another program's
+territory, and the unit's spec was a faithful execution of a ruling
+about the direction FAMILY's home, not a licence to edit five crates.
 
-`PartialPath::toward(dx, dy, tol)` reaches this door
-(`path/program.rs:663`, `path/verbs.rs:372`), so the reach is the
-public authoring API, not an internal corner.
-`carrier_tangent`'s `radius = v.norm_squared().sqrt()` has the same
-shape at `|P−O| ≳ 1e154` (not executed here).
+## What this asks
 
-## Why SEAT-DN did not fix it
-
-The rule has ONE spelling in the workspace — `topo::query::is_finite_length`
-— and `profile` cannot call it: `crates/profile/Cargo.toml` names
-`geom-core` and nothing else, while the predicate lives in `topo`,
-which sits above. Closing the hole means one of
-
-1. moving `is_finite_length` down to `geom-core` (where `Real` and
-   `is_poison` live) and re-exporting it from `topo::query`, so the
-   one spelling stays one; or
-2. a second spelling in `profile`, which is what this family's ruling
-   is against.
-
-and then a refusal for the new arm: `PathError` has no "not a finite
-length" variant, so (1) also adds a public error arm, its sentence,
-its `PathErrorKind` row and whatever the python tag census pins about
-that surface. That is a unit, not a rider on a ruling SEAT-DN was
-told to execute faithfully, and its funnel names are `profile`'s to
-place.
-
-## Refs
-
-- Executed by SEAT-DN (`work/seat/SEAT-DN.md`); the 3-D half is
-  `topo::query::unit_direction`.
-- The 3-D precedent and the class: SEAT-DV (PR #1564), whose review
-  found the same order-of-questions defect at the datum door.
-- **Interlocks with `work/fix/is-finite-length-homed-in-the-query-seat`**
-  (FIX's slate, open): that item asks SEAT whether the predicate
-  should live in `geom-core` beside `Real`/`is_poison` rather than in
-  the query seat. Answering it "yes" is option (1) above and is what
-  makes this hole closable without a second spelling, so the two want
-  to be decided together. That item's closing line still cites issue
-  1570 as the open family question; the ruling closed it, and only
-  that item's owner can update it.
+One unit, after the homing question is answered: put the finiteness
+question in front of every decide-then-normalize direction door in the
+workspace, in one spelling, with a typed refusal per door and the
+K/census consequence stated per site. Red-first per row — each of the
+five reproductions above is a test.

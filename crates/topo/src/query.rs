@@ -61,17 +61,23 @@
 //!   selection question**, and unlike the one above it is public. It
 //!   takes a bare scalar, reads no [`Body`] and reaches no funnel: it
 //!   is the value-channel question that comes BEFORE a direction's
-//!   length is classified, asked in exactly one place —
-//!   [`unit_direction`], the workspace's one decide/normalize/refuse
-//!   for a 3-D direction, which both this crate's datum constructor
-//!   and the evaluation layer's own direction door call under their
-//!   own funnel names. Whether the predicate belongs here at all —
+//!   length is classified. Whether the predicate belongs here at all —
 //!   `geom-core` holds `Real`, `is_poison` and `Vec3::normalize`'s own
 //!   overflow note — is an open question for this seat's owner, filed
 //!   as `is-finite-length-homed-in-the-query-seat`; a live consequence
 //!   of the answer is that `profile`, which depends on `geom-core`
 //!   alone, cannot ask this question at all today
 //!   (`work/seat/two-d-director-doors-skip-the-finiteness-question`).
+//!
+//!   **[`decide_unit_direction`] is a THIRD, and it is a funnel site**
+//!   — the only public decide site in this module whose predicate NAME
+//!   comes from the caller rather than from here. It is the
+//!   workspace's one `Margin::norm3` decide-then-normalize body: this
+//!   crate's datum constructor and the evaluation layer's own
+//!   direction door are two calls to it under two ratified funnel
+//!   names. It answers no selection question either; it is here
+//!   because the datum vocabulary's own constructor needs it and the
+//!   kernel seat is where the decision belongs.
 //!
 //! # Where an entity IS, for the decided door
 //!
@@ -404,8 +410,11 @@ pub struct UnitVec3<T: Real>(Vec3<T>);
 /// "The inventory method, restated").
 pub const DATUM_UNIT_NORM: &str = "datum_unit_norm";
 
-/// Why a vector could not become a [`UnitVec3`] — a closed enum (D4
-/// ¶3): every arm is a fact about the input, never a lane to swallow.
+/// **Why a vector has no unit direction** — the refusals of
+/// [`decide_unit_direction`], which are also exactly why a vector
+/// could not become a [`UnitVec3`]: the constructor adds the type, not
+/// a refusal of its own. A closed enum (D4 ¶3); every arm is a fact
+/// about the input, never a lane to swallow.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UnitVec3Error {
     /// The vector's length decided to zero: it names no direction, and
@@ -458,32 +467,52 @@ impl std::error::Error for UnitVec3Error {}
 /// the honest scope: this catches the point scalars, which is where an
 /// infinite length turns into a definite wrong answer.
 ///
-/// One rule, one spelling, and now one CALLER: every 3-D direction
-/// door in the workspace asks this question through
-/// [`unit_direction`], which is the only place it is asked before a
-/// length is classified — the datum constructor and `editor-core`'s
-/// own direction door are two calls to that one body under two funnel
-/// names.
+/// One rule, one spelling, one CALLER — **and the claim is exactly
+/// that literal one**: [`decide_unit_direction`] is the workspace's
+/// only `Margin::norm3` decide-then-normalize spelling, and it is
+/// where this question is asked before that decision. It is NOT a
+/// claim that every length a direction is normalized by is asked
+/// about, and the difference is where the live holes are.
 ///
-/// It is still not asked everywhere a direction is normalized, and the
-/// honest scope is the remaining list: `editor-core`'s
-/// `Frame::rotate_then_translate` asks nothing and is refused
-/// downstream on the non-finite frame it builds; its
-/// `clearance::chart_frame` asks a different question (a bracket read
-/// of the normalized OUTPUT); and `profile`'s 2-D director doors
-/// decide a length they never asked to be finite and cannot reach
-/// this predicate at all, because `profile` depends on `geom-core`
-/// alone and this crate sits above it
-/// (`work/seat/two-d-director-doors-skip-the-finiteness-question`).
+/// **Direction doors that decide a length and never ask whether it is
+/// finite**, each admitting a `1e200` component out of a DECIDED path
+/// (measured, and each one its own crate's to fix — the class is
+/// `work/seat/two-d-director-doors-skip-the-finiteness-question`):
+///
+/// - `geom-core`'s `linalg::frame::definitely_positive`
+///   ([`Margin::of`] on a norm, then `normalize` at four sites):
+///   `mirror_across_plane(p, (1e200, 0, 0), tol)` returns the
+///   IDENTITY — a mirror that mirrors nothing — and the door is
+///   public through `pncad-py`'s `Frame.mirror_across_plane`.
+/// - `sweep`'s `revolve::axis::AxisFrame::build` ([`Margin::norm2`],
+///   then `normalize`): a `RevolveAxis` of `(1e200, 0)` builds with a
+///   `(0, 0)` direction. `sweep` depends on this crate, so the
+///   predicate is reachable there — that hole is one line and a
+///   refusal arm.
+/// - this crate's own `sector_shape` (`Margin::of` on the shorter
+///   arm, then `normalize` on both): the same arithmetic collapses
+///   both arms to zero.
+/// - `profile`'s two 2-D director doors (`unit_from_components`,
+///   `arc_fillet::carrier_tangent`), which cannot reach this
+///   predicate at all: `profile` depends on `geom-core` alone and
+///   this crate sits above it.
+///
+/// Two further sites normalize without deciding at all, which is a
+/// different shape and the declined half of the direction family:
+/// `editor-core`'s `Frame::rotate_then_translate` (asks nothing;
+/// refused downstream on the non-finite frame it builds) and its
+/// `clearance::chart_frame` (a bracket read of the normalized
+/// OUTPUT).
 pub fn is_finite_length<T: Real>(x: T) -> bool {
     #[allow(clippy::eq_op)]
     let residual = x - x;
     !residual.is_poison()
 }
 
-/// **The direction-length decision, and the workspace's only spelling
-/// of it**: is the length a finite number, which side of zero is it
-/// on, and — only then — the normalized ray or a typed refusal.
+/// **The direction-length decision, once**: is the length a finite
+/// number, which side of zero is it on, and — only then — the
+/// normalized ray or a typed refusal. The one
+/// `Margin::norm3` decide-then-normalize spelling in the workspace.
 ///
 /// Two questions in this order, and the order is the point.
 ///
@@ -504,30 +533,32 @@ pub fn is_finite_length<T: Real>(x: T) -> bool {
 ///    contains a real direction never refuses spuriously; one that
 ///    straddles zero escalates instead of guessing.
 ///
-/// **`site` is the funnel name, and it is a parameter because the NAME
-/// belongs to the layer that owns the value while the DECISION belongs
-/// here.** A datum's normal or axis direction is decided under
-/// [`DATUM_UNIT_NORM`], through [`UnitVec3::new`] — the type that
-/// holds it has no unnormalized spelling, so the invariant is the
-/// type's. A transform's rotation axis and a pattern's direction are
-/// decided under `eval_direction_norm`, at `editor-core`'s own
-/// direction door, because the evaluation layer owns those values and
-/// its K telemetry is read per layer. Two names, one body: the
-/// alternative — one name — would erase which layer a length decision
-/// came from, and the alternative to one body was the six lines living
-/// twice, which is how the two copies came to differ in the first
-/// place.
+/// **`site` is the K funnel name this decision is recorded under, and
+/// it is a PARAMETER because the name belongs to the layer that owns
+/// the value while the decision belongs here.** A value's owner is
+/// what its telemetry has to be readable by: a datum's normal is the
+/// kernel type's, decided under [`DATUM_UNIT_NORM`] through
+/// [`UnitVec3::new`], because [`UnitVec3`] has no unnormalized
+/// spelling; a transform axis or a pattern direction belongs to the
+/// layer that authored it, under that layer's own name. One name for
+/// both would erase which layer decided; one body for both is what
+/// keeps the arithmetic and the refusals from drifting, which is what
+/// they did while the six lines lived twice.
 ///
-/// The site is a `&'static str` and never a stored field or an enum:
-/// nothing here dispatches on it, and a kernel that had to name its
-/// callers would grow a variant per caller.
+/// Nothing here dispatches on `site` and nothing stores it — it is
+/// passed to the funnel and dropped. **A name reaching the K roster
+/// this way is registered by hand or not at all**: this function will
+/// decide under any string a caller passes, so a new site is a
+/// `docs/K-REPORT.md` edit its author owes (that document's
+/// "inventory method, restated" — the roster is hand-maintained and
+/// nothing mechanical catches an omission).
 ///
 /// # Errors
 ///
 /// [`UnitVec3Error::NonFiniteLength`] on an overflowed or poisoned
 /// length, [`UnitVec3Error::Degenerate`] on a decided-zero one,
 /// [`UnitVec3Error::Escalated`] on an in-band one.
-pub fn unit_direction<T: Decide>(
+pub fn decide_unit_direction<T: Decide>(
     v: Vec3<T>,
     site: &'static str,
     band: Band,
@@ -558,8 +589,8 @@ impl<T: Decide> UnitVec3<T> {
     ///
     /// The decision itself — finiteness first, then which side of zero
     /// the length lies on, then normalize or refuse — is
-    /// [`unit_direction`], which the evaluation layer's own direction
-    /// door calls too; the two questions and the reason for their
+    /// [`decide_unit_direction`], which the evaluation layer's own
+    /// direction door calls too; the two questions and the reason for their
     /// order are documented there. What this constructor adds is the
     /// TYPE: a direction that reaches it comes out unit as a property
     /// of the type rather than of the caller's diligence, and the
@@ -572,7 +603,7 @@ impl<T: Decide> UnitVec3<T> {
     /// length, [`UnitVec3Error::Degenerate`] on a decided-zero one,
     /// [`UnitVec3Error::Escalated`] on an in-band one.
     pub fn new(v: Vec3<T>, band: Band) -> Result<Self, UnitVec3Error> {
-        unit_direction(v, DATUM_UNIT_NORM, band).map(Self)
+        decide_unit_direction(v, DATUM_UNIT_NORM, band).map(Self)
     }
 }
 

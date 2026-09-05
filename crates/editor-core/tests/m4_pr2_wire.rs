@@ -602,10 +602,21 @@ fn the_kernel_refusal_maps_onto_every_arm_of_this_layers_door() {
             | (NodeErrorKind::DegenerateDirection { role }, "degenerate") => {
                 assert_eq!(*role, "pattern direction", "the role word travels");
             }
-            (NodeErrorKind::Escalated { predicate, .. }, "escalated") => {
+            (NodeErrorKind::Escalated { predicate, source }, "escalated") => {
                 assert_eq!(
                     *predicate, "eval_direction_norm",
                     "an in-band length escalates naming THIS layer's funnel site"
+                );
+                // AND the name the FUNNEL recorded, which is a
+                // different fact: the field above is this layer's own
+                // constant, so a kernel that ignored the site it was
+                // passed and decided everything under one name would
+                // leave it green. The escalation carries what
+                // `decide` was actually called with.
+                assert_eq!(
+                    source.predicate,
+                    Some("eval_direction_norm"),
+                    "the kernel decided this length under the site it was PASSED"
                 );
             }
             (other, _) => panic!("the {expected} length mapped to {other:?}"),
@@ -639,6 +650,33 @@ fn the_kernel_refusal_maps_onto_every_arm_of_this_layers_door() {
             e.kind
         ),
         other => panic!("expected Failed, got {other:?}"),
+    }
+
+    // **The DATUM road through the same map.** The two roads decide
+    // under two funnel names and share one refusal map, so the map's
+    // arms and its role word have to be exercised from both ends —
+    // and the datum road reaches it through the kernel TYPE's
+    // constructor, which is a different call.
+    for (component, expected) in [(1e200, "non-finite"), (0.0, "degenerate")] {
+        let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+        let (doc, axis) = insert(
+            doc,
+            Node::Datum(Datum::Axis {
+                origin: [len(0.0), len(0.0), len(0.0)],
+                direction: [scl(0.0), scl(component), scl(0.0)],
+            }),
+        );
+        let ev = run(&doc);
+        let Some(NodeResult::Failed(e)) = ev.nodes.get(&axis) else {
+            panic!("expected a refusal for the {expected} datum axis");
+        };
+        match (&e.kind, expected) {
+            (NodeErrorKind::NonFiniteDirection { role }, "non-finite")
+            | (NodeErrorKind::DegenerateDirection { role }, "degenerate") => {
+                assert_eq!(*role, "datum axis direction", "the role word travels");
+            }
+            (other, _) => panic!("the {expected} datum length mapped to {other:?}"),
+        }
     }
 }
 

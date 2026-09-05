@@ -4038,9 +4038,11 @@ mod tests {
         }
     }
 
-    /// **Every ray a director is built from was decided at the door
-    /// that built it** — [`Dir::from_unit`]'s standing contract, and
-    /// the reason it does not decide the ray a second time.
+    /// **Each producing door decides its own length and stores a unit
+    /// ray** — the two halves of [`Dir::from_unit`]'s contract that a
+    /// test can reach. It does NOT prove the contract holds for every
+    /// caller: nothing here can see a fourth caller appear, which is
+    /// what the constructor's privacy and its doc are for.
     ///
     /// The two producing doors are walked here, refusal and success:
     /// each classifies its own length through the funnel under its own
@@ -4051,7 +4053,7 @@ mod tests {
     /// third caller, [`Dir::reversed`], is unit by exact negation and
     /// is pinned by the row above.
     #[test]
-    fn every_ray_a_director_is_built_from_was_decided_at_its_own_door() {
+    fn each_producing_door_decides_its_length_and_stores_a_unit_ray() {
         let tol = Tol::witness();
         let band = linear_band::<f64>(tol).expect("the linear band");
 

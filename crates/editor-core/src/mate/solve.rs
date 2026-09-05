@@ -462,9 +462,15 @@ fn derived_offset<P>(
         // `topo::query::unit_direction`, so the "same arithmetic,
         // same refusal shape" above is a fact about one function
         // rather than a claim about two copies. The ROLE word is what
-        // the two roads share: each rule names the vector it actually
-        // normalized, so a circular rule's refusal says "datum axis
-        // direction" here exactly as it does on the eval road.
+        // the two roads share INSIDE the evaluation layer's error:
+        // each rule names the vector it actually normalized, so the
+        // node error a circular rule builds says "datum axis
+        // direction" on either road. It does not survive the closure
+        // below — a degenerate or non-finite direction becomes
+        // `MateFault::DanglingHead`, which carries the head and no
+        // role at all, and that loss is the residue this door's own
+        // docs name (`mate-dangling-head-is-a-catch-all-that-reports-
+        // a-false-cause`).
         let unit = |v: Vec3<f64>, role: &'static str| -> Result<Vec3<f64>, Box<MateFault>> {
             crate::eval::unit_direction(v, role, band).map_err(|e| match e {
                 crate::eval::NodeErrorKind::Escalated { source, .. } => {
