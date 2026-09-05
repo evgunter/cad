@@ -31,23 +31,44 @@
 //!   verdict is [`SectionError::RoutesToGeneralRung`], a documented
 //!   decision, not a TODO.
 //!
-//! # What executes in this PR (spec §3)
+//! # The section arms
 //!
-//! 1. [`plane_cylinder_section`] — tilted ⇒ exact `Ellipse`
-//!    (zero-residual-by-construction: every constructed point satisfies
-//!    both implicit forms exactly in ℝ); axis ∥ normal ⇒ the M2 rim
-//!    `Circle`; axis in-plane ⇒ line pair / tangent line / empty.
-//! 2. [`cylinder_cylinder_section`] — equal radii (**structural or
+//! Every arm classifies its configuration through named trileans
+//! first, mints the closed form only for the configurations it names,
+//! and refuses typed for the rest. Each is
+//! zero-residual-by-construction where it mints: every constructed
+//! point satisfies both implicit forms exactly in ℝ.
+//!
+//! 1. [`plane_cylinder_section`] — tilted ⇒ exact `Ellipse`;
+//!    axis ∥ normal ⇒ the M2 rim `Circle`; axis in-plane ⇒ line pair /
+//!    tangent line / empty.
+//! 2. [`plane_sphere_section`] — the `Circle`; the tangency is a POINT,
+//!    classification data refused as a carrier.
+//! 3. [`plane_cone_section`] — exact-degenerate cases only (R1):
+//!    apex-through plane (two generator lines / tangent line / apex
+//!    point), axis-normal cut (`Circle`); generic tilt refuses typed as
+//!    permanently routed to rung 3.
+//! 4. [`plane_torus_section`] — the two exact-degenerate poses: an
+//!    axis-CONTAINING plane's two meridian `Circle`s, an axis-NORMAL
+//!    plane's two concentric ones (or the tangency circle, as
+//!    classification data); every tilt — the spiric and the Villarceau
+//!    bitangent included — refuses typed.
+//! 5. [`cylinder_cylinder_section`] — equal radii (**structural or
 //!    declared ONLY, never inferred from values** — the caller passes
 //!    [`RadiusEvidence`] resolved through the coincidence ladder; the
 //!    declaration is then *verified*, D5-style) with intersecting axes
 //!    ⇒ two `Ellipse` carriers in the two axis-bisector planes;
 //!    parallel axes ⇒ line pair / tangent line / empty; skew or
 //!    undeclared ⇒ typed rung-3 refusal.
-//! 3. [`plane_cone_section`] — exact-degenerate cases only (R1):
-//!    apex-through plane (two generator lines / tangent line / apex
-//!    point), axis-normal cut (`Circle`); generic tilt refuses typed as
-//!    permanently routed to rung 3.
+//! 6. [`cylinder_sphere_section`] — the DECLARED-coaxial pose only
+//!    ([`CoaxialEvidence`]): two circles, the tangent circle as
+//!    classification data, or empty.
+//! 7. [`sphere_sphere_section`] — the radical-plane `Circle`; either
+//!    tangency is a POINT, and one sphere given twice is a coincidence
+//!    to declare rather than a section.
+//! 8. [`cone_cylinder_section`] — the COAXIAL pose only: one `Circle`
+//!    per nappe at `±R·cot α`, admitted by the station's own reach;
+//!    tilted and parallel-but-offset refuse typed.
 //!
 //! # What M5 PR 7 added (rung 3 becomes real)
 //!
@@ -281,17 +302,22 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    meters conversion (arms retire one at a time, each with its \
                    proof)",
         },
-        // ---- Rung 3: quartic-and-worse loci. The general rung is
-        // implemented, but it retires per arm (C12.1), so these still
-        // refuse typed, naming the routing AND what each one lacks.
+        // ---- Rung 1, the COAXIAL configuration only: two closed-form
+        // Circles, one per nappe. Every other pose keeps its
+        // general-rung routing, named at the arm's own refusal. ----
         (Cylinder, Cone) | (Cone, Cylinder) => PairRoute {
-            rung: Rung::General,
-            implemented: false,
-            note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
-                   trace shape (the general-rung marcher); the cone's meters composite \
+            rung: Rung::Closed,
+            implemented: true,
+            note: "the coaxial configuration only: a cylinder sharing the cone's axis \
+                   cuts each nappe in a closed-form Circle of the CYLINDER's own \
+                   radius, at ±R·cot α from the apex (cone_cylinder_section) — no \
+                   tangency sub-case exists, a coaxial cylinder always cuts \
+                   transversally; a tilted cylinder and a parallel-but-OFFSET one \
+                   both cut a QUARTIC and route to the general rung, whose \
+                   cone×cylinder arm has not retired — the cone's meters composite \
                    needs a certified root the exact-arithmetic ring lacks, so its \
-                   certificate — \
-                   not its trace — is what is missing",
+                   certificate, not its trace, is what is missing (arms retire one \
+                   at a time, each with its proof)",
         },
         // ---- Rung 3, IMPLEMENTED (M5 PR 7): the ℝ³ implicit-pair
         // march. Both operands' C9 composites convert to meters
@@ -308,9 +334,14 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    (cylinder_sphere_section: two circles, the tangent circle as \
                    classification data, or empty), and everything else — every \
                    transversal pose, and every coaxial pose without ladder evidence, \
-                   because coaxiality is never inferred from a measured distance — \
+                   because THIS pair's coaxiality is never inferred from a measured \
+                   distance (a ruling this pair can afford: its general-rung arm is \
+                   implemented, so refusing costs a slower answer, not an answer) — \
                    still marches",
         },
+        // ---- Rung 3: quartic-and-worse loci. The general rung is
+        // implemented, but it retires per arm (C12.1), so these still
+        // refuse typed, naming the routing AND what each one lacks.
         (Cylinder, Torus) | (Torus, Cylinder) => PairRoute {
             rung: Rung::General,
             implemented: false,
@@ -466,12 +497,22 @@ pub enum SectionError {
     /// verified, never trusted (the M3 verified-at-use posture).
     CoaxialDeclarationContradicted,
     /// An operand violates the surface convention its arm is written
-    /// against — a radius that is not definitely positive. Asked per
-    /// QUESTION rather than through the relation between two radii: a
-    /// relation-only guard admits `r = 0` and `r = R = 0` and mints a
-    /// radius-zero locus from them.
+    /// against. Asked per QUESTION rather than through a relation
+    /// between two quantities: a relation-only guard admits `r = 0` and
+    /// `r = R = 0` and mints a radius-zero locus from them. `what`
+    /// carries the whole finding — which clause failed and what it was
+    /// measured on — because the clauses are not all about radii.
     DegenerateOperand {
-        /// Which clause of the convention failed.
+        /// Which clause of the convention failed, and on what.
+        what: &'static str,
+    },
+    /// The closed form's own locus stands where the caller's metered
+    /// reach does not: a section curve outside `extent` carries an
+    /// absolute position error that scales with the LOCUS rather than
+    /// with the operands, so the arm's zero-residual claim would not
+    /// hold there. Refused rather than minted.
+    BeyondOperandExtent {
+        /// What the arm was about to mint, and against which reach.
         what: &'static str,
     },
     /// The two surfaces are coincident (coaxial equal-radius cylinders):
@@ -533,9 +574,15 @@ impl core::fmt::Display for SectionError {
             ),
             Self::DegenerateOperand { what } => write!(
                 f,
-                "section: {what} — the arm is written against the convention that both \
-                 radii are definitely positive, and it asks each clause its own \
-                 question rather than reading the relation between them"
+                "section: {what} — the arm asks each clause of its operands' convention \
+                 its own question rather than reading a relation between them"
+            ),
+            Self::BeyondOperandExtent { what } => write!(
+                f,
+                "section: {what} — a locus outside the extent the call metered against \
+                 is not this rung's to mint: its absolute position error scales with \
+                 the locus, not with the operands, so the arm's exactness claim does \
+                 not reach it. Re-ask with an extent that covers the locus"
             ),
             Self::CoincidentSurfaces => write!(
                 f,
@@ -1236,8 +1283,11 @@ pub fn cylinder_cylinder_section<T: Decide>(
 /// The coincidence-ladder evidence for a cylinder×sphere pair being
 /// COAXIAL — the sphere's centre lying on the cylinder's axis. The
 /// [`RadiusEvidence`] sibling, and structural or declared ONLY:
-/// **never inferred from a measured axis-to-centre distance**, at any
-/// tolerance. The caller — who owns provenance/declaration data —
+/// **this pair's coaxiality is never inferred from a measured
+/// axis-to-centre distance**, at any tolerance. That is a ruling about
+/// THIS pair, whose general-rung arm is implemented and marches — see
+/// [`Self::None`] for where the same question is decided differently
+/// and why. The caller — who owns provenance/declaration data —
 /// resolves the ladder; this module consumes the verdict, then
 /// *verifies* it against the geometry (declared ≠ unchecked).
 ///
@@ -1255,6 +1305,14 @@ pub enum CoaxialEvidence {
     /// No ladder evidence: the pair routes to the general rung even if
     /// the axis-to-centre distance happens to measure zero (the
     /// never-infer rule).
+    ///
+    /// **The rule is this PAIR's, not the file's.** It buys its
+    /// strictness with a general-rung arm that is implemented and
+    /// marches, so refusing costs the caller a slower answer and not
+    /// an answer. Where the fall-back arm does NOT exist, an arm
+    /// decides the pose itself from a metered margin with the in-band
+    /// case escalating — [`cone_cylinder_section`]'s `coc_coaxial` is
+    /// the live instance, and its own docs carry the argument.
     None,
 }
 
@@ -1837,5 +1895,250 @@ pub fn plane_torus_section<T: Decide>(
                 }),
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------
+// cone × cylinder, the coaxial configuration only
+// ---------------------------------------------------------------------
+
+/// The classified cone×cylinder section — the one exact-degenerate
+/// configuration's closed form (rung 1: the trileans run before any
+/// rung, C5; **no fitted chord anywhere in this arm** — both loci are
+/// exact `Circle`s). Every other pose cuts a QUARTIC and refuses typed
+/// as routed to the general rung.
+///
+/// There is deliberately no tangency variant: a coaxial cylinder meets
+/// each nappe transversally at every half-angle in the cone's own
+/// convention `α ∈ (0, π/2)`, so the `TangentCircle`/`TangentPoint`
+/// classification-data lineage has nothing to classify here. That is
+/// what makes this arm strictly simpler than [`plane_cone_section`].
+#[derive(Clone, Debug)]
+pub enum ConeCylinderSection<T: Real> {
+    /// Coaxial cylinder: ONE circle per nappe — both of the CYLINDER's
+    /// radius `R`, both centred on the shared axis at
+    /// `apex ± axis·(R·cot α)`, carrier axis the CONE's axis and
+    /// `u_ref` the cone's own seam direction (⊥ the axis as stored, so
+    /// no tie-break is needed). Zero-residual-by-construction against
+    /// both implicit forms in ℝ.
+    ///
+    /// The `+`/`−` assignment is the cone's own nappe convention, not a
+    /// verdict: `c1` is on the `v > 0` nappe (the one opening along
+    /// `axis`) and `c2` on its mirror.
+    CoaxialCircles {
+        /// The circle on the `v > 0` nappe, centred at `apex + a·R·cot α`.
+        c1: Curve3<T>,
+        /// The circle on the mirror nappe, centred at `apex − a·R·cot α`.
+        c2: Curve3<T>,
+    },
+}
+
+/// Classifies and constructs the cone×cylinder coaxial section.
+///
+/// Trileans, in order (named lever arms per D4 ¶1):
+///
+/// 1. `coc_cylinder_radius` — margin `R` (meters): the arm states both
+///    circles at exactly that radius, so it must be a positive length.
+/// 2. `coc_aperture_sin` and `coc_aperture_cos`, each metered at
+///    `extent` — the two clauses of the cone's own convention
+///    `α ∈ (0, π/2)`, asked as separate questions (the
+///    [`cylinder_sphere_section`] shape). **Neither is the admission
+///    criterion**: `sin α` is decided because the station DIVIDES by
+///    it, and `cos α` because `cot α`'s sign is what puts `c1` on the
+///    nappe this arm's docs promise. Both refuse
+///    [`SectionError::DegenerateOperand`].
+/// 3. `coc_axes_parallel` — margin `‖a×b‖·extent` (the axes' angle
+///    off parallel, metered at the operand extent): definite ⇒ the
+///    general-rung refusal, a tilted cylinder cutting a quartic. Zero
+///    covers the antiparallel pose too, which is the same
+///    configuration read through the cylinder's opposite orientation.
+/// 4. `coc_coaxial` — margin the axis-to-axis distance
+///    `‖(o − apex) − a·((o − apex)·a)‖` (meters): Zero ⇒ coaxial;
+///    definite ⇒ the general-rung refusal, a parallel-but-OFFSET
+///    cylinder cutting a quartic. A norm is never negative, so this
+///    trilean has two live verdicts by construction.
+/// 5. `coc_station_reach` — margin `extent − |R·cot α|` (meters), the
+///    ADMISSION criterion and the last decision before the mint:
+///    Positive ⇒ [`ConeCylinderSection::CoaxialCircles`], otherwise
+///    [`SectionError::BeyondOperandExtent`]. **Why the station and not
+///    the angle.** Each centre carries the absolute error of
+///    `R·cot α`, which diverges as the half-angle closes, whereas an
+///    angular guard levered at `extent` LOOSENS as the operands grow —
+///    so metering the aperture alone would let a bigger operand admit
+///    a worse mint (measured: `α = 1e-10`, `extent = 100`, `ε = 1e-9`
+///    put a "zero-residual" circle ~101 ε off BOTH surfaces). Inside
+///    the caller's own reach the position error is `O(ε · extent)`,
+///    which is what makes the exactness claim above a statement about
+///    this arm.
+///
+/// **Why the axis distance is decided here and not demanded from the
+/// coincidence ladder** (the contrast with [`CoaxialEvidence`], which
+/// this arm deliberately does not take): the ladder governs a
+/// COINCIDENCE between two independently authored features, and its
+/// price is that the pair falls back to a general-rung arm that is
+/// already implemented. Here the fall-back arm is NOT implemented, so
+/// demanding a declaration would refuse every real operand; and the
+/// question this margin asks is the same shape as the pose questions
+/// every other exact-degenerate arm decides (`pt_axis_plane_gap`,
+/// `pn_apex_on_plane`) — where a surface stands relative to another's
+/// frame, at the committed tolerance, with the in-band case escalating
+/// rather than being guessed.
+///
+/// The form is `atan2`-free and branch-cut-free by construction, so the
+/// `Interval` lane takes it unchanged: there is no lane fork here.
+///
+/// # Errors
+///
+/// [`SectionError`] — wrong-lane kinds, the convention guards, the
+/// extent refusal, in-band escalations (F6), or the general-rung
+/// routing refusal.
+pub fn cone_cylinder_section<T: Decide>(
+    cone: &Surface<T>,
+    cyl: &Surface<T>,
+    extent: T,
+    band: Band,
+) -> Result<ConeCylinderSection<T>, SectionError> {
+    let wrong = || SectionError::WrongLane {
+        expected: "cone×cylinder (cone first)",
+    };
+    let &Surface::Cone {
+        apex,
+        axis: a,
+        half_angle,
+        u_ref: cone_u,
+    } = cone
+    else {
+        return Err(wrong());
+    };
+    let &Surface::Cylinder {
+        origin: o,
+        axis: b,
+        radius: big_r,
+        ..
+    } = cyl
+    else {
+        return Err(SectionError::WrongLane {
+            expected: "cone×cylinder (cylinder second)",
+        });
+    };
+
+    let (sin_a, cos_a) = half_angle.sin_cos();
+    match decide("coc_cylinder_radius", Margin::of(big_r), band).map_err(SectionError::Escalated)? {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => {
+            return Err(SectionError::DegenerateOperand {
+                what: "the cylinder's radius is not definitely positive, and this arm \
+                       states both circles at exactly that radius",
+            });
+        }
+    }
+    // **These two are NOT the admission criterion**; `coc_station_reach`
+    // below is. `coc_aperture_sin` exists because the station DIVIDES by
+    // `sin α` and a division needs its divisor decided; `coc_aperture_cos`
+    // because a half-angle at or past a right angle turns `cot α`'s sign
+    // and with it the `c1`/`c2` nappe assignment this arm documents, so
+    // it is the cone convention's own clause rather than a conditioning
+    // question. Both meter through the operand extent, the lever every
+    // angular margin here takes.
+    for (name, margin, what) in [
+        (
+            "coc_aperture_sin",
+            sin_a,
+            "the cone's half-angle does not definitely open off its axis, so the \
+             station's division by sin α is not decided",
+        ),
+        (
+            "coc_aperture_cos",
+            cos_a,
+            "the cone's half-angle is not definitely under a right angle, so cot α's \
+             sign — and with it which nappe each circle is on — is not decided",
+        ),
+    ] {
+        match decide(name, Margin::levered(margin, extent), band)
+            .map_err(SectionError::Escalated)?
+        {
+            Sign::Positive => {}
+            Sign::Zero | Sign::Negative => return Err(SectionError::DegenerateOperand { what }),
+        }
+    }
+
+    match decide(
+        "coc_axes_parallel",
+        Margin::levered(a.cross(b).norm(), extent),
+        band,
+    )
+    .map_err(SectionError::Escalated)?
+    {
+        Sign::Zero => {}
+        Sign::Positive | Sign::Negative => {
+            return Err(SectionError::RoutesToGeneralRung {
+                pair: "cone×cylinder",
+                why: "a cylinder tilted off the cone's axis cuts a QUARTIC, not a \
+                      circle, and the pair's general-rung arm has not retired — the \
+                      cone's meters composite needs a certified root the \
+                      exact-arithmetic ring lacks (arms retire one at a time, each \
+                      with its proof)",
+            });
+        }
+    }
+
+    // The axes are parallel: coaxial or merely parallel, by the
+    // axis-to-axis distance. `a` is unit by the surface's own
+    // invariant, so the rejection is the standard point-to-line
+    // distance and no division enters here.
+    let q = o - apex;
+    let d = (q - a * q.dot(a)).norm();
+    match decide("coc_coaxial", Margin::of(d), band).map_err(SectionError::Escalated)? {
+        Sign::Zero => {
+            // Coaxial. On the cone `S(u, v) = apex + a·(v·cos α) +
+            // radial(u)·(v·sin α)`, so the circle of radius `R` sits at
+            // `v = ±R/sin α`, i.e. at station `±R·cot α` along the
+            // axis. `sin α` is definitely positive by the guard above,
+            // so the division is decided.
+            let station = big_r * (cos_a / sin_a);
+            // **The admission criterion, and the reason it is the
+            // STATION rather than the angle.** Every centre this arm
+            // mints carries the ABSOLUTE error of `R·cot α`, which grows
+            // without bound as the half-angle closes — while an angular
+            // guard levered at `extent` gets LOOSER as the operands get
+            // larger, so a bigger operand would admit a worse mint. A
+            // station the caller's own reach does not cover is refused
+            // instead: inside it the position error is O(ε·extent),
+            // which is what makes the zero-residual claim above a claim
+            // about the arm and not about the fixture.
+            match decide(
+                "coc_station_reach",
+                Margin::of(extent - station.abs()),
+                band,
+            )
+            .map_err(SectionError::Escalated)?
+            {
+                Sign::Positive => {}
+                Sign::Zero | Sign::Negative => {
+                    return Err(SectionError::BeyondOperandExtent {
+                        what: "the coaxial cone×cylinder circles stand at ±R·cot α from \
+                               the apex, which is not definitely inside the extent the \
+                               caller metered against",
+                    });
+                }
+            }
+            let circle_at = |center: Point3<T>| Curve3::Circle {
+                center,
+                axis: a,
+                radius: big_r,
+                u_ref: cone_u,
+            };
+            Ok(ConeCylinderSection::CoaxialCircles {
+                c1: circle_at(apex + a * station),
+                c2: circle_at(apex - a * station),
+            })
+        }
+        Sign::Positive | Sign::Negative => Err(SectionError::RoutesToGeneralRung {
+            pair: "cone×cylinder",
+            why: "a cylinder parallel to the cone's axis but OFF it cuts a QUARTIC, \
+                  not a circle, and the pair's general-rung arm has not retired — the \
+                  cone's meters composite needs a certified root the exact-arithmetic \
+                  ring lacks (arms retire one at a time, each with its proof)",
+        }),
     }
 }
