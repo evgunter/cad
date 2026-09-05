@@ -100,19 +100,22 @@
 //!
 //! **What ships, by measurement** ([`SymRules::shipped`]): the constant
 //! fold **A0** — `sqrt(c)` and `abs(c)` of a constant form fold to the
-//! exact rational — in the plain form, over an arbitrary-precision
-//! coefficient ring bounded at [`COEFF_BITS`]. That alone moves R2's
+//! exact rational — in a second walk ALONGSIDE the plain form (the
+//! plain form is asked first and stays M10-7's, so nothing it proves is
+//! lost), over an arbitrary-precision coefficient ring bounded at
+//! [`COEFF_BITS`]. That alone moves R2's
 //! filleted bracket's whole-certifying box from `3.7e1 · ε` to
 //! `3.9e2 · ε` (10.4×) and R1's annulus from `2.0e1 · ε` to `7.8e2 · ε`
-//! (39×), at no cost per leaf over M10-7's tier; M10-4's stepped shaft
-//! certifies its real ±0.1 study whole. Per predicate at the nominal,
-//! A0 turns `carrier_on_surface_1` on the plate from 108/72
-//! (theorem/numeric) to 180/0, and on the bracket from 0/243 to
-//! 108/135; nothing is lost on the plate or the annulus, and on the
-//! bracket two rows lose a handful of theorems to coefficient freezes
-//! at the bound (`carrier_endpoint_start` 44 → 42,
-//! `carrier_matches_mapped_source` 234 → 225) while the ceiling moves
-//! an order of magnitude.
+//! (39×), at about 1.8× the cost per leaf of M10-7's tier where the
+//! plain form does not answer (plate 0.35 → 0.65 s, bracket 1.47 →
+//! 2.7 s); M10-4's stepped shaft certifies its real ±0.1 study whole.
+//! Per predicate at the nominal, A0 turns `carrier_on_surface_1` on
+//! the plate from 108/72 (theorem/numeric) to 180/0, and on the bracket
+//! from 0/243 to 108/135. Run REPLACING the plain form instead it is
+//! cheaper and loses: two bracket rows at the nominal
+//! (`carrier_endpoint_start` 44 → 42, `carrier_matches_mapped_source`
+//! 234 → 225) and M10-6's min-clearance boxes, to coefficient freezes at
+//! the bound — which is why it ships alongside.
 //!
 //! **What is built and does not ship, by measurement** — each behind
 //! its own [`SymRules`] dial, so a future document can be measured
@@ -1278,14 +1281,22 @@ pub struct SymRules {
     pub pythagoras: bool,
     /// **A0 — the exact constant fold**: `sqrt(c)` and `abs(c)` of a
     /// CONSTANT form whose value is a perfect-square rational (`sqrt`)
-    /// or any rational (`abs`) fold to the exact rational, in the PLAIN
-    /// form. No value is read — the argument is a literal of the form
-    /// itself — and the fold is trivially sound (a constant atom
-    /// replaced by the constant it denotes), so it cannot cost a
-    /// cancellation: any zero the opaque form reaches, the folded form
-    /// reaches. It is what relieves the arc family's freezes: the
+    /// or any rational (`abs`) fold to the exact rational. No value is
+    /// read — the argument is a literal of the form itself — and the
+    /// fold is sound (a constant atom replaced by the constant it
+    /// denotes). It is what relieves the arc family's freezes: the
     /// blocking residuals were products of `sqrt(1)^58` and `sqrt` of
     /// exact-square dyadic constants ([`Self::shipped`]).
+    ///
+    /// WHERE it runs is the one subtlety: with [`Self::early`] on it
+    /// runs in the early walk ALONGSIDE the plain form, which is how it
+    /// ships; without, it REPLACES the plain form's constant atoms.
+    /// Replacing is cheaper and was measured to LOSE theorems — the
+    /// folded constants' products cross the coefficient bound
+    /// ([`COEFF_BITS`]) where the opaque atoms' did not, and a frozen
+    /// form is opaque: two R2-bracket rows at the nominal, and M10-6's
+    /// min-clearance boxes refusing whole. Alongside, the plain form
+    /// is M10-7's exactly and the fold can only add.
     pub const_fold: bool,
     /// **The EARLY walk**: a SECOND memo built ALONGSIDE the plain
     /// form — never replacing it — in which rule C's fold runs at each
@@ -1330,8 +1341,10 @@ impl SymRules {
         }
     }
 
-    /// **The shipped set: A0 alone** — the constant fold in the plain
-    /// form, over the bounded arbitrary-precision coefficient ring.
+    /// **The shipped set: A0 alone, in the early walk ALONGSIDE the
+    /// plain form** — the constant fold over the bounded
+    /// arbitrary-precision coefficient ring, with M10-7's plain form
+    /// asked first and kept whole.
     ///
     /// Chosen by measurement (M10-8's fix pass, 2026-09-05), per
     /// mechanism, on the two-hole plate, R2's filleted bracket, R1's
@@ -1339,7 +1352,8 @@ impl SymRules {
     ///
     /// | mechanism | ceilings moved | cost per leaf | ships |
     /// | --- | --- | --- | --- |
-    /// | A0 (`const_fold`) | bracket 10.4×, annulus 39×, the shaft's ±0.1 study certifies whole | plate 0.35 → 0.37 s, bracket 1.47 → 1.46 s | **yes** |
+    /// | A0 alongside (`const_fold` + `early`) | bracket 10.4×, annulus 39×, the shaft's ±0.1 study certifies whole; loses nothing | plate 0.35 → 0.65 s, bracket 1.47 → 2.7 s | **yes** |
+    /// | A0 replacing (`const_fold` alone) | the same ceilings | plate 0.37 s, bracket 1.46 s | no: loses theorems to bound freezes (two R2 rows; M10-6's min-clearance boxes refuse) |
     /// | A/B over the top residual | none | ~0 | no (inert) |
     /// | A/B per node (`early_ab`) | none measured (138 s per nominal replay) | minutes | no (cost) |
     /// | C in the early walk (`signed_root`) | none; folds on no document at 256 bits, twice on the plate at 4096 | ~2× | no (inert, cost) |
@@ -1355,7 +1369,7 @@ impl SymRules {
             sqrt_square: false,
             pythagoras: false,
             const_fold: true,
-            early: false,
+            early: true,
             early_ab: false,
             signed_root: false,
         }
@@ -1856,10 +1870,12 @@ fn powi_form(base: &Form, n: u32, budget: SymBudget) -> Option<Form> {
 fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) -> Option<Form> {
     let (a, b) = (kids[0], kids[1]);
     let budget = sess.budget;
-    // A0 applies in BOTH walks: it replaces a constant atom by the
-    // constant it denotes, which cannot cost a cancellation
-    // (`SymRules::const_fold`).
-    let a0 = sess.rules.const_fold;
+    // Where A0 applies: in the early walk when one is configured
+    // (ALONGSIDE — the plain form stays M10-7's and can lose nothing),
+    // otherwise in the plain form (REPLACING — cheaper, and measured
+    // to lose theorems to coefficient freezes at the ring's bound:
+    // `SymRules::const_fold`).
+    let a0 = sess.rules.const_fold && (early || !sess.rules.early);
     // Rule C applies in the EARLY walk only (`SymRules::signed_root`).
     let c = early && sess.rules.signed_root;
     // An atom over a gated argument is gated: it stands for the value

@@ -138,6 +138,21 @@ thread_local! {
 /// [`take_verdict_log`], and read by the verdict-diff engine). A door
 /// cannot acquire one and miss the other.
 fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign, Indeterminate> {
+    classify_in(name, margin, band, true)
+}
+
+/// The one body behind [`classify`] and [`check_unlogged`]: the scoped
+/// name, the classification, and — for a certification predicate — the
+/// verdict-log push. `logged` is the only difference between the two
+/// doors, and it is an argument here rather than a second copy of the
+/// body so the "exactly one shipped `sign_within`" claim stays true by
+/// construction.
+fn classify_in<T: Decide>(
+    name: &'static str,
+    margin: T,
+    band: Band,
+    logged: bool,
+) -> Result<Sign, Indeterminate> {
     // The name is SCOPED to this classification: it is restored on the
     // way out, so a decision taken outside any named door (a bare
     // `sign_within`, a comparison inside a builder) is recorded under
@@ -148,7 +163,7 @@ fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign
     let prev = CURRENT.with(|c| c.replace(name));
     let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
     CURRENT.with(|c| c.set(prev));
-    if let Ok(sign) = outcome {
+    if logged && let Ok(sign) = outcome {
         VERDICTS.with(|v| {
             if let Some(log) = v.borrow_mut().as_mut() {
                 log.push(Verdict {
@@ -159,6 +174,33 @@ fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign
         });
     }
     outcome
+}
+
+/// **An EVALUATOR check, named for the recorder and NOT logged as a
+/// verdict** — the door for a ruled decision that is not a
+/// certification predicate: the evaluator's finiteness check on every
+/// expression it produces (`editor_core::expr::refuse_non_finite`,
+/// ledger row F18). It classifies through the one body, so its K
+/// samples carry its name (they were charged to whichever predicate
+/// classified last until M10-8 scoped the name — 1,054 corpus rows at
+/// ε = 1e-6), and it stays OUT of the verdict log on purpose: the log is
+/// the verdict-diff engine's — the witness's certification verdicts
+/// against the leaf's, row for row — and the finiteness check fires
+/// once per expression evaluation, a count the two lanes do not share
+/// (routed through [`classify`], every M10-6 min-clearance box refused
+/// on a verdict-vector mismatch, the certification key moved, and no
+/// geometry had changed). Its refusal already reaches the consumer as
+/// `EvalError::NonFiniteResult`, so no verdict is lost by not logging
+/// one. `ledger_row` is the obligation [`decide_flagged`] carries: the
+/// audit row that argues why no `Margin` door fits the comparand.
+pub fn check_unlogged<T: Decide>(
+    name: &'static str,
+    margin: T,
+    band: Band,
+    ledger_row: &'static str,
+) -> Result<Sign, Indeterminate> {
+    let _ = ledger_row;
+    classify_in(name, margin, band, false)
 }
 
 /// The one classification funnel of the kernel: notes `name` for the

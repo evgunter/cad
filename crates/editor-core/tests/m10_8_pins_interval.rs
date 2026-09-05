@@ -32,20 +32,24 @@ use crate::m10_7_plate::plate;
 use crate::m10_7_r2_probes_interval::bracket as r2_bracket;
 use crate::m10_8_harness::{ceiling, dials};
 
-/// **The shipped set is A0 alone** — one default, carried by
+/// **The shipped set is A0 alone, alongside** — one default, carried by
 /// `SymbolicDials::default()` and `with_session` alike. Pinned as the
 /// measured decision it is (`geom_core::SymRules::shipped`'s docs carry
-/// the numbers): A/B over the top residual add no discharge on the
-/// documents; A/B per node are minutes per replay; rule C's early walk
-/// folds on no document and moves no ceiling while costing 2× per leaf.
+/// the numbers): A0 in the early walk beside an untouched plain form;
+/// A/B over the top residual add no discharge on the documents; A/B per
+/// node are minutes per replay; rule C folds on no document and moves
+/// no ceiling.
 #[test]
 fn m10_8_the_shipped_set_is_a0_alone() {
     let s = SymRules::shipped();
     assert_eq!(SymRules::default(), s, "one default");
-    assert!(s.const_fold, "A0 ships");
     assert!(
-        !s.early && !s.signed_root,
-        "rule C is built and dial-selectable, and does not ship (inert, 2x per leaf)"
+        s.const_fold && s.early,
+        "A0 ships, in the early walk alongside the plain form"
+    );
+    assert!(
+        !s.signed_root,
+        "rule C is built and dial-selectable, and does not ship (inert)"
     );
     assert!(!s.early_ab, "per-node A/B does not ship (cost)");
     assert!(
