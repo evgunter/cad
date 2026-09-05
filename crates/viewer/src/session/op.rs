@@ -650,7 +650,7 @@ impl SessionOp {
     ///   which submits the SHOWN document — mid-gesture, the scratch.
     ///   That second half acts on the preview the first half ignores.
     ///   What makes it safe is the door it goes through:
-    ///   [`DocSession::request_eval`] submits a document and writes no
+    ///   `DocSession::request_eval` submits a document and writes no
     ///   history state, so the drag's base and the committed history
     ///   are both untouched and the picture being dragged is the one
     ///   the new directory's references resolve for — the directory
