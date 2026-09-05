@@ -419,7 +419,7 @@ clocked: Alignment = Alignment(
 arm: Length | None = datum.lever_arm
 seat_pose: Frame = side_a.placement()
 joint: NodeId = doc.insert(
-    Node.mate("a-name", "b-name", ContactClass.Rest, datum)
+    Node.mate(instance, "a-name", instance, "b-name", ContactClass.Rest, datum)
 )
 
 # The solve's read side, and the admission table a tool asks first.
