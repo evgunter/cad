@@ -739,6 +739,39 @@ jobs:
             cat filter-notices.txt
           fi
 
+      # THE READ REACH — ITS VERDICT, IN THE SAME SEAT AND FOR THE SAME REASON.
+      #
+      # `PKGS` is the dependent closure PLUS the crates the change filter
+      # reached for what their sources READ rather than for what they depend on
+      # (see THE READ REACH in scripts/ci-filter.py). A tree-wide guard —
+      # `test-utils::reader_census`, `geom-core::bounds_census`,
+      # `bvh::aggregator_headers` — is in scope because of that widening and
+      # not because anything in the diff is under it, so a reader who sees
+      # `-p test-utils` in a scope and cannot find the dependency that put it
+      # there is reading the run correctly and has nowhere to look. This is
+      # where it says so.
+      #
+      # IT SPEAKS ON EVERY RUN, INCLUDING WHEN IT REACHED NOTHING, because the
+      # empty verdict is the one worth being able to see: a filter that
+      # silently stopped reaching would look exactly like a run whose closure
+      # already held every guard.
+      - name: the read reach - what the closure did not already hold
+        env:
+          TIER: ${{ steps.classify.outputs.TIER }}
+          REACHED: ${{ steps.classify.outputs.REACHED }}
+        run: |
+          case "$TIER" in
+            docs) echo "read reach: n/a — TIER=docs builds nothing" ;;
+            all)  echo "read reach: n/a — TIER=all is unscoped (--workspace)" ;;
+            *)
+              if [ -n "$REACHED" ]; then
+                echo "read reach: in scope for what they READ, not for what they depend on: $REACHED"
+              else
+                echo "read reach: nothing added — the dependent closure already held every crate the tree-wide guards live in"
+              fi
+              ;;
+          esac
+
       # THE PYTHON SUITE AXIS — ITS VERDICT, IN A SEAT THAT ALWAYS SPEAKS.
       #
       # `python suite (wheel + guide + north-star)` is SEED-keyed (see that
