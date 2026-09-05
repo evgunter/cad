@@ -14,6 +14,12 @@
 //! listed here does not compile and does not run —
 //! `every_suite_file_is_aggregated` below fails loudly if you forget.
 
+// The shared fixture tree, declared ONCE for the whole binary. NO
+// `#[path]` on it, deliberately: a path attribute in this file is the
+// aggregation guard's census of SUITE files, and a helper module
+// directory is not a suite.
+mod fixture;
+
 #[path = "layer_guard.rs"]
 mod layer_guard;
 #[path = "param_flow.rs"]

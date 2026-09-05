@@ -1484,12 +1484,14 @@ impl DocSession {
                 return OpOutcome::refused(refusal);
             }
         }
-        // AFTER the kind gate, so a self-boolean of two profiles is
+        // One node in both seats is NOT pre-checked here: the edit
+        // door refuses it typed (`EditError::DuplicateInput`, off
+        // `Node::input_fault`'s pairwise-distinct rule), and a flat arm
+        // must not restate a refusal a door already gives
+        // (`crates/viewer/README.md`). The kind gate above still speaks
+        // first, which is what keeps two PROFILES in both seats
         // reported as "that is not a body" — the fact the user can act
         // on — rather than as the narrower complaint about the pair.
-        if a == b {
-            return OpOutcome::refused(Refusal::SelfBoolean { node: a });
-        }
         self.commit(DocEdit::InsertNode {
             node: Node::Boolean {
                 op,
@@ -1699,9 +1701,12 @@ impl DocSession {
     fn request_eval(&mut self) {
         // **Every route that changes the shown document passes here**,
         // which is why the range probe is discarded here and nowhere
-        // else: a commit, a gesture preview, an undo, an open. The one
-        // caller that does not change the document is `Reevaluate`, and
-        // discarding for it too is the conservative direction — a range
+        // else: a commit, a gesture preview, an undo, an open. TWO
+        // callers do not change the document — `Reevaluate`, and a
+        // save-as into a different directory, which resubmits the same
+        // document against a new resolver (`SessionOp::Save`'s row in
+        // the mid-gesture table argues that half) — and discarding for
+        // them too is the conservative direction: a range
         // recomputed on request costs a button press, a stale one costs
         // a wrong decision.
         self.derived.bounds = None;

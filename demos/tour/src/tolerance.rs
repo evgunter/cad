@@ -93,7 +93,7 @@
 //!    order across four calls. There is no "analyse this document"
 //!    door, and every one of these four takes the run's `Tol` again.
 //! 2. **The measure's references are POSITIONAL node ids.** A
-//!    `MeasureRef` names the node it reads at, so authoring one means
+//!    `SitedRef` names the node it reads at, so authoring one means
 //!    keeping the extrude's id in a local — and the primitive then
 //!    indexes the reference LIST by number (`Distance { a: 0, b: 1 }`),
 //!    so a reader checks the vector's order to know what is being
@@ -129,8 +129,8 @@ use pncad::analysis::{
 };
 use pncad::document::{
     AssertionDir, CancelToken, Dimension, Distribution, DocEdit, DocParam, DocumentId, EvalOptions,
-    Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureRef, Node, ParamName,
-    ProfileDoc, ProfileProgram, RecipeNodeId, UnitSym, apply, evaluate,
+    Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamName, ProfileDoc,
+    ProfileProgram, RecipeNodeId, SitedRef, UnitSym, apply, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::select::{EntityKind, GeomPred, NamePat, Selector, SurfaceKindSet, select_where};
@@ -309,7 +309,7 @@ fn plate(
         .expect("the surface-kind atom is exact");
         faces.sort();
         assert!(!faces.is_empty(), "a hole extrude has a cylindrical wall");
-        MeasureRef::new(node, faces.remove(0))
+        SitedRef::new(node, faces.remove(0))
     };
 
     // web = distance(wall_a, wall_b) − r_a − r_b. The distance between

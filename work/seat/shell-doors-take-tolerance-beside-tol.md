@@ -2,7 +2,7 @@
 id: shell-doors-take-tolerance-beside-tol
 kind: issue
 title: shell / shell_open take a raw tolerance: f64 beside tol: Tol, and the acceptance that no verb takes a Band beside a Tol has no mechanical guard
-status: open
+status: spec
 opened: 2026-08-31
 github: 1409
 refs: [1399, LIB-G17, shell-needs-shellnaming-birth-channel]
@@ -21,3 +21,20 @@ Opened 2026-08-31; 0 comments.
 ## Home
 
 `work/seat/` — the verb doors' tolerance vocabulary is SEAT's §1 ground (band derivation at operation entry) and both halves are SEAT-1's own disclosed residue.
+
+## Ruled (Ev, PR 1904, 2026-09-05): (i) — derive at the door, and ε never travels as an `f64`
+
+The shell doors drop `tolerance: f64`; the fit target IS ε_precision,
+the one global ε D4 names. Ev's refinement binds the whole chain: **the
+tolerance is passed as the ZST witness `Tol`, never as an `f64`** — so
+it shows in every signature between the shell door and the one site
+that classifies the residual, and no arithmetic can be done on it that
+would make two callers effectively use different epsilons. The one
+`tol.eps()` read lives at the classification site inside the fit
+engine. The measurement that answered Ev's question (tier-3 validation
+re-certifies every `Approx` face against the RUN's ε, so a looser mint
+is a typed refusal, never loose geometry; every caller passed `1e-6`
+into analytic offsets that ignore it) is in this file's history at the
+`[ev]` PR. Unit: SEAT-9 (`docs/SEAT-9-SPEC.md`), block SEAT-B3. The
+NURBS fit's COST at ε ≈ 1e-9 is the offset-fit owner's measurement,
+reported by the unit, not gated on.

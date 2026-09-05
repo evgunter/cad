@@ -30,7 +30,7 @@ from them:
   liveness check, and a later delete may strand it (N5).
 - **An `Expr` literal** in a slot, bit-pinned (D7).
 
-Two precedents this doc extends. `MeasureRef { at, name }`
+Two precedents this doc extends. `SitedRef { at, name }`
 (`node.rs:871`) pairs a DAG edge with a frozen name: `at` says which
 evaluated value to read, `name` says which entity. `Datum::AxisInPlane
 { plane, .. }` (`node.rs:611`) is the one datum with a DAG input: its
@@ -51,7 +51,7 @@ is a `Datum::Frame` whose pose is computed at evaluation from a
 named face: `at` is a DAG edge to the body node whose value the face
 is read out of, `face` is a frozen face name resolved through that
 value's name table under the N5 ladder, and `spin` is the authored
-rotation of sketch +x about the normal. It is the `MeasureRef` shape
+rotation of sketch +x about the normal. It is the `SitedRef` shape
 applied to a datum. The frame it yields: origin at the carrier's
 origin projected to the face's plane (the carrier's own distinguished
 point, `readback.rs` rule 2), normal the face's OUTWARD normal (DM1a),

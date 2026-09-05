@@ -2,9 +2,8 @@
 id: MSOLVE-4
 kind: unit
 title: A mate's memo key carries the solve's answer
-status: parked
+status: spec
 opened: 2026-09-05
-blocked_on: [MSOLVE-1]
 refs: [mate-memo-key-does-not-carry-the-solve]
 ---
 

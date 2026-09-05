@@ -1369,7 +1369,9 @@ class Node:
 
     @staticmethod
     def mate(
+        a_at: NodeId,
         a: str,
+        b_at: NodeId,
         b: str,
         class_: ContactClass,
         alignment: Alignment,
@@ -1377,11 +1379,16 @@ class Node:
         """A mate between two instances: ONE node carrying both the
         placement constraint and the contact declaration.
 
-        `a` and `b` are instance-qualified names — an entity of one
-        instance's product and an entity of the other's, the text
-        `Evaluation.select` answers with when queried on an
-        instantiate node. They are name REFERENCES, not recipe edges:
-        inserting a mate transfers no root.
+        Each side is a node and a name, mirroring the kernel type.
+        `a_at` / `b_at` is the OPERAND — the node the reference is
+        read at, whose geometry the mate speaks about — and `a` / `b`
+        is the instance-qualified name text of an entity of that
+        node's product, what `Evaluation.select` answers with. They
+        coincide for a mate authored on an instance directly and
+        diverge the moment a transform places it; there is no
+        default, because a transform mints no name and the operand is
+        the only thing that tells the two apart. Neither half is a
+        recipe edge: inserting a mate transfers no root.
 
         `class_` is the declared contact class; ask `class_admission`
         BEFORE authoring, because a class the solve folds may still
@@ -1389,8 +1396,8 @@ class Node:
         data — nothing checks it against the faces `a` and `b` name,
         so a mate can solve cleanly and still be refuted at the gate.
 
-        A dangling reference head is not refused here: the solve
-        refuses typed naming it (`mate_dangling_head`)."""
+        A dangling reference is not refused here: the solve refuses
+        typed naming its head (`mate_dangling_head`)."""
 
 class Expr:
     """A dimension-checked expression — the recipe's arithmetic, as a
