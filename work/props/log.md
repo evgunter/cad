@@ -577,3 +577,15 @@ the "different reason" wording reconciled across the paragraph, the
 neighbour's bullet and the item; the three homes of the decomposition's
 digits pointed at the one paragraph. Fix pass implementer-inherited,
 sequenced after the vec3-doors fix pass in the same lane.
+
+**rotation-floor MERGED (2026-09-05)** —
+[#1980](https://github.com/evgunter/cad/pull/1980), head `2c42a8bff`,
+merge `5a483b12a`, green on the full matrix (run 33966034494). The
+ruling stands as landed: no respell; the diagonal's floor documented
+once at `rotation_about` with the re-verified pair and the 133 %
+regression; the two operators' reasons reconciled; the law row and the
+audit item point at the one home; the composition rider filed as
+`work/issues/mapped-curve-restrict-composes-placements-per-split`
+(`mapped.rs` is in no program's paths). Fix pass all taken. One
+disclosed fence deviation (a doc block in `revolved_point_anchor.rs`,
+tcost's — rot this unit created). E rider: no A/B row.
