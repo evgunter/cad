@@ -39,9 +39,15 @@ const WILD: [&str; 10] = [
 ];
 
 fn text(name: &str) -> Option<String> {
-    let path: PathBuf = [env!("CARGO_MANIFEST_DIR"), "tests", "fixtures", "wild", name]
-        .iter()
-        .collect();
+    let path: PathBuf = [
+        env!("CARGO_MANIFEST_DIR"),
+        "tests",
+        "fixtures",
+        "wild",
+        name,
+    ]
+    .iter()
+    .collect();
     std::fs::read_to_string(&path).ok()
 }
 

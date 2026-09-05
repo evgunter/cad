@@ -112,7 +112,10 @@ fn u_ref_records(text: &str, normal: [f64; 3], u_ref: [f64; 3]) -> String {
     }
     let reals = |rec: &str| -> Option<[f64; 3]> {
         let inner = rec.split_once("('', (")?.1.split_once("))")?.0;
-        let v: Vec<f64> = inner.split(',').filter_map(|t| t.trim().parse().ok()).collect();
+        let v: Vec<f64> = inner
+            .split(',')
+            .filter_map(|t| t.trim().parse().ok())
+            .collect();
         (v.len() == 3).then(|| [v[0], v[1], v[2]])
     };
     let same = |a: [f64; 3], b: [f64; 3]| (0..3).all(|i| a[i].to_bits() == b[i].to_bits());
@@ -121,19 +124,30 @@ fn u_ref_records(text: &str, normal: [f64; 3], u_ref: [f64; 3]) -> String {
         if !rec.starts_with("PLANE('', #") {
             continue;
         }
-        let Some(pid) = rec.split_once("#").map(|(_, r)| r.trim_end_matches(&[')', ';'][..])) else {
+        let Some(pid) = rec
+            .split_once("#")
+            .map(|(_, r)| r.trim_end_matches(&[')', ';'][..]))
+        else {
             continue;
         };
         let Some(place) = by_id.get(format!("#{pid}").as_str()) else {
             continue;
         };
-        let refs: Vec<&str> = place.split('#').skip(1).map(|t| t.trim_end_matches(&[')', ';', ',', ' '][..])).collect();
+        let refs: Vec<&str> = place
+            .split('#')
+            .skip(1)
+            .map(|t| t.trim_end_matches(&[')', ';', ',', ' '][..]))
+            .collect();
         if refs.len() != 3 {
             continue;
         }
         let (Some(a), Some(r)) = (
-            by_id.get(format!("#{}", refs[1]).as_str()).and_then(|l| reals(l)),
-            by_id.get(format!("#{}", refs[2]).as_str()).and_then(|l| reals(l)),
+            by_id
+                .get(format!("#{}", refs[1]).as_str())
+                .and_then(|l| reals(l)),
+            by_id
+                .get(format!("#{}", refs[2]).as_str())
+                .and_then(|l| reals(l)),
         ) else {
             continue;
         };
@@ -181,7 +195,9 @@ fn same_bits(a: Vec3<f64>, b: Vec3<f64>) -> bool {
 fn direction_records_that_move_under_the_canonicalised_sign() {
     let tol = Tol::witness();
     let (mut neg_zero, mut moved) = (0usize, 0usize);
-    println!("| fixture | normal | stored u_ref | minted here? | u_ref under (c') | `u_ref` DIRECTION record(s) |");
+    println!(
+        "| fixture | normal | stored u_ref | minted here? | u_ref under (c') | `u_ref` DIRECTION record(s) |"
+    );
     println!("| --- | --- | --- | --- | --- | --- |");
     for (name, body) in common::fixture_corpus() {
         let text = step_string(&body, &StepOptions::default(), tol).expect("fixture exports");
@@ -206,9 +222,7 @@ fn direction_records_that_move_under_the_canonicalised_sign() {
             }
             println!(
                 "| {name} | ({:?}, {:?}, {:?}) | ({:?}, {:?}, {:?}) | {minted} | ({:?}, {:?}, {:?}) | {line} |",
-                normal.x, normal.y, normal.z,
-                u_ref.x, u_ref.y, u_ref.z,
-                under.x, under.y, under.z
+                normal.x, normal.y, normal.z, u_ref.x, u_ref.y, u_ref.z, under.x, under.y, under.z
             );
         }
     }

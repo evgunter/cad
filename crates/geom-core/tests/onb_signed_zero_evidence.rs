@@ -43,12 +43,7 @@ fn bit(x: f64) -> String {
 }
 
 fn row(op: &str, f: f64, e: Interval) {
-    println!(
-        "| {op} | {} | {} | {} |",
-        bit(f),
-        bit(e.lo()),
-        bit(e.hi())
-    );
+    println!("| {op} | {} | {} | {} |", bit(f), bit(e.lo()), bit(e.hi()));
 }
 
 /// THE CORPUS for the cross-sum replay, written down: four vertical
@@ -57,17 +52,47 @@ fn row(op: &str, f: f64, e: Interval) {
 /// y-aligned wall whose `n.x = 0` — the case the hull leaves exact.
 const CUBE_WALLS: [[[f64; 3]; 4]; 4] = [
     // +x wall, then +y, -x, -y; each ring wound outward.
-    [[1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [1.0, 1.0, 1.0], [1.0, 0.0, 1.0]],
-    [[1.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 1.0], [1.0, 1.0, 1.0]],
-    [[0.0, 1.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 1.0, 1.0]],
-    [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 0.0, 1.0], [0.0, 0.0, 1.0]],
+    [
+        [1.0, 0.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [1.0, 1.0, 1.0],
+        [1.0, 0.0, 1.0],
+    ],
+    [
+        [1.0, 1.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 1.0, 1.0],
+        [1.0, 1.0, 1.0],
+    ],
+    [
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [0.0, 1.0, 1.0],
+    ],
+    [
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [1.0, 0.0, 1.0],
+        [0.0, 0.0, 1.0],
+    ],
 ];
 
 /// Two hexagonal-prism walls: `[0]` has an oblique normal, `[1]` the
 /// y-aligned normal `(0, -1, 0)` (`n.x = 0`).
 const HEX_WALLS: [[[f64; 3]; 4]; 2] = [
-    [[1.0, 0.0, 0.0], [0.5, 0.75, 0.0], [0.5, 0.75, 2.0], [1.0, 0.0, 2.0]],
-    [[0.5, -0.75, 0.0], [-0.5, -0.75, 0.0], [-0.5, -0.75, 2.0], [0.5, -0.75, 2.0]],
+    [
+        [1.0, 0.0, 0.0],
+        [0.5, 0.75, 0.0],
+        [0.5, 0.75, 2.0],
+        [1.0, 0.0, 2.0],
+    ],
+    [
+        [0.5, -0.75, 0.0],
+        [-0.5, -0.75, 0.0],
+        [-0.5, -0.75, 2.0],
+        [0.5, -0.75, 2.0],
+    ],
 ];
 
 /// The translate-to-origin Newell cross-sum, the exact spelling of
@@ -109,8 +134,16 @@ fn signed_zero_through_the_interval_backend() {
     row("-[+0,+0]", -0.0, -iv(0.0));
     row("abs([-0,-0])", (-0.0f64).abs(), iv(-0.0).abs());
     row("[-0,-0] / [2,2]", -0.0 / 2.0, iv(-0.0) / iv(2.0));
-    row("copysign(1, -0.0)", 1.0f64.copysign(-0.0), Interval::one().copysign(iv(-0.0)));
-    row("copysign(1, +0.0)", 1.0f64.copysign(0.0), Interval::one().copysign(iv(0.0)));
+    row(
+        "copysign(1, -0.0)",
+        1.0f64.copysign(-0.0),
+        Interval::one().copysign(iv(-0.0)),
+    );
+    row(
+        "copysign(1, +0.0)",
+        1.0f64.copysign(0.0),
+        Interval::one().copysign(iv(0.0)),
+    );
     let vf = Vec3::new(1.0, 0.0, -0.0).normalize();
     let ve = Vec3::new(iv(1.0), iv(0.0), iv(-0.0)).normalize();
     row("normalize((1,0,-0)).z", vf.z, ve.z);
@@ -121,7 +154,9 @@ fn signed_zero_through_the_interval_backend() {
 #[test]
 #[ignore = "signed-zero evidence instrument; run explicitly"]
 fn newell_cross_sum_z_on_literal_vertical_walls() {
-    println!("| ring | f64 sum.z | f64 normal.z | f64 u_ref.z | Interval normal.z | Interval u_ref.z |");
+    println!(
+        "| ring | f64 sum.z | f64 normal.z | f64 u_ref.z | Interval normal.z | Interval u_ref.z |"
+    );
     println!("| --- | --- | --- | --- | --- | --- |");
     let named: Vec<(String, [[f64; 3]; 4])> = CUBE_WALLS
         .iter()

@@ -133,7 +133,9 @@ fn wall_normal_z_census_over_the_band4_corpus() {
 #[test]
 #[ignore = "FaceFrame instrument; run explicitly"]
 fn face_frames_and_the_faces_they_could_sit_on() {
-    println!("| document | frame node | at | named faces on `at` | `at` planes | of those, z = -0.0 |");
+    println!(
+        "| document | frame node | at | named faces on `at` | `at` planes | of those, z = -0.0 |"
+    );
     println!("| --- | --- | --- | --- | --- | --- |");
     let mut frames = 0usize;
     let mut on_neg_zero_bodies = 0usize;
@@ -145,9 +147,7 @@ fn face_frames_and_the_faces_they_could_sit_on() {
             };
             frames += 1;
             let mut c = ZClasses::default();
-            let named = ev
-                .value(*at)
-                .map_or(0, |_| all_faces(&ev, *at).len());
+            let named = ev.value(*at).map_or(0, |_| all_faces(&ev, *at).len());
             if let Some(ValuePayload::Body(b)) = ev.value(*at).map(|v| &v.payload) {
                 for (_, surface) in b.surfaces() {
                     if let Surface::Plane { normal, .. } = surface {
