@@ -168,6 +168,13 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::ProfileProgramRefused { .. } => "profile_program_refused",
         EditError::UnresolvedInput { .. } => "unresolved_input",
         EditError::WouldCycle { .. } => "would_cycle",
+        // The list-input door's three (DM4/DM5). Tags only: the Python
+        // SURFACE for `Node.union` and `SetMembers` is LIB's build,
+        // and this match is exhaustive, so the crate's compile is what
+        // requires these rows and nothing else here changes.
+        EditError::DuplicateInput { .. } => "duplicate_input",
+        EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
+        EditError::TooFewMembers { .. } => "too_few_members",
         EditError::DeleteWouldDangle { .. } => "delete_would_dangle",
         EditError::UnknownSlot { .. } => "unknown_slot",
         EditError::SlotDimensionMismatch { .. } => "slot_dimension_mismatch",
@@ -371,6 +378,21 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
             BlendKind::Fillet => "fillet_selection_empty",
             BlendKind::Chamfer => "chamfer_selection_empty",
         },
+        // The derived sketch frame's refusals (DOCM-1): the fillet's
+        // ladder and kind refusals, one carrier-kind refusal, one
+        // read-back refusal, and the section refusal DM1c adds.
+        NodeErrorKind::FaceFrameResolve { .. } => "face_frame_resolve",
+        NodeErrorKind::FaceFrameKind { .. } => "face_frame_kind",
+        NodeErrorKind::FaceFrameNotPlanar { .. } => "face_frame_not_planar",
+        NodeErrorKind::FaceFrameReadback { .. } => "face_frame_readback",
+        NodeErrorKind::DerivedFrameSection { .. } => "derived_frame_section",
+        // The projection node's two refusals (DOCM-2): a half with no
+        // material, and an instance index outside the pattern's count.
+        // Tags only — the Python surface for `Node.part` is LIB's
+        // build, and this match is exhaustive, so the crate's compile
+        // is what requires these rows.
+        NodeErrorKind::EmptyHalf { .. } => "empty_half",
+        NodeErrorKind::InstanceOutOfRange { .. } => "instance_out_of_range",
         NodeErrorKind::WitnessBifurcation { .. } => "witness_bifurcation",
         // The seam faults stay separable at the tag level:
         // "the pin does not hold" and "the tolerances disagree" are
@@ -985,6 +1007,12 @@ pub fn checks_error_tag(err: &ChecksError) -> &'static str {
     match err {
         ChecksError::Root { .. } => "root_without_value",
         ChecksError::Band { .. } => "band",
+        // Named for the FACT, as `product_unavailable` is: the pair is
+        // not a pair. It mirrors `ProductError`'s own arm, and the two
+        // tags stay distinct because the doors are — one is the
+        // gather's refusal of a foreign evaluation, this is the
+        // registry's refusal of a foreign evaluation or subject.
+        ChecksError::EvaluationOfAnotherDocument { .. } => "evaluation_of_another_document",
         ChecksError::Product { .. } => "product_unavailable",
     }
 }

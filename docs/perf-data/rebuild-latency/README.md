@@ -1,8 +1,13 @@
 # rebuild-latency timing history
 
-One file per merge to `main`, named `<epoch-seconds>-<short-sha>.json`
-so a lexicographic sort is a chronological one. Written and committed
-by ci.yml's `rebuild latency (reporting)` job, on a hosted runner.
+One file per RUN of the reporting job, named
+`<epoch-seconds>-<short-sha>.json` so a lexicographic sort is a
+chronological one. Written and committed by `nightly.yml`'s `rebuild
+latency (reporting)` job, on a hosted runner. That job is on a nightly
+cron and is gated on `main` having moved since the last run, so the
+cadence is at most one entry per night and a quiet day adds none — not
+one entry per merge, which is what this said while the job lived in
+`ci.yml`.
 
 **Append-only.** A run adds a filename; it never edits an existing one.
 That is what makes it conflict-free under concurrent merges (two runs

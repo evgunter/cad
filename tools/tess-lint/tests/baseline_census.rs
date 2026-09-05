@@ -134,7 +134,7 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     let sized: Vec<&Row> = rows.iter().filter(|r| r.nurbs.is_some()).collect();
 
     // The corpus the census is over.
-    assert_eq!(all.len(), 1306, "rows in the committed baseline");
+    assert_eq!(all.len(), 1353, "rows in the committed baseline");
     assert_eq!(sized.len(), 64, "of them sized");
     let sized_scenes = {
         let mut s: Vec<&str> = sized.iter().map(|r| r.scene.as_str()).collect();
@@ -165,8 +165,8 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     // restriction to sized rows is worth: three orders of magnitude,
     // and not one of them reaches a rule.
     let (all_pairs, _, all_scenes) = census(&all);
-    assert_eq!(all_pairs, 22_143, "pairs across every row");
-    assert_eq!(all_scenes.len(), 70, "scenes carrying one, corpus-wide");
+    assert_eq!(all_pairs, 22_352, "pairs across every row");
+    assert_eq!(all_scenes.len(), 72, "scenes carrying one, corpus-wide");
 }
 
 /// The other half of the paragraph: WHICH identity entries actually

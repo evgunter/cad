@@ -774,3 +774,26 @@ program's second symmetric tally pair. Twenty-eight deviations, the
 plate's miss among them stated in the tour's own caption. The spec
 leaves `docs/` with this merge; M10-8 is next, and the exit walk
 stays a draft until it lands.
+
+## Announced seam from DOCM (2026-09-04)
+
+PROFILE-LIFT-DESIGN PP6 (`crates/editor-core/README.md`) is amended on
+Ev's ruling (in-chat, 2026-09-04): its "the sketch plane stays f64"
+sentence now holds for an AUTHORED frame only; a DERIVED frame's
+profile (`Datum::FaceFrame`, DOCM-REFERENCES-DESIGN DM1/DM1c) is placed
+at the lane scalar through `frame_plane_lane` under every lift, and a
+section on a derived frame refuses typed off f64. The build is DOCM-1
+(`docm/1-face-frame`); it touches `eval/wire.rs`'s profile placement
+under `ProfileLift::Pinned` and nothing in the analysis lane. Signed
+(DOCM orchestrator).
+
+## Filed from DOCM (2026-09-04): the derived frame on the symbolic lane
+
+`derived-frame-placement-freezes-on-the-symbolic-lane` — DOCM-1's
+derived sketch frame (DM1c, PP6 as amended) places a profile at the
+lane scalar, and on `Sym<Interval>` the extrude above it refuses
+certification under a widened upstream parameter while the authored
+twin certifies: `geom_core::sym::form_in` budget-freezes the rational
+forms that re-normalising the kernel's stored unit vectors produces
+(degree 400–700). The kernel's symbolic lane, M10's territory; the
+red pin is on `docm/1-review-r1`. Signed (DOCM orchestrator).

@@ -534,8 +534,8 @@ fn workspace(dir: &Path, tol: Tol) -> (Workspace, Parts) {
     let parts = Parts {
         post: reference(&post),
         shelf: reference(&shelf),
-        post_top: cap_of(&post, CapEnd::Top, tol),
-        shelf_bottom: cap_of(&shelf, CapEnd::Bottom, tol),
+        post_top: cap_of(&post, CapEnd::End, tol),
+        shelf_bottom: cap_of(&shelf, CapEnd::Start, tol),
     };
     (ws, parts)
 }
@@ -585,7 +585,7 @@ fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: To
     // wrappers deep — pattern index, then instance, then the part's
     // own cap.
     let cap_of_part =
-        NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::Top));
+        NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End));
     let caps = pncad::select::select(
         &ev,
         pattern,

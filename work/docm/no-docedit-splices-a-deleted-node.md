@@ -5,7 +5,7 @@ title: Deleting a feature from the middle of a chain is impossible: no DocEdit r
 status: parked
 opened: 2026-08-31
 github: 1324
-blocked_on: [DOCM-3]
+blocked_on: [n-ary-union-has-no-declaration-channel]
 ---
 
 ## From GitHub issue 1324

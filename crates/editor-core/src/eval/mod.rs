@@ -46,7 +46,7 @@ use crate::doc::Doc;
 use crate::expr::EvalError;
 use crate::ident::Mispaired;
 use crate::names::{NameTable, NamingError};
-use crate::node::{RecipeNodeId, SlotId, StableName};
+use crate::node::{PartSelect, RecipeNodeId, SlotId, StableName};
 use crate::program::ProfileProgram;
 use geom_core::Tol;
 
@@ -629,6 +629,29 @@ pub enum NodeErrorKind {
         /// The empty input node.
         input: RecipeNodeId,
     },
+    /// A [`crate::Node::Part`] selected a split half that holds no
+    /// material — the tool plane missed the target on that side. Its
+    /// own arm rather than [`NodeErrorKind::EmptyOperand`]: that
+    /// one's prose is a boolean's, and what is empty here is a side
+    /// of a cut, which has a name.
+    EmptyHalf {
+        /// The split node whose value was read.
+        input: RecipeNodeId,
+        /// The empty half.
+        half: crate::names::SplitHalf,
+    },
+    /// A [`crate::Node::Part`] indexed a pattern's instances outside
+    /// `0..count`. A negative index lands here too — the index is
+    /// neither wrapped nor clamped, because either would be a body the
+    /// author did not name.
+    InstanceOutOfRange {
+        /// The pattern node whose value was read.
+        input: RecipeNodeId,
+        /// The index as authored (resolved through its slot).
+        index: i64,
+        /// How many instances the value holds.
+        count: usize,
+    },
     /// A direction-valued vector decided to zero length (datum
     /// normal/direction, transform rotation axis, pattern direction).
     DegenerateDirection {
@@ -820,6 +843,56 @@ pub enum NodeErrorKind {
     BlendSelectionEmpty {
         /// Which blend the refusing node is.
         verb: sweep::blend::BlendKind,
+    },
+    /// A derived frame's face name failed to resolve through its
+    /// body's name table — [`NodeErrorKind::BlendSelectionResolve`]'s
+    /// twin, through the same N5 ladder, for the same reason: the
+    /// name is a commitment, so a face that stops answering fails the
+    /// frame typed and poisons the sketch above it rather than
+    /// re-anchoring it silently. The repair is `Rebind`.
+    FaceFrameResolve {
+        /// The resolution failure (N5's closed trio).
+        error: Box<crate::resolve::ResolveError>,
+    },
+    /// A derived frame's name denotes something that is not a FACE
+    /// (an edge, a vertex, the body) — a recipe bug, refused rather
+    /// than reinterpreted.
+    FaceFrameKind {
+        /// The offending name.
+        name: Box<crate::names::StableName>,
+        /// What it actually denotes.
+        found: crate::names::EntityKind,
+    },
+    /// A derived frame's face is not planar (DM1b): a sketch frame
+    /// needs a plane, and the carrier found is named so a headless
+    /// author gets the same answer the chrome pre-empts. A tag read,
+    /// not a predicate — the carrier's own kind, copied out.
+    FaceFrameNotPlanar {
+        /// The carrier kind the face actually has.
+        carrier: geom_brep::SurfaceKind,
+    },
+    /// A derived frame's face resolved to a key its own body could not
+    /// read back — an evaluation-internal inconsistency between the
+    /// emitted table and the body, surfaced typed rather than guessed
+    /// around.
+    FaceFrameReadback {
+        /// The kernel-side refusal, unaltered.
+        error: topo::readback::ReadbackError,
+    },
+    /// A loft's or a sweep's SECTION is drawn on a derived frame
+    /// ([`crate::Datum::FaceFrame`]) and this evaluation's scalar is
+    /// not `f64` (DM1c). A section's geometry stays `f64` in every lane
+    /// (the skinned surface's structure must be lane-identical), and a
+    /// derived frame has no `f64` elaboration off the `f64` lane — its
+    /// placement is the lane's own value — so the section refuses,
+    /// naming the profile and the frame, rather than placing itself
+    /// on a fabricated point of the frame's bracket.
+    /// [`NodeErrorKind::SeedPinnedSection`]'s shape.
+    DerivedFrameSection {
+        /// The section profile node.
+        profile: RecipeNodeId,
+        /// The derived frame it is drawn on.
+        frame: RecipeNodeId,
     },
     /// A sketch node's branch selection refused (SOLVER-DESIGN W3;
     /// M4 PR 4 pins the document semantics — a per-node failure
@@ -1139,6 +1212,26 @@ impl core::fmt::Display for NodeErrorKind {
                 "input {} is the empty value — the body ops take real bodies",
                 input.0
             ),
+            Self::EmptyHalf { input, half } => write!(
+                f,
+                "the split's {} half (node {}) holds no material",
+                match half {
+                    crate::names::SplitHalf::Above => "above",
+                    crate::names::SplitHalf::Below => "below",
+                },
+                input.0
+            ),
+            Self::InstanceOutOfRange {
+                input,
+                index,
+                count,
+            } => write!(
+                f,
+                "instance index {index} is outside the pattern's {count} instances (node {}; \
+                 the admitted indices are 0 to {})",
+                input.0,
+                count.saturating_sub(1)
+            ),
             // Every role word is already a complete noun phrase for the
             // vector ("pattern direction", "transform rotation axis"),
             // so the sentence names the role and nothing after it.
@@ -1251,6 +1344,37 @@ impl core::fmt::Display for NodeErrorKind {
             Self::BlendSelectionEmpty { verb } => write!(
                 f,
                 "the {verb} selection is empty — an unfinished recipe, not the identity"
+            ),
+            Self::FaceFrameResolve { error } => {
+                write!(
+                    f,
+                    "the derived frame's face name failed to resolve: {error}"
+                )
+            }
+            Self::FaceFrameKind { name, found } => write!(
+                f,
+                "the derived frame's name minted by node {} denotes {} {}, not a face",
+                name.node.0,
+                found.article(),
+                found.noun()
+            ),
+            Self::FaceFrameNotPlanar { carrier } => write!(
+                f,
+                "the derived frame's face lies on a {} carrier, not a plane — a sketch frame \
+                 needs a planar face",
+                carrier.name()
+            ),
+            Self::FaceFrameReadback { error } => write!(
+                f,
+                "the derived frame's face resolved to a key its body could not read back: {error}"
+            ),
+            Self::DerivedFrameSection { profile, frame } => write!(
+                f,
+                "section profile node {} is drawn on derived frame node {}, and a loft's or a \
+                 sweep's section stays f64 in every lane — a derived frame is placed at the \
+                 lane's own scalar, so this node refuses off the f64 lane rather than place \
+                 the section on a fabricated point of the frame's bracket",
+                profile.0, frame.0
             ),
             Self::MeasureRefResolve { error } => {
                 write!(f, "a measure reference failed to resolve: {error}")
@@ -1375,6 +1499,7 @@ pub trait EvalScalar:
     + crate::analysis::AxisScalar
     + crate::analysis::SeedScalar
     + crate::measure::MinClearanceLane
+    + SectionScalar
 {
 }
 
@@ -1388,6 +1513,7 @@ impl<T> EvalScalar for T where
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
+        + SectionScalar
 {
 }
 
@@ -1687,6 +1813,64 @@ pub enum ProfileLift {
     /// A decision this scalar cannot confirm refuses the node typed
     /// rather than quietly keeping the nominal structure.
     Guided,
+}
+
+/// **Which scalars carry a section's placement** — the lane door DM1c
+/// turns on: a loft's or a sweep's section keeps `f64` geometry, and a
+/// section drawn on a derived frame takes its placement from the
+/// frame's landed value, which is exact `f64` only where the
+/// evaluation scalar IS `f64`.
+///
+/// Per-scalar like [`crate::analysis::AxisScalar`], and for the same
+/// reason: which lane an evaluation runs in is a fact about the type,
+/// so the type answers it. `f64` hands its value across; `Probe` is
+/// `f64` wearing a counter and does the same; every analysis scalar
+/// (`Interval`, `Dual`, `Sym`) answers `None`, because a bracket or a
+/// tangent has no single `f64` that is not a fabricated choice. No
+/// number is inspected: the answer is decided by the impl, never by a
+/// comparison.
+pub trait SectionScalar: geom_core::Real {
+    /// The value as exact `f64` where this scalar is the `f64` lane;
+    /// `None` on every analysis scalar.
+    fn pinned_f64(self) -> Option<f64>;
+}
+
+impl SectionScalar for f64 {
+    fn pinned_f64(self) -> Option<f64> {
+        Some(self)
+    }
+}
+
+#[cfg(feature = "probe")]
+impl SectionScalar for geom_core::Probe {
+    fn pinned_f64(self) -> Option<f64> {
+        Some(self.0)
+    }
+}
+
+#[cfg(feature = "interval")]
+impl SectionScalar for geom_core::Interval {
+    fn pinned_f64(self) -> Option<f64> {
+        None
+    }
+}
+
+impl<T: SectionScalar> SectionScalar for geom_core::Sym<T>
+where
+    geom_core::Sym<T>: geom_core::Real,
+{
+    fn pinned_f64(self) -> Option<f64> {
+        None
+    }
+}
+
+impl<T: geom_core::Real> SectionScalar for geom_core::Dual<T>
+where
+    geom_core::Dual<T>: geom_core::Real,
+{
+    fn pinned_f64(self) -> Option<f64> {
+        None
+    }
 }
 
 impl Default for EvalOptions {
@@ -2135,11 +2319,11 @@ where
             // The frame the profile is drawn on, at f64 and from the
             // DOCUMENT — `wire::profile_plane_f64` carries why that is
             // the right scalar and the right source.
-            let plane = match wire::profile_plane_f64(doc, program.plane, tol) {
-                Ok(plane) => plane,
+            let placement = match wire::profile_plane_f64(doc, program.plane, tol) {
+                Ok(placement) => placement,
                 Err(kind) => return fail(kind),
             };
-            match wire::prepare_profile(plane, resolved, tol) {
+            match wire::prepare_profile(placement, resolved, tol) {
                 Ok(pre) => Some(pre),
                 Err(kind) => return fail(kind),
             }
@@ -2486,6 +2670,28 @@ where
         // quoted above a published tag is never taken back — so the
         // unpublished one moves. This is that rule applied to itself.
         Node::Datum(Datum::AxisInPlane { .. }) => 30,
+        // The n-ary union's tag. It does NOT share the pair union's 8: the two nodes carry different payloads (a list
+        // against two named operands and a `declare` slot) and mint
+        // different names, so a shared key would serve one's geometry
+        // and table for the other out of the memo. The member list
+        // itself is not written here — members are input EDGES, and
+        // the inputs' own keys carry them in list order below, which
+        // is the rule `Loft`'s profiles already run on.
+        Node::Union { .. } => 31,
+        // The derived sketch frame. It does NOT share the authored
+        // frame's 27 even though it evaluates to the same value kind:
+        // the two carry different payloads (a body edge, a face name
+        // and one spin slot against nine slots), and a shared tag
+        // would let a memo entry for one serve the other's geometry.
+        Node::Datum(Datum::FaceFrame { .. }) => 32,
+        // The projection node: two tags, as `Pattern`'s rule kinds are
+        // two. A half and an index are different payloads read off
+        // different value kinds, and a memo entry for one must never
+        // serve the other.
+        Node::Part { select, .. } => match select {
+            PartSelect::SplitHalf(_) => 33,
+            PartSelect::Instance(_) => 34,
+        },
     };
     // NODE-TAG-SPACE END
     h.write_tag(tag);
@@ -2704,16 +2910,45 @@ where
                 crate::node::TubeWindow::Arc { .. } => 1,
             });
         }
+        // The derived frame's FACE is recipe payload, hashed the way a
+        // blend's selection is: two frames on two faces of one body
+        // share a tag, an upstream key and (possibly) a spin, and
+        // differ in exactly this name. `at` is an input edge and is
+        // carried by the upstream keys.
+        Node::Datum(Datum::FaceFrame { face, .. }) => feed_stable_name(&mut h, face),
+        // The HALF is recipe payload outside the slots: two Parts of
+        // the two halves of one split share a tag, an upstream key and
+        // no slot at all, and differ in exactly this — so it feeds as
+        // a tag, or a memo hit would serve one half's body for the
+        // other. The INDEX is a slot and rides the resolved-slot
+        // stream below like every slot; `of` is an input edge and is
+        // carried by the upstream keys.
+        Node::Part { select, .. } => match select {
+            PartSelect::SplitHalf(half) => h.write_u64(split_half_tag(*half)),
+            PartSelect::Instance(_) => {}
+        },
         // Fully expressed by tag plus slots: their whole recipe payload
         // is either an input edge (excluded from the key by design — the
         // inputs' own keys carry it) or a slot expression, fed below.
-        Node::Datum(_)
+        // The datum variants are listed, not wildcarded, so a datum
+        // that grows a payload outside its slots has to answer here.
+        Node::Datum(
+            Datum::Plane { .. }
+            | Datum::Axis { .. }
+            | Datum::Point { .. }
+            | Datum::Frame { .. }
+            | Datum::AxisInPlane { .. },
+        )
         | Node::Extrude { .. }
         | Node::Revolve { .. }
         | Node::Loft { .. }
         | Node::Sweep { .. }
         | Node::Split { .. }
         | Node::Boolean { .. }
+        // The member list is edges, so the upstream keys carry it — in
+        // list order, and prefixed by its length, so neither a
+        // reordering nor a dropped member can alias another list.
+        | Node::Union { .. }
         | Node::Transform { .. } => {}
     }
     // Evaluated slot values, in the node's deterministic slot order.
@@ -3246,13 +3481,24 @@ fn feed_stable_name(h: &mut KeyHasher, name: &StableName) {
     }
 }
 
+/// A split half's key tag — ONE spelling, read by the role-segment
+/// feed (every split segment carries a half) and by the projection
+/// node's payload feed (a `Part` of a half carries the half itself).
+fn split_half_tag(half: crate::names::SplitHalf) -> u64 {
+    use crate::names::SplitHalf;
+    match half {
+        SplitHalf::Above => 1,
+        SplitHalf::Below => 2,
+    }
+}
+
 /// Feeds one role segment (closed enum — every variant tagged; the
 /// tags are part of the key format version).
 fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
-    use crate::names::{CapEnd, MeridianEnd, Qualifier, RoleSeg, SideVerdict, SplitHalf};
+    use crate::names::{CapEnd, MeridianEnd, Qualifier, RoleSeg, SideVerdict};
     let cap = |c: CapEnd| match c {
-        CapEnd::Top => 1u64,
-        CapEnd::Bottom => 2,
+        CapEnd::End => 1u64,
+        CapEnd::Start => 2,
     };
     let mer = |m: MeridianEnd| match m {
         MeridianEnd::Start => 1u64,
@@ -3260,10 +3506,7 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         MeridianEnd::Seam => 3,
         MeridianEnd::Pi => 4,
     };
-    let half = |s: SplitHalf| match s {
-        SplitHalf::Above => 1u64,
-        SplitHalf::Below => 2,
-    };
+    let half = split_half_tag;
     let rim = |s: crate::names::RimSupport| match s {
         crate::names::RimSupport::Host => 1u64,
         crate::names::RimSupport::Mate => 2,
@@ -3296,6 +3539,12 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             h.write_u64(u64::from(*of));
         }
     };
+    // SEG-TAG-SPACE BEGIN — the sentinel `seg_tag_space_is_injective`
+    // reads. Every segment tag lives INSIDE this match, written as a
+    // literal `write_tag(<number>)`; a tag written outside it is
+    // invisible to the census, so do not write one there. The nested
+    // closures above (qualifier, verdict, cap, meridian) have tag
+    // spaces of their OWN and are deliberately outside.
     match seg {
         RoleSeg::OutputBody => h.write_tag(1),
         RoleSeg::Cap(c) => {
@@ -3477,7 +3726,21 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             h.write_tag(39);
             feed_stable_name(h, n);
         }
+        // The n-ary union's member key. It does not share `FromA`'s
+        // 16: that would key a member's face and a pair operand's face
+        // identically.
+        // BOTH halves feed: two members of one union can be
+        // placements of ONE prototype and then carry the same inner
+        // name, so a key without the member edge would give their
+        // entities one key — the memo hazard this tag space exists to
+        // prevent.
+        RoleSeg::FromMember { member, of } => {
+            h.write_tag(41);
+            h.write_u64(member.0);
+            feed_stable_name(h, of);
+        }
     }
+    // SEG-TAG-SPACE END
 }
 
 #[cfg(test)]
@@ -3682,6 +3945,85 @@ mod verb_content_tag_tests {
                     .unwrap_or_default()
             );
             seen.push((tag, who));
+        }
+    }
+
+    /// **The SEGMENT tag space is injective too** — the same property
+    /// [`node_tag_space_is_injective`] holds for node tags, held for
+    /// [`feed_role_seg`]'s.
+    ///
+    /// It matters for the same reason and is a memo hazard of the same
+    /// class: two role segments sharing a tag make two different names
+    /// hash alike, and a content key that collides serves one node's
+    /// cached geometry for another's. `RoleSeg` is the enum this unit
+    /// grew (`FromMember`, tag 41) and it is the widest enum in the
+    /// crate, so the space had the most room to collide in and the
+    /// least to catch it with.
+    ///
+    /// A SOURCE census, for the reason the node one is: the tags live
+    /// in a match over `&RoleSeg`, and enumerating them by calling the
+    /// function would mean constructing one of every variant. The
+    /// sentinels bracket the match, every literal `write_tag(<number>)`
+    /// inside them is one segment tag, and nothing is hand-listed — a
+    /// tag added inside the sentinels is measured the moment it is
+    /// typed.
+    ///
+    /// What it cannot see, stated: a tag written outside the sentinels
+    /// (the sentinel comment says not to), and a tag whose arm computes
+    /// rather than names a number. Neither exists today. The nested
+    /// closures' tag spaces (qualifier, verdict, cap end, meridian end,
+    /// split half, rim support) are deliberately outside the region:
+    /// each is its own small space, keyed under a segment tag that this
+    /// census does hold unique.
+    #[test]
+    fn seg_tag_space_is_injective() {
+        const SOURCE: &str = include_str!("mod.rs");
+        let region = SOURCE
+            .split_once("SEG-TAG-SPACE BEGIN")
+            .expect("the segment match carries its opening sentinel")
+            .1
+            .split_once("SEG-TAG-SPACE END")
+            .expect("the segment match carries its closing sentinel")
+            .0;
+        // The same shared Rust reader the node census uses, so a tag
+        // number discussed in a comment or a string is not read as one.
+        let code_only = test_utils::source::code_and_literals(region);
+        let mut tags: Vec<(u8, usize)> = Vec::new();
+        for (n, code) in code_only.lines().enumerate() {
+            let Some(rest) = code.split_once("write_tag(") else {
+                continue;
+            };
+            let token: String = rest.1.chars().take_while(char::is_ascii_digit).collect();
+            if let Ok(tag) = token.parse::<u8>() {
+                tags.push((tag, n));
+            }
+        }
+        // A census that read nothing would pass vacuously. `RoleSeg`
+        // has 41 variants and every one writes a tag.
+        assert!(
+            tags.len() >= 41,
+            "the segment census found only {} tags — the sentinels or the scan have drifted from \
+             the match they are supposed to read",
+            tags.len()
+        );
+        // And the tag this unit added is in the region, which is what
+        // says the census is reading the match that grew.
+        assert!(
+            tags.iter().any(|(t, _)| *t == 41),
+            "`FromMember`'s tag 41 is not reachable from the segment match — the census is \
+             measuring the wrong region"
+        );
+        let mut seen: Vec<(u8, usize)> = Vec::new();
+        for (tag, line) in tags {
+            assert!(
+                !seen.iter().any(|(t, _)| *t == tag),
+                "segment tag {tag} is claimed twice: at region line {line} and at region line {}",
+                seen.iter()
+                    .find(|(t, _)| *t == tag)
+                    .map(|(_, l)| *l)
+                    .unwrap_or_default()
+            );
+            seen.push((tag, line));
         }
     }
 }

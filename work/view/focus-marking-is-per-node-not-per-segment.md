@@ -4,6 +4,7 @@ kind: issue
 title: Viewport focus marking is per NODE, so a profile step cannot light the walls it swept
 status: open
 opened: 2026-08-29
+refs: [authored-step-to-canonical-segment-map-has-no-home]
 github: 1182
 ---
 
@@ -51,3 +52,24 @@ is cut.
 ## Home
 
 Viewer ground (`crates/viewer/src/pick.rs`) with a lowering-side door in `profile`/`editor-core`; the GUI program is closed and may hold only closed items, so it lands under `work/issues/`.
+
+## The blocker now has a file (VIEW orchestrator, 2026-09-04)
+
+`work/view/plan.md` has said since 2026-09-03 that this item owes "two
+announces" for the authored-step to canonical-segment map. A sentence
+in a plan is not a schedule, so:
+`work/issues/authored-step-to-canonical-segment-map-has-no-home.md`.
+
+The reason it is in `work/issues/` and not parked on a DOCM or BOOL
+row is the finding itself: the authored `step` is
+`ProfileProgram::step_args` (`crates/editor-core/src/program.rs:653`,
+DOCM) and the canonical `segment` is `crates/profile`'s
+canonicalization (BOOL), and **the correspondence between them exists
+in neither crate**, so a door on either side alone does not produce
+it. That makes it unlike `next-id-has-no-layer3-door`, which is a
+door DOCM can simply add.
+
+This item stays `open` rather than parked, for the same reason
+`session-shims-and-test-imports` does: `blocked_on` can name an item
+or a PR, and what gates this is a siting question nobody has claimed.
+See `tracker-has-no-status-for-an-unscheduled-trigger`.

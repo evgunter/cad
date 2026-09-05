@@ -60,16 +60,19 @@ frozen-frame door in the GUI that (b) then has to deprecate.
 
 ## The other half #1374 named, unchanged
 
-The offer is conditioned on the picked face being PLANAR, and
-`editor-core::names::interrogate` deliberately answers no such verdict
-("values never verdicts (no door answers 'is this face planar')").
-`face_frame` answers a pose for any analytic carrier, and a cylinder's
-pose is its axis frame — placing a sketch on that silently is the
-wrong-surprise this codebase refuses elsewhere. So either the
-interrogation posture gains a carrier-kind door at the layer 2/3
-boundary, or the offer is made for ANY face with wording that says
-which frame it actually is. That is a second decision, and it survives
-the fork above whichever way it goes.
+The offer is conditioned on the picked face being PLANAR. When #1374
+was filed the interrogation vocabulary answered no such question; DM2
+has since ruled a carrier-kind read a VALUE (a stored tag copied out,
+not a numeric verdict — rule 1 now says NUMERIC predicates are what no
+door decides), and DOCM-1 built the door:
+`names::interrogate::face_carrier_kind` answers a face's `SurfaceKind`,
+and `Datum::FaceFrame` refuses a non-planar face typed at evaluation
+(DM1b). `face_frame` still answers a pose for any analytic carrier, and
+a cylinder's pose is still its axis frame, so the chrome gates on the
+tag read, not the pose. The second decision — offer the frame only for
+a planar face, or for ANY face with wording that says which frame it
+is — is the chrome's, and it survives the fork above whichever way it
+goes.
 
 ## Where it stands
 

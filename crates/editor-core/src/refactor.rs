@@ -571,6 +571,14 @@ fn remap_seg(seg: &RoleSeg, map: &NodeMap) -> Result<RoleSeg, RecipeNodeId> {
         name_free_seg!() => seg.clone(),
         R::FromA(n) => R::FromA(one(n)?),
         R::FromB(n) => R::FromB(one(n)?),
+        // BOTH halves cross: the member edge is a local node id like
+        // the minting one, so a subgraph copied into another document
+        // carries a member reference that names a node HERE unless it
+        // is re-mapped too.
+        R::FromMember { member, of } => R::FromMember {
+            member: map.get(member).copied().ok_or(*member)?,
+            of: one(of)?,
+        },
         R::Seam { a, b } => R::Seam {
             a: one(a)?,
             b: one(b)?,
@@ -704,7 +712,23 @@ fn remap_node(
             origin: origin.clone(),
             direction: direction.clone(),
         }),
-        Node::Datum(_) => node.clone(),
+        // A derived frame is not a leaf either: its body is an input
+        // and its face is a frozen name, and both cross the cut or
+        // the remap misses loudly — exactly a blend's target and
+        // selection.
+        Node::Datum(crate::Datum::FaceFrame { at, face, spin }) => {
+            Node::Datum(crate::Datum::FaceFrame {
+                at: id(*at)?,
+                face: nm(face)?,
+                spin: spin.clone(),
+            })
+        }
+        Node::Datum(
+            crate::Datum::Plane { .. }
+            | crate::Datum::Axis { .. }
+            | crate::Datum::Point { .. }
+            | crate::Datum::Frame { .. },
+        ) => node.clone(),
         // A profile's PLANE is an input like any other: it crosses the
         // cut with the profile or the remap misses loudly. (Before the
         // sketch frame became a node this arm cloned, because a
@@ -801,6 +825,9 @@ fn remap_node(
             b: id(*b)?,
             declare: declare.map(id).transpose()?,
         },
+        Node::Union { members } => Node::Union {
+            members: members.iter().map(|&m| id(m)).collect::<Result<_, _>>()?,
+        },
         Node::Transform {
             input,
             translation,
@@ -816,6 +843,12 @@ fn remap_node(
             input: id(*input)?,
             count: count.clone(),
             kind: remap_rule(kind, &id)?,
+        },
+        // The selector is payload with no id in it (a half, or an
+        // index expression); only the edge remaps.
+        Node::Part { of, select } => Node::Part {
+            of: id(*of)?,
+            select: select.clone(),
         },
         Node::PlacedUnion { input, count, kind } => Node::PlacedUnion {
             input: id(*input)?,

@@ -42,6 +42,33 @@ pub enum DocEdit<P> {
         /// The node to delete.
         id: RecipeNodeId,
     },
+    /// **Replace a node's whole LIST input** (DM4) — a union's members,
+    /// a loft's sections ([`Node::list_input`]).
+    ///
+    /// The one edit that changes a live node's inputs, and it can be
+    /// that because it is unambiguous by construction: the new list is
+    /// stated in full, so nothing is inferred about which of the old
+    /// entries survived, moved or was meant. There is no positional
+    /// spelling and no per-entry edit; DM6 rules that no other rewiring
+    /// edit exists.
+    ///
+    /// Deleting one member is this edit without it plus a plain
+    /// [`DocEdit::DeleteNode`] of the orphaned node, one committed
+    /// action.
+    ///
+    /// Every check [`DocEdit::InsertNode`] makes of a node's inputs is
+    /// made here, of the REWRITTEN node, through the same functions:
+    /// liveness ([`EditError::UnresolvedInput`]), acyclicity
+    /// ([`EditError::WouldCycle`]), pairwise distinctness
+    /// ([`EditError::DuplicateInput`]) and the list's own floor
+    /// ([`EditError::TooFewMembers`]). A node with no list input
+    /// refuses [`EditError::SetMembersOnNonList`].
+    SetMembers {
+        /// The node whose list is replaced.
+        node: RecipeNodeId,
+        /// The whole new list, in order (D9: the order is data).
+        members: Vec<RecipeNodeId>,
+    },
     /// Replace a CONTINUOUS slot's expression (Length/Angle/Scalar
     /// slots; spec D3's continuous parameters).
     SetParam {
@@ -302,6 +329,39 @@ pub enum EditError {
     WouldCycle {
         /// A node on the detected cycle.
         at: RecipeNodeId,
+    },
+    /// **A node's inputs are not pairwise distinct** (DM5): one node
+    /// reached twice through one node's edges.
+    ///
+    /// It is one structural rule over [`Node::inputs`], not a rule per
+    /// node kind, so it covers a boolean or a split whose two operands
+    /// coincide and a list with a repeated entry alike — and it is
+    /// stated once, at [`Node::input_fault`], with this door,
+    /// [`DocEdit::SetMembers`] and the load validator as its three
+    /// callers.
+    DuplicateInput {
+        /// The node whose input list repeats.
+        node: RecipeNodeId,
+        /// The input it reaches twice.
+        input: RecipeNodeId,
+    },
+    /// `SetMembers` aimed at a node that has no list input
+    /// ([`Node::list_input`]) — a boolean's operands are named slots,
+    /// and replacing "the list" of a node that has none is not a
+    /// smaller version of this edit, it is a different sentence.
+    SetMembersOnNonList {
+        /// The node that carries no list.
+        node: RecipeNodeId,
+    },
+    /// A list input left with fewer than two entries. A union of one
+    /// body is that body and a loft through one section is not a skin:
+    /// either is a node whose meaning is its own input, spelled as an
+    /// operator.
+    TooFewMembers {
+        /// The node whose list is short.
+        node: RecipeNodeId,
+        /// How many entries it would have had.
+        found: usize,
     },
     /// Deleting this node would dangle a live reference to it.
     DeleteWouldDangle {
@@ -729,6 +789,27 @@ impl core::fmt::Display for EditError {
                     at.0
                 )
             }
+            // Forwarded, not restated: `InputFault` owns this
+            // vocabulary and `node.rs` promises every door that renders
+            // it forwards. The door adds only its own frame — which
+            // edit, and which node the fault is about.
+            Self::DuplicateInput { node, input } => write!(
+                f,
+                "edit: node {} would be left invalid — {}",
+                node.0,
+                crate::node::InputFault::Duplicate { input: *input }
+            ),
+            Self::SetMembersOnNonList { node } => write!(
+                f,
+                "edit: node {} carries no list input, so it has no members to set",
+                node.0
+            ),
+            Self::TooFewMembers { node, found } => write!(
+                f,
+                "edit: node {} would be left invalid — {}",
+                node.0,
+                crate::node::InputFault::TooFew { found: *found }
+            ),
             Self::DeleteWouldDangle { id, referenced_by } => write!(
                 f,
                 "edit: node {} is still an input to node {} — delete node {} first, \
@@ -1187,6 +1268,28 @@ fn check_node_slots<P: crate::ProfilePayload>(
     Ok(())
 }
 
+/// DM5 at an EDIT door: [`Node::input_fault`] rendered in this
+/// module's vocabulary. The rule itself lives on the node, where the
+/// load door reads it too; this is the door's name for its answer, and
+/// there is no second copy of the question.
+///
+/// Liveness is the caller's, and is checked before this, so a list of
+/// dangling ids reports the dangling id rather than a count.
+fn check_node_inputs<P: crate::ProfilePayload>(
+    id: RecipeNodeId,
+    node: &Node<P>,
+) -> Result<(), EditError> {
+    match node.input_fault() {
+        None => Ok(()),
+        Some(crate::node::InputFault::Duplicate { input }) => {
+            Err(EditError::DuplicateInput { node: id, input })
+        }
+        Some(crate::node::InputFault::TooFew { found }) => {
+            Err(EditError::TooFewMembers { node: id, found })
+        }
+    }
+}
+
 /// Reject cycles in the recipe DAG (spec D3/D6). Defensive: insertion
 /// referencing only existing nodes cannot cycle, but the invariant is
 /// checked. Iterative DFS, three-color, deterministic order.
@@ -1310,6 +1413,7 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
                 }
             }
             let id = RecipeNodeId(new.next_id);
+            check_node_inputs(id, node)?;
             if let Node::Mate { alignment, .. } = node
                 && !alignment.is_finite()
             {
@@ -1367,6 +1471,45 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // validator re-checks.
             new.placements.remove(id);
             // next_id is NOT decremented: ids are never reused (D3).
+            EditRecord {
+                minted: None,
+                structural: true,
+            }
+        }
+        DocEdit::SetMembers { node, members } => {
+            let Some(current) = new.nodes.get(node) else {
+                return Err(EditError::UnknownNode { id: *node });
+            };
+            if current.list_input().is_none() {
+                return Err(EditError::SetMembersOnNonList { node: *node });
+            }
+            // Liveness FIRST, and of the offered list rather than of
+            // the rewritten node, so a dangling entry is named as the
+            // dangling entry it is.
+            for member in members {
+                if !new.nodes.contains_key(member) {
+                    return Err(EditError::UnresolvedInput { input: *member });
+                }
+            }
+            // The rewrite happens, then the rewritten node walks the
+            // insert door's own checks — the same functions, not
+            // mirrors of them, so this edit cannot reach a state
+            // `InsertNode` would have refused.
+            let mut rewritten = current.clone();
+            if !rewritten.set_list_input(members.clone()) {
+                return Err(EditError::SetMembersOnNonList { node: *node });
+            }
+            check_node_inputs(*node, &rewritten)?;
+            new.nodes.insert(*node, rewritten);
+            // The DAG's edges moved, so both invariants that ride on
+            // them are re-established rather than assumed: acyclicity
+            // (a member downstream of this node would close a loop —
+            // the one refusal `InsertNode` gets for free and this edit
+            // does not), and the product-root set, which is a function
+            // of the edges.
+            check_acyclic(&new)?;
+            crate::roots::on_set_members(&mut new);
+            reconcile = true;
             EditRecord {
                 minted: None,
                 structural: true,

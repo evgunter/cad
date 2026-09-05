@@ -2,9 +2,9 @@
 id: session-shims-and-test-imports
 kind: issue
 title: The split's pub use shims leave two spellings of every moved path, and re-pointing the 32 test files needs CHROME's glob
-status: parked
+status: open
 opened: 2026-09-04
-blocked_on: [viewer-session-god-module-split]
+refs: [viewer-session-god-module-split]
 ---
 
 
@@ -16,12 +16,24 @@ unit, and "deferred" is not a schedule).
 ## The deviation
 
 32 of the 44 files in `crates/viewer/tests/` spell
-`use viewer::session::{…}` — the module path — for items `lib.rs:139`
-already re-exports at the crate root: `SessionOp` (5 files), `Refusal`
-(5), `ProfileShape` (5), `DocSession` (5), `Selection` (4),
-`NodeKindWanted` (4), `DatumSpec` (4), `FaceSelection` (3),
-`PatternRuleSpec` (2), `Hovered` (2), `EdgeSelection`, `AtRestBadge`,
-`admits`.
+`use viewer::session::{…}` — the module path — for these items:
+`SessionOp` (5 files), `Refusal` (5), `ProfileShape` (5), `DocSession`
+(5), `Selection` (4), `NodeKindWanted` (4), `DatumSpec` (4),
+`FaceSelection` (3), `PatternRuleSpec` (2), `Hovered` (2),
+`EdgeSelection`, `AtRestBadge`, `admits`.
+
+**Most of that list, but not all of it, is already spelled at the
+crate root.** `lib.rs:147`'s `pub use session::{…}` block re-exports
+eleven of the thirteen; `AtRestBadge` and `admits` appear in neither
+that block nor any other crate-root `pub use`, so for those two a
+re-point is not a substitution. `AtRestBadge` is reached by the module
+path in four files — one `use viewer::session::{…}` line
+(`story_assembly.rs:51`) and three fully-qualified
+`viewer::session::AtRestBadge::…` spellings — and has no crate-root
+spelling to move to; `admits` is imported by no test at all, only
+named in prose (`combine_ops.rs:1327`), so it does not belong in this
+list. Either the block grows first or those sites stay on the module
+path. The sweep is that much less mechanical than the rest.
 
 The split moves most of those items into `session::{select, refuse,
 op, author}`. It lands `pub use` shims in `session` so **no test file
@@ -54,7 +66,24 @@ already (correct, and invisible to the sweep) and any `use viewer::app::`
 import, which the app half of the split moves separately — five files,
 six items, listed in this program's log.
 
-## Blocked on
+## Un-parked, and why it is not re-parked (VIEW orchestrator, 2026-09-04)
 
-`viewer-session-god-module-split` — there is nothing to re-point until
-the move lands.
+The trigger fired: `viewer-session-god-module-split` closed 2026-09-04
+and the shims exist, so there IS something to re-point now. What is
+left is not a blocker of the kind `blocked_on` can name — it is a
+cross-program reach, and **no item on any board names it**. CHROME
+owns `crates/viewer/tests/*` by declaration and has no item for the
+sweep; the alternative is an announce widening this program's `paths`,
+which is a decision and not an item either.
+
+`open` is the least bad of two wrong states, for the reason this
+program's log already argued once on
+`pick-priority-filter-vocabulary`: a reader who opens the file meets
+the truth in its first paragraph, where a false `blocked_on` naming a
+CLOSED item goes on being believed unread. It was believed unread for
+a day here — the board carried this row as parked behind an item that
+had already closed.
+
+That is now the second row in this program, and the ninth on CHROME's
+board, whose real state the tracker's vocabulary cannot spell. Put to
+Ev as `tracker-has-no-status-for-an-unscheduled-trigger`.

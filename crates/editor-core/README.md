@@ -132,7 +132,9 @@ nodes share the rule vocabulary and slot map.
   none. `placement_rule_fault`, read by `apply`, the snapshot check and
   evaluation, refuses a count spelled twice, an empty list, and a non-finite or
   improper frame. Face-tied placements and a placement-list edit arm are not
-  implemented; heterogeneous groups are out of scope (pairwise `Boolean`).
+  implemented. Heterogeneous groups are `Node::Union`'s: an n-ary fuse over an
+  arbitrary member list, named by member and not by position, edited with
+  `DocEdit::SetMembers`.
 - **Naming does not grow.** Per-instance discrimination is `RoleSeg::Instance
   { i, of }`, the pattern node's wrapper; each instance's rows are re-keyed onto
   the one output body through that instance's graft bridge, and the body is
@@ -205,8 +207,20 @@ plain replay bitwise (`tests/m10_p_fence.rs`,
 function: `section_of` calls `prepare_profile` and runs pass 2 as a gate only —
 a section's geometry stays f64 (the skinned surface's structure must be
 lane-identical), so a seed on a parameter the section reads refuses
-`SeedPinnedSection` rather than arriving as a zero. Out of scope: the sketch
-plane stays f64 (`profile_plane_f64`), naming, persistence, the sketch solver.
+`SeedPinnedSection` rather than arriving as a zero. **The sketch plane, by
+frame kind.** An AUTHORED frame's plane stays f64 under every lift
+(`profile_plane_f64`, read from the document's own slots), so its
+profile's placed coordinates are exact points at every scalar. A DERIVED
+frame (`Datum::FaceFrame`, DOCM-REFERENCES-DESIGN DM1) has no document
+elaboration — its value is read off the evaluated body — so its profile
+is placed at the lane scalar through `frame_plane_lane` under every
+lift, and its placed coordinates at `Interval` are enclosures, which is
+what a derived frame is at that scalar; the 2-D structure record (PP1)
+is f64-pinned exactly as before, the placement is the one thing that
+moves to `T`. A loft or sweep SECTION on a derived frame refuses typed
+at any scalar but f64 (`DerivedFrameSection`, the `SeedPinnedSection`
+shape), since a section's geometry stays f64. Out of scope: naming,
+persistence, the sketch solver.
 
 ## Open
 

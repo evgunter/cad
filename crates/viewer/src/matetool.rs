@@ -83,6 +83,9 @@
 //! typed but late. The cost of the tool living outside the session is
 //! exactly this call; it is stated here so the contract is a sentence
 //! a consumer reads rather than a defect they meet.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
     Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, Doc, Evaluation, Frame, MateFault,
