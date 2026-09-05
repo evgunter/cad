@@ -487,7 +487,20 @@ fn rim_at(body: &Body<f64>, y: f64, r: f64) -> EdgeKey {
         1,
         "the description (station {y}, radius {r}) names exactly one rim"
     );
-    hits[0]
+    // The description names an ARC; the query seat says which rim it
+    // belongs to, and on this body that rim is the arc itself.
+    //
+    // These five lines are a STRUCTURAL copy of
+    // `sweep::test_support::one_edge_rim`, not a drifted one: the tour
+    // is a detached workspace that reaches the kernel through the
+    // `pncad` façade, and `test_support` is a test-vocabulary module
+    // the façade does not carry. Sharing it would put the kernel's test
+    // vocabulary on a demo's dependency path to save five lines. What
+    // is shared is the door under both.
+    match query::rim_of(body, hits[0]).expect("the description names a whole rim")[..] {
+        [only] => only,
+        ref many => panic!("this rim is one closed edge, got {many:?}"),
+    }
 }
 
 // ---------------------------------------------------------------------
