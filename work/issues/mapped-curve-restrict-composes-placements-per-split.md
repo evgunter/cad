@@ -40,7 +40,7 @@ that `eval` applies ONE anchored rotation,
 count; the `ExtrudedPoint` arm the same with a start displacement
 inside the parameter. In exact arithmetic
 `restrict(s0, s1).eval(s) = eval(s0 + (s1 − s0)·s)` either way (the
-contract at `:222`); at `Interval` the parameter form pays the diagonal
+contract at `:228`); at `Interval` the parameter form pays the diagonal
 enclosure once. The caller's re-certification against
 `carrier_matches_mapped_source` is unchanged. `SketchSegment::restrict`
 (`:104`) has the sibling shape at the endpoints (its own anchoring note

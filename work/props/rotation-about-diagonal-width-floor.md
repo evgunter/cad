@@ -21,9 +21,10 @@ residue — a decision of its own, not a member to take in passing.
 `t = 1 − cos θ`. The backend's `cos` at the exact point `θ = 0`
 encloses `[0.9999999999999996, 1]`, so `t` encloses `[0, 4.44e-16]`
 where its true value is exactly zero — a floor independent of the
-angle. `2·sin²(θ/2)` encloses `[0, 2.5e-323]` there, and
-`Mat3::identity_minus_rotation_about` already uses the half-angle
-forms for exactly this reason.
+angle. `2·sin²(θ/2)` encloses `[0, 2.5e-323]` there;
+`Mat3::identity_minus_rotation_about` uses the half-angle forms, and
+why the same floor is load-bearing there and not here is stated in
+`## Closed`.
 
 The payoff is smaller than the floor suggests, and that is the reason
 this is its own item. The diagonal entry `t·nᵢ² + c` is ~8.88e-16 wide
@@ -72,11 +73,16 @@ moving `f64` bits under every rotation in the kernel; the irreducible
 part is the backend's `cos` enclosure at exact angles.
 
 **What landed instead** (PR 1980, a doc unit — no arithmetic moved):
-the paragraph at `Mat3::rotation_about` that states the floor as the
-SUM of the two enclosures, what each respell recovers with the
-instrument named, why `identity_minus_rotation_about` takes the
-half-angle forms for a different reason, and that the floor is the
-backend's; and the composition rider re-homed to
+the paragraph at `Mat3::rotation_about` — the one home of the
+decomposition — that states the floor as the SUM of the two
+enclosures, what each respell recovers with the instrument named
+(`t` alone is WORSE at full period, 133 %), that the floor is the
+backend's, and why the same floor decides differently in the two
+operators: in `I − R` the entry's true value vanishes with the angle,
+so the `4.44e-16` floor would be the entry's whole value and the half
+angle is load-bearing; in `R` the entry is near one, `+ c` swamps the
+floor, and the half angle buys a sixth at best. The composition rider
+is re-homed to
 `work/issues/mapped-curve-restrict-composes-placements-per-split.md`,
 whose fix is composition-side — compose in the parameter, keep one
 placement — and belongs to whoever owns `MappedCurve`, not to a
