@@ -2,9 +2,8 @@
 id: chart-region-lane-contract
 kind: ruling
 title: ChartRegionLane's contract — is the census's minus-one-arm completeness sentence one Ev will have in the tree?
-status: open
+status: deferred
 opened: 2026-09-04
-needs_ev: true
 refs: [H5, 1877, 1878]
 ---
 
@@ -81,3 +80,15 @@ certified form of the at-rest doors should become their DEFAULT name,
 evicting `Body<Dual64>` from `validate_pseudomanifold` — lives on
 `work/cert/lane-keeping-at-rest-doors-skip-the-m7-8-class.md` (PR #1877)
 and is not asked here either.
+
+## Ruling — DEFERRED (Ev, 2026-09-05, on PR #1878)
+
+Ev: the state CERT-M3 left is "fine as a transitional state", and the
+answer is **defer**. `ChartRegionLane` stays unsplit; the completeness
+sentence above is NOT written into the tree; the split waits on the C9
+exclusion ring's first step (`CONTACT-DESIGN` C2 step 1), after which the
+question is re-asked against a census whose remaining arms can be shown
+complete. This item is `deferred` under `work/README.md`'s rule — ratified
+as not-now, this comment thread the citation, nothing it waits on that
+lint could see — and `H5` carries the pointer. Nothing in code moved for
+this ruling.
