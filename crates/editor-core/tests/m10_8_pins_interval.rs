@@ -110,8 +110,11 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
 /// **On curved geometry the shipped set discharges MORE than the plain
 /// form and never less** — the bracket at `1e2 · ε` of its study, a box
 /// between the plain tier's ceiling (`3.7e1 · ε`) and the shipped
-/// one's (`3.9e2 · ε`): more symbolic decisions, fewer numeric ones, at
-/// least as many leaves certified, at every ε row.
+/// one's (`3.9e2 · ε`). The two drives do not split alike (the shipped
+/// tier certifies the box in one leaf where the plain tier splits and
+/// refuses), so the comparison is per DECISION — the symbolic SHARE of
+/// all decisions — and per box: at least as many leaves certified, at
+/// every ε row.
 #[test]
 fn m10_8_the_shipped_set_discharges_more_on_the_bracket() {
     let tol = Tol::witness();
@@ -133,15 +136,26 @@ fn m10_8_the_shipped_set_discharges_more_on_the_bracket() {
     };
     let (shipped_cert, shipped) = run(SymRules::shipped());
     let (plain_cert, plain) = run(SymRules::none());
+    let share = |c: &geom_core::SymCounts| {
+        (c.symbolic_zero + c.sign_gated) as f64 / c.decisions().max(1) as f64
+    };
     println!(
-        "   shipped {shipped:?} certified {shipped_cert}; plain {plain:?} certified {plain_cert}"
+        "   shipped {shipped:?} certified {shipped_cert} share {:.3}; plain {plain:?} certified {plain_cert} share {:.3}",
+        share(&shipped),
+        share(&plain)
     );
     assert!(
-        shipped.symbolic_zero + shipped.sign_gated > plain.symbolic_zero + plain.sign_gated,
-        "the shipped tier discharges more: {shipped:?} vs {plain:?}"
+        share(&shipped) > share(&plain),
+        "the shipped tier discharges a larger share of its decisions: {shipped:?} vs {plain:?}"
     );
-    assert!(shipped.numeric < plain.numeric);
-    assert!(shipped_cert >= plain_cert);
+    assert!(
+        shipped_cert >= plain_cert,
+        "and certifies at least as much of the box"
+    );
+    assert!(
+        shipped_cert >= 1,
+        "the box between the two ceilings certifies under the shipped tier"
+    );
 }
 
 /// Bisects the whole-certifying ceiling of `doc_at` under `rules` on a
