@@ -658,3 +658,12 @@ SEATFW (ordinal 1009, sample #143 at merge); `docs/SEAT-FW-SPEC.md`
 deleted at this merge per `docs/DOC-LEDGER.md`.
 
 Next: the S3 `[ev]`; then SEAT-DN on block SEAT-B3's third slot.
+
+## SEAT-DN DISPATCHED (2026-09-05)
+
+SEAT-FW merged at fe6fff4a (PR 1974); the S3 corrections it stopped on
+are out as an `[ev]` PR. SEAT-DN — direction normalization as one
+kernel body under two ratified names, `docs/SEAT-DN-SPEC.md` —
+dispatches on block SEAT-B3's third slot. Its prime directive is the
+ruling itself: any shape that would move a funnel-site name is
+Ev-gated.
