@@ -168,6 +168,17 @@
 //!   carries that proof in its message. No site inherits its proof
 //!   from whole-body validity, which the paragraph above is exactly
 //!   why.
+//!
+//! # What this surgery may destroy
+//!
+//! **A support shrinks; it does not die.** Every face this carve kills
+//! is one it MINTED — a strip, a corner triangle, a band sector, a cap
+//! sliver — and every source face keeps its key. That is not an
+//! argument to be re-made at each excision: no site calls `kef`
+//! directly, every one goes through [`kef_minted`] with its phase's
+//! source faces, and a half whose face is one of them is refused
+//! (Row 1) rather than carved. `super::naming::Retired` carries no face
+//! channel because of that door.
 
 use geom::Curve3;
 use geom::Surface;
@@ -573,7 +584,10 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
             ));
         };
         incident.sort_unstable();
-        let mut here: Vec<EdgeKey> = links.sorted().iter().map(|l| l.edge()).collect();
+        let (seed, others) = links.sorted();
+        let mut here: Vec<EdgeKey> = core::iter::once(seed.edge())
+            .chain(others.iter().map(AdmittedOpen::edge))
+            .collect();
         here.dedup();
         // Two different refusals, and they are not the same class: the
         // valence is the corner's own configuration (the OQ6
@@ -885,26 +899,28 @@ fn chamfer_feet<T: Decide + Bounds>(
     links: &CornerLinks<'_, T>,
     vertex_point: Point3<T>,
 ) -> Result<[Point3<T>; 3], BlendError> {
-    let here = links.sorted();
+    let (seed, others) = links.sorted();
     let mut feet = [vertex_point; 3];
     for (slot, &face) in faces.as_slice().iter().enumerate() {
-        let mut on_face = here.iter().filter_map(|o| {
-            let l = o.link();
-            let trim = if l.face_a == face {
-                &l.blend.trim_a.0
-            } else if l.face_b == face {
-                &l.blend.trim_b.0
-            } else {
-                return None;
-            };
-            match *trim {
-                Curve3::Line { origin, dir } => Some(Ok((origin, dir))),
-                _ => Some(Err(unbuilt_geometry(
-                    EntityId::Edge(l.edge),
-                    "a chamfer strip's trimline is not a line",
-                ))),
-            }
-        });
+        let mut on_face = core::iter::once(&seed)
+            .chain(others.iter())
+            .filter_map(|o| {
+                let l = o.link();
+                let trim = if l.face_a == face {
+                    &l.blend.trim_a.0
+                } else if l.face_b == face {
+                    &l.blend.trim_b.0
+                } else {
+                    return None;
+                };
+                match *trim {
+                    Curve3::Line { origin, dir } => Some(Ok((origin, dir))),
+                    _ => Some(Err(unbuilt_geometry(
+                        EntityId::Edge(l.edge),
+                        "a chamfer strip's trimline is not a line",
+                    ))),
+                }
+            });
         let (Some(first), Some(second)) = (on_face.next(), on_face.next()) else {
             return Err(unbuilt_run_out(
                 EntityId::Face(face),
@@ -2364,6 +2380,10 @@ fn blank_phase<T: Decide + Bounds>(
     if opens.is_empty() {
         return Ok((Vec::new(), Vec::new(), described));
     }
+    // The SOURCE faces this phase carves — every face it strips and
+    // every face a corner sits on is a support, and each keeps its key.
+    // [`kef_minted`] refuses any of them.
+    let sources: Vec<FaceKey> = supports.iter().map(RequestedBoundary::face).collect();
 
     // ---- Per support face: struts at every boundary vertex, then a
     // trimline chord per boundary edge. The boundary each face is
@@ -2491,7 +2511,7 @@ fn blank_phase<T: Decide + Bounds>(
             .get_half_edge(half_b)
             .map(|h| h.parent_loop)
             .ok_or_else(|| not_intact(EntityId::HalfEdge(half_b), "a carved strip's half"))?;
-        body.kef(half_a).map_err(|e| op("edge-strip kef", e))?;
+        kef_minted(body, half_a, &sources, "edge-strip kef")?;
         hexagon.push((e, survivor_loop));
     }
     let hex_face = |body: &Body<T>, e: EdgeKey| -> Option<FaceKey> {
@@ -2503,13 +2523,14 @@ fn blank_phase<T: Decide + Bounds>(
     let mut corner_faces = Vec::with_capacity(corners.len());
     for c in corners {
         let vertex = c.links.vertex();
-        // Non-empty by the shape of `CornerLinks`, which is seeded by
-        // the link that discovered this corner — so the arc loop below
-        // always runs, which is what the `unreachable!`s after it rest
-        // on.
-        let links_here = c.links.sorted();
-        let mut first_arc: Option<EdgeKey> = None;
-        for o in &links_here {
+        // One arc off one incident link's merged strip: the mint the
+        // loop below runs once per link, hoisted so the SEEDED link and
+        // the rest reach the same body of code.
+        let arc_of = |body: &mut Body<T>,
+                      o: &AdmittedOpen<'_, T>,
+                      described: &mut Described<T>,
+                      rec: &mut BlendNaming|
+         -> Result<EdgeKey, BlendError> {
             let l = o.link();
             let f = hex_face(body, l.edge)
                 .ok_or_else(|| not_intact(EntityId::Edge(l.edge), "a merged strip's face"))?;
@@ -2545,7 +2566,15 @@ fn blank_phase<T: Decide + Bounds>(
                 },
             ));
             rec.arcs.push((created.edge, vertex, l.edge));
-            first_arc.get_or_insert(created.edge);
+            Ok(created.edge)
+        };
+        // The seed's arc is a VALUE: `CornerLinks` holds the link that
+        // discovered this corner in its own slot and `sorted` keeps it
+        // there, so there is no "no arc was minted" state to reach.
+        let (seed, others) = c.links.sorted();
+        let first_arc = arc_of(body, &seed, &mut described, rec)?;
+        for o in &others {
+            arc_of(body, o, &mut described, rec)?;
         }
         // Fuse the three triangles: kef the struts that still separate
         // two faces (sorted), kev the last one together with the sharp
@@ -2588,7 +2617,7 @@ fn blank_phase<T: Decide + Bounds>(
                 }
                 continue;
             }
-            body.kef(hp).map_err(|e| op("corner-strut kef", e))?;
+            kef_minted(body, hp, &sources, "corner-strut kef")?;
         }
         // Row 0 (`D96`): NO, for both spur arms — the premise is a
         // COUNT this call checked immediately above, but WHICH strut
@@ -2617,20 +2646,9 @@ fn blank_phase<T: Decide + Bounds>(
         body.kev(dying).map_err(|e| op("corner kev", e))?;
         // The corner patch is whatever face the first arc's non-blend
         // half now bounds.
-        // Row 0 (`D96`): YES — `CornerLinks::first` already returns a
-        // link rather than an `Option`, so this state is unrepresentable
-        // one level up. Carrying that into this loop needs a seeded
-        // `sorted` and the mint body hoisted; rowed as `D325`.
-        let Some(arc) = first_arc else {
+        let Some((ahp, ahm)) = halves_of(body, first_arc) else {
             unreachable!(
-                "corner fusion: a corner's incidence list holds at least the link that \
-                 discovered it, so the arc loop ran and `get_or_insert` set this on its \
-                 first pass"
-            )
-        };
-        let Some((ahp, ahm)) = halves_of(body, arc) else {
-            unreachable!(
-                "corner fusion: the arc was minted by the loop above and nothing \
+                "corner fusion: the seed link's arc was minted above and nothing \
                           between here and there kills it"
             )
         };
@@ -2947,6 +2965,9 @@ fn rim_phase<T: Decide + Bounds>(
     tol: Tol,
 ) -> Result<(FaceKey, Surface<T>, Described<T>), BlendError> {
     let mut described: Described<T> = Vec::new();
+    // The SOURCE faces this phase carves: the rim's two sides, per
+    // link. [`kef_minted`] refuses any of them.
+    let sources: Vec<FaceKey> = rim.hosts.iter().chain(rim.mates.iter()).copied().collect();
     let link_of = |e: EdgeKey| -> Option<&Link<T>> { rim.chain.links().find(|l| l.edge == e) };
     // Selected by the carve's ROLES, never by slot
     // (`rim_trim_circles` docs): `trim_a` is the MATE-side trim on any
@@ -3133,7 +3154,7 @@ fn rim_phase<T: Decide + Bounds>(
     for l in rim.chain.links() {
         let half = host_side_half(body, l, rim.host0())
             .ok_or_else(|| not_intact(EntityId::Edge(l.edge), "a rim edge's plane-side half"))?;
-        body.kef(half).map_err(|e| op("rim kef", e))?;
+        kef_minted(body, half, &sources, "rim kef")?;
         rec.dead.edges.push(l.edge);
     }
 
@@ -3228,7 +3249,7 @@ fn rim_phase<T: Decide + Bounds>(
                 u_ref: radial,
             });
         } else {
-            body.kef(hp).map_err(|e| op("rim strut kef", e))?;
+            kef_minted(body, hp, &sources, "rim strut kef")?;
             // The upper meridian remnant at this vertex is now a spur
             // ending at the old rim vertex.
             let (shp, shm) = halves_of(body, mr).ok_or_else(|| {
@@ -3546,6 +3567,9 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         )
     }
     let mut described: Described<T> = Vec::new();
+    // The SOURCE faces this phase carves: the rim's two sides, per arc.
+    // [`kef_minted`] refuses any of them.
+    let sources: Vec<FaceKey> = rim.hosts.iter().chain(rim.mates.iter()).copied().collect();
     let l0 = rim.chain.first();
     let n = rim.chain.link_count();
     // ONE torus over the whole rim: the first arc's blend states it, and
@@ -3858,7 +3882,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     for (i, l) in rim.chain.links().enumerate() {
         let dying = host_side_half(body, l, rim.hosts[i])
             .ok_or_else(|| not_intact(EntityId::Edge(l.edge), "a rim arc's host-side half"))?;
-        body.kef(dying).map_err(|e| op("annulus rim kef", e))?;
+        kef_minted(body, dying, &sources, "annulus rim kef")?;
     }
 
     // ---- (6)+(7) The crossings. Carry-through ones first, so every
@@ -3894,8 +3918,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
                  own `split_edge` and only the closure crossing keeps one"
             )
         };
-        body.kef(mp)
-            .map_err(|e| op("annulus seam-crossing kef", e))?;
+        kef_minted(body, mp, &sources, "annulus seam-crossing kef")?;
     }
 
     // ---- The band's chart is SEAMED at the slit (certification demands
@@ -4405,6 +4428,13 @@ fn ruled_phase<T: Decide + Bounds>(
     let l = plan.link.link();
     let crease = l.edge;
     let mut described: Described<T> = Vec::new();
+    // The SOURCE faces this phase carves: the crease's two supports and
+    // the transverse cap at each end. [`kef_minted`] refuses any of
+    // them.
+    let sources: Vec<FaceKey> = [l.face_a, l.face_b]
+        .into_iter()
+        .chain(plan.ends.iter().map(|e| e.cap))
+        .collect();
 
     // ---- (1) Per cap: split both rims at their feet, then `mef` the
     // cut-off arc across the cap between the two feet. The run from
@@ -4498,7 +4528,7 @@ fn ruled_phase<T: Decide + Bounds>(
     }
 
     // ---- (3) Excise the crease across its two strips. ----
-    body.kef(hp).map_err(|e| op("ruled crease kef", e))?;
+    kef_minted(body, hp, &sources, "ruled crease kef")?;
     rec.dead.edges.push(crease);
 
     // ---- (4) Per cap: fold the sliver into the band across the
@@ -4517,7 +4547,7 @@ fn ruled_phase<T: Decide + Bounds>(
         } else {
             ahp
         };
-        body.kef(dying).map_err(|e| op("cap sliver kef", e))?;
+        kef_minted(body, dying, &sources, "cap sliver kef")?;
         let (bhp, bhm) = halves_of(body, b.near)
             .ok_or_else(|| not_intact(EntityId::Edge(b.near), "a split rim's near piece"))?;
         let spur = if body.half_edge_end(bhm) == Some(v) {
@@ -4572,6 +4602,50 @@ fn loop_of_half<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<LoopKey> {
 
 fn face_of_half<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<FaceKey> {
     Some(body.get_loop(loop_of_half(body, he)?)?.face)
+}
+
+/// **The one door to [`Body::kef`] in this surgery, and where its
+/// argument invariant is spelled.** `kef` kills the face of the half it
+/// is handed, and every face this surgery kills is one this surgery
+/// MINTED — a carved strip, a corner triangle, a band sector, a cap
+/// sliver, each the NEW face of one of its own `mef`s. The faces it
+/// carves are not among them: a support, a cap, a mate keeps its key
+/// and shrinks, so its key must never reach `kef`.
+///
+/// The shape is [`topo::Body`]'s own chart reduction, which picks a
+/// dying face against an anchor it structurally refuses to kill. Here
+/// WHICH half dies is the carve step's (the two sides of one merge are
+/// both minted, and which survives is the step's convention), so what
+/// this door adds is the other half of that shape: `anchors` is every
+/// SOURCE face the running phase reads, and a half whose face is one of
+/// them is turned back rather than carved.
+///
+/// The refusal is Row 1 — a carve whose own bookkeeping disagrees with
+/// the body it built — and the reason it is a refusal rather than a
+/// check omitted is the one the annulus host trim states: the
+/// alternative to checking is killing a face blind, and that is a wrong
+/// solid rather than a refusal.
+fn kef_minted<T: Decide>(
+    body: &mut Body<T>,
+    dying: HalfEdgeKey,
+    anchors: &[FaceKey],
+    site: &'static str,
+) -> Result<(), BlendError> {
+    let f = face_of_half(body, dying).ok_or_else(|| {
+        not_intact(
+            EntityId::HalfEdge(dying),
+            "the half whose face a carve step kills",
+        )
+    })?;
+    if anchors.contains(&f) {
+        return Err(not_intact(
+            EntityId::Face(f),
+            "a carve step was handed a SOURCE face to kill; this surgery kills only the \
+             faces its own `mef`s minted",
+        ));
+    }
+    body.kef(dying).map_err(|e| op(site, e))?;
+    Ok(())
 }
 
 /// The two faces an edge separates — `he_plus`'s, then `he_minus`'s.

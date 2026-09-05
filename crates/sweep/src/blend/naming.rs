@@ -126,18 +126,12 @@ pub fn second_support_is_host(first_planar: bool, second_planar: bool) -> bool {
 /// The source keys the blend retired: edges and vertices — the only
 /// NAMED arenas in which a source key can die here.
 ///
-/// **There is deliberately no face channel, because this surgery
-/// cannot retire a source face.** It destroys through two operators
-/// only: [`topo::Body::kev`] kills no face, and [`topo::Body::kef`]
-/// kills the face of the half-edge it is handed — always a half of a
-/// face that [`super::surgery`]'s own `mef` minted, because a carve
-/// splits a support into the shrunk face plus its strips and the
-/// shrunk face keeps its source key. A support shrinks; it does not
-/// die. So for faces the identity above is checked in its stronger
-/// form, `source ⊆ output`, there being no set to subtract — over the
-/// open, ladder and annulus paths, all through the fillet verb. **A
-/// face-destroying operator entering the surgery is what would make
-/// the channel owed.**
+/// **There is no face channel because the surgery cannot retire a
+/// source face**: [`topo::Body::kev`] kills none, and every
+/// [`topo::Body::kef`] it runs goes through `surgery`'s one `kef` door,
+/// which refuses a half whose face is a source. So for faces the
+/// identity above holds in its stronger form, `source ⊆ output`, there
+/// being no set to subtract.
 #[derive(Clone, Debug, Default)]
 pub struct Retired {
     /// Source edges that no longer exist: the requested chain edges
