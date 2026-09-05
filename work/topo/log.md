@@ -233,3 +233,14 @@ items on the slate, two closed today (`D261`, `D264`) plus these two.
 Next: the `live.rs` pair — `D50`'s source-level guard on the shared
 lexer now that `D261` has landed it, `D260` as one sentence in the
 same PR, single style review, no row.
+
+## Third lane out: the live.rs pair (2026-09-05)
+
+`D50` (+`D260` riding) dispatched on `topo/d50-live-guard`, the brief
+in the item file. Outside the experiment (single style review, no row).
+The survey corrected the row's premise: the compiler already makes
+`Live` unforgeable from outside `live.rs` (private field, private
+`new`); what nothing guards is the header's real claim — that every
+door INSIDE the file looks up before it hands a token out — and that
+is what the row builds, on the shared lexer and item carve `D261`
+landed.
