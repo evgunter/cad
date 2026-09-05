@@ -344,7 +344,8 @@ spelling gets wrong.
 printing `pair.depth` and the arm that minted the witness; quote it in
 the PR. **Lane obligations:** `docs/prompts/implementer-discipline.md`
 binds; own `CARGO_TARGET_DIR` outside the worktree; hosted CI is the
-verification of record; no `CI-Config` trailer; no `-A` adds; announce
+verification of record, un-narrowed (the `CI-Config` trailer this clause
+used to forbid was deleted on 2026-09-04); no `-A` adds; announce
 the seam before opening PR-2 and do not merge it without SHELL's and
 M10's acknowledgement on the channel.
 

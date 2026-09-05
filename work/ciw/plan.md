@@ -98,13 +98,16 @@ from that document may be quoted forward.
 10. `facade-guards-defer-to-rustdoc-json` — an `[ev]` ruling, asked with
     8's number in it. The format-instability half is the real question;
     the cost half is now small.
-11. `merge-queue-trial` — out of 8's ruling (Ev, 2026-09-04: trial a
-    merge queue). The design, the `merge_group` trigger, the single
-    required check (`gate ok`) and the enablement runbook; **the flip
-    itself is Ev's** and is not this program's to make. Its one ordering
-    dependency is `klint-row-still-sampled`, which Ev has authorised and
-    which lands first so that a queue run gates the same configuration
-    the pull request run did.
+11. `merge-queue-trial` — **closed 2026-09-05 as a closed avenue, and
+    there is no queue.** GitHub offers merge queues only on
+    organization-owned repositories and `evgunter/cad` is
+    personal-account-owned; Ev has ruled that it stays that way. The
+    design, the measurements and the runbook are kept in the item as
+    what was learned, and the process failure is recorded there and in
+    the log — nobody checked the feature was available before costing
+    it. `gate ok` is live and stays; it is not merge-queue residue. The
+    `merge_group` wiring PR 1845 put in `ci.yml` is dead but harmless
+    and was deliberately not removed.
 
 `nightly-demotions-have-never-run` is not in the order: it is read from
 tonight's scheduled nightly (Ev, 2026-09-04 — do not force a dispatch),

@@ -218,13 +218,13 @@ its ground stated under *What this partition leaves out*.
 | **K** | `scripts/gates/` less `gate-roster.sh` and `probe-suite-census.sh`, `tools/`, `docs/K-REPORT.md` | `D200`–`D219` / `S270`–`S289` | this program |
 | **M** | `crates/geom-core/src/{real,ring_interval,dual,interval,k_stats}.rs`, `interval-transcendentals/`, `crates/bvh/`, `crates/topo/src/props.rs` | `D220`–`D239` / `S290`–`S309` | `cert` (`CERT-M3`) |
 | **N** | `crates/geom/src/`, `crates/geom-core/src/{spline/,linalg/}` | `D240`–`D259` / `S310`–`S329` | `cert` (`CERT-N3`) |
-| **P** | `crates/topo/src/{euler.rs,euler_ring.rs,euler_kill.rs,split.rs,attach.rs,movefac.rs,revert.rs,live.rs,merge_faces.rs,seqgen.rs,validate.rs,review_d18.rs,review_d18_probes.rs,fixtures.rs,source_walk.rs}` | `D260`–`D279` / `S330`–`S349` | this program |
+| **P** | `crates/topo/src/{euler.rs,euler_ring.rs,euler_kill.rs,split.rs,attach.rs,movefac.rs,revert.rs,live.rs,merge_faces.rs,seqgen.rs,validate.rs,review_d18.rs,review_d18_probes.rs,fixtures.rs,source_walk.rs}` | `D260`–`D279` / `S330`–`S349` | **`topo`, whole track, 2026-09-04** |
 | **Q** | `crates/topo/src/{boolean/,splitting/,census.rs,chord_join.rs,chart_region.rs,face_normal.rs}`, `crates/geom-brep/src/{ssi*,pcurve_cache.rs,nurbs_iso.rs,edge_nurbs.rs}`, `docs/predicate-dimension-audit.md` | `D280`–`D299` / `S350`–`S369` | `bool` (`BOOL-Q`), `trim` |
 | **R** | `crates/geom-brep/src/` **less the four paths Q names**, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` | `mesh` (`MESH-R`) |
 | **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` | `fillet` |
 | **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | `exch`, `lib` |
 | **V** | `crates/editor-core/` **less the DOCM program's paths** (`persist/`, `program.rs`, `doc.rs`, `edit.rs`, `node.rs`, `names/role.rs`, `eval/{parts,memo}.rs`, `resolve/` less `vdiff.rs`, `mate*`, `assembly.rs` — ceded 2026-09-03 with rows `C6`, `D365`, `D366` and the `debug-in-prose` finding, which moved to `work/docm/` keeping their ids), `crates/profile/` | `D360`–`D379` / `S430`–`S449` | `docm` and seven others |
-| **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | ground is `tcost`'s |
+| **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | **`tcost`, whole track, 2026-09-04** |
 | **X** | `demos/` (Rust and Markdown; its Python is not X's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` | this program |
 
 **Four seams are stated rather than left to be discovered**, because
@@ -261,24 +261,38 @@ ambiguous:
   edit it, it is a fence that has not been drawn, and R takes this
   ground because `mesh` is what consumes it.
 
-**Track `P` runs as three sub-lanes**, because it is the largest track
-this program still executes and its fourteen rows fall on three
-disjoint file sets — no new letters and no new blocks, the way `H5` is
-expected to split inside its own track:
+**Track `P` and Track `W` both left this directory on 2026-09-04**,
+each claimed whole by a program: **P by `topo`** at its opening — P's
+fence *is* the `crates/topo/src` territory that was in no program's
+`paths`, and no `smell/p-*` lane had ever run — and **W by `tcost`**,
+whose own `paths` (`crates/*/tests/*`, `crates/test-utils/*`) are an
+exact match for W's fence. Their rows moved with their ids and their
+`track:` letters and this directory does not track them; each row's
+`## Claimed by` section carries the reason.
 
-| sub-lane | rows | files |
-|---|---|---|
-| Euler surgery and validation | `S93`, `S94`, `D265`, `D262`, `D263`, `S330`, `S331`, `S69` | `euler.rs`, `euler_ring.rs`, `euler_kill.rs`, `merge_faces.rs`, `validate.rs` |
-| the review and fixture readers | `D107`, `D261`, `D264` | `review_d18.rs`, `review_d18_probes.rs`, `fixtures.rs`, `source_walk.rs` |
-| liveness and the generator | `D50`, `D260`, `D20` | `live.rs`, `seqgen.rs` |
+What stays true here is the fence text in the table above: **a letter's
+territory outlives the program holding it**, so a later row landing on
+P's or W's ground is still a P or a W row and goes to its claimant.
+P's three-sub-lane partition — Euler surgery and validation, the review
+and fixture readers, liveness and the generator — is restated in
+`work/topo/plan.md` and is not repeated here. `split.rs`, `attach.rs`,
+`movefac.rs` and `revert.rs` still carry no live row and stay inside
+P's fence.
 
-The middle group is the ground added to P on 2026-08-29 *because it
-belonged to no track*, and it was never one subject with the other two;
-`D261` also reaches `test-utils/`, under the seam below. The three
-share no file, so they can run at once — the partition rule inside a
-track, applied to a track big enough to need it. `split.rs`,
-`attach.rs`, `movefac.rs` and `revert.rs` carry no live row and stay in
-the fence.
+**Their number blocks stay with this program** (`D260`–`D279`/`S330`–`S349`
+for P, `D380`–`D399`/`S450`–`S469` for W, in the `blocks` header here),
+because a block is minted by the scan that raises a row and a scan is
+this program's, not a claimant's. A new row on P's or W's ground is
+minted here with the next id from its block and its `track:` letter,
+and goes straight to `work/topo/` or `work/tcost/` in the same PR — it
+does not wait in this directory, because the letter already has an
+owner.
+
+The seam below is the one that outlives both moves and is why it is
+kept in full: `D261` (now `topo`'s) and `D287` (Q's) both convert their
+own readers onto a shared home that is **W's fence and `tcost`'s
+territory**, so the ceiling rule binds two programs that no longer
+share this directory.
 
 - **`crates/test-utils/src/source.rs` and its census are W's, and three
   tracks' rows land in them.** The source-text guard class has one

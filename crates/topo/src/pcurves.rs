@@ -1891,6 +1891,11 @@ pub(crate) mod staleness_posture {
             ("set_curve_source", Neither, "GeomSource metadata"),
             ("set_point_source", Neither, "GeomSource metadata"),
             ("clear_geom_sources", Neither, "GeomSource metadata"),
+            (
+                "set_surface_field_source",
+                Neither,
+                "ParamSource metadata: a per-field side record beside the surface",
+            ),
             ("set_null_face_pair", Neither, "null-face annotation"),
             ("clear_null_face_pair", Neither, "removes that annotation"),
         ]

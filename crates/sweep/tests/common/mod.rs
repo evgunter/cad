@@ -76,6 +76,11 @@ pub mod approx;
 /// routes here.
 pub mod cavity;
 
+/// The intersecting equal-radius cylinder pair — the germ lane's
+/// fixture and the parameter-identity channel's, one authoring for
+/// the one door both read. Body authoring, so it routes here.
+pub mod germ_pair;
+
 /// The closed-form volumes those suites meter against. Not a fixture
 /// and not a check of a body, but a truth derived WITHOUT the kernel;
 /// its module doc carries the rule for which per-suite spellings come
