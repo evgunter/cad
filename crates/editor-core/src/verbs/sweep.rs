@@ -150,9 +150,10 @@ fn read_extrude<T: Decide>(
                 walls: side_faces,
             })
         }
-        VerbRecord::Blend(_) | VerbRecord::Boolean { .. } | VerbRecord::Revolve(_) => {
-            Err(foreign(foreign_record))
-        }
+        VerbRecord::Blend(_)
+        | VerbRecord::Boolean { .. }
+        | VerbRecord::Revolve(_)
+        | VerbRecord::Split(_) => Err(foreign(foreign_record)),
     }
 }
 
@@ -185,9 +186,10 @@ fn read_revolve<T: Decide>(
                 .collect();
             Ok(SweptOut { body, table, walls })
         }
-        VerbRecord::Blend(_) | VerbRecord::Boolean { .. } | VerbRecord::Extrude(_) => {
-            Err(foreign(foreign_record))
-        }
+        VerbRecord::Blend(_)
+        | VerbRecord::Boolean { .. }
+        | VerbRecord::Extrude(_)
+        | VerbRecord::Split(_) => Err(foreign(foreign_record)),
     }
 }
 

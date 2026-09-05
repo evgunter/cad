@@ -265,7 +265,9 @@ fn sample(kind: VerbKind) -> Verb<f64> {
             op,
             declare: BooleanDeclarations::none(),
         },
-        VerbKind::Split => Verb::Split { plane: z_plane(0.5) },
+        VerbKind::Split => Verb::Split {
+            plane: z_plane(0.5),
+        },
     }
 }
 
@@ -357,9 +359,11 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
         "the Extrude verb answers the Profile door and was run through the One door"
     );
 
-    let err = Verb::Split { plane: z_plane(0.5) }
-        .run(&cube, tol())
-        .expect_err("a split hands back two sides, which the one-body door cannot");
+    let err = Verb::Split {
+        plane: z_plane(0.5),
+    }
+    .run(&cube, tol())
+    .expect_err("a split hands back two sides, which the one-body door cannot");
     assert_eq!(
         err.to_string(),
         "the Split verb answers the Split door and was run through the One door"
@@ -400,7 +404,10 @@ fn the_split_dispatch_is_the_split_door() {
         dump_sides(&via.above, &via.below)
     );
     let VerbRecord::Split(naming) = via.record else {
-        panic!("a split run produced another family's record: {:?}", via.record);
+        panic!(
+            "a split run produced another family's record: {:?}",
+            via.record
+        );
     };
     assert!(
         !naming.sections.is_empty(),

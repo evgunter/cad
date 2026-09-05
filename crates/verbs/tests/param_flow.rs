@@ -278,9 +278,11 @@ fn the_booleans_flow_is_empty_beside_a_real_record() {
 #[test]
 fn the_splits_flow_is_empty_beside_a_real_record() {
     let cube = sweep::test_support::cube(1.0, tol());
-    let out = Verb::Split { plane: z_plane(0.5) }
-        .run_split(&cube, tol())
-        .expect("the mid-plane cut is inside the door");
+    let out = Verb::Split {
+        plane: z_plane(0.5),
+    }
+    .run_split(&cube, tol())
+    .expect("the mid-plane cut is inside the door");
     let VerbRecord::Split(naming) = out.record else {
         panic!("a split run produced another family's record");
     };

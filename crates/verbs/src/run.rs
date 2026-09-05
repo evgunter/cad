@@ -324,12 +324,13 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
             Self::Revolve { axis, revolution } => sweep::revolve(operand, *axis, *revolution, tol)
                 .map(VerbRecord::Revolve)
                 .map_err(VerbError::Revolve),
-            Self::Fillet { .. } | Self::Chamfer { .. } | Self::Boolean { .. } | Self::Split { .. } => {
-                Err(VerbError::Arity {
-                    verb: self.kind(),
-                    given: Arity::Profile,
-                })
-            }
+            Self::Fillet { .. }
+            | Self::Chamfer { .. }
+            | Self::Boolean { .. }
+            | Self::Split { .. } => Err(VerbError::Arity {
+                verb: self.kind(),
+                given: Arity::Profile,
+            }),
         }
     }
 
