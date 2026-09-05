@@ -1120,14 +1120,53 @@ type IndetMap<V> = HashMap<u128, V, core::hash::BuildHasherDefault<IdHasher>>;
 /// renders.
 struct AtomInfo {
     op: SymOp,
+    /// R2's experiment: the node payload the atom's id was keyed with,
+    /// without which a rule that rewrites an atom's ARGUMENT cannot
+    /// re-mint the atom's id.
+    payload: u64,
     args: [Option<Rc<Form>>; 2],
 }
 
 /// One leaf replay's DAG: the hash-consing table, the memoized forms and
 /// the counts. Dropped with the leaf; nothing is shared across leaves.
+/// **R2's M10-8 review experiment — a BOUNDED early reduction.** The
+/// cap (in terms) on a node's form below which `form_in`'s EARLY memo
+/// runs [`algebra::reduce`] on it during the DAG walk; `0` is off.
+/// Read from `CAD_M10_8_R2_EARLY` once per session so the whole drive,
+/// receipts included, can be measured with it on. Evidence-only: it is
+/// tried ALONGSIDE the plain form (the plain form is asked first and
+/// answers first), so it can add a discharge and never remove one.
+fn early_cap() -> usize {
+    std::env::var("CAD_M10_8_R2_EARLY")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0)
+}
+
+/// **R2's M10-8 review experiment (b)** — how many levels into an
+/// atom's ARGUMENT the top-residual fold may reach (`0` is the shipped
+/// behaviour). Read from `CAD_M10_8_R2_DEEP`.
+fn deep_depth() -> usize {
+    std::env::var("CAD_M10_8_R2_DEEP")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0)
+}
+
+/// The number of monomials a form carries, numerator and denominator.
+fn form_terms(f: &Form) -> usize {
+    f.num.terms.len() + f.den.terms.len()
+}
+
 struct Session {
     budget: SymBudget,
     rules: SymRules,
+    /// R2's experiment: [`early_cap`], captured at session install.
+    early: usize,
+    /// R2's experiment: the EARLY memo — the same walk as `forms`, with
+    /// a bounded [`algebra::reduce`] applied at each node whose form is
+    /// under the cap.
+    forms_early: IdMap<Rc<Form>>,
     nodes: IdMap<SymNode>,
     /// The PLAIN quotient forms — every atom opaque, no rule applied.
     /// The atom algebra is applied afterwards over the top residual
@@ -1207,6 +1246,8 @@ pub fn with_session_rules<R>(
         *s.borrow_mut() = Some(Session {
             budget,
             rules,
+            early: early_cap(),
+            forms_early: IdMap::default(),
             nodes: IdMap::default(),
             forms: IdMap::default(),
             atoms: IndetMap::default(),
@@ -1543,6 +1584,7 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session) -> Option<Form>
         let id = indet_atom(op.tag(), node.payload, &[a.digest()]);
         sess.atoms.entry(id).or_insert_with(|| AtomInfo {
             op,
+            payload: node.payload,
             args: [Some(Rc::new(a.clone())), None],
         });
         Some(Form::poly(Poly::indet(id)))
@@ -1598,6 +1640,7 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session) -> Option<Form>
             let id = indet_atom(node.op.tag(), node.payload, &[a.digest(), b.digest()]);
             sess.atoms.entry(id).or_insert_with(|| AtomInfo {
                 op: node.op,
+                payload: node.payload,
                 args: [Some(Rc::new(a.clone())), Some(Rc::new(b.clone()))],
             });
             Some(Form::poly(Poly::indet(id)))
@@ -1644,7 +1687,7 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session) -> Option<Form>
 /// this walk — so this walk stays the O(dag) construction it was before
 /// the algebra, and a ruled reduction cannot cost a cancellation the
 /// plain form reaches.
-fn form_in(sess: &mut Session, memo: &mut IdMap<Rc<Form>>, root: SymId) -> Rc<Form> {
+fn form_in(sess: &mut Session, memo: &mut IdMap<Rc<Form>>, root: SymId, early: usize) -> Rc<Form> {
     let frozen = |sess: &mut Session, id: SymId| -> Rc<Form> {
         sess.counts.frozen += 1;
         Rc::new(Form::poly(Poly::indet(id.bits())))
@@ -1694,6 +1737,20 @@ fn form_in(sess: &mut Session, memo: &mut IdMap<Rc<Form>>, root: SymId) -> Rc<Fo
             ];
             combine(&node, kids, sess).filter(|f| within(budget, f))
         };
+        // R2's experiment: the bounded EARLY reduction. Only on the
+        // early memo (`early > 0`), only on a form under the cap, and a
+        // freeze keeps the plain form — so the walk stays sound and the
+        // cost is bounded by the cap rather than by the budget.
+        let made = match made {
+            Some(f) if early > 0 && form_terms(&f) <= early => {
+                let r = algebra::reduce(&f, SymRules::all(), budget, &sess.atoms);
+                match r {
+                    Some(g) if within(budget, &g) => Some(g),
+                    _ => Some(f),
+                }
+            }
+            other => other,
+        };
         drop((fa, fb));
         let f = match made {
             Some(p) => Rc::new(p),
@@ -1710,8 +1767,18 @@ fn form_in(sess: &mut Session, memo: &mut IdMap<Rc<Form>>, root: SymId) -> Rc<Fo
 /// applied, no value read. Memoized in the session's persistent table.
 fn plain_form(sess: &mut Session, root: SymId) -> Rc<Form> {
     let mut memo = core::mem::take(&mut sess.forms);
-    let out = form_in(sess, &mut memo, root);
+    let out = form_in(sess, &mut memo, root, 0);
     sess.forms = memo;
+    out
+}
+
+/// **R2's experiment**: the EARLY-reduced form of `root`, memoized in
+/// its own table so the plain one is untouched (the alongside variant).
+fn early_form(sess: &mut Session, root: SymId) -> Rc<Form> {
+    let cap = sess.early;
+    let mut memo = core::mem::take(&mut sess.forms_early);
+    let out = form_in(sess, &mut memo, root, cap);
+    sess.forms_early = memo;
     out
 }
 
@@ -1743,13 +1810,45 @@ fn is_identically_zero(id: SymId) -> bool {
             return true;
         }
         let rules = sess.rules;
-        if rules == SymRules::none() {
-            return false;
+        if rules != SymRules::none() {
+            // Rules A and B (unconditional) over the residual, once.
+            if algebra::reduce(&plain, rules, sess.budget, &sess.atoms)
+                .as_ref()
+                .is_some_and(|f| f.is_zero())
+            {
+                return true;
+            }
         }
-        // Rules A and B (unconditional) over the residual, once.
-        algebra::reduce(&plain, rules, sess.budget, &sess.atoms)
-            .as_ref()
-            .is_some_and(|f| f.is_zero())
+        // R2's experiment (b): the DEEP top-residual reduction — the
+        // same fold, allowed one or more levels into an atom's
+        // ARGUMENT. `CAD_M10_8_R2_DEEP` is the depth; 0 is off.
+        let deep = deep_depth();
+        if deep > 0 {
+            let budget = sess.budget;
+            let mut atoms = core::mem::take(&mut sess.atoms);
+            let out = algebra::reduce_deep(
+                &plain,
+                SymRules::all(),
+                budget,
+                &mut atoms,
+                deep,
+                unary_at_zero,
+            );
+            sess.atoms = atoms;
+            if out.as_ref().is_some_and(|f| f.is_zero()) {
+                sess.counts.sign_gated += 1;
+                return true;
+            }
+        }
+        // R2's experiment (a): the bounded EARLY reduction, ALONGSIDE
+        // the plain form — asked last, so it can only ADD a discharge.
+        if sess.early > 0 && early_form(sess, id).is_zero() {
+            // Counted in the reserved column so a receipt separates
+            // "the plain form proved it" from "the early pass did".
+            sess.counts.sign_gated += 1;
+            return true;
+        }
+        false
     })
 }
 

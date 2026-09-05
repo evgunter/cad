@@ -161,6 +161,113 @@ pub(super) fn reduce(
     None
 }
 
+// ------------------------------------- R2's M10-8 review experiment
+
+/// Substitutes the indeterminate `id` by the FORM `repl` in one
+/// polynomial — `id^e → repl^e` — the argument-rewrite counterpart of
+/// [`poly_subst_square`].
+fn poly_subst_indet(poly: &Poly, id: u128, repl: &Form, budget: SymBudget) -> Option<Form> {
+    let mut acc = Form::zero();
+    for (mono, coeff) in &poly.terms {
+        let e = mono.iter().find(|(i, _)| *i == id).map_or(0, |(_, e)| *e);
+        let rest: Mono = mono.iter().filter(|(i, _)| *i != id).copied().collect();
+        let mut rp = Poly::zero();
+        rp.insert(rest, *coeff)?;
+        let mut term = Form::poly(rp);
+        if e > 0 {
+            term = term.mul(&powi_form(repl, e, budget)?, budget)?;
+        }
+        acc = acc.add(&term, budget)?;
+    }
+    Some(acc)
+}
+
+fn subst_indet(f: &Form, id: u128, repl: &Form, budget: SymBudget) -> Option<Form> {
+    let num = poly_subst_indet(&f.num, id, repl, budget)?;
+    let den = poly_subst_indet(&f.den, id, repl, budget)?;
+    num.mul(&den.recip()?, budget)
+}
+
+/// The distinct atom ids occurring in `f` that the session knows.
+fn atoms_of(f: &Form, atoms: &IndetMap<AtomInfo>) -> Vec<u128> {
+    let mut out = Vec::new();
+    for poly in [&f.num, &f.den] {
+        for mono in poly.terms.keys() {
+            for &(id, _) in mono {
+                if atoms.contains_key(&id) && !out.contains(&id) {
+                    out.push(id);
+                }
+            }
+        }
+    }
+    out.sort_unstable();
+    out
+}
+
+/// **R2's variant: reduce into the ATOMS' ARGUMENTS too**, to `depth`
+/// levels, still over the top residual only and never per DAG node.
+///
+/// The shipped [`reduce`] folds an even power of an atom that appears
+/// IN the residual. M10-8's own shape report shows that the plate's
+/// ceiling predicate (`carrier_endpoint_start`) is a residual whose
+/// whole body is ONE `sqrt` atom, with every even-power `sqrt` nested
+/// inside that atom's argument — out of the shipped fold's reach by
+/// exactly one level. This variant reduces each atom's argument form,
+/// re-mints the atom on the reduced argument (which is why
+/// [`AtomInfo`] must carry its payload), and takes the at-zero fold
+/// when an argument reduces to the zero form — so `sqrt(D)` with `D`
+/// an identity becomes `0`.
+///
+/// Cost is bounded by the residual's DISTINCT atom count times the
+/// depth, with one [`reduce`] each: no whole-form pass per DAG node.
+pub(super) fn reduce_deep(
+    f: &Form,
+    rules: SymRules,
+    budget: SymBudget,
+    atoms: &mut IndetMap<AtomInfo>,
+    depth: usize,
+    at_zero: fn(SymOp) -> Option<Form>,
+) -> Option<Form> {
+    let mut cur = reduce(f, rules, budget, atoms)?;
+    if depth == 0 || cur.poisoned {
+        return Some(cur);
+    }
+    for id in atoms_of(&cur, atoms) {
+        let Some(info) = atoms.get(&id) else { continue };
+        let (op, payload) = (info.op, info.payload);
+        let Some(arg) = info.args[0].clone() else {
+            continue;
+        };
+        if info.args[1].is_some() {
+            continue;
+        }
+        let reduced = reduce_deep(&arg, rules, budget, atoms, depth - 1, at_zero)?;
+        if reduced.digest() == arg.digest() {
+            continue;
+        }
+        let repl = if reduced.num.is_zero() && !reduced.poisoned {
+            match at_zero(op) {
+                Some(v) => v,
+                None => continue,
+            }
+        } else {
+            let new_id = indet_atom(op.tag(), payload, &[reduced.digest()]);
+            atoms.entry(new_id).or_insert_with(|| AtomInfo {
+                op,
+                payload,
+                args: [Some(std::rc::Rc::new(reduced.clone())), None],
+            });
+            Form::poly(Poly::indet(new_id))
+        };
+        cur = subst_indet(&cur, id, &repl, budget)?;
+        if !within(budget, &cur) {
+            return None;
+        }
+        cur = reduce(&cur, rules, budget, atoms)?;
+    }
+    Some(cur)
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -185,6 +292,7 @@ mod tests {
             atom,
             AtomInfo {
                 op: SymOp::Sqrt,
+                payload: 0,
                 args: [Some(std::rc::Rc::new(Form::poly(x.clone()))), None],
             },
         );
