@@ -25,8 +25,9 @@ use crate::common;
 use common::{ang, body_volume, insert, len, len2, len3, near, scl2, scl3, shape};
 use pncad::document::SplitSide;
 use pncad::document::{
-    Axis3, BooleanOp, Datum, Dimension, DimensionError, Doc, Expr, LoopProgram, Node, NodeError,
-    NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileProgram, RecipeNodeId, SlotId,
+    Axis3, BooleanOp, Datum, Dimension, DimensionError, Doc, EditError, Expr, LoopProgram, Node,
+    NodeError, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileProgram, RecipeNodeId,
+    SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
@@ -277,17 +278,31 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
             );
         }
     }
-    // One body in both seats: the DAG would take it, the door does
-    // not.
+    // One body in both seats: the EDIT DOOR refuses it, as it refuses
+    // any node reached twice through one node's edges. Layer 3 does
+    // not pre-check it — the rule is `Node::input_fault`'s and is the
+    // same rule for a split or a list — so what the row pins is that
+    // the refusal arrives, carries the door's words, and names the
+    // repeated node.
     let refused = session.perform(SessionOp::AddBoolean {
         op: BooleanOp::Subtract,
         a,
         b: a,
     });
+    let Some(Refusal::Edit(ref error)) = refused.refusal else {
+        panic!(
+            "expected the edit door's refusal, got {:?}",
+            refused.refusal
+        )
+    };
     assert!(
-        matches!(refused.refusal, Some(Refusal::SelfBoolean { node }) if node == a),
-        "{:?}",
-        refused.refusal
+        matches!(**error, EditError::DuplicateInput { input, .. } if input == a),
+        "{error:?}"
+    );
+    let rendered = refused.refusal.as_ref().expect("refused").to_string();
+    assert!(
+        rendered.contains("taken as an input twice") && rendered.contains("pairwise distinct"),
+        "the sentence states the rule the user has to satisfy: {rendered}"
     );
     // And the kind gate speaks FIRST: two profiles in both seats is
     // reported as "that is not a body", the fact a user can act on.
@@ -1058,7 +1073,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
         assert!(
             matches!(
                 refused.refusal,
-                Some(Refusal::WrongNodeKind { .. } | Refusal::SelfBoolean { .. })
+                Some(Refusal::WrongNodeKind { .. } | Refusal::Edit(_))
             ),
             "{:?}",
             refused.refusal

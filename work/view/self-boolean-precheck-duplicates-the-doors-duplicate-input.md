@@ -2,8 +2,10 @@
 id: self-boolean-precheck-duplicates-the-doors-duplicate-input
 kind: issue
 title: add_boolean pre-checks a==b, which DocEdit::InsertNode already refuses as EditError::DuplicateInput
-status: open
+status: closed
 opened: 2026-09-04
+closed: 2026-09-05
+pr: 1930
 refs: [set-param-prechecks-what-the-door-refuses, refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake, 1846]
 ---
 
@@ -96,3 +98,30 @@ Fix `DuplicateInput`'s wording (DOCM), then delete the layer-3 arm
 branch, and it costs a written exception in
 `crates/viewer/README.md` saying why this one fact is layer 3's when
 the door refuses it — which is the clause #1846 just had to correct.
+
+## Closed
+
+`Refusal::SelfBoolean` is gone — the variant, its `rank` arm, its
+`Display` and the pre-check in `add_boolean`. One node in both seats
+now reaches `EditError::DuplicateInput` off `Node::input_fault`'s
+pairwise-distinct rule, which is the same rule for a split or a list
+and is stated once where every node kind reaches it.
+
+The sequencing this item asked for held: the door's wording was fixed
+first. What it needed was less than the item expected — the forwarded
+`InputFault::Duplicate` clause already states the rule the user has to
+satisfy ("a node's inputs are pairwise distinct"), so the fix was the
+`edit: ` prefix (above) plus the frame's separator, which had put two
+em-dashes in one sentence. The item's "names no recourse" reading was
+of the doubled-prefix rendering; the sentence it names now reads
+"node 3 would be left invalid: node 2 is taken as an input twice — a
+node's inputs are pairwise distinct".
+
+The ordering claim was verified rather than assumed: `require_kind`
+still runs first in `add_boolean`, so two PROFILES in both seats are
+still reported as "that is not a body", and `combine_ops.rs`'s second
+half still pins it.
+
+Both false statements are corrected: `combine_ops.rs`'s "the DAG would
+take it, the door does not" (it would not), and `session/op.rs`'s
+sentence about which layer refuses the pair.

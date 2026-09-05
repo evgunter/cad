@@ -1484,12 +1484,14 @@ impl DocSession {
                 return OpOutcome::refused(refusal);
             }
         }
-        // AFTER the kind gate, so a self-boolean of two profiles is
+        // One node in both seats is NOT pre-checked here: the edit
+        // door refuses it typed (`EditError::DuplicateInput`, off
+        // `Node::input_fault`'s pairwise-distinct rule), and a flat arm
+        // must not restate a refusal a door already gives
+        // (`crates/viewer/README.md`). The kind gate above still speaks
+        // first, which is what keeps two PROFILES in both seats
         // reported as "that is not a body" — the fact the user can act
         // on — rather than as the narrower complaint about the pair.
-        if a == b {
-            return OpOutcome::refused(Refusal::SelfBoolean { node: a });
-        }
         self.commit(DocEdit::InsertNode {
             node: Node::Boolean {
                 op,
