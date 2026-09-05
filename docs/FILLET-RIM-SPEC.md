@@ -130,8 +130,10 @@ the corpus should not have, and the finding is the unit's yield).
 
 The Phase 1 table; the door with its four refusals, each with a row; the
 consumer sweep's hit list; `rim_arcs_at` a call; the recourse sentence
-followed through the door by the composed pin; hosted CI green at the drawn
-point plus the interval lane asked for (`CI-Config: lane=interval`), said so.
+followed through the door by the composed pin; hosted CI green, which since
+2026-09-04 gates both compile modes on every run with nothing asked for — the
+`CI-Config: lane=interval` this clause used to require is deleted; count
+twelve `test (…)` jobs and say so.
 
 ## Out of scope
 
