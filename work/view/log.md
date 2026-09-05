@@ -2958,3 +2958,89 @@ at the deletion site rather than letting it vanish with the entries.
 `status-line-writers-bypass-the-ranking` — twenty writers, the largest
 item on this board, blocked since #1849 filed it and now blocked on
 nothing but the lane above landing.
+
+## #1957: the lane built a sharper rule than the ruling, and found the ruling's example refutes itself (2026-09-05)
+
+**Green** on `4f1a08a4` — full code-tier run, twelve `test (…)`, five
+`k-lint (gate, …)`, all render lanes. Under style review.
+
+### What a subject means on a badge — the prior question, answered
+
+The brief made the lane answer this **before** writing the field, and
+told it that "nothing" was an acceptable answer worth more than the
+field. It answered: **the same thing as on a message — the event whose
+next occurrence makes this the wrong answer — reached by a different
+road, and the difference is the ENFORCEMENT.** A message is stored, so
+retiring it is bookkeeping (`apply` matches the subject against an
+`Expire`). **A badge is stored nowhere and nothing retires it**: it is
+recomputed from the state it reads, so its subject names the event that
+changes that state, and the badge goes because the read does. The field
+is consulted by no retiring machinery.
+
+It then earned the field two ways rather than asserting it: it is the
+half a `String` could not carry on the channel that had no way to say
+it, and it made *"one seam must not speak with two voices"* mechanical
+— `frame::SeamSubject`, a private trait with one const implemented at
+each seam's refusal type, so two doors reading one seam **cannot
+disagree by construction**.
+
+### It wrote a sharper test than Ev's words, which is the useful part
+
+Ev's rule is *"a read of held state a reader consults"*. The header
+makes it mechanical: **a door whose input includes the frame's own
+EVENTS is reporting an outcome and belongs on the line.** That is a
+discriminator a twenty-site sweep can actually apply, where the
+original words need a judgement per site.
+
+And it states the lifetime as a **consequence, not the test**: a badge
+outlives its frame and the line carries one frame's news, but that is
+"what the split reads like from outside, and it cannot sort a fact that
+is both true after its frame and provoked by one" — which is precisely
+the confusion that produced the original conflict.
+
+### My weakest claim was right, and the ruling's own example is the casualty
+
+I flagged `unindexed_refusal` as the doubtful one of the three. It is
+an **outcome**: `pick::unindexed` answers `Some` for a `Select` and
+`None` for a `Hover`, so **half its input is this frame's pick stream**
+— the sentence exists because the user clicked. Its own doc already
+said so.
+
+Three checkable consequences, all found by the lane: as a badge it
+would be lit whether or not anyone clicked; the seam state it reports
+is **already read by two other channels** (`index_badge` and
+`Progress::Indexing`, whose hover text is literally this same
+sentence); and `frame::Progress`'s header **forbids** the result in as
+many words — two indicators lit for one wait with no rule saying which
+to believe.
+
+**So #1945's rule and #1945's worked example disagree, and the lane
+built the rule.** Filed as `unindexed-refusal-is-an-outcome-not-a-read`
+for Ev to confirm. What is at stake is not the door — it is a two-line
+change either way — but **which test the sweep sorts twenty writers
+on**: "reports seam state" (the example) or "reads held state" (the
+rule).
+
+### The finding that outranks the diff, which the fence exists to produce
+
+**The mechanical test is necessary and not sufficient.** `Disagreement`
+is mechanically a read of held state — the outstanding id answer, the
+index, the cursor, all held, recomputed every frame the cursor holds —
+so the held-state half alone would badge it. What sorts it onto the
+line is the rule's **third clause**, *a reader **consults*** a badge: a
+claim about where the pointer is this instant is something a reader is
+**told**, not something they consult later.
+
+That clause was in Ev's ruling and reads as decorative until a case
+needs it. The sweep needs it stated as load-bearing before it writes
+twenty sites — sent to the style review to confirm before I decide
+whether it is a fix-pass line or its own ruling.
+
+### A fourth site, and the sweep item is one short
+
+`app.rs:665`'s `startup_notices` — the struct-literal writer the
+sweep's own grep could not match — is a **badge** under the rule, but
+moving it means *holding* the notices rather than rendering them once,
+so it is the sweep's work. And the sweep item's hit list **never names
+`unindexed_refusal`**, so its census was one short at its own merge
+base. Noted on that item by the lane.
