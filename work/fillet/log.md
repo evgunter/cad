@@ -748,3 +748,28 @@ to the directory; the dump identical over all 14 files at two bases.
 **FILLET-SPLIT dual dispatched** on frozen `d1d22839e`: ordinal **2007**,
 parity byte 203 ⇒ R1 FABLE / R2 OPUS, briefs stored with sha256,
 concurrent, isolated.
+
+**FILLET-SPLIT dual delivered; union fix pass sent (2026-09-05).** R1
+MERGEABLE 0/1/6, R2 MERGEABLE-AFTER-FIXES 1/3/6; C1 at the merge base by
+both (14 files), C2 three independent ways (every item byte-identical
+modulo the two path spellings, the 324-line non-move enumeration
+COMPLETE), C3 with a planted compound bound in `open/mod.rs` reddening the
+gate. Bilateral, adjudicated doc-class MAJOR: `docs/KERNEL-VERBS.md:58`
+still names "the ruled-band section of `surgery.rs`" — the SECOND staling
+of one sentence (H7's dual caught it naming `blend/ruled.rs`; H7's fix
+aimed it at `surgery.rs`; the move re-staled it) — and the wider class:
+live prose saying "the surgery" for items now in `open/` at six sites.
+Bilateral too: the widened `kef` census is a hand list of four files that a
+planted fifth file with a direct `body.kef(` walks straight past (both
+reviewers wrote directory-walking rows); nothing mechanical guards "no
+item becomes `pub`" (both wrote a row); `open/mod.rs` earns its place only
+narrowly — `chord_site` is a wrapper whose core `flank` stayed behind and
+IS shared with a rim. Unilateral: `surgery.rs`'s header still narrating
+both open bands beside the new headers; two live pre-rename
+`fillet/surgery.rs` comments in `geom`; the `ruled` support-ring refusal
+pinned by nothing (inherited). Orchestrator's calls: the prose class
+swept, the census made to walk the directory (one home for the door's
+row), `chord_site` back beside `flank` with `open/mod.rs` reduced to the
+module declarations, the header trimmed to the tour, the FILLET half of
+`work/meta`'s stale-citation item taken. No unilateral code MAJOR —
+tally +0; pair FAIR. Row at merge, ordinal 2007.
