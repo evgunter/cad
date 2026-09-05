@@ -3713,22 +3713,6 @@ Span sweep RECORDED AT MERGE (2026-09-05, PR #1952 merged at `46020d6b9`, sample
 
 k-stats bracket review ordinal fixed at dispatch (2026-09-05, PR #1969 open — frozen head `e832a1fc2`, run 33958408008 GREEN on the full matrix, python suite included): **ordinal 2402** (PROPS band). Pre-draw fields at the spec (`docs/PROPS-KSTATS-SPEC.md`): difficulty **L**, task-class **STRUCTURAL** (a thread-local single slot becomes a bracket with a stack; an escalation channel beside the verdicts; no arithmetic moves); implementer arm per block PROPS-B1 slot 2 (record branch-side on `props/b1-block`). Protocol v6 dual: draw = `/dev/urandom` byte **200**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**. Method, recorded before either review runs: CONCURRENT same-head on frozen `e832a1fc2`, both briefs authored and STORED with sha256 on `props/b1-block` before either dispatches (`work/props/logs/kstats-review-brief-{r1,r2}.md`, 5974faef50a666fd… r1 / 1de303514ef67103… r2 — generated from one template with the lane name substituted, so identical modulo lane name by construction), neither reviewer sees the other's report, v6 item 5 isolation in both briefs, PRIVATE `CARGO_TARGET_DIR` and a private scratch directory per reviewer; the implementer's unit log entry is not written until the dual concludes. Method note applying to BOTH arms equally: the pair runs beside the implementer lane's idle worktree on one 4-core cloud box, `CARGO_INCREMENTAL=0`, debug, one crate at a time, with the disk guard. Orchestrator's ruling, so the reviewers read it as settled: the bracket with a stack, the returned value measured and declined — the reviewers falsify the measurement and the construction, not the ruling. This claim is committed on the ORCHESTRATOR branch (the Span claim's misfiling is not repeated). Sample number at merge.
 
-Span sweep review ordinal fixed at dispatch (2026-09-05, PR #1952 open —
-frozen head `2eccccead`): **ordinal 2401** (PROPS band). Pre-draw fields
-at the spec (`docs/PROPS-SPAN-SPEC.md`): difficulty **L**, task-class
-**STRUCTURAL** (a lifetime threaded through one layer; no arithmetic
-moves); implementer arm per block PROPS-B1 slot 1 (record branch-side on
-`props/b1-block`). Protocol v6 dual: draw = `/dev/urandom` byte **46**,
-parity 0 ⇒ **R1 = OPUS, R2 = FABLE**. Method, recorded before either
-review runs: CONCURRENT same-head on frozen `2eccccead`, both briefs
-stored with sha256 on `props/b1-block`
-(`work/props/logs/span-review-brief-{r1,r2}.md`, identical modulo lane
-names), neither reviewer sees the other's report, v6 item 5 isolation in
-both briefs; the implementer's unit log entry is not written until the
-dual concludes. Method note applying to BOTH arms equally: the pair runs
-beside the lily lane on one 4-core cloud box, `CARGO_INCREMENTAL=0`,
-debug, one crate at a time, with the disk guard. Sample number at merge.
-
 ## SHELL program rows (work/shell/; band 2300–2399; blocks named SHELL-B<n>)
 
 SHELL-1 review ordinal fixed at dispatch (2026-09-04, PR #1756 open —
