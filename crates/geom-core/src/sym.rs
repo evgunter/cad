@@ -587,10 +587,20 @@ struct Rat {
 }
 
 /// The most bits either integer of a coefficient may carry before the
-/// coefficient is refused and its form freezes. The plate's rim residual
-/// needs a few hundred; the bound is the freeze discipline's, not a
-/// measured ceiling.
-const COEFF_BITS: u64 = 4096;
+/// coefficient is refused and its form freezes — a COST dial as much as
+/// a discipline, and set by measurement. At 4096 bits nothing on R2's
+/// bracket froze and one leaf replay took 229 s against M10-7's 5.9 s:
+/// with the constant fold on, every coefficient is a product of
+/// dimensions' 53-bit mantissas and the forms that used to overflow an
+/// `i128` grew instead to the term budget with thousand-bit
+/// coefficients, and BigInt arithmetic on those is the whole cost. At
+/// 256 bits — twice the `i128` the ring replaced — the bracket's and
+/// the annulus's ceilings still move by the factors measured at
+/// `i128`, the worst forms freeze again, and the plate's rim residual
+/// (degree 12 in a 53-bit nominal, ~640 bits) does NOT fit: that is
+/// the measured trade, recorded on
+/// `work/m10/plate-rim-residual-needs-the-wide-coefficient-ring`.
+const COEFF_BITS: u64 = 256;
 
 /// Strips factors of two out of `v`, answering the odd part and how many
 /// were removed. `v == 0` keeps zero and removes none.
@@ -1019,14 +1029,11 @@ pub struct SymCounts {
     /// Decisions answered `Zero` by the symbolic tier as unconditional
     /// theorems — the normal form read no value.
     pub symbolic_zero: u64,
-    /// Decisions answered `Zero` through a clause-3 fold — a theorem
-    /// CONDITIONAL on a sign read over the leaf's box. **Reserved and
-    /// always zero**: rule C, the fold that would set it, is filed
-    /// unbuilt ([`SymRules`]'s docs), so the shipped and buildable tier
-    /// reads no value. The field, and the matching K token, stand ready
-    /// for the day a value-reading fold is built within the
-    /// bit-identity discipline; kept apart from `symbolic_zero` because
-    /// the two claims differ in kind.
+    /// Decisions answered `Zero` through a clause-3 fold (rule C,
+    /// [`SymRules::signed_root`]) — a theorem CONDITIONAL on a sign
+    /// read over the leaf's box, the one value the tier reads
+    /// ([`signed`]). Kept apart from `symbolic_zero` because the two
+    /// claims differ in kind; the matching K token is `sign_gated`.
     pub sign_gated: u64,
     /// Decisions handed to the numeric channel.
     pub numeric: u64,
@@ -1085,15 +1092,25 @@ pub struct SymRules {
     /// blocking residuals were products of `sqrt(1)^58` and `sqrt` of
     /// exact-square dyadic constants ([`Self::shipped`]).
     pub const_fold: bool,
-    /// **The EARLY walk**: rules A, B and C applied per DAG node in a
-    /// SECOND memo ALONGSIDE the plain form — never replacing it — with
-    /// a small per-node step cap ([`EARLY_STEPS`]) and the un-reduced
-    /// form kept where a reduction does not fit. A decision is asked of
-    /// the plain form first, so a plain theorem is never re-labelled;
-    /// the early form can only ADD a discharge. Rule C rides this walk
-    /// exclusively, because the atoms it folds sit nested inside other
-    /// atoms' arguments, out of a top-residual reduction's reach.
+    /// **The EARLY walk**: a SECOND memo built ALONGSIDE the plain
+    /// form — never replacing it — in which rule C's fold runs at each
+    /// `sqrt`/`abs` node (and, with [`Self::early_ab`], rules A/B run
+    /// per node too). A decision is asked of the plain form first, so a
+    /// plain theorem is never re-labelled; the early form can only ADD
+    /// a discharge. Rule C rides this walk exclusively, because the
+    /// atoms it folds sit nested inside other atoms' arguments, out of
+    /// a top-residual reduction's reach. Its cost is a second walk of
+    /// the DAG per decision the plain form did not answer, memoized per
+    /// leaf.
     pub early: bool,
+    /// **Rules A/B PER NODE in the early walk**, under a small step cap
+    /// ([`EARLY_STEPS`]) with the un-reduced form kept where a
+    /// reduction does not fit. Measured expensive rather than a
+    /// runaway — and, on the BigInt ring, expensive enough not to ship:
+    /// the plate's nominal replay went from 0.6 s to 138 s with it on,
+    /// because with nothing freezing every node's reduction is real
+    /// work ([`Self::shipped`]). Needs `early`.
+    pub early_ab: bool,
     /// **C — `sqrt(X) = R` where `X = R²` as forms and `R` has a
     /// certified sign over the leaf's box** (and `abs(R) = ±R`
     /// likewise): clause 3 of the theorem, the one rule that reads a
@@ -1113,6 +1130,7 @@ impl SymRules {
             pythagoras: true,
             const_fold: true,
             early: true,
+            early_ab: true,
             signed_root: true,
         }
     }
@@ -1124,8 +1142,9 @@ impl SymRules {
             sqrt_square: false,
             pythagoras: false,
             const_fold: true,
-            early: false,
-            signed_root: false,
+            early: true,
+            early_ab: false,
+            signed_root: true,
         }
     }
 
@@ -1138,6 +1157,7 @@ impl SymRules {
             pythagoras: false,
             const_fold: false,
             early: false,
+            early_ab: false,
             signed_root: false,
         }
     }
@@ -1196,9 +1216,10 @@ struct Session {
     budget: SymBudget,
     rules: SymRules,
     nodes: IdMap<SymNode>,
-    /// The PLAIN quotient forms — every atom opaque, no rule applied.
-    /// The atom algebra is applied afterwards over the top residual
-    /// ([`algebra::reduce`]), so no ruled form is memoized here.
+    /// The PLAIN quotient forms — every atom opaque, rule A0 only (the
+    /// constant fold, which cannot cost a cancellation). Rules A/B are
+    /// applied afterwards over the top residual ([`algebra::reduce`])
+    /// and per node in `forms_early`; nothing ruled is memoized here.
     forms: IdMap<Rc<Form>>,
     /// The EARLY-reduced forms (`SymRules::early`), a second memo
     /// beside the plain one.
@@ -1757,34 +1778,31 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
     }
 }
 
-/// The normal form of `root`, computed and memoized inside `sess`.
+/// The normal form of `root`, computed into `memo` inside `sess` — the
+/// one walk both memos share, `early` choosing which.
 ///
-/// **Two forms per node, and the distinction is the whole architecture
-/// of the atom algebra.** The PLAIN form (`ruled = false`, every atom
-/// opaque, no rule applied) is the quotient normal form exactly as the
-/// tier stood before this unit; it is what a decision is FIRST tested
-/// against, and a plain form that is zero is an unconditional theorem.
-/// The RULED form (`ruled = true`) applies rules A/B/C — but ONLY as a
-/// FALLBACK, on a node whose plain form was not already zero, so the
-/// algebra can never DOWNGRADE a result the plain form reached. That is
-/// why the rules live here and not in the pre-algebra construction: an
-/// eager `sqrt(X)²→X` reduction destroys the higher `sqrt(Xa)−sqrt(Xb)`
-/// cancellation the plain form gets for free, and an eager `sqrt(Q²)→Q`
-/// turns a straight edge's unconditional endpoint theorem into a
-/// sign-gated one; measured, both, before this split was made.
+/// **Two memos per session, and the distinction is the whole
+/// architecture of the atom algebra.** The PLAIN walk (`early = false`,
+/// every atom opaque, rule A0 only) builds the quotient normal form as
+/// the tier stood before the algebra plus the constant fold; it is what
+/// a decision is FIRST tested against, and a plain form that is zero is
+/// an unconditional theorem. The EARLY walk (`early = true`,
+/// `SymRules::early`) applies rules A/B per node under [`EARLY_STEPS`]
+/// and rule C's fold at each `sqrt`/`abs` — ALONGSIDE the plain memo,
+/// never replacing it, so a rule can only ADD a discharge and never
+/// re-label one the plain form reached. That split is measured, not
+/// assumed: the first cut of this unit let a ruled form REPLACE the
+/// plain one and lost an `arc_span` cancellation and a straight edge's
+/// endpoint theorem to it.
 ///
 /// Iterative rather than recursive: an evaluation's DAG is as deep as
 /// its expression tree, and a leaf replay's is thousands of nodes.
 /// Termination is structural — a node's id is a hash of its children's
 /// ids, so a cycle would need a hash preimage — and every popped id
-/// leaves a form behind, so each is visited at most twice.
-///
-/// There is ONE form per node — the plain quotient form, memoized in
-/// the session. The atom algebra is applied afterwards, once, over the
-/// residual a decide site tests ([`algebra::reduce`]), never during
-/// this walk — so this walk stays the O(dag) construction it was before
-/// the algebra, and a ruled reduction cannot cost a cancellation the
-/// plain form reaches.
+/// leaves a form behind, so each is visited at most twice. Either walk
+/// is the O(dag) construction; the early walk's per-node reduction is
+/// bounded by its step cap, so its cost is a constant factor over the
+/// plain walk, measured per document in `SymRules::shipped`'s docs.
 fn form_in(sess: &mut Session, memo: &mut IdMap<Rc<Form>>, root: SymId, early: bool) -> Rc<Form> {
     let frozen = |sess: &mut Session, id: SymId| -> Rc<Form> {
         if !early {
@@ -1836,9 +1854,10 @@ fn form_in(sess: &mut Session, memo: &mut IdMap<Rc<Form>>, root: SymId, early: b
                 fb.as_deref().unwrap_or(&empty),
             ];
             let combined = combine(&node, kids, sess, early);
-            // R1 PROBE: the early per-node reduction, bounded, falling
-            // back to the un-reduced form when it does not fit.
-            let combined = if early {
+            // The per-node A/B reduction (`SymRules::early_ab`),
+            // bounded, falling back to the un-reduced form when it does
+            // not fit.
+            let combined = if early && sess.rules.early_ab {
                 combined.map(|f| {
                     algebra::reduce_steps(&f, sess.rules, budget, &sess.atoms, EARLY_STEPS)
                         .filter(|g| within(budget, g))
@@ -2812,11 +2831,11 @@ mod tests {
         while let Some(next) = acc.mul(&m) {
             acc = next;
             steps += 1;
-            assert!(steps < 200, "0.1^k must cross 4096 bits before k = 200");
+            assert!(steps < 100, "0.1^k must cross the bound before k = 100");
         }
         assert!(
-            steps >= 77,
-            "0.1 carries 53 odd bits, so 77 factors fit: {steps}"
+            steps >= 4,
+            "0.1 carries 53 odd bits, so 4 factors fit: {steps}"
         );
     }
 

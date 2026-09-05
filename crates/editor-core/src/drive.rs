@@ -248,11 +248,13 @@ pub struct SymbolicDials {
     /// The largest total degree one normal form may reach.
     pub max_degree: u32,
     /// The atom-algebra rules the normal form applies
-    /// ([`geom_core::SymRules`]): all on by default; each switchable
-    /// alone, and [`geom_core::SymRules::none`] is the quotient form
-    /// with every atom opaque — the tier exactly as it stood before
-    /// the algebra, so the effect of each rule on a document is a
-    /// measurement taken through this dial rather than an assumption.
+    /// ([`geom_core::SymRules`]): the shipped set by default
+    /// ([`geom_core::SymRules::shipped`], chosen by measurement); each
+    /// switchable alone, and [`geom_core::SymRules::none`] is the
+    /// quotient form with every atom opaque — the tier exactly as it
+    /// stood before the algebra, so the effect of each rule on a
+    /// document is a measurement taken through this dial rather than
+    /// an assumption.
     pub rules: geom_core::SymRules,
 }
 
@@ -297,8 +299,7 @@ impl Default for SymbolicDials {
             enabled: true,
             max_terms: DEFAULT_SYM_MAX_TERMS,
             max_degree: DEFAULT_SYM_MAX_DEGREE,
-            // The shipped atom-algebra set: rules A and C, B filed off
-            // ([`geom_core::SymRules::shipped`]).
+            // The shipped atom-algebra set ([`geom_core::SymRules::shipped`]).
             rules: geom_core::SymRules::default(),
         }
     }

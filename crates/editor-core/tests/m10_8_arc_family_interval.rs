@@ -38,10 +38,8 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
-use editor_core::drive::{
-    DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS, DriveConfig, SymbolicDials, drive,
-};
+use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
+use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS, SymbolicDials};
 use editor_core::{CancelToken, EvalOptions, NodeResult, ProfileDoc, ProfileLift, evaluate};
 use geom_core::sym::report::{
     DecisionShape, ShapeOutcome, name_param, start_shape_report, take_shape_report,
@@ -52,6 +50,7 @@ use geom_core::{Sign, SymBudget, SymRules, Tol};
 use crate::m10_7_plate::plate;
 use crate::m10_7_r1_probes_interval::bracket_pub as r1_bracket;
 use crate::m10_7_r2_probes_interval::bracket as r2_bracket;
+use crate::m10_8_harness::nominal_box;
 
 fn budget() -> SymBudget {
     SymBudget {
@@ -63,9 +62,11 @@ fn budget() -> SymBudget {
 /// The rule LADDER the table is cut against, each rung adding one
 /// mechanism to the last: `none` is M10-7's tier; `A0` the constant
 /// fold in the plain form; `A0+AB_top` rules A/B over the top residual;
-/// `A0+AB_early` the early walk alongside; `all` adds rule C's fold to
-/// that walk. Reading the columns left to right says what each
-/// mechanism reaches that the previous ones did not.
+/// `A0+C_early` rule C's fold in the early walk (the SHIPPED set);
+/// `+AB_top` both. Reading the columns left to right says what each
+/// mechanism reaches that the previous ones did not. The per-node A/B
+/// reduction (`early_ab`) is not a rung: minutes per replay on the
+/// BigInt ring (`m10_8_r1_probes_interval::slow_variants`).
 fn rule_sets() -> [(&'static str, SymRules); 5] {
     let n = SymRules::none();
     [
@@ -86,17 +87,15 @@ fn rule_sets() -> [(&'static str, SymRules); 5] {
                 ..n
             },
         ),
+        ("A0+C_early", SymRules::shipped()),
         (
-            "A0+AB_early",
+            "+AB_top",
             SymRules {
-                const_fold: true,
                 sqrt_square: true,
                 pythagoras: true,
-                early: true,
-                ..n
+                ..SymRules::shipped()
             },
         ),
-        ("all", SymRules::all()),
     ]
 }
 
@@ -107,17 +106,6 @@ pub(crate) fn documents(tol: Tol) -> Vec<(&'static str, ProfileDoc)> {
         ("r2_filleted_bracket", r2_bracket(1.0, tol).0),
         ("r1_bracket", r1_bracket(0.5e-3, false, tol).0),
     ]
-}
-
-/// The degenerate box at the nominal.
-fn nominal_box(analyzed: &editor_core::analysis::AnalyzedBox) -> ParamBox {
-    ParamBox::from_axes(
-        ParamBox::of(analyzed)
-            .axes()
-            .keys()
-            .map(|n| (n.clone(), BoxAxis::Fixed))
-            .collect(),
-    )
 }
 
 /// One replay at `Sym<Interval>` over `box_` with the shape report on:
@@ -248,8 +236,8 @@ fn m10_8_table_per_predicate_under_each_rule_set() {
             println!("   rung {label:<12} helped {helped:?}\n        HURT   {hurt:?}");
         }
 
-        println!("== {name}: WHOLE-BOX replay at the real study, rules A+B (every buildable rule)");
-        let (shapes, refusal, counts) = replay(&doc, &real, SymRules::all(), tol);
+        println!("== {name}: WHOLE-BOX replay at the real study, the SHIPPED rule set");
+        let (shapes, refusal, counts) = replay(&doc, &real, SymRules::shipped(), tol);
         println!("   counts {counts:?}; first refusal: {refusal:?}");
         println!(
             "   {:<34} {:>8} {:>8} {:>8} {:>8} {:>8} {:>8}",
@@ -285,43 +273,16 @@ fn m10_8_table_per_predicate_under_each_rule_set() {
 }
 
 /// The widest scale of a document's real study that certifies WHOLE
-/// (`max_depth = 0`), by bisection of the log of the scale, and the
-/// first refusal beyond it.
+/// (`max_depth = 0`), by bisection of the log of the scale
+/// (`m10_8_harness::ceiling`), and the first refusal beyond it.
 pub(crate) fn ceiling(
     doc_at: &dyn Fn(f64) -> ProfileDoc,
     dials: SymbolicDials,
     tol: Tol,
 ) -> (f64, Option<String>) {
-    let certifies_whole = |scale: f64| {
-        let doc = doc_at(scale);
-        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-        drive(
-            &doc,
-            &analyzed,
-            &DriveConfig {
-                max_depth: 0,
-                max_leaves: 1,
-                symbolic: dials,
-                ..DriveConfig::default()
-            },
-            tol,
-        )
-        .is_ok_and(|v| v.receipt().certified == 1)
-    };
-    let (mut lo, mut hi) = (1.0e-14, 1.0e3);
-    if !certifies_whole(lo) {
-        return (f64::NAN, None);
-    }
-    if certifies_whole(hi) {
-        return (f64::INFINITY, None);
-    }
-    for _ in 0..40 {
-        let mid = (0.5 * (lo.ln() + hi.ln())).exp();
-        if certifies_whole(mid) {
-            lo = mid;
-        } else {
-            hi = mid;
-        }
+    let (lo, hi, _) = crate::m10_8_harness::ceiling(doc_at, dials.rules, tol, 1.0e-14, 1.0e3, 40);
+    if lo.is_nan() || hi.is_infinite() {
+        return (lo, None);
     }
     // What refuses first beyond it, from a whole-box replay at twice
     // the ceiling.
@@ -329,6 +290,54 @@ pub(crate) fn ceiling(
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let (_, refusal, _) = replay(&doc, &ParamBox::of(&analyzed), dials.rules, tol);
     (lo, refusal)
+}
+
+/// **Claim 7 — the cost per LEAF, per rule set**: one whole-box replay
+/// of the plate and of R2's bracket at a scale each certifies, timed
+/// under the plain tier (M10-7's D17 baseline), A0 alone, the early
+/// walk without rule C, and the shipped set. EVIDENCE-ONLY (prints).
+#[test]
+#[ignore = "evidence-only: prints the leaf cost per rule set"]
+fn m10_8_leaf_cost_per_rule_set() {
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    let n = SymRules::none();
+    let sets = [
+        ("none", n),
+        (
+            "A0",
+            SymRules {
+                const_fold: true,
+                ..n
+            },
+        ),
+        (
+            "A0+early",
+            SymRules {
+                const_fold: true,
+                early: true,
+                ..n
+            },
+        ),
+        ("shipped", SymRules::shipped()),
+    ];
+    let docs: [(&str, ProfileDoc); 2] = [
+        (
+            "plate x1e2·eps",
+            plate(5.0e-5 * 1.0e2 * eps, 1.0e-5 * 1.0e2 * eps, tol).0,
+        ),
+        ("bracket x1e1·eps", r2_bracket(1.0e1 * eps, tol).0),
+    ];
+    for (name, doc) in &docs {
+        for (label, rules) in sets {
+            let t = std::time::Instant::now();
+            let ok = crate::m10_8_harness::certifies_whole(doc, rules, tol);
+            println!(
+                "   {name:<18} {label:<10} certifies_whole={ok} in {:.2}s",
+                t.elapsed().as_secs_f64()
+            );
+        }
+    }
 }
 
 /// **The ceilings, per rule set**, on the plate and on R2's bracket.

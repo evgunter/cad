@@ -339,10 +339,10 @@ fn r1_copysign_of_zero_by_a_poisoned_sign() {
 // ----------------------------------------------- claim 3: freezing (D6)
 
 /// A deliberate coefficient blow-up past the ring's bit bound
-/// (`COEFF_BITS`, 4096 bits — M10-8 widened the coefficient from `i128`
+/// (`COEFF_BITS`, 256 bits — M10-8 widened the coefficient from `i128`
 /// to arbitrary precision under that bound): a chain of products of a
 /// literal with a 53-bit odd mantissa, `(m)^k`, whose odd part carries
-/// `53·k` bits and crosses the bound at `k ≥ 78`. The form must freeze
+/// `53·k` bits and crosses the bound at `k ≥ 5`. The form must freeze
 /// (counted) and the identity `c·x − c·x` must STILL cancel because both
 /// sides are the same frozen node — while `c·x − x·c` (different node
 /// ids, both frozen) must NOT be claimed.
@@ -387,18 +387,24 @@ fn r1_a_coefficient_past_the_bit_bound_freezes_and_is_counted() {
 }
 
 /// A large dyadic exponent: `2^1000 · x − 2^1000 · x` cancels (exponent
-/// arithmetic is i32), and `2^1000 · x + 2^-1000 · x − (…)` needs a
-/// shift of 2000 bits to align. At `i128` that shift overflowed and the
-/// form FROZE — this row pinned the freeze. Under the arbitrary-precision
-/// ring (M10-8) it aligns exactly and the identity is a theorem with
-/// nothing frozen; the ring's own bound (4096 bits) is out of any
-/// finite `f64`'s reach (its exponents span ±1074), so the freeze past
-/// the bound is pinned at the ring itself
+/// arithmetic is i32), and `2^100 · x + 2^-100 · x − (…)` needs a shift
+/// of 200 bits to align. At `i128` a 2000-bit shift overflowed and the
+/// form FROZE — this row pinned the freeze. Under the bounded
+/// arbitrary-precision ring (M10-8, 256 bits) a shift within the bound
+/// aligns exactly and the identity is a theorem with nothing frozen;
+/// the freeze past the bound is pinned at the ring itself
 /// (`sym::tests::an_alignment_past_the_coefficient_bound_freezes`).
 #[test]
 fn r1_dyadic_exponent_alignment_within_the_bound_cancels() {
     let big = 2f64.powi(1000);
     let small = 2f64.powi(-1000);
+    let (ok, s, _) = sym(|| {
+        let x = p("x", 0.5);
+        lit(big) * x - lit(big) * x
+    });
+    assert!(ok && s == 1);
+    let big = 2f64.powi(100);
+    let small = 2f64.powi(-100);
     let (ok, s, _) = sym(|| {
         let x = p("x", 0.5);
         lit(big) * x - lit(big) * x
@@ -412,7 +418,7 @@ fn r1_dyadic_exponent_alignment_within_the_bound_cancels() {
     assert!(ok, "the aligned sum cancels against itself: {counts:?}");
     assert_eq!(
         counts.frozen, 0,
-        "a 2000-bit alignment is within the ring's bound: {counts:?}"
+        "a 200-bit alignment is within the ring's bound: {counts:?}"
     );
 }
 

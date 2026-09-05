@@ -26,7 +26,7 @@
 use std::collections::BTreeMap;
 use std::time::Instant;
 
-use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
+use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
     Datum, Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
@@ -40,9 +40,12 @@ use crate::fixture::Recorder;
 use crate::m10_7_plate::plate;
 use crate::m10_7_r2_probes_interval::bracket as r2_bracket;
 use crate::m10_8_arc_family_interval::replay;
+use crate::m10_8_harness::{ceiling, dials, nominal_box};
 
-/// The variants, named. `none` is M10-7's tier; `A_top` is the unit's
-/// shipped-but-off rule A over the top residual; the rest are R1's.
+/// The variants, named. `none` is M10-7's tier; `A_top` the unit's
+/// first cut (rule A over the top residual); `A0` R1's constant fold;
+/// `AB_early` R1's bounded per-node A/B alongside; the `C_early` rows
+/// the fix pass's rule C in the early walk; `shipped` what ships.
 fn variants() -> Vec<(&'static str, SymRules)> {
     let n = SymRules::none();
     vec![
@@ -62,34 +65,14 @@ fn variants() -> Vec<(&'static str, SymRules)> {
             },
         ),
         (
-            "A0+A_top",
-            SymRules {
-                const_fold: true,
-                sqrt_square: true,
-                ..n
-            },
-        ),
-        (
-            "AB_early",
-            SymRules {
-                sqrt_square: true,
-                pythagoras: true,
-                early: true,
-                ..n
-            },
-        ),
-        (
-            "A0+AB_early",
+            "A0+AB_top",
             SymRules {
                 const_fold: true,
                 sqrt_square: true,
                 pythagoras: true,
-                early: true,
                 ..n
             },
         ),
-        // The early walk carrying ONLY rule C (no A/B substitution):
-        // what the clause-3 fold reaches on its own.
         (
             "A0+C_early",
             SymRules {
@@ -99,26 +82,40 @@ fn variants() -> Vec<(&'static str, SymRules)> {
                 ..n
             },
         ),
-        // Everything: A0, the early walk with A/B, and rule C.
-        ("all", SymRules::all()),
+        (
+            "A0+C_early+AB_top",
+            SymRules {
+                const_fold: true,
+                early: true,
+                signed_root: true,
+                sqrt_square: true,
+                pythagoras: true,
+                ..n
+            },
+        ),
+        ("shipped", SymRules::shipped()),
     ]
 }
 
-fn dials(rules: SymRules) -> SymbolicDials {
-    SymbolicDials {
-        rules,
-        ..SymbolicDials::default()
-    }
-}
-
-fn nominal_box(analyzed: &editor_core::analysis::AnalyzedBox) -> ParamBox {
-    ParamBox::from_axes(
-        ParamBox::of(analyzed)
-            .axes()
-            .keys()
-            .map(|n| (n.clone(), BoxAxis::Fixed))
-            .collect(),
-    )
+/// The variants with the per-node A/B reduction too — kept OUT of the
+/// ceiling rows because they are minutes per probe on the BigInt ring
+/// (the plate's nominal replay: 138 s), and measured on the nominal
+/// split only.
+fn slow_variants() -> Vec<(&'static str, SymRules)> {
+    vec![
+        (
+            "A0+AB_early",
+            SymRules {
+                const_fold: true,
+                early: true,
+                early_ab: true,
+                sqrt_square: true,
+                pythagoras: true,
+                ..SymRules::none()
+            },
+        ),
+        ("all", SymRules::all()),
+    ]
 }
 
 fn theorems_by_predicate(shapes: &[DecisionShape]) -> BTreeMap<&'static str, (u64, u64)> {
@@ -162,6 +159,13 @@ fn documents(tol: Tol) -> Vec<(&'static str, ProfileDoc)> {
 #[test]
 #[ignore = "evidence-only: R1's variants on the three documents"]
 fn r1_variants_whole_box_and_nominal_split() {
+    // `CAD_M10_8_SLOW=1` adds the per-node A/B variants (minutes each).
+    let slow = std::env::var("CAD_M10_8_SLOW").is_ok();
+    let mut variants = variants();
+    if slow {
+        variants.extend(slow_variants());
+    }
+    let variants = || variants.clone();
     let tol = Tol::witness();
     for (name, doc) in documents(tol) {
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
@@ -207,60 +211,6 @@ fn r1_variants_whole_box_and_nominal_split() {
             );
         }
     }
-}
-
-/// Whether `doc` certifies its WHOLE analyzed box in one leaf.
-fn certifies_whole(doc: &ProfileDoc, rules: SymRules, tol: Tol) -> bool {
-    let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
-    drive(
-        doc,
-        &analyzed,
-        &DriveConfig {
-            max_depth: 0,
-            max_leaves: 1,
-            symbolic: dials(rules),
-            ..DriveConfig::default()
-        },
-        tol,
-    )
-    .is_ok_and(|v| v.receipt().certified == 1)
-}
-
-/// A coarse log-bisection of the widest whole-certifying scale between
-/// `lo` and `hi`, with the wall time per probe.
-fn ceiling(
-    doc_at: &dyn Fn(f64) -> ProfileDoc,
-    rules: SymRules,
-    tol: Tol,
-    lo: f64,
-    hi: f64,
-    steps: usize,
-) -> (f64, f64, f64) {
-    let (mut lo, mut hi) = (lo, hi);
-    let mut probes = 0.0;
-    let mut spent = 0.0;
-    let mut probe = |s: f64| {
-        let t = Instant::now();
-        let ok = certifies_whole(&doc_at(s), rules, tol);
-        spent += t.elapsed().as_secs_f64();
-        probes += 1.0;
-        ok
-    };
-    if !probe(lo) {
-        return (f64::NAN, hi, spent / probes);
-    }
-    if probe(hi) {
-        return (hi, f64::INFINITY, spent / probes);
-    }
-    for _ in 0..steps {
-        let mid = (0.5 * (lo.ln() + hi.ln())).exp();
-        if probe(mid) {
-            lo = mid;
-        } else {
-            hi = mid;
-        }
-    }
-    (lo, hi, spent / probes)
 }
 
 /// **Claim 2: does the whole-certifying box MOVE under R1's variants?**

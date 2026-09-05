@@ -48,18 +48,28 @@ use crate::ring_interval::RingInterval;
 /// a non-square polynomial from being chased term by term.
 const ROOT_TERMS: usize = 64;
 
-/// The exponent vector of `m` over the id list `ids` (sorted).
-fn exps(m: &Mono, ids: &[u128]) -> Vec<u32> {
-    ids.iter()
-        .map(|id| m.iter().find(|(i, _)| i == id).map_or(0, |(_, e)| *e))
-        .collect()
+/// The exponent of `id` in `m` (zero where absent).
+fn exp_of(m: &Mono, id: u128) -> u32 {
+    m.iter().find(|(i, _)| *i == id).map_or(0, |(_, e)| *e)
 }
 
-/// A graded-lexicographic key: total degree first, then the exponent
-/// vector — a monomial order, which the leading-term recurrence below
-/// needs (the map's own `Vec` order is not one).
-fn key(m: &Mono, ids: &[u128]) -> (u32, Vec<u32>) {
-    (m.iter().map(|(_, e)| *e).sum(), exps(m, ids))
+/// A graded-lexicographic comparison: total degree first, then the
+/// exponent vector over `ids` — a monomial order, which the
+/// leading-term recurrence below needs (the map's own `Vec` order is
+/// not one). Allocation-free: it runs over every term of every
+/// argument the early walk offers, and the first cut's per-term key
+/// vector was the cost of the whole walk.
+fn cmp_mono(a: &Mono, b: &Mono, ids: &[u128]) -> core::cmp::Ordering {
+    let deg = |m: &Mono| m.iter().map(|(_, e)| *e).sum::<u32>();
+    deg(a).cmp(&deg(b)).then_with(|| {
+        for &id in ids {
+            let o = exp_of(a, id).cmp(&exp_of(b, id));
+            if o != core::cmp::Ordering::Equal {
+                return o;
+            }
+        }
+        core::cmp::Ordering::Equal
+    })
 }
 
 /// Every indeterminate id of `p`, sorted.
@@ -78,7 +88,7 @@ fn ids_of(p: &Poly) -> Vec<u128> {
 fn lead<'a>(p: &'a Poly, ids: &[u128]) -> Option<(&'a Mono, Rat)> {
     p.terms
         .iter()
-        .max_by(|(a, _), (b, _)| key(a, ids).cmp(&key(b, ids)))
+        .max_by(|(a, _), (b, _)| cmp_mono(a, b, ids))
         .map(|(m, c)| (m, c.clone()))
 }
 
@@ -117,6 +127,15 @@ fn mono_div(t: &Mono, r: &Mono) -> Option<Mono> {
 /// monomial order the recurrence is unique, so `r² == x` at the end is
 /// both necessary and sufficient, and it is checked rather than
 /// assumed.
+///
+/// Cost matters here more than anywhere else in the tier: this runs at
+/// EVERY `sqrt` node of the early walk, and nearly every argument is
+/// not a square. So the non-squares are turned away cheaply — the
+/// trailing term must be a square too (a necessary condition that
+/// costs one coefficient root), the root can never carry more terms
+/// than `x` (`r²`'s terms `lead(r)·t` are distinct for distinct `t`),
+/// and the remainder is updated incrementally (`−2·r·t − t²` per new
+/// term `t`) rather than re-squared.
 pub(super) fn poly_sqrt(x: &Poly, budget: SymBudget) -> Option<Poly> {
     if x.is_zero() {
         return Some(Poly::zero());
@@ -125,20 +144,105 @@ pub(super) fn poly_sqrt(x: &Poly, budget: SymBudget) -> Option<Poly> {
     let (lm, lc) = lead(x, &ids)?;
     let r0m = mono_sqrt(lm)?;
     let r0c = lc.sqrt_exact()?;
+    // The trailing term of a square is the square of the root's
+    // trailing term: an odd exponent or a non-square coefficient there
+    // settles it without building anything.
+    let (tm, tc) = trail(x, &ids)?;
+    mono_sqrt(tm)?;
+    tc.sqrt_exact()?;
+    // And a square polynomial takes a square VALUE at every rational
+    // point: one evaluation at small odd integers turns away nearly
+    // every non-square before the recurrence is run at all (a
+    // non-square that happens to evaluate to a square there is merely
+    // handed on to the recurrence, which is exact).
+    if !is_square_at_a_point(x, &ids) {
+        return None;
+    }
     let twice = r0c.add(&r0c)?;
     let mut root = Poly::zero();
-    root.insert(r0m.clone(), r0c)?;
-    for _ in 0..ROOT_TERMS {
-        let rem = x.add(&root.mul(&root, budget)?.neg()?)?;
-        if rem.is_zero() {
-            return Some(root);
+    root.insert(r0m.clone(), r0c.clone())?;
+    let mut rem = x.add(
+        &Poly::constant(r0c.mul(&r0c)?)
+            .mul(&mono_poly(&r0m, 2), budget)?
+            .neg()?,
+    )?;
+    let cap = x.terms.len().min(ROOT_TERMS);
+    while !rem.is_zero() {
+        if root.terms.len() >= cap {
+            return None;
         }
         let (tm, tc) = lead(&rem, &ids)?;
         let nm = mono_div(tm, &r0m)?;
         let nc = tc.mul(&twice.recip()?)?;
+        // rem -= 2·root·t + t²
+        let t = single(nm.clone(), nc.clone())?;
+        let two_root_t = root
+            .mul(&t, budget)?
+            .mul(&Poly::constant(Rat::new(2, 1, 0)?), budget)?;
+        rem = rem.add(&two_root_t.neg()?)?;
+        rem = rem.add(&t.mul(&t, budget)?.neg()?)?;
         root.insert(nm, nc)?;
     }
-    None
+    Some(root)
+}
+
+/// Whether `x` evaluates to a perfect-square rational at the point
+/// `id_k = 2k + 3` — a necessary condition for `x` to be a square
+/// polynomial, checked in exact arithmetic.
+fn is_square_at_a_point(x: &Poly, ids: &[u128]) -> bool {
+    let value_of = |id: u128| -> i128 {
+        let k = ids.iter().position(|i| *i == id).unwrap_or(0);
+        2 * k as i128 + 3
+    };
+    let mut acc = Rat::zero();
+    for (m, c) in &x.terms {
+        let mut term = c.clone();
+        for &(id, e) in m {
+            let v = value_of(id);
+            let mut pw = 1i128;
+            for _ in 0..e.min(40) {
+                pw = match pw.checked_mul(v) {
+                    Some(p) => p,
+                    None => return true,
+                };
+            }
+            if e > 40 {
+                return true;
+            }
+            term = match term.mul(&Rat::new(pw, 1, 0).unwrap_or_else(Rat::one)) {
+                Some(t) => t,
+                None => return true,
+            };
+        }
+        acc = match acc.add(&term) {
+            Some(a) => a,
+            None => return true,
+        };
+    }
+    acc.sqrt_exact().is_some()
+}
+
+/// The trailing term of `p` under the graded-lex order over `ids`.
+fn trail<'a>(p: &'a Poly, ids: &[u128]) -> Option<(&'a Mono, Rat)> {
+    p.terms
+        .iter()
+        .min_by(|(a, _), (b, _)| cmp_mono(a, b, ids))
+        .map(|(m, c)| (m, c.clone()))
+}
+
+/// The one-term polynomial `c · m`.
+fn single(m: Mono, c: Rat) -> Option<Poly> {
+    let mut p = Poly::zero();
+    p.insert(m, c)?;
+    Some(p)
+}
+
+/// The monomial `m^e` as a polynomial with coefficient one.
+fn mono_poly(m: &Mono, e: u32) -> Poly {
+    let mut p = Poly::zero();
+    let powered: Mono = m.iter().map(|&(i, k)| (i, k * e)).collect();
+    p.terms.insert(powered, Rat::one());
+    p
 }
 
 /// A rational coefficient as a ring enclosure ([`Rat::f64_bracket`]):
@@ -203,6 +307,21 @@ pub(super) fn fold(
     budget: SymBudget,
 ) -> Option<Form> {
     if a.poisoned || params.is_empty() {
+        return None;
+    }
+    // Enclosability first, and cheaply: the root's indeterminates are
+    // the argument's, so an argument carrying any id that is not a
+    // parameter or π (an atom, an opaque real, a frozen node) can never
+    // be signed, whatever else is true of it. This is the test nearly
+    // every argument of a real document fails, and it costs one pass
+    // over the ids where the polynomial root would cost the recurrence.
+    let enclosable = |p: &Poly| {
+        p.terms.keys().all(|m| {
+            m.iter()
+                .all(|&(id, _)| id == INDET_PI || params.contains_key(&id))
+        })
+    };
+    if !(enclosable(&a.num) && enclosable(&a.den)) {
         return None;
     }
     let (num, den) = match op {

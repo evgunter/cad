@@ -16,19 +16,26 @@
 //! square for squares of strictly older atoms, and the DAG is finite; a
 //! step cap and the size budget stand behind that argument.
 //!
-//! Neither rule reads a value: rule C (`sqrt(Q²)=Q` by a certified sign,
-//! clause 3) is FILED UNBUILT ([`SymRules`](super::SymRules)'s docs), so
-//! nothing here evaluates a form at the lane scalar.
+//! Neither rule reads a value. Rule C (`sqrt(X) = R` by a certified
+//! sign of `R`, clause 3) is the one rule that does, and it lives in
+//! its own module ([`signed`](super::signed)) with the one door the
+//! value comes through.
 //!
-//! # Only the top residual
+//! # Two places the rewrite runs
 //!
-//! `reduce` runs ONCE per near-zero margin, over the residual the decide
-//! site tests — never per DAG node. It reaches atoms that appear IN the
-//! residual, not atoms nested inside another atom's argument or inside a
-//! frozen subform; those it leaves opaque, which is the conservative
-//! direction. That reach is why the shipped default files the rules: on
-//! curved geometry the arc-family subforms freeze before the residual
-//! reaches them (M10-8's §1 measurement).
+//! Over the TOP RESIDUAL — `reduce`, once per near-zero margin, over
+//! the residual the decide site tests. It reaches atoms that appear IN
+//! the residual, not atoms nested inside another atom's argument or
+//! inside a frozen subform; those it leaves opaque, which is the
+//! conservative direction.
+//!
+//! And PER NODE, in the early walk (`SymRules::early`,
+//! `super::early_form`): the same rewrite under a small step cap at
+//! each node of a SECOND memo alongside the plain form, which is how a
+//! nested atom is reached — the argument is reduced before the atom
+//! over it is minted. The plain form is asked first, so the early walk
+//! can only add a discharge; the un-reduced form is kept wherever the
+//! cap or the budget stops a reduction.
 
 use super::{
     AtomInfo, Form, IndetMap, Mono, Poly, Rat, SymBudget, SymOp, SymRules, indet_atom, powi_form,

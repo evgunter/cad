@@ -27,7 +27,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]
 
-use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
+use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
     Datum, Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
@@ -39,6 +39,7 @@ use geom_core::{SymRules, Tol};
 
 use crate::fixture::Recorder;
 use crate::m10_8_arc_family_interval::replay;
+use crate::m10_8_harness::nominal_box;
 
 fn len(v: f64) -> Expr {
     Expr::literal(v, Dimension::Length).expect("finite length")
@@ -198,17 +199,6 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNode
         dir: editor_core::AssertionDir::AtLeast,
     });
     (r.doc, measure, assertion)
-}
-
-/// The degenerate box at the nominal.
-fn nominal_box(analyzed: &editor_core::analysis::AnalyzedBox) -> ParamBox {
-    ParamBox::from_axes(
-        ParamBox::of(analyzed)
-            .axes()
-            .keys()
-            .map(|n| (n.clone(), BoxAxis::Fixed))
-            .collect(),
-    )
 }
 
 // ------------------------------------------------- the asserting rows

@@ -328,7 +328,7 @@ fn r2_the_kink_atoms_never_claim_a_cancellation() {
 /// form never decides Zero falsely: the same expression that is an
 /// identity still decides Zero (frozen nodes with equal ids cancel),
 /// while a non-identity built past the bound decides numerically. (The
-/// bound was `i128` when this row was cut and is 4096 bits since M10-8
+/// bound was `i128` when this row was cut and is 256 bits since M10-8
 /// widened the coefficient; the freeze is the same sound outcome.)
 #[test]
 fn r2_a_coefficient_overflow_freezes_and_never_decides_falsely() {
@@ -340,7 +340,7 @@ fn r2_a_coefficient_overflow_freezes_and_never_decides_falsely() {
     let (frozen_seen, counts) = with_session(budget(), || {
         let mut acc = lit(1.0);
         // 3^k with odd numerators: 3, 9, 27 … the product's numerator
-        // passes 4096 bits after 2585 factors.
+        // passes 256 bits after 162 factors.
         for _ in 0..2700 {
             acc = acc * lit(3.0);
         }
