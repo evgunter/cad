@@ -224,3 +224,5 @@ mod mesh11r2_probes;
 mod r2_mesh7_door_probes;
 #[path = "tcost_k1_budget_exit.rs"]
 mod tcost_k1_budget_exit;
+#[path = "kstats_escalation_channel.rs"]
+mod kstats_escalation_channel;

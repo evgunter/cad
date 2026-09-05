@@ -388,12 +388,12 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
         first.len(),
         second.len()
     );
-    assert!(
-        direct_total > first.len(),
-        "direct evaluation records {direct_total} verdicts on the part's nodes; the \
-         instantiate op's own frame holds {}",
-        first.len()
-    );
+    // The counts are literals on purpose: a row that only compares the
+    // two instances passes when both lose the same decisions. 466 is
+    // the placing op's own log on this part (placement + validation of
+    // the placed body); 724 is the part's, on its own nodes.
+    assert_eq!(first.len(), 466, "the instantiate op's own decisions");
+    assert_eq!(direct_total, 724, "the part's decisions on its own nodes");
 }
 
 // ---- Row 3: instance-qualified naming ----

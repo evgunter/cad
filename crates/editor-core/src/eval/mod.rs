@@ -470,6 +470,14 @@ pub struct NodeError {
     /// that carries an `Indeterminate` inside its own variant is
     /// recorded here too, because the funnel saw it first. Empty when
     /// the node failed before its op ran (a slot, an input, a cycle).
+    ///
+    /// **Not persisted**, like [`NodeValue::escalations`]: a failure's
+    /// escalations are a fact about one run at one box, read in hand
+    /// by the subdivision driver. The verdicts the op recorded before
+    /// failing are NOT carried here — a failed node has no verdict
+    /// vector to certify against — which is why the frame's two
+    /// channels are two `Arc`s at this seam rather than one record:
+    /// the value carries both, the error only this one.
     pub escalations: Arc<EscalationLog>,
 }
 

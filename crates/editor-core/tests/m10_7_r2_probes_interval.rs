@@ -668,7 +668,7 @@ fn r2_collinear_walls_should_discharge_side_planes_cosurface() {
 /// the floor, at either dial — with `M10_7_BLESS_TIER_OFF=1`, committed
 /// with the change they record.
 #[test]
-fn r2_the_tier_off_accounting_is_the_merge_bases_bytes() {
+fn r2_the_tier_off_accounting_is_the_committed_tier_off_bytes_and_the_tier_on_differs() {
     let eps = format!("{:e}", Tol::witness().eps());
     let (base, path) = match eps.as_str() {
         "1e-6" => (

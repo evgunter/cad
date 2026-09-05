@@ -481,10 +481,14 @@ fn guided_validation_runs_no_canonicalization_decide() {
 
     let bracket = Bracket::open();
     let _ = p.validate_guided(tol(), &canonical).expect("is guided");
-    let guided = bracket.finish().verdicts;
+    let recorded = bracket.finish();
+    let guided = recorded.verdicts;
+    // Both channels: a pinned predicate that ESCALATED rather than
+    // decided would still have been asked, and asking is the leak.
     let leaked: Vec<&'static str> = guided
         .iter()
         .map(|v| v.predicate)
+        .chain(recorded.escalations.iter().map(|e| e.predicate()))
         .filter(|n| PINNED.contains(n))
         .collect();
     assert!(
@@ -519,10 +523,12 @@ fn guided_validation_at_interval_certifies_without_the_pinned_decides() {
     let vp = lifted
         .validate_guided(tol(), &canonical)
         .expect("the interval lane certifies the pinned canonical form");
-    let log = bracket.finish().verdicts;
+    let recorded = bracket.finish();
+    let log = recorded.verdicts;
     for name in ["canonical_order_x", "canonical_order_y", "loop_orientation"] {
         assert!(
-            !log.iter().any(|v| v.predicate == name),
+            !log.iter().any(|v| v.predicate == name)
+                && !recorded.escalations.iter().any(|e| e.predicate() == name),
             "the interval lane reached {name}, which it is not supposed to be asked"
         );
     }

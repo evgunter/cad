@@ -1371,20 +1371,30 @@ fn classify_replay<T: geom_core::Decide>(
     // escalation and the profile lift's guided abort — are the two E6
     // names as the cue to bisect.
     //
-    // HOW IT ASKS. Every indeterminate outcome the funnel produced
-    // while a node's op ran is on the node's escalation log — on its
-    // value if the op built anyway, on its error if it did not — so
-    // "was every predicate here definite" is read off the log, and an
-    // escalation an op wrapped in its own error enum (a sweep's
-    // `ExtrusionEscalated`, ~40 such variants across five crates) is
-    // seen without matching on any of them. The FIRST escalation in
-    // decision order speaks for the node: a sliver, or the cue to
-    // bisect. A later sliver behind a refinable escalation does not
+    // HOW IT ASKS, AND IN WHAT ORDER. Three reads per node, and the
+    // order is a rule: (1) a DEFINITE box-independent refusal is
+    // terminal whatever else the op recorded — bisection cannot change
+    // a fact about the document — so it is read first; (2) the node's
+    // escalation log decides among the box-DEPENDENT outcomes: every
+    // indeterminate outcome the FUNNEL produced while the op ran is on
+    // it — on the value if the op built anyway, on the error if it did
+    // not — so an escalation an op wrapped in its own error enum (a
+    // sweep's `ExtrusionEscalated`, ~40 such variants across five
+    // crates) is seen without matching on any of them, and the FIRST
+    // escalation in decision order speaks: a sliver, or the cue to
+    // bisect (a later sliver behind a refinable escalation does not
     // argue — refinement may never reach it on the branch a definite
-    // first decision takes — so that order is the conservative one.
-    // The two error arms below stay for an `Indeterminate` minted
-    // outside the funnel (none is known); they cannot see anything the
-    // log does not already carry.
+    // first decision takes — so that order is the conservative one);
+    // (3) the error-enum arms. Those arms are LOAD-BEARING, not a
+    // fallback: the log carries the funnel's escalations only, and a
+    // predicate that asks the funnel, gets a definite sign, and then
+    // mints an `Indeterminate` of its own (`geom_brep::enters`,
+    // `dihedral`, `pcurve_cache`, `certify`, `edge_nurbs`, `ssi::march`
+    // — eight sites) reaches this loop only through the enum it was
+    // wrapped in; the whole-document mate solve's escalations likewise
+    // arrive only as `NodeErrorKind::Mate`, since no node's bracket is
+    // open when it runs. The gap and the unit that closes it:
+    // `work/props/escalation-channel-misses-op-minted-indeterminates.md`.
     // ITERATION ORDER IS NODE ID, and where a leaf carries several
     // refusing nodes that decides which one speaks: the FIRST
     // indeterminacy in node-id order settles the leaf as a sliver or a
@@ -1396,38 +1406,45 @@ fn classify_replay<T: geom_core::Decide>(
     // is refused mass either way, and the receipt does not change.
     let mut structure_flips = Vec::new();
     for (&node, result) in &leaf.nodes {
-        let escalations = match result {
-            NodeResult::Ok(v) => &v.escalations,
-            NodeResult::Failed(e) => &e.escalations,
+        let (escalations, failure) = match result {
+            NodeResult::Ok(v) => (&v.escalations, None),
+            NodeResult::Failed(e) => (&e.escalations, Some(e)),
             NodeResult::Poisoned { .. } => continue,
         };
-        if let Some(first) = escalations.first() {
-            if let Some(p) = sliver(&first.source) {
-                return LeafVerdict::Refused(RefusalReason::SliverTerminal { predicate: p });
-            }
-            return LeafVerdict::Bisect;
+        // (1) **Box-independent measure refusals are TERMINAL** (M10-6,
+        // R1's MINOR-6). A selection naming the wrong kind of entity,
+        // or a pairing the wedge rule empties, is a fact about the
+        // document: every sub-box inherits it exactly, so refining
+        // re-derives the same refusal until the budget runs out and
+        // then prices the mass `Budget`, naming the symptom. The
+        // classes listed in `box_independent_measure_class` are the
+        // ones that provably cannot move under refinement; a clearance
+        // refusal that CAN (a cell budget, a poisoned enclosure, an
+        // unverified witness) still bisects, because for those a
+        // smaller box is exactly the remedy. Read BEFORE the log: an
+        // escalation the same op also recorded changes nothing about
+        // a refusal no box can move.
+        if let Some(err) = failure
+            && let Some(class) = box_independent_measure_class(&err.kind)
+        {
+            return LeafVerdict::Refused(RefusalReason::MeasureRefused { node, class });
         }
-        let NodeResult::Failed(err) = result else {
+        // (2) The escalation log.
+        if let Some(first) = escalations.first() {
+            return indeterminate(&first.source);
+        }
+        // (3) The error-enum arms.
+        let Some(err) = failure else {
             continue;
         };
         match &err.kind {
-            NodeErrorKind::Escalated { source, .. } => {
-                if let Some(p) = sliver(source) {
-                    return LeafVerdict::Refused(RefusalReason::SliverTerminal { predicate: p });
-                }
-                return LeafVerdict::Bisect;
-            }
+            NodeErrorKind::Escalated { source, .. } => return indeterminate(source),
             NodeErrorKind::ProfileLaneReplay {
                 structure: Some(refusal),
                 ..
             } => match &refusal.kind {
                 profile::StructureRefusalKind::Indeterminate(source) => {
-                    if let Some(p) = sliver(source) {
-                        return LeafVerdict::Refused(RefusalReason::SliverTerminal {
-                            predicate: p,
-                        });
-                    }
-                    return LeafVerdict::Bisect;
+                    return indeterminate(source);
                 }
                 profile::StructureRefusalKind::Flipped { .. } => {
                     structure_flips.push(StructureFlip {
@@ -1436,24 +1453,7 @@ fn classify_replay<T: geom_core::Decide>(
                     });
                 }
             },
-            // **Box-independent measure refusals are TERMINAL**
-            // (M10-6, R1's MINOR-6). A selection naming the wrong kind
-            // of entity, or a pairing the wedge rule empties, is a
-            // fact about the document: every sub-box inherits it
-            // exactly, so refining re-derives the same refusal until
-            // the budget runs out and then prices the mass `Budget`,
-            // naming the symptom. The classes listed in
-            // `box_independent_measure_class` are the ones that
-            // provably cannot move under refinement; a clearance
-            // refusal that CAN (a cell budget, a poisoned enclosure,
-            // an unverified witness) still bisects, because for those
-            // a smaller box is exactly the remedy.
-            kind => {
-                if let Some(class) = box_independent_measure_class(kind) {
-                    return LeafVerdict::Refused(RefusalReason::MeasureRefused { node, class });
-                }
-                return LeafVerdict::Bisect;
-            }
+            _ => return LeafVerdict::Bisect,
         }
     }
 
@@ -1504,6 +1504,15 @@ fn classify_replay<T: geom_core::Decide>(
             verdicts,
             structure: structure_flips,
         }),
+    })
+}
+
+/// What one escalation makes of a leaf: a terminal sliver when its
+/// enclosure sits wholly inside the band ([`sliver`]), otherwise the
+/// cue to bisect. One spelling for the three reads of `classify_replay`.
+fn indeterminate(source: &geom_core::Indeterminate) -> LeafVerdict {
+    sliver(source).map_or(LeafVerdict::Bisect, |predicate| {
+        LeafVerdict::Refused(RefusalReason::SliverTerminal { predicate })
     })
 }
 
