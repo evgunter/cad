@@ -705,3 +705,21 @@ FABLE by the draw; it branches after FILLET-T's fix pass leaves
 sentence on its own `[ev]` PR (memory changes wait for Ev's sign-off).
 Spec drafted (`FILLET-SPLIT-SPEC.md`: a move, `--color-moved` clean, the
 allowlist entry re-scoped not extended, bit-identical by the dump).
+
+**FILLET-T merged (2026-09-05)** at `b1cc95604` (PR
+[#1943](https://github.com/evgunter/cad/pull/1943)), **sample #139**,
+ordinal 2006; block FILLET-B3 slot 0 concluded (line on `fillet/b3-block`).
+The fix pass took the whole union: `SourceFaces` — one snapshot of the
+input body's faces at `blend_surgery` entry threaded to all four phases,
+the `kef` door its method so a narrower set is unspellable (the
+reviewers' snapshot mutant now refuses; all eight per-site mutants
+refuse), `BlendError::SurgeryInvariant` as the D2 row-4 refusal, the
+ruled dump row in `bitdump.rs` (its issue closed), one dump home with the
+dome-annulus row dumping props, the `sorted` seed decided as the minimum
+with the dependent read fixed. `D325` and `D326` closed; **Track T is
+empty.** `docs/FILLET-T-SPEC.md` deleted, ledgered at the merge SHA.
+**FILLET-SPLIT specced** (`docs/FILLET-SPLIT-SPEC.md`, S / STRUCTURAL —
+a move: the two open bands leave `surgery.rs` behind the compound-bound
+entry re-scoped, `--color-moved` clean, bit-identical by the dump) and
+dispatches into block B3 slot 1 (FABLE) now that nothing contends the
+file.
