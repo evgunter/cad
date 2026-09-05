@@ -69,3 +69,46 @@ Two moves, and the second is cheap and independent:
 Not urgent, and deliberately not scheduled against a lane that is
 touching the file: the row comes first, because a split with no rule
 to split on is a rename.
+
+## The file grew again, and the row still does not exist (#1886, 2026-09-05)
+
+`frame.rs` was 984 lines when this item was written. At #1886's head it
+is **1,131** — the unit added `dropped_hide_notice` and `render_causes`
+beside `supersession_notice`, and its PR body does not mention this
+item.
+
+**The reviewer's independent Q8 read, which is the useful part:** this
+extended concern 1 (the status-line vocabulary), it did **not** add a
+ninth. So the file is not more miscellaneous than it was. What it did
+was turn a single function into a three-function sub-family — which is
+precisely the accumulation this item names, arriving in the concern
+that was already the largest, with no `Holds` row to write it against
+and no diff at which it looked unreasonable.
+
+That is the item's own thesis reproducing itself one unit later, and it
+is the argument for taking the cheap half — **the `Holds` row in
+`crates/viewer/README.md`, which has Holds tables at `:319` and
+`:336`** — before another lane touches this file.
+
+## It grew again, and the prose section is the wrong shape (#1933, 2026-09-05)
+
+`frame.rs` was 984 lines when this item was written, 1,131 at #1886's
+head, and **2,037** at `view/news-and-badges`'s. That unit built
+the two ratified vocabularies (`Subject`, `Message`,
+`StatusUpdate::Expire`, `Withdrawal`, `Badge`/`Tone`/`Affordance`, the
+four badge constructors and the ten subject-assigning doors), so the
+growth is the concern that was already largest growing again — this
+item's thesis reproducing itself a second unit running.
+
+**The unit answered the README obligation in the shape this item names
+as the problem.** `crates/viewer/README.md` gained a prose section,
+*"The status line's two lifetimes"*, placed beneath the vocabulary
+tables rather than as a `Holds` row in one. Prose beneath a table is
+exactly how a module's concerns accumulate without any diff at which
+the accumulation looks unreasonable: there is no row to make longer, so
+nothing counts.
+
+The cheap half asked for *"before another lane touches this file"* has
+now been skipped twice. Whether to take the `Holds` row now — and
+whether that section collapses into it or stays beside it — is the
+orchestrator's call, not a lane's.

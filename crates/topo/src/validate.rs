@@ -271,7 +271,7 @@
 
 use core::fmt;
 
-use geom::Surface;
+use geom::{NetState, Surface};
 use geom_brep::{
     CertifyError, DihedralClass, MaterialPairing, MaterialWedge, classify_dihedral,
     classify_material_pairing,
@@ -421,6 +421,20 @@ pub enum ContactMark {
 /// (`Eq` dropped at M2 PR 3: the tier-3 variants carry margin
 /// diagnostics with `f64` payloads.)
 #[derive(Clone, Debug, PartialEq)]
+// The companion fieldless enum is the compiler's own statement of this
+// enum's variants and their order: the Display-coverage row indexes by
+// it and sizes its array from its `COUNT`, so neither the count nor the
+// order is written down twice. Test builds only — nothing in the
+// production surface names it.
+#[cfg_attr(test, derive(strum::EnumDiscriminants))]
+#[cfg_attr(
+    test,
+    strum_discriminants(
+        name(ValidationErrorKind),
+        vis(pub(crate)),
+        derive(strum::EnumCount, strum::EnumIter)
+    )
+)]
 pub enum ValidationError {
     /// Tier 3: the run's tolerance could not produce a valid
     /// classification band (absurd ε — see `Band::linear`). Reported
@@ -439,20 +453,23 @@ pub enum ValidationError {
         /// The dangling surface reference.
         to: GeomRef,
     },
-    /// Tier 3: a face's surface is the `Nurbs` **placeholder** at rest
-    /// — `mvfs`'s all-poison "no description yet" seed state, which
-    /// must be replaced via `Body::set_face_surface` before rest.
-    /// Nothing can be certified against poison.
-    ///
-    /// Since M6-3 this names ONLY the placeholder: a **described**
-    /// NURBS surface (finite control net) is real geometry and passes
-    /// check 1 — its seams certify through the chart iso-line pcurve lane
-    /// (`Pcurve::IsoLine`) and its
-    /// volume flux through the quadrature door. The two states used to
-    /// be conflated here; `NurbsSurface::is_placeholder` is the one
-    /// shared discriminator.
+    /// Tier 3: a face's surface is a `Nurbs` net in
+    /// [`geom::NetState::Placeholder`] at rest, which must be replaced
+    /// via `Body::set_face_surface` before rest.
     UncertifiableSurface {
         /// The face whose surface is the placeholder.
+        face: FaceKey,
+    },
+    /// Tier 3: a face's surface is a `Nurbs` net in
+    /// [`geom::NetState::Poisoned`] — a description that claims a locus
+    /// and cannot evaluate one.
+    ///
+    /// A different STATE from [`ValidationError::UncertifiableSurface`],
+    /// not a different symptom; `NetState`'s docs are where the three
+    /// states are defined and this pair of variants is check 1's
+    /// answer to two of them.
+    PoisonedSurfaceDescription {
+        /// The face whose surface net carries the poison.
         face: FaceKey,
     },
     /// Tier 3: a face's **approximating** surface failed to
@@ -993,6 +1010,27 @@ pub enum ValidationError {
         /// The unsupported subject, whole: an entity for the arms
         /// whose subject is one entity, the face PAIR for the arms
         /// that examine a candidate contact.
+        subject: CensusSubject,
+    },
+    /// Tier 3′: the SCALAR has no certified chart-overlap lane, so the
+    /// conformal face-pair arm could not examine this candidate —
+    /// a fact about the run, not about the geometry.
+    ///
+    /// Distinct from [`ValidationError::CensusUnsupported`] on
+    /// purpose, and the distinction is the recourse: that one says
+    /// *this* record or candidate is outside the certified inventory
+    /// and wants the geometry declared, certified through a supported
+    /// lane, or separated; this one says the same candidate would be
+    /// examined at `f64`, the telemetry probe or the interval scalar
+    /// and wants the body replayed at one of them. The two used to be
+    /// the same variant on the same face, which made a run-wide fact
+    /// read as a per-pair geometric refusal.
+    /// [`ValidationError::ApproxLaneUnsupported`] is the same shape
+    /// one pass over.
+    CensusLaneUnsupported {
+        /// The candidate the arm could not examine — the face PAIR,
+        /// carried whole for the same reason
+        /// [`ValidationError::CensusUnsupported`] carries it.
         subject: CensusSubject,
     },
     /// Tier 3′ (M9-2 union fix, the conservative loudness backstop):
@@ -1539,7 +1577,13 @@ impl fmt::Display for ValidationError {
                 f,
                 "face {face:?}'s surface is the Nurbs PLACEHOLDER (mvfs's all-poison \
                  'no description yet' state) — uncertifiable at rest; attach the real \
-                 surface. A described NURBS surface passes this check"
+                 surface. A described NURBS surface of finite data passes this check"
+            ),
+            Self::PoisonedSurfaceDescription { face } => write!(
+                f,
+                "face {face:?}'s surface is a DESCRIBED Nurbs net carrying poison in some \
+                 channel — a description that claims a locus and cannot evaluate one. Not \
+                 the placeholder, which is the benign 'no description yet' state"
             ),
             Self::ApproxCertification { face, error } => write!(
                 f,
@@ -1733,6 +1777,14 @@ impl fmt::Display for ValidationError {
                  extension is the named follow-up). Refused rather than \
                  sampled; declare and certify through a supported lane, or \
                  separate the geometry"
+            ),
+            Self::CensusLaneUnsupported { subject } => write!(
+                f,
+                "tier-3′ census: this scalar has no certified chart-overlap lane, so the \
+                 conformal face-pair arm could not examine the candidate {subject} — a fact \
+                 about the RUN and not about the geometry, refused rather than skipped. Replay \
+                 the body at f64, the telemetry probe or the interval scalar to get the \
+                 candidate examined"
             ),
             Self::CensusUndecidable { a, b, what } => write!(
                 f,
@@ -2179,10 +2231,12 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 /// tier's start): all of tier 2 ([`validate_closed`]), then the
 /// geometric re-checks at rest, in documented order:
 ///
-/// 1. **Surface implementedness** (faces, arena order): no face's
-///    surface is the `Nurbs` representable-unimplemented placeholder
-///    ([`ValidationError::UncertifiableSurface`]) — nothing can be
-///    certified against it at M2 — and every torus honours D3's ring
+/// 1. **Surface implementedness** (faces, arena order): a `Nurbs`
+///    payload's [`geom::NetState`] is read and each state answered —
+///    `Placeholder` reports [`ValidationError::UncertifiableSurface`],
+///    `Poisoned` reports
+///    [`ValidationError::PoisonedSurfaceDescription`], `Described`
+///    passes; and every torus honours D3's ring
 ///    convention `R > r > 0`
 ///    ([`ValidationError::DegenerateTorus`] /
 ///    [`ValidationError::DegenerateTorusEscalated`]).
@@ -2482,6 +2536,23 @@ pub fn validate_geometric_structural_declared<T: crate::props::PropsQuadLane>(
     declarations: &[DeclaredContact],
     tol: Tol,
 ) -> Result<(), Vec<ValidationError>> {
+    structural_declared_via(body, declarations, tol, None)
+}
+
+/// [`validate_geometric_structural_declared`] with check 2's plane ×
+/// NURBS lane taken as an argument — the shared body of the structural
+/// half and of the composed entry's first phase.
+///
+/// Private, and for the same reason
+/// [`validate_geometric_certified`] is: the two public doors differ in
+/// exactly what they are entitled to claim, and letting a caller pick
+/// the argument would let it claim more than its bound allows.
+fn structural_declared_via<T: crate::props::PropsQuadLane>(
+    body: &Body<T>,
+    declarations: &[DeclaredContact],
+    tol: Tol,
+    nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
+) -> Result<(), Vec<ValidationError>> {
     // Coarse gate: structural tiers first, verbatim.
     validate_closed(body)?;
 
@@ -2492,8 +2563,15 @@ pub fn validate_geometric_structural_declared<T: crate::props::PropsQuadLane>(
     let mut marks = slotmap::SecondaryMap::new();
     // No certificate: this door does not make check 7, and `None` says
     // exactly that rather than an empty verdict standing in for one.
-    let (errors, _) =
-        tier3_local_checks_marked(body, declarations, band, &mut marks, tol, &|_, _, _| None);
+    let (errors, _) = tier3_local_checks_marked(
+        body,
+        declarations,
+        band,
+        &mut marks,
+        tol,
+        &|_, _, _| None,
+        nurbs_lane,
+    );
     if errors.is_empty() {
         Ok(())
     } else {
@@ -2610,7 +2688,16 @@ pub fn validate_geometric_certificate_declared<
     declarations: &[DeclaredContact],
     tol: Tol,
 ) -> Result<crate::props::MassProperties<T>, Vec<ValidationError>> {
-    validate_geometric_structural_declared(body, declarations, tol)?;
+    // The structural half runs WITH check 2's plane x NURBS lane
+    // injected, which is what keeps this composed door re-deriving the
+    // M7-8 certificate class at rest; the public structural door,
+    // whose bound cannot name the lane, runs without it.
+    structural_declared_via(
+        body,
+        declarations,
+        tol,
+        Some(&geom_brep::plane_nurbs_limbs::<T>),
+    )?;
     validate_geometric_certified(body, tol)
 }
 
@@ -2626,6 +2713,12 @@ pub fn validate_geometric_certificate_declared<
 /// included. [`validate_geometric`] wires the same hook to the
 /// certified quadrature instead, which is why its bound is tighter and
 /// why its check 7 is a claim rather than a lane query.
+///
+/// `nurbs_lane` is check 2's plane × NURBS derivation, taken as an
+/// argument for the same reason and with the same discipline: the
+/// lane-keeping doors hand `None` and the certified twins hand the
+/// certified body, and what a `None` costs is written at
+/// [`validate_pseudomanifold`].
 /// **Check 7's derivation at the SCALAR'S OWN LANE** — the
 /// [`PlusVCheck`] every door that dispatches rather than certifies
 /// hands the battery.
@@ -2647,9 +2740,18 @@ pub(crate) fn tier3_local_checks<T: crate::props::PropsQuadLane>(
     declarations: &[DeclaredContact],
     band: Band,
     tol: Tol,
+    nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
 ) -> (Vec<ValidationError>, Check7Certificate<T>) {
     let mut marks = slotmap::SecondaryMap::new();
-    tier3_local_checks_marked(body, declarations, band, &mut marks, tol, &lane_certificate)
+    tier3_local_checks_marked(
+        body,
+        declarations,
+        band,
+        &mut marks,
+        tol,
+        &lane_certificate,
+        nurbs_lane,
+    )
 }
 
 /// **Check 7's verdict**, given the mass properties however they were
@@ -2857,6 +2959,10 @@ pub(crate) fn material_arm_error(
 ///
 /// The tier-1/2 report, else the tier-3 battery's vector — the same
 /// [`ValidationError`]s in the same documented order.
+///
+/// **Check 2 makes no claim about an M7-8 edge here**, at any scalar,
+/// for the reason [`validate_pseudomanifold`] states at length;
+/// [`contact_marks_certified`] is the same pass with the lane supplied.
 pub fn contact_marks<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
     tol: Tol,
@@ -2879,6 +2985,54 @@ pub fn contact_marks_declared<T: crate::props::PropsQuadLane>(
     declarations: &[DeclaredContact],
     tol: Tol,
 ) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
+    contact_marks_declared_via(body, declarations, tol, None)
+}
+
+/// **[`contact_marks`] at a scalar that may certify** — the same pass
+/// with check 2's plane × NURBS lane supplied, for the same reason
+/// [`validate_pseudomanifold_certified`] exists: the lane-keeping door
+/// makes no check-2 claim about an M7-8 edge at any scalar, and this
+/// one's bound names the right that lets it.
+///
+/// # Errors
+///
+/// As [`contact_marks`].
+pub fn contact_marks_certified<T: crate::props::PropsQuadLane + geom_core::CertifiedBounds>(
+    body: &Body<T>,
+    tol: Tol,
+) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
+    contact_marks_declared_certified(body, &[], tol)
+}
+
+/// [`contact_marks_declared`] at a scalar that may certify —
+/// [`contact_marks_certified`]'s declared form.
+///
+/// # Errors
+///
+/// As [`contact_marks_declared`].
+pub fn contact_marks_declared_certified<
+    T: crate::props::PropsQuadLane + geom_core::CertifiedBounds,
+>(
+    body: &Body<T>,
+    declarations: &[DeclaredContact],
+    tol: Tol,
+) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
+    contact_marks_declared_via(
+        body,
+        declarations,
+        tol,
+        Some(&geom_brep::plane_nurbs_limbs::<T>),
+    )
+}
+
+/// The marks pass with check 2's lane as an argument — the shared body
+/// of the lane-keeping door and its certified twin.
+fn contact_marks_declared_via<T: crate::props::PropsQuadLane>(
+    body: &Body<T>,
+    declarations: &[DeclaredContact],
+    tol: Tol,
+    nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
+) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
     validate_closed(body)?;
     let band = match Band::linear(tol) {
         Ok(band) => band,
@@ -2890,8 +3044,15 @@ pub fn contact_marks_declared<T: crate::props::PropsQuadLane>(
     // hand it on, so the pass runs exactly the certificates it always
     // did (`crate::validate_geometric_certificate` is the returning
     // door).
-    let (errors, _) =
-        tier3_local_checks_marked(body, declarations, band, &mut marks, tol, &lane_certificate);
+    let (errors, _) = tier3_local_checks_marked(
+        body,
+        declarations,
+        band,
+        &mut marks,
+        tol,
+        &lane_certificate,
+        nurbs_lane,
+    );
     if errors.is_empty() {
         Ok(marks)
     } else {
@@ -2925,6 +3086,16 @@ type PlusVCheck<'a, T> = &'a dyn Fn(&Body<T>, Band, Tol) -> Check7Certificate<T>
 /// says which of the two it meant. The empty closure is
 /// [`validate_geometric_structural`]'s answer and is not a refusal —
 /// it is the battery run without a check that caller does not make.
+///
+/// `nurbs_lane` is check 2's second derivation, handed in for the same
+/// reason and with the same discipline. The M7-8 carrier class
+/// (`Intersection` of a plane and a described NURBS wall) re-derives
+/// only through the certified plane × NURBS lane, so a caller that
+/// cannot name that lane does not re-derive that class and this
+/// battery SKIPS those edges rather than reporting them
+/// ([`geom_brep::EdgeCurve::needs_nurbs_lane`] asks the question
+/// before the claim is made). Every other carrier class is
+/// re-certified identically either way.
 pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
     declarations: &[DeclaredContact],
@@ -2932,6 +3103,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     marks: &mut slotmap::SecondaryMap<EdgeKey, ContactMark>,
     tol: Tol,
     plus_v: PlusVCheck<'_, T>,
+    nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
 ) -> (Vec<ValidationError>, Check7Certificate<T>) {
     let mut errors = Vec::new();
     let mut certificate: Check7Certificate<T> = None;
@@ -2939,15 +3111,10 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // ------------------------------------------------------------------
     // Tier 3, check 1: surface implementedness (face-arena order).
     //
-    // M6-3 flip A: a DESCRIBED NURBS surface (finite control net) is
-    // real geometry — the loft/sweep assembly mints faces on it, its
-    // seams certify through the chart iso-line pcurve lane
-    // (`Pcurve::IsoLine`), and its volume flux
-    // goes through the quadrature door — so it passes here. What keeps
-    // refusing is the mvfs PLACEHOLDER (all-poison control points),
-    // which is a mid-surgery "no description yet" fact, never a
-    // certifiable surface. One discriminator, shared:
-    // `NurbsSurface::is_placeholder`.
+    // This is the consumer's described arm for a face's SURFACE, which
+    // `geom`'s totality-and-poison rule requires to exist: the three
+    // states a control net can be in are `NetState`'s, defined there,
+    // and each is answered below.
     //
     // A torus is implemented only under D3's ring convention
     // `R > r > 0`: a horn or spindle torus puts a singular point on the
@@ -2958,9 +3125,18 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
         match body.surfaces.get(face.surface) {
-            Some(Surface::Nurbs(payload)) if payload.is_placeholder() => {
-                errors.push(ValidationError::UncertifiableSurface { face: face_key });
-            }
+            Some(Surface::Nurbs(payload)) => match payload.net_state() {
+                NetState::Placeholder => {
+                    errors.push(ValidationError::UncertifiableSurface { face: face_key });
+                }
+                NetState::Poisoned => {
+                    errors.push(ValidationError::PoisonedSurfaceDescription { face: face_key });
+                }
+                // Real geometry, and the checks that examine it are
+                // elsewhere — its seams at check 2, its flux at check
+                // 7. Nothing about the payload itself is a tier-3 fact.
+                NetState::Described => {}
+            },
             // The approximating surface's re-derivation (O5): the
             // two-limb certificate is recomputed from the stored
             // description and fit on EVERY call, and the stored
@@ -3031,7 +3207,39 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
                     }
                 }
             }
-            _ => {}
+            // A plane's frame CAN fail to describe a locus — a zero or
+            // poisoned normal, a poisoned origin — and check 1 does not
+            // say so. Such a face is refused downstream instead: its
+            // plane equation is read at check 3 and its normal at check
+            // 4, where the residual and the wedge angle come out
+            // `Invalid` and escalate (`PlanarFaceEscalated`,
+            // `PlanarBoundaryEscalated`, `SliverDihedral`). Loud, but
+            // by accident of evaluation and never naming the datum —
+            // the shape this check exists to close for `Nurbs`.
+            Some(Surface::Plane { .. }) => {}
+            // Same, for the quadric datums: a cylinder's or sphere's
+            // radius and a cone's half-angle are read through
+            // EVALUATION, not by any datum check, so a poisoned or
+            // nonpositive one reaches check 4's dihedral arm and
+            // escalates there (`SliverDihedral`, predicate
+            // `dihedral_arm` / `dihedral_wedge`) without check 1 or
+            // anything else naming the surface.
+            //
+            // The torus arm above is the one datum check at rest, and
+            // it is there because D3's ring convention is a
+            // REPRESENTABILITY claim (a horn or spindle torus has a
+            // chart singularity no chart in the tree represents), not
+            // because a stored radius is checked as a matter of course.
+            // Whether the argument stops at the torus is an open
+            // question, filed.
+            Some(Surface::Cylinder { .. }) => {}
+            Some(Surface::Sphere { .. }) => {}
+            Some(Surface::Cone { .. }) => {}
+            // Cascade discipline: a face whose surface key does not
+            // resolve is tier 1's `DanglingGeometry`, already reported,
+            // and the coarse gate means we never reach here in that
+            // case.
+            None => {}
         }
     }
 
@@ -3051,16 +3259,51 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         let Some((p_start, p_end)) = edge_endpoints(body, edge.he_plus) else {
             continue;
         };
-        // The at-rest pass takes the plane × NURBS DOOR (M7-8): this
-        // tier already requires a CERTIFYING scalar (`PropsQuadLane` —
-        // not merely a bracket-carrying one, which since D1
-        // (2026-08-19) includes `Dual`), so the lane that certifies a described
-        // NURBS operand is available here — and an imported body of
-        // that class must re-derive its certificate at rest exactly as
-        // it did at attach time. Re-certification re-derives; it never
-        // trusts the stored certificate.
-        if let Err(error) =
-            curve.recertify_nurbs_lane(p_start, p_end, |k| body.surfaces.get(k).cloned(), band)
+        // Re-certification takes the lane the CALLER handed in, not one
+        // read off the scalar. `T: PropsQuadLane` says the scalar can
+        // certify a body at rest; it says nothing about the C9 ring the
+        // plane × NURBS certificate lives in, which is a strictly
+        // narrower right. So a caller that can name the certified lane
+        // supplies it and this check runs whole; a caller that cannot
+        // makes no claim about an M7-8 edge at all.
+        //
+        // **Read that at its true width, because it is wider than the
+        // class it is about.** `recertify_via` is ONE call and check 2
+        // is a whole-edge check: without the lane the description
+        // resolver refuses `Unimplemented` BEFORE the endpoint,
+        // interval and chart-image checks run, so what a lane-free
+        // caller does not get is every check-2 verdict on that edge —
+        // a drifted endpoint on an M7-8 edge included — and not merely
+        // the plane × NURBS limbs. That is why the skip is a skip and
+        // not a report: `Unimplemented` after the fact cannot be told
+        // from a genuine failure, and reporting it would name a defect
+        // in the body for a fact about the caller.
+        //
+        // **An imported or minted body of that class must re-derive
+        // its certificate at rest exactly as it did at attach time.**
+        // That invariant did not move; what moved is which door
+        // honours it. Every door whose bound names the right does
+        // ([`validate_geometric`] and its declared form,
+        // [`validate_pseudomanifold_certified`],
+        // [`contact_marks_certified`] and the certificate forms of the
+        // last two), and `AtRestPolicy`'s certifying arms and
+        // `step-import`'s aggregate gate take those. The lane-keeping
+        // doors and [`validate_geometric_structural`] do not, and each
+        // says so at its own signature.
+        //
+        // Every other carrier class is re-certified the same way at
+        // both doors. Re-certification re-derives; it never trusts the
+        // stored certificate.
+        let claimable =
+            nurbs_lane.is_some() || !curve.needs_nurbs_lane(|k| body.surfaces.get(k).cloned());
+        if claimable
+            && let Err(error) = curve.recertify_via(
+                p_start,
+                p_end,
+                |k| body.surfaces.get(k).cloned(),
+                band,
+                nurbs_lane,
+            )
         {
             errors.push(ValidationError::EdgeCertification {
                 edge: edge_key,
@@ -4219,6 +4462,21 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 /// A non-empty vector of every failure found: tiers 1–2 verbatim if
 /// any, else tier-3 local failures, else census/certification
 /// failures in deterministic sweep order.
+///
+/// # What this door does NOT check, and which door does
+///
+/// **Check 2 makes no claim about an M7-8 edge here** — a plane ×
+/// described-NURBS `Intersection` — at any scalar, this one's `f64`
+/// included. That class re-derives only through the certified plane ×
+/// NURBS lane, which this bound does not name, and check 2 is a
+/// whole-edge check, so what goes unmade is every check-2 verdict on
+/// such an edge rather than only its plane × NURBS limbs.
+/// [`validate_pseudomanifold_certified`] is the same pass with the
+/// lane supplied and is what a certifying caller wants;
+/// [`crate::AtRestPolicy`]'s certifying arms and `step-import`'s
+/// aggregate gate take it. This door keeps its lane so a
+/// [`Dual`](geom_core::Dual) body can still go through the tier-3′
+/// pass, which is the capability H-R3 protects.
 pub fn validate_pseudomanifold<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
     contacts: &crate::boolean::ContactRecords,
@@ -4264,6 +4522,71 @@ pub fn validate_pseudomanifold_certificate<T: crate::props::PropsQuadLane>(
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
 ) -> Result<crate::props::MassProperties<T>, Vec<ValidationError>> {
+    pseudomanifold_certificate_via(body, contacts, tol, None)
+}
+
+/// **[`validate_pseudomanifold`] at a scalar that may certify** — the
+/// same pass, with check 2's plane × NURBS lane supplied.
+///
+/// The lane-keeping door above cannot name that lane: `PropsQuadLane`
+/// says a scalar can certify a body at rest and says nothing about the
+/// C9 ring the M7-8 certificate lives in, so at that door check 2 makes
+/// no claim about an M7-8 edge **at any scalar** — and check 2 is a
+/// whole-edge check, so what goes unmade there is every verdict on that
+/// edge, not only the plane × NURBS limbs. This door's bound names the
+/// right, so the check is made: an imported or minted body carrying that
+/// class re-derives its certificate at rest exactly as it did at attach
+/// time, which is the invariant this pass has always been the home of.
+///
+/// **This is the door a certifying caller wants**, and the three in the
+/// tree take it: [`crate::AtRestPolicy`]'s `f64`, `Probe`, `Interval`
+/// and `Sym` arms, and `step-import`'s aggregate gate. The dual arm
+/// answers `NotRunAtThisScalar` without naming a door at all, so H-R3
+/// is untouched — this adds a door, it takes none away.
+///
+/// # Errors
+///
+/// As [`validate_pseudomanifold`].
+pub fn validate_pseudomanifold_certificate_certified<
+    T: crate::props::PropsQuadLane + geom_core::CertifiedBounds,
+>(
+    body: &Body<T>,
+    contacts: &crate::boolean::ContactRecords,
+    tol: Tol,
+) -> Result<crate::props::MassProperties<T>, Vec<ValidationError>> {
+    pseudomanifold_certificate_via(
+        body,
+        contacts,
+        tol,
+        Some(&geom_brep::plane_nurbs_limbs::<T>),
+    )
+}
+
+/// [`validate_pseudomanifold`] at a scalar that may certify — the
+/// verdict form of [`validate_pseudomanifold_certificate_certified`],
+/// and the door [`crate::AtRestPolicy`]'s certifying arms take.
+///
+/// # Errors
+///
+/// As [`validate_pseudomanifold`].
+pub fn validate_pseudomanifold_certified<
+    T: crate::props::PropsQuadLane + geom_core::CertifiedBounds,
+>(
+    body: &Body<T>,
+    contacts: &crate::boolean::ContactRecords,
+    tol: Tol,
+) -> Result<(), Vec<ValidationError>> {
+    validate_pseudomanifold_certificate_certified(body, contacts, tol).map(|_| ())
+}
+
+/// The tier-3′ pass with check 2's lane as an argument — the shared
+/// body of the lane-keeping door and its certified twin.
+fn pseudomanifold_certificate_via<T: crate::props::PropsQuadLane>(
+    body: &Body<T>,
+    contacts: &crate::boolean::ContactRecords,
+    tol: Tol,
+    nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
+) -> Result<crate::props::MassProperties<T>, Vec<ValidationError>> {
     validate_closed(body)?;
     let band = match Band::linear(tol) {
         Ok(band) => band,
@@ -4286,7 +4609,7 @@ pub fn validate_pseudomanifold_certificate<T: crate::props::PropsQuadLane>(
             class: crate::contact::ContactClass::Tangent,
         })
         .collect();
-    let (mut errors, certificate) = tier3_local_checks(body, &declarations, band, tol);
+    let (mut errors, certificate) = tier3_local_checks(body, &declarations, band, tol, nurbs_lane);
     if errors.is_empty() {
         errors.extend(crate::census::census_and_certify(body, contacts, band));
     }
@@ -5935,93 +6258,12 @@ mod tests {
 
     #[test]
     fn errors_display_without_panicking() {
-        // One sample per `ValidationError` variant.
-        //
-        // What the compiler enforces: `variant_index` matches the enum
-        // with NO wildcard arm, so a new variant fails to build until an
-        // arm exists for it, and the coverage assertion then names the
-        // variant whose sample is missing.
-        //
-        // What it does NOT enforce: `VARIANTS` is hand-written, so a new
-        // variant given an arm but no sample still passes. Closing that
-        // needs the variant count from the compiler — `strum`'s
-        // `EnumCount` derive or the workspace's first proc-macro crate —
-        // and neither is bought here. When you add an arm, its index is
-        // the new `VARIANTS - 1`.
-        const VARIANTS: usize = 69;
-        fn variant_index(e: &ValidationError) -> usize {
-            match e {
-                ValidationError::Band { .. } => 0,
-                ValidationError::DanglingDescription { .. } => 1,
-                ValidationError::UncertifiableSurface { .. } => 2,
-                ValidationError::EdgeCertification { .. } => 3,
-                ValidationError::DescriptionNotAdjacent { .. } => 4,
-                ValidationError::PlanarFaceResidual { .. } => 5,
-                ValidationError::PlanarFaceEscalated { .. } => 6,
-                ValidationError::PlanarBoundaryResidual { .. } => 7,
-                ValidationError::PlanarBoundaryEscalated { .. } => 8,
-                ValidationError::SliverDihedral { .. } => 9,
-                ValidationError::TransverseNotIntrinsic { .. } => 10,
-                ValidationError::TangentNotIntrinsic { .. } => 11,
-                ValidationError::UndeclaredCusp { .. } => 67,
-                ValidationError::LaminaWedge { .. } => 68,
-                ValidationError::LoopRoleInverted { .. } => 12,
-                ValidationError::CurvedSenseInverted { .. } => 13,
-                ValidationError::NegativeVolume => 14,
-                ValidationError::VolumeUncomputable { .. } => 15,
-                ValidationError::Pcurve { .. } => 16,
-                ValidationError::UndeclaredContact { .. } => 17,
-                ValidationError::StaleContactDeclaration { .. } => 18,
-                ValidationError::ContactContradicted { .. } => 19,
-                ValidationError::CensusEscalated { .. } => 20,
-                ValidationError::CensusUnsupported { .. } => 21,
-                ValidationError::CensusUndecidable { .. } => 22,
-                ValidationError::DanglingTopology { .. } => 23,
-                ValidationError::DanglingGeometry { .. } => 24,
-                ValidationError::NextPrevMismatch { .. } => 25,
-                ValidationError::LoopCycleOverrun { .. } => 26,
-                ValidationError::ParentLoopMismatch { .. } => 27,
-                ValidationError::UnreachableHalfEdge { .. } => 28,
-                ValidationError::EdgeHalvesIdentical { .. } => 29,
-                ValidationError::EdgeSlotBackpointerMismatch { .. } => 30,
-                ValidationError::HalfEdgeUnclaimed { .. } => 31,
-                ValidationError::HalfEdgeMultiplyClaimed { .. } => 32,
-                ValidationError::EdgeNotAntiparallel { .. } => 33,
-                ValidationError::EmanatingStartMismatch { .. } => 34,
-                ValidationError::EmptyLoopVertexWithEmanating { .. } => 35,
-                ValidationError::LoneVertexWithIncidence { .. } => 36,
-                ValidationError::VertexOrbitOverrun { .. } => 37,
-                ValidationError::OrbitForeignMember { .. } => 38,
-                ValidationError::SplitVertexOrbit { .. } => 39,
-                ValidationError::OuterListedAsRing { .. } => 40,
-                ValidationError::BackPointerMismatch { .. } => 41,
-                ValidationError::OrphanEntity { .. } => 42,
-                ValidationError::MultiplyOwned { .. } => 43,
-                ValidationError::OrphanGeometry { .. } => 44,
-                ValidationError::SolidWithoutShells { .. } => 45,
-                ValidationError::ShellWithoutFaces { .. } => 46,
-                ValidationError::EdgeAcrossShells { .. } => 47,
-                ValidationError::ComponentEulerViolation { .. } => 48,
-                ValidationError::MissingProvenance { .. } => 49,
-                ValidationError::LeakedProvenance { .. } => 50,
-                ValidationError::ScaffoldingEmptyLoop { .. } => 51,
-                ValidationError::ScaffoldingStrutVertex { .. } => 52,
-                ValidationError::ShellDisconnected { .. } => 53,
-                ValidationError::NullScaffoldShared { .. } => 54,
-                ValidationError::LeakedNullFaceRecord { .. } => 55,
-                ValidationError::StaleNullFaceLoop { .. } => 56,
-                ValidationError::NullEdgeAtRest { .. } => 57,
-                ValidationError::NullFaceAtRest { .. } => 58,
-                ValidationError::DegenerateTorus { .. } => 59,
-                ValidationError::DegenerateTorusEscalated { .. } => 60,
-                ValidationError::NonpositiveTorusTube { .. } => 61,
-                ValidationError::ApproxCertification { .. } => 62,
-                ValidationError::ApproxLaneUnsupported { .. } => 63,
-                ValidationError::RingMeetsOuter { .. } => 64,
-                ValidationError::RingContactEscalated { .. } => 65,
-                ValidationError::ScaffoldAtRest { .. } => 66,
-            }
-        }
+        // One sample per `ValidationError` variant, indexed by the
+        // enum's own compiler-derived companion: `ValidationErrorKind`
+        // supplies both the index and the count, so a variant added
+        // without a sample fails this row by name and nothing here
+        // restates the enum.
+        use strum::{EnumCount as _, IntoEnumIterator as _};
         fn band_error() -> geom_core::BandError {
             geom_core::Band::new(1.0, 0.0).unwrap_err()
         }
@@ -6157,6 +6399,7 @@ mod tests {
                 to: GeomRef::Point(t.points[0]),
             },
             ValidationError::UncertifiableSurface { face: t.face_a },
+            ValidationError::PoisonedSurfaceDescription { face: t.face_a },
             ValidationError::EdgeCertification {
                 edge: e,
                 error: CertifyError::Unimplemented,
@@ -6232,6 +6475,9 @@ mod tests {
             ValidationError::CensusUnsupported {
                 subject: CensusSubject::Entity(EntityId::Face(t.face_a)),
             },
+            ValidationError::CensusLaneUnsupported {
+                subject: CensusSubject::FacePair(t.face_a, t.face_b),
+            },
             ValidationError::CensusUndecidable {
                 a: EntityId::Face(t.face_a),
                 b: EntityId::Face(t.face_a),
@@ -6263,17 +6509,27 @@ mod tests {
             },
             ValidationError::ApproxLaneUnsupported { face: t.face_a },
         ];
-        let mut covered = [false; VARIANTS];
+        // The two derives agree on order: `from(err) as usize` is
+        // the declaration index and `iter()` walks the same
+        // sequence, so zipping them below pairs each flag with the
+        // kind it stands for. Asserted rather than assumed.
+        for (i, kind) in ValidationErrorKind::iter().enumerate() {
+            assert_eq!(kind as usize, i, "EnumIter order is the discriminant order");
+        }
+        let mut covered = [false; ValidationErrorKind::COUNT];
         for err in &all {
             // Display and Error are wired up; content is human-oriented.
             assert!(!err.to_string().is_empty());
             let _: &dyn std::error::Error = err;
-            covered[variant_index(err)] = true;
+            covered[ValidationErrorKind::from(err) as usize] = true;
         }
+        let missing: Vec<ValidationErrorKind> = ValidationErrorKind::iter()
+            .zip(covered)
+            .filter_map(|(kind, seen)| (!seen).then_some(kind))
+            .collect();
         assert!(
-            covered.iter().all(|&c| c),
-            "every ValidationError variant needs a Display sample; missing index {:?}",
-            covered.iter().position(|&c| !c),
+            missing.is_empty(),
+            "every ValidationError variant needs a Display sample; missing {missing:?}",
         );
     }
 

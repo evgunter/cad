@@ -422,3 +422,153 @@ fn bitdump_concave_closed_rims() {
 
     save(&dir, "concave_closed_rims", &text);
 }
+
+/// The **extrude/revolve corpus**: every body kind whose construction
+/// runs a description upgrade — extrude's cap rims and strut joins over
+/// each profile leg kind, revolve's meridian and latitude joins over
+/// each elementary wall. `dump` writes each edge's stored description,
+/// so a PR claiming the descriptions do not move runs this at the merge
+/// base and at the head and diffs the files.
+#[test]
+fn bitdump_extrude_revolve_corpus() {
+    let Some(dir) = dump_dir() else {
+        return;
+    };
+    let tol = Tol::witness();
+    let p2 = Point2::<f64>::new;
+    let b = core::f64::consts::FRAC_PI_8.tan();
+    let extruded_by = |name: &str,
+                       loops: Vec<ProfileLoop<f64>>,
+                       e: sweep::Extrusion<f64>|
+     -> (String, Body<f64>) {
+        let profile = Profile::new(SketchPlane::xy(), loops)
+            .validate(tol)
+            .unwrap();
+        let body = sweep::extrude(&profile, e, tol).unwrap().body;
+        (name.to_owned(), body)
+    };
+    let extruded = |name: &str, loops: Vec<ProfileLoop<f64>>, h: f64| -> (String, Body<f64>) {
+        extruded_by(name, loops, sweep::Extrusion::Distance(h))
+    };
+    let circle = |cx: f64, cy: f64, r: f64| {
+        <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+            ProfileVertex::new(p2(cx - r, cy), 1.0),
+            ProfileVertex::new(p2(cx + r, cy), 1.0),
+        ])
+    };
+
+    let mut rows: Vec<(String, Body<f64>)> = vec![
+        extruded(
+            "L prism (all-line, one concave corner)",
+            vec![ProfileLoop::polygon([
+                p2(0.0, 0.0),
+                p2(2.0, 0.0),
+                p2(2.0, 1.0),
+                p2(1.0, 1.0),
+                p2(1.0, 2.0),
+                p2(0.0, 2.0),
+            ])],
+            0.75,
+        ),
+        extruded(
+            "cylinder (two semicircle arcs)",
+            vec![circle(0.0, 0.0, 1.5)],
+            2.0,
+        ),
+        extruded(
+            "holed prism (square + circular ring)",
+            vec![
+                ProfileLoop::polygon([p2(0.0, 0.0), p2(2.0, 0.0), p2(2.0, 2.0), p2(0.0, 2.0)]),
+                circle(1.0, 1.0, 0.5),
+            ],
+            1.0,
+        ),
+        extruded(
+            "rounded square (tangent line-arc joins)",
+            vec![
+                <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+                    ProfileVertex::new(p2(0.25, 0.0), 0.0),
+                    ProfileVertex::new(p2(0.75, 0.0), b),
+                    ProfileVertex::new(p2(1.0, 0.25), 0.0),
+                    ProfileVertex::new(p2(1.0, 0.75), b),
+                    ProfileVertex::new(p2(0.75, 1.0), 0.0),
+                    ProfileVertex::new(p2(0.25, 1.0), b),
+                    ProfileVertex::new(p2(0.0, 0.75), 0.0),
+                    ProfileVertex::new(p2(0.0, 0.25), b),
+                ])
+                .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]),
+            ],
+            0.5,
+        ),
+        extruded(
+            "concave arc leg",
+            vec![<ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+                ProfileVertex::new(p2(0.0, 0.0), 0.0),
+                ProfileVertex::new(p2(3.0, 0.0), 0.0),
+                ProfileVertex::new(p2(3.0, 2.0), 0.0),
+                ProfileVertex::new(p2(0.0, 2.0), -0.4),
+            ])],
+            1.25,
+        ),
+    ];
+    // `Extrusion::Vector` takes a different door into the same rim
+    // upgrade than `Distance` does (`extrusion_obliquity` /
+    // `extrusion_normal_component` against `n · d`), and a NEGATIVE
+    // distance flips which cap is which — both reach `upgrade_rim`
+    // with the caps' orientations swapped, so both belong in a corpus
+    // whose subject is what that pass stores.
+    rows.push(extruded_by(
+        "square prism by vector (the Vector door)",
+        vec![ProfileLoop::polygon([
+            p2(0.0, 0.0),
+            p2(2.0, 0.0),
+            p2(2.0, 2.0),
+            p2(0.0, 2.0),
+        ])],
+        sweep::Extrusion::Vector(geom_core::Vec3::new(0.0, 0.0, 1.75)),
+    ));
+    rows.push(extruded_by(
+        "rounded-corner prism, reversed (negative distance)",
+        vec![
+            <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+                ProfileVertex::new(p2(0.25, 0.0), 0.0),
+                ProfileVertex::new(p2(0.75, 0.0), b),
+                ProfileVertex::new(p2(1.0, 0.25), 0.0),
+                ProfileVertex::new(p2(1.0, 0.75), b),
+                ProfileVertex::new(p2(0.75, 1.0), 0.0),
+                ProfileVertex::new(p2(0.25, 1.0), b),
+                ProfileVertex::new(p2(0.0, 0.75), 0.0),
+                ProfileVertex::new(p2(0.0, 0.25), b),
+            ])
+            .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]),
+        ],
+        sweep::Extrusion::Distance(-0.5),
+    ));
+    rows.push(("dome (plane-sphere equator)".to_owned(), dome(1.0, tol)));
+    rows.push(("waisted (cone-plane rims)".to_owned(), waisted(tol)));
+    rows.push((
+        "sphere zone (sphere-sphere rim pair)".to_owned(),
+        sphere_zone(0.4, Revolution::Full, tol),
+    ));
+    rows.push(("lantern (sphere-cone-plane)".to_owned(), lantern(tol)));
+    rows.push((
+        "poled ball (full revolve, meridian seam)".to_owned(),
+        ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol),
+    ));
+    // A PARTIAL revolve is the only body kind that mints wedge caps —
+    // and so the only one with the cap–cap AXIS edges
+    // `upgrade_intersection`'s own doc names among the loci that funnel
+    // through it. Without this row the corpus never exercises that
+    // caller at all.
+    rows.push((
+        "sphere zone, quarter turn (partial revolve, cap-cap axis edges)".to_owned(),
+        sphere_zone(0.4, Revolution::Partial(core::f64::consts::FRAC_PI_2), tol),
+    ));
+
+    let mut text = String::new();
+    for (name, body) in &rows {
+        let _ = writeln!(text, "== {name} ==");
+        text.push_str(&dump(body));
+    }
+    save(&dir, "extrude_revolve_corpus", &text);
+}

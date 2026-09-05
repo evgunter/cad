@@ -703,3 +703,51 @@ without `--force-all`), leave F3 and price the fleet as the detector
 (tonight's numbers), or a narrow unscoped guard row — which on the
 **pull-request** side would have red both PRs before they merged.
 Nothing about F3 was touched.
+
+## 2026-09-05 — the change closure reaches tree-wide guards
+
+Ev, in chat: *"oh yeah the closure should reach tree wide guards"*, and
+*"don't hand the unit to tcost; you can take it"*. The measurement it rules
+on is `work/ciw/tree-wide-guards-outside-the-change-closure.md` (PR #1889):
+`scripts/ci-filter.py`'s TIER=closure scope is the dependent closure, so
+`crates/test-utils/tests/reader_census.rs` — whose subject is every `.rs` file
+in the repository — is in scope for 1 of 18 members, and reddened `main` twice
+on 2026-09-04 from PRs that were fully green because the guard was never built
+in them. Unit: `work/ciw/closure-reaches-tree-wide-guards.md`.
+
+**Nothing is listed.** `PKGS` is now the dependent closure plus a READ REACH
+derived from what each crate's sources open: a path that lands at the
+repository root or at `crates/` pins its crate into every non-docs closure, a
+path that lands in another member is a read edge keyed on that member's seeds,
+and a `.md` a Rust suite opens joins `_consumed_markdown` and leaves the docs
+tier. A hand-maintained roster was the alternative and is the one shape the
+ruling exists to remove — the sweep in #1889 found five guards, the scanner
+found a sixth (`crates/bvh/tests/aggregator_headers.rs`, whose own header says
+*"its subject is workspace-wide, so no crate owns it and any home is
+arbitrary"*) and a seventh instance one tier over
+(`crates/geom-core/tests/flagged_census.rs` reading
+`docs/predicate-dimension-audit.md`, which a docs-only PR could break and
+never run).
+
+**Derived here**: `bvh, editor-core, geom-core, pncad-py, test-utils`.
+
+**Measured cost, cold, on a 4 vCPU / 16 GB box — the hosted runner's shape.**
+The pins add almost no COMPILE, because a dependent closure already drags the
+whole graph: 17 of 18 single-seed closures gain zero new crate builds and only
+extra test BINARIES. `cargo nextest archive` on PR 1829's real diff: 145.4 s /
+22 binaries -> 164.1 s / 28 binaries (**+18.7 s, +13 %**). The worst case is a
+viewer-only change, the one closure that gains a compile (`pncad-py`): 43.1 s /
+2 binaries -> 73.9 s / 14 (**+30.8 s**). The classifier itself: 0.99 s ->
+1.82 s on a code diff, 0.86 s -> 1.70 s on a docs one. **A docs-tier PR run
+still compiles nothing** — the reach is read in the closure branch and in
+`_consumed_markdown`, both of which are python over `crates/**/*.rs`, and no
+cargo invocation was added to the docs path.
+
+**F3 is untouched**, and so is what a `main` push re-gates. `JOB_ROOTS` is
+keyed on the dependent closure with the reach subtracted again, so pinning
+`editor-core` does not silently switch four named job rows permanently on.
+
+**Announced cross-fence change.** `scripts/ci-filter.py` is in S-TCOST's
+`paths` and in CIW's `keep_out`; S-TCOST is open, no `program.md` was edited,
+and the PR names it and invites S-TCOST to own the result. Residue:
+`work/ciw/reach-cannot-follow-every-ascent.md`.

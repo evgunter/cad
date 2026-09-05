@@ -27,75 +27,69 @@ announced, not assumed — and it is exactly the state
 (`work/issues/territory-cannot-see-a-path-two-programs-both-claim`), so
 it will not warn anyone.
 
+## The ruling this program runs on (Ev, in chat, 2026-09-05)
+
+A mate reference carries the node it is read at, the shape the
+measurement reference already has (`MeasureRef { at, name }`, one type
+for both once MSOLVE-1 lands). That operand is an A12 READING edge —
+stored on the mate, never consuming, so the mated bodies stay A10
+roots — and the solve composes the map of every pose-bearing node
+between the operand and the minting instance. N1 is untouched: a
+transform still mints no segment, because a segment marks a new entity
+and a transform moves one. The alternatives weighed and rejected are in
+`log.md`'s entry of that date.
+
 ## The slate, in dependency order
 
-1. **`mate-solve-is-transform-blind`** — the gate, and the only live
-   defect here. `fold_pair` builds each mate's coset from authored
-   alignment data and never reads the evaluated body, while
-   `wire_transform` composes its map on afterwards. Measured through
-   ordinary doors: **string-identical solved frames with and without a
-   `Node::Transform`**, `fault = None`, `product = Ok`, mated faces 10
-   apart — a green document with a gap where the author declared
-   contact. Characterization rows are on main (PR 1773) and are written
-   to go **red when this is fixed**; their header says the fix deletes
-   them rather than updating them.
+1. **`MSOLVE-1`** — the operand on the mate, the walk, the transform's
+   map composed, pattern-of-transform admitted; deletes
+   `fix_xblind_probe.rs`. Spec `docs/MSOLVE-1-SPEC.md`. Answers
+   `mate-solve-is-transform-blind`.
+2. **`MSOLVE-2`** — the member chain: nested patterns, sibling
+   distinctness at every level, the loop-closure rows. Parked on 1.
+   Lands the rest of the PR 1731 ruling
+   (`nested-pattern-mate-heads-refuse`).
+3. **`MSOLVE-3`** — the `DanglingHead` catch-all closes: one variant
+   carrying the evaluation layer's typed refusal. Ruled in by this
+   program as S-MATE's successor; sequenced after 1 because the arm it
+   replaces is rewritten there.
+4. **`MSOLVE-4`** — a mate's memo key carries the solve's answer
+   (`mate-memo-key-does-not-carry-the-solve`: a blamed mate reads `Ok`
+   in the evaluation that blames it; CHROME's viewer-side guard
+   retires with it). Spec `docs/MSOLVE-4-SPEC.md`; parked on 1 only
+   for the shared key arm, dispatches at 1's merge.
+5. **`mate-lever-needs-the-parts-extent`** — the mated parts' extent
+   reaching `Alignment::lever_arm`; a schema question (authored beside
+   the datum, or resolved through the part store) before it is a unit.
+   `[ev]` when it is next in line.
+6. **`aq8-skip-half-is-cited-as-ratified-and-is-not`** — a ratification
+   for Ev: the SKIP half joins the weld half in `ASSEMBLY.md`'s AQ8
+   clause with its condition stated. A short `[ev]` PR, not gated on
+   the units.
+7. **`mate1-sweep-inferred-a-remap-from-a-refuted-reachability`** — a
+   record correction; lands with the first state-sync.
 
-   The fix shape, from the measurement: a `derived_offset` **sibling
-   that walks the input chain and composes every pose-bearing node's
-   map**, not just the pattern's.
+## Territory
 
-   Two blind spots the measurement stated, and the first is worth
-   closing before anything else: a `Prismatic` mate along +z may absorb
-   the translation in its free direction, which would make this
-   **class-dependent and intermittent** rather than uniform; and
-   rotation is untested (the probe is translation-only with angle
-   exactly 0, chosen for exact arithmetic).
+Ev, in chat, 2026-09-05: touch whatever the units need and resolve
+merge conflicts with DOCM if they arise. The overlap on `mate.rs` and
+`mate/*` stands as announced; MSOLVE-1 also touches `node.rs`,
+`edit.rs`, `refactor.rs`'s remap, the content key, the viewer's mate
+tool and the Python mate door, and says so in its spec's fence.
 
-2. **`nested-pattern-mate-heads-refuse`** — RULED IN by Ev on PR 1731,
-   both halves: the member vocabulary extends through
-   identity-transparent nodes, nested patterns and pattern-of-transform
-   alike, as one walk. **Gated on (1)** — extending without composing
-   the transform's map converts one silent wrong answer into two,
-   because `DanglingHead` is currently the only guard on the patterned
-   twin of the silent half.
+## Where the extended vocabulary is written down
 
-   Measured cost: `Member.copy` grows from `Option<(RecipeNodeId, u32)>`
-   to a chain, loses `Copy`, and it is the `BTreeMap` key for `by_pair`
-   and `edge_of` and the thing the spanning tree selects its edges by.
-   Owes loop-closure rows for a nested member that nothing in the suite
-   has today.
-
-3. **`mate-dangling-head-is-a-catch-all-that-reports-a-false-cause`** —
-   `derived_offset`'s `# Errors` defends its catch-all with *"the
-   pattern node's own evaluation names the underlying cause in its own
-   voice"*. Measured false: the mate fault **poisons** the document, so
-   that node never evaluates and the cause appears nowhere. Predates
-   the unit that found it; already mis-labels the decided-zero case.
-   The proposal on file is one variant carrying the evaluation layer's
-   typed refusal verbatim, closing the catch-all.
-
-4. **`mate1-sweep-inferred-a-remap-from-a-refuted-reachability`** — a
-   correction owed to a sweep report other units may be reading:
-   issue 1405 inferred a remap requirement from a reachability AQ8's
-   addendum had already refuted. Closed by exhaustion on PR 1749 (318
-   cut sets). No code; the record is the deliverable.
-
-5. **`aq8-skip-half-is-cited-as-ratified-and-is-not`** — the "(b) SKIP"
-   half is cited around the tree as ratified and lives only in a
-   test-file comment and a commit message. Ratify it or demote the
-   citations; it is load-bearing for PR 1749's argument.
-
-## The first [ev] question
-
-**Where the extended vocabulary is written down.** `docs/MATE-1-SPEC.md`
-carried the A11 rider and was deleted at merge per `docs/DOC-LEDGER.md`,
-and no `crates/*/README.md` picked it up. So the rule Ev has just
-extended has no ratified home to extend. That is a question before it is
-a unit.
+Answered without a PR: A11 rule (5)'s last sentence in
+`crates/editor-core/ASSEMBLY.md` is the member vocabulary's ratified
+home ("a reference head is a live `InstantiatePart` or a pattern's
+`Instance(i)` …"). Each unit that extends the vocabulary edits that
+sentence.
 
 ## Review posture
 
-Inherited from FIX, where it was measured over eleven units: **one style
-review per unit, plus a correctness arm where a unit moves a kernel
-answer rather than its rendering.** (1) and (2) both move kernel
-answers. No A/B rows; the band above is claimed for bookkeeping only.
+Inherited from FIX: **one style review per unit, plus a correctness
+arm where a unit moves a kernel answer rather than its rendering.**
+MSOLVE-1, -2 and -3 all move kernel answers. No A/B rows; the band is
+claimed for bookkeeping only. This orchestrator runs on a remote box:
+`[ev]` PRs get a PR subscription rather than the local away-channel
+monitor.

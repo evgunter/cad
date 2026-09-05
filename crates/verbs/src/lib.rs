@@ -5,14 +5,14 @@
 //! # What it is NOT, yet
 //!
 //! It is not "every operation a recipe door can invoke", and reading it
-//! that way would misjudge every later unit's cost. **Three verbs in
-//! two record families live here**: the blend pair and the boolean's
-//! three regularized ops. Every other door — extrude, revolve, split,
-//! transform, pattern, loft, sweep, shell, measure — still runs the
-//! way it always did, and is reached by `editor-core`'s lowering
-//! calling its op crate directly. This crate is the SEAT the rest
-//! migrate onto (SEAT-7 and after — SEAT-6 is the `ParamSource`
-//! channel, not a migration), not a description of where they are.
+//! that way would misjudge every later unit's cost. **Five verbs in
+//! four record families live here**: the blend pair, the two sweeps
+//! (extrude and revolve) and the boolean's three regularized ops.
+//! Every other door — split, transform, pattern, loft, sweep along a
+//! path, shell, measure — still runs the way it always did, and is
+//! reached by `editor-core`'s lowering calling its op crate directly.
+//! This crate is the SEAT the rest migrate onto, not a description of
+//! where they are.
 //!
 //! The design's cost claim is scoped the same way and is not
 //! demonstrated here: what these units show is that the migrated verbs
@@ -24,9 +24,10 @@
 //! A [`Verb`] is the operation's parameters reified as plain data:
 //! scalars at `T`, entity references as arena keys. Operand bodies are
 //! NOT in the payload — they are borrowed at run time, and the
-//! declaration states the arity instead ([`VerbKind::arity`]: one body
-//! for the blends, two for the boolean, each behind its own typed
-//! door). Everything else a verb is committed to belongs to whoever
+//! declaration states what the operand IS instead
+//! ([`VerbKind::arity`]: one body for the blends, two for the
+//! boolean, one validated PROFILE for the sweeps, each behind its own
+//! typed door). Everything else a verb is committed to belongs to whoever
 //! owns that commitment, not here: the content-key tag beside
 //! `editor-core`'s memo machinery, the wire spelling on `Node`'s serde
 //! derives, the Python constructor, the viewer's tree label. This
@@ -40,9 +41,9 @@
 //!
 //! # Why a crate of its own
 //!
-//! The vocabulary spans crates: the blend pair is `sweep`'s, the
-//! boolean is `topo`'s (the split joins at its own migration), and
-//! more follow. Hosting the enum in either op crate would make one of
+//! The vocabulary spans crates: the blend pair and the two sweeps are
+//! `sweep`'s, the boolean is `topo`'s (the split joins at its own
+//! migration), and more follow. Hosting the enum in either op crate would make one of
 //! them name the other's ops, so it sits above both and below
 //! `editor-core`, which is the only consumer.
 //!
@@ -60,6 +61,6 @@ pub mod flow;
 mod run;
 mod verb;
 
-pub use flow::{FieldRole, ParamFlow, RoleFamily, ScalarParam};
+pub use flow::{EdgeScalar, FieldRole, FlowSource, ParamFlow, RoleFamily, ScalarParam};
 pub use run::{PairOut, VerbError, VerbOut, VerbRecord};
 pub use verb::{Arity, Verb, VerbKind};
