@@ -29,8 +29,11 @@ pub struct Mat3<T: Real> {
 
 impl<T: Real> Mat3<T> {
     /// Builds a matrix from its columns (the images of the basis
-    /// vectors).
-    pub fn from_cols(c0: Vec3<T>, c1: Vec3<T>, c2: Vec3<T>) -> Self {
+    /// vectors). A `const fn` (the doctest at [`Point3::new`] reads a
+    /// constant placement built through it).
+    ///
+    /// [`Point3::new`]: crate::Point3::new
+    pub const fn from_cols(c0: Vec3<T>, c1: Vec3<T>, c2: Vec3<T>) -> Self {
         Self { c0, c1, c2 }
     }
 
