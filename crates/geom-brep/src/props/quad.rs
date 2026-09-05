@@ -97,7 +97,6 @@
 
 use geom_core::ring_interval::RingInterval;
 use geom_core::spline::derivative_knot_slice;
-use geom_core::spline::hull::{derivative_coeffs, span_hull};
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{KnotVector, Span};
 use geom_core::{Band, Decide, Margin, Sign};
@@ -632,16 +631,24 @@ fn bspline_eval_ring(kv: &KnotVector, coeffs: &[RingInterval], t: f64) -> RingIn
     d[p]
 }
 
-/// Hull of a scalar B-spline over `[lo, hi]`: the hull of the active
-/// spans' coefficient hulls (conservative to span granularity).
-fn bspline_range_hull(kv: &KnotVector, coeffs: &[RingInterval], lo: f64, hi: f64) -> RingInterval {
+/// Hull of a scalar B-spline over `[lo, hi]`: `coeffs` minted as
+/// `kv`'s, then the hull of the active spans' coefficient hulls
+/// (conservative to span granularity). Poison when the mint refuses
+/// the pair — a count the ladder's own structure never produces, kept
+/// as the answer a bound gives for structure it cannot license.
+fn range_hull(kv: &KnotVector, coeffs: &[RingInterval], lo: f64, hi: f64) -> RingInterval {
+    let Some(pair) = kv.with_coeffs(coeffs) else {
+        return RingInterval::poison();
+    };
     let (s0, s1) = kv.span_range(lo, hi);
     let mut acc = RingInterval::poison();
     let mut seeded = false;
     for index in s0.index()..=s1.index() {
-        // Emptiness check and span validation are one step.
-        let Some(span) = kv.span(index) else { continue };
-        let h = span_hull(coeffs, span);
+        // Emptiness check and window construction are one step.
+        let Some(win) = pair.span(index) else {
+            continue;
+        };
+        let h = win.hull();
         acc = if seeded {
             RingInterval::hull(acc, h)
         } else {
@@ -690,7 +697,7 @@ impl DerivLadder {
             if cur_coeffs.len() < 2 {
                 break;
             }
-            let q = derivative_coeffs(k, &cur_coeffs);
+            let q = k.difference_coeffs(&cur_coeffs);
             let next_kv = deriv_kv(k);
             *level = Some((next_kv.clone(), q.clone()));
             cur_kv = next_kv;
@@ -705,7 +712,7 @@ impl DerivLadder {
         match &self.levels[order - 1] {
             // In-span polynomial zero (degree exhausted).
             None => RingInterval::zero(),
-            Some((Some(kv), q)) => bspline_range_hull(kv, q, lo, hi),
+            Some((Some(kv), q)) => range_hull(kv, q, lo, hi),
             // Coefficients exist but their kv does not (piecewise
             // constants): the whole-domain coefficient hull is a sound
             // range bound for any sub-interval.
@@ -792,9 +799,9 @@ pub fn bspline_green_integral(
         let p_lo = a + span * (i as f64 / pieces as f64);
         let p_hi = p_lo + h;
         let straddles = interior.iter().any(|k| *k > p_lo && *k < p_hi);
-        let uh = bspline_range_hull(kv, u_coeffs, p_lo, p_hi);
+        let uh = range_hull(kv, u_coeffs, p_lo, p_hi);
         let v1h = match v1_kv {
-            Some(k) => bspline_range_hull(k, v1, p_lo, p_hi),
+            Some(k) => range_hull(k, v1, p_lo, p_hi),
             None => v_ladder.hull(1, p_lo, p_hi),
         };
         if straddles {
@@ -995,7 +1002,7 @@ fn raw_eval(knots: &[f64], degree: usize, coeffs: &[RingInterval], t: f64) -> Ri
 
 /// Hull of a [`Dir::Raw`] spline over `[lo, hi]`: the local control
 /// blocks of every touched span (the same convexity fact
-/// [`bspline_range_hull`] uses).
+/// [`range_hull`] uses).
 fn raw_range_hull(
     knots: &[f64],
     degree: usize,
@@ -1171,7 +1178,7 @@ impl PatchGrid {
                 let kv = kv.clone();
                 (
                     Self::deriv_dir(&kv),
-                    Box::new(move |c: &[RingInterval]| derivative_coeffs(&kv, c)),
+                    Box::new(move |c: &[RingInterval]| kv.difference_coeffs(c)),
                 )
             }
             // A `Raw` direction differentiates too — its own
@@ -1221,7 +1228,7 @@ impl PatchGrid {
                 let kv = kv.clone();
                 (
                     Self::deriv_dir(&kv),
-                    Box::new(move |c: &[RingInterval]| derivative_coeffs(&kv, c)),
+                    Box::new(move |c: &[RingInterval]| kv.difference_coeffs(c)),
                 )
             }
             Dir::Raw { knots, degree } => {
@@ -1260,7 +1267,7 @@ impl PatchGrid {
             (Dir::Kv(kv), Collapse::AtSpan { mid, t }) => {
                 bspline_eval_ring_in_span(coeffs, kv.span_at(mid), *t)
             }
-            (Dir::Kv(kv), Collapse::Over(lo, hi)) => bspline_range_hull(kv, coeffs, lo, hi),
+            (Dir::Kv(kv), Collapse::Over(lo, hi)) => range_hull(kv, coeffs, lo, hi),
             (Dir::Raw { knots, degree }, Collapse::At(t)) => raw_eval(knots, *degree, coeffs, t),
             (Dir::Raw { knots, degree }, Collapse::AtSpan { mid, t }) => {
                 // The node lies in the closure of `mid`'s span; the

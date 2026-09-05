@@ -667,3 +667,25 @@ kernel body under two ratified names, `docs/SEAT-DN-SPEC.md` —
 dispatches on block SEAT-B3's third slot. Its prime directive is the
 ruling itself: any shape that would move a funnel-site name is
 Ev-gated.
+
+## ORDINAL 1010 CLAIMED — SEAT-DN dual (2026-09-05)
+
+SEAT-DN (PR 1987, direction normalization as one kernel body under two
+ratified names) implementation delivered and green on the full matrix
+(run 33969761493 on 2b366fde). One body (`topo::query::unit_direction`,
+site-parameterized); `UnitVec3::new` and `editor-core`'s `unit()` are
+one-line calls under their existing names, the refusal mapping pinned
+arm by arm; the K-REPORT census untouched (`m4_pr2_wire`,
+`m10_3_driver_interval` green unedited); the red-first receipt that is
+the unit's value — deleting the finiteness gate from the one body reds
+SEAT-DV's overflow rows AND the FIX program's `unit()` rows together.
+DN-3 measured before acting: every 2-D director is built from a ray
+already decided at its own door, so neither branch of the spec applied
+and no K-REPORT carrier row is owed — but those doors admit `1e200`
+and yield a zero director from a public path constructor: SEAT-DV's
+overflow class in 2-D, filed as
+`work/seat/two-d-director-doors-skip-the-finiteness-question.md`
+(`profile` cannot reach `topo::query::is_finite_length`; FIX's
+`is-finite-length-homed-in-the-query-seat` is its enabler). v6 dual
+dispatches on frozen head 2b366fde: parity byte 189 → **R1 fable + R2
+opus**. Difficulty S was logged pre-draw. Full row recorded at merge.

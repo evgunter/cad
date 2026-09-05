@@ -546,6 +546,15 @@ whose unit had merged; each unit's record is its row in
 - `M10-3-SPEC.md` — M10-3, the E6 subdivision driver (#1231)
 - `M10-4-SPEC.md` — M10-4, sensitivities and the stackup (#1627)
 
+## Per-merge deletion — M10-8's spec (2026-09-05)
+
+Recoverable at `git show f5fb7fe92:docs/M10-8-SPEC.md` (the M10-8 unit
+head, before the state-sync commit that deleted it). The rule above;
+the unit's record is its row in `MODEL-AB-LOG.md` and its MERGED entry
+in `work/m10/log.md`.
+
+- `M10-8-SPEC.md` — M10-8, the arc family: the atom algebra measured per mechanism, the constant fold shipped alongside, rule C built and dial-off (#1828)
+
 ## Per-merge deletion — M10-7's spec (2026-09-04)
 
 Recoverable at `git show bb3fba8bc:docs/M10-7-SPEC.md` (the M10-7 unit
@@ -956,6 +965,19 @@ residue item `work/props/coefficients-carry-their-knot-vector.md`.
 
 - `PROPS-SPAN-SPEC.md` — PROPS span, `Span<'a>` carries its `KnotVector` (#1952)
 
+## Per-merge deletion — PROPS coeffs' spec (2026-09-05)
+
+Recoverable at `git show ea11576b4342fe00fc00639950119df5eb4e95a7:docs/PROPS-COEFFS-SPEC.md`
+(the merge base the unit was cut against; the spec is on every `main`
+commit from #1982's merge to the unit's). Met as written except the one
+decision it left open, taken and argued at the module doc: weight
+positivity stays a per-window check at the rational doors rather than
+a mint-time refusal. The rule the unit lands is `crates/geom-core/README.md`
+SPLINE-DESIGN S1 (coefficients against knots); the unit's record is PR
+1985's body and `work/props/coefficients-carry-their-knot-vector.md`.
+
+- `PROPS-COEFFS-SPEC.md` — PROPS coeffs, coefficients carry their knot vector (#1985)
+
 ## Per-merge deletion — PROPS vec3-doors' spec (2026-09-05)
 
 Recoverable at
@@ -1027,3 +1049,19 @@ the stem-glue pin stays because the refusal was never the detector's
 blindness. The rule above; the unit's record is its item's `## Closed`
 section (`work/seat/SEAT-FW.md`) and its MERGED entry in
 `work/seat/log.md`; its A/B row is MODEL-AB-LOG SEATFW.
+
+## Per-merge deletion — VERBS-C5ARMS's spec (2026-09-05)
+
+Recoverable at `git show ae69dfeb2:docs/VERBS-C5ARMS-SPEC.md` (PR #1864's
+merge commit, the last head carrying it). Both halves delivered: PR-1
+plane×torus (#1577, VERBS) and PR-2 coaxial cone×cylinder (#1864,
+CURVED — the first CURVED unit). One acceptance clause was measured a
+category error rather than met: "`coned_tube`'s offset validates tier-3
+with a closed-form volume pin" — the direct per-chart door is right to
+refuse, and `shell(coned_tube)` succeeds flag-independently (a TORAX
+row); recorded in the PR body and the A/B row (C5A2), not by amending
+the spec. The rows 3/4/8 hold note points at
+`docs/CURVED-SPIRIC-DESIGN.md` (ratified 2026-09-04), which supersedes
+`docs/VERBS-RIMCAP-SPEC.md` §PR-2 as the klein elbow's binding text.
+The unit's record is `work/curved/VERBS-C5ARMS.md`'s `## Closed` and
+the MERGED entry in `work/curved/log.md`.

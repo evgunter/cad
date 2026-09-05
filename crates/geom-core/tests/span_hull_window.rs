@@ -1,7 +1,8 @@
-//! `span_hull`'s coefficient window is **exactly** the `Span`'s window,
-//! and that window is exactly the set of coefficients the basis reads.
+//! A `CoeffWindow`'s coefficient window is **exactly** its `Span`'s
+//! window, and that window is exactly the set of coefficients the basis
+//! reads.
 //!
-//! `hull::span_indices` returns the window the `Span` computed once at
+//! `CoeffWindow::hull` reads the window the `Span` computed once at
 //! construction, so the claim is one ACROSS two modules — `hull`
 //! trusting `knots` — rather than one function's internal consistency.
 //! This suite is what makes that crossing behavioural rather than
@@ -20,8 +21,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::spline::KnotVector;
 use geom_core::spline::basis::basis_funs;
-use geom_core::spline::{KnotVector, hull};
 
 use crate::span_fixtures;
 use span_fixtures::vectors;
@@ -57,7 +58,7 @@ fn the_hull_window_is_the_spans_window_and_the_basis_reads_the_same_one() {
         for index in k.first_span()..=k.last_span() {
             let Some(span) = k.span(index) else { continue };
             let base = base_coeffs(n);
-            let hull0 = hull::span_hull(&base, span);
+            let hull0 = k.with_coeffs(&base).unwrap().span(index).unwrap().hull();
             assert!(!hull0.is_poison(), "{name}: span {index} must bound");
             let mid = 0.5 * (k.knots()[index] + k.knots()[index + 1]);
             let value0 = eval(&k, &base, mid);
@@ -66,7 +67,9 @@ fn the_hull_window_is_the_spans_window_and_the_basis_reads_the_same_one() {
                 for outlier in [HIGH, LOW] {
                     let mut coeffs = base.clone();
                     coeffs[moved] = outlier;
-                    let h = hull::span_hull(&coeffs, span);
+                    let win = k.with_coeffs(&coeffs).unwrap().span(index).unwrap();
+                    assert_eq!(win.span(), span, "the pair mints the vector's own span");
+                    let h = win.hull();
                     // The hull moves iff the coefficient is in the
                     // window; when it does, the outlier IS the new
                     // extremum, which is the tightness claim too.
@@ -122,7 +125,12 @@ fn the_rational_window_refuses_on_exactly_its_own_weights() {
             for bad in 0..n {
                 let mut weights = vec![1.0; n];
                 weights[bad] = 0.0;
-                let h = hull::span_hull_rational(&coeffs, &weights, span);
+                let h = k
+                    .with_rational_coeffs(&coeffs, &weights)
+                    .unwrap()
+                    .span(index)
+                    .unwrap()
+                    .hull_rational();
                 assert_eq!(
                     h.is_poison(),
                     span.window().contains(&bad),
@@ -145,7 +153,12 @@ fn the_derivative_window_is_the_window_minus_its_top() {
         for index in k.first_span()..=k.last_span() {
             let Some(span) = k.span(index) else { continue };
             let base = base_coeffs(n);
-            let d0 = hull::derivative_span_hull(&base, span);
+            let d0 = k
+                .with_coeffs(&base)
+                .unwrap()
+                .span(index)
+                .unwrap()
+                .derivative_hull();
             assert!(!d0.is_poison(), "{name}: span {index} derivative bound");
             for moved in 0..n {
                 // `Q_i` mixes `c_i` and `c_{i+1}`, so a coefficient is
@@ -155,7 +168,12 @@ fn the_derivative_window_is_the_window_minus_its_top() {
                 let touches = span.window().contains(&moved);
                 let mut coeffs = base.clone();
                 coeffs[moved] = HIGH;
-                let d = hull::derivative_span_hull(&coeffs, span);
+                let d = k
+                    .with_coeffs(&coeffs)
+                    .unwrap()
+                    .span(index)
+                    .unwrap()
+                    .derivative_hull();
                 let moved_bound =
                     d.lo().to_bits() != d0.lo().to_bits() || d.hi().to_bits() != d0.hi().to_bits();
                 assert_eq!(
@@ -170,22 +188,20 @@ fn the_derivative_window_is_the_window_minus_its_top() {
 }
 
 // ---------------------------------------------------------------------
-// The pairing at `geom-core`'s own doors, and what is left of it.
+// The pairing at `geom-core`'s own doors.
 //
 // `basis_funs`, `ders_basis_funs` and every span-restricted `hull`
-// entry point take a `Span<'_>` and no knot vector: the span borrows
-// the vector it is a proof about and the door reads its knots from
-// that borrow, so there is no second vector for one to disagree with
-// and nothing here to refuse. The rows that used to drive a foreign
-// span through these doors have no argument to write; the claim they
-// made is a `compile_fail` claim now, and it lives on `Span` in
-// `spline/knots.rs` as doctests.
+// door read through a borrow and take no second structure: a `Span`
+// borrows the vector it is a proof about, and a `CoeffWindow` is a
+// pair of coefficients-with-their-vector beside a span of THAT
+// vector. The rows that used to drive a foreign span or a foreign
+// coefficient array through these doors have no argument to write;
+// the claims they made are `compile_fail` claims now, on `Span` in
+// `spline/knots.rs` and on `SplineCoeffs` in `spline/hull.rs`.
 //
-// What is NOT closed, and is what the rows below drive: the
-// coefficients. `span_hull` relates `coeffs` to the span's vector by
-// LENGTH alone, so a same-length array from another curve passes and
-// the bound is computed over the wrong data — wrong rather than
-// refused.
+// What the rows below drive is the relation that survives as
+// behaviour: the mint's count refusal, and that every window a pair
+// mints answers what the whole-domain door hulls over that window.
 
 /// **Why [`KnotVector::span`]'s index compare has no behavioural
 /// evidence, pinned as the fact it rests on.**
@@ -234,66 +250,94 @@ fn nonemptiness_implies_the_index_bound_under_clamped_v1() {
     assert!(nonempty > 0, "the spread produced no nonempty spans");
 }
 
-/// **The one pairing the borrow does not close, as an executed fact.**
-///
-/// A [`Span`] carries its knot vector, so `span_hull`'s knots and its
-/// span always agree. Its `coeffs` do not travel with either: they are
-/// related to the span's vector by `coeffs.len() ==
-/// kv.control_count()` and by nothing else, so a same-length array
-/// from a **different** curve passes the count and the bound is
-/// computed over the wrong data.
-///
-/// This row constructs that case and asserts the bound is *finite and
-/// wrong* rather than poison — it is the residue stated as behaviour,
-/// so that closing it later reds here instead of going unnoticed.
-/// (`work/props/coefficients-carry-their-knot-vector.md`.)
+/// **The mint's count refusal, kept as one behavioural row.** A
+/// coefficient array that is not `control_count()` long is refused at
+/// [`KnotVector::with_coeffs`] and [`KnotVector::with_rational_coeffs`] — the
+/// bound that keeps every window inside the array, and the only
+/// relation a length can state. It is the one check the free doors
+/// used to carry per call, done once here instead.
 #[test]
-fn the_coefficient_pairing_is_still_length_only() {
-    // Two cubics of the same length and the same control count, so
-    // either curve's coefficient array passes the other's count.
-    let uni = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 1.0, 1.0, 1.0, 1.0], 3)
-        .expect("valid");
-    let other = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.75, 1.0, 1.0, 1.0, 1.0], 3)
-        .expect("valid");
-    assert_eq!(uni.control_count(), other.control_count());
+fn the_mint_refuses_exactly_the_wrong_length() {
+    for (name, k) in spread() {
+        let n = k.control_count();
+        let ones = vec![1.0; n];
+        for len in [n - 1, n, n + 1] {
+            let coeffs = base_coeffs(len);
+            assert_eq!(
+                k.with_coeffs(&coeffs).is_some(),
+                len == n,
+                "{name}: {len} coefficients against control_count {n}"
+            );
+            assert_eq!(
+                k.with_rational_coeffs(&coeffs, &ones).is_some(),
+                len == n,
+                "{name}: {len} coefficients, {n} weights"
+            );
+            assert_eq!(
+                k.with_rational_coeffs(&base_coeffs(n), &vec![1.0; len])
+                    .is_some(),
+                len == n,
+                "{name}: {n} coefficients, {len} weights"
+            );
+        }
+    }
+}
 
-    let n = uni.control_count();
-    let mine = base_coeffs(n);
-    // The other curve's coefficients: same length, different values,
-    // with one driven far out so the two hulls cannot coincide.
-    let mut theirs = base_coeffs(n);
-    theirs[0] = HIGH;
-
-    let span = uni.span(uni.first_span()).expect("nonempty");
-    let right = hull::span_hull(&mine, span);
-    let wrong = hull::span_hull(&theirs, span);
-    assert!(!right.is_poison(), "the correct pairing must answer");
-    assert!(
-        !wrong.is_poison(),
-        "the length-only relation still admits a foreign coefficient array"
-    );
-    assert_ne!(
-        (right.lo(), right.hi()),
-        (wrong.lo(), wrong.hi()),
-        "the foreign array must give a DIFFERENT bound — otherwise this \
-         row would pass without exercising the residue"
-    );
-    // And the honesty limb answers a finite number on it, which is the
-    // shape of the residue that matters: `sup_norm_bound_span(..) <= eps`
-    // can certify a curve whose coefficients were never bounded.
-    let bound = hull::sup_norm_bound_span(&theirs, span);
-    assert!(
-        bound.is_finite(),
-        "the residue is a wrong answer, not a refusal: {bound}"
-    );
-
-    // The counts still refuse, which is what keeps the indexing in
-    // range: a coefficient array of the wrong LENGTH is poison.
-    let short = base_coeffs(n - 1);
-    assert!(hull::span_hull(&short, span).is_poison());
-    assert!(hull::derivative_span_hull(&short, span).is_poison());
-    let weights = vec![1.0; n - 1];
-    assert!(hull::span_hull_rational(&short, &weights, span).is_poison());
+/// **Every window a pair mints answers the whole-domain door hulled
+/// over that window**, at every vector in the spread and every span:
+/// `win.hull()` is the plain hull of `coeffs[win.window()]`, the
+/// domain door is the hull of every window's answer, and the sup-norm
+/// readings are those hulls' magnitudes — so a window's bound is
+/// never a claim the whole-domain door would not make.
+#[test]
+fn every_window_answers_what_the_domain_door_hulls_over_it() {
+    let mut windows = 0usize;
+    for (name, k) in spread() {
+        let n = k.control_count();
+        let mut coeffs = base_coeffs(n);
+        // One outlier so the per-window hulls differ from each other.
+        coeffs[n / 2] = HIGH;
+        let pair = k.with_coeffs(&coeffs).unwrap();
+        let mut acc: Option<(f64, f64)> = None;
+        for index in k.first_span()..=k.last_span() {
+            let Some(win) = pair.span(index) else {
+                assert!(
+                    k.span(index).is_none(),
+                    "{name}: the pair refuses only what its vector refuses"
+                );
+                continue;
+            };
+            assert_eq!(win.pair(), pair);
+            assert_eq!(win.span(), k.span(index).unwrap());
+            let (lo, hi) = coeffs[win.window()]
+                .iter()
+                .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), c| {
+                    (lo.min(*c), hi.max(*c))
+                });
+            let h = win.hull();
+            assert_eq!(
+                (h.lo(), h.hi()),
+                (lo, hi),
+                "{name}: span {index} window {:?}",
+                win.window()
+            );
+            assert_eq!(win.sup_norm_bound().to_bits(), h.mag().to_bits());
+            acc = Some(acc.map_or((lo, hi), |(a, b)| (a.min(lo), b.max(hi))));
+            windows += 1;
+        }
+        let d = pair.domain_hull();
+        assert_eq!((d.lo(), d.hi()), acc.unwrap(), "{name}: the domain door");
+        assert_eq!(pair.sup_norm_bound().to_bits(), d.mag().to_bits());
+        // `span_at` mints the same window `span` does, at the midpoint.
+        for index in k.first_span()..=k.last_span() {
+            let Some(win) = pair.span(index) else {
+                continue;
+            };
+            let mid = 0.5 * (k.knots()[index] + k.knots()[index + 1]);
+            assert_eq!(pair.span_at(mid), win, "{name}: span_at({mid})");
+        }
+    }
+    assert!(windows > 0, "the spread produced no windows");
 }
 
 /// [`vectors()`] plus two vectors that are the **same degree as an

@@ -370,7 +370,7 @@ macro_rules! nurbs_curve {
                 let chord = *b - *a;
                 let d = chord / chord.norm();
                 // The SIGNED hull of `d·(C − c)` on the span — the
-                // rational value hull (`hull::span_hull_rational`'s
+                // rational value hull (`hull::CoeffWindow::hull_rational`'s
                 // fact: positive weights make the rational basis a
                 // nonnegative partition of unity) read through `d`.
                 // Ascending `Real::min`/`Real::max` folds.
@@ -1173,7 +1173,7 @@ macro_rules! nurbs_curve {
             ///
             /// where `Q_i = p·(a_{i+1} − a_i)/(u_{i+p+1} − u_{i+1})` are
             /// `Ã′`'s coefficients (the knot-difference formula of
-            /// `geom_core::spline::hull::derivative_coeffs`, applied to
+            /// `geom_core::spline::SplineCoeffs::derivative_coeffs`, applied to
             /// the HOMOGENEOUS coefficients — hull.rs deliberately has
             /// no rational derivative path, because this assembly
             /// belongs with the consumer that owns the homogeneous
@@ -1191,7 +1191,7 @@ macro_rules! nurbs_curve {
             ///   the norm is convex;
             /// - `sup|w′| ≤ max_i |q_i|` over the weight spline's own
             ///   derivative coefficients, taken through
-            ///   [`spline::hull::derivative_coeffs`] so the knot
+            ///   [`spline::SplineCoeffs::derivative_coeffs`] so the knot
             ///   difference is rounded in the ring, not at `f64`.
             ///
             /// **The denominator is `w_max`, not `w_min`.** `w` itself
@@ -1339,7 +1339,14 @@ macro_rules! nurbs_curve {
                 // `w′`'s coefficient enclosures, once for the curve:
                 // index `i` holds `q_i`, poison for a bad knot
                 // difference (which then poisons this bound).
-                let dw = spline::hull::derivative_coeffs(&self.knots, &self.weights);
+                let Some(weight_spline) = self.knots.with_coeffs(&self.weights) else {
+                    // Unreachable by construction: `new` relates the
+                    // weights to the knots by count. The arm returns the
+                    // poisoned bound — the answer for any structure the
+                    // bound cannot license, and never an indexed read.
+                    return poison;
+                };
+                let dw = weight_spline.derivative_coeffs();
                 let origin = $Point::new($({ let _ = stringify!($c); T::zero() }),+);
                 let mut acc: Option<T> = None;
                 // Fixed ascending span order (D9).

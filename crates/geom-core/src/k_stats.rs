@@ -199,20 +199,79 @@ struct Frame {
 /// frame and miss the other: a definite sign is a [`Verdict`], an
 /// indeterminate one an [`Escalation`], in one decision order.
 fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign, Indeterminate> {
-    CURRENT.with(|c| c.set(name));
+    classify_in(name, margin, band, true)
+}
+
+/// The one body behind [`classify`] and [`check_unlogged`]: the scoped
+/// name, the classification, and — for a certification predicate — the
+/// verdict-log push. `logged` is the only difference between the two
+/// doors, and it is an argument here rather than a second copy of the
+/// body so the "exactly one shipped `sign_within`" claim stays true by
+/// construction.
+fn classify_in<T: Decide>(
+    name: &'static str,
+    margin: T,
+    band: Band,
+    logged: bool,
+) -> Result<Sign, Indeterminate> {
+    // The name is SCOPED to this classification: it is restored on the
+    // way out, so a decision taken outside any named door (a bare
+    // `sign_within`, a comparison inside a builder) is recorded under
+    // the unnamed default and never charged to whichever predicate
+    // happened to classify last. M10-8's shape report was charging each
+    // replay's first decisions to the previous replay's last predicate
+    // until this was scoped (`assert_bound` read 9 decisions for 1).
+    let prev = CURRENT.with(|c| c.replace(name));
     let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
-    FRAMES.with(|f| {
-        if let Some(top) = f.borrow_mut().last_mut() {
-            match outcome {
-                Ok(sign) => top.recorded.verdicts.push(Verdict {
-                    predicate: name,
-                    sign,
-                }),
-                Err(source) => top.recorded.escalations.push(Escalation { source }),
+    CURRENT.with(|c| c.set(prev));
+    // Both channels of the innermost open bracket — a definite sign as
+    // a verdict, an indeterminate outcome as an escalation — for a
+    // certification predicate; an evaluator check (`logged == false`)
+    // records neither, for the reason at `check_unlogged`.
+    if logged {
+        FRAMES.with(|f| {
+            if let Some(top) = f.borrow_mut().last_mut() {
+                match &outcome {
+                    Ok(sign) => top.recorded.verdicts.push(Verdict {
+                        predicate: name,
+                        sign: *sign,
+                    }),
+                    Err(source) => top
+                        .recorded
+                        .escalations
+                        .push(Escalation { source: *source }),
+                }
             }
-        }
-    });
+        });
+    }
     outcome
+}
+
+/// **An EVALUATOR check, named for the recorder and NOT logged as a
+/// verdict** — the door for a ruled decision that is not a
+/// certification predicate: the evaluator's finiteness check on every
+/// expression it produces (`editor_core::expr::refuse_non_finite`,
+/// ledger row F18). It classifies through the one body, so its K
+/// samples carry its name (they were charged to whichever predicate
+/// classified last until M10-8 scoped the name — 1,054 corpus rows at
+/// ε = 1e-6), and it stays OUT of the verdict log on purpose: the log is
+/// the verdict-diff engine's — the witness's certification verdicts
+/// against the leaf's, row for row — and the finiteness check fires
+/// once per expression evaluation, a count the two lanes do not share
+/// (routed through [`classify`], every M10-6 min-clearance box refused
+/// on a verdict-vector mismatch, the certification key moved, and no
+/// geometry had changed). Its refusal already reaches the consumer as
+/// `EvalError::NonFiniteResult`, so no verdict is lost by not logging
+/// one. `ledger_row` is the obligation [`decide_flagged`] carries: the
+/// audit row that argues why no `Margin` door fits the comparand.
+pub fn check_unlogged<T: Decide>(
+    name: &'static str,
+    margin: T,
+    band: Band,
+    ledger_row: &'static str,
+) -> Result<Sign, Indeterminate> {
+    let _ = ledger_row;
+    classify_in(name, margin, band, false)
 }
 
 /// The one classification funnel of the kernel: notes `name` for the
@@ -511,6 +570,18 @@ pub enum SampleOutcome {
     /// about is the ratio of symbolic to numeric decisions, which is
     /// what the tier exists to move.
     SymbolicZero,
+    /// **The symbolic tier answered through a clause-3 fold**
+    /// (`crate::sym::SymRules::signed_root`): the margin's expression
+    /// is identically zero in the parameters GIVEN a sign the funnel
+    /// certified over the leaf's box — `sqrt(r²) = r` for a radius
+    /// whose enclosure is definitely positive. A theorem conditional on
+    /// a read value, so it is its own outcome beside
+    /// [`Self::SymbolicZero`] rather than folded into it: the ratio
+    /// between the two is the receipt for how much of a document's
+    /// discharge rests on that one value read. Like `SymbolicZero`,
+    /// never a rule sample — the margin was never classified against
+    /// the band.
+    SignGated,
 }
 
 #[cfg(feature = "probe")]
@@ -522,13 +593,14 @@ impl SampleOutcome {
     /// prove the list is complete, so adding one without listing it
     /// here reds a test rather than leaving a silent hole in whatever
     /// derives from it.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::Definite(Sign::Negative),
         Self::Definite(Sign::Zero),
         Self::Definite(Sign::Positive),
         Self::Indeterminate,
         Self::Invalid,
         Self::SymbolicZero,
+        Self::SignGated,
     ];
 
     /// **The one spelling of this outcome**, and the K sweep's CSV
@@ -552,6 +624,7 @@ impl SampleOutcome {
             Self::Indeterminate => "indeterminate",
             Self::Invalid => "invalid",
             Self::SymbolicZero => "symbolic_zero",
+            Self::SignGated => "sign_gated",
         }
     }
 }
@@ -607,10 +680,10 @@ fn record(margin: f64, band: Band, outcome: SampleOutcome) {
     });
 }
 
-/// **Re-tags the sample just recorded as [`SampleOutcome::SymbolicZero`]**
-/// — the symbolic tier's door into the SAME funnel population
-/// (`crate::sym`'s `Decide` impl calls it where the tier overrides the
-/// numeric answer).
+/// **Re-tags the sample just recorded as `outcome`** —
+/// [`SampleOutcome::SymbolicZero`] or [`SampleOutcome::SignGated`], the
+/// symbolic tier's door into the SAME funnel population (`crate::sym`'s
+/// `Decide` impl calls it where the tier overrides the numeric answer).
 ///
 /// A re-tag rather than a second `record`, and that is the whole design:
 /// `Sym<T>` asks its base scalar first (its domain refusal is clause 1
@@ -633,7 +706,7 @@ fn record(margin: f64, band: Band, outcome: SampleOutcome) {
 /// when the base scalar actually filled it ties the two together by
 /// construction.
 #[cfg(feature = "probe")]
-pub(crate) fn retag_symbolic_zero_at(mark: Option<usize>) {
+pub(crate) fn retag_at(mark: Option<usize>, outcome: SampleOutcome) {
     let Some(at) = mark else { return };
     SINK.with(|s| {
         if let Some(sink) = s.borrow_mut().as_mut()
@@ -647,13 +720,19 @@ pub(crate) fn retag_symbolic_zero_at(mark: Option<usize>) {
             && sink.len() == at + 1
             && let Some(mine) = sink.get_mut(at)
         {
-            mine.outcome = SampleOutcome::SymbolicZero;
+            mine.outcome = outcome;
         }
     });
 }
 
+/// The predicate name of the decision in flight — what [`Probe`]
+/// records a sample under, read here by `crate::sym`'s shape report.
+pub(crate) fn current_predicate() -> &'static str {
+    CURRENT.with(Cell::get)
+}
+
 /// **Where the next recorded sample will land**, or `None` when no sink
-/// is installed — the index [`retag_symbolic_zero_at`] re-tags.
+/// is installed — the index [`retag_at`] re-tags.
 ///
 /// Read BEFORE the base scalar decides, so the index names this
 /// decision's own row rather than whatever happens to be last later.
@@ -891,7 +970,8 @@ mod tests {
                 | SampleOutcome::Definite(Sign::Positive)
                 | SampleOutcome::Indeterminate
                 | SampleOutcome::Invalid
-                | SampleOutcome::SymbolicZero => true,
+                | SampleOutcome::SymbolicZero
+                | SampleOutcome::SignGated => true,
             };
             assert!(seen, "{o:?} is listed in ALL");
         }

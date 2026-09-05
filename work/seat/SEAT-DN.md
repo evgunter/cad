@@ -2,7 +2,7 @@
 id: SEAT-DN
 kind: unit
 title: direction normalization: one kernel body under two ratified funnel names (Ev's ruling B)
-status: dispatched
+status: review
 opened: 2026-09-05
 branch: seat/dirnorm
 refs: [direction-normalization-two-doors-one-home, 1902, 1564]

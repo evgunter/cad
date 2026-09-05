@@ -30,11 +30,14 @@
 //!   knots from that borrow and takes no second vector — so evaluation
 //!   in a span is total for every scalar with no pairing check and no
 //!   refusal, and outside the span's interval it is the polynomial
-//!   extension (documented garbage-out). What a span does **not**
-//!   relate to its vector is the coefficient array beside it: that is
-//!   a relation of length alone, so a same-length array from another
-//!   curve is a wrong answer rather than a refusal. The [`Span`] docs
-//!   state that residue in full.
+//!   extension (documented garbage-out). One level down, a coefficient
+//!   array takes the same shape: a [`SplineCoeffs`] (or, with the
+//!   weights that license a rational claim, a [`RationalCoeffs`])
+//!   borrows the vector it was fitted against, is minted only by that
+//!   vector with the count checked once, and mints the [`Span`] its
+//!   hull doors read — so a same-length array from another curve has
+//!   no door to reach, and a span of another vector beside the pair
+//!   has no spelling ([`hull`]'s docs).
 
 pub mod algebra;
 pub mod basis;
@@ -46,6 +49,7 @@ pub mod net;
 
 pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep};
 pub use compose::{BernsteinSpans, ComposeError, CompositeForm, CurveRingData, ImplicitSurface};
+pub use hull::{CoeffWindow, RationalCoeffs, RationalWindow, SplineCoeffs};
 pub use knots::{KnotVector, KnotVectorIssue, Span, SplineError, derivative_knot_slice};
 pub use locate::{SpanLocate, SpanSet};
 pub use net::TensorNet;

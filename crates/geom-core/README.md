@@ -37,7 +37,8 @@ clause:
 - **A door restricted to a span takes exactly one structure, and reads
   everything from it.** In this crate that is the span:
   `basis_funs(span, t)`, `ders_basis_funs(span, t, n)` read their knots
-  through `Span::knots`. In `geom` it is the window: evaluation lives on
+  through `Span::knots`, and the hull doors read through a
+  `CoeffWindow` (below). In `geom` it is the window: evaluation lives on
   `CurveWindow::{eval_in_span, ders_in_span, ders1_in_span,
   deriv_in_span, deriv2_in_span}` and `SurfaceWindow::{eval_in_span,
   ders_in_span, ders3_in_span}`, each reading its basis from its own
@@ -46,6 +47,9 @@ clause:
   relates; a door taking only the proof has nothing to relate.
 - **The mints are `&self`, and they are the only ones.**
   `KnotVector::{span, span_at, span_range}` for a `Span`;
+  `KnotVector::with_coeffs` for a `SplineCoeffs` and
+  `KnotVector::with_rational_coeffs` for a `RationalCoeffs`, each
+  pair's `{span, span_at}` for its window;
   `NurbsCurve::{span, span_at}` and `NurbsSurface::{window, window_at}`
   for a window. So a window names the curve or surface that minted it,
   and that is the one it answers for.
@@ -70,23 +74,54 @@ clause:
   `geom::curves::nurbs` (a span of one curve against another curve, and
   a window outliving its curve), each with a legal twin.
 
-**The one pairing S1 leaves open** is coefficients against knots, and it
-is now confined to `hull`'s **free functions**: `span_hull`,
-`span_hull_rational`, `derivative_span_hull` and `sup_norm_bound_span`
-take a loose `&[E]` beside a span and relate the two by **length alone**
-(`coeffs.len() == kv.control_count()`). A same-length array from another
-curve passes, and the bound is then **wrong rather than refused** — which
-matters most at `sup_norm_bound_span(..) <= eps`, the C2.2 honesty limb.
-The curve and surface windows do not have it: they read their
-coefficients from the borrow. The count relation survives at
-`NurbsCurve::new` and `NurbsSurface::new`, where it is what keeps every
-window in range. `work/props/coefficients-carry-their-knot-vector.md`
-carries the row.
+**Coefficients against knots take the same shape, one level down.** A
+coefficient array — whatever a fitting or composition pass produced,
+`f64`, `Interval` or `RingInterval` brackets — is a proof about the knot
+vector it was fitted against, so `hull`'s doors read it through a pair
+that borrows both, and the pair is one of **two types** according to
+the claim it licenses:
 
-`InteriorKnot` is the third member of the family — a value proved
-interior to one vector's domain, carried without that vector — and stays
-crate-private for it: the type is a guard only in combination with the
-privacy of its two consumers, argued at its doc.
+```rust
+pub struct SplineCoeffs<'a, E: CertifiedEnclosure>   { knots: &'a KnotVector, coeffs: &'a [E] }
+pub struct RationalCoeffs<'a, E: CertifiedEnclosure> { knots: &'a KnotVector, coeffs: &'a [E], weights: &'a [f64] }
+```
+
+minted only by `KnotVector::with_coeffs` and
+`KnotVector::with_rational_coeffs`, where the count relation
+`coeffs.len() == control_count()` (and the weights' count) is checked
+**once** and a wrong length is `None` — the one relation a length can
+state, and the bound that keeps every window inside the array. A span of
+that vector is taken FROM the pair: each type's `{span, span_at}` mint
+its window (`CoeffWindow<'a, E>`, `RationalWindow<'a, E>`) holding the
+pair beside a `Span<'a>` of its own vector, and every door reads
+everything from the borrow. `SplineCoeffs` carries the **nonrational**
+doors and no other — per span `CoeffWindow::{hull, derivative_hull,
+sup_norm_bound}`, over the domain `SplineCoeffs::{domain_hull,
+derivative_coeffs, derivative_domain_hull, sup_norm_bound}`;
+`RationalCoeffs` carries the **rational** doors and no other — per span
+`RationalWindow::hull_rational`, over the domain
+`RationalCoeffs::{domain_hull_rational, sup_norm_bound_rational}`. So a
+rational claim on a pair minted without weights, and a nonrational bound
+on a pair minted with them (one that would ignore the weights it was
+handed), are unrepresentable rather than refused — D2 addendum row 0
+in both directions — as is a span of another vector beside the pair;
+each is a `compile_fail` doctest with a legal twin on the type it
+concerns. No free function in `hull` takes a coefficient array; the one
+door beside the mints that takes one, `KnotVector::difference_coeffs`
+(the knot-differencing step or a one-element poison vector, the one
+home of that answer for the tensor nets and the derivative ladders),
+mints first. Weight positivity stays a per-window check at the rational
+door: it is a *value* precondition of the claim on exactly the weights a
+window reads, where the count is a *pairing* fact and the mint's
+business. The count relation at `NurbsCurve::new` and
+`NurbsSurface::new` is the same relation one level up, checked once at
+construction; a curve's `ring_coords()` channels mint against its own
+`knots()` by that fact.
+
+The family is closed, with one deliberate exception: `InteriorKnot` — a
+value proved interior to one vector's domain, carried without that
+vector — stays crate-private for it, the type being a guard only in
+combination with the privacy of its two consumers, argued at its doc.
 
 ## Related pages
 
@@ -97,5 +132,4 @@ determinism, Q1 on the comparison-free `Real`); `crates/geom-brep/README.md`
 
 ## Open
 
-- The coefficient↔knot-vector pairing at `hull`'s free functions is
-  length-only and open (`work/props/coefficients-carry-their-knot-vector.md`).
+- Nothing on this page.

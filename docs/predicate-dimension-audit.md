@@ -89,8 +89,8 @@ seam by `geom_core::k_stats::decide_flagged(name, margin, band, row)`
 — the finding lane: no `Margin` is constructed, the row id is a
 compile-time argument at the site, and grepping `decide_flagged`
 enumerates the clause-(i) debt exactly (F2 ×4,
-F10 ×1 — one loop over seven rigidity residuals — F13 ×1, F14 ×1 —
-7 shipped sites, tracked as issue #214 and pinned by
+F10 ×1 — one loop over seven rigidity residuals — F13 ×1, F14 ×1,
+F16 ×1 — 8 shipped sites, tracked as issue #214 and pinned by
 `geom-core/tests/flagged_census.rs`: no new site ships without a row
 here, and the count only moves together with this section).
 
@@ -295,6 +295,7 @@ which is what actually moves the number.
 | intersect.rs:834–882 | cc_* (radius eq, axes parallel, coaxial, gap, coplanar) | lengths / sin×extent / common-perpendicular | m | OK |
 | intersect.rs:1000/1006/1043 | pn_apex_*, pn_axis_normal | m·unit; trig diff×extent; sin×rim r | m | OK |
 | intersect.rs:1480/1484/1498/1504/1535/1544 | pt_tube_guard / ring_guard / axis_in_plane / axis_plane_gap / axis_normal / cap_gap | r; R−r; sin×extent; centre-plane gap; sin×R; r−station depth | m | OK — with the axis_in_plane lever CONDITION on record: just inside the Zero band the raw sine reaches ε/extent, so the minted meridian circles sit off their own PLANE by up to r·ε/extent (27ε measured at extent = 0.01; the torus residual stays machine-zero). Cannot bite with a real operand: extent ≥ R + r for any plane that reaches the torus, so the planarity error stays under ε |
+| intersect.rs:2026/2047/2053/2068/2093/2111 | coc_cylinder_radius / coc_aperture_sin / coc_aperture_cos / coc_axes_parallel / coc_coaxial / coc_station_reach | R; sin α×extent; cos α×extent; sin×extent; axis-to-axis distance; extent − |R·cot α| | m | OK — the family prefix is `coc_`, not `cc_`: `cc_*` is cylinder×cylinder's glob two rows above and would over-match. `coc_station_reach` is the arm's ADMISSION criterion; the two aperture clauses are a division guard and a convention clause, not conditioning questions |
 | pcurve_cache.rs:1225/1233 | pcurve_chart_azimuth_affine / winding | (rad coeff)×radius | m | OK |
 | pcurve_cache.rs:1268 | pcurve_map_residual | mapped point distance | m | OK |
 | pcurve_cache.rs:1964 | pcurve_interval_forward (harmonic) | span × param_rate | m | OK |
@@ -762,6 +763,30 @@ Flagged, NOT fixed here (dispositions):
   distance between non-adjacent faces, so a coincidence at the run's
   tolerance is the violation the check exists to find. One name with
   two readings would put two populations under one K row.
+
+- **F18** (added by M10-8's fix pass, found by scoping the recorder's
+  name) `editor-core/src/expr.rs` `refuse_non_finite`: the ruled
+  door-2 finiteness check on a FINAL evaluated value, `value · 0`
+  against the band `(1e-100, 1e-50)` — exactly zero for every finite
+  value, poison otherwise. The comparand carries `value`'s dimension,
+  whatever the expression's was (a length, an angle, a count, a ratio),
+  so no `Margin` door fits, and the check is not a geometric margin at
+  all: it is the evaluator's refusal of a non-finite result. **Carried
+  as `k_stats::check_unlogged(.., "F18")`** — the recorder's named
+  evaluator door, which classifies through the one funnel body and
+  stays OUT of the verdict log (the check fires once per expression
+  evaluation, a count the witness and a leaf do not share; logged, it
+  refused every M10-6 min-clearance box on a vector mismatch). It is
+  therefore not a `decide_flagged` site and `LEDGER_FLAGGED_SITES`
+  does not move. The finding that put it here:
+  this site called `sign_within` directly, outside any named
+  `classify`, and every K sample it recorded was charged to whichever
+  predicate had classified LAST — 1,054 samples in the corpus sweep at
+  ε = 1e-6 (`m4_pr8_k_probe`'s `<unnamed>` guard went red the moment
+  the name was scoped). Every one of those samples is a `Definite(Zero)`
+  at margin 0 and never a rule sample, so no K claim moves; what moves
+  is the per-predicate attribution of 1,054 rows, now under their own
+  name.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
