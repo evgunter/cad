@@ -12,25 +12,52 @@
 //! The compiler is the receipt for the doors that exist today — a
 //! caller has no number to pass. What the compiler cannot say is that a
 //! LATER edit did not add one back, which is what this suite is: the
-//! chain's three files, read as code, must contain no parameter whose
-//! type is `f64` and whose name reads as a tolerance.
+//! chain, read as code, must contain no parameter whose type is `f64`
+//! and whose name reads as a tolerance.
 //!
 //! **What it cannot see, stated.** An epsilon named nothing like one
 //! (`slack: f64`, `budget: f64`); one smuggled inside a struct or a
-//! tuple; one reached through a type alias for `f64`; and the chain
-//! GROWING a file this list does not name — the roster below is
-//! hand-kept, exactly like the census it guards, and a new module on
-//! the chain is a visit here that nothing mechanical demands.
+//! tuple; one reached through a type alias for `f64`; a door moved OUT
+//! of the sentinel region in `props.rs`; and the chain growing a file
+//! the roster below does not name — that roster is hand-kept, exactly
+//! like the census it guards, and a new module on the chain is a visit
+//! here that nothing mechanical demands.
+//!
+//! And it stops at the kernel's edge, deliberately. `geom-brep`'s fit
+//! engine below the lane takes its target as a number, because its own
+//! suite measures the refinement, budget and limb ladder at chosen
+//! ones; what this suite guards is that the KERNEL never chooses.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 /// The chain, file by file: the verb doors, the face-replacement doors
 /// they call, and the lane door that ends the kernel's half of it.
-const CHAIN: [(&str, &str); 3] = [
+///
+/// `shell.rs` and `replace_face.rs` are read WHOLE — every door in
+/// either is on this chain. `props.rs` is not: it hosts the quadrature
+/// lane too, whose ε reads are a different chain, so only the region
+/// its sentinels bracket is read (the `NODE-TAG-SPACE` precedent). A
+/// door moved out of that region walks past this suite, which is the
+/// price of reading a region rather than a file and is what the
+/// sentinel comment at the site says not to do.
+const CHAIN: [(&str, &str); 2] = [
     ("shell.rs", include_str!("../src/shell.rs")),
     ("replace_face.rs", include_str!("../src/replace_face.rs")),
-    ("props.rs", include_str!("../src/props.rs")),
 ];
+
+/// `props.rs`, whole — the sentinel region is cut out of it below.
+const PROPS: &str = include_str!("../src/props.rs");
+
+/// The lane's stretch of the chain: the two fit doors and the one read.
+fn lane_region() -> &'static str {
+    PROPS
+        .split_once("SHELL-TOLERANCE-CHAIN BEGIN")
+        .expect("the lane carries its opening sentinel")
+        .1
+        .split_once("SHELL-TOLERANCE-CHAIN END")
+        .expect("the lane carries its closing sentinel")
+        .0
+}
 
 /// A parameter name that reads as a tolerance. Deliberately broader
 /// than the one spelling that was there, so a rename does not walk
@@ -50,7 +77,9 @@ fn reads_as_a_tolerance(name: &str) -> bool {
 #[test]
 fn no_signature_on_the_shell_chain_names_an_f64_epsilon() {
     let mut hits: Vec<String> = Vec::new();
-    for (file, source) in CHAIN {
+    let mut chain: Vec<(&str, &str)> = CHAIN.to_vec();
+    chain.push(("props.rs (lane region)", lane_region()));
+    for (file, source) in chain {
         let code = test_utils::source::code_and_literals(source);
         for (n, line) in code.lines().enumerate() {
             let Some((lhs, rhs)) = line.split_once(':') else {
@@ -84,7 +113,7 @@ fn no_signature_on_the_shell_chain_names_an_f64_epsilon() {
 /// rather than every read in the file.
 #[test]
 fn the_fit_target_is_read_at_one_site() {
-    let props = test_utils::source::code_and_literals(CHAIN[2].1);
+    let props = test_utils::source::code_and_literals(lane_region());
     let reads = props
         .lines()
         .filter(|l| l.contains("fn fit_precision"))

@@ -735,6 +735,13 @@ pub fn classify_shells<T: PropsQuadLane>(
 /// pointwise-identical lane bound through every tier-3 signature and
 /// every generic body helper in the workspace, which would have bought
 /// no additional honesty — the refusing side is the same scalar.
+// SHELL-TOLERANCE-CHAIN BEGIN — the sentinel
+// `tests/shell_tolerance_chain.rs` reads. Between here and the END
+// sentinel is the kernel's last stretch of the shell's offset chain:
+// the lane's two fit doors and the one site that turns the run's
+// witness into a number. No signature in this region may take an `f64`
+// epsilon; the quadrature lane's own ε reads elsewhere in this file are
+// a different chain and are deliberately outside the region.
 pub trait PropsQuadLane:
     Decide + geom_brep::PcurveFittedLane + crate::chart_region::ChartRegionLane
 {
@@ -1076,6 +1083,8 @@ where
         Ok(None)
     }
 }
+
+// SHELL-TOLERANCE-CHAIN END.
 
 /// The **scalar policy for the certified at-rest gates**
 /// (`docs/DUAL-DESIGN.md` DL3): whether an evaluation-service
