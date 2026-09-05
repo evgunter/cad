@@ -959,7 +959,13 @@ def _file_destinations(text: str, crate_dir: str) -> set[str]:
             continue
         comps = _walk_fragment(list(here), body)
         dests.add("" if comps is _UNRESOLVED else "/".join(comps))
-    return {d for d in dests if not d.startswith("crates/" + crate_dir)}
+    # WITHIN ITS OWN CRATE IS NOT A DESTINATION, compared by PATH COMPONENT
+    # and not by string prefix: `crates/geom` is a prefix of
+    # `crates/geom-core/src/lib.rs` and this workspace has both, so a prefix
+    # test would silently drop a real cross-crate read from `geom` into
+    # `geom-core`.
+    mine = ("crates", crate_dir)
+    return {d for d in dests if tuple(d.split("/")[:2]) != mine}
 
 
 class Reach:
@@ -2302,6 +2308,13 @@ _FIXTURE_PKGS = {
     # `_plant_reach` gives it — which is what makes it able to tell a read edge
     # from the closure, and to tell a SEED from a closure member.
     "verbs": [],
+    # `geom` IS HERE FOR ITS NAME. It is a string PREFIX of `geom-core`, which
+    # is the shape this workspace actually has twice (`geom`/`geom-core`,
+    # `step-export`/`step-import`), and it reads `geom-core`'s source. A
+    # within-own-crate test written as a string prefix rather than over path
+    # COMPONENTS drops that read silently, and every other case here stays
+    # green. Same graph position as `verbs`: no deps, no dependents.
+    "geom": [],
 }
 
 
@@ -2433,6 +2446,16 @@ def _plant_reach(t: str) -> None:
         "#[test]\n"
         "fn the_writer_spells_it_once() {\n"
         '    let lib = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../stl/src/lib.rs");\n'
+        "    let _ = std::fs::read_to_string(lib);\n"
+        "}\n",
+    )
+    # THE PREFIX PAIR. `geom` reads `geom-core`'s source, and `crates/geom` is
+    # a string prefix of `crates/geom-core/src/lib.rs`.
+    write(
+        "crates/geom/tests/reads_geom_core.rs",
+        "#[test]\n"
+        "fn the_kernel_lib_still_re_exports_it() {\n"
+        '    let lib = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../geom-core/src/lib.rs");\n'
         "    let _ = std::fs::read_to_string(lib);\n"
         "}\n",
     )
@@ -2715,9 +2738,9 @@ def selftest() -> None:
         # reach put it there. It is the leaf here for the same reason
         # `test-utils` is the leaf in the real tree.
         _files_case(t, "a leaf crate seeds its dependents", ["crates/geom-core/src/lib.rs"],
-                    TIER="closure", PKGS="geom-core,stl,topo", REACHED="",
+                    TIER="closure", PKGS="geom,geom-core,stl,topo", REACHED="geom",
                     RUN_STL="true",
-                    CARGO_SCOPE="-p geom-core -p stl -p topo")
+                    CARGO_SCOPE="-p geom -p geom-core -p stl -p topo")
         _files_case(t, "a dependent crate does not seed its dependencies",
                     ["crates/stl/src/lib.rs"], TIER="closure",
                     PKGS="geom-core,stl,verbs", RUN_STL="true",
@@ -2749,7 +2772,14 @@ def selftest() -> None:
                     PKGS="geom-core,stl,verbs")
         _files_case(t, "a read edge does NOT fire on a crate that is only in the closure",
                     ["crates/geom-core/src/lib.rs"], TIER="closure", SEEDS="geom-core",
-                    PKGS="geom-core,stl,topo")
+                    PKGS="geom,geom-core,stl,topo")
+        # THE PREFIX PAIR, and it is a case rather than a comment because the
+        # bug it catches is invisible: `geom` reads `crates/geom-core/src/lib.rs`,
+        # and a within-own-crate test spelled `d.startswith("crates/" + mine)`
+        # reads that destination as `geom`'s own and drops the edge. `geom`
+        # then never appears and every other case here is still green.
+        _files_case(t, "a crate whose name prefixes another's still reads across the boundary",
+                    ["crates/geom-core/src/lib.rs"], TIER="closure", REACHED="geom")
         # THE NEGATIVES. `topo` carries three anchored path expressions and not
         # one of them leaves the crate: a fixture directory under its own
         # `tests/`, a scratch file under `target/` (nothing tracked lives
@@ -2813,7 +2843,7 @@ def selftest() -> None:
         _git(t, "commit", "-qm", "delete")
         _expect("a deleted crate source is still a crate change",
                 _selftest_invoke(t, ["--base", "HEAD~1"]),
-                {"TIER": "closure", "PKGS": "geom-core,stl,topo", "REACHED": ""})
+                {"TIER": "closure", "PKGS": "geom,geom-core,stl,topo", "REACHED": "geom"})
 
         _expect("a base that does not resolve runs everything",
                 _selftest_invoke(t, ["--base", "0000000000000000000000000000000000000000"]),
