@@ -1702,3 +1702,89 @@ PR that discloses it, and my reason for overriding that was to keep
 4. `DisplayState::clear` dropping free-move placements silently while
    `prune` reports them — and #1886 is at this moment making `prune`
    report *more*, which widens the gap rather than closing it.
+
+## #1886 MERGED; 6b's correctness review earned its own existence (2026-09-05)
+
+### #1886 is on main
+
+Merged at `85742e08` after the fix pass came back green on `a87d9984`
+— run 33939685666, 37 jobs, twelve `test (…)` and five
+`k-lint (gate, …)`, `mergeable_state: clean`, nothing in flight, and
+the six skips confirmed habitual against the branch's earlier run
+(TIER=closure scoping; none in `viewer`'s dependent closure). Both
+prune items closed on main.
+
+The fix pass took every finding on the take-list and **fixed S7 as a
+class rather than one member**: the instance/node vocabulary is now a
+rule stated on the `DisplayFault` enum — an arm whose subject *is* a
+part instance says "instance N", an arm whose whole content is that the
+id does *not* denote one says "node N", three arms name no id — so the
+pre-existing `NotAnInstance` tension is covered by the same rule
+instead of surviving as a second case. It also went past a rename on
+S11: rather than renaming a misleading row, it made the row drive
+**both** arms, so the case the stale comment claimed exists is covered
+rather than papered over.
+
+One correction of mine to record: I told the lane its WIP commit had
+landed roughly half the take-list. It had landed eight of eleven. My
+read of a diff I had committed on its behalf undercounted it, which is
+the same class of error as the census claims this program keeps
+finding — a count asserted from a quick read and not re-run.
+
+### The correctness reviewer found a MAJOR, and it is exactly the shape the posture predicts
+
+**#1888 is HELD.** This program's review posture adds a second reviewer
+only where the failure mode is *a confident wrong answer rather than a
+refusal*. The finding is that failure mode, reproduced by an executed
+test:
+
+> `PickCache::sync`'s **`Nothing`** arm returns before touching
+> `attempted`. So an index build in flight across an `Open` or
+> `NewDocument` still matches `attempted` when it lands, installs into
+> the cache, and — because `sync_scene` returns on `Nothing` before the
+> scene rebuild — leaves `scene` holding the mesh of one document and
+> `index` holding the index of another, with `indexing()` false, no
+> status line, and every pick path taking the `Some(index)` arm.
+
+It cannot self-heal: `sync` returns `Nothing` every frame until the
+newly-opened document lands, which is seconds precisely because it is
+the big document the user chose to open.
+
+**Three things make this the review paying for itself.**
+
+1. It is a **regression 6b creates**. On main the build is synchronous,
+   so index and scene install in one `sync_scene` call and there is no
+   in-flight build to survive an `Open`.
+2. **The whole 483-row viewer suite is green with the hole present**,
+   and the reviewer's candidate fix (clear the four fields in that arm)
+   leaves 482/482 passing — so no lane test encoded the bug and the fix
+   costs nothing. A green suite was evidence about the suite.
+3. **The lane's own reasoning was right everywhere it looked.** δ
+   changing mid-build, δ going A→B→A, two generations during one build,
+   the refusal arm, `Held`, a landing after its request is gone — the
+   reviewer attacked all of them and broke none. The hole is the one
+   arm that returns *early*, which is exactly what a reasoning-from-the-
+   happy-path sweep does not visit.
+
+**And the lane's own flagged judgement was vindicated.** It asked a
+reviewer to check whether leaving `hover` unrefused was safe. It is,
+and for four independent reasons the reviewer traced: no `Hover` op is
+queued without an index, nothing is drawn from a stale hover,
+`Leave` is re-synthesised every frame so a clear cannot be lost, and
+`IdQueryLog::step` keys on the generation so a landing forces a re-ask
+under a motionless cursor. A lane naming its own uncertainty and being
+told it was right is the posture working in the cheap direction.
+
+Two MINORs go with the fix: `ThreadIndexer::poll` discards an answer
+the cache is *currently waiting for* when the key round-trips
+(δ A→B→A costs a gratuitous second full build, up to 13.4 s), and
+`(busy, running, indexing) = (true, false, true)` is reachable via
+Cancel-during-index and makes the toolbar and the status line describe
+one moment two ways.
+
+### What the review could not reach, recorded so it is not read as covered
+
+No `wasm32-unknown-unknown` build was run — the `Send` assertion's
+evidence is structural plus a native compile failure at the assertion
+line, which is strong but is not the wasm target. And the 2.3 s / 13.4 s
+timings were **not re-measured**; they remain the item's numbers.
