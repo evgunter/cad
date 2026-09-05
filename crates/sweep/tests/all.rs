@@ -244,6 +244,8 @@ mod m9_d1_r2_probes;
 mod mass_props;
 #[path = "mass_props_interval.rs"]
 mod mass_props_interval;
+#[path = "n3r2_d31_bitid.rs"]
+mod n3r2_d31_bitid;
 #[path = "r1_probes_issue1362_donut.rs"]
 mod r1_probes_issue1362_donut;
 #[path = "readback_doors.rs"]
@@ -334,8 +336,6 @@ mod revolve_ring;
 mod revolve_washer;
 #[path = "ring_r1_probes.rs"]
 mod ring_r1_probes;
-#[path = "n3r2_d31_bitid.rs"]
-mod n3r2_d31_bitid;
 
 #[path = "s16_box_soundness.rs"]
 mod s16_box_soundness;

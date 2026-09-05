@@ -28,7 +28,10 @@ fn retired_skin_spelling(elevated: &[NurbsCurve3<f64>]) -> Vec<NurbsCurve3<f64>>
             let own: Vec<(f64, usize)> = c.knots().interior_knots().collect();
             let mut add: Vec<f64> = Vec::new();
             for (value, want) in &union {
-                let have = own.iter().find(|(v, _)| *v == *value).map_or(0, |(_, m)| *m);
+                let have = own
+                    .iter()
+                    .find(|(v, _)| *v == *value)
+                    .map_or(0, |(_, m)| *m);
                 for _ in have..*want {
                     add.push(*value);
                 }
@@ -133,10 +136,7 @@ fn corpus() -> Vec<(String, Vec<NurbsCurve3<f64>>)> {
         ),
         (
             "insertion ORDER differs (descending first vector)".into(),
-            vec![
-                curve(2, &[0.7, 0.9], None),
-                curve(2, &[0.1, 0.3], None),
-            ],
+            vec![curve(2, &[0.7, 0.9], None), curve(2, &[0.1, 0.3], None)],
         ),
         (
             "rational + non-rational, same structure".into(),

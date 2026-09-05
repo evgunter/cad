@@ -6,10 +6,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(clippy::float_cmp)]
+#![allow(clippy::approx_constant, clippy::vec_init_then_push)]
 
 use bvh::Aabb;
-use geom::curves::boxes::{circle_arc_aabb, conic_arc_aabb, ellipse_arc_aabb};
 use geom::Curve3;
+use geom::curves::boxes::{circle_arc_aabb, conic_arc_aabb, ellipse_arc_aabb};
 use geom_core::{Point3, Vec3};
 
 const SAMPLES: u32 = 100_000;
@@ -45,7 +46,11 @@ fn spans(phi: f64) -> Vec<(String, f64, f64)> {
     let tau = core::f64::consts::TAU;
     let mut out = Vec::new();
     // strictly inside
-    out.push(("crosses phi strictly inside".to_string(), phi - 0.3, phi + 0.4));
+    out.push((
+        "crosses phi strictly inside".to_string(),
+        phi - 0.3,
+        phi + 0.4,
+    ));
     // exactly at an endpoint (both ends)
     out.push(("phi exactly at t0".to_string(), phi, phi + 0.9));
     out.push(("phi exactly at t1".to_string(), phi - 0.9, phi));
@@ -55,7 +60,11 @@ fn spans(phi: f64) -> Vec<(String, f64, f64)> {
     out.push(("phi 1e-9 inside t1".to_string(), phi - 0.5, phi + 1e-9));
     out.push(("phi 1e-9 outside t1".to_string(), phi - 0.5, phi - 1e-9));
     // wraps past 2pi
-    out.push(("wraps past 2pi".to_string(), phi - 0.2, phi - 0.2 + tau + 0.9));
+    out.push((
+        "wraps past 2pi".to_string(),
+        phi - 0.2,
+        phi - 0.2 + tau + 0.9,
+    ));
     out.push(("wraps twice".to_string(), -1.0, -1.0 + 2.0 * tau + 0.3));
     // starts near the atan2 cut
     out.push((
@@ -63,7 +72,11 @@ fn spans(phi: f64) -> Vec<(String, f64, f64)> {
         core::f64::consts::PI - 1e-12,
         core::f64::consts::PI + 1.3,
     ));
-    out.push(("ends at the atan2 cut".to_string(), 1.0, core::f64::consts::PI));
+    out.push((
+        "ends at the atan2 cut".to_string(),
+        1.0,
+        core::f64::consts::PI,
+    ));
     // degenerate
     out.push(("degenerate 1e-6".to_string(), phi - 5e-7, phi + 5e-7));
     out.push(("degenerate 1e-6 off phi".to_string(), 0.77, 0.77 + 1e-6));
@@ -85,7 +98,12 @@ fn n3r2_circle_box_contains_a_dense_sample() {
     for &r in &[1e-4_f64, 1e-2, 1.0, 100.0, 1e4] {
         for oct in 0..8u32 {
             let phi_u = f64::from(oct) * core::f64::consts::FRAC_PI_4;
-            for &(tilt, spin) in &[(0.0, 0.0), (0.4, 0.7), (1.2, 2.6), (1.5707, 0.0)] {
+            for &(tilt, spin) in &[
+                (0.0, 0.0),
+                (0.4, 0.7),
+                (1.2, 2.6),
+                (core::f64::consts::FRAC_PI_2, 0.0),
+            ] {
                 let (axis, u_ref) = frame(tilt, spin, phi_u);
                 let carrier: Curve3<f64> = Curve3::Circle {
                     center: Point3::new(0.3 * r, -0.2 * r, 0.11 * r),
@@ -97,14 +115,8 @@ fn n3r2_circle_box_contains_a_dense_sample() {
                 // The x-coordinate's extremal angle for this carrier.
                 let phi = (v_ref.x * r).atan2(u_ref.x * r);
                 for (name, t0, t1) in spans(phi) {
-                    let b = circle_arc_aabb(
-                        &carrier,
-                        t0,
-                        t1,
-                        carrier.eval(t0),
-                        carrier.eval(t1),
-                    )
-                    .unwrap();
+                    let b = circle_arc_aabb(&carrier, t0, t1, carrier.eval(t0), carrier.eval(t1))
+                        .unwrap();
                     let slack = 1e-12 * (1.0 + r);
                     for i in 0..=SAMPLES {
                         let t = t0 + (t1 - t0) * f64::from(i) / f64::from(SAMPLES);
@@ -143,14 +155,9 @@ fn n3r2_ellipse_box_contains_a_dense_sample() {
                     let v_ref = axis.cross(u_ref);
                     let phi = (minor * v_ref.y).atan2(major * u_ref.y);
                     for (name, t0, t1) in spans(phi) {
-                        let b = ellipse_arc_aabb(
-                            &carrier,
-                            t0,
-                            t1,
-                            carrier.eval(t0),
-                            carrier.eval(t1),
-                        )
-                        .unwrap();
+                        let b =
+                            ellipse_arc_aabb(&carrier, t0, t1, carrier.eval(t0), carrier.eval(t1))
+                                .unwrap();
                         let slack = 1e-12 * (1.0 + major);
                         for i in 0..=SAMPLES {
                             let t = t0 + (t1 - t0) * f64::from(i) / f64::from(SAMPLES);
@@ -439,8 +446,8 @@ fn n3r2_bracket_rectangles_on_the_axes_stay_sound() {
             };
             for &(t0c, t1c) in &[(0.0, 1.0), (1.0, 4.0), (2.5, 3.8), (0.0, 6.3), (3.0, 3.2)] {
                 let (t0, t1) = (iv(t0c), iv(t1c));
-                let b = conic_arc_aabb(&carrier, t0, t1, carrier.eval(t0), carrier.eval(t1))
-                    .unwrap();
+                let b =
+                    conic_arc_aabb(&carrier, t0, t1, carrier.eval(t0), carrier.eval(t1)).unwrap();
                 for i in 0..=8u32 {
                     let f = f64::from(i) / 8.0;
                     let real: Curve3<f64> = Curve3::Circle {

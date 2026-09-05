@@ -1,7 +1,7 @@
 //! CERT-N3 R2 probe: C24's number, re-taken (release; the root profile
 //! keeps debug-assertions on).
 
-#![allow(clippy::unwrap_used, clippy::panic)]
+#![allow(clippy::unwrap_used, clippy::panic, clippy::approx_constant)]
 
 use geom::Curve3;
 use geom_core::{Point3, Vec3};
@@ -70,6 +70,9 @@ fn n3r2_c24_meter() {
     for (name, c) in [("circle", &circle), ("ellipse", &ellipse)] {
         let _ = bench(c, 1 << 20); // warm
         let (pair, jet) = bench(c, 20_480_000);
-        println!("{name}: pair {pair:.2} ns, jet {jet:.2} ns, saving {:.2} ns", pair - jet);
+        println!(
+            "{name}: pair {pair:.2} ns, jet {jet:.2} ns, saving {:.2} ns",
+            pair - jet
+        );
     }
 }
