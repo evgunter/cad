@@ -1320,3 +1320,14 @@ candidates queued for the blinded coding; the residue's proposed homes for
 the closing sweep. Merging the walk ratifies it (Ev's S-MATE convention);
 the sweep then re-homes the residue, deletes this directory and ledgers the
 deletion. `needs_ev` set on the program item.
+
+## Residue re-homed (2026-09-05, on the walk's PR)
+
+Ev on PR 1924: "as long as all residuals are filed appropriately then it
+looks good." Every open item under `work/cert/` is moved in that PR to the
+home the walk's handoffs ledger names — eight to `work/props/`, seven to
+`work/issues/`, H5 and its lane-keeping companion to `work/code-quality/`
+(H5's `parent` cleared), one each to `work/fillet/`, `work/bool/`,
+`work/trim/`, `work/tcost/`, `work/fix/`, two to `work/m10/`; D291/D292
+re-cited to PR 1879. Nothing open remains here; the sweep after
+ratification deletes this directory and the walk, and ledgers the SHA.
