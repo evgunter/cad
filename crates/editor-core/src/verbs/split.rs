@@ -31,6 +31,23 @@
 //! DATUM vocabulary — which kind of datum is a split's tool — and it is
 //! exhaustive with no wildcard arm (D3), so a datum kind added upstairs
 //! is a visit here that says whether a split can take it.
+//!
+//! # Where an operand's expected-kind label lives, by convention
+//!
+//! Three labels of this shape exist and they are three different
+//! things, which is why they have three homes. `tool_expected` is
+//! correspondence DATA because the reading it labels is the
+//! correspondence's (`tool`): whoever declares which datum kinds a
+//! verb accepts declares what to call the refusal. The profile
+//! lowering's inline `expected: "profile"` is the LOWERING's, because
+//! every profile verb takes a profile — the operand contract belongs
+//! to `wire_swept`, not to any one correspondence. The blends'
+//! `selection_label` is not an operand label at all: it is the kernel
+//! refusal label a SELECTION failure carries (`BlendKind`), shared
+//! with the kernel's own refusal so a verb is never rendered twice.
+//! The rule: a label is data on the correspondence that owns the
+//! reading it names, and inline in the lowering that owns the
+//! contract it names.
 
 use std::sync::Arc;
 
@@ -38,7 +55,7 @@ use geom_core::{Decide, Tol, Vec3};
 use topo::query::DatumValue;
 use topo::splitting::SplitNaming;
 use topo::{Body, SplitPlane};
-use verbs::Verb;
+use verbs::{Verb, VerbRecord};
 
 use crate::names::{self, NameTable, NamingError};
 use crate::node::RecipeNodeId;
@@ -76,6 +93,10 @@ pub(crate) struct SplitVerb<T: Decide> {
     pub(crate) build: fn(SplitPlane<T>) -> Verb<T>,
     /// This verb's naming emitter.
     pub(crate) emitter: SplitEmitter<T>,
+    /// **This family's arm of the closed record channel**, as a
+    /// projection — read through [`super::read_record`], which owns
+    /// the foreign-family refusal.
+    pub(crate) record: fn(VerbRecord<T>) -> Option<SplitNaming>,
     /// What a WRONG-FAMILY record is called when this verb's result
     /// arrives carrying another family's channel — the blends', the
     /// boolean's and the sweeps' `foreign_record` class exactly: a
@@ -89,6 +110,19 @@ pub(crate) struct SplitVerb<T: Decide> {
 /// so it can be a plain `fn` pointer in the struct above.
 fn build_split<T: Decide>(plane: SplitPlane<T>) -> Verb<T> {
     Verb::Split { plane }
+}
+
+/// The split family's arm of the record channel. Exhaustive with no
+/// wildcard (D3): a family added to the channel breaks this at compile
+/// time and is routed here deliberately.
+fn split_record<T: Decide>(record: VerbRecord<T>) -> Option<SplitNaming> {
+    match record {
+        VerbRecord::Split(naming) => Some(naming),
+        VerbRecord::Blend(_)
+        | VerbRecord::Boolean { .. }
+        | VerbRecord::Extrude(_)
+        | VerbRecord::Revolve(_) => None,
+    }
 }
 
 /// A plane datum is a parting plane; no other datum kind is. A FRAME
@@ -122,6 +156,7 @@ pub(crate) fn split<T: Decide>() -> SplitVerb<T> {
         tool_expected: "datum plane",
         build: build_split,
         emitter: names::name_split,
+        record: split_record,
         foreign_record: "the split returned a record that is not a split's",
     }
 }
@@ -175,19 +210,23 @@ mod tests {
             (corr.tool)(&DatumValue::Point { position: origin }).is_none(),
             "a point was read as a parting plane"
         );
-        assert!(
-            corr.tool_expected.contains("plane"),
-            "the tool's expected-kind label no longer names a plane"
-        );
+        // Byte-exact, not `contains`: this label is DOCUMENT-REACHABLE
+        // — a split whose tool is an axis datum refuses `WrongOperand
+        // { expected }` with it — so a word moved here is a refusal
+        // string moved at the document layer.
+        assert_eq!(corr.tool_expected, "datum plane");
     }
 
-    /// The wrong-family sentence names its door (the boolean's module
-    /// pins the same property for its one instance).
+    /// The wrong-family sentence, byte-exact. It names its door (the
+    /// boolean's module pins the same property for its one instance
+    /// by `contains`; this one is unreachable from a document but is
+    /// pinned to the byte anyway, so the two split sentences are held
+    /// to one standard).
     #[test]
     fn the_foreign_record_sentence_names_the_door() {
-        assert!(
-            split::<f64>().foreign_record.contains("split"),
-            "the wrong-family sentence no longer names the split"
+        assert_eq!(
+            split::<f64>().foreign_record,
+            "the split returned a record that is not a split's"
         );
     }
 }

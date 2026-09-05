@@ -49,6 +49,7 @@ use editor_core::{
     Datum, Node, NodeErrorKind, NodeResult, PartSelect, ProfileDoc, RecipeNodeId, SplitHalf,
     SplitSide, ValuePayload, persist,
 };
+use fixture::digest::digest;
 use fixture::{len, scl, square};
 use geom_core::Tol;
 use topo::{Body, SourceExpr};
@@ -61,8 +62,59 @@ fn tol() -> Tol {
 /// cylinder (curved section edges), a plane through a box with both
 /// halves projected and unioned back (the DM3 payoff), and the kitchen
 /// sink's mid-height cut of a declared union. Every one cuts through
-/// its operand: two bodies out, no empty side anywhere.
+/// its operand: two bodies out, no empty side anywhere — measured by
+/// `the_corpus_has_no_split_with_an_empty_side`, not read off.
 const SPLIT_DOCUMENTS: [&str; 3] = ["cut_cylinder", "part_select", "kitchen_sink"];
+
+/// Every split value in an evaluation, as `(above is empty, below is
+/// empty)`.
+fn split_sides(ev: &editor_core::Evaluation<f64>) -> Vec<(bool, bool)> {
+    ev.order
+        .iter()
+        .filter_map(|id| match ev.value(*id).map(|v| &v.payload) {
+            Some(ValuePayload::Split { above, below }) => Some((
+                matches!(above, SplitSide::Empty),
+                matches!(below, SplitSide::Empty),
+            )),
+            _ => None,
+        })
+        .collect()
+}
+
+/// **The corpus's split documents are exactly [`SPLIT_DOCUMENTS`], and
+/// none of their splits has an empty side** — a measurement, so that a
+/// fourth registered split, or a plane that stops cutting through, is
+/// noticed here rather than read off a comment. The empty-side row
+/// below exists BECAUSE this count is zero: the day it is not, the
+/// in-suite document is no longer the only input feeding that token
+/// and the registered one should carry the pin.
+#[test]
+fn the_corpus_has_no_split_with_an_empty_side() {
+    let mut with_split: Vec<&str> = Vec::new();
+    let mut empty_sides = 0usize;
+    for doc in corpus::documents() {
+        let ev = eval::<f64>(&doc.doc);
+        let sides = split_sides(&ev);
+        if !sides.is_empty() {
+            with_split.push(doc.name);
+        }
+        empty_sides += sides
+            .iter()
+            .filter(|(above, below)| *above || *below)
+            .count();
+    }
+    with_split.sort_unstable();
+    let mut expected = SPLIT_DOCUMENTS.to_vec();
+    expected.sort_unstable();
+    assert_eq!(
+        with_split, expected,
+        "the registry's split-carrying documents are not the ones this suite pins"
+    );
+    assert_eq!(
+        empty_sides, 0,
+        "a registered split now has an empty side; move the empty-side pin onto it"
+    );
+}
 
 /// **The wire format is untouched**: `part_select` — a split with BOTH
 /// halves projected off it by `Node::Part` and unioned — saves, loads
@@ -87,114 +139,18 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
     );
 }
 
-/// FNV-1a 64 over a document's evaluated name tables and values — the
-/// SEAT-4 feed byte for byte on the body half, with the split's value
-/// fed on top.
-///
-/// The channels are enumerated off `wire_split`'s own body: the name
-/// table the emitter returns, the two sides the split door returns,
-/// the provenance stamps `stamp_minted_from` applies to each side in
-/// one index space, and (on the refusal path) a typed error. The
-/// `Split` arm feeds each side under its role token — a lowering that
-/// swapped the halves moves the digest even though every body arena is
-/// bit-identical — and an EMPTY side as its own token, so a result
-/// that vanished on one side cannot alias one that never ran. Booleans
-/// are fed as SEAT-4's feed does, because two of the pinned documents
-/// carry them and their bodies are what the split cuts or what its
-/// halves rejoin into.
-///
-/// The refusal path is NOT covered, as in every sibling suite: a
-/// change that only altered which `NodeErrorKind` came back would pass
-/// this digest.
-fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    let mut feed = |bytes: &[u8]| {
-        for b in bytes {
-            h ^= u64::from(*b);
-            h = h.wrapping_mul(0x1000_0000_01b3);
-        }
-    };
-    for id in &ev.order {
-        feed(format!("#{id:?}").as_bytes());
-        let Some(value) = ev.value(*id) else { continue };
-        for (name, entry) in value.name_table.iter() {
-            feed(format!("{name:?}={entry:?}").as_bytes());
-        }
-        feed(value.payload.kind_name().as_bytes());
-        match &value.payload {
-            ValuePayload::Body(body) => feed_body(&mut feed, body),
-            ValuePayload::Boolean(bv) => match bv {
-                editor_core::BooleanValue::Body {
-                    body,
-                    kind,
-                    contacts,
-                } => {
-                    feed(format!("{kind:?}{contacts:?}").as_bytes());
-                    feed_body(&mut feed, body);
-                }
-                editor_core::BooleanValue::Empty => feed(b"empty"),
-            },
-            ValuePayload::Split { above, below } => {
-                for (role, side) in [("above", above), ("below", below)] {
-                    feed(role.as_bytes());
-                    match side {
-                        SplitSide::Body(body) => feed_body(&mut feed, body),
-                        SplitSide::Empty => feed(b"empty-side"),
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    h
-}
-
-/// The body half of [`digest`], byte-for-byte the SEAT-4 feed: points
-/// with their provenance stamps, the curve and surface arenas with
-/// theirs, the topology's attachment both ways, and the entity census.
-fn feed_body(feed: &mut impl FnMut(&[u8]), body: &Body<f64>) {
-    for (key, p) in body.points() {
-        for c in [p.x, p.y, p.z] {
-            feed(&c.to_bits().to_be_bytes());
-        }
-        feed(format!("{key:?}<-{:?}", body.point_source(key)).as_bytes());
-    }
-    for (key, curve) in body.curves() {
-        feed(format!("{key:?}{curve:?}<-{:?}", body.curve_source(key)).as_bytes());
-    }
-    for (key, surface) in body.surfaces() {
-        feed(format!("{key:?}{surface:?}<-{:?}", body.surface_source(key)).as_bytes());
-    }
-    for (key, face) in body.faces() {
-        let surface = body
-            .get_surface(face.surface)
-            .expect("a face has a carrier");
-        feed(format!("{key:?}{surface:?}").as_bytes());
-    }
-    for (key, edge) in body.edges() {
-        let curve = body
-            .get_curve_geom(edge.curve)
-            .expect("an edge has a curve");
-        feed(format!("{key:?}{curve:?}").as_bytes());
-    }
-    feed(
-        format!(
-            "V{}E{}F{}",
-            body.vertices().count(),
-            body.edges().count(),
-            body.faces().count()
-        )
-        .as_bytes(),
-    );
-}
+// The digest these rows pin with is `fixture::digest::digest` — ONE feed
+// for every verb-migration suite, stated at that home; the `Split` arm
+// (each side under its ROLE token, an empty side as its own token) is
+// this unit's addition to it.
 
 /// **The registered split documents' evaluations are bit-identical**
 /// through the verb lowering — bodies on both sides, provenance stamps,
 /// name tables — one committed number each.
 ///
 /// The numbers were taken on this branch and re-taken on the extracted
-/// merge base with this file copied onto it; all three reproduce
-/// there. That differential is what "nothing observable moved" means;
+/// merge base with this file and the shared feed copied onto it; all
+/// three reproduce there. That differential is what "nothing observable moved" means;
 /// without it the constants would only say the branch agrees with
 /// itself. They are goldens in the ordinary sense — when one moves the
 /// question is whether the new behaviour is right, never how to restore

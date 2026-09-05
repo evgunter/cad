@@ -27,3 +27,33 @@ pub(crate) mod blend;
 pub(crate) mod boolean;
 pub(crate) mod split;
 pub(crate) mod sweep;
+
+use geom_core::Real;
+use verbs::VerbRecord;
+
+use crate::eval::NodeErrorKind;
+use crate::names::NamingError;
+
+/// **The one rule for taking a family's record out of the closed
+/// channel**: apply the correspondence's own projection — an
+/// exhaustive match over [`VerbRecord`] that answers `Some` for its
+/// family's arm and `None` for every other, so a record family added
+/// to the channel breaks every projection at compile time (D3) — and
+/// refuse a foreign family typed, in the correspondence's own words.
+///
+/// A wrong-family record is a kernel bug: which variant a verb's run
+/// produces is fixed by its family, so this refusal is unreachable
+/// while the doors and the correspondences agree. It is refused, not
+/// panicked, and the sentence names the door so the refusal does
+/// too. Every lowering reads its record through here and nowhere
+/// else; the rule was once written inline at each consumer and the
+/// copies had begun to drift in their comments before their code.
+pub(crate) fn read_record<T: Real, R>(
+    record: VerbRecord<T>,
+    family: fn(VerbRecord<T>) -> Option<R>,
+    foreign_record: &'static str,
+) -> Result<R, NodeErrorKind> {
+    family(record).ok_or(NodeErrorKind::Naming(NamingError::Emission {
+        what: foreign_record,
+    }))
+}

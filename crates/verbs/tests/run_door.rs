@@ -271,6 +271,59 @@ fn sample(kind: VerbKind) -> Verb<f64> {
     }
 }
 
+/// **The door matrix**: `verb` run through EVERY door, each under the
+/// row that names it, with the refusal (if any) beside it. This list
+/// is the one place the doors are enumerated by hand — the two rows
+/// below read it, one for the refusals and one for the census.
+fn every_door(
+    verb: &Verb<f64>,
+    a: &Body<f64>,
+    b: &Body<f64>,
+    disc: &profile::ValidatedProfile<f64>,
+) -> Vec<(Arity, Option<VerbError>)> {
+    vec![
+        (Arity::One, verb.run(a, tol()).err()),
+        (
+            Arity::Two,
+            verb.run_pair(a, b, SweepStrategy::Realized, tol()).err(),
+        ),
+        (Arity::Profile, verb.run_profile(disc, tol()).err()),
+        (Arity::Split, verb.run_split(a, tol()).err()),
+    ]
+}
+
+/// **Every door row has a door, and every door a row.** `Arity` is
+/// compile-forced nowhere outside its own census: a variant planted
+/// on it builds clean and every dispatch row stays green, because the
+/// only thing tying rows to doors was the hand-written door matrix.
+/// This row ties them: the set of rows the matrix runs is exactly
+/// [`Arity::ALL`], and every verb's declared row is one the matrix
+/// runs. A fifth row without a fifth door reds here; a fifth door
+/// without a row cannot be written (the matrix keys on the enum).
+#[test]
+fn every_arity_row_has_a_door_and_every_door_a_row() {
+    let a = sweep::test_support::cube(1.0, tol());
+    let b = shifted_cube(Vec3::new(0.5, 0.5, 0.5));
+    let disc = disc(0.5);
+    let doors: std::collections::BTreeSet<Arity> =
+        every_door(&sample(VerbKind::Fillet), &a, &b, &disc)
+            .into_iter()
+            .map(|(door, _)| door)
+            .collect();
+    let rows: std::collections::BTreeSet<Arity> = Arity::ALL.iter().copied().collect();
+    assert_eq!(
+        doors, rows,
+        "the door matrix and Arity::ALL name different sets — a row has no door, or a door no row"
+    );
+    for kind in VerbKind::ALL {
+        assert!(
+            doors.contains(&kind.arity()),
+            "{kind:?} declares {:?}, which no door in the matrix answers",
+            kind.arity()
+        );
+    }
+}
+
 /// **Each door refuses exactly the verbs that do not declare it**,
 /// over the whole vocabulary — the typed mismatch refusal exercised
 /// in both directions, so no door's cross-door arms are untested. The
@@ -295,24 +348,16 @@ fn each_door_refuses_the_undeclared_arity() {
         // Every door but this verb's own, so no shape is left untried:
         // the refusal must come back from each of them, naming the verb
         // and the door that refused.
-        let refusals: Vec<(Arity, VerbError)> = [
-            (Arity::One, verb.run(&a, tol()).err()),
-            (
-                Arity::Two,
-                verb.run_pair(&a, &b, SweepStrategy::Realized, tol()).err(),
-            ),
-            (Arity::Profile, verb.run_profile(&disc, tol()).err()),
-            (Arity::Split, verb.run_split(&a, tol()).err()),
-        ]
-        .into_iter()
-        .filter(|(door, _)| *door != kind.arity())
-        .map(|(door, err)| {
-            (
-                door,
-                err.unwrap_or_else(|| panic!("{kind:?} ran through the {door:?} door")),
-            )
-        })
-        .collect();
+        let refusals: Vec<(Arity, VerbError)> = every_door(&verb, &a, &b, &disc)
+            .into_iter()
+            .filter(|(door, _)| *door != kind.arity())
+            .map(|(door, err)| {
+                (
+                    door,
+                    err.unwrap_or_else(|| panic!("{kind:?} ran through the {door:?} door")),
+                )
+            })
+            .collect();
         assert_eq!(refusals.len(), 3, "there are four doors, not four-plus");
         for (door, err) in refusals {
             let VerbError::Arity { verb: who, given } = err else {
@@ -324,19 +369,18 @@ fn each_door_refuses_the_undeclared_arity() {
     }
 }
 
-/// **The door refusal's sentence, pinned.**
+/// **The door refusal's sentence, pinned byte for byte.**
 ///
-/// It is the one refusal string this door owns rather than forwards,
-/// and it reads the verb's DECLARED door out of `VerbKind::arity`
-/// while naming the door it was handed to — so a row added to
-/// `Arity` changes what it says without any match to visit. That is
-/// worth having and worth pinning: the sentence is what a direct
-/// caller who picked the wrong door gets, and nothing else asserts a
-/// word of it. The split rows are why it speaks DOORS and not
-/// operands: a split's operand is one body, so "declares a One
-/// operand and was run through the One door" would have been the
-/// sentence for a split handed to the blend door — true of the
-/// operand and false of the refusal.
+/// It is the one refusal string this door owns rather than forwards.
+/// It is written in the doors' own NAMES and nothing else — no reading
+/// of what a row means enters it — because it moved in two consecutive
+/// units while it was written in the vocabulary of the moment ("N
+/// operand(s)", then "declares a … operand"), and a door added to the
+/// enum must not move it again. What a row added to `Arity` changes
+/// is only which names can appear. Pinned exactly, in both directions
+/// of the split's own mismatch, because a split's operand is one body
+/// and the One door is where a wiring bug would most plausibly hand
+/// it.
 #[test]
 fn the_arity_refusal_names_the_declared_operand_and_the_door() {
     let err = Verb::Fillet {
@@ -347,7 +391,7 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
     .expect_err("a fillet is not a profile verb");
     assert_eq!(
         err.to_string(),
-        "the Fillet verb answers the One door and was run through the Profile door"
+        "the Fillet verb was run through the Profile door; the door that answers it is One"
     );
 
     let cube = sweep::test_support::cube(1.0, tol());
@@ -356,7 +400,7 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
         .expect_err("an extrude is not a one-body verb");
     assert_eq!(
         err.to_string(),
-        "the Extrude verb answers the Profile door and was run through the One door"
+        "the Extrude verb was run through the One door; the door that answers it is Profile"
     );
 
     let err = Verb::Split {
@@ -366,7 +410,7 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
     .expect_err("a split hands back two sides, which the one-body door cannot");
     assert_eq!(
         err.to_string(),
-        "the Split verb answers the Split door and was run through the One door"
+        "the Split verb was run through the One door; the door that answers it is Split"
     );
     let err = Verb::Fillet {
         edges: Vec::new(),
@@ -376,7 +420,7 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
     .expect_err("a fillet hands back one body, not two sides");
     assert_eq!(
         err.to_string(),
-        "the Fillet verb answers the One door and was run through the Split door"
+        "the Fillet verb was run through the Split door; the door that answers it is One"
     );
 }
 
@@ -420,18 +464,38 @@ fn the_split_dispatch_is_the_split_door() {
     );
 }
 
+/// Bitwise vertex lookup: how many vertices of `body` sit exactly at
+/// `(x, y, z)`.
+fn vertices_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> usize {
+    body.vertices()
+        .filter(|(_, v)| {
+            let p = *body.get_point(v.point).unwrap();
+            p.x == x && p.y == y && p.z == z
+        })
+        .count()
+}
+
 /// **The dispatch agrees with the door THROUGH the D7 pinch lane.**
 ///
 /// The kernel door reruns a one-sided pinch mirrored and swaps the
 /// sides back, so on this operand what `topo::split` returns is the
 /// mirrored run's decomposition re-labelled — not the direct run's,
-/// which refuses. The dispatch calls the door and nothing beneath it,
-/// so agreement is by construction; it is pinned rather than assumed
-/// because "by construction" is exactly the claim a dispatch that
-/// reached for `split_direct`, or re-derived the plane, would break
-/// while every other row stayed green. The operand is the lane's own
-/// fixture, and the pinched pieces landing BELOW `+y` is what says
-/// the swap-back happened on both paths.
+/// which refuses. The premise — that the lane is TAKEN on this
+/// operand — is asserted, not assumed, through the one observable
+/// only the lane can produce: the kernel mints vertex copies for the
+/// ABOVE side's pinch runs only, so a below-side pinch that succeeds
+/// with two coincident-but-distinct copies at each tip on the pieces
+/// side, and one vertex on the slab side, got those copies from the
+/// mirrored run. A direct run of this orientation has no way to mint
+/// them and refuses instead (the kernel's own suite pins that half).
+///
+/// The dispatch calls the door and nothing beneath it, so agreement
+/// is by construction; it is pinned rather than assumed because the
+/// one thing the dispatch could do to the plane — re-derive it, or
+/// its orientation, before the door — is exactly what this operand
+/// would expose while every other row stayed green. (The direct
+/// pipeline is private to `topo::splitting`; nothing here can reach
+/// it, so that is not the failure this row guards.)
 #[test]
 fn the_split_dispatch_agrees_with_the_door_through_the_pinch_lane() {
     let prism = pinch_prism();
@@ -440,14 +504,24 @@ fn the_split_dispatch_agrees_with_the_door_through_the_pinch_lane() {
     let door = split(&prism, &plane, tol()).unwrap();
     let via = Verb::Split { plane }.run_split(&prism, tol()).unwrap();
 
-    let SplitPart::Body(pieces) = &via.below else {
-        panic!("the pinched floor pieces are below +y: {:?}", via.below);
+    let (SplitPart::Body(slab), SplitPart::Body(pieces)) = (&via.above, &via.below) else {
+        panic!("both sides of the pinch cut are bodies: {via:?}");
     };
     assert_eq!(
         pieces.shells().count(),
         3,
         "the pinch lane's three floor pieces did not reach the dispatch"
     );
+    // The lane's signature: copies minted for the pieces at each tip
+    // line, the slab keeping the one original vertex.
+    for z in [0.0, 1.0] {
+        assert_eq!(
+            vertices_at(pieces, 4.0, 1.0, z),
+            2,
+            "the pieces side carries no tip copies at z = {z}: the mirror lane was not taken"
+        );
+        assert_eq!(vertices_at(slab, 4.0, 1.0, z), 1);
+    }
     assert_eq!(
         dump_sides(&door.above, &door.below),
         dump_sides(&via.above, &via.below)

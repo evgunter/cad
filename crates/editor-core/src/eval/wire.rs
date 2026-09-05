@@ -1691,17 +1691,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     // The match is EXHAUSTIVE with no wildcard arm (D3): a record
     // family added to the channel breaks this consumer at compile time
     // and must be routed here deliberately, never silently refused.
-    let naming = match out.record {
-        verbs::VerbRecord::Blend(naming) => naming,
-        verbs::VerbRecord::Boolean { .. }
-        | verbs::VerbRecord::Extrude(_)
-        | verbs::VerbRecord::Revolve(_)
-        | verbs::VerbRecord::Split(_) => {
-            return Err(NodeErrorKind::Naming(names::NamingError::Emission {
-                what: verb.foreign_record,
-            }));
-        }
-    };
+    let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
     let rec = naming.ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
         what: verb.no_records,
     }))?;
@@ -2262,23 +2252,7 @@ fn wire_split<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     let plane = (verb.tool)(datum).ok_or_else(wrong_tool)?;
     let built = (verb.build)(plane);
     let out = built.run_split(&body, tol).map_err(verb_refused)?;
-    // The record channel is per-family; a split's run produces the
-    // split variant by construction, so another family here is a
-    // kernel bug — refused typed. The match is EXHAUSTIVE with no
-    // wildcard arm (D3): a record family added to the channel breaks
-    // this consumer at compile time and must be routed here
-    // deliberately, never silently refused.
-    let naming = match out.record {
-        verbs::VerbRecord::Split(naming) => naming,
-        verbs::VerbRecord::Blend(_)
-        | verbs::VerbRecord::Boolean { .. }
-        | verbs::VerbRecord::Extrude(_)
-        | verbs::VerbRecord::Revolve(_) => {
-            return Err(NodeErrorKind::Naming(names::NamingError::Emission {
-                what: verb.foreign_record,
-            }));
-        }
-    };
+    let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
     // Pass-through descriptions keep their sources (the clone carried
     // them); the split's fresh section planes get THIS node's (D1) —
     // in ONE index space across both halves. Each half's section
@@ -2481,21 +2455,11 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
             // wildcard arm (D3): a new record family breaks this
             // consumer at compile time rather than routing silently
             // to the refusal.
-            let (kind, contacts, naming) = match out.record {
-                verbs::VerbRecord::Boolean {
-                    kind,
-                    contacts,
-                    naming,
-                } => (kind, contacts, naming),
-                verbs::VerbRecord::Blend(_)
-                | verbs::VerbRecord::Extrude(_)
-                | verbs::VerbRecord::Revolve(_)
-                | verbs::VerbRecord::Split(_) => {
-                    return Err(NodeErrorKind::Naming(names::NamingError::Emission {
-                        what: verb.foreign_record,
-                    }));
-                }
-            };
+            let crate::verbs::boolean::BooleanRecord {
+                kind,
+                contacts,
+                naming,
+            } = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
             let table = (verb.emitter)(
                 id,
                 &out.body,

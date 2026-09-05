@@ -166,44 +166,42 @@ pub enum VerbKind {
     Split,
 }
 
-/// **Which run door answers a verb** — the declared operand arity AND
-/// KIND of design V1 ("the declaration states operand arity and
-/// kind"), as data, joined by what the door hands BACK.
+/// **The run doors, as data** — one row per door, and every verb names
+/// the row that answers it ([`VerbKind::arity`]).
 ///
-/// It was a body count while every migrated verb operated on bodies,
-/// and an operand SHAPE once the sweeps arrived: an extrude's operand
-/// is a validated PROFILE, a value no body arena holds, so `Profile`
-/// is a third shape rather than a count of the first. The split moves
-/// the reading once more. Its operand is one body, exactly `One`'s —
-/// but the one-body door gives back one body, and a split gives back
-/// TWO sides, each a body or the typed empty, which no one-body
-/// consumer could take. A door is its signature at both ends; three
-/// doors were told apart by their operand alone only because their
-/// results happened to differ with it. So this enum names DOORS:
-/// `Split` is the row for the door that takes one body and returns
-/// two sides, and a verb's row is the door that answers it — never,
-/// on its own, a claim about the operand count.
-///
-/// Each door has the operand in its signature and its own out-type
-/// ([`Verb::run`], [`Verb::run_pair`], [`Verb::run_profile`],
-/// [`Verb::run_split`]); this enum is what the doors' typed mismatch
-/// refusal ([`crate::VerbError::Arity`]) speaks, and what a test can
-/// assert the doors against. The name dates from when the rows were
-/// counts and is kept because it crosses the document layer's refusal
-/// payload; read it as the door vocabulary.
+/// A door is its signature at BOTH ends: the operand it takes and the
+/// out-type it hands back. Two doors that take the same operand and
+/// hand back different things are two rows — `One` and `Split` both
+/// take one body — so a row is never, on its own, a claim about an
+/// operand count. The rows are what the doors' typed mismatch refusal
+/// ([`crate::VerbError::Arity`]) speaks, and what `tests/run_door.rs`
+/// asserts the doors against: [`Arity::ALL`] and the door matrix there
+/// must name the same set, so a row without a door, or a door without
+/// a row, reds. The name dates from when the rows were operand counts
+/// and is kept because it crosses the document layer's refusal
+/// payload; read it as the door vocabulary and nothing narrower.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Arity {
-    /// One operand body, one result body.
+    /// [`Verb::run`]: one operand body in, one result body and its
+    /// record out ([`crate::VerbOut`]).
     One,
-    /// Two operand bodies.
+    /// [`Verb::run_pair`]: two operand bodies in, a result body with
+    /// its record or the typed empty out ([`crate::PairOut`]).
     Two,
-    /// One validated profile, borrowed at the door — never a body,
-    /// and never in the payload.
+    /// [`Verb::run_profile`]: one validated profile in — borrowed at
+    /// the door, never a body, never in the payload — and the door's
+    /// own bundle out, as the record ([`crate::VerbRecord`]).
     Profile,
-    /// One operand body, handed back as TWO sides — the split door.
-    /// The operand is a body like `One`'s; the door is its own because
-    /// its out-type is ([`crate::SplitOut`]).
+    /// [`Verb::run_split`]: one operand body in, exactly `One`'s, and
+    /// TWO sides out under one record ([`crate::SplitOut`]). The door
+    /// is its own because its out-type is.
     Split,
+}
+
+impl Arity {
+    /// Every door row, for censuses that must be total over the
+    /// doors.
+    pub const ALL: &'static [Self] = &[Self::One, Self::Two, Self::Profile, Self::Split];
 }
 
 impl VerbKind {
@@ -251,7 +249,36 @@ impl<T: Real> Verb<T> {
 mod all_census {
     use topo::BooleanOp;
 
-    use super::VerbKind;
+    use super::{Arity, VerbKind};
+
+    /// **[`Arity::ALL`] is every door row**, by the same construction
+    /// as the vocabulary's census: the match is exhaustive, so a row
+    /// added to the enum fails this file to compile until it is
+    /// visited here, and visiting it means writing the new count,
+    /// which reds until `ALL` has grown too. The other half — that
+    /// every row in `ALL` has a DOOR — is `tests/run_door.rs`'s, where
+    /// the doors are.
+    #[test]
+    fn all_is_every_door_row() {
+        let rows = match Arity::One {
+            Arity::One => 4,
+            Arity::Two => 4,
+            Arity::Profile => 4,
+            Arity::Split => 4,
+        };
+        for (i, row) in Arity::ALL.iter().enumerate() {
+            assert!(
+                !Arity::ALL[..i].contains(row),
+                "{row:?} appears twice in Arity::ALL"
+            );
+        }
+        assert_eq!(
+            Arity::ALL.len(),
+            rows,
+            "Arity::ALL has drifted from the door rows — it holds {} rows, the enum has {rows}",
+            Arity::ALL.len()
+        );
+    }
 
     /// **[`VerbKind::ALL`] is the WHOLE vocabulary**, pinned against a
     /// compile-time visit rather than reviewed.

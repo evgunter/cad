@@ -22,10 +22,11 @@ use crate::verb::{Arity, Verb, VerbKind};
 /// No record is RESTATED here — each family's channel carries the
 /// operation's own value across ([`VerbRecord`]), so a change INSIDE
 /// any moved type reaches this door with no edit. A record GROWN at
-/// the top level (a new `BooleanBody` field, a new blend record
-/// beside `naming`) is a compile-time visit here instead — the pair
-/// door destructures its result exhaustively so a grown field cannot
-/// vanish in the move.
+/// the top level (a new `BooleanBody` field, a new `SplitResult`
+/// field, a new blend record beside `naming`) is a compile-time visit
+/// here instead — the pair door and the split door each destructure
+/// their result exhaustively so a grown field cannot vanish in the
+/// move.
 ///
 /// The blend doors also hand back their solid, shell and per-role face
 /// lists. Those are geometry a caller who wants them reads off the door
@@ -183,9 +184,16 @@ impl fmt::Display for VerbError {
             Self::Extrude(refusal) => write!(f, "{refusal}"),
             Self::Revolve(refusal) => write!(f, "{refusal}"),
             Self::Split(refusal) => write!(f, "{refusal}"),
+            // Written in the doors' own names and nothing else — no
+            // reading of what a row MEANS (a count, an operand shape, a
+            // signature) enters the sentence, so a door added to the
+            // vocabulary does not move it. It moved in two consecutive
+            // units for exactly that reason before it was written this
+            // way; `tests/run_door.rs` pins it byte for byte.
             Self::Arity { verb, given } => write!(
                 f,
-                "the {verb:?} verb answers the {:?} door and was run through the {given:?} door",
+                "the {verb:?} verb was run through the {given:?} door; the door that answers it is \
+                 {:?}",
                 verb.arity()
             ),
         }
