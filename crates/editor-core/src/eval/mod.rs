@@ -760,6 +760,14 @@ pub enum NodeErrorKind {
     /// emission bug, a kernel-emission gap, or an in-band N2
     /// discriminator escalation — carried unaltered.
     Naming(NamingError),
+    /// The lowered parameter-identity attach refused (VERB-SEAT-DESIGN
+    /// P2): the kernel's per-field door would not take a token on a
+    /// key or a field the attach pass just read off the same body. A
+    /// broken invariant of `param_source::attach_blend` — its doc says
+    /// why neither refusal can fire — surfaced typed rather than
+    /// discarded, so that a channel fed nothing is never mistaken for
+    /// a channel that refused.
+    ParamSourceAttach(topo::ParamAttachError),
     /// A `Declare` pair failed to resolve through the operands' name
     /// tables (F5, M4 PR 5) — the N5 typed error VERBATIM: a Declare
     /// naming a vanished/ambiguous/deleted name refuses loudly; no
@@ -1304,6 +1312,10 @@ impl core::fmt::Display for NodeErrorKind {
             // kernel refusal riding the variant — it has no other route
             // to a human, so it is carried through rather than dropped.
             Self::Naming(e) => write!(f, "name emission failed: {e}"),
+            Self::ParamSourceAttach(e) => write!(
+                f,
+                "the parameter-identity attach refused on a carrier the blend just minted: {e}"
+            ),
             Self::DeclareResolve { error } => write!(
                 f,
                 "a declared name failed to resolve through the operands' tables: {error}"
@@ -2577,7 +2589,16 @@ where
     // existing node reaches is strictly additive and is the case the
     // rule does not cover. A future channel that any existing node
     // writes into gets the bump.
-    h.write_tag(3);
+    //
+    // Key format v4 (SEAT-6): a blend node's flow-bearing size slot
+    // feeds its lowered EXPRESSION beside its value (`feed_blend`,
+    // through `param_source::feed_content_key`). An existing node
+    // writes into the channel, so by the rule above this is the bump,
+    // not the exception: every key moves, and no pre-bump memo entry
+    // is reused — which is what the channel needs, since a body minted
+    // before its spelling was part of the key could carry a token the
+    // current document does not hold.
+    h.write_tag(4);
     let tol = tol.get();
     h.write_f64_bits(tol.eps);
     h.write_f64_bits(tol.k);
@@ -2858,11 +2879,21 @@ where
         // blends of the same size on different edges are different
         // nodes (M6-5). Canonical order (the construction doors) is
         // what makes this a set hash rather than an order hash.
-        Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => {
-            h.write_u64(selection.len() as u64);
-            for n in selection {
-                feed_stable_name(&mut h, n);
-            }
+        //
+        // Its size slot's EXPRESSION is an input too, when the verb's
+        // declared flow lands that parameter in a stored field: the
+        // minted body then carries the expression's lowered identity
+        // in its field rows, so two spellings of one value are two
+        // different bodies and must not serve each other from the
+        // memo (SEAT-6, key format v4). The fillet's radius is
+        // flow-bearing; the chamfer's setback reaches no field and
+        // feeds nothing — the rule is read off the declaration rather
+        // than written per verb.
+        Node::Fillet { selection, .. } => {
+            feed_blend(&mut h, node, selection, crate::verbs::blend::FILLET_SLOTS);
+        }
+        Node::Chamfer { selection, .. } => {
+            feed_blend(&mut h, node, selection, crate::verbs::blend::CHAMFER_SLOTS);
         }
         // A measure's REFERENCES and its measured EXPRESSION are both
         // recipe payload rather than slots: two measures with the same
@@ -3466,6 +3497,27 @@ fn dimension_tag(dim: crate::expr::Dimension) -> u8 {
 /// a name is an identity, and two names differing anywhere are two
 /// different recipe payloads. Names are float-free by construction
 /// (pure tags and integers), so nothing here is eps-dependent.
+/// A blend node's recipe payload beyond its slot values: the canonical
+/// selection, and — for a flow-bearing size parameter — the lowered
+/// spelling of its slot (`content_key`'s blend arms).
+fn feed_blend(
+    h: &mut KeyHasher,
+    node: &crate::node::Node<ProfileProgram>,
+    selection: &[StableName],
+    slots: crate::verbs::blend::BlendSlots,
+) {
+    h.write_u64(selection.len() as u64);
+    for n in selection {
+        feed_stable_name(h, n);
+    }
+    if crate::param_source::flow_bearing(slots.size_param)
+        && let Some(expr) = node.expr(slots.size_slot)
+    {
+        h.write_tag(43);
+        crate::param_source::feed_content_key(h, expr);
+    }
+}
+
 fn feed_stable_name(h: &mut KeyHasher, name: &StableName) {
     use crate::names::EntityKind;
     h.write_tag(match name.kind {

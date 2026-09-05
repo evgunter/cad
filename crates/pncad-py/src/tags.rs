@@ -358,6 +358,7 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::PlacementRule(fault) => placement_rule_fault_tag(fault),
         NodeErrorKind::UnschedulableCycle => "unschedulable_cycle",
         NodeErrorKind::Naming { .. } => "naming",
+        NodeErrorKind::ParamSourceAttach(_) => "param_source_attach",
         NodeErrorKind::DeclareResolve { .. } => "declare_resolve",
         NodeErrorKind::DeclareBothOperands { .. } => "declare_both_operands",
         NodeErrorKind::DeclareUnsupportedPair { .. } => "declare_unsupported_pair",

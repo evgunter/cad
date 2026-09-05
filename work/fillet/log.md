@@ -369,3 +369,49 @@ judge whether C4 is met or owed a deviation), `HostSide` passed not
 derived, the `Struts` gate's exact-outer-cycle question, `strut_foot` as
 one home, `refresh_annulus_seams` carrying a `Strut`, the ungated
 default-ε / 1e-12 points and the unbuilt tour.
+
+**RIM merged (2026-09-05)** at `40d50f272` (PR
+[#1821](https://github.com/evgunter/cad/pull/1821)), **sample #131**
+(ledger max #130 at merge), ordinal 2001; block FILLET-B1 slot 1 concluded
+(line on `fillet/b1-block`). Adjudicated in the row: R2's MAJOR-2 (the
+unused-arcs guard with no row, mutant-proven) is a UNILATERAL tally
+candidate; R2's MAJOR-1 (the interval fixture's point enclosures) flagged
+for the blinded adjudication; v6 tally +1 this pair. The fix pass took
+every decision, and its landing run was the FULL matrix: `ci.yml` retired
+the `CI-Config` trailer and the k-lint draw on 2026-09-04, so every PR run
+now gates every point — the trailer is prose, and the "which point gated"
+sentence leaves the briefs. `docs/FILLET-RIM-SPEC.md` deleted, ledgered at
+the merge SHA. Filed by the pass: `rim-door-admits-a-double-cover`,
+`rim-seed-finders-disagree-on-at-this-radius`.
+
+**H6 landed (2026-09-05)** on PR [#1891](https://github.com/evgunter/cad/pull/1891),
+head `f9cfceaef`, full matrix green (run 33935813397; the first head red
+on the lane's own probe — absolute-metre radii refused at ε = 1e-6 — re-cut
+to `tol.eps()`). Shape A: sixteen cap-rim shapes through the public doors,
+none reaches `Smooth`; the spec's "exactly 90°" premise corrected to the
+`1/K` obliquity bound (`sin θ ≥ √(1 − 1/K²)`); the must-carry rule homed
+as `geom_brep::tangent_second_order` with both siblings calling it
+bit-neutrally; the dump corpus gained an extrude/revolve row, identical at
+base and head. The lane's "worth a decision" — the two smooth siblings
+disagree on the in-band policy and on how much edge they read — filed as
+`smooth-arm-siblings-disagree-on-the-in-band-case`. **H6 dual dispatched**
+on frozen `f9cfceaef`: ordinal **2003**, parity byte 211 ⇒ R1 FABLE / R2
+OPUS, briefs stored with sha256, concurrent, isolated. H7 dispatched into
+block B2 slot 2 (the box was quiet) — three implementer lanes and two
+reviewers live.
+
+**ATTR landed (2026-09-05)** on PR [#1895](https://github.com/evgunter/cad/pull/1895),
+head `e8813f998`, full matrix green (run 33937888422, twelve test jobs,
+five k-lint tiers, python suite). Phase 1 confirmed the premise at the
+merge base (arc×arc: 8.2 % of refusals named a corner other than the
+anchors' nearest, max 0.792 m; 16 % mixed reasons across crossings;
+line×arc 0 % but 50 % mixed). Landed: `NoCornerOfPair { radius, corners }`
+with `CornerReason` arms carrying the three retired variants' payloads
+verbatim, both channels (arc-carrier resolve and the straight pair)
+feeding it, `FilletOffsetLeverTooShort` still aborting alone; Python
+`no_corner_of_pair` + `corner_reason_tag` + `PathError.corners`. Reported
+not filed by the lane (outside its fence): the same first-wins discard
+shape at `editor-core/src/clearance.rs:1237` and `drive.rs:1707`, and
+`sugar.rs:612` one level down. **ATTR dual dispatched** on frozen
+`e8813f998`: ordinal **2004**, parity byte 43 ⇒ R1 FABLE / R2 OPUS, briefs
+stored with sha256, concurrent, isolated.
