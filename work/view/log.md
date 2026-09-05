@@ -2275,3 +2275,77 @@ expiry, the boundary rule #1848's gate proved false, and the badge
 family — and they gate `status-line-writers-bypass-the-ranking`, the
 nineteen-site sweep that is the largest single item left on this board.
 Nothing else is blocked on it.
+
+## Ev ruled all three forks; #1883 merged; the sweep is unblocked (2026-09-05)
+
+> 1. b sounds good
+> 2. i think a sounds good, since it's easy to switch to b later and hard to do the reverse
+> 3. sure
+
+Merged at `ecd5d237` after resolving one conflict in
+`four-badges-five-spellings.md` — my `## Put to Ev` section on the
+branch against the `## A sixth member` evidence I added on the
+orchestrator branch. **Union, both kept, chronological order**;
+neither was a competing claim about the same thing.
+
+### The rulings
+
+**1 — the news vocabulary: a message carries its SUBJECT** (candidate
+2). A later message about the same subject supersedes it: a camera
+verdict expires on the next camera event, a projection refusal on the
+next camera move, a disagreement on the next cursor move, a
+supersession on the next document transition. So the sweep is a
+**vocabulary change, not a routing change** — `Show(String)` grows a
+subject and all nineteen writers answer it, which is exactly why the
+sweep waited.
+
+It also settles a sentence already in the tree: VIEW-6's
+`supersession_notice` says the supersession is "true of nothing" after
+its frame and nothing implemented that lifetime. Under this ruling the
+written lifetime becomes the implemented one — the sentence stops being
+aspirational instead of being deleted.
+
+**2 — the boundary rule: HOIST the read, do not widen the rule.** The
+session hands out a value; `pick.rs` and `parts.rs` take that. *No
+vocabulary may name a driver* stays unqualified, and
+`viewer-module-kinds.sh`'s two site-granular `VOCAB_EXCEPTIONS` retire
+with the sites.
+
+**Ev's reason is worth more than the answer and this program should
+carry it as a rule**: *"easy to switch to b later and hard to do the
+reverse."* The two branches are not symmetric in reversibility.
+Hoisting keeps widening available; widening does not keep hoisting
+available, because the clause gets relied on and by the time anyone
+wants it back there is a set of sites written against it. That is the
+general test for a fork between a strict rule and a rule with a clause,
+and it answers the item's own worry — a clause **is** "exactly the kind
+a later unit widens again", and the asymmetry is why the strict branch
+is the safe one rather than merely the tidier one.
+
+Recorded on the item, with the note that the evidence this exemption
+offered to `work/code-quality/D103.md` **stands and is not withdrawn**:
+its retirement is evidence about the per-seam allowlist shape, not a
+reason to stop offering it.
+
+**3 — the badge vocabulary: yes**, and with the news vocabulary as one
+unit, which was the recommendation it was put with.
+
+### Dispatched
+
+`view/news-and-badges` — `the-news-vocabulary-has-no-expiry` carrying
+`four-badges-five-spellings`. **Fenced hard against the sweep itself**:
+build the two vocabularies and convert what already goes through
+`frame`; do **not** touch the nineteen writers in `pane/*` and `app.rs`.
+The brief says that if the vocabularies cannot express one of those
+nineteen cases, **that finding is worth more than the sweep** — it
+means the shape is wrong before nineteen sites are written against it.
+
+The claim I told it to check hardest is my own weakest: that a
+supersession's subject is *the document transition*. A supersession is
+about an instance, and the thing that makes it stale may be the
+instance's next event rather than the document's. If those differ, the
+lane is to say which is right.
+
+Still to dispatch from this ruling: `pick-and-parts-name-the-session-
+driver` (the hoist) and then `status-line-writers-bypass-the-ranking`
+(the nineteen), which waits on the vocabularies this lane is building.

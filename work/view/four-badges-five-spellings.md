@@ -2,9 +2,11 @@
 id: four-badges-five-spellings
 kind: issue
 title: The toolbar's badge family is one concept in prose and five spellings in code
-status: open
+status: dispatched
 opened: 2026-09-04
 refs: [camera-fold-clears-status-line]
+branch: view/news-and-badges
+rides_with: the-news-vocabulary-has-no-expiry
 ---
 
 ## What this is
