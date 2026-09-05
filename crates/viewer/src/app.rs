@@ -173,6 +173,10 @@ const DOC_EXTENSION: &str = "pncad";
 /// The one place a [`Rgba8`] becomes an `egui::Color32`, matching
 /// `theme::linear`'s role on the viewport side: a palette states sRGB
 /// and each renderer converts once, at its own door.
+pub(crate) fn chrome(color: Rgba8) -> egui::Color32 {
+    egui::Color32::from_rgb(color.r, color.g, color.b)
+}
+
 /// **Draw one standing-fact badge**, and hand the response back.
 ///
 /// The one draw the badge family has. What a badge SAYS, how loud it
@@ -186,29 +190,25 @@ const DOC_EXTENSION: &str = "pncad";
 /// leaves no gap behind.
 fn draw_badge(ui: &mut egui::Ui, theme: &Theme, badge: &frame::Badge) -> egui::Response {
     ui.separator();
-    let text = egui::RichText::new(&badge.label);
+    let text = egui::RichText::new(badge.label());
     // The tone's two spellings, in the one place the mapping is made.
     // `Theme::unresolved`'s contract is that the colour is REDUNDANT —
     // every badge wearing it says its own words — so this decides
     // salience and never meaning.
-    let text = match badge.tone {
+    let text = match badge.tone() {
         frame::Tone::Advisory => text.weak(),
         frame::Tone::Actionable => text.color(chrome(theme.unresolved)),
     };
-    let response = match badge.affordance {
+    let response = match badge.affordance() {
         frame::Affordance::Read => ui.label(text),
         // Frameless, so a control the reader can open still reads as a
         // badge in a row of badges.
         frame::Affordance::Opens => ui.add(egui::Button::new(text).frame(false)),
     };
-    match &badge.detail {
+    match badge.detail() {
         Some(detail) => response.on_hover_text(detail),
         None => response,
     }
-}
-
-pub(crate) fn chrome(color: Rgba8) -> egui::Color32 {
-    egui::Color32::from_rgb(color.r, color.g, color.b)
 }
 
 /// Put the toolkit's chrome on `polarity`'s ground.
@@ -643,12 +643,7 @@ impl ViewerApp {
             fit_on_scene: false,
             // Whatever the preferences file had to say, in the one
             // place this crate puts a thing that went wrong.
-            status: (!notices.is_empty()).then(|| {
-                frame::Message::new(
-                    frame::Subject::Preferences,
-                    notices.join(frame::NOTICE_SEPARATOR),
-                )
-            }),
+            status: frame::startup_notices(&notices),
             notices: Vec::new(),
             chooser: frame::chooser_backend(),
             store,
@@ -675,7 +670,7 @@ impl ViewerApp {
             // A tool's survival drop is provoked by the document
             // transition it did not survive, so the act that accepts
             // the next one is what retires it.
-            frame::Message::new(frame::Subject::Document, dropped.to_string())
+            frame::tool_news(dropped.to_string())
         }));
         // **The budget picks the δ a document opens at**, once, before
         // anything is built at the δ in force — so the un-budgeted
@@ -721,9 +716,7 @@ impl ViewerApp {
             match landing {
                 pick::IndexLanding::Built => rebuilt = true,
                 pick::IndexLanding::Refused => {
-                    self.status = self.picks.error().map(|error| {
-                        frame::Message::new(frame::Subject::Display, format!("pick index: {error}"))
-                    });
+                    self.status = self.picks.error().map(frame::index_refusal);
                 }
                 pick::IndexLanding::Stale => {}
             }
@@ -778,12 +771,7 @@ impl ViewerApp {
                 // read of held state and so cannot be stale here or
                 // erased by anything the rest of the frame does.
             }
-            Err(error) => {
-                self.status = Some(frame::Message::new(
-                    frame::Subject::Display,
-                    format!("scene: {error}"),
-                ));
-            }
+            Err(error) => self.status = Some(frame::scene_refusal(&error)),
         }
     }
 
@@ -806,12 +794,7 @@ impl ViewerApp {
                 self.budget_delta = None;
                 self.sync_scene();
             }
-            Err(error) => {
-                self.status = Some(frame::Message::new(
-                    frame::Subject::Display,
-                    format!("{error}"),
-                ));
-            }
+            Err(error) => self.status = Some(frame::delta_refusal(&error)),
         }
     }
 
@@ -988,10 +971,7 @@ impl ViewerApp {
             keys: self.keys_pref.clone(),
         };
         if let Err(error) = self.store.save(&prefs.to_toml()) {
-            self.status = Some(frame::Message::new(
-                frame::Subject::Preferences,
-                error.to_string(),
-            ));
+            self.status = Some(frame::store_refusal(&error));
         }
     }
 
@@ -1319,7 +1299,7 @@ impl eframe::App for ViewerApp {
                     });
                 if let Some(status) = &self.status {
                     ui.separator();
-                    ui.label(status.text.as_str());
+                    ui.label(status.text());
                 }
             });
         });
@@ -1441,7 +1421,7 @@ impl eframe::App for ViewerApp {
         self.notices.extend(declined.iter().map(|declined| {
             // A declined pick answers an act the user aimed at the
             // document, like every other rank-2 notice this frame.
-            frame::Message::new(frame::Subject::Document, declined.to_string())
+            frame::tool_news(declined.to_string())
         }));
 
         self.perform_batch(ops);

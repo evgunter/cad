@@ -426,10 +426,13 @@ viewer's preferences. `frame::StatusUpdate::Expire` retires one subject;
 because an act the document accepted makes every standing complaint
 stale. `frame::apply` is the one place a verdict becomes the field.
 
-Eighteen writers still assign that field rather than answering
-`frame::frame_status`'s ranking. Each names its subject — `Message` is
-the only spelling there is — but naming a subject is not asking the
-ranking, and routing them through it is tracked as its own item.
+Twenty writers still assign that field rather than answering
+`frame::frame_status`'s ranking, and two more — `frame::fold_status`
+and `frame::cursor_status` — answer in the vocabulary and apply it at
+`pane::viewport` without asking it. Each of the twenty names its
+subject — `Message` is the only spelling there is — but naming a
+subject is not asking the ranking, and routing them through it is
+tracked as its own item.
 
 **A fact still true after the frame ends is a STANDING FACT, and its
 home is a toolbar badge.** A `frame::Badge` is a label carrying its own

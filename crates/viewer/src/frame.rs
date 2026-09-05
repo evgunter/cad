@@ -41,13 +41,15 @@
 //! navigated: navigation acts on nothing.
 //!
 //! **It does not yet reach the line through the ranking for every
-//! writer.** Eighteen writers in this crate assign the field outright
+//! writer.** Twenty writers in this crate assign the field outright
 //! rather than answering [`frame_status`], so a message a pane wrote
 //! is still erased by that frame's [`StatusUpdate::Clear`], which runs
-//! after the panes have drawn. Each of them names its subject —
-//! [`Message`] is the only spelling there is — but naming a subject is
-//! not asking the ranking; routing them through it is tracked as its
-//! own item, not asserted here as done.
+//! after the panes have drawn; two more answer in this vocabulary and
+//! apply it without asking the ranking ([`fold_status`] and
+//! [`cursor_status`], both at `pane::viewport`). Each of the twenty
+//! names its subject — [`Message`] is the only spelling there is — but
+//! naming a subject is not asking the ranking; routing them through it
+//! is tracked as its own item, not asserted here as done.
 //!
 //! **A fact that is still true after the frame ends is not news.** It
 //! is a standing fact about the landed document or the picture drawn
@@ -73,11 +75,14 @@
 use pncad::document::{ChecksReport, ParamName, ParseError, ProductError, RecipeNodeId, SlotId};
 use pncad::prelude::StableName;
 
+use crate::camera::CameraError;
 use crate::camera::Folded;
 use crate::display::{DisplayFault, Withdrawn};
 use crate::evalseam::Generation;
-use crate::pick::{IdMap, PickIndex};
+use crate::pick::{IdMap, NotIndexed, PickError, PickIndex, PickIndexError};
+use crate::prefs::StoreError;
 use crate::scene::FittedDelta;
+use crate::scene::SceneError;
 use crate::session::{AtRestBadge, Refusal, SessionOp};
 
 /// **What a message on the status line is ABOUT.**
@@ -115,24 +120,51 @@ pub enum Subject {
     /// **The document on screen and the acts aimed at it** — retired
     /// by the next act the document ACCEPTS.
     ///
-    /// **No [`StatusUpdate::Expire`] issuer, and that is not an
-    /// omission**: this subject's retiring event is precisely the one
-    /// the line already spells [`StatusUpdate::Clear`], which sweeps
-    /// the whole line rather than one subject because an act the
-    /// document accepted makes every standing complaint stale, not
-    /// only the ones about the document ([`batch_status`]).
+    /// **No [`StatusUpdate::Expire`] issuer** — see the note below,
+    /// which this shares with [`Self::Display`] and
+    /// [`Self::Preferences`]. What sweeps it today is
+    /// [`StatusUpdate::Clear`], and `Clear` is not this subject's
+    /// event in any sense a type can check: it sweeps the whole line,
+    /// a `Camera` message as readily as this one, because an act the
+    /// document accepted makes every standing complaint stale
+    /// ([`batch_status`]).
     Document,
     /// **The picture drawn from the document** — its δ, its scene, its
     /// pick index — retired by the next rebuild of the thing the
-    /// message is about. No issuer today: the display seams report
-    /// their refusals and hold them, so nothing yet marks the moment
-    /// one is superseded.
+    /// message is about: the δ the display accepts next, the scene
+    /// that lands, the index build that finishes.
+    ///
+    /// **No [`StatusUpdate::Expire`] issuer**: the display seams
+    /// report their refusals and hold them, and nothing yet marks the
+    /// moment one is superseded.
     Display,
     /// **The viewer's own settings and the file they are kept in** —
-    /// retired by the next write of that file. No issuer today, for
-    /// [`Self::Display`]'s reason.
+    /// retired by the next write of that file.
+    ///
+    /// **No [`StatusUpdate::Expire`] issuer**, for [`Self::Display`]'s
+    /// reason.
     Preferences,
 }
+
+/// **Three of the five subjects are observationally identical today**,
+/// and saying so is part of the vocabulary rather than a caveat on it.
+///
+/// [`Subject::Camera`] and [`Subject::Cursor`] have
+/// [`StatusUpdate::Expire`] issuers ([`fold_status`] and
+/// [`cursor_status`]), so a message wearing either is retired by an
+/// event and a row can see the difference. [`Subject::Document`],
+/// [`Subject::Display`] and [`Subject::Preferences`] have none, so
+/// nothing yet distinguishes them: each is swept by
+/// [`StatusUpdate::Clear`], which is subject-blind, and by nothing
+/// else.
+///
+/// **What each of those three states is therefore a claim about its
+/// FUTURE issuer, not about behaviour today** — the event that would
+/// retire it once someone marks that event. They are three names
+/// because they name three different events, and the alternative
+/// (one name for "swept only by `Clear`") would have to be renamed
+/// three ways the first time any of them grew an issuer.
+pub const SUBJECTS_WITH_AN_EXPIRY_ISSUER: [Subject; 2] = [Subject::Camera, Subject::Cursor];
 
 /// **One frame's news**: what it is about, and its own words.
 ///
@@ -140,12 +172,14 @@ pub enum Subject {
 /// that failed — nothing here writes prose about someone else's
 /// failure. What this type adds is the half a `String` could not
 /// carry: which recurring event makes the sentence the wrong answer.
+/// **The fields are private and [`Message::new`] is the only door**,
+/// for [`Badge`]'s reason: a struct literal is a second way to build
+/// one, and a value whose whole point is that a decision was made in
+/// one place must not have a spelling that skips it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Message {
-    /// What the message is about, and so what retires it.
-    pub subject: Subject,
-    /// The sentence shown on the line.
-    pub text: String,
+    subject: Subject,
+    text: String,
 }
 
 impl Message {
@@ -155,6 +189,16 @@ impl Message {
             subject,
             text: text.into(),
         }
+    }
+
+    /// What the message is about, and so what retires it.
+    pub fn subject(&self) -> Subject {
+        self.subject
+    }
+
+    /// The sentence shown on the line.
+    pub fn text(&self) -> &str {
+        &self.text
     }
 }
 
@@ -206,7 +250,10 @@ pub fn apply(status: &mut Option<Message>, update: StatusUpdate) {
         StatusUpdate::Keep => {}
         StatusUpdate::Clear => *status = None,
         StatusUpdate::Expire(subject) => {
-            if status.as_ref().is_some_and(|held| held.subject == subject) {
+            if status
+                .as_ref()
+                .is_some_and(|held| held.subject() == subject)
+            {
                 *status = None;
             }
         }
@@ -296,7 +343,7 @@ pub fn frame_status(
             joined_subject(notices),
             notices
                 .iter()
-                .map(|notice| notice.text.as_str())
+                .map(Message::text)
                 .collect::<Vec<_>>()
                 .join(NOTICE_SEPARATOR),
         )),
@@ -323,7 +370,7 @@ pub fn frame_status(
 /// writer that does not exist yet, and this is the rule it will meet
 /// rather than a fallback it will discover.
 fn joined_subject(notices: &[Message]) -> Subject {
-    let mut subjects = notices.iter().map(|notice| notice.subject);
+    let mut subjects = notices.iter().map(|notice| notice.subject());
     match subjects.next() {
         Some(first) if subjects.all(|subject| subject == first) => first,
         _ => Subject::Document,
@@ -670,19 +717,43 @@ pub enum Affordance {
 /// [`product_badge`] adds nothing at all, because
 /// [`ProductError`]'s `Display` already opens every arm with
 /// "product: ".
+/// # The four constructors are the only door
+///
+/// The fields are private. Four public fields would have left every
+/// call site able to struct-literal a badge with any tone and any
+/// affordance it liked, which is exactly the "four badges each picked
+/// a colour at the call site" state this type exists to end — a rule
+/// that can be spelled around is a convention, and the point of
+/// making this a value was to stop it being one.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Badge {
-    /// The words, carrying their own subject.
-    pub label: String,
-    /// Whether a reader may need to act on it.
-    pub tone: Tone,
-    /// What hovering says, where there is more than the label.
-    pub detail: Option<String>,
-    /// Whether the badge is a control.
-    pub affordance: Affordance,
+    label: String,
+    tone: Tone,
+    detail: Option<String>,
+    affordance: Affordance,
 }
 
 impl Badge {
+    /// The words, carrying their own subject.
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+
+    /// Whether a reader may need to act on it.
+    pub fn tone(&self) -> Tone {
+        self.tone
+    }
+
+    /// What hovering says, where there is more than the label.
+    pub fn detail(&self) -> Option<&str> {
+        self.detail.as_deref()
+    }
+
+    /// Whether the badge is a control.
+    pub fn affordance(&self) -> Affordance {
+        self.affordance
+    }
+
     /// A badge that only reports.
     fn read(label: String, tone: Tone) -> Self {
         Self {
@@ -704,6 +775,124 @@ impl Badge {
         self.affordance = Affordance::Opens;
         self
     }
+}
+
+// # The subject-assigning doors
+//
+// **A subject is a decision, so it lives where a decision can be
+// asserted.** The dozen writers that assign `ViewerApp::status`
+// directly all sit inside `app`-gated draw paths no headless row
+// executes, so a subject chosen at one of those sites is
+// unfalsifiable — a reviewer can change `Camera` to `Preferences` and
+// the whole suite stays green. That is the same argument `Badge` makes
+// about the `None` decision, applied to the half of a `Message` that a
+// `String` could not carry.
+//
+// So each door below answers the subject from the TYPED refusal it is
+// handed, and the writer hands its refusal over rather than picking.
+// Most are pinned twice over: the door takes one error type, so
+// calling the wrong door does not compile. `tool_news` is the
+// exception and says so.
+
+/// **What a camera that could not be projected says** — the view
+/// matrix refused, so nothing can be drawn this frame.
+///
+/// [`Subject::Camera`]: it is about where the view is pointed, and the
+/// next camera event is the user asking again.
+pub fn projection_refusal(error: &CameraError) -> Message {
+    Message::new(Subject::Camera, format!("projection: {error}"))
+}
+
+/// **What the pick-index seam's own refusal says** — a build that was
+/// attempted and refused, held by the cache's one-attempt-per
+/// (generation, δ) policy.
+///
+/// [`Subject::Display`]: the picture on screen is stale for exactly as
+/// long as this stands, and the build that lands next is what retires
+/// it.
+pub fn index_refusal(error: &PickIndexError) -> Message {
+    Message::new(Subject::Display, format!("pick index: {error}"))
+}
+
+/// **What a pick against a missing index says.**
+///
+/// [`Subject::Display`], the same seam as [`index_refusal`] — one seam
+/// must not speak with two voices, and a `Building` refusal is retired
+/// by the build landing, which is that subject's own stated event.
+pub fn unindexed_refusal(refusal: &NotIndexed) -> Message {
+    Message::new(Subject::Display, refusal.to_string())
+}
+
+/// **What a scene that could not be built says.**
+///
+/// [`Subject::Display`]: the viewport keeps drawing the mesh it has,
+/// and the rebuild that succeeds is what retires this.
+pub fn scene_refusal(error: &SceneError) -> Message {
+    Message::new(Subject::Display, format!("scene: {error}"))
+}
+
+/// **What a δ the display refused says** — [`Subject::Display`], the
+/// picture keeping the δ it had until the next one is accepted.
+///
+/// The error's own words, whole: [`SceneError`] states the condition a
+/// δ has to meet, and no prefix here says it a second way.
+pub fn delta_refusal(error: &SceneError) -> Message {
+    Message::new(Subject::Display, error.to_string())
+}
+
+/// **What a δ field holding something that is not a number says** —
+/// [`Subject::Display`], for [`delta_refusal`]'s reason. It never
+/// reached [`crate::scene::DisplayTolerance`], so the parser's words
+/// are what there is.
+pub fn delta_not_a_number(typed: &str, error: &core::num::ParseFloatError) -> Message {
+    Message::new(
+        Subject::Display,
+        format!("display δ: {typed:?} is not a number ({error})"),
+    )
+}
+
+/// **What a preferences store that could not be written says** —
+/// [`Subject::Preferences`], retired by the next write of that file.
+pub fn store_refusal(error: &StoreError) -> Message {
+    Message::new(Subject::Preferences, error.to_string())
+}
+
+/// **What the preferences file had to say at startup**, and `None`
+/// when it had nothing.
+///
+/// [`Subject::Preferences`]. **Not type-pinned**: the notices arrive
+/// already rendered, from three sources with three types
+/// ([`crate::prefs::Notice`], [`crate::prefs::PrefsError`], and the
+/// theme and preset resolutions), so what this door buys is one place
+/// the decision is made rather than a type that forbids the other
+/// answer.
+pub fn startup_notices(notices: &[String]) -> Option<Message> {
+    (!notices.is_empty())
+        .then(|| Message::new(Subject::Preferences, notices.join(NOTICE_SEPARATOR)))
+}
+
+/// **What a cursor action the pick index refused says.**
+///
+/// [`Subject::Document`], not [`Subject::Cursor`]: the refusal is the
+/// answer to an operation the user aimed at the document through the
+/// cursor, and moving the pointer does not answer it. The cursor
+/// subject is for a message ABOUT what lies under the pointer, which
+/// is [`Disagreement`]'s.
+pub fn pick_refusal(error: &PickError) -> Message {
+    Message::new(Subject::Document, error.to_string())
+}
+
+/// **What a tool has to say** — an authoring panel's refusal, a
+/// survival drop, a pick a tool declined. [`Subject::Document`],
+/// retired by the next act the document accepts.
+///
+/// **The one door here that a type does not pin**, because its twelve
+/// sites render through `tools::ToolKind::says`, `tools::ToolNotice`
+/// and the typed forms vocabulary, and arrive as text. What it buys is
+/// that all twelve share one decision: changing the subject of one
+/// changes the subject of all twelve, and a row can see it.
+pub fn tool_news(text: impl Into<String>) -> Message {
+    Message::new(Subject::Document, text)
 }
 
 /// **What the chrome badges about the A5 at-rest verdict**, and `None`
@@ -1293,6 +1482,17 @@ impl core::fmt::Display for Disagreement {
     }
 }
 
+impl Disagreement {
+    /// This disagreement as a message for the status line.
+    ///
+    /// [`Subject::Cursor`]: it is a claim about what lies under THIS
+    /// cursor over THIS picture, and [`cursor_status`] retires it on
+    /// the id log's own judgement that the question has moved on.
+    pub fn notice(&self) -> Message {
+        Message::new(Subject::Cursor, self.to_string())
+    }
+}
+
 /// Compare the id pass's answer against the ray path's, **by name**.
 ///
 /// # Why names and not ids
@@ -1506,12 +1706,12 @@ mod tests {
             panic!("a refused fold is news: {:?}", fold_status(&folded));
         };
         assert_eq!(
-            message.subject,
+            message.subject(),
             Subject::Camera,
             "a camera verdict is about the camera: {message}"
         );
         assert!(
-            message.text.contains("camera:") && message.text.contains("dolly by a factor"),
+            message.text().contains("camera:") && message.text().contains("dolly by a factor"),
             "the refusal names the move that provoked it: {message}"
         );
 
@@ -1537,21 +1737,21 @@ mod tests {
         };
         let badge = product_badge(Some(&collision)).expect("a naming collision badges");
         assert_eq!(
-            badge.label,
+            badge.label(),
             collision.to_string(),
             "the fault renders itself"
         );
         assert_eq!(
-            badge.tone,
+            badge.tone(),
             Tone::Actionable,
             "a product the gather refused is a verdict a reader acts on"
         );
-        assert_eq!(badge.affordance, Affordance::Read, "it opens nothing");
+        assert_eq!(badge.affordance(), Affordance::Read, "it opens nothing");
         assert!(
-            badge.label.starts_with("product: "),
+            badge.label().starts_with("product: "),
             "and says what it is about, so the colour carries nothing \
              alone: {}",
-            badge.label
+            badge.label()
         );
 
         // The silent arms. An empty document is not malformed, and the
@@ -1649,12 +1849,12 @@ mod tests {
             .expect("a supersession is news")
             .notice();
         assert_eq!(
-            message.subject,
+            message.subject(),
             Subject::Document,
             "a supersession is about the document that superseded it, so \
              the act the document accepts next is what retires it"
         );
-        assert_eq!(message.text, notice);
+        assert_eq!(message.text(), notice);
         let update = frame_status(core::slice::from_ref(&message), &acting, None);
         assert_eq!(update, StatusUpdate::Show(message.clone()));
 
@@ -1741,9 +1941,9 @@ mod tests {
         let StatusUpdate::Show(shown) = frame_status(&notices, &[SessionOp::Undo], None) else {
             panic!("two withdrawals are news");
         };
-        assert!(shown.text.contains("free move:") && shown.text.contains("hide:"));
+        assert!(shown.text().contains("free move:") && shown.text().contains("hide:"));
         assert_eq!(
-            shown.subject,
+            shown.subject(),
             Subject::Document,
             "two notices that agree on a subject are joined under it"
         );

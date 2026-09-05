@@ -52,7 +52,7 @@ impl ViewerBehavior<'_> {
         };
         if let Some(status) = self.status.as_ref() {
             ui.separator();
-            ui.label(status.text.as_str());
+            ui.label(status.text());
         }
     }
 
@@ -93,13 +93,7 @@ impl ViewerBehavior<'_> {
                 // door, wherever it came from.
                 Ok(mm) => *self.delta_request = Some(mm * 1.0e-3),
                 Err(error) => {
-                    // About the picture, not the document: the
-                    // next δ the display accepts is what makes it
-                    // stale.
-                    *self.status = Some(frame::Message::new(
-                        frame::Subject::Display,
-                        format!("display δ: {:?} is not a number ({error})", typed.trim()),
-                    ));
+                    *self.status = Some(frame::delta_not_a_number(typed.trim(), &error));
                 }
             }
         }

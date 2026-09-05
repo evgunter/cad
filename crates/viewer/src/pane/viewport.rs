@@ -185,15 +185,7 @@ impl ViewerBehavior<'_> {
                     // is churn in the one log a test reads.
                     Ok(SessionOp::Hover(face)) if face.as_ref() == self.session.hover() => {}
                     Ok(op) => self.ops.push(op),
-                    // The pick index refused what the cursor
-                    // asked of the document; the act that lands next
-                    // is what retires it.
-                    Err(error) => {
-                        *self.status = Some(frame::Message::new(
-                            frame::Subject::Document,
-                            error.to_string(),
-                        ));
-                    }
+                    Err(error) => *self.status = Some(frame::pick_refusal(&error)),
                 }
             }
         } else if let Some(refusal) = pick::unindexed(&actions, self.indexing) {
@@ -202,10 +194,7 @@ impl ViewerBehavior<'_> {
             // click that quietly did nothing here is the fail-quiet
             // this window's indexing indicator would otherwise be
             // painted over.
-            *self.status = Some(frame::Message::new(
-                frame::Subject::Document,
-                refusal.to_string(),
-            ));
+            *self.status = Some(frame::unindexed_refusal(&refusal));
         }
 
         // What to mark, as a pure function of what is drawn and what is
@@ -355,13 +344,7 @@ impl ViewerBehavior<'_> {
         let matrix = match self.camera.view_projection(aspect) {
             Ok(matrix) => matrix,
             Err(error) => {
-                // A projection that could not be formed is about
-                // the CAMERA — the next camera event is the user
-                // asking again, and it retires this whatever it says.
-                *self.status = Some(frame::Message::new(
-                    frame::Subject::Camera,
-                    format!("projection: {error}"),
-                ));
+                *self.status = Some(frame::projection_refusal(&error));
                 return;
             }
         };
@@ -400,12 +383,7 @@ impl ViewerBehavior<'_> {
                 from_ray.as_ref().map(|face| &face.name),
             )
         }) {
-            // What the two picking paths said about THIS cursor:
-            // the next cursor move retires it (`frame::cursor_status`).
-            *self.status = Some(frame::Message::new(
-                frame::Subject::Cursor,
-                report.to_string(),
-            ));
+            *self.status = Some(report.notice());
         }
 
         let id_query = match (step, cursor_px) {
@@ -513,10 +491,10 @@ mod tests {
         land(&mut camera, &mut status, &folded);
         let shown = status.expect("a refused fold is news");
         assert!(
-            shown.text.contains("camera:") && shown.text.contains("dolly by a factor"),
+            shown.text().contains("camera:") && shown.text().contains("dolly by a factor"),
             "{shown}"
         );
-        assert_eq!(shown.subject, frame::Subject::Camera);
+        assert_eq!(shown.subject(), frame::Subject::Camera);
     }
 
     #[test]
