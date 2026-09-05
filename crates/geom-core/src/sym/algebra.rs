@@ -142,11 +142,22 @@ pub(super) fn reduce(
     budget: SymBudget,
     atoms: &IndetMap<AtomInfo>,
 ) -> Option<Form> {
-    if f.poisoned || rules == SymRules::none() {
+    reduce_steps(f, rules, budget, atoms, REDUCE_STEPS)
+}
+
+/// R1 PROBE: [`reduce`] with the step cap chosen by the caller.
+pub(super) fn reduce_steps(
+    f: &Form,
+    rules: SymRules,
+    budget: SymBudget,
+    atoms: &IndetMap<AtomInfo>,
+    steps: usize,
+) -> Option<Form> {
+    if f.poisoned || !(rules.sqrt_square || rules.pythagoras) {
         return Some(f.clone());
     }
     let mut cur = f.clone();
-    for _ in 0..REDUCE_STEPS {
+    for _ in 0..steps {
         let Some(sq) = find_square(&cur, rules, atoms) else {
             return Some(cur);
         };
