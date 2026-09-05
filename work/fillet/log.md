@@ -578,3 +578,20 @@ to the directory; the dump identical over all 14 files at two bases.
 **FILLET-SPLIT dual dispatched** on frozen `d1d22839e`: ordinal **2007**,
 parity byte 203 ⇒ R1 FABLE / R2 OPUS, briefs stored with sha256,
 concurrent, isolated.
+
+**FILLET-SPLIT merged (2026-09-05)** at `71cce611d` (PR
+[#1964](https://github.com/evgunter/cad/pull/1964)), **sample #141**
+(written #140 at the state-sync; PROPS's Span row reached main first —
+renumbered at this sync per the late-discovery precedent), ordinal 2007;
+block FILLET-B3 slot 1 concluded (line on `fillet/b3-block`). The fix
+pass swept the "the surgery" prose class (KERNEL-VERBS included — the
+sentence's third correction), trimmed `surgery.rs`'s header to the tour,
+moved `chord_site` back beside `flank`, made the `kef` census walk the
+directory, folded four probe rows into one census file and one
+visibility file, and pinned the ruled support-ring refusal with a new row.
+`docs/FILLET-SPLIT-SPEC.md` deleted, ledgered at the merge SHA. **Every
+unit of the program is merged**: the plan's seven, the two the rulings
+grew (RIM, ATTR), Track T's riders (T), and the split (SPLIT) — samples
+#126, #131, #132, #134, #135, #136, #139, #141. What remains: the exit
+walk (an `[ev]` PR for Ev's ratification), Ev's answer on PR 1935 (the
+trihedron tag — the walk carries it either way), the residue sweep.
