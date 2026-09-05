@@ -260,3 +260,31 @@ exist, no migration channel). Backend findings filed
 (`interval-backend-signed-zero-conventions`); the tour row of table 2
 is the one acceptance gap (the tour's scenes are private modules). Slot
 freed: lily-vec3 dispatches beside the Span sweep.
+
+**Span sweep delivered (2026-09-05)** as
+[#1952](https://github.com/evgunter/cad/pull/1952), head `2eccccead`,
+green on the full matrix (run 33949970914; python suite closure-skipped
+— filed on CIW). The mutation-hold check found no site: the spline layer
+has no `&mut self` method, so a refinement is a new binding and the
+constraint is pinned by an E0506 `compile_fail` row rather than
+observed. 37 files, +1344 −1453; the census's site count was high
+because `SurfaceWindow` collapsed rows. One argued deviation: the three
+surface doors moved ONTO `SurfaceWindow<T>` because a lifetime does not
+brand — `b.eval_in_span(a.window_at(..))` typechecks with the spec's
+shape and would silently answer for A. Residue filed:
+`coefficients-carry-their-knot-vector`. Dual review dispatched on the
+frozen head; ordinal 2401 claimed (#1961 carries it to main). Lanes
+live: two Span reviewers, lily-vec3.
+
+**The exit walk executes its homes in-PR (2026-09-05).** After Ev's
+"as long as all residuals are filed appropriately", #1924 now moves the
+24 items itself: eight to `work/props/` (the two sphere-pole items, the
+two hygiene items, `quad-face-extent`, `purchasable-area-valve`, plus
+`k-report-baseline-fold` and `edge-chord-len` which the charter names
+as Track K's and S-BOOL's), seven to `work/issues/` including the six
+the charter assigns here (the offset_fit lane, `refine-dir-hairline`,
+the QUAD2 dial, `normalize-overflow`) and `orthonormal-basis-poisons`.
+My re-points were not taken in the PR. Plan: after ratification, CLAIM
+the six from `work/issues/` by `git mv` (the README's claim rule) and
+re-home the two non-charter arrivals to `work/issues/` for their owners
+to claim; then the plan's lanes are complete.
