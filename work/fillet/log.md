@@ -432,3 +432,64 @@ deleted, ledgered at the merge SHA. **Block B1 is concluded** — H4 (FABLE,
 #126), RIM (OPUS, #131), H5 (OPUS, #132) — and its record reaches main
 with this sync. Block B2 runs: H6 in its fix pass, ATTR under review, H7
 implementing.
+
+**H7 landed (2026-09-05)** on PR [#1897](https://github.com/evgunter/cad/pull/1897),
+head `fc6ca2268`, full matrix green (run 33939777803; the previous head
+red on the discipline gate's interval-square `powi(2)` allowlist, fixed in
+place). Phase 1: the rod ∖ box and the D-profile extrusion build and their
+creases refuse `UnsupportedChain` at `AdmittedOpen::admit`; the
+parallel-cylinder union refuses `CurvedPierceUnsupported` (no concave
+ruled fixture — pinned as the refusal); the box edge refuses
+`UnsupportedRunOut` and stays so (`arm.is_ruled()` gates the cut-off).
+Landed: `CornerConfig::TransverseCap` / `RunOutPolicy::CutOffAtTransverseCap`
+as ratified, `fillet3_cap_transverse` levered by the link extent with its
+trio pin in both lanes, the ruled band as `RuledPlan`/`ruled_phase` in
+`surgery.rs` (deviation 1: the compound-bound allowlist names
+`blend/{battery,surgery,build}` only — a new module would need Ev's
+ratification), the rod row at its prism closed form (`A = 4.6977159e-4`,
+`ΔV = 9.3954318e-4` for two creases, 800k-point shoelace to 2e-15), the
+oblique cap refusing `RULED_END_NOT_TRANSVERSE` through the front door,
+`seam_split_param` generalised to line carriers bit-identically, dump
+identical at two bases. **H7 dual dispatched** on frozen `fc6ca2268`:
+ordinal **2005**, parity byte 115 ⇒ R1 FABLE / R2 OPUS, briefs stored with
+sha256, concurrent, isolated. With this every FILLET unit is landed; what
+remains is three fix passes (H6, ATTR, H7 after its dual) and the block
+B2 record.
+
+**ATTR merged (2026-09-05)** at `aa5384288` (PR
+[#1895](https://github.com/evgunter/cad/pull/1895)), **sample #134**,
+ordinal 2004; block FILLET-B2 slot 1 concluded (line on `fillet/b2-block`).
+The fix pass took every decision: whole-pair refusals outrank the envelope
+again (the hairline pair answers `CarriersParallel` as at the base), the
+header counts what it counts, the fence justification withdrawn for the
+acceptance row's reason with the spec amended in place, C4 pinned at every
+band (mutant red at all three ε), exact pins restored through one
+`assert_corners`, three no-assert probe rows deleted, the `NoTangentCircle`
+sub-kinds carried by the tag. Filed by the pass:
+`overrun-attribution-picks-the-first-candidate` (the `sugar.rs:612`
+first-candidate discard, 232 discards on grid A with differing payloads).
+`docs/FILLET-ATTR-SPEC.md` deleted, ledgered at the merge SHA.
+
+**H6 fix pass landed (2026-09-05)** on PR [#1891](https://github.com/evgunter/cad/pull/1891),
+head `8abdf250b`, full matrix green (run 33942855470). The arm's argument
+is K-conditional and says so (tight bound `K/√(K²+1)`, crossover
+K ≈ 1.272; shape A at the shipped K = 10); the door now REFUSES typed
+(`ExtrudeError::SmoothCapRim`, naming the run's K and the crossover)
+where it used to hand back a body tier 3 rejects — measured at K = 1.1
+(refuses) and K = 3 (builds, tier 3 green); the stale-sentence class swept
+at thirteen sites; `certify.rs` and `rim_wedge.rs` migrated to the one
+home (bit-identical by the dump, corpus widened to thirteen rows); three
+`describe_at_rest` copies became `topo::Body::describe_at_rest` (a public
+door, so three `topo` meta-gates gained their entries); filed
+`ambiguity-k-below-the-cap-rim-crossover`. One process fact: a push
+produced NO workflow run for twenty minutes — not a filter decision;
+"CI is green" and "CI ran" are different questions, and the state-sync
+verifies the run exists on the head.
+
+**H6 merged (2026-09-05)** at `195460c7a` (PR
+[#1891](https://github.com/evgunter/cad/pull/1891)), **sample #135**,
+ordinal 2003; block FILLET-B2 slot 0 concluded (line on `fillet/b2-block`
+— ATTR, slot 1, reached main first by merge order). `docs/FILLET-H6-SPEC.md`
+deleted, ledgered at the merge SHA. Filed by the pass:
+`ambiguity-k-below-the-cap-rim-crossover`. Block B2 now waits on H7's fix
+pass alone.

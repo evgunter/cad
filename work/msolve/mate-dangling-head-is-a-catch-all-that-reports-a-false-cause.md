@@ -2,8 +2,9 @@
 id: mate-dangling-head-is-a-catch-all-that-reports-a-false-cause
 kind: issue
 title: MateFault::DanglingHead is the catch-all for every pattern-rule failure, and the doc's stated mitigation is unavailable exactly when it is needed
-status: open
+status: parked
 opened: 2026-09-04
+blocked_on: [MSOLVE-3]
 ---
 
 
@@ -102,3 +103,8 @@ a mitigation, and nothing here is silently wrong.
 
 `work/msolve/` — S-MATE's successor, opened 2026-09-04 for exactly this
 residue.
+
+## Ruled (MSOLVE orchestrator, 2026-09-05)
+
+The proposal above is ruled in by S-MATE's successor; the unit is
+`MSOLVE-3`, on which this row is parked.
