@@ -12,14 +12,15 @@
 //!
 //! Two rows ASSERT; the rest print. The asserting rows are:
 //!
-//! - `r2_the_shape_report_attributes_by_a_stale_predicate_name`, which
-//!   shows that the per-predicate split §1 reports moves between two
-//!   replays of the SAME rule set — so the "every rule set is
-//!   identical" reading of that table is an artifact of replay ORDER,
-//!   not a fact about the rules;
-//! - `r2_the_bracket_pin_passes_with_both_sides_certifying`, which
-//!   shows the shipped bracket-ceiling pin cannot see the failure it
-//!   is written against.
+//! - `r2_the_shape_report_attributes_each_decision_to_its_own_door`,
+//!   which pinned (as `..._by_a_stale_predicate_name`) that the
+//!   per-predicate split §1 reported moved between two replays of the
+//!   SAME rule set — an artifact of replay ORDER — and now pins the
+//!   scoped attribution the fix pass made;
+//! - `r2_the_bracket_between_the_two_ceilings_certifies_under_the_shipped_tier_only`,
+//!   which pinned (as `..._passes_with_both_sides_certifying`) that the
+//!   shipped bracket-ceiling pin was a `false == false`, and now pins
+//!   the ceiling the shipped tier moved.
 //!
 //! ITS PROBE-GATED CODE IS NOT EXECUTED BY CI.
 

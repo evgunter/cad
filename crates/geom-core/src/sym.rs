@@ -83,43 +83,62 @@
 //! bugs in it — over-refusal is the safe direction, and every such
 //! margin falls to the numeric channel exactly as before.
 //!
-//! # The atom algebra (M10-8), and why it is filed
+//! # The arc family, and what reaches it (M10-8)
 //!
-//! Two BUILDABLE functional-identity rules sit behind the [`SymRules`]
-//! dial — **A** `sqrt(X)² = X` and **B** `sin² + cos² = 1` — applied as
-//! a reduction over the top RESIDUAL a decide site tests
-//! ([`is_identically_zero`]), never during form construction, so a rule
-//! can only ever ADD a discharge and never disturb what the plain
-//! quotient form already reaches. Both read no value; on small forms
-//! they are sound and effective (this module's rule-A/B unit rows).
+//! **The family, named.** A swept arc's carrier is `Circle { center:
+//! c, radius: r, u_ref: (q − c).normalize() }` (`sweep::swept`), so its
+//! identities carry `sqrt` atoms: `u_ref·u_ref = (v·v)/sqrt(v·v)²`, the
+//! rim's endpoint pinning `‖c + (q − c)·r/‖q − c‖ − q‖ = 0` iff
+//! `‖q − c‖ = r`, and every dimension a document authors arriving as an
+//! `f64` literal with a 53-bit mantissa. Through M10-7 the tier reached
+//! none of it, and the diagnosis was wrong twice before it was
+//! measured right: the forms did not freeze on their SIZE (the budget
+//! is never reached), they froze on their COEFFICIENTS — `sqrt(1)^58`
+//! and `sqrt` of exact-square dyadic constants stood opaque in every
+//! rim form, and the products of three 53-bit mantissas overflowed the
+//! `i128` the coefficients were kept in.
 //!
-//! **Rule C** — `sqrt(Q²) = Q` for a `Q` whose sign is certified over
-//! the leaf box (clause 3, the one fold that would read a value) — is
-//! FILED UNBUILT. Reading a value at the lane scalar needs either
-//! `dyn Any` to store the parameter's `T` (the bit-identity-punning
-//! discipline forbids it) or the feature-gated `Interval` type (this
-//! module is feature-agnostic, and the read must also serve the
-//! `f64`/`Probe` lanes). So the shipped and buildable tier reads NO
-//! value — E12's original invariant holds literally — and
-//! [`SymCounts::sign_gated`] with its K token stands as the reserved
-//! instrument for the day a value-reading fold is built within the
-//! discipline.
+//! **What ships, by measurement** ([`SymRules::shipped`]): the constant
+//! fold **A0** — `sqrt(c)` and `abs(c)` of a constant form fold to the
+//! exact rational — in the plain form, over an arbitrary-precision
+//! coefficient ring bounded at [`COEFF_BITS`]. That alone moves R2's
+//! filleted bracket's whole-certifying box from `3.7e1 · ε` to
+//! `3.9e2 · ε` (10.4×) and R1's annulus from `2.0e1 · ε` to `7.8e2 · ε`
+//! (39×), at no cost per leaf over M10-7's tier; M10-4's stepped shaft
+//! certifies its real ±0.1 study whole. Per predicate at the nominal,
+//! A0 turns `carrier_on_surface_1` on the plate from 108/72
+//! (theorem/numeric) to 180/0, and on the bracket from 0/243 to
+//! 108/135; nothing is lost on the plate or the annulus, and on the
+//! bracket two rows lose a handful of theorems to coefficient freezes
+//! at the bound (`carrier_endpoint_start` 44 → 42,
+//! `carrier_matches_mapped_source` 234 → 225) while the ceiling moves
+//! an order of magnitude.
 //!
-//! All of it — A, B and C — is **filed, not shipped**
-//! ([`SymRules::shipped`] is empty), and the reason is measured (M10-8's
-//! §1 table, over the two-hole plate and both reviewers' brackets): the
-//! arc family the rules target — a swept arc's carrier carries
-//! `u_ref·u_ref = (v·v)/sqrt(v·v)²`, which rule A reduces to `1` — lives
-//! in forms large enough to FREEZE before a top-residual reduction can
-//! reach them, so on all three documents the rules move no ceiling and
-//! discharge no decision the plain form did not. An EARLY reduction (per
-//! DAG node, before the freeze) does discharge the family and was
-//! measured to raise the filleted bracket's whole-certifying box ~10×,
-//! but paying a reduction per node is a runaway and letting it replace
-//! the plain form downgrades identities the plain form proves. A
-//! bounded, non-downgrading early reduction is the mechanism this unit
-//! could not land; the default tier stays the M10-7 quotient form, bit
-//! for bit.
+//! **What is built and does not ship, by measurement** — each behind
+//! its own [`SymRules`] dial, so a future document can be measured
+//! against it: rules **A** `sqrt(X)² = X` and **B** `sin² + cos² = 1`
+//! over the top residual (`algebra`), which add no discharge on any of
+//! the four documents; the same two PER NODE in the early walk
+//! ([`SymRules::early_ab`]), which reach the nested `sqrt(…)²` the top
+//! residual cannot but cost minutes per replay (138 s for the plate's
+//! nominal); and rule **C** — `sqrt(X) = R` where `X = R²` as forms and
+//! `R`'s sign is certified over the box, clause 3, the one fold that
+//! reads a value (`signed`) — which is sound, unit-pinned, folds on no
+//! document at the shipped bound and moves no ceiling at any bound
+//! while costing 2× per leaf for the walk it rides.
+//!
+//! **What still bounds the plate.** The tour's two-hole plate certifies
+//! whole below `7.81e2 · ε` of its real study under every rule set,
+//! bounded by `carrier_endpoint_start`: a rim residual whose plain form
+//! is an outer `sqrt` over a degree-12 polynomial in the radius with
+//! `sqrt((a + 2r)²)²`-shaped atoms nested inside — reachable only by
+//! the per-node reduction, and only at a coefficient bound (~640 bits
+//! and up) the shipped ring does not afford. The numbers, the rendered
+//! residual and what is owed are on
+//! `work/m10/plate-rim-residual-needs-the-wide-coefficient-ring`; the
+//! recourse E12 names — a provenance token, "built as the arc's far
+//! endpoint" — has its first live consumer on
+//! `work/m10/declared-tangency-needs-the-registered-identity-door`.
 //!
 //! # Node ids are CONTENT HASHES (D9)
 //!
@@ -241,35 +260,6 @@
 //! predicates does the tier reach" and NOT "which predicates bound
 //! certification". Those are different populations and the second one is
 //! `work/m10/real-margin-dependency-widening.md`.
-//!
-//! # The family this tier MISSES, named (E12's reserve)
-//!
-//! E12 keeps discharge-by-provenance in reserve "only if the census
-//! shows a family the symbolic tier misses". It does, and this is it.
-//!
-//! An ARC rim's endpoint pinning. `sweep::swept` gives a swept arc the
-//! carrier `Circle { center: c, radius: r, u_ref: (q − c).normalize() }`
-//! and the certifier checks `‖carrier.eval(0) − q‖ ≤ ε`, which expands
-//! to `‖c + (q − c)·r/‖q − c‖ − q‖`. That is zero iff `‖q − c‖ = r`,
-//! which is TRUE of the geometry and is not a rational-function identity
-//! in the parameters: it needs `sqrt(r²) = r`, a fact about the sign of
-//! the radius rather than about algebra. No normal form over a field of
-//! fractions can see it, and no budget makes it visible.
-//!
-//! MEASURED consequence, on the tour's own two-hole plate
-//! (`m10_7_census_probe::measure_the_ceiling_on_the_two_hole_plate`):
-//! the widest box that certifies whole is `7.81e-7` of the real study
-//! with the tier ON and `7.81e-7` with it OFF — unmoved — and the first
-//! refusal beyond it is `carrier_endpoint_start` with the enclosure
-//! `[0, 1.25e-9]` against a coincidence threshold of `1e-9`. On the
-//! straight-walled slab, where no normalization stands between the
-//! carrier and its endpoint, the same measurement moves from a
-//! half-width of `ε/16` to `0.488` on a `1.0` nominal — a factor of
-//! about `8·10^9`.
-//!
-//! The recourse E12 names is a provenance token ("built as the arc's far
-//! endpoint"), discharged structurally and verified at the f64 witness
-//! point. It is not taken here.
 //!
 //! # No session, no tier — and what that does NOT mean
 //!
@@ -1340,7 +1330,25 @@ impl SymRules {
         }
     }
 
-    /// **The shipped set** — SHIPPED_DOCS_PLACEHOLDER
+    /// **The shipped set: A0 alone** — the constant fold in the plain
+    /// form, over the bounded arbitrary-precision coefficient ring.
+    ///
+    /// Chosen by measurement (M10-8's fix pass, 2026-09-05), per
+    /// mechanism, on the two-hole plate, R2's filleted bracket, R1's
+    /// annulus and M10-4's stepped shaft:
+    ///
+    /// | mechanism | ceilings moved | cost per leaf | ships |
+    /// | --- | --- | --- | --- |
+    /// | A0 (`const_fold`) | bracket 10.4×, annulus 39×, the shaft's ±0.1 study certifies whole | plate 0.35 → 0.37 s, bracket 1.47 → 1.46 s | **yes** |
+    /// | A/B over the top residual | none | ~0 | no (inert) |
+    /// | A/B per node (`early_ab`) | none measured (138 s per nominal replay) | minutes | no (cost) |
+    /// | C in the early walk (`signed_root`) | none; folds on no document at 256 bits, twice on the plate at 4096 | ~2× | no (inert, cost) |
+    ///
+    /// The plate's ceiling (`7.81e2 · ε`) is unmoved by every row. The
+    /// counts behind the table are the evidence rows in
+    /// `editor-core/tests/m10_8_arc_family_interval.rs` and
+    /// `m10_8_r1_probes_interval.rs`, and the pins in
+    /// `m10_8_pins_interval.rs` hold this set to what it measured.
     #[must_use]
     pub const fn shipped() -> Self {
         Self {
