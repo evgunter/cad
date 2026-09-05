@@ -366,3 +366,29 @@ form the ledger's recent entries use, and the right one: a closed
 sweep's list carries its own count and recovery SHA. The two earlier
 PROPS lines appended to sweep 6's list (verdict-shapes, ONB-measure)
 move to that form at the next orchestrator sync.
+
+**Span sweep MERGED (2026-09-05)** —
+[#1952](https://github.com/evgunter/cad/pull/1952), head `e13d5df0d`,
+merge `46020d6b9`, green on the full matrix (37 jobs; the first fix head
+was red on the doc gate alone — a broken intra-doc link — and the lane
+now runs `scripts/doc-gate.sh` locally). The fix pass took the
+STRUCTURAL close: evaluation in a span moved onto `CurveWindow{2,3}`
+borrowing its curve, so the panic R1 executed no longer compiles; both
+bit-identity digests unchanged after the doors changed receivers twice.
+A/B row recorded (ordinal 2401, **sample #140**, one tally candidate
+R1/OPUS — the executed panic; both arms interrupted and resumed equally);
+block PROPS-B1 slot 1 concluded on `props/b1-block`. **Orchestrator
+error disclosed**: the ordinal-2401 claim paragraph was committed at
+dispatch on the block branch instead of this one, so #1961 did not carry
+it to main as its body said — carried now, with the note in the ledger.
+The lane's three out-of-fence notes: (1) `ssi/enclose.rs:418,456` is a
+subject edit on cert's ground (net read through `win.surface()`),
+disclosed in the PR body — S-CERT is at its exit walk, so it is recorded
+here rather than in a tracker about to be deleted; (2) `benches`,
+`demos/tour` and `demos/wild` lockfiles were stale on main (a `profile`
+edge on the `verbs` entry) and dirtied every lane that ran the doc
+gate — regenerated with cargo in this sync, closing the stale-lockfile
+half of `work/issues/tour-scenes-lift-componentwise-not-through-map`;
+(3) the python-suite closure skip is the CIW finding already filed
+(`closure-tier-skips-python-suite-on-geom-core-changes`, also carried
+to main only now). Lane reclaimed. Live: the k-stats bracket (slot 2).
