@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-05
 branch: ciw/closure-reaches-tree-wide-guards
 refs: [f3-recosting-on-a-public-repo, 1829, 1859, 1871, 1884, 1889]
+pr: 1909
 ---
 
 Ev, 2026-09-05: *"oh yeah the closure should reach tree wide guards"*, and
