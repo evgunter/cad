@@ -306,3 +306,9 @@ delegate — bit-identical, pinned — and adds `SketchPlane::map`, the
 lift of the type that carries a frame. No other line of `profile/`
 moves. Named here because `crates/profile/*` is S-BOOL's path. Signed
 (PROPS orchestrator).
+
+Amendment (2026-09-05, PROPS orchestrator): the vec3-doors rider also
+adds `crates/profile/tests/sketch_plane.rs` (the delegation and lift
+rows beside `SketchPlane`) — the review found "no other line of
+`profile/` moves" false for the tests; the door itself moves as
+announced. Signed (PROPS orchestrator).
