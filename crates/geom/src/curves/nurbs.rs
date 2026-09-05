@@ -46,23 +46,103 @@
 //! # Evaluation contract
 //!
 //! - **Core, generic** (`*_in_span`): rational evaluation restricted to
-//!   a caller-supplied [`Span`] — ring ops + `from_f64` only, total for
-//!   every scalar. For `t` outside the span's knot interval the result
-//!   is the span's **polynomial extension** (documented garbage-out —
-//!   detecting it would need the comparison [`Real`] deliberately
-//!   lacks). A [`Span`] borrows the vector it is a proof about and
-//!   carries its own control window, so the window base is an addition
-//!   rather than a `span − degree` that could underflow, and each
-//!   evaluator reads the basis from the span's own knots rather than
-//!   from `self.knots` beside them — there is no second vector to
-//!   disagree with, no pairing check and no refusal. What remains
-//!   related by count alone is this curve's control points against
-//!   that vector; see [`NurbsCurve3::eval_in_span`].
+//!   one span — ring ops + `from_f64` only, total for every scalar. For
+//!   `t` outside the span's knot interval the result is the span's
+//!   **polynomial extension** (documented garbage-out — detecting it
+//!   would need the comparison [`Real`] deliberately lacks). These
+//!   doors live on [`CurveWindow2`]/[`CurveWindow3`], which **borrow
+//!   the curve**: the basis comes from the window's own [`Span`] and
+//!   the control points and weights from the curve that span was drawn
+//!   from, one borrow, so the window base is an addition that cannot
+//!   underflow, the reads are in range by construction, and there is no
+//!   pairing to check and no refusal to answer. The two mints are
+//!   [`NurbsCurve3::span`] and [`NurbsCurve3::span_at`], both `&self`.
 //! - **Full evaluators** (`eval`/`deriv`/`deriv2`): span selection via
 //!   the sealed [`SpanLocate`] seam (per-instantiation semantics
 //!   documented in `geom_core::spline::locate`), then the core per
 //!   overlapped span, hulled channel-independently for interval-natured
 //!   scalars.
+//!
+//! # What does not typecheck
+//!
+//! Library doctests — they run under `cargo test -p geom --doc`, so
+//! these claims redden if the borrow is undone.
+//!
+//! **A curve's span doors take no curve.** A span located in one
+//! curve's knot vector cannot be evaluated against a different curve,
+//! because no door takes both:
+//!
+//! ```compile_fail,E0599
+//! use geom::NurbsCurve3;
+//! use geom_core::spline::KnotVector;
+//! use geom_core::Point3;
+//! let long = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 4.0, 4.0], 2).unwrap();
+//! let short = NurbsCurve3::<f64>::new(
+//!     KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+//!     vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 1.0, 0.0), Point3::new(2.0, 0.0, 0.0)],
+//!     vec![1.0, 1.0, 1.0],
+//! ).unwrap();
+//! let foreign = long.span(5).unwrap();
+//! let _ = short.eval_in_span(foreign, 3.5f64);
+//! ```
+//!
+//! The twin differs in one identifier — the window is minted by the
+//! curve it evaluates, so the door exists and the call resolves:
+//!
+//! ```
+//! use geom::NurbsCurve3;
+//! use geom_core::spline::KnotVector;
+//! use geom_core::Point3;
+//! let short = NurbsCurve3::<f64>::new(
+//!     KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+//!     vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 1.0, 0.0), Point3::new(2.0, 0.0, 0.0)],
+//!     vec![1.0, 1.0, 1.0],
+//! ).unwrap();
+//! let own = short.span_at(0.5);
+//! let p = own.eval_in_span(0.5f64);
+//! assert!(p.x.is_finite());
+//! ```
+//!
+//! **Nor can a window outlive its curve**, so it cannot be carried to
+//! where another curve is in scope:
+//!
+//! ```compile_fail,E0597
+//! use geom::NurbsCurve3;
+//! use geom_core::spline::KnotVector;
+//! use geom_core::Point3;
+//! let win = {
+//!     let c = NurbsCurve3::<f64>::new(
+//!         KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+//!         vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 1.0, 0.0), Point3::new(2.0, 0.0, 0.0)],
+//!         vec![1.0, 1.0, 1.0],
+//!     ).unwrap();
+//!     c.span_at(0.5)
+//! };
+//! let _ = win.eval_in_span(0.5f64);
+//! ```
+//!
+//! The twin differs in one identifier — the curve is bound outside the
+//! block, so the borrow lives as long as the window:
+//!
+//! ```
+//! use geom::NurbsCurve3;
+//! use geom_core::spline::KnotVector;
+//! use geom_core::Point3;
+//! let c = NurbsCurve3::<f64>::new(
+//!     KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+//!     vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 1.0, 0.0), Point3::new(2.0, 0.0, 0.0)],
+//!     vec![1.0, 1.0, 1.0],
+//! ).unwrap();
+//! let win = { c.span_at(0.5) };
+//! let _ = win.eval_in_span(0.5f64);
+//! ```
+//!
+//! **What these rows do and do not check.** Stable rustdoc checks only
+//! that a `compile_fail` block fails to build; the `,E0599` / `,E0597`
+//! annotation is **not** verified there (a nightly rustdoc feature), so
+//! a row could be red for a typo. Each twin is what rules that out: it
+//! differs in exactly one respect and it compiles. The codes were read
+//! off `rustc` directly on each snippet at the pinned toolchain.
 //!
 //! # Fixed association (D9)
 //!
@@ -92,7 +172,94 @@ use crate::net;
 const RATIONAL_METER_SPLITS: usize = 16;
 
 macro_rules! nurbs_curve {
-    ($Curve:ident, $Point:ident, $Vector:ident, $dim:literal, $($c:ident),+) => {
+    ($Curve:ident, $Window:ident, $Point:ident, $Vector:ident, $dim:literal, $($c:ident),+) => {
+        #[doc = concat!("The control window one knot span selects on **one** [`", stringify!($Curve), "`]")]
+        /// — a borrow of the curve, exactly as `geom_core`'s [`Span`] is
+        /// a borrow of the knot vector it indexes, and the same shape
+        /// [`crate::SurfaceWindow`] has one dimension up.
+        ///
+        /// It carries the curve and the [`Span`], whose `first_control`
+        /// (`index − degree`) was subtracted once at construction — no
+        /// use site can underflow it. Evaluation then reads
+        /// `first_control + j` for `j ∈ [0, degree]`, which is inside
+        /// this curve's control array because the span's own vector IS
+        /// this curve's knot vector and `new` pins
+        /// `control.len() == knots.control_count()`.
+        ///
+        /// **Branded to its curve by the borrow.** The only mints are
+        #[doc = concat!("[`", stringify!($Curve), "::span`] and [`", stringify!($Curve), "::span_at`],")]
+        /// both taking `&self`, and evaluation lives here rather than on
+        /// the curve: a door taking `(&curve, span)` has a second
+        /// structure for the span to disagree with, and a borrow cannot
+        /// make two live references a type error. With no such parameter
+        /// there is nothing to disagree — a window evaluates the curve
+        /// it names, and the window a curve mints names that curve.
+        ///
+        /// `Copy`, one reference and one `Span` wide, allocation-free.
+        #[derive(Clone, Copy)]
+        pub struct $Window<'a, T: Real> {
+            curve: &'a $Curve<T>,
+            span: Span<'a>,
+        }
+
+        /// Equality is address equality on the curve, plus the span
+        /// (itself address-equal on its vector): a window is a proof
+        /// about *that* control net, and a curve is not [`Eq`] — its
+        /// knots and weights are `f64`.
+        impl<T: Real> PartialEq for $Window<'_, T> {
+            fn eq(&self, other: &Self) -> bool {
+                core::ptr::eq(self.curve, other.curve) && self.span == other.span
+            }
+        }
+
+        impl<T: Real> Eq for $Window<'_, T> {}
+
+        /// The borrow is printed as an ADDRESS, never followed. A
+        /// derived `Debug` would dump the whole control net and knot
+        /// vector through the reference at every `{:?}`, which is the
+        /// one cost a borrow-carrying token can impose by accident.
+        impl<T: Real> core::fmt::Debug for $Window<'_, T> {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                f.debug_struct(stringify!($Window))
+                    .field("curve", &core::ptr::from_ref(self.curve))
+                    .field("span", &self.span)
+                    .finish()
+            }
+        }
+
+        impl<'a, T: Real> $Window<'a, T> {
+            /// The curve this window names — what every door here reads
+            /// its knots, control points and weights from.
+            pub fn curve(self) -> &'a $Curve<T> {
+                self.curve
+            }
+
+            /// The knot span this window selects.
+            pub fn span(self) -> Span<'a> {
+                self.span
+            }
+
+            /// The span index (`Span::index`).
+            pub fn index(self) -> usize {
+                self.span.index()
+            }
+
+            /// The degree (`Span::degree`).
+            pub fn degree(self) -> usize {
+                self.span.degree()
+            }
+
+            /// The first control point of the window (`Span::first_control`).
+            pub fn first_control(self) -> usize {
+                self.span.first_control()
+            }
+
+            /// The inclusive control-point window, `Span::window`.
+            pub fn window(self) -> core::ops::RangeInclusive<usize> {
+                self.span.window()
+            }
+        }
+
         /// A validated NURBS curve (module docs: data model, evaluation
         /// contract, fixed association orders). Immutable after
         /// construction; every knot-algebra operation returns a new
@@ -102,6 +269,259 @@ macro_rules! nurbs_curve {
             knots: KnotVector,
             control: Vec<$Point<T>>,
             weights: Vec<f64>,
+        }
+
+        impl<T: Real> $Window<'_, T> {
+            /// The point at `t`, evaluated **in the given span** — the
+            /// generic core (module docs: the span contract; the fixed
+            /// single-ascending-pass association).
+            ///
+            /// **Total, with no refusal.** The basis comes from this
+            /// window's own span and the control points and weights
+            /// from the curve that span was drawn from, one borrow, so
+            /// `first_control + j` is inside the array by construction.
+            ///
+            /// `t` outside the span's interval still yields the span's
+            /// polynomial extension (documented garbage-out).
+            pub fn eval_in_span(self, t: T) -> $Point<T> {
+                let basis = spline::basis::basis_funs(self.span, t);
+                // The window's base is subtracted once inside `Span`,
+                // so what remains here is an addition. Indexing (not
+                // `zip`) deliberately: `basis` is `degree + 1` long and
+                // the window is `degree + 1` wide — one `degree`, the
+                // span's — and if that ever ceased to hold this must
+                // PANIC rather than silently drop control points.
+                let base = self.span.first_control();
+                $(let mut $c = T::zero();)+
+                let mut w_acc = T::zero();
+                for (j, nj) in basis.iter().enumerate() {
+                    let i = base + j;
+                    let cw = *nj * T::from_f64(self.curve.weights[i]);
+                    let pt = self.curve.control[i];
+                    $($c = $c + cw * pt.$c;)+
+                    w_acc = w_acc + cw;
+                }
+                $Point::new($($c / w_acc),+)
+            }
+
+            /// The homogeneous accumulators through order `N − 1` —
+            /// per coordinate channel `A⁽ᵏ⁾ = Σⱼ N⁽ᵏ⁾ⱼ·wⱼ·xⱼ` and the
+            /// weight channel `w⁽ᵏ⁾ = Σⱼ N⁽ᵏ⁾ⱼ·wⱼ`, `k < N` — from
+            /// one basis pass of order `N − 1`, read from this window's
+            /// own span and curve. Total: there is no pairing to refuse.
+            ///
+            /// The one homogeneous pass every derivative evaluator
+            /// reads; the ORDER is the caller's, so a first derivative
+            /// runs an order-1 basis and never computes the order-2
+            /// row it would discard.
+            fn homogeneous<const N: usize>(self, t: T) -> ([[T; N]; $dim], [T; N]) {
+                let ders = spline::basis::ders_basis_funs(self.span, t, N - 1);
+                // Indexed off the window base, exactly as
+                // [`Self::eval_in_span`]. A `zip` against a window slice
+                // would be the wrong shape here: `ders`' row length and
+                // the window's length are two derivations of the same
+                // `degree`, and a `zip` would answer a disagreement by
+                // silently dropping control points where indexing
+                // panics.
+                let base = self.span.first_control();
+                $(let mut $c = [T::zero(); N];)+
+                let mut w_hom = [T::zero(); N];
+                for (k, row) in ders.iter().enumerate() {
+                    for (j, nkj) in row.iter().enumerate() {
+                        let i = base + j;
+                        let cw = *nkj * T::from_f64(self.curve.weights[i]);
+                        let pt = self.curve.control[i];
+                        $($c[k] = $c[k] + cw * pt.$c;)+
+                        w_hom[k] = w_hom[k] + cw;
+                    }
+                }
+                ([$($c),+], w_hom)
+            }
+
+            #[doc = concat!("One span's arm of [`", stringify!($Curve), "::speed_lower_bound`]'s")]
+            /// rational assembly (the derivation lives there). The
+            /// coefficient window is this window's own — a proof about
+            /// the very knot vector the curve carries, so `[first,
+            /// last]` indexes the curve's arrays without a range test
+            /// and the raw knot slice is read from the same borrow
+            /// rather than handed in beside it. `dw` holds the weight
+            /// spline's derivative coefficient enclosures.
+            fn rational_span_bound(self, dw: &[RingInterval], origin: $Point<T>) -> T {
+                let poison = T::from_f64(f64::NAN);
+                let p = self.span.degree();
+                let knots = self.span.knots().knots();
+                let (first, last) = (self.span.first_control(), self.span.index());
+                let Some(active) = self.curve.control.get(first..=last) else {
+                    return poison;
+                };
+                #[allow(clippy::cast_precision_loss)]
+                let count = T::from_f64(active.len() as f64);
+                // The span's own control centroid — the translation
+                // that keeps `sup‖C − c‖` span-sized.
+                let mut sum = origin - origin;
+                for pt in active {
+                    sum = sum + (*pt - origin);
+                }
+                let c = origin + sum / count;
+                // The span's control chord, as unit direction.
+                let (Some(a), Some(b)) = (active.first(), active.last()) else {
+                    return poison;
+                };
+                let chord = *b - *a;
+                let d = chord / chord.norm();
+                // The SIGNED hull of `d·(C − c)` on the span — the
+                // rational value hull (`hull::span_hull_rational`'s
+                // fact: positive weights make the rational basis a
+                // nonnegative partition of unity) read through `d`.
+                // Ascending `Real::min`/`Real::max` folds.
+                let mut s_lo: Option<T> = None;
+                let mut s_hi: Option<T> = None;
+                for pt in active {
+                    let s = d.dot(*pt - c);
+                    s_lo = Some(match s_lo {
+                        None => s,
+                        Some(m) => m.min(s),
+                    });
+                    s_hi = Some(match s_hi {
+                        None => s,
+                        Some(m) => m.max(s),
+                    });
+                }
+                let (Some(s_lo), Some(s_hi)) = (s_lo, s_hi) else {
+                    return poison;
+                };
+                // `w`'s hull on the span (f64 structure comparisons on
+                // f64 weights — the `removal_pass_bound` precedent).
+                let Some(w_active) = self.curve.weights.get(first..=last) else {
+                    return poison;
+                };
+                let mut w_min = f64::INFINITY;
+                let mut w_max = 0.0f64;
+                for w in w_active {
+                    if *w < w_min {
+                        w_min = *w;
+                    }
+                    if *w > w_max {
+                        w_max = *w;
+                    }
+                }
+                // The numerator's two terms over the active derivative
+                // indices `[first, last)`.
+                let mut num: Option<T> = None;
+                let (mut wp_lo, mut wp_hi) = (f64::INFINITY, f64::NEG_INFINITY);
+                for i in first..last {
+                    let (Some(&lo), Some(&hi)) = (knots.get(i + 1), knots.get(i + p + 1)) else {
+                        return poison;
+                    };
+                    let du = hi - lo;
+                    #[allow(clippy::neg_cmp_op_on_partial_ord)]
+                    if !(du > 0.0) {
+                        return poison;
+                    }
+                    let (Some(pi), Some(pj)) = (self.curve.control.get(i), self.curve.control.get(i + 1))
+                    else {
+                        return poison;
+                    };
+                    let (Some(&wi), Some(&wj)) = (self.curve.weights.get(i), self.curve.weights.get(i + 1))
+                    else {
+                        return poison;
+                    };
+                    #[allow(clippy::cast_precision_loss)]
+                    let scale = T::from_f64(p as f64) / T::from_f64(du);
+                    // Homogeneous, centroid-translated: a_j = w_j·(P_j − c).
+                    let ai = (*pi - c) * T::from_f64(wi);
+                    let aj = (*pj - c) * T::from_f64(wj);
+                    let v = d.dot((aj - ai) * scale);
+                    num = Some(match num {
+                        None => v,
+                        Some(m) => m.min(v),
+                    });
+                    // `w′`'s SIGNED hull, from the ring-rounded
+                    // coefficients (`!(a >= b)` so a poisoned
+                    // coefficient poisons the hull rather than being
+                    // skipped by a false comparison).
+                    let Some(q) = dw.get(i) else {
+                        return poison;
+                    };
+                    #[allow(clippy::neg_cmp_op_on_partial_ord)]
+                    if !(q.lo() >= wp_lo) {
+                        wp_lo = q.lo();
+                    }
+                    #[allow(clippy::neg_cmp_op_on_partial_ord)]
+                    if !(q.hi() <= wp_hi) {
+                        wp_hi = q.hi();
+                    }
+                }
+                let Some(num) = num else {
+                    return poison;
+                };
+                // `sup (d·(C − c))·w′` over the two signed hulls: the
+                // ascending `Real::max` fold of the four corner
+                // products (a magnitude product `sup|·|·sup|·|` would
+                // be sound but needlessly loose — it throws away the
+                // sign correlation that steep weight ramps live in).
+                let (lo, hi) = (T::from_f64(wp_lo), T::from_f64(wp_hi));
+                let corner = (s_lo * lo).max(s_lo * hi).max(s_hi * lo).max(s_hi * hi);
+                let l = num - corner;
+                // `min(L/w_max, L/w_min)` — the correct division in
+                // both numerator signs, without asking the sign.
+                (l / T::from_f64(w_max)).min(l / T::from_f64(w_min))
+            }
+
+            /// Point, first, and second derivative at `t` in the given
+            /// span — one homogeneous pass (orders 0..=2 of the basis),
+            /// then the rational corrections
+            /// ([`rational_corrections`]), exactly as written:
+            /// `C = A⁰/w⁰`, `C′ = (A¹ − C·w¹)/w⁰`,
+            /// `C″ = (A² − C·w² − C′·w¹·2)/w⁰`.
+            /// Same totality contract as [`Self::eval_in_span`].
+            pub fn ders_in_span(self, t: T) -> ($Point<T>, $Vector<T>, $Vector<T>) {
+                let ([$($c),+], w_hom) = self.homogeneous::<3>(t);
+                $(let $c = rational_corrections($c, w_hom);)+
+                (
+                    $Point::new($($c[0]),+),
+                    $Vector::new($($c[1]),+),
+                    $Vector::new($($c[2]),+),
+                )
+            }
+
+            /// Point and first derivative at `t` in the given span from
+            /// ONE order-1 basis pass — the jet door for a consumer that
+            /// wants both (a quadrature rule integrating `P × P′`, say)
+            /// and would otherwise run [`Self::eval_in_span`] and
+            /// [`Self::deriv_in_span`] as two passes, or
+            /// [`Self::ders_in_span`] and discard `C″`.
+            ///
+            /// The point is [`Self::eval_in_span`]'s bit for bit (the
+            /// order-0 row of the derivative recursion is the same
+            /// recursion, same accumulation order, same division) and
+            /// the derivative is [`Self::deriv_in_span`]'s bit for bit
+            /// (it IS this, projected). Same totality contract.
+            pub fn ders1_in_span(self, t: T) -> ($Point<T>, $Vector<T>) {
+                let ([$($c),+], w_hom) = self.homogeneous::<2>(t);
+                $(let $c = rational_corrections($c, w_hom);)+
+                ($Point::new($($c[0]),+), $Vector::new($($c[1]),+))
+            }
+
+            /// First derivative in the given span: the derivative half
+            /// of [`Self::ders1_in_span`] — an order-1 basis pass and
+            /// the `C′` correction, the same arithmetic
+            /// [`Self::ders_in_span`]'s middle component runs, bit for
+            /// bit, without the order-2 row that component would
+            /// discard. Same totality contract.
+            pub fn deriv_in_span(self, t: T) -> $Vector<T> {
+                self.ders1_in_span(t).1
+            }
+
+            /// Second derivative in the given span (the last component
+            /// of [`Self::ders_in_span`] — `C″`'s correction consumes
+            /// `C` and `C′`, so nothing the pass computes is surplus to
+            /// it; the point and first derivative are only not
+            /// returned).
+            pub fn deriv2_in_span(self, t: T) -> $Vector<T> {
+                self.ders_in_span(t).2
+            }
+
         }
 
         impl<T: Real> $Curve<T> {
@@ -238,134 +658,30 @@ macro_rules! nurbs_curve {
                 )
             }
 
-            /// The point at `t`, evaluated **in the given span** — the
-            /// generic core (module docs: the span contract; the fixed
-            /// single-ascending-pass association).
-            ///
-            /// **The basis is read from the SPAN's knot vector**, never
-            /// from `self.knots` beside it: a [`Span`] borrows the
-            /// vector it is a proof about, so there is no second vector
-            /// here for one to disagree with and no refusal to answer.
-            /// What that leaves is the control points: they are related
-            /// to the span's vector by `control.len() ==
-            /// kv.control_count()` and by nothing else, so a span drawn
-            /// from a *different* curve's vector of the same control
-            /// count evaluates this curve's control points on that
-            /// curve's basis — wrong rather than refused, the one
-            /// pairing still open (`Span`'s docs; the `hull` module's).
-            ///
-            /// `t` outside the span's interval still yields the span's
-            /// polynomial extension (documented garbage-out).
-            pub fn eval_in_span(&self, span: Span<'_>, t: T) -> $Point<T> {
-                let basis = spline::basis::basis_funs(span, t);
-                // The window's base, subtracted once inside `Span` — so
-                // the underflow-prone `span − p` is gone from here, and
-                // what remains is an addition. Indexing (not `zip`)
-                // deliberately: `basis` is `degree + 1` long and the
-                // window is `degree + 1` wide — one `degree`, the
-                // span's — and if that ever ceased to hold this must
-                // PANIC rather than silently drop control points.
-                let base = span.first_control();
-                $(let mut $c = T::zero();)+
-                let mut w_acc = T::zero();
-                for (j, nj) in basis.iter().enumerate() {
-                    let i = base + j;
-                    let cw = *nj * T::from_f64(self.weights[i]);
-                    let pt = self.control[i];
-                    $($c = $c + cw * pt.$c;)+
-                    w_acc = w_acc + cw;
-                }
-                $Point::new($($c / w_acc),+)
+            /// The [`Span`] of this curve's knot vector at `index`, as
+            /// a window on **this** curve — `None` when the index is out
+            /// of range or names an empty span (interior multiplicity).
+            /// The emptiness check and the window construction are one
+            /// operation.
+            pub fn span(&self, index: usize) -> Option<$Window<'_, T>> {
+                Some(self.window_of(self.knots.span(index)?))
             }
 
-            /// The homogeneous accumulators through order `N − 1` —
-            /// per coordinate channel `A⁽ᵏ⁾ = Σⱼ N⁽ᵏ⁾ⱼ·wⱼ·xⱼ` and the
-            /// weight channel `w⁽ᵏ⁾ = Σⱼ N⁽ᵏ⁾ⱼ·wⱼ`, `k < N` — from
-            /// one basis pass of order `N − 1`, read from the span's own
-            /// knot vector ([`Self::eval_in_span`] for what that closes
-            /// and what it leaves open). Total: there is no pairing
-            /// left to refuse.
-            ///
-            /// The one homogeneous pass every derivative evaluator
-            /// reads; the ORDER is the caller's, so a first derivative
-            /// runs an order-1 basis and never computes the order-2
-            /// row it would discard.
-            fn homogeneous<const N: usize>(&self, span: Span<'_>, t: T) -> ([[T; N]; $dim], [T; N]) {
-                let ders = spline::basis::ders_basis_funs(span, t, N - 1);
-                // Indexed off the window base, exactly as
-                // [`Self::eval_in_span`]. A `zip` against a window slice
-                // would be the wrong shape here: `ders`' row length and
-                // the window's length are two derivations of the same
-                // `degree`, and a `zip` would answer a disagreement by
-                // silently dropping control points where indexing
-                // panics.
-                let base = span.first_control();
-                $(let mut $c = [T::zero(); N];)+
-                let mut w_hom = [T::zero(); N];
-                for (k, row) in ders.iter().enumerate() {
-                    for (j, nkj) in row.iter().enumerate() {
-                        let i = base + j;
-                        let cw = *nkj * T::from_f64(self.weights[i]);
-                        let pt = self.control[i];
-                        $($c[k] = $c[k] + cw * pt.$c;)+
-                        w_hom[k] = w_hom[k] + cw;
-                    }
-                }
-                ([$($c),+], w_hom)
+            /// The window containing `t` — total on all of `f64` for
+            /// exactly the reasons [`KnotVector::span_at`] is
+            /// (out-of-domain clamps to an end span, NaN lands on the
+            /// first).
+            pub fn span_at(&self, t: f64) -> $Window<'_, T> {
+                self.window_of(self.knots.span_at(t))
             }
 
-            /// Point, first, and second derivative at `t` in the given
-            /// span — one homogeneous pass (orders 0..=2 of the basis),
-            /// then the rational corrections
-            /// ([`rational_corrections`]), exactly as written:
-            /// `C = A⁰/w⁰`, `C′ = (A¹ − C·w¹)/w⁰`,
-            /// `C″ = (A² − C·w² − C′·w¹·2)/w⁰`.
-            /// Same totality contract as [`Self::eval_in_span`].
-            pub fn ders_in_span(&self, span: Span<'_>, t: T) -> ($Point<T>, $Vector<T>, $Vector<T>) {
-                let ([$($c),+], w_hom) = self.homogeneous::<3>(span, t);
-                $(let $c = rational_corrections($c, w_hom);)+
-                (
-                    $Point::new($($c[0]),+),
-                    $Vector::new($($c[1]),+),
-                    $Vector::new($($c[2]),+),
-                )
-            }
-
-            /// Point and first derivative at `t` in the given span from
-            /// ONE order-1 basis pass — the jet door for a consumer that
-            /// wants both (a quadrature rule integrating `P × P′`, say)
-            /// and would otherwise run [`Self::eval_in_span`] and
-            /// [`Self::deriv_in_span`] as two passes, or
-            /// [`Self::ders_in_span`] and discard `C″`.
-            ///
-            /// The point is [`Self::eval_in_span`]'s bit for bit (the
-            /// order-0 row of the derivative recursion is the same
-            /// recursion, same accumulation order, same division) and
-            /// the derivative is [`Self::deriv_in_span`]'s bit for bit
-            /// (it IS this, projected). Same totality contract.
-            pub fn ders1_in_span(&self, span: Span<'_>, t: T) -> ($Point<T>, $Vector<T>) {
-                let ([$($c),+], w_hom) = self.homogeneous::<2>(span, t);
-                $(let $c = rational_corrections($c, w_hom);)+
-                ($Point::new($($c[0]),+), $Vector::new($($c[1]),+))
-            }
-
-            /// First derivative in the given span: the derivative half
-            /// of [`Self::ders1_in_span`] — an order-1 basis pass and
-            /// the `C′` correction, the same arithmetic
-            /// [`Self::ders_in_span`]'s middle component runs, bit for
-            /// bit, without the order-2 row that component would
-            /// discard. Same totality contract.
-            pub fn deriv_in_span(&self, span: Span<'_>, t: T) -> $Vector<T> {
-                self.ders1_in_span(span, t).1
-            }
-
-            /// Second derivative in the given span (the last component
-            /// of [`Self::ders_in_span`] — `C″`'s correction consumes
-            /// `C` and `C′`, so nothing the pass computes is surplus to
-            /// it; the point and first derivative are only not
-            /// returned).
-            pub fn deriv2_in_span(&self, span: Span<'_>, t: T) -> $Vector<T> {
-                self.ders_in_span(span, t).2
+            /// The one primitive constructor, behind [`Self::span`] and
+            /// [`Self::span_at`] and the located-span walk in
+            /// [`Self::eval`]. It is private because it is the single
+            /// place where a span and a curve are put together, and
+            /// every caller draws the span from `self.knots`.
+            fn window_of<'a>(&'a self, span: Span<'a>) -> $Window<'a, T> {
+                $Window { curve: self, span }
             }
 
             /// Applies a chain of structure plans to this curve's
@@ -1019,7 +1335,6 @@ macro_rules! nurbs_curve {
                 if p == 0 || self.weights.iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
                     return poison;
                 }
-                let knots = self.knots.knots();
                 // `w′`'s coefficient enclosures, once for the curve:
                 // index `i` holds `q_i`, poison for a bad knot
                 // difference (which then poisons this bound).
@@ -1029,20 +1344,14 @@ macro_rules! nurbs_curve {
                 // Fixed ascending span order (D9).
                 for index in self.knots.first_span()..=self.knots.last_span() {
                     // Emptiness check and span validation are one step.
-                    let Some(span) = self.knots.span(index) else {
+                    let Some(span) = self.span(index) else {
                         continue;
                     };
-                    // The active window, computed once at the `Span`'s
-                    // construction — the `checked_sub(p)` that used to
-                    // stand here is not a reachable refusal any more.
-                    let (first, last) = (span.first_control(), span.index());
-                    // The one refusal a `Span` cannot make on the
-                    // caller's behalf: its window is bounded by the KNOT
-                    // vector's control count, not by this curve's array.
-                    if last >= self.control.len() {
-                        return poison;
-                    }
-                    let b = self.rational_span_bound(knots, &dw, origin, first, last);
+                    // The window carries the pairing: its span is a
+                    // proof about this curve's own knot vector, and
+                    // `new` pins `control.len() == control_count()`, so
+                    // `[first_control, index]` indexes the arrays.
+                    let b = span.rational_span_bound(&dw, origin);
                     acc = Some(match acc {
                         None => b,
                         // NaN-propagating lattice fold — poison in,
@@ -1051,138 +1360,6 @@ macro_rules! nurbs_curve {
                     });
                 }
                 acc.unwrap_or(poison)
-            }
-
-            /// One span's arm of [`Self::rational_speed_lower_bound`]
-            /// (the derivation lives there). `first ..= last` are the
-            /// coefficient indices active on the span, already range-
-            /// checked; `dw` holds the weight spline's derivative
-            /// coefficient enclosures.
-            fn rational_span_bound(
-                &self,
-                knots: &[f64],
-                dw: &[RingInterval],
-                origin: $Point<T>,
-                first: usize,
-                last: usize,
-            ) -> T {
-                let poison = T::from_f64(f64::NAN);
-                let p = self.knots.degree();
-                let Some(active) = self.control.get(first..=last) else {
-                    return poison;
-                };
-                #[allow(clippy::cast_precision_loss)]
-                let count = T::from_f64(active.len() as f64);
-                // The span's own control centroid — the translation
-                // that keeps `sup‖C − c‖` span-sized.
-                let mut sum = origin - origin;
-                for pt in active {
-                    sum = sum + (*pt - origin);
-                }
-                let c = origin + sum / count;
-                // The span's control chord, as unit direction.
-                let (Some(a), Some(b)) = (active.first(), active.last()) else {
-                    return poison;
-                };
-                let chord = *b - *a;
-                let d = chord / chord.norm();
-                // The SIGNED hull of `d·(C − c)` on the span — the
-                // rational value hull (`hull::span_hull_rational`'s
-                // fact: positive weights make the rational basis a
-                // nonnegative partition of unity) read through `d`.
-                // Ascending `Real::min`/`Real::max` folds.
-                let mut s_lo: Option<T> = None;
-                let mut s_hi: Option<T> = None;
-                for pt in active {
-                    let s = d.dot(*pt - c);
-                    s_lo = Some(match s_lo {
-                        None => s,
-                        Some(m) => m.min(s),
-                    });
-                    s_hi = Some(match s_hi {
-                        None => s,
-                        Some(m) => m.max(s),
-                    });
-                }
-                let (Some(s_lo), Some(s_hi)) = (s_lo, s_hi) else {
-                    return poison;
-                };
-                // `w`'s hull on the span (f64 structure comparisons on
-                // f64 weights — the `removal_pass_bound` precedent).
-                let Some(w_active) = self.weights.get(first..=last) else {
-                    return poison;
-                };
-                let mut w_min = f64::INFINITY;
-                let mut w_max = 0.0f64;
-                for w in w_active {
-                    if *w < w_min {
-                        w_min = *w;
-                    }
-                    if *w > w_max {
-                        w_max = *w;
-                    }
-                }
-                // The numerator's two terms over the active derivative
-                // indices `[first, last)`.
-                let mut num: Option<T> = None;
-                let (mut wp_lo, mut wp_hi) = (f64::INFINITY, f64::NEG_INFINITY);
-                for i in first..last {
-                    let (Some(&lo), Some(&hi)) = (knots.get(i + 1), knots.get(i + p + 1)) else {
-                        return poison;
-                    };
-                    let du = hi - lo;
-                    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-                    if !(du > 0.0) {
-                        return poison;
-                    }
-                    let (Some(pi), Some(pj)) = (self.control.get(i), self.control.get(i + 1))
-                    else {
-                        return poison;
-                    };
-                    let (Some(&wi), Some(&wj)) = (self.weights.get(i), self.weights.get(i + 1))
-                    else {
-                        return poison;
-                    };
-                    #[allow(clippy::cast_precision_loss)]
-                    let scale = T::from_f64(p as f64) / T::from_f64(du);
-                    // Homogeneous, centroid-translated: a_j = w_j·(P_j − c).
-                    let ai = (*pi - c) * T::from_f64(wi);
-                    let aj = (*pj - c) * T::from_f64(wj);
-                    let v = d.dot((aj - ai) * scale);
-                    num = Some(match num {
-                        None => v,
-                        Some(m) => m.min(v),
-                    });
-                    // `w′`'s SIGNED hull, from the ring-rounded
-                    // coefficients (`!(a >= b)` so a poisoned
-                    // coefficient poisons the hull rather than being
-                    // skipped by a false comparison).
-                    let Some(q) = dw.get(i) else {
-                        return poison;
-                    };
-                    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-                    if !(q.lo() >= wp_lo) {
-                        wp_lo = q.lo();
-                    }
-                    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-                    if !(q.hi() <= wp_hi) {
-                        wp_hi = q.hi();
-                    }
-                }
-                let Some(num) = num else {
-                    return poison;
-                };
-                // `sup (d·(C − c))·w′` over the two signed hulls: the
-                // ascending `Real::max` fold of the four corner
-                // products (a magnitude product `sup|·|·sup|·|` would
-                // be sound but needlessly loose — it throws away the
-                // sign correlation that steep weight ramps live in).
-                let (lo, hi) = (T::from_f64(wp_lo), T::from_f64(wp_hi));
-                let corner = (s_lo * lo).max(s_lo * hi).max(s_hi * lo).max(s_hi * hi);
-                let l = num - corner;
-                // `min(L/w_max, L/w_min)` — the correct division in
-                // both numerator signs, without asking the sign.
-                (l / T::from_f64(w_max)).min(l / T::from_f64(w_min))
             }
 
             pub(crate) fn same_structure_deviation_bound(&self, other: &Self) -> T {
@@ -1226,7 +1403,7 @@ macro_rules! nurbs_curve {
                 // `spans.first` arrives already validated — the locator
                 // is where span validity originates, so there is
                 // nothing to re-check and no `expect` here.
-                let mut acc = self.eval_in_span(spans.first, t);
+                let mut acc = self.window_of(spans.first).eval_in_span(t);
                 for s in (spans.first.index() + 1)..=spans.last.index() {
                     // Skip empty spans (interior multiplicity):
                     // find_span assigns every parameter — a repeated
@@ -1238,7 +1415,7 @@ macro_rules! nurbs_curve {
                     // The emptiness check and the span's validation are
                     // now the same operation.
                     let Some(span) = self.knots.span(s) else { continue };
-                    let q = self.eval_in_span(span, t);
+                    let q = self.window_of(span).eval_in_span(t);
                     acc = $Point::new($(acc.$c.enclosure_hull(q.$c)),+);
                 }
                 acc
@@ -1252,13 +1429,13 @@ macro_rules! nurbs_curve {
                 // `spans.first` arrives already validated — the locator
                 // is where span validity originates, so there is
                 // nothing to re-check and no `expect` here.
-                let mut acc = self.deriv_in_span(spans.first, t);
+                let mut acc = self.window_of(spans.first).deriv_in_span(t);
                 for s in (spans.first.index() + 1)..=spans.last.index() {
                     // Empty-span skip: see `eval`'s note.
                     // The emptiness check and the span's validation are
                     // now the same operation.
                     let Some(span) = self.knots.span(s) else { continue };
-                    let q = self.deriv_in_span(span, t);
+                    let q = self.window_of(span).deriv_in_span(t);
                     acc = $Vector::new($(acc.$c.enclosure_hull(q.$c)),+);
                 }
                 acc
@@ -1275,13 +1452,13 @@ macro_rules! nurbs_curve {
                 // `spans.first` arrives already validated — the locator
                 // is where span validity originates, so there is
                 // nothing to re-check and no `expect` here.
-                let (mut p, mut d1, mut d2) = self.ders_in_span(spans.first, t);
+                let (mut p, mut d1, mut d2) = self.window_of(spans.first).ders_in_span(t);
                 for s in (spans.first.index() + 1)..=spans.last.index() {
                     // Empty-span skip: see `eval`'s note.
                     // The emptiness check and the span's validation are
                     // now the same operation.
                     let Some(span) = self.knots.span(s) else { continue };
-                    let (q, q1, q2) = self.ders_in_span(span, t);
+                    let (q, q1, q2) = self.window_of(span).ders_in_span(t);
                     p = $Point::new($(p.$c.enclosure_hull(q.$c)),+);
                     d1 = $Vector::new($(d1.$c.enclosure_hull(q1.$c)),+);
                     d2 = $Vector::new($(d2.$c.enclosure_hull(q2.$c)),+);
@@ -1304,8 +1481,8 @@ macro_rules! nurbs_curve {
     };
 }
 
-nurbs_curve!(NurbsCurve2, Point2, Vec2, 2, x, y);
-nurbs_curve!(NurbsCurve3, Point3, Vec3, 3, x, y, z);
+nurbs_curve!(NurbsCurve2, CurveWindow2, Point2, Vec2, 2, x, y);
+nurbs_curve!(NurbsCurve3, CurveWindow3, Point3, Vec3, 3, x, y, z);
 
 /// The rational corrections through order `N − 1`, from one channel's
 /// homogeneous accumulators `a[k] = A⁽ᵏ⁾` and the weight channel

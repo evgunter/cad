@@ -1075,19 +1075,20 @@ impl Dir {
 /// `t`, exact-in-kind for the Newton–Cotes nodes, which lie in the
 /// span's closure.
 fn bspline_eval_ring_in_span(
-    kv: &KnotVector,
     coeffs: &[RingInterval],
-    span: Span,
+    span: Span<'_>,
     t: RingInterval,
 ) -> RingInterval {
+    let kv = span.knots();
     if coeffs.len() != kv.control_count() {
         return RingInterval::poison();
     }
     let p = kv.degree();
     let u = kv.knots();
     // The window's base, off the `Span` — as in [`bspline_eval_ring`],
-    // whose recurrence this is. The length check above is the only
-    // structure left to verify: in-range-ness came with the `Span`.
+    // whose recurrence this is. Degree, knots and window all come from
+    // the one borrow, so the length check against `coeffs` is the only
+    // structure left to verify.
     let first = span.first_control();
     let mut d: Vec<RingInterval> = (0..=p).map(|j| coeffs[first + j]).collect();
     for r in 1..=p {
@@ -1257,7 +1258,7 @@ impl PatchGrid {
         match (dir, op) {
             (Dir::Kv(kv), Collapse::At(t)) => bspline_eval_ring(kv, coeffs, t),
             (Dir::Kv(kv), Collapse::AtSpan { mid, t }) => {
-                bspline_eval_ring_in_span(kv, coeffs, kv.span_at(mid), *t)
+                bspline_eval_ring_in_span(coeffs, kv.span_at(mid), *t)
             }
             (Dir::Kv(kv), Collapse::Over(lo, hi)) => bspline_range_hull(kv, coeffs, lo, hi),
             (Dir::Raw { knots, degree }, Collapse::At(t)) => raw_eval(knots, *degree, coeffs, t),

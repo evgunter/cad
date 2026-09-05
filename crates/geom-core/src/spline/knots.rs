@@ -211,22 +211,24 @@ impl InteriorKnot {
 /// private and the only constructors are [`KnotVector::span`]
 /// (checked) and [`KnotVector::span_at`] (total), so an index invalid
 /// for the vector it names is not a representable state — and neither
-/// is a span held beside a *different* vector, because every door that
+/// is a span held beside a *different* vector: every door that
 /// consumes a `Span` reads its knots through the span
 /// ([`Span::knots`]) and takes no second [`KnotVector`] parameter to
-/// disagree with it. [`super::basis`], [`super::hull`] and the curve
-/// and surface evaluators in `geom` therefore index without a pairing
-/// guard and without a poison route for one: the state the guard
-/// tested is unrepresentable. `geom`'s `SurfaceWindow` is the same
-/// shape one dimension up — it borrows the surface, so both of its
-/// knot vectors and its row-major stride come from one borrow.
+/// disagree with it. [`super::basis`] and [`super::hull`] therefore
+/// index without a pairing guard and without a poison route for one.
+/// `geom` carries the shape one level further: `CurveWindow{2,3}`
+/// borrows the curve and `SurfaceWindow` the surface, so the doors
+/// that read a control net get the net and the knots from one borrow
+/// too.
 ///
-/// **The pairing this does not close** is coefficients against knots:
-/// a coefficient array is related to a vector by *length* alone
-/// ([`super::hull::span_hull`]'s count check,
-/// `KnotVector::control_count`), so a same-length array from another
-/// curve is a wrong answer rather than a refusal. `InteriorKnot` is
-/// the third member of the family and stays crate-private for it.
+/// **The pairing this does not close** is coefficients against knots
+/// at the **free** hull functions: [`super::hull::span_hull`] and its
+/// siblings take a `&[E]` beside a span and relate the two by *length*
+/// alone (`KnotVector::control_count`), so a same-length array from
+/// another curve is a wrong answer rather than a refusal. `geom`'s
+/// curve and surface windows do not have it — they read their
+/// coefficients from the borrow. `InteriorKnot` is the third member of
+/// the family and stays crate-private for it.
 ///
 /// **Equality is address equality on the vector**, plus the indices:
 /// a `Span` is a proof about *that* vector, and two bit-equal vectors
@@ -234,16 +236,15 @@ impl InteriorKnot {
 /// transfer between. (`KnotVector` is not [`Eq`] — its knots are
 /// `f64` — so a by-value derive is not available here in any case.)
 ///
-/// # The mismatches that no longer typecheck
+/// # What does not typecheck
 ///
 /// These are library doctests: they run under
 /// `cargo test -p geom-core --doc`, so the claims below redden if the
 /// borrow is undone rather than merely dating a comment.
 ///
-/// **The retired panic path.** A span of a longer vector handed to a
-/// door on a shorter one indexed past that vector's arrays. There is
-/// no spelling for it: the door takes no vector, so the second one has
-/// no parameter to arrive through.
+/// **A door takes one vector, and it is the span's.** There is no
+/// parameter through which a second one could arrive, so a span of one
+/// vector cannot be evaluated against another.
 ///
 /// ```compile_fail,E0061
 /// use geom_core::spline::{KnotVector, basis};
@@ -287,11 +288,9 @@ impl InteriorKnot {
 /// let _ = basis::basis_funs(span, 0.5f64);
 /// ```
 ///
-/// **Nor can a span be held across a rebinding of its vector** — the
-/// case that decides whether this shape is affordable at all
-/// (`insert_knot`, `refine_knots`, `elevate_degree` and
-/// `refine_to_union` are all `&self -> Self`, so the refinement is a
-/// new binding and a span of the old one goes on naming the old one):
+/// **Nor can a span be held across a rebinding of its vector.** Every
+/// knot-algebra door here is `&self -> Self`, so a refinement is a new
+/// binding and a span of the original goes on naming the original:
 ///
 /// ```compile_fail,E0506
 /// use geom_core::spline::{KnotVector, basis};
@@ -302,8 +301,7 @@ impl InteriorKnot {
 /// ```
 ///
 /// The twin differs in one identifier — the refinement is a *new*
-/// binding, which is what every knot-algebra door in this crate
-/// actually returns:
+/// binding, which is what every knot-algebra door here returns:
 ///
 /// ```
 /// use geom_core::spline::{KnotVector, basis};

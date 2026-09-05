@@ -136,29 +136,30 @@ fn rows() -> Vec<(String, u64)> {
             push_v(&mut out, &format!("{name}.deriv2@{step}"), c.deriv2(t));
         }
         for index in k.first_span()..=k.last_span() {
-            let Some(span) = k.span(index) else { continue };
+            let Some(win) = c.span(index) else { continue };
+            let span = win.span();
             let t = 0.5 * (k.knots()[index] + k.knots()[index + 1]);
             push_p(
                 &mut out,
                 &format!("{name}.eval_in_span@{index}"),
-                c.eval_in_span(span, t),
+                win.eval_in_span(t),
             );
-            let (p, d, dd) = c.ders_in_span(span, t);
+            let (p, d, dd) = win.ders_in_span(t);
             push_p(&mut out, &format!("{name}.ders.p@{index}"), p);
             push_v(&mut out, &format!("{name}.ders.d@{index}"), d);
             push_v(&mut out, &format!("{name}.ders.dd@{index}"), dd);
-            let (p1, d1) = c.ders1_in_span(span, t);
+            let (p1, d1) = win.ders1_in_span(t);
             push_p(&mut out, &format!("{name}.ders1.p@{index}"), p1);
             push_v(&mut out, &format!("{name}.ders1.d@{index}"), d1);
             push_v(
                 &mut out,
                 &format!("{name}.deriv_in_span@{index}"),
-                c.deriv_in_span(span, t),
+                win.deriv_in_span(t),
             );
             push_v(
                 &mut out,
                 &format!("{name}.deriv2_in_span@{index}"),
-                c.deriv2_in_span(span, t),
+                win.deriv2_in_span(t),
             );
 
             // Basis rows and hull bounds, read through the same span.

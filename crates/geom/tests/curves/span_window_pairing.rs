@@ -50,16 +50,26 @@ fn check(knots: Vec<f64>, degree: usize) {
     let base = curve(knots, degree);
     let kv = base.knots().clone();
     for index in kv.first_span()..=kv.last_span() {
-        let Some(span) = kv.span(index) else { continue };
+        let Some(span) = base.span(index) else {
+            continue;
+        };
         let t = 0.5 * (kv.knots()[index] + kv.knots()[index + 1]);
-        let (p0, d0, dd0) = base.ders_in_span(span, t);
+        let (p0, d0, dd0) = span.ders_in_span(t);
         let (p0, d0, dd0) = (pbits(p0), vbits(d0), vbits(dd0));
-        let e0 = pbits(base.eval_in_span(span, t));
+        let e0 = pbits(span.eval_in_span(t));
         for moved in 0..kv.control_count() {
             let moved_curve = perturbed(&base, moved);
-            let (p1, d1, dd1) = moved_curve.ders_in_span(span, t);
+            // The window is minted afresh on the perturbed curve: it
+            // borrows the curve it evaluates, so "the same window on a
+            // different control polygon" has no spelling. Its SHAPE is
+            // a fact about the knot vector alone, unchanged here, so
+            // the two windows name the same indices.
+            let moved_span = moved_curve
+                .span(index)
+                .expect("the perturbation keeps the knot vector");
+            let (p1, d1, dd1) = moved_span.ders_in_span(t);
             let (p1, d1, dd1) = (pbits(p1), vbits(d1), vbits(dd1));
-            let e1 = pbits(moved_curve.eval_in_span(span, t));
+            let e1 = pbits(moved_span.eval_in_span(t));
             let in_window = span.window().contains(&moved);
             assert_eq!(
                 e1 != e0,
@@ -119,134 +129,105 @@ fn degree_one_and_degree_five_read_exactly_their_windows() {
 }
 
 // ---------------------------------------------------------------------
-// The pairing, and the panic that is now unwritable.
+// The pairing at the curve doors, and the one left open.
 //
-// A `Span` borrows the `KnotVector` it is a proof about, and the curve
-// doors read the basis from THAT vector — never from `self.knots`
-// beside it, and they take no knot vector of their own. So a span
-// drawn from a longer vector cannot be handed to a shorter curve's
-// evaluator *together with the shorter vector*: there is no second
-// vector, and the old panic — window base 1, basis row 3 long,
-// `control[3]` of a 3-element array — has no spelling. The rows that
-// used to drive it are `compile_fail` doctests on `Span` in
-// `geom_core::spline::knots` now.
+// Evaluation restricted to a span lives on `CurveWindow{2,3}`, which
+// borrows the curve; the only mints are `NurbsCurve::span` and
+// `::span_at`, both taking `&self`. So a window evaluates the curve it
+// names and there is no door anywhere that takes a curve beside a span
+// of some other curve's knots. That claim is about what COMPILES and
+// is pinned where such claims belong — `compile_fail` doctests on the
+// `curves::nurbs` module — not here, because a row here would have to
+// write the expression it says cannot be written.
 //
-// What is NOT closed is one level down, and these rows are its
-// evidence: the curve's control points are related to the span's
-// vector by COUNT alone, so a span from another vector of the same
-// control count evaluates this curve's points on that vector's basis.
-// Wrong rather than refused, and the rows below pin exactly that — in
-// particular that the basis comes from the SPAN's vector, which is the
-// claim the whole change rests on.
+// What is left open, one level down, is the coefficients: `geom-core`'s
+// FREE hull functions take a `&[E]` beside a `Span` and relate them by
+// LENGTH alone. The rows below drive exactly that, at the doors where
+// it is still reachable.
 
-/// **The basis is read from the span's vector, not from the curve's.**
+/// **The residue, at the only doors that still have it.**
+/// `hull::span_hull` and its three siblings take loose coefficients
+/// beside a span and check `coeffs.len() == kv.control_count()` and
+/// nothing else, so a same-length array from another curve is answered
+/// — finitely, and wrongly.
 ///
-/// Two cubics with the same degree and the same control count but
-/// different interior knots. A span of the second, handed to a curve
-/// built on the first, must produce the value the SECOND vector's
-/// basis gives against the first curve's control points — not the
-/// value the first vector's own span of that index gives.
-///
-/// Computed independently of the door, from `basis_funs` on each
-/// vector, so this row would still separate the two if the door
-/// silently went back to reading `self.knots`.
+/// The curve doors are *not* in this row's scope and cannot be: they
+/// read their coefficients from the curve the window borrows.
+/// (`work/props/coefficients-carry-their-knot-vector.md`.)
 #[test]
-fn the_curve_door_reads_the_basis_from_the_spans_own_vector() {
+fn the_free_hull_doors_relate_coefficients_by_length_alone() {
+    use geom_core::spline::hull;
+
     let mine = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 1.0, 1.0, 1.0, 1.0], 3)
         .expect("valid");
-    let theirs = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.75, 1.0, 1.0, 1.0, 1.0], 3)
-        .expect("valid");
-    assert_eq!(mine.control_count(), theirs.control_count());
+    let n = mine.control_count();
+    let span = mine.span(mine.first_span()).expect("nonempty");
 
-    let c = curve(mine.knots().to_vec(), mine.degree());
-    let index = 4;
-    let t = 0.6;
-    let own = mine.span(index).expect("nonempty in `mine`");
-    let foreign = theirs.span(index).expect("nonempty in `theirs`");
+    #[allow(clippy::cast_precision_loss)]
+    let ours: Vec<f64> = (0..n).map(|i| (i % 5) as f64 * 0.5 - 1.0).collect();
+    let mut theirs = ours.clone();
+    theirs[0] = 1.0e6;
 
-    // The oracle: the rational combination of THIS curve's control
-    // points against the given vector's basis row, written out here so
-    // the row does not test the door against itself.
-    let oracle = |span: geom_core::spline::Span<'_>| {
-        let n = geom_core::spline::basis::basis_funs::<f64>(span, t);
-        let first = span.first_control();
-        let (mut num, mut den) = (Point3::new(0.0, 0.0, 0.0), 0.0);
-        for (j, nj) in n.iter().enumerate() {
-            let i = first + j;
-            let cw = nj * c.weights()[i];
-            let p = c.control()[i];
-            num = Point3::new(num.x + cw * p.x, num.y + cw * p.y, num.z + cw * p.z);
-            den += cw;
-        }
-        (num.x / den, num.y / den, num.z / den)
-    };
-
-    let with_own = pbits(c.eval_in_span(own, t));
-    let with_foreign = pbits(c.eval_in_span(foreign, t));
-    let (ox, oy, oz) = oracle(own);
-    let (fx, fy, fz) = oracle(foreign);
-    assert_eq!(with_own, (ox.to_bits(), oy.to_bits(), oz.to_bits()));
-    assert_eq!(
-        with_foreign,
-        (fx.to_bits(), fy.to_bits(), fz.to_bits()),
-        "the door read a basis the span did not name"
-    );
+    let right = hull::span_hull(&ours, span);
+    let wrong = hull::span_hull(&theirs, span);
+    assert!(!right.is_poison() && !wrong.is_poison());
     assert_ne!(
-        with_own, with_foreign,
-        "the two vectors must disagree at this index, or the row proves nothing"
+        (right.lo(), right.hi()),
+        (wrong.lo(), wrong.hi()),
+        "the two arrays must disagree on this span, or the row proves nothing"
     );
+    assert!(
+        hull::sup_norm_bound_span(&theirs, span).is_finite(),
+        "the honesty limb certifies a curve whose coefficients it never saw"
+    );
+    // A wrong LENGTH is still refused, which is what keeps the window
+    // in range at every door here.
+    assert!(hull::span_hull(&ours[..n - 1], span).is_poison());
+    assert!(hull::derivative_span_hull(&ours[..n - 1], span).is_poison());
 }
 
-/// The residue, stated as behaviour: a span from another curve's
-/// vector of the same control count is **answered, not refused** —
-/// with that vector's basis over this curve's control points.
+/// The other direction, which is how a guard fails when it cannot
+/// fail: **every** window a curve mints evaluates finitely on that
+/// curve, at every degree and every span the family produces, and the
+/// window's answer is the whole-curve door's at the same parameter.
 ///
-/// Nothing panics anywhere in the cross product, which is D9's claim
-/// and the reason the retired guard existed: every span names a window
-/// inside its own vector's control count, so a curve of the same
-/// control count is indexed in range whatever span it is given.
+/// `span_families` is the spread; a family that stopped producing
+/// spans would leave this row green over nothing, so the count is
+/// floored.
 #[test]
-fn no_cross_vector_pairing_of_equal_control_count_panics() {
-    let vectors: Vec<KnotVector> = span_families()
-        .into_iter()
-        .map(|(knots, p)| KnotVector::clamped(knots, p).expect("valid"))
-        .collect();
-    let (mut same_answer, mut different_answer) = (0usize, 0usize);
-    for source in &vectors {
-        for index in source.first_span()..=source.last_span() {
-            let Some(span) = source.span(index) else {
-                continue;
-            };
-            for target in &vectors {
-                if target.control_count() != source.control_count() {
-                    // The count relation is the one guard left, and it
-                    // lives at construction: a curve simply has no
-                    // control point at the window this span names.
-                    continue;
-                }
-                let c = curve(target.knots().to_vec(), target.degree());
-                if span.index() >= c.control().len() {
-                    continue;
-                }
-                let pt = pbits(c.eval_in_span(span, 0.3));
-                let own = target
-                    .span(index)
-                    .map(|s| pbits(c.eval_in_span(s, 0.3)))
-                    .unwrap_or(pt);
-                if pt == own {
-                    same_answer += 1;
-                } else {
-                    different_answer += 1;
-                }
-            }
+fn every_window_a_curve_mints_evaluates_that_curve() {
+    let mut checked = 0usize;
+    for (knots, p) in span_families() {
+        let kv = KnotVector::clamped(knots, p).expect("valid");
+        let c = curve(kv.knots().to_vec(), kv.degree());
+        for index in kv.first_span()..=kv.last_span() {
+            let Some(win) = c.span(index) else { continue };
+            assert!(core::ptr::eq(win.curve(), &c));
+            assert_eq!(win.index(), index);
+            let t = 0.5 * (kv.knots()[index] + kv.knots()[index + 1]);
+            let p0 = win.eval_in_span(t);
+            assert!(
+                p0.x.is_finite() && p0.y.is_finite() && p0.z.is_finite(),
+                "degree {p}, span {index}: {p0:?}"
+            );
+            // The whole-curve door locates this very span at `t`.
+            assert_eq!(pbits(p0), pbits(c.eval(t)));
+            assert_eq!(vbits(win.deriv_in_span(t)), vbits(c.deriv(t)));
+            checked += 1;
+        }
+        // The located mint agrees with the indexed one.
+        let (lo, hi) = kv.domain();
+        for t in [lo, hi, f64::NAN, lo - 1.0, hi + 1.0, 0.5 * (lo + hi)] {
+            let w = c.span_at(t);
+            assert!(core::ptr::eq(w.curve(), &c));
+            assert_eq!(w.index(), kv.find_span(t));
+            checked += 1;
         }
     }
     assert!(
-        different_answer > 0,
-        "the family stopped producing a cross-vector disagreement, so this \
-         row no longer exercises the residue"
+        checked >= 40,
+        "the family stopped covering spans: {checked}"
     );
-    assert!(same_answer > 0, "the family produced no agreeing pairing");
 }
 
 /// The knot vectors the two sweeps above range over: several degrees,
