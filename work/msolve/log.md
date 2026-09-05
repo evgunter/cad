@@ -56,3 +56,10 @@ it, `MSOLVE-3` open; the three issues they answer parked on them. Two
 items re-homed here by the 2026-09-04 sweep read and placed on the
 slate (the memo key: a unit after 1; the lever's extent: an `[ev]`
 question). Next: dispatch MSOLVE-1 on `msolve/1-mate-operand`.
+
+## AQ8's SKIP half homed (2026-09-05)
+
+Not an `[ev]` after all: PR 592's addendum comment carries Ev's 👍
+ratifying option (b). The clause joins the weld half in `ASSEMBLY.md`;
+`aq8-skip-half-is-cited-as-ratified-and-is-not` closed. Orchestrator
+PR 1913 (spec and cut) merged.

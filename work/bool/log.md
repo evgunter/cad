@@ -258,3 +258,12 @@ directory's item files and in `work/STATUS.md`; this log stays the
 narrative. Items created at migration: BOOL-12 (review, PR 1573 held for
 Ev's sign-off), BOOL-9 (spec), BOOL-10 (spec), BOOL-4 (open), BOOL-5 (open),
 BOOL-6 (open), BOOL-7 (open), BOOL-Q (open).
+
+## Seam announced by TOPO (2026-09-05)
+
+TOPO's `D261` deletes `topo::fixtures::code_only` and re-points its one
+consumer, `crates/topo/src/face_normal.rs:460`, to
+`test_utils::source::code_only` — that single call and nothing else in
+the file; `face_normal.rs`'s raw-text reads stay `D287`'s. `D261` and
+`D287` both lower `reader_census.rs`'s `UNCONVERTED_TODAY`; the second
+to land re-derives it from the table rather than subtracting.
