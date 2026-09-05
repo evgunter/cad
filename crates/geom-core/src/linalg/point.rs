@@ -66,6 +66,18 @@ impl<T: Real> Point2<T> {
     /// evaluation wants. This is the one affine combination consumers
     /// need for M2 curve evaluation (parameter-line and chord points);
     /// `t` outside [0, 1] extrapolates on the same line, no clamping.
+    ///
+    /// **Its cost at an enclosure scalar**, so the choice is on the
+    /// record where it is made: `self` is named twice — once in the
+    /// difference, once in the sum — and the two mentions do not
+    /// cancel, so the result is exact at `t = 0` and carries
+    /// `2·width(self)` at `t = 1`, where the answer is `other` and
+    /// `self` should not appear at all. The two-products form
+    /// `self·(1 − t) + other·t` is exact at BOTH endpoints and pays for
+    /// it by treating `t` and `1 − t` as independent whenever `t`
+    /// itself carries width, which is the common case for a subdivision
+    /// driver. The trade is decided in favour of the endpoint behaviour
+    /// above; it is not an oversight.
     pub fn lerp(self, other: Self, t: T) -> Self {
         self + (other - self) * t
     }
@@ -129,6 +141,18 @@ impl<T: Real> Point3<T> {
     /// evaluation wants. This is the one affine combination consumers
     /// need for M2 curve evaluation (parameter-line and chord points);
     /// `t` outside [0, 1] extrapolates on the same line, no clamping.
+    ///
+    /// **Its cost at an enclosure scalar**, so the choice is on the
+    /// record where it is made: `self` is named twice — once in the
+    /// difference, once in the sum — and the two mentions do not
+    /// cancel, so the result is exact at `t = 0` and carries
+    /// `2·width(self)` at `t = 1`, where the answer is `other` and
+    /// `self` should not appear at all. The two-products form
+    /// `self·(1 − t) + other·t` is exact at BOTH endpoints and pays for
+    /// it by treating `t` and `1 − t` as independent whenever `t`
+    /// itself carries width, which is the common case for a subdivision
+    /// driver. The trade is decided in favour of the endpoint behaviour
+    /// above; it is not an oversight.
     pub fn lerp(self, other: Self, t: T) -> Self {
         self + (other - self) * t
     }
