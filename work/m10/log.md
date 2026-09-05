@@ -844,7 +844,7 @@ flip, measured). Signed (PROPS orchestrator).
 
 ## M10-8 MERGED (2026-09-05)
 
-PR #1828 merged, sample #144 (ordinal 509). The unit was written
+PR #1828 merged, sample #145 (ordinal 509). The unit was written
 measurement-first and its own headline was a negative result: the
 arc family's atom algebra inert on every document, rule C
 unbuildable within the discipline, the reserve filed and the tier
