@@ -579,3 +579,13 @@ deleted at this merge per `docs/DOC-LEDGER.md`.
 
 Next: SEAT-FW (the flush detector's curved widening) on block
 SEAT-B3's next slot; SEAT-DN and SEAT-9 behind it, both ruled.
+
+## SEAT-FW DISPATCHED (2026-09-05)
+
+SEAT-8 merged at 29b073e5 (PR 1950). SEAT-FW — the flush detector's
+curved widening, `docs/SEAT-FW-SPEC.md` — dispatches on block SEAT-B3's
+second slot. Its substance is a content review: the swap is one
+identifier, and every demo wall whose answer changes is argued right
+or the change is a reported fork. Demo scenes other programs cite by
+line are updated, not re-authored, beyond the declaration assembly the
+unit owns; moved register lines are logged here at merge.
