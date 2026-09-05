@@ -383,6 +383,15 @@ fn a_side_wall_replacement_refuses_typed_at_the_rim_arcs() {
 /// PLANAR fixture: a planar spline's offset is a planar spline, which
 /// the interpolation reproduces exactly at any ε, so a fit refusal
 /// there would be a real defect and reds.
+/// The tightest ε at which the twisted loft's saddle wall still
+/// certifies its offset fit, measured on this fixture: it reaches at
+/// ε = 1e-9 (3 refinement rounds) and at 1e-6, and exhausts its round
+/// budget at 1e-12 with an achieved sup bound of ~2.5e-9. The constant
+/// is what turns the `Fit` arm below from an or-pin into a claim — at
+/// any ε this loose, a fit refusal is a regression rather than
+/// ε-tightening, and reds.
+const CURVED_FIT_REACH: f64 = 1e-11;
+
 #[test]
 fn the_fitted_obstruction_holds_on_a_curved_fit() {
     // Both fixtures' spline walls are bounded by rims described in a
@@ -421,12 +430,24 @@ fn the_fitted_obstruction_holds_on_a_curved_fit() {
             }
             // The fit could not reach this run's ε, so the structural
             // door was never reached. Legitimate only where the base is
-            // genuinely curved (the header's ε paragraph).
-            ReplaceFaceError::Fit { error, .. } => assert!(
-                curved,
-                "{name}: a PLANAR spline's offset is exactly fittable at every ε, so a fit \
-                 refusal here is a defect rather than ε-tightening: {error}"
-            ),
+            // genuinely curved AND the run's ε is tighter than what the
+            // engine reaches on it — both, so this arm cannot absorb a
+            // fit-engine regression at the epsilons where the fit does
+            // reach today.
+            ReplaceFaceError::Fit { error, .. } => {
+                assert!(
+                    curved,
+                    "{name}: a PLANAR spline's offset is exactly fittable at every ε, so a fit \
+                     refusal here is a defect rather than ε-tightening: {error}"
+                );
+                assert!(
+                    Tol::witness().eps() < CURVED_FIT_REACH,
+                    "{name}: the curved fit refused at ε = {:e}, where it reaches today \
+                     (measured: it certifies at ε ≥ {CURVED_FIT_REACH:e} and stalls at 1e-12). \
+                     That is a fit-engine regression, not ε-tightening: {error}",
+                    Tol::witness().eps()
+                );
+            }
             other => panic!("{name}: expected the structural refusal or the fit's, got {other}"),
         }
     }

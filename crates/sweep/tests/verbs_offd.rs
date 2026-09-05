@@ -36,8 +36,13 @@ fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
-/// The fit tolerance the `Approx` rows mint at — the OFF-C consumer's.
-const FIT_TOL: f64 = 1e-6;
+/// The target these fixtures hand the fit ENGINE, and no longer a door's
+/// argument: since the shell chain took the `Tol` witness, the only
+/// tolerance a kernel door accepts is the run's ε, and a chosen number
+/// reaches the fit only through `geom-brep`'s `_at` instrument. 1e-6 is
+/// what these planar pull-backs were always fitted at and the value is
+/// unchanged; what moved is what it means.
+const ENGINE_FIT_TARGET: f64 = 1e-6;
 
 /// Revolves the closed `(r, y)` polygon a full turn about the `y` axis.
 fn revolved(points: &[(f64, f64)]) -> Body<f64> {
@@ -523,7 +528,7 @@ fn a_fitted_charts_iso_row_carries_the_fits_spline_space() {
     let seed_degree = base.knots_v().degree();
     let seed_knots = base.knots_v().knots().to_vec();
 
-    let approx = geom_brep::approx_offset_surface(base.clone(), d, FIT_TOL, band())
+    let approx = geom_brep::approx_offset_surface_at(base.clone(), d, ENGINE_FIT_TARGET, band())
         .expect("the wall's own offset fits");
     let Surface::Approx(a) = &approx else {
         panic!("the fit door mints the variant")

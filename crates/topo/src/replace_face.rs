@@ -1200,6 +1200,10 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
 
 /// The offset surface for `old`: the analytic mint, or the fit lane's
 /// certified `Approx` where the kind is not closed under offset.
+// `band, tol` in that order, matching the public doors above rather
+// than the `tolerance, band` this used to end in: the raw tolerance is
+// gone and the witness takes the trailing position every door on this
+// chain gives it.
 fn mint_offset<T: Decide + PropsQuadLane>(
     face: FaceKey,
     old: &Surface<T>,

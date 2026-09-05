@@ -272,6 +272,13 @@ fn sample(kind: VerbKind) -> Verb<f64> {
         // a body at any door it is offered to: the mismatch rows below
         // must be answered by `Arity` before an op runs, and a sample
         // that could succeed somewhere would make the refusal ambiguous.
+        //
+        // The consequence is that the MATRIX's shell row never runs a
+        // real shell, and that is deliberate rather than a gap: the
+        // matrix exists to exercise the cross-door refusals, and the
+        // real runs — the sealed hollow, the opened one, and the
+        // thickness gate's refusal crossing unaltered — are the
+        // equivalence rows at the bottom of this file.
         VerbKind::Shell => Verb::Shell {
             thickness: 0.0,
             open: Vec::new(),

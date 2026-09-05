@@ -37,8 +37,8 @@
 //! bodies for the boolean, one validated PROFILE for the sweeps, one
 //! body in and TWO sides out for the split, and the shell's own row —
 //! the blends' two ends at a scalar that can certify — each behind its
-//! own typed door). Everything else a verb is committed to belongs to whoever
-//! owns that commitment, not here: the content-key tag beside
+//! own typed door). Everything else a verb is committed to belongs to
+//! whoever owns that commitment, not here: the content-key tag beside
 //! `editor-core`'s memo machinery, the wire spelling on `Node`'s serde
 //! derives, the Python constructor, the viewer's tree label. This
 //! crate says nothing about any of them.

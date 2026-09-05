@@ -814,7 +814,7 @@ pub trait PropsQuadLane:
     /// [`PropsQuadLane::recertify_approx`]'s reason: the mint and the
     /// re-derivation that must later re-establish its claim classify
     /// against the same number by construction, not because two
-    /// callers passed the same one ([`fit_precision`]).
+    /// callers passed the same one.
     ///
     /// `None` = this scalar has no fit lane. That is not a pass: a
     /// caller that cannot mint the offset refuses, exactly as tier 3
@@ -848,28 +848,6 @@ pub trait PropsQuadLane:
     ) -> Result<Option<FaceCutBounds>, PropsError>;
 }
 
-/// **The offset fit's target, and the ONE place the run's ε is read on
-/// the chain that reaches it** (D4 ¶2's ε_precision; the residual O3
-/// ratifies).
-///
-/// From the shell door down to here the tolerance travels as the [`Tol`]
-/// witness and nothing else — the verb doors, the face-replacement
-/// doors and this lane all name the witness in their signatures — so no
-/// caller on the way can name a second epsilon, and none can do
-/// arithmetic on the one the run committed. This is where the witness
-/// becomes a number, once, for the two doors below it.
-///
-/// **`geom-brep`'s fit engine takes a target as a number, and that is
-/// not a second ε.** The engine is a general approximation routine
-/// whose own suite measures the refinement, budget, stall and limb
-/// ladder at deliberately chosen targets — 1e-2 through 1e-18, and
-/// bounds derived from a measured residual — which one committed ε
-/// cannot express. What the kernel does not do is CHOOSE: every path
-/// from a verb into that engine passes through this function.
-fn fit_precision(tol: Tol) -> f64 {
-    tol.eps()
-}
-
 impl PropsQuadLane for f64 {
     fn datum_lo(self) -> f64 {
         geom_core::Bounds::lo(self)
@@ -880,11 +858,7 @@ impl PropsQuadLane for f64 {
         tol: Tol,
         band: Band,
     ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
-        Some(geom_brep::recertify_approx(
-            approx,
-            fit_precision(tol),
-            band,
-        ))
+        Some(geom_brep::recertify_approx(approx, tol, band))
     }
 
     fn approx_offset_surface(
@@ -893,12 +867,7 @@ impl PropsQuadLane for f64 {
         tol: Tol,
         band: Band,
     ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
-        Some(geom_brep::approx_offset_surface(
-            base,
-            d,
-            fit_precision(tol),
-            band,
-        ))
+        Some(geom_brep::approx_offset_surface(base, d, tol, band))
     }
 
     fn quad_cut_face(

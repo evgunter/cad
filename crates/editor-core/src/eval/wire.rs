@@ -1604,8 +1604,9 @@ fn wire_hollow_tube<T: Decide + geom_brep::PcurveFittedLane>(
 /// Exhaustive over [`verbs::VerbError`] with no wildcard arm, so a
 /// verb family with a new refusal shape breaks here rather than
 /// arriving as another's — including a family this layer cannot
-/// produce, which is routed rather than skipped (the shell's arm). One boolean refusal does NOT come through
-/// this door: the undeclared-coincidence menu lift needs the operands'
+/// produce, which is routed rather than skipped (the shell's arm).
+/// One boolean refusal does NOT come through this door: the
+/// undeclared-coincidence menu lift needs the operands'
 /// naming context, so [`refusal_menu`] intercepts it and delegates
 /// everything else here.
 fn verb_refused<T: geom_core::Real>(refusal: verbs::VerbError<T>) -> NodeErrorKind {
@@ -1631,6 +1632,16 @@ fn verb_refused<T: geom_core::Real>(refusal: verbs::VerbError<T>) -> NodeErrorKi
         // a shell arm for it would be document vocabulary for a node
         // that does not exist. When one does, this arm is where its
         // refusal gets routed.
+        //
+        // **What that costs, said rather than left to be discovered**:
+        // the `ShellError<T>` this arm holds — the thickness it
+        // refused, the measured wall gap, the width two offsets needed,
+        // the nested face-replacement refusal — does not reach the
+        // document layer. The sentence below names the CLASS ("a
+        // kernel-only verb's refusal reached a document lowering") and
+        // nothing about the shell. That is right while the arm is
+        // unreachable and would be a real loss the moment it is not,
+        // which is the same moment `Node::Shell` gives it a home.
         verbs::VerbError::Shell(_) => NodeErrorKind::Naming(names::NamingError::Emission {
             what: "a kernel-only verb's refusal reached a document lowering",
         }),

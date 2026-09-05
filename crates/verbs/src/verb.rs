@@ -215,13 +215,27 @@ pub enum VerbKind {
 /// `Verb<Dual<f64>>` can be handed to `One` and cannot be handed to
 /// `Shell`; that is not a run-time refusal to be spoken by this enum
 /// but a signature the caller either satisfies or does not compile
-/// against, and a door with its own bound is a door. The rows are what the doors' typed mismatch refusal
+/// against, and a door with its own bound is a door.
+///
+/// The rows are what the doors' typed mismatch refusal
 /// ([`crate::VerbError::Arity`]) speaks, and what `tests/run_door.rs`
 /// asserts the doors against: [`Arity::ALL`] and the door matrix there
 /// must name the same set, so a row without a door, or a door without
-/// a row, reds. The name dates from when the rows were operand counts
-/// and is kept because it crosses the document layer's refusal
-/// payload; read it as the door vocabulary and nothing narrower.
+/// a row, reds.
+///
+/// **The name is historical and the type is not what it says.** These
+/// rows were operand counts once; they are now a DOOR vocabulary with
+/// three axes — the operand, the out-type, and the bound the door can
+/// run at — and no row is a claim about any one of them alone. The
+/// name is kept because it crosses the document layer's refusal payload
+/// (`editor_core::NodeErrorKind::VerbArity`, re-exported through
+/// `pncad`), and renaming it to `Door` would move that payload's type
+/// through the facade. That cost was weighed against a `Door` enum
+/// when the third row landed and is now MEASURED at approximately
+/// nothing — `pncad-py`'s `node_error_tag` renders `"verb_arity"`
+/// whatever the row is — so the reason to keep the name is continuity
+/// and not price. Read it as the door vocabulary and nothing narrower;
+/// the rename is a decision someone makes, not a defect here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Arity {
     /// [`Verb::run`]: one operand body in, one result body and its

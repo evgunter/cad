@@ -149,7 +149,8 @@
 //! manifold-first stance is untouched. Genus does not necessarily rise:
 //! one opening gives a cup, which is genus 0 (the cavity shell fuses
 //! into the boundary and the two Euler contributions cancel); a second
-//! opening gives a tube, genus 1. The invariant is closure, not genus. The surgery is the ring-topology
+//! opening gives a tube, genus 1. The invariant is closure, not genus.
+//! The surgery is the ring-topology
 //! band precedent verbatim; no new machinery, and in particular no
 //! ladder of quads (which would chamfer the opening rather than rim
 //! it — the geometry that made step 2 necessary).
