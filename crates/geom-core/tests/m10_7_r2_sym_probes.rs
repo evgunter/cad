@@ -98,10 +98,18 @@ fn r2_identities_by_different_routes_decide_zero_at_every_width() {
 /// **A COINCIDENCE at the nominal never decides symbolically, and its
 /// enclosure widens with the box** — the distinction E12 claims the
 /// tier can make and no enclosure can.
+///
+/// The half-widths are ε-RELATIVE: the linear band's zero width is ε
+/// (`Band::linear`), so a coincidence's enclosure decides Zero
+/// NUMERICALLY — correctly, inside the band — whenever the box is
+/// narrower than ε. The first cut wrote `1e-9` and was red at
+/// ε = 1e-6, where a `4e-9`-wide enclosure sits inside a `1e-6` band;
+/// at `10 · ε` and up the enclosure straddles the band at every row.
 #[test]
 fn r2_a_nominal_coincidence_never_decides_symbolically_and_widens() {
+    let eps = Tol::witness().eps();
     let mut widths = Vec::new();
-    for half in [1e-9_f64, 1e-6, 1e-3] {
+    for half in [10.0 * eps, 1e3 * eps, 1e6 * eps] {
         let (w, counts) = with_session(budget(), || {
             // A radius equal to a distance AT THE NOMINAL only.
             let r = p("r", 1.0 - half, 1.0 + half);
@@ -109,8 +117,8 @@ fn r2_a_nominal_coincidence_never_decides_symbolically_and_widens() {
             let m = r - d;
             let s = sign_of(m);
             assert!(
-                s != Ok(Sign::Zero) || half < 1e-12,
-                "half-width {half}: a coincidence decided Zero"
+                s != Ok(Sign::Zero),
+                "half-width {half:e} at eps={eps:e}: a coincidence decided Zero"
             );
             geom_core::Bounds::hi(m) - geom_core::Bounds::lo(m)
         });
