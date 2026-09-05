@@ -488,3 +488,21 @@ mod review_h4_r1_probes;
 
 #[path = "fillet_h4_r2_probes.rs"]
 mod fillet_h4_r2_probes;
+
+#[path = "rim_of_rows.rs"]
+mod rim_of_rows;
+
+#[path = "rim_of_rows_interval.rs"]
+mod rim_of_rows_interval;
+
+#[path = "rim_of_r1_probes.rs"]
+mod rim_of_r1_probes;
+
+#[path = "rim_of_r1_probes_interval.rs"]
+mod rim_of_r1_probes_interval;
+
+#[path = "r2_rim_interval_probes.rs"]
+mod r2_rim_interval_probes;
+
+#[path = "r2_rim_corpus_probes.rs"]
+mod r2_rim_corpus_probes;

@@ -51,6 +51,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{PI, SQRT_2};
+use std::collections::BTreeSet;
 
 use geom_core::{Point2, Tol};
 use profile::ProfileVertex;
@@ -614,8 +615,25 @@ fn the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires() {
             "{name}: the seam recourse is the one appended: {shown}"
         );
 
-        // Half two: the request that sentence names, answered — with the
-        // carve it promises, on either side.
+        // Half two: the request that sentence names, made the way the
+        // sentence says to make it — `rim_of` on the very arc that just
+        // refused — and answered with the carve it promises, on either
+        // side. The recourse is followed THROUGH the door it names, so
+        // a door that stopped handing back the whole rim would red here
+        // and not only in the door's own suite.
+        let whole = topo::query::rim_of(&source, arcs[0])
+            .unwrap_or_else(|e| panic!("{name}: the refusing arc names its rim, got {e}"));
+        assert_eq!(
+            whole.len(),
+            2,
+            "{name}: the door hands back every arc the seam split it into"
+        );
+        assert_eq!(
+            whole.iter().copied().collect::<BTreeSet<_>>(),
+            arcs.iter().copied().collect::<BTreeSet<_>>(),
+            "{name}: and exactly those arcs"
+        );
+        let arcs = whole;
         let out = fillet_edges(&source, &arcs, 0.05, tol())
             .unwrap_or_else(|e| panic!("{name}: the promised carve happens, got {e:?}"));
         assert_eq!(out.band_faces.len(), 1, "{name}: one annulus band");
