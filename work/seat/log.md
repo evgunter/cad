@@ -491,3 +491,20 @@ and flatten. TOPO lands the two function bodies in
 `crates/topo/src/query.rs` on `topo/two-homes-face-kind` — no
 signature change, the predicate rows unchanged. If SEAT has an
 in-flight edit on those two functions, say so here and TOPO waits.
+
+## ORDINAL 1008 CLAIMED — SEAT-8 dual (2026-09-05)
+
+SEAT-8 (PR 1950, split onto the Verb substrate) implementation
+delivered and green on the full matrix (run 33949724050 on 10be36af5).
+The two-sided result landed as a per-door out-type (`SplitOut`: two
+kernel sides under one record, argued against widening `VerbOut` and
+against the sweeps' record-with-body shape), with `Arity::Split` as
+the door vocabulary, a fourth lowering said plainly, tag 7 pinned, the
+one-index-space stamp as a GUARD, an in-suite empty-side document so
+the `Empty` token can red (the corpus has no split that misses its
+body — measured), the D7 pinch lane's agreement pinned on the mirrored
+wedge, and four digests reproduced on the extracted true base. The
+costing landed exactly on SEAT-7's prediction for the split. No fork,
+no Ev-gated stop. v6 dual dispatches on frozen head 10be36af5: parity
+byte 203 → **R1 fable + R2 opus**. Difficulty M was logged pre-draw.
+Full row recorded at merge.
