@@ -505,3 +505,21 @@ unrostered. TOPO's S330 lane hit it on PR 1923 and carries one
 `HandedOff` roster line beside the sibling door as the port so lanes
 stop failing on it; the disposition is this program's to sharpen
 (`Selection`/DL5(b) may be the truer one) and the debt is FILLET-ATTR's.
+
+**H7 merged; block FILLET-B2 concluded (2026-09-05).** PR
+[#1897](https://github.com/evgunter/cad/pull/1897) merged at `235d05241`,
+**sample #136**, ordinal 2005; the fix pass took all fourteen decisions —
+the lever pinned at its call site through `run_battery` at two lengths
+(the `T::one()` mutant red), the concave ruled band pinned through the
+extrude door, both halves of the `seam_split_param` change disclosed,
+`corner_at` returning the ratified tag so "classifies" is true, one
+chord-site core and one `cap_incidence` home, `assert_naming_totality`
+generic (and catching a double-recorded fragment in `split_rim` on the
+way), four issues filed, an inherited sole-`Bounds` door given its roster
+line. `docs/FILLET-H7-SPEC.md` deleted, ledgered at the merge SHA.
+**Block B2 is concluded** — H6 (OPUS, #135), ATTR (OPUS, #134), H7
+(FABLE, #136) — and its record reaches main with this sync. Every unit
+of the plan's seven, plus the two the rulings grew, is merged.
+**FILLET-T specced** (`docs/FILLET-T-SPEC.md`, S / STRUCTURAL): Track T's
+`D325` + `D326` as one unit now that no lane contends `surgery.rs`; block
+FILLET-B3 opens branch-side for it.
