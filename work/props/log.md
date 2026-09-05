@@ -667,3 +667,30 @@ review` and "do not merge; the orchestrator lands after the dual" in
 those words. The lane's three findings for placement (the
 `bspline_eval_ring*` evaluators, the tensor grids, `to_bezier_spans`)
 wait on the dual.
+
+**coeffs-window dual adjudicated (2026-09-05).** R1 A-W-F 0/4/4 (idiom
+4 / tests 4 / docs 3); R2 A-W-F 1/5/4 (4 / 5 / 3). Held under both by
+execution: the bit-identity digests are REAL — each reviewer rebuilt the
+merge base in a scratch tree and re-ran them through the retired free
+functions (R1 over 10 556 + 2 639 rows, R2 over 3 403; no ulp
+anywhere); the three `compile_fail` codes compiled at 1.97.0; the
+replacement rows mutation-tested; no live consumer mis-pairs. The one
+MAJOR (R2) is the territory section: three paths listed against 23
+reported — shell's `offset_meters.rs` and mesh's `nurbs_cert.rs` touched
+by doc-link edits unannounced, and `quad.rs`/`patch_bound.rs` called
+PROPS' where they are cert's until #1924 merges (my spec said the same;
+disclosed) — converged with R1's MINOR 3, a severity divergence, **no
+tally candidate**. Converged besides: one mint-or-poison helper in three
+byte-identical copies across three crates; the one-type-with-`Option`-
+weights design leaves a weighted pair answering the non-rational doors
+and vice versa (both arms, opposite directions); the sweep residue
+unscheduled; the `docs/DESIGN.md` row edit undisclosed; stale doc
+sentences. Unilateral (all MINOR/NOTE): R2's false assertion message ×13
+and the `pub bspline_green_integral` door; R1's spline-module header and
+the dangling test doc. Ruling for the fix pass (its own PR, items A–J):
+two types so both directions are unrepresentable; one home for the
+helper beside the mint; mints renamed as verbs; silent accessors pruned;
+the residue filed as `coefficient-vector-pairing-survivors`; the
+reviewers' rows adopted. Seams posted to SHELL and MESH for the doc-link
+edits. A/B row recorded: ordinal 2403, **sample #144**, no tally
+candidate; block PROPS-B2 slot 0 concluded (fix-pass usage at its merge).
