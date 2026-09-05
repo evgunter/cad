@@ -147,8 +147,6 @@ mod lib_sel2_flush;
 mod lib_u5_interrogate;
 #[path = "lib_u7_select.rs"]
 mod lib_u7_select;
-#[path = "onb_wall_normal_census.rs"]
-mod onb_wall_normal_census;
 #[path = "m10_1_analysis.rs"]
 mod m10_1_analysis;
 #[path = "m10_1_distribution_wire.rs"]
@@ -173,6 +171,8 @@ mod m10_3_r2_probes_interval;
 mod m10_4_r1_probes_interval;
 #[path = "m10_4_seed.rs"]
 mod m10_4_seed;
+#[path = "onb_wall_normal_census.rs"]
+mod onb_wall_normal_census;
 
 #[path = "m10_4_r2_probes_interval.rs"]
 mod m10_4_r2_probes_interval;

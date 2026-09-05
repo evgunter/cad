@@ -71,6 +71,8 @@ mod inst_review_probes;
 mod mesh8r2_probes;
 #[path = "nurbs_import.rs"]
 mod nurbs_import;
+#[path = "onb_wild_normal_census.rs"]
+mod onb_wild_normal_census;
 #[path = "p1b_r1_import_scan.rs"]
 mod p1b_r1_import_scan;
 #[path = "parser.rs"]
@@ -111,8 +113,6 @@ mod review_band_probes;
 mod review_k3_probe;
 #[path = "review_probes.rs"]
 mod review_probes;
-#[path = "onb_wild_normal_census.rs"]
-mod onb_wild_normal_census;
 #[path = "review_probes_m7_3.rs"]
 mod review_probes_m7_3;
 #[path = "review_r1_tier_gate_probes.rs"]
