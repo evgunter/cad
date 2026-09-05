@@ -205,3 +205,18 @@ as a class in `work/issues/` with the `NetState` door as the tool.
 `program.md`'s `keep_out` now says how this program treats
 `crates/topo/tests/*` (S-TCOST's glob): rows added as ordinary tests,
 said in the PR, no second fence.
+
+## D261 merged (2026-09-05)
+
+PR 1919 merged at `da6f159e` (green run 33947129437 on `aed0b564`,
+full matrix). `D261` and `D264` closed; `probe-message-carve` open on
+this slate. The unit's own account is the PR body. Two operations
+notes for the record: the lane re-rolled a seed-dependent `mesh` gate
+failure with an EMPTY commit, which the lane rules forbid (the run did
+classify code-tier that time; the reliable re-roll is a real commit —
+stated here so the next brief says it); and the branch went
+conflicting twice against a main that moved under it (S-CERT's log,
+then FILLET's own roster line for the inherited red), both resolved by
+the orchestrator in a throwaway worktree and pushed by ref, the
+second by taking main's line outright. The seeded floor is filed on
+S-MESH's slate (`cert10-strict-gap-floor-gates-on-a-varying-seed`).
