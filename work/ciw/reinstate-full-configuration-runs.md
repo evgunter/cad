@@ -58,6 +58,11 @@ job log.
   no artifacts, not one archive replayed under a different env var, so the
   cost argument above does not carry over to it and it was not re-costed.
   Filed as `klint-row-still-sampled`.
+  **Closed the same day (2026-09-04, PR 1850): it was re-costed — +14.8
+  job-min per code-tier run, the same order as this unit's +15.6 — and
+  un-sampled. All five unifications now run as five `k-lint (gate, <row>)`
+  legs on every code-tier run, so the sentence in bold above was true when
+  written and is not true now.**
 * **The interval-only selection stays reverted.** Its 2026-08-22 reversal
   was forced by the lane draw; the draw is gone, so its original premise
   holds again — but restoring it would REDUCE what a run gates, which is the

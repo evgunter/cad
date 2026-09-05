@@ -22,15 +22,21 @@ gates), and it is written into this program's `keep_out` as **CIW's to
 amend without waiting on this program**, so the fence reads the same
 from both sides.
 
-Four items re-homed at opening by header edit and `git mv`, ids
+Three items re-homed at opening by header edit and `git mv`, ids
 unchanged, plus custody of two cross-program registers:
 `territory-cannot-see-a-path-two-programs-both-claim` (the opener),
-`ab-log-v6-stream-is-past-its-stopping-rule-unadjudicated` (`[ev]`),
-`fillet-specs-require-a-narrowing-ci-config` and
-`stale-track-t-citations-in-fillet-and-cert` (both routing records),
-with `m6-carried-items-register` and
+`ab-log-v6-stream-is-past-its-stopping-rule-unadjudicated` (`[ev]`) and
+`stale-track-t-citations-in-fillet-and-cert` (a routing record), with
+`m6-carried-items-register` and
 `decide-flagged-dimensional-debt-inventory` as registers this program
 keeps accurate and does not execute.
+
+A fourth, `fillet-specs-require-a-narrowing-ci-config`, was on the
+sweep's first draft of this slate and came off it at the merge with
+main: CIW's `delete-config-trailer` unit had closed it hours earlier by
+deleting the `CI-Config:` trailer path itself. It stays closed in
+`work/issues/`; the plan records why the class it belonged to is still
+this program's.
 
 **The overdue thing, stated plainly at opening so it is not buried in
 the plan**: the v6 dual stream has run about nine times past its own

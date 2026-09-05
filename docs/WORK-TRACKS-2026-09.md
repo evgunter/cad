@@ -777,7 +777,7 @@ recorded as **unowned and not finished**, in the sense the
 `geom-brep` seam gives that phrase: a row landing on one draws the
 fence in the PR that mints it.
 
-## META — the tracker and the process instruments (`meta/`) — 6 items (4 items + 2 registers custodied)
+## META — the tracker and the process instruments (`meta/`) — 5 items (3 items + 2 registers custodied)
 
 **GRADUATED (2026-09-04): opened as `work/meta/`, A/B band 2800–2899.**
 
@@ -789,8 +789,11 @@ tracker's own", naming an owner that did not exist. Three findings on
 file are the cost: a `territory` check blind to the exact collision it
 exists to catch, a **pre-registered A/B stopping rule passed about nine
 times unnoticed** (109 v6 dual rows against a twelve-pair rule), and
-two live FILLET spec acceptance clauses that instruct a coverage
-reduction and red the gate if obeyed.
+two live FILLET spec acceptance clauses that instructed a coverage
+reduction and red the gate if obeyed (that third one was closed by
+CIW's `delete-config-trailer` hours before this program opened, and
+stays closed in `work/issues/` — the class stays META's, with a worked
+instance to point at).
 
 **Checked against CIW first and there is no conflict**: CIW owns the
 *runs*, META owns the *tracker and the briefs*, and the one touching
@@ -854,6 +857,36 @@ direction rather than by the S-TCOST orchestrator**, which is not how
   — `CERT-M3`, `CERT-N3`, `BOOL-Q`, `MESH-R` — rather than by moving
   rows, and V is explicitly shared by eight. P and W were different:
   both were single-owner by fence and neither had ever been worked.
+
+## What arrived during the sweep, and how it was routed
+
+Three issues landed in `work/issues/` on main while this sweep was on a
+branch, and they are a fair test of whether the cut helps:
+
+- **`perf-plan-is-cited-by-twenty-nine-files-and-absent-from-tree-and-ledger`
+  → META.** `docs/PERF-PLAN.md` is cited by path from 29 tracked files,
+  is not in the tree, and `docs/DOC-LEDGER.md` — the one document whose
+  job is to say where deleted docs went — records no deletion of it.
+  The item's own closing line reads *"Not a program's slate: the ledger
+  is the repo's"*, naming a home that did not exist when it was filed.
+- **`debug-only-counters-have-no-gate` → code-quality Track K.** It
+  wants `scripts/gates/bit-identity-debug-only.sh` rewritten as a
+  subject-list gate; K's fence is `scripts/gates/` less two. It is the
+  **second** row on that one script, joining
+  `bit-identity-debug-only-gate-ends-an-item-at-a-semicolon` — the two
+  want the same file open at once and are one lane, which is the
+  argument for the fence more than for either row.
+- **`axis-flavoured-declarations-have-no-channel` stays in
+  `work/issues/`, correctly.** Its fix is a new declaration source that
+  is either placement-level (`BooleanDeclarations` — CURVED's) or
+  frame-level identity through `GeomSource` (`topo/src/source.rs` —
+  TOPO's), and choosing between them is the `[ev]` question. SEAT's own
+  filing says it "sits outside SEAT's fence". This is what the
+  directory is for under its new README: *issues that do not have a
+  home yet, not a waiting room for issues whose owner is obvious.*
+
+That README (Ev, 2026-09-04, `work/issues/README.md`) landed on main
+independently of this sweep and states the rule the sweep executed.
 
 ## Programs that were unclaimed at this sweep
 

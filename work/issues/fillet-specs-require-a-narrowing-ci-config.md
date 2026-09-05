@@ -2,8 +2,9 @@
 id: fillet-specs-require-a-narrowing-ci-config
 kind: issue
 title: Two live FILLET specs require a CI-Config trailer that now narrows the gate, in a clause that contradicts itself
-status: open
+status: closed
 opened: 2026-09-04
+closed: 2026-09-04
 refs: [1823]
 ---
 
@@ -64,12 +65,24 @@ reds the gate if obeyed. The failure is loud rather than silent, which is why
 it is an issue and not an incident — but it lands on an implementer who did
 what their spec told them to.
 
-## Re-homed (2026-09-04)
+## Closed
 
-Moved from `work/issues/` to `work/meta/` in the tracker-wide
-re-home sweep of 2026-09-04 (Ev's direction, in-chat), which read every
-open `work/issues/` file against every open program's `paths` and
-against the code-quality K–X fences. Id, body and header are unchanged;
-the directory is the claim (`work/README.md`). Any `## Home` section
-above naming `work/issues/` is superseded by this line and is kept as
-the record of why the file was parked there.
+Fixed in CIW's `delete-config-trailer` unit, in the sweep that deleted the
+`CI-Config:` path itself, rather than by FILLET claiming this file. Both
+acceptance clauses — `docs/FILLET-RIM-SPEC.md` and `docs/FILLET-ATTR-SPEC.md`
+— now say what this item's *What the fix is* section asked them to: no
+trailer, and count twelve `test (…)` jobs.
+
+**One sentence above is now false and is left standing as the record of what
+was true when this was filed.** The finding said `CI-Config: lane=interval`
+on a head commit REDS the `classify` step. It no longer does anything at
+all: the trailer parser, the `--config-from-message` flag and the ci.yml
+plumbing that fed it are deleted, so a trailer line in a commit message is
+inert text. That makes the stale instruction quieter, not safer — an
+implementer obeying it would get no error and no interval-lane guarantee
+from the line — which is why the specs were swept rather than left to red.
+
+The three other specs that named the spelling live were swept in the same
+pass: `docs/PCURVE-P2-SPEC.md`, `docs/EXCH-H1-SPEC.md`,
+`docs/FILLET-H5-SPEC.md`. FILLET, PCURVE and EXCH own those files; the
+change is one clause each and is announced in the PR body.

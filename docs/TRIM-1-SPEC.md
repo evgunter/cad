@@ -473,10 +473,44 @@ at three ε cells and two scalar lanes; the structural edits serve them.
 A3's fixture through `mint_pcurves` before any edit and quote the
 `16v1` payload and raising site in the PR body. Own `CARGO_TARGET_DIR`
 outside the worktree. Hosted CI at all twelve `test (…)` jobs is the
-verification of record — no `CI-Config` lane/eps trailer. The census
+verification of record, and no narrowing dispatch. (This clause used to
+forbid a `CI-Config` lane/eps trailer; that spelling was deleted on
+2026-09-04.) The census
 above is as of `f23d373d5`: re-sweep the SHAPE at the merge base and
 put the hit list in the PR body (§5). Findings outside the fence go in
 the PR body, not another program's slate; the residue above gets its
 file in `work/trim/` in the same PR. Merge origin/main before opening;
 watch CI to completion in the foreground; do not merge — full v6 dual
 review per `work/trim/plan.md`.
+
+---
+
+## Rulings at ratification (TRIM orchestrator, 2026-09-04)
+
+Ratified as written. Answers to the lane's open questions:
+
+1. **Rational scope: cases (a) and (b) by exact bitwise weight tests,
+   as specified.** The class boundary is the seam class's own
+   hypothesis (a structure weight vector a carrier can share); taking
+   the polynomial chart only would bank every arc-profile loft wall
+   for no soundness gain. The non-separable case refuses typed and
+   gets its residue file.
+2. **`iso_boundary_row` does not learn the interior case here.** Its
+   consumer is outside the fence and has no domain-end float to
+   restate; when replace_face's offset of an interior-column
+   description is wanted, that is its own unit.
+3. **Carry `fitted-magnitude-nan-schedule-parameter`** (the second
+   option, `EndpointFootDistance`); ~15 lines in an open file whose
+   door this arm makes reachable is the right moment. Close that item
+   in the same PR (`status: closed`, the Closed section naming the
+   variant).
+
+**Unmeasured at ratification, the implementer's first act:** the two
+probes the lane could not run for want of the build mutex — (i) that
+the arc-rim row refuses at check 3 (schedule residual), not at
+`side_of`; (ii) the P-2 body's behaviour past `16v1` (STOP 3). Both
+are quoted in the PR body before any edit. The lane-private scratch
+at `/home/evan/.local/share/cad-work/trim-1-spec-stub.py` is a
+starting point for (ii), never committed.
+
+**Branch** `trim/1-de-boor-extractor`. **Pre-log stands: L / NUMERIC.**

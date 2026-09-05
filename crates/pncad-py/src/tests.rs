@@ -1460,7 +1460,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "checks_error_tag",
-        values: &["band", "product_unavailable", "root_without_value"],
+        values: &[
+            "band",
+            "evaluation_of_another_document",
+            "product_unavailable",
+            "root_without_value",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -1691,6 +1696,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_finite_direction",
             "non_positive_count",
             "param_box",
+            "param_source_attach",
             "payload_expr",
             "placements_uncertified",
             "profile",

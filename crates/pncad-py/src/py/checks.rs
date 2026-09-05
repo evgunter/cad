@@ -476,10 +476,12 @@ fn checks_err(py: Python<'_>, err: &d::ChecksError) -> PyErr {
         d::ChecksError::Root { node } => Py::new(py, NodeId(*node))
             .map(|v| v.into_any())
             .unwrap_or_else(|_| py.None()),
-        // A tolerance that forms no band and a gather that yields no
-        // product are both refusals about the WHOLE document; neither
-        // has a node to name.
-        d::ChecksError::Band { .. } | d::ChecksError::Product { .. } => none(),
+        // A tolerance that forms no band, a gather that yields no
+        // product and a pair that is not a pair are all refusals about
+        // the WHOLE document; none has a node to name.
+        d::ChecksError::Band { .. }
+        | d::ChecksError::EvaluationOfAnotherDocument { .. }
+        | d::ChecksError::Product { .. } => none(),
     };
     typed_err(
         py,

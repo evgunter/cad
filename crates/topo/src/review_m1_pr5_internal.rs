@@ -288,6 +288,10 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     ("set_curve_source", "GeomSource metadata, no arena key"),
     ("set_point_source", "GeomSource metadata, no arena key"),
     ("clear_geom_sources", "GeomSource metadata, no arena key"),
+    (
+        "set_surface_field_source",
+        "ParamSource metadata, no arena key (a per-field side record beside the surface)",
+    ),
     ("attach_pcurve", "pcurve cache; coherence is tier 3's"),
     ("detach_pcurve", "pcurve cache; coherence is tier 3's"),
     ("mint_pcurves", "pcurve caches only; no topology touched"),

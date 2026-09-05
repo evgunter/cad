@@ -509,10 +509,12 @@ class ChecksError(PncadError):
     `variant` is `root_without_value` (a root produced no value in this
     evaluation — checks are defined over roots that evaluated, and a
     report over a partial one would claim more than was checked),
-    `band` (the tolerance forms no band) or `product_unavailable` (the
-    roots gather into no product, so the separation resident has no
-    subject). `node` names the root on the first arm and is `None` on
-    the others.
+    `band` (the tolerance forms no band), `evaluation_of_another
+    _document` (the evaluation is not an evaluation of this document —
+    DI3, refused before any check runs) or `product_unavailable` (the
+    roots gather into no product, so the registry has no subject for a
+    check that reads one). `node` names the root on the first arm and
+    is `None` on the others.
 
     NOT a finding. A check that ran and disagreed is a value in the
     report; this class means nothing was checked."""

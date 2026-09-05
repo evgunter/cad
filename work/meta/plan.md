@@ -50,7 +50,7 @@ is S-TCOST's. Neither is touched here.
 
 ## The slate
 
-**Four items, re-homed at opening** (header edit and `git mv`, ids
+**Three items, re-homed at opening** (header edit and `git mv`, ids
 unchanged):
 
 1. **`territory-cannot-see-a-path-two-programs-both-claim`** (E, the
@@ -92,18 +92,7 @@ unchanged):
    section, which is exactly the shape of the failure it describes, so
    that PR is this program's first action and not its second.
 
-3. **`fillet-specs-require-a-narrowing-ci-config`** — two live FILLET
-   specs carry an `## Acceptance` clause requiring a `CI-Config:
-   lane=interval` trailer that, since PR 1823, **narrows** the gate and
-   **reds** the `classify` step if obeyed. The fix is FILLET's to make
-   in its own spec files; what is this program's is the class — an
-   acceptance clause in a spec that a CI change silently falsified, and
-   the standing instruction in `docs/prompts/implementer-discipline.md`
-   §2 that specs should point at rather than restate. **Routed, not
-   taken**: the item stays here until FILLET claims it or the §2
-   pointer makes it moot.
-
-4. **`stale-track-t-citations-in-fillet-and-cert`** — three sentences
+3. **`stale-track-t-citations-in-fillet-and-cert`** — three sentences
    in FILLET's and CERT's slates describing a Track T arrangement that
    has since changed. Neither is this program's to edit (one file, one
    item), and that is exactly the point: the item is the routing
@@ -130,6 +119,25 @@ each closes when its last non-triage row is closed or has moved onto a
 program's slate.
 
 ## Not taken, and named so it is not re-derived
+
+**`fillet-specs-require-a-narrowing-ci-config` was closed on main
+before this program opened, and stays in `work/issues/`.** It was on
+this slate in the sweep's first draft; merging main showed CIW's
+`delete-config-trailer` unit had already swept the clause out of both
+FILLET specs and three more (`PCURVE-P2`, `EXCH-H1`, `FILLET-H5`) by
+deleting the `CI-Config:` trailer path itself. A closed item is not
+work, so it does not go on a program's board.
+
+**The class it was an instance of is still this program's**, and now
+has a worked example to point at: a spec's `## Acceptance` clause
+silently falsified by a CI change, with nothing that reads the two
+against each other. Its `## Closed` section records the sharper half —
+after the sweep the stale instruction does not red, it is *inert*,
+"which makes it quieter, not safer". That is the argument for the
+standing instruction living in `docs/prompts/implementer-discipline.md`
+§2 and specs pointing at it, and it is why §2 is on this program's
+fence with CIW amending it.
+
 
 **`tracker-has-no-status-for-an-unscheduled-trigger` is this program's
 class and stays on VIEW's board.** It asks what `status` an item whose

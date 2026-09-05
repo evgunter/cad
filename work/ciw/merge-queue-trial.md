@@ -1,21 +1,145 @@
 ---
 id: merge-queue-trial
 kind: unit
-title: Design and prepare a GitHub merge queue trial: the trigger, the required check, the settings and the runbook
-status: review
+title: Merge queue trial: designed and costed, then found unavailable — GitHub offers merge queues only to organization-owned repositories
+status: closed
 opened: 2026-09-04
 refs: [f3-recosting-on-a-public-repo, merge-order-semantic-break-reaches-main, klint-row-still-sampled, reinstate-full-configuration-runs, render-lanes-red-at-missing-merge-ref, 1796, 1823]
-blocked_on: [klint-row-still-sampled]
-pr: 1845
-branch: ciw/merge-queue-trial
+pr: 1887
+branch: ciw/merge-queue-unavailable
+closed: 2026-09-05
 ---
+
+# CLOSED: MERGE QUEUE IS NOT AVAILABLE HERE AND WILL NOT BE
+
+**Read this before anything below it.** Everything under it is the
+design for a merge queue, and **there will be no queue.** This unit is
+closed as a closed avenue, not parked and not deferred: nothing is
+waiting, and there is nothing left to decide.
+
+**The feature is not offered to this repository.** Ev went to turn the
+queue on after PR 1845 landed and found no toggle. The cause is not a
+misconfiguration, not a missing branch-protection rule and not a plan
+tier. The grant, quoted in full from `github/docs@main`,
+`data/reusables/gated-features/merge-queue.md` (read 2026-09-05):
+
+> Pull request merge queues are available in any public repository owned
+> by an organization, or in private repositories owned by organizations
+> using {% data variables.product.prodname_ghe_cloud %}.
+
+`evgunter/cad` is a **personal-account** repository: the GitHub API on
+`repos/evgunter/cad` (repository id 1302372371) reports `"visibility":
+"public"` and, on its owner, `"type": "User"`. Neither arm of that grant
+reaches it — the first needs an organization owner, the second needs an
+organization owner *and* GitHub Enterprise Cloud. There is no setting
+that produces the toggle, so there was never anything to troubleshoot.
+
+**And the one thing that could have changed that is answered.** Ev,
+2026-09-05: *"ok i don't plan to move this to an organization"*. So the
+ownership gate is permanent for this repository, the queue is
+unreachable for as long as that holds, and this item closes on that
+ruling rather than waiting on it.
+
+**Going public did not and could not change the outcome.** The
+repository went public on 2026-09-03, and that removed the *billing*
+gate on Actions minutes — which is what made every re-costing in this
+program possible. Merge queue is gated on **ownership**, not on
+visibility and not on billing. Two different gates, and this unit
+conflated them.
+
+**A trap that is NOT what happened here, recorded because it is real and
+costs an hour to chase.** The same documentation
+(`content/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue.md`)
+says: *"A merge queue cannot be enabled with branch protection rules
+that use wildcard characters (`*`) in the branch name pattern."* Ev
+created a branch protection rule and the toggle still did not appear,
+which is the evidence that the wildcard clause is not the cause. If some
+future repository shows this shape, check the owner type first.
+
+## WHAT SURVIVES THIS, AND WHAT MUST NOT BE RIPPED OUT
+
+* **`gate ok` stays. It is not merge-queue residue.** It runs on every
+  `pull_request` run today, it reads the run's own job list, and its
+  reader `scripts/check-run-jobs.py` is selftested in `discipline` and in
+  `local-scripts/ci-local.sh`. Nothing about it needs a queue.
+  **Requiring it as a status check also remains available** — branch
+  protection with required status checks works on a public
+  personal-account repository, and that is a different feature from a
+  merge queue. The argument below for *one computed-proof name* is
+  therefore still a live argument about required checks; only its
+  merge-queue framing is dead. `scripts/check-run-jobs.py` and the
+  `page_is_whole` paging guard added to `scripts/opt-level-calibrate.py`
+  in the same PR are likewise unaffected.
+* **The `merge_group` wiring in `ci.yml` is now dead, and removing it is
+  NOT this item's call.** Two lines of it are executable and can never
+  fire on this repository: `.github/workflows/ci.yml:40-41` (`on:
+  merge_group` / `types: [checks_requested]`) and the
+  `github.event_name != 'merge_group'` conjunct in `renders`' guard at
+  `.github/workflows/ci.yml:4592`, which is now always true. Everything
+  else is comment prose that describes a mechanism this repository will
+  never run: `ci.yml:17-38` (the trigger's own block, whose first line
+  reads *"INERT UNTIL SOMEONE ENABLES A QUEUE"* — nobody can),
+  `ci.yml:187-194`, `ci.yml:871-877`, `ci.yml:1282-1287`, `ci.yml:3903`,
+  `ci.yml:4566-4591` (the `renders` exclusion's argument) and
+  `ci.yml:4618-4717` (`gate-ok`'s key, which is merge-queue-framed
+  around a job that is not). They cost no run, no job and no minute —
+  `merge_group` fires only where a queue exists — so leaving them costs
+  reading, and removing them is a workflow edit on a file several lanes
+  touch. The trade is written up for the orchestrator in this PR's
+  description; **nothing was removed here, deliberately.**
+* **Two facts below are durable and worth quoting forward**, independent
+  of any queue: (a) GitHub builds one merge group **per queued pull
+  request**, so merge limits and batch size are not a CI-cost lever —
+  which is the mechanism error that PR 1796's 44-job-min/h figure rested
+  on, and it should not be quoted from that document again; and (b) the
+  2026-09-04 post-un-sampling cost measurements (44.8 job-min and 528 s
+  wall for a code-tier run, 5.76 merges/h, 41 % code-tier) are real
+  measurements of this repository's CI and are reusable by anything that
+  needs them.
+
+## THE PROCESS FAILURE, STATED PLAINLY
+
+This unit costed a merge queue to two decimal places — 99.5 job-minutes
+an hour, ρ = 0.39, a latency simulation over 138 observed merge arrivals
+— argued the required-check design against three alternatives, shipped a
+runbook with nine branch-protection settings and their reasons, and
+carried a section titled *WHAT THIS UNIT COULD NOT DEMONSTRATE* with six
+honest entries in it. **Not one of them is "whether this repository can
+have a merge queue."** Neither the unit, nor its style review, nor the
+orchestrator ever asked. The question is one API field and one sentence
+of documentation, and it decides everything the unit did.
+
+It is the pattern this program has been filing all day, arriving at the
+program itself: **a true mechanism carrying an unchecked premise.** Every
+number here is right; the premise under all of them was never read. The
+unit was reading GitHub's merge-queue documentation closely enough to
+quote the merge-limits page and the skipped-checks page verbatim, and the
+availability banner sits on the same set of pages.
+
+**The lesson, in one sentence a future lane can act on: check that the
+feature is available to this account and this repository BEFORE costing
+it — the entitlement check belongs in front of the measurement, not
+behind the design.**
+
+## THE DESIGN AS IT WAS WRITTEN (2026-09-04) — KEPT AS WHAT WAS LEARNED
+
+Everything from here down is the unit as it was argued and measured on
+2026-09-04, before anyone checked whether the feature existed for this
+repository. **It is kept, in full and unsoftened, as the record of what
+was learned** — the measurements are real measurements of this
+repository's CI, the batch-size mechanism is a durable fact about
+GitHub, and the required-check argument survives into the
+branch-protection question that a queue was only one consumer of. **None
+of it is an instruction to do anything.** Read it as a report, not as a
+plan.
 
 Opened on Ev's ruling of 2026-09-04, taken after reading the costing in
 PR 1796: **trial a merge queue.** This unit is the design and the
 workflow support. **It does not enable anything** — enabling is a
 branch-protection setting that changes how every agent in this
 repository merges, and a misconfiguration blocks all merging. The
-runbook below is written for whoever flips it.
+runbook was written for whoever flips it; nobody ever did, and on
+2026-09-05 it was established that nobody can (top of this file).
 
 ## The defect the queue is for, in one paragraph
 
@@ -305,12 +429,12 @@ workflow's gating jobs one by one fails here for **two** reasons, both of
 which a name list cannot fix:
 
 1. **Two of the names are computed.** `test (eps = …, …/2)` and
-   `test (interval, eps = …, …/2)` interpolate `eps_rows`. Neither a
-   dispatch input nor a `CI-Config:` trailer can reach a merge_group run
-   (a group head's commit message is GitHub's own, and a queue takes no
-   inputs) — but a required-check list is **shared with pull requests**,
-   where both spellings can still narrow the matrix. A gate whose names a
-   commit message can shrink is a gate a commit message can shrink.
+   `test (interval, eps = …, …/2)` interpolate `eps_rows`. A dispatch
+   input cannot reach a merge_group run (a queue takes no inputs) — but a
+   required-check list is **shared with pull requests**, where a
+   dispatch's narrowed names show up. A gate whose names a run's inputs
+   can shrink is a gate those inputs can shrink. (A commit trailer was
+   the second spelling here until 2026-09-04, when it was deleted.)
 2. **A list goes stale silently.** A job added to `ci.yml` and forgotten
    in a branch-protection setting is a gate nobody removed and nobody
    runs.
@@ -487,8 +611,9 @@ exist when the PR was reviewed. So a queue run draws a row
 * a pull request green on row X can be **ejected from the queue** by
   row Y, for a defect its own branch never displayed;
 * the author cannot reproduce it by re-running their PR, because a
-  re-run of the same head SHA draws the same row — it takes a
-  `CI-Config: klint=<row>` trailer on a new commit;
+  re-run of the same head SHA draws the same row — it takes a new commit
+  and a way to name the row, which after 2026-09-04 is a
+  `workflow_dispatch` and nothing else;
 * re-queueing draws **again**, so the ejection may not reproduce in the
   queue either: a failure that looks flaky and is perfectly
   deterministic.
@@ -534,13 +659,28 @@ temptation after a queue lands is to read every `main` red as impossible.
 5. **Reading the red.** A failing queue run lives on a
    `gh-readonly-queue/…` ref and is not on the pull request's checks tab.
 
-## THE ENABLEMENT RUNBOOK
+## THE ENABLEMENT RUNBOOK THAT WAS WRITTEN AND NEVER RUN — NOT AN INSTRUCTION
 
-Written for someone who has not read the pull request. Everything below
-is a repository setting; none of it is in the tree, and nothing in this
-unit performs any of it.
+**Do not work through this. It is unrunnable on `evgunter/cad`**: merge
+queue is not offered to a personal-account repository, so the "Require
+merge queue" checkbox in *The settings* below does not exist to be
+found, and Ev has ruled that the repository stays personal-account-owned
+(top of this file). It is kept verbatim, imperative mood and all,
+because it is the artifact the process failure produced — a nine-setting
+runbook written for a screen nobody can open — and because a softened
+copy would hide that. **Nothing on this page is a live step.**
 
-### Before you start
+**The step that is missing from it, and whose absence is this unit's
+whole lesson: confirm the feature is available to the repository before
+anything else.** `gh api repos/<owner>/<repo> --jq .owner.type` must
+print `Organization`; on `evgunter/cad` it prints `User`. That one line,
+run first, would have replaced everything below.
+
+What follows was written for someone who had not read the pull request.
+Everything in it is a repository setting; none of it is in the tree, and
+nothing in this unit performs any of it.
+
+### Before you start — as written; never executed
 
 1. **`work/ciw/klint-row-still-sampled` must have landed.** Until then a
    queue run draws a k-lint row the PR run did not — see the dependency
@@ -564,7 +704,7 @@ unit performs any of it.
    checkout). If it proves wrong, the lever is `render.yml`'s own failure
    semantics, not the required-check list.
 
-### The settings
+### The settings — the screen this describes does not exist here
 
 Repository → Settings → Branches → the rule protecting `main` (create
 one if there is none; the API shows **no rulesets** on this repository as
@@ -578,14 +718,14 @@ protection rules that use wildcard characters (`*`)."*
 | Require status checks to pass | **on**, with exactly one check: **`gate ok`** | one name that reports on every tier; see the required-check section |
 | Require branches to be up to date before merging | **off** | the queue is what makes the branch up to date; this setting fights it |
 | Require merge queue | **on** | the switch |
-| Merge method | **Merge commit** | `CLAUDE.md`: merge commits only, no squash, no rebase. It also keeps `CI-Config:` trailers out of the group head, so a queue run cannot be narrowed |
+| Merge method | **Merge commit** | `CLAUDE.md`: merge commits only, no squash, no rebase |
 | Build concurrency | **5** | observed peak in flight is 4 over 24 h; at 4+ every PR's latency is exactly one run's wall clock. 1 produces a 22-minute median and a 63-minute worst case |
 | Only merge non-failing pull requests | **on (Yes)** | with it off, a failing PR can ride into `main` behind a passing last PR — and because the change filter classifies a group against its parent, a docs-only last PR would skip the build entirely |
 | Maximum pull requests to merge | **1** | keeps one merge ↔ one push to `main`, which the render re-baseline and `STATUS.md` regeneration assume. Costs nothing; raising it later is pure throughput |
 | Minimum pull requests to merge | **1** | nothing ever waits for a group to fill, so the wait-time setting never fires |
 | Status check timeout | **30 minutes** | the measured code-tier run is 528 s wall with a 1070 s maximum; 30 min is ~3× the worst observed and still short enough that a stuck group clears itself |
 
-### Verify it works, in order
+### Verify it works, in order — never performed, and unperformable
 
 1. **Enqueue one docs-only pull request first.** This is the tier that a
    naive required-check list breaks, so it is the one to try first.
@@ -607,7 +747,7 @@ protection rules that use wildcard characters (`*`)."*
    of the run with a conclusion. That listing is the whole of what the
    required check asserts.
 
-### Turning it off in a hurry
+### Turning it off in a hurry — moot: nothing was ever turned on
 
 **The fastest safe stop is one checkbox.** Settings → Branches → the
 `main` rule → **uncheck "Require merge queue"** → Save. Merging goes
@@ -633,7 +773,7 @@ when none does, and `gate ok` is a reporting job that blocks nothing
 unless a branch protection requires it. Removing them while a queue is
 still configured is what produces a repository that cannot merge at all.
 
-### If the trial is kept, what to write down
+### If the trial is kept, what to write down — the trial never ran
 
 The two numbers this trial exists to produce, neither of which any
 measurement here could supply: **the observed merge latency** (against
@@ -645,7 +785,12 @@ public-runner block, beside the F3 re-costing.
 ## WHAT THIS UNIT COULD NOT DEMONSTRATE
 
 Stated rather than implied, because a trial that has not run yet is
-honest and a claimed demonstration is not.
+honest and a claimed demonstration is not. **The list is missing its
+first entry and always was** — that this repository can have a merge
+queue at all was never checked, and no entry below is worth anything
+next to that one; see *THE PROCESS FAILURE* at the top. Every item here
+now reads as permanently undemonstrable: no `merge_group` run will ever
+exist on this repository.
 
 1. **No `merge_group` run exists and none can until a queue is
    enabled.** Every statement here about what a queue run does is read

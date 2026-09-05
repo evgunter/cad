@@ -246,3 +246,88 @@ ruling on PR 1735; spec `docs/FILLET-RIM-SPEC.md`): the rim an arc
 belongs to, an EXACT door beside `edge_adjacent_matches`, with its own
 `RimError`. Nothing else in the module moves; SEAT's units touching the
 file merge as usual.
+
+## ORDINAL 1006 CLAIMED — SEAT-6 dual (2026-09-04)
+
+SEAT-6 (PR 1593, the lowered parameter-identity channel) implementation
+delivered 2026-09-02 and green (run 33651990280 on b3dd4dd1c; under the
+then-current gating lane=interval was ASKED, eps 1e-12 drawn — full-matrix
+gating arrived on main 2026-09-04). The orchestrator session then sat
+idle ~53h (annotated; nothing lost — the PR waited open). ONE Ev-gated
+deviation reported, not taken: VS-Q4's *interned* token landed as a
+canonical injective prefix ENCODING of the lowered expression (argued:
+interner ids are facts about a run and compare falsely equal across
+memo-reused bodies; the encoding is a function of the recipe per D9 and
+injective, so not the rejected digest either) — an `[ev]` PR carries the
+question and the item is flagged `needs_ev`. Main has moved 418 commits
+since the branch point and `boolean/join.rs` (the consumer seam) now
+conflicts with VERBS-CYLSPH's coaxial cyl×sphere arm (PR 1604): the dual
+reviews the frozen delivered head; the merge is the fix pass's. v6 dual
+dispatches on frozen head b3dd4dd1c: parity byte 35 → **R1 fable +
+R2 opus**. Difficulty M was logged pre-draw. Full row recorded at merge.
+
+## VS-Q4 RULED — the encoding stands (2026-09-04, PR 1870)
+
+Ev signed off the SEAT-6 deviation as a revision of VS-Q4: `ParamSource`
+is a canonical injective encoding of the lowered expression, not an
+interned token; the ledger answer is rewritten in place in
+`docs/VERB-SEAT-DESIGN.md` and `SEAT-6`'s `needs_ev` flag clears. The
+dual's VS-Q4 assessments (in flight) land in the unit's row as evidence,
+not as a reopening: the merge of PR 1593 now waits only on the reviews,
+the fix pass and the seam merge.
+
+## SEAT-6 ADJUDICATED — fix pass dispatched (2026-09-04)
+
+Both blinded reviews delivered (R1 NOT-MERGEABLE-AS-IS, R2
+APPROVE-WITH-FIXES). Converged MAJOR: the token carries no document
+scope, so a part's `r` and the host's `r` compare equal on
+instantiation — a faithful elaboration of P1's own scope caveat, taken
+at the fix pass with the mechanism argued. Two unilateral executed
+MAJORs, one per arm: the memo's content key hashes slot VALUES so a
+value-preserving expression edit re-serves a stale token (R1), and the
+encoding's injectivity — the whole answer to VS-Q4's digest objection
+— is unguarded (R2). SEAT's tally candidates #4 and #5; the first from
+the fable arm. Both VS-Q4 assessments support the ruling on PR 1870
+(the encoding is the interner's key with the index removed;
+injectivity executed by brute force and by reading the length-prefixed
+encoding — the orchestrator's brief had hypothesised an unprefixed
+collision and stands corrected). Class findings filed:
+`work/issues/axis-flavoured-declarations-have-no-channel.md` (the
+CYLSPH coaxial premise and P2's SPHSPH sentence, outside SEAT's fence);
+the positional threading of evidence through the shared dispatch is
+recorded in that file's note. The seam merge landed ahead of the fix
+pass at Ev's prompting (head fa1b7416, full matrix green).
+
+## SEAT-6 MERGED (2026-09-05, PR 1593)
+
+The lowered parameter-identity channel landed: `ParamSource` is a
+canonical injective encoding of the lowered expression (VS-Q4 revised
+in place on PR 1870, Ev's sign-off), scoped by the parameter table it
+was lowered against — `Root(DocumentId)` for the document under
+evaluation, `Part(DocRef)` for a referenced document at its pin, read
+off the part cache's descent chain, nothing invented (D9). Per-field
+side records ride beside the geometry arenas as a fixed closed row;
+attach-at-mint runs off the migrated verbs' declared `param_flow`
+(the fillet's three roles live, the band torus row included);
+propagation is by key identity with the graft carry, the rigid
+placement carry and both orphan sweeps pinned by mutation; the
+memo's content key now certifies the flow-bearing slot's lowered
+expression, not just its value; the encoding's alphabet and arity
+are guarded by census and a ~1,300-expression round trip. The first
+consumer — `cylinder_cylinder_section`'s `RadiusEvidence` — has its
+production caller at `germ_section_frame`: `Declared` reaches and
+verifies the closed form, a contradicted declaration is a desync,
+absence routes the general rung unchanged, and no numeric radius
+comparison feeds evidence anywhere. The dual's three executed MAJORs
+(document scope, converged; the value-keyed memo, R1; the unguarded
+injectivity, R2) all closed red-first at the fix. Disclosed and
+homed: the §6 end-to-end acceptance (a document reaching the germ)
+awaits SEAT-7's extrude/revolve flow —
+`work/seat/seat6-germ-end-to-end-awaits-seat7.md`; axis-flavoured
+declarations have no channel — `work/issues/`. One
+`NodeErrorKind` variant crossed the fence (typed attach refusal +
+its Python tag), disclosed. CURVED's parked pinch item unblocks.
+Full row: MODEL-AB-LOG SEAT6 (ordinal 1006, sample #131 at merge).
+
+Next: SEAT-7 (extrude/revolve onto Verb) closes block SEAT-B2; its
+merge publishes the block's draw byte.
