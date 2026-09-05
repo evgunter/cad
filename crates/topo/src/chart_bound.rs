@@ -33,7 +33,7 @@
 //! read as "not certified".
 
 use geom_brep::ChartWindow;
-use geom_core::{Band, Bounds, Decide, Margin, Point2, Real, Sign, Vec2};
+use geom_core::{Band, Decide, Margin, Point2, Real, Sign, Vec2};
 
 use crate::ray_parity::{self, ParityRows};
 use crate::validate::decide;
@@ -189,17 +189,25 @@ pub struct ChartBound<T: Real> {
     pub period: Option<T>,
 }
 
-impl<T: Real + Bounds> ChartBound<T> {
+/// The whole-period shifts a ring is lifted by on a periodic chart.
+///
+/// Every shift is emitted, with no test that the lift lands near the
+/// outer loop. A lift is a GENUINE representation of the same ring —
+/// on a chart of period `p` the points `(u, v)` and `(u + kp, v)` are
+/// one point of the model — so emitting one that turns out to be far
+/// away costs a few edges in the separating-axis stage and changes no
+/// verdict, while the test that would prune it is a comparison of
+/// brackets, which `geom_core::Bounds`' scope rule keeps out of code
+/// that also decides.
+const RING_SHIFTS: [f64; 3] = [-1.0, 0.0, 1.0];
+
+impl<T: Real> ChartBound<T> {
     /// Assembles the description from a walked outer loop and its
-    /// walked rings, emitting **one ring copy per whole-period shift
-    /// at which that ring's box meets the outer hull** (at most two
-    /// per ring on a chart whose hull spans one period).
+    /// walked rings, lifting each ring by every whole-period shift in
+    /// [`RING_SHIFTS`] on a periodic chart.
     ///
     /// Each copy is a genuine lift of the same ring, so parity over
-    /// all copies is exact; the box-meeting test is deliberately
-    /// generous (a bracket comparison, not a `decide`) because a
-    /// MISSED copy is the only direction that matters and it can only
-    /// make [`MetredBound::certifies_outside`] certify less.
+    /// all copies is exact.
     pub fn assembled(outer: ChartLoop<T>, rings: Vec<ChartLoop<T>>, period: Option<T>) -> Self {
         let hull = outer.window().unwrap_or(ChartWindow {
             // An outer loop with no edges bounds nothing; the inverted
@@ -211,23 +219,11 @@ impl<T: Real + Bounds> ChartBound<T> {
         });
         let mut loops = vec![outer];
         for ring in rings {
-            let Some(rw) = ring.window() else {
-                continue;
-            };
             match period {
                 None => loops.push(ring),
                 Some(p) => {
-                    for k in [-1.0_f64, 0.0, 1.0] {
-                        let du = p * T::from_f64(k);
-                        let shifted = ChartWindow {
-                            u_min: rw.u_min + du,
-                            u_max: rw.u_max + du,
-                            v_min: rw.v_min,
-                            v_max: rw.v_max,
-                        };
-                        if boxes_meet(&shifted, &hull) {
-                            loops.push(ring.shifted(du));
-                        }
+                    for k in RING_SHIFTS.iter().copied() {
+                        loops.push(ring.shifted(p * T::from_f64(k)));
                     }
                 }
             }
@@ -238,15 +234,6 @@ impl<T: Real + Bounds> ChartBound<T> {
             period,
         }
     }
-}
-
-/// Do two chart boxes overlap, read off their brackets? Generous on
-/// purpose: see [`ChartBound::assembled`].
-fn boxes_meet<T: Real + Bounds>(a: &ChartWindow<T>, b: &ChartWindow<T>) -> bool {
-    a.u_min.lo() <= b.u_max.hi()
-        && b.u_min.lo() <= a.u_max.hi()
-        && a.v_min.lo() <= b.v_max.hi()
-        && b.v_min.lo() <= a.v_max.hi()
 }
 
 impl<T: Real> ChartBound<T> {

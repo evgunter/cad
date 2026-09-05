@@ -157,7 +157,7 @@ use geom_brep::{
 use geom_core::Tol;
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
-use geom_core::{Bounds, Decide, Indeterminate, Margin, Point2, Real, Sign, SpanLocate};
+use geom_core::{Decide, Indeterminate, Margin, Point2, Real, Sign};
 
 use crate::body::Body;
 use crate::chart_bound::{ChartBound, ChartEdge, ChartLoop};
@@ -1601,15 +1601,6 @@ pub(crate) fn walk_loop<T: PcurveFittedLane>(
     Ok(())
 }
 
-/// A `Harmonic` channel that is an EXACT structural zero — the C6
-/// idiom, read here exactly as `chart_region.rs` reads it: a
-/// numerically-almost-zero channel is deliberately NOT a zero, so the
-/// straightness of a chart image is a fact about the variant's
-/// coefficients and never a measurement.
-fn exact_zero<T: Bounds>(x: T) -> bool {
-    x.lo() == x.hi() && x.lo() == 0.0
-}
-
 /// The chart image of one walked half-edge, in loop direction.
 ///
 /// # Errors
@@ -1618,9 +1609,10 @@ fn exact_zero<T: Bounds>(x: T) -> bool {
 /// for a `General` image carrying no stored certificate: its envelope
 /// is the only statement bounding the image against its carrier, and
 /// inventing one would widen nothing while claiming a bound.
-fn chart_edge<T: PcurveFittedLane + SpanLocate + Bounds>(
+fn chart_edge<T: PcurveFittedLane>(
     body: &Body<T>,
     walked: &Walked<T>,
+    chart: &Surface<T>,
     plus: bool,
 ) -> Result<ChartEdge<T>, PcurveMintError> {
     let (entry_t, exit_t) = if plus {
@@ -1635,13 +1627,28 @@ fn chart_edge<T: PcurveFittedLane + SpanLocate + Bounds>(
         // `IsoArc`'s UV image is the segment `p0 → p0 + pd` (only the
         // parameterization along it is transcendental).
         Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => true,
-        // Straight iff both trig channels are exact-structural zeros:
-        // every line edge of a plane chart lands here (`carrier_harmonic`
-        // gives a `Line` carrier `a = b = 0` exactly, and the plane arm
-        // maps the coefficients through one by one), and so does a rim
-        // on an axis-aligned cylinder.
-        Pcurve::Harmonic { pa, pb, .. } => {
-            exact_zero(pa.x) && exact_zero(pa.y) && exact_zero(pb.x) && exact_zero(pb.y)
+        // Straight by the STRUCTURE of two matched arms rather than by
+        // a zero-test on `T` (C6): `carrier_harmonic` gives a
+        // `Curve3::Line` the coefficients `a = b = 0` — the zero
+        // VECTOR, not a small one — and `chart_pcurve`'s plane arm is
+        // affine, mapping them through one by one. So a line carrier
+        // on a plane chart has an exactly straight image, and every
+        // other harmonic is described by its envelope.
+        //
+        // What that concedes is nil where it looks like a concession.
+        // A rim or a meridian on an azimuth chart is also straight,
+        // and becomes an `Envelope` here — but its image box is the
+        // chord's own box, degenerate in the channel the chord does
+        // not move, so the box axes already state everything the
+        // segment-normal axis would. The only straight image that
+        // loses anything is a chart DIAGONAL off a plane chart (a
+        // helical harmonic), which no construction mints.
+        Pcurve::Harmonic { .. } => {
+            matches!(chart, Surface::Plane { .. })
+                && matches!(
+                    half_edge_carrier(body, walked.half_edge)?.0,
+                    geom::Curve3::Line { .. }
+                )
         }
         Pcurve::Fitted(_) | Pcurve::General(_) => false,
     };
@@ -1709,7 +1716,7 @@ fn chart_edge<T: PcurveFittedLane + SpanLocate + Bounds>(
 /// for a `Nurbs` carrier on an analytic chart, a discontinuous or
 /// unclosed walk), plus [`PcurveMintError::LoopWraps`] for a walk that
 /// closes a whole period off.
-pub fn chart_boundary<T: PcurveFittedLane + SpanLocate + Bounds>(
+pub fn chart_boundary<T: PcurveFittedLane>(
     body: &Body<T>,
     face: FaceKey,
     chart: &Surface<T>,
@@ -1779,7 +1786,7 @@ pub fn chart_boundary<T: PcurveFittedLane + SpanLocate + Bounds>(
         }
         let mut edges = Vec::with_capacity(walked.len());
         for w in &walked {
-            edges.push(chart_edge(body, w, is_plus(body, w.half_edge)?)?);
+            edges.push(chart_edge(body, w, chart, is_plus(body, w.half_edge)?)?);
         }
         let described = ChartLoop {
             edges,

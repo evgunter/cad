@@ -193,18 +193,19 @@ fn t8_a_grazing_centre_is_not_certified_and_its_children_are() {
 // T5 — ring copies
 // ---------------------------------------------------------------- //
 
-/// **T5** — a ring whose box meets the outer hull at two whole-period
-/// shifts is emitted twice, and a cell inside EITHER copy is dropped.
+/// **T5** — a ring is lifted by every whole-period shift, and a cell
+/// inside EITHER the `k = 0` copy or the `k = -1` lift is dropped: the
+/// two the spec's row names, at the two cells it names.
 /// Kills: emitting a single ring copy.
 #[test]
-fn t5_a_ring_is_emitted_once_per_whole_period_shift_that_meets_the_hull() {
+fn t5_a_ring_is_lifted_by_every_whole_period_shift() {
     let outer = polygon(&[(-3.0, 0.0), (3.2, 0.0), (3.2, 2.0), (-3.0, 2.0)], false);
     let ring = polygon(&[(3.1, 0.5), (3.4, 0.5), (3.4, 1.5), (3.1, 1.5)], true);
     let bound = ChartBound::assembled(outer, vec![ring], Some(Interval::tau()));
     assert_eq!(
         bound.loops.len(),
-        3,
-        "the outer loop plus the ring's k = 0 and k = -1 copies"
+        4,
+        "the outer loop plus the ring lifted at k = -1, 0 and +1"
     );
     let metred = bound.metred((Interval::one(), Interval::one()));
     let b = band();
@@ -213,7 +214,7 @@ fn t5_a_ring_is_emitted_once_per_whole_period_shift_that_meets_the_hull() {
         "the cell at u = -2.95 lies in the ring's k = -1 lift: a hole, so off the face"
     );
     assert!(
-        metred.certifies_outside(MetredRect::new(3.14, 3.16, 0.9, 1.1), b),
+        metred.certifies_outside(MetredRect::new(3.13, 3.17, 0.9, 1.1), b),
         "the cell at u = 3.15 lies in the ring's k = 0 copy"
     );
     assert!(
