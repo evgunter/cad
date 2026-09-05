@@ -124,3 +124,18 @@ Ev's in-chat concurrence — its mechanism and its sibling `D36` are
 TRIM's; the direction TOPO would have argued (a refused mint leaves a
 typed trace or refuses; never a silent clear) is recorded on the item.
 Sixteen items remain on this slate.
+
+## D261 delivered; style review out (2026-09-05)
+
+`topo/d261-reader-collapse` delivered as PR 1919, head `3f41f605`,
+full matrix green (run 33943083355: twelve test jobs, five k-lint
+rows). Four conversions, all deletions or re-points; one planted
+mutant per converted guard in the PR body; `UNCONVERTED_TODAY` 9 → 5,
+re-derived on the merged tree. Five deviations disclosed, the one that
+matters being that the brief was wrong about the census: a file that
+still trips the reader detector cannot have its line deleted, so three
+entries moved to `Shared` instead. One residue filed inside the fence
+(`probe-message-carve`). Three findings outside the fence relayed to
+S-BOOL's board (`boxes.rs`'s stale "two readers" doc; the two raw-text
+guards in `face_normal.rs` and `sector_shape.rs`). Single style review
+dispatched on the frozen head, claims C1–C6 in the brief.
