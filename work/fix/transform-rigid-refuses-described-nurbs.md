@@ -201,5 +201,5 @@ descriptions, which resolve through the iso resolver that admits described
 nets — and the new acceptance row proves that path end to end. What is now
 reachable and refuses is the M7-8 plane x described-NURBS `Intersection`
 class: a body tier 3 calls valid that `transform_rigid` cannot move. The
-fix is a `T: EdgeNurbsLane` bound and the lane-wired door, a public generic
-signature change out of this unit's scope.
+fix is a `T: Decide + geom_core::CertifiedBounds` bound and the lane-wired
+door, a public generic signature change out of this unit's scope.

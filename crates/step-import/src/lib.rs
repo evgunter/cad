@@ -822,7 +822,7 @@ fn gate3(
     records: &topo::ContactRecords,
     tol: Tol,
 ) -> Result<topo::MassProperties<f64>, StepImportError> {
-    topo::validate_pseudomanifold_certificate(body, records, tol).map_err(|errors| {
+    topo::validate_pseudomanifold_certificate_certified(body, records, tol).map_err(|errors| {
         StepImportError::TierInvalid {
             solid: None,
             errors,
