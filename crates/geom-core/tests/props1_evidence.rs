@@ -220,6 +220,86 @@ fn rejection_is_accurate_at_f64_over_the_corpus() {
     }
 }
 
+/// An axis-aligned plane normal costs no `f64` VALUE movement: the
+/// translation is `2·q_j` in the normal's own component — which a
+/// subtract-and-re-add spelling also reaches exactly, since `q_j + q_j`
+/// is exact — and zero in the other two. Every mirror plane a consumer
+/// in this tree builds is axis-aligned, so this is the row that confines
+/// the moved bits to oblique planes.
+///
+/// The one representational difference, pinned rather than glossed: the
+/// two zero components carry the SIGN of the surviving one, because
+/// `+0.0 · (2·(n̂·q))` is a signed product where `q_j − (L·q)_j` was a
+/// difference of equals. A signed zero in a translation is inert under
+/// `transform_point` (`x + ±0.0 == x` for every non-zero `x`), and it is
+/// the only `f64` difference an axis-aligned mirror sees.
+#[test]
+fn an_axis_aligned_mirror_normal_moves_no_f64_value() {
+    for (axis, j) in [
+        (Vec3::unit_x(), 0usize),
+        (Vec3::unit_y(), 1),
+        (Vec3::unit_z(), 2),
+    ] {
+        for scale in [1.0, 4.0, 0.25] {
+            for arow in ANCHORS {
+                let p = p3(arow, |x| x);
+                let normal = axis * scale;
+                let t = shipped_mirror_translation(p, normal);
+                let old = retired_mirror_translation(p, normal);
+                let along = 2.0 * arow[j];
+                let got = [t.x, t.y, t.z];
+                let was = [old.x, old.y, old.z];
+                for k in 0..3 {
+                    assert_eq!(got[k], was[k], "value moved at {arow:?} axis {j} comp {k}");
+                    if k == j {
+                        assert_eq!(got[k].to_bits(), along.to_bits(), "along component");
+                    } else {
+                        assert_eq!(got[k], 0.0, "off-axis component is not zero");
+                        assert_eq!(
+                            got[k].is_sign_negative(),
+                            along.is_sign_negative(),
+                            "the zero does not carry the surviving component's sign"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// An axis-aligned `onto` costs no `f64` value movement either: the
+/// rejection is `self` with the along-component replaced by zero, which
+/// is what the subtractive spelling produced. The consumers in this tree
+/// reject from world axes and stored axis directions, so this row is the
+/// drift argument for them; the surviving components are bit-identical.
+#[test]
+fn an_axis_aligned_onto_zeroes_one_component() {
+    for (axis, j) in [
+        (Vec3::unit_x(), 0usize),
+        (Vec3::unit_y(), 1),
+        (Vec3::unit_z(), 2),
+    ] {
+        for scale in [1.0, 4.0, 0.25] {
+            for srow in SELVES {
+                let v = v3(srow, |x| x);
+                let onto = axis * scale;
+                let r = v.reject_from(onto);
+                let old = retired_rejection(v, onto);
+                let got = [r.x, r.y, r.z];
+                let was = [old.x, old.y, old.z];
+                for k in 0..3 {
+                    assert_eq!(got[k], was[k], "value moved at {srow:?} axis {j} comp {k}");
+                    if k == j {
+                        assert_eq!(got[k], 0.0, "along component is not zero");
+                    } else {
+                        assert_eq!(got[k].to_bits(), srow[k].to_bits(), "component {k} moved");
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// The two rounding claims `Vec3::reject_from`'s doc makes, measured
 /// for the shipped spelling beside the retired one: how far from
 /// orthogonal to `onto` the rejection lands, relative to
