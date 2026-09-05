@@ -851,3 +851,30 @@ unit's record). The rule above; the unit's record is its row in
 `MODEL-AB-LOG.md` and its MERGED entry in `work/docm/log.md`.
 
 - `DOCM-5-SPEC.md` — DOCM-5, the check registry's subject: one gather per landing (#1871)
+
+## Per-merge deletion — PROPS-1's spec (2026-09-05)
+
+Recoverable at `git show 62f81827717913c71e1dd5a213ead05e47319058:docs/PROPS-1-SPEC.md`
+(the PROPS-1 unit head, before the commit that deleted it; unamended —
+no stop clause fired). Two of its clauses were argued down rather than
+met, and the argument is in the unit's PR: its pin (a) asks for
+"narrower than the old form on every corpus row", which is false per
+component once the anchor is exact, and its member-3 phrasing about the
+parallel case does not survive measurement. The rule above; the unit's
+record is its row in `MODEL-AB-LOG.md` and its item's `## Closed`
+section.
+
+- `PROPS-1-SPEC.md` — PROPS-1, the lost-correlation members of the linalg audit: `mirror_across_plane` and `reject_from` (#1918)
+## Per-merge deletion — TOPO-S330's spec (2026-09-05)
+
+Recoverable at `git show 57cd299d8225afe4454bd068fa9e374439975363:docs/TOPO-S330-SPEC.md`
+(the S330 unit head after the review fix pass, before the state-sync
+commit that deleted it). Two of its stated facts were falsified by the
+unit and are corrected in the unit's record, not here: `ops_cube` is not
+a tier-3-clean planar cube (every face carries the mvfs placeholder), and
+its Phase-2 shape for the poison door — a second predicate beside
+`is_placeholder` — was replaced by `geom::NetState` at review. The rule
+above; the unit's record is its row in `MODEL-AB-LOG.md` and its MERGED
+entry in `work/topo/log.md`.
+
+- `TOPO-S330-SPEC.md` — TOPO-S330, tier-3 check 1's described-NURBS arm (#1923)

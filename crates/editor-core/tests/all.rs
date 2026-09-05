@@ -171,6 +171,8 @@ mod m10_3_r2_probes_interval;
 mod m10_4_r1_probes_interval;
 #[path = "m10_4_seed.rs"]
 mod m10_4_seed;
+#[path = "onb_wall_normal_census.rs"]
+mod onb_wall_normal_census;
 
 #[path = "m10_4_r2_probes_interval.rs"]
 mod m10_4_r2_probes_interval;
@@ -371,6 +373,8 @@ mod ring_r1_names_probe;
 mod seat4_verb_lowering;
 #[path = "seat6_param_source.rs"]
 mod seat6_param_source;
+#[path = "seat7_sweep_lowering.rs"]
+mod seat7_sweep_lowering;
 #[path = "switch_display_units.rs"]
 mod switch_display_units;
 #[path = "switch_dump.rs"]
