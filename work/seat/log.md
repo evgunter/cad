@@ -590,6 +590,30 @@ or the change is a reported fork. Demo scenes other programs cite by
 line are updated, not re-authored, beyond the declaration assembly the
 unit owns; moved register lines are logged here at merge.
 
+## ORDINAL 1009 CLAIMED — SEAT-FW dual (2026-09-05)
+
+SEAT-FW (PR 1974, the flush detector's curved widening) implementation
+delivered and green on the full matrix, render lanes included, with
+NO re-baseline (run 33960115379 on f72fc053b): the swap is one callee
+in `pair_finding` and nothing else in the verify path; the FW-1 table
+has seven rows (twopeg's body seat 7 → 25 findings, `declare_all` now
+glues where it refused, a differential row showing the curved
+declarations do the unlocking; the lily's socket the same three pairs
+by another road; every other caller measured unchanged); the tour's
+145 STL/STEP outputs are byte-identical on base and branch, twice; the
+stem-glue pin STAYS (the refusal was never the detector's blindness —
+tori about different ring centres, refused on kinds before
+declarations are read; the socket declares, verifies, and refuses one
+door later at #1032's arm). ONE Ev-gated stop, honored: the ratified
+§1 S3 parenthetical names the planar verifier the detector no longer
+runs, and its acceptance bullet says the lily's socket is six
+declarations where it is measurably three — filed
+(`work/seat/verb-seat-design-s3-names-the-planar-verifier.md`, on the
+branch) and an `[ev]` PR follows the merge. LIB's north-star audit
+moved (G19 closed, row 38 flipped) — logged here as courtesy. v6 dual
+dispatches on frozen head f72fc053b: parity byte 200 → **R1 opus + R2
+fable**. Difficulty M was logged pre-draw. Full row recorded at merge.
+
 ## SEAT-FW MERGED (2026-09-05, PR 1974)
 
 The flush detector detects what the `Rest` verifier verifies: one

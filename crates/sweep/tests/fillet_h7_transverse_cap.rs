@@ -29,7 +29,7 @@
 
 use geom::Curve3;
 use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
-use geom_core::k_stats::{start_verdict_log, take_verdict_log};
+use geom_core::k_stats::Bracket;
 use geom_core::{Band, Point2, Point3, Sign, Tol, Vec3};
 use profile::{Profile, ProfileVertex, SketchPlane};
 use sweep::blend::battery::{BlendRequest, RULED_END_NOT_TRANSVERSE, cap_transverse, run_battery};
@@ -309,9 +309,9 @@ fn the_rod_with_a_flat_fillets_both_creases_at_the_prism_closed_form() {
         (6, 8, 4),
         "the boolean's rod: seam-split cap arcs"
     );
-    start_verdict_log();
+    let bracket = Bracket::open();
     let _ = carve_and_check(&source, "rod ∖ box");
-    let log = take_verdict_log();
+    let log = bracket.finish().verdicts;
     let caps: Vec<_> = log
         .iter()
         .filter(|v| v.predicate == "fillet3_cap_transverse")

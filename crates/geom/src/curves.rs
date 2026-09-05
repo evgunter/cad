@@ -487,7 +487,7 @@ impl<T: SpanLocate> Curve3<T> {
     /// because two orderings of the same operations have to agree
     /// bitwise — must anchor at something the CARRIER owns, and the
     /// circle's own such anchor is its SEAM, `near = 0`.
-    /// `sweep::fillet::surgery::seam_split_param` is that caller and
+    /// `sweep::blend::surgery::seam_split_param` is that caller and
     /// carries the measurement that made it one; its period guard is
     /// what makes the principal branch the in-window one.
     ///

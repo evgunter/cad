@@ -134,9 +134,9 @@ fn hollow_torus_runs_no_crossing_machinery() {
     let inner = profile::circle(p2(rc, 0.0), ri, tol).unwrap();
     let vp = validated(vec![outer.into(), inner.into()]);
 
-    geom_core::k_stats::start_verdict_log();
+    let bracket = geom_core::k_stats::Bracket::open();
     let t = revolve(&vp, axis_y(), Revolution::Full, tol).unwrap();
-    let verdicts = geom_core::k_stats::take_verdict_log();
+    let verdicts = bracket.finish().verdicts;
     assert!(
         !verdicts.is_empty(),
         "the construction decides through the funnel"

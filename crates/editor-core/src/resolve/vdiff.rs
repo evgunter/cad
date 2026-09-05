@@ -64,7 +64,11 @@
 //!
 //! Only the population form is persisted ([`VerdictSummary`], the ε
 //! audit's cross-process seam); the strict form is derived at every
-//! use and stored nowhere (E10).
+//! use and stored nowhere (E10). A node's escalations
+//! ([`crate::eval::NodeValue::escalations`], the frame's other channel)
+//! are not persisted either and have no population form: an escalation
+//! is a fact about one run at one box, read in hand by the
+//! subdivision driver, never a population to compare across runs.
 //!
 //! [`SetTolerance`]: crate::edit::DocEdit
 
