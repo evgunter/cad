@@ -19,51 +19,119 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 //!
-//! # The status line's two lifetimes
+//! # Two questions, and they are not the same question
 //!
-//! **The line carries NEWS, for the frame that produced it.** Every
-//! sentence on it is something that HAPPENED — an action the document
-//! refused, a pick a tool declined, a dialog that could not open — and
-//! which of a frame's news SHOULD win is [`frame_status`]'s ranking.
+//! Something the chrome has to say is sorted twice, and the two sorts
+//! are INDEPENDENT.
 //!
-//! **News stops being news, and what stops it is an event about the
-//! same SUBJECT.** A message carries what it is about ([`Subject`]),
-//! and the next event about that subject retires it whatever the event
-//! says: a camera verdict goes on the next camera event, what the
-//! cursor said on the next cursor move, and what the document said on
-//! the next act the document accepts. That last one is the line's
-//! oldest rule under its own name — [`StatusUpdate::Clear`], which
-//! sweeps the whole line because an accepted act makes every standing
-//! complaint stale — and the other two are [`StatusUpdate::Expire`],
-//! which retires one subject and leaves the rest alone. Before this
-//! rule the only sweeper was `Clear`, so refusing a camera move and
-//! then orbiting left the refusal on the line for as long as the user
-//! navigated: navigation acts on nothing.
+//! **Which channel it goes to.** A [`Badge`] is a READ OF HELD STATE
+//! A READER CONSULTS; a [`Message`] on the status line is the OUTCOME
+//! OF SOMETHING THAT JUST HAPPENED. Both halves of the badge clause
+//! are load-bearing, and the second half is the one that decides the
+//! hard cases.
+//!
+//! A badge therefore outlives the frame that raised it while the line
+//! carries one frame's news. That lifetime is the CONSEQUENCE of the
+//! test, not the test: it is what the split reads like from outside,
+//! and it cannot sort a fact that is both true after its frame and
+//! provoked by one.
+//!
+//! **"Held state" is a strong indicator and not a decision
+//! procedure**, and the sweep that sorts twenty writers on this
+//! paragraph needs the three ways it falls short said out loud:
+//!
+//! * **It is a property of the FACT, not of a signature.**
+//!   [`unindexed_refusal`] takes a `&NotIndexed` and nothing else;
+//!   what makes it an outcome is that [`crate::pick::unindexed`]
+//!   raises it for a `Select` and for nothing else, so the sentence
+//!   exists because the user clicked. Reading it off the door is
+//!   wrong; it has to be traced to whoever raises it.
+//! * **Tracing that far does not settle it either.**
+//!   [`Disagreement`] reads only held state — the outstanding id
+//!   answer, the index, the cursor — and [`IdStep::Hold`] recomputes
+//!   it on every frame the cursor holds still, so the mechanical form
+//!   alone badges it. What sorts it onto the line is *a reader
+//!   CONSULTS a badge*: a claim about where the pointer is this
+//!   instant is something a reader is told, not something they keep
+//!   open and act against.
+//! * **Whether a fact is held is a choice the author makes.**
+//!   `ViewerApp`'s `scene_fault` and `projection_fault` did not exist
+//!   until the badges that read them did, and any outcome can be made
+//!   a read by storing it. So the mechanical form CONSTRAINS the
+//!   answer and never supplies it: what it rules out is a badge with
+//!   nothing to read.
+//!
+//! **What retires it.** Both channels carry a [`Subject`] — the
+//! recurring event stream whose next event makes the thing the wrong
+//! answer — and carrying one never decided which channel a fact goes
+//! to. What differs is the ENFORCEMENT. A message is STORED as a
+//! message, so retiring it is the chrome's own bookkeeping: [`apply`]
+//! matches the held message's subject against a
+//! [`StatusUpdate::Expire`] and drops it, and [`StatusUpdate::Clear`]
+//! sweeps the line whole. **No such machinery touches a badge** — its
+//! subject names the event that changes the state it reads, and the
+//! badge ends because the read does.
+//!
+//! That is not the same as saying nobody keeps a badge alive. The
+//! state a badge reads may itself be bookkept by hand: `ViewerApp`
+//! clears `scene_fault` where a rebuild lands and `pane::viewport`
+//! clears `projection_fault` where a matrix forms, which is the same
+//! work spelled as an assignment about the SEAM instead of a verdict
+//! about the chrome. [`index_badge`] needs none, because the pick
+//! cache was already holding its refusal. What the split buys is that
+//! no writer has to decide the fate of anyone else's sentence.
+//!
+//! So [`projection_badge`] is a badge — a read of the camera and the
+//! viewport, true on every frame until a projection can be formed —
+//! that has the subject [`Subject::Camera`]. Those two answers are not
+//! rivals, and one seam's two doors cannot disagree about the second
+//! one: [`SeamSubject`] is where a seam's subject is stated, once, at
+//! the type of the refusal.
+//!
+//! # The line: news, ranked
+//!
+//! Every sentence on the line is something that HAPPENED — an action
+//! the document refused, a pick a tool declined, a dialog that could
+//! not open — and which of a frame's news SHOULD win is
+//! [`frame_status`]'s ranking. What stops it being the news is an
+//! event about its subject: a camera verdict goes on the next camera
+//! event, what the cursor said on the next cursor move, and what the
+//! document said on the next act the document accepts. That last is
+//! [`StatusUpdate::Clear`], which sweeps the whole line because an
+//! accepted act makes every standing complaint stale; the other two
+//! are [`StatusUpdate::Expire`], which retires one subject and leaves
+//! the rest alone. Before this rule the only sweeper was `Clear`, so
+//! refusing a camera move and then orbiting left the refusal on the
+//! line for as long as the user navigated: navigation acts on nothing.
 //!
 //! **It does not yet reach the line through the ranking for every
-//! writer.** Twenty writers in this crate assign the field outright
-//! rather than answering [`frame_status`], so a message a pane wrote
-//! is still erased by that frame's [`StatusUpdate::Clear`], which runs
-//! after the panes have drawn; two more answer in this vocabulary and
-//! apply it without asking the ranking ([`fold_status`] and
-//! [`cursor_status`], both at `pane::viewport`). Each of the twenty
-//! names its subject — [`Message`] is the only spelling there is — but
-//! naming a subject is not asking the ranking; routing them through it
-//! is tracked as its own item, not asserted here as done.
+//! writer.** Writers in this crate assign the field outright rather
+//! than answering [`frame_status`], so a message a pane wrote is still
+//! erased by that frame's [`StatusUpdate::Clear`], which runs after
+//! the panes have drawn; two more answer in this vocabulary and apply
+//! it without asking the ranking ([`fold_status`] and
+//! [`cursor_status`], both at `pane::viewport`). Each names its
+//! subject — [`Message`] is the only spelling there is — but naming a
+//! subject is not asking the ranking; routing them through it is
+//! tracked as its own item, not asserted here as done.
 //!
-//! **A fact that is still true after the frame ends is not news.** It
-//! is a standing fact about the landed document or the picture drawn
-//! from it, it has to survive a mouse drag, and its home is a toolbar
-//! [`Badge`]: the at-rest verdict ([`at_rest_badge`]), the advisory
-//! checks ([`checks_badge`]), the δ the display budget chose
-//! ([`delta_badge`]), and the product fault ([`product_badge`]). Each
-//! is a function of the typed value it reads, so each one's SILENCE is
-//! a row a test can write; each states its own [`Tone`], which is the
-//! actionable-or-not rule the toolbar used to pick a colour for at
-//! four call sites; and one draw at the toolbar consumes all four.
+//! # The toolbar: held state, read
 //!
-//! Two rules follow, and both are values here rather than conditions
-//! at a call site. [`fold_status`] never CLEARS for a camera fold:
+//! A badge is a function of the typed value it reads, so each one's
+//! SILENCE is a row a test can write; each states its own [`Tone`],
+//! which is the actionable-or-not rule the toolbar used to pick a
+//! colour for at four call sites; and one draw at the toolbar consumes
+//! them all. The members are the at-rest verdict ([`at_rest_badge`]),
+//! the advisory checks ([`checks_badge`]), the δ the display budget
+//! chose ([`delta_badge`]), the product fault ([`product_badge`]), and
+//! the three display seams that hold a refusal — the scene
+//! ([`scene_badge`]), the pick index ([`index_badge`]) and the
+//! projection ([`projection_badge`]).
+//!
+//! # Two rules that follow, one per channel
+//!
+//! Both are values here rather than conditions at a call site.
+//! [`fold_status`] never CLEARS for a camera fold:
 //! clearing is the acting batch's verdict alone ([`batch_status`]),
 //! because an action the document accepted is the one event that makes
 //! a standing complaint stale, and a fold that cleared would be
@@ -85,21 +153,29 @@ use crate::scene::FittedDelta;
 use crate::scene::SceneError;
 use crate::session::{AtRestBadge, Refusal, SessionOp};
 
-/// **What a message on the status line is ABOUT.**
+/// **What something the chrome shows is ABOUT** — carried by a
+/// [`Message`] on the line and by a [`Badge`] on the toolbar alike.
 ///
-/// The line carries one frame's news, and a piece of news does not stop
-/// being TRUE — it stops being the news. A camera refusal is still an
+/// A fact does not stop being TRUE. A camera refusal is still an
 /// accurate report of a move that was refused, five hundred frames of
 /// orbiting later; what has changed is that the user has asked the
-/// camera five hundred further questions since, and the line is
-/// answering the wrong one. So a message names its subject, and an
-/// EVENT about that subject retires it ([`StatusUpdate::Expire`]).
+/// camera five hundred further questions since, and the chrome is
+/// answering the wrong one. So a fact names its subject, and an EVENT
+/// about that subject retires it.
 ///
 /// **The subject is chosen by the event that retires it**, never by
-/// which module wrote the sentence. That is what makes this a rule and
-/// not four special cases: each variant below names a recurring event
-/// stream, and a message is about whichever stream's next event makes
-/// it the wrong answer.
+/// which module wrote the sentence and never by which channel carries
+/// it. That is what makes this a rule and not five special cases: each
+/// variant below names a recurring event stream, and a fact is about
+/// whichever stream's next event makes it the wrong answer.
+///
+/// **The two channels retire it differently, and that is the whole of
+/// the difference.** A message is held in a field, so [`apply`] has to
+/// be told: [`StatusUpdate::Expire`] names the subject and drops what
+/// the line holds about it. A badge is held nowhere — it is recomputed
+/// from the state it reads on the frame it is drawn — so its subject
+/// names the event that changes that state, and nothing has to act on
+/// it for the badge to go.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Subject {
     /// **The camera and where it is pointed** — retired by the next
@@ -107,7 +183,13 @@ pub enum Subject {
     /// projection that could not be formed are both about the camera,
     /// and the fold that follows is the user asking again.
     ///
-    /// Issued by [`fold_status`], on every clean fold.
+    /// Issued by [`fold_status`], on every clean fold — for the
+    /// LINE. The projection is a badge ([`projection_badge`]) and
+    /// needs no issuer: it is read from the camera, so a camera that
+    /// projects is a camera whose badge is gone. This `Expire` never
+    /// reached the projection sentence in any case, because both
+    /// `land` calls run earlier in the same `pane::viewport::viewport_ui`
+    /// that writes it.
     Camera,
     /// **The cursor and what lies under it** — retired by the next
     /// cursor move, and by the pointer leaving the pane.
@@ -134,9 +216,15 @@ pub enum Subject {
     /// message is about: the δ the display accepts next, the scene
     /// that lands, the index build that finishes.
     ///
-    /// **No [`StatusUpdate::Expire`] issuer**: the display seams
-    /// report their refusals and hold them, and nothing yet marks the
-    /// moment one is superseded.
+    /// **No [`StatusUpdate::Expire`] issuer**, and the facts that
+    /// wanted one are no longer on the line: the display seams HOLD
+    /// their refusals, which is what makes them reads of held state,
+    /// so the scene, the pick index and the δ the budget chose all
+    /// badge ([`scene_badge`], [`index_badge`], [`delta_badge`]) and
+    /// retire themselves. What still wears this subject on the line is
+    /// news about the picture that an event provoked — a δ the user
+    /// typed, a pick the user aimed at an index that is not there —
+    /// and for those `Clear` is the only sweeper there is.
     Display,
     /// **The viewer's own settings and the file they are kept in** —
     /// retired by the next write of that file.
@@ -146,8 +234,10 @@ pub enum Subject {
     Preferences,
 }
 
-/// **Three of the five subjects are observationally identical today**,
-/// and saying so is part of the vocabulary rather than a caveat on it.
+/// **Three of the five subjects are observationally identical on the
+/// LINE today**, and saying so is part of the vocabulary rather than a
+/// caveat on it. It is a statement about messages: a badge is retired
+/// by the state it reads changing and asks no issuer for anything.
 ///
 /// [`Subject::Camera`] and [`Subject::Cursor`] have
 /// [`StatusUpdate::Expire`] issuers ([`fold_status`] and
@@ -480,9 +570,10 @@ pub enum WithdrawalKind {
     /// it is not this channel's to report; the next gesture op refuses
     /// typed instead.
     ///
-    /// The standing fact it leaves behind is the instance drawn at its
-    /// landed placement, which the picture already says; a badge would
-    /// keep saying it about a document the user has moved on from.
+    /// What it leaves behind is the instance drawn at its landed
+    /// placement, which the picture already says; a badge would keep
+    /// saying it about a document the user has moved on from, and
+    /// nobody consults a toolbar to learn where a part ended up.
     Superseded,
     /// **Not superseded by anything.** The user asked for an instance
     /// not to be DRAWN, and the document did not answer that question
@@ -683,13 +774,30 @@ pub enum Affordance {
     Opens,
 }
 
-/// **A standing fact the toolbar badges.**
+/// **A read of held state, badged on the toolbar.**
 ///
-/// A fact that is still true after the frame ends is not news: it has
-/// to survive a mouse drag, and the status line — which carries one
-/// frame's news and is swept by the next acting batch — is the wrong
-/// home for it. This module's header states that split; this type is
-/// the standing-fact half of it as a value.
+/// A badge is a function of state the application HOLDS, so it is
+/// recomputed on the frame it is drawn and it ends when that state
+/// ends. That is the channel test the module header states, and this
+/// type is one half of it as a value; the other half is [`Message`],
+/// which reports an outcome.
+///
+/// Being a read is why a badge survives a mouse drag with nobody
+/// arranging it: the status line is swept by the next acting batch,
+/// while a badge is redrawn from the same state it was drawn from
+/// before.
+///
+/// # What its [`Subject`] means
+///
+/// The same thing it means on a [`Message`] — the recurring event
+/// whose next occurrence makes this the wrong answer — reached by a
+/// different road. Nothing retires a badge, because nothing stores
+/// one: the subject names the event that changes the state the badge
+/// READS, and the badge goes because the read does. So the field is
+/// not consulted by [`apply`] or by any other retiring machinery, and
+/// what it buys is that a seam's two channels answer one question
+/// once ([`SeamSubject`]) instead of a badge and a line message about
+/// the same seam being free to disagree.
 ///
 /// # What being a value buys
 ///
@@ -709,24 +817,26 @@ pub enum Affordance {
 /// # The prefix is the chrome's own subject
 ///
 /// A badge label opens by naming which badge it is — *at rest*,
-/// *checks*, *δ* — and that is not the chrome writing prose about
-/// another value's failure. The failure's own words are the typed
-/// value's, rendered through its own `Display` and unaltered; what the
-/// chrome adds is which of four badges the reader is looking at, which
-/// is a fact about the toolbar and about nothing else.
+/// *checks*, *δ*, *scene*, *pick index*, *projection* — and that is
+/// not the chrome writing prose about another value's failure. The
+/// failure's own words are the typed value's, rendered through its own
+/// `Display` and unaltered; what the chrome adds is which of the
+/// badges the reader is looking at, which is a fact about the toolbar
+/// and about nothing else.
 /// [`product_badge`] adds nothing at all, because
 /// [`ProductError`]'s `Display` already opens every arm with
 /// "product: ".
-/// # The four constructors are the only door
+/// # The constructors are the only door
 ///
-/// The fields are private. Four public fields would have left every
-/// call site able to struct-literal a badge with any tone and any
+/// The fields are private. Public fields would have left every call
+/// site able to struct-literal a badge with any subject, tone and
 /// affordance it liked, which is exactly the "four badges each picked
 /// a colour at the call site" state this type exists to end — a rule
 /// that can be spelled around is a convention, and the point of
 /// making this a value was to stop it being one.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Badge {
+    subject: Subject,
     label: String,
     tone: Tone,
     detail: Option<String>,
@@ -734,6 +844,18 @@ pub struct Badge {
 }
 
 impl Badge {
+    /// What the badge is about, and so what ends it.
+    ///
+    /// **Read it to ask which event stream a badge belongs to.** It is
+    /// what a door answers when it adds a badge and what the rows
+    /// assert about the answer; nothing in the draw path consults it,
+    /// and it has no production reader today. That is the shape a
+    /// subject has on this channel — see the type's own docs — and not
+    /// an oversight to be closed by finding one.
+    pub fn subject(&self) -> Subject {
+        self.subject
+    }
+
     /// The words, carrying their own subject.
     pub fn label(&self) -> &str {
         &self.label
@@ -755,8 +877,9 @@ impl Badge {
     }
 
     /// A badge that only reports.
-    fn read(label: String, tone: Tone) -> Self {
+    fn read(subject: Subject, label: String, tone: Tone) -> Self {
         Self {
+            subject,
             label,
             tone,
             detail: None,
@@ -777,6 +900,74 @@ impl Badge {
     }
 }
 
+/// **A seam's subject, read off the type of its refusal.**
+///
+/// A seam can speak on both channels — the pick index badges the
+/// build it is holding a refusal for ([`index_badge`]) and puts a
+/// refused CLICK on the line ([`unindexed_refusal`]) — and the crate's
+/// rule is that one seam must not speak with two voices. A subject
+/// written as a literal at each door is a convention: two doors, two
+/// literals, and nothing but a reader to notice when they drift.
+///
+/// **What this buys, exactly.** A door answers from the type it was
+/// handed rather than from what its author thought, so a door and its
+/// refusal cannot disagree; and where one seam's refusal arrives as
+/// two types, both impls name ONE constant below, so the seam's
+/// subject is one edit and the two channels move together. That is
+/// what [`tool_news`] buys for its twelve sites by having one door,
+/// done for a seam that needs two.
+///
+/// **What it does not buy.** It covers a seam's own refusal TYPE, so
+/// a door whose input is not one — [`tool_news`], [`startup_notices`]
+/// — spells its subject and says so at the door. And a shared
+/// [`Subject`] is not a shared seam: the scene, the δ field and the
+/// pick index are three seams under [`Subject::Display`], which is the
+/// coarser question of what retires a fact.
+///
+/// Not public: the doors below are the API, and a caller that could
+/// read this could also assign a subject without one.
+trait SeamSubject {
+    /// The event stream whose next event makes this seam's refusal the
+    /// wrong answer.
+    const SUBJECT: Subject;
+}
+
+/// **The pick-index seam's subject**, named by both of the types its
+/// refusals arrive as. One edit here moves both channels; that is the
+/// "by construction" the trait's argument rests on, and it is written
+/// as a constant because a seam whose two impls each spelled a literal
+/// would be back to the convention.
+const PICK_INDEX_SEAM: Subject = Subject::Display;
+
+/// **The scene seam's subject**, named by the rebuild's refusal and by
+/// the δ field's two doors — the δ on screen and the mesh drawn at it
+/// are one seam, and [`delta_not_a_number`] never reaches a
+/// [`SceneError`] to be typed by.
+const SCENE_SEAM: Subject = Subject::Display;
+
+/// The camera and the viewport it is projected into.
+impl SeamSubject for CameraError {
+    const SUBJECT: Subject = Subject::Camera;
+}
+
+/// The picture drawn from the document — the build that lands next is
+/// what ends it.
+impl SeamSubject for SceneError {
+    const SUBJECT: Subject = SCENE_SEAM;
+}
+
+/// The pick index seam, on the badge channel.
+impl SeamSubject for PickIndexError {
+    const SUBJECT: Subject = PICK_INDEX_SEAM;
+}
+
+/// The pick index seam, on the line: the same seam, so the same
+/// constant, which is the whole reason this is not a literal at a
+/// door.
+impl SeamSubject for NotIndexed {
+    const SUBJECT: Subject = PICK_INDEX_SEAM;
+}
+
 // # The subject-assigning doors
 //
 // **A subject is a decision, so it lives where a decision can be
@@ -794,41 +985,25 @@ impl Badge {
 // calling the wrong door does not compile. `tool_news` is the
 // exception and says so.
 
-/// **What a camera that could not be projected says** — the view
-/// matrix refused, so nothing can be drawn this frame.
+/// **What a pick against a missing index says** — the one seam
+/// refusal that stays on the line, and the boundary the channel test
+/// is visible at.
 ///
-/// [`Subject::Camera`]: it is about where the view is pointed, and the
-/// next camera event is the user asking again.
-pub fn projection_refusal(error: &CameraError) -> Message {
-    Message::new(Subject::Camera, format!("projection: {error}"))
-}
-
-/// **What the pick-index seam's own refusal says** — a build that was
-/// attempted and refused, held by the cache's one-attempt-per
-/// (generation, δ) policy.
+/// What it REPORTS is seam state, which reads like a badge. What it
+/// IS, is an outcome: [`crate::pick::unindexed`] answers `Some` for a
+/// SELECT and `None` for an observation, so half its input is this
+/// frame's own pick stream and the sentence exists because the user
+/// clicked and got no answer. A badge would be lit whenever the index
+/// is absent, clicked or not — and the seam state itself is already
+/// read by two badges that would then say it a second way
+/// ([`index_badge`] for a build that refused, [`Progress::Indexing`]
+/// for one under way, whose hover text is this very sentence).
 ///
-/// [`Subject::Display`]: the picture on screen is stale for exactly as
-/// long as this stands, and the build that lands next is what retires
-/// it.
-pub fn index_refusal(error: &PickIndexError) -> Message {
-    Message::new(Subject::Display, format!("pick index: {error}"))
-}
-
-/// **What a pick against a missing index says.**
-///
-/// [`Subject::Display`], the same seam as [`index_refusal`] — one seam
-/// must not speak with two voices, and a `Building` refusal is retired
-/// by the build landing, which is that subject's own stated event.
+/// Its subject is the pick index seam's own ([`SeamSubject`]), because
+/// a `Building` refusal stops being the answer when the build lands —
+/// the same event that ends the badge.
 pub fn unindexed_refusal(refusal: &NotIndexed) -> Message {
-    Message::new(Subject::Display, refusal.to_string())
-}
-
-/// **What a scene that could not be built says.**
-///
-/// [`Subject::Display`]: the viewport keeps drawing the mesh it has,
-/// and the rebuild that succeeds is what retires this.
-pub fn scene_refusal(error: &SceneError) -> Message {
-    Message::new(Subject::Display, format!("scene: {error}"))
+    Message::new(NotIndexed::SUBJECT, refusal.to_string())
 }
 
 /// **What a δ the display refused says** — [`Subject::Display`], the
@@ -837,16 +1012,19 @@ pub fn scene_refusal(error: &SceneError) -> Message {
 /// The error's own words, whole: [`SceneError`] states the condition a
 /// δ has to meet, and no prefix here says it a second way.
 pub fn delta_refusal(error: &SceneError) -> Message {
-    Message::new(Subject::Display, error.to_string())
+    Message::new(SceneError::SUBJECT, error.to_string())
 }
 
-/// **What a δ field holding something that is not a number says** —
-/// [`Subject::Display`], for [`delta_refusal`]'s reason. It never
-/// reached [`crate::scene::DisplayTolerance`], so the parser's words
-/// are what there is.
+/// **What a δ field holding something that is not a number says.**
+///
+/// [`SCENE_SEAM`], the same constant [`delta_refusal`] reaches through
+/// [`SeamSubject`]: the δ field's two refusals are one seam's, and
+/// this one is not type-pinned because the text never reached
+/// [`crate::scene::DisplayTolerance`] — the parser's words are what
+/// there is.
 pub fn delta_not_a_number(typed: &str, error: &core::num::ParseFloatError) -> Message {
     Message::new(
-        Subject::Display,
+        SCENE_SEAM,
         format!("display δ: {typed:?} is not a number ({error})"),
     )
 }
@@ -912,12 +1090,15 @@ pub fn tool_news(text: impl Into<String>) -> Message {
 pub fn at_rest_badge(at_rest: Option<&AtRestBadge>) -> Option<Badge> {
     Some(match at_rest? {
         AtRestBadge::Certified { minted } => Badge::read(
+            Subject::Document,
             format!("at rest: certified ({minted} declaration(s))"),
             Tone::Advisory,
         ),
-        AtRestBadge::Refused { message } => {
-            Badge::read(format!("at rest: {message}"), Tone::Actionable)
-        }
+        AtRestBadge::Refused { message } => Badge::read(
+            Subject::Document,
+            format!("at rest: {message}"),
+            Tone::Actionable,
+        ),
     })
 }
 
@@ -946,9 +1127,13 @@ pub fn checks_badge(report: Option<&ChecksReport>) -> Option<Badge> {
         .map(|report| report.findings.len())
         .filter(|c| *c > 0)?;
     Some(
-        Badge::read(format!("checks: {count} finding(s)"), Tone::Actionable)
-            .opens()
-            .detailed("show what the checks found"),
+        Badge::read(
+            Subject::Document,
+            format!("checks: {count} finding(s)"),
+            Tone::Actionable,
+        )
+        .opens()
+        .detailed("show what the checks found"),
     )
 }
 
@@ -972,6 +1157,7 @@ pub fn delta_badge(fitted: Option<&FittedDelta>) -> Option<Badge> {
     let wording = fitted.wording()?;
     Some(
         Badge::read(
+            Subject::Display,
             format!("δ {:.3} mm chosen", fitted.delta.get() * 1.0e3),
             Tone::Advisory,
         )
@@ -982,13 +1168,12 @@ pub fn delta_badge(fitted: Option<&FittedDelta>) -> Option<Badge> {
 /// **What the chrome badges about the landed product**, and `None`
 /// when there is nothing to say.
 ///
-/// The gather's verdict is a STANDING FACT: computed once when a pair
-/// lands, and true of the picture on screen until another pair lands.
-/// It is therefore not news, and the status line — which carries one
-/// frame's news — is the wrong home for it. The frame an Open lands on
-/// is exactly the frame that also re-frames the camera, so the line is
-/// the one place a fault raised by a landing cannot survive the
-/// landing.
+/// The gather's verdict is a READ: computed once when a pair lands,
+/// held by the session, and consulted by a reader deciding what to do
+/// about the product on screen. It is not the outcome of anything the
+/// reader just did — the frame an Open lands on is exactly the frame
+/// that also re-frames the camera, so the line is the one place a
+/// fault raised by a landing cannot survive the landing.
 ///
 /// **Redundant colour beside its own words.** It is
 /// [`Tone::Actionable`], the tone the at-rest refusal and the checks
@@ -1001,10 +1186,10 @@ pub fn delta_badge(fitted: Option<&FittedDelta>) -> Option<Badge> {
 /// It is **not** simply louder than the line it left, and the argument
 /// must not lean on that: chromatically it is far more salient than an
 /// uncoloured label, and in LUMINANCE contrast it is lower in both
-/// palettes. What justifies the home is the lifetime — a standing fact
-/// cannot live on a line that carries one frame's news — and what
-/// justifies the colour is that it is the spelling its three sibling
-/// badges already use for a verdict a reader may need to act on.
+/// palettes. What justifies the home is the channel test — this is a
+/// read the reader consults, not an outcome they provoked — and what
+/// justifies the colour is that it is the spelling its sibling badges
+/// already use for a verdict a reader may need to act on.
 ///
 /// # The arms that stay silent, and why
 ///
@@ -1043,7 +1228,84 @@ pub fn product_badge(fault: Option<&ProductError>) -> Option<Badge> {
                     | ProductError::UnknownNode { .. }
             )
         })
-        .map(|fault| Badge::read(fault.to_string(), Tone::Actionable))
+        .map(|fault| Badge::read(Subject::Document, fault.to_string(), Tone::Actionable))
+}
+
+/// **What the chrome badges about the scene the picture is drawn
+/// from**, and `None` while the last rebuild stands.
+///
+/// A read of held state: `ViewerApp` keeps the refusal until a rebuild
+/// succeeds, and it keeps drawing the mesh it already has — so the
+/// picture on screen is stale for exactly as long as this is `Some`.
+/// It was a line message, where an accepted act's
+/// [`StatusUpdate::Clear`] swept it off a picture that had not been
+/// rebuilt and the line then said nothing about a scene it still could
+/// not build.
+///
+/// [`Tone::Actionable`]: it is the picture declining to follow the
+/// document, and the reader is the only one who can answer it. The
+/// error's own words, behind this badge naming itself.
+pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
+    error.map(|error| {
+        Badge::read(
+            SceneError::SUBJECT,
+            format!("scene: {error}"),
+            Tone::Actionable,
+        )
+    })
+}
+
+/// **What the chrome badges about the pick-index seam**, and `None`
+/// when the cache holds no refusal.
+///
+/// The purest read of the three: the refusal is held by
+/// [`crate::pick::PickCache`] under its one-attempt-per (generation,
+/// δ) policy, so this asks the value that already knows and the badge
+/// stands for exactly as long as the policy holds the refusal.
+///
+/// It says the SEAM refused. What a pick against the missing index
+/// gets is [`unindexed_refusal`], on the line, because that is an
+/// outcome — the two carry one subject and neither states it
+/// ([`SeamSubject`]).
+pub fn index_badge(error: Option<&PickIndexError>) -> Option<Badge> {
+    error.map(|error| {
+        Badge::read(
+            PickIndexError::SUBJECT,
+            format!("pick index: {error}"),
+            Tone::Actionable,
+        )
+    })
+}
+
+/// **What the chrome badges about a camera that cannot be
+/// projected**, and `None` while the view matrix forms.
+///
+/// [`Subject::Camera`] ([`SeamSubject`]) and a badge: the two answers
+/// are to different questions. It is read from the camera and the
+/// viewport it is drawn into, both held, and it is true on every frame
+/// until the camera moves somewhere a projection can be formed from —
+/// which is also the event its subject names.
+///
+/// **What the line could not do with it.** The status line is painted
+/// in the toolbar, EARLIER in the same `update` than the pane that
+/// writes this, and `perform_batch` runs after both — so the sentence
+/// was never drawn on the frame it was written, and on a frame whose
+/// batch acted cleanly `StatusUpdate::Clear` wiped it before any
+/// frame could draw it. The chrome then said nothing about a picture
+/// it could not draw, for as long as the user kept acting. A badge is
+/// read where it is drawn, so no ordering decides whether it appears.
+///
+/// The clean fold's `Expire(Camera)` was NOT what silenced it: both
+/// `land` calls run earlier in the same `viewport_ui` invocation,
+/// which rewrote the refusal after the expiry.
+pub fn projection_badge(error: Option<&CameraError>) -> Option<Badge> {
+    error.map(|error| {
+        Badge::read(
+            CameraError::SUBJECT,
+            format!("projection: {error}"),
+            Tone::Actionable,
+        )
+    })
 }
 
 /// What the toolbar has to say about work the picture is waiting on.
@@ -1541,11 +1803,11 @@ pub fn disagreement(
     })
 }
 
-/// **The two lifetimes, as policy over values.**
+/// **The two channels, as policy over values.**
 ///
-/// Both rules this module states about the status line are silent when
-/// they break: a cleared line looks exactly like a line nobody wrote
-/// to, and a fault with no home looks exactly like a document with no
+/// Both rules this module states about the chrome are silent when they
+/// break: a cleared line looks exactly like a line nobody wrote to,
+/// and a fault with no home looks exactly like a document with no
 /// fault.
 ///
 /// Everything here is a pure function of a value, and the values are

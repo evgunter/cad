@@ -341,10 +341,21 @@ impl ViewerBehavior<'_> {
             }
         }
 
+        // **Held, not said.** A view matrix that cannot be formed is
+        // true of this camera on every frame until it moves somewhere
+        // one can be, so it is a read the toolbar badges
+        // (`frame::projection_badge`) rather than a sentence. As a
+        // sentence it was written here, AFTER the toolbar had already
+        // painted the line, and `perform_batch` then ran after this
+        // pane — so on every frame whose batch acted cleanly the
+        // `Clear` took it before any frame drew it.
         let matrix = match self.camera.view_projection(aspect) {
-            Ok(matrix) => matrix,
+            Ok(matrix) => {
+                *self.projection_fault = None;
+                matrix
+            }
             Err(error) => {
-                *self.status = Some(frame::projection_refusal(&error));
+                *self.projection_fault = Some(error);
                 return;
             }
         };

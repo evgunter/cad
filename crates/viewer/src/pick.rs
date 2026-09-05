@@ -2540,7 +2540,7 @@ impl core::error::Error for NotIndexed {}
 /// **A hover is not news.** It is pushed on every frame the pointer is
 /// inside the pane, so a refusal raised for one would rewrite the
 /// status line sixty times a second and erase every other writer's
-/// sentence with it (`crate::frame`, the status line's two lifetimes);
+/// sentence with it (`crate::frame`, the chrome's two channels);
 /// the indexing indicator is what tells a reader why the model is
 /// inert while they move over it. A click is an act — the user asked
 /// for something and did not get it — and that is exactly what the
