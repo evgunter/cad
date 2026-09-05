@@ -10,7 +10,7 @@
 //! `ssi::march`); the unit that routes the family through the funnel is
 //! `work/props/escalation-channel-misses-op-minted-indeterminates.md`,
 //! and this row goes red the day it lands — which is the point.
-#![allow(clippy::unwrap_used, clippy::panic)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::{OutwardNormal, enters_material};
 use geom_core::k_stats::Bracket;
