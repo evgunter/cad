@@ -713,6 +713,8 @@ area `kernel`; prefix `trim/`; tag `(TRIM orchestrator)`; ab_band `2500-2599`.
 | item | opened | title |
 |---|---|---|
 | `axis-flavoured-declarations-have-no-channel` | 2026-09-04 | Axis-flavoured declarations (coaxial, structural-parallel) have no identity channel: ParamSource carries stored scalar fields only, so CoaxialEvidence and SPHSPH's option (a) cannot be served by it |
+| `node-tag-space-census-blind-to-tags-outside-sentinels` | 2026-09-05 | The content-key tag-space injectivity census reads only between the NODE-TAG-SPACE sentinels, so tags 41–45 written outside them are invisible to it — and node tag 5 already coexists with payload tag 5 |
+| `two-public-verb-types-verbs-and-profile` | 2026-09-05 | Two public types named Verb in one workspace (verbs::Verb, profile::Verb) — the collision is known at one site and reconciled nowhere |
 
 ## Blocked
 
