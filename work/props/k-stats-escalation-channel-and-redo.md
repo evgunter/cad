@@ -2,12 +2,13 @@
 id: k-stats-escalation-channel-and-redo
 kind: issue
 title: k_stats: an escalation channel beside the verdict log (and the redo that channel is already owed)
-status: review
+status: closed
 opened: 2026-08-29
 github: 1254
 refs: [1231]
 branch: props/kstats-bracket
 pr: 1969
+closed: 2026-09-05
 ---
 
 ## From GitHub issue 1254
@@ -50,3 +51,53 @@ Referenced from `editor-core/src/drive.rs`'s `classify` and from PR #1231's devi
 ## Home
 
 `work/m10/` — `crates/editor-core/src/drive.rs` is an M10 territory glob and the gap is the E6 subdivision driver's, raised by M10-3.
+
+## Closed (2026-09-05, #1969)
+
+**The bracket with a stack, the returned value declined in writing.**
+Measured: 530 `decide*` call sites in 261 enclosing functions (104
+public) across seven crates, plus `Decide::sign_within`'s five impls —
+the sink a returned value would thread. `k_stats::Bracket` replaces
+`start_verdict_log` / `take_verdict_log` (deleted; seventeen caller
+files converted): a thread-local stack of frames, each carrying a
+per-thread unique id its guard remembers, so an out-of-order close is
+DEFINED identically in every profile (the outer takes its own frame and
+discards the inner's; a stale guard pops nothing and returns empty —
+never another bracket's decisions); `!Send` by a `*const ()` phantom,
+pinned as `compile_fail,E0277` beside a legal twin; `Drop`-popped, so
+an early return or a panic unwinding through an op leaves no frame.
+The nesting defect is fixed by construction and pinned: an instantiate
+node's log is its own op's decisions (466 on the fixture), the same on
+a part-cache hit and a miss, under both schedules, part-in-part (922),
+through a node-memo hit and after a cancelled run; the part's own 724
+are on the part's nodes.
+
+**The escalation channel.** `classify` records every indeterminate
+outcome it produces as an `Escalation { source: Indeterminate }` in the
+same frame, in decision order; `NodeValue::escalations` and
+`NodeError::escalations` carry it (neither persisted);
+`drive::classify_replay` reads a definite box-independent refusal
+first, the log second, the error-enum arms third. The named fixture
+flipped: the planted flip's in-band strips price `SliverTerminal`
+(22.5 %) naming `extrusion_normal_component` where they were `Budget`.
+
+**Acceptance, narrowed where the code narrows it.** "A leaf evaluation
+can answer 'did any predicate escalate, and what was the
+`Indeterminate`' without matching on op error enums" holds for FUNNEL
+predicates only: an op that asks the funnel, gets a definite sign and
+mints its own `Indeterminate` (eight `geom-brep` sites), the two raw
+`sign_within` calls, and the whole-document mate solve reach a consumer
+only through the error enums, whose two arms in `classify_replay` are
+therefore load-bearing. Pinned by name (`geom-brep/tests/kstats_escalation_channel.rs`,
+`asm_r2a_mate_solve::row7e`) and filed as
+`escalation-channel-misses-op-minted-indeterminates`; the arm-deletion
+sweep is `indeterminate-error-arms-sweep`; the part's dropped per-node
+logs are `part-per-node-logs-dropped-with-nested-evaluation`; the
+bracket's scope (`work/issues/bracket-scope-is-run-op-not-the-node`)
+and the coincidence zone priced `Budget`
+(`work/m10/coincidence-zone-priced-budget-at-the-floor`) are the two
+findings outside PROPS. Deviations argued in the PR: `NodeError`
+carries the channel; one shielding bracket on the part cache's miss
+path; `Ok` nodes with escalations bisect (zero in the corpus); the
+M10-6 accounting goldens and M10-7's tier-off copies re-cut for the
+class the acceptance moves.

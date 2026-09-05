@@ -955,3 +955,28 @@ is PR 1952's body, `work/props/span-carries-its-knot-vector.md` and the
 residue item `work/props/coefficients-carry-their-knot-vector.md`.
 
 - `PROPS-SPAN-SPEC.md` — PROPS span, `Span<'a>` carries its `KnotVector` (#1952)
+
+## Per-merge deletion — PROPS k-stats' spec (2026-09-05)
+
+Recoverable at `git show 1d847bc84cfb4667eb296acf6233f2c3a88f4723:docs/PROPS-KSTATS-SPEC.md`
+(the k-stats fix-pass head, before the state-sync commit that deleted
+it; unamended). The ruling held — the bracket with a stack, the
+returned value measured (530 call sites, 261 enclosing functions) and
+declined in writing. Five clauses were argued rather than met, all in
+PR 1969's body: `NodeError` carries the escalation channel beside
+`NodeValue` (the named fixture fails its node, so the value cannot);
+one shielding bracket on the part cache's miss path in `eval/parts.rs`
+outside the named fence (an instantiate node's log is its own op's,
+hit or miss, under both schedules); `Ok` nodes with escalations
+bisect; the M10-6 accounting goldens and M10-7's tier-off copies re-cut
+for the class the acceptance moves; and the acceptance's "did any
+predicate escalate" holds for funnel predicates only — the op-minted
+family, the raw `sign_within` calls and the mate solve are filed as
+`work/props/escalation-channel-misses-op-minted-indeterminates.md`.
+The dual's fix pass replaced the mis-nesting rule (frame ids; defined
+in every profile) and the completeness claim. The rule above; the
+unit's record is its item's `## Closed` section
+(`work/props/k-stats-escalation-channel-and-redo.md`), PR 1969's body
+and the six issues it filed.
+
+- `PROPS-KSTATS-SPEC.md` — PROPS k-stats, the verdict log as a bracket with a stack and the escalation channel beside it (#1969)
