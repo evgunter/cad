@@ -551,6 +551,97 @@ fn non_finite_transform_axis_refuses_at_the_direction_door() {
     }
 }
 
+/// **The mapping itself: every arm of the kernel's typed refusal, and
+/// the role word it carries.**
+///
+/// The length decision is one body in `topo::query` and this layer's
+/// door is a call to it under its own funnel name, so what this layer
+/// still owns is exactly two things — WHICH `NodeErrorKind` each
+/// kernel refusal becomes, and WHICH vector the sentence names. Both
+/// are invisible to the rows above, which each exercise one arm: a
+/// mapping that sent two kernel arms to one `NodeErrorKind`, or that
+/// dropped the role, would leave every one of them green.
+///
+/// So all three arms are walked here in one place, and the role word
+/// travels with each: a length that is not a finite number, a length
+/// decided to zero, and a length that lands in the ambiguity band.
+/// The third is not reachable by a large or a zero vector at all — it
+/// needs a length strictly inside (ε, K·ε), and it is built from the
+/// run's OWN ε and K (their geometric mean) so that the row means the
+/// same thing at every ε the matrix runs.
+#[test]
+fn the_kernel_refusal_maps_onto_every_arm_of_this_layers_door() {
+    let eps = Tol::witness().eps();
+    let in_band = eps * Tol::witness().k().sqrt();
+
+    // A pattern direction, the three arms.
+    for (component, expected) in [
+        (1e200, "non-finite"),
+        (0.0, "degenerate"),
+        (in_band, "escalated"),
+    ] {
+        let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+        let (doc, cube) = unit_cube(doc, 0.0, 0.0);
+        let (doc, pat) = insert(
+            doc,
+            Node::Pattern {
+                input: cube,
+                count: editor_core::Expr::count(3),
+                kind: PatternKind::Linear {
+                    direction: [scl(component), scl(0.0), scl(0.0)],
+                    spacing: len(2.0),
+                },
+            },
+        );
+        let ev = run(&doc);
+        let Some(NodeResult::Failed(e)) = ev.nodes.get(&pat) else {
+            panic!("expected a refusal for the {expected} direction {component:e}");
+        };
+        match (&e.kind, expected) {
+            (NodeErrorKind::NonFiniteDirection { role }, "non-finite")
+            | (NodeErrorKind::DegenerateDirection { role }, "degenerate") => {
+                assert_eq!(*role, "pattern direction", "the role word travels");
+            }
+            (NodeErrorKind::Escalated { predicate, .. }, "escalated") => {
+                assert_eq!(
+                    *predicate, "eval_direction_norm",
+                    "an in-band length escalates naming THIS layer's funnel site"
+                );
+            }
+            (other, _) => panic!("the {expected} length mapped to {other:?}"),
+        }
+    }
+
+    // And a transform's rotation axis, which is the OTHER role this
+    // door carries: the two are wired separately, so one role reaching
+    // the mapping proves nothing about the other.
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, cube) = unit_cube(doc, 0.0, 0.0);
+    let (doc, moved) = insert(
+        doc,
+        Node::Transform {
+            input: cube,
+            translation: [len(0.0), len(0.0), len(0.0)],
+            rotation_axis: [scl(0.0), scl(0.0), scl(0.0)],
+            rotation_angle: ang(FRAC_PI_2),
+        },
+    );
+    let ev = run(&doc);
+    match ev.nodes.get(&moved) {
+        Some(NodeResult::Failed(e)) => assert!(
+            matches!(
+                e.kind,
+                NodeErrorKind::DegenerateDirection {
+                    role: "transform rotation axis"
+                }
+            ),
+            "expected the degenerate refusal for the axis, got {:?}",
+            e.kind
+        ),
+        other => panic!("expected Failed, got {other:?}"),
+    }
+}
+
 /// **The same document at the ENCLOSURE scalar**: the direction door
 /// does not refuse it, and nothing coincident is minted either.
 ///
