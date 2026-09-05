@@ -423,6 +423,61 @@ pub fn product_badge(fault: Option<&ProductError>) -> Option<String> {
         .map(ToString::to_string)
 }
 
+/// What the toolbar has to say about work the picture is waiting on.
+///
+/// **One state, not a badge per seam.** The chrome had three
+/// conditions and grew a fourth when the pick index moved onto its own
+/// seam; expressing that as a second `if` beside the first would have
+/// given the toolbar two indicators that can both be lit, for one
+/// wait, with no rule anywhere saying which the reader should believe.
+/// The rule is here instead, and it is a total function of three
+/// booleans.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Progress {
+    /// A run is in flight: the picture is older than the document and
+    /// someone is doing something about it.
+    Evaluating,
+    /// The picture is older than the document and **no EVALUATION is
+    /// running** — what a cancel leaves behind. A spinner over that
+    /// alone would be a lie about work nobody is doing.
+    ///
+    /// `indexing` is whether the OTHER seam is nonetheless busy, and
+    /// it is carried here rather than answered by a second indicator
+    /// because this is the one state where the two seams disagree
+    /// about whether anything is happening: an index build submitted
+    /// before the cancel is still running, and it will change the
+    /// picture. The rule the payload buys is **the spinner follows the
+    /// work, never the name** — so a canceled evaluation with a live
+    /// index build spins, and the status line's own *still being
+    /// indexed* refusal agrees with the toolbar instead of describing
+    /// the same moment a second way.
+    Canceled {
+        /// Whether an index build is in flight behind the cancel.
+        indexing: bool,
+    },
+    /// The document is evaluated and its index is being built: the
+    /// picture is the last one that finished, and picks are refused
+    /// until this lands ([`crate::pick::unindexed`]).
+    Indexing,
+}
+
+/// The one state, from the session's two answers and the pick cache's.
+///
+/// **Evaluation outranks indexing**, because an index built for a
+/// generation the session has already moved past is about to be
+/// discarded by [`crate::pick::PickCache::land`] anyway — restart
+/// without cancel means both can be in flight at once, and naming the
+/// index build there would tell a reader the wait was nearly over when
+/// a whole evaluation is still ahead of it.
+pub fn progress(busy: bool, running: bool, indexing: bool) -> Option<Progress> {
+    match (busy, running, indexing) {
+        (true, true, _) => Some(Progress::Evaluating),
+        (true, false, indexing) => Some(Progress::Canceled { indexing }),
+        (false, _, true) => Some(Progress::Indexing),
+        (false, _, false) => None,
+    }
+}
+
 /// The name a refused batch offers to CREATE.
 ///
 /// The parse door's unknown-parameter refusal is deliberate
