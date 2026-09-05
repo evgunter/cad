@@ -15,9 +15,10 @@
 //! `derivative_hull` and `sup_norm_bound`; over the whole domain,
 //! `domain_hull`, `domain_hull_rational`, every `derivative_coeffs`
 //! entry, `derivative_domain_hull`, `sup_norm_bound` and
-//! `sup_norm_bound_rational`. Three coefficient lanes: `f64` brackets,
-//! `RingInterval` brackets (what the consumers actually hand in), and —
-//! under the `interval` feature — `Interval` brackets. Every `f64`
+//! `sup_norm_bound_rational`. Two coefficient lanes here: `f64` brackets
+//! and `RingInterval` brackets (what the consumers actually hand in);
+//! the `Interval`-bracket lane is `coeffs_bit_identity_interval.rs`,
+//! whole-file gated on the feature and sharing this corpus. Every `f64`
 //! that comes out is recorded by its bits.
 //!
 //! **How the expectation was obtained**, because a self-generated
@@ -34,15 +35,16 @@
 //! that moved.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza; the helpers serve `coeffs_bit_identity_interval` too
 
 use geom_core::spline::KnotVector;
 use geom_core::{CertifiedEnclosure, RingInterval};
 
-type Rows = Vec<(String, u64)>;
+pub type Rows = Vec<(String, u64)>;
 
 /// The six vectors: degrees 1–4, interior multiplicities from 1 up to
 /// the degree.
-fn vectors() -> Vec<(&'static str, KnotVector)> {
+pub fn vectors() -> Vec<(&'static str, KnotVector)> {
     let kv = |k: &[f64], p: usize| KnotVector::clamped(k.to_vec(), p).expect("valid");
     vec![
         ("d1", kv(&[0.0, 0.0, 0.5, 1.5, 2.0, 2.0], 1)),
@@ -76,7 +78,7 @@ fn vectors() -> Vec<(&'static str, KnotVector)> {
 
 /// The `f64` coefficient values: distinct, signed, not on a grid.
 #[allow(clippy::cast_precision_loss)]
-fn values(n: usize) -> Vec<f64> {
+pub fn values(n: usize) -> Vec<f64> {
     (0..n)
         .map(|i| ((i * 7) % 11) as f64 * 0.375 - 1.5 + i as f64 * 0.013)
         .collect()
@@ -85,7 +87,7 @@ fn values(n: usize) -> Vec<f64> {
 /// Weights: unit for the non-rational pass, varied and positive for the
 /// rational pass.
 #[allow(clippy::cast_precision_loss)]
-fn weights(n: usize, rational: bool) -> Vec<f64> {
+pub fn weights(n: usize, rational: bool) -> Vec<f64> {
     (0..n)
         .map(|i| {
             if rational {
@@ -97,7 +99,7 @@ fn weights(n: usize, rational: bool) -> Vec<f64> {
         .collect()
 }
 
-fn ri(o: &mut Rows, tag: &str, r: RingInterval) {
+pub fn ri(o: &mut Rows, tag: &str, r: RingInterval) {
     o.push((format!("{tag}.lo"), r.lo().to_bits()));
     o.push((format!("{tag}.hi"), r.hi().to_bits()));
 }
@@ -106,7 +108,7 @@ fn ri(o: &mut Rows, tag: &str, r: RingInterval) {
 /// vector — one pair minted non-rationally and one rationally, each
 /// asked for every window. The labels are the ones the free
 /// `(coeffs, span)` and `(kv, coeffs)` spellings produced.
-fn drive<E: CertifiedEnclosure>(
+pub fn drive<E: CertifiedEnclosure>(
     o: &mut Rows,
     name: &str,
     kv: &KnotVector,
@@ -172,29 +174,7 @@ fn rows() -> Rows {
     o
 }
 
-/// The `Interval`-lane corpus: `Interval` brackets of the same values.
-#[cfg(feature = "interval")]
-fn rows_interval() -> Rows {
-    use geom_core::Interval;
-    let mut o = Vec::new();
-    for (vname, kv) in vectors() {
-        let n = kv.control_count();
-        #[allow(clippy::cast_precision_loss)]
-        let c: Vec<Interval> = values(n)
-            .iter()
-            .enumerate()
-            .map(|(i, x)| Interval::from_bounds(x - 0.02, x + 0.01 * i as f64))
-            .collect();
-        for rational in [false, true] {
-            let w = weights(n, rational);
-            let tag = if rational { "rat" } else { "nr" };
-            drive(&mut o, &format!("{vname}.{tag}.interval"), &kv, &c, &w);
-        }
-    }
-    o
-}
-
-fn digest(rows: &[(String, u64)]) -> u64 {
+pub fn digest(rows: &[(String, u64)]) -> u64 {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     for (name, bits) in rows {
         for byte in format!("{name} {bits:#018x}\n").bytes() {
@@ -205,7 +185,7 @@ fn digest(rows: &[(String, u64)]) -> u64 {
     h
 }
 
-fn check(rows: &[(String, u64)], row_count: usize, want: u64, spot: &[(&str, u64)]) {
+pub fn check(rows: &[(String, u64)], row_count: usize, want: u64, spot: &[(&str, u64)]) {
     if std::env::var_os("COEFFS_DUMP").is_some() {
         for (name, bits) in rows {
             println!("{name} {bits:#018x}");
@@ -266,33 +246,4 @@ const SPOT: &[(&str, u64)] = &[
 #[test]
 fn every_coefficient_door_is_bit_identical_to_its_retired_spelling() {
     check(&rows(), ROW_COUNT, DIGEST, SPOT);
-}
-
-#[cfg(feature = "interval")]
-const ROW_COUNT_INTERVAL: usize = 480;
-#[cfg(feature = "interval")]
-const DIGEST_INTERVAL: u64 = 0x077f_2c93_d2ac_b9b5;
-#[cfg(feature = "interval")]
-const SPOT_INTERVAL: &[(&str, u64)] = &[
-    ("d1.nr.interval.hull@1.lo", 0xbff8_51eb_851e_b852),
-    ("d2m2.nr.interval.sup_domain", 0x4002_8d4f_df3b_645a),
-    ("d2m2.rat.interval.hull_rat@4.hi", 0x4002_8d4f_df3b_645a),
-    ("d3.nr.interval.dhull@5.lo", 0xc002_9062_4dd2_f1ae),
-    ("d3.rat.interval.ddomain.hi", 0x4020_4ed9_1687_2b06),
-    ("d3m2.rat.interval.sup@6", 0x4002_8d4f_df3b_645a),
-    ("d3m3.nr.interval.domain.hi", 0x4002_8d4f_df3b_645a),
-    ("d3m3.rat.interval.sup_domain_rat", 0x4002_8d4f_df3b_645a),
-    ("d4.nr.interval.dcoeff.3.hi", 0xc016_d4fd_f3b6_459e),
-    ("d4.rat.interval.domain_rat.lo", 0xbff8_51eb_851e_b852),
-];
-
-#[cfg(feature = "interval")]
-#[test]
-fn every_coefficient_door_is_bit_identical_on_interval_brackets() {
-    check(
-        &rows_interval(),
-        ROW_COUNT_INTERVAL,
-        DIGEST_INTERVAL,
-        SPOT_INTERVAL,
-    );
 }
