@@ -3685,6 +3685,10 @@ runs beside another unit's fix pass on one 4-core cloud box with a
 profile, one crate at a time, and instructed to stop building rather
 than exhaust the disk. Sample number at merge.
 
+| # | date | task | difficulty (pre-flip) | arm | review findings (MAJ/MIN/NOTE) | silent devs | idiom | tests | docs | fix-pass size | battery | tokens | wall-clock |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| PROPS-1 | 2026-09-05 | PROPS-1 (PR #1918; spec docs/PROPS-1-SPEC.md — the DL6 audit's CERT-3 members 1 and 3): `mirror_across_plane`'s translation as the Householder product `n̂·(2·(n̂·q))` (anchor named once) and `reject_from` as the triple cross (`self` named once); `lerp` decided and left with its Interval cost stated at the site; exact-axis mirror translation `[4e-9]³ → [0, 0, 4e-9]`, axis rejection `[2e-9, 2e-9, 4e-9] → [2e-9, 2e-9, 0]`; f64 drift ≤ 2 ulp on oblique inputs only; no committed expectation moved; the reading sweep over all of `linalg/` (one new hit filed as a rider on the sign-hull item; `svd.rs`/`lsq.rs` read as concrete f64). Fix pass: union of 10 items taken, none declined — the wide-`onto` regression disclosed and pinned with an `ONTO_RADII` corpus dimension (34× on the corpus, 1022× randomized), the totality clause rewritten to the real bands, one set of numbers from the instruments, the tautological soundness pins replaced by formula-free geometric rows (both reviewers' adopted), the vacuous assertions rewritten with a vacuity self-check, the 4-ulp metric defined once and gated adversarially, the stored-`Curve3` drift path argued and measured, ±axis signed-zero rows, history clauses gone | M / NUMERIC (pre-draw at the spec) | OPUS (block PROPS-B1 slot 0, byte 146 ⇒ fable at 2; record branch-side on `props/b1-block`) | **DUAL (ordinal 2400; sample **#137** — RENUMBERED at the post-merge sync: #136 was FILLET-H7's by merge order (#1897 merged at 235d05241, ahead of #1918's 93baf9ce0); byte 242 parity 0 ⇒ R1 OPUS + R2 FABLE; CONCURRENT on frozen acc0719ad; briefs stored with sha256 on `props/b1-block` before dispatch, identical modulo lane names; PRIVATE target dirs at `CARGO_INCREMENTAL=0`, one crate at a time, on one four-core cloud box beside another unit's fix pass under a ~38 GB allowance — a method note on both arms equally).** R1 APPROVE-WITH-FIXES 2/10/8 (idiom 4 / test 2 / doc 2; MAJOR-1: the new totality clause false — the numerator scales as `\|onto\|²·\|self\|`, measured to `inf` and to a silent zero; MAJOR-2: the wide-`onto` regression undisclosed and unpinnable by a corpus with no `onto` width, measured 34×; MINORs: the soundness pins compare the shipped formula with itself, "never wider" vacuous on exact-anchor rows, the 4-ulp metric mismatch, the stored-curve drift path, the grouping rule broken at the mirror site). R2 APPROVE-WITH-FIXES 0/8/5 (idiom 4 / test 3 / doc 2; the same two substances at MINOR — wide `onto` 1022× on a zero-straddling component, the overflow band; MINORs: the wide-normal "1.0–1.12×" and the oblique factors do not reproduce, pin (a) does not hold per component at exact anchors, the negative-axis signed zero, the x-only geom test, the rider's missing counter-argument). **No unilateral MAJOR: both MAJORs converged in substance with a severity divergence — calibration data, not a tally candidate.** Soundness upheld by BOTH by execution (R1: 21 600 + 3 200 formula-free geometric rows; R2: 2 400×16 + 3 000×16 containment sweeps, both lanes); every headline number reproduced by both. Silent deviations: 2 (R1: the regression, the totality band) / 1 (R2: pin (a) at exact rows); 7 reported. Fix pass implementer-inherited, substantial (all 10 items; both reviewers' probe rows adopted as ordinary tests) | impl run 33943922769 GREEN on acc0719ad (full matrix; python suite seed-skipped, 493 OK locally); fix run 33946767666 GREEN on a7aef51d; MERGED #1918 | impl ~349k / fix ~481k / R1 ~207k / R2 ~621k (across one forced resume) | impl ~87 min / fix ~28 min / R1 ~29 min / R2 ~42 min (one stall on an armed waiter, nudged; no crash gap) |
+
 ## SHELL program rows (work/shell/; band 2300–2399; blocks named SHELL-B<n>)
 
 SHELL-1 review ordinal fixed at dispatch (2026-09-04, PR #1756 open —
@@ -3911,6 +3915,35 @@ Claude Code` footer the GitHub write path appends on every write; it
 names no model.
 
 
+
+Block FILLET-B2 pre-draw fields (2026-09-05, logged before the draw;
+opened with every FILLET-B1 slot dispatched — slot 0 merged, slot 1 in
+its fix pass, slot 2 under review): slot 0 = FILLET-H6
+(`docs/FILLET-H6-SPEC.md`, `extrude-cap-rim-smooth-arm-noop`) —
+difficulty **S**, task-class **STRUCTURAL** (Phase 1 measures whether
+extrude's cap-rim `Smooth` arm is reachable; either way the must-carry
+rule gets ONE home its sibling arms call). Slot 1 = FILLET-ATTR
+(`docs/FILLET-ATTR-SPEC.md`, `fillet-refusal-describes-unbracketed-crossing`)
+— **M / STRUCTURAL** (the `NoCornerOfPair` envelope reporting every
+refusing crossing nearest-anchors-first, per Ev's ruling on PR 1734).
+Slot 2 = FILLET-H7 (`docs/FILLET-H7-SPEC.md`,
+`fillet-ruled-spine-arms-no-surgery`) — **L / NUMERIC** (the ruled band
+with the transverse cut-off at perpendicular caps; new predicate
+`fillet3_cap_transverse`; vocabulary ratified by PR 1819's merge).
+
+Block FILLET-B2 draw (2026-09-05, after the pre-draw fields above; v3
+triple {opus, opus, fable}, one /dev/urandom byte, reject ≥252): byte
+**200**, 200 mod 3 = 2 = fable's position ⇒ **fable at slot 2**.
+So: slot 0 FILLET-H6 = OPUS, slot 1 FILLET-ATTR = OPUS, slot 2
+FILLET-H7 = FABLE. Recorded branch-side (`fillet/b2-block`); this
+record reaches main when the block's last slot's reviews conclude; each
+ordinal claim at review dispatch goes to main on its own.
+
+Block FILLET-B2 slot record (branch-side, appended as each slot concludes):
+slot 0 = FILLET-H6 (OPUS) — concluded 2026-09-05 at merge 195460c7a, ordinal 2003, sample #135 (no tally candidate; pair FAIR). Merge order put slot 1 (ATTR) on main first; the slot record lists slots in slot order.
+slot 1 = FILLET-ATTR (OPUS) — concluded 2026-09-05 at merge aa5384288, ordinal 2004, sample #134 (no tally candidate; pair FAIR).
+slot 2 = FILLET-H7 (FABLE) — concluded 2026-09-05 at merge 235d05241, ordinal 2005, sample #136 (one tally candidate, R2/OPUS, recorded in the row; pair FAIR, flagged for two benign glimpses).
+**Block FILLET-B2 CONCLUDED (2026-09-05)** — three slots, three duals (ordinals 2003–2005, samples #135, #134, #136); the block record reaches main with this sync. Block FILLET-B3 (Track T's riders; slots banked for Ev's two open rulings) opens branch-side on `fillet/b3-block`.
 
 ## FILLET-RIM review ordinal fixed at dispatch (2026-09-04)
 
