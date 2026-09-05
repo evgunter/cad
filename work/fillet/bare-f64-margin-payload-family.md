@@ -1,11 +1,14 @@
 ---
 id: bare-f64-margin-payload-family
-kind: issue
+kind: unit
 title: error payloads - the bare-f64 margin family, NaN-as-hole and unnamed margins outside pcurve_cache
-status: open
+status: closed
 opened: 2026-08-23
 github: 934
 refs: [931, 925]
+branch: fillet/e3-margin-payloads
+pr: 1763
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 934

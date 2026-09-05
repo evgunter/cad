@@ -17,11 +17,7 @@
 //!   asking the vocabulary apart from one merely matching a head's
 //!   spelling.
 //!
-//! That SKIP ruling was made at the ASM-R2b review and is recorded in
-//! `asm_r2b_assembly.rs`'s rows-5-and-6 header; `ASSEMBLY.md`'s AQ8
-//! clause carries only the weld/`TornCluster` half, so the ruling is
-//! cited here from where it actually lives rather than as ratified
-//! design text.
+//! That SKIP ruling is `crates/editor-core/ASSEMBLY.md`'s AQ8 clause.
 //!
 //! The whole-cluster cut also pins A4's recorded map over an
 //! `Instance(i)` head: the node ids remap, the STRUCTURAL INDEX does
@@ -167,8 +163,8 @@ fn four_legs(
         doc,
         DocEdit::InsertNode {
             node: seat(
-                in_copy(pattern, COPY, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, COPY, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
             ),
         },
     );
@@ -321,7 +317,7 @@ fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
     };
     assert_eq!(
         *a,
-        in_copy(new_pattern, COPY, in_part(new_leg, CapEnd::Top)),
+        in_copy(new_pattern, COPY, in_part(new_leg, CapEnd::End)),
         "ids remap through the recorded map; the copy index does not"
     );
     let RoleSeg::Instance { i, .. } = a.path[0] else {
@@ -334,9 +330,8 @@ fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
 /// member vocabulary, so the mate is not an edge, welds nothing, and
 /// its two ends DO reach opposite sides of an accepted cut.
 ///
-/// INVARIANT (AQ8 option (b), SKIP — ruled at the ASM-R2b review and
-/// recorded in `asm_r2b_assembly.rs`'s rows-5-and-6 header, NOT in
-/// `ASSEMBLY.md`'s AQ8 clause, which carries only the weld half):
+/// INVARIANT (AQ8 option (b), SKIP — `crates/editor-core/ASSEMBLY.md`'s
+/// AQ8 clause):
 /// such a mate contributes NO crossing however its names fall, because
 /// it never solved and a record minted from it would be
 /// trusted-at-rest state. This is the
@@ -372,8 +367,8 @@ fn a_nested_pattern_head_reaches_the_seam_and_still_contributes_no_crossing() {
         doc,
         DocEdit::InsertNode {
             node: seat(
-                in_copy(outer, 1, in_copy(inner, 1, in_part(leg, CapEnd::Top))),
-                in_part(top, CapEnd::Bottom),
+                in_copy(outer, 1, in_copy(inner, 1, in_part(leg, CapEnd::End))),
+                in_part(top, CapEnd::Start),
             ),
         },
     );

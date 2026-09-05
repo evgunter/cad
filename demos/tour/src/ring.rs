@@ -415,10 +415,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                             pncad::step_export::StepExportError::CurvedShellClassification { .. }
                         )
                     },
-                    "say so in klein's findings entry 7 and retire the other two probes of \
-                     this one gate — klein's WALL 6 (`klein::wall_probes`), which pins this \
-                     exact refusal on this exact shape, and `tubewall::hollowtorus`, which \
-                     pins it on the parameter door's hollow torus",
+                    "say so in klein's findings entry 7 and retire the other three probes \
+                     of this one gate — klein's WALL 6 (`klein::wall_probes`), which pins \
+                     this exact refusal on this exact shape, `tubewall::hollowtorus`, which \
+                     pins it on the parameter door's hollow torus, and `torusvessel`, which \
+                     pins it on a body `shell` hollowed",
                 ),
         ],
     }]

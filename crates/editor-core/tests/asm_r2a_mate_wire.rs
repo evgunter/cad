@@ -44,7 +44,7 @@ fn a_mate_bearing_document_round_trips() {
             of: Box::new(StableName {
                 kind: EntityKind::Face,
                 node: RecipeNodeId(1),
-                path: vec![RoleSeg::Cap(CapEnd::Bottom)],
+                path: vec![RoleSeg::Cap(CapEnd::Start)],
             }),
         }],
     };

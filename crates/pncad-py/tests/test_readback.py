@@ -54,13 +54,13 @@ def one(found):
     return found[0]
 
 
-def top_cap(ev, node):
+def end_cap(ev, node):
     return one(
         ev.select(
             node,
             Selector.of(
                 NamePat.of_kind(EntityKind.Face).seg(
-                    SegPat.tag(SegTag.Cap).side(CapEnd.Top)
+                    SegPat.tag(SegTag.Cap).side(CapEnd.End)
                 )
             ),
         )
@@ -76,8 +76,8 @@ class TestTheDoorsAnswerWithValues(unittest.TestCase):
         self.ev = evaluate(self.doc)
 
     def test_a_cap_face_answers_with_its_carriers_plane(self):
-        pose = self.ev.face_frame(self.cube, top_cap(self.ev, self.cube))
-        # The top cap's carrier is the plane z = 1, and the axis is
+        pose = self.ev.face_frame(self.cube, end_cap(self.ev, self.cube))
+        # The end cap's carrier is the plane z = 1, and the axis is
         # the CHART's normal — a direction, dimensionless — while the
         # origin is a POSITION and crosses dimensioned.
         self.assertAlmostEqual(pose.origin[2].meters, 1.0, delta=1e-12)
@@ -85,7 +85,7 @@ class TestTheDoorsAnswerWithValues(unittest.TestCase):
         self.assertIsInstance(pose, Pose)
 
     def test_a_planes_triad_is_right_handed_and_complete(self):
-        pose = self.ev.face_frame(self.cube, top_cap(self.ev, self.cube))
+        pose = self.ev.face_frame(self.cube, end_cap(self.ev, self.cube))
         # A plane's convention fixes a `u_ref`, so `v_ref` exists too
         # and is `axis x u_ref` — the door computes it rather than
         # making the caller redo the cross product.
@@ -130,7 +130,7 @@ class TestTheDoorsAnswerWithValues(unittest.TestCase):
         exact-bit `==` would be a decided predicate wearing an
         operator. Two reads of the SAME face are distinct objects and
         compare unequal; the components are what a caller compares."""
-        cap = top_cap(self.ev, self.cube)
+        cap = end_cap(self.ev, self.cube)
         first = self.ev.face_frame(self.cube, cap)
         second = self.ev.face_frame(self.cube, cap)
         self.assertNotEqual(first, second)
@@ -139,7 +139,7 @@ class TestTheDoorsAnswerWithValues(unittest.TestCase):
         )
 
     def test_a_name_says_how_it_denotes_before_it_is_read(self):
-        cap = top_cap(self.ev, self.cube)
+        cap = end_cap(self.ev, self.cube)
         denotation = self.ev.denotation(self.cube, cap)
         self.assertIsInstance(denotation, Denotation)
         self.assertFalse(denotation.tied)
@@ -193,7 +193,7 @@ class TestTheDoorsRefuseTyped(unittest.TestCase):
 
     def test_a_vertex_door_handed_a_face_name_refuses_the_same_way(self):
         err = self.refusal(
-            lambda: self.ev.vertex_position(self.cube, top_cap(self.ev, self.cube))
+            lambda: self.ev.vertex_position(self.cube, end_cap(self.ev, self.cube))
         )
         self.assertEqual(err.variant, "wrong_kind")
         self.assertEqual(err.wanted, EntityKind.Vertex)
@@ -218,7 +218,7 @@ class TestTheDoorsRefuseTyped(unittest.TestCase):
         matched to the sibling's identically-shaped cap."""
         second = unit_cube(self.doc)
         ev = evaluate(self.doc)
-        first_cap = top_cap(ev, self.cube)
+        first_cap = end_cap(ev, self.cube)
         err = self.refusal(lambda: ev.face_frame(second, first_cap))
         self.assertEqual(err.variant, "no_such_name")
         self.assertIn("stale", str(err))
@@ -233,15 +233,15 @@ class TestTheDoorsRefuseTyped(unittest.TestCase):
         twin = Doc()
         twin_cube = unit_cube(twin)
         twin_ev = evaluate(twin)
-        cap = top_cap(twin_ev, twin_cube)
-        self.assertEqual(cap, top_cap(self.ev, self.cube))
+        cap = end_cap(twin_ev, twin_cube)
+        self.assertEqual(cap, end_cap(self.ev, self.cube))
         here = self.ev.face_frame(self.cube, cap).origin
         there = twin_ev.face_frame(twin_cube, cap).origin
         for a, b in zip(here, there, strict=True):
             self.assertEqual(a.meters, b.meters)
 
     def test_a_node_this_run_did_not_produce_names_itself(self):
-        cap = top_cap(self.ev, self.cube)
+        cap = end_cap(self.ev, self.cube)
         # The node id is real and the name is well formed; what is
         # missing is a RESULT for that node in THIS evaluation, so the
         # refusal names the NODE rather than the name — the question
@@ -278,7 +278,7 @@ class TestTheDoorsRefuseTyped(unittest.TestCase):
     def test_the_denotation_door_refuses_a_stale_name_too(self):
         second = unit_cube(self.doc)
         ev = evaluate(self.doc)
-        err = self.refusal(lambda: ev.denotation(second, top_cap(ev, self.cube)))
+        err = self.refusal(lambda: ev.denotation(second, end_cap(ev, self.cube)))
         self.assertEqual(err.variant, "no_such_name")
 
 

@@ -2,7 +2,7 @@
 id: direction-normalization-two-doors-one-home
 kind: issue
 title: Direction normalization has two doors (eval_direction_norm / datum_unit_norm) and three direction spellings — decide the family's one home
-status: open
+status: spec
 opened: 2026-09-02
 github: 1570
 refs: [1564, 1372, 1527]
@@ -26,3 +26,17 @@ The unit this issue wants: migrate the direction-taking sites onto the one valid
 ## Home
 
 `work/seat/` — the new door lives in `crates/topo/src/query.rs`, a SEAT territory glob, and the direction/datum family is SEAT-DV's own residue in the verb-seat program.
+
+## Ruled (Ev, PR 1902, 2026-09-05): (B) — one door, two names ratified
+
+The decide/normalize/refuse body lives ONCE, in the kernel seat
+(`topo::query`), and takes the funnel site as a parameter; both names
+stay — `eval_direction_norm` for the directions `editor-core` owns
+(transform axes, linear-pattern directions, the mate solve's re-read of
+both rule kinds) and `datum_unit_norm` for every datum normal/axis —
+so no K-REPORT row moves and no pinned census count re-baselines. The
+mate re-read's two-name split becomes ratified rather than tolerated,
+stated at `mate/solve.rs` and in `unit()`'s successor. `Dir::from_unit`
+gets issue-1527's treatment. The options and the state measured at
+main `097a8ea5` that this ruling answered: see this file's history at
+the `[ev]` PR. Unit: SEAT-DN (`docs/SEAT-DN-SPEC.md`), block SEAT-B3.

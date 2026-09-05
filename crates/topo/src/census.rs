@@ -3,9 +3,10 @@
 //! defers, run at rest against a body's declared-contact records.
 //!
 //! **Sweep shape**: quadratic all-pairs sweeps in arena order
-//! (vertex×vertex, vertex×edge, vertex×face, edge×face, edge×edge) —
-//! the boolean edge×face convention: correctness first, the BVH filter
-//! is PERF-PLAN's later 10×. Exact on the F5 planar subset (`Line`
+//! (vertex×vertex, vertex×edge, vertex×face, edge×face, edge×edge),
+//! plus the conformal-patch arm and the cross-solid backstop named
+//! below — the boolean edge×face convention: correctness first, the
+//! BVH filter is PERF-PLAN's later 10×. Exact on the F5 planar subset (`Line`
 //! carriers, `Plane` surfaces). **Since M9-2 the census ADMITS every
 //! carrier kind**, and its reach is exactly this, stated class by
 //! class (the union fix's truth pass):
@@ -488,7 +489,12 @@ fn pair_holds_edges<T: Decide>(
 /// opposite-sided candidate pair) — correctness first, the cache is
 /// PERF-PLAN's if it ever shows up in a profile. A scalar with no
 /// certified region lane (dual) answers `None` at Door 2 and lands in
-/// the same non-answer.
+/// the same non-answer — and that half of the swallow is the one with a
+/// loud twin of its own: the confirm pass reports it as
+/// [`ValidationError::CensusLaneUnsupported`], distinct from the
+/// geometry refusals, so a reader of the vector can tell *replay this
+/// at a certifying scalar* from *this pair's geometry is outside the
+/// lane* without knowing which arm swallowed what.
 fn pair_region_verified<T: Decide + crate::chart_region::ChartRegionLane>(
     body: &Body<T>,
     fa: FaceKey,
@@ -640,10 +646,26 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
     }
 }
 
-/// A debug rendering of a witness position (the payload posture of
+/// A witness position rendered as COORDINATES (the payload posture of
 /// `ResultVolumeImplausible`: display data, never load-bearing).
+///
+/// Coordinates rather than the point's own `Debug`, because this string
+/// is pasted verbatim into a user-facing refusal: `Point3`'s derived
+/// rendering carries the field braces that mark a message as `Debug`
+/// guts, and the coordinate-triple SHAPE is what the rest of the tree
+/// uses for a point in prose (`mate/coset.rs`, `py/readback.rs` — both
+/// concrete `Point3<f64>`, so both spell it `{}`).
+///
+/// Each scalar keeps `{:?}` because `Real` bounds `Debug` and not
+/// `Display`: there is no route to `{}` on a generic `T` here. The
+/// alternative — projecting `T` to `f64` through `Bounds` — is what
+/// #990 refuses, naming `fn margin_of<T: Bounds>(…) -> f64` as the
+/// helper asked for and declined. (Not L7, which is the scope rule and
+/// admits rendering as legitimate `Bounds` context; the refusal is
+/// #990's.) `{:?}` prints `1.0` where `{}` prints `1`, so this matches
+/// the tree's shape and not its spelling.
 fn witness<T: Real>(p: Point3<T>) -> String {
-    format!("{p:?}")
+    format!("({:?}, {:?}, {:?})", p.x, p.y, p.z)
 }
 
 /// An impossible sign from a nonnegative margin — surfaced as the
@@ -1615,7 +1637,17 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
                         // D1, 2026-08-19, a dual DOES carry a bracket;
                         // the refusal is the lane's ruling, not a
                         // missing `Bounds` impl.)
-                        errors.push(ValidationError::CensusUnsupported {
+                        //
+                        // Its own variant, and not the one the typed
+                        // predicate refusals below raise: this absence
+                        // is a fact about the RUN's scalar and the same
+                        // candidate is examined at every certifying
+                        // one, while those are facts about THIS pair's
+                        // geometry that no replay changes. One variant
+                        // for both made a run-wide condition read as a
+                        // per-pair geometric refusal, and the two
+                        // recourses are opposite.
+                        errors.push(ValidationError::CensusLaneUnsupported {
                             subject: CensusSubject::FacePair(fa, fb),
                         });
                     }
@@ -2748,8 +2780,14 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
         // the chart being either the structural one or the declared
         // pair's shared world carrier.
         match T::declared_overlap(body, c.face_a, body, c.face_b, door_one, band) {
+            // The SCALAR has no certified region lane, exactly as at
+            // the sweep arm and split from the geometry refusals below
+            // for the same reason: this absence is a fact about the
+            // RUN, the same record is confirmed at every certifying
+            // scalar, and the recourse is a replay rather than a change
+            // to the geometry.
             None => {
-                errors.push(ValidationError::CensusUnsupported {
+                errors.push(ValidationError::CensusLaneUnsupported {
                     subject: CensusSubject::FacePair(c.face_a, c.face_b),
                 });
             }

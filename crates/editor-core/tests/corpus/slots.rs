@@ -87,16 +87,16 @@ pub fn document() -> CorpusDoc {
         profile: slot2_p,
         distance: len(1.0),
     });
-    // The first cavity's floor is slot 1's bottom cap, reversed onto
-    // the B side of `sub1`; slot 2's bottom cap is its own.
+    // The first cavity's floor is slot 1's start cap, reversed onto
+    // the B side of `sub1`; slot 2's start cap is its own.
     let cavity_floor = StableName {
         kind: EntityKind::Face,
         node: sub1,
-        path: vec![RoleSeg::FromB(Box::new(cap(slot1, CapEnd::Bottom)))],
+        path: vec![RoleSeg::FromB(Box::new(cap(slot1, CapEnd::Start)))],
     };
     let decl = r.insert(Node::declare_rest(vec![(
         cavity_floor,
-        cap(slot2, CapEnd::Bottom),
+        cap(slot2, CapEnd::Start),
     )]));
     let sub2 = r.insert(Node::Boolean {
         op: BooleanOp::Subtract,

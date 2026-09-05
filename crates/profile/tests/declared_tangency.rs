@@ -313,7 +313,7 @@ fn oversized_fillet_radius_is_refused_typed_both_legs() {
     // (3, 2) is the carriers' intersection; the anchors that pin the
     // two extents are the ray's origin (3, 0) and the arrival's own
     // anchor (0, 2).
-    match Open
+    let err = Open
         .at(p2(0.0, 0.0))
         .line_to(p2(3.0, 0.0), Tol::witness())
         .expect("bottom side")
@@ -324,30 +324,30 @@ fn oversized_fillet_radius_is_refused_typed_both_legs() {
         .toward(-1.0, 0.0, Tol::witness())
         .expect("the arrival side runs −x")
         .to(p2(0.0, 2.0), Tol::witness())
-        .expect_err("oversized radius must refuse")
-    {
-        PathError::AnchorOutsideTrimmedExtent {
-            side,
-            carrier,
-            setback,
-            available,
-        } => {
-            assert_eq!(carrier, profile::FilletLegCarrier::Line);
-            // Incoming→outgoing gate order: the shorter incoming side
-            // reports first; right angle + dyadic legs: exact values.
-            assert_eq!(side, profile::FilletLeg::Incoming);
-            assert_eq!(setback, 10.0);
-            assert_eq!(available, 2.0);
-        }
-        other => panic!("expected AnchorOutsideTrimmedExtent, got {other:?}"),
-    }
+        .expect_err("oversized radius must refuse");
+    // A straight carrier pair derives ONE corner, so the envelope
+    // carries one entry and it is the fit refusal.
+    assert_eq!(
+        common::corners(&err).len(),
+        1,
+        "a straight pair derives one corner: {err:?}"
+    );
+    let Some((side, carrier, setback, available)) = common::anchor_fit(&err) else {
+        panic!("expected an anchor-fit entry, got {err:?}")
+    };
+    assert_eq!(carrier, profile::FilletLegCarrier::Line);
+    // Incoming→outgoing gate order: the shorter incoming side
+    // reports first; right angle + dyadic legs: exact values.
+    assert_eq!(side, profile::FilletLeg::Incoming);
+    assert_eq!(setback, 10.0);
+    assert_eq!(available, 2.0);
 }
 
 #[test]
 fn oversized_fillet_radius_is_refused_for_one_overrun_leg() {
     // Incoming side (3) fits; the arrival side (2) overruns at
     // r = 2.5, so the refusal names the outgoing anchor.
-    match Open
+    let err = Open
         .at(p2(0.0, 0.0))
         .toward(1.0, 0.0, Tol::witness())
         .expect("the incoming ray runs +x")
@@ -356,21 +356,19 @@ fn oversized_fillet_radius_is_refused_for_one_overrun_leg() {
         .toward(0.0, 1.0, Tol::witness())
         .expect("the arrival side runs +y")
         .to(p2(3.0, 2.0), Tol::witness())
-        .expect_err("outgoing overrun must refuse")
-    {
-        PathError::AnchorOutsideTrimmedExtent {
-            side,
-            carrier,
-            setback,
-            available,
-        } => {
-            assert_eq!(carrier, profile::FilletLegCarrier::Line);
-            assert_eq!(side, profile::FilletLeg::Outgoing);
-            assert_eq!(setback, 2.5);
-            assert_eq!(available, 2.0);
-        }
-        other => panic!("expected AnchorOutsideTrimmedExtent, got {other:?}"),
-    }
+        .expect_err("outgoing overrun must refuse");
+    assert_eq!(
+        common::corners(&err).len(),
+        1,
+        "a straight pair derives one corner: {err:?}"
+    );
+    let Some((side, carrier, setback, available)) = common::anchor_fit(&err) else {
+        panic!("expected an anchor-fit entry, got {err:?}")
+    };
+    assert_eq!(carrier, profile::FilletLegCarrier::Line);
+    assert_eq!(side, profile::FilletLeg::Outgoing);
+    assert_eq!(setback, 2.5);
+    assert_eq!(available, 2.0);
 }
 
 #[test]

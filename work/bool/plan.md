@@ -34,7 +34,8 @@ remaining half, #1031 half B, #1076, #1077; #1059 resolved into
   untouched until PCURVE's P-2 (#1177) resumes and lands.
 
 The fence is confirmed from the other side:
-`work/verbs/plan.md`'s work-stream note names
+`work/verbs/plan.md`'s work-stream note (VERBS closed; recoverable at
+`git show c1e7ea19501d9e625dbd0de260d01a53a0384b42:work/verbs/plan.md`) names
 "#1011/#750/#542/#368/#433/#1152/#134" as "S-BOOL's honest remainder
 (… never VERBS')".
 

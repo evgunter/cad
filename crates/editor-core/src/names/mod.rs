@@ -28,6 +28,7 @@ mod emit_chamfer;
 mod emit_fillet;
 mod emit_sweep;
 mod emit_topo;
+mod emit_union;
 mod flush;
 mod geompred;
 pub(crate) mod interrogate;
@@ -38,11 +39,12 @@ mod table;
 pub use attribute::{NameOrigin, attribute};
 pub use emit::NamingError;
 pub(crate) use emit::name_in_part;
-pub(crate) use emit::{empty, name_pattern, name_placed_union};
+pub(crate) use emit::{check_total, empty, name_pattern, name_placed_union};
 pub(crate) use emit_chamfer::name_chamfer;
 pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_sweep::{name_extrude, name_loft, name_revolve};
 pub(crate) use emit_topo::{OperandCtx, name_boolean, name_split};
+pub(crate) use emit_union::{collapse_name, member_view, name_union};
 pub use flush::{
     CONTACT_RECOURSE, ContactClass, ContactRefusal, ContactVerdict, DeclareError, DeclaredContact,
     FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, declare, declare_all, declare_node,
@@ -53,8 +55,10 @@ pub use geompred::{
     SurfaceKindSet,
 };
 pub use interrogate::{
-    Denotation, InterrogateError, denotation, edge_frame, face_frame, vertex_position,
+    Denotation, InterrogateError, denotation, edge_frame, face_carrier_kind, face_frame,
+    vertex_position,
 };
+pub(crate) use role::member_edge;
 pub(crate) use role::name_free_seg;
 pub use role::{
     CapEnd, EntityKind, MeridianEnd, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport,

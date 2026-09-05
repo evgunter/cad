@@ -256,7 +256,7 @@ class TestBenchLayout(BenchWorkspace):
         doc, family, _, _ = self.layout()
         ev = evaluate(doc, resolver=self.ws)
         caps = ev.select(
-            family, cap_selector(CapEnd.Top, [SegTag.Instance, SegTag.InPart])
+            family, cap_selector(CapEnd.End, [SegTag.Instance, SegTag.InPart])
         )
         # One per placement, and the name NESTS rather than
         # concatenating: pattern index, then instance, then the part's
@@ -303,7 +303,7 @@ class TestBenchLayout(BenchWorkspace):
         # Rung 1: the part's own cap, in the part's own coordinates.
         part_ev = evaluate(self.post)
         part_root = self.post.roots[0]
-        part_cap = one(part_ev.select(part_root, cap_selector(CapEnd.Top)))
+        part_cap = one(part_ev.select(part_root, cap_selector(CapEnd.End)))
         local = part_ev.face_frame(part_root, part_cap).origin
 
         # Rung 2: the placement the layout gave that instance, applied
@@ -323,7 +323,7 @@ class TestBenchLayout(BenchWorkspace):
         ]
 
         caps = ev.select(
-            family, cap_selector(CapEnd.Top, [SegTag.Instance, SegTag.InPart])
+            family, cap_selector(CapEnd.End, [SegTag.Instance, SegTag.InPart])
         )
         read = sorted(
             tuple(c.meters for c in ev.face_frame(family, cap).origin) for cap in caps
@@ -348,7 +348,7 @@ class TestBenchLayout(BenchWorkspace):
         doc, family, _, _ = self.layout()
         ev = evaluate(doc, resolver=self.ws)
         caps = ev.select(
-            family, cap_selector(CapEnd.Top, [SegTag.Instance, SegTag.InPart])
+            family, cap_selector(CapEnd.End, [SegTag.Instance, SegTag.InPart])
         )
         for cap in caps:
             denotation = ev.denotation(family, cap)
@@ -384,9 +384,9 @@ class TestBenchStand(BenchWorkspace):
         )
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
         post_b = doc.insert(Node.instantiate_part(self.post_ref))
-        a_top = self.instance_face(doc, post_a, CapEnd.Top)
-        b_top = self.instance_face(doc, post_b, CapEnd.Top)
-        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Bottom)
+        a_top = self.instance_face(doc, post_a, CapEnd.End)
+        b_top = self.instance_face(doc, post_b, CapEnd.End)
+        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
         mate_1 = doc.insert(
             Node.mate(a_top, s_bottom, class_, seat(POST_SEAT, SEAT_A, primitive))
         )
@@ -577,7 +577,7 @@ class TestAssemblyRefusals(BenchWorkspace):
     def test_a_mate_naming_one_instance_twice_refuses(self):
         doc = Doc("self-mate")
         post_i = doc.insert(Node.instantiate_part(self.post_ref))
-        face = self.instance_face(doc, post_i, CapEnd.Top)
+        face = self.instance_face(doc, post_i, CapEnd.End)
         mate = doc.insert(Node.mate(face, face, ContactClass.Rest, seat(POST_SEAT, POST_SEAT)))
         fault = solve_document(doc).fault(mate)
         # A pair is two instances; a self-mate constrains nothing and
@@ -614,7 +614,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         doc, post_i, shelf_i = self.two_instances()
         ev = evaluate(doc, resolver=self.ws)
         edge = sorted(ev.all_edges(post_i))[0]
-        bottom = one(ev.select(shelf_i, cap_selector(CapEnd.Bottom, [SegTag.InPart])))
+        bottom = one(ev.select(shelf_i, cap_selector(CapEnd.Start, [SegTag.InPart])))
         mate = doc.insert(
             Node.mate(edge, bottom, ContactClass.Rest, seat(POST_SEAT, SEAT_A))
         )

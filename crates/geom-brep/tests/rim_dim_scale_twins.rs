@@ -58,7 +58,6 @@ use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::props::{LoopEdge, curved_face};
-use geom_core::Band;
 use geom_core::k_stats::{self, Probe};
 
 /// `cone_trunc`'s proportions at `scale` metres per source-unit:

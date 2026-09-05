@@ -704,9 +704,9 @@ impl<T: Decide> EdgeCurve<T> {
     ///      (definitely transverse required), metered through the
     ///      edge's honest extent ([`edge_extent`] — carrier diameter,
     ///      not the collapsing chord, for closed circle carriers).
-    ///    - `MappedCurve`: `|carrier(t_i) − description(i/8)|`.
-    ///    - `Seam`: implicit residual, halfplane residual `|w·v_ref|`,
-    ///      wrong-side excess `max(0, −w·u_ref)`.
+    ///    - `Scaffold` (a mapped source): `|carrier(t_i) − description(i/8)|`.
+    ///    - a `Chart` curve flagged `seam`: implicit residual, halfplane
+    ///      residual `|w·v_ref|`, wrong-side excess `max(0, −w·u_ref)`.
     /// 5. `Intersection`: the witness's implicit residuals vs both
     ///    surfaces, then the **mid-parameter pin**
     ///    `|carrier((t₀+t₁)/2) − witness| ≤ ε`
@@ -762,6 +762,64 @@ impl<T: Decide> EdgeCurve<T> {
     ) -> Result<Certificate<T>, CertifyError> {
         run_checks(&self.spec(), start, end, &surfaces, None, band).map(|(cert, _)| cert)
     }
+
+    /// [`EdgeCurve::recertify`] with the plane × NURBS lane
+    /// ([`NurbsLane`]) taken as an ARGUMENT rather than read off the
+    /// scalar — the one door for a pass whose own bound says nothing
+    /// about certification rights.
+    ///
+    /// `None` re-derives exactly what [`EdgeCurve::recertify`] does;
+    /// `Some` re-derives exactly what [`EdgeCurve::recertify_nurbs_lane`]
+    /// does. The two named doors are this one with the argument
+    /// filled in, and the caller that can name the certified body is
+    /// the caller that supplies it.
+    ///
+    /// A caller holding `None` over an edge of the M7-8 class gets
+    /// [`CertifyError::Unimplemented`] — the class certifies only
+    /// through the lane, and there is no third outcome (see
+    /// [`NurbsLane`]). [`EdgeCurve::needs_nurbs_lane`] is how a pass
+    /// asks that question before it decides whether it is entitled to
+    /// make the claim at all.
+    ///
+    /// # Errors
+    ///
+    /// As [`EdgeCurve::recertify`], plus the lane's own refusals when
+    /// one is injected.
+    pub fn recertify_via(
+        &self,
+        start: Point3<T>,
+        end: Point3<T>,
+        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+        band: Band,
+        nurbs_lane: Option<NurbsLane<'_, T>>,
+    ) -> Result<Certificate<T>, CertifyError> {
+        run_checks(&self.spec(), start, end, &surfaces, nurbs_lane, band).map(|(cert, _)| cert)
+    }
+
+    /// Whether re-deriving this edge's certificate needs the injected
+    /// plane × NURBS lane (M7-8): an `Intersection` of a PLANE and a
+    /// described NURBS wall, the one class no door certifies without
+    /// it.
+    ///
+    /// The pairing rule is `run_checks`' own, asked here rather than
+    /// restated by a caller — a pass that cannot supply the lane needs
+    /// to distinguish *"this edge's claim is outside my rights"* from
+    /// *"this edge failed"*, and those are the same
+    /// [`CertifyError::Unimplemented`] after the fact.
+    ///
+    /// **It is the same rule and not a copy of it**: this function and
+    /// the resolver both call `plane_nurbs_pair`, which is the ONE home
+    /// of "a plane and a described NURBS wall", so the two cannot drift
+    /// on the pairing. What a reader must also hold is not a second
+    /// rule but this module's stated contract at [`NurbsLane`] — that
+    /// the class certifies through the lane and there is no third
+    /// outcome — which is why `true` here means `Unimplemented` there.
+    pub fn needs_nurbs_lane(&self, surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>) -> bool {
+        let EdgeDescription::Intersection { s1, s2, .. } = self.description else {
+            return false;
+        };
+        plane_nurbs_pair(surfaces(s1), surfaces(s2)).is_some()
+    }
 }
 
 /// The **injected plane × NURBS lane** — the one certification duty
@@ -770,9 +828,9 @@ impl<T: Decide> EdgeCurve<T> {
 /// Limb 2 and limb 3 of the plane × NURBS certificate are C9-ring hull
 /// bounds and the foot point is a bracket read, so the honest
 /// derivation needs `T: Decide + Bounds + CertifiedEnclosure`
-/// ([`crate::EdgeNurbsLane`]'s static split — since #643 the ring door
-/// is `CertifiedEnclosure`, which is what a `Dual` lacks; it has had
-/// `Bounds` since D1, 2026-08-19). Raising `certify`'s own
+/// ([`crate::plane_nurbs_limbs`]'s own bound — since #643 the ring
+/// door is `CertifiedEnclosure`, which is what a `Dual` lacks; it has
+/// had `Bounds` since D1, 2026-08-19). Raising `certify`'s own
 /// bound would push `Bounds` through every `T: Decide` signature in
 /// `topo` — hundreds of them, for a capability three of the four
 /// sealed scalars have unconditionally. So the capability is
@@ -793,7 +851,7 @@ pub type NurbsLane<'a, T> = &'a dyn Fn(
     crate::edge_nurbs::PlaneNurbsRefusal,
 >;
 
-impl<T: crate::edge_nurbs::EdgeNurbsLane> EdgeCurve<T> {
+impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// [`EdgeCurve::certify`] **with the plane × NURBS lane wired in**
     /// ([`NurbsLane`]): the door for callers whose scalar can derive
     /// the declare-and-check certificate of an `Intersection` between
@@ -819,7 +877,7 @@ impl<T: crate::edge_nurbs::EdgeNurbsLane> EdgeCurve<T> {
             start,
             end,
             &surfaces,
-            Some(&T::plane_nurbs_limbs),
+            Some(&crate::edge_nurbs::plane_nurbs_limbs::<T>),
             band,
         )?;
         Ok(Self {
@@ -845,15 +903,13 @@ impl<T: crate::edge_nurbs::EdgeNurbsLane> EdgeCurve<T> {
         surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
         band: Band,
     ) -> Result<Certificate<T>, CertifyError> {
-        run_checks(
-            &self.spec(),
+        self.recertify_via(
             start,
             end,
-            &surfaces,
-            Some(&T::plane_nurbs_limbs),
+            surfaces,
             band,
+            Some(&crate::edge_nurbs::plane_nurbs_limbs::<T>),
         )
-        .map(|(cert, _)| cert)
     }
 }
 
@@ -1681,12 +1737,15 @@ fn run_checks<T: Decide>(
                 )?;
                 if i > 0 && i < CERT_SAMPLES - 1 {
                     let tau = spec.carrier.deriv(sample_param(t0, t1, i));
-                    let jet = crate::tangent::tangent_jet(surf1, surf2, p, tau);
-                    let arm = crate::implicit::curvature_lever_arm(surf1, p)
-                        .min(crate::implicit::curvature_lever_arm(surf2, p))
-                        .min(extent);
-                    let so_margin = Margin::sagitta(jet.kappa_rel.abs(), arm);
-                    match decide("tangent_second_order", so_margin, band) {
+                    // The must-carry rule's one spelling
+                    // (`crate::tangent_second_order`): the constructor
+                    // that stores a `TangentIntersection` and this
+                    // certificate that accepts one must read the same
+                    // sagitta under the same predicate name, or the
+                    // stored set and the certified set are two sets.
+                    let so = crate::tangent_second_order(surf1, surf2, p, tau, extent, band);
+                    let (jet, arm) = (so.jet, so.arm);
+                    match so.verdict {
                         Ok(Sign::Positive) => {}
                         // A magnitude margin: Zero is the G2/osculating
                         // zero-side (typed, definite); Negative is

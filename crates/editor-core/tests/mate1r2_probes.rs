@@ -333,8 +333,8 @@ fn r2_oblique_circular_conjugation_at_a_placed_cluster_frame() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 1, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -411,8 +411,8 @@ fn r2_consistent_loop_still_verifies_under_a_placed_cluster_frame() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 0, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 0, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -422,8 +422,8 @@ fn r2_consistent_loop_still_verifies_under_a_placed_cluster_frame() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 1, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -495,8 +495,8 @@ fn r2_two_patterns_tree_edge_composes_both_offsets() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(p1, 1, in_part(leg1, CapEnd::Top)),
-                in_copy(p2, 1, in_part(leg2, CapEnd::Bottom)),
+                in_copy(p1, 1, in_part(leg1, CapEnd::End)),
+                in_copy(p2, 1, in_part(leg2, CapEnd::Start)),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -553,8 +553,8 @@ fn r2_patterned_member_as_tree_child_uses_the_inverse_offset() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 1, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -609,8 +609,8 @@ fn r2_out_of_range_copy_on_a_declaring_mate_still_refuses_somewhere() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 0, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 0, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -620,8 +620,8 @@ fn r2_out_of_range_copy_on_a_declaring_mate_still_refuses_somewhere() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 5, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 5, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -692,8 +692,8 @@ fn r2_nested_pattern_head_refuses_dangling() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(outer, 1, in_copy(inner, 1, in_part(leg, CapEnd::Top))),
-                in_part(top, CapEnd::Bottom),
+                in_copy(outer, 1, in_copy(inner, 1, in_part(leg, CapEnd::End))),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -732,8 +732,8 @@ fn r2_plain_document_pose_bits() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_part(ia, CapEnd::Top),
-                in_part(ib, CapEnd::Bottom),
+                in_part(ia, CapEnd::End),
+                in_part(ib, CapEnd::Start),
                 [0.25, 0.5, 1.0],
                 AxisSense::Opposed,
             ),
@@ -743,8 +743,8 @@ fn r2_plain_document_pose_bits() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_part(ib, CapEnd::Top),
-                in_part(ic, CapEnd::Bottom),
+                in_part(ib, CapEnd::End),
+                in_part(ic, CapEnd::Start),
                 [0.75, 0.125, 1.0],
                 AxisSense::Aligned,
             ),

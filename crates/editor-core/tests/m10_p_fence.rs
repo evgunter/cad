@@ -36,6 +36,24 @@
 //! covers the three scalars the review names rather than the value lane
 //! alone.
 //!
+//! **ALL THREE NUMBERS MOVED AT DOCM-3, AND FOR A STRUCTURAL REASON,
+//! not a numeric one.** This digest hashes each node's OUTCOME and the
+//! bits of every point, over the registry in registry order — so it is
+//! a function of how many nodes a document has as much as of what they
+//! compute. `die_composed_tour`'s cutting tool became one
+//! `Node::Union` over its 21 pips instead of twenty chained pairwise
+//! unions, and the document went from 51 nodes to 32: nineteen node
+//! outcomes left the stream, and the digest moved because the stream
+//! is shorter. The GEOMETRY did not move, and that is asserted rather
+//! than argued — `docm3_union::the_dies_union_is_the_chain_it_replaced`
+//! builds the fold and the chain in one document at one scalar and
+//! compares them face for face, edge for edge and description bits for
+//! description bits. The `probe` row moved with the `f64` row and
+//! stayed equal to it, which is the property that row exists for. The
+//! `interval` row moved for the same structural reason and was read
+//! off the hosted `interval` lane, which is the only place this
+//! workspace builds that backend.
+//!
 //! THE INTERVAL NUMBER MOVED ONCE FOR THE AZIMUTH CONSOLIDATION, and
 //! the `f64` one did not. Point parameter recovery on a periodic
 //! carrier used to be spelled three times, two of them SELECTING a `2π`
@@ -201,6 +219,36 @@
 //!   committed constants of the tree it landed on, and the rows came
 //!   back GREEN against them. `lib_g16_corpus_name_digests` agrees
 //!   the finer way — every pre-existing per-document row unchanged.
+//!
+//! - DOCM-1 added `face_sketch`, the first document drawing on a
+//!   frame DERIVED from a face (`Datum::FaceFrame`), so the derived
+//!   frame's placement-at-the-lane path (DM1c) is walked by the
+//!   corpus rows. Removing it alone returned `f64`/`probe`
+//!   `612fd4698aed100f, b11573030542bef3` and `interval`
+//!   `da980271d61512d8, c35c2a2b2d3f791c` — the committed constants of
+//!   the tree it landed on, and both rows came back GREEN against
+//!   them (the probe row is `f64` bitwise and takes the `f64` pair).
+//!   `lib_g16_corpus_name_digests` agrees the finer way — every
+//!   pre-existing per-document row unchanged, one row added. The
+//!   pairs moved once more within the same unit when `face_sketch`
+//!   gained a non-zero spin (its review's A3 finding): the document's
+//!   own geometry, the removal returning to the same constants.
+//!
+//! - DOCM-2 added `part_select`, the first document that takes ONE
+//!   body out of a multi-body value (`Node::Part`): a split's two
+//!   halves unioned back together and a pattern's middle instance
+//!   placed. Removing it alone returned `f64`/`probe`
+//!   `d4fd1ccc2e6d8886, 8d78a6930d6c9102` and `interval`
+//!   `0cf7de91f6a41015, eb2817baa67d6be1` — the committed constants
+//!   of the tree it landed on, and all three rows came back GREEN
+//!   against them, the probe row executed. That removal is also the
+//!   receipt for two changes the unit made on the path every other
+//!   document walks: `wire_split` stamping both halves in one source
+//!   index space, and the same-source debug assertions reading a
+//!   channel-less scalar as no evidence — neither moved a coordinate
+//!   of any pre-existing document. `lib_g16_corpus_name_digests`
+//!   agrees the finer way — every pre-existing per-document row
+//!   unchanged, one row added.
 //!
 //! The M10-2, SEAT-5 and LIB-TUBE measurements are the strongest of
 //! the five, for a reason worth stating: in each, the roster minus the
@@ -538,7 +586,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x84d0_1f5a_a8fc_46bb, 0x628f_1718_c78e_ff37),
+        (0x4c0b_959f_cd01_111a, 0xaba4_fe4b_d1a3_9abe),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -565,7 +613,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x429b_b854_4165_fe04, 0xb1ba_b6fa_d216_5b10),
+        (0x6d67_2006_02b1_eb59, 0x8db8_1b54_bed0_d26d),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -589,7 +637,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x84d0_1f5a_a8fc_46bb, 0x628f_1718_c78e_ff37),
+        (0x4c0b_959f_cd01_111a, 0xaba4_fe4b_d1a3_9abe),
         "the corpus's Probe evaluation moved"
     );
 }

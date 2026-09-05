@@ -15,12 +15,98 @@ use geom_core::Tol;
 use geom_core::{Point2, Real};
 use profile::RawLoop;
 use profile::{
-    ArcSweep, ClosedLoop, Open, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start,
+    ArcSweep, ClosedLoop, CornerReason, CornerRefusal, FilletLeg, FilletLegCarrier, Open,
+    PathError, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start,
 };
 
 /// A point in the profile frame, from its two coordinates.
 pub fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
+}
+
+/// **The one accessor**: a refusal's corner entries, in the order the
+/// kernel reported them (nearest the bracketing anchors first), or the
+/// EMPTY SLICE for a refusal that is not the envelope.
+///
+/// Total on purpose, so the searching helpers below and the sweep rows
+/// that ask "did some corner refuse this way" can call it on an
+/// arbitrary refusal. A row that needs the SHAPE asserts it — the
+/// length, and which corner each entry names — and every such
+/// assertion carries the refusal in its message, so an empty slice
+/// reads as the wrong refusal rather than as a silent zero.
+pub fn corners<T: Real>(err: &PathError<T>) -> &[CornerRefusal<T>] {
+    match err {
+        PathError::NoCornerOfPair { corners, .. } => corners,
+        _ => &[],
+    }
+}
+
+/// **Which corners the refusal is about, exactly.**
+///
+/// Asserts the envelope's LENGTH and each entry's point, in the order
+/// reported. A row whose subject is attribution — which corner refused,
+/// and whether the other one is listed beside it — has to say both: an
+/// existential "some entry refused this way" passes on an envelope that
+/// names the wrong corner, which is the defect the envelope exists to
+/// remove.
+#[track_caller]
+pub fn assert_corners(err: &PathError<f64>, want: &[(f64, f64)], what: &str) {
+    let got: Vec<(f64, f64)> = corners(err).iter().map(|c| (c.at.x, c.at.y)).collect();
+    assert_eq!(
+        got.len(),
+        want.len(),
+        "{what}: the envelope lists {got:?}, not {want:?} — refusal {err:?}"
+    );
+    for (i, (g, w)) in got.iter().zip(want).enumerate() {
+        let off = (g.0 - w.0).hypot(g.1 - w.1);
+        let scale = w.0.hypot(w.1).max(1.0);
+        assert!(
+            off <= 1e-9 * scale,
+            "{what}: entry {i} names {g:?}, not {w:?} (off by {off}) — refusal {err:?}"
+        );
+    }
+}
+
+/// Whether ANY entry of the envelope refused for the named shape.
+pub fn any_reason<T: Real>(err: &PathError<T>, pred: impl Fn(&CornerReason<T>) -> bool) -> bool {
+    corners(err).iter().any(|c| pred(&c.reason))
+}
+
+/// The first entry refusing with the enclosing class, as its payload.
+pub fn enclosing<T: Real>(err: &PathError<T>) -> Option<(Option<FilletLeg>, T, T, Option<T>)> {
+    corners(err).iter().find_map(|c| match &c.reason {
+        CornerReason::EnclosesLegCarrier {
+            side,
+            carrier_radius,
+            offset_radius,
+            largest_tangent_radius,
+        } => Some((
+            *side,
+            *carrier_radius,
+            *offset_radius,
+            *largest_tangent_radius,
+        )),
+        _ => None,
+    })
+}
+
+/// The first entry refusing on the anchor fit, as its payload.
+pub fn anchor_fit<T: Real>(err: &PathError<T>) -> Option<(FilletLeg, FilletLegCarrier, T, T)> {
+    corners(err).iter().find_map(|c| match &c.reason {
+        CornerReason::AnchorOutsideTrimmedExtent {
+            side,
+            carrier,
+            setback,
+            available,
+        } => Some((*side, *carrier, *setback, *available)),
+        _ => None,
+    })
+}
+
+/// Whether some corner of the envelope refused with the enclosing
+/// class.
+pub fn is_enclosing<T: Real>(err: &PathError<T>) -> bool {
+    enclosing(err).is_some()
 }
 
 /// The run's tolerance (env-driven; the multi-ε matrix parameterizes

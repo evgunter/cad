@@ -59,6 +59,9 @@
 //! ([`BlendEvent::TargetLost`]). Nothing here is silent: every drop is
 //! a typed event the chrome shows, and the count the panel reads is
 //! the count a commit would author.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use std::collections::BTreeSet;
 

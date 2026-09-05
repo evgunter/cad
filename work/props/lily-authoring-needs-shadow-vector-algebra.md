@@ -1,8 +1,9 @@
 ---
 id: lily-authoring-needs-shadow-vector-algebra
-kind: issue
+kind: unit
 title: API friction — authoring the lily naturally meant building a shadow vector algebra beside Vec3
-status: open
+status: spec
+branch: props/lily-vec3
 opened: 2026-08-20
 github: 796
 refs: [757, 758, 759, 787, D79]
@@ -52,6 +53,36 @@ Either a door (or three) that makes the tuple detour unattractive, and `lily.rs`
 **Not fixed in #787** — that lane's scope is `demos/`, and rewriting the lily's algebra is neither a style fix nor its call to make.
 
 — Claude (smell-scan Track G, lane G-b)
+
+## Decided (PROPS orchestrator, 2026-09-05 — a read-only census)
+
+**No `Vec3` door is missing.** Every tuple helper in `lily.rs` has an
+exact door today: `nrm` → `Vec3::normalize`; `v_len`/`v_dot`/`v_cross`/
+`v_sub` → `norm`/`dot`/`cross`/`Sub`; `blade_frame`'s Gram–Schmidt →
+`reject_from` then `normalize` then `cross`; `rot` (a rotation in the
+xz-plane) → `Mat3::rotation_about(unit_y, a)` applied to the lifted
+vector. The frame-from-an-axis builders pin `e1` to a scene convention
+(the xz-plane) that no kernel door should choose for the caller, and
+they are two lines of `cross`/`normalize` each.
+
+**The friction is real and it is not a door**: `lily` is generic over
+`S: Scalar` (transitively `Real`), the scene is described in `f64`
+literals and `f64` trig, and `Real` has no mixed-scalar arithmetic, so
+authoring straight into `Vec3<S>` puts `S::from_f64` on every literal —
+which is what pushed the author to tuples. The right layer is the one
+the author found: **compose the scene at `f64`, lift at the API
+boundary** — but in `Vec3<f64>`/`Point3<f64>` with the kernel's own
+doors, lifted through `Vec3::map(S::from_f64)`, not in bare tuples.
+`skinned.rs`'s `normal_start_place` already does the same frame
+construction in `Vec3<f64>`, non-generically, which is the shape the
+whole tour should share.
+
+**The unit** (`docs/PROPS-LILY-VEC3-SPEC.md`): rewrite `lily.rs`'s
+authoring half through the doors above, delete the tuple algebra, and
+state the layer rule at the file header in one paragraph. That is the
+check the item asked for. At landing, `D79`'s member (b) is deleted
+member by member (the row keeps (f), parked on `L2`); this item closes.
+An E rider: single style review, outside the A/B experiment.
 
 ## Home
 

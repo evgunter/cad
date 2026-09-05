@@ -44,12 +44,14 @@ use super::surgery::{
 use super::{BlendError, CornerConfig};
 
 /// **A chain admitted through the open-chain door**: exactly one link,
-/// plane–plane supports.
+/// whose arm is plane–plane (the band between trivalent corners) or
+/// ruled (the cylinder band between transverse caps).
 ///
 /// [`AdmittedOpen::admit`] is the only way to obtain one, and it is the
 /// door — the two refusals it raises are the surgery's own
 /// open-chain frontier. Everything downstream that used to re-test one
-/// of those properties takes this instead.
+/// of those properties takes this instead; which of the two bands a
+/// holder carves is read off the link's arm.
 ///
 /// The token does not name a convexity, because no admission clause
 /// reads one: the chamfer's strip and flat corner patch carry no
@@ -76,8 +78,8 @@ impl<'a, T: Real> AdmittedOpen<'a, T> {
     /// # Errors
     ///
     /// [`BlendError::UnsupportedChain`] when the chain has more than
-    /// one link (junction carry-through), or when its supports are not
-    /// plane–plane.
+    /// one link (junction carry-through), or when its arm is neither
+    /// plane–plane nor ruled.
     pub(super) fn admit(chain: &'a Chain<T>) -> Result<Self, BlendError> {
         let link = chain.first();
         if !chain.rest().is_empty() {
@@ -87,15 +89,20 @@ impl<'a, T: Real> AdmittedOpen<'a, T> {
                  carry-through, which is not implemented",
             ));
         }
-        // The two RULED arms reach here with an exact cylinder band and
-        // straight trimlines, and still refuse: what is missing is the
-        // carve, whose terminations are OQ6's reserved run-out taxonomy
-        // (tracked as #987), not the arm.
-        if !link.arm.is_plane_plane() {
+        // Two open bands are built, and the door admits exactly those:
+        // the plane–plane link, terminating in trivalent corners the
+        // corner patch fills, and the RULED link — a cylinder band
+        // about a straight spine over supports sharing the ruling —
+        // terminating in transverse caps the band is cut off at. The
+        // battery's predicate 6 has already classified each end as
+        // the one its arm needs; a coaxial torus arm on an open arc has
+        // neither termination and refuses here.
+        if !(link.arm.is_plane_plane() || link.arm.is_ruled()) {
             return Err(unbuilt_chain(
                 link.edge,
-                "an open chain's supports are not plane–plane (the trivalent \
-                 corner patch is the only termination built)",
+                "an open chain's supports are neither plane–plane nor a ruled cylinder \
+                 pair (the trivalent corner patch and the transverse cut-off are the only \
+                 terminations built)",
             ));
         }
         // No convexity clause, and no verb: neither band asks for

@@ -22,7 +22,7 @@
 //! 2. **the leaf's CERTIFYING verdict vector equals the witness
 //!    build's, EXACTLY** — same nodes, same outcomes, same predicates,
 //!    same signs, in order. "Certifying" is one exclusion and it is
-//!    named at [`VerdictVector::certifying`]: an `Assertion` node
+//!    named at [`crate::drive::certifying_vector`]: an `Assertion` node
 //!    reports and gates nothing (E10 v1), and certification is a gate,
 //!    so its rows are not in the comparison.
 //!
@@ -91,7 +91,6 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom_core::interval::Interval;
-use geom_core::k_stats::Verdict;
 use geom_core::{MarginDiag, Sym, SymCounts, Tol};
 
 #[cfg(feature = "probe")]
@@ -105,6 +104,10 @@ use crate::eval::{
 use crate::node::{Node, RecipeNodeId};
 use crate::program::ProfileProgram;
 use crate::resolve::{FlipSet, diff_verdicts};
+// The two derived verdict forms live in one module (`resolve::vdiff`);
+// this driver is the strict form's certifying consumer, and names it at
+// `drive::` because that is where every consumer already reaches for it.
+pub use crate::resolve::{VerdictRow, VerdictVector, VerdictVectorKey};
 use crate::witness::WitnessBifurcation;
 
 /// The per-axis split budget: how many times ONE axis of the box may be
@@ -351,166 +354,34 @@ impl Default for DriveConfig {
     }
 }
 
-/// How one node's replay came out, as scalar-independent data.
+/// **The CERTIFYING vector**: [`VerdictVector::of`] with the rows of
+/// nodes that only report left out.
 ///
-/// The verdict rows alone do not separate "this node built and decided
-/// nothing" from "this node failed before deciding anything", and a
-/// certificate that could not tell those apart would certify a leaf
-/// whose build refused. The tag closes that.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReplayOutcome {
-    /// The node produced a value.
-    Built,
-    /// The node itself refused.
-    Refused,
-    /// An ancestor refused; this node never ran.
-    Poisoned,
-}
-
-/// One node's row of a [`VerdictVector`].
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VerdictRow {
-    /// The node.
-    pub node: RecipeNodeId,
-    /// How its replay came out.
-    pub outcome: ReplayOutcome,
-    /// Every definite decision it made, in decision order.
-    pub verdicts: Vec<Verdict>,
-}
-
-/// An evaluation's verdict vector: one [`VerdictRow`] per node, in the
-/// evaluation's deterministic order.
+/// A free function and not a method on the strict form: the form is
+/// `resolve::vdiff`'s, beside the population form it is the counterpart
+/// of, and WHICH ROWS A GATE EXCLUDES is this driver's policy. One node
+/// kind qualifies and it is [`Node::Assertion`], whose contract is that
+/// nothing downstream reads its verdict — "no gate consults it" (E10
+/// v1: assertions report; a gating mode is additive policy nobody has
+/// ratified), and certification IS a gate. The measure node itself is
+/// NOT dropped: a leaf where the measurement could not be taken is not
+/// the witness build, and that difference stays in the comparison.
 ///
-/// Float-free, so equality is exact and means what it says. This is the
-/// object leaf certification compares, and the ONLY thing it compares.
-///
-/// # Why this is not `resolve::vdiff`'s `NodeVerdicts`
-///
-/// Two shapes, two questions, and the driver asks both.
-///
-/// - **"Is this leaf the witness build?"** wants the STRICTEST
-///   available test, because a false yes is a false certificate. Order
-///   included, outcome tags included, no cancellation anywhere: that is
-///   this type, and it is what [`drive`] gates on.
-/// - **"What differs, and what should the report call it?"** wants a
-///   test that survives permutation, because construction order inside
-///   an op is itself predicate-steered — `vdiff`'s populations, which
-///   [`FlipEvidence`] carries verbatim.
-///
-/// The population form is deliberately WEAKER (a pure sign exchange in
-/// one node nets to nothing), so it can name but must not gate; this
-/// form cannot explain a difference it detects, so it gates but does
-/// not name. Neither subsumes the other. `NodeVerdicts` is `vdiff`'s
-/// own serializable spelling of its population form, so the tree
-/// carries two derived shapes over one substrate rather than three
-/// unrelated ones. Whether the split should stay a split is issue
-/// #1255, filed so it is a decision on the record.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct VerdictVector {
-    /// The rows, in evaluation order.
-    pub rows: Vec<VerdictRow>,
-}
-
-impl VerdictVector {
-    /// The vector of an evaluation, in its own `order`.
-    pub fn of<T: geom_core::Decide>(ev: &Evaluation<T>) -> Self {
-        let rows = ev
-            .order
-            .iter()
-            .map(|&node| {
-                let (outcome, verdicts) = match ev.nodes.get(&node) {
-                    Some(NodeResult::Ok(v)) => (ReplayOutcome::Built, v.verdicts.to_vec()),
-                    Some(NodeResult::Failed(_)) => (ReplayOutcome::Refused, Vec::new()),
-                    // A node with no entry at all (a canceled prefix)
-                    // has run nothing, which is what `Poisoned` says
-                    // about the rows below it too.
-                    Some(NodeResult::Poisoned { .. }) | None => {
-                        (ReplayOutcome::Poisoned, Vec::new())
-                    }
-                };
-                VerdictRow {
-                    node,
-                    outcome,
-                    verdicts,
-                }
-            })
-            .collect();
-        Self { rows }
-    }
-
-    /// **The CERTIFYING vector**: [`Self::of`] with the rows of nodes
-    /// that only report left out.
-    ///
-    /// One node kind qualifies and it is [`Node::Assertion`], whose own
-    /// contract is that nothing downstream reads its verdict — "no gate
-    /// consults it" (E10 v1: assertions report; a gating mode is
-    /// additive policy nobody has ratified). Certification IS a gate,
-    /// and it was consulting it.
-    ///
-    /// **What that cost, measured on the case this unit needed.** An
-    /// assertion decides `measured − bound` at the `assert_bound`
-    /// funnel site. At the f64 witness that comparand is a number and
-    /// the site records a definite verdict; over a leaf it is an
-    /// enclosure, and an enclosure STRADDLING the bound records nothing
-    /// (the verdict is `Unevaluated`, which is exactly E10's third
-    /// state doing its job). The two rows then differ, so the leaf was
-    /// refused `FlipCrossing` and priced as refused mass — a report
-    /// node reported as a change of SHAPE, on the very documents E10
-    /// exists for: a bound near the measured value is the ordinary
-    /// case, not a pathological one. The `min_clearance` measure this
-    /// unit adds makes it unconditional rather than occasional, because
-    /// its value exists only at the interval scalar
-    /// ([`crate::measure::MeasurePrimitive::MinClearance`]), so its
-    /// assertion is `Unevaluated` at EVERY f64 witness.
-    ///
-    /// **What is NOT dropped**: the measure node itself. A measurement
-    /// can escalate a parallelism predicate or fail to be taken at all,
-    /// and a leaf where the measurement could not be taken is not the
-    /// witness build — that difference is a real one and stays in the
-    /// comparison.
-    pub fn certifying<T: geom_core::Decide, P>(doc: &Doc<P>, ev: &Evaluation<T>) -> Self {
-        let mut vector = Self::of(ev);
-        vector
-            .rows
-            .retain(|row| !matches!(doc.node(row.node), Some(Node::Assertion { .. })));
-        vector
-    }
-
-    /// The vector's content key — the `verdict_vector_key` a certified
-    /// leaf carries. Derived, never persisted (E10).
-    pub fn key(&self) -> VerdictVectorKey {
-        let mut h = KeyHasher::new();
-        h.write_tag(0xE6);
-        h.write_u64(self.rows.len() as u64);
-        for row in &self.rows {
-            h.write_u64(row.node.0);
-            h.write_tag(match row.outcome {
-                ReplayOutcome::Built => 1,
-                ReplayOutcome::Refused => 2,
-                ReplayOutcome::Poisoned => 3,
-            });
-            h.write_u64(row.verdicts.len() as u64);
-            for v in &row.verdicts {
-                h.write_str(v.predicate);
-                h.write_tag(sign_tag(v.sign));
-            }
-        }
-        VerdictVectorKey(h.finish().0)
-    }
-}
-
-/// The identity of a [`VerdictVector`] — what a certified leaf carries
-/// instead of a copy of the vector, since every certified leaf's vector
-/// is the witness's by definition.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct VerdictVectorKey(pub u128);
-
-fn sign_tag(s: geom_core::Sign) -> u8 {
-    match s {
-        geom_core::Sign::Negative => 1,
-        geom_core::Sign::Zero => 2,
-        geom_core::Sign::Positive => 3,
-    }
+/// No row this returns carries [`crate::resolve::RunStatus::Absent`].
+/// Every `evaluate` in this module runs on a fresh [`CancelToken`], so
+/// no run here has a canceled prefix, and [`drive`] refuses
+/// [`DriveRefusal::WitnessDoesNotBuild`] unless every node of the
+/// witness's `order` is `Ok`. A consumer that takes
+/// [`VerdictVector::of`] over some other evaluation can see `Absent`.
+pub fn certifying_vector<T: geom_core::Decide, P>(
+    doc: &Doc<P>,
+    ev: &Evaluation<T>,
+) -> VerdictVector {
+    let mut vector = VerdictVector::of(ev);
+    vector
+        .rows
+        .retain(|row| !matches!(doc.node(row.node), Some(Node::Assertion { .. })));
+    vector
 }
 
 /// **The flip evidence a [`RefusalReason::FlipCrossing`] carries.**
@@ -817,7 +688,7 @@ impl ParamBoxVerdict {
     /// The witness build's CERTIFYING verdict vector — the thing every
     /// certified leaf's vector was compared against, shipped once.
     ///
-    /// [`VerdictVector::certifying`]'s, not [`VerdictVector::of`]'s: it
+    /// [`certifying_vector`]'s, not [`VerdictVector::of`]'s: it
     /// carries no `Assertion` row, because a report node's verdict is
     /// not part of what certification means. A consumer who wants the
     /// whole vector of an evaluation takes `of` over that evaluation.
@@ -1181,7 +1052,7 @@ pub fn drive(
             .map_or_else(|| "not evaluated".to_owned(), |e| e.kind.to_string());
         return Err(DriveRefusal::WitnessDoesNotBuild { node, cause });
     }
-    let witness_vector = Arc::new(VerdictVector::certifying(doc, &witness));
+    let witness_vector = Arc::new(certifying_vector(doc, &witness));
     let witness_key = witness_vector.key();
     // The witness EVALUATION stays alive for the whole drive, not just
     // long enough to take its vector: `diff_verdicts` names a leaf's
@@ -1575,8 +1446,8 @@ fn classify_replay<T: geom_core::Decide>(
 
     // (ii) The comparison. EXACT, on the CERTIFYING verdict vector —
     // never a width, and never a report node
-    // ([`VerdictVector::certifying`]).
-    let vector = VerdictVector::certifying(doc, leaf);
+    // ([`certifying_vector`]).
+    let vector = certifying_vector(doc, leaf);
     if structure_flips.is_empty() && vector == *witness_vector {
         return LeafVerdict::Certified(CertifiedLeaf {
             box_: box_.clone(),
@@ -1597,7 +1468,7 @@ fn classify_replay<T: geom_core::Decide>(
     // NODES the comparison above does not read.
     //
     // **Why the evidence has to be filtered the same way** (M10-6,
-    // both reviews). `certifying` retains no `Assertion` row, so an
+    // both reviews). `certifying_vector` retains no `Assertion` row, so an
     // assertion's `assert_bound` flip cannot be why this leaf refused
     // — the comparison never looked at it. Left in, the evidence names
     // a predicate that did not cause the refusal, on exactly the
@@ -1609,7 +1480,7 @@ fn classify_replay<T: geom_core::Decide>(
     // It is a projection of the engine's answer onto the nodes the
     // question is about, not a second diff: the engine still runs over
     // the whole evaluation, its per-node deltas come back unaltered,
-    // and the filter is the SAME predicate `certifying` uses, spelled
+    // and the filter is the SAME predicate `certifying_vector` uses, spelled
     // once here so the two cannot drift.
     let mut verdicts = diff_verdicts(witness, leaf);
     verdicts

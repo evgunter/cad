@@ -9,7 +9,7 @@
 //!
 //! 1. `the_certifying_filter_changes_a_pre_m10_6_documents_drive` — the
 //!    unit's claim 1 is "zero impact for documents without a
-//!    `min_clearance` measure". `VerdictVector::certifying` drops
+//!    `min_clearance` measure". `drive::certifying_vector` drops
 //!    `Assertion` rows from the certification comparison, which is a
 //!    change to `drive` for EVERY assertion-carrying document, and this
 //!    row exhibits one whose leaves certify only because of it.
@@ -35,7 +35,7 @@ use std::collections::BTreeMap;
 
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box, sample_offset};
 use editor_core::clearance::{MinSepSelection, MinSeparationConfig, min_separation};
-use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, drive};
+use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_vector, drive};
 use editor_core::mc::{McConfig, monte_carlo};
 use editor_core::report::{Dials, report_key};
 use editor_core::{
@@ -175,7 +175,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
 ///
 /// `drive` compares each leaf's verdict vector against the witness's.
 /// Before this unit that comparison was `VerdictVector::of`; this unit
-/// silently narrows it to `VerdictVector::certifying`, which drops
+/// silently narrows it to `drive::certifying_vector`, which drops
 /// `Assertion` rows. The narrowing is not disclosed in the PR's
 /// deviation table, and it moves the drive of any document carrying an
 /// assertion — a class that contains no `min_clearance` at all.
@@ -189,7 +189,7 @@ fn the_certifying_filter_changes_a_pre_m10_6_documents_drive() {
     let (doc, assertion) = straddling_assertion();
     let witness: editor_core::Evaluation<f64> = eval_over(&doc, None);
     let full = VerdictVector::of(&witness);
-    let certifying = VerdictVector::certifying(&doc, &witness);
+    let certifying = certifying_vector(&doc, &witness);
     assert_ne!(
         full.key(),
         certifying.key(),

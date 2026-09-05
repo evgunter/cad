@@ -1009,10 +1009,11 @@ pub fn wall_probes<S: Scalar + CertifiedBounds>(tol: Tol) {
             )
         },
         "record that the writer's outward/void classifier grew a curved arm, update \
-         findings entry 7 (the O6 demo-gates list row), and retire the `ring` and \
-         `tubewall::hollowtorus` scenes' `step_at_frontier` declarations, which pin this \
-         same refusal on the rendered hollow ring and on the parameter door's hollow \
-         torus — one gate, three probes, retiring together",
+         findings entry 7 (the O6 demo-gates list row), and retire the `ring`, \
+         `tubewall::hollowtorus` and `torusvessel` scenes' `step_at_frontier` \
+         declarations, which pin this same refusal on the rendered hollow ring, on the \
+         parameter door's hollow torus and on the shelled torus-walled vessel — one \
+         gate, four probes, retiring together",
     );
 
     // Wall 7 is RETIRED, per its own instruction: `mesh::planar`'s
@@ -1185,9 +1186,11 @@ mod wall_probes_run_here {
     //! tour suite" row, was fully green over walls nobody had run.
     //! That is the silent-coverage shape this repo keeps naming: a
     //! green job name sitting over an unexecuted probe. The walls did
-    //! execute — in the k-lint gate's tour step, a SAMPLED row — so
-    //! the cost of the blind spot was paid only in the runs where that
-    //! sample did not draw.
+    //! execute — in the k-lint gate's tour step, which was a SAMPLED
+    //! row until 2026-09-04 — so the cost of the blind spot was paid
+    //! only in the runs where that sample did not draw. Every run gates
+    //! all five k-lint unifications now, which removes that half of the
+    //! cost and none of the reason this test exists.
     //!
     //! It has to be an in-bin test. `demo-tour` is bin-only (no
     //! `[lib]`, modules hang off `main.rs`), so nothing under

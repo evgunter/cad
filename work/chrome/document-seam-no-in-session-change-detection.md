@@ -2,11 +2,10 @@
 id: document-seam-no-in-session-change-detection
 kind: issue
 title: The document seam has no in-session change detection - a store edit is invisible until reopen (plus two adjacent edges)
-status: parked
+status: open
 opened: 2026-08-31
 github: 1387
 refs: [1376]
-blocked_on: [viewer-session-god-module-split]
 ---
 
 ## From GitHub issue 1387
@@ -43,3 +42,13 @@ A sentence naming this now sits at that op's docs (in #1376). Whether the door s
 ## Home
 
 GAUTH's closing entry names this issue as its residue; the ground is the viewer's document seam (`crates/viewer/src/session.rs`, the workspace resolver), and GAUTH and GUI are both closed programs, so it lands in `work/issues/`.
+
+## Un-parked — the trigger fired (2026-09-04)
+
+`viewer-session-god-module-split` closed on 2026-09-04, so this row's
+only blocker is gone and the row is dispatchable. Un-parked here, from
+VIEW's PR #1857, rather than by CHROME: on Ev's ruling there, `work.py
+lint` now REFUSES a `parked` row whose every blocker is closed, and a
+program cannot un-park another program's rows in the PR that closes
+their trigger — `work/README.md`'s one-file-one-item rule makes that a
+merge conflict by design.

@@ -576,9 +576,9 @@ fn plane_ref<'de, D: Deserializer<'de>>(de: D) -> Result<RecipeNodeId, D::Error>
         type Value = RecipeNodeId;
         fn expecting(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
             f.write_str(
-                "a `plane` node id: the `Datum::Frame` node a profile is drawn on \
-                 (a document that carries a sketch-plane PLACEMENT here predates \
-                 the frame node and cannot be read by this build)",
+                "a `plane` node id: the frame node (`Datum::Frame` or `Datum::FaceFrame`) \
+                 a profile is drawn on (a document that carries a sketch-plane PLACEMENT \
+                 here predates the frame node and cannot be read by this build)",
             )
         }
         fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<RecipeNodeId, E> {

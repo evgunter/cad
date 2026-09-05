@@ -199,6 +199,23 @@ def _step_seconds(job: dict, name: str) -> float | None:
     return None
 
 
+def page_is_whole(listing: dict) -> bool:
+    """Did this jobs-API page carry the WHOLE run, or only its first `per_page`?
+
+    THE SAME SHAPE AS `scripts/check-run-jobs.py`'s paging guard, and stated
+    here because the shape has two readers and only one of them was hardened:
+    `?per_page=N` answers a PAGE, and `jobs.get("jobs", [])` on a run with more
+    jobs than N is a subset that reads exactly like a whole run. There it is a
+    gate summarising a subset of the run and calling it the run; here it is a
+    sample whose `E` is the sum of the shard rows, so a dropped shard
+    UNDERSTATES the free arm — the same bias `sample_run` already refuses a
+    cancelled shard for, arriving one layer further out. The disposition is
+    that one: skip the run, do not sample half of it.
+    """
+    total = listing.get("total_count")
+    return total is None or total <= len(listing.get("jobs", []))
+
+
 def sample_run(jobs: list[dict]) -> dict | None:
     """`{a, E, shards, labels}` for one workflow run, or None if this run is
     not a DEFAULT-LANE CODE-TIER run — a docs-tier run has no archive job, an
@@ -249,6 +266,8 @@ def read_free_arm(opt_level: int, runs: int, window: int) -> dict:
         try:
             jobs = _api(f"/repos/{repo}/actions/runs/{run['id']}/jobs?per_page=100")
         except (urllib.error.URLError, OSError, KeyError):
+            continue
+        if not page_is_whole(jobs):
             continue
         got = sample_run(jobs.get("jobs", []))
         if got is None:
@@ -705,6 +724,12 @@ def selftest() -> None:
     partial = json.loads(json.dumps(_FAKE_JOBS["jobs"]))
     partial[1]["steps"][0]["conclusion"] = "cancelled"
     assert sample_run(partial) is None
+    # A PAGED JOB LIST. `?per_page=100` answers a page and not necessarily the
+    # run; a run that outgrew it would hand back a subset whose missing shards
+    # understate `E`. Refused at the listing, before `sample_run` ever sees it.
+    assert page_is_whole({"total_count": 2, "jobs": [{}, {}]})
+    assert page_is_whole({"jobs": [{}]})
+    assert not page_is_whole({"total_count": 140, "jobs": [{}, {}]})
     # A RENAMED STEP goes quiet, never wrong.
     renamed = json.loads(json.dumps(_FAKE_JOBS["jobs"]))
     renamed[0]["steps"][1]["name"] = "build test binaries + archive (v2)"

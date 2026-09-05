@@ -35,6 +35,7 @@ test_utils::gated_to![
     "crates/geom-core/src/real.rs",
 ];
 
+use core::num::NonZeroUsize;
 use geom_core::spline::{KnotVector, basis, hull};
 use geom_core::{Enclosure, RingInterval};
 use test_utils::fuzz;
@@ -398,7 +399,7 @@ fn bounds_are_bit_identical_across_repeats_and_coefficient_types() {
 
 #[test]
 fn structural_errors_poison_rather_than_panic() {
-    let kv = KnotVector::unit_segment(3);
+    let kv = KnotVector::unit_segment(const { NonZeroUsize::new(3).unwrap() });
     let n = kv.control_count();
     let coeffs: Vec<f64> = (0..n).map(|i| i as f64).collect();
     let first = kv

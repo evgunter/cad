@@ -443,6 +443,10 @@ gate() {
     gate_grep -vE '^crates/sweep/src/blend/(battery|build|surgery)\.rs$' |
     # M6-2, the SSI rung-3 certificate; edge_nurbs under M7-8.
     gate_grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' |
+    # M7-8's 2026-09-02 amendment, the lane's split as a BOUND: the two
+    # DOORS that name the certified body `plane_nurbs_limbs`.
+    gate_grep -vE '^crates/geom-brep/src/certify\.rs$' |
+    gate_grep -vE '^crates/topo/src/euler\.rs$' |
     # M9-2 PR-1, the chart-region overlap predicate.
     gate_grep -vE '^crates/topo/src/chart_region\.rs$' |
     # 2026-08-29, the advisory-check registry.

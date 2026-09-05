@@ -41,7 +41,7 @@ id: 04c718374cb49ae558c3d9f6b5fce9f6
                     "node": 2,
                     "path": [
                       {
-                        "Cap": "Top"
+                        "Cap": "End"
                       }
                     ]
                   }
@@ -60,7 +60,7 @@ id: 04c718374cb49ae558c3d9f6b5fce9f6
                     "node": 2,
                     "path": [
                       {
-                        "Cap": "Bottom"
+                        "Cap": "Start"
                       }
                     ]
                   }
@@ -122,7 +122,7 @@ id: 04c718374cb49ae558c3d9f6b5fce9f6
                     "node": 2,
                     "path": [
                       {
-                        "Cap": "Bottom"
+                        "Cap": "Start"
                       }
                     ]
                   }
@@ -141,7 +141,7 @@ id: 04c718374cb49ae558c3d9f6b5fce9f6
                     "node": 2,
                     "path": [
                       {
-                        "Cap": "Top"
+                        "Cap": "End"
                       }
                     ]
                   }

@@ -67,8 +67,9 @@ Inherited at opening (both from S-CERT, by name): **#1362** (the
   say "#320 IS CLOSED ON BOTH HALVES"). #782's table was re-pinned
   green by TESS-SPLIT (468/414 with the snap exonerated by experiment)
   and the arming it blocked landed (`ci.yml`'s "demos tour suite" row
-  runs the whole suite); `work/verbs/plan.md` already records "the
-  issue wants closing". Closing both is orchestrator-direct
+  runs the whole suite); `work/verbs/plan.md` (VERBS closed; recoverable
+  at `git show c1e7ea19501d9e625dbd0de260d01a53a0384b42:work/verbs/plan.md`)
+  already records "the issue wants closing". Closing both is orchestrator-direct
   bookkeeping, after verifying the pins at HEAD.
 - **#881 is half-landed.** #894 shipped the witness/confinement half;
   the reopen comment scopes what remains — the named-operations half

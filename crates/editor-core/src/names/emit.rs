@@ -759,7 +759,7 @@ mod display_tests {
         let name = StableName {
             kind: EntityKind::Face,
             node: RecipeNodeId(7),
-            path: vec![RoleSeg::Cap(super::super::role::CapEnd::Top)],
+            path: vec![RoleSeg::Cap(super::super::role::CapEnd::End)],
         };
         let rows: Vec<(NamingError, Vec<&str>)> = vec![
             (

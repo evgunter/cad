@@ -34,8 +34,8 @@ fn doc_with_a_crossing() -> ProfileDoc {
         crossings: vec![InterfaceCrossing::Mate {
             mate: RecipeNodeId(0),
             class: ContactClass::Rest,
-            outer: face(RecipeNodeId(0), CapEnd::Top),
-            inner: face(RecipeNodeId(1), CapEnd::Bottom),
+            outer: face(RecipeNodeId(0), CapEnd::End),
+            inner: face(RecipeNodeId(1), CapEnd::Start),
         }],
     };
     apply(

@@ -14,7 +14,7 @@ the name↔entity table and re-resolution is a lookup, never a match.
 |---|---|
 | N1 `StableName`, `RolePath`, `RoleSeg`, `EntityKind`; N2 `Qualifier` | `role.rs`; `RecipeNodeId` in `crates/editor-core/src/node.rs` |
 | N4 `NameTable`, `Entry::{Unique,Tied}`, `EntityRef` | `table.rs` |
-| N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs` |
+| N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs` |
 | N2 discriminators; tie propagation | `discriminate.rs`; `defer.rs` |
 | N5 `ResolveError`, `Diagnosis`, tombstones, offers; diff engine; hit-testing; `Rebind` | `crates/editor-core/src/resolve/mod.rs`; `resolve/vdiff.rs`; `resolve/hit.rs`, `resolve/pick.rs`; `edit.rs` |
 | N6 `GeomSource` | `crates/topo/src/source.rs`; consumers `crates/topo/src/merge_faces.rs`, `crates/topo/src/boolean/plane_eq.rs` |
@@ -28,15 +28,29 @@ a runtime `EntityKind` (Body, Face, Edge, Vertex — bodies are first-class), th
 minting `RecipeNodeId` (from the document's monotone counter at insertion; never
 positional, never reused), and `RolePath = Vec<RoleSeg>`. `RoleSeg` is one closed
 enum grouped by op: extrude (`Cap`, `Lateral`, ...), revolve (`Band`, `Pole`,
-...), boolean (`FromA`, `FromB`, `Seam`, `Merged`, `Fragment`), split
+...), boolean (`FromA`, `FromB`, `FromMember { member, of }`, `Seam`, `Merged`,
+`Fragment`), split
 (`SectionFace`, `SectionEdge`, `SplitFragment`, ...), blend (shared by fillet and
 chamfer, told apart by the minting node), `InPart`, pattern `Instance { i, of }`
 with `i` recipe-structural. Role arguments are themselves names; profile locators
 (`ProfileEdgeRef`, `ProfileVertexRef`) are the profile crate's canonical
 combinatorial identities, never enumeration indices.
 Names contain no floats and no arena keys; a pass-through op (Transform,
-split-intact entity) adds no segment, so `node` stays the original minter. Names
+split-intact entity, a `Part`'s projection of one half or one instance) adds no
+segment, so `node` stays the original minter. Names
 are document-local; assembly wrapping is `ASSEMBLY.md`'s.
+
+**N1, the revolve poles.** `Pole(v)` names the ONE body vertex an on-axis
+profile vertex revolves to, looked up in the sweep's `poles` export. A PARTIAL
+revolve keeps the axis run: the rotation fixes every point of it and both
+meridian chains meet at each of its vertices, so an INTERIOR vertex of a
+subdivided axis run — an on-axis side carried by several collinear legs, which
+the continuation verbs author — is structurally a pole and takes `Pole(v)` like
+the run's tips. A FULL revolve deletes the axis run outright, so an interior
+vertex of it has no body entity and nothing to name: the export's `None` is the
+answer there, and the run's tips are the only named on-axis vertices. Totality
+is the check on that silence — `check_total` refuses a table leaving a LIVE body
+vertex unnamed, so a `None` standing over surviving geometry cannot pass.
 
 **N2 — Split discriminators are covariant margined predicates.** When one source
 yields n fragments, `Fragment(Qualifier)` follows the parent-bearing segment:
@@ -104,7 +118,7 @@ transform composes into `expr` (`SourceExpr::Placed`), `revert` flips `orient`
 same `GeomSource` ⇒ bit-identical descriptions (D9); the converse is not
 claimed, so equal bits without a shared source stay unglued. The declared
 coincidence rung is this lookup (`merge_faces.rs`, `oriented_plane_eq`); the bit
-comparison survives only as the debug assertion `plane_bits_agree`, and the gate
+comparison survives only as the debug assertions behind `plane_bits_witness`, and the gate
 `scripts/gates/bit-identity-consumer.sh` keeps the production allowlist empty.
 Identity holds per evaluation against the current document only.
 

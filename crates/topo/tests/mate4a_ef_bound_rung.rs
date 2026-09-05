@@ -235,10 +235,9 @@ fn the_declared_straddle_seat_certifies() {
 
 /// The crossing rung reads DECLARATIONS only: bare, the straddle
 /// seat's WHOLE error list is pinned character for character —
-/// witnesses included, byte-identical to what it was before the rung
-/// existed (the old fence's discipline, kept: not a finding gained,
-/// not a finding lost, not a witness moved on the undeclared
-/// document). The two `EdgeEdgeCross` witnesses are PLAIN — no
+/// witnesses included (the fence's discipline: the crossing rung reads
+/// declarations, so on an undeclared document it gains no finding,
+/// loses none, and moves no witness). The two `EdgeEdgeCross` witnesses are PLAIN — no
 /// verdict is named where no declared pair answered.
 #[test]
 fn the_bare_straddle_seat_is_untouched() {
@@ -247,19 +246,18 @@ fn the_bare_straddle_seat_is_untouched() {
     assert_eq!(
         format!("{found:?}"),
         "[UndeclaredContact { contact: VertexOnFace { vertex: VertexKey(5v1), \
-         face: FaceKey(8v1) }, witness: \"Point3 { x: 0.3, y: 0.2, z: 0.5 }\" }, \
+         face: FaceKey(8v1) }, witness: \"(0.3, 0.2, 0.5)\" }, \
          UndeclaredContact { contact: VertexOnFace { vertex: VertexKey(6v1), \
-         face: FaceKey(8v1) }, witness: \"Point3 { x: 0.6, y: 0.2, z: 0.5 }\" }, \
+         face: FaceKey(8v1) }, witness: \"(0.6, 0.2, 0.5)\" }, \
          UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(9v1), \
-         face: FaceKey(8v1) }, witness: \"Point3 { x: 0.44999999999999996, \
-         y: 0.2, z: 0.5 }\" }, \
+         face: FaceKey(8v1) }, witness: \"(0.44999999999999996, 0.2, 0.5)\" }, \
          UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(15v1), \
-         face: FaceKey(1v1) }, witness: \"Point3 { x: 0.45, y: 0.3, z: 0.5 }\" }, \
+         face: FaceKey(1v1) }, witness: \"(0.45, 0.3, 0.5)\" }, \
          UndeclaredContact { contact: EdgeEdgeCross { a: EdgeKey(10v1), \
-         b: EdgeKey(15v1) }, witness: \"Point3 { x: 0.6, y: 0.3, z: 0.5 }\" }, \
+         b: EdgeKey(15v1) }, witness: \"(0.6, 0.3, 0.5)\" }, \
          UndeclaredContact { contact: EdgeEdgeCross { a: EdgeKey(12v1), \
-         b: EdgeKey(15v1) }, witness: \"Point3 { x: 0.3, y: 0.3, z: 0.5 }\" }]",
-        "the bare straddle seat's whole census reads exactly as it \
-         always did"
+         b: EdgeKey(15v1) }, witness: \"(0.3, 0.3, 0.5)\" }]",
+        "the bare straddle seat's whole census: not a finding gained, \
+         not a finding lost, not a witness moved"
     );
 }

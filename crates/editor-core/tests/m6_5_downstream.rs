@@ -175,7 +175,7 @@ fn an_appearance_record_on_a_fillet_minted_face_resolves() {
             kind: EntityKind::Edge,
             node: cube,
             path: vec![RoleSeg::RimEdge(
-                CapEnd::Top,
+                CapEnd::End,
                 editor_core::ProfileEdgeRef {
                     loop_index: 0,
                     segment: 0,
@@ -323,7 +323,7 @@ fn the_downstream_reference_survives_an_upstream_bump() {
         path: vec![RoleSeg::FromTarget(Box::new(StableName {
             kind: EntityKind::Face,
             node: cube,
-            path: vec![RoleSeg::Cap(CapEnd::Top)],
+            path: vec![RoleSeg::Cap(CapEnd::End)],
         }))],
     };
     let before = table_of(&eval(&doc), blank);

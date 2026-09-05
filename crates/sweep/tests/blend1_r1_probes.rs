@@ -5,9 +5,10 @@
 //! - **The recourse's reach** (claim 8): the tag fires from the
 //!   battery's corner classifier, which runs before any convexity door,
 //!   so a chain stopping at a CONCAVE rim's seam vertex meets it too.
-//!   That was the review's MAJOR while the sentence promised the carve
-//!   unconditionally; it is now the premise the conditioned sentence
-//!   rests on, measured here rather than argued.
+//!   That was the review's MAJOR while the sentence promised a carve
+//!   the concave side then refused; the closed-rim band now carves on
+//!   either side, and the row pins the premise the unconditional
+//!   sentence rests on, measured rather than argued.
 //! - **An independent closed form** (claim 3): the suite's volume
 //!   oracle is a differential against the one-edge twin, which could
 //!   share a defect with the door under test. The lip rim's removal is
@@ -27,12 +28,14 @@
 
 use core::f64::consts::SQRT_2;
 
-use geom_core::{Point2, Point3, Tol};
+use geom_core::{Point2, Point3, Sign, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig, FILLET3_SEAM_VERTEX_RECOURSE};
-use sweep::test_support::{cube, revolved_about_y, rim_arcs_at};
+use sweep::test_support::{
+    assert_promises_either_side, cube, revolved_about_y, rim_arcs_at, waisted,
+};
 use topo::{Body, EdgeKey, FaceKey, SurfaceKey, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
@@ -83,22 +86,6 @@ fn bored_lantern() -> Body<f64> {
     )
 }
 
-/// The waisted pole-touching revolve whose waist rim is CONCAVE and
-/// seam-split (the PR suite's own concave fixture).
-fn waisted() -> Body<f64> {
-    revolved_about_y(
-        vec![
-            v(0.0, 0.0, 0.0),
-            v(1.0, 0.0, 0.0),
-            v(0.5, 0.5, 0.0),
-            v(1.0, 1.0, 0.0),
-            v(0.0, 1.0, 0.0),
-        ],
-        Revolution::Full,
-        tol(),
-    )
-}
-
 fn surface_of(body: &Body<f64>, f: FaceKey) -> SurfaceKey {
     body.get_face(f).unwrap().surface
 }
@@ -123,29 +110,24 @@ fn volume(body: &Body<f64>) -> f64 {
 // P1 — the recourse's promise, measured where the tag fires (claim 8).
 // ------------------------------------------------------------------
 
-/// **The tag's firing rule never reads convexity — which is why the
-/// recourse's carve half is conditioned.**
+/// **The tag's firing rule never reads convexity — so the recourse it
+/// carries must be true on both material sides, and is.**
 ///
-/// This row began as the r1 review's MAJOR: the rewritten recourse
-/// promised the carve unconditionally, and the corner classifier runs
-/// BEFORE any convexity door, so a chain stopping at a CONCAVE rim's
-/// seam vertex was shown a promise its own whole-rim request then
-/// refused.
-///
-/// It is now the MECHANISM half of that finding, kept because it is
-/// what the conditioning rests on: the tag is incidence-only, so the
-/// site set it fires over spans both material sides, and any sentence
-/// it carries must be true across that whole set. The composed
-/// promise-and-answer pin lives in the r2 suite
-/// (`the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`);
+/// This row began as the r1 review's MAJOR: the recourse promised the
+/// carve while the corner classifier, which runs BEFORE any convexity
+/// door, tagged a CONCAVE rim's seam vertex whose whole-rim request
+/// then refused. It is the MECHANISM half of that finding: the tag is
+/// incidence-only, so the site set it fires over spans both material
+/// sides, and any sentence it carries must be true across that whole
+/// set. The closed-rim band carves on either side, so the sentence
+/// promises the carve without a hedge; the composed promise-and-answer
+/// pin lives in the r2 suite
+/// (`the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`) and
 /// this row pins the premise it argues from.
-///
-/// Red if the tag ever learns convexity — at which point the sentence
-/// may drop its hedge, and should.
 #[test]
 fn p1_the_seam_vertex_tag_fires_without_reading_convexity() {
     // A CONCAVE seam-split rim, and a CONVEX one on the same body.
-    let body = waisted();
+    let body = waisted(tol());
     for (name, rim_r, rim_y) in [
         ("the concave waist", 0.5, 0.5),
         ("the convex base", 1.0, 0.0),
@@ -162,16 +144,11 @@ fn p1_the_seam_vertex_tag_fires_without_reading_convexity() {
         }
     }
     // So the sentence the tag carries has to hold on both sides, and it
-    // does that by conditioning its carve half rather than by promising
-    // one door for two configurations.
-    assert!(
-        FILLET3_SEAM_VERTEX_RECOURSE.contains("CONVEX"),
-        "the carve half names the side the door serves: {FILLET3_SEAM_VERTEX_RECOURSE}"
-    );
-    assert!(
-        !FILLET3_SEAM_VERTEX_RECOURSE.contains("which the closed-rim band carves as one"),
-        "the unconditional promise is gone: {FILLET3_SEAM_VERTEX_RECOURSE}"
-    );
+    // does: the one door it names serves both configurations. The
+    // positive half (the promise names both sides) and the negative half
+    // (no hedge shape — the clause this row once pinned the ABSENCE of,
+    // and every spelling a re-conditioning would take) live in one home.
+    assert_promises_either_side(FILLET3_SEAM_VERTEX_RECOURSE);
 }
 
 // ------------------------------------------------------------------
@@ -297,24 +274,23 @@ fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
 // P4 — a planted ring on a half-band support (claim 4).
 // ------------------------------------------------------------------
 
-/// **The REPAIRED lantern's neck rim is outside BOTH closed-rim
-/// doors — measured, because it is the body a consumer actually
-/// holds.** A raw pole-touching revolve is `NonMaximalFaces` at every
-/// boolean door, so any consumer who booleans (the tour's own lily
-/// flow) repairs first with `merge_coplanar_faces`, which merges each
-/// cap's two half-disks into ONE face. The neck rim is then two arcs
-/// whose planar support is one face — so `resolve_rim`'s host-side
-/// discriminant routes it to the LADDER, whose ring gate refuses. The
-/// door this PR opens serves the UNREPAIRED shape only; a
-/// plane-involving rim loses it at the repair the boolean lane
-/// requires.
+/// **The REPAIRED lantern's neck rim CARVES, and a SUBSET of it refuses
+/// followably** — measured on the body a consumer actually holds. A raw
+/// pole-touching revolve is `NonMaximalFaces` at every boolean door, so
+/// any consumer who booleans (the tour's own lily flow) repairs first
+/// with `merge_coplanar_faces`, which merges each cap's two half-disks
+/// into ONE face. The neck rim is then two arcs on ONE plane face, in
+/// that face's own OUTER cycle, with TRIVALENT crossings — the shape
+/// `resolve_rim` routes to the annulus with hostless crossings, whose
+/// host feet are the ladder's struts.
 ///
-/// Also measured here: one arc of the repaired rim no longer registers
-/// a `SeamVertex` (the cap's seam is gone, so the vertex is trivalent)
-/// — so at least the carve-promising recourse is not shown for a
-/// request this door can then not serve.
+/// The composed pin the seam-vertex family owes, on the repaired body:
+/// one arc alone refuses at a corner that is NOT `SeamVertex` (the
+/// cap's seam is gone, so the vertex is trivalent), and the whole-rim
+/// request that refusal points at is then followed to a carve here.
+/// Both halves matter — a recourse that names a door has to reach one.
 #[test]
-fn p4_the_repaired_lantern_neck_rim_is_outside_both_closed_rim_doors() {
+fn p4_the_repaired_lantern_neck_rim_carves_and_one_arc_refuses_followably() {
     let mut source = lantern();
     source
         .merge_coplanar_faces(tol())
@@ -338,13 +314,28 @@ fn p4_the_repaired_lantern_neck_rim_is_outside_both_closed_rim_doors() {
         planes[0], planes[1],
         "after the repair one plane face hosts both arcs"
     );
-    match fillet_edges(&source, &arcs, 0.05, tol()).map_err(|r| r.error) {
-        Err(BlendError::UnsupportedChain { detail, .. }) => assert!(
-            detail.contains("ring"),
-            "the repaired rim routes to the ladder and its ring gate refuses: {detail}"
-        ),
-        other => panic!("the repaired neck rim refuses typed, got {other:?}"),
+    // Every crossing is TRIVALENT: the repair took the plane's own seam,
+    // so only the mate's meridian is left beside the two arcs. That is
+    // what makes the host foot a strut rather than a seam split.
+    for &arc in &arcs {
+        let ed = source.get_edge(arc).unwrap();
+        for he in [ed.he_plus, ed.he_minus] {
+            let v = source.get_half_edge(he).unwrap().start;
+            let em = source.get_vertex(v).unwrap().emanating.unwrap();
+            let mut inc: Vec<EdgeKey> = source
+                .vertex_orbit(em)
+                .unwrap()
+                .into_iter()
+                .map(|h| source.get_half_edge(h).unwrap().edge)
+                .collect();
+            inc.sort_unstable();
+            inc.dedup();
+            assert_eq!(inc.len(), 3, "a repaired-rim crossing is trivalent");
+        }
     }
+
+    // ONE ARC: still refused, at a corner that is NOT a seam vertex —
+    // there is no seam at a trivalent crossing to make one.
     match fillet_edges(&source, &arcs[..1], 0.05, tol()).map_err(|r| r.error) {
         Err(BlendError::UnsupportedCorner { corner, .. }) => {
             assert!(
@@ -354,6 +345,19 @@ fn p4_the_repaired_lantern_neck_rim_is_outside_both_closed_rim_doors() {
         }
         other => panic!("one repaired arc refuses at a corner door, got {other:?}"),
     }
+
+    // THE WHOLE RIM CARVES — the recourse that subset refusal names,
+    // followed here rather than read. One band over both arcs, tier-3
+    // valid, closed-form mass properties.
+    let out = fillet_edges(&source, &arcs, 0.05, tol())
+        .expect("the whole repaired neck rim carves through the hostless-crossing annulus");
+    validate_geometric(&out.body, tol()).expect("the repaired neck carve is tier-3 valid");
+    assert_eq!(out.band_faces.len(), 1, "ONE band over both arcs");
+    let props = mass_properties(&out.body, tol()).expect("mass properties compute");
+    assert_eq!(
+        props.volume_pad, 0.0,
+        "every face of the repaired neck carve is closed-form"
+    );
 }
 
 // ------------------------------------------------------------------
@@ -382,7 +386,13 @@ fn p5_the_rim_arcs_plus_a_seam_meridian_refuse_at_the_battery() {
     req.push(seam);
     match fillet_edges(&body, &req, 0.05, tol()).map_err(|r| r.error) {
         Err(BlendError::TangentialEdge { margin, .. }) => {
-            assert_eq!(margin, 0.0, "a co-surface seam is tangential exactly");
+            assert_eq!(margin.predicate, "fillet3_convexity_sign");
+            assert_eq!(margin.sign, Sign::Zero);
+            assert_eq!(
+                margin.value(),
+                Some(0.0),
+                "a co-surface seam is tangential exactly"
+            );
         }
         other => panic!("a request carrying a seam meridian refuses tangential, got {other:?}"),
     }

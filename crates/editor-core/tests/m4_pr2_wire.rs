@@ -635,13 +635,19 @@ fn declare_passes_through_and_boolean_accepts_it() {
     assert_eq!(mass_properties(body, Tol::witness()).unwrap().volume, 1.5); // dyadic union
 
     // A non-Declare node on the declare edge: typed refusal.
+    //
+    // The node named here is the union ABOVE, not operand `a`: a
+    // node's inputs are pairwise distinct (DM5), so a declare edge
+    // pointing at one of the operands is refused at the EDIT door and
+    // never reaches the evaluation this row is about. Any live
+    // non-`Declare` node makes the same point.
     let (doc2, bad) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b,
-            declare: Some(a),
+            declare: Some(boolean),
         },
     );
     let ev2 = run(&doc2);

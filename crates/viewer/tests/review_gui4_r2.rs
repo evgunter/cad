@@ -39,6 +39,7 @@ use pncad::document::{
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{ContactClass, Ray};
 use pncad::workspace::Workspace;
+use viewer::display::DisplayFault;
 use viewer::matetool::{MateChoice, MateTool, admitted_classes};
 use viewer::session::{DocSession, FaceSelection, Refusal, SessionOp};
 use viewer::tree::RowStatus;
@@ -503,7 +504,27 @@ fn hide_survives_the_mate_that_discards_the_probe() {
 
     let outcome = session.perform(proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.superseded, vec![bench.post_b]);
+    let [superseded] = &outcome.superseded[..] else {
+        panic!(
+            "exactly one placement is superseded: {:?}",
+            outcome.superseded
+        )
+    };
+    assert_eq!(
+        superseded.instance, bench.post_b,
+        "the mate discards the probe"
+    );
+    assert!(
+        matches!(
+            &superseded.cause,
+            DisplayFault::MateConstrained { instance, mates }
+                if *instance == bench.post_b && !mates.is_empty()
+        ),
+        "and the outcome carries WHY it went, not only which went — the \
+         fault's own PAYLOAD, which is what would go red if the prune paired \
+         the right fault with the wrong instance: {}",
+        superseded.cause
+    );
     assert!(session.display().is_hidden(bench.post_b), "hide stands");
     session.pump();
     let index = asm::index_of(&session);

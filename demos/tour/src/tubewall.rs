@@ -465,10 +465,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                     },
                     "the writer's outward/void classifier has grown a curved arm. Say so \
                      in klein's findings entry 7 and in docs/KERNEL-VERBS.md's hollow-ring \
-                     STEP row, and retire ALL THREE probes of this one gate together: \
-                     klein's WALL 6, the `ring` scene's `step_at_frontier`, and this one \
-                     — the ring is the profile door's shape, this is the parameter \
-                     door's, and a widened classifier retires both",
+                     STEP row, and retire ALL FOUR probes of this one gate together: \
+                     klein's WALL 6, the `ring` scene's `step_at_frontier`, \
+                     `torusvessel`'s, and this one — the ring is the profile door's \
+                     shape, this is the parameter door's, the vessel is `shell`'s, and a \
+                     widened classifier retires all of them",
                 ),
         ],
     });

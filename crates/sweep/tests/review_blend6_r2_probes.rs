@@ -139,7 +139,8 @@ fn no_inner_error_opens_with_a_verb_word_on_either_door() {
 /// of the closure match) mints `UnsupportedChain`, whose `Display`
 /// appends the CONDITIONED assembly recourse — and that recourse
 /// names the other verb ("for a fillet, closed chains that are
-/// circular plane–sphere rims also carve"). So if that arm ever
+/// circular rims between two coaxial revolution surfaces … also
+/// carve"). So if that arm ever
 /// fires, a chamfer caller reads a message containing "fillet", which
 /// is exactly what the unit's own `assert_speaks_as_the_chamfer`
 /// forbids.

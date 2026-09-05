@@ -691,7 +691,13 @@ class TestBooleanDeclareArgument(unittest.TestCase):
         doc = Doc()
         a = unit_box(doc, 1 * m, 1 * m, 1 * m)
         b = slab(doc, (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m))
-        fused = doc.insert(Node.boolean(BooleanOp.Union, a, b, declare=a))
+        # The declare edge names a THIRD node, not one of the operands:
+        # a node's inputs are pairwise distinct (DM5), so pointing it at
+        # `a` is refused at the edit door and never reaches the
+        # evaluation this row is about. Any live non-`Declare` node
+        # makes the same point.
+        c = slab(doc, (5 * m, 6 * m), (5 * m, 6 * m), (5 * m, 6 * m))
+        fused = doc.insert(Node.boolean(BooleanOp.Union, a, b, declare=c))
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(fused)
         self.assertEqual(caught.exception.kind, "wrong_operand")

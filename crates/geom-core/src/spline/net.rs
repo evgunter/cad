@@ -358,7 +358,7 @@ mod tests {
     /// coefficient is `p·(c1 − c0)/Δu` with `p = 1`, `Δu = 1`.
     #[test]
     fn diff_matches_the_knot_difference() {
-        let kv = KnotVector::unit_segment(1);
+        let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let n = TensorNet::from_rows(&[vec![pt(0.0), pt(1.0)], vec![pt(2.0), pt(5.0)]]);
         // The ring rounds outward, so each answer is ENCLOSED, not
         // equalled (D4 ¶2: a bound, never an estimate).

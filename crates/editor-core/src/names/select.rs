@@ -123,6 +123,7 @@ pub enum SegTag {
     // Boolean
     FromA,
     FromB,
+    FromMember,
     Seam,
     Merged,
     Fragment,
@@ -156,7 +157,7 @@ pub enum SegTag {
 /// float-free tags of the role vocabulary (cap end, meridian end,
 /// split half, rim support). One type so a pattern can constrain
 /// "which side" uniformly; the `From` impls let a caller write
-/// `.side(CapEnd::Top)`.
+/// `.side(CapEnd::End)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Side {
     /// An extrude/revolve cap end.
@@ -212,6 +213,7 @@ impl SegTag {
             RoleSeg::AxisEdge(..) => Self::AxisEdge,
             RoleSeg::FromA(..) => Self::FromA,
             RoleSeg::FromB(..) => Self::FromB,
+            RoleSeg::FromMember { .. } => Self::FromMember,
             RoleSeg::Seam { .. } => Self::Seam,
             RoleSeg::Merged(..) => Self::Merged,
             RoleSeg::Fragment(..) => Self::Fragment,
@@ -254,9 +256,15 @@ impl SegTag {
             | Self::RevolveCap
             | Self::Pole
             | Self::AxisEdge => OpGroup::Revolve,
-            Self::FromA | Self::FromB | Self::Seam | Self::Merged | Self::Fragment => {
-                OpGroup::Boolean
-            }
+            Self::FromA
+            | Self::FromB
+            // The n-ary union is a boolean in the vocabulary's sense —
+            // the group is the naming CONTRACT the segment versions
+            // with, and this segment versions with the union's.
+            | Self::FromMember
+            | Self::Seam
+            | Self::Merged
+            | Self::Fragment => OpGroup::Boolean,
             Self::SplitBody
             | Self::SectionFace
             | Self::SectionEdge
@@ -310,6 +318,7 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::AxisEdge(_)
         | RoleSeg::FromA(_)
         | RoleSeg::FromB(_)
+        | RoleSeg::FromMember { .. }
         | RoleSeg::Seam { .. }
         | RoleSeg::Merged(_)
         | RoleSeg::Fragment(Qualifier::SideOf(_) | Qualifier::OrderAlong { .. })
@@ -339,10 +348,19 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
 /// classified here or the compile breaks — or, if it embeds no name,
 /// added to [`crate::names::name_free_seg`], which is the one place
 /// that answer is written for this and its two sibling matches.
+///
+/// **Only NAMES.** [`RoleSeg::FromMember`] contributes its `of` and not
+/// its `member`, exactly as [`RoleSeg::Instance`] contributes its `of`
+/// and not its `i`: a bare [`crate::RecipeNodeId`] is not a name and a
+/// walk over names cannot see it. The consumers that need the member
+/// edge — the content key, the re-map, and `derivation_nodes` — reach
+/// it through [`crate::names::member_edge`], which is where "which
+/// segments carry a bare recipe-node id" is answered.
 fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
     match seg {
         RoleSeg::FromA(n)
         | RoleSeg::FromB(n)
+        | RoleSeg::FromMember { of: n, .. }
         | RoleSeg::FromTarget(n)
         | RoleSeg::BlendFace(n)
         | RoleSeg::CornerFace(n)
@@ -422,7 +440,7 @@ impl SegPat {
         }
     }
 
-    /// Constrains the end/side tag (`.side(CapEnd::Top)`).
+    /// Constrains the end/side tag (`.side(CapEnd::End)`).
     #[must_use]
     pub fn side(mut self, side: impl Into<Side>) -> Self {
         self.side = Some(side.into());

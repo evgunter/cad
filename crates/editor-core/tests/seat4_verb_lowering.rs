@@ -345,8 +345,8 @@ fn feed_body(feed: &mut impl FnMut(&[u8]), body: &topo::Body<f64>) {
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     for (name, want) in [
-        ("die_fillet", 0xc73e_54fb_cb42_a7db_u64),
-        ("die_chamfer", 0xcb6b_1dc1_3231_856d),
+        ("die_fillet", 0x39ae_92cf_f632_e603_u64),
+        ("die_chamfer", 0x7dfb_8a42_246e_bd75),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -429,9 +429,9 @@ fn a_boolean_document_round_trips_byte_identical() {
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     for (name, want) in [
-        ("crossing_slots", 0x639e_16ef_1cdd_84a7_u64),
-        ("heat_sink", 0x9659_b4c0_7f46_4f38),
-        ("kiss_carry", 0xfc1e_89f4_9a13_daea),
+        ("crossing_slots", 0x75b5_a599_f62f_bee0_u64),
+        ("heat_sink", 0x4ba6_9485_51b0_1e91),
+        ("kiss_carry", 0x56f8_69db_87a8_065a),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -525,7 +525,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0x06ac_a28a_21f7_a4a5,
+        got, 0xef2f_77c3_6271_e2eb,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

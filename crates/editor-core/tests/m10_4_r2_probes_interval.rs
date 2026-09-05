@@ -264,8 +264,8 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
     let refs = vec![
         MeasureRef::new(block, fname(block, wall(3))),
         MeasureRef::new(block, fname(block, wall(1))),
-        MeasureRef::new(block, fname(block, RoleSeg::Cap(CapEnd::Bottom))),
-        MeasureRef::new(block, fname(block, RoleSeg::Cap(CapEnd::Top))),
+        MeasureRef::new(block, fname(block, RoleSeg::Cap(CapEnd::Start))),
+        MeasureRef::new(block, fname(block, RoleSeg::Cap(CapEnd::End))),
     ];
     let expr = MeasureExpr::add(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
@@ -374,8 +374,8 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId
         distance: param("h", Dimension::Length),
     });
     let refs = vec![
-        MeasureRef::new(a, fname(a, RoleSeg::Cap(CapEnd::Top))),
-        MeasureRef::new(b, fname(b, RoleSeg::Cap(CapEnd::Top))),
+        MeasureRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
+        MeasureRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
     ];
     let angle = r.insert(
         Node::measure(

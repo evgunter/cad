@@ -257,7 +257,7 @@ fn wall_name(node: RecipeNodeId, seg: u32) -> editor_core::StableName {
 }
 
 fn cap_name(node: RecipeNodeId) -> editor_core::StableName {
-    fixture::fname(node, RoleSeg::Cap(CapEnd::Bottom))
+    fixture::fname(node, RoleSeg::Cap(CapEnd::Start))
 }
 
 fn named(at: RecipeNodeId, names: Vec<editor_core::StableName>) -> Selection {

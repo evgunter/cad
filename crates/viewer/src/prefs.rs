@@ -45,6 +45,9 @@
 //! Every notice is returned, never logged: the caller decides whether
 //! a person sees it, the same way every other refusal in this crate
 //! is a value.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use crate::input::{self, InputMap};
 use crate::theme::Theme;

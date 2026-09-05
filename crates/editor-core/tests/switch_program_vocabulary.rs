@@ -148,10 +148,11 @@ fn mode_witness(mode: ArcMode) -> ProgramArcData {
 /// addresses as a fused incoming — without anyone remembering to add
 /// it.
 ///
-/// The gap that remains, stated: `ArcFilletArc` is hand-written and
-/// walked at ONE mode pair, because it is the step whose two specs can
-/// address the same role twice (issue #829), so generating its pairs
-/// would author the aliasing case rather than test around it.
+/// `ArcFilletArc` is generated from `ArcMode::ALL` too, at the SAME
+/// mode in both positions: that is the pair whose two specs compete
+/// for one role, so it is the pair the bijection census has to walk.
+/// One cross-mode pair is written out beside it, because a generated
+/// same-mode sweep says nothing about a step whose two specs differ.
 fn chain_steps() -> Vec<ProgramStep> {
     let mut steps = vec![
         ProgramStep::At(pt(0.0, 0.0)),
@@ -191,6 +192,14 @@ fn chain_steps() -> Vec<ProgramStep> {
     steps.extend(ArcMode::ALL.iter().map(|mode| ProgramStep::ArcFillet {
         spec: mode_witness(*mode),
         radius: len(0.4),
+    }));
+    // Both specs of a fused step, at the same mode: the position where
+    // the incoming and the arrival roles are drawn from one spec
+    // vocabulary and each has to address its own argument.
+    steps.extend(ArcMode::ALL.iter().map(|mode| ProgramStep::ArcFilletArc {
+        spec: mode_witness(*mode),
+        radius: len(0.5),
+        spec2: mode_witness(*mode),
     }));
     steps.extend([
         ProgramStep::ArcFilletArc {

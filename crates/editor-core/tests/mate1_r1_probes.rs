@@ -204,8 +204,8 @@ fn r1_conjugation_through_a_non_identity_cluster_frame() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 2, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 2, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -359,8 +359,8 @@ fn r1_oblique_circular_axis_with_a_non_identity_cluster_frame() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 2, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 2, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -448,8 +448,8 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 1, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -538,8 +538,8 @@ fn r1_pattern_free_solves_are_bit_identical() {
             doc,
             DocEdit::InsertNode {
                 node: seat_mate(
-                    in_part(a, CapEnd::Top),
-                    in_part(b, CapEnd::Bottom),
+                    in_part(a, CapEnd::End),
+                    in_part(b, CapEnd::Start),
                     [0.0, 0.0, 1.0],
                     sense,
                 ),
@@ -550,8 +550,8 @@ fn r1_pattern_free_solves_are_bit_identical() {
                 doc,
                 DocEdit::InsertNode {
                     node: seat_mate(
-                        in_part(b, CapEnd::Top),
-                        in_part(c, CapEnd::Bottom),
+                        in_part(b, CapEnd::End),
+                        in_part(c, CapEnd::Start),
                         [0.25, 0.0, 1.0],
                         AxisSense::Aligned,
                     ),
@@ -636,8 +636,8 @@ fn r1_which_branch_does_the_consistent_loop_row_take() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 0, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 0, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -647,8 +647,8 @@ fn r1_which_branch_does_the_consistent_loop_row_take() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 1, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -713,8 +713,8 @@ fn r1_nested_pattern_and_pattern_of_transform_refuse_dangling() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(outer, 1, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(outer, 1, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -763,8 +763,8 @@ fn r1_nested_pattern_and_pattern_of_transform_refuse_dangling() {
         doc2,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pat, 1, in_part(li, CapEnd::Top)),
-                in_part(ti, CapEnd::Bottom),
+                in_copy(pat, 1, in_part(li, CapEnd::End)),
+                in_part(ti, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -826,8 +826,8 @@ fn r1_an_out_of_range_copy_escapes_the_fence_on_a_declaring_mate() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 0, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 0, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -839,8 +839,8 @@ fn r1_an_out_of_range_copy_escapes_the_fence_on_a_declaring_mate() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 5, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 5, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -919,8 +919,8 @@ fn r1_reproduce_the_quoted_red_first_fault() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 2, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 2, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Opposed,
             ),

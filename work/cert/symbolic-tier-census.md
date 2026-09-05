@@ -102,7 +102,7 @@ CSV rather than a name filter.
 | `arc_continue_off_carrier` | NOT A PREDICATE | a `pncad-py` tag string, never a classified margin | `crates/pncad-py/src/tests.rs` |
 | `carrier_in_chain` | NOT A PREDICATE | a `pncad-py` tag string, never a classified margin | `crates/pncad-py/src/tests.rs` |
 | `carrier_kind` | NOT A PREDICATE | a diagnostic name on an `Indeterminate` carrying `MarginDiag::Invalid` | `crates/topo/src/boolean/carrier_eq.rs` |
-| `fillet_encloses_leg_carrier` | NOT A PREDICATE | a `pncad-py` tag string, never a classified margin | `crates/pncad-py/src/tests.rs` |
+| `encloses_leg_carrier` | NOT A PREDICATE | a `pncad-py` tag string, never a classified margin | `crates/pncad-py/src/tests.rs` |
 | `frame_coincidence` | NOT A PREDICATE | a `pncad-py` tag string, never a classified margin | `crates/pncad-py/src/py/mate.rs` |
 | `measure_not_parallel` | NOT A PREDICATE | a `pncad-py` tag string, never a classified margin | `crates/pncad-py/src/tests.rs` |
 | `rebind_identity` | NOT A PREDICATE | a `pncad-py` tag string, never a classified margin | `crates/pncad-py/src/tests.rs` |

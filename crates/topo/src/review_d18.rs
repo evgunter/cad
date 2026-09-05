@@ -369,6 +369,113 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
 // C1 — the headline: neither new `unreachable!` is input-reachable.
 // =====================================================================
 
+/// The head this guard carves from.
+const LINK_HALF_EDGES: &str = "pub(crate) fn link_half_edges(";
+
+/// The body of the item whose head is `head`, carved out of `source`
+/// **as code**: comments and literal bodies blanked by the shared
+/// lexer, then the shared item carve.
+///
+/// **The view and the carve are one decision**, which is why both are
+/// `test_utils::source`'s. Over a blanked view every bracket is a real
+/// bracket, so the carve is a parse; over raw text this was a search
+/// for `"\n    }\n"`, which ended the body at whichever line happened
+/// to be indented like a method's close — a `}` spelled in a string or
+/// in commented-out code among them — and which could not tell a live
+/// call from a commented-out one either.
+fn code_body(source: &str, head: &str) -> String {
+    let code = test_utils::source::code_only(source);
+    let at = code
+        .find(head)
+        .unwrap_or_else(|| panic!("`{head}` must still exist"));
+    match test_utils::source::item_body(&code, at) {
+        test_utils::source::ItemBody::Body(body) => code[body].to_string(),
+        other => panic!("`{head}` has no body: {other:?}"),
+    }
+}
+
+/// **The carve reads the code, not the text**, so a call that has been
+/// commented out stops counting. That direction is the whole point of
+/// the guard below: over raw source the text of a commented-out
+/// `unreachable!` stays in the file, the count does not move, and the
+/// guard is green over exactly the change it exists to catch. The
+/// third assertion is that raw read, on the same fixture, not moving.
+#[test]
+fn a_commented_out_announcement_stops_counting() {
+    let live = "\
+impl Body {
+    pub(crate) fn link_half_edges(&mut self, a: Live, b: Live) {
+        let Some(he) = self.get_half_edge_mut(a.key()) else {
+            unreachable!(\"link_half_edges: `a`'s proof outlived its key\")
+        };
+        he.next = b.key();
+        let Some(he) = self.get_half_edge_mut(b.key()) else {
+            unreachable!(\"link_half_edges: `b`'s proof outlived its key\")
+        };
+    }
+}
+";
+    assert_eq!(
+        code_body(live, LINK_HALF_EDGES)
+            .matches("unreachable!")
+            .count(),
+        2,
+        "the clean fixture must carve both announcements"
+    );
+    let planted = live.replacen("unreachable!", "// unreachable!", 1);
+    assert_eq!(
+        code_body(&planted, LINK_HALF_EDGES)
+            .matches("unreachable!")
+            .count(),
+        1,
+        "commenting an announcement out must MOVE the count"
+    );
+    assert_eq!(
+        planted.matches("unreachable!").count(),
+        2,
+        "the raw text does not move, which is why the carve is over the code view"
+    );
+}
+
+/// **A brace inside a literal does not end the carve** — the other
+/// defect the `"\n    }\n"` search had. A body whose message spells a
+/// `}` (or whose commented-out line does) ended there, and every
+/// announcement after the cut was silently not counted; the guard
+/// stayed green while reading a fraction of the function. The row goes
+/// red if the carve ever runs over raw text or over the literal view,
+/// where the blanked brace is a real one again.
+///
+/// The trailing item is the other direction: the carve must stop at
+/// the body's own close and not swallow the next item.
+#[test]
+fn a_brace_inside_a_literal_does_not_end_the_carve() {
+    let live = "\
+impl Body {
+    pub(crate) fn link_half_edges(&mut self, a: Live, b: Live) {
+        let Some(he) = self.get_half_edge_mut(a.key()) else {
+            unreachable!(\"link_half_edges: `a` }\\n    }\\n outlived its key\")
+        };
+        // }
+        he.next = b.key();
+        let Some(he) = self.get_half_edge_mut(b.key()) else {
+            unreachable!(\"link_half_edges: `b`'s proof outlived its key\")
+        };
+    }
+    pub(crate) fn decoy(&mut self) { unreachable!(\"not this body\") }
+}
+";
+    let body = code_body(live, LINK_HALF_EDGES);
+    assert_eq!(
+        body.matches("unreachable!").count(),
+        2,
+        "a `}}` spelled in a literal or a comment ended the carve early:\n{body}"
+    );
+    assert!(
+        !body.contains("decoy"),
+        "the carve ran past the body's own closing brace:\n{body}"
+    );
+}
+
 /// Pins the SHAPE the sweep below assumes, which is the one way that
 /// sweep could go quietly vacuous: if `link_half_edges` ever went back
 /// to discarding a failed lookup, a torn-body hammer would report green
@@ -378,12 +485,7 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
 fn link_half_edges_still_announces_rather_than_discards() {
     let source = std::fs::read_to_string(crate::source_walk::src_root().join("euler.rs"))
         .expect("euler.rs must be readable");
-    let at = source
-        .find("pub(crate) fn link_half_edges(")
-        .expect("link_half_edges must still exist");
-    let body = &source[at..];
-    let end = body.find("\n    }\n").expect("a function body");
-    let body = &body[..end];
+    let body = code_body(&source, LINK_HALF_EDGES);
     assert_eq!(
         body.matches("unreachable!").count(),
         2,

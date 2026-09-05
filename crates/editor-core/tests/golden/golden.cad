@@ -612,7 +612,7 @@ id: 7ddec231df0049f879136a2f7624647d
               "path": [
                 {
                   "RimEdge": [
-                    "Top",
+                    "End",
                     {
                       "loop_index": 0,
                       "segment": 0
@@ -627,7 +627,7 @@ id: 7ddec231df0049f879136a2f7624647d
               "path": [
                 {
                   "RimEdge": [
-                    "Top",
+                    "End",
                     {
                       "loop_index": 0,
                       "segment": 1
@@ -642,7 +642,7 @@ id: 7ddec231df0049f879136a2f7624647d
               "path": [
                 {
                   "RimEdge": [
-                    "Top",
+                    "End",
                     {
                       "loop_index": 0,
                       "segment": 2
@@ -657,7 +657,7 @@ id: 7ddec231df0049f879136a2f7624647d
               "path": [
                 {
                   "RimEdge": [
-                    "Top",
+                    "End",
                     {
                       "loop_index": 0,
                       "segment": 3
@@ -672,7 +672,7 @@ id: 7ddec231df0049f879136a2f7624647d
               "path": [
                 {
                   "RimEdge": [
-                    "Bottom",
+                    "Start",
                     {
                       "loop_index": 0,
                       "segment": 0
@@ -687,7 +687,7 @@ id: 7ddec231df0049f879136a2f7624647d
               "path": [
                 {
                   "RimEdge": [
-                    "Bottom",
+                    "Start",
                     {
                       "loop_index": 0,
                       "segment": 1
@@ -702,7 +702,7 @@ id: 7ddec231df0049f879136a2f7624647d
               "path": [
                 {
                   "RimEdge": [
-                    "Bottom",
+                    "Start",
                     {
                       "loop_index": 0,
                       "segment": 2
@@ -717,7 +717,7 @@ id: 7ddec231df0049f879136a2f7624647d
               "path": [
                 {
                   "RimEdge": [
-                    "Bottom",
+                    "Start",
                     {
                       "loop_index": 0,
                       "segment": 3

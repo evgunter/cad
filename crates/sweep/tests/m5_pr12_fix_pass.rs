@@ -8,8 +8,8 @@
 use core::f64::consts::PI;
 use profile::RawLoop;
 
-use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec3};
+use geom_core::{MarginDiag, Tol};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
@@ -135,7 +135,11 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
         assert!(r < apothem, "the row is only interesting below the apothem");
         match fillet_edges(&body, &edges, r, Tol::witness()).map_err(|r| r.error) {
             Err(e @ BlendError::FaceClearanceUncertified { margin, gap, .. }) => {
-                assert!(margin < 0.0);
+                assert_eq!(margin.predicate, "fillet3_face_clearance");
+                assert!(margin.value().is_some_and(|m| m < 0.0));
+                let MarginDiag::Value(gap) = gap else {
+                    panic!("this lane classifies at f64, so the gap is one number: {gap:?}")
+                };
                 assert!(
                     (gap - 1.0).abs() < 1e-9,
                     "the binding gap is the hexagon's SIDE, not its apothem: {gap}"

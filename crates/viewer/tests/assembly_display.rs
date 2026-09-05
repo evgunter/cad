@@ -24,6 +24,19 @@ use viewer::scene::SceneMesh;
 use viewer::session::{DocSession, Refusal, SessionOp};
 use viewer::tree::RowStatus;
 
+/// Every `Node::Mate` the session's document holds, document order —
+/// read off the recipe rather than off `display::mates_naming`, so a
+/// row asserting a fault's `mates` payload is not checking that
+/// function against itself.
+fn mate_nodes(session: &DocSession) -> Vec<RecipeNodeId> {
+    let doc = session.doc();
+    doc.order()
+        .iter()
+        .copied()
+        .filter(|&id| matches!(doc.node(id), Some(pncad::document::Node::Mate { .. })))
+        .collect()
+}
+
 /// The mate these rows author directly: a post's top seated under the
 /// shelf's middle, no rider — `asm::seat_alignment`'s one home, at the
 /// place along the shelf this suite wants.
@@ -349,8 +362,11 @@ fn the_at_rest_badge_lands_with_the_evaluation() {
     assert!(note.contains("Tangent"), "{note}");
 }
 
+/// **An id the document does not hold**, which is not the same
+/// refusal as a node of the wrong kind — the row was named for the
+/// wrong one of the two until they were spelled apart.
 #[test]
-fn hide_refuses_a_non_instance_typed() {
+fn hide_refuses_an_id_the_document_does_not_hold() {
     let tol = Tol::witness();
     let bench = asm::bench("hidewrong", tol);
     let mut session = asm::open_bench(&bench, tol);
@@ -361,9 +377,11 @@ fn hide_refuses_a_non_instance_typed() {
     assert!(
         matches!(
             outcome.refusal,
-            Some(Refusal::Display(DisplayFault::NotAnInstance { .. }))
+            Some(Refusal::Display(DisplayFault::NoSuchNode { .. }))
         ),
-        "{:?}",
+        "an id the document does not hold is NOT the wrong-kind refusal — \
+         the two are spelled apart because a user holding display state on \
+         the id reads a different sentence for each: {:?}",
         outcome.refusal
     );
 }
@@ -413,16 +431,31 @@ fn free_move_accepts_only_completely_unconstrained_instances() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.perform(SessionOp::CancelFreeMove);
-    // A non-instance refuses typed.
-    let outcome = session.perform(SessionOp::BeginFreeMove {
-        instance: RecipeNodeId(9_999),
-    });
+    // A node that EXISTS and is not an instance — the mate authored
+    // above — refuses for being the wrong KIND. That is the arm the
+    // block below was labelled for and never drove.
+    let mate = mate_nodes(&session)[0];
+    let outcome = session.perform(SessionOp::BeginFreeMove { instance: mate });
     assert!(
         matches!(
             outcome.refusal,
             Some(Refusal::Display(DisplayFault::NotAnInstance { .. }))
         ),
         "{:?}",
+        outcome.refusal
+    );
+    // And an id the document does not hold refuses for being ABSENT.
+    let outcome = session.perform(SessionOp::BeginFreeMove {
+        instance: RecipeNodeId(9_999),
+    });
+    assert!(
+        matches!(
+            outcome.refusal,
+            Some(Refusal::Display(DisplayFault::NoSuchNode { .. }))
+        ),
+        "an id the document does not hold is NOT the wrong-kind refusal — \
+         the two are spelled apart because a user holding display state on \
+         the id reads a different sentence for each: {:?}",
         outcome.refusal
     );
 }
@@ -603,10 +636,30 @@ fn a_landing_mate_discards_the_probe_value() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
+    let [superseded] = &outcome.superseded[..] else {
+        panic!(
+            "exactly one placement is superseded: {:?}",
+            outcome.superseded
+        )
+    };
     assert_eq!(
-        outcome.superseded,
-        vec![bench.post_b],
+        superseded.instance, bench.post_b,
         "the supersession is reported, not inferred"
+    );
+    // The PAYLOAD, not the variant: the variant is what the op this row
+    // just performed already implies, and what would go red if `prune`
+    // paired the right fault with the wrong instance is this.
+    let DisplayFault::MateConstrained { instance, mates } = &superseded.cause else {
+        panic!(
+            "a mate landing supersedes with its own fault: {}",
+            superseded.cause
+        )
+    };
+    assert_eq!(*instance, bench.post_b, "the fault names the same instance");
+    assert_eq!(
+        mates,
+        &mate_nodes(&session),
+        "and names the mate that landed, read off the recipe"
     );
     // DISCARDED, not zeroed: the value is gone, and the map holds no
     // identity entry standing in for it.
@@ -637,4 +690,90 @@ fn a_landing_mate_discards_the_probe_value() {
         hit.is_none_or(|h| h.node != bench.post_b),
         "the solved placement superseded the authored spot"
     );
+}
+
+/// **A hide the document stops admitting is DROPPED, and the outcome
+/// says so** — the second half of what `DisplayState::prune` withdraws,
+/// and the half that used to be undone in silence.
+///
+/// Both arms of `display_check` are here because they are different
+/// news and the fault is what tells them apart: a FUSE puts material
+/// the user took out of the picture back into it, and a DELETE takes
+/// the instance with the hide. A user who reports "the part I hid is
+/// visible again" is reporting the first one.
+#[test]
+fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
+    let tol = Tol::witness();
+
+    // ── The FUSE arm. The hidden post is unioned with the other one,
+    // so no display op can address it separately any more.
+    let bench = asm::bench("hidefused", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    assert!(
+        session
+            .perform(SessionOp::SetInstanceHidden {
+                instance: bench.post_b,
+                hidden: true,
+            })
+            .refusal
+            .is_none()
+    );
+    assert!(session.display().is_hidden(bench.post_b));
+
+    let outcome = session.perform(SessionOp::AddBoolean {
+        op: pncad::document::BooleanOp::Union,
+        a: bench.post_b,
+        b: bench.post_a,
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let [dropped] = &outcome.dropped_hides[..] else {
+        panic!(
+            "the fuse drops exactly one hide: {:?}",
+            outcome.dropped_hides
+        )
+    };
+    assert_eq!(dropped.instance, bench.post_b);
+    assert!(
+        matches!(dropped.cause, DisplayFault::FusedGeometry { .. }),
+        "and the outcome carries WHY the part is drawn again: {}",
+        dropped.cause
+    );
+    assert!(
+        !session.display().is_hidden(bench.post_b),
+        "the hide is gone from the state, not merely reported"
+    );
+    assert!(
+        outcome.superseded.is_empty(),
+        "a dropped hide is not a supersession and does not ride that field"
+    );
+
+    // ── The DELETE arm. Same class of fact, different sentence: the
+    // instance is not drawn again, it is gone.
+    let bench = asm::bench("hidedeleted", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    assert!(
+        session
+            .perform(SessionOp::SetInstanceHidden {
+                instance: bench.post_b,
+                hidden: true,
+            })
+            .refusal
+            .is_none()
+    );
+    let outcome = session.perform(SessionOp::DeleteNode { node: bench.post_b });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let [dropped] = &outcome.dropped_hides[..] else {
+        panic!(
+            "the delete drops exactly one hide: {:?}",
+            outcome.dropped_hides
+        )
+    };
+    assert_eq!(dropped.instance, bench.post_b);
+    assert!(
+        matches!(dropped.cause, DisplayFault::NoSuchNode { .. }),
+        "an absent node is spelled apart from a wrong-kind one, because \
+         the sentence the user reads is the difference: {}",
+        dropped.cause
+    );
+    assert!(session.display().hidden().is_empty());
 }

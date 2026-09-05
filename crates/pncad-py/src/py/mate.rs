@@ -573,9 +573,11 @@ impl MateFault {
         mate_fault_tag(&self.0)
     }
 
-    /// The mate the fault is about, `None` for the two arms whose
-    /// subject is not one mate (`mate_band`, and `mate_contradictory`,
-    /// which names `held` and `added` instead).
+    /// The mate the fault is about, `None` for the three arms whose
+    /// subject is not one mate (`mate_band`; `mate_contradictory`,
+    /// which names `held` and `added` instead; and
+    /// `mate_poses_of_another_document`, whose subject is two
+    /// documents).
     #[getter]
     fn mate(&self) -> Option<NodeId> {
         use d::MateFault as F;
@@ -588,7 +590,7 @@ impl MateFault {
             | F::DanglingHead { mate, .. }
             | F::SelfMate { mate, .. }
             | F::Unleverable { mate, .. } => Some(NodeId(*mate)),
-            F::Band { .. } | F::Contradictory { .. } => None,
+            F::Band { .. } | F::Contradictory { .. } | F::PosesOfAnotherDocument { .. } => None,
         }
     }
 
@@ -774,10 +776,13 @@ impl SolvedPoses {
     /// before mates existed.
     ///
     /// `doc` is read for its placement registry, and it must be the
-    /// document this solve is OF: passing a different one composes
-    /// this document's relative poses onto that one's cluster frames,
-    /// which is not a pose of either. Nothing here can check that —
-    /// a document carries no identity of the solve that read it.
+    /// document this solve is OF: passing a different one would
+    /// compose this document's relative poses onto that one's cluster
+    /// frames, which is not a pose of either. The door refuses that
+    /// first — a `SolvedPoses` carries the id of the document
+    /// `solve_document` solved, and a mismatch raises `MateError`
+    /// with tag `mate_poses_of_another_document` before any frame is
+    /// read.
     ///
     /// Raises `MateError` when the instance's cluster did not solve.
     fn placement(

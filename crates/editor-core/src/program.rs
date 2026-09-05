@@ -249,8 +249,9 @@ pub enum LoopProgram {
 /// # The plane is a reference, not a placement
 ///
 /// This field held a `SketchPlane<f64>` — twelve placement floats
-/// inline, unshared and unnameable. It now names a
-/// [`crate::Datum::Frame`] node, which is the whole of what the frame
+/// inline, unshared and unnameable. It now names a frame node — a
+/// [`crate::Datum::Frame`], or a [`crate::Datum::FaceFrame`] derived
+/// from a face — which is the whole of what the frame
 /// datum was added for: two profiles on one face are two references to
 /// one frame rather than two copies of a placement that can silently
 /// drift apart, an axis can be declared to lie IN a named frame, and a
@@ -275,8 +276,10 @@ pub enum LoopProgram {
 /// (they are invisible to `bit_eq` itself, D7).
 #[derive(Debug, Clone)]
 pub struct ProfileProgram {
-    /// The [`crate::Datum::Frame`] node this profile is drawn on —
-    /// sketch (0, 0) and the directions sketch +x and +y point.
+    /// The frame node this profile is drawn on — a
+    /// [`crate::Datum::Frame`] or a [`crate::Datum::FaceFrame`], either
+    /// of which lands the same frame value: sketch (0, 0) and the
+    /// directions sketch +x and +y point.
     ///
     /// Typed as a plain node reference rather than a frame-only
     /// newtype for the reason every other operand reference here is:
@@ -449,14 +452,14 @@ fn target_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
 /// The argument roles of one arc spec; `second` selects the arrival
 /// (spec₂) role twins.
 ///
-/// The twins cover the positional roles only. `Bulge`, `Sweep` and
-/// `ArcLen` have none, because none of them is an arrival mode (§2c:
-/// `family::ArrivalSpec` is implemented for `Radius`, `Via` and
-/// `Center` alone), so no recording surface can put one in second
-/// position. Enumeration stays total over the data type regardless,
-/// and for a HAND-BUILT step whose two specs are the SAME one of
-/// those three the reused role addresses the incoming spec's argument
-/// twice and the arrival's not at all — issue #829.
+/// EVERY role has a twin, including the three whose modes are not
+/// arrival modes (§2c: `family::ArrivalSpec` is implemented for
+/// `Radius`, `Via` and `Center` alone, so no recording surface can put
+/// a `Bulge`, `Sweep` or `ArcLen` in second position). Enumeration is
+/// total over the data type, and a hand-built step may carry one:
+/// without its own twin such a spec's argument would share the
+/// incoming spec's role, which addresses the incoming argument twice
+/// and the arrival's not at all.
 fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
     use ProgramArcData as S;
     use StepArg as A;
@@ -467,10 +470,9 @@ fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
             target_slots(target, out);
             out.push(A::Bulge);
         }
-        // No `Bulge2`: see the twin note above.
         (S::Bulge { target, .. }, true) => {
             target2_slots(target, out);
-            out.push(A::Bulge);
+            out.push(A::Bulge2);
         }
         (S::Via { target, .. }, false) => {
             out.extend([A::ViaX, A::ViaY]);
@@ -489,9 +491,9 @@ fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
             target2_slots(target, out);
         }
         (S::Sweep { .. }, false) => out.extend([A::CarrierRadius, A::SweepVal]),
-        (S::Sweep { .. }, true) => out.extend([A::CarrierRadius2, A::SweepVal]),
+        (S::Sweep { .. }, true) => out.extend([A::CarrierRadius2, A::SweepVal2]),
         (S::ArcLen { .. }, false) => out.extend([A::CarrierRadius, A::ArcLenVal]),
-        (S::ArcLen { .. }, true) => out.extend([A::CarrierRadius2, A::ArcLenVal]),
+        (S::ArcLen { .. }, true) => out.extend([A::CarrierRadius2, A::ArcLenVal2]),
     }
 }
 
@@ -548,9 +550,12 @@ macro_rules! spec_arg_access {
             | (S::Sweep { r, .. }, A::CarrierRadius2, true)
             | (S::ArcLen { r, .. }, A::CarrierRadius, false)
             | (S::ArcLen { r, .. }, A::CarrierRadius2, true) => Some(r),
-            (S::Bulge { b, .. }, A::Bulge, _) => Some(b),
-            (S::Sweep { angle, .. }, A::SweepVal, _) => Some(angle),
-            (S::ArcLen { len, .. }, A::ArcLenVal, _) => Some(len),
+            (S::Bulge { b, .. }, A::Bulge, false)
+            | (S::Bulge { b, .. }, A::Bulge2, true) => Some(b),
+            (S::Sweep { angle, .. }, A::SweepVal, false)
+            | (S::Sweep { angle, .. }, A::SweepVal2, true) => Some(angle),
+            (S::ArcLen { len, .. }, A::ArcLenVal, false)
+            | (S::ArcLen { len, .. }, A::ArcLenVal2, true) => Some(len),
             (S::Via { q, .. }, A::ViaX, false) | (S::Via { q, .. }, A::Via2X, true) => {
                 Some($($ref_kw)* q[0])
             }
@@ -649,6 +654,52 @@ fn step_expr_mut(step: &mut ProgramStep, arg: StepArg) -> Option<&mut Expr> {
 }
 
 impl LoopProgram {
+    /// **The one radius every edge of this loop is drawn at**, where
+    /// the loop is a CARRIER form and has one.
+    ///
+    /// The carrier forms — `circle(centre, r)` and
+    /// `circle_split(centre, r, n, phase)` — are the loops whose whole
+    /// boundary is a single arc carrier: every segment they replay to
+    /// is an arc of that one radius, whatever the subdivision. So the
+    /// answer is per LOOP and needs no per-segment address, and a
+    /// consumer that has a canonical loop index has everything it
+    /// needs.
+    ///
+    /// A CHAIN loop answers `None`, and that is a scope statement, not
+    /// an omission: a chain's arc steps carry their own radii
+    /// (`StepArg::CarrierRadius` and the arrival spec's twin), each
+    /// addressing one segment, and pairing those with swept walls
+    /// needs the step→segment map that the replay owns. Nothing today
+    /// reads a chain's radii, so the map stays unbuilt rather than
+    /// guessed at.
+    ///
+    /// **The obligation that `None` carries.** The memo's guard on
+    /// this channel is scoped at the ATTACH, not at the key: the
+    /// content key writes a carrier radius's spelling whenever ANY
+    /// migrated verb declares the profile edge's radius into a field
+    /// (`param_source::operand_flow_bearing`), which is already true,
+    /// so it cannot notice that chain radii are un-attached. Widen
+    /// this door to answer per segment and the stale-token class
+    /// reopens silently for exactly those loops — a chain radius
+    /// re-spelled value-preservingly would be attached to a wall
+    /// while its key still says the value alone. So chain radii enter
+    /// the key in the same change that attaches them, and the feed at
+    /// `eval::content_key` carries the same sentence.
+    ///
+    /// The address is the loop's `Radius` slot
+    /// (`SlotId::Profile { loop_, step: 0, arg: StepArg::Radius }`);
+    /// this hands back the expression that slot holds, which is what a
+    /// lowering needs to lower.
+    #[must_use]
+    pub fn carrier_radius(&self) -> Option<&Expr> {
+        match self {
+            LoopProgram::Circle { radius, .. } | LoopProgram::CircleSplit { radius, .. } => {
+                Some(radius)
+            }
+            LoopProgram::Chain(_) => None,
+        }
+    }
+
     /// This loop's argument roles per step, deterministic order.
     fn step_args(&self) -> Vec<(u32, StepArg)> {
         let mut out = Vec::new();
@@ -877,7 +928,7 @@ fn res_spec<T: Decide>(
         },
         ProgramArcData::Bulge { target, b } => profile::ArcData::Bulge {
             target: tgt(target)?,
-            b: res(b, env, loop_, i, A::Bulge)?,
+            b: res(b, env, loop_, i, pick(A::Bulge, A::Bulge2))?,
         },
         ProgramArcData::Via { q, target } => profile::ArcData::Via {
             q: pt2(q, pick(A::ViaX, A::Via2X), pick(A::ViaY, A::Via2Y))?,
@@ -895,12 +946,12 @@ fn res_spec<T: Decide>(
         ProgramArcData::Sweep { r, side, angle } => profile::ArcData::Sweep {
             r: res(r, env, loop_, i, pick(A::CarrierRadius, A::CarrierRadius2))?,
             side: *side,
-            angle: res(angle, env, loop_, i, A::SweepVal)?,
+            angle: res(angle, env, loop_, i, pick(A::SweepVal, A::SweepVal2))?,
         },
         ProgramArcData::ArcLen { r, side, len } => profile::ArcData::ArcLen {
             r: res(r, env, loop_, i, pick(A::CarrierRadius, A::CarrierRadius2))?,
             side: *side,
-            len: res(len, env, loop_, i, A::ArcLenVal)?,
+            len: res(len, env, loop_, i, pick(A::ArcLenVal, A::ArcLenVal2))?,
         },
     })
 }

@@ -142,6 +142,8 @@ mod r1_mate8_decomp_probe;
 mod r1_mate8_probes;
 #[path = "r2_probes.rs"]
 mod r2_probes;
+#[path = "readback_sense_kind.rs"]
+mod readback_sense_kind;
 #[path = "review_m1_pr5.rs"]
 mod review_m1_pr5;
 #[path = "review_m2_pr3.rs"]
@@ -231,3 +233,12 @@ mod verbs_cylsph_tangent_residuals;
 mod verbs_f7_collinear_seam;
 #[path = "verbs_f7_r2_probes.rs"]
 mod verbs_f7_r2_probes;
+
+#[path = "rim_of.rs"]
+mod rim_of;
+
+#[path = "rim_of_r1_probes.rs"]
+mod rim_of_r1_probes;
+
+#[path = "r2_rim_probes.rs"]
+mod r2_rim_probes;

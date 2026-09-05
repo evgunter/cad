@@ -5,7 +5,8 @@
 #   * PERSISTENCE-DETECTORS THAT DO NOT NEED EVERY RUN. `watertight` is the
 #     first (Ev, 2026-08-22): one solo red in 37 days and it was a rustup
 #     outage. A broken mesh stays broken, so a nightly finds it — the same
-#     argument the ε and lane sampling in ci.yml rest on, taken to a longer
+#     persistence argument ci.yml's remaining k-lint draw rests on (and the
+#     ε and lane draws rested on until 2026-09-04), taken to a longer
 #     period.
 #   * MEASUREMENT LANES. `rebuild latency (reporting)` was never a gate;
 #     its wall-clock table belongs on a cadence rather than on every PR.
@@ -286,6 +287,23 @@ jobs:
       - name: rustdoc (viewer, all features)
         if: '!cancelled()'
         run: cargo doc -p viewer --all-features --no-deps
+      # THE LINT HALF OF THE SAME GATE, and the third row this job holds
+      # for the same ruling. ci.yml's `clippy (--all-features)` lints the
+      # workspace at every feature at once, and drops `viewer` from that
+      # selection when the seeds do not buy the toolkit — so on a skipped
+      # run NOTHING there lints this crate at `app` + `interval`
+      # together, which is a combination the two rows above do not cover
+      # either: the clippy row above pins `--features app` and the
+      # rustdoc row issues no lints. Ungated here, once a day, which is
+      # the clause of the ruling that makes that skip a deferral.
+      #
+      # `-p viewer` and not the workspace: the rest of the workspace is
+      # linted at `--all-features` on every code-tier PR run, gated by
+      # nothing. What this row re-takes is the one member the axis can
+      # remove.
+      - name: clippy (viewer, all features)
+        if: '!cancelled()'
+        run: cargo clippy -p viewer --all-targets --all-features -- -D warnings
 
   # THE RUSTDOC GATE'S OTHER TWO PASSES, and the reason ci.yml is allowed
   # to run only the first one.
@@ -1564,8 +1582,10 @@ jobs:
   # every test the default build does PLUS the interval-only ones, of which
   # the gated set has some (a ring fuzz, an interval surfaces probe) that a
   # default-lane row would re-take with nothing. What this does NOT re-take is
-  # a gated suite that breaks only in the DEFAULT compile mode, which is the
-  # standing residue of lane sampling and not a new one.
+  # a gated suite that breaks only in the DEFAULT compile mode. That was the
+  # standing residue of lane sampling; since 2026-09-04 ci.yml runs both lanes
+  # on every code-tier run, so the PR gate covers it and only this nightly
+  # re-take is one-lane.
   #
   # AN EMPTY SET IS NOT A SILENT ZERO, the same distinction the `demoted` job
   # draws one lane over. `--gated-set` prints `none()` only after proving from

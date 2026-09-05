@@ -52,6 +52,9 @@
 //! a drag moves the camera and picks nothing, a click picks and moves
 //! nothing — but that is a property of the default bindings, not an
 //! invariant either function enforces on the other.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use crate::camera::{Camera, CameraOp, Folded};
 

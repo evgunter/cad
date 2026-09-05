@@ -295,12 +295,12 @@ fn an_l_shaped_face_is_violated_where_it_has_no_material() {
     let top = Selection {
         at: plate,
         body: 0,
-        faces: FaceScope::Named(vec![fixture::fname(plate, RoleSeg::Cap(CapEnd::Top))]),
+        faces: FaceScope::Named(vec![fixture::fname(plate, RoleSeg::Cap(CapEnd::End))]),
     };
     let bottom = Selection {
         at: floated,
         body: 0,
-        faces: FaceScope::Named(vec![fixture::fname(block, RoleSeg::Cap(CapEnd::Bottom))]),
+        faces: FaceScope::Named(vec![fixture::fname(block, RoleSeg::Cap(CapEnd::Start))]),
     };
     let leaf = box_of("lift");
     let sound = clearance(&doc, &leaf, &top, &bottom, 0.45, Tol::witness());

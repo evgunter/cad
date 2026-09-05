@@ -2,12 +2,13 @@
 id: mate-contradiction-names-one-mate-twice
 kind: issue
 title: Mate-solve contradiction diagnostics: mates 6 and 6 cannot both hold, and a levered angle printed in metres
-status: review
+status: closed
 opened: 2026-09-01
 github: 1462
 refs: [1461, levered-clash-margins-hide-their-arm]
 branch: fix/mate-contradiction-display
 pr: 1766
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 1462

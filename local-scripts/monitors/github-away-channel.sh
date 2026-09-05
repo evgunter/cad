@@ -59,6 +59,20 @@ fi
 # "@ <role>" derived from the tag: "(LIB orchestrator)" -> "@ lib".
 role=$(printf '%s' "$SELF_TAG" | tr -d '()' | awk '{print tolower($1)}')
 ADDRESSES="@ orchestrators,@ ${role}${CAD_CHANNEL_ADDRESSES:+,$CAD_CHANNEL_ADDRESSES}"
+# CAD_CHANNEL_NEW_EVENTS=summons narrows the repo-wide NEW ISSUE/PR
+# stream to items whose title/body carry the tag or an address
+# (default: all, the historical behaviour).
+NEW_EVENTS="${CAD_CHANNEL_NEW_EVENTS:-all}"
+# summoned <text>: true if the text carries SELF_TAG or any address.
+summoned() {
+  local t="$1" a
+  printf '%s' "$t" | grep -qiF "$SELF_TAG" && return 0
+  local IFS=,
+  for a in $ADDRESSES; do
+    printf '%s' "$t" | grep -qiF "$a" && return 0
+  done
+  return 1
+}
 CACHE_TTL="${CAD_CHANNEL_CACHE_TTL:-10}"   # polls between membership re-checks
 touch "$WATCHLIST"
 
@@ -146,7 +160,20 @@ while true; do
   now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   top=$(gh api "repos/$REPO/issues?state=all&per_page=30" --jq '.[].number' 2>/dev/null | sort -n | tail -1)
   if [ -n "$top" ] && [ "$top" -gt "$seen" ]; then
-    gh api "repos/$REPO/issues?state=all&per_page=30" --jq ".[] | select(.number > $seen) | \"NEW ISSUE/PR #\(.number): \(.title) [\(.user.login)]\"" 2>/dev/null
+    if [ "$NEW_EVENTS" = "summons" ]; then
+      # Ev, 2026-09-04 (in-chat, CURVED): repo-wide NEW lines are noise
+      # for an autonomous orchestrator; keep only the ones that summon
+      # this session by tag or address in the title or body. Comments
+      # are unaffected — "@ <role>" mentions always reach us there.
+      while IFS=$'\t' read -r n_num n_title n_user n_body; do
+        [ -n "$n_num" ] || continue
+        if summoned "$n_title $n_body"; then
+          echo "NEW ISSUE/PR #$n_num: $n_title [$n_user]"
+        fi
+      done < <(gh api "repos/$REPO/issues?state=all&per_page=30" --jq ".[] | select(.number > $seen) | [.number, .title, .user.login, (.body // \"\" | gsub(\"[\\\\n\\\\t]\"; \" \"))] | @tsv" 2>/dev/null)
+    else
+      gh api "repos/$REPO/issues?state=all&per_page=30" --jq ".[] | select(.number > $seen) | \"NEW ISSUE/PR #\(.number): \(.title) [\(.user.login)]\"" 2>/dev/null
+    fi
     seen=$top
   fi
   poll_n=$((poll_n + 1))

@@ -54,8 +54,17 @@ pub enum MateRole {
 }
 
 /// The document's solved poses (D-5's compose-outward input).
-#[derive(Debug, Clone, Default)]
+///
+/// A solve is a solve OF a document, and it says so: `document` is the
+/// id [`solve_document`] read, and [`SolvedPoses::placement`] — the one
+/// door that takes a `Doc` back — refuses a mispairing with it (DI3).
+/// No `Default`, for that reason: a poses value with no document is a
+/// value that cannot answer which document it is about.
+#[derive(Debug, Clone)]
 pub struct SolvedPoses {
+    /// **Which document this is a solve OF** (DI3), stamped by
+    /// [`solve_document`].
+    document: crate::ident::DocumentId,
     /// Each live instance's pose RELATIVE TO ITS CLUSTER GAUGE. The
     /// gauge's own entry is the identity, bit-exactly.
     relative: BTreeMap<RecipeNodeId, Frame>,
@@ -69,6 +78,24 @@ pub struct SolvedPoses {
 }
 
 impl SolvedPoses {
+    /// An empty solve OF `document`: no poses, no roles, no faults.
+    fn empty(document: crate::ident::DocumentId) -> Self {
+        Self {
+            document,
+            relative: BTreeMap::new(),
+            gauge: BTreeMap::new(),
+            roles: BTreeMap::new(),
+            faults: BTreeMap::new(),
+        }
+    }
+
+    /// **Which document this solve is of** (DI3). A caller holding a
+    /// solve and a document can check the pairing itself; every door
+    /// here that takes a `Doc` checks it already.
+    pub fn document(&self) -> crate::ident::DocumentId {
+        self.document
+    }
+
     /// A node's recorded fault, if the solve refused for it.
     pub fn fault(&self, node: RecipeNodeId) -> Option<&MateFault> {
         self.faults.get(&node)
@@ -96,14 +123,28 @@ impl SolvedPoses {
     /// returns its recorded frame VERBATIM — the mate-less document's
     /// evaluation is bit-for-bit what it was before mates existed.
     ///
+    /// `doc` is read for its cluster frames, and it must be the
+    /// document this solve is OF: composing this document's relative
+    /// poses onto another one's recorded frames is a pose of neither.
+    /// The pairing is CHECKED here (DI3) — the solve carries the id it
+    /// was built from — rather than left to the caller.
+    ///
     /// # Errors
     ///
-    /// The cluster's own refusal, when it did not solve.
+    /// [`MateFault::PosesOfAnotherDocument`] when `doc` is not the
+    /// document this solve is of, and the cluster's own refusal when it
+    /// did not solve.
     pub fn placement<P>(
         &self,
         doc: &Doc<P>,
         instance: RecipeNodeId,
     ) -> Result<Frame, Box<MateFault>> {
+        if let Some(m) = crate::ident::mispaired(doc.id(), self.document) {
+            return Err(Box::new(MateFault::PosesOfAnotherDocument {
+                expected: m.expected,
+                found: m.found,
+            }));
+        }
         if let Some(fault) = self.faults.get(&instance) {
             return Err(Box::new(fault.clone()));
         }
@@ -781,7 +822,7 @@ fn pair_left_factor<P>(
 /// Total by construction — a refusing cluster records its fault against
 /// its own mates and instances and leaves every other cluster solved.
 pub fn solve_document<P>(doc: &Doc<P>, tol: Tol) -> SolvedPoses {
-    let mut out = SolvedPoses::default();
+    let mut out = SolvedPoses::empty(doc.id());
     let band = match Band::linear(tol) {
         Ok(band) => band,
         Err(error) => {

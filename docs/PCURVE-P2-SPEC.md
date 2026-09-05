@@ -118,9 +118,12 @@ lands. Do not attempt it; do not widen scope to reach it.
    are corrected.
 4. #1157 is fixed with the f64 path measured (not derived) unchanged —
    or explicitly dropped with a reason.
-5. Hosted CI green **at a NAMED configuration** (`CI-Config:` trailer
-   per #1136), covering BOTH compile modes. Do not rely on the sampler;
-   verify `CONFIG_SOURCE` reports the trailer was honoured.
+5. Hosted CI green covering BOTH compile modes. Since 2026-09-04 an
+   ordinary run gates every lane, every eps row and every k-lint
+   unification, so this needs no request at all: count twelve `test (…)`
+   jobs. The `CI-Config:` trailer this clause used to name was deleted
+   the same day; verify `CONFIG_SOURCE` reads
+   `lane:unsampled eps:unsampled klint:unsampled`.
 
 ## What P-2 does NOT claim, and must say so in the PR body
 

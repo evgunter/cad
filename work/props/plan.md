@@ -36,7 +36,11 @@ certification items and the four unowned ones.
   measure first).
 - **Sphere polar extent**: `rimless-polar-cap-refuses-degenerateface`
   → `two-face-sphere-split-measures-zero-volume` (both H; CERT-1's
-  three exact pole rows stay green).
+  three exact pole rows stay green) →
+  `sphere-flux-arm-refuses-partial-bands` (H; two extensions of the
+  same sphere arm — the two-meridian band with `Δu` derived from the
+  arcs, and the general-circle boundary, which is a design
+  conversation; arrived from VERBS' sweep, same `fn sphere`).
 - **Rational quad lane**: `quad-face-extent-trusts-caller-perimeter`
   (E) → `refine-dir-hairline-knot-insertion` (H; before the dial so
   the floors are stable; its knot-slice-copy half is Track R's C3/D30)
@@ -46,10 +50,14 @@ certification items and the four unowned ones.
   `props-refusal-cannot-carry-measured-overshoot` (a ruling on the
   bounds allowlist).
 - **Linalg interval honesty** (an audit; DL6 is ratified):
-  `normalize-overflow-yields-zero-axis` (D→E) →
-  `certified-lane-non-real-contract-audit` (H, L; member by member,
-  `mirror_across_plane` first) → `interval-orthonormal-basis-sign-hull`
-  (D→H; M10-5's clearance workaround retires after) →
+  `certified-lane-non-real-contract-audit` (H, L; member by member —
+  **PROPS-1** takes `mirror_across_plane` and `reject_from` with the
+  one re-baseline pass both owe, `lerp` decided and left; member 5 is
+  its own item `rotation-about-diagonal-width-floor`, a D) →
+  `interval-orthonormal-basis-sign-hull` (D→H; the next unit on
+  `vec.rs`; M10-5's clearance workaround retires after) →
+  `normalize-overflow-yields-zero-axis` (D→E; S-CERT's item until the
+  inheritance, or handed over early) →
   `pole-branch-pick-two-integer-shift` (D→E; `chord_join.rs` is Track
   Q's / CURVED's — by note).
 - **Verdict recording**: `three-per-node-verdict-shapes` (D→E, first)
@@ -70,6 +78,26 @@ at S-CERT's sweep; `edge-chord-len-defaults-to-one-metre` is S-BOOL's
 ground; `loft-seam-carrier-exact-knot-compare` and
 `unify-edge-descriptions-on-pcurves` are TRIM's; `ssi-chart-speed-usability-boundary`
 is CURVED's.
+
+## Early lanes (before the inheritance)
+
+Ev's direction (in-chat, 2026-09-05): start the work that does not
+overlap S-CERT's live PRs. The gate for the inheritance is unchanged —
+S-CERT's exit walk ratified, its issue files re-homed here — but a lane
+whose files no live PR touches may run now with a territory notice to
+the S-CERT orchestrator. Measured against the changed-file lists of
+#1877 (CERT-M3), #1879 (CERT-N3), #1828 (M10-8) and #1617 (MESH-12):
+
+- **runs now**: the linalg interval-honesty lane (`linalg/frame.rs`,
+  `vec.rs`, `point.rs`, `mat.rs` — none in any live PR) and the Span
+  `[ev]` ruling (tracker file only; its sweep waits for CERT-N3's
+  `spline/` edits);
+- **design now, code after M10-8 merges**: the verdict-recording lane
+  (`drive.rs`, `k_stats.rs`, `eval/mod.rs` are in #1828, small);
+- **waits**: `m6-sense-gate-recorded-residuals` (`validate.rs` is in
+  #1877), the sphere lane (`props/curved.rs` is in #1617 and carries
+  S-CERT's two pole items), `contribution-bounds-via-dual-interval`
+  (certification widths).
 
 ## Review posture
 

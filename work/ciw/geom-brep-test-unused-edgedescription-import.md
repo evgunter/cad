@@ -2,10 +2,12 @@
 id: geom-brep-test-unused-edgedescription-import
 kind: issue
 title: geom-brep test binary carries an unused EdgeDescription import visible only under --all-features
-status: open
+status: review
 opened: 2026-09-01
 github: 1525
 refs: [1517, 1523]
+pr: 1795
+branch: ciw/all-features-clippy-row
 ---
 
 ## From GitHub issue 1525
@@ -19,6 +21,9 @@ VERBS is live in `geom-brep` — theirs to take or to wave through a drive-by.
 ## Home
 
 `work/verbs/` — the issue names VERBS as the live claimant in `geom-brep`, whose `intersect.rs`/`ssi*`/`offset*` files are VERBS' territory.
+
+**VERBS closed** (exit walk ratified, PR #1793; `docs/DOC-LEDGER.md`
+sweep 6); those files have no program claimant until one takes them.
 
 ## Re-measured (2026-09-04, CIW): four imports, and not in the file named above
 

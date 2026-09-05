@@ -1,7 +1,8 @@
 # CURVED — the curved-operand boolean remainder (plan)
 
-**STATUS: OPEN (2026-09-03).** Opened 2026-09-03 from `docs/WORK-TRACKS-2026-09.md` (CURVED section), which is this
-program's charter until this plan supersedes it. Live state is
+**STATUS: OPEN, DISPATCHING (since 2026-09-04).** Opened 2026-09-03
+from `docs/WORK-TRACKS-2026-09.md` (CURVED section); this plan
+supersedes that section as the charter. Live state is
 `work/curved/log.md`'s tail and the item files beside this plan, never
 this file.
 
@@ -11,7 +12,8 @@ Away-channel tag `(CURVED orchestrator)`. A/B ordinal band
 **CURVED = 2200–2299**, claimed in `docs/MODEL-AB-LOG.md`'s banding
 entry in the opening commit, per that entry's rule.
 
-**Opens at VERBS' exit.** See §Opening condition.
+**Opened for dispatch 2026-09-04** at VERBS' exit. See §Opening
+condition.
 
 ## Charter
 
@@ -21,13 +23,14 @@ a round boss, two cylinders meeting at a pinch — and every declared
 contact the census cannot yet back. The register is
 `docs/KERNEL-VERBS.md`'s Wave 2 remainder plus S-MATE's exit residue.
 
-## Opening condition
+## Opening condition (met)
 
-This program is a successor. It dispatches its first unit when VERBS'
-exit walk is ratified (CYLSPH is VERBS' last register unit) and the
-fence against S-BOOL below is written into both `program.md`s. Until
-then it is the durable home for the items S-MATE and M10 re-homed at
-their exits, so their directories can be swept.
+VERBS' exit walk was ratified at PR #1793 (2026-09-04, ledgered);
+S-MATE's directory was swept into MSOLVE; the fence against S-BOOL
+below is written into both `program.md`s (the opening PR). VERBS'
+fourteen re-homed items were adopted from `work/issues/` at the
+opening (see the log); `sphere-flux-arm-refuses-partial-bands` went to
+PROPS as a props unit.
 
 ## Fence against S-BOOL
 
@@ -38,10 +41,26 @@ CURVED takes: the declared-contact rungs (`rest.rs`, `carrier_eq.rs`,
 `census.rs`), the germ and pierce lanes (`chord_join.rs`,
 `boolean/join`, `splitting/*` as the pierce reads them), the operand
 reach arms (`sectors.rs`, `ops.rs`'s curved arm, `boxes.rs`),
-`geom-brep/{intersect,implicit}.rs` at VERBS' exit.
+`geom-brep/{intersect,implicit}.rs`. The operand-reach items, the two
+containment doors and the graft/boolean-declarations singles are on
+S-BOOL's slate today and move here by an announced handover on the
+away channel (opened 2026-09-04, Ev's nod) or at S-BOOL's exit.
 
 ## Lanes
 
+- **VERBS' executable remainder (first dispatches)**: `VERBS-C5ARMS`
+  PR-2 (cone×cylinder section arm; specced in
+  `docs/VERBS-C5ARMS-SPEC.md`, small) → `VERBS-CONE` (the cone and
+  torus operand lanes; spec to write, sequenced on what C5ARMS PR-2 and
+  the torus lane learn) with `plane-cone-elliptic-section-split-refusal`
+  folded in where VERBS-CONE's spec reaches `intersect.rs`.
+- **The spiric carrier (Ev-gated design)**: the RIMCAP torus half —
+  `docs/VERBS-RIMCAP-SPEC.md` §PR-2's option (a) fence-permanently vs
+  (b) an exact spiric carrier kind — as one `[ev]` design doc together
+  with #1377's valence-4 pinch machinery
+  (`pinch-carrying-machinery-valence-4`), opened early (Ev, in-chat
+  2026-09-04) because only Ev can advance it. It owns the klein elbow
+  (C5ARMS rows 3/4/8, TORAX's elbow half).
 - **Declared tangency (kiss/cusp)**: `m9-3-semantic-residues` items
   4–5 (contfp's pre-pass order; move `tangent_locus` out of `rest.rs`)
   → `dev1-cylinder-sphere-circle-locus-arm` (D: revise the DEV-1 set;
@@ -69,7 +88,11 @@ reach arms (`sectors.rs`, `ops.rs`'s curved arm, `boxes.rs`),
   (the D3 cut schedule) → `census-at-rest-two-boolean-lane-premises`
   stage 2 (parked by name on the C6 interference-fit era).
 - **Singles**: `signed-penetration-depth` (M10 residue; needs a
-  certified point-in-solid), `graft-copies-provenance-keys-verbatim`
+  certified point-in-solid), `verbs-1031b-assigner-checker-divergence`
+  (validate's check 6 learns the arc-bounded winding arm the merge
+  assigner already has; the refusal-surface measurement first — kept
+  here because the merge-door lane owns the same arc machinery),
+  `graft-copies-provenance-keys-verbatim`
   and `boolean-declarations-has-no-geometric-producer` and the
   containment doors (S-BOOL's today), `plane-cone-elliptic-section-split-refusal`
   if VERBS-CONE is never dispatched, the `ssi*` drive-bys

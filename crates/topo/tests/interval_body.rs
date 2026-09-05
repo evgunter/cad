@@ -13,9 +13,16 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use std::sync::Arc;
+
+use geom::{NetState, NurbsSurface, Surface};
 use geom_core::Tol;
+use geom_core::spline::KnotVector;
 use geom_core::{Bounds, Interval, Point3, Real};
-use topo::{Body, MefSite, MevSite, validate, validate_closed, validate_geometric};
+use topo::{
+    Body, FaceSurface, MefSite, MevSite, ValidationError, validate, validate_closed,
+    validate_geometric,
+};
 
 use crate::common;
 
@@ -123,4 +130,49 @@ fn interval_cube_upgrades_to_intersections() {
     let mut body = t.body;
     common::describe_as_intersections(&mut body);
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
+}
+
+/// Check 1's described-poison arm at the interval scalar. Poison is the
+/// scalar's own (`Real::from_f64(NaN)` is NaI here, as it is NaN at
+/// `f64`), so the state a net is in is preserved by the lift and the
+/// same face draws the same verdict.
+#[test]
+fn interval_described_net_carrying_poison_is_named_by_the_surface_check() {
+    let t = common::geometric_cube::<Interval>();
+    let mut body = t.body;
+    common::describe_as_intersections(&mut body);
+    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
+
+    let face = t.mefs[0].face;
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let control: Vec<Point3<Interval>> = (0..4)
+        .map(|i| {
+            Point3::new(
+                Interval::from_f64(f64::NAN),
+                Interval::from_f64(f64::from(i)),
+                Interval::from_f64(2.0),
+            )
+        })
+        .collect();
+    let net = NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap();
+    assert_eq!(
+        net.net_state(),
+        NetState::Poisoned,
+        "the fixture is corrupt DESCRIBED geometry at this scalar, not the placeholder"
+    );
+    body.set_face_surface(face, FaceSurface::New(Surface::Nurbs(Arc::new(net))))
+        .unwrap();
+
+    let errs = validate_geometric(&body, Tol::witness())
+        .expect_err("corrupt described geometry is refused at the interval scalar too");
+    assert!(
+        errs.contains(&ValidationError::PoisonedSurfaceDescription { face }),
+        "check 1 must name the corrupt described surface: {errs:?}",
+    );
+    assert!(
+        !errs
+            .iter()
+            .any(|e| matches!(e, ValidationError::UncertifiableSurface { .. })),
+        "the placeholder's verdict is a different state's answer: {errs:?}",
+    );
 }

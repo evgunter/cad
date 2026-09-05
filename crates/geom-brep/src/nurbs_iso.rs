@@ -187,7 +187,7 @@ mod tests {
     /// The shared 3×2 (u×v) bilinear-ish fixture.
     fn surface() -> NurbsSurface<f64> {
         let ku = KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
-        let kv = KnotVector::unit_segment(1);
+        let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         // Row-major iu·nv + iv, nv = 2.
         let control = vec![
             Point3::new(0.0, 0.0, 0.0),

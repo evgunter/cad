@@ -33,7 +33,6 @@ use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::props::{LoopEdge, curved_face};
-use geom_core::Tol;
 use geom_core::k_stats::Probe;
 
 /// Cylinder wall patch u ∈ [0, π/2], v ∈ [0, h]: bottom rim one arc

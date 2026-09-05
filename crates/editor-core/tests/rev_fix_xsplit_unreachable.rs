@@ -223,8 +223,8 @@ fn three_shapes() -> ProfileDoc {
         doc,
         DocEdit::InsertNode {
             node: seat(
-                in_copy(pa, 1, in_part(a, CapEnd::Top)),
-                in_part(b, CapEnd::Bottom),
+                in_copy(pa, 1, in_part(a, CapEnd::End)),
+                in_part(b, CapEnd::Start),
             ),
         },
     );
@@ -233,8 +233,8 @@ fn three_shapes() -> ProfileDoc {
         doc,
         DocEdit::InsertNode {
             node: seat(
-                in_copy(npc, 1, in_copy(pc, 1, in_part(c, CapEnd::Top))),
-                in_part(b, CapEnd::Top),
+                in_copy(npc, 1, in_copy(pc, 1, in_part(c, CapEnd::End))),
+                in_part(b, CapEnd::End),
             ),
         },
     );
@@ -268,8 +268,8 @@ fn foreign_master() -> ProfileDoc {
         doc,
         DocEdit::InsertNode {
             node: seat(
-                in_copy(pa, 2, in_part(c, CapEnd::Top)),
-                in_part(d, CapEnd::Bottom),
+                in_copy(pa, 2, in_part(c, CapEnd::End)),
+                in_part(d, CapEnd::Start),
             ),
         },
     );

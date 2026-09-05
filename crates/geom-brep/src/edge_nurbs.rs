@@ -47,18 +47,30 @@
 //! wanders off the true foot path enlarges the bound it must pass.
 //! A wrong `P` cannot launder a wrong carrier: it can only refuse.
 //!
-//! # The static lane split
+//! # Which scalars may derive this certificate
 //!
 //! Limbs 2 and 3 are C9-ring bounds and the foot point is a bracket
-//! read, so the honest signature is `T: Decide + Bounds`
-//! (`geom_core::Bounds`'s compound-allowlist note, M6-2). The split is
-//! expressed as [`EdgeNurbsLane`] in the ratified
-//! [`crate::PcurveFittedLane`] / `topo::props::PropsQuadLane` shape:
-//! certified impls for `f64`, the telemetry probe and the interval
-//! scalar, a **refusing** impl for `geom_core::Dual` (which may not
-//! certify — D1, 2026-08-19; it carries the value channel's bracket
-//! and that is not the right to mint a C9-ring bound), and `Bounds`
-//! kept out of `topo`'s signatures.
+//! read, so the honest signature is
+//! `T: Decide + Bounds + CertifiedEnclosure`
+//! (`geom_core::Bounds`'s compound-allowlist note, M6-2), and
+//! [`plane_nurbs_limbs`] carries it. That bound is the whole split: it
+//! admits `f64`, the telemetry probe and the interval scalar, and it
+//! does not admit `geom_core::Dual`, which may not certify (D1,
+//! 2026-08-19 — it carries the value channel's bracket, and that is
+//! not the right to mint a C9-ring bound). A dual does not receive a
+//! refusal here; it cannot write the call. `Bounds` stays off `topo`'s
+//! default signatures because the capability is injected at a separate
+//! door ([`crate::certify::NurbsLane`]) rather than raised into the
+//! shared machinery.
+//!
+//! **The symbolic tier rides the same bound and needs no arm of its
+//! own** (`geom_core::sym`): `Sym<T>` implements
+//! [`geom_core::Bounds`], `geom_core::CertifiedEnclosure` and
+//! `geom_core::Decide` exactly when its base scalar does, so
+//! `Sym<T>` satisfies this signature for every certifying `T` — the
+//! limbs are the base scalar's, run at `Sym<T>`. The tier changes how
+//! one class of margin decides and nothing about the certificate, and
+//! a bound says that without an impl to write.
 
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
@@ -95,14 +107,6 @@ pub struct PlaneNurbsLimbs<T: Real> {
 /// the measured number when one exists.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PlaneNurbsRefusal {
-    /// This scalar has no certified lane ([`EdgeNurbsLane`]'s refusing
-    /// side): it may not certify, so the C9 ring the hull bounds live
-    /// in is not reachable from it (D1, 2026-08-19 — a dual carries a
-    /// bracket but not the right to certify with it).
-    LaneUnsupported {
-        /// The scalar lane, named.
-        scalar: &'static str,
-    },
     /// The foot-point projection did not converge at a schedule
     /// sample. Never a best-effort foot.
     FootPointInconclusive {
@@ -165,13 +169,6 @@ pub enum PlaneNurbsRefusal {
 impl core::fmt::Display for PlaneNurbsRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::LaneUnsupported { scalar } => write!(
-                f,
-                "the plane × NURBS edge lane has no certified derivation at the {scalar} \
-                 scalar (it may not certify, so the exact-arithmetic ring the hull bounds live in \
-                 is out of reach — replay the body at f64, the telemetry probe, or the interval \
-                 scalar)"
-            ),
             Self::FootPointInconclusive {
                 sample,
                 last_distance,
@@ -213,41 +210,75 @@ impl core::fmt::Display for PlaneNurbsRefusal {
     }
 }
 
-/// **Which scalars can derive the plane × NURBS edge certificate** —
-/// the static lane split (module docs).
-pub trait EdgeNurbsLane: Decide {
-    /// Certifies the declared `carrier` as the intersection locus of
-    /// `plane` and `wall` (module docs for the three limbs).
-    ///
-    /// `extent` is the edge's honest spatial extent — the lever arm the
-    /// uniqueness tube's margin is metered at, and the scale its radius
-    /// ladder starts from.
-    ///
-    /// # Errors
-    ///
-    /// [`PlaneNurbsRefusal`], carrying the measured bound whenever one
-    /// exists. The refusing lane returns
-    /// [`PlaneNurbsRefusal::LaneUnsupported`] and instantiates none of
-    /// the certified machinery.
-    fn plane_nurbs_limbs(
-        carrier: &NurbsCurve3<Self>,
-        plane: &Surface<Self>,
-        wall: &NurbsSurface<Self>,
-        extent: Self,
-        band: Band,
-    ) -> Result<PlaneNurbsLimbs<Self>, PlaneNurbsRefusal>;
-
-    /// The lane's name, for the typed refusal's text.
-    fn lane_name() -> &'static str;
-}
-
-/// The certified lane's body, shared by every bracket-carrying scalar.
+/// **The certified plane × NURBS derivation** — the whole of what a
+/// scalar with certification rights can prove about this edge class,
+/// and the function the doors inject ([`crate::certify::NurbsLane`]).
 ///
 /// The operand ORDER is load-bearing exactly as it is in the fitted
 /// pcurve lane: the NURBS wall is operand **b**, because
 /// `certify_branch` reads the chart image of `b`, and the image this
 /// lane derives is the carrier's foot path on the wall.
-fn lane<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
+///
+/// # Errors
+///
+/// [`PlaneNurbsRefusal`], carrying the measured bound whenever one
+/// exists. Every refusal here is about the GEOMETRY: a scalar that may
+/// not certify does not receive one, because it cannot name this
+/// function. The bound is the split, and a dual fails it on
+/// [`geom_core::CertifiedEnclosure`] — it has carried
+/// [`geom_core::Bounds`] since D1 (2026-08-19) and that is not the
+/// right to mint a C9-ring bound:
+///
+/// ```compile_fail,E0277
+/// use geom_core::{Band, Dual64};
+/// use geom::{NurbsCurve3, NurbsSurface, Surface};
+/// fn certified(
+///     carrier: &NurbsCurve3<Dual64>,
+///     plane: &Surface<Dual64>,
+///     wall: &NurbsSurface<Dual64>,
+///     extent: Dual64,
+///     band: Band,
+/// ) {
+///     let _ = geom_brep::plane_nurbs_limbs(carrier, plane, wall, extent, band);
+/// }
+/// ```
+///
+/// The row above fails on the BOUND and not on a path or a spelling,
+/// and the row below is what says so: it differs in the scalar alone,
+/// every name resolving the same way.
+///
+/// ```
+/// use geom_core::Band;
+/// use geom::{NurbsCurve3, NurbsSurface, Surface};
+/// fn certified(
+///     carrier: &NurbsCurve3<f64>,
+///     plane: &Surface<f64>,
+///     wall: &NurbsSurface<f64>,
+///     extent: f64,
+///     band: Band,
+/// ) {
+///     let _ = geom_brep::plane_nurbs_limbs(carrier, plane, wall, extent, band);
+/// }
+/// ```
+///
+/// The symbolic tier is admitted by the same bound and needs no arm of
+/// its own, which is the whole of what a per-scalar impl would have
+/// said here:
+///
+/// ```
+/// use geom_core::{Band, Sym};
+/// use geom::{NurbsCurve3, NurbsSurface, Surface};
+/// fn symbolic(
+///     carrier: &NurbsCurve3<Sym<f64>>,
+///     plane: &Surface<Sym<f64>>,
+///     wall: &NurbsSurface<Sym<f64>>,
+///     extent: Sym<f64>,
+///     band: Band,
+/// ) {
+///     let _ = geom_brep::plane_nurbs_limbs(carrier, plane, wall, extent, band);
+/// }
+/// ```
+pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     plane: &Surface<T>,
     wall: &NurbsSurface<T>,
@@ -351,7 +382,7 @@ fn lane<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 /// image is EVIDENCE, and what makes it sound is that its consumer
 /// bounds `sup_t |S(P(t)) − C(t)|` over the whole span (module docs).
 ///
-/// **Two consumers, one producer.** [`lane`] certifies the image as
+/// **Two consumers, one producer.** [`plane_nurbs_limbs`] certifies the image as
 /// part of the plane × NURBS edge certificate at ADOPT time;
 /// [`crate::PcurveFittedLane::general_image`] hands the same image to
 /// the pcurve mint, where it becomes a stored
@@ -362,7 +393,7 @@ fn lane<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 /// carry — so there is one producer and both call it.
 ///
 /// `per_sample` is a hook run at every schedule sample in order, with
-/// the sample index and its foot; it is where [`lane`] puts its
+/// the sample index and its foot; it is where [`plane_nurbs_limbs`] puts its
 /// transversality sweep, so that adding this second consumer did not
 /// move the order in which two refusals of the same run can fire. The
 /// mint passes a hook that does nothing.
@@ -383,11 +414,11 @@ where
     F: FnMut(u32, Point2<f64>) -> Result<(), PlaneNurbsRefusal>,
 {
     if wall.is_placeholder() {
-        // The same refusal [`lane`] states before it gets here, kept at
+        // The same refusal `plane_nurbs_limbs` states before it gets here, kept at
         // the producer too: the mvfs placeholder is a mid-surgery "no
         // description yet" fact, and projecting onto it would return
-        // feet of a surface that does not exist. `lane` still checks
-        // first, so its own refusal ORDER is unchanged.
+        // feet of a surface that does not exist. `plane_nurbs_limbs`
+        // still checks first, so its own refusal ORDER is unchanged.
         return Err(PlaneNurbsRefusal::Unsupported {
             what: "the mvfs placeholder is a mid-surgery 'no description yet' fact, never a \
                    surface to derive a chart image on",
@@ -608,106 +639,5 @@ fn refusal(e: SsiError) -> PlaneNurbsRefusal {
         _ => PlaneNurbsRefusal::Unsupported {
             what: "the rung-3 certificate refused for a reason outside this lane's vocabulary",
         },
-    }
-}
-
-impl EdgeNurbsLane for f64 {
-    fn plane_nurbs_limbs(
-        carrier: &NurbsCurve3<Self>,
-        plane: &Surface<Self>,
-        wall: &NurbsSurface<Self>,
-        extent: Self,
-        band: Band,
-    ) -> Result<PlaneNurbsLimbs<Self>, PlaneNurbsRefusal> {
-        lane(carrier, plane, wall, extent, band)
-    }
-
-    fn lane_name() -> &'static str {
-        "f64"
-    }
-}
-
-#[cfg(feature = "probe")]
-impl EdgeNurbsLane for geom_core::Probe {
-    fn plane_nurbs_limbs(
-        carrier: &NurbsCurve3<Self>,
-        plane: &Surface<Self>,
-        wall: &NurbsSurface<Self>,
-        extent: Self,
-        band: Band,
-    ) -> Result<PlaneNurbsLimbs<Self>, PlaneNurbsRefusal> {
-        lane(carrier, plane, wall, extent, band)
-    }
-
-    fn lane_name() -> &'static str {
-        "telemetry probe"
-    }
-}
-
-#[cfg(feature = "interval")]
-impl EdgeNurbsLane for geom_core::interval::Interval {
-    fn plane_nurbs_limbs(
-        carrier: &NurbsCurve3<Self>,
-        plane: &Surface<Self>,
-        wall: &NurbsSurface<Self>,
-        extent: Self,
-        band: Band,
-    ) -> Result<PlaneNurbsLimbs<Self>, PlaneNurbsRefusal> {
-        lane(carrier, plane, wall, extent, band)
-    }
-
-    fn lane_name() -> &'static str {
-        "interval"
-    }
-}
-
-/// **The symbolic tier over a certifying scalar** (`geom_core::sym`):
-/// the limbs are the base scalar's, run at `Sym<T>`. The tier changes
-/// how one class of margin decides and nothing about the certificate,
-/// so it keeps the certifying lane rather than taking the dual's
-/// refusing one.
-impl<T> EdgeNurbsLane for geom_core::Sym<T>
-where
-    geom_core::Sym<T>: Decide,
-    T: geom_core::CertifiedBounds,
-{
-    fn plane_nurbs_limbs(
-        carrier: &NurbsCurve3<Self>,
-        plane: &Surface<Self>,
-        wall: &NurbsSurface<Self>,
-        extent: Self,
-        band: Band,
-    ) -> Result<PlaneNurbsLimbs<Self>, PlaneNurbsRefusal> {
-        lane(carrier, plane, wall, extent, band)
-    }
-
-    fn lane_name() -> &'static str {
-        "symbolic"
-    }
-}
-
-/// would certify it cannot be built there.
-/// The dual lane: STATICALLY no plane × NURBS certificate — this impl
-/// instantiates none of the certified machinery (module docs). A dual
-/// body simply never adopts this edge class, because the bound that
-/// would certify it cannot be built there.
-impl<T> EdgeNurbsLane for geom_core::Dual<T>
-where
-    geom_core::Dual<T>: Decide,
-{
-    fn plane_nurbs_limbs(
-        _carrier: &NurbsCurve3<Self>,
-        _plane: &Surface<Self>,
-        _wall: &NurbsSurface<Self>,
-        _extent: Self,
-        _band: Band,
-    ) -> Result<PlaneNurbsLimbs<Self>, PlaneNurbsRefusal> {
-        Err(PlaneNurbsRefusal::LaneUnsupported {
-            scalar: Self::lane_name(),
-        })
-    }
-
-    fn lane_name() -> &'static str {
-        "dual"
     }
 }

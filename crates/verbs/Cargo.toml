@@ -17,6 +17,7 @@ workspace = true
 interval = [
     "geom-brep/interval",
     "geom-core/interval",
+    "profile/interval",
     "sweep/interval",
     "topo/interval",
 ]
@@ -26,6 +27,7 @@ interval = [
 probe = [
     "geom-brep/probe",
     "geom-core/probe",
+    "profile/probe",
     "sweep/probe",
     "topo/probe",
 ]
@@ -34,6 +36,9 @@ probe = [
 # The lane trait the blend doors take (`PcurveFittedLane`).
 geom-brep = { path = "../geom-brep" }
 geom-core = { path = "../geom-core" }
+# The sweeps' operand type (`ValidatedProfile`), borrowed at the
+# profile door and never stored in a payload.
+profile = { path = "../profile" }
 # The ops this crate's run doors dispatch to. `Verb` names the
 # kernel's verbs, so it depends on every crate that hosts one; today
 # that is the blend pair in `sweep` and the boolean in `topo` (the

@@ -52,7 +52,7 @@
 //! Every definite fillet refusal this file provokes ends in a second
 //! request written into its own Display arm — `NoCornerForFillet`'s
 //! "use a smaller radius", `AnchorOutsideTrimmedExtent`'s "reduce the
-//! radius or move the anchor", `FilletEnclosesLegCarrier`'s "try a
+//! radius or move the anchor", `CornerReason::EnclosesLegCarrier`'s "try a
 //! radius below that". Those are recourses by every working definition
 //! this unit uses, and the rows below execute them: it is the same
 //! second request in each case, so following the dead constant and
@@ -63,9 +63,9 @@
 
 use geom_core::{Point2, Tol};
 use profile::{
-    ArcSweep, Center, FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE, FILLET_LEG_EXTENT_RECOURSE,
-    FILLET_NO_CORNER_RECOURSE, FILLET_OFFSET_LEVER_RECOURSE, FILLET_TURN_INBAND_RECOURSE, Open,
-    PathError, Profile, ProfileLoop, SketchPlane, Start,
+    ArcSweep, Center, CornerReason, CornerWindow, FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE,
+    FILLET_LEG_EXTENT_RECOURSE, FILLET_NO_CORNER_RECOURSE, FILLET_OFFSET_LEVER_RECOURSE,
+    FILLET_TURN_INBAND_RECOURSE, Open, PathError, Profile, ProfileLoop, SketchPlane, Start,
 };
 
 fn tol() -> Tol {
@@ -218,9 +218,11 @@ fn the_six_sentences_render_off_the_one_display_arm_that_has_no_producer() {
 /// **`FILLET_NO_CORNER_RECOURSE` — "use a smaller radius".**
 ///
 /// A radius of 1.5 on the line × arc corner admits no tangent circle at
-/// all. What the caller reads is `NoCornerForFillet`'s own prose, which
-/// carries no fillet recourse; the smaller radius the sentence endorses
-/// builds and validates.
+/// all. What the caller reads is the envelope's own prose — one
+/// sentence per derived corner, the reachable one saying no circle of
+/// that radius is tangent to both carriers there — which carries no
+/// fillet recourse; the smaller radius the sentence endorses builds and
+/// validates.
 ///
 /// The sentence's other clause — "move the legs so a circle of that
 /// radius can sit in the corner" — is a re-authoring rather than a
@@ -228,8 +230,15 @@ fn the_six_sentences_render_off_the_one_display_arm_that_has_no_producer() {
 #[test]
 fn the_no_corner_recourse_reduces_to_a_radius_that_builds() {
     let err = line_arc_internal(1.5).expect_err("no tangent circle exists at r = 1.5");
+    // One corner, and the row says which: the reachable crossing.
+    let listed = crate::common::corners(&err);
+    assert_eq!(
+        listed.len(),
+        1,
+        "one corner reached the construction: {err:?}"
+    );
     assert!(
-        matches!(err, PathError::NoCornerForFillet { .. }),
+        matches!(listed[0].reason, CornerReason::NoTangentCircle(_)),
         "the corner-existence gate is what refuses, got {err:?}"
     );
     carries_no_fillet_recourse(&err, "no corner for a fillet");
@@ -246,7 +255,7 @@ fn the_no_corner_recourse_reduces_to_a_radius_that_builds() {
 fn the_fit_recourse_is_followed_by_a_smaller_radius_and_by_longer_legs() {
     let err = straight_leg(1.9, 0.5).expect_err("the setback outruns the leg");
     assert!(
-        matches!(err, PathError::AnchorOutsideTrimmedExtent { .. }),
+        crate::common::anchor_fit(&err).is_some(),
         "the leg-fit gate's definite arm is what refuses, got {err:?}"
     );
     carries_no_fillet_recourse(&err, "the trimmed extent");
@@ -271,11 +280,13 @@ fn the_fit_recourse_is_followed_by_a_smaller_radius_and_by_longer_legs() {
 #[test]
 fn the_enclosing_recourse_endorses_a_bound_that_builds() {
     let err = two_lobes(1.0 + 50.0 * tol().eps()).expect_err("a radius above the lobe radius");
-    let PathError::FilletEnclosesLegCarrier {
-        largest_tangent_radius,
-        ..
-    } = err
-    else {
+    let listed = crate::common::corners(&err);
+    assert_eq!(
+        listed.len(),
+        1,
+        "the lens's bracketed crossing answers alone: {err:?}"
+    );
+    let Some((_, _, _, largest_tangent_radius)) = crate::common::enclosing(&err) else {
         panic!("the enclosing class is what refuses, got {err:?}")
     };
     carries_no_fillet_recourse(&err, "the enclosing class");
@@ -365,16 +376,23 @@ fn the_turn_in_band_recourse_is_followed_by_moving_the_geometry() {
 /// The collapsed-arm gate (`fillet_corner_arm`) meters the minimum leg
 /// lever arm, but a leg shrunk to nothing on the incoming side puts the
 /// carrier intersection behind the ray's own start, and the ray-order
-/// gate answers first with `NoCornerForFillet`. So the arm gate is not
-/// what a caller with no leg extent meets.
+/// gate answers first — the envelope's entry for that corner reads
+/// `OutsideAnchors(BehindIncomingRay)`. So the arm gate is not what a
+/// caller with no leg extent meets.
 ///
 /// The sentence's request is followed regardless: a leg with a real
 /// extent rounds and validates.
 #[test]
 fn the_leg_extent_recourse_is_followed_by_giving_the_leg_an_extent() {
     let err = bend(4.0, 1.0, 0.2).expect_err("an incoming leg with no extent");
+    // A straight pair derives one corner, and it is the ray's own
+    // origin — which is exactly why the ray-order gate answers.
+    crate::common::assert_corners(&err, &[(4.0, 0.0)], "the collapsed corner");
     assert!(
-        matches!(err, PathError::NoCornerForFillet { .. }),
+        matches!(
+            crate::common::corners(&err)[0].reason,
+            CornerReason::OutsideAnchors(CornerWindow::BehindIncomingRay)
+        ),
         "the ray-order gate answers before the collapsed-arm one, got {err:?}"
     );
     carries_no_fillet_recourse(&err, "a leg with no extent");

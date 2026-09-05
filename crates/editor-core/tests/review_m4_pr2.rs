@@ -98,13 +98,13 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
         },
     );
     let (x, y) = if swap { (b, a) } else { (a, b) };
-    // M4 PR 5: the flush bottom caps are declared (sides resolve
+    // M4 PR 5: the flush start caps are declared (sides resolve
     // per-operand, so ONE Declare serves both operand orders).
     let (doc, decl) = insert(
         doc,
         Node::declare_rest(vec![(
-            fixture::fname(a, RoleSeg::Cap(CapEnd::Bottom)),
-            fixture::fname(b, RoleSeg::Cap(CapEnd::Bottom)),
+            fixture::fname(a, RoleSeg::Cap(CapEnd::Start)),
+            fixture::fname(b, RoleSeg::Cap(CapEnd::Start)),
         )]),
     );
     let (doc, s) = insert(
@@ -715,8 +715,8 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
         let (doc, decl) = insert(
             doc,
             Node::declare_rest(vec![(
-                fixture::fname(cube, RoleSeg::Cap(CapEnd::Top)),
-                fixture::fname(pip, RoleSeg::Cap(CapEnd::Bottom)),
+                fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
+                fixture::fname(pip, RoleSeg::Cap(CapEnd::Start)),
             )]),
         );
         let (doc, sub) = insert(

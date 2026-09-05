@@ -140,13 +140,15 @@ pub(crate) fn is_placeholder<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool
 
 /// Does any control point carry poison in any channel?
 ///
-/// The box constructors' screen, and the complement of the question
-/// [`is_placeholder`] asks: a placeholder answers `true` here (every
-/// channel of every point is poison), and so does a DESCRIBED net that
-/// carries poison anywhere. That is the distinction a **box** needs and
-/// the state discriminator does not — a box is a claim about where the
-/// locus is, and a net with one poisoned bracket bounds its locus on no
-/// axis. Folding such a net gives a box that is poison on the poisoned
+/// The box constructors' screen. A placeholder answers `true` here
+/// (every channel of every point is poison), and so does a DESCRIBED
+/// net that carries poison anywhere — the two states a box must treat
+/// alike, because a box is a claim about where the locus is and a net
+/// with one poisoned bracket bounds its locus on no axis. That is the
+/// distinction a **box** needs; a consumer that must tell the three
+/// states apart asks `crate::NurbsSurface::net_state`, which reads
+/// this door and [`is_placeholder`] together and answers
+/// `crate::NetState`. Folding such a net gives a box that is poison on the poisoned
 /// axis and finite on the others, and `Aabb::overlaps` tests each axis
 /// on its own, so the finite axes witness a disjointness the geometry
 /// does not support and the box PRUNES. The poison box is the loud

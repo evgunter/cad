@@ -100,6 +100,7 @@ fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
         // level down.
         RoleSeg::FromA(of)
         | RoleSeg::FromB(of)
+        | RoleSeg::FromMember { of, .. }
         | RoleSeg::FromTarget(of)
         | RoleSeg::SplitFragment { parent: of, .. }
         | RoleSeg::OnToolVertex { of, .. }
@@ -197,7 +198,7 @@ mod tests {
         StableName {
             kind: EntityKind::Face,
             node: EXTRUDE,
-            path: vec![RoleSeg::Cap(CapEnd::Top)],
+            path: vec![RoleSeg::Cap(CapEnd::End)],
         }
     }
 

@@ -273,32 +273,29 @@ class TestTheRefusalsShape(unittest.TestCase):
         self.assertIn("undeclared contact", message)
         self.assertIn("never blessed from discovery", message)
 
-    def test_the_census_findings_still_arrive_as_debug_guts(self):
-        """MEASURED, and it is a defect this door was the first to
-        reach — pinned so its fix goes red rather than silent.
+    def test_the_census_findings_arrive_as_prose(self):
+        """The tier-3′ arms are the ones that reach a caller through a
+        KERNEL rendering rather than a binding one, and they read as
+        prose like every other typed refusal in this library.
 
-        Every other typed refusal in this library reads as prose: the
-        binding asserts it at its single raise site, and the assertion
-        panics rather than shipping a `Debug` dump. Three tier-3′
-        arms are worded by the KERNEL out of `Debug`, and only tier 3′
-        produces them — so binding the fourth rung is what first made
-        the assertion fire, on the ordinary call above.
-
-        Filed as `work/lib/tier-3-prime-findings-render-through-
-        debug.md`; not fixed here, because the rendering is the
-        kernel's and re-wording it at the boundary would fork a
-        diagnosis the kernel already owns. Until it lands, the raise
-        takes a narrow single-caller exemption. The Rust half of this
-        pin is `src/tests.rs::the_census_findings_are_not_prose_by_
-        this_crate_s_own_rule`.
+        They did not always. `UndeclaredContact` rendered its census
+        contact through `Debug`, `StaleContactDeclaration` its stale
+        declaration, and the witness position was a `Point3`'s derived
+        rendering — so the first honest call of this door tripped the
+        binding's own prose assertion. Each renders through `Display`
+        now, the raise takes no exemption, and this row is the pin that
+        the guts do not come back. The Rust half is
+        `src/tests.rs::the_census_findings_read_as_prose_by_this_crate_s_
+        own_rule`.
         """
         message = str(self.refusal())
-        self.assertIn(" { ", message, "the struct-brace fingerprint")
-        # Both halves of the arm render through `Debug`: the census
-        # contact itself, and the witness position the kernel builds
-        # with `format!(\"{p:?}\")`.
-        self.assertIn("VertexOnFace {", message)
-        self.assertIn("Point3 {", message)
+        self.assertNotIn(" { ", message, "the struct-brace fingerprint")
+        self.assertNotIn("Point3 {", message)
+        # The prose still carries what the Debug guts carried: which
+        # entities coincide, and where. A finding that lost its
+        # witness would read as prose and say nothing actionable.
+        self.assertIn("vertex", message)
+        self.assertRegex(message, r"at \(-?\d")
 
     def test_no_per_arm_tag_crosses_and_the_census_says_so(self):
         """The census's `CensusContact: INTERIOR` row states that which

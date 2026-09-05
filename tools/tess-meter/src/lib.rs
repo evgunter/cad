@@ -55,18 +55,19 @@
 //! `docs/tess-budget-data/tess-budget-baseline.csv` in
 //! `tessellation-budget lint (gate — a grown budget fails this row)`.
 //!
-//! **Those rows are SAMPLED, not unconditional.** Each carries an
-//! `if:` on the drawn `klint_row` — the sweep and its lint on
-//! `release-budget`, this crate's derivations on `dev-default`, one of
-//! five rows drawn per run from the head SHA. So the SIZING columns —
+//! **Those rows are UNCONDITIONAL since 2026-09-04.** Each carries an
+//! `if:` naming its `k-lint (gate)` matrix leg — the sweep and its lint
+//! on `release-budget`, this crate's derivations on `dev-default` — and
+//! every code-tier run has all five legs. From 2026-08-22 to that day
+//! one row was DRAWN per run from the head SHA, so the SIZING columns —
 //! triangle counts and `grid_cells / span_opt_cells`, which is what
-//! `compare` reads — are re-measured on about one merge in five, and
-//! so is the guard on the split scan's two constants below. Neither
+//! `compare` reads — were re-measured on about one merge in five, and so
+//! was the guard on the split scan's two constants below. Neither
 //! quantity drifts between merges: both are functions of this tree
-//! alone. What the sampling costs is therefore latency and not
-//! staleness — a retune can land unmeasured and be caught by a later
-//! draw — which is a weaker thing than the per-merge register the
-//! sizing columns have been read as.
+//! alone, which is why the sampling cost latency and not staleness — a
+//! retune could land unmeasured and be caught by a later draw. That was
+//! a weaker thing than the per-merge register the sizing columns had
+//! been read as, and the per-merge register is what they are again.
 //!
 //! **The deviation half is not.** CI runs that sweep with
 //! `--sizing-only`, which skips the |S - Pi| resample, so `worst_dev`
@@ -874,11 +875,12 @@ pub fn divisions(extent: f64, h: f64) -> f64 {
 ///
 /// **The guard on this pair runs on the merge that moves it.** What
 /// boxes these two is this crate's own derivations suite, and the only
-/// k-lint unification that runs that suite is `dev-default` — one of
-/// five, drawn per run. A change anywhere under `tools/` now PINS that
-/// row rather than sampling it (`KLINT_PATH_ROWS` in
-/// `scripts/ci-filter.py`), so a retune here is gated by the guard it
-/// is about instead of by whichever row a hash picked.
+/// k-lint unification that runs that suite is `dev-default` — which
+/// every code-tier run gates, since the five unifications stopped being
+/// sampled on 2026-09-04 (`KLINT_ROWS` in `scripts/ci-filter.py`).
+/// Between 2026-08-22 and then the row was drawn 1 in 5 and a `tools/`
+/// change PINNED it instead, which was the narrower answer to the same
+/// question; that pin is retired with the draw it pre-empted.
 pub const SPLIT_SCAN_DECADES: f64 = 8.0;
 /// Samples per scan (fixed, so the answer is deterministic — D9).
 /// SAMPLES, not steps: a step in this crate's vocabulary is a UV
@@ -889,8 +891,8 @@ pub const SPLIT_SCAN_DECADES: f64 = 8.0;
 /// of the aspect-ratio scan), no derivation reaches either alone, and
 /// the boxing test asserts them together. Read that paragraph before
 /// retuning this: it also records why the cell count these constants
-/// feed cannot carry a guard, and that a change under `tools/` now
-/// forces the CI row that runs the box rather than sampling it. Stated
+/// feed cannot carry a guard, and that the CI row that runs the box is
+/// gated by every code-tier run. Stated
 /// as a pointer and not a second copy, because the two constants moving
 /// apart in their documentation is the first step to their moving apart
 /// in fact.
@@ -1255,13 +1257,13 @@ pub fn best_split_steps(bound: Bound, du: f64, dv: f64, delta_s: f64) -> (f64, f
 /// drifted — a sampling statistic over random bounds is not a property
 /// this crate exposes. What IS re-taken is the thing it argued for: the
 /// derivations suite pins the composition exactly, on a family chosen so
-/// each of the three retunes moves an assertion, and a change anywhere
-/// under `tools/` now PINS the k-lint row that runs that suite rather
-/// than sampling it (`KLINT_PATH_ROWS` in `scripts/ci-filter.py`). So
-/// the number is history and the guard is live, which is the right way
-/// round. The figure is stated HERE and nowhere else — the derivations
-/// row that holds this composition points at this paragraph rather than
-/// restating the pair, so the two cannot part.
+/// each of the three retunes moves an assertion, and the k-lint row that
+/// runs that suite (`dev-default`) is gated by every code-tier run since
+/// 2026-09-04 (`KLINT_ROWS` in `scripts/ci-filter.py`). So the number is
+/// history and the guard is live, which is the right way round. The
+/// figure is stated HERE and nowhere else — the derivations row that
+/// holds this composition points at this paragraph rather than restating
+/// the pair, so the two cannot part.
 ///
 /// So the derivations suite asserts this function EQUALS
 /// `split_scan(bound, du, dv, delta_s, shipped_split_scan_aspects(),

@@ -495,7 +495,7 @@ fn concentric_circles_of_close_radii_escalate_as_sliver_annulus() {
 /// (so a driver bisecting a parameter box knows which decision went
 /// unconfirmed), and the fillet escalation's recourse rider carries the
 /// same sentence its definite sibling
-/// [`profile::PathError::FilletEnclosesLegCarrier`] carries (D4 ¶1 (iv)).
+/// [`profile::path::CornerReason::EnclosesLegCarrier`] carries (D4 ¶1 (iv)).
 ///
 /// The second half constructs its error value rather than provoking it:
 /// `EscalationSite::Fillet` has no producer in the kernel today (the

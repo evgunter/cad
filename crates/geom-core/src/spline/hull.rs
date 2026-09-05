@@ -101,22 +101,6 @@ use super::knots::{KnotVector, Span};
 use crate::real::CertifiedEnclosure;
 use crate::ring_interval::RingInterval;
 
-/// Reads a coefficient's bracket into the ring.
-///
-/// The bound is [`CertifiedEnclosure`], not [`crate::Enclosure`]: a hull bound
-/// is a *certificate*, so a coefficient that merely carries a bracket is
-/// not enough — the computation behind it must also have been defined on
-/// the whole input box. A coefficient that refuses becomes ring poison,
-/// exactly as a NaN or inverted bracket does, and poison propagates
-/// through every bound it participates in (module docs).
-///
-/// The body is [`RingInterval::from_certified`]; this wrapper exists for
-/// the name at the call sites below, not for a second spelling of the
-/// door.
-fn bracket<E: CertifiedEnclosure>(c: E) -> RingInterval {
-    RingInterval::from_certified(c)
-}
-
 /// The coefficient index range whose basis functions are nonzero on
 /// `span` — the [`Span`]'s own window, `[span − p, span]`, computed
 /// once at its construction rather than re-derived here.
@@ -152,7 +136,7 @@ pub fn span_hull<E: CertifiedEnclosure>(kv: &KnotVector, coeffs: &[E], span: Spa
     // Fixed ascending reduction order (D9).
     for (n, j) in (first..=last).enumerate() {
         // Indexing justified: last ≤ control_count() − 1 = coeffs.len() − 1.
-        let c = bracket(coeffs[j]);
+        let c = RingInterval::from_certified(coeffs[j]);
         acc = if n == 0 {
             c
         } else {
@@ -279,7 +263,7 @@ fn deriv_coeff<E: CertifiedEnclosure>(kv: &KnotVector, coeffs: &[E], i: usize) -
         return RingInterval::poison();
     }
     let du = RingInterval::point(u[i + p + 1]) - RingInterval::point(u[i + 1]);
-    let dc = bracket(coeffs[i + 1]) - bracket(coeffs[i]);
+    let dc = RingInterval::from_certified(coeffs[i + 1]) - RingInterval::from_certified(coeffs[i]);
     #[allow(clippy::cast_precision_loss)]
     let scale = RingInterval::point(p as f64);
     dc * scale / du

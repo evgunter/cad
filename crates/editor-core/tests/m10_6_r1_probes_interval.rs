@@ -29,7 +29,7 @@
 //!    over it reading a certified `Violated` on a pair that holds.
 //! 2. The unary elaboration (D8): `min_clearance(body, body)` on one
 //!    body is the selection's self-clearance.
-//! 3. `VerdictVector::certifying` moves the witness-vector key of every
+//! 3. `drive::certifying_vector` moves the witness-vector key of every
 //!    assertion-carrying document (claim 1's "bit-identical keys" for
 //!    documents without `min_clearance`).
 //! 4. `report_key` omits the drive/MC config, so two different reports
@@ -202,8 +202,8 @@ fn notch(bound: f64, dir: AssertionDir) -> (ProfileDoc, RecipeNodeId, RecipeNode
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
             vec![
-                MeasureRef::at_mint(fixture::fname(ell, RoleSeg::Cap(CapEnd::Top))),
-                MeasureRef::at_mint(fixture::fname(block, RoleSeg::Cap(CapEnd::Bottom))),
+                MeasureRef::at_mint(fixture::fname(ell, RoleSeg::Cap(CapEnd::End))),
+                MeasureRef::at_mint(fixture::fname(block, RoleSeg::Cap(CapEnd::Start))),
             ],
         )
         .expect("both indices in range"),

@@ -116,6 +116,7 @@ pub(crate) enum SegTag {
     // Boolean
     FromA,
     FromB,
+    FromMember,
     Seam,
     Merged,
     Fragment,
@@ -165,6 +166,7 @@ impl SegTag {
             Self::AxisEdge => s::SegTag::AxisEdge,
             Self::FromA => s::SegTag::FromA,
             Self::FromB => s::SegTag::FromB,
+            Self::FromMember => s::SegTag::FromMember,
             Self::Seam => s::SegTag::Seam,
             Self::Merged => s::SegTag::Merged,
             Self::Fragment => s::SegTag::Fragment,
@@ -225,7 +227,8 @@ impl OpGroup {
     }
 }
 
-/// An extrude/revolve cap end (`SegPat.side`'s extrude spelling).
+/// Which end of the sweep vector a cap face closes (`SegPat.side`'s
+/// extrude spelling).
 #[pyclass(eq, eq_int, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq)]
 #[allow(
@@ -233,8 +236,8 @@ impl OpGroup {
     reason = "each variant mirrors the documented `editor_core::CapEnd` variant of the same name"
 )]
 pub(crate) enum CapEnd {
-    Top,
-    Bottom,
+    End,
+    Start,
 }
 
 /// A revolve meridian end.
@@ -295,8 +298,8 @@ pub(crate) enum SideArg {
 impl SideArg {
     fn to_kernel(&self) -> s::Side {
         match self {
-            Self::Cap(CapEnd::Top) => s::Side::Cap(s::CapEnd::Top),
-            Self::Cap(CapEnd::Bottom) => s::Side::Cap(s::CapEnd::Bottom),
+            Self::Cap(CapEnd::End) => s::Side::Cap(s::CapEnd::End),
+            Self::Cap(CapEnd::Start) => s::Side::Cap(s::CapEnd::Start),
             Self::Meridian(MeridianEnd::Start) => s::Side::Meridian(s::MeridianEnd::Start),
             Self::Meridian(MeridianEnd::End) => s::Side::Meridian(s::MeridianEnd::End),
             Self::Meridian(MeridianEnd::Seam) => s::Side::Meridian(s::MeridianEnd::Seam),
@@ -466,7 +469,7 @@ impl SegPat {
         Self(s::SegPat::group(group.to_kernel()))
     }
 
-    /// Constrains the end/side tag (`.side(CapEnd.Top)`). Accepts any
+    /// Constrains the end/side tag (`.side(CapEnd.End)`). Accepts any
     /// of the four side vocabularies: `CapEnd`, `MeridianEnd`,
     /// `SplitHalf`, `RimSupport`.
     fn side(&self, side: SideArg) -> Self {
@@ -813,6 +816,7 @@ mod growth_tripwire {
             s::SegTag::AxisEdge => SegTag::AxisEdge,
             s::SegTag::FromA => SegTag::FromA,
             s::SegTag::FromB => SegTag::FromB,
+            s::SegTag::FromMember => SegTag::FromMember,
             s::SegTag::Seam => SegTag::Seam,
             s::SegTag::Merged => SegTag::Merged,
             s::SegTag::Fragment => SegTag::Fragment,
@@ -854,8 +858,8 @@ mod growth_tripwire {
 
     fn side(k: s::Side) -> SideArg {
         match k {
-            s::Side::Cap(s::CapEnd::Top) => SideArg::Cap(CapEnd::Top),
-            s::Side::Cap(s::CapEnd::Bottom) => SideArg::Cap(CapEnd::Bottom),
+            s::Side::Cap(s::CapEnd::End) => SideArg::Cap(CapEnd::End),
+            s::Side::Cap(s::CapEnd::Start) => SideArg::Cap(CapEnd::Start),
             s::Side::Meridian(s::MeridianEnd::Start) => SideArg::Meridian(MeridianEnd::Start),
             s::Side::Meridian(s::MeridianEnd::End) => SideArg::Meridian(MeridianEnd::End),
             s::Side::Meridian(s::MeridianEnd::Seam) => SideArg::Meridian(MeridianEnd::Seam),

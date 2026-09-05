@@ -566,7 +566,7 @@ fn plane_angle_between_opposed_caps_is_pi() {
             assert_eq!(found.len(), 1, "one {end:?} cap");
             MeasureRef::new(body, found.remove(0))
         };
-        vec![pick(CapEnd::Top), pick(CapEnd::Bottom)]
+        vec![pick(CapEnd::End), pick(CapEnd::Start)]
     };
     let doc = push(
         &doc,
@@ -598,8 +598,8 @@ fn plane_angle_between_opposed_caps_is_pi() {
 fn a_plane_gap_over_disjoint_slabs_is_positive_both_ways() {
     let (doc, lower, upper) = two_slabs();
     let ev = eval(&doc);
-    let top_of_lower = cap(&ev, lower, editor_core::CapEnd::Top);
-    let bottom_of_upper = cap(&ev, upper, editor_core::CapEnd::Bottom);
+    let top_of_lower = cap(&ev, lower, editor_core::CapEnd::End);
+    let bottom_of_upper = cap(&ev, upper, editor_core::CapEnd::Start);
 
     // Forward, then the roles swapped.
     for (o, i) in [
@@ -633,8 +633,8 @@ fn a_plane_gap_over_disjoint_slabs_is_positive_both_ways() {
 fn a_plane_gap_over_an_aligned_pair_negates_under_a_role_swap() {
     let (doc, lower, upper) = two_slabs();
     let ev = eval(&doc);
-    let top_of_lower = cap(&ev, lower, editor_core::CapEnd::Top);
-    let top_of_upper = cap(&ev, upper, editor_core::CapEnd::Top);
+    let top_of_lower = cap(&ev, lower, editor_core::CapEnd::End);
+    let top_of_upper = cap(&ev, upper, editor_core::CapEnd::End);
 
     let read = |o: MeasureRef, i: MeasureRef| {
         let doc = push(

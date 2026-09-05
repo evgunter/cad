@@ -71,8 +71,12 @@
 //!   (mint-time `Intersection` is impossible — the surfaces don't exist
 //!   yet). The choice is `geom_brep::classify_dihedral` at the strut
 //!   midpoint with the strut chord as extent: Transverse ⇒ upgrade;
-//!   Smooth ⇒ the edge keeps its conventional `MappedCurve` description
-//!   (the ratified no-face-merging split, D2); Indeterminate ⇒
+//!   Smooth ⇒ one order down, through the must-carry rule
+//!   ([`geom_brep::tangent_second_order`], M5 PR 9) — jet-determinate
+//!   ⇒ `TangentIntersection`, under-determined ⇒ an image at rest in
+//!   the previous wall's chart (the ratified no-face-merging split,
+//!   D2, which is a CONVENTIONAL description and no longer the
+//!   scaffolding `MappedCurve` the mint left); Indeterminate ⇒
 //!   [`ExtrudeError::SliverJoin`] (escalate-never-guess).
 //! - **Cap–wall rims upgrade too** (the ratified rim decision — Ev,
 //!   M2-LOG 2026-07-19): after both cap planes are set, every rim edge
@@ -80,10 +84,17 @@
 //!   `Intersection { cap plane, side surface, witness }` through the
 //!   same `classify_dihedral` → `set_edge_curve` pattern, with the
 //!   witness minted as the **carrier's mid-parameter point** (the S2
-//!   witness contract). Every rim of a normal extrusion is definitely
-//!   transverse (cap ⊥ wall), matching tier 3's prefer-intrinsic
-//!   enforcement: at rest, definitely-transverse edges must carry
-//!   `Intersection`.
+//!   witness contract). At the shipped ambiguity multiplier K = 10
+//!   every rim of a normal extrusion is definitely transverse, so the
+//!   upgrade is the only arm reached — matching tier 3's
+//!   prefer-intrinsic enforcement, under which definitely-transverse
+//!   edges must carry `Intersection` at rest. That is a K-conditional
+//!   fact, not a geometric identity: the direction gates bound the
+//!   cap–wall angle by `sin θ ≥ K/√(K² + 1)` against a `Smooth`
+//!   ceiling of `1/K`, and the two only close above `K* ≈ 1.272`.
+//!   Below it a rim can classify smooth, and the verb refuses
+//!   ([`ExtrudeError::SmoothCapRim`]) rather than hand back a body
+//!   tier 3 rejects. The argument is at `extrude::upgrade_rim`'s arm.
 //! - **Cosurface sharing**: smooth joins whose side faces lie on the
 //!   identical-by-construction surface — collinear line segments (one
 //!   plane), tangent arcs on one carrier circle (one cylinder) — share
@@ -153,8 +164,8 @@ pub use revolve::{
 pub use geom_brep::SketchSegment;
 pub use profile::{ProfileLoop, ProfileVertex};
 pub use skin::{
-    LoftGeometry, Section, SkinError, lift_surface, loft_geometry, loft_parameters,
-    make_compatible, segment_curve, skin, skin_on, skin_parameters, sweep_geometry, sweep_places,
+    LoftGeometry, Section, SkinError, loft_geometry, loft_parameters, make_compatible,
+    segment_curve, skin, skin_on, skin_parameters, sweep_geometry, sweep_places,
 };
 
 pub mod blend;

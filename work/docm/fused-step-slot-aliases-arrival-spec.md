@@ -2,9 +2,12 @@
 id: fused-step-slot-aliases-arrival-spec
 kind: unit
 title: Fused-step slot addressing aliases the arrival spec's argument for Sweep/ArcLen/Bulge
-status: open
+status: closed
 opened: 2026-08-20
 github: 829
+closed: 2026-09-04
+pr: 1840
+branch: docm/spec2-slots
 ---
 
 ## From GitHub issue 829
@@ -53,3 +56,14 @@ rule (`docs/DESIGN.md` Band 4, BOOL-13). E-class: add `SweepVal2`,
 `ArcLenVal2`, `Bulge2` to `StepArg`, widen `spec_slots` and the
 `spec_arg_access!` table, and land the corpus step that makes
 `every_enumerated_slot_addresses_a_distinct_expression` cover it.
+
+## Closed (2026-09-04)
+
+Merged as PR 1840, a mechanical unit (no review lane, no A/B row):
+`StepArg::{SweepVal2, ArcLenVal2, Bulge2}`, `spec_slots` and the access
+tables split on the arrival axis, the census generated over every mode
+of `ArcMode::ALL`. The reach ends at the lattice, not at addressing: no
+recording surface and no document door admits a `Sweep`/`ArcLen`/`Bulge`
+arrival spec, so the three roles serve hand-built programs only, which
+the row `the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots`
+states and pins.

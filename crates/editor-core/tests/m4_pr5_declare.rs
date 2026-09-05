@@ -104,7 +104,7 @@ fn kiss_vertex_names(
     let va = vname(
         a,
         RoleSeg::CapVertex(
-            CapEnd::Top,
+            CapEnd::End,
             ProfileVertexRef {
                 loop_index: 0,
                 vertex: 2,
@@ -115,7 +115,7 @@ fn kiss_vertex_names(
     let vb = vname(
         b,
         RoleSeg::CapVertex(
-            CapEnd::Bottom,
+            CapEnd::Start,
             ProfileVertexRef {
                 loop_index: 0,
                 vertex: 0,
@@ -295,18 +295,18 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
             declare: None,
         },
     );
-    // Slot floor of s1 = FromB(b1's Cap(Bottom)); the second tool's
-    // bottom cap lies in the SAME plane (z = 0.5) — declared.
+    // Slot floor of s1 = FromB(b1's Cap(Start)); the second tool's
+    // start cap lies in the SAME plane (z = 0.5) — declared.
     let floor1 = fname(
         s1,
-        RoleSeg::FromB(Box::new(fname(b1, RoleSeg::Cap(CapEnd::Bottom)))),
+        RoleSeg::FromB(Box::new(fname(b1, RoleSeg::Cap(CapEnd::Start)))),
     );
     let (doc, b2) = block(doc, (-1.0, 4.0), (1.0, 2.0), 0.5, 1.0);
     let (doc, decl) = insert(
         doc,
         Node::declare_rest(vec![(
             floor1.clone(),
-            fname(b2, RoleSeg::Cap(CapEnd::Bottom)),
+            fname(b2, RoleSeg::Cap(CapEnd::Start)),
         )]),
     );
     let (doc, s2) = insert(
@@ -394,10 +394,10 @@ fn declare_resolution_failures_are_typed_n5_errors() {
     // Vanished: a name the operands' tables never carried.
     let ghost = fname(a, wall(1)); // exists…
     let mut ghost = ghost;
-    ghost.path = vec![RoleSeg::Cap(CapEnd::Top), RoleSeg::Cap(CapEnd::Top)]; // …not any more
+    ghost.path = vec![RoleSeg::Cap(CapEnd::End), RoleSeg::Cap(CapEnd::End)]; // …not any more
     let (doc, decl) = insert(
         base.clone(),
-        Node::declare_rest(vec![(ghost.clone(), fname(b, RoleSeg::Cap(CapEnd::Top)))]),
+        Node::declare_rest(vec![(ghost.clone(), fname(b, RoleSeg::Cap(CapEnd::End)))]),
     );
     let (doc, u) = boolean_with(doc, decl);
     let ev = run(&doc);
@@ -437,7 +437,7 @@ fn declare_resolution_failures_are_typed_n5_errors() {
     let va = vname(
         a,
         RoleSeg::CapVertex(
-            CapEnd::Top,
+            CapEnd::End,
             ProfileVertexRef {
                 loop_index: 0,
                 vertex: 0,
@@ -447,7 +447,7 @@ fn declare_resolution_failures_are_typed_n5_errors() {
     let vb = vname(
         b,
         RoleSeg::CapVertex(
-            CapEnd::Top,
+            CapEnd::End,
             ProfileVertexRef {
                 loop_index: 0,
                 vertex: 0,
@@ -474,12 +474,12 @@ fn skipped_declared_merge_recipe_door_is_tier3_green() {
         doc,
         Node::declare_rest(vec![
             (
-                fname(a, RoleSeg::Cap(CapEnd::Top)),
-                fname(b, RoleSeg::Cap(CapEnd::Top)),
+                fname(a, RoleSeg::Cap(CapEnd::End)),
+                fname(b, RoleSeg::Cap(CapEnd::End)),
             ),
             (
-                fname(a, RoleSeg::Cap(CapEnd::Bottom)),
-                fname(b, RoleSeg::Cap(CapEnd::Bottom)),
+                fname(a, RoleSeg::Cap(CapEnd::Start)),
+                fname(b, RoleSeg::Cap(CapEnd::Start)),
             ),
         ]),
     );
@@ -548,17 +548,32 @@ fn declare_doors_both_operands_node_gone_and_ambiguous() {
     // side guess (reviewer's probe adopted).
     let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let cap = fname(a, RoleSeg::Cap(CapEnd::Top));
+    let cap = fname(a, RoleSeg::Cap(CapEnd::End));
     let (doc, decl) = insert(
         doc,
-        Node::declare_rest(vec![(cap.clone(), fname(a, RoleSeg::Cap(CapEnd::Bottom)))]),
+        Node::declare_rest(vec![(cap.clone(), fname(a, RoleSeg::Cap(CapEnd::Start)))]),
+    );
+    // The second operand is a TRANSFORM of the first, not the first
+    // twice: a node's inputs are pairwise distinct (DM5), so the
+    // one-node spelling is refused at the edit door now. A transform
+    // adds no role segment and keeps the minting node (N1), so the
+    // declared name still resolves in both operand tables — which is
+    // the state this row is about, reached without repeating an edge.
+    let (doc, placed) = insert(
+        doc,
+        Node::Transform {
+            input: a,
+            translation: [len(0.0), len(0.0), len(0.0)],
+            rotation_axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
+            rotation_angle: fixture::ang(0.0),
+        },
     );
     let (doc, u) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
-            b: a,
+            b: placed,
             declare: Some(decl),
         },
     );
@@ -576,8 +591,8 @@ fn declare_doors_both_operands_node_gone_and_ambiguous() {
     let (doc, decl) = insert(
         doc,
         Node::declare_rest(vec![(
-            fname(c, RoleSeg::Cap(CapEnd::Top)),
-            fname(b, RoleSeg::Cap(CapEnd::Top)),
+            fname(c, RoleSeg::Cap(CapEnd::End)),
+            fname(b, RoleSeg::Cap(CapEnd::End)),
         )]),
     );
     let (doc, u) = insert(
@@ -648,7 +663,7 @@ fn declare_doors_both_operands_node_gone_and_ambiguous() {
     let (doc, mate) = block(doc, (0.0, 4.0), (0.0, 4.0), 6.0, 1.0);
     let (doc, decl) = insert(
         doc,
-        Node::declare_rest(vec![(tied.clone(), fname(mate, RoleSeg::Cap(CapEnd::Top)))]),
+        Node::declare_rest(vec![(tied.clone(), fname(mate, RoleSeg::Cap(CapEnd::End)))]),
     );
     let (doc, u2) = insert(
         doc,
@@ -709,12 +724,12 @@ fn crossing_slots_swapped_order_hits_the_junction_arm() {
     );
     let floor2 = fname(
         s1,
-        RoleSeg::FromB(Box::new(fname(b2, RoleSeg::Cap(CapEnd::Bottom)))),
+        RoleSeg::FromB(Box::new(fname(b2, RoleSeg::Cap(CapEnd::Start)))),
     );
     let (doc, b1) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, decl) = insert(
         doc,
-        Node::declare_rest(vec![(floor2, fname(b1, RoleSeg::Cap(CapEnd::Bottom)))]),
+        Node::declare_rest(vec![(floor2, fname(b1, RoleSeg::Cap(CapEnd::Start)))]),
     );
     let (doc, s2) = insert(
         doc,

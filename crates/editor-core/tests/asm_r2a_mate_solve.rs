@@ -118,7 +118,7 @@ fn in_part(instance: RecipeNodeId, part_node: RecipeNodeId) -> StableName {
             of: Box::new(StableName {
                 kind: EntityKind::Face,
                 node: part_node,
-                path: vec![RoleSeg::Cap(editor_core::CapEnd::Bottom)],
+                path: vec![RoleSeg::Cap(editor_core::CapEnd::Start)],
             }),
         }],
     }

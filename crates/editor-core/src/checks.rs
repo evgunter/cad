@@ -12,10 +12,11 @@
 //!
 //! Postures, each load-bearing:
 //!
-//! - **[`run_checks`] reports, never gates** (the [`crate::mixed_pins`]
-//!   posture): nothing calls it from `apply`, from the load door, or
-//!   from evaluation. A document with findings is valid at every one
-//!   of those doors.
+//! - **[`run_checks_on`] reports, never gates** (the
+//!   [`crate::mixed_pins`] posture), and so does [`run_checks`], the
+//!   wrapper that derives a [`Subject`] for it: nothing calls either
+//!   from `apply`, from the load door, or from evaluation. A document
+//!   with findings is valid at every one of those doors.
 //! - **[`enforce_checks`] is the ONLY refusing path**: it consumes a
 //!   finished report and refuses on `Error`-severity findings; the
 //!   CALLER chooses where (and whether) to gate.
@@ -84,6 +85,28 @@ impl CheckId {
             // the finding says — never "these two overlap", which the
             // boxes do not decide. See `topo::SolidsMeet`.
             Self::Separation => CheckKind::Certified,
+        }
+    }
+}
+
+impl CheckId {
+    /// Every check, in the order [`run_checks_on`] runs them (D9).
+    ///
+    /// A new variant that is not here fails
+    /// `dsc_checks::the_registry_order_is_every_check`, whose match is
+    /// the compiler's own walk of the closed set.
+    pub const ALL: [Self; 2] = [Self::Connectedness, Self::Separation];
+
+    /// Whether this resident reads the registry's [`Subject`].
+    ///
+    /// The one definition of that, and the reason the registry can
+    /// decide whether to gather AT ALL before it does: connectedness
+    /// reads the evaluation per root and needs no product, so a run
+    /// with only connectedness enabled has nothing to gather for.
+    pub fn reads_subject(self) -> bool {
+        match self {
+            Self::Connectedness => false,
+            Self::Separation => true,
         }
     }
 }
@@ -214,6 +237,23 @@ impl ChecksConfig {
             CheckId::Separation => self.separation.severity(),
         }
     }
+
+    /// Whether a run under this configuration needs a [`Subject`] at
+    /// all: true iff some resident that reads one is not `Off`
+    /// ([`CheckId::reads_subject`], [`CheckId::ALL`]).
+    ///
+    /// The ONE definition of that question, and what lets
+    /// [`run_checks`] decide BEFORE it gathers. A configuration whose
+    /// enabled residents all read the evaluation has nothing to gather
+    /// FOR — which is what the registry did when each resident owned
+    /// its own gather, and is the difference between an advisory pass
+    /// and the most expensive call in a landing.
+    #[must_use]
+    pub fn needs_a_subject(&self) -> bool {
+        CheckId::ALL
+            .into_iter()
+            .any(|check| check.reads_subject() && self.severity(check) != Severity::Off)
+    }
 }
 
 /// The typed evidence of one finding.
@@ -273,17 +313,38 @@ pub enum CheckEvidence {
     /// all — the box builder's typed refusal. The check has no verdict
     /// for ANY pair, which is a finding, never a silent pass (F6).
     SeparationUnavailable {
-        /// The kernel's own refusal, rendered.
+        /// Which arm of the kernel's refusal fired — the typed half,
+        /// and the one a consumer branches on.
         ///
-        /// The message and not the value because `topo::BooleanError`
-        /// is neither `Clone` nor `PartialEq` and a report is both.
+        /// `topo::BooleanError` itself is neither `Clone` nor
+        /// `PartialEq` and a report is both, so the error cannot ride
+        /// here; its class projection can, and does.
+        kind: topo::BooleanErrorKind,
+        /// The kernel's own refusal, rendered, for a reader — it
+        /// carries the arena keys and margins `kind` drops.
+        ///
         /// The payload's own `Display` is the vocabulary this module
-        /// forwards (the one-story rule at `crate::finding`), so
-        /// nothing about what the caller reads changes; what is lost
-        /// is matching on the arm, which no consumer of an advisory
-        /// report does.
+        /// forwards (the one-story rule at `crate::finding`), so what
+        /// a caller READS is the kernel's own sentence; `kind` beside
+        /// it is what a caller MATCHES on, so neither half is a
+        /// substring hunt through the other.
         reason: String,
     },
+}
+
+impl CheckEvidence {
+    /// [`CheckEvidence::SeparationUnavailable`] built from ONE refusal:
+    /// `kind` is the class a consumer matches, `reason` the kernel's
+    /// own sentence a reader reads. Both come off the same error, which
+    /// is the invariant the door holds and a hand-built literal does
+    /// not — so the door goes through here rather than writing the two
+    /// fields at the raise site.
+    fn separation_unavailable(source: &topo::BooleanError) -> Self {
+        Self::SeparationUnavailable {
+            kind: source.kind(),
+            reason: source.to_string(),
+        }
+    }
 }
 
 /// One finding of one check on one subject — a body-denoting root
@@ -367,7 +428,7 @@ impl crate::finding::Finding for CheckFinding {
                  product gathers both, so any space they share is gathered twice",
                 other_root.0
             ),
-            CheckEvidence::SeparationUnavailable { reason } => write!(
+            CheckEvidence::SeparationUnavailable { reason, .. } => write!(
                 f,
                 "no pair of this product's solids could be checked for separation: \
                  {reason}"
@@ -459,10 +520,27 @@ pub enum ChecksError {
         /// The band construction failure.
         error: BandError,
     },
-    /// The document's roots did not gather into a product, so the
-    /// separation resident has no subject. The gather's own refusal,
-    /// forwarded — this layer has no second opinion about what a
-    /// product is.
+    /// The evaluation, or the subject, is of ANOTHER document (DI3).
+    ///
+    /// Mirrors [`crate::ProductError::EvaluationOfAnotherDocument`],
+    /// and for its reason: node ids are minted per document, so a
+    /// foreign evaluation can answer every lookup a resident makes and
+    /// produce a finding about the wrong geometry without one lookup
+    /// missing. Raised before any resident runs.
+    EvaluationOfAnotherDocument {
+        /// The document the checks were asked for.
+        expected: crate::ident::DocumentId,
+        /// The document the handed evaluation or subject is of.
+        found: crate::ident::DocumentId,
+    },
+    /// The document's roots did not gather into a product, so a
+    /// resident that reads the subject has none. The gather's own
+    /// refusal, forwarded — this layer has no second opinion about
+    /// what a product is.
+    ///
+    /// Raised by the door, from [`Subject::Unavailable`], and only
+    /// when an enabled resident actually reads the subject: residents
+    /// that read the evaluation have answered before it.
     Product {
         /// The gather's own refusal, rendered — see
         /// [`CheckEvidence::SeparationUnavailable`] for why the message
@@ -481,6 +559,11 @@ impl fmt::Display for ChecksError {
                 node.0
             ),
             Self::Band { error } => write!(f, "checks: {error}"),
+            Self::EvaluationOfAnotherDocument { expected, found } => write!(
+                f,
+                "checks: the evaluation is of document {found}, not of \
+                 document {expected}",
+            ),
             Self::Product { reason } => write!(f, "checks: {reason}"),
         }
     }
@@ -510,6 +593,58 @@ impl fmt::Display for CheckRefusal {
 
 impl core::error::Error for CheckRefusal {}
 
+/// What the registry runs its residents over: the document's product,
+/// gathered ONCE by whoever calls the registry.
+///
+/// A resident does not derive its own subject. Two residents deriving
+/// the same subject differently would be two answers to "what is this
+/// document's product", and a caller that already holds the product
+/// would pay for it again.
+///
+/// The three arms are three different facts, and no arm ever stands in
+/// for another:
+///
+/// - [`Subject::Product`] — the gather succeeded and this is it. It
+///   must be a product OF THE PAIR the door is handed
+///   ([`run_checks_on`] refuses otherwise).
+/// - [`Subject::NoBodyRoots`] — no root denotes a body at all: an
+///   empty document, or one holding only sketches and datums. Not a
+///   failure to run the registry. A resident that needs a body has no
+///   subject here and contributes no finding; a resident that does not
+///   (connectedness reads the evaluation) runs exactly as it would
+///   otherwise.
+/// - [`Subject::Unavailable`] — there is no subject and the reason is
+///   carried. Either the gather REFUSED, or no enabled resident reads
+///   a subject and none was taken
+///   ([`ChecksConfig::needs_a_subject`]). A
+///   subject-reading resident that is enabled and meets this arm makes
+///   the door refuse [`ChecksError::Product`] carrying the reason;
+///   residents that read no subject have already answered by then, so
+///   their own refusals still come first.
+#[derive(Debug)]
+pub enum Subject<'a, T: Decide> {
+    /// The gathered product, borrowed for the run.
+    Product(&'a product::Product<T>),
+    /// No root denotes a body, so there is no product to be had.
+    NoBodyRoots,
+    /// There is no subject, and this is why.
+    Unavailable {
+        /// The gather's own refusal, rendered — or the sentence saying
+        /// no enabled resident asked for one.
+        reason: String,
+    },
+}
+
+impl<T: Decide> Subject<'_, T> {
+    /// The arm a run that needs no subject is handed
+    /// ([`ChecksConfig::needs_a_subject`]).
+    fn not_needed() -> Self {
+        Self::Unavailable {
+            reason: "checks: no enabled check reads the document's product".to_string(),
+        }
+    }
+}
+
 /// Runs every configured check over `doc`'s evaluated roots and
 /// returns the report. **Reports, never gates** (the
 /// [`crate::mixed_pins`] posture): nothing calls this from `apply`,
@@ -538,15 +673,81 @@ impl core::error::Error for CheckRefusal {}
 ///
 /// # Errors
 ///
-/// [`ChecksError`] — a root without a value in `ev`, or a band the
-/// tolerance cannot form. These mean the checks could not run at all;
-/// a check that ran and disagreed is a FINDING, not an error.
+/// [`ChecksError`] — an evaluation of another document, a root without
+/// a value in `ev`, a band the tolerance cannot form, or a document
+/// whose roots do not gather into a product for a resident that reads
+/// one. These mean the checks could not run at all; a check that ran
+/// and disagreed is a FINDING, not an error.
 pub fn run_checks<P, T: Decide + AtRestPolicy + CertifiedBounds>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     cfg: &ChecksConfig,
     tol: Tol,
 ) -> Result<ChecksReport, ChecksError> {
+    // LAZY, and the laziness is the point: the gather is by far the
+    // most expensive thing this door can do, and a configuration whose
+    // enabled residents all read the evaluation has nothing to gather
+    // FOR. Asking `needed_by` before gathering is also what keeps a
+    // gather refusal from reaching a run no resident would have shown
+    // it to.
+    if !cfg.needs_a_subject() {
+        return run_checks_on(doc, ev, Subject::not_needed(), cfg, tol);
+    }
+    let subject = match product::product_recorded(doc, ev, tol) {
+        Ok(ref gathered) => return run_checks_on(doc, ev, Subject::Product(gathered), cfg, tol),
+        Err(product::ProductError::NoBodyRoots) => Subject::NoBodyRoots,
+        Err(source) => Subject::Unavailable {
+            reason: source.to_string(),
+        },
+    };
+    run_checks_on(doc, ev, subject, cfg, tol)
+}
+
+/// The registry over a subject the CALLER derived — the door
+/// [`run_checks`] wraps, and the one a caller with a product in hand
+/// uses so the document is gathered once.
+///
+/// Everything [`run_checks`] documents about what is checked, in what
+/// order, and what a finding means holds here verbatim; the only
+/// difference is where the subject came from.
+///
+/// **The pairing is checked HERE** (DI3), not inherited from a gather
+/// this door does not run: `ev` must be an evaluation of `doc`, and a
+/// [`Subject::Product`] must have been gathered from that same
+/// document. Both go through [`crate::ident::mispaired`], the one
+/// predicate that spells the comparison, before any resident runs —
+/// because a resident reading `doc.roots()` against a foreign `ev`
+/// finds a value for every root and reports about the wrong geometry.
+///
+/// # Errors
+///
+/// [`ChecksError::EvaluationOfAnotherDocument`] for a mispaired
+/// argument; [`ChecksError::Root`] and [`ChecksError::Band`], the
+/// registry's own preconditions; and [`ChecksError::Product`] when an
+/// enabled resident reads the subject and finds
+/// [`Subject::Unavailable`] — after the residents that read no subject
+/// have answered, so their refusals still come first.
+pub fn run_checks_on<P, T: Decide + AtRestPolicy + CertifiedBounds>(
+    doc: &Doc<P>,
+    ev: &Evaluation<T>,
+    subject: Subject<'_, T>,
+    cfg: &ChecksConfig,
+    tol: Tol,
+) -> Result<ChecksReport, ChecksError> {
+    let pairing = |found| {
+        crate::ident::mispaired(doc.id(), found).map(|m| ChecksError::EvaluationOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        })
+    };
+    if let Some(refusal) = pairing(ev.document) {
+        return Err(refusal);
+    }
+    if let Subject::Product(gathered) = &subject
+        && let Some(refusal) = pairing(gathered.document)
+    {
+        return Err(refusal);
+    }
     let mut report = ChecksReport::default();
     if cfg.severity(CheckId::Connectedness) == Severity::Off {
         report.skipped.push(CheckId::Connectedness);
@@ -555,8 +756,14 @@ pub fn run_checks<P, T: Decide + AtRestPolicy + CertifiedBounds>(
     }
     if cfg.severity(CheckId::Separation) == Severity::Off {
         report.skipped.push(CheckId::Separation);
+    } else if let Subject::Unavailable { reason } = &subject {
+        // The resident is on and there is no subject: the registry
+        // could not run, and the reason is the one carried here.
+        return Err(ChecksError::Product {
+            reason: reason.clone(),
+        });
     } else {
-        separation(doc, ev, tol, &mut report)?;
+        separation(&subject, tol, &mut report);
     }
     Ok(report)
 }
@@ -674,16 +881,32 @@ fn connectedness<P, T: Decide + PropsQuadLane>(
 /// One box per face, one small tree per solid, then a hull test per
 /// cross-subject pair — quadratic in the SOLID count, not in the
 /// entity count, which is the whole reason this resident exists
-/// instead of running the tier-3′ census over the aggregate. Measured
-/// on the heatsink's fin pattern (`docs/PERF-PLAN.md`'s discipline:
-/// brute force until a measurement says otherwise), the whole
-/// registry costs ~28 ms at 161 solids / 966 faces where the census
-/// costs ~1.1 s. Which TERM of that 28 ms dominates — this walk, or
-/// the gather it stands on — was not measured, and the sentence that
-/// used to assert the gather does is withdrawn: the gather is called
-/// once more per landing than it needs to be (#1181), so the number
-/// will move when that is fixed and is not a safe thing to reason
-/// from.
+/// instead of running the tier-3′ census over the aggregate.
+///
+/// **The three terms are separable and separately measured**, because
+/// the registry no longer gathers its own subject. Over the corpus
+/// heat sink at 160 fins (161 solids / 991 faces): the gather ~250 ms,
+/// this registry over a subject already in hand ~8 ms, and the
+/// tier-3′ census over the same aggregate ~11.4 s — the term this
+/// resident exists INSTEAD OF, measured at this size rather than
+/// quoted from another one, and refusing here with 125 findings. So
+/// the gather dominates the registry by more than an order of
+/// magnitude, and a caller that already holds the product pays only
+/// the ~8 ms.
+///
+/// (The withdrawn claim's "~1.1 s" for the census is not restated: it
+/// was taken at a size nobody recorded, and it is not this one.)
+///
+/// Those numbers are a dev-profile wall clock and are machine-
+/// dependent; the figures OF RECORD are the hosted ones, re-taken by
+/// the `registry split` row of
+/// `crates/editor-core/tests/m4_pr8_latency.rs` and appended to
+/// `docs/perf-data/rebuild-latency/` — on a NIGHTLY cron, gated on
+/// `main` having moved, so at most one re-take a night and none on a
+/// quiet day. The SIZE they are taken at is exact rather than measured
+/// and gates on every PR
+/// (`docm5_subject::the_registry_split_is_measured_at_a_pinned_point`).
+///
 /// A document with solids in the thousands would make the pair walk
 /// the term that matters, and the fix is already sitting here — one
 /// `Bvh` over the per-solid hulls, queried instead of the `S²` loop.
@@ -698,33 +921,21 @@ fn connectedness<P, T: Decide + PropsQuadLane>(
 /// too would make a correctly-mated assembly noisy about the thing it
 /// got right. The suppression reads the declarations only — it never
 /// blesses a contact from discovery (F1).
-fn separation<P, T: Decide + AtRestPolicy + CertifiedBounds>(
-    doc: &Doc<P>,
-    ev: &Evaluation<T>,
+fn separation<T: Decide + CertifiedBounds>(
+    subject: &Subject<'_, T>,
     tol: Tol,
     report: &mut ChecksReport,
-) -> Result<(), ChecksError> {
-    let gathered = match product::product_recorded(doc, ev, tol) {
-        Ok(gathered) => gathered,
-        // A document whose roots denote no body has no SUBJECT for this
-        // resident — an empty document, or one holding only sketches
-        // and datums. That is not a failure to RUN the registry, and
-        // sinking the whole report on it would make the checks go
-        // silent on the most common document in the GUI (a new one, on
-        // its first frame) with no reason given, since the viewer takes
-        // the report through an `.ok()`. The other arms ARE refusals: a
-        // root that failed to evaluate, a naming collision across
-        // roots, a source body invalid at rest.
-        Err(product::ProductError::NoBodyRoots) => return Ok(()),
-        Err(source) => {
-            return Err(ChecksError::Product {
-                reason: source.to_string(),
-            });
-        }
+) {
+    // No product, no pair to hold to a certificate, so no finding —
+    // the reading [`Subject::NoBodyRoots`] states. `Unavailable` never
+    // reaches here while this resident is enabled ([`run_checks_on`]
+    // refuses first) and is silent when it is not.
+    let Subject::Product(gathered) = subject else {
+        return;
     };
     // Fewer than two gathered solids cannot make a pair.
     if gathered.solid_roots.len() < 2 {
-        return Ok(());
+        return;
     }
     let boxes = match topo::SolidSeparation::of(&gathered.body, tol) {
         Ok(boxes) => boxes,
@@ -736,14 +947,12 @@ fn separation<P, T: Decide + AtRestPolicy + CertifiedBounds>(
                 check: CheckId::Separation,
                 root: first.node,
                 output_ix: first.output,
-                evidence: CheckEvidence::SeparationUnavailable {
-                    reason: source.to_string(),
-                },
+                evidence: CheckEvidence::separation_unavailable(&source),
             });
-            return Ok(());
+            return;
         }
     };
-    let declared = declared_pairs(&gathered);
+    let declared = declared_pairs(gathered);
     for (j, later) in gathered.solid_roots.iter().enumerate() {
         for earlier in &gathered.solid_roots[..j] {
             if (earlier.node, earlier.output) == (later.node, later.output) {
@@ -771,7 +980,6 @@ fn separation<P, T: Decide + AtRestPolicy + CertifiedBounds>(
             });
         }
     }
-    Ok(())
 }
 
 /// Which solid pairs are DECLARED to touch, keyed as an ordered pair
@@ -823,9 +1031,9 @@ fn declared_pairs<T: Decide>(
 
 /// The door from a finding's attribution back to its subject: the body
 /// at `(root, output_ix)` in this evaluation, AND the declared contact
-/// records that body carries — the same enumeration [`run_checks`]
-/// walks, so a [`CheckFinding`]'s attribution always resolves against
-/// the evaluation it was produced from. `None` when the root has no
+/// records that body carries — the same enumeration the connectedness
+/// resident walks, so a [`CheckFinding`]'s attribution always resolves
+/// against the evaluation it was produced from. `None` when the root has no
 /// value, denotes no body, or has no output at that index (exactly the
 /// attributions a [`CheckEvidence::StaleExpectation`] finding names).
 ///
@@ -884,5 +1092,46 @@ pub fn enforce_checks(report: &ChecksReport, cfg: &ChecksConfig) -> Result<(), C
         Ok(())
     } else {
         Err(CheckRefusal { findings })
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::CheckEvidence;
+
+    /// INVARIANT: the separation door's evidence carries the class and
+    /// the prose OF ONE REFUSAL — `kind` is the arm the error actually
+    /// is, not a class written down beside it.
+    ///
+    /// The refusing branch itself cannot be reached from `run_checks`
+    /// over a well-formed document: every refusal
+    /// `topo::SolidSeparation::of` can raise needs either a corrupt
+    /// body or an ε within a factor K of `f64::MAX`, and `Tol` is a
+    /// zero-sized witness for the run's committed tolerance, so a test
+    /// cannot hand it one. This row therefore pins the door's
+    /// CONSTRUCTION, which is the part a caller can get wrong, and says
+    /// so rather than implying the branch was executed.
+    #[test]
+    fn the_separation_door_carries_the_class_of_the_error_it_saw() {
+        let refusal = topo::BooleanError::ClassificationInvariant {
+            what: "solid separation: the ambient tolerance band is unusable",
+        };
+        let CheckEvidence::SeparationUnavailable { kind, reason } =
+            CheckEvidence::separation_unavailable(&refusal)
+        else {
+            panic!("the arm this row is about");
+        };
+        // The reader's half is the kernel's own sentence, whole.
+        assert_eq!(reason, refusal.to_string());
+        // The consumer's half is the arm the error IS — compared
+        // against the variant name `Debug` prints for the error, so a
+        // class hardcoded here would have to be the right one by
+        // accident to pass.
+        let variant: String = format!("{refusal:?}")
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect();
+        assert_eq!(format!("{kind:?}"), variant);
     }
 }

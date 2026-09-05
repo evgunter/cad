@@ -36,9 +36,12 @@
 //!   the seam image `{ surface }` — except meridians
 //!   of **plane** walls (a segment ⊥ axis sweeps a plane annulus; a
 //!   plane chart is not periodic, so `Seam` is malformed on it and the
-//!   edge honestly keeps its conventional `MappedCurve` description —
-//!   the same-surface split is definitely smooth, which tier 3's
-//!   prefer-intrinsic enforcement permits by the D2 conventional split).
+//!   edge is described where it rests, as an ordinary image in that
+//!   wall's chart). What exempts it from an intrinsic description is
+//!   UNDER-DETERMINATION, not prefer-intrinsic: one surface on both
+//!   sides determines no locus, which is D2's conventional split, and
+//!   prefer-intrinsic has nothing to demand where there is no
+//!   intrinsic description to be had.
 //!   Latitude rim **carriers** take the θ-signed axis (forward
 //!   intervals) with `u_ref` from the rim's own start point.
 //! - **Full period is definitionally the identity.** For
@@ -89,7 +92,12 @@
 //! that is the start point's antipode), a partial revolve's on-axis
 //! edges upgrade to `Intersection { start cap, end cap }` when the caps
 //! are definitely transverse (θ ≠ π), and a full revolve's meridians
-//! become `Seam` on periodic walls. Cosurface runs (collinear segments,
+//! become `Seam` on periodic walls and images at rest in the wall's
+//! chart on plane ones. No edge KEEPS its `MappedCurve` past this
+//! pass: the mint's scaffolding is for edges whose surfaces do not
+//! exist yet (D3's transience fence), and by here they all do — a
+//! conventional description at rest is a chart image, which owes the
+//! one meter `|C(t) − S(P(t))| ≤ ε`. Cosurface runs (collinear segments,
 //! same-carrier tangent arcs) share one surface key, decided for the
 //! whole loop — including the wrap pair — before any wall is minted
 //! (the PR 4 SHOULD-1 lesson).
@@ -190,9 +198,11 @@ pub struct Revolved<T: Real> {
     /// through `rims` and the meridian chains — and at vertices
     /// strictly INTERIOR to a full revolve's omitted axis run, which
     /// that case deletes outright (no body entity exists to name).
-    /// That last case is reachable through THIS API only — a
-    /// multi-segment axis run needs collinear same-carrier joins,
-    /// which the recipe layer's program validation refuses (#101).
+    /// A multi-segment axis run authors through the recipe layer as
+    /// well as through this API — its continuation verbs declare the
+    /// collinear join as a tangent joint — so that last case is
+    /// reachable from either seat; what the naming lane emits at such
+    /// a vertex is `crates/editor-core/src/names/README.md`'s.
     pub poles: Vec<Vec<Option<VertexKey>>>,
     /// The wedge caps and meridian edges — shaped by the case split.
     pub kind: RevolvedKind,
@@ -235,9 +245,9 @@ pub enum RevolvedKind {
         /// Wire case: the π…2π band's wall faces, per canonical
         /// segment of the OUTER loop.
         pi_walls: Vec<Option<FaceKey>>,
-        /// Wire case: the angle-π meridian copies (conventional
-        /// `MappedCurve` — the π half-plane is not the seam), per
-        /// canonical segment of the OUTER loop.
+        /// Wire case: the angle-π meridian copies — images at rest in
+        /// their wall's chart, since the π half-plane is not the seam,
+        /// per canonical segment of the OUTER loop.
         pi_meridians: Vec<Option<EdgeKey>>,
         /// Wire case: the π…2π latitude half-rims, per canonical
         /// vertex of the OUTER loop.

@@ -22,8 +22,12 @@ use std::sync::Arc;
 
 use pncad::document::{CancelToken, EvalOptions, EvalOutcome, ProfileProgram, SlotId, evaluate};
 use pncad::geom_core::Tol;
-use viewer::evalseam::{EvalDone, EvalRequest, EvalService, Generation, InlineEvaluator};
+use viewer::evalseam::{
+    EvalDone, EvalRequest, EvalService, Generation, IndexDone, IndexRequest, IndexService,
+    InlineEvaluator, InlineIndexer,
+};
 use viewer::props::SlotValue;
+use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, Landing, SessionOp};
 
 #[test]
@@ -411,4 +415,184 @@ fn the_seams_traffic_is_send() {
     assert_send::<EvalDone>();
     assert_send::<Arc<pncad::document::Evaluation<f64>>>();
     assert_send::<pncad::document::Doc<ProfileProgram>>();
+}
+
+// --- the index seam -------------------------------------------------
+
+/// The δ the plate indexes at in this suite. Coarse on purpose: these
+/// rows are about the seam's bookkeeping, not about tessellation.
+fn index_delta() -> DisplayTolerance {
+    DisplayTolerance::new(2.0e-4).expect("a positive delta")
+}
+
+fn index_request(session: &DocSession, generation: Generation) -> IndexRequest {
+    let (doc, _) = session.landed_pair().expect("a landed pair");
+    IndexRequest {
+        generation,
+        delta: index_delta(),
+        doc: doc.clone(),
+        evaluation: Arc::clone(session.evaluation_arc().expect("a landed run")),
+        tol: session.tol(),
+    }
+}
+
+/// **The index seam answers with the key it was asked with**, and the
+/// index it carries was built under that same generation — the pair a
+/// consumer matches against its own request.
+#[test]
+fn the_index_seam_answers_with_the_key_it_was_asked_with() {
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let generation = session.landed_generation().expect("a landed generation");
+
+    let mut seam = InlineIndexer::new();
+    assert!(!seam.busy());
+    seam.submit(index_request(&session, generation));
+    assert!(seam.busy(), "asked, and not yet answered");
+    let done = seam.poll().expect("the inline seam answers inside poll");
+    assert!(!seam.busy());
+    assert_eq!(done.generation, generation);
+    assert_eq!(done.delta, index_delta());
+    let index = done.index.expect("the plate indexes");
+    assert_eq!(
+        index.generation(),
+        generation,
+        "the index is stamped with the generation the answer is filed under",
+    );
+    assert!(index.current_for(Some(generation), index_delta()));
+    assert!(seam.poll().is_none(), "and there is nothing else to take");
+}
+
+/// **Two submits, one answer, and it is the newer one.**
+///
+/// Named for what it measures. The row does NOT measure that the
+/// superseded build ran to completion — a seam that cancelled the
+/// first build would satisfy every assertion here identically — and
+/// nothing needs to: "restart without cancel" is structural rather
+/// than behavioural, because [`IndexService`] offers no cancel door
+/// for anything to call. What is left to check is that the caller
+/// sees one answer for its latest ask, which is the part a queue or a
+/// lost `waiting` slot would break.
+#[cfg(not(target_family = "wasm"))]
+#[test]
+fn the_threaded_index_seam_answers_only_the_newest_of_two_submits() {
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let first = session.landed_generation().expect("a landed generation");
+    let second = first.next();
+
+    let mut seam = viewer::evalseam::ThreadIndexer::spawn().expect("the worker starts");
+    seam.submit(index_request(&session, first));
+    seam.submit(index_request(&session, second));
+
+    let mut results = Vec::new();
+    for _ in 0..10_000 {
+        while let Some(done) = seam.poll() {
+            results.push(done);
+        }
+        if !seam.busy() && !results.is_empty() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert!(!seam.busy());
+    assert_eq!(
+        results.len(),
+        1,
+        "the superseded build dies inside the seam rather than travelling \
+         up to be discarded by key",
+    );
+    assert_eq!(results[0].generation, second);
+    assert!(results[0].index.is_ok());
+}
+
+/// **A δ moved away and back does not pay for a second build of an
+/// answer already in hand.** The waiting request and the finished one
+/// name the same picture, so the finished one IS the answer: dropping
+/// it by position rather than by key would dispatch an identical
+/// build, and on the fine-δ row that is thirteen seconds for nothing.
+///
+/// **How the row can tell which build answered.** Two builds of one
+/// key are indistinguishable by their results — which is the whole
+/// difficulty — so the waiting request here carries a BROKEN document
+/// under the key the worker is already building the good one for.
+/// Production never mints two payloads for one key; this row does, so
+/// that "the seam kept the answer it had" and "the seam rebuilt" have
+/// different observable answers instead of the same one.
+#[cfg(not(target_family = "wasm"))]
+#[test]
+fn the_threaded_index_seam_keeps_an_answer_a_waiting_request_asks_for() {
+    let tol = Tol::witness();
+    let (doc, extrude) = viewer::scene::plate_with_hole(tol).expect("the plate authors");
+    let mut session = DocSession::inline(doc.clone(), tol);
+    session.pump();
+    let generation = session.landed_generation().expect("a landed generation");
+
+    let mut broken = DocSession::inline(doc, tol);
+    broken.perform(SessionOp::SetSlot {
+        node: extrude,
+        slot: SlotId::Distance,
+        value: SlotValue::Continuous(0.0),
+    });
+    broken.pump();
+    // **The premise, asserted where it is used.** The discrimination
+    // below is `Ok` against `Err`, so a broken document that started
+    // indexing cleanly would leave the row passing in both directions
+    // instead of going red. It is checked here rather than inherited
+    // from a row in another file.
+    let mut probe = InlineIndexer::new();
+    probe.submit(index_request(&broken, generation));
+    assert!(
+        probe
+            .poll()
+            .expect("the inline seam answers inside poll")
+            .index
+            .is_err(),
+        "a zero-distance extrude must refuse to index, or this row \
+         measures nothing",
+    );
+
+    let mut seam = viewer::evalseam::ThreadIndexer::spawn().expect("the worker starts");
+    seam.submit(index_request(&session, generation));
+    // A second submit while the first is with the worker, so the third
+    // is only WAITING rather than dispatched — and the third asks for
+    // the picture the worker is already building.
+    let mut other = index_request(&session, generation);
+    other.delta = index_delta().scaled(2.0).expect("a positive delta");
+    seam.submit(other);
+    seam.submit(index_request(&broken, generation));
+
+    let mut results = Vec::new();
+    for _ in 0..10_000 {
+        while let Some(done) = seam.poll() {
+            results.push(done);
+        }
+        if !seam.busy() && !results.is_empty() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert!(!seam.busy());
+    assert_eq!(results.len(), 1, "one answer for one picture");
+    assert_eq!(results[0].generation, generation);
+    assert_eq!(results[0].delta, index_delta());
+    assert!(
+        results[0].index.is_ok(),
+        "the answer in hand was kept, not thrown away and rebuilt",
+    );
+}
+
+/// The index seam's traffic is `Send` too — checked here as well as by
+/// the compile-time assertion in the module, because the threaded
+/// implementation that would otherwise force it is absent on wasm.
+#[test]
+fn the_index_seams_traffic_is_send() {
+    fn assert_send<T: Send>() {}
+    assert_send::<IndexRequest>();
+    assert_send::<IndexDone>();
+    assert_send::<viewer::PickIndex>();
 }

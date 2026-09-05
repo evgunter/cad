@@ -295,7 +295,13 @@ fn a_chamfer_on_a_co_surface_seam_refuses_tangential_as_the_chamfer() {
         .expect_err("a co-surface seam has no definite wedge side");
     match err.error {
         BlendError::TangentialEdge { margin, .. } => {
-            assert_eq!(margin, 0.0, "a co-surface seam's sine is structurally zero");
+            assert_eq!(margin.predicate, "fillet3_convexity_sign");
+            assert_eq!(margin.sign, geom_core::Sign::Zero);
+            assert_eq!(
+                margin.value(),
+                Some(0.0),
+                "a co-surface seam's sine is structurally zero"
+            );
         }
         ref other => panic!("expected the shared tangential arm, got {other:?}"),
     }

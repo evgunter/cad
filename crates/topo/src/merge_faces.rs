@@ -999,6 +999,10 @@ impl<T: Decide> Body<T> {
             && let (Some(g1), Some(g2)) = (self.surface_source(k1), self.surface_source(k2))
             && g1 == g2
         {
+            // Asserted only where the scalar HAS a bit channel: the rung
+            // is the provenance lookup, the bits are its evidence, and a
+            // scalar with no channel (`Dual`, `Sym`) offers none —
+            // `None` there is not disagreement.
             #[cfg(debug_assertions)]
             if let (
                 Surface::Plane {
@@ -1012,10 +1016,12 @@ impl<T: Decide> Body<T> {
                     u_ref: u2,
                 },
             ) = (s1.clone(), s2.clone())
+                && let Some(agree) = crate::source::plane_bits_witness(o1, n1, o2, n2, false)
+                    .zip(crate::source::vec3_bits_witness(u1, u2))
+                    .map(|(plane, u_ref)| plane && u_ref)
             {
                 debug_assert!(
-                    crate::source::plane_bits_agree(o1, n1, o2, n2, false)
-                        && crate::source::vec3_bits_agree(u1, u2),
+                    agree,
                     "same-source theorem violated: same-source surface descriptions disagree \
                      bitwise (kernel bug: a source survived a geometric rewrite)"
                 );

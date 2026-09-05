@@ -2,10 +2,13 @@
 id: capend-top-bottom-contradicted-by-negative-extrude
 kind: unit
 title: CapEnd::{Top, Bottom} makes a spatial claim a negative extrude distance contradicts
-status: open
+status: closed
 opened: 2026-08-30
 github: 1306
 refs: [961, 1301]
+closed: 2026-09-04
+pr: 1851
+branch: docm/capend-ends
 ---
 
 ## From GitHub issue 1306
@@ -33,3 +36,13 @@ BOOL-13), so a rename is a corpus regeneration. E-class: rename
 `CapEnd::{Top, Bottom}` to the extrusion's own ends (start of the
 sweep vector, end of it), regenerate, and re-pin the reviewer probe
 named above as a row.
+
+## Closed (2026-09-04)
+
+Merged as PR 1851, a mechanical unit (no review lane, no A/B row):
+`CapEnd::{End, Start}` name the sweep vector's own ends, key order and
+content-key tags kept so no name table reorders, the corpus and the
+digest pins regenerated through their own doors, the reviewer probe
+re-pinned as `a_negative_extrudes_end_cap_lies_below_its_start_cap`.
+Residue with its own file: `work/issues/sweep-top-field-docs-make-the-spatial-claim-capend-shed`
+(the kernel's `Extruded.top`/`Lofted.top` doc comments).

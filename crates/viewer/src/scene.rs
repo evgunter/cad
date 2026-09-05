@@ -22,6 +22,9 @@
 //! smoothed normal would blur the tessellation's real chordal error
 //! into something prettier than the model, and the facets are exactly
 //! what a δ reading should let you see.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use std::collections::BTreeSet;
 
@@ -583,6 +586,28 @@ pub const PLATE_EXTENT: [f64; 3] = [0.060, 0.040, 0.008];
 /// (⌀24 mm). Same reason as [`PLATE_EXTENT`].
 pub const PLATE_HOLE_RADIUS: f64 = 0.012;
 
+/// The plate's box, without evaluating anything: the corner at the
+/// origin and [`PLATE_EXTENT`] away from it.
+///
+/// The assembly [`PLATE_EXTENT`]'s own note asks for, given a home
+/// rather than restated — "a camera fixture, an expected-bounds
+/// assertion" is a six-line struct literal, and it had been hand-copied
+/// into every suite that wanted a box to frame a camera on. One home
+/// for the numbers and a different one for the box they make is half
+/// the rule.
+#[must_use]
+pub fn plate_bounds() -> Aabb {
+    let [width, depth, thickness] = PLATE_EXTENT;
+    Aabb {
+        min_x: 0.0,
+        min_y: 0.0,
+        min_z: 0.0,
+        max_x: width,
+        max_y: depth,
+        max_z: thickness,
+    }
+}
+
 /// The spike's document: a plate with a through hole.
 ///
 /// Authored through the ordinary document doors — one profile node
@@ -692,26 +717,51 @@ pub fn product_body(doc: &Doc<ProfileProgram>, tol: Tol) -> Result<Body<f64>, Sc
     product(doc, &evaluation, tol).map_err(SceneError::NoProduct)
 }
 
-/// The scene of a document under an evaluation SOMEONE ELSE ran.
+/// **Gather the product of a pair the landing did not keep one for.**
 ///
-/// The door the evaluation seam feeds: a result DAG arrives from
-/// wherever it was computed, and the picture is gathered and
-/// tessellated from it. [`scene_of`] is this function with an
-/// evaluation of its own, kept for callers that have no seam — the two
-/// share every step after the result exists, so a document drawn from
-/// a background run and one drawn inline cannot differ.
+/// The expensive door, and the only one in this module that gathers a
+/// product for an evaluation someone else ran. It exists for exactly
+/// one case: an assembly whose A5 gate REFUSED consumed the body the
+/// landing would otherwise have kept
+/// ([`crate::session::DocSession::landed_body`]), so a consumer that
+/// needs one there has to pay for it. Naming that door rather than
+/// hiding the gather inside a getter is what keeps the cost at the
+/// call site, where a reader meets it.
 ///
 /// # Errors
 ///
-/// Every arm of [`SceneError`] except the δ one.
-pub fn scene_of_evaluation(
+/// [`SceneError::NoProduct`] for every way the roots fail to gather.
+pub fn product_of_evaluation(
     doc: &Doc<ProfileProgram>,
     evaluation: &pncad::document::Evaluation<f64>,
+    tol: Tol,
+) -> Result<Body<f64>, SceneError> {
+    product(doc, evaluation, tol).map_err(SceneError::NoProduct)
+}
+
+/// The scene of a product SOMEONE ELSE gathered.
+///
+/// **Takes the aggregate, never the pair that would produce one.** A
+/// gather is the expensive step on this path, and a landing has
+/// already paid for one ([`crate::session::DocSession::landed_body`]);
+/// a door that took `(doc, evaluation)` here would gather the same
+/// product a second time. Not per frame — the drawn picture is built
+/// by [`crate::pick::PickIndex`], per root, and never comes through
+/// here — but once for every caller that asks, which is the shape the
+/// landing already paid to avoid. [`scene_of`] is this function with a gather of
+/// its own, kept for callers that have no seam — the two share every
+/// step after the body exists, so a document drawn from a background
+/// run and one drawn inline cannot differ.
+///
+/// # Errors
+///
+/// Every arm of [`SceneError`] except the δ and gather ones.
+pub fn scene_of_body(
+    body: &Body<f64>,
     delta: DisplayTolerance,
     tol: Tol,
 ) -> Result<SceneMesh, SceneError> {
-    let body = product(doc, evaluation, tol).map_err(SceneError::NoProduct)?;
-    let mesh = tessellate(&body, delta.get(), tol).map_err(SceneError::NotTessellated)?;
+    let mesh = tessellate(body, delta.get(), tol).map_err(SceneError::NotTessellated)?;
     SceneMesh::build(&mesh, delta)
 }
 
@@ -877,21 +927,30 @@ impl FittedDelta {
 /// (0.000%), because the graft moves solids into one body without
 /// re-cutting their faces.
 ///
+/// # What it is handed
+///
+/// **The gathered body, not the pair it came from.** The landing this
+/// fit follows already gathered the product once
+/// ([`crate::session::DocSession::land`]), and a fit that gathered
+/// again would pay a whole second gather on the one path a user reads
+/// as "how long Open takes". Measured on a 165-root, 990-face
+/// document (dev profile, this lane): 87 ms to gather, against 2.4 ms
+/// to clone the body that gather produced. What that measurement
+/// decides, and why it carries no guard, is stated where the decision
+/// is (`session`'s `LandedRun::body`).
+///
 /// # Errors
 ///
-/// [`SceneError::NoProduct`] if the roots do not gather,
 /// [`SceneError::NotTessellated`] if the probe refuses, and
 /// [`SceneError::InvalidDisplayTolerance`] if the solved δ is not a
 /// usable one.
 pub fn fit_delta(
-    doc: &Doc<ProfileProgram>,
-    evaluation: &pncad::document::Evaluation<f64>,
+    body: &Body<f64>,
     requested: DisplayTolerance,
     tol: Tol,
 ) -> Result<FittedDelta, SceneError> {
-    let body = product(doc, evaluation, tol).map_err(SceneError::NoProduct)?;
     let probe_delta = requested.scaled(PROBE_FACTOR)?;
-    let probe = tessellate(&body, probe_delta.get(), tol).map_err(SceneError::NotTessellated)?;
+    let probe = tessellate(body, probe_delta.get(), tol).map_err(SceneError::NotTessellated)?;
     let probe_triangles: usize = probe
         .patches
         .iter()
@@ -936,8 +995,7 @@ pub fn scene_of(
     tol: Tol,
 ) -> Result<SceneMesh, SceneError> {
     let body = product_body(doc, tol)?;
-    let mesh = tessellate(&body, delta.get(), tol).map_err(SceneError::NotTessellated)?;
-    SceneMesh::build(&mesh, delta)
+    scene_of_body(&body, delta, tol)
 }
 
 fn length(metres: f64) -> Result<Expr, SceneDocError> {

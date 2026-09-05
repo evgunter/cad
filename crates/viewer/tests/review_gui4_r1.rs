@@ -443,7 +443,24 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     });
     assert!(first.refusal.is_none(), "{:?}", first.refusal);
     assert_eq!(first.committed.len(), 1);
-    assert_eq!(first.superseded, vec![bench.post_b]);
+    let [superseded] = &first.superseded[..] else {
+        panic!(
+            "exactly one placement is superseded: {:?}",
+            first.superseded
+        )
+    };
+    assert_eq!(superseded.instance, bench.post_b);
+    assert!(
+        matches!(
+            &superseded.cause,
+            DisplayFault::MateConstrained { instance, mates }
+                if *instance == bench.post_b && !mates.is_empty()
+        ),
+        "and the outcome carries WHY it went, not only which went — the \
+         fault's own PAYLOAD, which is what would go red if the prune paired \
+         the right fault with the wrong instance: {}",
+        superseded.cause
+    );
     assert!(session.display().free_move_of(bench.post_b).is_none());
     session.pump();
 
