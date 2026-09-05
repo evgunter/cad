@@ -1791,8 +1791,9 @@ impl<T: Real> Dir<T> {
     /// than assumed — the row at the bottom of this file walks each
     /// producing door. What NEITHER 2-D door asks, unlike the 3-D
     /// direction body in `topo::query`, is whether the length is a
-    /// FINITE number before deciding its sign; that residue is filed,
-    /// not fixed here (`work/seat/`, the 2-D director doors).
+    /// FINITE number before deciding its sign; that residue is filed
+    /// rather than fixed here
+    /// (`work/seat/two-d-director-doors-skip-the-finiteness-question`).
     fn from_unit(u: Vec2<T>) -> Self {
         Self {
             ang: u.y.atan2(u.x),

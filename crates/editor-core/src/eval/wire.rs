@@ -2941,10 +2941,12 @@ pub(crate) const PATTERN_DIRECTION_ROLE: &str = "pattern direction";
 
 /// The role word a DATUM AXIS's direction is normalized under. Three
 /// callers, and they do not all take the same road — the evaluation
-/// decides it under `datum_unit`, the mate solve under
-/// `eval_direction_norm` — so the constant is what keeps the ROLE one
-/// word wherever the refusal comes from (issue 1570 is where the two
-/// roads meeting is homed).
+/// decides it under [`DATUM_UNIT_NORM`], through the kernel type that
+/// holds the datum, and the mate solve's re-derivation from the
+/// recipe under [`EVAL_DIRECTION_NORM`], which is the ratified
+/// two-name split. So the constant is what keeps the ROLE one word
+/// wherever the refusal comes from, and it is the half of the
+/// refusal a user actually reads.
 pub(crate) const DATUM_AXIS_ROLE: &str = "datum axis direction";
 
 /// **The rigid map a [`crate::node::Node::Transform`] applies** — the

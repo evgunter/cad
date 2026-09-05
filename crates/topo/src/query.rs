@@ -453,15 +453,23 @@ impl std::error::Error for UnitVec3Error {}
 /// the honest scope: this catches the point scalars, which is where an
 /// infinite length turns into a definite wrong answer.
 ///
-/// Every direction door in this crate asks the length question through
-/// THIS predicate, and so does the evaluation layer's own direction
-/// door, so one rule has one spelling where it is asked at all. It is
-/// not asked everywhere a direction is normalized: `editor-core`'s
+/// One rule, one spelling, and now one CALLER: every 3-D direction
+/// door in the workspace asks this question through
+/// [`unit_direction`], which is the only place it is asked before a
+/// length is classified — the datum constructor and `editor-core`'s
+/// own direction door are two calls to that one body under two funnel
+/// names.
+///
+/// It is still not asked everywhere a direction is normalized, and the
+/// honest scope is the remaining list: `editor-core`'s
 /// `Frame::rotate_then_translate` asks nothing and is refused
-/// downstream on the non-finite frame it builds, and its
+/// downstream on the non-finite frame it builds; its
 /// `clearance::chart_frame` asks a different question (a bracket read
-/// of the normalized OUTPUT). Unifying those is issue 1570's family,
-/// not a claim this predicate can make on its own.
+/// of the normalized OUTPUT); and `profile`'s 2-D director doors
+/// decide a length they never asked to be finite and cannot reach
+/// this predicate at all, because `profile` depends on `geom-core`
+/// alone and this crate sits above it
+/// (`work/seat/two-d-director-doors-skip-the-finiteness-question`).
 pub fn is_finite_length<T: Real>(x: T) -> bool {
     #[allow(clippy::eq_op)]
     let residual = x - x;
