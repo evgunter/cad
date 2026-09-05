@@ -600,3 +600,18 @@ audit item point at the one home; the composition rider filed as
 (`mapped.rs` is in no program's paths). Fix pass all taken. One
 disclosed fence deviation (a doc block in `revolved_point_anchor.rs`,
 tcost's — rot this unit created). E rider: no A/B row.
+
+**vec3-doors MERGED (2026-09-05)** —
+[#1977](https://github.com/evgunter/cad/pull/1977), head `cfd272ce7`,
+merge `db07a1641`, green on the full matrix (run 33966064457). Landed:
+`const fn` on the four vector constructors and on `Mat3::from_cols` /
+`Affine3::from_parts` (a `const` placement reads through them);
+`Affine3::from_frame` as the one home with the 2535-frame bit-identity
+corpus beside it; `SketchPlane::map` with the conditional two-spellings
+doc; `skinned.rs` on the door; the `Vec → Point` conversion refused as a
+ruling at `Point3` (`Point2` points there). Fix pass all taken; the
+lift's non-tour consumer (`eval/wire.rs` through
+`anchor::embed_affine`) filed as
+`work/issues/affine-lift-has-a-second-home-in-anchor-embed-affine`;
+`lily.rs`'s sites and constants named on the tour-wide sweep's carrier.
+E rider: no A/B row. Both riders landed; the lane is reclaimed.
