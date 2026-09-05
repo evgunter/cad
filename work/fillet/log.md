@@ -427,3 +427,24 @@ on frozen `f9cfceaef`: ordinal **2003**, parity byte 211 ⇒ R1 FABLE / R2
 OPUS, briefs stored with sha256, concurrent, isolated. H7 dispatched into
 block B2 slot 2 (the box was quiet) — three implementer lanes and two
 reviewers live.
+
+**H6 dual delivered; union fix pass sent (2026-09-05).** Both
+MERGEABLE-AFTER-FIXES (R1 1/5/3, R2 3/7/7); the refactor bit-neutral and
+the dump identical by both re-takes, no planted `Smooth` verdict able to
+reach a consumer mis-described. Bilateral MAJOR: the arm's "no extrusion
+reaches this arm" is K-CONDITIONAL — `Tol` admits any K > 1, and at
+K = 1.1 the worst admitted vector on the shortest admitted chord reaches
+the `Smooth` arm through the public door and `extrude` hands back a body
+tier 3 refuses (`SliverDihedral` ×4), while the module doc calls the bound
+"K-free" (crossover K ≈ 1.272; the written bound is loose). Convergent
+too: the arm's dichotomy false at every K (a definite arm with an in-band
+wedge → `SliverRim` at default K), the one-home undercount (a sibling in
+the helper's own crate), the `finish.rs` census disposition, the spec left
+uncorrected. Unilateral doc-class MAJOR (R2): the crate docs one level up
+still state the falsified premise inside the swept set. Orchestrator's
+calls: the argument stated K-conditionally with the behaviour made a typed
+refusal wherever tier 3 would refuse, no K floor on `Tol` (filed for a
+decision), the stale-sentence class swept incl. the spec, `certify.rs` and
+`rim_wedge.rs` migrated to the one home, the dump corpus widened. No
+unilateral code/test-gap MAJOR — tally +0; pair FAIR. Row at merge,
+ordinal 2003.
