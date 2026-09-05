@@ -38,7 +38,7 @@ use sweep::blend::naming::BlendNaming;
 use topo::{Body, EdgeKey};
 #[cfg(test)]
 use verbs::VerbKind;
-use verbs::{ScalarParam, Verb};
+use verbs::{ScalarParam, Verb, VerbRecord};
 
 use crate::names::{self, NameTable, NamingError};
 use crate::node::{RecipeNodeId, SlotId};
@@ -83,6 +83,12 @@ pub(crate) struct BlendVerb<T: geom_core::Real> {
     /// This verb's naming emitter — see the module docs on what this
     /// choice does and does not decide.
     pub(crate) emitter: Emitter<T>,
+    /// **This family's arm of the closed record channel**, as a
+    /// projection: `Some` for a blend's record (the door's own
+    /// `Option`, whose `None` is the `no_records` refusal), `None` for
+    /// any other family's — read through
+    /// [`super::read_record`], which owns the foreign-family refusal.
+    pub(crate) record: fn(VerbRecord<T>) -> Option<Option<BlendNaming>>,
     /// The label a SELECTION refusal carries. It is the kernel's blend
     /// door label rather than a `verbs::VerbKind` because the refusal it
     /// lands in is shared with the kernel's own
@@ -155,6 +161,19 @@ fn build_chamfer<T: geom_core::Real>(edges: Vec<EdgeKey>, distance: T) -> Verb<T
     Verb::Chamfer { edges, distance }
 }
 
+/// The blend family's arm of the record channel. Exhaustive with no
+/// wildcard (D3): a family added to the channel breaks this at compile
+/// time and is routed here deliberately.
+fn blend_record<T: geom_core::Real>(record: VerbRecord<T>) -> Option<Option<BlendNaming>> {
+    match record {
+        VerbRecord::Blend(naming) => Some(naming),
+        VerbRecord::Boolean { .. }
+        | VerbRecord::Extrude(_)
+        | VerbRecord::Revolve(_)
+        | VerbRecord::Split(_) => None,
+    }
+}
+
 /// The fillet's correspondence.
 ///
 /// A function rather than a `const` because the struct is generic in
@@ -164,6 +183,7 @@ pub(crate) fn fillet<T: geom_core::Real>() -> BlendVerb<T> {
     BlendVerb {
         build: build_fillet,
         emitter: names::name_fillet,
+        record: blend_record,
         selection_label: BlendKind::Fillet,
         slots: FILLET_SLOTS,
         no_records: "the fillet returned a body with no birth records",
@@ -176,6 +196,7 @@ pub(crate) fn chamfer<T: geom_core::Real>() -> BlendVerb<T> {
     BlendVerb {
         build: build_chamfer,
         emitter: names::name_chamfer,
+        record: blend_record,
         selection_label: BlendKind::Chamfer,
         slots: CHAMFER_SLOTS,
         no_records: "the chamfer returned a body with no birth records",

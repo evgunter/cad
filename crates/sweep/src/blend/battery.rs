@@ -195,7 +195,7 @@ impl Convexity {
     /// void. Every arm that displaces by `±r` spells its side through
     /// this — [`super::arms::plane_plane_blend`]'s feet,
     /// [`super::arms::plane_sphere_blend`]'s spine depth,
-    /// `surgery::corner_plan`'s `toward` — and
+    /// `open::planar::corner_plan`'s `toward` — and
     /// [`super::arms::corner_ball`] alone needs the rest DEPTH, which is
     /// this value's NEGATIVE by definition of tangency and is spelled
     /// there as `-signed(..)`, the one negation the fold keeps.
@@ -369,7 +369,8 @@ pub struct BatteryVerdict<T: Real> {
     pub kind: BlendKind,
     /// The open-chain ends predicate 6 classified
     /// [`CornerConfig::TransverseCap`] — every end of every RULED link,
-    /// sorted and deduplicated. The surgery's cap plan reads a link's
+    /// sorted and deduplicated. The ruled band's plan
+    /// (`open::ruled::RuledPlan`) reads a link's
     /// two ends off this list rather than re-deciding the cap; an end
     /// missing from it is a verdict the body disagrees with. The
     /// uniform trihedra the corner path carves are not listed: that
@@ -1116,7 +1117,7 @@ fn ruling_arm<T: Real>(sa: &Surface<T>, sb: &Surface<T>) -> Option<BlendArm> {
 /// handed to the trace is [`Convexity::ball_side`] of that bit, the
 /// identity on a convex chain. ONE fold with ONE home, `Convexity`:
 /// `signed` for the arms that displace by `±r` ([`plane_plane_blend`],
-/// [`super::arms::plane_sphere_blend`], `surgery::corner_plan`),
+/// [`super::arms::plane_sphere_blend`], `open::planar::corner_plan`),
 /// `ball_side` for the ones that pick a side, and
 /// [`super::arms::corner_ball`]'s rest depth its one negation. The
 /// `Ruling` row folds it too, on both sides: the convex side carves the
@@ -1717,7 +1718,7 @@ pub(super) fn cap_incidence<T: Decide>(
 /// it, returning the CARVED configuration it classified: a RULED
 /// link's end must be a transverse cap — decided by [`cap_transverse`]
 /// and returned as [`CornerConfig::TransverseCap`], the tag the verdict
-/// carries for the surgery's cap plan to read — and any other link's
+/// carries for `open::ruled::RuledPlan` to read — and any other link's
 /// end is classified as a corner: gather valence, per-edge convexity,
 /// and the three support normals, then classify. A uniform trihedron
 /// that passes returns `None`: the carved trihedral configuration has

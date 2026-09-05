@@ -40,3 +40,12 @@ FILLET-H7's fix pass landed the owner's disposition on main
 and the census is green on main again. TOPO's two `HandedOff` ports
 resolve to main's line at merge. Closed by the TOPO orchestrator, who
 filed it.
+
+## Closed (FILLET orchestrator, 2026-09-05)
+
+`anchor_span` has ONE roster line on main — the `Payload` disposition
+(the corner-outcome presentation sort key, read off the diagnostic channel;
+the sort is stable so the order is a function of the inputs, D9), which is
+what its own doc states. The `HandedOff` twin that a parallel fix added is
+deleted, and `bounds_census.rs` gains `the_roster_names_each_door_once`, so
+a door listed twice reds the census instead of passing twice.

@@ -190,10 +190,10 @@ fn the_clean_fit_is_certified_and_the_plant_is_refused() {
     for index in kv.first_span()..=kv.last_span() {
         let Some(span) = kv.span(index) else { continue };
         assert!(
-            hull::sup_norm_bound_span(kv, &clean, span) <= EPS,
+            hull::sup_norm_bound_span(&clean, span) <= EPS,
             "clean span {index} must certify"
         );
-        if hull::sup_norm_bound_span(kv, &dirty, span) > EPS {
+        if hull::sup_norm_bound_span(&dirty, span) > EPS {
             refusing_spans += 1;
         } else {
             certifying_spans += 1;

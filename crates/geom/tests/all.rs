@@ -136,6 +136,10 @@ mod n2r1_probes;
 mod net_placeholder_width;
 #[path = "net_placeholder_width_interval.rs"]
 mod net_placeholder_width_interval;
+#[path = "span_bit_identity.rs"]
+mod span_bit_identity;
+#[path = "span_bit_identity_ext.rs"]
+mod span_bit_identity_ext;
 
 // ---- surfaces ----
 #[path = "surfaces/boxes.rs"]
