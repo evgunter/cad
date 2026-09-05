@@ -500,3 +500,22 @@ mate-solve escalation in an outer frame. Six issues filed
 `compile-fail-blocks-without-error-codes` in `work/issues/`;
 `coincidence-zone-priced-budget-at-the-floor` on M10's slate). The
 item is closed; the spec deleted and ledgered.
+
+**k-stats bracket MERGED (2026-09-05)** —
+[#1969](https://github.com/evgunter/cad/pull/1969), head `692141c5d`,
+merge `3f8a91ff3`, green on the full matrix (run 33962252657, python
+suite included). Fix pass A–K all taken; one sub-claim refuted by
+measurement (the bare `compile_fail` class is eight fences, all in
+`quantity/src/units.rs`, not sixteen — filed with the measured list).
+Frames carry ids, so mis-nesting is defined and non-stealing in every
+profile with no assert; the channel's gap is stated at three sites and
+guarded by R1's probe as a row; the box-independent classes read before
+the log; `Escalation.predicate` reads through `source`; the schedule,
+part-in-part, memo, cancel, pre-pass and mate-solve rows adopted with
+literal counts (mid-run cancel not adopted — not deterministically
+reachable, stated). Territory measured at 35 paths; seams posted to
+DOCM (`eval/parts.rs`) and TCOST (the new test files) beside M10 and
+BOOL. A/B row recorded: ordinal 2402, **sample #142**, no tally
+candidate. **Block PROPS-B1 concluded** — its record and the six stored
+briefs merged with #1978; the next kernel unit draws PROPS-B2. Lane
+reclaimed. Live: the linalg riders lane.
