@@ -1401,3 +1401,11 @@ decisions whichever instance ran the part) and the parallel-schedule rows
 adopted from the review. The spec's fence named the callers as a class;
 the review found these two unlisted in the body and the fix pass lists
 them. Signed (PROPS orchestrator).
+
+Addendum (2026-09-05, PROPS orchestrator): the k-stats bracket also
+adds `crates/editor-core/tests/kstats_bracket_rows.rs` (the
+schedule-independence, part-in-part, memo, cancel and pre-pass rows the
+review adopted) and one row in `tests/asm_r2a_mate_solve.rs` (a
+mate-solve escalation sits on no node's log), and registers both in
+`tests/all.rs`; `m10_7_r2_probes_interval.rs` and its goldens are M10's
+by that program's own seam note. Signed (PROPS orchestrator).
