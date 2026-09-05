@@ -20,8 +20,8 @@ use std::collections::BTreeSet;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EntityKind, Expr,
-    MateFrame, MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
-    content_pin, derivation_nodes, split,
+    MateFrame, MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef,
+    StableName, content_pin, derivation_nodes, split,
 };
 use fixture::{insert, len, on_frame, scl, step};
 use geom_core::Tol;
@@ -88,8 +88,8 @@ fn mate_frame(origin: [f64; 3]) -> MateFrame {
 
 fn seat(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a,
-        b,
+        a: SitedRef::at_mint(a),
+        b: SitedRef::at_mint(b),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: mate_frame([0.0, 0.0, 1.0]),
@@ -172,7 +172,7 @@ fn sweep_every_cut(doc: &ProfileDoc, label: &str) -> Sweep {
                 continue;
             };
             let inside = |n: &StableName| derivation_nodes(n).is_subset(&cut);
-            if inside(a) != inside(b) {
+            if inside(&a.name) != inside(&b.name) {
                 seen.straddling_mates += 1;
                 assert_ne!(
                     edge_count(id),

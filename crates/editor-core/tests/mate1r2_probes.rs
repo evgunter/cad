@@ -27,7 +27,7 @@ use editor_core::{
     Alignment, AssemblyError, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocRef,
     DocumentId, EntityKind, EvalOptions, Evaluation, Expr, Frame, MateFrame, MatePrimitive,
     MateRole, Node, PartResolver, PatternKind, ProfileDoc, RecipeNodeId, ResolveFailure,
-    ResolveFault, RoleSeg, StableName, assemble, content_pin, evaluate, solve_document,
+    ResolveFault, RoleSeg, SitedRef, StableName, assemble, content_pin, evaluate, solve_document,
 };
 use fixture::{insert, len, on_frame, scl, step};
 use geom_core::Tol;
@@ -145,8 +145,8 @@ fn seat_mate(
     sense: AxisSense,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a,
-        b,
+        a: SitedRef::at_mint(a),
+        b: SitedRef::at_mint(b),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame(origin, [0.0, 0.0, 1.0]),
@@ -705,7 +705,9 @@ fn r2_nested_pattern_head_refuses_dangling() {
     assert!(
         matches!(
             fault,
-            editor_core::MateFault::DanglingHead { head, .. } if *head == outer
+            // The walk stops at the INNER pattern: one copy level is
+            // in the vocabulary, a second is not.
+            editor_core::MateFault::DanglingHead { head, .. } if *head == inner
         ),
         "a nested pattern head is outside the vocabulary: {fault:?}"
     );

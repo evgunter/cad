@@ -25,7 +25,10 @@ mod schedule;
 mod slots;
 mod wire;
 
-pub(crate) use wire::{SteppedOperands, stepped_rule_map, unit as unit_direction};
+pub(crate) use wire::{
+    DATUM_AXIS_ROLE, PATTERN_DIRECTION_ROLE, SteppedOperands, TRANSFORM_AXIS_ROLE,
+    stepped_rule_map, transform_map, unit as unit_direction,
+};
 
 pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue, embed_profile};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
@@ -684,16 +687,15 @@ pub enum NodeErrorKind {
         /// The absent slot.
         slot: SlotId,
     },
-    /// A verb run door was handed a different operand count than the
-    /// verb declares — [`NodeErrorKind::MissingSlot`]'s class: a
-    /// wiring bug surfaced typed (unreachable while the per-verb
-    /// correspondences and the run doors agree; no panic paths in this
-    /// crate).
+    /// A verb was run through a door it does not declare —
+    /// [`NodeErrorKind::MissingSlot`]'s class: a wiring bug surfaced
+    /// typed (unreachable while the per-verb correspondences and the
+    /// run doors agree; no panic paths in this crate).
     VerbArity {
         /// The verb whose door refused.
         verb: verbs::VerbKind,
-        /// The operand count the door was handed; the declared count
-        /// is `verb.arity()`.
+        /// The door the verb was handed to; the declared one is
+        /// `verb.arity()`.
         given: verbs::Arity,
     },
     /// A decided predicate escalated (in-band indeterminacy).
@@ -2521,6 +2523,7 @@ fn verb_content_tag(kind: verbs::VerbKind) -> u8 {
         verbs::VerbKind::Boolean(topo::BooleanOp::Union) => 8,
         verbs::VerbKind::Boolean(topo::BooleanOp::Intersect) => 9,
         verbs::VerbKind::Boolean(topo::BooleanOp::Subtract) => 10,
+        verbs::VerbKind::Split => 7,
     }
 }
 
@@ -2634,14 +2637,14 @@ where
         Node::Profile(_) => 4,
         // The numbers are not written here either, and they are the
         // ones that were: a migrated verb's tag is a function of the
-        // KERNEL's name for it, so 5 and 6 move to `verb_content_tag`
-        // unchanged. A tag that MOVED would invalidate nothing on disk
-        // (keys are process-internal) and would still be wrong — an
-        // existing tag never gains a new meaning, and never loses its
-        // old one either.
+        // KERNEL's name for it, so 5, 6 and 7 move to
+        // `verb_content_tag` unchanged. A tag that MOVED would
+        // invalidate nothing on disk (keys are process-internal) and
+        // would still be wrong — an existing tag never gains a new
+        // meaning, and never loses its old one either.
         Node::Extrude { .. } => verb_content_tag(verbs::VerbKind::Extrude),
         Node::Revolve { .. } => verb_content_tag(verbs::VerbKind::Revolve),
-        Node::Split { .. } => 7,
+        Node::Split { .. } => verb_content_tag(verbs::VerbKind::Split),
         // The numbers are not written here: a migrated verb's tag is a
         // function of the KERNEL's name for it, and the boolean's name
         // carries its op (`VerbKind::Boolean(op)` — the three
@@ -2931,15 +2934,20 @@ where
             }
         }
         // A mate's own key is its references, its class and its
-        // alignment: the recipe payload that decides what it says.
+        // alignment: the recipe payload that decides what it says. A
+        // reference is a NAME AND AN OPERAND, and both are fed —
+        // two mates differing only in the node they are read at say
+        // different things about different geometry.
         Node::Mate {
             a,
             b,
             class,
             alignment,
         } => {
-            feed_stable_name(&mut h, a);
-            feed_stable_name(&mut h, b);
+            h.write_u64(a.at.0);
+            feed_stable_name(&mut h, &a.name);
+            h.write_u64(b.at.0);
+            feed_stable_name(&mut h, &b.name);
             h.write_tag(contact_class_tag(*class));
             feed_alignment(&mut h, alignment);
         }
@@ -3984,6 +3992,10 @@ mod verb_content_tag_tests {
         // red anywhere to say so.
         assert_eq!(verb_content_tag(verbs::VerbKind::Extrude), 5);
         assert_eq!(verb_content_tag(verbs::VerbKind::Revolve), 6);
+        // The split's, read the same way: 7 was the tag match's inline
+        // number for `Node::Split`, and every split-carrying document
+        // in the registry keys on it.
+        assert_eq!(verb_content_tag(verbs::VerbKind::Split), 7);
         assert_eq!(
             verb_content_tag(verbs::VerbKind::Boolean(topo::BooleanOp::Union)),
             8

@@ -12,7 +12,7 @@ use geom_core::{Affine3, Band, Decide, Margin, Mat3, Point2, Point3, Sign, Tol, 
 use sweep::blend::BlendKind;
 use sweep::{Revolution, RevolveAxis};
 use topo::query::is_finite_length;
-use topo::splitting::{SplitPart, SplitPlane, split};
+use topo::splitting::SplitPart;
 use topo::transform::transform_rigid;
 use topo::{
     Body, BooleanDeclarations, CarriedContacts, CarriedVf, CarriedVv, ContactClass,
@@ -197,7 +197,14 @@ where
             env,
             tol,
         ),
-        Node::Split { target, tool } => wire_split(id, *target, *tool, results, tol),
+        Node::Split { target, tool } => wire_split(
+            &crate::verbs::split::split(),
+            id,
+            *target,
+            *tool,
+            results,
+            tol,
+        ),
         Node::Boolean { op, a, b, declare } => wire_boolean(
             &crate::verbs::boolean::boolean(),
             id,
@@ -858,7 +865,7 @@ fn wire_datum<T: Decide>(
             origin: need_point3(vals, SlotId::Origin)?,
             dir: datum_unit(
                 need_vec3(vals, SlotId::Direction)?,
-                "datum axis direction",
+                DATUM_AXIS_ROLE,
                 band(tol)?,
             )?,
         },
@@ -913,7 +920,7 @@ fn wire_datum<T: Decide>(
                 // authored pair is, which is why the sketch direction
                 // above can go to the kernel unnormalized and still get
                 // the same refusal a 3-D axis would.
-                dir: datum_unit(lift(plane_dir), "datum axis direction", band(tol)?)?,
+                dir: datum_unit(lift(plane_dir), DATUM_AXIS_ROLE, band(tol)?)?,
             }
         }
         // **The frame read off a face** (DM1). Its value is exactly an
@@ -1587,6 +1594,7 @@ fn verb_refused(refusal: verbs::VerbError) -> NodeErrorKind {
         verbs::VerbError::Boolean(error) => NodeErrorKind::Boolean(error),
         verbs::VerbError::Extrude(error) => NodeErrorKind::Extrude(error),
         verbs::VerbError::Revolve(error) => NodeErrorKind::Revolve(error),
+        verbs::VerbError::Split(error) => NodeErrorKind::Split(error),
         verbs::VerbError::Arity { verb, given } => NodeErrorKind::VerbArity { verb, given },
     }
 }
@@ -1683,16 +1691,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     // The match is EXHAUSTIVE with no wildcard arm (D3): a record
     // family added to the channel breaks this consumer at compile time
     // and must be routed here deliberately, never silently refused.
-    let naming = match out.record {
-        verbs::VerbRecord::Blend(naming) => naming,
-        verbs::VerbRecord::Boolean { .. }
-        | verbs::VerbRecord::Extrude(_)
-        | verbs::VerbRecord::Revolve(_) => {
-            return Err(NodeErrorKind::Naming(names::NamingError::Emission {
-                what: verb.foreign_record,
-            }));
-        }
-    };
+    let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
     let rec = naming.ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
         what: verb.no_records,
     }))?;
@@ -1968,7 +1967,7 @@ impl<T: Decide> Selected<'_, T> {
 /// # Where a reference resolves
 ///
 /// At the node the reference NAMES AS ITS READING SITE
-/// ([`crate::MeasureRef::at`]), which is what makes the answer the
+/// ([`crate::SitedRef::at`]), which is what makes the answer the
 /// PLACED carrier rather than the authored one — a transform is
 /// identity-preserving, so the minting node's value still holds the
 /// unmoved geometry. `at` is a DAG edge ([`Node::inputs`]), so it has
@@ -1990,7 +1989,7 @@ impl<T: Decide> Selected<'_, T> {
 fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
     node: &Node<ProfileProgram>,
     expr: &crate::measure::MeasureExpr,
-    refs: &[crate::node::MeasureRef],
+    refs: &[crate::node::SitedRef],
     leaves: Option<&[T]>,
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
@@ -2208,7 +2207,32 @@ fn wire_assertion<T: Decide>(
     ))
 }
 
-fn wire_split<T: Decide + geom_brep::PcurveFittedLane>(
+/// **The split's lowering**, driven by its correspondence
+/// ([`crate::verbs::split`]) — a fourth lowering body, beside the
+/// three the other doors have, because the split matches none of
+/// their shapes: one body and one DATUM operand in (no selection, no
+/// slot), TWO sides out under one record, and a provenance stamp that
+/// runs across both sides in one index space.
+///
+/// The shape: read the body operand, read the tool operand as a
+/// datum and ask the correspondence for the plane it is, build the
+/// kernel verb, run it through the split door, take the record out of
+/// the closed channel, stamp both sides, emit names from the record
+/// and the two sides under THIS node's id. What the correspondence
+/// supplies is the datum reading and its refusal label, the verb
+/// constructor, the emitter, and what to call a wrong-family record.
+///
+/// # Refusals
+///
+/// A tool that is not a plane datum is `WrongOperand` — the document's
+/// own semantics, decided here before any verb exists, exactly as the
+/// boolean's declarations resolve upstairs. Failure of the op itself is
+/// a TYPED refusal ([`NodeErrorKind::Split`]) carrying the kernel's own
+/// error unaltered, through [`verb_refused`]. The D7 pinch lane lives
+/// inside the kernel door and is reached through the verb door
+/// unchanged; nothing here re-derives the plane or its orientation.
+fn wire_split<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
+    verb: &crate::verbs::split::SplitVerb<T>,
     id: RecipeNodeId,
     target: RecipeNodeId,
     tool: RecipeNodeId,
@@ -2217,25 +2241,28 @@ fn wire_split<T: Decide + geom_brep::PcurveFittedLane>(
 ) -> OpResult<T> {
     let body = body_operand(results, target)?;
     let tv = value_of(results, tool)?;
-    let ValuePayload::Datum(DatumValue::Plane { origin, normal }) = &tv.payload else {
-        return Err(NodeErrorKind::WrongOperand {
-            input: tool,
-            expected: "datum plane",
-            found: tv.payload.kind_name(),
-        });
+    let wrong_tool = || NodeErrorKind::WrongOperand {
+        input: tool,
+        expected: verb.tool_expected,
+        found: tv.payload.kind_name(),
     };
-    let plane = SplitPlane {
-        origin: *origin,
-        normal: normal.get(),
+    let ValuePayload::Datum(datum) = &tv.payload else {
+        return Err(wrong_tool());
     };
-    let result = split(&body, &plane, tol).map_err(NodeErrorKind::Split)?;
+    let plane = (verb.tool)(datum).ok_or_else(wrong_tool)?;
+    let built = (verb.build)(plane);
+    let out = built.run_split(&body, tol).map_err(verb_refused)?;
+    let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
     // Pass-through descriptions keep their sources (the clone carried
     // them); the split's fresh section planes get THIS node's (D1) —
     // in ONE index space across both halves. Each half's section
     // plane is its own description with its own outward normal, and
     // the two are the operands of any boolean that joins the halves
     // back together: a source shared between them would read as one
-    // plane at that boolean's rung 1 while the bits say two.
+    // plane at that boolean's rung 1 while the bits say two. The
+    // counter carried from the first side into the second is what
+    // keeps the two spaces one; the split digest rows red if it is
+    // dropped.
     let mut next = 0u32;
     let mut side = |part: SplitPart<T>| match part {
         SplitPart::Body(mut b) => {
@@ -2244,23 +2271,23 @@ fn wire_split<T: Decide + geom_brep::PcurveFittedLane>(
         }
         SplitPart::Empty => SplitSide::Empty,
     };
-    let above = side(result.above);
-    let below = side(result.below);
+    let above = side(out.above);
+    let below = side(out.below);
     let as_body = |s: &SplitSide<T>| match s {
         SplitSide::Body(b) => Some(Arc::clone(b)),
         SplitSide::Empty => None,
     };
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
     let (ab, bb) = (as_body(&above), as_body(&below));
-    let table = names::name_split(
+    let table = (verb.emitter)(
         id,
         ab.as_deref(),
         bb.as_deref(),
-        &result.naming,
+        &naming,
         target,
         &target_table,
         &body,
-        normal.get(),
+        plane.normal,
         tol,
     )
     .map_err(NodeErrorKind::Naming)?;
@@ -2428,20 +2455,11 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
             // wildcard arm (D3): a new record family breaks this
             // consumer at compile time rather than routing silently
             // to the refusal.
-            let (kind, contacts, naming) = match out.record {
-                verbs::VerbRecord::Boolean {
-                    kind,
-                    contacts,
-                    naming,
-                } => (kind, contacts, naming),
-                verbs::VerbRecord::Blend(_)
-                | verbs::VerbRecord::Extrude(_)
-                | verbs::VerbRecord::Revolve(_) => {
-                    return Err(NodeErrorKind::Naming(names::NamingError::Emission {
-                        what: verb.foreign_record,
-                    }));
-                }
-            };
+            let crate::verbs::boolean::BooleanRecord {
+                kind,
+                contacts,
+                naming,
+            } = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
             let table = (verb.emitter)(
                 id,
                 &out.body,
@@ -2895,6 +2913,44 @@ fn resolve_declarations(
     Ok(out)
 }
 
+/// The role word a transform's rotation axis is normalized under —
+/// one spelling, so the evaluation and the mate solve name the same
+/// vector in the same refusal and the K census sees one predicate
+/// role rather than two.
+pub(crate) const TRANSFORM_AXIS_ROLE: &str = "transform rotation axis";
+
+/// The role word a stepped rule's LINEAR direction is normalized
+/// under, for the same reason and with the same two callers: the
+/// evaluation's own rule ([`stepped_map`]) and the mate solve's
+/// re-derivation of it from the recipe.
+pub(crate) const PATTERN_DIRECTION_ROLE: &str = "pattern direction";
+
+/// The role word a DATUM AXIS's direction is normalized under. Three
+/// callers, and they do not all take the same road — the evaluation
+/// decides it under `datum_unit`, the mate solve under
+/// `eval_direction_norm` — so the constant is what keeps the ROLE one
+/// word wherever the refusal comes from (issue 1570 is where the two
+/// roads meeting is homed).
+pub(crate) const DATUM_AXIS_ROLE: &str = "datum axis direction";
+
+/// **The rigid map a [`crate::node::Node::Transform`] applies** — the
+/// one home of that construction, read by the evaluation and by the
+/// mate solve's derived offset, so a transform under a mate and a
+/// transform under the gather move a body by the same arithmetic.
+///
+/// PR 1's die convention: rotate about the axis THROUGH THE WORLD
+/// ORIGIN by `angle`, then translate. `axis` is already unit — the
+/// callers normalize it through [`unit()`] under
+/// [`TRANSFORM_AXIS_ROLE`], where the degenerate and non-finite cases
+/// refuse.
+pub(crate) fn transform_map<T: Decide>(
+    translation: Vec3<T>,
+    axis: Vec3<T>,
+    angle: T,
+) -> Affine3<T> {
+    Affine3::from_parts(Mat3::rotation_about(axis, angle), translation)
+}
+
 fn wire_transform<T: Decide + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     input: RecipeNodeId,
@@ -2906,13 +2962,11 @@ fn wire_transform<T: Decide + geom_brep::PcurveFittedLane>(
     let translation = need_vec3(vals, SlotId::Translation)?;
     let rot_axis = unit(
         need_vec3(vals, SlotId::RotationAxis)?,
-        "transform rotation axis",
+        TRANSFORM_AXIS_ROLE,
         band(tol)?,
     )?;
     let angle = need_scalar(vals, SlotId::RotationAngle)?;
-    // PR 1's die convention: rotate about the axis THROUGH THE WORLD
-    // ORIGIN by `angle`, then translate.
-    let map = Affine3::from_parts(Mat3::rotation_about(rot_axis, angle), translation);
+    let map = transform_map(translation, rot_axis, angle);
     let mut placed = transform_rigid(&body, &map, tol).map_err(NodeErrorKind::Transform)?;
     // N6 composition: `transform_rigid` cleared the source records
     // (its geometric rewrite invalidates the bit-identity claim); the
@@ -2996,7 +3050,7 @@ fn stepped_map<T: Decide>(
         PatternKind::Linear { .. } => SteppedOperands::Linear {
             direction: unit(
                 need_vec3(vals, SlotId::Direction)?,
-                "pattern direction",
+                PATTERN_DIRECTION_ROLE,
                 band(tol)?,
             )?,
             spacing: need_scalar(vals, SlotId::Spacing)?,
