@@ -269,7 +269,12 @@ fn corner_config_is_matchable(corner: CornerConfig) -> &'static str {
     // exhaustively is what makes `RunOutPolicy`'s carriage
     // load-bearing rather than decorative.
     match corner.policy() {
-        Some(RunOutPolicy::RunOutStopAtVertex | RunOutPolicy::RunOutFeather) | None => {}
+        Some(
+            RunOutPolicy::RunOutStopAtVertex
+            | RunOutPolicy::RunOutFeather
+            | RunOutPolicy::CutOffAtTransverseCap,
+        )
+        | None => {}
     }
     match corner {
         CornerConfig::ThreeConvexEdges => "three_convex_edges",
@@ -286,6 +291,9 @@ fn corner_config_is_matchable(corner: CornerConfig) -> &'static str {
         // door that EXISTS — the distinction a caller who could not
         // name this type had to read out of the prose.
         CornerConfig::SeamVertex => "seam_vertex",
+        // The ruled band's own termination — a configuration that
+        // CARVES, whose policy is the cut-off the tag's map assigns.
+        CornerConfig::TransverseCap => "transverse_cap",
         CornerConfig::Indeterminate => "indeterminate",
     }
 }
