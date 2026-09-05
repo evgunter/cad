@@ -304,3 +304,18 @@ tour-wide layer-rule sweep and the stale tour `Cargo.lock`
 `/tmp/claude-0/…/scratchpad/` is shared between lanes on this box — two
 lanes overwrote each other's file; briefs from here on name a private
 `/home/user/<lane>-tmp/`.
+
+**lily-vec3 MERGED (2026-09-05)** —
+[#1954](https://github.com/evgunter/cad/pull/1954), head `1111cf0f5`,
+green on the full matrix with all three render lanes at "matches this
+render". The lily is authored in the kernel's own vector types with one
+lift spelling per dimension (`pncad::authoring::{p2, v2, p3, v3}` for
+literals at the door, `map` for composed values), the tuple algebra gone,
+the header stating the layer rule and its two `Affine3<f64>` exceptions;
+`D79`(b) closed member by member. The six moved bodies are the
+`reject_from` respell's ulps (PROPS-1), measured by the two-call revert.
+The item is closed; the spec is ledgered in the per-merge form — the
+form the ledger's recent entries use, and the right one: a closed
+sweep's list carries its own count and recovery SHA. The two earlier
+PROPS lines appended to sweep 6's list (verdict-shapes, ONB-measure)
+move to that form at the next orchestrator sync.

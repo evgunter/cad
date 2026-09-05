@@ -896,3 +896,22 @@ unit's record is its item's `## Closed` section and its MERGED entry
 in `work/msolve/log.md` (no A/B row: the program runs none).
 
 - `MSOLVE-1-SPEC.md` — MSOLVE-1, the mate reads at its operand: the transform-aware solve (#1929)
+
+## Per-merge deletion — PROPS lily-vec3's spec (2026-09-05)
+
+Recoverable at
+`git show 577338f4e452f3ff5839604eb4d810246671e75b:docs/PROPS-LILY-VEC3-SPEC.md`
+(the unit head after the review fix pass, before the commit that
+deleted it; unamended — no stop clause fired). Two of its statements
+were argued rather than met, and the argument is in the unit's PR: its
+census of the tuple helpers missed `Section::outline`'s 2-D algebra and
+`review_probes::cross_norm`, both of which the unit converted because
+the acceptance asks for ZERO tuple-algebra helpers; and its lift
+spelling — "`map(S::from_f64)` at each boundary" — is right only for an
+already-composed `f64` value, because `pncad::authoring::{p2, v2, p3,
+v3}` are the kernel's own doors for components written at the call, so
+the landed file spells the lift both ways on that line. The rule above;
+the unit's record is its item's `## Closed` section (an E rider outside
+the A/B experiment — no `MODEL-AB-LOG.md` row).
+
+- `PROPS-LILY-VEC3-SPEC.md` — PROPS lily-vec3, the lily authored in `Vec3<f64>` through the kernel's own doors, lifted at the boundary (#1954)
