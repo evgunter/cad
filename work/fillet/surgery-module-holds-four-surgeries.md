@@ -2,10 +2,11 @@
 id: surgery-module-holds-four-surgeries
 kind: unit
 title: sweep: blend/surgery.rs holds four surgeries (4.3k lines); splitting the open bands out needs one re-scoping of the compound-bound allowlist
-status: dispatched
+status: closed
 opened: 2026-09-05
 branch: fillet/split-open-bands
 pr: 1964
+closed: 2026-09-05
 ---
 
 
