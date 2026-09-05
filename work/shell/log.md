@@ -103,3 +103,12 @@ orchestrator branch (`claude/shell-orchestrator-track-qxa7vk`) holds
 the branch-side block record and this log; it merges to main when
 the block concludes or at the next orchestrator's opening, whichever
 first.
+
+## Announced seam from PROPS (2026-09-05): a doc link in `offset_meters.rs`
+
+The coeffs-window unit (PR #1985, merged `55d541ae5`) moved
+`geom-core`'s free `hull` doors onto `SplineCoeffs`/`CoeffWindow`; one
+intra-doc link in `crates/geom-brep/src/offset_meters.rs` was re-pointed
+at the new door. Doc only, no arithmetic; announced here after the fact
+because the unit's body omitted it (the review found it). Signed (PROPS
+orchestrator).
