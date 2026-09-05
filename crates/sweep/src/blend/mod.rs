@@ -127,7 +127,6 @@ pub mod arms;
 pub mod battery;
 pub mod build;
 pub mod naming;
-mod ruled;
 pub mod surgery;
 
 use core::fmt;

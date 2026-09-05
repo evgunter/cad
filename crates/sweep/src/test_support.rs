@@ -868,29 +868,30 @@ pub const ROD_L: f64 = 1.0;
 /// transverse caps the ruled band is cut off at. Built through the
 /// public boolean door, as a user would mill it.
 ///
-/// Generic over the scalar so the interval twin builds the same body
-/// through the same doors at `Interval`.
-pub fn rod_with_flat_at<T: Decide + Bounds + PcurveFittedLane>(tol: Tol) -> Body<T> {
-    let f = T::from_f64;
-    let disc = profile::circle(Point2::new(f(0.0), f(0.0)), f(ROD_R), tol)
-        .expect("the rod's disc is a valid loop");
-    let rod = Profile::new(SketchPlane::<T>::xy(), vec![disc.into()])
+/// `f64` only: the boolean door's scalar bound is `Decide + Bounds`, a
+/// compound this file is not ratified to spell (the bracket-bound
+/// allowlist is per file). The interval twin takes the same body through
+/// the extrude door instead — [`rod_d_profile_at`].
+pub fn rod_with_flat(tol: Tol) -> Body<f64> {
+    let disc =
+        profile::circle(Point2::new(0.0, 0.0), ROD_R, tol).expect("the rod's disc is a valid loop");
+    let rod = Profile::new(SketchPlane::xy(), vec![disc.into()])
         .validate(tol)
         .expect("the rod's profile validates");
-    let rod = extrude(&rod, Extrusion::Distance(f(ROD_L)), tol)
+    let rod = extrude(&rod, Extrusion::Distance(ROD_L), tol)
         .expect("the rod extrudes")
         .body;
     let square = ProfileLoop::new(
         [(ROD_FLAT, -1.0), (1.0, -1.0), (1.0, 1.0), (ROD_FLAT, 1.0)]
             .into_iter()
-            .map(|(x, y)| ProfileVertex::new(Point2::new(f(x), f(y)), f(0.0)))
+            .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
             .collect(),
     );
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(f(0.0), f(0.0), f(-0.5))));
+    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.5)));
     let cutter = Profile::new(plane, vec![square])
         .validate(tol)
         .expect("the cutter's profile validates");
-    let cutter = extrude(&cutter, Extrusion::Distance(f(ROD_L + 1.0)), tol)
+    let cutter = extrude(&cutter, Extrusion::Distance(ROD_L + 1.0), tol)
         .expect("the cutter extrudes")
         .body;
     topo::subtract(&rod, &cutter, tol)
@@ -901,9 +902,28 @@ pub fn rod_with_flat_at<T: Decide + Bounds + PcurveFittedLane>(tol: Tol) -> Body
         .clone()
 }
 
-/// [`rod_with_flat_at`] at `f64`.
-pub fn rod_with_flat(tol: Tol) -> Body<f64> {
-    rod_with_flat_at(tol)
+/// **The same rod with a flat, spelled as a D-profile extrude**: the
+/// chord at `x = ROD_FLAT` and the major arc of the `ROD_R` circle — ONE
+/// cap arc, sweeping past π, so the cap's rim is split nowhere and the
+/// far foot's split parameter lies a turn off the carrier's principal
+/// branch. Same creases, same caps, same closed form as
+/// [`rod_with_flat`]; generic over the scalar for the interval twin
+/// (the extrude door's bound is `Decide + PcurveFittedLane`, no bracket).
+pub fn rod_d_profile_at<T: Decide + PcurveFittedLane>(tol: Tol) -> Body<T> {
+    let f = T::from_f64;
+    let y = (ROD_R * ROD_R - ROD_FLAT * ROD_FLAT).sqrt();
+    let theta = 2.0 * (PI - y.atan2(ROD_FLAT));
+    let bulge = (theta / 4.0).tan();
+    let lp = ProfileLoop::new(vec![
+        ProfileVertex::new(Point2::new(f(ROD_FLAT), f(y)), f(bulge)),
+        ProfileVertex::new(Point2::new(f(ROD_FLAT), f(-y)), f(0.0)),
+    ]);
+    let profile = Profile::new(SketchPlane::<T>::xy(), vec![lp])
+        .validate(tol)
+        .expect("the D validates");
+    extrude(&profile, Extrusion::Distance(f(ROD_L)), tol)
+        .expect("the D extrudes")
+        .body
 }
 
 /// **The creases of a rod with a flat**: every straight edge whose two

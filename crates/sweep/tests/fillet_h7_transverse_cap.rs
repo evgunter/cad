@@ -29,12 +29,12 @@ use geom::Curve3;
 use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
 use geom_core::k_stats::{start_verdict_log, take_verdict_log};
 use geom_core::{Band, Point2, Point3, Sign, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane};
 use sweep::blend::battery::{RULED_END_NOT_TRANSVERSE, cap_transverse};
 use sweep::blend::{BlendError, Blended, CornerConfig, RunOutPolicy, fillet_edges};
 use sweep::test_support::{
-    ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, cube, rod_creases, rod_section_cut,
-    rod_with_flat,
+    ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, cube, rod_creases, rod_d_profile_at,
+    rod_section_cut, rod_with_flat,
 };
 use sweep::{Extrusion, extrude};
 use topo::query;
@@ -63,25 +63,6 @@ fn volume(body: &Body<f64>) -> f64 {
     let p = mass_properties(body, tol()).expect("closed-form props");
     assert_eq!(p.volume_pad, 0.0, "the inventory is closed-form");
     p.volume
-}
-
-/// A body whose creases are a rod-with-a-flat's, spelled as a D-profile
-/// extrude: the chord at `x = ROD_FLAT` and the major arc of the
-/// `ROD_R` circle (one arc past π — the cap's rim is split nowhere).
-fn rod_by_d_profile() -> Body<f64> {
-    let y = (ROD_R * ROD_R - ROD_FLAT * ROD_FLAT).sqrt();
-    let theta = 2.0 * (core::f64::consts::PI - y.atan2(ROD_FLAT));
-    let bulge = (theta / 4.0).tan();
-    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(ROD_FLAT, y), bulge),
-        ProfileVertex::new(p2(ROD_FLAT, -y), 0.0),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(tol())
-        .expect("the D validates");
-    extrude(&profile, Extrusion::Distance(ROD_L), tol())
-        .expect("the D extrudes")
-        .body
 }
 
 /// The faces an edge separates, by surface key.
@@ -310,7 +291,7 @@ fn one_crease_alone_carves_at_half_the_prism() {
 /// picks it.
 #[test]
 fn the_d_profile_rod_carves_through_a_cap_arc_past_pi() {
-    let source = rod_by_d_profile();
+    let source = rod_d_profile_at::<f64>(tol());
     assert_eq!(census(&source), (4, 6, 4), "one cap arc per cap, past π");
     let _ = carve_and_check(&source, "D-profile rod");
 }
@@ -324,7 +305,7 @@ fn the_d_profile_rod_carves_through_a_cap_arc_past_pi() {
 /// vertex, with the corner recourse's "general run-outs" clause.
 #[test]
 fn an_oblique_cap_refuses_typed_as_the_reserved_run_out() {
-    let rod = rod_by_d_profile();
+    let rod = rod_d_profile_at::<f64>(tol());
     let phi = 0.3f64;
     let plane = SplitPlane {
         origin: Point3::new(0.0, 0.0, 0.7),

@@ -2,13 +2,16 @@
 //! interval twin of `fillet_h7_transverse_cap`'s rod row and of its
 //! `fillet3_cap_transverse` trio.
 //!
-//! The rod with a flat is built through the same public doors at
-//! `Interval`, both creases carve, the result is tier-3 valid with a
-//! closed-form inventory (`volume_pad == 0`), and the volume enclosure
-//! BRACKETS the prism closed form `V₀ − 2·A_section·L` narrowly enough
-//! to be a claim. The predicate's three arms are exercised at `Interval`
-//! too: a transverse cap is Zero, an oblique one refuses typed, and an
-//! in-band one escalates naming the predicate.
+//! The rod with a flat is built at `Interval` through the extrude door
+//! — the D-profile spelling of the same body (`rod_d_profile_at`),
+//! because the boolean door's scalar bound is `Decide + Bounds`, a
+//! compound `test_support` is not ratified to spell — both creases
+//! carve, the result is tier-3 valid with a closed-form inventory
+//! (`volume_pad == 0`), and the volume enclosure BRACKETS the prism
+//! closed form `V₀ − 2·A_section·L` narrowly enough to be a claim. The
+//! predicate's three arms are exercised at `Interval` too: a transverse
+//! cap is Zero, an oblique one refuses typed, and an in-band one
+//! escalates naming the predicate.
 
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -17,7 +20,7 @@ use geom_core::{Band, Bounds, Interval, Real, Tol, Vec3};
 use sweep::blend::BlendError;
 use sweep::blend::battery::cap_transverse;
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::{ROD_FLAT, ROD_L, ROD_R, rod_creases, rod_section_cut, rod_with_flat_at};
+use sweep::test_support::{ROD_FLAT, ROD_L, ROD_R, rod_creases, rod_d_profile_at, rod_section_cut};
 use topo::{VertexKey, mass_properties, validate_geometric};
 
 fn iv(x: f64) -> Interval {
@@ -41,7 +44,7 @@ fn assert_brackets(got: Interval, truth: f64, what: &str) {
 fn the_rod_carves_at_the_certified_scalar_and_brackets_the_prism_closed_form() {
     let tol = Tol::witness();
     let r = 0.1;
-    let source = rod_with_flat_at::<Interval>(tol);
+    let source = rod_d_profile_at::<Interval>(tol);
     let creases = rod_creases(&source);
     assert_eq!(creases.len(), 2, "two ruling creases");
     let p0 = mass_properties(&source, tol).expect("interval props");
