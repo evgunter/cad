@@ -3696,3 +3696,4 @@ unit (`cylindrical-rest-pair-hits-planar-merge`, spec pending). Reason:
 the torus spec ratified first (#1874) while the merge-door spec lane
 was still measuring. The draw is untouched — a slot's arm does not
 depend on which unit takes it.
+slot 0 = VERBS-C5ARMS PR-2 (OPUS) — concluded 2026-09-05 at merge ae69dfeb2, ordinal 2200, sample #143 (pair EXCLUDED from the tally under 3(e): R2 interrupted twice by the usage limit; R1's unilateral MAJ-1 noted as a would-be candidate).
