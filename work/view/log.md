@@ -2349,3 +2349,62 @@ lane is to say which is right.
 Still to dispatch from this ruling: `pick-and-parts-name-the-session-
 driver` (the hoist) and then `status-line-writers-bypass-the-ranking`
 (the nineteen), which waits on the vocabularies this lane is building.
+
+## The box nearly ran out of disk, and the cause is a lane-operations gap (2026-09-05)
+
+Caught at a scheduled check-in, not by a monitor: **2.5 GB free, 94%
+used, with two lanes building.** One more link step and both would have
+met ENOSPC.
+
+**The cause is `debug/incremental`, and it is not the lanes' fault.**
+`clearing-walk-target` was 19 GB, of which **12 GB was incremental
+state alone** — that target has been reused across four units
+(clearing-walk → scene-gathers → edit-door-wording), which is the
+correct thing to do for build speed, and the incremental cache
+accumulated across all of them because nothing ever prunes it.
+
+Reclaimed the 12 GB and nothing else; `deps/` and `examples/` untouched.
+14 GB free, and the lane's `cargo test --workspace` survived it.
+
+**Checked before acting, because deleting under a live build is the
+kind of thing that produces a failure nobody can explain later:** the
+running process was the edit-door lane (`/proc/<pid>/cwd` and its
+`CARGO_TARGET_DIR`), it was in a test-running phase, and `incremental/`
+had not been written for 28 minutes. Incremental state is regenerable
+by construction and never load-bearing for correctness. The lane was
+told plainly that I touched its build directory and to tell me rather
+than debug anything odd — a build directory altered under a lane, and
+not disclosed, is exactly the shape that turns into an unexplainable
+result three hours later.
+
+### The standing fix, and why it is not just tidiness
+
+Both lanes are told to export **`CARGO_INCREMENTAL=0`** beside their
+`CARGO_TARGET_DIR`. A lane builds a handful of times and then hands off
+to hosted CI, so the cache buys very little here and costs gigabytes
+per unit.
+
+What it prevents is the expensive failure rather than the annoying one.
+`memories/agent-lane-operations.md` records that a disk-full crash
+leaves torn binaries behind and makes **every result taken in the
+pressure window suspect** — so an ENOSPC does not cost a rebuild, it
+costs the trust in whatever was measured near it. Cheap insurance.
+
+### What this says about the operations memory
+
+`memories/agent-lane-operations.md` is detailed about reclaiming a
+lane's `target/` **when a lane or review finishes**, and says nothing
+about a target that grows without bound *while the lane is alive and
+correct to keep*. This session hit both: earlier I reclaimed a live
+lane's target too early (costing it a cold rebuild it did not owe), and
+now the opposite failure. The rule the memory is missing is about the
+**incremental cache specifically** — that it is the only part of a
+target that grows monotonically across units, and the only part that is
+free to delete.
+
+That is a `memories/` amendment, which is Ev's call and not a lane's or
+mine (CLAUDE.md: memory text is read at the start of every session, so
+what goes in it waits for sign-off). Recorded here rather than filed as
+an item, because it is an amendment to a memory rather than work in
+this program's territory — and named in this log so a successor
+orchestrator meets it.
