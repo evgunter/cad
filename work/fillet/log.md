@@ -671,3 +671,27 @@ identical over all 9 armed rows / 13 files. Filed:
 **FILLET-T dual dispatched** on frozen `9290f0b21`: ordinal **2006**,
 parity byte 129 ⇒ R1 FABLE / R2 OPUS, briefs stored with sha256,
 concurrent, isolated.
+
+**FILLET-T dual delivered; union fix pass sent (2026-09-05).** R1
+MERGEABLE-AFTER-FIXES 1/2/3, R2 MERGEABLE 0/2/4; C1 at both SHAs by both
+(R2 wider — 14 files, having WRITTEN the missing ruled dump row), all
+eight per-site source-face mutants refuse. Bilateral, adjudicated MAJOR:
+the `kef` door refuses the running phase's hand-built anchor list, not "a
+source face" as the header, `naming::Retired` and `emit_blend.rs` claim —
+R1 handed it a snapshot source face outside the blank phase's list and
+`kef` killed it; R2 read the four disjoint per-phase lists and the
+uncovered mixed-request seam. Also bilateral: the refusal renders as
+Row 1 (input validity) for the surgery's own invariant; no ruled dump
+row existed (the lane filed it; R2 wrote it). Unilateral: no mechanical
+one-door pin (R1's census row), the other-half mutants carve green at one
+site (R2, disclosed by deviation 2), the `sorted` seed contract stated
+two ways with a dead swap branch and a dependent read (R2), the dump
+function copied and DIVERGED in the test tree (R2 — the dome-annulus C1
+row blind to a props move), the rule at five homes (R1). Orchestrator's
+calls: one snapshot of the input body's faces at `blend_surgery` entry
+carried to every phase as the door's argument (D326's actual
+invariant), the refusal on the announced-impossible-state row, both
+probe rows adopted with the ruled row moving into `bitdump.rs` and its
+issue closed, one dump home, one seed contract, one statement of the
+rule. No unilateral MAJOR — tally +0; pair FAIR (no glimpse). Row at
+merge, ordinal 2006.
