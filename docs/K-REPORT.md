@@ -499,7 +499,7 @@ because one parameterised site carries many names: **83 of the 233
 names in the committed M7 baseline have no `decide("<name>"` site
 anywhere in the tree.**
 
-Five ways a name escapes the old pattern, all live today:
+Six ways a name escapes the old pattern, all live today:
 
 1. **A different funnel entry — the sharpest instance, because the
    site satisfies the method's own criterion.** `decide("` does not
@@ -514,26 +514,54 @@ Five ways a name escapes the old pattern, all live today:
    least `check_residual`, `classify`, `require_zero`, `coincident`,
    `zero`, `gap_is_zero` and `signed_is_zero`. The old method named the
    last two.
-3. **A named `const &str` rather than a literal at the site.** Six,
-   not the three previously recorded: `sector_shape.rs`'s
+3. **A named `const &str` rather than a literal at the site.** Seven,
+   not the three originally recorded: `sector_shape.rs`'s
    module-private `SECTOR_{ARM,REFLEX,STRAIGHT}`, plus
    `SEL_DATUM_DISTANCE` (`sel_datum_distance` — since SEAT-2 a `pub`
    const in `topo/src/query.rs`, re-exported by `editor-core`),
-   `DATUM_UNIT_NORM` (`datum_unit_norm` — since SEAT-DV a `pub` const
-   beside it, the length decision inside `UnitVec3::new`; the datum
-   arms of `editor-core`'s evaluation reach the funnel through that
-   constructor rather than through their own `eval_direction_norm`
-   site, which stays for the directions the evaluation layer owns —
-   note that `mate/solve.rs` re-derives a circular pattern's DATUM axis
-   from the recipe and decides it under `eval_direction_norm`, so one
-   datum direction carries two names by road, issue 1570) and
    `sweep/src/fillet/surgery.rs`'s module-private `RING_CLEARANCE`
-   (`fillet3_ring_clearance`).
-4. **A struct field or a local table.** `ray_parity::ParityRows` (the
+   (`fillet3_ring_clearance`), and the direction-length pair —
+   `DATUM_UNIT_NORM` (`datum_unit_norm`, a `pub` const in
+   `topo/src/query.rs`) and `EVAL_DIRECTION_NORM`
+   (`eval_direction_norm`, `editor-core`'s `eval/wire.rs`), which are
+   the same shape for the same reason and are described together
+   below.
+4. **A name PASSED to the deciding body by its caller** — the pair
+   just named, and the reason they are also a separate way of
+   escaping the pattern. Since SEAT-DN one function decides
+   direction length for the whole workspace
+   (`topo::query::decide_unit_direction`: finiteness, then the sign
+   of the norm, then normalize or refuse) and it takes the funnel site
+   as a `&'static str` PARAMETER, because the layer that owns a value
+   is the layer whose telemetry names its length decision. So
+   `decide(` at that site names a variable: `datum_unit_norm` is
+   passed by `UnitVec3::new` a few dozen lines below for a datum's
+   normal or axis direction, and `eval_direction_norm` by
+   `editor-core`'s `unit()`, a crate away, for the directions the
+   evaluation layer owns (a transform's rotation axis, a pattern's
+   direction, and the mate solve's re-derivation of both from the
+   recipe). Two names, one body — Ev's ratified answer to the
+   direction-family question, executed by SEAT-DN. The consequence
+   for a name roster is the one this section is about: a scan for
+   `decide("<name>"` finds NEITHER of these two live names, and only
+   a reader following the parameter does.
+
+   **And this route accepts names nobody registered.** The door is
+   `pub` in a `pub mod` and its site is a bare `&'static str`, so any
+   crate in the workspace can pass a literal of its own and mint a K
+   name that appears in the emitted stream and in no document —
+   executed: `decide_unit_direction(v, "rev_probe_site", band)`
+   escalates carrying `predicate: Some("rev_probe_site")`. Nothing
+   mechanical catches it, because nothing mechanical reads this
+   roster at all (see "Maintenance: this roster is a RECORD" below).
+   That is this document's standing hole made one route wider, not a
+   new one: a third caller of the shared body owes an entry here, by
+   hand, exactly as a new `decide("literal")` site does.
+5. **A struct field or a local table.** `ray_parity::ParityRows` (the
    one carrier this document already listed), `swept.rs`'s
    `CosurfaceNames`, and `transform.rs:129`'s seven-element
    `[(&'static str, T); 7]` array consumed by a loop variable.
-5. **The scan root — a scope error in the method, not a missed site.**
+6. **The scan root — a scope error in the method, not a missed site.**
    The pattern greps `crates/*/src`, while the corpus the gate is fed
    from is not confined to it: `demos/tour/src/booleans.rs` decided
    `demo_flush_{offset,orient,parallel}` through the same funnel, and
@@ -633,7 +661,7 @@ nothing computes with it:
   merge in `target/k-fresh`, one `cut -d, -f2 | sort -u` away.
 
 So: **stated criterion, disclosed residue, no CI row.** What a future
-reader is owed instead is above — the rule, the five escape routes, the
+reader is owed instead is above — the rule, the six escape routes, the
 two blind spots, and the seven names measured outside both documents.
 Adding a name carrier without recording it here still silently drops
 its rows from the roster; that is now a disclosed cost rather than an
@@ -1461,13 +1489,50 @@ names depending on the road**: `mate/solve.rs`'s derived-offset
 derivation re-reads a circular pattern's datum-axis node from the
 recipe and normalizes that same direction through `eval_direction_norm`
 (same arithmetic, same refusal shape, different name in this census).
-That is a family question, not a defect of either site, and it is homed
-at issue **1570** — this paragraph is the census-side record of it, and
-neither road was migrated.
 
-**Effect on the emitted stream.** Margins, order, bands and outcomes are
-bit-identical; only the `predicate` column changes, and only for these
-six values. Reproduced with the probe #647 left for exactly this —
+**And the mate road is not the only place one triple carries two
+names.** `DatumValue::AxisInPlane` is decided twice by design: the
+evaluation layer lifts the authored sketch direction and decides the
+lifted 3-D vector under `datum_unit_norm` (`wire.rs`'s
+`datum_unit(lift(plane_dir), …)`), while `sweep`'s revolve takes the
+UNLIFTED sketch pair and decides it again under
+`revolve_axis_direction` (`revolve/axis.rs`) — same authored numbers,
+two names, because the frame's axes are orthonormal and
+`|lift(d)| = |d|`. The variant's own doc says why it carries both
+spellings. So "one length, two funnel names, split by road" is a
+SHAPE in this workspace rather than a one-off, and the ruling below is
+about which layer names a decision, not about ever having only one
+name for a value.
+
+**Both facts are RATIFIED, and SEAT-DN is where they were answered**
+(Ev's ruling (B), 2026-09-05, on the `[ev]` PR that put the options).
+The two names stay exactly where they are read, because the layer that
+OWNS a value is the layer whose telemetry names its length decision: a
+`DatumValue` has no unnormalized spelling, so its normal is the kernel
+type's to decide, while a transform axis and a pattern direction are
+the evaluation layer's — and collapsing the two names would erase
+which layer a decision came from, in the one column this census has to
+say it in. So **no row here moves**, the count is unchanged, and the
+one triple under two names by road is a property of the roads, not a
+defect of either site.
+
+What SEAT-DN did collapse is the BODY: both names are now passed as a
+parameter to `topo::query::decide_unit_direction`, the workspace's only
+decide/normalize/refuse for a 3-D direction length. The census
+consequence is nil (same names, same margins, same order, same
+outcomes); the roster consequence is that neither name is a literal at
+its `decide` site any more, recorded as escape route 4 in the
+inventory method above. The population under each name is unchanged —
+`datum_unit_norm` for the datum arms of `wire_datum`,
+`eval_direction_norm` for the evaluation layer's own directions and
+for the mate solve's re-derivation of both rule kinds from the
+recipe.
+
+**Effect on the emitted stream** (the SECTOR rename above — the SEAT-DV
+and SEAT-DN paragraphs between are later additions to this section, and
+move nothing in this stream). Margins, order, bands and outcomes are
+bit-identical; only the `predicate` column changes, and only for the six
+sector names. Reproduced with the probe #647 left for exactly this —
 `cargo test -p topo --features probe --test all -- --nocapture
 probe_s5_sectors::sector_margin_stream | grep '^K '` on merge base
 (`17b077f7`) and tip:
