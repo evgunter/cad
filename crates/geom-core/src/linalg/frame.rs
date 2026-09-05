@@ -392,18 +392,21 @@ pub fn path_start_frame<T: Decide>(
 ///
 /// Evaluation order (fixed, D9): decide `|normal|`; `n̂ = normal /
 /// |normal|`; `t = n̂ · 2`; columns `e_j − t·n̂_j` in index order;
-/// translation `q − L·q` for `q = point − O`.
+/// translation `n̂ · (2·(n̂·q))` for `q = point − O` — the dot product
+/// first, in [`Vec3::dot`]'s own association, then the factor 2 on that
+/// scalar, then the componentwise scale of `n̂`.
 ///
-/// That translation mentions `q` twice, and at `T = Interval` a
-/// repeated operand does not cancel: the anchor is subtracted and
-/// re-added, so a mirror anchored at a point of nonzero width carries
-/// `2·width(point)` of translation it should not have.
-/// [`Affine3::rotation_about_axis`] used to be spelled the same way and
-/// no longer is; the mirror keeps the shape here because retiring it
-/// moves `f64` bits in the mirror lane and needs its own golden and
-/// k-lint pass. An exact replacement exists — `I − L = 2·n̂n̂ᵀ`, so the
-/// translation is `n̂·(2·(n̂·q))`, the anchor mentioned once. The site is
-/// carried as an audit member on issue 1143.
+/// **The anchor is mentioned once.** A Householder reflection has
+/// `I − L = 2·n̂n̂ᵀ`, so the translation that fixes `point` is
+/// `2·n̂(n̂·q)` and not a `q − L·q` round trip. The two agree over the
+/// reals; at `T = Interval` a repeated operand does not cancel, so the
+/// round trip would charge `2·width(point)` to EVERY component —
+/// including the components where the plane's normal vanishes and the
+/// translation is exactly zero. The single-mention spelling attains the
+/// true width of the image of the anchor's enclosure, which is the
+/// narrowest a sound enclosure can be: reflecting an anchor box of
+/// half-width 1e-9 across the `xy` plane gives a translation of width
+/// `[0, 0, 4e-9]` rather than `[4e-9, 4e-9, 4e-9]`.
 ///
 /// # Errors
 ///
@@ -423,14 +426,15 @@ pub fn mirror_across_plane<T: Decide>(
         FrameInput::MirrorNormal,
     )?;
     let n = normal.normalize();
-    let t = n * T::from_f64(2.0);
+    let two = T::from_f64(2.0);
+    let t = n * two;
     let linear = Mat3::from_cols(
         Vec3::unit_x() - t * n.x,
         Vec3::unit_y() - t * n.y,
         Vec3::unit_z() - t * n.z,
     );
     let q = point - Point3::origin();
-    Ok(Affine3::from_parts(linear, q - linear * q))
+    Ok(Affine3::from_parts(linear, n * (n.dot(q) * two)))
 }
 
 #[cfg(test)]

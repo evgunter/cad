@@ -274,15 +274,54 @@ impl<T: Real> Vec3<T> {
     }
 
     /// The orthogonal rejection of `self` from the line spanned by
-    /// `onto`: exactly `self - self.project_onto(onto)` (the
-    /// componentwise subtraction of [`Vec3::project_onto`]'s result —
-    /// the one sanctioned association, same D9 contract). The result is
-    /// orthogonal to `onto` up to rounding; `project + reject = self` up
-    /// to one rounding per component.
+    /// `onto`: the triple product `(onto × self) × onto / |onto|²`.
     ///
-    /// **Total.** Poison propagates from [`Vec3::project_onto`].
+    /// The association is part of the contract, exactly as it is for
+    /// [`Vec3::project_onto`] (the M2 watchlist's D9 hazard). Order:
+    /// `onto.cross(self)` first, in [`Vec3::cross`]'s own association;
+    /// that crossed with `onto`; then **one division per component** by
+    /// [`Vec3::norm_squared`]. Call sites must use this method, never
+    /// re-derive a rejection with their own grouping.
+    ///
+    /// **`self` is mentioned once.** `self − self.project_onto(onto)`
+    /// is the same vector over the reals, but names `self` twice, so at
+    /// an enclosure scalar it charges about `2·width(self)` to the
+    /// components ALONG `onto` — where the rejection does not depend on
+    /// `self` at all and its true width is zero. The triple product
+    /// charges nothing there: rejecting an enclosure of half-width
+    /// 1e-9 from `+z` gives a `z` component of width exactly zero
+    /// rather than 4e-9, and for an oblique `onto` the whole rejection
+    /// narrows by a factor of about 1.3 to 1.7. At `f64` an exactly
+    /// parallel pair rejects to exactly the zero vector.
+    ///
+    /// What this does NOT fix: `onto` is named three times here as it
+    /// was named three times before, so the width `onto` carries is
+    /// unrecovered; the gain is on `self`, and `onto` is usually an
+    /// exact axis.
+    ///
+    /// # The two rounding claims, measured
+    ///
+    /// Over the corpus written down in
+    /// `geom-core/tests/props1_evidence.rs` (`rejection_rounding_claims`):
+    ///
+    /// - **Orthogonal to `onto`**: `|reject · onto|` is at most
+    ///   3.5e-17 of `|self|·|onto|` — the cross products put the result
+    ///   in the plane through the origin normal to `onto` by
+    ///   construction, so this is tighter than the subtractive
+    ///   spelling's 1.6e-16 rather than looser.
+    /// - **`project + reject` returns `self`** to within **4 ulps** of
+    ///   the largest component. It is no longer the exact round trip a
+    ///   subtraction gave: the two are now independently rounded
+    ///   products of `self` rather than a value and its own complement,
+    ///   so a caller that needs the split to re-sum bit-exactly must
+    ///   keep `self` and subtract, not add the two halves back.
+    ///
+    /// **Total.** A zero (or poisoned) `onto` yields all-poison
+    /// components through the 0/0 division; `onto`'s overflow and
+    /// underflow bands are [`Vec3::project_onto`]'s, unchanged, since
+    /// the same `norm_squared` divides.
     pub fn reject_from(self, onto: Self) -> Self {
-        self - self.project_onto(onto)
+        onto.cross(self).cross(onto) / onto.norm_squared()
     }
 
     /// An orthonormal basis completing `self` (a **unit** vector) to a
