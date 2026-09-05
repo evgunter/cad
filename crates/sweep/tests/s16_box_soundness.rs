@@ -323,6 +323,24 @@ fn top_rim_plate(y_min: f64) -> Body<f64> {
     plate((-0.15, 0.15), (y_min, 0.9), (0.9, 1.1))
 }
 
+/// A plate straddling the TOP rim about its x-extremum — the second
+/// fixture whose loci meet a rim mid-arc, so the through-the-door
+/// soundness pin does not rest on one.
+fn top_rim_x_plate(x_max: f64) -> Body<f64> {
+    plate((-0.9, x_max), (-0.15, 0.15), (0.9, 1.1))
+}
+
+/// The cylinder shifted along `x` by `1 + gap`: two rims a gap apart
+/// at their nearest points, which are mid-arc on both.
+fn cylinder_apart(gap: f64) -> Body<f64> {
+    topo::transform_rigid(
+        &cylinder(),
+        &Affine3::translation(Vec3::new(1.0 + gap, 0.0, 0.0)),
+        Tol::witness(),
+    )
+    .unwrap()
+}
+
 /// A rounded plate — bulge arcs on two sides, so its extruded walls
 /// carry rims whose `u_ref` the sweep mints rotated — for the corner
 /// case of #347.
@@ -371,6 +389,16 @@ fn conic_corpus() -> Vec<(String, Body<f64>, Body<f64>)> {
             rim_plate(-0.499),
         ),
         (
+            "cylinder × plate across the top rim's x-extreme".to_string(),
+            cyl.clone(),
+            top_rim_x_plate(-0.499),
+        ),
+        (
+            "cylinder × cylinder 1e-3 apart".to_string(),
+            cyl.clone(),
+            cylinder_apart(1e-3),
+        ),
+        (
             "rounded plate × box clear of the round".to_string(),
             rounded.clone(),
             plate((1.2, 1.6), (0.36, 0.6), (0.2, 0.5)),
@@ -381,7 +409,7 @@ fn conic_corpus() -> Vec<(String, Body<f64>, Body<f64>)> {
             plate((1.18, 1.6), (0.33, 0.6), (0.2, 0.5)),
         ),
     ];
-    for &x_max in &[-0.5003, -0.501, -0.502, -0.51, -0.6] {
+    for &x_max in &[-0.5003, -0.5006, -0.501, -0.502, -0.51, -0.6] {
         v.push((
             format!("cylinder × rim plate clear by {}", -0.5 - x_max),
             cyl.clone(),
@@ -409,10 +437,11 @@ fn examined(t: &SweepTrace) -> BTreeSet<Pair> {
 /// contains every pair the reference ACCEPTED an event on — per
 /// direction. A conic edge box that ended short of its arc's extreme
 /// would lose the plate across the rim's x-extreme, and the row says
-/// so by name. Non-vacuous: at least one corpus pair accepts events.
+/// so by name. Non-vacuous on two fixtures, not one: the plates across
+/// the bottom and the top rim's x-extreme each accept events.
 #[test]
 fn conic_pruning_never_loses_an_accepted_pair() {
-    let mut accepted_somewhere = false;
+    let mut accepting: Vec<String> = Vec::new();
     for (name, a, b) in conic_corpus() {
         let real = sweep_traces(&a, &b, SweepStrategy::Realized, None, Tol::witness())
             .unwrap_or_else(|e| panic!("{name}: the realized sweep refused: {e:?}"));
@@ -434,17 +463,20 @@ fn conic_pruning_never_loses_an_accepted_pair() {
                 lost.is_empty(),
                 "{name} {dir}: the realized sweep never examined accepted pairs {lost:?}"
             );
-            accepted_somewhere |= !i.accepted.is_empty();
+            if !i.accepted.is_empty() && !accepting.contains(&name) {
+                accepting.push(name.clone());
+            }
         }
     }
     assert!(
-        accepted_somewhere,
-        "the corpus accepted no event anywhere — the pin is vacuous"
+        accepting.len() >= 2,
+        "the pin rests on fewer than two accepting fixtures: {accepting:?}"
     );
 }
 
 /// **Tightness, at the same door.** A plate clear of the rim's extreme
-/// by `3e-4` and more is examined against NOTHING in either direction:
+/// by `3e-4` and more — and a second cylinder a gap of `1e-3` away —
+/// is examined against NOTHING in either direction:
 /// the rim's box ends at `x = −0.5` (`y = 0.5` on the top rim), and the
 /// gap exceeds the sweep pad — `escalate + 2·zero` of the linear band
 /// at the witness tolerance, which is `1.2e-5` at ε = 1e-6 and smaller
@@ -465,7 +497,7 @@ fn a_plate_clear_of_the_rim_by_more_than_the_pad_is_not_examined() {
         count(&rim_plate(-0.499)) > 0,
         "the plate across the extreme must be examined"
     );
-    for &x_max in &[-0.5003, -0.501, -0.502, -0.51] {
+    for &x_max in &[-0.5003, -0.5006, -0.501, -0.502, -0.51] {
         assert_eq!(
             count(&rim_plate(x_max)),
             0,
@@ -481,4 +513,14 @@ fn a_plate_clear_of_the_rim_by_more_than_the_pad_is_not_examined() {
             y_min - 0.5
         );
     }
+    // Two cylinders whose rims come within 1e-3 of each other mid-arc:
+    // the exact boxes end at each rim, so no face pair is examined.
+    let apart = cylinder_apart(1e-3);
+    let (ab, ba) =
+        sweep_traces(&cyl, &apart, SweepStrategy::Realized, None, Tol::witness()).unwrap();
+    assert_eq!(
+        ab.examined.len() + ba.examined.len(),
+        0,
+        "two cylinders 1e-3 apart must be pruned outright"
+    );
 }

@@ -233,7 +233,11 @@ pub fn circle_arc_aabb<T: Bounds>(
     let vy = az.mul(ux).sub(ax.mul(uz));
     let vz = ax.mul(uy).sub(ay.mul(ux));
 
-    // The slop-widened span (orientation-normalized outward).
+    // The slop-widened span (orientation-normalized outward). On a
+    // DESCENDING run at a wide scalar these are the INNER ends of the
+    // two brackets; the range is still covered because the endpoint
+    // hull above enters both ends as whole brackets — that seed is
+    // load-bearing for span coverage, not a convenience.
     let (s0, s1) = (theta0.lo(), theta1.hi());
     let lo = pfold(s0, s1, f64::min) - ANGLE_SLOP;
     let hi = pfold(s0, s1, f64::max) + ANGLE_SLOP;
@@ -352,7 +356,11 @@ pub fn ellipse_arc_aabb<T: Bounds>(
     let vy = az.mul(ux).sub(ax.mul(uz));
     let vz = ax.mul(uy).sub(ay.mul(ux));
 
-    // The slop-widened span (orientation-normalized outward).
+    // The slop-widened span (orientation-normalized outward). On a
+    // DESCENDING run at a wide scalar these are the INNER ends of the
+    // two brackets; the range is still covered because the endpoint
+    // hull above enters both ends as whole brackets — that seed is
+    // load-bearing for span coverage, not a convenience.
     let (s0, s1) = (theta0.lo(), theta1.hi());
     let lo = pfold(s0, s1, f64::min) - ANGLE_SLOP;
     let hi = pfold(s0, s1, f64::max) + ANGLE_SLOP;

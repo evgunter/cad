@@ -79,7 +79,12 @@
 //! census reads [`arc_extent`], which needs none ([`EdgeBoxRule`]'s
 //! conic bullet carries the argument, and
 //! `the_two_box_lanes_agree_face_for_face` pins the gap at the
-//! census construction's own charge). What the census still owns is
+//! census construction's own charge). **One hand derivation remains,
+//! and both lanes read it**: [`edge_axial_span`]'s conic arm
+//! projects an arc onto an arbitrary axis by its own amplitude and
+//! subdivision, because the directional form of the exact extremum
+//! has no door yet — that is Track Q's `D292`, and it is the one
+//! place this module still spells an amplitude. What the census still owns is
 //! its arena WALK and its answer for a description with no claim in
 //! it (`None`, versus the poison box here); neither is arithmetic,
 //! and the census comment states both.
@@ -408,7 +413,7 @@ pub(crate) fn edge_axial_span<T: Real>(
                     .add(cv.mul(Span::exact(*semi_v * sin)));
                 acc = Some(acc.map_or(one, |a: Span<T>| a.hull(one)));
             }
-            let sag = amp * step.powi(2) * T::from_f64(0.125);
+            let sag = subdivision_charge(amp, step);
             acc.unwrap_or(c.widen(amp)).widen(sag).hull(chord)
         }
     }
@@ -1110,7 +1115,21 @@ fn boundary_hull<T: Decide + Bounds>(
 ///   pins the boolean box inside the census box by no more than the
 ///   charge. **A third construction is a defect**: a lane with
 ///   `Bounds` reads `geom`'s exact door, a lane without reads
-///   [`arc_extent`], and neither hand-derives an amplitude.
+///   [`arc_extent`], and neither hand-derives an amplitude — with one
+///   named exception, [`edge_axial_span`]'s conic arm, which both
+///   lanes read and which projects along an arbitrary axis by its own
+///   amplitude and subdivision until the directional exact form has a
+///   door (Track Q's `D292`).
+///
+///   **Why `geom`'s door went unread for so long.** This arm was
+///   written (M5 PR 9) as the triangle bound `|û_i|·a + |v̂_i|·b`,
+///   hand-derived in the same diff that added the cylinder arm, and
+///   `geom`'s exact door — already shipped — was never wired; issue
+///   #862 measured the over-width (`r√2` at a 45° `u_ref`) and
+///   replaced the bound by [`arc_extent`] shared with the census, still
+///   without reading the door, because sharing one body between the
+///   two lanes was the design goal. The door is read now; the census
+///   keeps the shared body for the reason above.
 ///
 ///   **Tightening is a separate obligation from soundness.** A
 ///   tighter box prunes pairs a wider one examined, and pruning is
@@ -1119,10 +1138,11 @@ fn boundary_hull<T: Decide + Bounds>(
 ///   (`reduce::gate_operand_edges`), which is what licensed the exact
 ///   form here; the NURBS arm below is where that obligation is
 ///   still owed. A correctness fix and a structural one are two
-///   halves that separate: a deletion of over-width retires with its
-///   defect, while a duplicated construction outlives every fix to
-///   either copy, so the structural half is answered by naming the
-///   one home, and the answer is what stops a further copy.
+///   halves that separate (the rule S235 stated against #862): a
+///   deletion of over-width retires with its defect — #862's half —
+///   while a duplicated construction outlives every fix to either
+///   copy, so the structural half is answered by naming the one home,
+///   and the answer is what stops a further copy.
 /// - [`NoSoundBox`](Self::NoSoundBox) — **NURBS carriers**, and an
 ///   edge whose carrier is null scaffolding. Nothing is certified
 ///   about the locus, so nothing is claimed; the chord is NOT a bound
@@ -1142,7 +1162,9 @@ pub(crate) enum EdgeBoxRule<T: Real> {
     /// The chord between the endpoints — see the type docs.
     Chord,
     /// The full conic's amplitude box, hulled with the chord — see the
-    /// type docs.
+    /// type docs. The payload is read by the census lane and by the
+    /// axial projection ([`AxialCarrier::Conic`]); [`edge_box`] matches
+    /// the arm and re-reads the certified carrier for `geom`'s door.
     ConicAmplitude {
         /// The conic's centre.
         center: Point3<T>,
@@ -1237,7 +1259,10 @@ pub(crate) fn edge_box<T: Decide + Bounds>(
             // `certified` is `Some` here — the rule names this arm only
             // for a certified conic carrier — and the door answers for
             // every conic kind, so the remaining arm is a kernel bug
-            // that says so (D2 addendum row 4).
+            // that says so (D2 addendum row 4). Not `corrupt(..)`: that
+            // refusal names an arena lookup a malformed BODY can fail,
+            // and this state is not a property of any body — it is the
+            // rule↔door pairing inside this file.
             certified
                 .and_then(|curve| {
                     let (t0, t1) = curve.params();
@@ -1259,6 +1284,15 @@ pub(crate) fn edge_box<T: Decide + Bounds>(
 /// charge it implies; a bare 16 in three places is three places to
 /// drift.
 pub(crate) const ARC_SAMPLES: usize = 16;
+
+/// The subdivision charge: how far a C² curve of second-derivative
+/// amplitude `amplitude` can leave the chord of a sub-interval of
+/// width `step` — `amplitude · step² / 8`. The one spelling
+/// [`arc_extent`], [`edge_axial_span`] and the construction rows
+/// read, for the same reason [`ARC_SAMPLES`] is named.
+pub(crate) fn subdivision_charge<X: Real>(amplitude: X, step: X) -> X {
+    amplitude * step.powi(2) * X::from_f64(0.125)
+}
 
 /// **A conic ARC's box, by certified subdivision.**
 ///
@@ -1336,10 +1370,9 @@ pub(crate) fn arc_extent<X: Real>(
     // 0`, so its z charge is exactly zero and a planar sector's box
     // stays flat in z; charging `max(a, b)` on every axis would have
     // given every such face a spurious thickness.
-    let eighth = step.powi(2) * X::from_f64(0.125);
     let sag = |u: Span<X>, v: Span<X>| {
         let (au, bv) = (u.mul(semi_u).abs_max(), v.mul(semi_v).abs_max());
-        (au.powi(2) + bv.powi(2)).sqrt() * eighth
+        subdivision_charge((au.powi(2) + bv.powi(2)).sqrt(), step)
     };
     SpanBox {
         x: widened.x.widen(sag(u_ref.x, v_ref.x)),
@@ -2570,12 +2603,17 @@ mod tests {
     /// boundary carries arcs the row pins the gap rather than
     /// equality — the boolean box inside the census box, and the
     /// census box inside the boolean box widened by that charge, per
-    /// side — which still catches a walk drift in either direction
-    /// (a lost edge shrinks one lane's box past the other's by the
-    /// edge's own extent, never by less than the charge on these
-    /// fixtures). The charge is the fixture's rim amplitude times
-    /// `(span / ARC_SAMPLES)² / 8`, and it is zero on the faces whose
-    /// box reads no edge box.
+    /// side. What that catches, measured by mutation: a conic edge
+    /// dropped from either lane's walk, and any widening of the
+    /// boolean box at or above the charge on an axis whose charge is
+    /// zero (`z` here — the very first pad reds it). What it does
+    /// NOT catch: a dropped chord that the hull already covers (the
+    /// sector's two radii both end at the origin, which the arc's
+    /// box carries), so a walk drift is loud only where the edge it
+    /// loses is load-bearing for the hull — as before, when the
+    /// row asserted equality. The charge is the fixture's rim
+    /// amplitude times `(span / ARC_SAMPLES)² / 8`, and it is zero on
+    /// the faces whose box reads no edge box.
     ///
     /// Compared at `pad = 0`, where the only other difference the
     /// module admits is [`Aabb::padded`]'s outward ulp.
@@ -2605,7 +2643,7 @@ mod tests {
         // amplitude `r` times `(span / N)² / 8`. The cone's box is the
         // frustum over an axial window both lanes project identically;
         // the ball, the tube and the control net read no edge box.
-        let charge = |r: f64, span: f64| r * (span / ARC_SAMPLES as f64).powi(2) * 0.125;
+        let charge = |r: f64, span: f64| subdivision_charge(r, span / ARC_SAMPLES as f64);
         /// One fixture: its name, the face, and the census charge on it.
         type Case = (&'static str, (Body<f64>, FaceKey), f64);
         let cases: Vec<Case> = vec![
@@ -2745,8 +2783,10 @@ mod tests {
     /// **The bracket defects, planted at the arithmetic.** Both of
     /// #862's under-enclosures are properties of a DESCRIPTION whose
     /// coordinates are brackets — invisible at `f64`, where a bracket
-    /// is a point — so they are planted here, on the shared extents,
-    /// rather than through a body at a scalar the row cannot pick.
+    /// is a point — so they are planted here, on the extents the
+    /// census lane reads (the boolean lane's conic edge box is `geom`'s
+    /// exact door, pinned in that crate), rather than through a body
+    /// at a scalar the row cannot pick.
     ///
     /// 1. The axial projection: an axis whose bracket spans two
     ///    directions must give an axial range that ENCLOSES what
@@ -2879,7 +2919,9 @@ mod tests {
                 // Short of a full turn by 0.02 rad: the span-winding
                 // certificate's margin is `r` times the shortfall, and at
                 // r = 0.001 that must clear the widest escalate band the
-                // suite runs (1e-5 at ε = 1e-6) — 2e-5 does.
+                // suite runs (1e-5 at ε = 1e-6) — 2e-5 does. The fixture
+                // refuses from ε ≈ 3e-6 (escalate 3e-5), the decade in
+                // which three of this module's older rows refuse too.
                 ("near-full turn", 0.1, tau - 0.02),
                 ("crosses +y mid-run", 1.4, 0.35),
                 ("crosses -x mid-run", 2.9, 0.5),
@@ -3132,7 +3174,7 @@ mod tests {
         // The census mirror at the same wrap window: its rims are
         // subdivided, so it contains this lane's box by at most the
         // subdivision charge (the two-lanes row's contract).
-        let charge = r * ((u1 - u0) / ARC_SAMPLES as f64).powi(2) * 0.125;
+        let charge = subdivision_charge(r, (u1 - u0) / ARC_SAMPLES as f64);
         let (lo, hi) = crate::census::face_reach(&body, face).expect("census claims the wall");
         let b0 = face_box(&body, face, 0.0).unwrap();
         for (name, gap, scale) in [
