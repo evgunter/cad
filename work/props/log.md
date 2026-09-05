@@ -227,3 +227,16 @@ unanswered; the walk lists it among three questions ratification does
 not answer. PROPS-1's fix-pass head `a7aef51d` is green (lane reporting).
 Slots: two lanes live (PROPS-1 fix pass, ONB-measure); the Span sweep
 dispatches when PROPS-1 lands.
+
+**PROPS-1 MERGED (2026-09-05)** —
+[#1918](https://github.com/evgunter/cad/pull/1918) at `93baf9ce0`, fix
+run 33946767666 green on the full matrix. Row recorded at merge: ordinal
+2400, sample **#137** (renumbered at the sync — #136 fell to FILLET-H7 by
+merge order); no tally candidate, the pair FAIR. The two respells stand
+with an honest contract: the wide-`onto` regression disclosed and
+pinned, the totality bands real, the soundness rows formula-free (both
+reviewers' probes adopted). The spec left `docs/` with the merge
+(ledgered); the item is closed; the audit item keeps its remaining
+members. Block PROPS-B1 slot 0 concluded; **slot 1 = the Span sweep**,
+dispatched on `props/span-knot-vector` (L / STRUCTURAL, pre-draw at the
+spec). Lanes live: Span, ONB-measure.
