@@ -68,7 +68,7 @@ const BORE: f64 = 1.0e-3;
 /// would ask for.
 pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let mut declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
+    let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
         r.push(DocEdit::SetDocParam {
             name: ParamName::new(n),
             value: DocParam::Continuous {
@@ -308,6 +308,7 @@ fn r2_end_to_end_rounded_pad_study() {
                 SymRules {
                     sqrt_square: true,
                     pythagoras: false,
+                    ..SymRules::none()
                 },
             ),
             ("A+B", SymRules::all()),
@@ -354,7 +355,10 @@ fn r2_the_pad_per_predicate_table() {
         ("A+B", SymRules::all()),
     ] {
         let (shapes, refusal, counts) = replay(&doc, &nominal, rules, tol);
-        println!("   pad rules={label:<8}: {counts:?} refusal {refusal:?} shapes {}", shapes.len());
+        println!(
+            "   pad rules={label:<8}: {counts:?} refusal {refusal:?} shapes {}",
+            shapes.len()
+        );
     }
 }
 

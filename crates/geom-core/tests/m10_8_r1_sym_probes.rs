@@ -12,7 +12,7 @@
 use geom_core::interval::Interval;
 use geom_core::predicate::{Band, Sign};
 use geom_core::real::Real;
-use geom_core::sym::{with_session, with_session_rules};
+use geom_core::sym::with_session_rules;
 use geom_core::{Decide, ParamSymbol, Sym, SymBudget, SymRules, Tol};
 
 fn budget() -> SymBudget {
@@ -47,12 +47,16 @@ fn sign_of(m: Sym<Interval>) -> Result<Sign, ()> {
 #[test]
 fn r1_rule_a_never_fires_on_a_straddling_argument() {
     for (lo, hi) in [(-1.0, 4.0), (-4.0, -1.0), (-1e-3, 1e-3)] {
-        let (s, counts) = with_session(budget(), || {
+        let (s, counts) = with_session_rules(budget(), SymRules::all(), || {
             let x = p("x", lo, hi);
             let r = x.sqrt();
             sign_of(r * r - x)
         });
-        assert_ne!(s, Ok(Sign::Zero), "[{lo}, {hi}]: a straddling sqrt is Invalid, never Zero");
+        assert_ne!(
+            s,
+            Ok(Sign::Zero),
+            "[{lo}, {hi}]: a straddling sqrt is Invalid, never Zero"
+        );
         assert_eq!(counts.symbolic_zero, 0, "[{lo}, {hi}]: {counts:?}");
     }
 }
@@ -80,11 +84,18 @@ fn r1_rule_a_decides_zero_at_every_width_and_off_it_widens() {
                 sign_of(s * s * s - arg * s),
             )
         };
-        let (on, c_on) = with_session(budget(), build);
-        assert_eq!(on, (Ok(Sign::Zero), Ok(Sign::Zero), Ok(Sign::Zero)), "half={half}");
+        let (on, c_on) = with_session_rules(budget(), SymRules::all(), build);
+        assert_eq!(
+            on,
+            (Ok(Sign::Zero), Ok(Sign::Zero), Ok(Sign::Zero)),
+            "half={half}"
+        );
         assert_eq!(c_on.symbolic_zero, 3, "half={half}: {c_on:?}");
         let (off, c_off) = with_session_rules(budget(), SymRules::none(), build);
-        assert_eq!(c_off.symbolic_zero, 0, "half={half}: rules off, no rule fires");
+        assert_eq!(
+            c_off.symbolic_zero, 0,
+            "half={half}: rules off, no rule fires"
+        );
         if half >= 0.5 {
             assert!(
                 off.0 != Ok(Sign::Zero),
@@ -99,7 +110,7 @@ fn r1_rule_a_decides_zero_at_every_width_and_off_it_widens() {
 /// sqrt(Y) − X` (two different atoms), never decide symbolically.
 #[test]
 fn r1_rule_a_never_claims_a_coincidence() {
-    let (out, counts) = with_session(budget(), || {
+    let (out, counts) = with_session_rules(budget(), SymRules::all(), || {
         let x = p("x", 2.0, 2.0);
         let y = p("y", 2.0, 2.0);
         let a = sign_of(x.sqrt() * x.sqrt() - y);
@@ -121,7 +132,7 @@ fn r1_rule_a_never_claims_a_coincidence() {
 #[test]
 fn r1_rule_b_shape() {
     for half in [1e-9_f64, 0.3, 3.0] {
-        let (out, counts) = with_session(budget(), || {
+        let (out, counts) = with_session_rules(budget(), SymRules::all(), || {
             let t = p("t", 0.7 - half, 0.7 + half);
             let u = p("u", 0.2 - half, 0.2 + half);
             let theta = t * u + lit(0.5);
@@ -136,12 +147,15 @@ fn r1_rule_b_shape() {
         });
         assert_eq!(out.0, Ok(Sign::Zero), "half={half}: the Pythagorean pair");
         assert_eq!(out.2, Ok(Sign::Zero), "half={half}: sin⁴ = (1 − cos²)²");
-        assert_eq!(counts.symbolic_zero, 2, "half={half}: exactly the two identities: {counts:?}");
+        assert_eq!(
+            counts.symbolic_zero, 2,
+            "half={half}: exactly the two identities: {counts:?}"
+        );
         if half >= 0.3 {
             assert_ne!(out.1, Ok(Sign::Zero), "half={half}: mixed arguments widen");
         }
     }
-    let (out, counts) = with_session(budget(), || {
+    let (out, counts) = with_session_rules(budget(), SymRules::all(), || {
         let t = p("t", 0.0, 0.0);
         let (s, c) = t.sin_cos();
         sign_of(s + c - lit(1.0))
@@ -155,7 +169,7 @@ fn r1_rule_b_shape() {
 /// even though the rewrite would produce the zero polynomial.
 #[test]
 fn r1_rule_b_never_fires_through_poison() {
-    let (out, counts) = with_session(budget(), || {
+    let (out, counts) = with_session_rules(budget(), SymRules::all(), || {
         let x = p("x", 1.0, 2.0);
         let theta = lit(1.0) / (x - x);
         let (s, c) = theta.sin_cos();
@@ -171,7 +185,7 @@ fn r1_rule_b_never_fires_through_poison() {
 #[test]
 fn r1_rule_a_reaches_the_normalized_frame_shape_on_a_small_form() {
     for half in [1e-9_f64, 0.25] {
-        let (out, counts) = with_session(budget(), || {
+        let (out, counts) = with_session_rules(budget(), SymRules::all(), || {
             let vx = p("vx", 3.0 - half, 3.0 + half);
             let vy = p("vy", 4.0 - half, 4.0 + half);
             let vv = vx * vx + vy * vy;

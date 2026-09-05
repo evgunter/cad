@@ -826,12 +826,17 @@ impl ParamBoxVerdict {
             } else {
                 100.0 * (d.symbolic_zero as f64) / (total as f64)
             };
-            let _ = writeln!(
+            let _ = write!(
                 s,
-                "  {} of {total} decisions were symbolic identities ({share:.1}%), {} more \
-                 by a certified sign; {} form(s) frozen",
-                d.symbolic_zero, d.sign_gated, d.frozen
+                "  {} of {total} decisions were symbolic identities ({share:.1}%)",
+                d.symbolic_zero
             );
+            // The clause-3 count only where there is one (rule C off, or
+            // nothing folded, prints the pre-algebra line).
+            if d.sign_gated != 0 {
+                let _ = write!(s, ", {} more by a certified sign", d.sign_gated);
+            }
+            let _ = writeln!(s, "; {} form(s) frozen", d.frozen);
         }
         let _ = write!(
             s,

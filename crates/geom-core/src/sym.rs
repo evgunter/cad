@@ -315,14 +315,17 @@ use crate::predicate::{Band, Decide, Indeterminate, MarginDiag, Sign};
 use crate::real::{Bounds, CertifiedEnclosure, Real};
 use crate::spline::{KnotVector, SpanLocate, SpanSet};
 
-/// The atom algebra: the polynomial square root, the rule A/B
-/// reductions and the clause-3 evaluation of a form at a lane scalar.
+/// The atom algebra: the rule A/B reductions over a residual.
 #[path = "sym/algebra.rs"]
 mod algebra;
 /// The shape report — the instrument that says, per decide site that
 /// stayed numeric, what blocked it.
 #[path = "sym/report.rs"]
 pub mod report;
+/// Rule C: the polynomial square root and the clause-3 fold, with the
+/// one value read the tier makes (a parameter bracket in the ring).
+#[path = "sym/signed.rs"]
+mod signed;
 
 // ---------------------------------------------------------------- ids
 
@@ -728,8 +731,14 @@ impl Rat {
         )
     }
 
-    /// R1 PROBE: the EXACT square root of a non-negative rational, or
-    /// `None` where it is not rational. `num/den · 2^e` with `e` made
+    /// The reciprocal; `None` for zero.
+    fn recip(self) -> Option<Self> {
+        Self::new(self.den, self.num, self.exp2.checked_neg()?)
+    }
+
+    /// The EXACT square root of a non-negative rational, or `None`
+    /// where it is not rational (rule A0's coefficient fold and rule
+    /// C's polynomial root both need exactly this). `num/den · 2^e` with `e` made
     /// even by moving one factor of two into `num`; the root is
     /// `isqrt(num)/isqrt(den) · 2^(e/2)` when both are exact.
     fn sqrt_exact(self) -> Option<Self> {
@@ -757,7 +766,7 @@ impl Rat {
     }
 }
 
-/// R1 PROBE: `Some(r)` iff `r·r == n` exactly.
+/// `Some(r)` iff `r·r == n` exactly.
 fn isqrt_exact(n: u128) -> Option<u128> {
     if n < 2 {
         return Some(n);
@@ -831,7 +840,7 @@ impl Poly {
         self.terms.is_empty()
     }
 
-    /// R1 PROBE: the value of a CONSTANT polynomial (no indeterminate).
+    /// The value of a CONSTANT polynomial (no indeterminate).
     fn as_constant(&self) -> Option<Rat> {
         match self.terms.len() {
             0 => Some(Rat::ZERO),
@@ -1060,79 +1069,59 @@ pub struct SymRules {
     /// that lies in the ideal of the Pythagorean identity reduces to
     /// zero. Unconditional.
     pub pythagoras: bool,
-    /// **R1 PROBE — A0, the exact constant fold**: `sqrt(c)` and
-    /// `abs(c)` of a CONSTANT form whose value is a perfect-square
-    /// rational (`sqrt`) or any rational (`abs`) fold to the exact
-    /// rational. No value is read: the argument is a literal of the
-    /// form itself. Off in every shipped set.
+    /// **A0 — the exact constant fold**: `sqrt(c)` and `abs(c)` of a
+    /// CONSTANT form whose value is a perfect-square rational (`sqrt`)
+    /// or any rational (`abs`) fold to the exact rational, in the PLAIN
+    /// form. No value is read — the argument is a literal of the form
+    /// itself — and the fold is trivially sound (a constant atom
+    /// replaced by the constant it denotes), so it cannot cost a
+    /// cancellation: any zero the opaque form reaches, the folded form
+    /// reaches. It is what relieves the arc family's freezes: the
+    /// blocking residuals were products of `sqrt(1)^58` and `sqrt` of
+    /// exact-square dyadic constants ([`Self::shipped`]).
     pub const_fold: bool,
-    /// **R1 PROBE — the EARLY reduction**: rules A/B applied per DAG
-    /// node in a SECOND memo alongside the plain form (never replacing
-    /// it), with a small per-node step cap. Off in every shipped set.
+    /// **The EARLY walk**: rules A, B and C applied per DAG node in a
+    /// SECOND memo ALONGSIDE the plain form — never replacing it — with
+    /// a small per-node step cap ([`EARLY_STEPS`]) and the un-reduced
+    /// form kept where a reduction does not fit. A decision is asked of
+    /// the plain form first, so a plain theorem is never re-labelled;
+    /// the early form can only ADD a discharge. Rule C rides this walk
+    /// exclusively, because the atoms it folds sit nested inside other
+    /// atoms' arguments, out of a top-residual reduction's reach.
     pub early: bool,
-    // **Rule C — `sqrt(Q²) = Q` by a certified sign (clause 3) — is NOT
-    // a field here, because it is FILED UNBUILT.** It is the one rule
-    // that would read a value, and reading a value at the lane scalar
-    // needs either `dyn Any` to store the parameter's `T` (the
-    // bit-identity-punning discipline forbids it) or the feature-gated
-    // `Interval` type (this module is feature-agnostic and the read must
-    // also serve the `f64`/`Probe` lanes). Measured, it also moved
-    // nothing on the three M10-8 documents: it folds only at the
-    // degenerate nominal of a box that does not certify. So the shipped
-    // and buildable tier reads NO value — E12's original invariant holds
-    // literally — and the `sign_gated` receipt and K token stand as the
-    // reserved instrument for the day a value-reading fold is built
-    // within the discipline.
+    /// **C — `sqrt(X) = R` where `X = R²` as forms and `R` has a
+    /// certified sign over the leaf's box** (and `abs(R) = ±R`
+    /// likewise): clause 3 of the theorem, the one rule that reads a
+    /// value. [`signed`] is the whole of how the value is read — the
+    /// parameter brackets the analysis box already holds, enclosed in
+    /// the ring — and why a zero reached through it is counted
+    /// `sign_gated` rather than `symbolic_zero`. Needs `early`.
+    pub signed_root: bool,
 }
 
 impl SymRules {
-    /// Every buildable rule on — the full set, for measuring what each
-    /// can reach. NOT the shipped default (both are filed;
-    /// [`Self::shipped`]).
+    /// Every rule on — the full set, for measuring what each can reach.
     #[must_use]
     pub const fn all() -> Self {
         Self {
             sqrt_square: true,
             pythagoras: true,
-            const_fold: false,
-            early: false,
+            const_fold: true,
+            early: true,
+            signed_root: true,
         }
     }
 
-    /// **The shipped set: NONE.** The §1 measurement filed all three
-    /// rules, and the reason is architectural rather than about any one
-    /// rule.
-    ///
-    /// Each rule is a sound reduction ([`with_session`]'s unit rows pin
-    /// them on small forms), and applied EARLY — during form
-    /// construction, as a per-node reduction — they do discharge the arc
-    /// family and were measured to raise the filleted bracket's
-    /// whole-certifying box ~10×. But that early reduction is what keeps
-    /// the forms small enough not to freeze, and paying it per DAG node
-    /// is a full reduction pass per node — measured as a runaway — while
-    /// letting it replace the plain form DOWNGRADES identities the plain
-    /// quotient form already proves (a straight edge's endpoint theorem
-    /// became sign-gated; an arc-span cancellation was lost). The
-    /// affordable, non-downgrading form is a reduction over the top
-    /// RESIDUAL only ([`crate::sym`]'s reduce), and by the time it runs
-    /// the arc-family subforms have already frozen (`frozen` in the
-    /// hundreds on the bracket at any budget), so it reaches no atom to
-    /// reduce: on the three documents A, B and C each move NO ceiling
-    /// and discharge NO decision the plain form did not.
-    ///
-    /// So rules A and B are FILED — built, dial-selectable, their
-    /// receipts and the shape-report instrument wired and tested — while
-    /// rule C is filed UNBUILT (this type carries no `signed_root`
-    /// field), its value-reading fold at odds with the bit-identity
-    /// discipline. The default tier is the M10-7 quotient form exactly,
-    /// bit for bit. A bounded early reduction that neither downgrades nor
-    /// runs away is the mechanism this unit could not land; the
-    /// measurement is its record. Per E12's own rule, a door nobody
-    /// consumes is machinery for zero certificate content, and this door
-    /// is not opened by default.
+    /// **The shipped set** — SHIPPED_DOCS_PLACEHOLDER
     #[must_use]
     pub const fn shipped() -> Self {
-        Self::none()
+        Self {
+            sqrt_square: false,
+            pythagoras: false,
+            const_fold: true,
+            early: false,
+            signed_root: false,
+        }
     }
 
     /// Every rule off: the quotient normal form with every atom opaque,
@@ -1144,6 +1133,7 @@ impl SymRules {
             pythagoras: false,
             const_fold: false,
             early: false,
+            signed_root: false,
         }
     }
 }
@@ -1205,9 +1195,13 @@ struct Session {
     /// The atom algebra is applied afterwards over the top residual
     /// ([`algebra::reduce`]), so no ruled form is memoized here.
     forms: IdMap<Rc<Form>>,
-    /// R1 PROBE: the EARLY-reduced forms (`SymRules::early`), a second
-    /// memo beside the plain one.
+    /// The EARLY-reduced forms (`SymRules::early`), a second memo
+    /// beside the plain one.
     forms_early: IdMap<Rc<Form>>,
+    /// The `f64` bracket of each document parameter this leaf was
+    /// evaluated over, by the parameter's indeterminate id — recorded
+    /// by [`Sym::param_over`], read only by rule C ([`signed`]).
+    params: IndetMap<(f64, f64)>,
     /// Every opaque atom minted so far, by its indeterminate id.
     atoms: IndetMap<AtomInfo>,
     counts: SymCounts,
@@ -1256,11 +1250,12 @@ impl Drop for OpaqueSeqGuard {
 /// refused rather than silently flattened — an inner session would count
 /// a different leaf's decisions into the outer one's receipt.
 pub fn with_session<R>(budget: SymBudget, f: impl FnOnce() -> R) -> (R, SymCounts) {
-    with_session_rules(budget, SymRules::all(), f)
+    with_session_rules(budget, SymRules::shipped(), f)
 }
 
 /// [`with_session`] with the atom-algebra dials chosen ([`SymRules`]);
-/// `with_session` is this at [`SymRules::all`].
+/// `with_session` is this at [`SymRules::shipped`] — ONE default, so
+/// every legacy caller runs the shipped tier and nothing else.
 pub fn with_session_rules<R>(
     budget: SymBudget,
     rules: SymRules,
@@ -1285,6 +1280,7 @@ pub fn with_session_rules<R>(
             nodes: IdMap::default(),
             forms: IdMap::default(),
             forms_early: IdMap::default(),
+            params: IndetMap::default(),
             atoms: IndetMap::default(),
             counts: SymCounts::default(),
         });
@@ -1425,14 +1421,25 @@ struct Form {
     /// `atan(+inf)` is `pi/2`, and the difference is an honest zero.
     /// The two halves catch different things and both are needed.
     poisoned: bool,
+    /// **This form was built through a clause-3 fold** (rule C,
+    /// [`signed`]): it is equal to the expression at every point of the
+    /// leaf's box rather than identically in the parameters, so a zero
+    /// reached through it is `sign_gated`, not `symbolic_zero`. Sticky
+    /// through every combinator, like the poison flag.
+    gated: bool,
 }
 
 impl Form {
     fn poly(num: Poly) -> Self {
+        Self::quotient(num, Poly::one())
+    }
+
+    fn quotient(num: Poly, den: Poly) -> Self {
         Self {
             num,
-            den: Poly::one(),
+            den,
             poisoned: false,
+            gated: false,
         }
     }
 
@@ -1448,6 +1455,7 @@ impl Form {
             num: Poly::one(),
             den: Poly::one(),
             poisoned: true,
+            gated: false,
         }
     }
 
@@ -1473,6 +1481,7 @@ impl Form {
                 num: self.num.add(&other.num)?,
                 den: self.den.clone(),
                 poisoned: false,
+                gated: self.gated || other.gated,
             });
         }
         Some(Self {
@@ -1482,6 +1491,7 @@ impl Form {
                 .add(&other.num.mul(&self.den, budget)?)?,
             den: self.den.mul(&other.den, budget)?,
             poisoned: false,
+            gated: self.gated || other.gated,
         })
     }
 
@@ -1493,6 +1503,7 @@ impl Form {
             num: self.num.neg()?,
             den: self.den.clone(),
             poisoned: false,
+            gated: self.gated,
         })
     }
 
@@ -1504,6 +1515,7 @@ impl Form {
             num: self.num.mul(&other.num, budget)?,
             den: self.den.mul(&other.den, budget)?,
             poisoned: false,
+            gated: self.gated || other.gated,
         })
     }
 
@@ -1517,6 +1529,7 @@ impl Form {
             num: self.den.clone(),
             den: self.num.clone(),
             poisoned: false,
+            gated: self.gated,
         })
     }
 
@@ -1528,7 +1541,7 @@ impl Form {
     fn digest(&self) -> u128 {
         Hash128::new()
             .word(0x464f_524d_5f4e_4652)
-            .word(u64::from(self.poisoned))
+            .word(u64::from(self.poisoned) | (u64::from(self.gated) << 1))
             .wide(self.num.digest())
             .wide(self.den.digest())
             .finish()
@@ -1604,9 +1617,18 @@ fn powi_form(base: &Form, n: u32, budget: SymBudget) -> Option<Form> {
 fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) -> Option<Form> {
     let (a, b) = (kids[0], kids[1]);
     let budget = sess.budget;
-    // R1 PROBE: where A0 applies — on the plain form when no early pass
-    // runs (REPLACING it), otherwise only in the early memo (ALONGSIDE).
-    let a0 = sess.rules.const_fold && (early || !sess.rules.early);
+    // A0 applies in BOTH walks: it replaces a constant atom by the
+    // constant it denotes, which cannot cost a cancellation
+    // (`SymRules::const_fold`).
+    let a0 = sess.rules.const_fold;
+    // Rule C applies in the EARLY walk only (`SymRules::signed_root`).
+    let c = early && sess.rules.signed_root;
+    // An atom over a gated argument is gated: it stands for the value
+    // of a form that is only box-wise equal to the expression.
+    let gate = |mut f: Form| {
+        f.gated |= a.gated;
+        f
+    };
     let atom1 = |op: SymOp, sess: &mut Session| {
         // A function OF an expression with no value has no value
         // either, and `a.is_zero()` is already false for a poisoned
@@ -1617,7 +1639,7 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
         if a.is_zero()
             && let Some(f) = unary_at_zero(op)
         {
-            return Some(f);
+            return Some(gate(f));
         }
         let id = indet_atom(op.tag(), node.payload, &[a.digest()]);
         sess.atoms.entry(id).or_insert_with(|| AtomInfo {
@@ -1625,7 +1647,7 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
             payload: node.payload,
             args: [Some(Rc::new(a.clone())), None],
         });
-        Some(Form::poly(Poly::indet(id)))
+        Some(gate(Form::poly(Poly::indet(id))))
     };
     match node.op {
         SymOp::Param => Some(Form::poly(Poly::indet(indet_param(node.payload)))),
@@ -1648,9 +1670,14 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
                 Err(_) => powi_form(&a.recip()?, n.unsigned_abs(), budget),
             }
         }
-        // R1 PROBE (A0): a sqrt/abs of a CONSTANT form folds exactly.
-        SymOp::Sqrt | SymOp::Abs if a0 && !a.poisoned => {
+        // A0: a sqrt/abs of a CONSTANT form folds exactly; then rule C
+        // (early walk): a sqrt of a perfect square, or an abs, of a
+        // form with a certified sign folds to the signed root.
+        SymOp::Sqrt | SymOp::Abs if (a0 || c) && !a.poisoned => {
             let folded = (|| {
+                if !a0 {
+                    return None;
+                }
                 let n = a.num.as_constant()?;
                 let d = a.den.as_constant()?;
                 let c = Rat::new(
@@ -1667,7 +1694,11 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
                 }
             })();
             match folded {
-                Some(c) => Some(Form::poly(Poly::constant(c))),
+                Some(k) => Some(gate(Form::poly(Poly::constant(k)))),
+                None if c => match signed::fold(node.op, a, &sess.params, budget) {
+                    Some(f) => Some(gate(f)),
+                    None => atom1(node.op, sess),
+                },
                 None => atom1(node.op, sess),
             }
         }
@@ -1696,7 +1727,9 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
                 _ => false,
             };
             if folds {
-                return Some(Form::zero());
+                let mut z = Form::zero();
+                z.gated = a.gated || b.gated;
+                return Some(z);
             }
             let id = indet_atom(node.op.tag(), node.payload, &[a.digest(), b.digest()]);
             sess.atoms.entry(id).or_insert_with(|| AtomInfo {
@@ -1704,19 +1737,25 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
                 payload: node.payload,
                 args: [Some(Rc::new(a.clone())), Some(Rc::new(b.clone()))],
             });
-            Some(Form::poly(Poly::indet(id)))
+            let mut f = Form::poly(Poly::indet(id));
+            f.gated = a.gated || b.gated;
+            Some(f)
         }
         // Keyed by the CHILD IDS, never by their forms (the op's docs).
         // A hull of something with no value has none either, so the
         // poison crosses this door like every other.
         SymOp::Hull if a.tainted(b) => Some(Form::poison()),
-        SymOp::Hull => Some(Form::poly(Poly::indet(
-            Hash128::new()
-                .word(SymOp::Hull.tag())
-                .wide(node.kids[0].bits())
-                .wide(node.kids[1].bits())
-                .finish(),
-        ))),
+        SymOp::Hull => {
+            let mut f = Form::poly(Poly::indet(
+                Hash128::new()
+                    .word(SymOp::Hull.tag())
+                    .wide(node.kids[0].bits())
+                    .wide(node.kids[1].bits())
+                    .finish(),
+            ));
+            f.gated = a.gated || b.gated;
+            Some(f)
+        }
     }
 }
 
@@ -1833,12 +1872,15 @@ fn plain_form(sess: &mut Session, root: SymId) -> Rc<Form> {
     out
 }
 
-/// R1 PROBE: the most rule-A/B substitutions the early reduction takes
-/// per node before it gives the un-reduced form back.
+/// The most rule-A/B substitutions the early walk takes per node
+/// before it gives the un-reduced form back — the bound that makes the
+/// per-node reduction a fixed cost rather than a pass over the form.
 const EARLY_STEPS: usize = 8;
 
-/// R1 PROBE: the early-reduced form of `root`, memoized in its own
-/// table beside the plain one.
+/// The early-reduced form of `root` (`SymRules::early`), memoized in
+/// its own table beside the plain one: the same walk as
+/// [`plain_form`], with rules A/B applied per node under
+/// [`EARLY_STEPS`] and rule C's fold at each `sqrt`/`abs`.
 fn early_form(sess: &mut Session, root: SymId) -> Rc<Form> {
     let mut memo = core::mem::take(&mut sess.forms_early);
     let out = form_in(sess, &mut memo, root, true);
@@ -1846,57 +1888,73 @@ fn early_form(sess: &mut Session, root: SymId) -> Rc<Form> {
     out
 }
 
+/// How the symbolic tier discharged a decision.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Discharge {
+    /// An unconditional theorem: the form is the zero polynomial, no
+    /// value read (`symbolic_zero`).
+    Theorem,
+    /// A theorem conditional on a clause-3 sign read over the leaf's
+    /// box — the form is zero and was built through rule C's fold
+    /// (`sign_gated`).
+    SignGated,
+}
+
 /// **The identity test**: is this node's expression identically zero in
-/// the parameters, as an unconditional theorem?
+/// the parameters — as an unconditional theorem, or as one conditional
+/// on a certified sign?
 ///
-/// Two tiers on the SAME memoized plain form, so no extra DAG walk is
-/// paid: the plain form is the zero polynomial (the pre-algebra tier),
-/// or [`algebra::reduce`] with the buildable rules A and B — which read
-/// no value — reduces the residual to zero. Both are theorems.
+/// Three tiers, in the order that keeps a stronger claim from being
+/// re-labelled as a weaker one: the PLAIN form (every atom opaque,
+/// rules A0 only) is the zero polynomial — a theorem; the EARLY form
+/// (rules A/B per node, rule C's fold) is zero — a theorem if no fold
+/// took part, `SignGated` if one did; the top residual reduces to zero
+/// under rules A/B — a theorem. Each tier is memoized per session, so
+/// a decision pays the walk it needs once.
 ///
-/// There is no third, value-reading tier: rule C (clause 3) is filed
-/// unbuilt ([`SymRules`]'s docs), so the tier reads no value and never
-/// produces a `sign_gated` discharge.
-///
-/// `false` outside a session, and `false` at a zero-term budget — the
-/// tier switched off inside the scalar.
-fn is_identically_zero(id: SymId) -> bool {
+/// `None` outside a session, and at a zero-term budget — the tier
+/// switched off inside the scalar.
+fn discharge(id: SymId) -> Option<Discharge> {
     SESSION.with(|s| {
         let mut slot = s.borrow_mut();
-        let Some(sess) = slot.as_mut() else {
-            return false;
-        };
+        let sess = slot.as_mut()?;
         if sess.budget.max_terms == 0 {
-            return false;
+            return None;
         }
         let plain = plain_form(sess, id);
         if plain.is_zero() {
-            return true;
+            return Some(Discharge::Theorem);
         }
         let rules = sess.rules;
-        // The early-reduced form (rules A/B per node, ALONGSIDE the
-        // plain one — asked second, so it can only add a discharge).
-        if rules.early && early_form(sess, id).is_zero() {
-            return true;
+        if rules.early {
+            let e = early_form(sess, id);
+            if e.is_zero() {
+                return Some(if e.gated {
+                    Discharge::SignGated
+                } else {
+                    Discharge::Theorem
+                });
+            }
         }
         if !(rules.sqrt_square || rules.pythagoras) {
-            return false;
+            return None;
         }
         // Rules A and B (unconditional) over the residual, once.
         algebra::reduce(&plain, rules, sess.budget, &sess.atoms)
             .as_ref()
             .is_some_and(|f| f.is_zero())
+            .then_some(Discharge::Theorem)
     })
 }
 
 /// Records how one decision was answered, for the session's receipt.
-fn count_decision(symbolic: bool) {
+fn count_decision(discharge: Option<Discharge>) {
     SESSION.with(|s| {
         if let Some(sess) = s.borrow_mut().as_mut() {
-            if symbolic {
-                sess.counts.symbolic_zero += 1;
-            } else {
-                sess.counts.numeric += 1;
+            match discharge {
+                Some(Discharge::Theorem) => sess.counts.symbolic_zero += 1,
+                Some(Discharge::SignGated) => sess.counts.sign_gated += 1,
+                None => sess.counts.numeric += 1,
             }
         }
     });
@@ -1963,7 +2021,9 @@ impl<T> Sym<T> {
     }
 
     /// A value bound as the document PARAMETER `symbol` — the one door
-    /// that introduces an indeterminate.
+    /// that introduces an indeterminate. No bracket is recorded, so
+    /// rule C ([`signed`]) can fold nothing over this parameter; a
+    /// caller holding the box's bounds uses [`Self::param_over`].
     #[must_use]
     pub fn param(symbol: ParamSymbol, value: T) -> Self {
         Self {
@@ -1974,6 +2034,23 @@ impl<T> Sym<T> {
                 kids: [SymId::UNRECORDED; 2],
             }),
         }
+    }
+
+    /// [`Self::param`] over the bracket `[lo, hi]` the value was built
+    /// from — the analysis box's own two `f64`s, which the caller that
+    /// mints a parameter axis already holds. The bracket is recorded in
+    /// the installed session for rule C's sign read ([`signed`]); it is
+    /// the ONLY value the symbolic tier ever reads, and it is read as
+    /// two floats through a ring enclosure, never as the lane scalar.
+    /// Outside a session the bracket is dropped and this is `param`.
+    #[must_use]
+    pub fn param_over(symbol: ParamSymbol, value: T, lo: f64, hi: f64) -> Self {
+        SESSION.with(|s| {
+            if let Some(sess) = s.borrow_mut().as_mut() {
+                sess.params.insert(indet_param(symbol.0), (lo, hi));
+            }
+        });
+        Self::param(symbol, value)
     }
 
     /// Mints the node for a nullary op.
@@ -2260,19 +2337,29 @@ impl<T: Decide> Decide for Sym<T> {
         let definitely_nonzero = matches!(&numeric, Ok(Sign::Positive | Sign::Negative));
         if definitely_nonzero {
             debug_assert!(
-                !is_identically_zero(self.node),
+                discharge(self.node).is_none(),
                 "the numeric channel proved this margin nonzero and the form says it is                  identically zero: the two channels contradict each other"
             );
-            count_decision(false);
-            report::record(&numeric, false, None);
+            count_decision(None);
+            report::record(&numeric, None, None);
             return numeric;
         }
-        let symbolic = !domain_violation && is_identically_zero(self.node);
+        let symbolic = if domain_violation {
+            None
+        } else {
+            discharge(self.node)
+        };
         count_decision(symbolic);
-        if symbolic {
+        if let Some(how) = symbolic {
             #[cfg(feature = "probe")]
-            crate::k_stats::retag_at(mark, crate::k_stats::SampleOutcome::SymbolicZero);
-            report::record(&numeric, true, None);
+            crate::k_stats::retag_at(
+                mark,
+                match how {
+                    Discharge::Theorem => crate::k_stats::SampleOutcome::SymbolicZero,
+                    Discharge::SignGated => crate::k_stats::SampleOutcome::SignGated,
+                },
+            );
+            report::record(&numeric, Some(how), None);
             return Ok(Sign::Zero);
         }
         // The shape report wants the residual that BLOCKED — rendered
@@ -2280,7 +2367,7 @@ impl<T: Decide> Decide for Sym<T> {
         // never pays for it.
         if report::active() {
             let text = report::render_node(self.node);
-            report::record(&numeric, false, text);
+            report::record(&numeric, None, text);
         }
         numeric
     }
@@ -2431,7 +2518,7 @@ mod tests {
     /// not.
     #[test]
     fn the_pythagorean_pair_of_one_argument_is_a_theorem() {
-        let (out, counts) = with_session(budget(), || {
+        let (out, counts) = with_session_rules(budget(), SymRules::all(), || {
             let x = p("w", 3.0);
             let y = p("h", 0.25);
             let (s, c) = (x * y + Sym::from_f64(2.0)).sin_cos();
@@ -2452,7 +2539,7 @@ mod tests {
     /// `sqrt(X)·sqrt(X) − X` and `sqrt(X)³ − X·sqrt(X)` are theorems.
     #[test]
     fn a_square_root_squared_is_its_argument() {
-        let (out, counts) = with_session(budget(), || {
+        let (out, counts) = with_session_rules(budget(), SymRules::all(), || {
             let (x, y) = (p("w", 3.0), p("h", 0.25));
             let arg = x * x + y * y + Sym::from_f64(1.0);
             let s = arg.sqrt();
@@ -2466,31 +2553,144 @@ mod tests {
         assert_eq!(counts.sign_gated, 0, "rule A reads no value");
     }
 
-    /// **Rule C is FILED UNBUILT — `sqrt(r²) − r` stays numeric.** Its
-    /// argument's form is `r²` (a perfect square), so a sign-gated fold
-    /// COULD discharge it, but reading `r`'s sign at the lane scalar
-    /// conflicts with the bit-identity discipline, so the fold is not
-    /// built: the atom stays opaque and the decision is the numeric
-    /// channel's own. `sign_gated` is the reserved receipt and stays
-    /// zero. (The clause-3 residual sits one power below rule A: `sqrt`
-    /// to the FIRST power, which rule A's even-power rewrite does not
-    /// touch.)
+    /// A parameter with its bracket recorded, at `f64` — the door rule C
+    /// reads through ([`Sym::param_over`]).
+    fn p_over(name: &str, v: f64, lo: f64, hi: f64) -> Sym<f64> {
+        Sym::param_over(ParamSymbol::of(name), v, lo, hi)
+    }
+
+    /// **Rule C, clause 3: `sqrt(r²) − r` is a theorem CONDITIONAL on
+    /// `r`'s sign**, and is counted as one. With `r`'s bracket strictly
+    /// positive the fold takes `sqrt(r²) → r` and the decision is
+    /// `sign_gated` — never `symbolic_zero`, because it holds on the box
+    /// and not identically. `abs(r) − r` folds the same way. The
+    /// residual sits one power below rule A (`sqrt` to the FIRST
+    /// power), which is why an unconditional rule cannot reach it.
     #[test]
-    fn rule_c_is_filed_so_a_signed_root_stays_numeric() {
-        let (out, counts) = with_session(budget(), || {
-            let r = p("r", 1.25e-3);
+    fn rule_c_discharges_a_signed_root_as_sign_gated() {
+        let (out, counts) = with_session_rules(budget(), SymRules::all(), || {
+            let r = p_over("r", 1.25e-3, 1.0e-3, 2.0e-3);
             let sq = decides_zero((r * r).sqrt() - r);
             let abs = decides_zero(r.abs() - r);
             (sq, abs)
         });
-        // Numerically zero at the point — the numeric channel answers.
         assert_eq!(out, (true, true));
-        assert_eq!(counts.sign_gated, 0, "rule C is unbuilt: {counts:?}");
+        assert_eq!(
+            counts.sign_gated, 2,
+            "both are clause-3 theorems: {counts:?}"
+        );
         assert_eq!(
             counts.symbolic_zero, 0,
-            "and no unconditional rule reaches a first-power sqrt of a square"
+            "and neither is an unconditional one"
+        );
+        assert_eq!(counts.numeric, 0);
+    }
+
+    /// **Rule C's negative sign**: `sqrt(r²) + r` folds when `r` is
+    /// DEFINITELY negative (`sqrt(r²) = −r` there), and not otherwise.
+    #[test]
+    fn rule_c_folds_the_negated_root_under_a_negative_sign() {
+        let (out, counts) = with_session_rules(budget(), SymRules::all(), || {
+            let r = p_over("r", -1.25e-3, -2.0e-3, -1.0e-3);
+            (
+                decides_zero((r * r).sqrt() + r),
+                decides_zero(r.abs() + r),
+                // The same residual with the WRONG sign is not zero, and
+                // the fold does not make it one: it decides numerically.
+                decides_zero((r * r).sqrt() - r),
+            )
+        });
+        assert_eq!(out, (true, true, false));
+        assert_eq!(counts.sign_gated, 2, "{counts:?}");
+        assert_eq!(counts.numeric, 1);
+    }
+
+    /// **Rule C's refusals**: a bracket that STRADDLES zero never folds
+    /// (the sign is not certified), a parameter with no bracket
+    /// recorded never folds, and with the rule off the atom stays
+    /// opaque — in every case the decision is the numeric channel's
+    /// own and `sign_gated` stays zero.
+    #[test]
+    fn rule_c_never_folds_without_a_certified_sign() {
+        // Straddling.
+        let (out, counts) = with_session_rules(budget(), SymRules::all(), || {
+            let r = p_over("r", 1.25e-3, -1.0e-3, 2.0e-3);
+            (decides_zero((r * r).sqrt() - r), decides_zero(r.abs() - r))
+        });
+        assert_eq!(out, (true, true), "numerically zero at the point");
+        assert_eq!(
+            counts.sign_gated, 0,
+            "a straddling bracket folds nothing: {counts:?}"
         );
         assert_eq!(counts.numeric, 2);
+        // A zero endpoint is not strictly signed.
+        let (_, counts) = with_session_rules(budget(), SymRules::all(), || {
+            let r = p_over("r", 1.25e-3, 0.0, 2.0e-3);
+            decides_zero((r * r).sqrt() - r)
+        });
+        assert_eq!(counts.sign_gated, 0, "{counts:?}");
+        // No bracket at all (`Sym::param`).
+        let (_, counts) = with_session_rules(budget(), SymRules::all(), || {
+            let r = p("r", 1.25e-3);
+            decides_zero((r * r).sqrt() - r)
+        });
+        assert_eq!(counts.sign_gated, 0, "no bracket, no read: {counts:?}");
+        assert_eq!(counts.numeric, 1);
+        // The rule off (the shipped set is measured, not assumed:
+        // `SymRules::shipped`'s docs).
+        let (_, counts) = with_session_rules(
+            budget(),
+            SymRules {
+                signed_root: false,
+                ..SymRules::all()
+            },
+            || {
+                let r = p_over("r", 1.25e-3, 1.0e-3, 2.0e-3);
+                decides_zero((r * r).sqrt() - r)
+            },
+        );
+        assert_eq!(counts.sign_gated, 0, "{counts:?}");
+        assert_eq!(counts.numeric, 1);
+    }
+
+    /// **A plain theorem is never re-labelled by rule C.** The early
+    /// walk runs ALONGSIDE the plain form, and a decision the plain form
+    /// answers is `symbolic_zero` even when a gated fold would also have
+    /// reached it.
+    #[test]
+    fn a_plain_theorem_stays_unconditional_beside_rule_c() {
+        let (_, counts) = with_session_rules(budget(), SymRules::all(), || {
+            let r = p_over("r", 1.25e-3, 1.0e-3, 2.0e-3);
+            // `sqrt(r²)·sqrt(r²) − r²`: rule A reaches it in the early
+            // walk too, and the plain form does not — but with r's sign
+            // certified the early walk's FIRST fold is C's, so this is
+            // gated; the plain-zero row below is the one that must not
+            // be.
+            decides_zero((r * r).sqrt() - (r * r).sqrt());
+        });
+        assert_eq!(
+            counts.symbolic_zero, 1,
+            "x − x is the zero form: {counts:?}"
+        );
+        assert_eq!(counts.sign_gated, 0);
+    }
+
+    /// **The candidate shape the plate's ceiling has**: `sqrt(X) − R`
+    /// with `X = R²` as forms where `X` is NOT a syntactic square —
+    /// `(a + 2r)²` expanded to `a² + 4ar + 4r²` under the root — folds
+    /// under rule C when `a + 2r` has a certified sign. This is
+    /// `‖q − c‖ = r` with the endpoint at `c + r·(1, 0)` scaled by 2.
+    #[test]
+    fn rule_c_recovers_the_root_of_an_expanded_square() {
+        let (out, counts) = with_session_rules(budget(), SymRules::all(), || {
+            let a = p_over("a", 0.5, 0.25, 0.75);
+            let r = p_over("r", 1.25e-3, 1.0e-3, 2.0e-3);
+            let x = a * a + Sym::from_f64(4.0) * a * r + Sym::from_f64(4.0) * r * r;
+            decides_zero(x.sqrt() - (a + Sym::from_f64(2.0) * r))
+        });
+        assert!(out);
+        assert_eq!(counts.sign_gated, 1, "{counts:?}");
+        assert_eq!(counts.symbolic_zero, 0);
     }
 
     /// **Division is IN the normal form** (the quotient of polynomials,

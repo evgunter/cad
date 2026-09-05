@@ -138,8 +138,16 @@ thread_local! {
 /// [`take_verdict_log`], and read by the verdict-diff engine). A door
 /// cannot acquire one and miss the other.
 fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign, Indeterminate> {
-    CURRENT.with(|c| c.set(name));
+    // The name is SCOPED to this classification: it is restored on the
+    // way out, so a decision taken outside any named door (a bare
+    // `sign_within`, a comparison inside a builder) is recorded under
+    // the unnamed default and never charged to whichever predicate
+    // happened to classify last. M10-8's shape report was charging each
+    // replay's first decisions to the previous replay's last predicate
+    // until this was scoped (`assert_bound` read 9 decisions for 1).
+    let prev = CURRENT.with(|c| c.replace(name));
     let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
+    CURRENT.with(|c| c.set(prev));
     if let Ok(sign) = outcome {
         VERDICTS.with(|v| {
             if let Some(log) = v.borrow_mut().as_mut() {

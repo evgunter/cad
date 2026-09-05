@@ -202,26 +202,27 @@ fn r2_rule_b_holds_at_every_width() {
     }
 }
 
-/// **`with_session` is not the shipped configuration.** The tier ships
-/// with every rule OFF (`SymRules::shipped()` is empty and
-/// `SymbolicDials::default()` carries it), but the un-suffixed session
-/// door installs `SymRules::all()` — so a caller who writes
-/// `with_session` gets the FILED algebra, not the shipped one. Pinned
-/// as a fact about the API rather than as an approval of it.
+/// **`with_session` IS the shipped configuration.** R2's review found
+/// the un-suffixed session door installing `SymRules::all()` while
+/// `SymRules::default()` was `none()` — two defaults, so a caller who
+/// wrote `with_session` got a different tier from the drive. There is
+/// ONE default now: the door installs `SymRules::shipped()`, the same
+/// set `SymbolicDials::default()` carries, and this row pins the two
+/// doors bit for bit on a rule-B shape (a theorem under `all()`, so a
+/// drift back to `all()` would show as a count of 1 on the doored side).
 #[test]
-fn r2_the_unsuffixed_session_door_is_not_the_shipped_rule_set() {
+fn r2_the_unsuffixed_session_door_is_the_shipped_rule_set() {
     let case = || {
         let a = p("theta", 0.3, 0.9);
         let (s, c) = a.sin_cos();
         sign_of(s * s + c * c - lit(1.0))
     };
-    let (_, plain) = with_session_rules(budget(), SymRules::shipped(), case);
-    let (_, doored) = with_session(budget(), case);
-    assert_eq!(plain.symbolic_zero, 0, "the SHIPPED tier proves nothing here");
-    assert_eq!(
-        doored.symbolic_zero, 1,
-        "but `with_session` runs the filed algebra: {doored:?}"
-    );
+    let (plain_out, plain) = with_session_rules(budget(), SymRules::shipped(), case);
+    let (doored_out, doored) = with_session(budget(), case);
+    assert_eq!(plain_out, doored_out);
+    assert_eq!(plain, doored, "one default: the door runs the shipped tier");
+    let (_, all) = with_session_rules(budget(), SymRules::all(), case);
+    assert_eq!(all.symbolic_zero, 1, "and the full set proves it: {all:?}");
 }
 
 // ------------------------- evidence: the bounded early reduction (claim 2)

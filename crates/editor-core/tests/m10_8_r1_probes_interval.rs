@@ -131,9 +131,8 @@ fn theorems_by_predicate(shapes: &[DecisionShape]) -> BTreeMap<&'static str, (u6
 }
 
 fn short(s: &Option<String>) -> String {
-    s.as_deref().map_or("-".to_owned(), |s| {
-        s.chars().take(150).collect::<String>()
-    })
+    s.as_deref()
+        .map_or("-".to_owned(), |s| s.chars().take(150).collect::<String>())
 }
 
 /// The documents at their REAL study: the plate, R2's bracket, and R1's
@@ -179,7 +178,9 @@ fn r1_variants_whole_box_and_nominal_split() {
                 short(&refusal)
             );
         }
-        println!("== {name}: NOMINAL split per variant (theorem/numeric), HURT = lost theorems vs none");
+        println!(
+            "== {name}: NOMINAL split per variant (theorem/numeric), HURT = lost theorems vs none"
+        );
         let _ = replay(&doc, &nominal, SymRules::none(), tol);
         let base = theorems_by_predicate(&replay(&doc, &nominal, SymRules::none(), tol).0);
         for (label, rules) in variants() {
