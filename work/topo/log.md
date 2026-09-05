@@ -179,3 +179,29 @@ adjudication: `n2r1_probes.rs`'s prose is now false, `BooleanErrorKind`
 is a hand-written discriminant companion (S-BOOL). Dual dispatched on
 the frozen head: ordinal 2700 claimed, parity byte 119 ⇒ R1 FABLE,
 R2 OPUS; briefs stored with sha256 privately.
+
+## S330 adjudicated; fix pass out (2026-09-05)
+
+Both blinded reviews delivered on frozen `55931a3e`. R1: MERGEABLE,
+0/3/6, rubric 4/4/4. R2: MERGEABLE-AFTER-FIXES, 1/4/5, rubric 4/4/2.
+Every behavioural claim held under execution in both lanes — the
+state ladder, the arm removal, the interval row, the derive-backed
+coverage, the reproduction of the inherited red on main's own tree.
+R2's MAJOR is unilateral and executed: the `Plane` no-op arm's
+justification is false (a zero or poisoned frame describes no locus,
+check 1 says nothing, and escalations elsewhere refuse it — the very
+shape this unit closed for NURBS), and the quadric arms' "no check
+reads them" is loose the same way. Adjudicated as a claim-class
+finding on a comment plus a residue-scope gap, not shipped behaviour:
+recorded as a tally candidate under 3(b)'s doc exclusion for the
+blinded adjudication, per the H4 precedent. Convergent style finding
+from both arms, taken: the three-state read becomes a type
+(`NetState`), the S-CERT seam widened by that enum and announced.
+Union fix pass of eight items dispatched to the same lane, both
+reviewers' probes handed over (one state-ladder row adopted). Filed:
+FILLET's roster debt as `work/fillet/anchor-span-sole-bracket-bound-unrostered`
+(the roster line now cites it), the thirteen sibling two-state reads
+as a class in `work/issues/` with the `NetState` door as the tool.
+`program.md`'s `keep_out` now says how this program treats
+`crates/topo/tests/*` (S-TCOST's glob): rows added as ordinary tests,
+said in the PR, no second fence.
