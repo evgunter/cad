@@ -9,11 +9,11 @@
 
 use geom::Curve3;
 use geom_brep::{
-    DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, classify_dihedral, curvature_lever_arm,
-    edge_extent, tangent_certificate_lane, tangent_jet,
+    DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, classify_dihedral, edge_extent,
+    tangent_certificate_lane,
 };
 use geom_core::spline::SpanLocate;
-use geom_core::{Band, Decide, Margin, Point3, Real};
+use geom_core::{Band, Decide, Point3, Real};
 use topo::{Body, EdgeKey, EulerOpError, SurfaceKey};
 
 use super::RevolveError;
@@ -101,12 +101,6 @@ fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>
     })
 }
 
-/// Upgrades one edge to `Intersection { s1, s2, witness }` when the
-/// two surfaces are definitely transverse at the witness: cap–wall
-/// meridian rims, cap–cap axis edges (partial), and full-revolve
-/// latitude rims all funnel here. Smooth keeps the conventional
-/// description (the D2 split; tier 3 permits it); Indeterminate is the
-/// typed error built by `sliver`.
 /// Re-states one edge as an image in `chart`, keeping carrier,
 /// interval and (through `at_rest_in_chart`) the pushforward that
 /// scaffolded it as its authority record.
@@ -127,6 +121,13 @@ pub(super) fn describe_at_rest<T: Decide>(
     Ok(())
 }
 
+/// Upgrades one edge to `Intersection { s1, s2, witness }` when the
+/// two surfaces are definitely transverse at the witness: cap–wall
+/// meridian rims, cap–cap axis edges (partial), and full-revolve
+/// latitude rims all funnel here. Smooth descends one order through
+/// the must-carry rule ([`geom_brep::tangent_second_order`], read at
+/// every interior sample of the certification schedule);
+/// Indeterminate is the typed error built by `sliver`.
 pub(super) fn upgrade_intersection<T: Decide>(
     body: &mut Body<T>,
     edge: EdgeKey,
@@ -229,13 +230,8 @@ fn jet_determinate<T: Decide>(
         let f = T::from_f64(f64::from(i) / f64::from(samples - 1));
         let t = data.t0 + (data.t1 - data.t0) * f;
         let p = data.carrier.eval(t);
-        let jet = tangent_jet(s1, s2, p, data.carrier.deriv(t));
-        let arm = curvature_lever_arm(s1, p)
-            .min(curvature_lever_arm(s2, p))
-            .min(data.extent);
-        let margin = Margin::sagitta(jet.kappa_rel.abs(), arm);
         if !matches!(
-            crate::swept::decide("tangent_second_order", margin, band),
+            geom_brep::tangent_second_order(s1, s2, p, data.carrier.deriv(t), data.extent, band),
             Ok(geom_core::Sign::Positive)
         ) {
             return false;

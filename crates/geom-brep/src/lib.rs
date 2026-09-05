@@ -83,7 +83,7 @@ pub use description::{
 };
 pub use dihedral::{
     DihedralClass, MaterialPairing, MaterialWedge, classify_dihedral, classify_material_pairing,
-    folded_lever_arm, material_kappa_rel,
+    folded_lever_arm, material_kappa_rel, tangent_second_order,
 };
 pub use edge_nurbs::{EdgeNurbsLane, PlaneNurbsLimbs, PlaneNurbsRefusal};
 pub use enters::{

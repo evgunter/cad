@@ -207,6 +207,58 @@ pub fn folded_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>,
         .min(extent)
 }
 
+/// **`tangent_second_order`** — the must-carry rule's one metered
+/// spelling (D2/OQ7): at a point `p` where the tangent planes already
+/// coincide ([`DihedralClass::Smooth`]), do the two surfaces still
+/// DETERMINE the locus one order up?
+///
+/// The margin is the sagitta the relative transverse normal curvature
+/// subtends over the pair's folded lever arm — `|κ_rel|·arm²/2` in
+/// meters, `κ_rel` from [`crate::tangent_jet`] along `tangent` and
+/// `arm` from [`folded_lever_arm`] — classified against the run's
+/// linear band:
+///
+/// - **`Positive`** — jet-determinate: the surfaces determine the
+///   locus, so prefer-intrinsic demands the intrinsic
+///   [`crate::EdgeDescription::TangentIntersection`] and a constructor
+///   that stores less is storing a description tier 3 will refuse.
+/// - **`Zero`/`Negative`** — under-determined (a G2 join, a
+///   same-surface split, coplanar planes): the conventional
+///   description is the honest one, BY THIS PREDICATE.
+/// - **`Err`** — in-band: near-osculating geometry that is certifiable
+///   as neither, escalated typed at the caller (D4 ¶3).
+///
+/// **Why one home.** The constructor that stores the description and
+/// the tier-3 arm that demands it must read the SAME quantity under
+/// the SAME predicate name, or the demanded set and the stored set are
+/// two sets and every disagreement is a spurious
+/// `DescriptionNotAdjacent`. Every smooth-join arm in the sweep verbs
+/// routes here; the remaining hand-rolled siblings (the boolean
+/// rebuild's and the tier-3 validator's, which fold this margin into
+/// a per-sample walk they already run) are issue 1439's work, and a
+/// new site spelling its own is a silent non-comparability.
+///
+/// # Errors
+///
+/// [`Indeterminate`] under predicate `"tangent_second_order"`: the
+/// sagitta landed in the sliver band, or was poisoned.
+pub fn tangent_second_order<T: Decide>(
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    p: Point3<T>,
+    tangent: geom_core::Vec3<T>,
+    extent: T,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    let jet = crate::tangent::tangent_jet(s1, s2, p, tangent);
+    let arm = folded_lever_arm(s1, s2, p, extent);
+    decide(
+        "tangent_second_order",
+        Margin::sagitta(jet.kappa_rel.abs(), arm),
+        band,
+    )
+}
+
 /// **The material wedge** an edge's two faces subtend at a sample —
 /// D1's ratified tier-3 verdict table, in one enum.
 ///

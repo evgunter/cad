@@ -344,3 +344,107 @@ fn bitdump_shell_open_box_corpus() {
     text.push_str(&dump(&sealed));
     save(&dir, "shell_open_box_corpus", &text);
 }
+
+/// The **extrude/revolve corpus**: every body kind whose construction
+/// runs a description upgrade — extrude's cap rims and strut joins over
+/// each profile leg kind, revolve's meridian and latitude joins over
+/// each elementary wall. `dump` writes each edge's stored description,
+/// so a PR claiming the descriptions do not move runs this at the merge
+/// base and at the head and diffs the files.
+#[test]
+fn bitdump_extrude_revolve_corpus() {
+    let Some(dir) = dump_dir() else {
+        return;
+    };
+    let tol = Tol::witness();
+    let p2 = Point2::<f64>::new;
+    let b = core::f64::consts::FRAC_PI_8.tan();
+    let extruded = |name: &str, loops: Vec<ProfileLoop<f64>>, h: f64| -> (String, Body<f64>) {
+        let profile = Profile::new(SketchPlane::xy(), loops)
+            .validate(tol)
+            .unwrap();
+        let body = sweep::extrude(&profile, sweep::Extrusion::Distance(h), tol)
+            .unwrap()
+            .body;
+        (name.to_owned(), body)
+    };
+    let circle = |cx: f64, cy: f64, r: f64| {
+        <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+            ProfileVertex::new(p2(cx - r, cy), 1.0),
+            ProfileVertex::new(p2(cx + r, cy), 1.0),
+        ])
+    };
+
+    let mut rows: Vec<(String, Body<f64>)> = vec![
+        extruded(
+            "L prism (all-line, one concave corner)",
+            vec![ProfileLoop::polygon([
+                p2(0.0, 0.0),
+                p2(2.0, 0.0),
+                p2(2.0, 1.0),
+                p2(1.0, 1.0),
+                p2(1.0, 2.0),
+                p2(0.0, 2.0),
+            ])],
+            0.75,
+        ),
+        extruded(
+            "cylinder (two semicircle arcs)",
+            vec![circle(0.0, 0.0, 1.5)],
+            2.0,
+        ),
+        extruded(
+            "holed prism (square + circular ring)",
+            vec![
+                ProfileLoop::polygon([p2(0.0, 0.0), p2(2.0, 0.0), p2(2.0, 2.0), p2(0.0, 2.0)]),
+                circle(1.0, 1.0, 0.5),
+            ],
+            1.0,
+        ),
+        extruded(
+            "rounded square (tangent line-arc joins)",
+            vec![
+                <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+                    ProfileVertex::new(p2(0.25, 0.0), 0.0),
+                    ProfileVertex::new(p2(0.75, 0.0), b),
+                    ProfileVertex::new(p2(1.0, 0.25), 0.0),
+                    ProfileVertex::new(p2(1.0, 0.75), b),
+                    ProfileVertex::new(p2(0.75, 1.0), 0.0),
+                    ProfileVertex::new(p2(0.25, 1.0), b),
+                    ProfileVertex::new(p2(0.0, 0.75), 0.0),
+                    ProfileVertex::new(p2(0.0, 0.25), b),
+                ])
+                .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]),
+            ],
+            0.5,
+        ),
+        extruded(
+            "concave arc leg",
+            vec![<ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+                ProfileVertex::new(p2(0.0, 0.0), 0.0),
+                ProfileVertex::new(p2(3.0, 0.0), 0.0),
+                ProfileVertex::new(p2(3.0, 2.0), 0.0),
+                ProfileVertex::new(p2(0.0, 2.0), -0.4),
+            ])],
+            1.25,
+        ),
+    ];
+    rows.push(("dome (plane-sphere equator)".to_owned(), dome(1.0, tol)));
+    rows.push(("waisted (cone-plane rims)".to_owned(), waisted(tol)));
+    rows.push((
+        "sphere zone (sphere-sphere rim pair)".to_owned(),
+        sphere_zone(0.4, Revolution::Full, tol),
+    ));
+    rows.push(("lantern (sphere-cone-plane)".to_owned(), lantern(tol)));
+    rows.push((
+        "poled ball (full revolve, meridian seam)".to_owned(),
+        ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol),
+    ));
+
+    let mut text = String::new();
+    for (name, body) in &rows {
+        let _ = writeln!(text, "== {name} ==");
+        text.push_str(&dump(body));
+    }
+    save(&dir, "extrude_revolve_corpus", &text);
+}
