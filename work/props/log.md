@@ -537,3 +537,18 @@ non-tour consumer of the lift found by the review
 (`eval/wire.rs:1132` through `anchor::embed_affine`) is filed, not
 fixed — editor-core is outside the fence. Fix pass implementer-inherited,
 sequenced after the rotation-floor unit's PR opens.
+
+**Check-in (2026-09-05, 11:54Z).** #1944 (sign-hull ruling): no answer
+yet. #1924 (S-CERT exit walk): still open, but its 10:40Z update takes
+every PROPS re-point — the offset_fit, rational-quad and linalg-lane
+items (`budgetexhausted…`, `offset-fit-mignitude…`, `patch-bound…`,
+`refine-dir…`, `quad2-rational…`, `normalize-overflow…`,
+`orthonormal-basis…`, `pole-branch…`) now move INTO `work/props/` in
+that PR, nothing goes to `work/issues/`, and PROPS' territory paths
+(`geom-brep/src/props/*`, `offset_fit.rs`, `patch_bound.rs`,
+`geom-core/src/*`, `geom/src/*`) join `program.md` there. So the
+post-ratification plan is no longer a `git mv` sweep: retire the
+header's successor clause, update the plan's §Opening condition and
+§Early lanes, and dispatch the offset_fit lane (E→H→D) and the sphere
+lane (still behind MESH-12, #1617). Riders: #1977 (vec3-doors) reviewed,
+fix pass queued behind #1980 (rotation-floor), whose head is on CI.
