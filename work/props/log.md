@@ -552,3 +552,17 @@ header's successor clause, update the plan's §Opening condition and
 §Early lanes, and dispatch the offset_fit lane (E→H→D) and the sphere
 lane (still behind MESH-12, #1617). Riders: #1977 (vec3-doors) reviewed,
 fix pass queued behind #1980 (rotation-floor), whose head is on CI.
+
+**rotation-floor reviewed (2026-09-05).** Style review on `f02fce570`
+(#1980): MERGEABLE, MAJOR 0 / MINOR 3 / NOTE 4; rubric 4 / 5 / 4. The
+instrument reproduced line for line and the decomposition checked by
+hand (the axis entry's width is EXACTLY the sum of the two enclosures;
+`t` from the half angle is exact at θ = 0, what remains is `c`). Fixes,
+all prose: the paragraph omits `t`-alone's 133 % regression at full
+period; one cite off by six lines in the re-homed issue; the body's
+territory sentence contradicts the tool (`DOC-LEDGER.md` is META's);
+a test-file sentence this unit rotted (`revolved_point_anchor.rs:95`);
+the "different reason" wording reconciled across the paragraph, the
+neighbour's bullet and the item; the three homes of the decomposition's
+digits pointed at the one paragraph. Fix pass implementer-inherited,
+sequenced after the vec3-doors fix pass in the same lane.
