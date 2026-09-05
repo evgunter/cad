@@ -1788,3 +1788,66 @@ No `wasm32-unknown-unknown` build was run — the `Send` assertion's
 evidence is structural plus a native compile failure at the assertion
 line, which is strong but is not the wasm target. And the 2.3 s / 13.4 s
 timings were **not re-measured**; they remain the item's numbers.
+
+## #1885 MERGED; the assert was deleted, not relocated (2026-09-05)
+
+Merged at `a7799628`, green on `51f9b2d6` after merging main (which
+carried #1886) — 37 jobs, twelve `test (…)`, five `k-lint (gate, …)`,
+no conflict markers anywhere in the tree, and CI confirmed to have
+fired on the merged head rather than left in a CONFLICTING no-run
+state.
+
+### The lane's call on the assert is better than my instruction
+
+I told it to move the check into `perform`, where a `Refusal` is free.
+It **deleted the check instead**, on the ground that `perform` already
+holds the precondition: it refuses `Open`/`NewDocument` mid-value-
+gesture before any door writes anything, so the invariant is enforced,
+correctly placed and typed, and a restatement in the arm would have
+**broken a stated invariant in order to enforce one** — `perform`'s own
+docs say no arm carries a guard against the value gesture, "the table
+and only the table".
+
+Accepted, and its offer of a gesture-table row declined for the reason
+the style review already supplied: M2 established that flipping the
+table row reds `gesture_table.rs`'s hand-restated `expected()`, so a
+relaxation **is** machine-caught, one layer up, where the rule lives. A
+second check in the walk would be a copy of a rule, which is the class
+this program exists to close. Nothing further owed.
+
+It also declined the one thing I offered as an alternative and gave the
+right reason: a mid-gesture `Open` row over a real document would
+assert the *refusal*, not the reset, because the value gesture makes
+`Open` refuse before the door — so the "fails loudly" claim was
+**withdrawn** in both `session.rs` and the README rather than
+propped up by a row that tests something else. Withdrawing a claim you
+cannot support is the outcome this program wants and rarely gets.
+
+Four residues filed on its own branch under the corrected §6 rule, one
+of them rewritten against the merged tree rather than its branch point:
+`DisplayState::clear` still returns `()` while `prune` now returns a
+report with **two** kinds of withdrawal, so #1886 widened that gap
+rather than narrowing it, and the file says so.
+
+One correction of the reviewer, from the lane, worth keeping:
+`Debug for DocSession` is the **only** hand-written `Debug` in the
+crate, so the class to sweep is *hand-listed field census*, not the
+trait. A sweep aimed at `impl Debug` would have found one instance and
+called it done.
+
+### Next out
+
+`scene-gathers-the-landed-product-twice-more`, dispatched to the same
+lane on `view/scene-gathers`. It was sequenced behind the clearing walk
+on purpose and the reason is now sharper than when the plan said it:
+storing the scene's two derived facts "beside `landed_checks`" means
+**joining `LandedRun`**, the value that lane just built — so this unit
+is the first real test of the property it shipped, that a new
+derived-from-the-landing field joins by being declared. If that fights,
+it is a finding about `LandedRun` and the brief says to report it
+rather than work around it.
+
+Told, as a claim to check hardest, that `scene_of_evaluation`'s
+"no production caller" rests on a grep that cannot see a caller reached
+through a re-export or a trait method; and that DOCM-5's 248 ms/8 ms is
+**inherited, not this unit's measurement**, and must be cited as such.
