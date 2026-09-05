@@ -649,8 +649,7 @@ pub(crate) fn torus_window_extent<T: Real>(
     let eighth = T::from_f64(0.125);
     let (hu2, hv2) = (hu.powi(2), hv.powi(2));
     let outer = major.hi + minor.hi;
-    let charge =
-        |a: Span<T>| (hu2 * (outer * perp_room(a)) + hv2 * minor.hi) * eighth;
+    let charge = |a: Span<T>| (hu2 * (outer * perp_room(a)) + hv2 * minor.hi) * eighth;
     SpanBox {
         x: hulled.x.widen(charge(axis.x)),
         y: hulled.y.widen(charge(axis.y)),
@@ -722,10 +721,7 @@ pub(crate) fn harmonic_extent<T: Real>(
         }
         .widen((ca.powi(2) + cb.powi(2)).sqrt() * eighth)
     };
-    Some((
-        channel(a.0, b.0, pa.x, pb.x),
-        channel(a.1, b.1, pa.y, pb.y),
-    ))
+    Some((channel(a.0, b.0, pa.x, pb.x), channel(a.1, b.1, pa.y, pb.y)))
 }
 
 /// **A torus face's chart window, accumulated over its boundary's
@@ -2703,7 +2699,8 @@ mod tests {
     ) -> (Body<f64>, FaceKey) {
         let v_ref = axis.cross(u_ref);
         let e = |u: f64| u_ref * u.cos() + v_ref * u.sin();
-        let on = |u: f64, v: f64| center + e(u) * (major + minor * v.cos()) + axis * (minor * v.sin());
+        let on =
+            |u: f64, v: f64| center + e(u) * (major + minor * v.cos()) + axis * (minor * v.sin());
         let mut body = Body::<f64>::new();
         let torus = body.add_surface(Surface::Torus {
             center,
@@ -3020,7 +3017,13 @@ mod tests {
     fn torus_windows() -> Vec<((f64, f64), (f64, f64))> {
         let d = |x: f64| x.to_radians();
         let mut out = Vec::new();
-        for us in [d(22.0), d(100.0), d(200.0), d(350.0), core::f64::consts::TAU] {
+        for us in [
+            d(22.0),
+            d(100.0),
+            d(200.0),
+            d(350.0),
+            core::f64::consts::TAU,
+        ] {
             for vs in [d(60.0), d(200.0), core::f64::consts::TAU] {
                 out.push(((d(37.0), d(37.0) + us), (d(-71.0), d(-71.0) + vs)));
             }
@@ -3132,8 +3135,7 @@ mod tests {
                         let uu = u.0 + (u.1 - u.0) * (i as f64 + 0.5) / n as f64;
                         let radial = u_ref * uu.cos() + v_ref * uu.sin();
                         for j in 0..n {
-                            let vv =
-                                v.0 + (v.1 - v.0) * (j as f64 + 0.5) / n as f64;
+                            let vv = v.0 + (v.1 - v.0) * (j as f64 + 0.5) / n as f64;
                             let p = center
                                 + radial * (major + minor * vv.cos())
                                 + axis * (minor * vv.sin());
@@ -3201,9 +3203,27 @@ mod tests {
             "the charge on this window must stay at the spec's two terms: {charge}"
         );
         let sides = [
-            (Vec3::unit_x(), windowed.min_x, windowed.max_x, whole.min_x, whole.max_x),
-            (Vec3::unit_y(), windowed.min_y, windowed.max_y, whole.min_y, whole.max_y),
-            (Vec3::unit_z(), windowed.min_z, windowed.max_z, whole.min_z, whole.max_z),
+            (
+                Vec3::unit_x(),
+                windowed.min_x,
+                windowed.max_x,
+                whole.min_x,
+                whole.max_x,
+            ),
+            (
+                Vec3::unit_y(),
+                windowed.min_y,
+                windowed.max_y,
+                whole.min_y,
+                whole.max_y,
+            ),
+            (
+                Vec3::unit_z(),
+                windowed.min_z,
+                windowed.max_z,
+                whole.min_z,
+                whole.max_z,
+            ),
         ];
         let mut coarse = 0;
         for (e, lo, hi, wlo, whi) in sides {
@@ -3313,9 +3333,7 @@ mod tests {
                         max_z: c.z + rz + pad,
                     },
                     major,
-                    &format!(
-                        "the windowless torus arm (R = {major}, r = {minor}, axis {axis:?})"
-                    ),
+                    &format!("the windowless torus arm (R = {major}, r = {minor}, axis {axis:?})"),
                 );
 
                 let (u, v) = ((0.3, 1.9), (-0.7, 0.8));
@@ -3335,16 +3353,14 @@ mod tests {
                     for l in 0..=n {
                         let vv = wv.lo + hv * l as f64;
                         let p = c
-                            + (u_ref * uu.cos() + v_ref * uu.sin())
-                                * (major + minor * vv.cos())
+                            + (u_ref * uu.cos() + v_ref * uu.sin()) * (major + minor * vv.cos())
                             + axis * (minor * vv.sin());
                         let one = Aabb::from_points([p]).unwrap();
                         want = Some(want.map_or(one, |a: Aabb| a.hull(&one)));
                     }
                 }
                 let charge = |a: f64| {
-                    (hu * hu * ((major + minor) * (1.0 - a * a).max(0.0).sqrt())
-                        + hv * hv * minor)
+                    (hu * hu * ((major + minor) * (1.0 - a * a).max(0.0).sqrt()) + hv * hv * minor)
                         / 8.0
                 };
                 let want = want.unwrap();
@@ -3361,9 +3377,7 @@ mod tests {
                     &b,
                     &want,
                     major,
-                    &format!(
-                        "the windowed torus arm (R = {major}, r = {minor}, axis {axis:?})"
-                    ),
+                    &format!("the windowed torus arm (R = {major}, r = {minor}, axis {axis:?})"),
                 );
             }
         }
