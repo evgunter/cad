@@ -2,29 +2,41 @@
 
 **STATUS: OPEN, and dispatching (2026-09-04).** Opened 2026-09-03 from
 `docs/WORK-TRACKS-2026-09.md` (VIEW section). Orchestrator handed over
-2026-09-04 after the first orchestrator exited with unit 1 closed and
-nothing dispatched. Live state is `work/view/log.md`'s tail and the
-item files beside this plan, never this file.
+twice; the third session took it 2026-09-04 evening. Live state is
+`work/view/log.md`'s tail and the item files beside this plan, never
+this file.
 
 Branch prefix (the #396 convention): **`view/`** — unit branches
-`view/<unit>-<slug>`, orchestrator branch `view/orchestrator`. The
-2026-09-04 handover session drives the orchestrator half from
-`claude/view-orchestrator-exit-9sjdmh` instead, because its harness
-pins that branch; unit branches are unaffected and keep the `view/`
+`view/<unit>-<slug>`, orchestrator branch `view/orchestrator`. Sessions
+whose harness pins a branch drive the orchestrator half from that
+branch instead; unit branches are unaffected and keep the `view/`
 prefix. Away-channel tag `(VIEW orchestrator)`.
 
-**Review posture (Ev, in-chat, 2026-09-04).** This program runs **no
-A/B duals and writes no row in `docs/MODEL-AB-LOG.md`**, whatever
-review a unit gets. The A/B band **1900–1999** stays claimed and empty
-and the band table says so. The default is a **style review** against
+**Review posture (Ev, in-chat, 2026-09-04, reaffirmed 2026-09-04
+evening).** This program runs **no A/B duals and writes no row in
+`docs/MODEL-AB-LOG.md`**, whatever review a unit gets. The A/B band
+**1900–1999** stays claimed and empty and the band table says so. The
+default is a **style review** against
 `docs/prompts/reviewer-style-lane.md`; a second correctness reviewer is
-added where a unit's failure mode is a **confident wrong answer rather
-than a refusal**, and the dispatch says which it chose and why. Under
-this posture the dispatcher's own exposure is the live risk rather than
-a formality: unit 1's chain produced **seven** dispatcher corrections,
-two against decisions rather than details, so every brief this program
-issues states its claims AS claims and says so in as many words
-(`docs/REVIEW-STYLE-DISPATCH.md` §3).
+added **only** where a unit's failure mode is a *confident wrong
+answer* rather than a refusal, and the dispatch says which it chose and
+why. Under this posture the dispatcher's own exposure is the live risk
+rather than a formality: unit 1's chain produced **seven** dispatcher
+corrections, two against decisions rather than details, so every brief
+this program issues states its claims AS claims and says so in as many
+words (`docs/REVIEW-STYLE-DISPATCH.md` §3).
+
+**Territory, as of 2026-09-04 evening.** `paths` now covers
+`crates/viewer/tests/*` (Ev, in-chat): CHROME's slate landed and that
+program has been dormant since 07:00, so the *"CHROME goes first"*
+clause is discharged. The glob is still S-TCOST's and Track W's by
+declaration, so test-MECHANISM changes are announced, not assumed.
+`crates/editor-core` stays DOCM's with **one narrow amendment** Ev
+authorised in-chat: `EditError`'s user-facing `Display` wording — the
+`edit: ` prefix and the `{:?}`-quoted payloads — because the layer that
+raises it has no reason to know the viewer renders it verbatim to a
+person, and VIEW cannot fix that sentence from its own side. No variant
+is added or removed and no edit semantics are touched.
 
 ## Charter
 
@@ -35,9 +47,10 @@ concurrency unit.
 
 ## Order
 
-Unit 1 is closed. What follows is the going-forward order set at the
-2026-09-04 handover; items 3–6 keep the numbers the opening plan gave
-them so the log's references still resolve.
+Unit 1 is closed. Six further PRs merged on 2026-09-04 and are on
+`main`; the sessions that merged them left no log entry, so the entry
+that records them is this plan's Order and the log's 2026-09-04-evening
+section, written after the fact from `git log`.
 
 1. `viewer-session-god-module-split` — **DONE, 2026-09-04.** Four PRs:
    #1801 ratified the boundary rule, #1816 made gesture safety data
@@ -47,109 +60,131 @@ them so the log's references still resolve.
    one-of-seven tool invariant unrepresentable. `session.rs`
    3,260 → 1,500 and `app.rs` 5,696 → 1,752, thirteen new modules,
    **no test file touched and no assertion changed** across the chain.
-   Representation changes were kept separate from the move on purpose:
-   the move's whole safety property is that the compiler checks it.
-   Residue: `session-shims-and-test-imports` (the `pub use` shims, now
-   un-parked — see below) and
-   `tool-kind-all-and-ordinal-have-no-production-reader`.
+   Residue: `session-shims-and-test-imports` and
+   `tool-kind-all-and-ordinal-have-no-production-reader`, both open.
 
-2. `pick-priority-filter-vocabulary` — **not dispatchable, and `open`
-   only for want of a truer status.** A per-kind admission set replaces
-   the three-variant `PickKinds` when a third asymmetric tool (vertex
-   pick) exists; none does or is scheduled, and `crates/viewer/README.md`
-   GQ7 ratifies the deferral. The blocker the opening plan gave it was
-   **false** — `ToolKind::pick_kinds` was already an exhaustive match,
-   so unit 1d had nothing to collapse — and the correction is in the
-   log. The status question is now
-   `tracker-has-no-status-for-an-unscheduled-trigger`, an `[ev]`
-   ruling.
+2. `pick-priority-filter-vocabulary` — **deferred**, ratified by
+   `crates/viewer/README.md` GQ7. The status vocabulary that could not
+   spell it is settled: Ev ruled `deferred` into `work/README.md` and
+   made `lint` refuse a `parked` row whose blockers have all closed
+   (#1857).
 
-3. `camera-fold-clears-status-line` — **dispatched 2026-09-04**,
-   branch `view/status-lifetimes`. The status line carries per-frame
-   NEWS and `frame::frame_status` owns its ranking; a fact that stays
-   true after the frame ends is not news. So `land` stops clearing,
-   its refusal reaches the line through the existing ranking, and the
-   product fault gets a home with a standing lifetime. The rules land
-   in `frame` as values with rows. The ~15 further direct writers of
-   the line are censused and filed, **not** refactored — those files
-   are shared with CHROME.
+3. `camera-fold-clears-status-line` — **DONE, #1849.** `land` stopped
+   clearing, its refusal reaches the line through `frame_status`'s
+   ranking, the product fault became a badge. The census of the other
+   writers was filed, not swept: `status-line-writers-bypass-the-
+   ranking` (19 sites) and `four-badges-five-spellings` are its
+   residue, both open.
 
 4. `focus-marking-is-per-node-not-per-segment` — **blocked, and the
    blocker is not this program's to clear.** The authored-step to
-   canonical-segment map door straddles two globs: the authored `step`
-   is `ProfileProgram::step_args` (DOCM) and the canonical `segment` is
-   `crates/profile`'s canonicalization (S-BOOL). Where the map lives is
-   a question neither this program nor either owner can answer alone.
-   Two announces are owed before this can start.
+   canonical-segment map straddles DOCM's `program.rs` and S-BOOL's
+   `crates/profile`; the siting question has its own file,
+   `work/issues/authored-step-to-canonical-segment-map-has-no-home.md`.
 
-5. `layer3-recipenodeid-aliases-across-rewinds` — DI1's build, ruled:
-   a hold carries its id plus its minting entry, descent is checked
-   before liveness, tools clear on history replacement. **Parked** on
-   `next-id-has-no-layer3-door` — DI1's walk needs to ask *could this
-   document have minted this id*, `Doc::next_id` is `pub(crate)`, and
-   the door is DOCM's to shape. The free-move half was never this
-   program's: DI5 hands it to CHROME
-   (`no-persistent-setplacement-session-op`).
+5. `layer3-recipenodeid-aliases-across-rewinds` — DI1's build, ruled.
+   **Parked** on `next-id-has-no-layer3-door`, which is DOCM's door to
+   shape. Announce standing; nothing in VIEW clears it.
 
-6. `pick-index-built-on-ui-thread`, in three:
-   **6a** the seam ruling — an `[ev]` PR extending the frame-state
-   inventory and stating the staleness rule, no code. **Nobody has
-   opened it, and it gates 6b and 6c.** It must also rule the
-   cancelation question the 2026-09-04 measurement opened: the
-   expensive step is *uninterruptible* as it stands
-   (`mesh::tessellate` and `crates/bvh` take no `CancelToken`), so
-   "cancel-and-restart like the evaluation seam" is not available
-   without two other programs' schedules. Three answers, not
-   equivalent, are stated in the item.
-   **6b** tessellation and `PickIndex::build` onto the `EvalService`
-   worker, `PickCache`'s retry policy travelling with it;
-   **6c** the staleness rule as values in `frame`, with rows.
-   6b and 6c collapse into one adversarially-reviewed unit if 6a rules
-   the staleness rule is not expressible as frame data.
+6. `pick-index-built-on-ui-thread` — **6a is RULED (Ev, #1843)**: the
+   frame-state inventory gains no third shape, a pick with no index
+   refuses visibly rather than silently, and a δ change restarts
+   without cancel. 6c collapsed into 6b under that ruling.
+   **6b is dispatched 2026-09-04** on `view/pick-index-offthread` —
+   the only unit in this program's history to carry a second
+   correctness reviewer.
+
+### The 2026-09-04 evening wave
+
+Three lanes out. Style review each except where named.
+
+- **`view/prune-report`** — `prune-discards-the-fault-that-explains-
+  the-supersession` carrying `prune-drops-a-hidden-instance-silently`.
+  One function computes two reports and drops both; they are one
+  change to `prune`'s signature and would be one merge conflict if
+  taken twice.
+- **`view/clearing-walk`** —
+  `session-clearing-walk-is-hand-maintained-three-times`. Four hand-
+  maintained copies of one reset, and two fields already outside it.
+- **`view/pick-index-offthread`** — 6b, above. Style **and**
+  correctness: the failure mode is a confident wrong answer (a pick
+  answered against an index built for another generation) rather than
+  a refusal, which is the posture's own test for a second reviewer.
+
+Held for the next wave, and why they are held rather than open-ended:
+
+- `scene-gathers-the-landed-product-twice-more` waits for
+  `view/clearing-walk`, because it adds a field beside `landed_checks`
+  and that lane is collapsing the walk those fields are reset by.
+  Taking both at once is one file, two authors.
+- `refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake` and
+  `self-boolean-precheck-duplicates-the-doors-duplicate-input` are one
+  unit under the `EditError`-wording amendment above, and it touches
+  `session.rs` and `session/op.rs`, which `view/prune-report` holds.
+- `session-shims-and-test-imports` is now inside this program's glob
+  and is a 32-file sweep; it lands after the lanes that add test rows,
+  not before them.
 
 ### Beside the numbered order
 
-Findings that accreted during unit 1 and are not part of its chain.
-They are dispatchable independently, and two are running:
-
-- `set-param-prechecks-what-the-door-refuses` — **dispatched
-  2026-09-04**, branch `view/set-param-precheck`. A layer-3 pre-check
-  of a condition `DocEdit::SetDocParamValue` already refuses typed,
-  plus the sweep for its class.
 - `boundary-rule-has-no-mechanical-check` +
-  `loud-skip-marker-says-two-modules-and-there-are-six` — **dispatched
-  2026-09-04** as one unit, branch `view/module-kind-gate`. The
-  README sells the vocabulary/driver rule on being machine-checkable
-  and nothing reads a `use` block; the loud-skip marker names two
-  modules where the split made six. Reaches `.github/workflows/ci.yml`
-  by two lines, which `scripts/gates/gate-roster.sh` forces and which
-  is announced to CIW.
-- `stale-file-citations-after-the-split` — VIEW's own five files are
-  paid (2026-09-04); what stays open is the general case, and the
-  finding that a machine resolving line NUMBERS would have passed the
-  one file whose CLAIM had gone stale.
-- `two-gestures-can-be-in-flight-together`,
-  `opoutcome-superseded-has-no-production-reader`,
-  `tool-kind-all-and-ordinal-have-no-production-reader`,
+  `loud-skip-marker-says-two-modules-and-there-are-six` — **DONE,
+  #1848.** `scripts/gates/viewer-module-kinds.sh` runs on every CI
+  pass. It found two sites the ratified rule is false about, filed as
+  `pick-and-parts-name-the-session-driver` — a design fork, and one of
+  the three going to Ev (below).
+- `set-param-prechecks-what-the-door-refuses` — **DONE, #1846.** Its
+  sweep's blind spots are `sweep-blind-spots-the-precheck-sweep-
+  could-not-see` (two of three still open) and its one other hit is
+  `self-boolean-precheck-duplicates-the-doors-duplicate-input`.
+- `opoutcome-superseded-has-no-production-reader` — **DONE, #1872.**
+  Residue: the two `prune` items now dispatched, plus
+  `rank-one-discards-the-frames-other-news` and
+  `frame-module-has-eight-concerns-and-no-holds-row`.
+- `two-gestures-can-be-in-flight-together` — **DONE, #1873.** Residue:
+  `gesture-drags-have-no-cancel-door` and
+  `two-hand-written-copies-of-the-g1-gesture-machine`.
+- `tracker-has-no-status-for-an-unscheduled-trigger` — **DONE, #1857**,
+  Ev's ruling.
+- `session-gesture-guard-spelled-thirteen-times` — claimed from CHROME
+  and **closed as dissolved**: VIEW-1b answered both questions it said
+  a fix had to answer.
+- Claimed from CHROME and held:
+  `viewer-const-all-tables-have-no-exhaustiveness-guard` (takes with
+  `tool-kind-all-and-ordinal-have-no-production-reader`) and
+  `no-persistent-setplacement-session-op` (DI5's build, which
+  `two-hand-written-copies-of-the-g1-gesture-machine` waits on).
+- Open and undispatched:
   `revolve-tool-unreachable-no-axisinplane-form`,
-  `save-is-not-gesture-guarded`, `session-shims-and-test-imports` —
-  open, undispatched. `opoutcome-superseded` waits on item 3's
-  vocabulary by preference, not by rule; the `tool-kind` and
-  `session-shims` rows each have a half in `crates/viewer/tests/`,
-  which is CHROME's glob.
-- `tracker-has-no-status-for-an-unscheduled-trigger` — an `[ev]`
-  ruling, not work.
+  `save-is-not-gesture-guarded`, `stale-file-citations-after-the-split`
+  (general case only), `sweep-blind-spots-...`,
+  `gesture-drags-have-no-cancel-door`,
+  `two-hand-written-copies-of-the-g1-gesture-machine`.
+
+### The three design forks, going to Ev as one PR
+
+`the-news-vocabulary-has-no-expiry`,
+`pick-and-parts-name-the-session-driver` and
+`four-badges-five-spellings` are decisions, not builds, and they
+interlock: the news vocabulary decides what
+`status-line-writers-bypass-the-ranking` sweeps *to*, the badge family
+decides what its standing-fact half sweeps to, and the boundary rule is
+ratified text of Ev's that #1848 proved false of the tree. One `[ev]`
+decision document carries all three while the build lanes run
+(Ev, in-chat, 2026-09-04).
 
 ### The standing hazard this program keeps hitting
 
-Five prose claims outran the tree in one day during unit 1, four of
-them the orchestrator's, and every one was caught by a reader with the
-tree open rather than by a gate. Two more were found at the handover:
-a row parked behind an item that had closed, and a file whose
-citations were corrected while its mechanism sentence stayed false.
-The countermeasures are items — `boundary-rule-has-no-mechanical-check`
-and `stale-file-citations-after-the-split` — and until one lands, the
-only instrument is a reader. Dispatches are written accordingly.
+Seven prose claims outran this tree in two days, every one caught by a
+reader with the tree open rather than by a gate. **The eighth is this
+plan's own**: six PRs merged on 2026-09-04 with no log entry, so for
+most of a day `work/view/log.md`'s tail described three lanes as still
+running that had already landed — the tracker asserting the past
+tense's opposite. The countermeasures for the citation half are items
+(`boundary-rule-has-no-mechanical-check`, landed; `stale-file-
+citations-after-the-split`, open); for the log half there is none, and
+the only instrument is a successor reading `git log` before believing
+the tail. Dispatches are written accordingly.
 
 ## Exit shape
 

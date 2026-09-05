@@ -118,11 +118,23 @@ surgery serves it on either material side: it takes that multi-link
 closed chain as one annulus (`AnnulusRim::crossings`, one
 `SeamCrossing` per arc, each side's support several faces of one
 surface), removing material on a convex rim and adding it on a concave
-one, so the sentence conditions on nothing. A pole-touching
-body with merged caps (`merge_coplanar_faces`) hosts both arcs on one
-plane face and routes to the ladder rim, which refuses on its ring
-gate; the tag does not fire there
-(`work/issues/repaired-pole-rim-serves-no-closed-door.md`).
+one, so the sentence conditions on nothing. A pole-touching body with
+merged caps (`merge_coplanar_faces` — the repair every boolean consumer
+runs) hosts every arc on ONE plane face, in that face's own outer
+cycle. The same annulus serves that too: `resolve_rim` routes it there
+on WHERE the rim sits in its host's loop structure (a ring is the
+ladder, the face's own outer cycle is this), and each crossing's host
+foot is minted by the LADDER's strut (`HostFoot::Strut`) because the
+merge consumed the host's seam and left the crossing TRIVALENT. The tag
+does not fire at such a crossing — there is no seam there to make a
+seam vertex — and the subset request that does refuse names the whole
+rim, which carves. **Two conditions on that host, and they are what the
+recourse states**: it carries no RING of its own, and the rim is its
+WHOLE outer cycle. A merged cap that is an ANNULUS meets neither and
+refuses (`work/fillet/hostless-rim-on-a-ringed-host-refuses.md`); a
+CURVED single face carrying every arc is authorable through `topo`'s
+`kef` and refuses at the half-band gate on both routes
+(`work/fillet/curved-single-host-rim-refuses-at-the-half-band-gate.md`).
 
 **A3-3 — the genuine mid-curve run-out is named and not implemented.**
 Stopping a band part-way along a smooth rim, at a station with no
