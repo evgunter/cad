@@ -2,9 +2,8 @@
 id: MSOLVE-2
 kind: unit
 title: The member chain: nested patterns and sibling distinctness at every level
-status: parked
+status: open
 opened: 2026-09-05
-blocked_on: [MSOLVE-1]
 refs: [nested-pattern-mate-heads-refuse]
 ---
 
