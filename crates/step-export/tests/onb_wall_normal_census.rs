@@ -18,6 +18,8 @@
 //!     -- --ignored --nocapture onb_wall_normal_census
 //! ```
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use std::collections::HashMap;
 
 use crate::common;
@@ -28,15 +30,15 @@ use step_export::{StepOptions, step_string};
 
 /// The four classes the ruling asks for.
 #[derive(Default, Clone, Copy)]
-pub struct ZClasses {
-    pub pos_zero: usize,
-    pub neg_zero: usize,
-    pub tiny: usize,
-    pub other: usize,
+struct ZClasses {
+    pos_zero: usize,
+    neg_zero: usize,
+    tiny: usize,
+    other: usize,
 }
 
 impl ZClasses {
-    pub fn add(&mut self, z: f64) {
+    fn add(&mut self, z: f64) {
         if z == 0.0 {
             if z.is_sign_negative() {
                 self.neg_zero += 1;
@@ -50,7 +52,7 @@ impl ZClasses {
         }
     }
 
-    pub fn planes(&self) -> usize {
+    fn planes(&self) -> usize {
         self.pos_zero + self.neg_zero + self.tiny + self.other
     }
 }

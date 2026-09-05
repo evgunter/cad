@@ -87,7 +87,7 @@ fn wall_normal_z_census_over_the_band4_corpus() {
         let ev = eval(&doc.doc);
         let mut c = ZClasses::default();
         let mut bodies = 0usize;
-        for (_, result) in ev.nodes.iter() {
+        for result in ev.nodes.values() {
             let NodeResult::Ok(v) = result else { continue };
             let ValuePayload::Body(b) = &v.payload else {
                 continue;
@@ -148,12 +148,10 @@ fn face_frames_and_the_faces_they_could_sit_on() {
             let named = ev
                 .value(*at)
                 .map_or(0, |_| all_faces(&ev, *at).len());
-            if let Some(v) = ev.value(*at) {
-                if let ValuePayload::Body(b) = &v.payload {
-                    for (_, surface) in b.surfaces() {
-                        if let Surface::Plane { normal, .. } = surface {
-                            c.add(normal.z);
-                        }
+            if let Some(ValuePayload::Body(b)) = ev.value(*at).map(|v| &v.payload) {
+                for (_, surface) in b.surfaces() {
+                    if let Surface::Plane { normal, .. } = surface {
+                        c.add(normal.z);
                     }
                 }
             }

@@ -22,6 +22,10 @@
 
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+// The `f64` column of the table below is the PRODUCT `-1 * 0`, not the
+// literal `-0.0` clippy would rather see: what the row measures is
+// whether a multiplication carries the sign, so the operation stays.
+#![allow(clippy::neg_multiply)]
 
 use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 
