@@ -760,13 +760,14 @@ impl DisplayState {
     /// refuses typed.
     pub fn prune(&mut self, doc: &Doc<ProfileProgram>) -> PruneReport {
         let mut superseded = Vec::new();
-        self.moves.retain(|&instance, _| match free_move_check(doc, instance) {
-            Ok(()) => true,
-            Err(cause) => {
-                superseded.push(Withdrawn { instance, cause });
-                false
-            }
-        });
+        self.moves
+            .retain(|&instance, _| match free_move_check(doc, instance) {
+                Ok(()) => true,
+                Err(cause) => {
+                    superseded.push(Withdrawn { instance, cause });
+                    false
+                }
+            });
         let dropped_hides: Vec<Withdrawn> = self
             .hidden
             .iter()

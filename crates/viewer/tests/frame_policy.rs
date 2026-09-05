@@ -21,7 +21,7 @@ use pncad::document::{Doc, Frame, Node, ParamName, ProfileProgram, RecipeNodeId,
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{ContactClass, Ray};
 use viewer::camera::{Camera, CameraOp};
-use viewer::display::DisplayView;
+use viewer::display::{DisplayFault, DisplayView};
 use viewer::evalseam::Generation;
 use viewer::frame::{self, IdQueryLog, IdStep, StatusUpdate};
 use viewer::input::{self, InputMap, ViewportSize};
@@ -960,7 +960,21 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     };
     let outcome = session.perform(mate.clone());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.superseded, vec![bench.post_b]);
+    let [superseded] = &outcome.superseded[..] else {
+        panic!(
+            "exactly one placement is superseded: {:?}",
+            outcome.superseded
+        )
+    };
+    assert_eq!(
+        superseded.instance, bench.post_b,
+        "the mate discards the hand placement"
+    );
+    assert!(
+        matches!(superseded.cause, DisplayFault::MateConstrained { .. }),
+        "and the outcome carries WHY it went, not only which went: {}",
+        superseded.cause
+    );
 
     // What the chrome does with it, in `perform_batch`'s order: the
     // outcome's supersessions join the frame's notices, and the

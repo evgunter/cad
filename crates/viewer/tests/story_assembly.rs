@@ -488,10 +488,20 @@ fn the_windmill_story() {
     let outcome = session.perform(seat_proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
+    let [superseded] = &outcome.superseded[..] else {
+        panic!(
+            "exactly one placement is superseded: {:?}",
+            outcome.superseded
+        )
+    };
     assert_eq!(
-        outcome.superseded,
-        vec![hub_i],
+        superseded.instance, hub_i,
         "the mate's landing discards the park, in the same outcome"
+    );
+    assert!(
+        matches!(superseded.cause, DisplayFault::MateConstrained { .. }),
+        "and the outcome carries WHY it went, not only which went: {}",
+        superseded.cause
     );
     assert!(session.display().free_move_of(hub_i).is_none());
     session.pump();
@@ -631,7 +641,21 @@ fn the_windmill_story() {
     let outcome = session.perform(sail_a_proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
-    assert_eq!(outcome.superseded, vec![sail_a]);
+    let [superseded] = &outcome.superseded[..] else {
+        panic!(
+            "exactly one placement is superseded: {:?}",
+            outcome.superseded
+        )
+    };
+    assert_eq!(
+        superseded.instance, sail_a,
+        "the first sail's park goes with its mate"
+    );
+    assert!(
+        matches!(superseded.cause, DisplayFault::MateConstrained { .. }),
+        "and the outcome carries WHY it went, not only which went: {}",
+        superseded.cause
+    );
     session.pump();
 
     // The first blade's solved long axis, in world.
@@ -690,7 +714,18 @@ fn the_windmill_story() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
-    assert_eq!(outcome.superseded, vec![sail_b]);
+    let [superseded] = &outcome.superseded[..] else {
+        panic!(
+            "exactly one placement is superseded: {:?}",
+            outcome.superseded
+        )
+    };
+    assert_eq!(superseded.instance, sail_b, "and so does the second's");
+    assert!(
+        matches!(superseded.cause, DisplayFault::MateConstrained { .. }),
+        "and the outcome carries WHY it went, not only which went: {}",
+        superseded.cause
+    );
     session.pump();
 
     // ── 11. THE FINISHED WINDMILL: seven rows all ok, both sail

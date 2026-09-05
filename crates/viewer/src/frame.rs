@@ -991,8 +991,7 @@ mod tests {
         // which supersedes is one the document ACCEPTED, so the frame's
         // own batch verdict is `Clear` — a supersession written to the
         // line instead of to the notices is erased by its own cause.
-        let notice =
-            supersession_notice(&[constrained(7, &[9])]).expect("a supersession is news");
+        let notice = supersession_notice(&[constrained(7, &[9])]).expect("a supersession is news");
         assert!(
             notice.contains("instance 7"),
             "the notice names which of the user's placements went, in the \

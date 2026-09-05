@@ -43,6 +43,7 @@ use common::asm;
 use pncad::document::{AxisSense, ClassAdmission, Frame, MatePrimitive, solve_document};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{ContactClass, Ray};
+use viewer::display::DisplayFault;
 use viewer::matetool::{MateChoice, MateTool, MateToolState, admitted_classes};
 use viewer::scene::SceneMesh;
 use viewer::session::SessionOp;
@@ -208,10 +209,20 @@ fn the_exit_demo_walk() {
     let outcome = session.perform(proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
+    let [superseded] = &outcome.superseded[..] else {
+        panic!(
+            "exactly one placement is superseded: {:?}",
+            outcome.superseded
+        )
+    };
     assert_eq!(
-        outcome.superseded,
-        vec![bench.post_b],
+        superseded.instance, bench.post_b,
         "the mate's landing discards the probe, in the same outcome"
+    );
+    assert!(
+        matches!(superseded.cause, DisplayFault::MateConstrained { .. }),
+        "and the outcome carries WHY it went, not only which went: {}",
+        superseded.cause
     );
     assert!(session.display().free_move_of(bench.post_b).is_none());
 
