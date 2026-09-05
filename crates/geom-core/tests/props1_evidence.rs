@@ -47,9 +47,11 @@ const ANCHORS: [[f64; 3]; 3] = [
 ];
 /// Half-widths carried by each anchor coordinate: exact, one part in
 /// 1e15 of a metre, and a subdivision-scale box.
+#[cfg(feature = "interval")]
 const ANCHOR_RADII: [f64; 3] = [0.0, 1.0e-15, 1.0e-9];
 /// Half-widths carried by each normal component: exact, and a normal
 /// that is itself an enclosure.
+#[cfg(feature = "interval")]
 const NORMAL_RADII: [f64; 2] = [0.0, 1.0e-12];
 
 /// Vectors rejected in the `reject_from` rows.
@@ -397,7 +399,7 @@ mod enclosure {
     fn rejection_widths() {
         println!("onto | self | r(self) | retired | shipped");
         for orow in ONTOS {
-            let onto = v3(orow, |x| iv(x));
+            let onto = v3(orow, iv);
             for srow in SELVES.iter().copied().chain([scaled(orow, PARALLEL_SCALE)]) {
                 for ar in ANCHOR_RADII {
                     let v = v3(srow, |x| fat(x, ar));
@@ -500,7 +502,7 @@ mod enclosure {
     #[test]
     fn parallel_rejection_is_narrower_than_the_retired_spelling() {
         for orow in ONTOS {
-            let onto = v3(orow, |x| iv(x));
+            let onto = v3(orow, iv);
             let srow = scaled(orow, PARALLEL_SCALE);
             for ar in ANCHOR_RADII {
                 if ar == 0.0 {
@@ -536,8 +538,7 @@ mod enclosure {
                         for _ in 0..32 {
                             let ps = sample(arow, ar, &mut rng);
                             let ns = sample(nrow, nr, &mut rng);
-                            let truth =
-                                shipped_mirror_translation(p3(ps, |x| iv(x)), v3(ns, |x| iv(x)));
+                            let truth = shipped_mirror_translation(p3(ps, iv), v3(ns, iv));
                             assert!(
                                 encloses3(new, truth),
                                 "shipped mirror translation excludes a point of its own box: \
@@ -556,14 +557,14 @@ mod enclosure {
     fn rejection_encloses_every_sampled_point_of_the_box() {
         let mut rng = Rng::new();
         for orow in ONTOS {
-            let onto = v3(orow, |x| iv(x));
+            let onto = v3(orow, iv);
             for srow in SELVES.iter().copied().chain([scaled(orow, PARALLEL_SCALE)]) {
                 for ar in ANCHOR_RADII {
                     let v = v3(srow, |x| fat(x, ar));
                     let new = v.reject_from(onto);
                     for _ in 0..32 {
                         let vs = sample(srow, ar, &mut rng);
-                        let truth = v3(vs, |x| iv(x)).reject_from(onto);
+                        let truth = v3(vs, iv).reject_from(onto);
                         assert!(
                             encloses3(new, truth),
                             "shipped rejection excludes a point of its own box: \
@@ -583,9 +584,9 @@ mod enclosure {
     #[test]
     fn project_plus_reject_reconstructs_self_as_an_enclosure() {
         for orow in ONTOS {
-            let onto = v3(orow, |x| iv(x));
+            let onto = v3(orow, iv);
             for srow in SELVES {
-                let v = v3(srow, |x| iv(x));
+                let v = v3(srow, iv);
                 let sum = v.project_onto(onto) + v.reject_from(onto);
                 let scale = 4.0 * f64::EPSILON * v.norm().hi();
                 for (s, e) in [(sum.x, v.x), (sum.y, v.y), (sum.z, v.z)] {
