@@ -29,8 +29,8 @@ use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
     Datum, Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, MeasureRef, NamePat, Node, ParamName, ProfileDoc,
-    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SurfaceKindSet, UnitSym,
+    MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
+    ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym,
     select_where,
 };
 use geom_core::Tol;
@@ -184,7 +184,7 @@ fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             .expect("the surface-kind atom is exact");
             faces.sort();
             assert!(!faces.is_empty(), "a bore extrude has a cylindrical wall");
-            MeasureRef::new(node, faces.remove(0))
+            SitedRef::new(node, faces.remove(0))
         };
         vec![wall(bore_a), wall(bore_b)]
     };
