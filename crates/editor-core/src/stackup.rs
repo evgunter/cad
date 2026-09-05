@@ -137,7 +137,6 @@ use topo::Body;
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
 use crate::doc::{Doc, DocParam, ParamName};
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, Receipt};
-use crate::resolve::VerdictVectorKey;
 use crate::eval::{
     BooleanValue, CancelToken, ContentKey, DatumValue, EvalOptions, EvalOutcome, Evaluation,
     NodeErrorKind, NodeResult, ProfileLift, SplitSide, ValuePayload, evaluate,
@@ -145,6 +144,7 @@ use crate::eval::{
 use crate::measure::AssertionVerdict;
 use crate::node::{Node, RecipeNodeId};
 use crate::program::ProfileProgram;
+use crate::resolve::VerdictVectorKey;
 
 /// The E4 semantics-honesty mark: what a reported ∂m/∂pᵢ is valid
 /// over. Two variants and no third — a sensitivity is chamber-scoped

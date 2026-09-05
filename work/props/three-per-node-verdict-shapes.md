@@ -2,7 +2,7 @@
 id: three-per-node-verdict-shapes
 kind: issue
 title: Three shapes for per-node verdicts: consolidate or record the split deliberately
-status: open
+status: review
 opened: 2026-08-29
 github: 1255
 refs: [1231]
@@ -45,4 +45,14 @@ Raised by M10-3's review (PR #1231) and referenced from `drive::VerdictVector`'s
 
 ## Home
 
-`work/m10/` — the shape under review is `drive.rs`'s `VerdictVector`, an M10 territory glob, and the issue was raised by M10-3's review.
+`work/props/`, re-homed from `work/m10/` at that program's residue sweep (`work/m10/log.md`, "Seam — residue re-homed for the exit"). `drive.rs` stays an M10 territory glob, so the unit edits it by the announced seam this program's `keep_out` names.
+
+## Decided
+
+All three questions answered yes, with one shape kept:
+
+1. `VerdictVector`, `VerdictRow` and `VerdictVectorKey` live in `crates/editor-core/src/resolve/vdiff.rs`, beside `NodeVerdicts`/`VerdictSummary` — two derived forms over one substrate in one module. `VerdictVector::certifying` stays written in `drive.rs` as an inherent method, because WHICH ROWS A GATE EXCLUDES is driver policy.
+2. `ReplayOutcome` is retired; `VerdictRow::outcome` is `RunStatus`, so an absent node reads `Absent` rather than folding into `Poisoned`.
+3. `VerdictSummary` is named as the only persisted shape at `NodeValue::verdicts`, at `VerdictVector` and in `vdiff`'s module docs.
+
+The strict/permutation-invariant split STAYS, and is now pinned executably in `crates/editor-core/tests/props_verdict_shapes.rs`.
