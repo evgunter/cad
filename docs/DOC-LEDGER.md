@@ -1065,3 +1065,16 @@ the spec. The rows 3/4/8 hold note points at
 `docs/VERBS-RIMCAP-SPEC.md` §PR-2 as the klein elbow's binding text.
 The unit's record is `work/curved/VERBS-C5ARMS.md`'s `## Closed` and
 the MERGED entry in `work/curved/log.md`.
+
+## Per-merge deletion — SEAT-DN's spec (2026-09-05)
+
+Recoverable at `git show 625f3e0b91c7133c3952bcdaa97a45d52ba3d49c:docs/SEAT-DN-SPEC.md`
+(the SEAT-DN fix-pass head, before the state-sync commit that deleted
+it; unamended). DN-1 and DN-2 met as written; DN-3 resolved the way
+the spec allowed for — measured, neither branch applied, the residue
+found one level up filed and then re-scoped to its class at the fix.
+The rule above; the unit's record is its item's `## Closed` section
+(`work/seat/SEAT-DN.md`) and its MERGED entry in `work/seat/log.md`;
+its A/B row is MODEL-AB-LOG SEATDN.
+
+- `SEAT-DN-SPEC.md` — SEAT-DN, one direction-normalization body under two ratified funnel names; `Dir::from_unit` measured (#1987)
