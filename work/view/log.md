@@ -2904,3 +2904,57 @@ To FIX: `verb-and-dimension-render-through-debug.md:48` cites
 correction is owed; the item is FIX's to edit. Another instance of
 `stale-file-citations-after-the-split`'s general case, which stays
 open.
+
+## Ev ruled #1945: state both axes; the sweep is unblocked (2026-09-05)
+
+> "1945's proposal sounds good"
+
+Merged at `cfce962e`. **A badge is a read of held state a reader
+consults; a line message is the outcome of something that just
+happened; either can carry a subject, because a subject only says what
+retires it.** Two questions with independent answers, where the crate
+had one.
+
+**#1883 is not overturned by this and the item says so.** Its
+subject-carrying mechanism stands exactly as ruled and as built; what
+#1945 adds is that carrying a subject was never what decided *which
+channel* a fact goes to. The projection refusal is a badge that has a
+subject — an answer that was **unavailable when #1883 was written**,
+because `Badge` had no subject then. That is the useful shape here: the
+first ruling was not wrong, it was answered from a vocabulary that did
+not yet contain the right option, and building it is what produced the
+option.
+
+### Dispatched, two lanes
+
+**`view/axes-and-badges`** — the rule, plus the three call sites it
+moves (`scene_refusal`, `index_refusal`/`unindexed_refusal`,
+`projection_refusal`, all reads of seam state and therefore badges),
+plus `Badge` gaining a subject and the rule written into `frame.rs`'s
+header and the README.
+
+Fenced against the sweep exactly as #1933 was, and for a reason that
+has now paid once: **if the rule cannot classify one of the sweep's
+twenty, that finding outranks the diff.** The last unit fenced this way
+found the mixed-subject limitation, which is why this unit exists.
+
+The claim I told it to check hardest is my own weakest: that all three
+sites are reads of held state. **`unindexed_refusal` is doubtful** — a
+pick that was refused *is* an outcome of something the user just did,
+even though what it reports is seam state. And a prior question the
+brief makes it answer before writing the field: **what does a subject
+mean on a badge?** A badge is a read of held state, so it stops being
+shown when that state changes — if a subject means nothing there, that
+is a finding worth more than the field.
+
+**`view/hoist-the-session-read`** — Ev's #1883 answer (a) built: the
+session hands out values, `pick.rs` and `parts.rs` take those, the rule
+stays unqualified, and `viewer-module-kinds.sh`'s two site-granular
+exemptions retire with the sites. Told to keep the D103 evidence alive
+at the deletion site rather than letting it vanish with the entries.
+
+### Next after these
+
+`status-line-writers-bypass-the-ranking` — twenty writers, the largest
+item on this board, blocked since #1849 filed it and now blocked on
+nothing but the lane above landing.
