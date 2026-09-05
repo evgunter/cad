@@ -121,7 +121,8 @@ fn split_record<T: Decide>(record: VerbRecord<T>) -> Option<SplitNaming> {
         VerbRecord::Blend(_)
         | VerbRecord::Boolean { .. }
         | VerbRecord::Extrude(_)
-        | VerbRecord::Revolve(_) => None,
+        | VerbRecord::Revolve(_)
+        | VerbRecord::Shell(_) => None,
     }
 }
 

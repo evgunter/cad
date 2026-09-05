@@ -512,6 +512,31 @@ pub trait Real:
 /// question is answered where it was already answered: the PR 12 entry
 /// above, under the delegation rule, for the doors this one calls.
 ///
+/// **The file now carries TWO compound headers, and the second is the
+/// answer to the paragraph above rather than an exception to it**
+/// (SEAT-9). `verbs::run`'s shell door delegates to `topo::shell_open`,
+/// which is `Decide + PropsQuadLane + `[`CertifiedBounds`] — already
+/// allowlisted, at `topo/src/shell.rs`, under the 2026-09-02 certified
+/// at-rest entry — so the delegation rule covers it on the same terms
+/// as the first header: the shell arm passes its operand, its thickness
+/// and its designation through unchanged, reads no bracket, and decides
+/// nothing in or out of the trilean. What it does NOT do is ride the
+/// first header, and that is the point of writing it separately: the
+/// paragraph above records that tightening `Decide + Bounds +
+/// PcurveFittedLane` to a certifying bound breaks
+/// `editor_core::eval::wire`'s `Dual`-instantiated blend lowering, so
+/// the two bounds cannot be merged. They are two `impl` blocks, each
+/// asking for exactly what its callee asks for, and the `Dual` caller
+/// stays green by construction — it names `Verb::run`, in the block
+/// that did not move. The WEAKEST-bound test is the callee's own
+/// signature: dropping any of the three does not compile, and there is
+/// no tighter one to show failing because this IS the tighter one, held
+/// away from the lane that cannot take it.
+///
+/// The "no bracket read at all" clearance above still describes the
+/// whole file, and it is still a review-time measurement rather than a
+/// guarded invariant, for the reason that paragraph gives.
+///
 /// # Semantics
 ///
 /// `[lo(), hi()]` brackets every real number the scalar stands for. For

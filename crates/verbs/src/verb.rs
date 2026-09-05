@@ -2,14 +2,15 @@
 
 use geom_core::Real;
 use sweep::{Revolution, RevolveAxis};
-use topo::{BooleanDeclarations, BooleanOp, EdgeKey, SplitPlane};
+use topo::{BooleanDeclarations, BooleanOp, EdgeKey, FaceKey, SplitPlane};
 
 /// **One kernel operation, with its parameters as data.**
 ///
 /// Scalars sit at `T`; entity references are arena keys, resolved by
 /// whoever built the value. The OPERANDs are not here — they are
 /// borrowed at the run doors ([`Verb::run`], [`Verb::run_pair`],
-/// [`Verb::run_profile`], [`Verb::run_split`]), because an operand is
+/// [`Verb::run_profile`], [`Verb::run_split`], [`Verb::run_shell`]),
+/// because an operand is
 /// not a parameter of
 /// the operation, it is the thing operated on, and putting it in the
 /// payload would make every declaration own a clone of it. That holds
@@ -119,6 +120,28 @@ pub enum Verb<T: Real> {
         /// The parting plane; the side its normal points to is ABOVE.
         plane: SplitPlane<T>,
     },
+    /// Hollows the operand body to a wall of the given thickness,
+    /// optionally opening designated faces into rims.
+    ///
+    /// **One variant, not two.** The kernel spells the sealed hollow
+    /// and the opened one as two functions (`topo::shell`,
+    /// `topo::shell_open`), and the second's own contract says an empty
+    /// designation IS the first — so a `Shell` arm with an empty `open`
+    /// is `shell`, and a second variant would be a name for a value of
+    /// this one's payload. That is the boolean's rule read the other
+    /// way: three kernel doors that differ in WHAT THEY DO are three
+    /// names, while one door reached with an empty list is one name.
+    ///
+    /// The designation is arena keys, resolved by whoever built the
+    /// value, exactly as the blends' edges are.
+    Shell {
+        /// The wall thickness in metres — a magnitude; each face's
+        /// inward direction is its own orientation's.
+        thickness: T,
+        /// The operand faces to open into rims. Empty is the sealed
+        /// hollow.
+        open: Vec<FaceKey>,
+    },
 }
 
 /// **The verb vocabulary with the scalar and reference payload
@@ -164,6 +187,15 @@ pub enum VerbKind {
     Boolean(BooleanOp),
     /// [`Verb::Split`].
     Split,
+    /// [`Verb::Shell`].
+    ///
+    /// **A kernel-only verb**: the document layer has no `Node` that
+    /// builds one, so every commitment keyed on this vocabulary has to
+    /// say what it means for a name no document can reach yet, rather
+    /// than skip it (`editor-core`'s content tag is the first —
+    /// `verb_content_tag` answers `None` here and the tag censuses read
+    /// that as closed data).
+    Shell,
 }
 
 /// **The run doors, as data** — one row per door, and every verb names
@@ -173,7 +205,17 @@ pub enum VerbKind {
 /// out-type it hands back. Two doors that take the same operand and
 /// hand back different things are two rows — `One` and `Split` both
 /// take one body — so a row is never, on its own, a claim about an
-/// operand count. The rows are what the doors' typed mismatch refusal
+/// operand count.
+///
+/// **And at a third place: the SCALAR the door can run at.** `One` and
+/// `Shell` agree at both ends — one body in, one body and a record
+/// out — and are still two doors, because the shell's op door demands
+/// certification rights (`Decide + PropsQuadLane + CertifiedBounds`)
+/// that the blend doors do not, and no `Dual` scalar has them. A
+/// `Verb<Dual<f64>>` can be handed to `One` and cannot be handed to
+/// `Shell`; that is not a run-time refusal to be spoken by this enum
+/// but a signature the caller either satisfies or does not compile
+/// against, and a door with its own bound is a door. The rows are what the doors' typed mismatch refusal
 /// ([`crate::VerbError::Arity`]) speaks, and what `tests/run_door.rs`
 /// asserts the doors against: [`Arity::ALL`] and the door matrix there
 /// must name the same set, so a row without a door, or a door without
@@ -196,12 +238,23 @@ pub enum Arity {
     /// TWO sides out under one record ([`crate::SplitOut`]). The door
     /// is its own because its out-type is.
     Split,
+    /// [`Verb::run_shell`]: one operand body in and one out with its
+    /// record, exactly [`Arity::One`]'s two ends — and a separate row
+    /// because the third half of a door's signature differs (see this
+    /// enum's docs on the scalar).
+    Shell,
 }
 
 impl Arity {
     /// Every door row, for censuses that must be total over the
     /// doors.
-    pub const ALL: &'static [Self] = &[Self::One, Self::Two, Self::Profile, Self::Split];
+    pub const ALL: &'static [Self] = &[
+        Self::One,
+        Self::Two,
+        Self::Profile,
+        Self::Split,
+        Self::Shell,
+    ];
 }
 
 impl VerbKind {
@@ -216,6 +269,7 @@ impl VerbKind {
         Self::Boolean(BooleanOp::Intersect),
         Self::Boolean(BooleanOp::Subtract),
         Self::Split,
+        Self::Shell,
     ];
 
     /// The verb's declared door: which run door answers it.
@@ -226,6 +280,7 @@ impl VerbKind {
             Self::Boolean(_) => Arity::Two,
             Self::Extrude | Self::Revolve => Arity::Profile,
             Self::Split => Arity::Split,
+            Self::Shell => Arity::Shell,
         }
     }
 }
@@ -241,6 +296,7 @@ impl<T: Real> Verb<T> {
             Self::Revolve { .. } => VerbKind::Revolve,
             Self::Boolean { op, .. } => VerbKind::Boolean(*op),
             Self::Split { .. } => VerbKind::Split,
+            Self::Shell { .. } => VerbKind::Shell,
         }
     }
 }
@@ -261,10 +317,11 @@ mod all_census {
     #[test]
     fn all_is_every_door_row() {
         let rows = match Arity::One {
-            Arity::One => 4,
-            Arity::Two => 4,
-            Arity::Profile => 4,
-            Arity::Split => 4,
+            Arity::One => 5,
+            Arity::Two => 5,
+            Arity::Profile => 5,
+            Arity::Split => 5,
+            Arity::Shell => 5,
         };
         for (i, row) in Arity::ALL.iter().enumerate() {
             assert!(
@@ -298,16 +355,17 @@ mod all_census {
     #[test]
     fn all_is_the_whole_vocabulary() {
         let rows = match VerbKind::Fillet {
-            VerbKind::Fillet => 8,
-            VerbKind::Chamfer => 8,
-            VerbKind::Extrude => 8,
-            VerbKind::Revolve => 8,
+            VerbKind::Fillet => 9,
+            VerbKind::Chamfer => 9,
+            VerbKind::Extrude => 9,
+            VerbKind::Revolve => 9,
             VerbKind::Boolean(op) => match op {
-                BooleanOp::Union => 8,
-                BooleanOp::Intersect => 8,
-                BooleanOp::Subtract => 8,
+                BooleanOp::Union => 9,
+                BooleanOp::Intersect => 9,
+                BooleanOp::Subtract => 9,
             },
-            VerbKind::Split => 8,
+            VerbKind::Split => 9,
+            VerbKind::Shell => 9,
         };
         for (i, kind) in VerbKind::ALL.iter().enumerate() {
             assert!(

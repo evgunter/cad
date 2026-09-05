@@ -5,14 +5,22 @@
 //! # What it is NOT, yet
 //!
 //! It is not "every operation a recipe door can invoke", and reading it
-//! that way would misjudge every later unit's cost. **Six verbs in
-//! five record families live here**: the blend pair, the two sweeps
-//! (extrude and revolve), the boolean's three regularized ops and the
-//! split. Every other door — transform, pattern, loft, sweep along a
-//! path, shell, measure — still runs the way it always did, and is
-//! reached by `editor-core`'s lowering calling its op crate directly.
-//! This crate is the SEAT the rest migrate onto, not a description of
-//! where they are.
+//! that way would misjudge every later unit's cost. **Seven verbs in
+//! six record families live here**: the blend pair, the two sweeps
+//! (extrude and revolve), the boolean's three regularized ops, the
+//! split and the shell. Every other door — transform, pattern, loft,
+//! sweep along a path, measure — still runs the way it always did, and
+//! is reached by `editor-core`'s lowering calling its op crate
+//! directly. This crate is the SEAT the rest migrate onto, not a
+//! description of where they are.
+//!
+//! **And a verb here need not be a verb the DOCUMENT can author.** The
+//! shell is the first that is not: `Node::Shell` does not exist, so no
+//! lowering builds one and no content key is ever computed for it. That
+//! is a fact about the document layer rather than a gap here — the verb
+//! is complete, with its door, its record channel and its refusal — and
+//! every commitment keyed on the vocabulary states it rather than
+//! skipping the row (`editor-core`'s content tag answers `None`).
 //!
 //! The design's cost claim is scoped the same way and is not
 //! demonstrated here: what these units show is that the migrated verbs
@@ -27,8 +35,9 @@
 //! declaration states which door answers the verb instead
 //! ([`VerbKind::arity`]: one body in and one out for the blends, two
 //! bodies for the boolean, one validated PROFILE for the sweeps, one
-//! body in and TWO sides out for the split, each behind its own typed
-//! door). Everything else a verb is committed to belongs to whoever
+//! body in and TWO sides out for the split, and the shell's own row —
+//! the blends' two ends at a scalar that can certify — each behind its
+//! own typed door). Everything else a verb is committed to belongs to whoever
 //! owns that commitment, not here: the content-key tag beside
 //! `editor-core`'s memo machinery, the wire spelling on `Node`'s serde
 //! derives, the Python constructor, the viewer's tree label. This

@@ -69,6 +69,8 @@ pub enum ScalarParam {
     /// extent and reaches no stored field), so a full revolve has
     /// nothing to declare rather than a row that does not apply.
     RevolveAngle,
+    /// [`Verb::Shell`]'s `thickness`.
+    ShellThickness,
 }
 
 impl ScalarParam {
@@ -78,6 +80,7 @@ impl ScalarParam {
         Self::ChamferDistance,
         Self::ExtrudeDistance,
         Self::RevolveAngle,
+        Self::ShellThickness,
     ];
 
     /// Which verb the parameter belongs to.
@@ -88,6 +91,7 @@ impl ScalarParam {
             Self::ChamferDistance => VerbKind::Chamfer,
             Self::ExtrudeDistance => VerbKind::Extrude,
             Self::RevolveAngle => VerbKind::Revolve,
+            Self::ShellThickness => VerbKind::Shell,
         }
     }
 }
@@ -138,6 +142,7 @@ impl FlowSource {
         Self::Param(ScalarParam::ChamferDistance),
         Self::Param(ScalarParam::ExtrudeDistance),
         Self::Param(ScalarParam::RevolveAngle),
+        Self::Param(ScalarParam::ShellThickness),
         Self::ProfileEdge(EdgeScalar::Radius),
     ];
 }
@@ -336,6 +341,27 @@ const BOOLEAN_FLOW: &[ParamFlow] = &[];
 /// run and not an untested constant.
 const SPLIT_FLOW: &[ParamFlow] = &[];
 
+/// **The shell's thickness reaches no stored field, and the row is
+/// present and empty for the reason [`ParamFlow`] gives.**
+///
+/// It is not an extent like the sweeps' — the wall really is a
+/// distance, and it really does move geometry. What it does not do is
+/// land in a field this declaration can name. Every cavity carrier the
+/// verb mints is the operand's own chart offset inward: a plane's
+/// stored data is a placement, so the thickness moves an origin and
+/// becomes nothing; a cylinder's or a sphere's cavity twin stores
+/// `r − t`, and a torus's `minor_radius − t` — DERIVED numbers, the
+/// operand's field minus the parameter, never the parameter. VS-Q3
+/// gives v1 no source for a derived field: the channel attaches the
+/// identity of the expression a parameter IS, and `r − t` is the
+/// identity of neither `r` nor `t`. So the honest row is the empty one,
+/// and the day the channel learns to carry a derivation the row is
+/// where the answer goes.
+const SHELL_FLOW: &[ParamFlow] = &[ParamFlow {
+    source: FlowSource::Param(ScalarParam::ShellThickness),
+    fields: &[],
+}];
+
 impl VerbKind {
     /// This verb's parameter→field flow, one row per scalar parameter.
     #[must_use]
@@ -347,6 +373,7 @@ impl VerbKind {
             Self::Revolve => REVOLVE_FLOW,
             Self::Boolean(_) => BOOLEAN_FLOW,
             Self::Split => SPLIT_FLOW,
+            Self::Shell => SHELL_FLOW,
         }
     }
 }
@@ -373,10 +400,11 @@ mod all_census {
     #[test]
     fn all_is_every_scalar_parameter() {
         let variants = match ScalarParam::FilletRadius {
-            ScalarParam::FilletRadius => 4,
-            ScalarParam::ChamferDistance => 4,
-            ScalarParam::ExtrudeDistance => 4,
-            ScalarParam::RevolveAngle => 4,
+            ScalarParam::FilletRadius => 5,
+            ScalarParam::ChamferDistance => 5,
+            ScalarParam::ExtrudeDistance => 5,
+            ScalarParam::RevolveAngle => 5,
+            ScalarParam::ShellThickness => 5,
         };
         for (i, param) in ScalarParam::ALL.iter().enumerate() {
             assert!(
@@ -404,10 +432,11 @@ mod all_census {
                 ScalarParam::FilletRadius
                 | ScalarParam::ChamferDistance
                 | ScalarParam::ExtrudeDistance
-                | ScalarParam::RevolveAngle => 5,
+                | ScalarParam::RevolveAngle
+                | ScalarParam::ShellThickness => 6,
             },
             FlowSource::ProfileEdge(edge) => match edge {
-                EdgeScalar::Radius => 5,
+                EdgeScalar::Radius => 6,
             },
         };
         for (i, source) in FlowSource::ALL.iter().enumerate() {
