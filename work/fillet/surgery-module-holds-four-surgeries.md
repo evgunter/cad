@@ -1,10 +1,9 @@
 ---
 id: surgery-module-holds-four-surgeries
-kind: issue
+kind: unit
 title: sweep: blend/surgery.rs holds four surgeries (4.3k lines); splitting the open bands out needs one re-scoping of the compound-bound allowlist
 status: open
 opened: 2026-09-05
-needs_ev: true
 ---
 
 
@@ -47,3 +46,14 @@ file list is the ratified thing or the seam is. R2's taste, for the record:
 Until ruled, no lane moves the code. A 👍 on this PR's `[ev]` thread
 approves the re-scoping as a FILLET follow-up unit (S / STRUCTURAL: a
 file move, bit-identical by the dump); a comment says otherwise.
+
+## Ruled (Ev, comment on PR 1916, 2026-09-05)
+
+"sure, you don't need to ask me about moving things around, unless it has
+design implications". The re-scoping is approved, and the rule generalises:
+a file move with no design implication is the orchestrator's call. This
+item becomes the FILLET-SPLIT unit (S / STRUCTURAL): `blend/open/{planar,ruled}.rs`
+(or the shape the lane finds honest) behind the existing ratification's
+entry re-scoped in `scripts/gates/bounds-allowlist.sh` and the `real.rs`
+ledger, bit-identical by the dump. Dispatches into block FILLET-B3 slot 1
+once FILLET-T's fix pass has left `surgery.rs`.
