@@ -492,10 +492,8 @@ mod tests {
         // A message about the DOCUMENT: a clean fold retires what the
         // camera said and nothing else, so this row goes red if the
         // expiry reaches past its own subject.
-        let landing = frame::Message::new(
-            frame::Subject::Document,
-            "product: the landing's own news",
-        );
+        let landing =
+            frame::Message::new(frame::Subject::Document, "product: the landing's own news");
         let mut status = Some(landing.clone());
         land(&mut camera, &mut status, &folded);
         assert_eq!(camera, folded.camera, "the camera still lands");

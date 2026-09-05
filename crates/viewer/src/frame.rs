@@ -753,7 +753,9 @@ pub fn at_rest_badge(at_rest: Option<&AtRestBadge>) -> Option<Badge> {
 /// [`Affordance::Opens`] — the findings' own sentences, each carrying
 /// its own recourse, live in the window it opens and never here.
 pub fn checks_badge(report: Option<&ChecksReport>) -> Option<Badge> {
-    let count = report.map(|report| report.findings.len()).filter(|c| *c > 0)?;
+    let count = report
+        .map(|report| report.findings.len())
+        .filter(|c| *c > 0)?;
     Some(
         Badge::read(format!("checks: {count} finding(s)"), Tone::Actionable)
             .opens()
@@ -1534,7 +1536,11 @@ mod tests {
             }),
         };
         let badge = product_badge(Some(&collision)).expect("a naming collision badges");
-        assert_eq!(badge.label, collision.to_string(), "the fault renders itself");
+        assert_eq!(
+            badge.label,
+            collision.to_string(),
+            "the fault renders itself"
+        );
         assert_eq!(
             badge.tone,
             Tone::Actionable,

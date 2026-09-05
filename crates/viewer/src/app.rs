@@ -722,10 +722,7 @@ impl ViewerApp {
                 pick::IndexLanding::Built => rebuilt = true,
                 pick::IndexLanding::Refused => {
                     self.status = self.picks.error().map(|error| {
-                        frame::Message::new(
-                            frame::Subject::Display,
-                            format!("pick index: {error}"),
-                        )
+                        frame::Message::new(frame::Subject::Display, format!("pick index: {error}"))
                     });
                 }
                 pick::IndexLanding::Stale => {}

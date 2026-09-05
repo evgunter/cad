@@ -202,7 +202,11 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
 #[test]
 fn a_badge_that_has_nothing_to_say_says_nothing() {
     assert_eq!(frame::at_rest_badge(None), None, "no assembly, no verdict");
-    assert_eq!(frame::checks_badge(None), None, "nothing landed, or the registry refused");
+    assert_eq!(
+        frame::checks_badge(None),
+        None,
+        "nothing landed, or the registry refused"
+    );
     assert_eq!(
         frame::checks_badge(Some(&ChecksReport {
             findings: Vec::new(),
@@ -239,7 +243,11 @@ fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
         "good news is a report: {}",
         certified.label
     );
-    assert!(certified.label.starts_with("at rest: "), "{}", certified.label);
+    assert!(
+        certified.label.starts_with("at rest: "),
+        "{}",
+        certified.label
+    );
     assert!(certified.label.contains('4'), "{}", certified.label);
 
     let refused = frame::at_rest_badge(Some(&AtRestBadge::Refused {
@@ -257,8 +265,7 @@ fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
         refused.label
     );
 
-    let fitted =
-        FittedDelta::as_requested(DisplayTolerance::new(1.0e-3).expect("a positive δ"));
+    let fitted = FittedDelta::as_requested(DisplayTolerance::new(1.0e-3).expect("a positive δ"));
     assert_eq!(
         frame::delta_badge(Some(&fitted)),
         None,
@@ -309,12 +316,7 @@ fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
     .into_iter()
     .flatten()
     {
-        assert_eq!(
-            label.affordance,
-            frame::Affordance::Read,
-            "{}",
-            label.label
-        );
+        assert_eq!(label.affordance, frame::Affordance::Read, "{}", label.label);
     }
 }
 
@@ -1522,7 +1524,9 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
         panic!("a discarded placement is news, not silence: {update:?}");
     };
     assert!(
-        message.text.contains(&format!("instance {}", bench.post_b.0)),
+        message
+            .text
+            .contains(&format!("instance {}", bench.post_b.0)),
         "the line names which of the user's placements went: {message}"
     );
     assert_eq!(

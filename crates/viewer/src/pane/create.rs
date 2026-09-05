@@ -10,11 +10,11 @@ use crate::app::{GLYPH_DOWN, GLYPH_REMOVE, GLYPH_UP, ViewerBehavior, chrome};
 use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
 use crate::combine::PatternOutputChoice;
 use crate::drafts::{CommitFault, Drafts, scalars};
-use crate::frame::{Message, Subject};
 use crate::forms::{
     ANGLE_DRAG_SPEED, BOOLEAN_OPS, COUNT_DRAG_SPEED, DatumKind, FIELD_DRAG_SPEED, MATE_PRIMITIVES,
     PathVerb, PatternKindChoice, ShapeKind, UNIT_DRAG_SPEED,
 };
+use crate::frame::{Message, Subject};
 use crate::matetool::{MateChoice, MateToolState, admitted_classes};
 use crate::parts::PartChooser;
 use crate::seats::{Seat, seat_line};
@@ -1191,8 +1191,7 @@ impl ViewerBehavior<'_> {
                         match op {
                             Some(Ok(op)) => self.ops.push(op),
                             Some(Err(error)) => {
-                                *self.status =
-                                    Some(document_news(ToolKind::Blend.says(&error)));
+                                *self.status = Some(document_news(ToolKind::Blend.says(&error)));
                             }
                             None => {}
                         }
