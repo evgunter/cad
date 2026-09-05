@@ -20,50 +20,78 @@
 //! level.
 //!
 //! Cost on the production path: one thread-local `Cell` write per
-//! decision, plus — **whenever a verdict log is installed** — one
-//! `Vec` push per definite outcome (see [`start_verdict_log`] and
-//! `decide`'s own contract below, which has always said this). That
+//! decision, plus — **inside an open [`Bracket`]** — one `Vec` push per
+//! outcome, definite or not (see `decide`'s own contract below). That
 //! caveat is not hypothetical: `editor_core`'s evaluator brackets
-//! **every node evaluation** in a verdict log (NAMING-DESIGN N5, so
-//! the verdict-diff engine can attribute flips), and retains the
-//! result on the node. So production *does* record, on the one path
-//! that asks to.
+//! **every node evaluation** (NAMING-DESIGN N5, so the verdict-diff
+//! engine can attribute flips), and retains the result on the node. So
+//! production *does* record, on the one path that asks to.
 //!
-//! **`VERDICTS` is not part of the `probe` lane and must not be gated
-//! on it.** The K-telemetry sink is `SINK`, which *is* feature-gated;
-//! `VERDICTS` merely shares this funnel because this is where decisions
-//! pass. Its consumer is production editor-core code —
-//! `resolve::vdiff` reads `NodeValue::verdicts` to compare per-predicate
-//! sign populations and emit `NodeVerdictDelta`'s flips and
-//! divergences. Putting it behind `probe` would not reduce recording;
-//! it would hand the verdict-diff engine empty logs in every default
-//! build and silently stop it attributing flips. The name is the
-//! confusing part, not the design.
+//! **The verdict log is a bracket with a stack.** [`Bracket::open`]
+//! pushes an empty frame onto this thread's frame stack; every
+//! decision the funnel classifies while that frame is the innermost
+//! open one lands in it — a definite sign as a [`Verdict`], an
+//! indeterminate outcome as an [`Escalation`] carrying the
+//! [`Indeterminate`] the predicate produced — and [`Bracket::finish`]
+//! pops the frame and hands both channels back as a [`Recorded`]. The
+//! shape is what makes the two hard cases correct by construction
+//! rather than by comment:
 //!
-//! Paths that never install a log (STL export, step-import, the demos)
-//! still pay the `RefCell` borrow check per decision. Gating *that* on
-//! a `Cell<bool>` is a live optimization and is orthogonal to any
-//! feature — it behaves identically in every build configuration.
+//! - **Nesting.** An evaluation that evaluates another document inside
+//!   one of its own ops (an instantiated part) opens an inner bracket
+//!   per inner node, on top of the outer node's frame. Each inner node
+//!   pops its own frame into its own value; the outer frame is never
+//!   overwritten and receives exactly the outer op's own decisions. The
+//!   same holds for a rayon worker that steals another task while
+//!   waiting on a join: the stolen task runs to completion inside the
+//!   join, so its frames sit strictly above the waiting task's and are
+//!   gone before it resumes. A frame is popped by the bracket that
+//!   pushed it, in the reverse of the order they opened; a bracket
+//!   closed out of that order is a bug, asserted in debug builds, and
+//!   in release it discards the frames above its own rather than ever
+//!   handing one bracket another's decisions.
+//! - **Thread confinement.** A [`Bracket`] is `!Send` — it carries a
+//!   `PhantomData<*const ()>` — so the value that closes a frame cannot
+//!   leave the thread whose stack holds it; the compiler refuses the
+//!   move. The stack itself is thread-local, and idiom-1 parallelism
+//!   (whole nodes on one worker each) opens each node's bracket on the
+//!   worker that runs the op.
+//! - **Every path closes the frame.** [`Bracket`] pops in `Drop`, so a
+//!   bracket that leaves scope without `finish` — an early `return`, a
+//!   `?`, a panic unwinding through the op — still pops its frame, and
+//!   the thread's stack is empty again once the guard is gone. An
+//!   unbracketed state is unrepresentable: there is no call that
+//!   installs a log without producing the guard that removes it.
 //!
-//! **OPEN OBLIGATION — this mechanism is on notice; see
-//! `docs/PERF-SCAN-2026-08.md` §2.** Delivering a production value by
-//! thread-local side effect makes the per-node bracket's correctness a
-//! comment rather than a type, and it has already failed once:
-//! [`start_verdict_log`] overwrites an installed log unconditionally,
-//! so a nested evaluation destroys its parent's — measured, an
-//! `InstantiatePart` node records **0** verdicts where the same
-//! geometry evaluated directly records 722. The obligation is that this
-//! is redone so verdicts are a returned value, or that the alternative
-//! is proven unaffordable in writing AND this mechanism is made
-//! structurally safe (RAII bracket, re-entry refused loudly, thread
-//! confinement enforced rather than asserted). **Which of those two is
-//! UNRESOLVED — left open deliberately at merge (Ev, 2026-08-16), not
-//! overlooked.** The nesting bug itself is not blocked on that choice
-//! and can be fixed directly. Do not add call sites that deepen the
-//! dependency on the current shape. [`start_verdict_log`] and
-//! [`take_verdict_log`] also touch the thread-local, and either named
-//! remedy (verdicts as a returned value, or an RAII bracket) has to
-//! change those two and their callers as well.
+//! **Why a bracket and not a returned value.** The funnel is reached
+//! from every deciding crate — 530 call sites in 82 files across seven
+//! crates, in 261 distinct functions of which 104 are public — from
+//! ops that carry no collector parameter. Returning verdicts as a value
+//! means threading a sink through every one of those signatures and
+//! every signature between an op's door and its predicates, and the
+//! `Decide` trait itself; the measurement and the decline are recorded
+//! in the PR that ratified this shape. The stack and the `!Send` guard
+//! buy the same two guarantees a returned value would — a nested
+//! evaluation cannot clobber its parent, and a frame cannot be read
+//! from another thread — as types, at the cost of one thread-local.
+//!
+//! **The frame stack is not part of the `probe` lane and must not be
+//! gated on it.** The K-telemetry sink is `SINK`, which *is*
+//! feature-gated; the frame stack merely shares this funnel because
+//! this is where decisions pass. Its consumer is production editor-core
+//! code — `resolve::vdiff` reads `NodeValue::verdicts` to compare
+//! per-predicate sign populations and emit `NodeVerdictDelta`'s flips
+//! and divergences, and `drive::classify` reads a node's escalations
+//! to tell a terminal sliver from a refinable indeterminacy without
+//! matching on the op's error enum. Putting it behind `probe` would not
+//! reduce recording; it would hand both consumers empty logs in every
+//! default build and silently stop them attributing anything.
+//!
+//! Paths that never open a bracket (STL export, step-import, the demos)
+//! still pay the `RefCell` borrow and an empty-stack check per
+//! decision. Gating *that* on a `Cell<bool>` is a live optimization and
+//! is orthogonal to any feature — it behaves identically in every build
+//! configuration.
 //!
 //! Recording happens through the [`Probe`] scalar: a transparent `f64`
 //! wrapper whose `Decide` implementation logs `(predicate, margin,
@@ -99,6 +127,8 @@
 //! monomorphization measurement that gate was cut on.
 
 use core::cell::{Cell, RefCell};
+use core::marker::PhantomData;
+use core::mem::ManuallyDrop;
 
 use crate::predicate::{Band, Decide, Indeterminate, Margin, Sign};
 // Only `Probe`'s impls name these.
@@ -120,10 +150,11 @@ thread_local! {
     /// The installed sample sink, if any.
     #[cfg(feature = "probe")]
     static SINK: RefCell<Option<Vec<MarginSample>>> = const { RefCell::new(None) };
-    /// The installed verdict-log sink, if any (NAMING-DESIGN N5:
+    /// The frame stack: one [`Recorded`] per open [`Bracket`] on this
+    /// thread, innermost last (module docs; NAMING-DESIGN N5:
     /// evaluations record their verdict vectors so the verdict-diff
-    /// engine can attribute flips).
-    static VERDICTS: RefCell<Option<Vec<Verdict>>> = const { RefCell::new(None) };
+    /// engine can attribute flips). Empty whenever no bracket is open.
+    static FRAMES: RefCell<Vec<Recorded>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Classifies `margin` against `band`, noting `name` for the recorder
@@ -133,23 +164,29 @@ thread_local! {
 /// This is the only place either recording channel is written, which
 /// is why the doors delegate rather than each carrying a copy: the
 /// `CURRENT` write is the recorder's name channel (read by `Probe`),
-/// and the verdict push is the evaluation-artifact channel (the log
-/// itself is installed and removed by [`start_verdict_log`] /
-/// [`take_verdict_log`], and read by the verdict-diff engine). A door
-/// cannot acquire one and miss the other.
+/// and the frame push is the evaluation-artifact channel (the frame is
+/// opened and closed by a [`Bracket`], and read by the verdict-diff
+/// engine and the subdivision driver). A door cannot acquire one and
+/// miss the other, and an outcome cannot reach one channel of the
+/// frame and miss the other: a definite sign is a [`Verdict`], an
+/// indeterminate one an [`Escalation`], in one decision order.
 fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign, Indeterminate> {
     CURRENT.with(|c| c.set(name));
     let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
-    if let Ok(sign) = outcome {
-        VERDICTS.with(|v| {
-            if let Some(log) = v.borrow_mut().as_mut() {
-                log.push(Verdict {
+    FRAMES.with(|f| {
+        if let Some(top) = f.borrow_mut().last_mut() {
+            match outcome {
+                Ok(sign) => top.verdicts.push(Verdict {
                     predicate: name,
                     sign,
-                });
+                }),
+                Err(source) => top.escalations.push(Escalation {
+                    predicate: name,
+                    source,
+                }),
             }
-        });
-    }
+        }
+    });
     outcome
 }
 
@@ -172,10 +209,9 @@ fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign
 /// seam.
 ///
 /// Cost on the production path: exactly one thread-local `Cell` write
-/// per decision (plus, when a verdict log is installed —
-/// [`start_verdict_log`] — one `Vec` push per definite outcome); the
-/// decision itself is `sign_within` verbatim, so outcomes are
-/// bit-identical to an unfunneled classification.
+/// per decision (plus, inside an open [`Bracket`], one `Vec` push per
+/// outcome); the decision itself is `sign_within` verbatim, so
+/// outcomes are bit-identical to an unfunneled classification.
 ///
 /// # Errors
 ///
@@ -276,23 +312,124 @@ pub struct Verdict {
     pub sign: Sign,
 }
 
-/// Installs a fresh, empty verdict log for the current thread
-/// (dropping any verdicts already recorded). Unlike [`start_recording`]
-/// (the K-experiment margin sink, [`Probe`]-only), the verdict log
-/// records through [`decide`] itself at ANY scalar — it is the
-/// evaluation-artifact channel NAMING-DESIGN N5's diagnosis diffing
-/// relies on ("both evaluations' verdict logs exist"). Indeterminate
-/// outcomes are not verdicts (they escalate typed instead of
-/// deciding) and are not logged.
-pub fn start_verdict_log() {
-    VERDICTS.with(|v| *v.borrow_mut() = Some(Vec::new()));
+/// One recorded indeterminate outcome: the funnel's static name and
+/// the [`Indeterminate`] the predicate produced, in the frame beside
+/// the verdicts and in the same decision order. What a consumer reads
+/// to answer "did any predicate here escalate, and on what margin"
+/// without matching on whichever op error enum carried the escalation
+/// out of the op.
+///
+/// `predicate` duplicates `source.predicate` deliberately: the funnel
+/// attached the name it was called with, and this field states it as
+/// a plain `&'static str` beside [`Verdict::predicate`], so the two
+/// channels are keyed the same way.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Escalation {
+    /// The predicate that escalated (the funnel's static name).
+    pub predicate: &'static str,
+    /// The indeterminate outcome, with the name attached.
+    pub source: Indeterminate,
 }
 
-/// Removes the verdict log and returns everything recorded since
-/// [`start_verdict_log`]. Returns an empty vector if no log was
-/// installed on this thread.
-pub fn take_verdict_log() -> Vec<Verdict> {
-    VERDICTS.with(|v| v.borrow_mut().take()).unwrap_or_default()
+/// Everything one [`Bracket`] recorded: both channels of its frame, in
+/// decision order. Empty by default, which is also what an empty frame
+/// is.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Recorded {
+    /// The definite decisions, in decision order.
+    pub verdicts: Vec<Verdict>,
+    /// The indeterminate outcomes, in decision order.
+    pub escalations: Vec<Escalation>,
+}
+
+/// The verdict-log bracket: a guard whose lifetime IS one frame on
+/// this thread's stack (module docs). [`Bracket::open`] pushes the
+/// frame; [`Bracket::finish`] pops it and returns what it recorded;
+/// dropping the guard pops it too, by any path including a panic
+/// unwinding through the bracketed code. Frames nest — a bracket
+/// opened inside another records into its own frame and leaves the
+/// outer one untouched.
+///
+/// `!Send` by construction (the `*const ()` phantom): a bracket closes
+/// the frame on the thread that opened it, and the compiler refuses to
+/// move it anywhere else.
+///
+/// ```compile_fail
+/// let bracket = geom_core::k_stats::Bracket::open();
+/// std::thread::spawn(move || drop(bracket));
+/// ```
+#[must_use = "a bracket records only while it is held; bind it, then `finish` it"]
+#[derive(Debug)]
+pub struct Bracket {
+    /// The index of this bracket's frame on the stack — the invariant
+    /// the close checks, so a bracket only ever pops its own frame.
+    depth: usize,
+    _confined: PhantomData<*const ()>,
+}
+
+impl Bracket {
+    /// Opens a fresh, empty frame on this thread's stack. Every
+    /// decision classified through the funnel from now until the
+    /// bracket is finished or dropped (and outside any inner bracket)
+    /// lands in it.
+    pub fn open() -> Self {
+        let depth = FRAMES.with(|f| {
+            let mut frames = f.borrow_mut();
+            frames.push(Recorded::default());
+            frames.len() - 1
+        });
+        Self {
+            depth,
+            _confined: PhantomData,
+        }
+    }
+
+    /// Closes the frame and returns everything it recorded. Consumes
+    /// the bracket, so a frame is popped exactly once.
+    pub fn finish(self) -> Recorded {
+        // `Drop` would pop the frame a second time; skipping it is the
+        // whole reason for the wrapper.
+        let this = ManuallyDrop::new(self);
+        pop_frame(this.depth)
+    }
+}
+
+impl Drop for Bracket {
+    fn drop(&mut self) {
+        pop_frame(self.depth);
+    }
+}
+
+/// Pops the frame a bracket opened at `depth`.
+///
+/// Brackets close in the reverse of the order they opened, so the
+/// frame is the innermost one; a close out of that order is a bug in
+/// the caller. It is asserted in debug builds. In release, frames above
+/// `depth` (inner brackets still open) are discarded with this one, and
+/// a stack already shorter than `depth + 1` (this frame is gone
+/// already) pops nothing — so a bracket never returns another
+/// bracket's decisions, whichever way the nesting was broken.
+fn pop_frame(depth: usize) -> Recorded {
+    FRAMES.with(|f| {
+        let mut frames = f.borrow_mut();
+        debug_assert_eq!(
+            frames.len(),
+            depth + 1,
+            "brackets close in the reverse of the order they opened"
+        );
+        if frames.len() <= depth {
+            return Recorded::default();
+        }
+        frames.truncate(depth + 1);
+        frames.pop().unwrap_or_default()
+    })
+}
+
+/// How many brackets are open on this thread — the tests' witness that
+/// every path closes its frame.
+#[cfg(test)]
+fn open_frames() -> usize {
+    FRAMES.with(|f| f.borrow().len())
 }
 
 /// How a recorded classification came out.
@@ -711,13 +848,13 @@ mod tests {
     #[test]
     fn verdict_log_records_definite_signs_in_decision_order() {
         let b = band();
-        start_verdict_log();
+        let bracket = Bracket::open();
         assert_eq!(decide("vlog_a", Margin::of(1.0f64), b), Ok(Sign::Positive));
         assert_eq!(decide("vlog_b", Margin::of(-1.0f64), b), Ok(Sign::Negative));
         assert_eq!(decide("vlog_c", Margin::of(0.0f64), b), Ok(Sign::Zero));
-        let log = take_verdict_log();
+        let log = bracket.finish();
         assert_eq!(
-            log,
+            log.verdicts,
             vec![
                 Verdict {
                     predicate: "vlog_a",
@@ -733,33 +870,113 @@ mod tests {
                 },
             ]
         );
+        assert!(log.escalations.is_empty());
     }
 
+    /// An indeterminate outcome is not a verdict; it is an escalation,
+    /// recorded in the same frame with the `Indeterminate` the
+    /// predicate produced, so a consumer reads it without matching on
+    /// whatever error the op wrapped it in. With no bracket open,
+    /// nothing records anywhere.
     #[test]
-    fn verdict_log_skips_indeterminate_outcomes_and_is_absent_by_default() {
+    fn indeterminate_outcomes_are_escalations_and_nothing_records_outside_a_bracket() {
         let b = band();
-        // No log installed: decisions record nothing, take is empty.
+        assert_eq!(open_frames(), 0);
+        // No bracket: decisions record nothing, and the stack stays empty.
         assert_eq!(decide("vlog_d", Margin::of(2.0f64), b), Ok(Sign::Positive));
-        assert!(take_verdict_log().is_empty());
-        // In-band margin escalates and is NOT a verdict.
-        start_verdict_log();
+        assert_eq!(open_frames(), 0);
+        let bracket = Bracket::open();
         let mid = f64::midpoint(b.zero(), b.escalate());
-        assert!(decide("vlog_e", Margin::of(mid), b).is_err());
+        let escalated = decide("vlog_e", Margin::of(mid), b).unwrap_err();
         assert_eq!(decide("vlog_f", Margin::of(-1.0f64), b), Ok(Sign::Negative));
-        let log = take_verdict_log();
-        assert_eq!(log.len(), 1);
-        assert_eq!(log[0].predicate, "vlog_f");
+        let log = bracket.finish();
+        assert_eq!(log.verdicts.len(), 1);
+        assert_eq!(log.verdicts[0].predicate, "vlog_f");
+        assert_eq!(
+            log.escalations,
+            vec![Escalation {
+                predicate: "vlog_e",
+                source: escalated,
+            }]
+        );
+        assert_eq!(log.escalations[0].source.predicate, Some("vlog_e"));
+        assert_eq!(open_frames(), 0);
     }
 
+    /// **The nesting row**: an inner bracket records into its own
+    /// frame and leaves the outer one exactly as it was, and the outer
+    /// frame receives only the decisions made outside the inner one.
     #[test]
-    fn verdict_log_reinstall_drops_prior_entries() {
+    fn a_nested_bracket_records_its_own_frame_and_leaves_the_outer_untouched() {
         let b = band();
-        start_verdict_log();
+        let outer = Bracket::open();
         decide("vlog_g", Margin::of(1.0f64), b).unwrap();
-        start_verdict_log();
+        let inner = Bracket::open();
+        assert_eq!(open_frames(), 2);
         decide("vlog_h", Margin::of(1.0f64), b).unwrap();
-        let log = take_verdict_log();
-        assert_eq!(log.len(), 1);
-        assert_eq!(log[0].predicate, "vlog_h");
+        let inner_log = inner.finish();
+        decide("vlog_i", Margin::of(-1.0f64), b).unwrap();
+        let outer_log = outer.finish();
+        let names = |r: &Recorded| r.verdicts.iter().map(|v| v.predicate).collect::<Vec<_>>();
+        assert_eq!(names(&inner_log), ["vlog_h"]);
+        assert_eq!(names(&outer_log), ["vlog_g", "vlog_i"]);
+        assert_eq!(open_frames(), 0);
+    }
+
+    /// A bracket dropped without `finish` still pops its frame: what it
+    /// recorded is gone, and the frame beneath it is the innermost
+    /// again.
+    #[test]
+    fn a_dropped_bracket_pops_its_frame() {
+        let b = band();
+        let outer = Bracket::open();
+        {
+            let _inner = Bracket::open();
+            decide("vlog_j", Margin::of(1.0f64), b).unwrap();
+            assert_eq!(open_frames(), 2);
+        }
+        assert_eq!(open_frames(), 1);
+        decide("vlog_k", Margin::of(1.0f64), b).unwrap();
+        let log = outer.finish();
+        assert_eq!(log.verdicts.len(), 1);
+        assert_eq!(log.verdicts[0].predicate, "vlog_k");
+        assert_eq!(open_frames(), 0);
+    }
+
+    /// A panic unwinding through a bracketed region pops the frame on
+    /// the way out (the guard's `Drop` runs during unwinding), so the
+    /// thread's stack is empty again once the panic is caught and the
+    /// next bracket starts from a clean stack.
+    #[test]
+    fn a_panic_unwinding_through_a_bracket_pops_its_frame() {
+        let b = band();
+        let unwound = std::panic::catch_unwind(|| {
+            let _bracket = Bracket::open();
+            decide("vlog_l", Margin::of(1.0f64), b).unwrap();
+            assert_eq!(open_frames(), 1);
+            panic!("unwinding through the bracket");
+        });
+        assert!(unwound.is_err());
+        assert_eq!(open_frames(), 0);
+        let after = Bracket::open();
+        decide("vlog_m", Margin::of(1.0f64), b).unwrap();
+        let log = after.finish();
+        assert_eq!(log.verdicts.len(), 1);
+        assert_eq!(log.verdicts[0].predicate, "vlog_m");
+    }
+
+    /// A second bracket opened beside the first is a NESTED one, not a
+    /// replacement: the first keeps everything it recorded.
+    #[test]
+    fn opening_a_second_bracket_does_not_drop_the_first_frame() {
+        let b = band();
+        let first = Bracket::open();
+        decide("vlog_n", Margin::of(1.0f64), b).unwrap();
+        let second = Bracket::open();
+        decide("vlog_o", Margin::of(1.0f64), b).unwrap();
+        assert_eq!(second.finish().verdicts.len(), 1);
+        let log = first.finish();
+        assert_eq!(log.verdicts.len(), 1);
+        assert_eq!(log.verdicts[0].predicate, "vlog_n");
     }
 }
