@@ -2,10 +2,11 @@
 id: MSOLVE-1
 kind: unit
 title: The mate reads at its operand: the transform-aware solve
-status: spec
+status: review
 opened: 2026-09-05
 branch: msolve/1-mate-operand
 refs: [mate-solve-is-transform-blind]
+pr: 1929
 ---
 
 
