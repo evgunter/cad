@@ -4,8 +4,9 @@
 //! enumerate. They walk `topo/src` and read text.
 //!
 //! Its own module rather than a section of [`crate::fixtures`]: that
-//! module's subject is canonical well-formed bodies, this one's is a
-//! Rust reader, and one header cannot describe both.
+//! module's subject is canonical well-formed bodies, this one's is the
+//! ITEM SCAN and the door walk over them, and one header cannot
+//! describe both.
 //!
 //! # One lexer, and it is not in this crate
 //!
@@ -25,12 +26,11 @@
 //!
 //! # Why text and not a parser
 //!
-//! `syn` would dissolve the lexing — [`CodeOnly`] is a hand-rolled
-//! lexer, and every defect it has ever had has been a lexing defect.
-//! It is not taken, and the reason is not build cost or dependency
-//! policy (Ev's rule is that adding one is fine at ~2 weeks' release
-//! age, and `syn` is already in this workspace's lock file
-//! transitively):
+//! `syn` would replace the item scan below — the `fn`-token walk, the
+//! parameter carve and the body carve — with a syntax tree. It is not
+//! taken, and the reason is not build cost or dependency policy (Ev's
+//! rule is that adding one is fine at ~2 weeks' release age, and `syn`
+//! is already in this workspace's lock file transitively):
 //!
 //! **A parser closes the smaller half.** Of the blind spots
 //! [`mutation_doors`] discloses, a parser closes exactly one — the
@@ -41,8 +41,9 @@
 //! evaluation; *"`topo/src` only"* needs the other crates. `syn`
 //! parses one file into a tree and does none of those. Buying a
 //! dependency that leaves every disclosed hole exactly where it is,
-//! to fix a lexer that has a red test row per construct it handles,
-//! is not the better close.
+//! to replace an item scan whose every construct has a red row —
+//! here for the scan, and in `test_utils::source` for the view it
+//! reads — is not the better close.
 //!
 //! **What would close the four is not a parser either** — it is a
 //! call-graph read (rust-analyzer, or a `cargo`-driven pass), which is
@@ -134,74 +135,34 @@ impl CodeOnly {
             // From here the head IS a public `fn`, so every remaining
             // exit is either a bodiless declaration or a defect. See
             // `gave_up` below: this scan does not get to skip one
-            // quietly, because skipping one quietly is what it did.
+            // quietly, because skipping one quietly is what it did —
+            // which is why the carve's THIRD answer is read as a
+            // defect and not as a declaration.
             let parsed = (|| {
                 let (name, after_name) = ident_after(code, at)?;
                 let open = param_list_start(b, after_name)?;
-                let close = matching(b, open, b'(', b')')?;
-                let brace = body_start(b, close)?;
-                let end = matching(b, brace, b'{', b'}')?;
-                Some((name, open, close, brace, end))
+                let close = test_utils::source::balanced_end(code, open)?;
+                match test_utils::source::item_body(code, close) {
+                    test_utils::source::ItemBody::Body(body) => Some((name, open, close, body)),
+                    _ => None,
+                }
             })();
             match parsed {
-                Some((name, open, close, brace, end)) => {
-                    out.push((name, &code[open..close], &code[brace..end]));
-                    at = end;
+                Some((name, open, close, body)) => {
+                    // The carve includes both braces; the body slice
+                    // this walk hands out never has the closing one.
+                    out.push((name, &code[open..close], &code[body.start..body.end - 1]));
+                    at = body.end;
                 }
-                None if bodiless_declaration(b, at) => {}
+                None if matches!(
+                    test_utils::source::item_body(code, at),
+                    test_utils::source::ItemBody::Declaration(_)
+                ) => {}
                 None => gave_up(code, kw),
             }
         }
         out
     }
-}
-
-/// The `{` opening the body of a function whose parameter list closes
-/// at `close`, or `None` for a declaration with no body.
-///
-/// **Bracket-aware, because a `;` is not only a statement end.** The
-/// first shape of this took the first `{`-or-`;` after the parameter
-/// list and gave up on a `;` — which silently dropped every
-/// `pub fn … -> [f64; 3]`, array types in return position being house
-/// style in this kernel. Depth is tracked so only a delimiter at the
-/// signature's own level decides.
-fn body_start(b: &[u8], close: usize) -> Option<usize> {
-    let (mut paren, mut bracket) = (0usize, 0usize);
-    for (i, c) in b.iter().enumerate().skip(close + 1) {
-        match c {
-            b'(' => paren += 1,
-            b')' => paren = paren.saturating_sub(1),
-            b'[' => bracket += 1,
-            b']' => bracket = bracket.saturating_sub(1),
-            b';' if paren == 0 && bracket == 0 => return None,
-            b'{' if paren == 0 && bracket == 0 => return Some(i),
-            _ => {}
-        }
-    }
-    None
-}
-
-/// Whether the public `fn` head whose name starts at `at` is a
-/// declaration with no body — an `extern` block's, or a trait's
-/// default-less method — rather than one this scan failed to read.
-fn bodiless_declaration(b: &[u8], at: usize) -> bool {
-    let (mut paren, mut bracket) = (0usize, 0usize);
-    for (i, c) in b.iter().enumerate().skip(at) {
-        match c {
-            b'(' => paren += 1,
-            b')' => paren = paren.saturating_sub(1),
-            b'[' => bracket += 1,
-            b']' => bracket = bracket.saturating_sub(1),
-            b';' if paren == 0 && bracket == 0 => return true,
-            b'{' if paren == 0 && bracket == 0 => return false,
-            _ => {
-                let _ = i;
-            }
-        }
-    }
-    // Ran off the end without either: not a declaration, a truncated
-    // or unbalanced file.
-    false
 }
 
 /// A public `fn` head this scan recognised and then could not read.
@@ -274,6 +235,15 @@ fn ident_after(code: &str, from: usize) -> Option<(&str, usize)> {
 /// The `(` opening the parameter list of a function whose name ends at
 /// `from`, skipping a generic list — which may itself contain parens,
 /// as `<F: Fn(u32) -> u32>` does.
+///
+/// **Not `test_utils::source::angle_end`, and the difference is the
+/// refusal.** That operation answers where a list closes and is
+/// documented to answer `Some` at the wrong place rather than `None`
+/// when a const-generic `>` comparison closes it early. This walk
+/// needs the opposite bias: anything between the name and the `(`
+/// that is not whitespace and not a generic list means the match was
+/// not a function head, and answering `None` there is what routes it
+/// to `gave_up` instead of into the door table.
 fn param_list_start(b: &[u8], from: usize) -> Option<usize> {
     let mut i = from;
     let mut angle = 0usize;
@@ -287,24 +257,6 @@ fn param_list_start(b: &[u8], from: usize) -> Option<usize> {
             _ => {}
         }
         i += 1;
-    }
-    None
-}
-
-/// The index of the delimiter closing the one at `open`. Safe as a
-/// plain depth count because it runs on blanked text, where a
-/// delimiter inside a comment or literal is a space.
-fn matching(b: &[u8], open: usize, l: u8, r: u8) -> Option<usize> {
-    let mut depth = 0usize;
-    for (i, c) in b.iter().enumerate().skip(open) {
-        if *c == l {
-            depth += 1;
-        } else if *c == r {
-            depth -= 1;
-            if depth == 0 {
-                return Some(i);
-            }
-        }
     }
     None
 }
@@ -414,86 +366,29 @@ pub(crate) fn mutation_doors() -> Vec<MutationDoor> {
 
 #[cfg(test)]
 mod tests {
-    use super::{CodeOnly, DOORS_MEASURED, MutationDoor, mutation_doors};
+    use super::{CodeOnly, DOORS_MEASURED, mutation_doors};
 
-    fn door(body: &str) -> MutationDoor {
-        MutationDoor {
-            file: std::path::PathBuf::from("planted.rs"),
-            name: "planted".to_string(),
-            code: CodeOnly::of(body).as_str().to_string(),
-        }
-    }
-
-    /// **The hole S92 named, as a row that goes red if it reopens.**
-    /// Both mutation-surface guards classified a door by a raw
-    /// `body.contains("<literal>")`, so a door whose body only
-    /// *mentions* the call in a comment was classified as making it —
-    /// demonstrated by planting one, at which point both guards stayed
-    /// green. Each line below is that plant in miniature.
-    #[test]
-    fn a_mention_is_not_a_call() {
-        for prose in [
-            "// calls mint_pcurves( on the way out\n    Ok(())",
-            "/* mint_pcurves( */ Ok(())",
-            "/* outer /* mint_pcurves( */ still a comment */ Ok(())",
-            "let msg = \"mint_pcurves(\"; Ok(())",
-            "let msg = r#\"mint_pcurves(\"#; Ok(())",
-            "let msg = r\"mint_pcurves(\"; Ok(())",
-            "let msg = b\"mint_pcurves(\"; Ok(())",
-            "let msg = br#\"mint_pcurves(\"#; Ok(())",
-            "let msg = c\"mint_pcurves(\"; Ok(())",
-        ] {
-            assert!(
-                !door(prose).code_contains("mint_pcurves("),
-                "a mention classified as a call: {prose}"
-            );
-        }
-    }
-
-    /// The other direction, which is what stops the row above from
-    /// being a classifier that answers `false` to everything: a real
-    /// call still reads as one, through each construct the blanker has
-    /// to walk past to reach it. The `br"x\"` row is the one that
-    /// mattered — a byte raw string falling through to the escape-
-    /// honouring plain-string arm blanks the rest of the body,
-    /// **erasing** a call rather than inventing one.
-    #[test]
-    fn a_call_is_still_a_call() {
-        for code in [
-            "mint_pcurves(&mut b)?;",
-            "// mint_pcurves( in prose first\n    mint_pcurves(&mut b)?;",
-            "let q = '\"'; mint_pcurves(&mut b)?;",
-            "let q = '\\''; mint_pcurves(&mut b)?;",
-            "let q = '\\\\'; mint_pcurves(&mut b)?;",
-            "let s = \"a // b /* c\"; mint_pcurves(&mut b)?;",
-            "let s = br\"x\\\"; mint_pcurves(&mut b)?;",
-            "let s = b\"x\"; mint_pcurves(&mut b)?;",
-            "let l: &'static str = \"x\"; mint_pcurves(&mut b)?;",
-            "let s = \"π…\"; mint_pcurves(&mut b)?;",
-        ] {
-            assert!(
-                door(code).code_contains("mint_pcurves("),
-                "a call read as a mention: {code}"
-            );
-        }
-    }
-
-    /// **Both layers the two earlier passes did not reach.** The
-    /// blanker's constructs are the first half; the array-return rows
-    /// (`arr`, `arr_nested`) are the second — a `;` inside `[T; N]`
-    /// used to end the scan of every such signature and drop the item
-    /// whole, with no count anywhere moving. `bodiless` is the case
-    /// the dropped-item rule must still let through.
+    /// **The item scan and the classification, at the one altitude
+    /// where either failure was visible.** Text in, doors out.
     ///
-    /// Both failures were the same shape and neither was visible from
-    /// inside one layer: the blanker knew `'"'`, nested block comments
-    /// and raw strings while the matcher carving bodies for it knew
-    /// none of them, and later the item scan read the blanker's output
-    /// correctly and still threw the item away. **Every row here is a
-    /// whole-pipeline read** — text in, doors out — because that is
-    /// the only altitude at which either was visible.
+    /// The scan's own defect is the array-return rows (`arr`,
+    /// `arr_nested`): a `;` inside `[T; N]` used to end the scan of
+    /// every such signature and drop the item whole, with no count
+    /// anywhere moving. `bodiless` is the case the dropped-item rule
+    /// must still let through, and `not_a_door` the item that is a
+    /// door to nothing.
+    ///
+    /// The classification's defect is the second table: both
+    /// mutation-surface guards read a door by `body.contains(<literal>)`
+    /// over raw text, so a door that only *mentioned* the call was
+    /// counted as making it. `plain`'s `false` beside eight `true`s is
+    /// that plant — its body holds the call spelled inside a string —
+    /// and `doc_comment_decoy` is the same plant one layer up, an item
+    /// head that is prose. **The constructs a needle can hide in are
+    /// not enumerated here**: they belong to the view, and
+    /// `test_utils::source`'s own suite is where each has its row.
     #[test]
-    fn the_item_scan_survives_what_the_blanker_handles() {
+    fn the_item_scan_reads_doors_and_refuses_to_read_prose_as_one() {
         let src = "
 pub fn quote(&mut self) { let q = '\"'; mint_pcurves(&mut b); }
 pub fn raw(&mut self) { let s = br\"x\\\"; mint_pcurves(&mut b); }

@@ -57,14 +57,18 @@
 //!   fail-red direction, and it is stated because it is the one place
 //!   *"the docs"* and *"the comments"* are not the same set.
 //!
-//! # Three operations over a blanked view
+//! # The operations over a blanked view
 //!
 //! A blanked view has a property raw source does not: **every bracket
 //! in it is a real bracket**, because one inside a literal or a comment
-//! is a space. Three operations depend on exactly that precondition,
-//! which is why they live beside the lexer rather than at each call
-//! site — [`balanced_end`], [`top_level_split`] and the traversals
-//! [`rust_sources`] and [`suite_files`].
+//! is a space. Every operation below depends on exactly that
+//! precondition, which is why each lives beside the lexer rather than
+//! at each call site — [`balanced_end`], [`angle_end`],
+//! [`top_level_split`] and [`item_body`], plus the traversals
+//! [`rust_sources`] and [`suite_files`]. **No count is written here**,
+//! for the reason the paragraph above gives about the ledger's: a
+//! number in prose beside a list that grows is a copy that goes stale
+//! in the silent direction.
 //!
 //! # What it does not model
 //!
@@ -394,6 +398,81 @@ pub fn balanced_end(blanked: &str, open: usize) -> Option<usize> {
         }
     }
     None
+}
+
+/// What follows an item's head: a body, a `;`, or neither.
+///
+/// Three variants because a guard that walks items needs all three
+/// apart, and the third is the one a two-way answer loses. **A head
+/// that runs to end of input without either terminator is not a
+/// declaration** — it is a truncated or unbalanced text — and a walk
+/// that reads it as one skips an item silently, which for a guard
+/// asserting about ALL items is the failure it exists to prevent.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum ItemBody {
+    /// The `{ … }` region, **both braces included**. Slice
+    /// `start + 1..end - 1` for the inside.
+    Body(std::ops::Range<usize>),
+    /// A head with no body — a trait's default-less method, an
+    /// `extern` block's declaration, a unit struct — at the offset of
+    /// the `;` that ends it. The offset is carried so a walk can
+    /// resume after the declaration rather than re-scanning for it.
+    Declaration(usize),
+    /// Neither terminator before end of input.
+    Unterminated,
+}
+
+/// What follows the item head starting at `from` — [`ItemBody`].
+///
+/// Same precondition as [`balanced_end`], and the same reason it is
+/// here: over a [`keeping`] view with comments and literals dropped
+/// every bracket is a real bracket, so this is a parse and not a
+/// guess. Over raw text a `}` inside a string ends the body early and
+/// the caller silently loses everything after the cut.
+///
+/// **The terminator is the first `{` or `;` OUTSIDE every round and
+/// square bracket**, which is the whole content of the operation and
+/// the part a call-site copy gets wrong. `fn f() -> [f64; 3] {` and
+/// `fn g(p: impl Into<[u8; 2]>) {` each carry a `;` that ends no item;
+/// read as a terminator it answers [`ItemBody::Declaration`] and the
+/// item — its body, and every needle in it — is dropped with no count
+/// anywhere moving. Array types in return position are house style in
+/// this kernel, so that is not a hypothetical.
+///
+/// `from` may be anywhere in the head, including its first byte: a
+/// `pub(crate)` before the `fn` opens and closes its own paren and is
+/// stepped over. What this cannot check is that `from` IS a head — it
+/// answers about the first terminator after the offset it was given,
+/// so a caller that located the head by a substring search owes its
+/// own check that the match is a head and not a mention (the blanked
+/// view has already removed the mentions that live in prose and
+/// literals).
+#[must_use]
+pub fn item_body(blanked: &str, from: usize) -> ItemBody {
+    let b = blanked.as_bytes();
+    let (mut paren, mut bracket) = (0usize, 0usize);
+    let mut open = None;
+    for (i, c) in b.iter().enumerate().skip(from) {
+        match c {
+            b'(' => paren += 1,
+            b')' => paren = paren.saturating_sub(1),
+            b'[' => bracket += 1,
+            b']' => bracket = bracket.saturating_sub(1),
+            b';' if paren == 0 && bracket == 0 => return ItemBody::Declaration(i),
+            b'{' if paren == 0 && bracket == 0 => {
+                open = Some(i);
+                break;
+            }
+            _ => {}
+        }
+    }
+    match open.and_then(|o| balanced_end(blanked, o).map(|end| o..end + 1)) {
+        Some(body) => ItemBody::Body(body),
+        // A `{` that never closes is the same broken text as no
+        // terminator at all, and says so rather than answering a range
+        // that runs to the end of the file.
+        None => ItemBody::Unterminated,
+    }
 }
 
 /// The byte offset of the `>` closing the generic list that opens at
@@ -753,8 +832,8 @@ mod tests {
     // flakes about one run in thirteen (15/200; **issue #882**). Do not
     // copy that shape here.
     use super::{
-        Region, aggregation_violations, angle_end, balanced_end, code_and_literals, code_only,
-        comments_only, file_module_decls, keeping, top_level_split,
+        ItemBody, Region, aggregation_violations, angle_end, balanced_end, code_and_literals,
+        code_only, comments_only, file_module_decls, item_body, keeping, top_level_split,
     };
 
     /// A generic list closes at its own `>`, and the constructs that
@@ -820,12 +899,17 @@ mod tests {
 
     /// Genuine code reads of `eps`, which no view of the code may lose.
     ///
-    /// The last two are the pair a LINE-PREFIX comment test cannot
-    /// read: code that FOLLOWS a blanked region on the same line, and
-    /// a double-quote CHAR literal, which a naive quote scanner takes
-    /// for an opening string and which then blanks every read after
-    /// it to the next quote.
-    const CODE_READS: [&str; 8] = [
+    /// Rows 7-12 are the shapes that erase the REST OF THE FILE when
+    /// the reader gets them wrong, which is why each is a code read
+    /// after the construct rather than the construct alone: code
+    /// following a blanked region on the same line (a line-prefix
+    /// comment test cannot see it at all), and the four quote-shaped
+    /// literals a naive scanner mis-closes — a double-quote char, an
+    /// escaped-quote char, an escaped-backslash char, and a string
+    /// whose body spells a comment delimiter — plus a multi-byte
+    /// literal body, where a blanker stepping bytes rather than
+    /// characters splits one.
+    const CODE_READS: [&str; 12] = [
         "gap * lever < eps",
         "let eps = tol.eps();",
         "f(a, b, eps)",
@@ -834,6 +918,10 @@ mod tests {
         "let c = b'e'; let d = eps;",
         "/* a block */ let d = eps;",
         "if line.contains('\"') { let d = eps; }",
+        "let q = '\\''; let d = eps;",
+        "let q = '\\\\'; let d = eps;",
+        "let s = \"a // b /* c\"; let d = eps;",
+        "let s = \"π…\"; let d = eps;",
     ];
 
     /// S13's ratified shape for a text-matching guard: **a clean
@@ -998,6 +1086,67 @@ mod tests {
         // three unbalanced parens run the scan off the end.
         assert_eq!(balanced_end(raw, open), None, "raw source must not be used");
         assert_eq!(balanced_end(&code_only("f(a"), 1), None, "never closes");
+    }
+
+    /// **The item carve, and the three answers it has to keep apart.**
+    /// Each row is a way the hand-rolled spellings of this get it
+    /// wrong: a `;` inside a bracket read as a terminator (which drops
+    /// the whole item), a `}` inside a literal read as the close
+    /// (which drops the tail of the body), and a truncated head read
+    /// as a declaration (which drops the item silently, where saying
+    /// so lets the caller be loud).
+    #[test]
+    fn an_item_body_is_carved_from_its_head_and_a_declaration_is_not_one() {
+        let plain = code_only("pub(crate) fn f(&mut self) { g(); } fn after() {}");
+        let ItemBody::Body(body) = item_body(&plain, 0) else {
+            panic!("a body: {:?}", item_body(&plain, 0))
+        };
+        assert_eq!(&plain[body], "{ g(); }", "braces included, and it stops");
+
+        // The `;` that ends no item. Read as a terminator, every
+        // `-> [T; N]` signature in the tree is dropped whole.
+        let array = code_only("pub fn f() -> [f64; 3] { g(); }");
+        let ItemBody::Body(body) = item_body(&array, 0) else {
+            panic!("an array return type is not a declaration")
+        };
+        assert_eq!(&array[body], "{ g(); }");
+        let nested =
+            code_only("pub fn f(p: impl Into<[u8; 2]>) -> Result<([u8; 2], u8), E> { g(); }");
+        assert!(
+            matches!(item_body(&nested, 0), ItemBody::Body(_)),
+            "{nested}"
+        );
+
+        // The `}` that closes nothing. This is the precondition
+        // [`balanced_end`] states, one level up: over raw text the
+        // literal's brace ends the body and `after()` is lost.
+        let raw = "fn f() { let s = \"}\"; after(); }";
+        let code = code_only(raw);
+        let ItemBody::Body(body) = item_body(&code, 0) else {
+            panic!("a body")
+        };
+        assert!(&raw[body].contains("after()"), "the carve stopped early");
+
+        // A head with no body, and the offset is the `;` so a walk can
+        // resume past it rather than re-scanning.
+        let declared = code_only("pub fn f(&self) -> u8; pub fn g() {}");
+        let ItemBody::Declaration(semi) = item_body(&declared, 0) else {
+            panic!("a declaration")
+        };
+        assert_eq!(&declared[semi..=semi], ";");
+        assert!(matches!(item_body(&declared, semi + 1), ItemBody::Body(_)));
+
+        // Neither terminator, and neither answer. A truncated text is
+        // not a declaration, and a caller that must not skip an item
+        // needs to be able to tell.
+        assert_eq!(
+            item_body(&code_only("pub fn f(&self)"), 0),
+            ItemBody::Unterminated
+        );
+        assert_eq!(
+            item_body(&code_only("fn f() { g();"), 0),
+            ItemBody::Unterminated
+        );
     }
 
     /// Splitting an argument list: a comma inside a nested bracket, a

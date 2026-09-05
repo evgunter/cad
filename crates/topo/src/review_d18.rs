@@ -369,32 +369,29 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
 // C1 — the headline: neither new `unreachable!` is input-reachable.
 // =====================================================================
 
-/// The head this guard carves from. Ends on the `(` of the parameter
-/// list, which is where [`code_body`] starts counting brackets.
+/// The head this guard carves from.
 const LINK_HALF_EDGES: &str = "pub(crate) fn link_half_edges(";
 
 /// The body of the item whose head is `head`, carved out of `source`
-/// **as code** — comments and literal bodies blanked by the shared
-/// lexer, and the region taken by bracket depth.
+/// **as code**: comments and literal bodies blanked by the shared
+/// lexer, then the shared item carve.
 ///
-/// **The view and the carve are one decision.** Over a blanked view
-/// every bracket is a real bracket, so `balanced_end` is the whole
-/// parse; over raw text this was a search for `"\n    }\n"`, which
-/// ends the body at whichever line happens to be indented like a
-/// method's close — a `}` in a string or in commented-out code among
-/// them — and which cannot tell a live call from one that has been
-/// commented out.
+/// **The view and the carve are one decision**, which is why both are
+/// `test_utils::source`'s. Over a blanked view every bracket is a real
+/// bracket, so the carve is a parse; over raw text this was a search
+/// for `"\n    }\n"`, which ended the body at whichever line happened
+/// to be indented like a method's close — a `}` spelled in a string or
+/// in commented-out code among them — and which could not tell a live
+/// call from a commented-out one either.
 fn code_body(source: &str, head: &str) -> String {
-    assert!(head.ends_with('('), "a head ends on its parameter list");
     let code = test_utils::source::code_only(source);
     let at = code
         .find(head)
         .unwrap_or_else(|| panic!("`{head}` must still exist"));
-    let params = at + head.len() - 1;
-    let close = test_utils::source::balanced_end(&code, params).expect("a parameter list closes");
-    let brace = close + code[close..].find('{').expect("a function body");
-    let end = test_utils::source::balanced_end(&code, brace).expect("a body closes");
-    code[brace..=end].to_string()
+    match test_utils::source::item_body(&code, at) {
+        test_utils::source::ItemBody::Body(body) => code[body].to_string(),
+        other => panic!("`{head}` has no body: {other:?}"),
+    }
 }
 
 /// **The carve reads the code, not the text**, so a call that has been
@@ -437,6 +434,45 @@ impl Body {
         planted.matches("unreachable!").count(),
         2,
         "the raw text does not move, which is why the carve is over the code view"
+    );
+}
+
+/// **A brace inside a literal does not end the carve** — the other
+/// defect the `"\n    }\n"` search had. A body whose message spells a
+/// `}` (or whose commented-out line does) ended there, and every
+/// announcement after the cut was silently not counted; the guard
+/// stayed green while reading a fraction of the function. The row goes
+/// red if the carve ever runs over raw text or over the literal view,
+/// where the blanked brace is a real one again.
+///
+/// The trailing item is the other direction: the carve must stop at
+/// the body's own close and not swallow the next item.
+#[test]
+fn a_brace_inside_a_literal_does_not_end_the_carve() {
+    let live = "\
+impl Body {
+    pub(crate) fn link_half_edges(&mut self, a: Live, b: Live) {
+        let Some(he) = self.get_half_edge_mut(a.key()) else {
+            unreachable!(\"link_half_edges: `a` }\\n    }\\n outlived its key\")
+        };
+        // }
+        he.next = b.key();
+        let Some(he) = self.get_half_edge_mut(b.key()) else {
+            unreachable!(\"link_half_edges: `b`'s proof outlived its key\")
+        };
+    }
+    pub(crate) fn decoy(&mut self) { unreachable!(\"not this body\") }
+}
+";
+    let body = code_body(live, LINK_HALF_EDGES);
+    assert_eq!(
+        body.matches("unreachable!").count(),
+        2,
+        "a `}}` spelled in a literal or a comment ended the carve early:\n{body}"
+    );
+    assert!(
+        !body.contains("decoy"),
+        "the carve ran past the body's own closing brace:\n{body}"
     );
 }
 

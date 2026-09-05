@@ -63,8 +63,8 @@ enum Disposition {
     /// The home itself.
     Home,
     /// Reads Rust source through something other than
-    /// [`test_utils::source`] — a hand-rolled reader, or one of
-    /// `topo`'s two crate-private blankers. The payload names the
+    /// [`test_utils::source`] — a hand-rolled reader, or raw text with
+    /// no reader at all. The payload names the
     /// track that owes the conversion, **or `unowned` where the
     /// partition has no track for the file**; an unowned entry is not
     /// an exemption, it is a second finding stacked on the first, and
