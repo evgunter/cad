@@ -865,3 +865,16 @@ record is its row in `MODEL-AB-LOG.md` and its item's `## Closed`
 section.
 
 - `PROPS-1-SPEC.md` — PROPS-1, the lost-correlation members of the linalg audit: `mirror_across_plane` and `reject_from` (#1918)
+## Per-merge deletion — TOPO-S330's spec (2026-09-05)
+
+Recoverable at `git show 57cd299d8225afe4454bd068fa9e374439975363:docs/TOPO-S330-SPEC.md`
+(the S330 unit head after the review fix pass, before the state-sync
+commit that deleted it). Two of its stated facts were falsified by the
+unit and are corrected in the unit's record, not here: `ops_cube` is not
+a tier-3-clean planar cube (every face carries the mvfs placeholder), and
+its Phase-2 shape for the poison door — a second predicate beside
+`is_placeholder` — was replaced by `geom::NetState` at review. The rule
+above; the unit's record is its row in `MODEL-AB-LOG.md` and its MERGED
+entry in `work/topo/log.md`.
+
+- `TOPO-S330-SPEC.md` — TOPO-S330, tier-3 check 1's described-NURBS arm (#1923)

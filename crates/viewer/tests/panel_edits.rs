@@ -408,26 +408,105 @@ fn the_affordance_outranks_the_bookkeeping_refusal_it_causes() {
     assert!(shown.rank() < Refusal::NoGesture.rank());
 }
 
-/// Every refusal renders through `Display`, not through a debug dump.
+/// **Five refusals a panel can provoke render as sentences** — five,
+/// named, and not a claim about the vocabulary.
+///
+/// The title used to say "every refusal" while the body exercised the
+/// `Io` arm alone, which is why it stayed green while `Refusal::Edit`
+/// rendered a `{:?}`-quoted parameter name into the status line. Each
+/// row below is now a real op through a real door, so the rendering
+/// asserted is the one a person reads.
+///
+/// **The universal is not restored, because it is not true.**
+/// `Refusal` has 18 arms and this walks 5; worse, one of them is
+/// `Edit`, which forwards ~50 sub-variants, so what decides the
+/// rendering is the payload's variant one level down —
+/// `crates/pncad-py/src/prose_census.rs` states exactly that failure
+/// mode, and a roster that picks its own samples excludes the failing
+/// mode by construction. It is excluded here too: `EditError`'s
+/// metadata arms (`MetaNotSet`, `MetaNonFinite`, `MetaUnversioned`,
+/// `RebindMetadataCollision`) render a `key: String` through `Debug`,
+/// so `!contains('"')` is FALSE of them today and this row cannot see
+/// it. What covers a claim of that shape is a source census over the
+/// tree, not a sample: `work/view/refusal-has-no-all-to-walk.md`
+/// carries the gap and the two censuses that already exist.
 #[test]
 fn refusals_render_as_sentences() {
     let tol = Tol::witness();
-    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let (doc, profile, extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
-    let refusal = session
+
+    let io = session
         .perform(SessionOp::Open(
             std::env::temp_dir().join("gui3-no-such-document.pncad"),
         ))
         .refusal
         .expect("a missing file refuses");
-    let rendered = refusal.to_string();
     assert!(
-        rendered.contains("cannot read the file"),
-        "the io arm names what happened: {rendered}"
+        io.to_string().contains("cannot read the file"),
+        "the io arm names what happened: {io}"
     );
+
+    // The arm that motivated the widening: an undeclared name typed
+    // into the value field goes to the EDIT door, whose sentence the
+    // status line renders verbatim.
+    let edit = session
+        .perform(SessionOp::SetParam {
+            name: pncad::document::ParamName::new("tapper"),
+            value: SlotValue::Continuous(1.0),
+        })
+        .refusal
+        .expect("an undeclared parameter refuses");
     assert!(
-        !rendered.contains('{') && !rendered.contains('"'),
-        "and it is a sentence, not a debug dump: {rendered}"
+        edit.to_string().contains("tapper"),
+        "the edit arm names the parameter: {edit}"
+    );
+
+    let lookup = session
+        .perform(SessionOp::BeginParamGesture {
+            name: pncad::document::ParamName::new("tapper"),
+        })
+        .refusal
+        .expect("dragging an absent parameter refuses");
+    let kind = session
+        .perform(SessionOp::AddExtrude {
+            profile: extrude,
+            distance: common::len(0.01),
+        })
+        .refusal
+        .expect("an extrude of an extrude refuses");
+    let slot = session
+        .perform(SessionOp::SetSlot {
+            node: profile,
+            slot: SlotId::Radius,
+            value: SlotValue::Continuous(1.0),
+        })
+        .refusal
+        .expect("a profile has no radius slot");
+
+    for (arm, rendered) in [
+        ("Io", io.to_string()),
+        ("Edit", edit.to_string()),
+        ("NoSuchParam", lookup.to_string()),
+        ("WrongNodeKind", kind.to_string()),
+        ("NoSuchSlot", slot.to_string()),
+    ] {
+        assert!(
+            !rendered.contains('{') && !rendered.contains('"'),
+            "{arm} is a sentence, not a debug dump: {rendered}"
+        );
+        assert!(
+            !rendered.contains(arm),
+            "{arm} leaves its variant name standing: {rendered}"
+        );
+    }
+
+    // And the one mistake that reaches two doors reaches one recourse:
+    // the typed route and the dragged route name the same thing to do.
+    assert!(
+        edit.to_string().contains("declare it first")
+            && lookup.to_string().contains("declare it first"),
+        "typed {edit}\ndragged {lookup}"
     );
 }
 
