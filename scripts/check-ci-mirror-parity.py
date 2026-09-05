@@ -118,6 +118,12 @@ SITING_JOB = "mirror"
 TIER_BLIND = (
     "scripts/gates/gate-roster.sh",
     "scripts/gates/probe-suite-census.sh --citations",
+    # The viewer crate's vocabulary/driver gate. Two of its checks read
+    # crates/viewer/README.md's tables and one reads that crate's Cargo.toml
+    # `app` feature; a change set of only the README is TIER=docs, so sited
+    # under `if: run_build` the arms that exist for a table edit could not
+    # fire on a table edit.
+    "scripts/gates/viewer-module-kinds.sh",
     "scripts/check-ci-mirror-parity.py",
     # Not because its inputs are prose — because a change WIDENING the
     # filter's docs branch classifies itself as docs, so the tier that would

@@ -75,6 +75,8 @@ mod datum_draw;
 mod display_budget;
 #[path = "doc_io.rs"]
 mod doc_io;
+#[path = "docm1_face_frame.rs"]
+mod docm1_face_frame;
 #[path = "edge_pick.rs"]
 mod edge_pick;
 #[path = "error_display.rs"]
@@ -91,6 +93,8 @@ mod gesture_table;
 mod input_mapping;
 #[path = "instance_authoring.rs"]
 mod instance_authoring;
+#[path = "landing_gathers.rs"]
+mod landing_gathers;
 #[path = "mate_tool_flow.rs"]
 mod mate_tool_flow;
 #[path = "panel_display.rs"]

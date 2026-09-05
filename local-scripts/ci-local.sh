@@ -87,22 +87,23 @@
 # nothing here was ever sampled.
 #
 # WHAT THIS HALF STILL ADDS OVER A HOSTED RUN, stated as a list rather than
-# as a superlative, because the superlative was true for thirteen days and
-# is the kind of sentence that outlives its fact: all five k-lint feature
-# unifications (hosted draws one), and the opt-in `--nightly` row below.
-# Local is still a strict SUPERSET of any hosted run on the sampled axes, so
-# a tree this half calls green was gated everywhere hosted could have looked
-# — the difference is now two dimensions narrower than it was. The row
-# SEMANTICS are identical either way, which is what the mirror convention is
-# about.
+# as a superlative, because the superlative was true for thirteen days and is
+# the kind of sentence that outlives its fact: the opt-in `--nightly` row
+# below, and that is now the whole list. Hosted stopped sampling the lane and
+# the ε rows on 2026-09-04 and stopped sampling the k-lint unification the same
+# day, so the two halves gate the same configuration set. The row SEMANTICS
+# were always identical, which is what the mirror convention is about; what
+# changed is that the COVERAGE is too.
 #
 # HOSTED CAN BE NARROWED TO A POINT (2026-08-28; it aimed a DRAW until
 # 2026-09-04 and narrows a full run now) — ci.yml's `workflow_dispatch`
-# inputs, or a `CI-Config:` trailer in the head commit's message, both
-# landing in ci-filter.py's NARROWING A RUN path. That does not reach this
-# half and deliberately so: every value either spelling can name is one this
-# file already runs, so the superset claim above is untouched, and there is
-# nothing here for a request to buy.
+# inputs, landing in ci-filter.py's NARROWING A RUN path. There was a second
+# spelling, a `CI-Config:` trailer in the head commit's message, and it was
+# deleted on 2026-09-04 once every dimension ran whole and it had no value
+# left to name that changed anything. Neither reached this half and
+# deliberately so: every value a request can name is one this file already
+# runs, so a narrowing can only ever make hosted gate LESS than this half,
+# never more, and there is nothing here for a request to buy.
 #
 # NOT MIRRORED, deliberately (2026-08-04): ci.yml's two build jobs set
 # RUSTFLAGS=-C link-arg=-fuse-ld=mold and CARGO_PROFILE_{DEV,TEST}_DEBUG=
@@ -257,6 +258,7 @@ fi
 # promote that skip to a failure on this box too.
 # HOSTED MIRROR: mirror / gate roster parity (both halves run every gate)
 # HOSTED MIRROR: mirror / probe type-check loop citations
+# HOSTED MIRROR: mirror / viewer module kinds (vocabulary/driver boundary)
 # HOSTED MIRROR: mirror / CI half parity (both halves name the same checks)
 # HOSTED MIRROR: mirror / change filter selftest (the docs tier fails open)
 # HOSTED MIRROR: mirror / tess-budget cut-stamp selftest (the baseline's provenance)
@@ -271,6 +273,8 @@ tier_blind_rows() {
   scripts/gates/gate-roster.sh --selftest || rc=1
   scripts/gates/gate-roster.sh || rc=1
   scripts/gates/probe-suite-census.sh --citations || rc=1
+  scripts/gates/viewer-module-kinds.sh --selftest || rc=1
+  scripts/gates/viewer-module-kinds.sh || rc=1
   python3 scripts/check-ci-mirror-parity.py --selftest || rc=1
   python3 scripts/check-ci-mirror-parity.py || rc=1
   python3 scripts/ci-filter.py --selftest || rc=1
@@ -407,6 +411,15 @@ discipline() {
         && scripts/base-test-listing.sh --selftest); then
     rc=1
   fi
+  # The reader behind the hosted `gate ok` job — the one check a merge queue or
+  # a branch protection is meant to require. The READING has no local half and
+  # is not supposed to: its subject is a hosted run's own job list, and this box
+  # answers the same question by being one process (gate.sh's exit status IS
+  # that summary). What belongs in both halves, by exactly the base-test-listing
+  # argument above, is the SELFTEST: six of the reader's seven decision paths
+  # never execute on a real run, so nothing but this drives them.
+  # HOSTED MIRROR: discipline / run-job gate selftest (the one required check's seven paths)
+  python3 scripts/check-run-jobs.py --selftest || rc=1
   return $rc
 }
 
@@ -1266,15 +1279,14 @@ run_row_if "$RUN_INTERVAL_ORACLE" "interval oracle (certify vs inari+MPFR)" orac
 # records margins from every kernel crate — no minimal root set, so
 # these run whenever anything builds.
 #
-# ALL FIVE FEATURE UNIFICATIONS, EVERY TIME (2026-08-22). The hosted
-# `k-lint (gate)` job now draws ONE of {dev-default, release-default,
-# release-budget, dev-budget, dev-probe} per run — it bills 8-10 minutes
-# precisely because those five compile the tour and the kernel five times
-# over. Nothing bills this script by the minute, so it keeps running the
-# whole product, exactly as it keeps running every lane and every ε: local
-# is a strict superset of any hosted run, and since 2026-09-04 the k-lint
-# row is the ONE dimension that superset is about — hosted runs every lane
-# and every ε itself.
+# ALL FIVE FEATURE UNIFICATIONS, EVERY TIME, AND HOSTED DOES THE SAME NOW
+# (2026-09-04). From 2026-08-22 the hosted `k-lint (gate)` job DREW one of
+# {dev-default, release-default, release-budget, dev-budget, dev-probe} per run
+# and this half ran all five, which is what made local a strict superset. That
+# draw is retired — hosted fans the five out as five matrix legs — so the two
+# halves now gate the same configuration set on every axis. This half keeps
+# running the rows in sequence because nothing bills it by the minute and it
+# has one machine; hosted runs them in parallel because it has five.
 run_row_if "$RUN_K_LINT" "demos tour (fmt + clippy)"       demos_hygiene
 run_row_if "$RUN_K_LINT" "demos tour suite (#99 ε pin + probes)" demos_eps_pin
 run_row_if "$RUN_K_LINT" "uv sheet drift (demos)"          uv_sheet_drift

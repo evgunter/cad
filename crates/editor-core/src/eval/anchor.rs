@@ -118,8 +118,20 @@ pub struct ProfileValue<T: geom_core::Real> {
 /// op) remains the logged surface, exactly as before the switch.
 #[derive(Debug, Clone)]
 pub(crate) struct ProfilePre {
-    /// The replayed profile at f64 (program order).
+    /// The replayed profile at f64 (program order). Its `plane` is the
+    /// 2-D record's assembly frame: [`ProfilePre::placement_f64`]
+    /// where there is one, the conventional `SketchPlane::xy()` where
+    /// there is not — validation is 2-D and the naming anchor is
+    /// loop-derived, so no decision reads it. What a consumer PLACES
+    /// with is `placement_f64`, never this field's plane.
     pub profile_f64: Profile<f64>,
+    /// The profile's `f64` placement, where the profile HAS one: an
+    /// authored frame's document read, or a section's lane read pinned
+    /// to `f64`. `None` for a profile on a derived frame (DM1c), whose
+    /// only placement is the lane's — the invariant carried in the
+    /// type rather than by a placeholder a reader could mistake for a
+    /// placement.
+    pub placement_f64: Option<profile::SketchPlane<f64>>,
     /// The canonical→program naming anchor.
     pub naming: ProfileNaming,
     /// The discrete decisions this f64 pass made — the witness the
@@ -224,23 +236,42 @@ pub(crate) fn derive_naming(
     Some(ProfileNaming { loops: anchors })
 }
 
-/// Embeds an exact-`f64` placement into any evaluation scalar.
+/// **The one per-coordinate walk over a placement**, in EITHER
+/// direction: every one of the twelve components through `f`, the
+/// three columns and the translation kept in their places, the first
+/// refusal returned. The walk is written once because it is the shape
+/// where a transposed `c1`/`c2` is invisible in review and identical
+/// in every copy but one; [`embed_affine`] (f64 → any scalar, with
+/// `Infallible` for the error) and the section door's lane → f64
+/// crossing (`wire::pinned_plane`, refused by the scalar's type) are
+/// its two callers and its only two directions.
+pub(crate) fn map_affine<A: geom_core::Real, B: geom_core::Real, E>(
+    a: &geom_core::Affine3<A>,
+    f: impl Fn(A) -> Result<B, E>,
+) -> Result<geom_core::Affine3<B>, E> {
+    let v = |w: geom_core::Vec3<A>| Ok(geom_core::Vec3::new(f(w.x)?, f(w.y)?, f(w.z)?));
+    Ok(geom_core::Affine3::from_parts(
+        geom_core::Mat3::from_cols(v(a.linear.c0)?, v(a.linear.c1)?, v(a.linear.c2)?),
+        v(a.translation)?,
+    ))
+}
+
+/// Embeds an exact-`f64` placement into any evaluation scalar — the
+/// infallible direction of [`map_affine`] (`from_f64` never refuses,
+/// which the `Infallible` error type states rather than asserts).
 ///
 /// ONE HOME for a per-coordinate `from_f64` walk that had grown three:
 /// the profile embed below did it inline, the lift's second pass needed
 /// the same thing for a sketch plane, and each copy was three lines of
-/// index-by-index transcription — the shape where a transposed `c1`/`c2`
-/// is invisible in review and identical in every copy but one.
+/// index-by-index transcription. The other direction, lane → f64, is
+/// `wire::pinned_plane`, over the same walk.
 pub(crate) fn embed_affine<T: geom_core::Real>(
     a: &geom_core::Affine3<f64>,
 ) -> geom_core::Affine3<T> {
-    let v = |w: geom_core::Vec3<f64>| {
-        geom_core::Vec3::new(T::from_f64(w.x), T::from_f64(w.y), T::from_f64(w.z))
-    };
-    geom_core::Affine3::from_parts(
-        geom_core::Mat3::from_cols(v(a.linear.c0), v(a.linear.c1), v(a.linear.c2)),
-        v(a.translation),
-    )
+    match map_affine(a, |x| Ok::<T, core::convert::Infallible>(T::from_f64(x))) {
+        Ok(placed) => placed,
+        Err(never) => match never {},
+    }
 }
 
 /// Embeds a stored exact-`f64` profile into any evaluation scalar (the

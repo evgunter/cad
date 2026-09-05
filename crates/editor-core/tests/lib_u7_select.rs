@@ -160,7 +160,7 @@ fn every_sibling_agrees_with_the_kind_only_selector() {
 fn a_rim_edge_pattern_says_the_cap_rim_of_one_end() {
     let (doc, cube) = box_doc();
     let ev = eval(&doc);
-    for end in [CapEnd::Top, CapEnd::Bottom] {
+    for end in [CapEnd::End, CapEnd::Start] {
         let sel = Selector::of(
             NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::RimEdge).side(end)),
         );
@@ -336,7 +336,7 @@ fn the_selector_excludes_the_cavity_meridians_by_shape() {
 
 /// **Prefix argument matching**: constraining only the A side of a
 /// `Seam` is a coarser, still-honest way to say the same pip rim —
-/// "wherever the cube's top cap crosses something". The two arcs come
+/// "wherever the cube's end cap crosses something". The two arcs come
 /// back without the pattern naming either band variant.
 #[test]
 fn a_seam_pattern_may_constrain_only_its_a_side() {
@@ -345,7 +345,7 @@ fn a_seam_pattern_may_constrain_only_its_a_side() {
     let (_, _, pipped) = composed_ids(&doc.doc, &ev);
     let sel = Selector::of(NamePat::of_kind(EntityKind::Edge).seg(
         SegPat::tag(SegTag::Seam).of([
-            NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::Top)),
+            NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End)),
         ]),
     ));
     assert_eq!(editor_core::select(&ev, pipped, &sel).len(), 2);

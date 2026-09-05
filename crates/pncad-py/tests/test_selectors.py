@@ -54,7 +54,7 @@ class TestDatumDistance(unittest.TestCase):
             cube,
             Selector.of(
                 NamePat.of_kind(EntityKind.Face).seg(
-                    SegPat.tag(SegTag.Cap).side(CapEnd.Top)
+                    SegPat.tag(SegTag.Cap).side(CapEnd.End)
                 )
             ),
         )

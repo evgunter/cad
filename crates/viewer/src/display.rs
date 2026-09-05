@@ -60,6 +60,9 @@
 //! note governs document state only, and no layer-3 history exists in
 //! v1. Undo/redo therefore never change what is hidden or probed;
 //! they can only DISCARD a probe by making its instance constrained.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -435,7 +438,16 @@ impl DisplayView {
 pub struct DisplayState {
     hidden: BTreeSet<RecipeNodeId>,
     moves: BTreeMap<RecipeNodeId, Frame>,
-    gesture: Option<FreeMoveGesture>,
+    /// The free-move gesture in flight, if any.
+    ///
+    /// **Not spelled `gesture`.** [`crate::session::DocSession`] holds
+    /// a `gesture` of its own — the VALUE drag a slot or parameter
+    /// field opens — and the two are independent drags that can be
+    /// open at once, so one field name must not stand for both. Why
+    /// that overlap is sound, the identity it rests on and the
+    /// ratified change (DI5) that ends the argument are stated at
+    /// [`crate::session::SessionOp::permitted_during_value_gesture`].
+    free_move: Option<FreeMoveGesture>,
     /// Bumped on every visible change — the chrome's cheap "does the
     /// drawn scene need rebuilding" key, beside the evaluation
     /// generation and δ.
@@ -473,7 +485,7 @@ impl DisplayState {
     /// The instance a free-move gesture is currently probing, if one
     /// is in flight.
     pub fn probing(&self) -> Option<RecipeNodeId> {
-        self.gesture.as_ref().map(|g| g.instance)
+        self.free_move.as_ref().map(|g| g.instance)
     }
 
     /// The snapshot the scene and pick paths consume, resolved onto
@@ -486,7 +498,7 @@ impl DisplayState {
     /// in the one-frame window between an edit and its prune.
     pub fn view(&self, doc: &Doc<ProfileProgram>) -> DisplayView {
         let mut moved = self.moves.clone();
-        if let Some(gesture) = &self.gesture
+        if let Some(gesture) = &self.free_move
             && let Some(frame) = gesture.preview
         {
             moved.insert(gesture.instance, frame);
@@ -552,11 +564,11 @@ impl DisplayState {
         doc: &Doc<ProfileProgram>,
         instance: RecipeNodeId,
     ) -> Result<(), DisplayFault> {
-        if self.gesture.is_some() {
+        if self.free_move.is_some() {
             return Err(DisplayFault::FreeMoveInFlight);
         }
         free_move_check(doc, instance)?;
-        self.gesture = Some(FreeMoveGesture {
+        self.free_move = Some(FreeMoveGesture {
             instance,
             preview: None,
         });
@@ -571,7 +583,7 @@ impl DisplayState {
     ///
     /// [`DisplayFault::NoFreeMove`], [`DisplayFault::NonRigidFrame`].
     pub fn preview_free_move(&mut self, frame: Frame) -> Result<(), DisplayFault> {
-        let Some(gesture) = self.gesture.as_mut() else {
+        let Some(gesture) = self.free_move.as_mut() else {
             return Err(DisplayFault::NoFreeMove);
         };
         if !is_rigid(&frame) {
@@ -596,7 +608,7 @@ impl DisplayState {
     ///
     /// [`DisplayFault::NoFreeMove`].
     pub fn commit_free_move(&mut self) -> Result<(), DisplayFault> {
-        let Some(gesture) = self.gesture.take() else {
+        let Some(gesture) = self.free_move.take() else {
             return Err(DisplayFault::NoFreeMove);
         };
         if let Some(frame) = gesture.preview {
@@ -616,7 +628,7 @@ impl DisplayState {
     ///
     /// [`DisplayFault::NoFreeMove`].
     pub fn cancel_free_move(&mut self) -> Result<(), DisplayFault> {
-        let had_preview = match self.gesture.take() {
+        let had_preview = match self.free_move.take() {
             None => return Err(DisplayFault::NoFreeMove),
             Some(gesture) => gesture.preview.is_some(),
         };
@@ -655,11 +667,11 @@ impl DisplayState {
             self.hidden.remove(id);
         }
         let gesture_dies = self
-            .gesture
+            .free_move
             .as_ref()
             .is_some_and(|g| free_move_check(doc, g.instance).is_err());
         if gesture_dies {
-            self.gesture = None;
+            self.free_move = None;
         }
         if !discarded.is_empty() || !dead_hidden.is_empty() || gesture_dies {
             self.revision += 1;
@@ -669,11 +681,11 @@ impl DisplayState {
 
     /// Forget everything — what opening a different document does.
     pub fn clear(&mut self) {
-        if !self.hidden.is_empty() || !self.moves.is_empty() || self.gesture.is_some() {
+        if !self.hidden.is_empty() || !self.moves.is_empty() || self.free_move.is_some() {
             self.revision += 1;
         }
         self.hidden.clear();
         self.moves.clear();
-        self.gesture = None;
+        self.free_move = None;
     }
 }
