@@ -379,3 +379,21 @@ ATTR follows when an H5 review lane frees the box (four cores, two
 reviewers and the RIM fix pass live), H7 after its brief. The H6 and ATTR
 briefs were re-derived from RIM's and had carried H5's PR title — the
 same template slip that mis-titled PR 1821 — corrected before dispatch.
+
+**H5 dual delivered; union fix pass sent (2026-09-05).** R1
+MERGEABLE-AFTER-FIXES 1/6/4, R2 MERGEABLE 0/5/8; the kernel change held
+under both (dump re-taken at both SHAs, closed forms re-derived to 1e-13
+and 1e-15, the foot-parameter mutant red on exactly the seven rows, the
+tour 62 green locally by both, the four ungated {lane}×{ε} points green).
+Convergent: the boss's merged top rim — one plane host carrying a RING —
+refuses typed under the rewritten assembly recourse, which the PR made
+unconditional (R1's MAJOR, executed; R2 named the same site as an
+unstated frontier), three `Struts` gates with no red row, the dump
+convex-only against a constraint naming H4's concave rims, the spec's
+curved-single-host statement unwritten, the `validate_closed` deviation
+disclosed but unlisted (both reviewers instrumented the LADDER's identical
+window). Orchestrator's calls: the recourse states its condition and
+every `Struts`-routed refusal is audited for the sentence it carries; the
+ringed host is filed, not carved; the curved single host is stated and
+filed; the concave fixtures join the dump corpus. No unilateral MAJOR —
+tally +0 this pair; pair FAIR. Row at merge, ordinal 2002.
