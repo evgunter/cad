@@ -110,17 +110,22 @@ fn documents() -> Vec<(&'static str, ProfileDoc)> {
         ("slab_narrow", slab(1.0, eps / 16.0)),
         ("slab_across_zero", slab(20.0 * eps, 40.0 * eps)),
         // **An ARC-bearing fixture**, so the driver population carries
-        // the M10-8 atom family: the tour's two-hole plate scaled well
-        // below its whole-certifying ceiling (7.81e-7 of the real
-        // study) so the driver certifies leaves, and their
-        // certified-midpoint replay exercises rules A and C on the
-        // holes' cylindrical carriers — the only path by which a
-        // `symbolic_zero` or `sign_gated` sample reaches a LINTED
-        // driver CSV (the slabs above are straight-walled and produce
-        // neither).
+        // the M10-8 atom family: the tour's two-hole plate scaled to
+        // `1e3 * eps` of the real study — just above its
+        // whole-certifying ceiling, which is `7.81e2 * eps` at every
+        // epsilon row (M10-8's plate pin) — so the driver splits once
+        // and certifies leaves, and their certified-midpoint replay
+        // exercises the symbolic tier on the holes' cylindrical
+        // carriers — the only path by which a `symbolic_zero` or
+        // `sign_gated` sample reaches a LINTED driver CSV (the slabs
+        // above are straight-walled and produce neither). The scale is
+        // epsilon-RELATIVE like the slabs' above: written as the
+        // constant `1e-6` it was 1280x the ceiling at `eps = 1e-12`,
+        // where the driver certified nothing and the fixture fell out
+        // of the linted population on that row.
         (
             "two_hole_plate_narrow",
-            crate::m10_7_plate::plate(5.0e-5 * 1.0e-6, 1.0e-5 * 1.0e-6, Tol::witness()).0,
+            crate::m10_7_plate::plate(5.0e-5 * 1.0e3 * eps, 1.0e-5 * 1.0e3 * eps, Tol::witness()).0,
         ),
     ]
 }
