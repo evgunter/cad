@@ -53,10 +53,11 @@ and a transform moves one. The alternatives weighed and rejected are in
    carrying the evaluation layer's typed refusal. Ruled in by this
    program as S-MATE's successor; sequenced after 1 because the arm it
    replaces is rewritten there.
-4. **`mate-memo-key-does-not-carry-the-solve`** — a mate's memo key
-   omits the solve, so a blamed mate reads `Ok` in the evaluation that
-   blames it; CHROME carries a viewer-side guard for it. Unit after 1;
-   the kernel inconsistency is this program's.
+4. **`MSOLVE-4`** — a mate's memo key carries the solve's answer
+   (`mate-memo-key-does-not-carry-the-solve`: a blamed mate reads `Ok`
+   in the evaluation that blames it; CHROME's viewer-side guard
+   retires with it). Spec `docs/MSOLVE-4-SPEC.md`; parked on 1 only
+   for the shared key arm, dispatches at 1's merge.
 5. **`mate-lever-needs-the-parts-extent`** — the mated parts' extent
    reaching `Alignment::lever_arm`; a schema question (authored beside
    the datum, or resolved through the part store) before it is a unit.
