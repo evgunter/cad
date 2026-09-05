@@ -115,10 +115,12 @@ pub struct SurfaceJet3<T: Real> {
 /// - `stride = nv`, so a row step is one addition.
 ///
 /// Evaluation then reads `base + i·stride + j` for
-/// `(i, j) ∈ [0, pu] × [0, pv]`, which is exactly `[0, nu) × [0, nv)`
-/// flattened for the surface the window borrows — and that surface is
-/// the one it evaluates, so the reads are in range by construction and
-/// the per-basis-term arithmetic carries no guard.
+/// `(i, j) ∈ [0, pu] × [0, pv]` — the `(pu + 1)·(pv + 1)` sub-block the
+/// span pair selects, flattened row-major. Its highest index is
+/// `span_u.index()·nv + span_v.index()`, at most `nu·nv − 1`, because
+/// both spans are proofs about this surface's own knot vectors and
+/// `new` pins `control.len() == nu·nv`. So the reads are in range by
+/// construction and the per-basis-term arithmetic carries no guard.
 ///
 /// `Copy`, one reference and four `usize`s wide, allocation-free,
 /// built once per evaluation. That is deliberate: PR #447 measured a

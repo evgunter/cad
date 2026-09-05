@@ -1,12 +1,11 @@
 //! `span_hull`'s coefficient window is **exactly** the `Span`'s window,
 //! and that window is exactly the set of coefficients the basis reads.
 //!
-//! Before the fold, `hull::span_indices` re-derived `(span − p, span)`
-//! behind its own copy of the range guard. It now returns the window the
-//! `Span` computed once at construction, so the two claims that used to
-//! be one function's internal consistency became a claim ACROSS two
-//! modules — `hull` trusting `knots`. This suite is what makes that
-//! crossing behavioural rather than argued.
+//! `hull::span_indices` returns the window the `Span` computed once at
+//! construction, so the claim is one ACROSS two modules — `hull`
+//! trusting `knots` — rather than one function's internal consistency.
+//! This suite is what makes that crossing behavioural rather than
+//! argued.
 //!
 //! The discriminating move is a coefficient driven far outside the
 //! others' range. A hull is a min/max, so nudging an interior
