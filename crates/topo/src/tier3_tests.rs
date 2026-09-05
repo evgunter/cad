@@ -12,8 +12,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::Surface;
+use geom::{NurbsSurface, Surface};
 use geom_brep::EdgeCurveSpec;
+use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 
 use crate::contact::{ContactClass, DeclaredContact};
@@ -143,6 +144,111 @@ fn the_scaffolding_door_still_passes_mid_construction() {
     // No surface anywhere yet, so the chord could not name a chart
     // even in principle — and tier 3 says nothing about it.
     assert_eq!(validate(&body), Ok(()));
+}
+
+// ----------------------------------------------------------------------
+// Tier 3, check 1: the three states of a `Nurbs` face surface. The
+// placeholder's own row is `tests/geometric_cube.rs`'s
+// `without_the_top_cap_tier3_rejects_the_nurbs_seed`, which is not
+// duplicated here; these two are the other two states.
+// ----------------------------------------------------------------------
+
+/// A bilinear net over the given control points, on the pillow's face.
+fn bilinear_net(control: Vec<Point3<f64>>) -> Surface<f64> {
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    Surface::Nurbs(std::sync::Arc::new(
+        NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap(),
+    ))
+}
+
+/// Corrupt DESCRIBED geometry: every control point carries poison in
+/// `x` over finite `y`/`z`. Poison in some channel of every point, not
+/// in every channel — so this is not the placeholder, and it claims a
+/// locus it cannot evaluate.
+fn poisoned_net() -> Surface<f64> {
+    bilinear_net((0..4).map(|i| pt(f64::NAN, f64::from(i), 2.0)).collect())
+}
+
+/// The same knots and weights over finite control points: real
+/// geometry, and the control for the row above.
+fn finite_net() -> Surface<f64> {
+    bilinear_net(
+        (0..4)
+            .map(|i| pt(f64::from(i % 2), f64::from(i / 2), 0.0))
+            .collect(),
+    )
+}
+
+/// The refusals a body draws once the check-1 surface verdicts are
+/// taken out of it — what the REST of tier 3 says about the same face.
+fn without_surface_verdicts(errs: &[ValidationError]) -> Vec<ValidationError> {
+    errs.iter()
+        .filter(|e| {
+            !matches!(
+                e,
+                ValidationError::UncertifiableSurface { .. }
+                    | ValidationError::PoisonedSurfaceDescription { .. }
+            )
+        })
+        .cloned()
+        .collect()
+}
+
+fn pillow_on(surface: Surface<f64>, tol: Tol) -> (Vec<ValidationError>, crate::entity::FaceKey) {
+    let (mut body, split) = coplanar_pillow(tol);
+    assert_eq!(validate_geometric(&body, tol), Ok(()));
+    body.set_face_surface(split.face, FaceSurface::New(surface))
+        .unwrap();
+    assert_eq!(validate(&body), Ok(()), "structurally still coherent");
+    (
+        validate_geometric(&body, tol).expect_err("the swapped chart is refused at rest"),
+        split.face,
+    )
+}
+
+/// A face carrying a described net that is poisoned in one channel is
+/// named by check 1 ITSELF, and named as the state it is in: not the
+/// placeholder's verdict, which is the benign "no description yet".
+#[test]
+fn a_described_net_carrying_poison_is_named_by_the_surface_check() {
+    let tol = Tol::witness();
+    let (errs, face) = pillow_on(poisoned_net(), tol);
+    assert!(
+        errs.contains(&ValidationError::PoisonedSurfaceDescription { face }),
+        "check 1 must name the corrupt described surface: {errs:?}",
+    );
+    assert!(
+        !errs
+            .iter()
+            .any(|e| matches!(e, ValidationError::UncertifiableSurface { .. })),
+        "the placeholder's verdict is a different state's answer: {errs:?}",
+    );
+}
+
+/// The control, and what makes the row above a statement about check 1
+/// rather than about the body: the same face, the same knots and
+/// weights, FINITE control points — no surface verdict of either kind.
+///
+/// What the rest of tier 3 says is identical in the two runs (the
+/// swapped face's edges describe the chart they were attached to, which
+/// is check 2's adjacency finding either way). So check 2 cannot tell
+/// corrupt described geometry from honest described geometry, and the
+/// refusal that separates them has to be check 1's own.
+#[test]
+fn a_finite_described_net_draws_no_surface_verdict() {
+    let tol = Tol::witness();
+    let (finite, _) = pillow_on(finite_net(), tol);
+    assert_eq!(
+        without_surface_verdicts(&finite),
+        finite,
+        "real geometry earns no verdict from the surface check: {finite:?}",
+    );
+    let (poisoned, _) = pillow_on(poisoned_net(), tol);
+    assert_eq!(
+        without_surface_verdicts(&poisoned),
+        finite,
+        "every other check answers the two states alike: {poisoned:?}",
+    );
 }
 
 #[test]

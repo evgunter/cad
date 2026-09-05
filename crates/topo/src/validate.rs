@@ -421,6 +421,20 @@ pub enum ContactMark {
 /// (`Eq` dropped at M2 PR 3: the tier-3 variants carry margin
 /// diagnostics with `f64` payloads.)
 #[derive(Clone, Debug, PartialEq)]
+// The companion fieldless enum is the compiler's own statement of this
+// enum's variants and their order: the Display-coverage row indexes by
+// it and sizes its array from its `COUNT`, so neither the count nor the
+// order is written down twice. Test builds only — nothing in the
+// production surface names it.
+#[cfg_attr(test, derive(strum::EnumDiscriminants))]
+#[cfg_attr(
+    test,
+    strum_discriminants(
+        name(ValidationErrorKind),
+        vis(pub(crate)),
+        derive(strum::EnumCount, strum::EnumIter)
+    )
+)]
 pub enum ValidationError {
     /// Tier 3: the run's tolerance could not produce a valid
     /// classification band (absurd ε — see `Band::linear`). Reported
@@ -444,15 +458,36 @@ pub enum ValidationError {
     /// must be replaced via `Body::set_face_surface` before rest.
     /// Nothing can be certified against poison.
     ///
-    /// Since M6-3 this names ONLY the placeholder: a **described**
-    /// NURBS surface (finite control net) is real geometry and passes
-    /// check 1 — its seams certify through the chart iso-line pcurve lane
-    /// (`Pcurve::IsoLine`) and its
-    /// volume flux through the quadrature door. The two states used to
-    /// be conflated here; `NurbsSurface::is_placeholder` is the one
-    /// shared discriminator.
+    /// This names ONLY the placeholder. A `Nurbs` payload has THREE
+    /// states and check 1 answers each with its own arm: the
+    /// placeholder reports here; a **described** net of finite data is
+    /// real geometry and passes (its seams certify through the chart
+    /// iso-line pcurve lane, `Pcurve::IsoLine`, and its volume flux
+    /// through the quadrature door); a described net carrying poison
+    /// reports [`ValidationError::PoisonedSurfaceDescription`].
+    /// `NurbsSurface::is_placeholder` and
+    /// `NurbsSurface::carries_poison` are the shared discriminators.
     UncertifiableSurface {
         /// The face whose surface is the placeholder.
+        face: FaceKey,
+    },
+    /// Tier 3: a face's surface is a **described** `Nurbs` net that
+    /// carries poison in some channel of some control point — corrupt
+    /// described geometry.
+    ///
+    /// The distinction from [`ValidationError::UncertifiableSurface`]
+    /// is the distinction between two states, not two symptoms. The
+    /// placeholder is the benign one: `mvfs` mints it to say "no
+    /// description yet", and a body mid-surgery legitimately carries
+    /// it. This is a surface that CLAIMS to describe a locus and
+    /// cannot — evaluation on it yields poison in the poisoned channel
+    /// and finite values in the others, so a consumer reading only the
+    /// finite channels gets an answer the geometry does not support.
+    /// `geom`'s totality-and-poison rule requires such a net to fail at
+    /// every consumer's described arm; this is that arm for a face's
+    /// surface.
+    PoisonedSurfaceDescription {
+        /// The face whose surface net carries the poison.
         face: FaceKey,
     },
     /// Tier 3: a face's **approximating** surface failed to
@@ -1539,7 +1574,13 @@ impl fmt::Display for ValidationError {
                 f,
                 "face {face:?}'s surface is the Nurbs PLACEHOLDER (mvfs's all-poison \
                  'no description yet' state) — uncertifiable at rest; attach the real \
-                 surface. A described NURBS surface passes this check"
+                 surface. A described NURBS surface of finite data passes this check"
+            ),
+            Self::PoisonedSurfaceDescription { face } => write!(
+                f,
+                "face {face:?}'s surface is a DESCRIBED Nurbs net carrying poison in some \
+                 channel — a description that claims a locus and cannot evaluate one. Not \
+                 the placeholder, which is the benign 'no description yet' state"
             ),
             Self::ApproxCertification { face, error } => write!(
                 f,
@@ -2179,10 +2220,14 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 /// tier's start): all of tier 2 ([`validate_closed`]), then the
 /// geometric re-checks at rest, in documented order:
 ///
-/// 1. **Surface implementedness** (faces, arena order): no face's
-///    surface is the `Nurbs` representable-unimplemented placeholder
-///    ([`ValidationError::UncertifiableSurface`]) — nothing can be
-///    certified against it at M2 — and every torus honours D3's ring
+/// 1. **Surface implementedness** (faces, arena order): a `Nurbs`
+///    payload's three states are told apart — no face's surface is the
+///    representable-unimplemented placeholder
+///    ([`ValidationError::UncertifiableSurface`], nothing can be
+///    certified against it) and none is a described net carrying
+///    poison ([`ValidationError::PoisonedSurfaceDescription`], a
+///    description that cannot evaluate), while a described net of
+///    finite data passes; and every torus honours D3's ring
 ///    convention `R > r > 0`
 ///    ([`ValidationError::DegenerateTorus`] /
 ///    [`ValidationError::DegenerateTorusEscalated`]).
@@ -2939,15 +2984,25 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // ------------------------------------------------------------------
     // Tier 3, check 1: surface implementedness (face-arena order).
     //
-    // M6-3 flip A: a DESCRIBED NURBS surface (finite control net) is
-    // real geometry — the loft/sweep assembly mints faces on it, its
-    // seams certify through the chart iso-line pcurve lane
-    // (`Pcurve::IsoLine`), and its volume flux
-    // goes through the quadrature door — so it passes here. What keeps
-    // refusing is the mvfs PLACEHOLDER (all-poison control points),
-    // which is a mid-surgery "no description yet" fact, never a
-    // certifiable surface. One discriminator, shared:
-    // `NurbsSurface::is_placeholder`.
+    // A `Nurbs` payload is in one of THREE states and each gets its own
+    // answer here, in the order the arms are written:
+    //
+    //   - the mvfs PLACEHOLDER (every channel of every control point
+    //     poison) is a mid-surgery "no description yet" fact, never a
+    //     certifiable surface — `UncertifiableSurface`;
+    //   - a DESCRIBED net carrying poison in some channel is a
+    //     description that cannot evaluate one, and `geom`'s
+    //     totality-and-poison rule puts its refusal at each consumer's
+    //     described arm — this is that arm for a face's surface;
+    //   - a DESCRIBED net of finite data is real geometry and passes:
+    //     the loft/sweep assembly mints faces on it, its seams certify
+    //     at check 2 through the chart iso-line pcurve lane
+    //     (`Pcurve::IsoLine`) and its volume flux at check 7 through
+    //     the quadrature door.
+    //
+    // The two discriminators are `geom`'s and are asked in that order,
+    // because a placeholder answers `carries_poison` too:
+    // `NurbsSurface::is_placeholder` then `NurbsSurface::carries_poison`.
     //
     // A torus is implemented only under D3's ring convention
     // `R > r > 0`: a horn or spindle torus puts a singular point on the
@@ -2961,6 +3016,14 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
             Some(Surface::Nurbs(payload)) if payload.is_placeholder() => {
                 errors.push(ValidationError::UncertifiableSurface { face: face_key });
             }
+            Some(Surface::Nurbs(payload)) if payload.carries_poison() => {
+                errors.push(ValidationError::PoisonedSurfaceDescription { face: face_key });
+            }
+            // The described net of finite data: real geometry, and the
+            // checks that examine it are elsewhere — its seams at check
+            // 2, its flux at check 7. Nothing about the payload itself
+            // is a tier-3 fact.
+            Some(Surface::Nurbs(_)) => {}
             // The approximating surface's re-derivation (O5): the
             // two-limb certificate is recomputed from the stored
             // description and fit on EVERY call, and the stored
@@ -3031,7 +3094,27 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
                     }
                 }
             }
-            _ => {}
+            // A plane's stored frame carries no datum that can fail to
+            // describe a locus: every triple of an origin and two
+            // directions is a plane, and the frame's own conventions
+            // (unit, orthogonal) are the crate's unchecked kind.
+            Some(Surface::Plane { .. }) => {}
+            // The quadric datums — a cylinder's and a sphere's radius,
+            // a cone's half-angle — are conventional-and-unchecked in
+            // `geom` and no tier-3 check reads them. The torus arm
+            // above is the one datum check at rest, and it is here
+            // because D3's ring convention is a REPRESENTABILITY claim
+            // (a horn or spindle torus has a chart singularity no chart
+            // in the tree represents), not because a stored radius is
+            // checked anywhere as a matter of course.
+            Some(Surface::Cylinder { .. }) => {}
+            Some(Surface::Sphere { .. }) => {}
+            Some(Surface::Cone { .. }) => {}
+            // Cascade discipline: a face whose surface key does not
+            // resolve is tier 1's `DanglingGeometry`, already reported,
+            // and the coarse gate means we never reach here in that
+            // case.
+            None => {}
         }
     }
 
@@ -5935,93 +6018,12 @@ mod tests {
 
     #[test]
     fn errors_display_without_panicking() {
-        // One sample per `ValidationError` variant.
-        //
-        // What the compiler enforces: `variant_index` matches the enum
-        // with NO wildcard arm, so a new variant fails to build until an
-        // arm exists for it, and the coverage assertion then names the
-        // variant whose sample is missing.
-        //
-        // What it does NOT enforce: `VARIANTS` is hand-written, so a new
-        // variant given an arm but no sample still passes. Closing that
-        // needs the variant count from the compiler — `strum`'s
-        // `EnumCount` derive or the workspace's first proc-macro crate —
-        // and neither is bought here. When you add an arm, its index is
-        // the new `VARIANTS - 1`.
-        const VARIANTS: usize = 69;
-        fn variant_index(e: &ValidationError) -> usize {
-            match e {
-                ValidationError::Band { .. } => 0,
-                ValidationError::DanglingDescription { .. } => 1,
-                ValidationError::UncertifiableSurface { .. } => 2,
-                ValidationError::EdgeCertification { .. } => 3,
-                ValidationError::DescriptionNotAdjacent { .. } => 4,
-                ValidationError::PlanarFaceResidual { .. } => 5,
-                ValidationError::PlanarFaceEscalated { .. } => 6,
-                ValidationError::PlanarBoundaryResidual { .. } => 7,
-                ValidationError::PlanarBoundaryEscalated { .. } => 8,
-                ValidationError::SliverDihedral { .. } => 9,
-                ValidationError::TransverseNotIntrinsic { .. } => 10,
-                ValidationError::TangentNotIntrinsic { .. } => 11,
-                ValidationError::UndeclaredCusp { .. } => 67,
-                ValidationError::LaminaWedge { .. } => 68,
-                ValidationError::LoopRoleInverted { .. } => 12,
-                ValidationError::CurvedSenseInverted { .. } => 13,
-                ValidationError::NegativeVolume => 14,
-                ValidationError::VolumeUncomputable { .. } => 15,
-                ValidationError::Pcurve { .. } => 16,
-                ValidationError::UndeclaredContact { .. } => 17,
-                ValidationError::StaleContactDeclaration { .. } => 18,
-                ValidationError::ContactContradicted { .. } => 19,
-                ValidationError::CensusEscalated { .. } => 20,
-                ValidationError::CensusUnsupported { .. } => 21,
-                ValidationError::CensusUndecidable { .. } => 22,
-                ValidationError::DanglingTopology { .. } => 23,
-                ValidationError::DanglingGeometry { .. } => 24,
-                ValidationError::NextPrevMismatch { .. } => 25,
-                ValidationError::LoopCycleOverrun { .. } => 26,
-                ValidationError::ParentLoopMismatch { .. } => 27,
-                ValidationError::UnreachableHalfEdge { .. } => 28,
-                ValidationError::EdgeHalvesIdentical { .. } => 29,
-                ValidationError::EdgeSlotBackpointerMismatch { .. } => 30,
-                ValidationError::HalfEdgeUnclaimed { .. } => 31,
-                ValidationError::HalfEdgeMultiplyClaimed { .. } => 32,
-                ValidationError::EdgeNotAntiparallel { .. } => 33,
-                ValidationError::EmanatingStartMismatch { .. } => 34,
-                ValidationError::EmptyLoopVertexWithEmanating { .. } => 35,
-                ValidationError::LoneVertexWithIncidence { .. } => 36,
-                ValidationError::VertexOrbitOverrun { .. } => 37,
-                ValidationError::OrbitForeignMember { .. } => 38,
-                ValidationError::SplitVertexOrbit { .. } => 39,
-                ValidationError::OuterListedAsRing { .. } => 40,
-                ValidationError::BackPointerMismatch { .. } => 41,
-                ValidationError::OrphanEntity { .. } => 42,
-                ValidationError::MultiplyOwned { .. } => 43,
-                ValidationError::OrphanGeometry { .. } => 44,
-                ValidationError::SolidWithoutShells { .. } => 45,
-                ValidationError::ShellWithoutFaces { .. } => 46,
-                ValidationError::EdgeAcrossShells { .. } => 47,
-                ValidationError::ComponentEulerViolation { .. } => 48,
-                ValidationError::MissingProvenance { .. } => 49,
-                ValidationError::LeakedProvenance { .. } => 50,
-                ValidationError::ScaffoldingEmptyLoop { .. } => 51,
-                ValidationError::ScaffoldingStrutVertex { .. } => 52,
-                ValidationError::ShellDisconnected { .. } => 53,
-                ValidationError::NullScaffoldShared { .. } => 54,
-                ValidationError::LeakedNullFaceRecord { .. } => 55,
-                ValidationError::StaleNullFaceLoop { .. } => 56,
-                ValidationError::NullEdgeAtRest { .. } => 57,
-                ValidationError::NullFaceAtRest { .. } => 58,
-                ValidationError::DegenerateTorus { .. } => 59,
-                ValidationError::DegenerateTorusEscalated { .. } => 60,
-                ValidationError::NonpositiveTorusTube { .. } => 61,
-                ValidationError::ApproxCertification { .. } => 62,
-                ValidationError::ApproxLaneUnsupported { .. } => 63,
-                ValidationError::RingMeetsOuter { .. } => 64,
-                ValidationError::RingContactEscalated { .. } => 65,
-                ValidationError::ScaffoldAtRest { .. } => 66,
-            }
-        }
+        // One sample per `ValidationError` variant, indexed by the
+        // enum's own compiler-derived companion: `ValidationErrorKind`
+        // supplies both the index and the count, so a variant added
+        // without a sample fails this row by name and nothing here
+        // restates the enum.
+        use strum::{EnumCount as _, IntoEnumIterator as _};
         fn band_error() -> geom_core::BandError {
             geom_core::Band::new(1.0, 0.0).unwrap_err()
         }
@@ -6157,6 +6159,7 @@ mod tests {
                 to: GeomRef::Point(t.points[0]),
             },
             ValidationError::UncertifiableSurface { face: t.face_a },
+            ValidationError::PoisonedSurfaceDescription { face: t.face_a },
             ValidationError::EdgeCertification {
                 edge: e,
                 error: CertifyError::Unimplemented,
@@ -6263,17 +6266,20 @@ mod tests {
             },
             ValidationError::ApproxLaneUnsupported { face: t.face_a },
         ];
-        let mut covered = [false; VARIANTS];
+        let mut covered = [false; ValidationErrorKind::COUNT];
         for err in &all {
             // Display and Error are wired up; content is human-oriented.
             assert!(!err.to_string().is_empty());
             let _: &dyn std::error::Error = err;
-            covered[variant_index(err)] = true;
+            covered[ValidationErrorKind::from(err) as usize] = true;
         }
+        let missing: Vec<ValidationErrorKind> = ValidationErrorKind::iter()
+            .zip(covered)
+            .filter_map(|(kind, seen)| (!seen).then_some(kind))
+            .collect();
         assert!(
-            covered.iter().all(|&c| c),
-            "every ValidationError variant needs a Display sample; missing index {:?}",
-            covered.iter().position(|&c| !c),
+            missing.is_empty(),
+            "every ValidationError variant needs a Display sample; missing {missing:?}",
         );
     }
 

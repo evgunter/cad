@@ -303,6 +303,34 @@ impl<T: Real> NurbsSurface<T> {
         net::is_placeholder(&self.control)
     }
 
+    /// Does the control net carry poison in **any** channel of any
+    /// point? The `any` question, whose one implementation is
+    /// `net::any_poison` — the same door the box constructors screen
+    /// on, read here as the second half of a state test.
+    ///
+    /// Asked after [`NurbsSurface::is_placeholder`], the pair separates
+    /// the three states a payload can be in:
+    ///
+    /// | state | `is_placeholder` | `carries_poison` |
+    /// | --- | --- | --- |
+    /// | the mvfs placeholder — every channel of every point poison | `true` | `true` |
+    /// | a described net of finite data | `false` | `false` |
+    /// | a described net carrying poison somewhere | `false` | `true` |
+    ///
+    /// The third row is the one this door exists for: the crate docs'
+    /// totality-and-poison section rules that such a net is corrupt
+    /// *described* geometry, which must reach each consumer's
+    /// described arm and fail there rather than be handed the
+    /// placeholder's benign "nothing to answer here".
+    ///
+    /// Which values count as poison is the scalar's own answer
+    /// ([`geom_core::Real::is_poison`]), so the SET of nets this
+    /// admits differs between `f64`, the interval scalar and `Dual` —
+    /// the crate docs say why.
+    pub fn carries_poison(&self) -> bool {
+        net::any_poison(&self.control)
+    }
+
     /// The u-direction knot vector.
     pub fn knots_u(&self) -> &KnotVector {
         &self.knots_u

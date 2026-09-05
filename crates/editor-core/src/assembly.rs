@@ -910,6 +910,7 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
         ValidationError::Band { .. }
         | ValidationError::DanglingDescription { .. }
         | ValidationError::UncertifiableSurface { .. }
+        | ValidationError::PoisonedSurfaceDescription { .. }
         | ValidationError::DegenerateTorus { .. }
         | ValidationError::DegenerateTorusEscalated { .. }
         | ValidationError::NonpositiveTorusTube { .. }
