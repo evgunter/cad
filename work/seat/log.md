@@ -522,6 +522,18 @@ predicate rows and the `select_where` behavior pinned unchanged (the
 query suite carries them, and TOPO's PR should cite that they are
 green untouched.
 
+## Announced seam from PROPS (2026-09-05): the verdict bracket in `eval/mod.rs`
+
+PROPS' verdict-recording lane (`docs/PROPS-KSTATS-SPEC.md`, unit
+`k-stats-escalation-channel-and-redo`) replaces `geom_core::k_stats`'s
+`start_verdict_log`/`take_verdict_log` pair with an RAII bracket that
+carries a stack (the nesting fix the module doc's OPEN OBLIGATION names)
+and records escalations beside verdicts. In `crates/editor-core/src/eval/mod.rs`
+it touches exactly the one production bracket around `wire::run_op`
+(~:2448-2475) and adds `NodeValue::escalations` beside `verdicts` (not
+serialized, like its neighbour). Nothing else in `eval/` or the schema
+moves. Dispatches when a lane slot frees; the PR body names the edit.
+Signed (PROPS orchestrator).
 ## Two lessons from SEAT-8's dual, banked (2026-09-05)
 
 Both review arms delivered zero MAJORs and converged; two things
@@ -535,3 +547,45 @@ gains the bound fact both arms measured: the shell doors are bounded
 tighter than `Verb`'s impl header and that header cannot tighten
 without breaking the `Dual` caller — the shell arm needs its own door
 under its own bound, priced there rather than waved past.
+
+## SEAT-8 MERGED (2026-09-05, PR 1950)
+
+Split is on the Verb substrate: `Verb::Split { plane }` with the body
+as its one operand, a per-door out-type carrying two `Body | Empty`
+sides under one record (argued as a choice, not a force — the
+record-with-body door was available), `Arity::Split` as door
+vocabulary now with an `Arity::ALL` census so a fifth row reds, a
+door-agnostic mismatch sentence that stops moving every unit, tag 7
+pinned, the one-index-space stamp a guard, the `Empty` token live on
+an in-suite empty-side document (the corpus has none — now a scanned
+row, not a reading), the D7 pinch lane's premise asserted, four
+digests reproduced on the true base. The costing landed exactly on
+SEAT-7's prediction. The dual (R1 fable + R2 opus): zero MAJORs,
+converged on the shell forward-costing claim (now priced honestly —
+`docs/SEAT-9-SPEC.md` carries the bound fact), on `Arity` being
+compile-forced nowhere, and on the unpinned tool label; R2's two class
+findings landed as consolidations at the fix — the record-unwrap rule
+has ONE home (`verbs/mod.rs::read_record` with per-correspondence
+projections; five copies gone) and the provenance digest has ONE home
+(`tests/fixture/digest.rs`, exhaustive over `ValuePayload`; SEAT-7's
+five constants re-minted because its copy never fed a boolean or a
+split, all twelve reproduced on the base). The fix lane died once at
+startup on a usage limit and resumed on the same arm (~45 min
+annotated). Reported for the slate: `pinch_prism` is a cross-crate
+fixture twin of `topo`'s euler-built `MIRRORED` prism (a third home
+would not fix it — recorded, unscheduled). Full row: MODEL-AB-LOG
+SEAT8 (ordinal 1008, sample #139 at merge); `docs/SEAT-8-SPEC.md`
+deleted at this merge per `docs/DOC-LEDGER.md`.
+
+Next: SEAT-FW (the flush detector's curved widening) on block
+SEAT-B3's next slot; SEAT-DN and SEAT-9 behind it, both ruled.
+
+## SEAT-FW DISPATCHED (2026-09-05)
+
+SEAT-8 merged at 29b073e5 (PR 1950). SEAT-FW — the flush detector's
+curved widening, `docs/SEAT-FW-SPEC.md` — dispatches on block SEAT-B3's
+second slot. Its substance is a content review: the swap is one
+identifier, and every demo wall whose answer changes is argued right
+or the change is a reported fork. Demo scenes other programs cite by
+line are updated, not re-authored, beyond the declaration assembly the
+unit owns; moved register lines are logged here at merge.
