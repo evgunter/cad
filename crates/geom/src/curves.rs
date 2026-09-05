@@ -56,7 +56,7 @@ use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::azimuth;
-pub use nurbs::{NurbsCurve2, NurbsCurve3};
+pub use nurbs::{CurveWindow2, CurveWindow3, NurbsCurve2, NurbsCurve3};
 pub use projection::{Projection2, Projection3, ProjectionInconclusive};
 
 /// An analytic 3-D curve — a **complete locus**. Units, the
@@ -1121,10 +1121,10 @@ mod tests {
             panic!("fixture is a NURBS");
         };
         for t in knot_and_span_params(&c) {
-            let span = n.knots().span_at(t);
-            let (p, d) = n.ders1_in_span(span, t);
-            let q = n.eval_in_span(span, t);
-            let e = n.deriv_in_span(span, t);
+            let span = n.span_at(t);
+            let (p, d) = span.ders1_in_span(t);
+            let q = span.eval_in_span(t);
+            let e = span.deriv_in_span(t);
             for (name, a, b) in [
                 ("x", p.x, q.x),
                 ("y", p.y, q.y),

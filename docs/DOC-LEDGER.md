@@ -935,3 +935,22 @@ than a record-with-body door, argued in the unit's PR as a choice, not
 a force. The rule above; the unit's record is its item's `## Closed`
 section (`work/seat/SEAT-8.md`) and its MERGED entry in
 `work/seat/log.md`; its A/B row is MODEL-AB-LOG SEAT8.
+
+## Per-merge deletion — PROPS span's spec (2026-09-05)
+
+Recoverable at `git show c4cfa1c5a9349b18c67bf911f29befb610d1c9eb:docs/PROPS-SPAN-SPEC.md`
+(the last commit on `main` carrying it). Two of its clauses were argued
+rather than met, and the argument is in the unit's PR: it kept the three
+surface `*_in_span` doors on `NurbsSurface` and, by the same shape, the
+curve doors on `NurbsCurve`, on the premise that a door reading the
+window's surface makes the mismatch "a type-level mismatch". Rust
+lifetimes do not brand — two live references unify — so a door taking
+`(structure, proof)` leaves the mismatch representable, and at the curve
+half it left an index panic where the retired guard had returned poison.
+Both families of doors therefore moved ONTO the windows
+(`CurveWindow{2,3}`, `SurfaceWindow`), which is the only spelling in
+which the pairing is unrepresentable. The rule above; the unit's record
+is PR 1952's body, `work/props/span-carries-its-knot-vector.md` and the
+residue item `work/props/coefficients-carry-their-knot-vector.md`.
+
+- `PROPS-SPAN-SPEC.md` — PROPS span, `Span<'a>` carries its `KnotVector` (#1952)
