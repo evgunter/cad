@@ -20,7 +20,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::{PI, TAU};
+use core::f64::consts::PI;
 
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
@@ -129,34 +129,35 @@ fn ends(body: &Body<f64>, k: EdgeKey) -> (VertexKey, VertexKey) {
     )
 }
 
-fn is_rotation(a: &[EdgeKey], b: &[EdgeKey]) -> bool {
-    a.len() == b.len() && (0..a.len()).any(|k| (0..a.len()).all(|i| a[(i + k) % a.len()] == b[i]))
-}
-
-/// **A double cover of half the circle passes the tiling test.** The
-/// first arc covers azimuth `0 → π` wound `+z`; the second is stated on
-/// the negated-value circle over `t ∈ (π, 2π)`, i.e. azimuth `-π → -2π`
-/// — the SAME upper half, traversed back from `V1` to `V0`. Every
-/// stored `center`, `radius` and `|axis|` bit matches, the walk closes
-/// on the second step having consumed both arcs, and the door answers
-/// a rim whose two arcs overlap and leave the lower half bare.
+/// **A double cover of half the circle passes the chain test.** Both
+/// arcs cover azimuth `0 → π` wound `+z` on ONE stored circle — the
+/// same `rim_circle()` value, so nothing here depends on how the match
+/// treats an opposite axis — and both run `V0 → V1`. The walk closes
+/// on the second step having consumed both, and the door answers a rim
+/// whose two arcs lie on top of each other and leave the lower half
+/// bare.
+///
+/// The door's contract now says this in as many words: the test is a
+/// closed chain on shared vertices, not a covering test. The durable
+/// home for the gap is issue `rim-door-admits-a-double-cover`; what
+/// refuses such a body is tier 3, printed rather than asserted below.
 #[test]
 fn a_double_cover_of_half_the_circle_is_answered_as_a_rim() {
     let tol = Tol::witness();
     let (mut body, first) = half_built();
     let e = body.get_edge(first).unwrap();
-    // `he_plus` of the new edge runs start(he1) → start(he2) = V1 → V0.
+    // `he_plus` of the new edge runs start(he1) → start(he2) = V0 → V1.
     let made = body
         .mef(
             MefSite::Chords {
-                he1: e.he_minus,
-                he2: e.he_plus,
+                he1: e.he_plus,
+                he2: e.he_minus,
             },
-            EdgeCurveSpec::arc_of_circle(rim_circle_negated_value(), PI, TAU).unwrap(),
+            EdgeCurveSpec::arc_of_circle(rim_circle(), 0.0, PI).unwrap(),
             FaceSurface::New(rim_plane()),
             tol,
         )
-        .expect("the second arc certifies against V1 → V0");
+        .expect("the second arc certifies against V0 → V1");
     let second = made.edge;
     // The two arcs cover the same half: their midpoints coincide.
     let mid = |k: EdgeKey| {
@@ -188,14 +189,24 @@ fn a_double_cover_of_half_the_circle_is_answered_as_a_rim() {
     );
 }
 
-/// **With a negated-axis arc in the rim, the two answers are not
-/// rotations of each other.** Three arcs tile the circle: `a` and `b`
-/// wound `+z` (azimuth `0 → 2π/3 → 4π/3`), `c` stored on the
-/// negated-value circle (`t ∈ (0, 2π/3)`, azimuth `0 → -2π/3`, i.e.
-/// `V0 → V2` closing the last third). Each seed's answer runs its own
-/// carrier's positive direction, as the door documents — and the two
-/// directions are opposite, so `rim_of(c)` is the reversal of
-/// `rim_of(a)`, not a rotation of it.
+/// **A negated-axis arc is not matched, and the rim refuses.** This
+/// row began as the counterexample to the door's rotation claim: three
+/// arcs tile the circle — `a` and `b` wound `+z` (azimuth
+/// `0 → 2π/3 → 4π/3`), `c` stored on the negated-VALUE circle
+/// (`t ∈ (0, 2π/3)`, azimuth `0 → -2π/3`, i.e. `V0 → V2` closing the
+/// last third) — and while the match admitted a negated axis, each
+/// seed's answer ran its own carrier's direction, so `rim_of(c)` came
+/// back the REVERSAL of `rim_of(a)` rather than a rotation.
+///
+/// The body is unchanged and the expectation is rewritten, because the
+/// fix went to the door: `same_circle` compares `axis` bit for bit and
+/// admits no negation, so `c` is not one of `a`'s matched arcs at all.
+/// What the row pins now is the consequence — the rim refuses
+/// `NotOneRim` from every seed, naming the arcs it did match — and, by
+/// that, the price of the unconditional rotation claim: a body whose
+/// arcs geometrically tile is refused rather than answered in an order
+/// no caller could rely on. Phase 1 is why that price is zero on the
+/// corpus: no producer stores a rim's arcs on opposed axes.
 #[test]
 fn a_negated_axis_arc_breaks_the_rotation_claim_on_a_three_arc_rim() {
     let tol = Tol::witness();
@@ -249,21 +260,55 @@ fn a_negated_axis_arc_breaks_the_rotation_claim_on_a_three_arc_rim() {
     assert_eq!(c0, a0, "c starts where a starts (V0)");
     assert_ne!(c1, a1, "and ends at V2, not V1");
 
-    let from_a = rim_of(&body, a).expect("three arcs tile the circle");
-    let from_b = rim_of(&body, b).expect("from b too");
-    let from_c = rim_of(&body, c).expect("and from the negated-axis arc");
-    assert_eq!(from_a, vec![a, b, c]);
-    assert!(is_rotation(&from_a, &from_b), "a and b share a winding");
-    assert_eq!(
-        from_c,
-        vec![c, b, a],
-        "the negated-axis seed walks its own positive direction — the reverse"
+    // `a` and `b` share a stored axis and match each other; `c` does
+    // not match either, so no seed sees a chain that closes.
+    match rim_of(&body, a) {
+        Err(RimError::NotOneRim { arcs, gap }) => {
+            assert_eq!(
+                arcs,
+                vec![a, b],
+                "the negated-axis arc is not on a's circle, so it is not matched"
+            );
+            assert!(
+                (gap - 4.0 * PI / 3.0).abs() < 1e-12 || (gap + 2.0 * PI / 3.0).abs() < 1e-12,
+                "the walk dangles at V2, whose azimuth is 4π/3 ≡ -2π/3, got {gap}"
+            );
+        }
+        other => panic!("a rim with an opposed-axis arc refuses, got {other:?}"),
+    }
+    match rim_of(&body, c) {
+        Err(RimError::NotOneRim { arcs, .. }) => assert_eq!(
+            arcs,
+            vec![c],
+            "and from the opposed seed only its own arc matches"
+        ),
+        other => panic!("and from the negated-axis seed too, got {other:?}"),
+    }
+    // The claim the refusal buys: every rim the door DOES answer is
+    // answered in one winding, because every matched arc shares the
+    // seed's stored axis. `a` and `b` do; `c` is exactly the arc that
+    // does not, and it is the one refused.
+    let a_axis = stored_axis(&body, a);
+    assert_eq!(a_axis, stored_axis(&body, b), "a and b share a winding");
+    assert_ne!(
+        a_axis,
+        stored_axis(&body, c),
+        "and c does not — which is why it is refused"
     );
-    assert!(
-        !is_rotation(&from_a, &from_c),
-        "the doc's unconditional rotation claim fails once the match's own \
-         negated-axis admission is exercised"
-    );
+}
+
+/// An edge's stored carrier axis, as bits — the datum `same_circle`
+/// compares, and what this row asserts two of these arcs disagree on.
+fn stored_axis(body: &Body<f64>, k: EdgeKey) -> [u64; 3] {
+    let g = body
+        .get_curve_geom(body.get_edge(k).unwrap().curve)
+        .unwrap()
+        .certified()
+        .unwrap();
+    match *g.carrier() {
+        Curve3::Circle { axis, .. } => [axis.x.to_bits(), axis.y.to_bits(), axis.z.to_bits()],
+        ref other => panic!("a rim arc is a circle, got {other:?}"),
+    }
 }
 
 /// **The residue, executed.** The closing arc tiles the lower half

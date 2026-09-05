@@ -324,8 +324,11 @@ const ROSTER: &[Site] = &[
     Site {
         path: "crates/topo/src/query.rs",
         subject: "order_rim",
-        why: Selection(
-            "`rim_of`'s chain walk, on its bound: the tiling test is vertex-key equality and the one bracket read is the refusal's gap parameter (DL5(a))",
+        why: Payload(
+            "`rim_of`'s chain walk. Its ONE bracket read is the refusal's gap parameter, \
+             which becomes an `f64` field of `NotOneRim` and stops there — DL5(a), not a \
+             selection: the walk itself branches on vertex-KEY equality and never on a \
+             bracket. The bound is carried because the read is in this function",
         ),
     },
     Site {

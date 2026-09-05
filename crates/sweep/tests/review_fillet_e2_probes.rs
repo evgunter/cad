@@ -26,6 +26,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use core::f64::consts::PI;
+
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::build::fillet_edges;
@@ -223,6 +225,16 @@ fn the_geometry_recourse_reaches_the_front_door_at_a_line_ring() {
     }
 }
 
+/// An edge's certified carrier-parameter interval — the fixture-side
+/// read the open-arc row measures its refusal's `gap` against.
+fn carrier_params(body: &Body<f64>, k: EdgeKey) -> (f64, f64) {
+    body.get_curve_geom(body.get_edge(k).unwrap().curve)
+        .unwrap()
+        .certified()
+        .unwrap()
+        .params()
+}
+
 /// **The chain gate behind `CORNER_SUPPORT_NOT_PLANAR`, and the rim the
 /// assembly recourse does not name.**
 ///
@@ -248,10 +260,33 @@ fn open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves() 
         // and the parameter it stops at rather than handing back a
         // partial rim a fillet request would then stall on.
         match topo::query::rim_of(&half, *a) {
-            Err(RimError::NotOneRim { arcs: matched, .. }) => assert!(
-                matched.contains(a),
-                "the refusal names the arcs that matched, {a:?} among them"
-            ),
+            Err(RimError::NotOneRim { arcs: matched, gap }) => {
+                // The door matches on this arc's OWN circle and its OWN
+                // support pair, so it names FEWER arcs than the radius
+                // scan found — the scan's other hits at this radius sit
+                // between different surfaces. A door that matched across
+                // support pairs would fail here.
+                assert!(
+                    matched.len() < arcs.len(),
+                    "the door is narrower than the radius scan: it named \
+                     {matched:?} of the scan's {arcs:?}"
+                );
+                // And the walk stops at one of THIS arc's own ends: an
+                // open arc dangles at the end it does not close onto.
+                let ends = carrier_params(&half, *a);
+                let wrapped = |t: f64| {
+                    let x = t.rem_euclid(core::f64::consts::TAU);
+                    if x > PI {
+                        x - core::f64::consts::TAU
+                    } else {
+                        x
+                    }
+                };
+                assert!(
+                    (gap - wrapped(ends.0)).abs() < 1e-9 || (gap - wrapped(ends.1)).abs() < 1e-9,
+                    "the gap is at one of the arc's own endpoints {ends:?}, got {gap}"
+                );
+            }
             other => panic!("an open arc is not one rim, got {other:?}"),
         }
         let err = refusal(&half, &[*a], 0.05, "an open plane–sphere arc");

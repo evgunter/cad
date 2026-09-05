@@ -16,6 +16,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use std::collections::BTreeSet;
+
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Point3, Tol, Vec3};
@@ -30,6 +32,12 @@ fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
 
 fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
     Vec3::new(x, y, z)
+}
+
+/// A point of the rim circle at azimuth `theta`.
+fn point_at(theta: f64) -> Point3<f64> {
+    let (s, c) = theta.sin_cos();
+    p3(rim_r() * c, rim_r() * s, RIM_Z)
 }
 
 /// The rim's latitude, and the radius that follows on the unit sphere.
@@ -168,6 +176,85 @@ fn one_surface_on_both_sides_refuses_co_surface() {
         }),
         "a co-surface arc is refused, and the refusal names the surface"
     );
+}
+
+/// **A closed chain that leaves matched arcs unused is not one rim.**
+///
+/// The guard R2's mutant found unrowed: dropping
+/// `ordered.len() == matched.len()` from the walk left the whole tree
+/// green, because nothing in the corpus has two components on one
+/// circle between one surface pair. This body does. Two 2-cycles —
+/// `a`, `b` across `V0`/`V1` and `c`, `d` across `V2`/`V3` — sit on
+/// the SAME stored circle (bit for bit: one `rim_circle()` value
+/// throughout) between the SAME two surface KEYS
+/// ([`FaceSurface::Shared`] is what lets a second component reuse
+/// them). The walk from `a` closes after two arcs with two more still
+/// matched, and the door refuses rather than handing back the half it
+/// happened to walk.
+#[test]
+fn a_chain_that_closes_leaving_matched_arcs_unused_refuses() {
+    let tol = Tol::witness();
+    let (mut body, a, b) = capped();
+    let sphere = body.get_face(query::all_faces(&body)[0]).unwrap().surface;
+    let plane = body.get_face(query::all_faces(&body)[1]).unwrap().surface;
+    assert_ne!(sphere, plane, "the cap's two faces are two surfaces");
+
+    // A second component on the same circle, at two fresh stations, on
+    // the same two surface keys.
+    let (t2, t3) = (
+        core::f64::consts::FRAC_PI_4,
+        5.0 * core::f64::consts::FRAC_PI_4,
+    );
+    let seed = body.mvfs(point_at(t2)).unwrap();
+    body.set_face_surface(seed.face, FaceSurface::Shared(sphere))
+        .unwrap();
+    let c = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            point_at(t3),
+            EdgeCurveSpec::arc_of_circle(rim_circle(), t2, t3).unwrap(),
+            tol,
+        )
+        .unwrap()
+        .edge;
+    let ce = body.get_edge(c).unwrap();
+    let (he1, he2) = (ce.he_minus, ce.he_plus);
+    let d = body
+        .mef(
+            MefSite::Chords { he1, he2 },
+            EdgeCurveSpec::arc_of_circle(rim_circle(), t3, t2 + core::f64::consts::TAU).unwrap(),
+            FaceSurface::Shared(plane),
+            tol,
+        )
+        .unwrap()
+        .edge;
+
+    let all: BTreeSet<EdgeKey> = [a, b, c, d].into_iter().collect();
+    for (seed, closes_with) in [(a, [a, b]), (c, [c, d])] {
+        match rim_of(&body, seed) {
+            Err(RimError::NotOneRim { arcs, gap }) => {
+                assert_eq!(
+                    arcs.iter().copied().collect::<BTreeSet<_>>(),
+                    all,
+                    "all four arcs matched: one circle, one surface pair"
+                );
+                let unused: Vec<EdgeKey> = arcs
+                    .iter()
+                    .copied()
+                    .filter(|k| !closes_with.contains(k))
+                    .collect();
+                assert_eq!(
+                    unused.len(),
+                    2,
+                    "the walk closed after {closes_with:?} with {unused:?} still matched"
+                );
+                assert!(gap.is_finite(), "the payload names a real parameter: {gap}");
+            }
+            other => panic!("a second component on one circle is not one rim, got {other:?}"),
+        }
+    }
 }
 
 /// **A straight edge is not an arc, and a dangling key is not intact.**

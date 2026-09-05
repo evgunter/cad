@@ -151,6 +151,13 @@ fn a_partial_revolves_open_rim_refuses_naming_the_gap_at_the_wedge_end() {
     );
     let arcs = arcs_at(&quarter, 0.5, -0.5);
     assert_eq!(arcs.len(), 1, "the wedge's bore rim is one open arc");
+    // It is OPEN, structurally: its two ends are two vertices.
+    let e = quarter.get_edge(arcs[0]).unwrap();
+    let (start, end) = (
+        quarter.get_half_edge(e.he_plus).unwrap().start,
+        quarter.half_edge_end(e.he_plus).unwrap(),
+    );
+    assert_ne!(start, end, "a wedge's rim does not close on itself");
     match rim_of(&quarter, arcs[0]) {
         Err(RimError::NotOneRim { arcs: matched, gap }) => {
             assert_eq!(matched, arcs, "the refusal names every arc that matched");
@@ -161,6 +168,19 @@ fn a_partial_revolves_open_rim_refuses_naming_the_gap_at_the_wedge_end() {
         }
         other => panic!("an open rim is not one rim, got {other:?}"),
     }
+
+    // The CONTROL, which is what makes the row falsifiable: the same
+    // profile revolved FULLY has the same one-arc rim at the same
+    // radius and station, and it closes. So the refusal above is about
+    // the wedge, not about a door that refuses one-arc rims.
+    let full = sphere_zone(0.5, Revolution::Full, tol());
+    let closed = arcs_at(&full, 0.5, -0.5);
+    assert_eq!(closed.len(), 1, "and the full revolve's is one arc too");
+    assert_eq!(
+        rim_of(&full, closed[0]).expect("the full revolve's rim closes"),
+        closed,
+        "the same shape of rim, answered rather than refused"
+    );
 }
 
 /// **The end-to-end row the unit was filed for.** A caller holding a

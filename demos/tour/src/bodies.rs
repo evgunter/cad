@@ -593,6 +593,16 @@ pub fn bud_rim<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
     // `Bounds`, not compared as a scalar: `Scalar` is the recording
     // lane too, where a bare `<` is not available and would not mean
     // what it says.
+    // The co-surface exclusion stays in the SEED search, and it is not
+    // decoration here: a sphere's chart seam is a great circle that can
+    // carry a rim's radius exactly, and seeding the door with one asks
+    // it about a seam meridian — which it refuses `CoSurface`, correctly
+    // and unhelpfully. A scene names the arc it means; the door says
+    // what rim that arc belongs to.
+    let surface_of = |he| {
+        let l = body.get_half_edge(he)?.parent_loop;
+        Some(body.get_face(body.get_loop(l)?.face)?.surface)
+    };
     let seed = body
         .edges()
         .find(|(_, e)| {
@@ -603,7 +613,11 @@ pub fn bud_rim<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
                     pncad::geom::Curve3::Circle { radius, .. } => Some(radius),
                     _ => None,
                 });
-            r.is_some_and(|r| (r - S::from_f64(0.8)).abs().hi() < 1e-9)
+            let two_sided = match (surface_of(e.he_plus), surface_of(e.he_minus)) {
+                (Some(a), Some(b)) => a != b,
+                _ => false,
+            };
+            two_sided && r.is_some_and(|r| (r - S::from_f64(0.8)).abs().hi() < 1e-9)
         })
         .map(|(k, _)| k)
         .expect("the bud carries a mouth arc of radius 0.8");
