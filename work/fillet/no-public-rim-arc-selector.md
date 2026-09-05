@@ -2,12 +2,13 @@
 id: no-public-rim-arc-selector
 kind: unit
 title: selection: no public 'give me this rim's arcs' selector — every caller hand-rolls a radius/station scan
-status: dispatched
+status: closed
 opened: 2026-08-29
 github: 1246
 refs: [1222]
 branch: fillet/rim-selector
 pr: 1821
+closed: 2026-09-05
 ---
 
 ## From GitHub issue 1246
