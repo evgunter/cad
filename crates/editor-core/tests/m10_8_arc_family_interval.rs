@@ -3,10 +3,10 @@
 //! site, on the three documents where the symbolic tier was seen to
 //! miss — the tour's two-hole plate, R2's filleted L-bracket with two
 //! bores and R1's parametric bracket — which of the BUILDABLE
-//! atom-algebra rules (`geom_core::SymRules`: A `sqrt(X)² = X`, B `sin²
-//! + cos² = 1`; rule C, the clause-3 sign fold, is filed unbuilt)
-//! discharges it, and for the sites that stay numeric with every rule
-//! on, the SHAPE of the residual that blocks them.
+//! atom-algebra rules (`geom_core::SymRules`: A `sqrt(X)² = X`,
+//! B `sin² + cos² = 1`; rule C, the clause-3 sign fold, is filed
+//! unbuilt) discharges it, and for the sites that stay numeric with
+//! every rule on, the SHAPE of the residual that blocks them.
 //!
 //! Two replays per document, because they answer different questions:
 //!

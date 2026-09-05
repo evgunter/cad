@@ -13,9 +13,11 @@
 //! that the corpus does not exercise them.
 //!
 //! These are the M10-7 rows re-cut: M10-7 pinned the plate at `7.81e-7`
-//! and the filleted bracket at "factor exactly 1.0" (tier on == off).
-//! Both HOLD under the shipped tier, and are re-cut here as the positive
-//! statement that the atom algebra moves neither.
+//! (at the default epsilon — the ceiling is the numeric channel's and
+//! moves with `CAD_TOLERANCE_EPS`) and the filleted bracket at "factor
+//! exactly 1.0" (tier on == off). Both HOLD under the shipped tier, and
+//! are re-cut here as the positive statement that the atom algebra
+//! moves neither, at whatever epsilon this run draws.
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -129,26 +131,63 @@ fn m10_8_the_algebra_discharges_nothing_extra_on_the_bracket() {
 /// **The two-hole plate's ceiling is UNMOVED by the algebra**, on or
 /// off, and it is bounded by the arc rim's endpoint fact no rule
 /// reaches (`carrier_endpoint_start`, the `|r − sqrt(D)|` whose radius
-/// sqrt is buried inside the outer distance sqrt). A box just inside the
-/// ceiling certifies under both the full algebra and none; a box just
-/// outside certifies under neither. M10-7's `7.81e-7` pin, re-cut.
+/// sqrt is buried inside the outer distance sqrt).
+///
+/// The ceiling is a property of the NUMERIC channel — which box the
+/// interval evaluation certifies whole — so it moves with the run's
+/// epsilon (`CAD_TOLERANCE_EPS`, one draw per hosted run): M10-7's
+/// `7.81e-7` is its value at the default `1e-9` only, and the first cut
+/// of this row wrote that number down and was red at `1e-12`. Measured
+/// at `1e-6`, `1e-9` and `1e-12` the ceiling is `7.81e2 · eps` to three
+/// figures at every row (`7.8e-4`, `7.8e-7`, `7.8e-10`) — the band
+/// scales the box the channel can hold, linearly. So the row states
+/// the number RELATIVE to this run's epsilon: it bisects the ceiling on
+/// a log scale under the full algebra and under none, IN LOCKSTEP,
+/// asserts the two verdicts agree at every probe — the same ceiling,
+/// whatever this run's epsilon puts it at — and asserts the bracket
+/// contains `7.81e2 · eps`, M10-7's number re-stated at every row. The
+/// sweep's ends pin that a ceiling exists inside it (the small box
+/// certifies, the large one does not), so the agreement is not vacuous.
 #[test]
 fn m10_8_the_plate_ceiling_is_unmoved_by_the_algebra() {
     let tol = Tol::witness();
+    let eps = tol.eps();
     let at = |scale: f64| plate(5.0e-5 * scale, 1.0e-5 * scale, tol).0;
-    for (scale, expect) in [(5.0e-7, true), (1.0e-6, false)] {
-        let doc = at(scale);
+    // Both ways at one scale, asserting they agree; the shared verdict.
+    let both = |scale: f64| -> bool {
+        let with = certifies_whole(&at(scale), SymRules::all(), tol);
+        let without = certifies_whole(&at(scale), SymRules::none(), tol);
         assert_eq!(
-            certifies_whole(&doc, SymRules::all(), tol),
-            expect,
-            "plate at {scale:e} with the full algebra"
+            with, without,
+            "plate at {scale:e}: the full algebra and none must agree — the ceiling is the same either way"
         );
-        assert_eq!(
-            certifies_whole(&doc, SymRules::none(), tol),
-            expect,
-            "plate at {scale:e} without it — the ceiling is the same either way"
-        );
+        with
+    };
+    let (mut lo, mut hi) = (eps, eps * 1.0e6);
+    assert!(
+        both(lo),
+        "the sweep's small end must certify whole at eps={eps:e}"
+    );
+    assert!(
+        !both(hi),
+        "the sweep's large end must refuse at eps={eps:e}"
+    );
+    for _ in 0..10 {
+        let mid = (lo.ln() * 0.5 + hi.ln() * 0.5).exp();
+        if both(mid) {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
     }
+    println!(
+        "plate ceiling at eps={eps:e}: certifies at {lo:e}, refuses at {hi:e} (algebra on == off)"
+    );
+    let m10_7 = 7.81e2 * eps;
+    assert!(
+        lo <= m10_7 && m10_7 <= hi,
+        "the bracket [{lo:e}, {hi:e}] must contain M10-7's 7.81e-7 restated at this epsilon, {m10_7:e}"
+    );
 }
 
 /// **The filleted bracket's whole-box certification is unmoved too.**
