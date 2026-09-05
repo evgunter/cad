@@ -61,7 +61,7 @@ use pncad::document::{
 use pncad::geom_core::{FrameError, FrameInput};
 use pncad::mesh::TessellateError;
 use pncad::prelude::BlendKind;
-use pncad::profile::{PathError, PathErrorKind};
+use pncad::profile::{CornerReason, CornerWindow, NoCornerReason, PathError, PathErrorKind};
 use pncad::quantity::FmtQuantityError;
 use pncad::select::{
     DanglingRef, HitTestError, InterrogateError, NodePickError, ReadbackError, Resolution,
@@ -94,9 +94,8 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathErrorKind::SeamArrivalLeverTooShort => "seam_arrival_lever_too_short",
         PathErrorKind::ContinuationTargetOffRay => "continuation_target_off_ray",
         PathErrorKind::NoCornerForFillet => "no_corner_for_fillet",
-        PathErrorKind::AnchorOutsideTrimmedExtent => "anchor_outside_trimmed_extent",
+        PathErrorKind::NoCornerOfPair => "no_corner_of_pair",
         PathErrorKind::FilletOffsetLeverTooShort => "fillet_offset_lever_too_short",
-        PathErrorKind::FilletEnclosesLegCarrier => "fillet_encloses_leg_carrier",
         PathErrorKind::ArcLegOnOpenFillet => "arc_leg_on_open_fillet",
         PathErrorKind::SeamRetrimsArcFirstSide => "seam_retrims_arc_first_side",
         PathErrorKind::Structure => "guided_structure",
@@ -117,6 +116,35 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathErrorKind::Band => "band",
         PathErrorKind::UnderdeterminedLeg => "underdetermined_leg",
         PathErrorKind::OverdeterminedJunction => "overdetermined_junction",
+    }
+}
+
+/// The stable tag for ONE entry of a `no_corner_of_pair` envelope —
+/// why that derived corner refused.
+///
+/// The nested-payload treatment, as `recorded_program_error_tag`'s
+/// literal arm gives it: the envelope's own tag says which refusal
+/// arrived, and the entry's tag says what the corner's story is, so a
+/// caller branches on the reason without parsing the sentence. Over
+/// `CornerReason`'s arms rather than `..`, so a new one stops this
+/// build instead of acquiring a silent tag.
+pub fn corner_reason_tag(reason: &CornerReason<f64>) -> &'static str {
+    match reason {
+        CornerReason::OutsideAnchors(window) => match window {
+            CornerWindow::BehindIncomingRay => "behind_incoming_ray",
+            CornerWindow::BehindArrivalAnchor => "behind_arrival_anchor",
+        },
+        // The constructor door's own vocabulary rides through rather
+        // than being flattened: "the radius is too large for this
+        // corner" and "every tangent circle touches a leg past this
+        // corner" are different situations with different recourses,
+        // and the entry carries its own kind.
+        CornerReason::NoTangentCircle(reason) => match reason {
+            NoCornerReason::OffsetCarriersDisjoint => "offset_carriers_disjoint",
+            NoCornerReason::NoCornerSideCandidate => "no_corner_side_candidate",
+        },
+        CornerReason::AnchorOutsideTrimmedExtent { .. } => "anchor_outside_trimmed_extent",
+        CornerReason::EnclosesLegCarrier { .. } => "encloses_leg_carrier",
     }
 }
 
@@ -195,6 +223,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::PathOffTree { .. } => "path_off_tree",
         EditError::Dimension { .. } => "dimension",
         EditError::DeclareNamesMissingNode { .. } => "declare_names_missing_node",
+        EditError::ReadSiteMissingNode { .. } => "read_site_missing_node",
         EditError::NonFiniteDocParam { .. } => "non_finite_doc_param",
         EditError::InvalidDistribution { .. } => "invalid_distribution",
         EditError::RebindTargetMissingNode { .. } => "rebind_target_missing_node",
@@ -783,6 +812,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::UnknownCutNode { .. } => "unknown_cut_node",
         SplitError::PartIdCollides { .. } => "part_id_collides",
         SplitError::SeveredEdge { .. } => "severed_edge",
+        SplitError::OperandSeveredFromMate { .. } => "operand_severed_from_mate",
         SplitError::TornCluster { .. } => "torn_cluster",
         SplitError::UncutParamReference { .. } => "uncut_param_reference",
         SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",

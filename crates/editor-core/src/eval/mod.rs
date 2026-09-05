@@ -25,7 +25,10 @@ mod schedule;
 mod slots;
 mod wire;
 
-pub(crate) use wire::{SteppedOperands, stepped_rule_map, unit as unit_direction};
+pub(crate) use wire::{
+    DATUM_AXIS_ROLE, PATTERN_DIRECTION_ROLE, SteppedOperands, TRANSFORM_AXIS_ROLE,
+    stepped_rule_map, transform_map, unit as unit_direction,
+};
 
 pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue, embed_profile};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
@@ -254,6 +257,14 @@ pub struct NodeValue<T: Decide> {
     /// substrate ("both evaluations' verdict logs exist"). Rides the
     /// value, so memo reuse transfers the log with the geometry it
     /// certified (same content key ⇒ same decisions, D9).
+    ///
+    /// **This log is not persisted, and neither is the strict form
+    /// derived from it.** The one persisted projection is
+    /// [`crate::resolve::VerdictSummary`] — per-predicate sign
+    /// populations, written by [`crate::resolve::verdict_summary`] and
+    /// carried by the strict codecs in `crate::persist::strict` — so a
+    /// consumer that needs a run's decisions across a process boundary
+    /// summarizes; one that needs them in hand reads this.
     pub verdicts: Arc<VerdictLog>,
     /// RESERVED empty slot: the solved witness assignment (M6 fills).
     pub witness: WitnessSlot,
@@ -2508,6 +2519,8 @@ fn verb_content_tag(kind: verbs::VerbKind) -> u8 {
     match kind {
         verbs::VerbKind::Fillet => 17,
         verbs::VerbKind::Chamfer => 24,
+        verbs::VerbKind::Extrude => 5,
+        verbs::VerbKind::Revolve => 6,
         verbs::VerbKind::Boolean(topo::BooleanOp::Union) => 8,
         verbs::VerbKind::Boolean(topo::BooleanOp::Intersect) => 9,
         verbs::VerbKind::Boolean(topo::BooleanOp::Subtract) => 10,
@@ -2598,7 +2611,17 @@ where
     // is reused — which is what the channel needs, since a body minted
     // before its spelling was part of the key could carry a token the
     // current document does not hold.
-    h.write_tag(4);
+    //
+    // Key format v5 (SEAT-7): a profile node's CARRIER LOOP RADIUS
+    // feeds its lowered expression beside the resolved value, because
+    // the sweeps now land that expression's identity in the walls they
+    // mint. An existing node writes into the channel, so by the rule
+    // above this is the bump, not the exception: every key moves, and
+    // no pre-bump memo entry is reused — which is what the channel
+    // needs, since a body minted before the profile's spelling was part
+    // of the key could carry a token the current document does not
+    // hold.
+    h.write_tag(5);
     let tol = tol.get();
     h.write_f64_bits(tol.eps);
     h.write_f64_bits(tol.k);
@@ -2612,8 +2635,15 @@ where
         Node::Datum(Datum::Axis { .. }) => 2,
         Node::Datum(Datum::Point { .. }) => 3,
         Node::Profile(_) => 4,
-        Node::Extrude { .. } => 5,
-        Node::Revolve { .. } => 6,
+        // The numbers are not written here either, and they are the
+        // ones that were: a migrated verb's tag is a function of the
+        // KERNEL's name for it, so 5 and 6 move to `verb_content_tag`
+        // unchanged. A tag that MOVED would invalidate nothing on disk
+        // (keys are process-internal) and would still be wrong — an
+        // existing tag never gains a new meaning, and never loses its
+        // old one either.
+        Node::Extrude { .. } => verb_content_tag(verbs::VerbKind::Extrude),
+        Node::Revolve { .. } => verb_content_tag(verbs::VerbKind::Revolve),
         Node::Split { .. } => 7,
         // The numbers are not written here: a migrated verb's tag is a
         // function of the KERNEL's name for it, and the boolean's name
@@ -2728,7 +2758,7 @@ where
     // The tag match above is exhaustive for the same reason; the two
     // halves of one key had different answers to that until now.
     match node {
-        Node::Profile(_) => {
+        Node::Profile(program) => {
             // LIB-SWITCH §4e: the program's structural payload feeds
             // as (tag, payload) tokens — per loop a LoopStart tag and
             // per RESOLVED step the verb
@@ -2773,6 +2803,79 @@ where
                     for step in steps {
                         feed_lane_step(&mut h, step);
                     }
+                }
+            }
+            // A carrier loop's RADIUS EXPRESSION, when a migrated verb
+            // declares that operand-carried scalar into a stored field
+            // (SEAT-7, key format v5). The stream above carries the
+            // radius's VALUE, at f64 bits, which is what the geometry
+            // is a function of; what it cannot carry is the spelling,
+            // and the spelling is now an input to the BODY a downstream
+            // sweep mints — the wall's field source is the lowered
+            // expression. So a value-preserving re-spelling (`r` for
+            // `0.125`) must move this key, or the sweep's memo would
+            // serve a body whose token names an expression the document
+            // no longer holds. Exactly the blend's rule (`feed_blend`,
+            // v4) at the node that HOLDS the expression rather than the
+            // node that attaches it: the sweep's key folds this one in
+            // as an upstream key already, so writing it here covers
+            // every consumer at once.
+            //
+            // The rule is read off the declaration, never per node: the
+            // moment no verb declares the profile edge's radius into a
+            // field, nothing is written and the keys are the v4 ones.
+            //
+            // **How wide this is, stated rather than implied.** Three
+            // separate breadths, none of which moves a VALUE — keys are
+            // process-internal and never persisted (spec D3), so what
+            // widens here is memo hit rate and nothing else.
+            //
+            // 1. The predicate is GLOBAL. `operand_flow_bearing` asks
+            //    the whole vocabulary, not this document, so tag 45 is
+            //    written for every profile with a carrier loop in every
+            //    document — one that no sweep ever consumes included.
+            // 2. Keys FOLD upstream keys, so a carrier radius
+            //    re-spelled invalidates the whole downstream subtree,
+            //    not only its sweeps: a loft, a section or a boolean
+            //    over that profile re-runs too, and none of them
+            //    attaches anything.
+            // 3. The format-version bump moves every key in the
+            //    document, sweeps or not, once.
+            //
+            // A narrower guard is constructible — per document (does
+            // any node consume this profile through a sweep?) or per
+            // consumer (write the tag at the sweep instead of the
+            // profile) — and is not worth its cost. Per consumer is the
+            // one that would fix (2), and `content_key` has no document
+            // handle with which to reach a sweep's operand payload, so
+            // it means threading one through the whole key surface for
+            // a hit-rate gain on a re-spelling edit, which is rare by
+            // construction (a value-preserving edit is a deliberate
+            // rewrite, not a drag). Per document costs a reachability
+            // walk per profile node per key. Both trade a real
+            // invariant — the rule read off the declaration alone — for
+            // an unmeasured saving.
+            if crate::param_source::operand_flow_bearing(verbs::FlowSource::ProfileEdge(
+                verbs::EdgeScalar::Radius,
+            )) {
+                for lp in &program.loops {
+                    if let Some(expr) = lp.carrier_radius() {
+                        // 45: the next free number in this key's tag
+                        // space (44 is the tangent arrival's, 43 the
+                        // blend's flow-bearing slot). Append-only —
+                        // an existing tag never gains a meaning.
+                        h.write_tag(45);
+                        crate::param_source::feed_content_key(&mut h, expr);
+                    }
+                    // A CHAIN loop answers `None` above and writes
+                    // nothing, which is correct exactly while nothing
+                    // attaches its per-segment arc radii either. The
+                    // guard cannot see the difference — the declaration
+                    // this feed reads is true of the profile edge's
+                    // radius already — so chain radii enter the key in
+                    // the same change that attaches them
+                    // (`LoopProgram::carrier_radius` carries the same
+                    // obligation at the door that would widen).
                 }
             }
         }
@@ -2831,15 +2934,20 @@ where
             }
         }
         // A mate's own key is its references, its class and its
-        // alignment: the recipe payload that decides what it says.
+        // alignment: the recipe payload that decides what it says. A
+        // reference is a NAME AND AN OPERAND, and both are fed —
+        // two mates differing only in the node they are read at say
+        // different things about different geometry.
         Node::Mate {
             a,
             b,
             class,
             alignment,
         } => {
-            feed_stable_name(&mut h, a);
-            feed_stable_name(&mut h, b);
+            h.write_u64(a.at.0);
+            feed_stable_name(&mut h, &a.name);
+            h.write_u64(b.at.0);
+            feed_stable_name(&mut h, &b.name);
             h.write_tag(contact_class_tag(*class));
             feed_alignment(&mut h, alignment);
         }
@@ -3876,6 +3984,14 @@ mod verb_content_tag_tests {
     fn verb_content_tags_are_the_committed_numbers() {
         assert_eq!(verb_content_tag(verbs::VerbKind::Fillet), 17);
         assert_eq!(verb_content_tag(verbs::VerbKind::Chamfer), 24);
+        // The sweeps' two, read off the pre-change source the same
+        // way: 5 and 6 were the tag match's inline numbers for the
+        // extrude and the revolve, and moving the match must not move
+        // them — a moved tag re-keys every document in the registry
+        // that carries a sweep, which is nearly all of them, with no
+        // red anywhere to say so.
+        assert_eq!(verb_content_tag(verbs::VerbKind::Extrude), 5);
+        assert_eq!(verb_content_tag(verbs::VerbKind::Revolve), 6);
         assert_eq!(
             verb_content_tag(verbs::VerbKind::Boolean(topo::BooleanOp::Union)),
             8

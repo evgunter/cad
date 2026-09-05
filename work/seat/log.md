@@ -358,3 +358,118 @@ one door under one name or two; recommendation B), and
 but waits on a joint `[ev]` with SHELL over the doors' raw fit
 tolerance, SEAT-1's own residue. Difficulties logged pre-draw in the
 orchestrator's private state; the draw happens at SEAT-B2's close.
+
+## SEAT-7 DELIVERED (2026-09-05, PR 1910)
+
+Extrude and revolve are on the substrate. `Verb<T>` gains
+`Extrude { distance }` and `Revolve { axis, revolution }` — kernel values
+both, the revolution CLASSIFIED upstairs because the full-vs-partial
+predicate is a document-layer funnel site (F14) whose escalation is a
+document-layer refusal; the payload carries geometry for the first time,
+which costs the enum its `T: Real` bound and its derived `PartialEq`
+(`geom-core`'s points carry no equality, deliberately, and synthesising
+one here would put coordinate comparison in the verb vocabulary).
+
+The two design points the dispatch named were both argued, neither taken
+silently. **The arity** is a third variant, `Arity::Profile`, with its own
+door `run_profile(&ValidatedProfile<T>, tol) -> VerbRecord<T>`: the
+operand is borrowed like every other, never in the payload, and the enum's
+reading moves from "how many bodies" to "what the operand is" — the honest
+reading of `One`/`Two` was always "one body"/"two bodies". The door hands
+back the RECORD alone rather than a `VerbOut`, because a sweep's bundle IS
+its record with the body inside it, and splitting it would restate the
+bundle. **The flow's second source kind** is `FlowSource::ProfileEdge`,
+closed beside `FlowSource::Param` with its own census: the extrude's
+distance and the revolve's angle are extents and declare empty rows (the
+chamfer precedent), while a CIRCULAR profile edge's radius is what the
+swept wall stores — a cylinder's `radius` for the extrusion, a torus's
+`minor_radius` for the revolution. Measured and NOT declared: a revolved
+straight edge's cylinder radius is its distance from the axis, derived
+across three nodes, and the profile layer holds no slot for it; a chain
+loop's per-step arc radii would need the step→segment map that has no home
+(`work/docm/authored-step-to-canonical-segment-map-has-no-home.md`), so
+the row is scoped to the carrier loop forms, where one radius is the whole
+loop's and the canonical→program anchor is all the address needed.
+
+The §6 end-to-end acceptance is MET and the residue item closes: two
+extruded circles at one declared `r`, spun off the pinch, unioned, and the
+germ's pinch refusal carries `Declared` from a document — with the
+kernel-direct twin at the same radii carrying `None`. The five
+sweep-carrying corpus digests reproduce on the extracted merge base, and
+the corpus-wide goldens (`m10_p_fence`, `lib_g16_corpus_name_digests`)
+needed no re-blessing at all.
+
+One behavior change is disclosed rather than implied: a carrier loop's
+radius EXPRESSION now feeds the profile node's content key (format v5),
+because two spellings of one value are two different bodies downstream —
+the stale-token class SEAT-6's fix pass closed for the blend's own slot.
+`switch_program_key`'s resolved-value row is re-authored to say so, with a
+new row pinning that the exception is one expression wide (a carrier
+centre re-spelled still keys identically).
+
+## ORDINAL 1007 CLAIMED — SEAT-7 dual (2026-09-05)
+
+SEAT-7 (PR 1910, extrude and revolve onto the Verb substrate)
+implementation delivered and green on the full matrix (run
+33941622559 on f635e12c). The profile arity landed as a third operand
+SHAPE with its own door returning the record (the sweeps' records are
+bundles with the body inside); the flow gained its second source kind
+(`FlowSource::ProfileEdge` — a carrier loop's radius reaches the swept
+wall's `CylinderRadius`/`TorusMinorRadius`; a revolved straight edge's
+radius and a chain loop's per-step radii measured and declined, with
+the map they would need pointed at); a third lowering, said plainly;
+the content-key format bumped to v5 at the profile node (memo-only,
+argued); the corpus-wide goldens needed no re-blessing; and the §6
+end-to-end row — one declared `r` reaching the cyl×cyl germ from a
+document — is pinned, closing SEAT-6's residue. No fork, no Ev-gated
+stop. v6 dual dispatches on frozen head f635e12c: parity byte 95 →
+**R1 fable + R2 opus**. Difficulty M was logged pre-draw. Full row
+recorded at merge; block SEAT-B2 closes at that row.
+
+## SEAT-7 MERGED (2026-09-05, PR 1910) — BLOCK SEAT-B2 CLOSES
+
+Extrude and revolve are on the Verb substrate: the profile arity as a
+third operand SHAPE whose door hands back the record (a sweep's bundle
+holds its body); the flow's second source kind — a carrier loop's
+radius reaches the swept wall's `CylinderRadius` / `TorusMinorRadius`
+through a per-LOOP address, the two unreachable radii (a revolved
+straight edge's; a chain loop's per-step arcs) measured and declined
+with the map they would need named; a third lowering, said plainly;
+the profile node's content key certifying its carrier-radius
+expression (v5, memo-only, its full breadth now stated); and the §6
+end-to-end row — one declared `r` reaching the cyl×cyl germ from a
+document — closing SEAT-6's residue. The corpus goldens needed no
+re-blessing. The dual (R1 fable + R2 opus) found ZERO MAJORs and
+converged tightly: both proved the per-loop anchor alignment correct
+and unguarded with the same hole-first annulus probe, both corrected
+the stated merge base, both retracted the loft costing claim; the fix
+pass landed the anchor guard, the sweep stale-token row, a census
+forbidding profile-edge flows on body verbs, and the real v5 breadth.
+Two process notes: the implementer's worktree was reclaimed for disk
+before the fix pass and the task could not be resumed — a FRESH lane on
+the same arm ran the fix (rule from here: an implementer's worktree
+stays until its fix pass is dispatched; disk comes from target dirs);
+and the fix push produced NO Actions run because the PR had gone dirty
+against a moved main — an absence, not a red, filed as
+`work/issues/dirty-pr-gets-no-actions-run.md` (the lane's empty
+re-run commit did not help and is disclosed as a method deviation).
+Full row: MODEL-AB-LOG SEAT7 (ordinal 1007, sample #137 at merge);
+the SEAT-B2 block-close record publishes draw byte 165 there.
+
+Wave 2's migrations (blend pair, boolean, sweeps) and Wave 3's channel
+are complete; the plan's remaining migrations (split, the shell arm)
+and the side units form block SEAT-B3, whose paper is cut
+(`docs/SEAT-8-SPEC.md`, `docs/SEAT-FW-SPEC.md`, `docs/SEAT-DN-SPEC.md`,
+`docs/SEAT-9-NOTE.md`). Next: the B3 draw and SEAT-8.
+
+## SEAT-8 DISPATCHED — BLOCK SEAT-B3 OPENS (2026-09-05)
+
+SEAT-7 merged at 9d48d4b5 (PR 1910); block SEAT-B2's record and byte
+are on main. Block SEAT-B3's byte was drawn at this dispatch
+(difficulties logged pre-draw: SEAT-8 M · SEAT-FW M · SEAT-DN S ·
+SEAT-9 M) and stays private until the block closes. SEAT-8 — split
+onto the Verb substrate, `docs/SEAT-8-SPEC.md` — dispatches on slot 0.
+Two lessons from B2 ride every B3 brief: merge `origin/main` before
+touching `work/`, and a push that gets no Actions run within minutes
+while the PR is dirty is fixed by merging main, never by an empty
+commit.

@@ -2,10 +2,12 @@
 id: SEAT-7
 kind: unit
 title: extrude and revolve migrate onto the Verb substrate; the channel reaches the germ from a document
-status: dispatched
+status: closed
 opened: 2026-09-05
 branch: seat/sweepverb
 refs: [SEAT-6, seat6-germ-end-to-end-awaits-seat7]
+pr: 1910
+closed: 2026-09-05
 ---
 
 

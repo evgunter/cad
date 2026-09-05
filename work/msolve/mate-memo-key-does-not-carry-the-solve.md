@@ -2,9 +2,10 @@
 id: mate-memo-key-does-not-carry-the-solve
 kind: issue
 title: A mate's memo key omits the solve, so a mate can read Ok in the evaluation that blames it
-status: open
+status: parked
 opened: 2026-09-04
 refs: [1461]
+blocked_on: [MSOLVE-4]
 ---
 
 Found by CHROME's badge-attribution lane, which hit it hard enough to

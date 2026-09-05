@@ -54,12 +54,12 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
-use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, drive};
+use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_vector, drive};
 use editor_core::report::{MassBasis, MassBudget};
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, DocParam,
-    EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureRef, Node, NodeResult,
-    ParamName, ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId, UnitSym, ValuePayload,
+    EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult, ParamName,
+    ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId, SitedRef, UnitSym, ValuePayload,
     evaluate,
 };
 use geom_core::Tol;
@@ -304,7 +304,7 @@ fn distributed_plate() -> ProfileDoc {
         )
         .expect("the hole wall is an exact atom");
         faces.sort();
-        MeasureRef::new(node, faces.remove(0))
+        SitedRef::new(node, faces.remove(0))
     };
     let refs = vec![wall(hole_a), wall(hole_b)];
     let radius_of = |n: &str| MeasureExpr::value(Expr::param(name(n), Dimension::Length));
@@ -434,8 +434,8 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
             vec![
-                MeasureRef::new(placed, fixture::fname(solid, fixture::wall(2))),
-                MeasureRef::new(placed, fixture::fname(solid, fixture::wall(9))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(2))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(9))),
             ],
         )
         .expect("both indices in range"),
@@ -779,7 +779,7 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
 /// **The witness-vector key of an assertion-carrying document, pinned**
 /// (M10-6 deviation D10; both reviews' MAJOR).
 ///
-/// `VerdictVector::certifying` drops `Assertion` rows from the
+/// `drive::certifying_vector` drops `Assertion` rows from the
 /// certification comparison, and that MOVES the `verdict_vector_key`
 /// every certified leaf carries — for every document with an
 /// assertion, including ones with no `min_clearance` anywhere. The
@@ -816,7 +816,7 @@ fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
             Tol::witness(),
         );
         let full = VerdictVector::of(&ev);
-        let certifying = VerdictVector::certifying(d, &ev);
+        let certifying = certifying_vector(d, &ev);
         assert_ne!(
             full.key().0,
             certifying.key().0,
@@ -871,8 +871,8 @@ fn plain_distance_doc() -> ProfileDoc {
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
             vec![
-                MeasureRef::at_mint(fixture::fname(solid, fixture::wall(0))),
-                MeasureRef::at_mint(fixture::fname(solid, fixture::wall(2))),
+                SitedRef::at_mint(fixture::fname(solid, fixture::wall(0))),
+                SitedRef::at_mint(fixture::fname(solid, fixture::wall(2))),
             ],
         )
         .expect("indices in range"),

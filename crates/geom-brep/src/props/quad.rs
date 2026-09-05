@@ -3879,7 +3879,7 @@ mod tests {
     fn nurbs_patch_flux_matches_flat_and_warped_oracles() {
         let band = Band::linear(Tol::witness()).unwrap();
         let eps = Tol::witness().get().eps;
-        let kv = KnotVector::unit_segment(1);
+        let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
         // Row-major iu·nv+iv, nu = nv = 2: [(u0v0), (u0v1), (u1v0), (u1v1)].
         let flat = [
@@ -3980,7 +3980,7 @@ mod tests {
     #[test]
     fn rational_patch_encloses_the_reparameterized_square() {
         let band = Band::linear(Tol::witness()).unwrap();
-        let kv = KnotVector::unit_segment(1);
+        let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
         let flat = [
             p(0.0, 0.0, 1.0),
@@ -4013,7 +4013,7 @@ mod tests {
     fn rational_two_span_quarter_cylinder() {
         let band = Band::linear(Tol::witness()).unwrap();
         let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
-        let kv_v = KnotVector::unit_segment(1);
+        let kv_v = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
         let h = 2.0;
         let d = core::f64::consts::FRAC_PI_4;
@@ -4074,7 +4074,7 @@ mod tests {
     fn interior_multiplicity_ladder_never_certifies_a_wrong_enclosure() {
         use geom_core::spline::basis::ders_basis_funs;
         let band = Band::linear(Tol::witness()).unwrap();
-        let kv_v = KnotVector::unit_segment(1);
+        let kv_v = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         // `pv` is gone: the oracle's v-window base is the `Span`'s own
         // `first_control()`, not a re-derived `span − degree`.
         let (pu, nv, height) = (3usize, 2usize, 2.0f64);
@@ -4146,7 +4146,7 @@ mod tests {
                 // copies of one value and divides by N. Two premises,
                 // both visible in the construction above — check them
                 // before touching the net:
-                //   (i)  `kv_v` is `unit_segment(1)`: degree 1, two
+                //   (i)  `kv_v` is `unit_segment(core::num::NonZeroUsize::MIN)`: degree 1, two
                 //        control points, no interior knot;
                 //   (ii) the weight pushed for BOTH v-rows of profile
                 //        point `i` is the same `ws[i]` — the weight is
@@ -4261,7 +4261,7 @@ mod tests {
     fn rational_quarter_cylinder_brackets_the_closed_form() {
         let band = Band::linear(Tol::witness()).unwrap();
         let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
-        let kv_v = KnotVector::unit_segment(1);
+        let kv_v = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
         let h = 2.0;
         let net = [

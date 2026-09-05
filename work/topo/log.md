@@ -116,3 +116,131 @@ while reading `live.rs` for the third lane: its header no longer names
 `D50` by row (main reads "a source-level guard can, and is owed"), so
 `D260`'s premise is already false; `D260` closes with `D50`'s guard, as
 one sentence, and is not a unit on its own.
+
+## S331 to TRIM; opening PR merged (2026-09-05)
+
+PR 1915 merged (the spec is on main). `S331` moved to `work/trim/` with
+Ev's in-chat concurrence — its mechanism and its sibling `D36` are
+TRIM's; the direction TOPO would have argued (a refused mint leaves a
+typed trace or refuses; never a silent clear) is recorded on the item.
+Sixteen items remain on this slate.
+
+## D261 delivered; style review out (2026-09-05)
+
+`topo/d261-reader-collapse` delivered as PR 1919, head `3f41f605`,
+full matrix green (run 33943083355: twelve test jobs, five k-lint
+rows). Four conversions, all deletions or re-points; one planted
+mutant per converted guard in the PR body; `UNCONVERTED_TODAY` 9 → 5,
+re-derived on the merged tree. Five deviations disclosed, the one that
+matters being that the brief was wrong about the census: a file that
+still trips the reader detector cannot have its line deleted, so three
+entries moved to `Shared` instead. One residue filed inside the fence
+(`probe-message-carve`). Three findings outside the fence relayed to
+S-BOOL's board (`boxes.rs`'s stale "two readers" doc; the two raw-text
+guards in `face_normal.rs` and `sector_shape.rs`). Single style review
+dispatched on the frozen head, claims C1–C6 in the brief.
+
+## D261 adjudicated (2026-09-05)
+
+Style review (single, Fable) on frozen `3f41f605`: MERGEABLE-AFTER-
+FIXES. All six claims held under execution — eighteen planted mutants
+across the four guards, block-comment, raw-string and `'"'` shapes
+included, every one red; the collapse is a deletion; the census count
+is right; the doc gate is real and catches the planted link. What it
+found is prose rot in the unit's own header (three sentences still
+describing the deleted lexer), one class — the item-body carve is
+hand-rolled five times across four crates and the shared home has no
+op for it — and the census's `Shared` check being satisfiable by any
+mention of the crate. Fix pass dispatched to the same lane (seven
+items; the shared op is a one-function widening of the S-TCOST seam,
+announced); the class and the census weakness filed on S-TCOST's slate
+with the reviewer's stricter row embedded; D287's two stale premises
+relayed to S-BOOL. Two reviewer probes handed to the fix pass.
+
+## S330 delivered; dual out at ordinal 2700 (2026-09-05)
+
+`topo/s330-described-nurbs-arm` delivered as PR 1923, head `55931a3e`,
+full matrix green (run 33944671747). Phase 1 corrected the spec: the
+fixture named there (`ops_cube`) is not tier-3-clean — every face
+carries the placeholder — so the unit built on `coplanar_pillow`; and
+the measurement is stronger than the row claimed: the finite and the
+poisoned described net draw IDENTICAL check-2 lists, so before this
+unit nothing in tier 3 could tell corrupt described geometry from
+honest — now a committed assertion. The arm, a new variant, named
+no-op arms for every `Surface` variant, the interval row, and the S94
+rider (both ladders replaced by a test-only `strum` derive) landed.
+Five deviations disclosed; one forced outside the fence
+(`editor-core/src/assembly.rs:913`, a wildcard-free classify that does
+not compile until the variant is placed). One residue filed
+(`quadric-datums-unchecked-at-rest`). One inherited red on main
+(FILLET-ATTR merged under a cancelled gate; the roster line here is
+the port; FILLET's board told). Outside-fence findings held for the
+adjudication: `n2r1_probes.rs`'s prose is now false, `BooleanErrorKind`
+is a hand-written discriminant companion (S-BOOL). Dual dispatched on
+the frozen head: ordinal 2700 claimed, parity byte 119 ⇒ R1 FABLE,
+R2 OPUS; briefs stored with sha256 privately.
+
+## S330 adjudicated; fix pass out (2026-09-05)
+
+Both blinded reviews delivered on frozen `55931a3e`. R1: MERGEABLE,
+0/3/6, rubric 4/4/4. R2: MERGEABLE-AFTER-FIXES, 1/4/5, rubric 4/4/2.
+Every behavioural claim held under execution in both lanes — the
+state ladder, the arm removal, the interval row, the derive-backed
+coverage, the reproduction of the inherited red on main's own tree.
+R2's MAJOR is unilateral and executed: the `Plane` no-op arm's
+justification is false (a zero or poisoned frame describes no locus,
+check 1 says nothing, and escalations elsewhere refuse it — the very
+shape this unit closed for NURBS), and the quadric arms' "no check
+reads them" is loose the same way. Adjudicated as a claim-class
+finding on a comment plus a residue-scope gap, not shipped behaviour:
+recorded as a tally candidate under 3(b)'s doc exclusion for the
+blinded adjudication, per the H4 precedent. Convergent style finding
+from both arms, taken: the three-state read becomes a type
+(`NetState`), the S-CERT seam widened by that enum and announced.
+Union fix pass of eight items dispatched to the same lane, both
+reviewers' probes handed over (one state-ladder row adopted). Filed:
+FILLET's roster debt as `work/fillet/anchor-span-sole-bracket-bound-unrostered`
+(the roster line now cites it), the thirteen sibling two-state reads
+as a class in `work/issues/` with the `NetState` door as the tool.
+`program.md`'s `keep_out` now says how this program treats
+`crates/topo/tests/*` (S-TCOST's glob): rows added as ordinary tests,
+said in the PR, no second fence.
+
+## D261 merged (2026-09-05)
+
+PR 1919 merged at `da6f159e` (green run 33947129437 on `aed0b564`,
+full matrix). `D261` and `D264` closed; `probe-message-carve` open on
+this slate. The unit's own account is the PR body. Two operations
+notes for the record: the lane re-rolled a seed-dependent `mesh` gate
+failure with an EMPTY commit, which the lane rules forbid (the run did
+classify code-tier that time; the reliable re-roll is a real commit —
+stated here so the next brief says it); and the branch went
+conflicting twice against a main that moved under it (S-CERT's log,
+then FILLET's own roster line for the inherited red), both resolved by
+the orchestrator in a throwaway worktree and pushed by ref, the
+second by taking main's line outright. The seeded floor is filed on
+S-MESH's slate (`cert10-strict-gap-floor-gates-on-a-varying-seed`).
+
+## S330 merged; block TOPO-B1 slot 0 concluded (2026-09-05)
+
+PR 1923 merged at `d9b7b26d` (green run 33947772289 on `c90a6752`,
+full matrix). `S330` and `S94` closed; `quadric-datums-unchecked-at-rest`
+open on this slate, widened at review to the poison case and the
+`Plane` frame. The A/B row is recorded at merge (ordinal 2700, sample
+#138) in `docs/MODEL-AB-LOG.md`'s TOPO section; block TOPO-B1's record
+on `topo/b1-block` marks slot 0 concluded, slots 1–2 banked. Sixteen
+items on the slate, two closed today (`D261`, `D264`) plus these two.
+Next: the `live.rs` pair — `D50`'s source-level guard on the shared
+lexer now that `D261` has landed it, `D260` as one sentence in the
+same PR, single style review, no row.
+
+## Third lane out: the live.rs pair (2026-09-05)
+
+`D50` (+`D260` riding) dispatched on `topo/d50-live-guard`, the brief
+in the item file. Outside the experiment (single style review, no row).
+The survey corrected the row's premise: the compiler already makes
+`Live` unforgeable from outside `live.rs` (private field, private
+`new`); what nothing guards is the header's real claim — that every
+door INSIDE the file looks up before it hands a token out — and that
+is what the row builds, on the shared lexer and item carve `D261`
+landed.

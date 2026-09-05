@@ -672,8 +672,8 @@ pub(crate) fn mint<P, T: Decide>(
             continue;
         }
         let (face_a, face_b) = match (
-            resolve_face(names, id, MateSide::A, a),
-            resolve_face(names, id, MateSide::B, b),
+            resolve_face(names, id, MateSide::A, &a.name),
+            resolve_face(names, id, MateSide::B, &b.name),
         ) {
             (Ok(face_a), Ok(face_b)) => (face_a, face_b),
             // The `a` side answers first when both sides refuse: one
@@ -717,8 +717,8 @@ pub(crate) fn mint<P, T: Decide>(
         }
         minted.push(MintedDeclaration {
             mate: id,
-            a: a.clone(),
-            b: b.clone(),
+            a: a.name.clone(),
+            b: b.name.clone(),
             class: *class,
             faces: (face_a, face_b),
         });
@@ -918,6 +918,7 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
         ValidationError::Band { .. }
         | ValidationError::DanglingDescription { .. }
         | ValidationError::UncertifiableSurface { .. }
+        | ValidationError::PoisonedSurfaceDescription { .. }
         | ValidationError::DegenerateTorus { .. }
         | ValidationError::DegenerateTorusEscalated { .. }
         | ValidationError::NonpositiveTorusTube { .. }
