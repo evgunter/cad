@@ -301,9 +301,17 @@ contact, matching C4's failure table verbatim. The error message
 renders the finding; the GUI renders the same finding as its
 declare-affordance dialog (§4's one-type rule at work).
 
-**The v1 detector is flush/`Rest` planes** — the only
-demand-evidenced case (the flush helper, the boolean test suites,
-the M4 declarer), and `Rest`'s verify ladder is the most mature.
+**The detector's scope is the `Rest` ladder's scope, rung for
+rung** — plane, sphere, cylinder and torus cosurface pairs, which is
+every carrier `carrier_pair_relation` verifies; a face whose kind is
+outside that inventory (cone, NURBS, `Approx`) has no description to
+compare and is honestly no candidate. The scope is not a property of
+the detector at all, which is what keeps detection and declarability
+from parting: a pair that is DECLARABLE is DETECTABLE, so a finding
+is a faithful offer rather than a subset of one. (It shipped
+plane-only at SEAT-3 — the demand-evidenced case, and the door it
+enumerated over was the ladder's planar projection — and SEAT-FW
+pointed it at the ladder itself. No verify table moved either time.)
 `Tangent` and `Fit` findings reuse the same `FlushFinding`/
 `ContactClass` shape when their demand arrives; the type is built
 for that from day one (the `class` field, not a `flush: bool`).
@@ -354,25 +362,22 @@ next step rather than approximated: a detector that reported tangency
 candidates without a locus would be reporting something the verifier
 cannot check.
 
-Nor does it report a CURVED conformal (`Rest`) pair, and that one is
-a scope decision rather than a missing capability — measured at
-SEAT-3 and recorded so the next unit does not re-derive it. The
-`Rest` verify ladder covers the carrier inventory today
+A CURVED conformal (`Rest`) pair it DOES report, and how that came
+about is worth one paragraph because the shape recurs. The `Rest`
+verify ladder has covered the carrier inventory since M9-3
 (`carrier_pair_relation`: plane, sphere, cylinder, torus), and asked
-in its DETECTOR posture it already answers a cylindrical cosurface
-pair with the same "would verify if declared" encoding the planar
-door answers a flush plane pair with
-(`demos/tour/src/twopeg.rs`'s `seat3_measurements` runs both
-postures on the peg/bore mate). So widening the detector is a door
-swap — `flush_pair_relation` → `carrier_pair_relation`, with the
-carrier verdict/refusal in place of the plane one — and no verify
-table moves. What it is NOT is free: it widens both seats at once
-(the document detector's answers change), and every caller of the
-demo helper that must keep REFUSING on a curved contact
-(`demos/tour/src/lily.rs`'s stem glue) is downstream of it. Filed as
-**#1537**, which carries the one-identifier door swap together with
-the re-baselining it forces on the scenes downstream — the unit that
-takes it decides both halves, or neither.
+in its DETECTOR posture it answers a cylindrical cosurface pair with
+the same "would verify if declared" encoding it answers a flush plane
+pair with. The detector nevertheless enumerated over that door's
+PLANAR projection, so a curved cosurface pair was declarable and not
+detectable — the two halves of one protocol disagreeing about their
+own reach. Closing it was a door swap and nothing else
+(`flush_pair_relation` → `carrier_pair_relation`, the carrier
+verdict and refusal in place of the plane ones, which are type
+aliases of each other): no verify table moved, and the substance was
+the content review the swap forced — both seats' answers grow curved
+findings, and the scenes that assembled curved declarations by hand
+say them through the detector instead.
 
 ## 4. GQ7 re-homing
 

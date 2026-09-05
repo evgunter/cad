@@ -477,3 +477,21 @@ the table.
   back-pointer walk, no second implementation), and the document
   layer's `select_where` runs the same predicates over its name
   table.
+- **Contact DETECTION is at that seat too, and its reach is the
+  `Rest` ladder's — SEAT-3, widened by SEAT-FW (VERB-SEAT-DESIGN §1
+  S3, SELECT-DESIGN §3).** `topo::flush::find_flush_candidates`
+  reports the cross-body face pairs the declared rung would verify,
+  as inspectable values, and `topo::flush::declare_all` turns the
+  ones a caller has looked at into the `BooleanDeclarations` the
+  declared boolean doors take — so a consumer holding two bodies and
+  no document has a PRODUCER for them, and the document seat's
+  name-level detector delegates its per-pair test to the same rung.
+  That rung enumerates over `carrier_pair_relation`, the very door
+  verify-at-use calls, so the reported set is plane, sphere,
+  cylinder and torus cosurface pairs and a kind outside that
+  inventory (cone, NURBS, `Approx`) is honestly no candidate:
+  detection and declarability coincide rather than one being a
+  subset of the other. What a finding does NOT promise is that the
+  op will build — the row above's #1032 limitation is unmoved by
+  detection, and a `Tangent` finding waits on a locus the verifier
+  can check.

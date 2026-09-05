@@ -33,11 +33,10 @@
 //! candidate pairs and asks the kernel's own rung at the seat where
 //! that rung lives: [`topo::flush::pair_finding`] — descriptions,
 //! oriented identity evidence and the verification arm all live
-//! inside [`topo::flush_pair_relation`] under it, whose verdict
-//! ladder is the one verify-at-use reaches through `carrier_eq`'s
-//! plane delegation (the three-link chain is stated once, in
-//! [`topo::flush`]'s module docs, and not restated here).
-//! Consequences, all deliberate:
+//! inside [`topo::carrier_pair_relation`] under it, which is the very
+//! door verify-at-use calls, asked in its `declared: false` posture
+//! (the argument is stated once, in [`topo::flush`]'s module docs,
+//! and not restated here). Consequences, all deliberate:
 //!
 //! - detect-then-declare can never disagree with verify-at-use: the
 //!   two paths converge on one verdict function, so there is no
@@ -48,11 +47,11 @@
 //!   names at this door, keys at the body door, one verifier under
 //!   both;
 //! - detection's decisions go through the funnel at the VERIFIER'S
-//!   sites (`bool_plane_parallel` / `bool_plane_orient` /
-//!   `bool_plane_offset`) — no `sel_flush_*` site exists, no new
-//!   ledger row is owed, and GS-Q1's K-census participation is
-//!   automatic through those names. The detector interprets nothing
-//!   the verifier doesn't.
+//!   sites (`bool_plane_*` on the planar rung, `carrier_sphere_*` /
+//!   `carrier_cyl_*` / `carrier_torus_*` on the curved ones) — no
+//!   `sel_flush_*` site exists, no new ledger row is owed, and
+//!   GS-Q1's K-census participation is automatic through those names.
+//!   The detector interprets nothing the verifier doesn't.
 //!
 //! What stays HERE is the name-flavored half, on the `select_where`
 //! precedent (VERB-SEAT-DESIGN §1 S2): resolving a name table's face
@@ -73,26 +72,30 @@
 //! downstream still owns the ambiguity refusal); none ⇒ no finding;
 //! mixed ⇒ [`SelectRefusal::TiedDisagrees`].
 //!
-//! # What `Rest` means here (v1)
+//! # What `Rest` means here
 //!
-//! Flush/`Rest` planes are the whole v1 detector — the only
-//! demand-evidenced case. The [`ContactClass::Rest`] tag names C4's
-//! coincident-plane contact class; the evidence records which
-//! orientation the verifier decided: [`PlaneRelation::SameOpposite`]
-//! is the resting-contact flavor (opposed outward normals — the REST
-//! lane's zip), [`PlaneRelation::SameOriented`] the merge-stage
-//! flavor (flush walls). Both are exactly the pairs the declared rung
-//! verifies and the P9 helper used to declare. `Tangent`/`Fit`
-//! findings reuse this shape when their demand arrives — the `class`
-//! field is the reserved slot, not a `flush: bool`.
+//! Cosurface contact on every carrier the `Rest` ladder verifies —
+//! plane, sphere, cylinder and torus — is the whole detector; the
+//! [`ContactClass::Rest`] tag names C4's coincident-carrier contact
+//! class, and a peg's wall in its bore is reported exactly as two
+//! flush plates' faces are. The evidence records which orientation
+//! the verifier decided: [`PlaneRelation::SameOpposite`] is the
+//! resting-contact flavor (opposed material sides — the REST lane's
+//! zip), [`PlaneRelation::SameOriented`] the merge-stage flavor
+//! (flush walls). Both are exactly the pairs the declared rung
+//! verifies. `Tangent`/`Fit` findings reuse this shape when their
+//! demand arrives — the `class` field is the reserved slot, not a
+//! `flush: bool` — and tangency waits on a locus the verifier can
+//! check, which is a different kind of gap from the one the curved
+//! `Rest` rungs closed.
 //!
 //! # Documented residuals
 //!
-//! - The verifier encodes its definite-zero-offset verdict and a
+//! - The verifier encodes its definite-zero coincidence verdict and a
 //!   NaN-poisoned margin with the same `MarginDiag::Invalid`
 //!   diagnostic; the detector takes the verifier's encoding as-is
 //!   (anti-twin: it interprets nothing the verifier doesn't), so a
-//!   NaN-poisoned plane pair — geometry that is broken well before
+//!   NaN-poisoned pair — geometry that is broken well before
 //!   detection — would read as a finding whose declaration then
 //!   escalates at use. C4's verify-at-use backstop is the answer by
 //!   design.
@@ -264,7 +267,7 @@ fn pair_verdict<T: Decide>(
             let verdict =
                 pair_finding(ba, fa, bb, fb, band).map_err(|source| SelectRefusal::PairInBand {
                     pair: Box::new((na.clone(), nb.clone())),
-                    predicate: source.predicate.unwrap_or("flush_pair_relation"),
+                    predicate: source.predicate.unwrap_or("carrier_pair_relation"),
                     source,
                 })?;
             if let Some(FlushEvidence {

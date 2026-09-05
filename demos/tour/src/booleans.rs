@@ -70,9 +70,10 @@ pub fn try_intersect_declared<S: Scalar>(
 /// The scene's flush contacts, DETECTED and then DECLARED — the two
 /// library doors a user would reach for, spelled the way a user would
 /// spell them: [`pncad::topo::flush::find_flush_candidates`] reports
-/// the cross-body planar `Rest` pairs the boolean's own verifier would
-/// accept, and [`pncad::topo::flush::declare_all`] turns the findings
-/// the caller has seen into the declarations the op takes. The scene
+/// the cross-body `Rest` pairs the boolean's own verifier would accept
+/// — every carrier that verifier has a rung for, plane through torus
+/// — and [`pncad::topo::flush::declare_all`] turns the findings the
+/// caller has seen into the declarations the op takes. The scene
 /// author BUILT the contact deliberately; this writes the intent down.
 /// Certification still happens inside the op through the verified
 /// declared rung.
@@ -82,9 +83,12 @@ pub fn try_intersect_declared<S: Scalar>(
 /// detects and declares in one call, and this helper is the tour's
 /// one place that does both in sequence.
 ///
-/// PLANAR only, and that is the detector's scope rather than this
-/// helper's choice — which matters here, because scenes whose curved
-/// contacts must keep REFUSING call it (the lily's stem glue).
+/// It declares EVERY finding, which is what makes it a helper rather
+/// than a scene's own voice: a scene that means some of its contacts
+/// and not others picks out of the report itself (`twopeg` does).
+/// Scenes whose contacts must keep REFUSING call this too — the
+/// lily's stem glue and its socket — and they still do: a declaration
+/// unlocks the declared rung, not the lanes past it.
 pub fn flush_declarations<S: Scalar>(
     a: &Body<S>,
     b: &Body<S>,

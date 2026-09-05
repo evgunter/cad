@@ -500,17 +500,18 @@ type RestSurfaces = (SecondaryMap<SurfaceKey, ()>, SecondaryMap<SurfaceKey, ()>)
 /// only meters the angular sliver band (exact fixtures decide
 /// definitely either way).
 ///
-/// **Who calls this, exactly one caller, and where the shared arm
-/// really is.** This door has ONE consumer today: the flush
-/// detector's candidate-generation mode ([`crate::flush`],
-/// `declared: false`). Verify-at-use stopped calling it at M9-1, when
-/// [`verify_declared_pairs`] and the op's front door moved to the
-/// kind-generalized [`carrier_pair_relation`]. The anti-twin property
-/// (SELECT-DESIGN §3b) survives that move rather than resting on it,
-/// because the two doors CONVERGE one link down: `carrier_pair_relation`
-/// builds the same sense-folded plane description through
-/// [`face_carrier`]'s Plane arm and the same identity through
-/// [`face_plane_source`], and its `(Plane, Plane)` case delegates to
+/// **Who calls this, and where the shared arm really is.** This door
+/// has NO in-tree consumer: verify-at-use stopped calling it at M9-1,
+/// when [`verify_declared_pairs`] and the op's front door moved to
+/// the kind-generalized [`carrier_pair_relation`], and the flush
+/// detector's candidate-generation mode followed at SEAT-FW, when its
+/// scope became the `Rest` ladder's. What it still IS is that door's
+/// planar projection, published for a caller who holds two faces and
+/// wants the plane question asked as a plane question — and the two
+/// cannot drift, because `carrier_pair_relation` builds the same
+/// sense-folded plane description through [`face_carrier`]'s Plane
+/// arm and the same identity through [`face_plane_source`], and its
+/// `(Plane, Plane)` case delegates to
 /// [`oriented_plane_eq_verdict`](super::plane_eq::oriented_plane_eq_verdict)
 /// — the very function this door's [`super::oriented_plane_eq`] wraps.
 /// One verdict function, one set of `decide` sites, one verification
@@ -520,9 +521,10 @@ type RestSurfaces = (SecondaryMap<SurfaceKey, ()>, SecondaryMap<SurfaceKey, ()>)
 /// than mirrored — and why the chain above is stated rather than
 /// summarized as "the same door".
 ///
-/// `None`: not a planar pair — there is no description to compare
-/// (the detector's honest "not a v1 candidate"; the REST lane treats
-/// it as an invariant violation at its own site).
+/// `None`: not a planar pair — there is no plane description to
+/// compare (the REST lane treats it as an invariant violation at its
+/// own site; [`carrier_pair_relation`] is where a caller asks the
+/// same question of any carrier the ladder names).
 pub fn flush_pair_relation<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -954,10 +956,11 @@ fn verify_declared_pairs<T: Decide>(
         if class != ContactClass::Rest {
             continue;
         }
-        // The one flush-pair door ([`flush_pair_relation`]): oriented
-        // sources, sense-folded descriptions, and the verification
-        // arm all live inside it — shared with the LIB-SEL2 detector
-        // by construction.
+        // The one carrier-pair door: oriented sources, sense-folded
+        // descriptions, and the verification arm all live inside it —
+        // shared with the flush detector by construction, since that
+        // detector asks THIS function in its `declared: false`
+        // posture.
         // The generalized door: planar pairs reach exactly the numbers
         // the plane ladder always reached (its plane arm delegates),
         // and a curved declared pair is verified rather than being
