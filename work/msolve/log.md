@@ -80,3 +80,27 @@ Findings reported outside the fence, placed at state-sync: `Node::Part
 { Instance(i) }` is a third identity-transparent node the walk refuses
 (MSOLVE-2's decision); `Frame::rotate_then_translate` normalizes with a
 bare `.normalize()` (filed here).
+
+## MSOLVE-1 reviews adjudicated, fix pass dispatched (2026-09-05)
+
+Style review: twenty findings, Q1–Q8 all exercised. Correctness arm:
+APPROVE-WITH-FIXES, C1–C6 confirmed on documents of its own (non-axis
+rotations, a gauge-side chain, a placed gauge frame with transforms on
+both sides, the viewer end to end). One MAJOR, the suite's own: the
+acceptance fixture's seat was an interpenetration (`b`'s axis on the
+wrong side of the cap), so the gate refused the control too and A5's
+"inconsistent pair refuses" was vacuous; the claim itself is true on a
+physical seat. Ruled in the fix pass: the split door refuses TYPED, in
+both directions, when a mate and its operand land on opposite sides of
+a cut (the reading-edge twin of D-2's `SeveredEdge`; the kept-mate
+direction was silently keeping a stale operand, the cut-mate direction
+was refusing in the input's vocabulary); `DanglingHead.head` names the
+node the walk stopped at, not a live instance; the product oracle pins
+frame origins (rotation about the seat normal was invisible); a
+non-commuting chain row; the viewer row seats a moved instance after
+commit; doc rot from the rename swept. Carried to MSOLVE-2: the
+`Placer`/`copy` duplication, the triple walk, splitting
+`mate/member.rs`. Filed: the gate's `Vanished` on a mate read below a
+pattern (here); an instance under two placing roots refusing `Naming`
+at the gather, and `Transform` refusing a pattern's `Instances`
+(`work/issues/`, no obvious owner).
