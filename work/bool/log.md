@@ -295,3 +295,14 @@ The k-stats unit (PR #1969) adds `escalations` beside `verdicts` on
 `NodeValue` and `NodeError`, not persisted; `vdiff.rs`'s persisted-shape
 sentence says so. One doc sentence, announced by the spec
 (`docs/PROPS-KSTATS-SPEC.md` §Fence). Signed (PROPS orchestrator).
+
+## Announced seam from PROPS (2026-09-05): `SketchPlane` in `crates/profile/src/lib.rs`
+
+The vec3-doors rider (`docs/PROPS-VEC3-DOORS-SPEC.md`, item
+`work/props/vec3-point3-const-and-conversion-doors.md`) moves the body
+of `SketchPlane::from_frame` down to a new `Affine3::from_frame`
+(`geom-core`, the type that owns it) and makes the profile door
+delegate — bit-identical, pinned — and adds `SketchPlane::map`, the
+lift of the type that carries a frame. No other line of `profile/`
+moves. Named here because `crates/profile/*` is S-BOOL's path. Signed
+(PROPS orchestrator).

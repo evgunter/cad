@@ -456,3 +456,20 @@ my copy clobbered R2's editor-core probe file (same basename as its
 geom-core one); the rows are rebuilt from R2's report, R1's schedule
 probe covering three of the six. Reviewer lanes reclaimed; the
 implementer runs the fix pass.
+
+**Two E riders dispatched (2026-09-05)** while the k-stats fix pass runs
+and the sphere lane waits on #1924 and MESH-12 (#1617, still open on
+`props/curved.rs`; CERT-M3 #1877 and CERT-N3 #1879 both merged this
+morning, so the exit walk is the inheritance's only gate).
+`docs/PROPS-VEC3-DOORS-SPEC.md`: `const fn new` on the four vector
+types, `Affine3::from_frame` as the one home (the `SketchPlane` body
+moved down, bit-identical), `SketchPlane::map`, `skinned.rs` on the
+door; the `Vec → Point` conversion REFUSED as a ruling written at the
+type (a point is not a vector); `lily.rs` left to the tour-wide sweep.
+`docs/PROPS-ROTATION-FLOOR-SPEC.md`: ruled NO RESPELL on the item's own
+numbers (≤ 17 % at a start sample, 0 % at full period; the floor is the
+backend's `cos` at exact angles) — a present-tense paragraph at
+`rotation_about` with the pair re-verified, the composition rider filed
+at its own home, the item closed with the ruling. One lane, two PRs in
+sequence, single style reviews, outside the experiment. Seam posted to
+BOOL for `SketchPlane`.
