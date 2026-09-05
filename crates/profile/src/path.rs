@@ -4067,7 +4067,11 @@ mod tests {
         );
         let d = unit_from_components::<f64>(3.0, 4.0, tol).expect("a real direction");
         assert_eq!((d.unit.x, d.unit.y), (0.6, 0.8), "the stored ray is unit");
-        assert_eq!(d.ang, 0.8_f64.atan2(0.6), "and the angle is derived FROM it");
+        assert_eq!(
+            d.ang,
+            0.8_f64.atan2(0.6),
+            "and the angle is derived FROM it"
+        );
 
         // The arc-carrier door refuses an anchor at the centre — no
         // tangent exists there — and stores the unit tangent
@@ -4080,13 +4084,9 @@ mod tests {
             ),
             "the carrier door decides its own radius"
         );
-        let t = arc_fillet::carrier_tangent::<f64>(
-            Point2::new(4.0, 2.0),
-            centre,
-            ArcSweep::Ccw,
-            band,
-        )
-        .expect("a real tangent");
+        let t =
+            arc_fillet::carrier_tangent::<f64>(Point2::new(4.0, 2.0), centre, ArcSweep::Ccw, band)
+                .expect("a real tangent");
         assert_eq!((t.unit.x, t.unit.y), (0.0, 1.0), "the stored ray is unit");
     }
 }
