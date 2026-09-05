@@ -402,8 +402,6 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
         carrier_radius: T,
         /// The matching signed offset radius ρ = R − σ·τ·r (negative).
         offset_radius: T,
-        /// The authored radius.
-        radius: T,
         /// **The existence bound**, when the corner's two circular
         /// carriers define one: the largest radius whose circle can be
         /// tangent to BOTH carriers at this corner, (R₁ + R₂ − d)/2 for
@@ -434,11 +432,12 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
         leg_length: T,
     },
     /// The offset carriers admit no corner-side candidate at all.
+    ///
+    /// The authored radius is not repeated here: the algebra door names
+    /// it once, on the envelope this reason becomes an entry of.
     NoCorner {
         /// Which way it failed.
         reason: NoCornerReason,
-        /// The authored radius.
-        radius: T,
     },
     /// An in-band or poisoned gate margin.
     Escalated(Indeterminate),
@@ -639,7 +638,6 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
     if survivors.is_empty() {
         return Err(overrun.unwrap_or(ArcTrimRefusal::NoCorner {
             reason: NoCornerReason::NoCornerSideCandidate,
-            radius,
         }));
     }
     Ok(ArcFilletOutcome::Arc {
@@ -849,7 +847,6 @@ fn enclosing_refusal<T: Real>(
         leg,
         carrier_radius,
         offset_radius,
-        radius,
         largest_tangent_radius,
     })
 }
@@ -1096,7 +1093,6 @@ impl<T: Real> Leg<T> {
                 Sign::Negative => {
                     return Err(ArcTrimRefusal::NoCorner {
                         reason: NoCornerReason::OffsetCarriersDisjoint,
-                        radius,
                     });
                 }
             },
@@ -1266,7 +1262,6 @@ impl<T: Real> ArcCarrier<T> {
         if external == Sign::Negative || internal == Sign::Negative {
             return Err(ArcTrimRefusal::NoCorner {
                 reason: NoCornerReason::OffsetCarriersDisjoint,
-                radius,
             });
         }
         // The conditioning gate, after the clearances on purpose: "the

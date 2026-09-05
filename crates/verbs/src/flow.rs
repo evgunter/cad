@@ -9,16 +9,17 @@
 //! can derive that, and nothing below needs it — so the declaration
 //! sits with the verb, as data.
 //!
-//! # What it is not, yet
+//! # Who consumes it
 //!
-//! Plain data with NO consumer in this crate or any other. It is the
-//! substrate for lowered parameter identity: a document layer that
-//! knows a slot's expression address and reads this flow can attach an
-//! opaque source token to exactly the fields the parameter reached, at
-//! mint time. Until that lands, the acceptance for this declaration is
-//! that it exists, is exhaustive over the vocabulary's scalar
-//! parameters, and names only role families the birth record really
-//! mints — which `tests/param_flow.rs` executes rather than asserts.
+//! `editor-core`'s lowering (`param_source::attach_blend`), at mint
+//! time: the document layer knows a slot's expression, reads this flow
+//! for the parameter that slot is, and attaches the lowered token to
+//! exactly the fields the flow says the parameter reached. The
+//! declaration itself stays plain data in this crate — no consumer
+//! here — and its own acceptance is that it is exhaustive over the
+//! vocabulary's scalar parameters and names only role families the
+//! birth record really mints, which `tests/param_flow.rs` executes
+//! rather than asserts.
 //!
 //! # Scope: surface carriers
 //!

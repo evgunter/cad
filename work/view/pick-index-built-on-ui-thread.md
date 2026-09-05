@@ -2,10 +2,11 @@
 id: pick-index-built-on-ui-thread
 kind: issue
 title: The pick index is built on the UI thread, so a landing that costs seconds is a frame that costs seconds
-status: open
+status: dispatched
 opened: 2026-08-29
 github: 1259
 refs: [1217, 1247]
+branch: view/pick-index-offthread
 ---
 
 ## From GitHub issue 1259
