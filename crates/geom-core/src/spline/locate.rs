@@ -66,18 +66,20 @@ pub(crate) mod sealed {
 /// originates *here*, in the locator, and every locator route is
 /// [`KnotVector::span_at`], which is total. Carrying the proof out
 /// means no consumer re-derives *nonemptiness* or the window base — an
-/// evaluator taking a `usize` would have to. What a consumer does
-/// still check is that the span belongs to the vector it is evaluating
-/// against ([`KnotVector::admits`]), which a `SpanSet` cannot say
-/// because it carries no borrow of the `knots` it was located in.
-/// Iterate the interior with `first.index() + 1 ..= last.index()` and
-/// [`KnotVector::span`], which refuses the empty spans in between.
+/// evaluator taking a `usize` would have to. The set borrows the
+/// `knots` it was located in, through both of its spans, so a consumer
+/// has nothing to re-pair either: the vector each end is a proof about
+/// travels with it. Iterate the interior with
+/// `first.index() + 1 ..= last.index()` and [`KnotVector::span`],
+/// which refuses the empty spans in between.
+/// `Debug` comes from [`Span`]'s, which prints the borrow as an
+/// address rather than following it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct SpanSet {
+pub struct SpanSet<'a> {
     /// The first overlapped span.
-    pub first: Span,
+    pub first: Span<'a>,
     /// The last overlapped span (inclusive; `≥ first`).
-    pub last: Span,
+    pub last: Span<'a>,
 }
 
 /// Per-instantiation span selection (module docs) — the seam that lets
@@ -87,7 +89,11 @@ pub trait SpanLocate: sealed::Sealed + Real {
     /// The spans of `knots` this value overlaps (module docs for the
     /// per-scalar semantics; [`KnotVector::find_span`] for the f64
     /// tie-break and NaN totalization).
-    fn locate_spans(self, knots: &KnotVector) -> SpanSet;
+    ///
+    /// The lifetime is on the method, not the trait: the answer
+    /// borrows the vector it located in, and the scalar implementing
+    /// this holds nothing.
+    fn locate_spans<'a>(self, knots: &'a KnotVector) -> SpanSet<'a>;
 
     /// Combines two per-span evaluation results into one enclosure —
     /// invoked only when [`SpanLocate::locate_spans`] returned more
@@ -107,7 +113,7 @@ pub trait SpanLocate: sealed::Sealed + Real {
 }
 
 impl SpanLocate for f64 {
-    fn locate_spans(self, knots: &KnotVector) -> SpanSet {
+    fn locate_spans<'a>(self, knots: &'a KnotVector) -> SpanSet<'a> {
         let span = knots.span_at(self);
         SpanSet {
             first: span,
@@ -134,7 +140,7 @@ mod tests {
 
     /// `Span`'s fields are private (that is the point), so the
     /// locator's answer is compared as the pair of indices it names.
-    fn indices(set: SpanSet) -> (usize, usize) {
+    fn indices(set: SpanSet<'_>) -> (usize, usize) {
         (set.first.index(), set.last.index())
     }
 

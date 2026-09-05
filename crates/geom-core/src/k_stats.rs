@@ -776,7 +776,7 @@ impl crate::real::CertifiedEnclosure for Probe {
 /// margin sample is emitted (span choice never drives topology).
 #[cfg(feature = "probe")]
 impl crate::spline::SpanLocate for Probe {
-    fn locate_spans(self, knots: &crate::spline::KnotVector) -> crate::spline::SpanSet {
+    fn locate_spans<'a>(self, knots: &'a crate::spline::KnotVector) -> crate::spline::SpanSet<'a> {
         crate::spline::SpanLocate::locate_spans(self.0, knots)
     }
 

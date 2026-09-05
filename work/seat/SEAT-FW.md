@@ -2,7 +2,7 @@
 id: SEAT-FW
 kind: unit
 title: the flush detector widens to the curved Rest rungs — the content review SEAT-3 declined
-status: dispatched
+status: review
 opened: 2026-09-05
 branch: seat/flushwide
 refs: [flush-detector-widening-to-curved-rungs, 1531]

@@ -340,7 +340,7 @@ pub fn plane_plane_blend<T: Real>(
 /// (S10/S11): the material side of each on a CONVEX chain, the void
 /// side of each on a CONCAVE one, where the ball rolls in the void.
 /// That is ONE fold, [`Convexity::signed`] (`±r`), homed on the verdict
-/// type and shared with [`plane_plane_blend`], `surgery::corner_plan`
+/// type and shared with [`plane_plane_blend`], `open::planar::corner_plan`
 /// and — as the side bit [`Convexity::ball_side`] — the shared sheet
 /// reduction (`battery::curved_arm`); [`corner_ball`] alone spells its
 /// NEGATIVE, the rest depth. Which side of the
