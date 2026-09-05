@@ -749,6 +749,68 @@ fn between_a_submit_and_its_answer_there_is_no_index_to_pick_from() {
     assert_ne!(first, second, "and the index that landed is the new one");
 }
 
+/// **The one arm where "current or absent, never behind" could break,
+/// and the only one that can produce a CONFIDENTLY WRONG pick.**
+///
+/// Every other transition swaps one picture's key for another's, so a
+/// late answer meets a key it does not match and is discarded. A
+/// `New document` (or an `Open`) under a build that is still with the
+/// seam leaves NO next key: the session's landed run is gone. Before
+/// `PickCache::forget`, the vanished picture's key stayed on the cache
+/// and the in-flight build matched it on arrival — installing the
+/// index of the document that was just replaced, over the scene of the
+/// one before THAT, with nothing running, nothing on the status line
+/// and no way to self-correct until the newly-opened document landed.
+#[test]
+fn a_build_in_flight_when_the_document_is_replaced_installs_nothing() {
+    let tol = Tol::witness();
+    let (mut session, extrude) = plate_session(tol);
+    let mut cache = PickCache::inline();
+    assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
+    assert_eq!(cache.pump(), vec![IndexLanding::Built]);
+
+    // An edit lands, and its index build is submitted but not answered
+    // — the window this seam creates.
+    session.perform(SessionOp::SetSlot {
+        node: extrude,
+        slot: SlotId::Distance,
+        value: SlotValue::Continuous(PLATE_EXTENT[2] * 1.5),
+    });
+    session.pump();
+    assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
+    assert!(cache.index().is_none());
+
+    // The document is replaced mid-build. The session's landed run
+    // goes with it, so there is no picture for the outstanding build
+    // to be the index OF.
+    session.perform(SessionOp::NewDocument {
+        name: "fresh".to_owned(),
+    });
+    assert!(session.landed_generation().is_none());
+    assert_eq!(cache.sync(&session, delta()), CacheStep::Nothing);
+    assert!(
+        !cache.indexing(),
+        "nothing the chrome should promise an answer for",
+    );
+
+    // The build finishes. It must be discarded, not installed.
+    assert_eq!(
+        cache.pump(),
+        vec![IndexLanding::Stale],
+        "an index of the replaced document is not an index of anything on screen",
+    );
+    assert!(
+        cache.index().is_none(),
+        "and no pick can be answered from it",
+    );
+    assert!(cache.error().is_none());
+
+    // The new document lands: an ordinary fresh attempt, not a state
+    // the cache has to be talked out of.
+    session.pump();
+    assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
+}
+
 /// **The confidently-wrong answer this seam makes possible**, refused.
 /// A build finishing for a generation the session has moved past is
 /// exactly what restart-without-cancel produces, and installing it

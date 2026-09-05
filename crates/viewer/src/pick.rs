@@ -2340,7 +2340,16 @@ impl PickCache {
     /// goes on being edited. Both come from the landed pair, which is
     /// set in one place and read together.
     pub fn sync(&mut self, session: &DocSession, delta: DisplayTolerance) -> CacheStep {
-        let Some(generation) = session.landed_generation() else {
+        // **The one way out on "nothing landed", and it FORGETS.**
+        // The three reads are taken together because they are set
+        // together, so the destructuring cannot pick up a generation
+        // without the pair it describes.
+        let (Some(generation), Some((doc, _)), Some(evaluation)) = (
+            session.landed_generation(),
+            session.landed_pair(),
+            session.evaluation_arc(),
+        ) else {
+            self.forget();
             return CacheStep::Nothing;
         };
         if self
@@ -2362,10 +2371,6 @@ impl PickCache {
             // recorded and the caller has already seen it.
             return CacheStep::Held;
         }
-        let (Some((doc, _)), Some(evaluation)) = (session.landed_pair(), session.evaluation_arc())
-        else {
-            return CacheStep::Nothing;
-        };
         self.attempted = Some(wanted);
         self.outstanding = Some(wanted);
         // **Dropped before the answer, not after it.** What is held
@@ -2384,6 +2389,29 @@ impl PickCache {
             tol: session.tol(),
         });
         CacheStep::Submitted
+    }
+
+    /// Drop everything that describes a picture: the held index, the
+    /// attempt that produced it or is producing it, and its refusal.
+    ///
+    /// **This is where "current or absent, never behind" is
+    /// enforced**, and the one place it can be. Every other transition
+    /// replaces one picture's key with another's, so a late answer is
+    /// compared against a key and discarded. Here there is no next
+    /// key: the session has no landed run at all, because a document
+    /// was opened or a new one authored under a build that is still
+    /// with the seam. Leaving `attempted` set would leave that build a
+    /// key to match on arrival, and it would install — an index of a
+    /// document nobody is looking at, over a scene of a third one,
+    /// with nothing running and nothing said. Clearing `attempted` is
+    /// what turns that answer into [`IndexLanding::Stale`]; the other
+    /// three fields go with it because all four describe the same
+    /// vanished picture.
+    fn forget(&mut self) {
+        self.index = None;
+        self.attempted = None;
+        self.outstanding = None;
+        self.error = None;
     }
 
     /// Take whatever the seam has finished, discarding answers for
