@@ -593,8 +593,8 @@ pub(crate) fn torus_extent<T: Real>(
 /// [`Aabb::padded`]'s outward ulp plus [`sweep_pad`] dominates it.
 /// Sample parameters are exact `f64` products of the window ends; the
 /// window ends themselves arrive as the OUTER ends of the caller's
-/// brackets ([`torus_chart_window`]); the radii enter as SPANS rather
-/// than at one end, so a bracketed description's whole family of tori
+/// brackets (each lane's own walk of [`TorusChartWindow`]); the radii
+/// enter as SPANS rather than at one end, so a bracketed description's whole family of tori
 /// is covered (the argument [`arc_extent`] makes for its semi-axes —
 /// `R + r·cos v` is not monotone in `r`, so one end would not do);
 /// the charge's `(R + r)` and `r` are taken at the brackets' upper
@@ -904,8 +904,9 @@ pub(crate) fn conic_extent<T: Real>(
 ///   box is the boundary hull only when no critical point lies in the
 ///   face. That is a statement about the face's chart REGION, so the
 ///   arm needs the region — and it reads it from the boundary's
-///   STORED CERTIFIED pcurves ([`torus_chart_window`]), which is a
-///   read of certified data exactly as `EdgeCurve::params` is for
+///   STORED CERTIFIED pcurves ([`TorusChartWindow`], filled by each
+///   lane's own arena walk), which is a read of certified data
+///   exactly as `EdgeCurve::params` is for
 ///   [`arc_extent`]. No `decide` runs, no `Band` is consulted and
 ///   nothing escalates: a face whose window cannot be read keeps the
 ///   whole tube, which is what this arm claimed for every torus
@@ -1164,40 +1165,39 @@ pub(crate) fn face_box<T: Decide + Bounds>(
     // this lane's `f64` brackets, each end taken outward
     // (`lo()`/`hi()`), so a bracketed cache widens the window rather
     // than narrowing it.
-    let chart_window =
-        |major: T, minor: T| -> Result<Option<(Span<f64>, Span<f64>)>, BooleanError> {
-            let mut acc = TorusChartWindow::new();
-            for lk in loops_of(f) {
-                let l = body.get_loop(lk).ok_or(corrupt("face box: loop lost"))?;
-                match l.boundary {
-                    // A lone vertex carries no chart image, so this
-                    // walk cannot see what bounds the face's region.
-                    LoopBoundary::Empty { .. } => return Ok(None),
-                    LoopBoundary::Cycle { first } => {
-                        for he in body
-                            .loop_cycle(first)
-                            .ok_or(corrupt("face box: unwalkable loop"))?
-                        {
-                            if !acc.add(body.pcurve(he)) {
-                                return Ok(None);
-                            }
+    let chart_window = |major: T, minor: T| -> Result<Option<TorusWindowPair<f64>>, BooleanError> {
+        let mut acc = TorusChartWindow::new();
+        for lk in loops_of(f) {
+            let l = body.get_loop(lk).ok_or(corrupt("face box: loop lost"))?;
+            match l.boundary {
+                // A lone vertex carries no chart image, so this
+                // walk cannot see what bounds the face's region.
+                LoopBoundary::Empty { .. } => return Ok(None),
+                LoopBoundary::Cycle { first } => {
+                    for he in body
+                        .loop_cycle(first)
+                        .ok_or(corrupt("face box: unwalkable loop"))?
+                    {
+                        if !acc.add(body.pcurve(he)) {
+                            return Ok(None);
                         }
                     }
                 }
             }
-            Ok(acc.finish(major, minor).map(|(u, v)| {
-                (
-                    Span {
-                        lo: u.lo.lo(),
-                        hi: u.hi.hi(),
-                    },
-                    Span {
-                        lo: v.lo.lo(),
-                        hi: v.hi.hi(),
-                    },
-                )
-            }))
-        };
+        }
+        Ok(acc.finish(major, minor).map(|(u, v)| {
+            (
+                Span {
+                    lo: u.lo.lo(),
+                    hi: u.hi.hi(),
+                },
+                Span {
+                    lo: v.lo.lo(),
+                    hi: v.hi.hi(),
+                },
+            )
+        }))
+    };
     let boxed = match face_box_rule(surface) {
         FaceBoxRule::ControlNet(patch) => geom::surfaces::boxes::nurbs_surface_aabb(patch),
         FaceBoxRule::WholeBall { center, radius } => {
@@ -2702,6 +2702,10 @@ mod tests {
         let on =
             |u: f64, v: f64| center + e(u) * (major + minor * v.cos()) + axis * (minor * v.sin());
         let mut body = Body::<f64>::new();
+        // The seed FIRST: a surface added before it has a face is
+        // orphan geometry, which `mvfs`'s tier-1 postcondition
+        // rejects.
+        let seed = body.mvfs(on(u0, v0)).unwrap();
         let torus = body.add_surface(Surface::Torus {
             center,
             axis,
@@ -2796,7 +2800,6 @@ mod tests {
                 param_end: t1,
             }
         };
-        let seed = body.mvfs(on(u0, v0)).unwrap();
         let bottom = parallel(&mut body, v0, true);
         let e_b = body
             .mev(

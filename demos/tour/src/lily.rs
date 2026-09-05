@@ -2131,22 +2131,30 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    because the declared contact is the PLANAR pair the throat
     //    disk and the arch's cap already form, and a cone x torus Rest
     //    declaration would be Contradicted, correctly. #1059 is the
-    //    derivation; the measurement is VERBS-LILYWELD PR-2's.
+    //    derivation; the measurement is VERBS-LILYWELD PR-2's. The
+    //    face the gate names on the arch is that same end cap, paired
+    //    with the lantern's neck CONE — a pair no declaration speaks
+    //    for, coverage being per pair and never per face.
     wall(
         2,
-        "weld the lantern onto the arch (cone x torus, meeting on one \
-         shared circle)",
+        "weld the lantern onto the arch (cone x the arch's end cap, \
+         meeting on one shared circle)",
         pncad::topo::union(lant, arch, tol),
         |e| {
-            // Reviewer pin (lilyweld r1 + r2 probes): PR body claims
-            // (Cone, Torus), re-measured on the re-authored pair.
+            // The pair is (Cone, Plane): the lantern's neck cone
+            // against the arch's END CAP, whose rim IS the shared
+            // circle — a genuine coincidence rather than a box
+            // artifact. It was (Cone, Torus) while the arch's tube
+            // wall was boxed as its whole ring; the wall is now boxed
+            // by the chart window its own boundary states, so the
+            // first overlapping pair in arena order is the cap.
             matches!(
                 e,
                 BooleanError::CurvedPairUnsupported {
                     op: None,
                     operand: Operand::A,
                     kind: SurfaceKind::Cone,
-                    other_kind: SurfaceKind::Torus,
+                    other_kind: SurfaceKind::Plane,
                     ..
                 }
             )
@@ -2875,6 +2883,12 @@ mod review_probes {
     /// refuses with the identical payload, because `gate_operand_pairs`
     /// runs on KINDS before any declaration is consulted.
     ///
+    /// The refusal names that same end cap — against the lantern's
+    /// neck CONE, which is not a face any declaration speaks for.
+    /// Coverage is per PAIR, never per face, so declaring the throat
+    /// disks against the cap leaves the cone against the cap
+    /// uncovered and the gate refuses on it.
+    ///
     /// That is the pin: **declaring the weld changes nothing today**,
     /// and the differential between the declared and undeclared calls
     /// is empty. When the operand gate learns declared cone×torus,
@@ -2913,7 +2927,7 @@ mod review_probes {
                     op: None,
                     operand: Operand::A,
                     kind: SurfaceKind::Cone,
-                    other_kind: SurfaceKind::Torus,
+                    other_kind: SurfaceKind::Plane,
                     ..
                 }
             ),
@@ -4170,12 +4184,13 @@ mod verbs_gate_r1_probes {
                     op: None,
                     operand: Operand::A,
                     kind: SurfaceKind::Cone,
-                    other_kind: SurfaceKind::Torus,
+                    other_kind: SurfaceKind::Plane,
                     ..
                 }
             ),
-            "wall 2 must name a lantern CONE against the arch's tube — the pair the \
-             gate has no arm for, with the two loci sharing one circle: {welded:?}"
+            "wall 2 must name a lantern CONE against the arch's END CAP — the pair \
+             the gate has no arm for, and the cone's rim IS that cap's rim: \
+             {welded:?}"
         );
     }
 
