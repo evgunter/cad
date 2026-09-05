@@ -1614,3 +1614,91 @@ after every coherent unit` (`memories/agent-lane-operations.md`). The
 third is the case it exists for. Five concurrent agents is what
 exhausted the budget; the correctness review runs alone rather than
 beside a style review as a result.
+
+## #1885's style review: the ratified prose asserts a policy the walk violates (2026-09-05)
+
+The strongest review this program has taken. It verified the lane's
+claims 2 and 3 independently — `DisplayState::clear` really does bump a
+counter `new()` would reset, and there really is no path to
+`scratch.is_some() && gesture.is_none()` — and then declined claim 1
+for a reason neither the lane nor I had.
+
+### The assert is not a precondition
+
+`open` writes `resolver`, `history` and `path` **before** calling
+`clear_for_new_document`. So if the assert ever fires it fires with the
+session **already half-replaced** — which is precisely the half-acted
+state the same function's doc-comment says refusal exists to prevent.
+The precondition belongs in `perform`, where a `Refusal` is free and
+one is already returned two lines away.
+
+That is the sharpest form of the dispatcher's own exposure: I sent the
+assert to review as "the first claim to falsify", and the reviewer
+falsified something better than the question I asked. I asked whether
+*unreachable* held; the answer is that it does, and that the
+instrument is in the wrong place regardless.
+
+**And the "reds a test" half is half true.** Flipping the table row
+alone reds `gesture_table.rs`'s hand-restated `expected()`, not the
+assert. Flip both and `NewDocument` panics — but **`Open` does not**:
+every mid-gesture `Open` sample in the whole suite uses a nonexistent
+path and dies in `docio::open` before the assert is reached. The
+guarantee rests on one fixture for one door and on nothing for the
+other.
+
+### The README ratified four sentences that are not true
+
+This is the eighth-and-ninth instance of this program's standing
+hazard, and the first where the prose was **written and ratified in
+the same PR that made it false**:
+
+- *"`gesture` is cleared by nothing and must not be"* — one line above
+  `display.clear()`, which sets `free_move = None`. That is the
+  **other** drag, documented as independently open, and **nothing
+  refuses `Open` or `NewDocument` while a free-move is in flight** —
+  `permitted_during_value_gesture` governs value gestures only. So the
+  ratified sentence states a policy the walk applies to one gesture
+  kind and silently violates for the other, and the lane's own argument
+  for the assert indicts the line beneath it.
+- *"a value drag is refused while either door is asked for"* —
+  backwards. `perform` refuses **the door**; the drag is untouched.
+  Written twice, once in ratified prose.
+- *"cleared by being declared"* — overstates. The struct literal
+  refuses to compile until an author writes the cleared value **at one
+  site, by hand**. That is one site instead of three, which is the
+  win; it is not automatic.
+- *"`landed_pair` cannot hand out half of it"* — it returns two of six
+  fields, so it does hand out part. The true claim is that the two can
+  no longer come from **different runs**.
+
+Plus three different counts of one thing across three artifacts: the
+README says three call sites, the item's title says four, its body says
+twelve statements.
+
+### A dispatcher correction, of me and not the lane
+
+`land` never wrote `selection`, `hover`, `scratch` or `bounds` — only
+the six `landed_*`. It is **three** sites for `Derived`'s walk and one
+for `LandedRun`'s. The item's *filename* ("three times") was right and
+its *title* was not, and my brief carried the title forward. Tenth
+correction.
+
+### Four residues, and the lane files them itself
+
+Reversing my earlier instruction, which was wrong: `implementer-
+discipline.md` §6 puts a residue inside a program's own fence in the
+PR that discloses it, and my reason for overriding that was to keep
+`work/view/` clear for this branch — a convenience against a rule.
+
+1. the free-move drag dissolved silently by `Open`/`NewDocument`;
+2. **a fourth hand-maintained walk survives one screen below the fix** —
+   `Debug for DocSession` lists fields by hand and is
+   `finish_non_exhaustive()`, so a field added to `Derived` is silently
+   absent from it. The class the unit exists to close, reproducing
+   itself in the same file;
+3. `app.rs`'s `matches!(op, SessionOp::Open(_))` re-frame, which
+   `NewDocument` never gets though it replaces the document too — the
+   lane's **own declared blind spot**, found in a second module;
+4. `DisplayState::clear` dropping free-move placements silently while
+   `prune` reports them — and #1886 is at this moment making `prune`
+   report *more*, which widens the gap rather than closing it.
