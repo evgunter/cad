@@ -1608,8 +1608,9 @@ pub(crate) mod leaf {
     pub(crate) enum LeafLane {
         /// Plain `Interval`, the pre-E12 replay.
         Numeric,
-        /// `Sym<Interval>` inside a fresh session at this budget.
-        Symbolic(geom_core::SymBudget),
+        /// `Sym<Interval>` inside a fresh session at this budget, with
+        /// these atom-algebra rules.
+        Symbolic(geom_core::SymBudget, geom_core::SymRules),
     }
 
     /// A shared memo prior over the nominal box, for the numeric lane.
@@ -1645,7 +1646,7 @@ pub(crate) mod leaf {
                     opts,
                     tol,
                 ))),
-                LeafLane::Symbolic(_) => Self::None,
+                LeafLane::Symbolic(..) => Self::None,
             }
         }
     }
@@ -1714,8 +1715,8 @@ pub(crate) mod leaf {
                     evaluate(doc, prior, &CancelToken::new(), opts, tol);
                 read_leaf(&ev, want, |v| v)
             }
-            LeafLane::Symbolic(budget) => {
-                let (out, _) = geom_core::sym::with_session(budget, || {
+            LeafLane::Symbolic(budget, rules) => {
+                let (out, _) = geom_core::sym::with_session_rules(budget, rules, || {
                     let ev: Evaluation<geom_core::Sym<geom_core::Interval>> =
                         evaluate(doc, None, &CancelToken::new(), opts, tol);
                     read_leaf(&ev, want, |v: geom_core::Sym<geom_core::Interval>| v.value)

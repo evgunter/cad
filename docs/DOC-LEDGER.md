@@ -546,6 +546,15 @@ whose unit had merged; each unit's record is its row in
 - `M10-3-SPEC.md` — M10-3, the E6 subdivision driver (#1231)
 - `M10-4-SPEC.md` — M10-4, sensitivities and the stackup (#1627)
 
+## Per-merge deletion — M10-8's spec (2026-09-05)
+
+Recoverable at `git show f5fb7fe92:docs/M10-8-SPEC.md` (the M10-8 unit
+head, before the state-sync commit that deleted it). The rule above;
+the unit's record is its row in `MODEL-AB-LOG.md` and its MERGED entry
+in `work/m10/log.md`.
+
+- `M10-8-SPEC.md` — M10-8, the arc family: the atom algebra measured per mechanism, the constant fold shipped alongside, rule C built and dial-off (#1828)
+
 ## Per-merge deletion — M10-7's spec (2026-09-04)
 
 Recoverable at `git show bb3fba8bc:docs/M10-7-SPEC.md` (the M10-7 unit

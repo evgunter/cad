@@ -172,5 +172,10 @@ mod unit_segment;
 #[path = "props1_evidence.rs"]
 mod props1_evidence;
 
+#[path = "m10_8_r1_sym_probes.rs"]
+mod m10_8_r1_sym_probes;
 #[path = "props1_review_rows.rs"]
 mod props1_review_rows;
+
+#[path = "m10_8_r2_sym_probes.rs"]
+mod m10_8_r2_sym_probes;

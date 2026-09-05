@@ -841,3 +841,39 @@ M10 may retire the row; (3) filed into `work/m10/`:
 (−ε, ε) on the extrude depth refuses `DegenerateExtrusion` definitely on
 every sub-box yet bisects to the floor as `Budget` (2.5 % of the planted
 flip, measured). Signed (PROPS orchestrator).
+
+## M10-8 MERGED (2026-09-05)
+
+PR #1828 merged, sample #145 (ordinal 509). The unit was written
+measurement-first and its own headline was a negative result: the
+arc family's atom algebra inert on every document, rule C
+unbuildable within the discipline, the reserve filed and the tier
+M10-7 byte for byte. The dual review showed the negative result was
+an artefact of the implementation. R1, by execution: the freezes
+the unit blamed were `sqrt` atoms over CONSTANT forms with
+exact-rational roots, and a value-free fold of them (A0) moved the
+bracket's whole-certifying ceiling 10.4× and an annulus 39×; the
+runaway was the first commit's per-node variant and the downgrade
+came from replacing the plain form rather than reducing beside it;
+rule C's `dyn Any` objection was a corner, and the spec's candidate
+shape — the plate's own ceiling — had never been built. R2, by
+execution: the §1 table, the sole deliverable, was read off a broken
+instrument (a stale thread-local mis-attributing each replay's first
+decisions; a detector comparing one column), and a rounded-corner
+pad refuses first on a constructor-DECLARED tangency — the consumer
+the registered-identity door was said to lack. Landed: A0 alongside
+the plain form on a hybrid `i128`/`BigInt` ring; rule C built in the
+candidate shape through per-parameter brackets and the ring
+interval, measured to zero folds at the shipped bound and dial-off
+with its receipts live; the instrument fixed; the pins re-cut
+ε-relative with the moved numbers; two M10-4 rows moved by the tier
+(the stepped shaft's real study certifies in one leaf); the K
+instrument's 1,054 unnamed corpus samples named (F18). The honest
+miss stands: the plate's real study is UNMOVED at `7.81e2·ε` with
+every rule on — the spec's acceptance is not met, and what bounds it
+next is filed with the rendered residual
+(`plate-rim-residual-needs-the-wide-coefficient-ring`). Two tally
+candidates, one each way; the lane died twice on Fable limits and
+was resumed in place both times. Sixteen deviations. The spec leaves
+`docs/` with this merge; the exit walk stays a draft — whether a
+further unit for the plate is owed goes to Ev.
