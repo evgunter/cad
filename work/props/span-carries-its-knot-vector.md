@@ -2,10 +2,12 @@
 id: span-carries-its-knot-vector
 kind: unit
 title: Consider giving Span its KnotVector — close the unbranded-pairing hole structurally
-status: spec
+status: review
 opened: 2026-08-13
 github: 475
 refs: [447, 463, 468]
+pr: 1952
+branch: props/span-knot-vector
 ---
 
 ## From GitHub issue 475
