@@ -618,29 +618,45 @@ pub fn faces_around<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<FaceKey> {
     out
 }
 
-/// **Naming totality on a closed-rim band, in all three directions.**
-/// (a) Every output entity is a recorded mint or a survivor of the
-/// source; (b) every recorded retirement names a SOURCE key that did not
-/// survive; (c) every source entity ABSENT from the output is a recorded
-/// retirement — a dead edge or vertex, or a rim arc a band row replaced.
-/// (c) is the direction the first two do not imply: a retirement the
-/// surgery forgets to record is invisible to (a) and (b) and to the
-/// census delta alike. Also: the band rows name exactly `requested`.
-/// The per-row COUNTS (feet, splits, retired seam vertices) stay in the
+/// **Naming totality on any blend result — open bands, corners and
+/// closed-rim bands — in every direction the birth records owe.**
+///
+/// (a) Every output face, edge and vertex is a recorded mint or a
+/// survivor of the source; (b) every recorded retirement names a SOURCE
+/// key that did not survive; (c) every source entity ABSENT from the
+/// output is a recorded retirement — a dead edge or vertex, or an edge a
+/// band or blend row replaced; (d) every recorded mint is PRESENT in the
+/// output (a stale row naming an entity a later split subdivided away
+/// is the shape this direction exists for); (e) no mint is recorded
+/// twice, and no mint reuses a source key — except a split FRAGMENT
+/// (`meridian_remnants`, `slits`), whose key may be its own parent's,
+/// because `split_edge` hands the parent key to one child. (c) is the
+/// direction (a) and (b) do not imply: a retirement the surgery forgets
+/// to record is invisible to both and to the census delta alike. Also:
+/// the band and blend rows together name exactly `requested`. The
+/// per-row COUNTS (feet, splits, retired seam vertices) stay in the
 /// rows, because they are the fixture's, not the walk's.
-pub fn assert_naming_totality(
-    source: &Body<f64>,
-    out: &Blended<f64>,
+pub fn assert_naming_totality<T: Real>(
+    source: &Body<T>,
+    out: &Blended<T>,
     requested: &[EdgeKey],
     what: &str,
 ) {
     let rec = out
         .naming
         .as_ref()
-        .unwrap_or_else(|| panic!("{what}: the rim phase records its births"));
-    // Every birth row of either band — the rim phase's and the open
-    // bands' — so the walk is total over whatever the request carved.
-    let minted_edges: Vec<EdgeKey> = rec
+        .unwrap_or_else(|| panic!("{what}: the surgery records its births"));
+    // Every birth row of every band — the blank phase's, the ruled
+    // band's and the rim phase's — so the walk is total over whatever
+    // the request carved.
+    let mut minted_faces: Vec<FaceKey> = rec
+        .blends
+        .iter()
+        .map(|(f, _)| *f)
+        .chain(rec.corners.iter().map(|(f, _)| *f))
+        .chain(rec.bands.iter().map(|(f, _)| *f))
+        .collect();
+    let mut minted_edges: Vec<EdgeKey> = rec
         .rim_trims
         .iter()
         .map(|(e, _, _)| *e)
@@ -649,22 +665,81 @@ pub fn assert_naming_totality(
         .chain(rec.trims.iter().map(|(e, _, _)| *e))
         .chain(rec.arcs.iter().map(|(e, _, _)| *e))
         .collect();
-    let minted_vertices: Vec<topo::VertexKey> = rec
+    let mut minted_vertices: Vec<topo::VertexKey> = rec
         .rim_feet
         .iter()
         .map(|(v, _)| *v)
         .chain(rec.meridian_splits.iter().map(|(v, _)| *v))
         .chain(rec.feet.iter().map(|(v, _, _)| *v))
         .collect();
-    // The edges a band replaced: a closed chain's arcs (`bands`) or an
-    // open link's edge (`blends`) — together, exactly the request.
-    let mut banded: Vec<EdgeKey> = rec
-        .bands
+    // (e) recorded once each.
+    fn once<K: Ord + Copy>(v: &mut Vec<K>, what: &str, kind: &str) {
+        let n = v.len();
+        v.sort_unstable();
+        v.dedup();
+        assert_eq!(n, v.len(), "{what}: a {kind} mint was recorded twice");
+    }
+    once(&mut minted_faces, what, "face");
+    once(&mut minted_edges, what, "edge");
+    once(&mut minted_vertices, what, "vertex");
+    // (e) no mint reuses a key — the split fragments excepted, whose
+    // key may be their own parent's and never an unrelated survivor's.
+    for f in &minted_faces {
+        assert!(
+            source.get_face(*f).is_none(),
+            "{what}: a minted face reused a key: {f:?}"
+        );
+    }
+    let fragments: Vec<(EdgeKey, EdgeKey)> = rec
+        .meridian_remnants
         .iter()
-        .flat_map(|(_, edges)| edges.iter().copied())
-        .chain(rec.blends.iter().map(|(_, e)| *e))
+        .chain(rec.slits.iter())
+        .copied()
         .collect();
+    for e in &minted_edges {
+        match fragments.iter().find(|(k, _)| k == e) {
+            Some((_, parent)) => assert!(
+                e == parent || source.get_edge(*e).is_none(),
+                "{what}: a split fragment carries a key that is neither its parent's nor fresh: {e:?}"
+            ),
+            None => assert!(
+                source.get_edge(*e).is_none(),
+                "{what}: a minted edge reused a key: {e:?}"
+            ),
+        }
+    }
+    for v in &minted_vertices {
+        assert!(
+            source.get_vertex(*v).is_none(),
+            "{what}: a minted vertex reused a key: {v:?}"
+        );
+    }
+    // (d) every mint is present.
+    for f in &minted_faces {
+        assert!(
+            out.body.get_face(*f).is_some(),
+            "{what}: a recorded face mint is absent: {f:?}"
+        );
+    }
+    for e in &minted_edges {
+        assert!(
+            out.body.get_edge(*e).is_some(),
+            "{what}: a recorded edge mint is absent from the output (a superseded row survived): {e:?}"
+        );
+    }
+    for v in &minted_vertices {
+        assert!(
+            out.body.get_vertex(*v).is_some(),
+            "{what}: a recorded vertex mint is absent: {v:?}"
+        );
+    }
     // (a)
+    for (k, _) in out.body.faces() {
+        assert!(
+            minted_faces.contains(&k) || source.get_face(k).is_some(),
+            "{what}: output face {k:?} is neither minted nor a survivor"
+        );
+    }
     for (k, _) in out.body.edges() {
         assert!(
             minted_edges.contains(&k) || source.get_edge(k).is_some(),
@@ -698,6 +773,14 @@ pub fn assert_naming_totality(
             "{what}: a retired vertex does not survive: {v:?}"
         );
     }
+    // The edges a band replaced: a closed chain's arcs (`bands`) or an
+    // open link's edge (`blends`) — together, exactly the request.
+    let mut banded: Vec<EdgeKey> = rec
+        .bands
+        .iter()
+        .flat_map(|(_, edges)| edges.iter().copied())
+        .chain(rec.blends.iter().map(|(_, e)| *e))
+        .collect();
     // (c)
     for (k, _) in source.edges() {
         if out.body.get_edge(k).is_none() {
@@ -715,12 +798,18 @@ pub fn assert_naming_totality(
             );
         }
     }
+    for (k, _) in source.faces() {
+        assert!(
+            out.body.get_face(k).is_some(),
+            "{what}: source face {k:?} vanished — a support shrinks, it does not die"
+        );
+    }
     banded.sort_unstable();
     let mut want = requested.to_vec();
     want.sort_unstable();
     assert_eq!(
         banded, want,
-        "{what}: the band rows name exactly the requested arcs"
+        "{what}: the band and blend rows name exactly the requested edges"
     );
 }
 
@@ -978,8 +1067,13 @@ pub fn plane_sphere_cut(big_r: f64, r: f64) -> f64 {
 pub const ROD_R: f64 = 0.5;
 /// The flat's distance from the rod's axis, meters.
 pub const ROD_FLAT: f64 = 0.3;
-/// The rod's length, meters.
+/// The rod's length, meters. **Unity**, so `A_section · L` and
+/// `A_section` coincide on this fixture; the factor is pinned by the
+/// `L = 2.5` rod in `tests/review_fillet_h7_r2_probes.rs`.
 pub const ROD_L: f64 = 1.0;
+/// The fillet radius the rod rows carve at, meters — one home for the
+/// rod's four numbers.
+pub const ROD_FILLET: f64 = 0.1;
 
 /// **The rod with a flat milled along it** — the `CylinderPlaneCylinder`
 /// consumer: a cylinder of radius [`ROD_R`] about `z` over
@@ -1031,9 +1125,16 @@ pub fn rod_with_flat(tol: Tol) -> Body<f64> {
 /// [`rod_with_flat`]; generic over the scalar for the interval twin
 /// (the extrude door's bound is `Decide + PcurveFittedLane`, no bracket).
 pub fn rod_d_profile_at<T: Decide + PcurveFittedLane>(tol: Tol) -> Body<T> {
+    rod_d_profile_of_length_at(ROD_L, tol)
+}
+
+/// [`rod_d_profile_at`] at any length — the one home for the D-rod of
+/// a length other than [`ROD_L`], which the prism factor `A · L` and
+/// the cap lever are pinned on.
+pub fn rod_d_profile_of_length_at<T: Decide + PcurveFittedLane>(len: f64, tol: Tol) -> Body<T> {
     let f = T::from_f64;
     let y = (ROD_R * ROD_R - ROD_FLAT * ROD_FLAT).sqrt();
-    let theta = 2.0 * (PI - y.atan2(ROD_FLAT));
+    let theta = 2.0 * (core::f64::consts::PI - y.atan2(ROD_FLAT));
     let bulge = (theta / 4.0).tan();
     let lp = ProfileLoop::new(vec![
         ProfileVertex::new(Point2::new(f(ROD_FLAT), f(y)), f(bulge)),
@@ -1042,7 +1143,7 @@ pub fn rod_d_profile_at<T: Decide + PcurveFittedLane>(tol: Tol) -> Body<T> {
     let profile = Profile::new(SketchPlane::<T>::xy(), vec![lp])
         .validate(tol)
         .expect("the D validates");
-    extrude(&profile, Extrusion::Distance(f(ROD_L)), tol)
+    extrude(&profile, Extrusion::Distance(f(len)), tol)
         .expect("the D extrudes")
         .body
 }

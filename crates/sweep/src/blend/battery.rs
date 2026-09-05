@@ -367,6 +367,14 @@ pub struct BatteryVerdict<T: Real> {
     /// Which band the request grafts — carried so the assembly reads
     /// it off the verdict instead of being told a second time.
     pub kind: BlendKind,
+    /// The open-chain ends predicate 6 classified
+    /// [`CornerConfig::TransverseCap`] — every end of every RULED link,
+    /// sorted and deduplicated. The surgery's cap plan reads a link's
+    /// two ends off this list rather than re-deciding the cap; an end
+    /// missing from it is a verdict the body disagrees with. The
+    /// uniform trihedra the corner path carves are not listed: that
+    /// configuration has no tag of its own ([`corner_at`]).
+    pub transverse_caps: Vec<VertexKey>,
 }
 
 /// Escalate at a site (the shared shape, so the two-tolerance text
@@ -1111,11 +1119,14 @@ fn ruling_arm<T: Real>(sa: &Surface<T>, sb: &Surface<T>) -> Option<BlendArm> {
 /// [`super::arms::plane_sphere_blend`], `surgery::corner_plan`),
 /// `ball_side` for the ones that pick a side, and
 /// [`super::arms::corner_ball`]'s rest depth its one negation. The
-/// `Ruling` row folds it too — the convex side carves (the rod with a
-/// flat milled along it), and no fixture reaches a CONCAVE ruled band
-/// today: the one shape that has one, two parallel cylinders unioned
-/// at their common ruling, refuses at the boolean's curved-pierce
-/// door, so that arm of the fold is stated here and pinned nowhere.
+/// `Ruling` row folds it too, on both sides: the convex side carves the
+/// rod with a flat milled along it, the CONCAVE side carves a rod's
+/// section standing on a block's top edge (the sunk rod, built through
+/// the extrude door — `crates/sweep/tests/review_fillet_h7_r1_probes.rs`
+/// pins its material-adding band at `ΔV = +2·A·L`). The boolean
+/// cannot build either concave fixture (two parallel cylinders unioned
+/// refuse at the curved-pierce door; a block ∪ cylinder at the join
+/// lane), which is the boolean's ground, not this fold's.
 #[allow(clippy::too_many_arguments)]
 fn curved_arm<T: Decide + Bounds>(
     sa: &Surface<T>,
@@ -1486,19 +1497,26 @@ pub fn run_battery_for<T: Decide + Bounds>(
     // --- 6. corner configuration at every OPEN chain's two ends. Each
     // end is judged beside the link that reaches it: a ruled link's
     // ends are transverse caps, a planar link's are corners.
+    let mut transverse_caps = Vec::new();
     for chain in &chains {
         if let ChainClosure::Open { head, tail } = chain.closure {
             let last = chain.rest().last().unwrap_or(chain.first());
             for (v, link) in [(head, chain.first()), (tail, last)] {
-                corner_at(body, v, link, r, band, kind)?;
+                if let Some(CornerConfig::TransverseCap) = corner_at(body, v, link, r, band, kind)?
+                {
+                    transverse_caps.push(v);
+                }
             }
         }
     }
+    transverse_caps.sort_unstable();
+    transverse_caps.dedup();
 
     Ok(BatteryVerdict {
         chains,
         size: req.size,
         kind,
+        transverse_caps,
     })
 }
 
@@ -1595,15 +1613,22 @@ pub const RULED_END_NOT_TRANSVERSE: &str = "a ruled band's edge ends at a face t
 /// the cap's own section of it?
 ///
 /// Margin: the cap normal's **departure** from the ruling, `|n̂ × τ̂|`
-/// in METERS at the link's own lever arm — the extent
-/// [`super::arms::Ruling::lever`] already meters the shared-ruling
-/// hypothesis at, so the two decisions about one link's ruling are
-/// levered alike. `Sign::Zero` is the cap being transverse; a definite
-/// departure is the oblique cap, refused as the run-out it is; an
-/// in-band reading escalates with the same recourse (two-tolerance,
-/// D4 ¶1 addendum). Nothing here reads a sampled normal: the cap
-/// plane's normal is the stored surface's, the ruling the arm's own
-/// cylinder axis.
+/// in METERS at the link's own lever arm — [`Link::arm_len`], the
+/// extent [`super::arms::Ruling::lever`] already meters the
+/// shared-ruling hypothesis at, so the two decisions about one link's
+/// ruling are levered alike. `Sign::Zero` is the cap being transverse;
+/// a definite departure is the oblique cap, refused as the run-out it
+/// is; an in-band reading escalates with the same recourse
+/// (two-tolerance, D4 ¶1 addendum). Nothing here reads a sampled
+/// normal: the cap plane's normal is the stored surface's, the ruling
+/// the arm's own cylinder axis.
+///
+/// **Both directions are normalised HERE**, so the margin is the sine
+/// of the angle between them whatever a caller passes: the stored
+/// plane normal and cylinder axis are unit vectors already (the
+/// normalisation is exact on them and moves no bit of any carve), and
+/// a pin that hands in a non-unit direction still meters the angle it
+/// meant.
 ///
 /// # Errors
 ///
@@ -1616,7 +1641,10 @@ pub fn cap_transverse<T: Decide + Bounds>(
     lever: T,
     band: Band,
 ) -> Result<(), BlendError> {
-    let margin = Margin::levered(cap_normal.cross(ruling).norm(), lever);
+    let margin = Margin::levered(
+        cap_normal.normalize().cross(ruling.normalize()).norm(),
+        lever,
+    );
     match decide("fillet3_cap_transverse", margin, band)
         .map_err(|e| esc(BlendSite::Joint { vertex }, e))?
     {
@@ -1628,39 +1656,75 @@ pub fn cap_transverse<T: Decide + Bounds>(
     }
 }
 
-/// **The cap face at a ruled link's end**, read structurally: at a
-/// trivalent vertex the two edges other than the link's each separate
-/// one of the link's supports from a third face, and that third face —
-/// one face, shared by both — is the cap. `None` where the incidence
-/// does not have that shape.
-fn cap_face_at<T: Decide>(body: &Body<T>, edges: &[EdgeKey], link: &Link<T>) -> Option<FaceKey> {
+/// **The cap incidence at a ruled link's end**, read structurally — the
+/// ONE home of the rule the battery classifies by and the surgery
+/// carves by: at a trivalent vertex the two edges other than the
+/// crease each join one of the link's supports (`face_a`, `face_b`) to
+/// a third face, and that third face — one face, shared by both — is
+/// the cap. Returned as `(rim on face_a, rim on face_b, cap)`.
+///
+/// `None` where the incidence does not have that shape. **On a
+/// manifold body that is unreachable at valence three**: the three
+/// face-corners around a trivalent vertex are its three faces, so its
+/// edges separate `A|B`, `B|C`, `C|A` — one crease and two rims each
+/// joining one support to the same third face, by construction. The
+/// `None` arms (an edge on both supports, on neither, or two distinct
+/// third faces) can be reached only by a non-manifold vertex or a
+/// stale key, which is why the battery reports them as an
+/// unclassifiable end and the surgery as a body that does not hold
+/// together — neither is a shape a fixture can build.
+pub(super) fn cap_incidence<T: Decide>(
+    body: &Body<T>,
+    vertex: VertexKey,
+    crease: EdgeKey,
+    face_a: FaceKey,
+    face_b: FaceKey,
+) -> Option<(EdgeKey, EdgeKey, FaceKey)> {
+    let incident = vertex_edges(body, vertex)?;
+    let [_, _, _] = incident[..] else {
+        return None;
+    };
     let faces_of = |e: EdgeKey| -> Option<(FaceKey, FaceKey)> {
         let ed = body.get_edge(e)?;
         Some((face_of(body, ed.he_plus)?, face_of(body, ed.he_minus)?))
     };
-    let mut cap: Option<FaceKey> = None;
-    for e in edges.iter().filter(|e| **e != link.edge) {
-        let (f1, f2) = faces_of(*e)?;
-        let is_support = |f: FaceKey| f == link.face_a || f == link.face_b;
-        let third = match (is_support(f1), is_support(f2)) {
-            (true, false) => f2,
-            (false, true) => f1,
+    let mut rim_a: Option<(EdgeKey, FaceKey)> = None;
+    let mut rim_b: Option<(EdgeKey, FaceKey)> = None;
+    for e in incident.into_iter().filter(|e| *e != crease) {
+        let (f1, f2) = faces_of(e)?;
+        let on = |f: FaceKey| f == face_a || f == face_b;
+        let (support, third) = match (on(f1), on(f2)) {
+            (true, false) => (f1, f2),
+            (false, true) => (f2, f1),
             _ => return None,
         };
-        match cap {
-            None => cap = Some(third),
-            Some(c) if c == third => {}
-            Some(_) => return None,
+        let slot = if support == face_a {
+            &mut rim_a
+        } else {
+            &mut rim_b
+        };
+        if slot.replace((e, third)).is_some() {
+            return None;
         }
     }
-    cap
+    let (Some((rim_a, cap)), Some((rim_b, cap_b))) = (rim_a, rim_b) else {
+        return None;
+    };
+    (cap == cap_b).then_some((rim_a, rim_b, cap))
 }
 
 /// Predicate 6 at one termination vertex, beside the link that reaches
-/// it: a RULED link's end must be a transverse cap
-/// ([`CornerConfig::TransverseCap`], decided by [`cap_transverse`]);
-/// any other link's end is classified as a corner — gather valence,
-/// per-edge convexity, and the three support normals, then classify.
+/// it, returning the CARVED configuration it classified: a RULED
+/// link's end must be a transverse cap — decided by [`cap_transverse`]
+/// and returned as [`CornerConfig::TransverseCap`], the tag the verdict
+/// carries for the surgery's cap plan to read — and any other link's
+/// end is classified as a corner: gather valence, per-edge convexity,
+/// and the three support normals, then classify. A uniform trihedron
+/// that passes returns `None`: the carved trihedral configuration has
+/// no tag of its own ([`CornerConfig::ThreeConvexEdges`] names the
+/// convex one and no name exists for the concave one — evgunter/cad
+/// issue 1355), so it is the ONE carved configuration the battery
+/// admits without tagging.
 fn corner_at<T: Decide + Bounds>(
     body: &Body<T>,
     vertex: VertexKey,
@@ -1668,7 +1732,7 @@ fn corner_at<T: Decide + Bounds>(
     radius: T,
     band: Band,
     kind: BlendKind,
-) -> Result<(), BlendError> {
+) -> Result<Option<CornerConfig>, BlendError> {
     let indeterminate =
         || super::surgery::unbuilt_corner_config(vertex, CornerConfig::Indeterminate);
     let edges = vertex_edges(body, vertex).ok_or_else(indeterminate)?;
@@ -1688,7 +1752,8 @@ fn corner_at<T: Decide + Bounds>(
     // any neighbour is resolved as a link — the cap's rim edges are
     // not blended and need no arm.
     if link.arm.is_ruled() && valence == 3 {
-        let Some(cap) = cap_face_at(body, &edges, link) else {
+        let Some((_, _, cap)) = cap_incidence(body, vertex, link.edge, link.face_a, link.face_b)
+        else {
             return Err(indeterminate());
         };
         let Some(Surface::Plane { normal, .. }) =
@@ -1706,7 +1771,8 @@ fn corner_at<T: Decide + Bounds>(
         let Surface::Cylinder { axis, .. } = link.blend.surface else {
             return Err(indeterminate());
         };
-        return cap_transverse(vertex, *normal, axis, link.arm_len, band);
+        cap_transverse(vertex, *normal, axis, link.arm_len, band)?;
+        return Ok(Some(CornerConfig::TransverseCap));
     }
     if valence != 3 {
         return corner_config(
@@ -1716,7 +1782,8 @@ fn corner_at<T: Decide + Bounds>(
             [Vec3::new(T::zero(), T::zero(), T::zero()); 3],
             radius,
             band,
-        );
+        )
+        .map(|()| None);
     }
     let mut convex = 0usize;
     let mut normals = [Vec3::new(T::zero(), T::zero(), T::zero()); 3];
@@ -1765,7 +1832,7 @@ fn corner_at<T: Decide + Bounds>(
         return Err(indeterminate());
     };
     if faces.len() != 3 {
-        return corner_config(vertex, faces.len(), convex, normals, radius, band);
+        return corner_config(vertex, faces.len(), convex, normals, radius, band).map(|()| None);
     }
     for (i, f) in faces.iter().enumerate() {
         // A support whose outward normal does not resolve leaves a
@@ -1774,7 +1841,7 @@ fn corner_at<T: Decide + Bounds>(
         // pass. Documented rather than silent (fix pass F6).
         normals[i] = outward(body, *f, *p).unwrap_or(Vec3::new(T::zero(), T::zero(), T::zero()));
     }
-    corner_config(vertex, valence, convex, normals, radius, band)
+    corner_config(vertex, valence, convex, normals, radius, band).map(|()| None)
 }
 
 /// Predicate 2's sweep: for each support face, every pair of its

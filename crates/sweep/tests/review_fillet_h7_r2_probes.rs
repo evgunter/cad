@@ -25,17 +25,16 @@
 
 use geom::Curve3;
 use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
-use geom_core::{Point2, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use geom_core::{Tol, Vec3};
 use sweep::blend::fillet_edges;
 use sweep::test_support::{
-    ROD_FLAT, ROD_R, assert_naming_totality, cube, rod_creases, rod_section_cut, rod_with_flat,
+    ROD_FILLET, ROD_FLAT, ROD_R, assert_naming_totality, cube, rod_creases,
+    rod_d_profile_of_length_at, rod_section_cut, rod_with_flat,
 };
-use sweep::{Extrusion, extrude};
 use topo::query;
 use topo::{Body, mass_properties, validate_geometric};
 
-const R: f64 = 0.1;
+const R: f64 = ROD_FILLET;
 
 fn tol() -> Tol {
     Tol::witness()
@@ -57,24 +56,11 @@ fn volume(body: &Body<f64>) -> f64 {
 
 /// The D-profile rod of [`ROD_R`] and [`ROD_FLAT`] at an ARBITRARY
 /// length. `test_support::rod_d_profile_at` is the same body pinned at
-/// `ROD_L = 1.0`; this row's claim is about the length factor, so the
-/// length has to be a parameter — the one thing that helper does not
-/// take. Everything else (the chord at `x = flat`, the major arc, the
-/// extrude door) is its spelling.
+/// `ROD_L = 1.0`; this row's claim is about the length factor, so it
+/// takes the length through that fixture's one home,
+/// `rod_d_profile_of_length_at`.
 fn d_profile_rod_of_length(length: f64, tol: Tol) -> Body<f64> {
-    let y = (ROD_R * ROD_R - ROD_FLAT * ROD_FLAT).sqrt();
-    let theta = 2.0 * (core::f64::consts::PI - y.atan2(ROD_FLAT));
-    let bulge = (theta / 4.0).tan();
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(ROD_FLAT, y), bulge),
-        ProfileVertex::new(Point2::new(ROD_FLAT, -y), 0.0),
-    ]);
-    let profile = Profile::new(SketchPlane::<f64>::xy(), vec![lp])
-        .validate(tol)
-        .expect("the D validates");
-    extrude(&profile, Extrusion::Distance(length), tol)
-        .expect("the D extrudes")
-        .body
+    rod_d_profile_of_length_at(length, tol)
 }
 
 /// **The prism closed form scales with the rod's LENGTH.** At

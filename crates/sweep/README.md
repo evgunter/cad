@@ -158,7 +158,8 @@ own extent, the lever the shared-ruling hypothesis is metered at). The
 band ends in that plane's section of it, an exact stored arc of the
 band's radius about the spine's crossing
 (`RunOutPolicy::CutOffAtTransverseCap`; `CornerConfig::policy` maps
-the tag). The carve (`blend/ruled.rs`) mints no strut: the cap's two
+the tag). The carve (the ruled-band section of `blend/surgery.rs`,
+beside the blank and rim phases) mints no strut: the cap's two
 rim edges are split at the trimlines' feet, the arc is `mef`'d across
 the cap, one trimline `mef` per support carves its strip along the
 ruling, and the crease's `kef` with two `kef`/`kev` pairs folds the
@@ -168,8 +169,12 @@ transverse intersection with the cap, on either material side. An
 oblique or curved end face refuses typed as the run-out A3-3 reserves.
 Consumer: the rod with a flat milled along it (`cylinder ∖ box`), both
 creases in one call, at the prism closed form `ΔV = A_section · L`
-(`crates/sweep/tests/fillet_h7_transverse_cap.rs`). The
+(`crates/sweep/tests/fillet_h7_transverse_cap.rs`). The CONCAVE
+ruled band — the material-adding side, the cap gaining the region
+under the arc — is pinned through the extrude door too: a rod's section
+standing on a block's top edge (the sunk rod,
+`crates/sweep/tests/review_fillet_h7_r1_probes.rs`, `ΔV = +2·A·L`). The
 `CylinderCylinderCylinder` consumer — two parallel cylinders unioned at
 a common ruling — has no body yet: the union refuses at the boolean's
-curved-pierce door, so the concave ruled band is stated and pinned
-nowhere.
+curved-pierce door, and so does a block ∪ cylinder at its join lane;
+that is the boolean's ground, not the band's.

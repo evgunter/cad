@@ -14,8 +14,10 @@
 //! the trimlines are described as the band's tangent contact with the
 //! support they lie in; naming is total; the same shape spelled as a
 //! D-profile extrude (one 254° cap arc) carves too; an oblique cap
-//! refuses typed naming the reserved run-out; the predicate's trio; a
-//! mutant cut-off arc is red through tier 3.
+//! refuses typed naming the reserved run-out; the predicate's trio and
+//! the lever it is metered at (the link's extent, shown through the
+//! battery on one tilt at two lengths); a curved end face refuses before
+//! metering; a mutant cut-off arc is refused at the attachment gate.
 //!
 //! The Phase-1 measurements that framed the unit stay as rows: the
 //! parallel-cylinder union (the `CylinderCylinderCylinder` consumer)
@@ -29,19 +31,19 @@ use geom::Curve3;
 use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
 use geom_core::k_stats::{start_verdict_log, take_verdict_log};
 use geom_core::{Band, Point2, Point3, Sign, Tol, Vec3};
-use profile::{Profile, SketchPlane};
-use sweep::blend::battery::{RULED_END_NOT_TRANSVERSE, cap_transverse};
+use profile::{Profile, ProfileVertex, SketchPlane};
+use sweep::blend::battery::{BlendRequest, RULED_END_NOT_TRANSVERSE, cap_transverse, run_battery};
 use sweep::blend::{BlendError, Blended, CornerConfig, RunOutPolicy, fillet_edges};
 use sweep::test_support::{
-    ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, cube, rod_creases, rod_d_profile_at,
-    rod_section_cut, rod_with_flat,
+    ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, cube, revolved_about_y,
+    rod_creases, rod_d_profile_at, rod_d_profile_of_length_at, rod_section_cut, rod_with_flat,
 };
 use sweep::{Extrusion, extrude};
 use topo::query;
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, EdgeKey, FaceKey, VertexKey, mass_properties, validate_geometric};
 
-const R: f64 = 0.1;
+const R: f64 = ROD_FILLET;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -231,6 +233,67 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
         }
     }
     assert_naming_totality(source, &out, &creases, what);
+    // The rows' SOURCE columns, read against the source body: a foot
+    // names the crease end it retracted from and the support it lies
+    // in; a cut-off arc names the crease end it cuts off and the crease
+    // whose band it bounds; a fragment names a cap rim of the source.
+    let ends_of = |e: EdgeKey| -> [VertexKey; 2] {
+        let ed = source.get_edge(e).expect("a source edge");
+        [
+            source.get_half_edge(ed.he_plus).unwrap().start,
+            source.half_edge_end(ed.he_plus).unwrap(),
+        ]
+    };
+    let faces_of = |e: EdgeKey| -> [FaceKey; 2] {
+        let ed = source.get_edge(e).expect("a source edge");
+        let face = |he| {
+            let l = source.get_half_edge(he).unwrap().parent_loop;
+            source.get_loop(l).unwrap().face
+        };
+        [face(ed.he_plus), face(ed.he_minus)]
+    };
+    let crease_ends: Vec<VertexKey> = creases.iter().flat_map(|c| ends_of(*c)).collect();
+    assert_eq!(rec.feet.len(), 8, "{what}: two feet per crease end");
+    for (foot, v, f) in &rec.feet {
+        assert!(
+            crease_ends.contains(v),
+            "{what}: a foot's source vertex is a crease end"
+        );
+        assert_ne!(foot, v, "{what}: a foot is not the vertex it retracts from");
+        assert!(
+            creases
+                .iter()
+                .any(|c| ends_of(*c).contains(v) && faces_of(*c).contains(f)),
+            "{what}: a foot's support is a support of a crease ending at its vertex"
+        );
+    }
+    assert_eq!(rec.arcs.len(), 4, "{what}: one cut-off arc per crease end");
+    for (_, v, e) in &rec.arcs {
+        assert!(creases.contains(e), "{what}: an arc names its crease");
+        assert!(
+            ends_of(*e).contains(v),
+            "{what}: an arc names the end of its crease it cuts off"
+        );
+    }
+    for (piece, src) in &rec.meridian_remnants {
+        assert!(
+            source.get_edge(*src).is_some(),
+            "{what}: a fragment names a source rim"
+        );
+        assert!(
+            out.body.get_edge(*piece).is_some(),
+            "{what}: a fragment survives"
+        );
+        let rim_faces = faces_of(*src);
+        assert!(
+            creases.iter().any(|c| {
+                let cf = faces_of(*c);
+                rim_faces.iter().any(|f| cf.contains(f))
+                    && ends_of(*src).iter().any(|v| ends_of(*c).contains(v))
+            }),
+            "{what}: a split rim shares a support and an end with a crease"
+        );
+    }
     out
 }
 
@@ -395,12 +458,15 @@ fn the_transverse_cap_names_its_policy() {
     );
 }
 
-/// **A mutant cut-off arc is red through tier 3.** Re-describing a
-/// carved arc at the wrong radius, or about the wrong centre, is refused
-/// by the attachment gate's certification — the arc must lie on both
-/// the band and the cap, and neither mutant does.
+/// **A mutant cut-off arc is refused at the ATTACHMENT gate.**
+/// Re-describing a carved arc at the wrong radius, or about the wrong
+/// centre, is refused by `set_edge_curve`'s certification — the arc
+/// must lie on both the band and the cap, and neither mutant does — so
+/// the mutant never reaches tier 3; the untouched body stays tier-3
+/// clean beside it. The spec anticipated the red at tier 3; it lands
+/// one gate earlier.
 #[test]
-fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_red_through_tier_3() {
+fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate() {
     let source = rod_with_flat(tol());
     let out = carve_and_check(&source, "mutant base");
     let rec = out.naming.as_ref().unwrap();
@@ -457,10 +523,13 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_red_through_tier_3() {
             },
             tol(),
         );
+        let refused = attached.expect_err(&format!("{label}: the attachment gate refuses"));
         assert!(
-            attached.is_err() || validate_geometric(&body, tol()).is_err(),
-            "{label}: the mutant arc must be refused or red at tier 3"
+            matches!(refused, topo::EulerOpError::Certification { .. }),
+            "{label}: the refusal is the certification's, got {refused:?}"
         );
+        validate_geometric(&body, tol())
+            .unwrap_or_else(|e| panic!("{label}: the untouched body stays tier-3 clean: {e:?}"));
     }
 }
 
@@ -495,4 +564,110 @@ fn the_parallel_cylinder_union_still_refuses_and_a_box_edge_is_still_a_run_out()
         "a partly requested corner is a run-out, got {:?}",
         err.error
     );
+}
+
+/// **The lever `corner_at` hands `fillet3_cap_transverse` is the link's
+/// own extent**, pinned through the battery's public entry on a cap
+/// tilted 1e-3 rad — the smallest tilt the split door builds (1e-4
+/// escalates at the join's carrier lane, 1e-5 refuses `CircularAxes`)
+/// — at two lengths. The lever is the crease's extent, `0.6·L` (the
+/// cut sits at six tenths of the rod), so the margins are `1.8e-4` and
+/// `1.5e-3`. At the fillet door's own band both are DEFINITE
+/// departures (every buildable tilt is, at every buildable length), so
+/// both rods refuse there identically; `run_battery` takes its band as
+/// an argument, and under `Band::new(1.2e-4, 1.2e-3)` the same angle is
+/// IN BAND at `L = 0.3` (escalates naming the predicate) and DEFINITE
+/// at `L = 2.5` (refuses as the run-out). A lever of `T::one()` in
+/// place of the extent would put both at `1e-3` — in band — and red the
+/// long rod's arm; a band one decade lower (`2e-4, 2e-3`) admitted the
+/// short rod's tilted cap as transverse, which is the lever seen from
+/// the other side.
+#[test]
+fn the_cap_lever_is_the_links_extent() {
+    let phi = 1e-3_f64;
+    let band = Band::new(1.2e-4, 1.2e-3).expect("a band ten wide, like the door's");
+    for (len, in_band) in [(0.3, true), (2.5, false)] {
+        let rod = rod_d_profile_of_length_at::<f64>(len, tol());
+        let plane = SplitPlane {
+            origin: Point3::new(0.0, 0.0, 0.6 * len),
+            normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
+        };
+        let result = split(&rod, &plane, tol()).expect("a 1e-3 tilt splits");
+        let SplitPart::Body(below) = &result.below else {
+            panic!("the lower part carries material");
+        };
+        let creases = rod_creases(below);
+        assert_eq!(creases.len(), 2, "L = {len}: two creases");
+        for e in creases {
+            // The door's band: definite at either length.
+            let err = fillet_edges(below, &[e], ROD_FILLET, tol()).expect_err("oblique");
+            assert!(
+                matches!(err.error, BlendError::UnsupportedRunOut { .. }),
+                "L = {len}: the door refuses definitely, got {:?}",
+                err.error
+            );
+            // A band the tilt lands inside of at one length only.
+            let verdict = run_battery(
+                &BlendRequest {
+                    body: below,
+                    edges: vec![e],
+                    size: ROD_FILLET,
+                },
+                band,
+            )
+            .expect_err("the oblique end is never admitted");
+            match (in_band, verdict) {
+                (true, BlendError::Escalated { source, .. }) => {
+                    assert_eq!(source.predicate, Some("fillet3_cap_transverse"));
+                }
+                (false, BlendError::UnsupportedRunOut { detail, .. }) => {
+                    assert_eq!(detail, RULED_END_NOT_TRANSVERSE);
+                }
+                (_, other) => panic!(
+                    "L = {len}: the verdict must follow the lever (in band: {in_band}), got \
+                     {other:?}"
+                ),
+            }
+        }
+    }
+}
+
+/// **A curved end face refuses typed before any metering** — the
+/// run-out the mid-curve taxonomy reserves. A quarter revolve of a
+/// bored rectangle whose top is an arc: its wedge walls are planes
+/// containing the axis, so each cylinder × wedge-wall crease is a
+/// ruling that ends on the flat bottom (a transverse cap) and against
+/// the torus top (a curved face) — `corner_at`'s curved-end branch,
+/// which refuses with the same detail as the oblique cap and names the
+/// upper end.
+#[test]
+fn a_curved_end_face_refuses_typed_before_metering() {
+    let body = revolved_about_y(
+        vec![
+            ProfileVertex::new(p2(0.5, 0.0), 0.0),
+            ProfileVertex::new(p2(1.0, 0.0), 0.0),
+            ProfileVertex::new(p2(1.0, 1.0), 0.3),
+            ProfileVertex::new(p2(0.5, 1.0), 0.0),
+        ],
+        sweep::Revolution::Partial(core::f64::consts::FRAC_PI_2),
+        tol(),
+    );
+    validate_geometric(&body, tol()).expect("the wedge is tier-3 valid");
+    let creases = rod_creases(&body);
+    assert_eq!(creases.len(), 4, "two walls × two wedge planes");
+    for e in creases {
+        let err = fillet_edges(&body, &[e], ROD_FILLET, tol()).expect_err("a curved end");
+        let BlendError::UnsupportedRunOut { at, detail } = err.error else {
+            panic!("the curved end is a run-out, got {:?}", err.error);
+        };
+        assert_eq!(detail, RULED_END_NOT_TRANSVERSE);
+        let topo::EntityId::Vertex(v) = at else {
+            panic!("the refusal names the vertex, got {at:?}");
+        };
+        let p = body
+            .get_vertex(v)
+            .and_then(|x| body.get_point(x.point))
+            .unwrap();
+        assert!(p.y > 0.5, "the refusing end is the curved one, at {p:?}");
+    }
 }

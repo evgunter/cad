@@ -30,11 +30,13 @@
 use geom_core::{Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::{BlendError, fillet_edges};
-use sweep::test_support::{ROD_L, ROD_R, assert_naming_totality, rod_creases, rod_section_cut};
+use sweep::test_support::{
+    ROD_FILLET, ROD_L, ROD_R, assert_naming_totality, rod_creases, rod_section_cut,
+};
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, mass_properties, validate_geometric};
 
-const R: f64 = 0.1;
+const R: f64 = ROD_FILLET;
 /// The groove / sunk-rod cylinder's radius and its axis depth below the
 /// block's top plane.
 const RC: f64 = 0.5;

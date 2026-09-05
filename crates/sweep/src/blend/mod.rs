@@ -1638,6 +1638,7 @@ mod recourse_tests {
             CornerConfig::MixedConvexity { convex: 1 },
             CornerConfig::DependentNormals,
             CornerConfig::SeamVertex,
+            CornerConfig::TransverseCap,
             CornerConfig::Indeterminate,
         ] {
             assert_eq!(
