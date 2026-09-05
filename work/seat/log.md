@@ -297,3 +297,37 @@ CYLSPH coaxial premise and P2's SPHSPH sentence, outside SEAT's fence);
 the positional threading of evidence through the shared dispatch is
 recorded in that file's note. The seam merge landed ahead of the fix
 pass at Ev's prompting (head fa1b7416, full matrix green).
+
+## SEAT-6 MERGED (2026-09-05, PR 1593)
+
+The lowered parameter-identity channel landed: `ParamSource` is a
+canonical injective encoding of the lowered expression (VS-Q4 revised
+in place on PR 1870, Ev's sign-off), scoped by the parameter table it
+was lowered against — `Root(DocumentId)` for the document under
+evaluation, `Part(DocRef)` for a referenced document at its pin, read
+off the part cache's descent chain, nothing invented (D9). Per-field
+side records ride beside the geometry arenas as a fixed closed row;
+attach-at-mint runs off the migrated verbs' declared `param_flow`
+(the fillet's three roles live, the band torus row included);
+propagation is by key identity with the graft carry, the rigid
+placement carry and both orphan sweeps pinned by mutation; the
+memo's content key now certifies the flow-bearing slot's lowered
+expression, not just its value; the encoding's alphabet and arity
+are guarded by census and a ~1,300-expression round trip. The first
+consumer — `cylinder_cylinder_section`'s `RadiusEvidence` — has its
+production caller at `germ_section_frame`: `Declared` reaches and
+verifies the closed form, a contradicted declaration is a desync,
+absence routes the general rung unchanged, and no numeric radius
+comparison feeds evidence anywhere. The dual's three executed MAJORs
+(document scope, converged; the value-keyed memo, R1; the unguarded
+injectivity, R2) all closed red-first at the fix. Disclosed and
+homed: the §6 end-to-end acceptance (a document reaching the germ)
+awaits SEAT-7's extrude/revolve flow —
+`work/seat/seat6-germ-end-to-end-awaits-seat7.md`; axis-flavoured
+declarations have no channel — `work/issues/`. One
+`NodeErrorKind` variant crossed the fence (typed attach refusal +
+its Python tag), disclosed. CURVED's parked pinch item unblocks.
+Full row: MODEL-AB-LOG SEAT6 (ordinal 1006, sample #131 at merge).
+
+Next: SEAT-7 (extrude/revolve onto Verb) closes block SEAT-B2; its
+merge publishes the block's draw byte.
