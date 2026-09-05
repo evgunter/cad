@@ -621,3 +621,15 @@ unrostered. TOPO's S330 lane hit it on PR 1923 and carries one
 `HandedOff` roster line beside the sibling door as the port so lanes
 stop failing on it; the disposition is this program's to sharpen
 (`Selection`/DL5(b) may be the truer one) and the debt is FILLET-ATTR's.
+
+**Toward the exit (2026-09-05).** With H7's fix pass landed, what stands
+between the program and its walk: (1) Track T — `D325`/`D326`, held while
+lanes contended `surgery.rs`, land as ONE S/STRUCTURAL unit FILLET-T in
+block FILLET-B3 (spec drafted, dispatch after H7 merges); (2) the fourth D
+ruling of the plan, `corner-config-tag-all-concave-trihedron`
+(code-quality's, issue 1355), still unanswered — put to Ev again on `[ev]`
+PR [#1935](https://github.com/evgunter/cad/pull/1935) with its moved
+premise (both verbs carve; carved configurations now carry tags):
+mint `ThreeConcaveEdges` or close with no tag; CARRIED to code-quality if
+unruled at the walk; (3) the residue slate (fifteen open issues) re-homed
+before the sweep. The walk is drafted from the plan's criteria verbatim.
