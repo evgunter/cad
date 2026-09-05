@@ -239,3 +239,6 @@ mod rim_of;
 
 #[path = "rim_of_r1_probes.rs"]
 mod rim_of_r1_probes;
+
+#[path = "r2_rim_probes.rs"]
+mod r2_rim_probes;

@@ -500,3 +500,9 @@ mod rim_of_r1_probes;
 
 #[path = "rim_of_r1_probes_interval.rs"]
 mod rim_of_r1_probes_interval;
+
+#[path = "r2_rim_interval_probes.rs"]
+mod r2_rim_interval_probes;
+
+#[path = "r2_rim_corpus_probes.rs"]
+mod r2_rim_corpus_probes;
