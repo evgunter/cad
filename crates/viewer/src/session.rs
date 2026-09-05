@@ -1108,10 +1108,11 @@ impl DocSession {
         // too — an undo past a mate's insertion does NOT resurrect a
         // discarded probe (the value is gone, not parked), but a redo
         // over one discards the probe it constrains.
-        let superseded = self.display.prune(self.history.doc());
+        let pruned = self.display.prune(self.history.doc());
         self.request_eval();
         OpOutcome {
-            superseded,
+            superseded: pruned.superseded,
+            dropped_hides: pruned.dropped_hides,
             ..OpOutcome::default()
         }
     }
@@ -1398,7 +1399,9 @@ impl DocSession {
     /// record, re-evaluate — and reconcile the display state, which is
     /// where a free-move probe is superseded by the mate that
     /// constrains its instance (the prune DISCARDS the value; see
-    /// `display`'s module docs for why discard and not zero).
+    /// `display`'s module docs for why discard and not zero) and where
+    /// a hide the picture can no longer honour is dropped. Both are
+    /// reported on the outcome, each with the fault that caused it.
     fn commit(&mut self, edit: DocEdit<ProfileProgram>) -> OpOutcome {
         self.commit_action(vec![edit])
     }
@@ -1470,11 +1473,12 @@ impl DocSession {
             unreachable!("the loop applied at least one edit and kept its output")
         };
         self.history.commit_group(edits.clone(), doc);
-        let superseded = self.display.prune(self.history.doc());
+        let pruned = self.display.prune(self.history.doc());
         self.request_eval();
         OpOutcome {
             committed: edits,
-            superseded,
+            superseded: pruned.superseded,
+            dropped_hides: pruned.dropped_hides,
             ..OpOutcome::default()
         }
     }
