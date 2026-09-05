@@ -128,6 +128,10 @@ fn probe_class9_tier3_stops_refusing_the_poisoned_face() {
             &mut marks,
             tol,
             &|_, _, _| None,
+            // The structural half's answer for check 2's plane x NURBS
+            // lane as well: this probe measures check 1, and the mvfs
+            // fixture carries no M7-8 edge for the lane to re-derive.
+            None,
         )
         .0
     };
