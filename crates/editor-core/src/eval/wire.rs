@@ -7,11 +7,10 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use geom_core::k_stats::decide;
-use geom_core::{Affine3, Band, Decide, Margin, Mat3, Point2, Point3, Sign, Tol, Vec2, Vec3};
+use geom_core::{Affine3, Band, Decide, Mat3, Point2, Point3, Sign, Tol, Vec2, Vec3};
 use sweep::blend::BlendKind;
 use sweep::{Revolution, RevolveAxis};
-use topo::query::is_finite_length;
+use topo::query;
 use topo::splitting::SplitPart;
 use topo::transform::transform_rigid;
 use topo::{
@@ -514,52 +513,78 @@ fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
     Band::linear(tol).map_err(NodeErrorKind::Band)
 }
 
+/// **The funnel site name** of this layer's direction-length
+/// decision — a transform's rotation axis, a pattern's direction, and
+/// the mate solve's re-derivation of both from the recipe.
+///
+/// It reaches the funnel as an argument to
+/// [`topo::query::decide_unit_direction`] rather than as a literal at the
+/// `decide` call, so it is a roster carrier (`docs/K-REPORT.md`, "The
+/// inventory method, restated"), and it is a constant so that the
+/// name the telemetry records and the name an escalation reports
+/// cannot drift apart.
+pub(crate) const EVAL_DIRECTION_NORM: &str = "eval_direction_norm";
+
 /// Normalizes a direction-valued vector; a non-finite length refuses,
 /// decided-zero length refuses, in-band indeterminacy escalates.
 ///
-/// The finiteness question comes FIRST and is the kernel's own
-/// predicate ([`topo::query::is_finite_length`]), the same one
-/// [`topo::UnitVec3::new`] asks at the datum door: a length that
-/// overflowed to +∞ reads as a maximally definite positive margin and
-/// normalizes the vector to zero, so a decision taken before that
-/// question is a definite wrong answer. It is asked through the value
-/// channel every scalar has, with no bracket read and no threshold
-/// invented, so an enclosure of any width still passes and refuses
-/// later where it is unsound rather than here where it is merely wide.
+/// **The decision is the kernel's one body**
+/// ([`topo::query::decide_unit_direction`]): finiteness asked first through
+/// the value channel every scalar has, then which side of zero the
+/// length lies on, then normalize or refuse. This function is that
+/// call plus the two things the evaluation layer owns — the funnel
+/// name it is decided under ([`EVAL_DIRECTION_NORM`]) and the ROLE
+/// word each refusal carries, so a user reads which vector of theirs
+/// was refused.
 ///
-/// **Two doors, not one, and the split is a crate boundary.** This one
-/// carries the directions this layer OWNS — a transform's rotation
-/// axis, a linear pattern's direction — under
-/// `eval_direction_norm`. A datum's normal or axis direction is
-/// normalized by the kernel type that holds it
-/// ([`topo::UnitVec3::new`], under [`DATUM_UNIT_NORM`]) because that
-/// invariant belongs to the type and not to the caller: `DatumValue`
-/// has no unnormalized spelling, so there is nowhere for this door to
-/// stand in that path. MATE-1 collapsed `mate_pattern_direction_norm`
-/// into this door and that collapse HOLDS — the mate solve still
-/// derives its offsets through this function, so a direction this
-/// layer owns is decided under one predicate wherever it is read. What
-/// is no longer true is the wider reading: the workspace decides
-/// direction length under TWO names now, split by which layer owns the
-/// value. `mate/solve.rs` reads both roads (issue 1570).
+/// **Two names, one body, and the split is RATIFIED** (Ev's ruling on
+/// the direction-family home, executed by SEAT-DN): the layer that
+/// OWNS a value is the layer whose telemetry names its length
+/// decision. This door carries the directions this layer owns; a
+/// datum's normal or axis direction is decided under
+/// [`DATUM_UNIT_NORM`] inside the kernel type that holds it
+/// ([`topo::UnitVec3::new`]), because `DatumValue` has no
+/// unnormalized spelling and there is nowhere for this door to stand
+/// in that path. Collapsing the two names would erase which layer a
+/// length decision came from; collapsing the two BODIES was the
+/// remedy, and it is what the call below is.
+///
+/// MATE-1's collapse of `mate_pattern_direction_norm` into this door
+/// HOLDS — the mate solve derives its offsets through this function,
+/// so a direction this layer owns is decided under one predicate
+/// wherever it is read. It re-reads a circular pattern's DATUM axis
+/// from the recipe, so that one triple is decided under this name on
+/// the solve road and under [`DATUM_UNIT_NORM`] on the evaluation
+/// road: same arithmetic, same refusal shape, two names by road. That
+/// is the ratified consequence, stated where the two roads meet
+/// (`crate::mate::solve`) and in `docs/K-REPORT.md`, not a residue.
 pub(crate) fn unit<T: Decide>(
     v: Vec3<T>,
     role: &'static str,
     band: Band,
 ) -> Result<Vec3<T>, NodeErrorKind> {
-    // `norm3` below recomputes this same value (`Vec3::norm` is
-    // deterministic), so the gate and the margin are the one length;
-    // it is spelled twice rather than reached into.
-    if !is_finite_length(v.norm()) {
-        return Err(NodeErrorKind::NonFiniteDirection { role });
-    }
-    match decide("eval_direction_norm", Margin::norm3(v), band) {
-        Ok(Sign::Positive) => Ok(v.normalize()),
-        Ok(_) => Err(NodeErrorKind::DegenerateDirection { role }),
-        Err(source) => Err(NodeErrorKind::Escalated {
-            predicate: "eval_direction_norm",
-            source,
-        }),
+    query::decide_unit_direction(v, EVAL_DIRECTION_NORM, band)
+        .map_err(|e| refusal(e, role, EVAL_DIRECTION_NORM))
+}
+
+/// **The kernel refusal in this layer's vocabulary** — the ONE map,
+/// for both roads.
+///
+/// The two doors above and below decide the same three things under
+/// two funnel names, so the arms and the role word are one function
+/// and the name is its parameter: a map per road is how the arms come
+/// to disagree, which is the defect one body was collapsed to fix and
+/// would be silly to re-introduce at the mapping.
+///
+/// `role` names the vector the CALLER passed, which is what a user
+/// reads; `predicate` names the funnel site the length was decided
+/// under, which is what an escalation is comparable by. They are
+/// different words on purpose and both travel.
+fn refusal(e: UnitVec3Error, role: &'static str, predicate: &'static str) -> NodeErrorKind {
+    match e {
+        UnitVec3Error::NonFiniteLength => NodeErrorKind::NonFiniteDirection { role },
+        UnitVec3Error::Degenerate => NodeErrorKind::DegenerateDirection { role },
+        UnitVec3Error::Escalated(source) => NodeErrorKind::Escalated { predicate, source },
     }
 }
 
@@ -603,21 +628,17 @@ fn need_point2<T: Decide>(
 }
 
 /// A slot's vector as a datum direction, through the kernel type's own
-/// constructor: the normalization and the two refusals live there, and
-/// this layer only names the ROLE the refusal is about.
+/// constructor: the decision and its three refusals live there, this
+/// layer names the ROLE, and the refusal reaches the node error
+/// through the same [`refusal`] map the evaluation layer's own
+/// direction door uses — under [`DATUM_UNIT_NORM`], because on this
+/// road the kernel type owns the value.
 fn datum_unit<T: Decide>(
     v: Vec3<T>,
     role: &'static str,
     band: Band,
 ) -> Result<UnitVec3<T>, NodeErrorKind> {
-    UnitVec3::new(v, band).map_err(|e| match e {
-        UnitVec3Error::Degenerate => NodeErrorKind::DegenerateDirection { role },
-        UnitVec3Error::NonFiniteLength => NodeErrorKind::NonFiniteDirection { role },
-        UnitVec3Error::Escalated(source) => NodeErrorKind::Escalated {
-            predicate: DATUM_UNIT_NORM,
-            source,
-        },
-    })
+    UnitVec3::new(v, band).map_err(|e| refusal(e, role, DATUM_UNIT_NORM))
 }
 
 /// **A profile's `f64` placement, where the document HOLDS one** — an
@@ -2931,10 +2952,12 @@ pub(crate) const PATTERN_DIRECTION_ROLE: &str = "pattern direction";
 
 /// The role word a DATUM AXIS's direction is normalized under. Three
 /// callers, and they do not all take the same road — the evaluation
-/// decides it under `datum_unit`, the mate solve under
-/// `eval_direction_norm` — so the constant is what keeps the ROLE one
-/// word wherever the refusal comes from (issue 1570 is where the two
-/// roads meeting is homed).
+/// decides it under [`DATUM_UNIT_NORM`], through the kernel type that
+/// holds the datum, and the mate solve's re-derivation from the
+/// recipe under [`EVAL_DIRECTION_NORM`], which is the ratified
+/// two-name split. So the constant is what keeps the ROLE one word
+/// wherever the refusal comes from, and it is the half of the
+/// refusal a user actually reads.
 pub(crate) const DATUM_AXIS_ROLE: &str = "datum axis direction";
 
 /// **The rigid map a [`crate::node::Node::Transform`] applies** — the

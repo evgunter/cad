@@ -689,3 +689,58 @@ overflow class in 2-D, filed as
 `is-finite-length-homed-in-the-query-seat` is its enabler). v6 dual
 dispatches on frozen head 2b366fde: parity byte 189 → **R1 fable + R2
 opus**. Difficulty S was logged pre-draw. Full row recorded at merge.
+
+## SEAT-DN MERGED (2026-09-05, PR 1987)
+
+Ev's ruling (B) executed: one decide/normalize/refuse body in
+`topo::query` (`decide_unit_direction`, the funnel-site name a
+parameter), and both ratified names — `datum_unit_norm` through
+`UnitVec3::new`, `eval_direction_norm` through `editor-core`'s
+`unit()` — emitted from it exactly where they were: no K-REPORT row
+moved, the census suites untouched and green at both graphs,
+`wire.rs` left with no `decide` of its own, the mate re-read's
+two-name split restated as ratified. DN-3 was measured, not applied:
+every `Dir::from_unit` caller holds a ray decided at its own door and
+none holds an angle, so no re-spelling and no carrier row; the
+measurement found the overflow class one level up
+(`unit_from_components(1e200, 0)` admits a zero director out of a
+decided path, public `PartialPath::toward`) and filed it. The dual
+(R1 fable + R2 opus) converged APPROVE-WITH-FIXES with zero code
+defects in the unit; its substantive finding is a CLASS the unit's
+completeness claim did not know — each arm found a different live
+decide-then-normalize sibling that asks no finiteness question:
+`geom-core`'s `definitely_positive` (3-D, four sites;
+`mirror_across_plane` with a 1e200 normal returns the identity,
+reachable from the Python `Frame.mirror_across_plane`) and `sweep`'s
+revolve `AxisFrame::build` (2-D; a 1e200 axis builds a zero axis, in
+`pncad::prelude`); the fix pass's own re-sweep added
+`topo::sector_shape`. None is this unit's to patch; the fix pass
+re-worded the claim to its literal scope (the `Margin::norm3`
+spelling), re-scoped the filed residue to the five-member class with
+reproductions (FIX's `is-finite-length-homed-in-the-query-seat` is
+the ruling that unlocks four of five), and closed the rest of the
+union: the twin `UnitVec3Error` maps in `wire.rs` collapsed to one
+`refusal(e, role, predicate)` with the all-arms pin walking both
+roads; the kernel body renamed off the `editor-core` alias's name;
+the escalated arm's pin now reads the predicate the funnel recorded,
+so a site-ignoring kernel mutant reds in the default lane too; the
+`solve.rs` role sentence corrected (the role travels inside the node
+error, not through `DanglingHead`); K-REPORT's route 4 says it
+accepts unregistered names and nothing mechanical catches a third,
+with `DatumValue::AxisInPlane` recorded as the third
+one-length-two-names-by-road instance. Both arms corrected the
+receipts (the red-first mutant reds five rows, not three; the 33-row
+count is the interval graph's, the default is 10). The brief's
+"status flip-flop" premise was the implementer's own disclosed
+set-then-revert inside the branch, not a fact of the item — its
+history on main is monotone. Class notes: a scope-claim sweep for
+"decide then normalize" must include the `Margin::of`/`norm2`
+spellings, not only `norm3`; a `pub` decide door taking a bare
+`&'static str` site lets any crate mint an unregistered K name
+(escape route 4 — a disclosed hole in K-REPORT's hand-maintained
+roster, now wider). Full row: MODEL-AB-LOG SEATDN (ordinal 1010,
+sample #144 at merge); `docs/SEAT-DN-SPEC.md` deleted at this merge
+per `docs/DOC-LEDGER.md`.
+
+Next: SEAT-9 on block SEAT-B3's last slot; its merge closes the
+block and publishes the draw.
