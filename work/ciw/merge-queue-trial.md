@@ -5,7 +5,7 @@ title: Merge queue trial: designed and costed, then found unavailable — GitHub
 status: closed
 opened: 2026-09-04
 refs: [f3-recosting-on-a-public-repo, merge-order-semantic-break-reaches-main, klint-row-still-sampled, reinstate-full-configuration-runs, render-lanes-red-at-missing-merge-ref, 1796, 1823]
-pr: 1845
+pr: 1887
 branch: ciw/merge-queue-unavailable
 closed: 2026-09-05
 ---
