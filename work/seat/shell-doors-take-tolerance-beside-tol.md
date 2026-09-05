@@ -57,3 +57,25 @@ or to route the derivation question to those owners. SEAT-9's spec is
 cut on the answer; nothing else in block SEAT-B3 waits on it.
 
 Ev's ruling lands here in place.
+
+**Measured after Ev's question on PR 1904 ("could we be handing back
+geometry more than ε off?"): no — and the parameter has one value.**
+O3's certificate claim is `sup ‖S_fit − (S + d·n)‖ ≤ ε_precision`, and
+D4 names ε_precision as THE global ε. Tier-3 validation re-derives every
+`Approx` face's certificate per call (O5: the stored one is never read)
+and classifies it against the RUN's `tol.eps()`, not the mint's
+tolerance (`topo/src/validate.rs:3126`; `ValidationError::
+ApproxCertification`'s doc: "so does one minted looser than the ε this
+run demands"); `shell` validates last and `replace_faces_offset` adopts
+its clone only after validation. A fit minted looser than ε is a typed
+refusal, never loose geometry. So the `tolerance` parameter is the
+fit's refinement TARGET, and any value above ε guarantees a refusal
+while any value below ε is ε plus wasted refinement: it has exactly
+one value that can succeed, `tol.eps()`. Every caller in the tree
+passes `1e-6` and (those read) shells analytic bodies, where the value
+is ignored — which is why the suite is green at the 1e-12 lane. This
+sharpens the recommendation to **(i) unconditionally**: derive at the
+door, drop the parameter; the only open question is the NURBS fit's
+COST at ε ≈ 1e-9 (reach it or refuse, D4 either way), which is the
+offset-fit owner's measurement (S-CERT's then PROPS'), not a gate on
+the verb arm. Ruling pending Ev's reply to the PR comment.
