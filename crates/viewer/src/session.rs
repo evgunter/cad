@@ -395,7 +395,10 @@ impl DocSession {
     /// The document the panels show: the gesture's scratch value while
     /// one is in flight, the history's current value otherwise.
     pub fn doc(&self) -> &Doc<ProfileProgram> {
-        self.derived.scratch.as_ref().unwrap_or_else(|| self.history.doc())
+        self.derived
+            .scratch
+            .as_ref()
+            .unwrap_or_else(|| self.history.doc())
     }
 
     /// The document the history is on, ignoring any preview.
