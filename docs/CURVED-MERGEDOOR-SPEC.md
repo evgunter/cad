@@ -61,7 +61,7 @@ is the one that is wrong, and this unit makes it agree.
   an orphaned surface (`Body::remove_surface_if_orphaned`, from
   `euler_kill.rs:473` and `:945`) — which is why full engagement offers
   no cylindrical pair and the two-peg demo glues
-  (`demos/tour/src/twopeg.rs:55-59, 504-510`).
+  (`demos/tour/src/twopeg.rs:55-60, 472-484`).
 - P2 — the door's declared-pair rung is planar STRUCTURALLY, not only by
   the gate: `planes_declared_equal` destructures `(Plane, Plane)` and
   `return Ok(None)` otherwise (`merge_faces.rs:1027-1043`). Removing the
@@ -113,7 +113,7 @@ is the one that is wrong, and this unit makes it agree.
   `work/bool/cosurface-disjoint-curved-walls-refuse.md` — never reaches
   this door: it refuses `CurvedPierceUnsupported` in the reduction,
   declared or not, and needs a class that is not `Rest` (that item's
-  own analysis; `twopeg.rs:133-150`). The curved merge arm's only
+  own analysis; `twopeg.rs:130-147`). The curved merge arm's only
   consumer is behind another item's door.
 - R3 — "the probe's allow-list should come back down" is one file, not
   four. Only `r1_probes_m9_3::probe_partial_engagement_never_silent`
@@ -133,7 +133,7 @@ is the one that is wrong, and this unit makes it agree.
 | C proud one end | `collar_at(0)` ∪ `peg_at(0, 1.0, 1.5)` | same | `Ok`; bore fully consumed so its surface is orphaned and DROPS at P1 — 0 records predicted; peg z∈[2,2.5] survives alone |
 | D partial engagement | `r1_probes_m9_3.rs:292` (plate+peg ∪ plate−bore, 1 planar + 9 wall `Rest`s) | same | `Ok`; planar pair licenses through `eq`, the bore remainder z∈[1.5,2] survives (peg consumed) — 0 or 1 record depending on whether the peg's wall surface is orphaned; record the count |
 | E stacked equal pegs, caps only | `peg_at(0,0,1)` ∪ `peg_at(0,1,1)`, cap `Rest` | `CurvedPierceUnsupported` (R2) | unchanged — the successor's opening row |
-| F stacked pegs, caps + walls `Rest` | as E plus 9 wall pairs | same (`twopeg.rs:141-147`) | unchanged |
+| F stacked pegs, caps + walls `Rest` | as E plus 9 wall pairs | same (`twopeg.rs:143-147`) | unchanged |
 
 Scene C/D carry a prediction the source cannot settle — whether a
 consumed side's surface is orphaned BEFORE `declared_surface_pairs`

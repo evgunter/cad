@@ -42,3 +42,7 @@ Two lines, whoever takes it:
   `the_curved_rungs_declare_the_socket_and_leave_the_stem_glue_alone`.
   (The scene's own prose said six too, and SEAT-FW deleted that
   sentence with the hand assembly it described.)
+
+One line citation in the same clause has drifted too and was left with
+it: S3 cites `editor-core/src/names/flush.rs:187` for the name-level
+detector, which is `:182` after SEAT-FW's module-doc edit.

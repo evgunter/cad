@@ -47,7 +47,7 @@ exact-vs-decided reframing signed off.
 demo filters
 that stayed hand-written against the kernel body because U7 was
 structural-only (`demos/tour/src/diefillet.rs:203-244`), plus the
-flush helper's decision triple (`demos/tour/src/booleans.rs:60-118`):
+flush helper's decision triple (`demos/tour/src/booleans.rs:60-120`):
 
 1. *carrier kind of an edge's curve* ("the straight edges of the
    pipped die" — `matches!(carrier, Curve3::Line{..})`);
