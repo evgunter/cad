@@ -3928,6 +3928,14 @@ mod verb_content_tag_tests {
     fn verb_content_tags_are_the_committed_numbers() {
         assert_eq!(verb_content_tag(verbs::VerbKind::Fillet), 17);
         assert_eq!(verb_content_tag(verbs::VerbKind::Chamfer), 24);
+        // The sweeps' two, read off the pre-change source the same
+        // way: 5 and 6 were the tag match's inline numbers for the
+        // extrude and the revolve, and moving the match must not move
+        // them — a moved tag re-keys every document in the registry
+        // that carries a sweep, which is nearly all of them, with no
+        // red anywhere to say so.
+        assert_eq!(verb_content_tag(verbs::VerbKind::Extrude), 5);
+        assert_eq!(verb_content_tag(verbs::VerbKind::Revolve), 6);
         assert_eq!(
             verb_content_tag(verbs::VerbKind::Boolean(topo::BooleanOp::Union)),
             8
