@@ -105,6 +105,6 @@ Ev's standing instructions for implementation work:
   ADJUDICATION time, as part of reading a report, any finding asserting
   a CLASS rather than an instance gets a log line or an issue. A report
   that exists only in a session's context is one outage from never
-  having happened.
+  having happened. A file move or other reshuffle with NO design implication is not an `[ev]` question — Ev (PR 1916, 2026-09-05): "you don't need to ask me about moving things around, unless it has design implications"; just do it and log it.
 
 Handing the session to a successor: [[orchestrator-switch-runbook]].
