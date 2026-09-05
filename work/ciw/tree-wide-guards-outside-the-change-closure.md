@@ -239,7 +239,7 @@ reachable only through its own home crate's closure:
 |---|---|---|
 | `crates/test-utils/tests/reader_census.rs:538` `every_site_that_reads_rust_source_is_in_the_ledger` | `test-utils` | **1/18** |
 | `crates/test-utils/tests/reader_census.rs:566` `every_shared_entry_actually_reaches_the_shared_lexer` | `test-utils` | **1/18** |
-| `crates/geom-core/tests/bounds_census.rs:529` `every_sole_bracket_bound_door_is_in_the_roster` | `geom-core` | **2/18** |
+| `crates/geom-core/tests/bounds_census.rs:580` `every_sole_bracket_bound_door_is_in_the_roster` | `geom-core` | **2/18** |
 | `crates/geom-core/tests/flagged_census.rs:251,264` (`shipped_sites()` at :233 walks `crates/*/src`) | `geom-core` | **2/18** |
 | `crates/editor-core/tests/fix_loop_polygon_expr.rs:140` `the_polygon_close_is_written_once_in_shipped_src` | `editor-core` | 14/18 |
 | `crates/pncad-py/src/prose_census.rs:183` `scanned_files` (whole-repo `src/**`) | `pncad-py` | 17/18, but separately gated on `RUN_PNCAD_PY` |

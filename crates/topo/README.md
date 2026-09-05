@@ -29,7 +29,7 @@ feeds a decision, every walk is bounded.
 | Declared-REST zip (C7 join lane) | `src/boolean/rest.rs` |
 | Instances, separation | `src/instance.rs` (disjoint graft), `src/separation.rs` (certified no-touch), `src/transform.rs` (rigid placement) |
 | Shell and offset surgery | `src/shell.rs`, `src/replace_face.rs`, `src/offset_together.rs`, `src/offset_axial.rs`, `src/merge_faces.rs` — decisions in `crates/geom-brep/README.md` (OFFSET-DESIGN) |
-| Queries, flush detection, read-back | `src/query.rs` (`docs/VERB-SEAT-DESIGN.md`), `src/flush.rs`, `src/readback.rs`, `src/props.rs` (mass properties, `AtRestPolicy`), `src/ray_parity.rs` |
+| Queries, flush detection, read-back | `src/query.rs` (`docs/VERB-SEAT-DESIGN.md`; the EXACT/DECIDED split, and `rim_of` — the whole closed rim an arc belongs to, with `RimError`: same circle is `center`/`radius`/`axis` bit-equal, and "one rim" is a closed chain on shared vertices, which does not detect an overlap), `src/flush.rs`, `src/readback.rs`, `src/props.rs` (mass properties, `AtRestPolicy`), `src/ray_parity.rs` |
 
 ## Contact census and declared contact (the CONTACT-DESIGN clauses, C1–C8)
 
