@@ -1194,3 +1194,104 @@ the complement of `NurbsSurface::is_placeholder`, delegating to
 `net::any_poison` (spec `docs/TOPO-S330-SPEC.md` §Phase 2 (a)). Tier-3
 check 1 gains its described-NURBS arm on it. Nothing else in `geom`
 moves; the channel walk stays spelled once, in `net.rs`.
+
+### CERT-N3 — Track N's remainder (D244, D31, D98, S235's exact conic box adopted, C24's analytic member measured) — MERGED
+
+PR 1879; spec `docs/CERT-N3-SPEC.md` (cert/orchestrator 1267e32c0); block
+CERT-B4 slot 3 (byte 123, fable at 3 → FABLE); ordinal 714 claimed at
+dispatch (main c1fe93379); sample number at merge. **After this merge
+Track N is EMPTY**: its five row items under `work/cert/` are closed, the
+members they closed in `work/code-quality/` deleted member by member.
+
+**The unit's two interruptions, neither in-tree.** The implementer session
+died on a Fable rate limit (HTTP 429) mid-unit during the D31 bit-identity
+measurement (~2026-09-02) and was resumed from its transcript two days
+later on the same worktree and branch; the D31 evidence was re-taken after
+the resume. Main deleted `docs/SMELL-SCAN-2026-08.md` under the tracker
+migration while the branch was open; the lane re-homed its landings into
+`work/cert/{D244,D31,D98,S235,C24}.md` (status closed, `## Closed`
+records) and `work/code-quality/{S18,S11,S66}.md` on its own, lint green.
+
+Delivered head b5a727c3b (nine unit commits plus the lane's merge of main
+at the migration head): D244 — `hull.rs`'s `bracket` alias inlined at its
+two sites; D31 — one union-and-refine routine
+(`geom_core::spline::algebra::union_refinements` +
+`NurbsCurve{2,3}::refine_to_union`) for `make_compatible` and
+`deviation_from`, bit-identical to both retired spellings on a corpus
+(3,211 float components); D98 — `unit_segment(degree: NonZeroUsize)`, D2
+row 0, red-first `compile_fail,E0308`, 53-site fixture ripple; S235 —
+the boolean lane's conic edge box IS geom's exact extremal construction
+(`conic_arc_aabb`, a new dispatcher over the two kind doors), strictly
+tighter than the 16-sample subdivision bound it replaces (36 candidate
+pairs stop being examined on the corpus, all with zero accepted events,
+no `subtract` result changed), plus a branch-cut fix inside the exact
+door (extremal angle exactly π was "give up"; now read in the frame
+rotated by π), the census lane keeping `arc_extent` (its scalar has no
+ordering) with the lane-agreement rows pinning a GAP ≤ the charge; C24 —
+measured (19 ns per pair; the consumer evaluates it 0 times on every
+corpus subtract) and closed on the number, no `CurveJet` minted. Filed
+D291 and D292 on Track Q. Gate 33927371220 ALL GREEN on b5a727c3b
+(`lane=both eps=all`, the additive spelling). Method note at cert/ab-state
+029dbde1e.
+
+**The dual (ordinal 714, sample at the row)**: byte 89 parity 1 ⇒ R1
+FABLE + R2 OPUS, sequential on b5a727c3b; R2's session died on the Opus
+session limit at ~00:40Z 2026-09-05 after its corpus, mutation and
+bit-identity work had run, and was resumed after the 02:00Z reset to
+write its report (its usage counter records only that segment). R1
+APPROVE-WITH-FIXES (0 MAJ / 5 MIN / 5 NOTE); R2 APPROVE-WITH-FIXES (0 MAJ
+/ 2 MIN / 3 NOTE / 9 style). **S235's soundness UPHELD by both by
+execution**: R1's own 65,046-edge corpus (f64, Interval with 243
+realisations per bracket case, Dual64) and R2's ~1.2e8 samples — zero
+escapes at zero pad. BILATERAL: the branch-cut fix UNDER-PINNED in its
+own crate (R2 mutated the π shift-back away and all 11 geom rows stayed
+green; R1: no committed wide-bracket row reaches the rotated arm); the
+lane-agreement row's doc sentence FALSE (dropping a hull-redundant
+half-edge leaves it green — both planted it); `bracket_span` was LIVE at
+the base; C24's "tens of calls per boolean" unmeasured (R1's counter: 0 on
+every corpus subtract). R1's unilateral: S89's text never edited (it lives
+in D289.md / D384.md and still named `bracket` as live — R2 read the
+opposite); the body's pruning table naming rows the committed s16 corpus
+did not carry (16 of 36 pinned by no row); S66's stale over-width
+paragraph. R2's unilateral: "no tolerance enters" false of the box
+(`ANGLE_SLOP` = 1e-6 rad); `boxes.rs`'s header and the new conic bullet
+falsified 700 lines above by `edge_axial_span`'s hand-derived amplitude
+(D292's site); the charge open-coded thrice beside a named `ARC_SAMPLES`;
+the descending-run wide-bracket span coverage resting on an unstated
+endpoint-hull coupling (R2 wrote the row). Severity convergent. Tally
+candidates: R1 ×4 (S89 executed; the corpus-vs-body table; the C24 count
+executed; S66), R2 ×4 (the mutation executed; `ANGLE_SLOP`; the header;
+the descending row executed).
+
+**Fix pass IMPLEMENTER-INHERITED**, 16 rulings, head 3fd3fe0b2 (two
+merges of main): both reviewers' branch-cut rows adopted in geom at f64,
+Interval and Dual64 (the π shift-back now reds in the door's own crate);
+the lane-agreement sentence rewritten to what the row pins; every
+counted pair pinned by a committed s16 row (rim 6e-4, cylinders 1e-3
+apart; the soundness pin requiring two accepting fixtures; R1's pruning
+corpus adopted plant-free, pinning 98 candidates against the base's 134);
+S11's member restored for `nurbs_curve_aabb` (still no consumer) with
+only the closed members deleted; S89's text corrected in D289/D384; C24's
+count in C24.md and at `Curve3::deriv`'s doc; `ANGLE_SLOP` disclosed as a
+fixed outward slack and the fixture's refusing decade (ε ≈ 3e-6, beside
+three older rows) stated at the fixture; one named
+`subdivision_charge(amplitude, step)`; the header and bullet naming
+D292's exception; the #862 pointer; S66's stale paragraphs deleted; the
+endpoint hull's load-bearing role stated at both geom span sites;
+`unreachable!` kept and argued (D2 row 4); `saturating_add` →
+`const { NonZeroUsize::new(n).unwrap() }`; R1's blind spot
+(`geom_brep::edge_extent`, a diameter lower bound, not the class)
+recorded.
+
+Gates: fix head 3fd3fe0b2 run 33942682198 green (lane=both eps=all, the
+trailer now a no-op); MERGED #1879 with this docs-only log entry and the
+item's closing state-sync riding (the merge commit is recorded in the A/B
+row, written main-direct at merge).
+
+Filed: D291, D292 (Track Q, in-branch). Track N: EMPTY. Slate: both
+absorbed tracks are done — Track M is H5's schedule of three questions
+for Ev (PcurveFittedLane's representation question; ChartRegionLane's
+contract, `[ev]` PR 1878; the lane-keeping at-rest doors' default name,
+`work/cert/lane-keeping-at-rest-doors-skip-the-m7-8-class.md`). Next:
+the exit walk (`docs/S-CERT-EXIT-WALK.md`, PROPOSED for Ev) with the
+blinded tally adjudication queued at it.
