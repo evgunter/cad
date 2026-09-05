@@ -73,6 +73,8 @@ mod decoration_plane_mint;
 mod imported_chart_arc_rim;
 #[path = "intersect_table.rs"]
 mod intersect_table;
+#[path = "onb_c_payoff_interval.rs"]
+mod onb_c_payoff_interval;
 #[path = "m4_remint_headroom.rs"]
 mod m4_remint_headroom;
 #[path = "m4_remint_sliver.rs"]
