@@ -2,12 +2,13 @@
 id: repaired-pole-rim-serves-no-closed-door
 kind: unit
 title: fillet: a boolean-REPAIRED pole-touching rim is served by neither closed-rim door — one plane face, several mate half-bands
-status: dispatched
+status: closed
 opened: 2026-08-29
 github: 1245
 refs: [1222]
 branch: fillet/h5-hostless-rim
 pr: 1824
+closed: 2026-09-05
 ---
 
 ## From GitHub issue 1245
