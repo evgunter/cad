@@ -358,10 +358,10 @@ pub struct ViewerApp {
     /// visible instead of silently dropped.
     status: Option<String>,
     /// **What THIS frame has to say that is not a refusal** — the open
-    /// tool's declined picks and survival drops, and the free-move
-    /// placements the frame's own operations superseded — collected as
-    /// they happen and applied with the batch verdict rather than
-    /// before it.
+    /// tool's declined picks and survival drops, and the display state
+    /// the frame's own operations withdrew (the free-move placements
+    /// superseded and the hides dropped) — collected as they happen
+    /// and applied with the batch verdict rather than before it.
     ///
     /// They cannot be written straight to [`ViewerApp::status`] —
     /// `frame::frame_status` carries that argument, and it is the one
@@ -829,6 +829,11 @@ impl ViewerApp {
             // discarded, onto the frame's notices like every other
             // one (`frame::frame_status` carries the argument).
             notices.extend(frame::supersession_notice(&outcome.superseded));
+            // And the hides the same transition dropped, ranked
+            // beside them — the same class of fact (display state an
+            // accepted edit withdrew) and a different sentence
+            // (`frame::dropped_hide_notice` carries the argument).
+            notices.extend(frame::dropped_hide_notice(&outcome.dropped_hides));
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 // A replaced document owes a re-frame AND a fresh δ

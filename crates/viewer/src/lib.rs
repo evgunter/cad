@@ -129,7 +129,9 @@ pub use evalseam::{
 };
 // The two seam lanes are meant to be interchangeable, so they are named
 // the same way. `ThreadEvaluator` carries the `cfg` its module does.
-pub use display::{DisplayFault, DisplayState, DisplayView, free_move_check, mates_naming};
+pub use display::{
+    DisplayFault, DisplayState, DisplayView, PruneReport, Withdrawn, free_move_check, mates_naming,
+};
 #[cfg(not(target_family = "wasm"))]
 pub use evalseam::{SpawnError, ThreadEvaluator, ThreadIndexer};
 pub use history::{History, HistoryId};

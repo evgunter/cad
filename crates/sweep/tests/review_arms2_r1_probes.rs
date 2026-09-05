@@ -20,7 +20,7 @@ use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::pappus::{pappus_volume, sector, segment, triangle};
-use sweep::test_support::revolved_about_y;
+use sweep::test_support::{one_edge_rim, revolved_about_y};
 use topo::{Body, EdgeKey, validate_geometric};
 
 fn tol() -> Tol {
@@ -61,7 +61,7 @@ fn closed_rim_at(body: &Body<f64>, r: f64, y: f64) -> EdgeKey {
         .map(|(k, _)| k)
         .collect();
     assert_eq!(hits.len(), 1, "one closed rim of radius {r} at y = {y}");
-    hits[0]
+    one_edge_rim(body, hits[0])
 }
 
 fn band_torus(body: &Body<f64>, face: topo::FaceKey) -> (f64, f64, f64) {
