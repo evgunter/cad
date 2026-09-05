@@ -1771,6 +1771,28 @@ impl<T: Real> Dir<T> {
 
     /// A director spelled as an already-unit ray: the ray is stored
     /// verbatim and the angle derived from it.
+    ///
+    /// **The ray is DECIDED before it gets here, at the door that
+    /// built it, and this constructor deliberately does not decide it
+    /// again.** Every caller either normalized against the funnel on
+    /// its own band — `unit_from_components` under
+    /// `path_director_norm`, [`arc_fillet::carrier_tangent`] under
+    /// `path_arc_center_radius` — or holds a ray that is unit by
+    /// construction, which is [`Dir::reversed`]'s exact negation. A
+    /// second decision here would either re-ask a question already
+    /// answered (a second name in the K census for one length) or,
+    /// worse, re-derive the ray and lose the exactness this type
+    /// exists to keep: the VQ4 contract is that a director spelled as
+    /// COMPONENTS fixes the ray, so `(-1, 0)` stays `(-1, 0)` and a
+    /// declared cusp is a structural fact rather than a value
+    /// coincidence.
+    ///
+    /// So the invariant is the callers', and it is measured rather
+    /// than assumed — the row at the bottom of this file walks each
+    /// producing door. What NEITHER 2-D door asks, unlike the 3-D
+    /// direction body in `topo::query`, is whether the length is a
+    /// FINITE number before deciding its sign; that residue is filed,
+    /// not fixed here (`work/seat/`, the 2-D director doors).
     fn from_unit(u: Vec2<T>) -> Self {
         Self {
             ang: u.y.atan2(u.x),
@@ -4013,5 +4035,57 @@ mod tests {
                  guard is vacuous and the door's promise is untestable here"
             );
         }
+    }
+
+    /// **Every ray a director is built from was decided at the door
+    /// that built it** — [`Dir::from_unit`]'s standing contract, and
+    /// the reason it does not decide the ray a second time.
+    ///
+    /// The two producing doors are walked here, refusal and success:
+    /// each classifies its own length through the funnel under its own
+    /// name and refuses typed, and what it then stores is a ray of
+    /// length one — exactly one on the cases below, which are chosen
+    /// so the arithmetic is exact in binary and a "close enough"
+    /// assertion cannot hide a door that stopped normalizing. The
+    /// third caller, [`Dir::reversed`], is unit by exact negation and
+    /// is pinned by the row above.
+    #[test]
+    fn every_ray_a_director_is_built_from_was_decided_at_its_own_door() {
+        let tol = Tol::witness();
+        let band = linear_band::<f64>(tol).expect("the linear band");
+
+        // The components door refuses a length decided to zero, and
+        // stores the exact unit ray otherwise (3-4-5: the quotients
+        // are exact).
+        assert!(
+            matches!(
+                unit_from_components::<f64>(0.0, 0.0, tol),
+                Err(PathError::ZeroDirection { .. })
+            ),
+            "the components door decides its own length"
+        );
+        let d = unit_from_components::<f64>(3.0, 4.0, tol).expect("a real direction");
+        assert_eq!((d.unit.x, d.unit.y), (0.6, 0.8), "the stored ray is unit");
+        assert_eq!(d.ang, 0.8_f64.atan2(0.6), "and the angle is derived FROM it");
+
+        // The arc-carrier door refuses an anchor at the centre — no
+        // tangent exists there — and stores the unit tangent
+        // otherwise. τ·(P−O)⟂/R with P−O = (3, 0), R = 3 is (0, 1).
+        let centre = Point2::new(1.0, 2.0);
+        assert!(
+            matches!(
+                arc_fillet::carrier_tangent::<f64>(centre, centre, ArcSweep::Ccw, band),
+                Err(PathError::DegenerateArcCenter { .. })
+            ),
+            "the carrier door decides its own radius"
+        );
+        let t = arc_fillet::carrier_tangent::<f64>(
+            Point2::new(4.0, 2.0),
+            centre,
+            ArcSweep::Ccw,
+            band,
+        )
+        .expect("a real tangent");
+        assert_eq!((t.unit.x, t.unit.y), (0.0, 1.0), "the stored ray is unit");
     }
 }
