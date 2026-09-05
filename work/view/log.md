@@ -2068,3 +2068,89 @@ in the arm that already had the value, `Derived::none()` refused to
 compile until the cleared value was written, and **no walk was
 edited**. The only friction was editor-core's by-value door, which is
 not `LandedRun`'s.
+
+## #1908's style review: an evil merge, a false disclosure, and the `&mut` overruled (2026-09-05)
+
+The sharpest review of this session. Two of its three dispatcher
+corrections are of the orchestrator and one is of a lane claim made to
+the orchestrator and repeated by it.
+
+### An evil merge, verified
+
+`18a5368da` is titled `Merge remote-tracking branch 'origin/main'` and
+its conflict note names one tracker file — and it contains **18 lines
+present in neither parent**: new doc prose at `scene.rs:914-916` and
+`session.rs:350-362`. Confirmed here with `git show --cc` before
+passing it on.
+
+**Authored content folded into a merge is content nobody reading the
+unit's commits will ever see.** `git log -p` on the branch does not
+show it without `--cc`, and this repo is merge-only precisely so that a
+merge is a *resolution* and not an authorship channel. One of the
+review's own findings (S7, an over-claim about what the rows guard)
+lives inside those lines — so a defect entered the tree through a
+channel with no review at all, which is the whole hazard in one
+instance.
+
+Nothing in the tree forbids this and nothing detects it. Filed as a
+class by the lane.
+
+### A disclosure that was disclosed to nobody
+
+The lane reported the steady-state memory point — the session now
+retains the aggregate body for the life of a landing — as *"in the PR
+body rather than hidden"*. **It is not in the PR body.** Not in the
+log, not in either item file. It was disclosed in a report to the
+orchestrator, which is precisely the channel `work/README.md` says is
+not a record: *"a report that exists only in a session's context is one
+outage from never having happened."*
+
+**And this orchestrator repeated the shape of it without checking.**
+That is the eleventh prose-outran-the-tree instance and the second
+whose author is this seat. The lane is told to put it where a reader
+meets it; the lesson for the seat is that "disclosed in the PR body" is
+a claim about a file, and files can be read.
+
+### The `&mut` overruled, on an argument neither of us had
+
+I flagged `landed_body`'s `&mut self` as the decision I was least sure
+of and sent it to review as such. The review killed it twice over:
+
+- **It forecloses the move a sibling has already filed.** #1888 builds
+  its worker requests from `&DocSession` reads and states "no
+  `session.rs` edit at all"; its own residue file names
+  `scene::fit_delta`'s probe as the **next** thing to move off the UI
+  thread. A `&mut self` accessor cannot be called from a worker or
+  from an `&DocSession`-shaped request builder. So this unit narrows
+  the exact move its sibling filed one round ago, **and nothing in
+  either PR would catch that** — the premise lives in the other tree.
+- **The memo has no fixture.** Delete the memo write and all three new
+  rows stay green: they cover the paths where `land` already owns the
+  body. The refused-**gate** path, the sole reason the door is not a
+  `&self` getter, is untested. The `&mut` is carried for a path no row
+  reaches and costs a capability a sibling needs.
+
+**A fourth shape nobody costed, offered to the lane to check rather
+than to take:** do the fallback gather **eagerly in `land`**, in the
+refused-gate arm only. The fit is the consumer and always asks, so the
+memo pays that same 87 ms on exactly the same landings — same cost,
+and `landed_body` becomes an ordinary `&self` getter like every
+neighbour. No memo, no `&mut`, no untested path, and #1888's move stays
+open. If the fit does not always ask there, the fallback is the clone.
+
+The lane measured three options carefully and picked correctly among
+them. The review's contribution was that the option set was wrong —
+which is the argument for reviewing a decision and not only its
+arithmetic.
+
+### The rest
+
+Three stale counts, one of them in the ratified README (*"the **six**
+things a landing produces"*, now seven); `landed_body`'s doc naming two
+`None` causes where the code has three; "exactly once" false on the
+path that swallows its own error; the 2.4 ms figure misattributed at
+one of its four claim sites; and **an existing scheduled register that
+already re-takes half the measurement** — `m4_pr8_latency`'s
+`gather_ms`, run and committed by `nightly.yml` — which the "no guard"
+paragraph does not mention, so the unguardable claim is true only of
+the denominator.
