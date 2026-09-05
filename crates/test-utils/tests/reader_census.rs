@@ -202,7 +202,7 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/sweep/tests/review_fillet_split_r2_probes.rs",
-        disposition: Shared, // the carve's file roster and its `pub` census, code view
+        disposition: Shared, // the seam's and open bands' visibility census, code view
     },
     Entry {
         path: "crates/sweep/tests/review_fillet_t_r1_probes.rs",

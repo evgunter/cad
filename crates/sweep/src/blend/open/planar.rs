@@ -21,15 +21,14 @@ use topo::{
     VertexKey,
 };
 
-use super::chord_site;
 use crate::blend::admit::{AdmittedOpen, CornerFaces, CornerLinks, RequestedBoundary};
 use crate::blend::arms::{chamfer_corner_patch, corner_ball, line_meet};
 use crate::blend::battery::Convexity;
 use crate::blend::build::{octant_chart, outward_of};
 use crate::blend::naming::BlendNaming;
 use crate::blend::surgery::{
-    CORNER_SUPPORT_NOT_PLANAR, ContactCarrier, Described, SourceFaces, face_of_half, halves_of,
-    not_intact, op, point_of, unbuilt_chain, unbuilt_geometry, unbuilt_run_out,
+    CORNER_SUPPORT_NOT_PLANAR, ContactCarrier, Described, SourceFaces, chord_site, face_of_half,
+    halves_of, not_intact, op, point_of, unbuilt_chain, unbuilt_geometry, unbuilt_run_out,
 };
 use crate::blend::{BlendError, BlendKind};
 

@@ -35,34 +35,11 @@
 //!
 //! # What the surgery does, per chain kind
 //!
-//! **Open chains** (plane–plane links, the box edges): every open
-//! chain must be a single link terminating at trivalent corners
-//! whose THREE incident edges are all requested — one uniform
-//! trihedron, reached in place, whichever band fills it. Per support
-//! face: one strut `mev` per boundary vertex (to the corner patch's
-//! foot on that face) and one trimline `mef` per blended edge carve
-//! the face
-//! into the SHRUNK face plus one strip per edge — the shrunk face
-//! keeps its `FaceKey`, its surface, its sense bit (S12
-//! parent-sense inheritance) **and its rings**, which is what
-//! carries a face's rings through the fillet. Then per edge one
-//! `kef` merges the two strips across the dying sharp edge; per
-//! corner three arc `mef`s split the corner triangles off, two
-//! `kef`s and one `kev` fuse them into the corner patch and retire
-//! the struts and the sharp vertex.
-//!
-//! **The ruled band** (a cylinder–plane(∥) or cylinder–cylinder(∥)
-//! link: the flat milled along a rod) is the open band on CURVED
-//! supports, and it terminates where its supports do — at TRANSVERSE
-//! CAPS, plane faces perpendicular to the ruling, never at a corner
-//! patch. Its carve is [`super::open::ruled::ruled_phase`]'s: at each cap the two rim
-//! edges the cap shares with the supports are split at the trimlines'
-//! feet and the cap plane's section of the band — an exact arc of the
-//! band's radius about the spine — is `mef`'d between them, cutting a
-//! sliver off the cap; one trimline `mef` per support carves its strip
-//! along the ruling; the crease's `kef` merges the strips and two
-//! `kef`/`kev` pairs fold the slivers in and retire the old vertices.
-//! No strut is minted: every new vertex sits on an existing edge.
+//! **Open chains** are the two open bands, each carved by its own
+//! module and narrated there, once: the plane–plane band between
+//! trivalent corners in [`super::open::planar`], the ruled band cut off
+//! at transverse caps in [`super::open::ruled`]. Both are admitted here
+//! ([`AdmittedOpen`]) and carve on the clone this door makes.
 //!
 //! **Closed chains** (any link whose blend is a TORUS) come in TWO
 //! shapes, which
@@ -1952,7 +1929,9 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
 /// trio pin (`tests/m6_surgery.rs`) and compiled into no shipped build.
 /// It lives here rather than in `test_support` because its signature
 /// carries the surgery's own `Decide + Bounds` compound, which the
-/// `Bounds` scope rule ratifies for this file and no other in the crate.
+/// `Bounds` scope rule ratifies for the edge-blend seam alone —
+/// `battery.rs`, `build.rs`, this file and the two open bands under
+/// `open/` — and for no other file in the crate.
 #[cfg(any(test, feature = "test-support"))]
 pub fn ring_clearance_for_tests<T: Decide + Bounds>(
     face: FaceKey,
@@ -2930,8 +2909,9 @@ impl HostAnchor {
 /// run a `mef` moves onto a new face, keyed by the half-edge `at`
 /// picks: the one `back` positions before it (inclusive) and the one
 /// `fwd` positions after it (exclusive), each with its start vertex.
-/// ONE spelling for every chord this module hangs between two existing
-/// vertices: the corner arc (`0, 2`, keyed on the half-edge ENDING at
+/// ONE spelling for every chord the carve hangs between two existing
+/// vertices — here, and in the two open bands under `open/` through
+/// [`chord_site`]: the corner arc (`0, 2`, keyed on the half-edge ENDING at
 /// the corner), the hostless host's rim arc (`1, 2`, keyed on the arc's
 /// own half), and the ruled band's cap arc (`0, 2`) and trimlines
 /// (`1, 2`).
@@ -2962,6 +2942,32 @@ pub(super) fn flank<T: Decide>(
     let (h1, v1, _) = walk[(pos + k - back) % k];
     let (h2, v2, _) = walk[(pos + fwd) % k];
     Some(((h1, v1), (h2, v2)))
+}
+
+/// [`flank`] on a face's OUTER cycle, refusing typed where the cycle
+/// does not walk or does not carry the keyed half-edge — the ruled
+/// band's and the corner arc's spelling, whose chords always hang in an
+/// outer cycle (the cut-off `mef` leaves a cap's rings on the cap; a
+/// support with a ring is refused at the plan).
+pub(super) fn chord_site<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    at: impl Fn(&(HalfEdgeKey, VertexKey, EdgeKey)) -> bool,
+    back: usize,
+    fwd: usize,
+) -> Result<(HalfEdgeKey, HalfEdgeKey, VertexKey, VertexKey), BlendError> {
+    let outer = body
+        .get_face(face)
+        .ok_or_else(|| not_intact(EntityId::Face(face), "a face whose cycle a chord spans"))?
+        .outer;
+    let ((he1, v1), (he2, v2)) = flank(body, outer, at, back, fwd).ok_or_else(|| {
+        not_intact(
+            EntityId::Face(face),
+            "a face's outer cycle does not walk, or does not carry the half-edge the carve \
+             keys on",
+        )
+    })?;
+    Ok((he1, he2, v1, v2))
 }
 
 /// Where one crossing's two feet go, and the arc whose stored frame put

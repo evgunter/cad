@@ -369,7 +369,8 @@ pub struct BatteryVerdict<T: Real> {
     pub kind: BlendKind,
     /// The open-chain ends predicate 6 classified
     /// [`CornerConfig::TransverseCap`] — every end of every RULED link,
-    /// sorted and deduplicated. The surgery's cap plan reads a link's
+    /// sorted and deduplicated. The ruled band's plan
+    /// (`open::ruled::RuledPlan`) reads a link's
     /// two ends off this list rather than re-deciding the cap; an end
     /// missing from it is a verdict the body disagrees with. The
     /// uniform trihedra the corner path carves are not listed: that
@@ -1717,7 +1718,7 @@ pub(super) fn cap_incidence<T: Decide>(
 /// it, returning the CARVED configuration it classified: a RULED
 /// link's end must be a transverse cap — decided by [`cap_transverse`]
 /// and returned as [`CornerConfig::TransverseCap`], the tag the verdict
-/// carries for the surgery's cap plan to read — and any other link's
+/// carries for `open::ruled::RuledPlan` to read — and any other link's
 /// end is classified as a corner: gather valence, per-edge convexity,
 /// and the three support normals, then classify. A uniform trihedron
 /// that passes returns `None`: the carved trihedral configuration has

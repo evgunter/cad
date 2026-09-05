@@ -28,9 +28,10 @@
 //! derivation that is about a SOURCE body rather than about the
 //! mutation: a face's boundary cycle, a vertex's face orbit, a
 //! planar face's outward normal, and the per-corner chart derivation
-//! ([`octant_chart`]) the surgery reads at each trivalent corner.
+//! ([`octant_chart`]) the planar open band's corner plan
+//! (`open::planar::corner_plan`) reads at each trivalent corner.
 //! The corner's ORIENTATION bit is not derived here at all: it is
-//! whatever its admitted links carry, which the surgery reads off
+//! whatever its admitted links carry, which the blank phase reads off
 //! `Corner`'s own field.
 //!
 //! # Naming

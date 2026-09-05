@@ -63,14 +63,13 @@ use geom_brep::EdgeCurveSpec;
 use geom_core::{Bounds, Decide, Point3, Real, Tol};
 use topo::{Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, MefSite, VertexKey};
 
-use super::chord_site;
 use crate::blend::BlendError;
 use crate::blend::admit::AdmittedOpen;
 use crate::blend::battery::cap_incidence;
 use crate::blend::naming::BlendNaming;
 use crate::blend::surgery::{
-    ContactCarrier, Described, SourceFaces, edge_touches, face_of_half, halves_of, loop_of_half,
-    not_intact, op, point_of, seam_split_param, unbuilt_chain, unbuilt_geometry,
+    ContactCarrier, Described, SourceFaces, chord_site, edge_touches, face_of_half, halves_of,
+    loop_of_half, not_intact, op, point_of, seam_split_param, unbuilt_chain, unbuilt_geometry,
 };
 
 /// One transverse cap of a ruled link, as the plan read it.
