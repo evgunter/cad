@@ -44,10 +44,15 @@ compared with the gather they save.
 
 ## What VIEW owes meanwhile
 
-Nothing in behaviour — the fit is correct either way. What VIEW owes
-is that the cost stays where it is documented:
-`DocSession::landed_body` and `LandedRun::body` both name this case,
-and `crates/viewer/tests/landing_gathers.rs` counts the gathers of the
-paths that do NOT pay it. A row for the refused-gate path would need a
-mate that certifies its way into a refusal, which is `asm::bench`'s
-territory and is worth adding when one exists.
+Nothing in behaviour — the fit is correct either way, and the cost is
+now spelled at the consumer rather than hidden: `app`'s fit calls
+`scene::product_of_evaluation` on this path and nothing else does.
+
+**The path is covered, not deferred.**
+`landing_gathers.rs::a_refused_a5_gate_eats_the_body_and_says_so_by_its_absence`
+authors a Tangent mate over `asm::bench` (the fixture
+`assembly_display.rs` already uses to red the badge) and pins both
+halves: the gather succeeded (`product_fault` is `None`) and the body
+is gone. So this item is about the COST, not about an untested
+branch — when editor-core's door changes, that row is what says the
+body came back.

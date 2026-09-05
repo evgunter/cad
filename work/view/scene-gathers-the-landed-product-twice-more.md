@@ -5,7 +5,7 @@ title: scene_of_evaluation and fit_delta each gather the landed evaluation's pro
 status: closed
 opened: 2026-09-04
 branch: view/scene-gathers
-refs: [refused-a5-gate-eats-the-body-the-fit-then-regathers]
+refs: [refused-a5-gate-eats-the-body-the-fit-then-regathers, authored-content-folded-into-a-merge-commit]
 pr: 1908
 closed: 2026-09-05
 ---
@@ -53,26 +53,50 @@ Both doors stopped gathering. `scene::fit_delta` and the door that was
 `scene::scene_of_evaluation` (now `scene::scene_of_body`) take the
 gathered `Body` and no longer take the pair that would produce one, so
 neither can gather at all; `scene::scene_of` composes the new core
-after its own `product_body`, which gives the shared core a production
-caller and ends the test-only door the finding named.
+after its own `product_body`. (That gives the core a production
+caller, at startup — NOT on the per-frame path, which is
+`pick::PickIndex`'s and never came through here. The finding's
+"would pay per frame if it were wired" describes a wiring the frame
+path does not perform.)
 
 The body they are handed is the LANDING's. `LandedRun` carries
 `body: Option<Arc<Body<f64>>>`, filled from `land`'s one gather on
 both paths where the landing still owns it — a document with no A5
 gate to run never gave it away, and a certified gate hands it back on
-`Assembly` — and `DocSession::landed_body` is the door. It is `&mut`
-because one landing shape kept no body (a REFUSED A5 gate consumes the
-product), and there it gathers once and memoizes, so no landing
-gathers twice however many consumers ask. That residue is
+`Assembly`. `DocSession::landed_body` is a plain `&self` getter over
+that field: it never gathers, so a background thread or an
+`&DocSession`-shaped request builder can call it, which a `&mut`
+accessor would have foreclosed (the off-thread pick-index work has
+filed exactly that move against this probe). The one landing that
+keeps no body — a REFUSED A5 gate consumes the product it judges —
+is served by `scene::product_of_evaluation`, named at the call site so
+the single path that costs a gather is the single path that says one.
+The cost residue is
 `refused-a5-gate-eats-the-body-the-fit-then-regathers`.
 
+**What it costs on the other side.** The session now retains one
+gathered aggregate for the life of a landing, beside the `Doc` and
+`Evaluation` it already held — one at a time, replaced by the next
+landing and dropped with `Derived` on `Open`. Time-free (the gather
+had already allocated it); steady-state memory, and stated in
+`crates/viewer/README.md` where a reader of the design meets it.
+
 Measured on this lane rather than inherited: 87 ms to gather a
-165-root, 990-face document against 2.4 ms to clone the body it
-produced (dev profile). The 248 ms / 8 ms figure in the finding above
-is DOCM's, on their corpus, and was not re-taken.
+165-root, 990-face document (dev profile). The 248 ms / 8 ms figure in
+the finding above is DOCM's, on their corpus, and was not re-taken.
+The gather side has a standing witness that is not this crate's —
+`editor-core/tests/m4_pr8_latency.rs`'s `gather_ms`, on the nightly
+register.
 
 `crates/viewer/tests/landing_gathers.rs` counts what the change is
-about: asking for the landed body costs zero gathers on a part
-document, zero on a certified assembly, and zero on a refused gather
-(there is no product to hand out and asking does not re-run the
-refusal).
+about, one row per path and each naming the mutation that reds it:
+a part document's body is borrowed from its landing, a certified
+assembly keeps the body the gate was given, a refused GATE eats it
+(and `product_fault` is `None`, which is what distinguishes that
+`None` from the next), and a refused GATHER hands out nothing without
+re-running the refusal.
+
+**Not guarded, and said so at the claim site:** those rows do not see
+the scene doors. Restoring `fit_delta`'s or `scene_of_body`'s old
+pair-taking signatures reds nothing, because the gather would run
+inside `scene` where no row counts.

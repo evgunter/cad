@@ -77,13 +77,13 @@ fn delta(value: f64) -> DisplayTolerance {
 #[test]
 fn the_gallery_ring_is_drawn_inside_the_budget() {
     let tol = Tol::witness();
-    let mut session = gallery_ring(tol);
+    let session = gallery_ring(tol);
     // The body the LANDING gathered — the same one the application
     // fits on, asked for the same way (`DocSession::landed_body`), so
     // this row costs the gather the landing already paid and no other.
     let body = session.landed_body().expect("the ring gathers");
     let requested = delta(INITIAL_DELTA);
-    let fitted = scene::fit_delta(&body, requested, tol).expect("the ring fits");
+    let fitted = scene::fit_delta(body, requested, tol).expect("the ring fits");
 
     let over = fitted
         .requested_cost
@@ -110,7 +110,7 @@ fn the_gallery_ring_is_drawn_inside_the_budget() {
     // slack is the stated contract (`fit_delta` does not verify), so
     // the assertion is a bound with a margin, not an equality.
     let mesh =
-        scene::scene_of_body(&body, fitted.delta, tol).expect("the ring draws at the fitted δ");
+        scene::scene_of_body(body, fitted.delta, tol).expect("the ring draws at the fitted δ");
     let triangles = mesh.stats().triangles;
     #[allow(clippy::cast_precision_loss)]
     let ratio = triangles as f64 / TRIANGLE_BUDGET as f64;
@@ -135,7 +135,7 @@ fn a_document_inside_the_budget_is_drawn_as_asked() {
     session.pump();
     let body = session.landed_body().expect("the plate gathers");
     let requested = delta(INITIAL_DELTA);
-    let fitted = scene::fit_delta(&body, requested, tol).expect("the plate fits");
+    let fitted = scene::fit_delta(body, requested, tol).expect("the plate fits");
 
     assert_eq!(fitted.delta, requested, "the plate is drawn as asked");
     assert_eq!(
@@ -157,9 +157,9 @@ fn a_document_inside_the_budget_is_drawn_as_asked() {
 #[test]
 fn a_coarsened_picture_says_so_in_both_numbers() {
     let tol = Tol::witness();
-    let mut session = gallery_ring(tol);
+    let session = gallery_ring(tol);
     let body = session.landed_body().expect("the ring gathers");
-    let fitted = scene::fit_delta(&body, delta(INITIAL_DELTA), tol).expect("fits");
+    let fitted = scene::fit_delta(body, delta(INITIAL_DELTA), tol).expect("fits");
     let wording = fitted
         .wording()
         .expect("a coarsened picture has a sentence");

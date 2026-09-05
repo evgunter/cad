@@ -717,14 +717,38 @@ pub fn product_body(doc: &Doc<ProfileProgram>, tol: Tol) -> Result<Body<f64>, Sc
     product(doc, &evaluation, tol).map_err(SceneError::NoProduct)
 }
 
+/// **Gather the product of a pair the landing did not keep one for.**
+///
+/// The expensive door, and the only one in this module that gathers a
+/// product for an evaluation someone else ran. It exists for exactly
+/// one case: an assembly whose A5 gate REFUSED consumed the body the
+/// landing would otherwise have kept
+/// ([`crate::session::DocSession::landed_body`]), so a consumer that
+/// needs one there has to pay for it. Naming that door rather than
+/// hiding the gather inside a getter is what keeps the cost at the
+/// call site, where a reader meets it.
+///
+/// # Errors
+///
+/// [`SceneError::NoProduct`] for every way the roots fail to gather.
+pub fn product_of_evaluation(
+    doc: &Doc<ProfileProgram>,
+    evaluation: &pncad::document::Evaluation<f64>,
+    tol: Tol,
+) -> Result<Body<f64>, SceneError> {
+    product(doc, evaluation, tol).map_err(SceneError::NoProduct)
+}
+
 /// The scene of a product SOMEONE ELSE gathered.
 ///
 /// **Takes the aggregate, never the pair that would produce one.** A
 /// gather is the expensive step on this path, and a landing has
 /// already paid for one ([`crate::session::DocSession::landed_body`]);
 /// a door that took `(doc, evaluation)` here would gather the same
-/// product a second time, and would do it once per FRAME the day
-/// anything wired it. [`scene_of`] is this function with a gather of
+/// product a second time. Not per frame — the drawn picture is built
+/// by [`crate::pick::PickIndex`], per root, and never comes through
+/// here — but once for every caller that asks, which is the shape the
+/// landing already paid to avoid. [`scene_of`] is this function with a gather of
 /// its own, kept for callers that have no seam — the two share every
 /// step after the body exists, so a document drawn from a background
 /// run and one drawn inline cannot differ.

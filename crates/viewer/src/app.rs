@@ -614,15 +614,22 @@ impl ViewerApp {
         // will not tessellate, and the index build below is about to
         // say so with its own typed refusal. Two opinions about that
         // would be one too many.
-        if self.fit_delta_on_scene && self.session.landed_pair().is_some() {
+        if self.fit_delta_on_scene
+            && let Some((doc, evaluation)) = self.session.landed_pair()
+        {
             self.fit_delta_on_scene = false;
-            // The body is the LANDING's — gathered once when the
-            // result landed, not again here (`DocSession::landed_body`
-            // carries what asking costs and when).
-            let tol = self.session.tol();
-            if let Some(body) = self.session.landed_body()
-                && let Ok(fitted) = scene::fit_delta(&body, self.delta, tol)
-            {
+            // The LANDING's body, which its own gather already paid
+            // for. The gather below runs for one landing shape only —
+            // an assembly whose A5 gate refused ate the product it
+            // judged — and is spelled out rather than hidden behind
+            // the getter, so the one path that costs a gather is the
+            // one path that names one.
+            let fitted = match self.session.landed_body() {
+                Some(body) => scene::fit_delta(body, self.delta, self.session.tol()),
+                None => scene::product_of_evaluation(doc, evaluation, self.session.tol())
+                    .and_then(|body| scene::fit_delta(&body, self.delta, self.session.tol())),
+            };
+            if let Ok(fitted) = fitted {
                 self.delta = fitted.delta;
                 self.budget_delta = fitted.requested_cost.map(|_| fitted);
             }

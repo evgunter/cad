@@ -56,7 +56,7 @@ use pncad::document::{
     Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
     DocEdit, DocParam, DocRef, DocumentId, Evaluation, Expr, LoopProgram, Node, ParamName,
     PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId, Subject, apply,
-    assemble_gathered, cascade_delete_order, parse_expr, product, product_recorded, run_checks_on,
+    assemble_gathered, cascade_delete_order, parse_expr, product_recorded, run_checks_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -297,13 +297,17 @@ impl Derived {
 /// One completed evaluation, landed: the pair it answers and every
 /// verdict taken for that pair.
 ///
-/// **These move together or not at all.** Each verdict is a statement
-/// about ONE (document, evaluation) pair, computed once in
-/// [`DocSession::land`]; one field of this value read beside another
-/// run's would describe a run that never happened. As one value,
-/// `land` writes exactly what [`Derived::none`] clears, and a seventh
-/// thing taken at landing cannot be computed at one door and forgotten
-/// at the other.
+/// **These move together or not at all.** Each is a statement about
+/// ONE (document, evaluation) pair, taken from that pair's single
+/// gather in [`DocSession::land`]; one field of this value read beside
+/// another run's would describe a run that never happened. As one
+/// value, `land` writes exactly what [`Derived::none`] clears, and a
+/// new thing taken at landing cannot be computed at one door and
+/// forgotten at the other.
+///
+/// `body` is the one field the landing does not always carry, and its
+/// own docs say why — the A5 gate consumes what it judges. Everything
+/// else here is present whenever the gather was.
 struct LandedRun {
     evaluation: Arc<Evaluation<f64>>,
     /// The document [`LandedRun::evaluation`] answers.
@@ -355,12 +359,24 @@ struct LandedRun {
     /// a trade is re-decided by re-measuring, not by a failing
     /// assertion. A wall-clock guard in the gate would be a flake
     /// rather than a witness, and a scheduled re-measure would be a
-    /// standing chore over a number no behaviour reads. What IS
-    /// guarded is the consequence: `viewer/tests/landing_gathers.rs`
-    /// counts the gathers of every path that must not pay one, so a
-    /// change that reintroduced a gather fails there loudly and
-    /// deterministically. Re-measure before changing the shape; do not
-    /// trust the figures to have stayed true.
+    /// standing chore over a number no behaviour reads.
+    ///
+    /// Half of it is re-taken anyway, and by someone else: the gather
+    /// column of `editor-core/tests/m4_pr8_latency.rs` (`gather_ms`)
+    /// runs on the nightly register, so the 87 ms side has a standing
+    /// witness this crate does not maintain. What has none is the
+    /// clone denominator — nothing in the tree times a `Body::clone`.
+    ///
+    /// **What this file's rows do and do not guard.**
+    /// `viewer/tests/landing_gathers.rs` counts the gathers of every
+    /// path that must not pay one, so a change that made
+    /// [`DocSession::landed_body`] gather, or that stopped `land`
+    /// keeping the body, reds there. It does NOT see the doors:
+    /// restoring `scene::fit_delta`'s or `scene::scene_of_body`'s old
+    /// pair-taking signatures reds nothing, because those gathers
+    /// would run inside `scene` where no row counts. Re-measure before
+    /// changing the shape; do not trust the figures to have stayed
+    /// true.
     body: Option<Arc<Body<f64>>>,
 }
 
@@ -574,31 +590,30 @@ impl DocSession {
     /// display fit sizes itself on, and the aggregate a scene is
     /// tessellated from.
     ///
-    /// **Handed over rather than re-derived.** The landing gathered
-    /// this document's product once ([`DocSession::land`]) and every
-    /// consumer above is served from that one gather; a consumer that
-    /// took the pair and gathered for itself would pay a second whole
-    /// gather, which on this lane's 165-root, 990-face measurement is
-    /// 87 ms against the 2.4 ms of handing the same body on.
+    /// **Handed over rather than re-derived**, and **free to ask**:
+    /// this is a borrow of what the landing already gathered, never a
+    /// gather of its own. On this lane's 165-root, 990-face
+    /// measurement a gather is 87 ms; handing this body on is an
+    /// `Arc` clone.
     ///
-    /// **`&mut` because asking can cost a gather, exactly once.** The
-    /// A5 gate consumes the product when it refuses, so a refused
-    /// assembly is the one landing that kept no body; this door
-    /// gathers there and memoizes into the landing, so the second
-    /// asker is free and no landing gathers twice. `None` means the
-    /// pair has no product at all — nothing has landed, or the gather
-    /// refused ([`DocSession::product_fault`] says which).
-    pub fn landed_body(&mut self) -> Option<Arc<Body<f64>>> {
-        let run = self.derived.landed.as_ref()?;
-        if let Some(body) = run.body.as_ref() {
-            return Some(Arc::clone(body));
-        }
-        if run.fault.is_some() {
-            return None;
-        }
-        let gathered = Arc::new(product(&run.doc, &run.evaluation, self.tol).ok()?);
-        self.derived.landed.as_mut()?.body = Some(Arc::clone(&gathered));
-        Some(gathered)
+    /// **A plain `&self` getter, deliberately.** A door that could
+    /// gather behind a getter would put 87 ms behind a read, and —
+    /// the cost that decided it — a `&mut self` accessor cannot be
+    /// called from a worker or from an `&DocSession`-shaped request
+    /// builder, which is exactly the move the off-thread pick-index
+    /// work has filed against this probe. A read that a background
+    /// thread cannot make is a read that forecloses its own future.
+    ///
+    /// `None` has three causes and they are not the same question:
+    /// nothing has landed; the gather REFUSED, so no product exists
+    /// ([`DocSession::product_fault`] says so); or the gather
+    /// succeeded and the A5 gate consumed the body in refusing
+    /// ([`LandedRun::body`] carries that case). A caller that needs a
+    /// body in the third case gathers one for itself and pays for it
+    /// where the payment is visible — `scene::product_of_evaluation`
+    /// is that door.
+    pub fn landed_body(&self) -> Option<&Body<f64>> {
+        Some(self.derived.landed.as_ref()?.body.as_ref()?)
     }
 
     /// The advisory-check report for the landed pair — findings in
@@ -752,14 +767,18 @@ impl DocSession {
         if !done.completed() {
             return Landing::Canceled;
         }
-        // **ONE gather, feeding all three of the landing's consumers.**
+        // **ONE gather, feeding all four of the landing's consumers.**
         // Computed HERE because here is the one place a result becomes
         // the session's, so it cannot be run twice or skipped — and
         // ONCE because the ORDER below is what makes one enough: the
         // product's own verdict reads the refusal, the registry
         // BORROWS the product, and the A5 badge CONSUMES it last.
-        // Nothing after the badge wants a product, so nothing here
-        // clones one.
+        //
+        // The fourth consumer is the SESSION, which keeps the body for
+        // the display fit ([`LandedRun::body`]) — and it is why the
+        // sentence that used to end this paragraph ("nothing after the
+        // badge wants a product") no longer holds. Nothing is cloned
+        // for it either: it takes what the gate did not eat.
         let doc: &Doc<ProfileProgram> = &self.requested_doc;
         let cfg = ChecksConfig::default();
         // The A5 badge is taken for assembly-shaped documents only, and
