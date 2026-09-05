@@ -3913,6 +3913,7 @@ record reaches main when the block's last slot's reviews conclude; each
 ordinal claim at review dispatch goes to main on its own.
 
 Block FILLET-B2 slot record (branch-side, appended as each slot concludes):
+slot 1 = FILLET-ATTR (OPUS) — concluded 2026-09-05 at merge aa5384288, ordinal 2004, sample #134 (no tally candidate; pair FAIR).
 
 ## FILLET-RIM review ordinal fixed at dispatch (2026-09-04)
 
