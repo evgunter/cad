@@ -378,7 +378,7 @@ fn an_undescribable_neighbor_pair_refuses_typed() {
 fn the_routed_cone_reaches_past_c5_and_refuses_at_the_rims() {
     let mut body = coned_tube();
     let face = cone_face(&body);
-    let before = circle_radii(&body);
+    let before = format!("{body:?}");
     let e = topo::replace_face_offset(&mut body, face, 0.05, FIT_TOL, band(), Tol::witness())
         .expect_err("the untouched cylinders cannot hold the cone's moved rims");
     assert!(
@@ -392,7 +392,11 @@ fn the_routed_cone_reaches_past_c5_and_refuses_at_the_rims() {
         (gap - 0.03).abs() < 1e-12,
         "the corner error is d·cos alpha: got {gap}"
     );
-    assert_eq!(circle_radii(&body), before, "the body is untouched on Err");
+    assert_eq!(
+        format!("{body:?}"),
+        before,
+        "the body is BIT-untouched on Err, not merely radius-untouched"
+    );
 }
 
 /// **The apex window.** The cone's `v`-window, shifted by the offset's

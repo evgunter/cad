@@ -1381,6 +1381,54 @@ mod interval {
         }
     }
 
+    /// The cone×cylinder closed form runs at `T = Interval` UNCHANGED —
+    /// no lane fork, because the form is `atan2`-free and
+    /// branch-cut-free by construction — and both circles' residual
+    /// enclosures contain zero against BOTH surfaces. The arm's own doc
+    /// makes this claim in words; this is where it is measured.
+    #[test]
+    fn cone_cylinder_residuals_enclose_zero_at_interval() {
+        use geom_brep::intersect::{ConeCylinderSection, cone_cylinder_section};
+        // The f64 row's frame, at the interval scalar. `atan` is not on
+        // the interval lane's menu, so the half-angle is stated as the
+        // f64 constant the fixture is built on and lifted.
+        let axis3 = Vec3::new(2.0, -1.0, 2.0).normalize();
+        let u3 = {
+            let u = Vec3::new(1.0, 2.0, 0.0).normalize();
+            (u - axis3 * u.dot(axis3)).normalize()
+        };
+        let cone: Surface<Interval> = Surface::Cone {
+            apex: ip(Point3::new(1.0, 2.0, 3.0)),
+            axis: iv(axis3),
+            half_angle: Interval::from_f64((4.0_f64 / 3.0).atan()),
+            u_ref: iv(u3),
+        };
+        let cyl: Surface<Interval> = Surface::Cylinder {
+            origin: ip(Point3::new(1.0, 2.0, 3.0) + axis3 * 1.7),
+            axis: iv(axis3),
+            radius: Interval::from_f64(0.5),
+            u_ref: iv(axis3.cross(u3)),
+        };
+        let ConeCylinderSection::CoaxialCircles { c1, c2 } =
+            cone_cylinder_section(&cone, &cyl, Interval::one(), band())
+                .expect("the coaxial pose classifies at the interval scalar");
+        for (which, c) in [("c1", &c1), ("c2", &c2)] {
+            for t in [0.0, 0.9, 2.2, -2.8, 5.1] {
+                let p = c.eval(Interval::from_f64(t));
+                for (name, surf) in [("cone", &cone), ("cylinder", &cyl)] {
+                    let r = implicit_residual(surf, p);
+                    assert!(
+                        r.lo() <= 0.0 && 0.0 <= r.hi(),
+                        "{which}: {name} residual at {t}: [{}, {}]",
+                        r.lo(),
+                        r.hi()
+                    );
+                    assert!(r.hi() - r.lo() < 1e-12, "{which}: {name} width at {t}");
+                }
+            }
+        }
+    }
+
     /// The never-infer rule holds at `T = Interval` too: an exactly
     /// coaxial pose without evidence still routes to the general rung.
     #[test]
@@ -2353,14 +2401,26 @@ fn cone_cylinder_tilted_and_offset_route_to_rung_3() {
     let ConeCylinderSection::CoaxialCircles { c1, .. } =
         cone_cylinder_section(&cone, &anti, 1.0, band())
             .expect("an antiparallel coaxial cylinder still cuts");
-    let Curve3::Circle { center, .. } = c1 else {
+    let Curve3::Circle {
+        center,
+        axis: c_axis,
+        ..
+    } = c1
+    else {
         panic!("carrier is a circle");
     };
     assert!(
         (center - (apex + axis * 0.375)).norm() < 1e-15,
         "the cone's own nappe convention decides c1, not the cylinder's axis sign"
     );
-    // In-band on `cc_cone_axes_parallel`: 3ε of a radian off parallel,
+    // The CARRIER's axis is the cone's too. On every other fixture the
+    // two agree and this says nothing; here they are opposed, so a
+    // carrier minted from the cylinder's `b` fails exactly here.
+    assert!(
+        c_axis.dot(axis) > 0.999_999_999,
+        "the carrier axis is the CONE's, not the cylinder's: {c_axis:?}"
+    );
+    // In-band on `coc_axes_parallel`: 3ε of a radian off parallel,
     // levered at extent 1.
     let t = 3.0 * eps();
     let almost = cyl_at(apex, (axis * (1.0 - t * t).sqrt() + u_ref * t).normalize());
@@ -2369,15 +2429,15 @@ fn cone_cylinder_tilted_and_offset_route_to_rung_3() {
     let SectionError::Escalated(diag) = err else {
         panic!("expected escalation, got {err:?}");
     };
-    assert_eq!(diag.predicate, Some("cc_cone_axes_parallel"));
-    // In-band on `cc_cone_coaxial`: parallel, 3ε off the axis.
+    assert_eq!(diag.predicate, Some("coc_axes_parallel"));
+    // In-band on `coc_coaxial`: parallel, 3ε off the axis.
     let near = cyl_at(apex + u_ref * (3.0 * eps()), axis);
     let err = cone_cylinder_section(&cone, &near, 1.0, band())
         .expect_err("in-band axis distance must escalate");
     let SectionError::Escalated(diag) = err else {
         panic!("expected escalation, got {err:?}");
     };
-    assert_eq!(diag.predicate, Some("cc_cone_coaxial"));
+    assert_eq!(diag.predicate, Some("coc_coaxial"));
 }
 
 /// The convention guards, each its OWN question: a cylinder radius that
@@ -2422,18 +2482,18 @@ fn cone_cylinder_convention_guards_and_wrong_lane() {
     // The in-band twins, one per guard.
     let s = 3.0 * eps();
     for (what, cone, cyl, predicate) in [
-        ("radius", &cone, cyl_r(s), "cc_cone_cylinder_radius"),
+        ("radius", &cone, cyl_r(s), "coc_cylinder_radius"),
         (
             "aperture sin",
             &cone_at(s.asin()),
             cyl_r(0.5),
-            "cc_cone_aperture_sin",
+            "coc_aperture_sin",
         ),
         (
             "aperture cos",
             &cone_at(s.acos()),
             cyl_r(0.5),
-            "cc_cone_aperture_cos",
+            "coc_aperture_cos",
         ),
     ] {
         let err = cone_cylinder_section(cone, &cyl, 1.0, band())
@@ -2446,13 +2506,37 @@ fn cone_cylinder_convention_guards_and_wrong_lane() {
     // Wrong-lane kinds refuse typed, both sides (the cylinder-first
     // spelling is a caller bug, not a symmetric alternative).
     let cyl = cyl_r(0.5);
-    for (a, b) in [(&cone, &cone), (&cyl, &cyl), (&cyl, &cone)] {
+    // The message has to say WHICH SEAT was wrong — a single
+    // "cone×cylinder" string leaves a caller who swapped its arguments
+    // to guess, and the cylinder-first spelling is exactly the bug this
+    // arm's asymmetry invites.
+    for (a, b, want) in [
+        (&cyl, &cyl, "cone first"),
+        (&cyl, &cone, "cone first"),
+        (&cone, &cone, "cylinder second"),
+        (&cone, &plane_xy(), "cylinder second"),
+    ] {
         let err = cone_cylinder_section(a, b, 1.0, band()).expect_err("wrong lane");
-        assert!(matches!(err, SectionError::WrongLane { .. }), "got {err:?}");
+        let SectionError::WrongLane { expected } = err else {
+            panic!("expected the wrong-lane refusal, got {err:?}");
+        };
+        assert!(
+            expected.contains(want),
+            "the wrong-lane text names which seat: want {want:?}, got {expected:?}"
+        );
     }
 }
 
-/// **The parallel lever is live.** `cc_cone_axes_parallel` meters a
+/// A plane, for the wrong-lane row's second-operand seat.
+fn plane_xy() -> Surface<f64> {
+    Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+/// **The parallel lever is live.** `coc_axes_parallel` meters a
 /// SINE at the operand extent, so the same pose reads differently at a
 /// different extent — a bare `Margin::of` on the sine would make both
 /// calls agree and this row is what would fail.
@@ -2479,14 +2563,155 @@ fn cone_cylinder_parallel_lever_is_live_at_a_non_unit_arm() {
     // arm reads it as coaxial and mints, and the circles it mints are
     // the exact ones — a lever that changed the verdict without
     // changing the construction would pass the line above and fail
-    // here.
+    // here. The radius shrinks with the extent because the station
+    // `R·cot α` has to stay inside it; that is `coc_station_reach`
+    // doing its job, and the row below is where IT is pinned.
+    let small = Surface::Cylinder {
+        origin: apex,
+        axis: (axis * (1.0 - t * t).sqrt() + u_ref * t).normalize(),
+        radius: 0.002,
+        u_ref: axis.cross(u_ref),
+    };
     let ConeCylinderSection::CoaxialCircles { c1, c2 } =
-        cone_cylinder_section(&cone, &cyl, 0.01, band())
+        cone_cylinder_section(&cone, &small, 0.01, band())
             .expect("the small arm reads the same sine as Zero");
     for c in [&c1, &c2] {
         let Curve3::Circle { radius, .. } = *c else {
             panic!("carrier is a circle");
         };
-        assert!((radius - 0.5).abs() < 1e-15, "the cylinder's own radius");
+        assert!((radius - 0.002).abs() < 1e-15, "the cylinder's own radius");
     }
+}
+
+/// **The lever is LINEAR in the extent, not quadratic.** The row above
+/// shows the lever is live; this one shows it is the right lever. One
+/// pose, `30ε` of a radian off parallel: definite at `extent = 1`
+/// (`30ε ≥ Kε`) and in-band at `extent = 0.1` (`3ε`). Under an
+/// `extent²` lever the second call reads `0.3ε` — Zero — and mints
+/// instead of escalating, which is what this row catches.
+#[test]
+fn cone_cylinder_parallel_lever_is_linear_in_the_extent() {
+    use geom_brep::intersect::cone_cylinder_section;
+    let (apex, axis, u_ref) = cc_frame();
+    let cone = cone_43(apex, axis, u_ref);
+    let t = 30.0 * eps();
+    let cyl = Surface::Cylinder {
+        origin: apex,
+        axis: (axis * (1.0 - t * t).sqrt() + u_ref * t).normalize(),
+        radius: 0.002,
+        u_ref: axis.cross(u_ref),
+    };
+    let err = cone_cylinder_section(&cone, &cyl, 1.0, band()).expect_err("definite at extent 1");
+    assert!(
+        matches!(err, SectionError::RoutesToGeneralRung { .. }),
+        "30ε at extent 1 is definitely tilted: got {err:?}"
+    );
+    let err = cone_cylinder_section(&cone, &cyl, 0.1, band()).expect_err("in-band at extent 0.1");
+    let SectionError::Escalated(diag) = err else {
+        panic!("30ε at extent 0.1 levers to 3ε and must escalate, got {err:?}");
+    };
+    assert_eq!(diag.predicate, Some("coc_axes_parallel"));
+}
+
+/// **The aperture guard's lever is live too.** `sin α = 30ε` is a
+/// definite length at `extent = 1` and an in-band one at
+/// `extent = 0.1`; an unlevered `Margin::of(sin α)` reads the same
+/// value twice and never escalates. The station guard cannot stand in
+/// for this row: it fires later, and the pose here is refused by the
+/// aperture clause first.
+#[test]
+fn cone_cylinder_aperture_guard_is_levered() {
+    use geom_brep::intersect::cone_cylinder_section;
+    let (apex, axis, u_ref) = cc_frame();
+    let cone = Surface::Cone {
+        apex,
+        axis,
+        half_angle: (30.0 * eps()).asin(),
+        u_ref,
+    };
+    let cyl = Surface::Cylinder {
+        origin: apex,
+        axis,
+        radius: 0.002,
+        u_ref: axis.cross(u_ref),
+    };
+    let err = cone_cylinder_section(&cone, &cyl, 0.1, band())
+        .expect_err("the in-band aperture must escalate");
+    let SectionError::Escalated(diag) = err else {
+        panic!("expected the aperture escalation, got {err:?}");
+    };
+    assert_eq!(diag.predicate, Some("coc_aperture_sin"));
+}
+
+/// **The admission criterion is the STATION, and this is the table it
+/// was written for.** `coc_station_reach` refuses a section circle the
+/// caller's own metered reach does not cover, because the mint's
+/// absolute error is carried by `R·cot α` and diverges as the
+/// half-angle closes — while an angular guard levered at `extent`
+/// LOOSENS as the operand grows, so metering the aperture alone lets a
+/// BIGGER operand admit a WORSE mint.
+///
+/// Row 2 is the measured falsifier: at `ε = 1e-9` the aperture clause
+/// reads `sin α · extent = 30ε`, definitely positive, and the arm used
+/// to return `Ok` with both circles ~1.7e9 m from the apex — points off
+/// BOTH operands, under a doc that says "zero residual by
+/// construction".
+#[test]
+fn cone_cylinder_station_reach_is_the_admission_criterion() {
+    use geom_brep::intersect::{ConeCylinderSection, cone_cylinder_section};
+    let (apex, axis, u_ref) = cc_frame();
+    let cyl_r = |radius: f64| Surface::Cylinder {
+        origin: apex,
+        axis,
+        radius,
+        u_ref: axis.cross(u_ref),
+    };
+    let cone_at = |half_angle: f64| Surface::Cone {
+        apex,
+        axis,
+        half_angle,
+        u_ref,
+    };
+    // Row 1: the well-posed pose. Station 0.375 inside extent 1.
+    let ConeCylinderSection::CoaxialCircles { c1, .. } =
+        cone_cylinder_section(&cone_43(apex, axis, u_ref), &cyl_r(0.5), 1.0, band())
+            .expect("a station well inside the reach mints");
+    let Curve3::Circle { center, .. } = c1 else {
+        panic!("carrier is a circle");
+    };
+    assert!(
+        (center - (apex + axis * 0.375)).norm() < 1e-15,
+        "row 1's station"
+    );
+    // Row 2: R1's falsifier, robustly spelled — a half-angle whose
+    // levered aperture margin is definitely positive at this extent
+    // (30ε) and whose station is 1.7e9 m.
+    let err = cone_cylinder_section(&cone_at((0.3 * eps()).asin()), &cyl_r(0.5), 100.0, band())
+        .expect_err("a station beyond the reach must refuse");
+    let SectionError::BeyondOperandExtent { what } = err else {
+        panic!("expected the extent refusal, got {err:?}");
+    };
+    assert!(
+        what.contains("R·cot α"),
+        "the refusal names the station: {what}"
+    );
+    // Row 2b: R1's literal row, α = 1e-10 at extent 100. Its aperture
+    // margin sits exactly on the escalation boundary, so WHICH door
+    // refuses is a boundary detail; that it refuses is not.
+    assert!(
+        cone_cylinder_section(&cone_at(1e-10), &cyl_r(0.5), 100.0, band()).is_err(),
+        "α = 1e-10 at extent 100 must not mint"
+    );
+    // Row 3: the in-band twin — a station 3ε short of the reach.
+    let alpha = (4.0_f64 / 3.0).atan();
+    let station = |r: f64| r * (alpha.cos() / alpha.sin());
+    let r_at = |want_station: f64| want_station * (alpha.sin() / alpha.cos());
+    let r = r_at(1.0 - 3.0 * eps());
+    assert!((station(r) - (1.0 - 3.0 * eps())).abs() < 1e-14);
+    let err = cone_cylinder_section(&cone_at(alpha), &cyl_r(r), 1.0, band())
+        .expect_err("a station 3ε inside the reach is in-band");
+    let SectionError::Escalated(diag) = err else {
+        panic!("expected the station escalation, got {err:?}");
+    };
+    assert_eq!(diag.predicate, Some("coc_station_reach"));
 }

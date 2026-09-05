@@ -105,13 +105,15 @@ fn dump(body: &Body<f64>) -> String {
 /// door must fall THROUGH it. A predicate whose mirror-nappe derivation
 /// broke the primary form would refuse HERE.
 ///
-/// The ordering is the property, and it is pinned in both directions:
-/// the refusal that arrives is not `ApexWindow`, and it is the specific
-/// door that stands behind the apex predicate. That door is now the
-/// per-chart re-anchor gate — `cone × cylinder` was this row's stop
-/// until the coaxial arm routed the pair, and the same call proceeds
-/// one door deeper. The magnitude is the same corner error
-/// `verbs_offd` pins: `|d|·cos α`, `cos α = 0.6` on this fixture.
+/// **This row does not pin an ordering** — on this fixture the C5 gate
+/// cannot fire at all (both of the cone's neighbours are cylinders, and
+/// that pair is routed), so nothing here says the apex predicate runs
+/// FIRST; the crossing rows do. What it pins is the pass itself: the
+/// predicate lets a small `d` through, and the door that then refuses
+/// is named with its magnitude — the per-chart re-anchor gate at
+/// `|d|·cos α`, `cos α = 0.6` on this fixture. `cone × cylinder` was
+/// this row's stop until the coaxial arm routed the pair, and the same
+/// call now proceeds one door deeper.
 #[test]
 fn opening_nappe_small_d_passes_the_apex_predicate() {
     for d in [-0.05_f64, 0.05] {
@@ -139,12 +141,20 @@ fn opening_nappe_small_d_passes_the_apex_predicate() {
 }
 
 /// **Opening nappe, the crossing.** `cot α = 0.75`, window inf `0.5`:
-/// `d = -1.0` shifts the inf to `-0.25`, across the apex — the refusal
-/// must be `ApexWindow`, NOT the C5 refusal that the same face draws at
-/// small `d`, which pins the predicate ahead of the route gate on THIS
-/// nappe too (the suite pins it only on the mirror one).
+/// `d = -1.0` shifts the inf to `-0.25`, across the apex, and the
+/// refusal must be `ApexWindow` on THIS nappe as it is on the mirror
+/// one — the mirror-nappe derivation of the predicate applied to the
+/// primary form is what this fixture isolates.
+///
+/// **This row no longer pins an ORDERING**, and its old name said it
+/// did. On `cone_up_tube` the C5 gate cannot fire at any `d`: both of
+/// the cone's neighbours are cylinders and that pair is routed, so
+/// "before the route gate" names a race with nothing in the other lane.
+/// What still carries the apex predicate's PLACE in the sequence is the
+/// mirror-nappe crossing row in the acceptance suite, whose fixture has
+/// an unrouted neighbour.
 #[test]
-fn opening_nappe_apex_crossing_refuses_before_the_route_gate() {
+fn opening_nappe_apex_crossing_refuses_typed() {
     let mut body = cone_up_tube();
     let face = cone_face(&body);
     let e = topo::replace_face_offset(&mut body, face, -1.0, FIT_TOL, band(), Tol::witness())
