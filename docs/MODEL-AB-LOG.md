@@ -3823,6 +3823,16 @@ Slot 2 = FILLET-H7 (`docs/FILLET-H7-SPEC.md`,
 with the transverse cut-off at perpendicular caps; new predicate
 `fillet3_cap_transverse`; vocabulary ratified by PR 1819's merge).
 
+Block FILLET-B2 draw (2026-09-05, after the pre-draw fields above; v3
+triple {opus, opus, fable}, one /dev/urandom byte, reject ≥252): byte
+**200**, 200 mod 3 = 2 = fable's position ⇒ **fable at slot 2**.
+So: slot 0 FILLET-H6 = OPUS, slot 1 FILLET-ATTR = OPUS, slot 2
+FILLET-H7 = FABLE. Recorded branch-side (`fillet/b2-block`); this
+record reaches main when the block's last slot's reviews conclude; each
+ordinal claim at review dispatch goes to main on its own.
+
+Block FILLET-B2 slot record (branch-side, appended as each slot concludes):
+
 ## FILLET-RIM review ordinal fixed at dispatch (2026-09-04)
 
 FILLET-RIM (`no-public-rim-arc-selector`, PR #1821 open — frozen head
