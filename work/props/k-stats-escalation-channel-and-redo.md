@@ -2,10 +2,11 @@
 id: k-stats-escalation-channel-and-redo
 kind: issue
 title: k_stats: an escalation channel beside the verdict log (and the redo that channel is already owed)
-status: open
+status: review
 opened: 2026-08-29
 github: 1254
 refs: [1231]
+branch: props/kstats-bracket
 ---
 
 ## From GitHub issue 1254
