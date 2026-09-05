@@ -112,12 +112,40 @@ impl TieRows {
     /// wrote (the boolean vertex pass reads its incident EDGE names).
     pub(super) fn flush(&mut self, t: &mut NameTable) -> Result<(), NamingError> {
         for (name, ents) in core::mem::take(&mut self.0) {
-            match ents.as_slice() {
-                [one] => t.insert(name, *one)?,
-                _ => t.insert_tied(name, ents)?,
-            }
+            narrow_into(t, name, ents)?;
         }
         Ok(())
+    }
+}
+
+/// **The one narrowing rule for a tie's survivors** (the ratified
+/// `graft_names` semantics): the candidates that survive an op — or a
+/// projection onto one output body — are written as `Unique` when
+/// exactly one does and as `Tied` when several do. `flush` writes a
+/// tie's downstream descendants through it, and
+/// [`NameTable::project`] writes a tie's candidates in the selected
+/// body through it, so the two doors cannot narrow differently.
+///
+/// A tie can straddle two output bodies: a pass-through entity keeps
+/// its upstream name with no side tag, and a split that separates two
+/// tied candidates without cutting either lands one in each half. The
+/// projection onto one half then genuinely separates them, exactly as
+/// an op does, and the survivor is `Unique` there while the split's
+/// own table stays `Tied`.
+///
+/// # Errors
+///
+/// [`super::table::DuplicateName`] — the insert doors' own: the name
+/// already held, an entity already named, a kind disagreement, or a
+/// tie under two candidates.
+pub(super) fn narrow_into(
+    t: &mut NameTable,
+    name: StableName,
+    ents: Vec<super::table::EntityRef>,
+) -> Result<(), super::table::DuplicateName> {
+    match ents.as_slice() {
+        [one] => t.insert(name, *one),
+        _ => t.insert_tied(name, ents),
     }
 }
 

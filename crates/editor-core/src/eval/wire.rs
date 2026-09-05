@@ -10,7 +10,7 @@ use std::sync::Arc;
 use geom_core::k_stats::decide;
 use geom_core::{Affine3, Band, Decide, Margin, Mat3, Point2, Point3, Sign, Tol, Vec2, Vec3};
 use sweep::blend::BlendKind;
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use sweep::{Revolution, RevolveAxis};
 use topo::query::is_finite_length;
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::transform::transform_rigid;
@@ -23,8 +23,8 @@ use topo::{
 use super::anchor::{self, ProfileNaming, ProfilePre, ProfileValue};
 use super::slots::{self, SlotValues};
 use super::{BooleanValue, DatumValue, NodeErrorKind, NodeResult, SplitSide, ValuePayload};
-use crate::names::{self, NameTable};
-use crate::node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId};
+use crate::names::{self, NameTable, SplitHalf};
+use crate::node::{Axis3, BooleanOp, Datum, Node, PartSelect, PatternKind, RecipeNodeId, SlotId};
 use crate::program::ProfileProgram;
 
 type Results<T> = BTreeMap<RecipeNodeId, NodeResult<T>>;
@@ -144,20 +144,21 @@ where
         + topo::AtRestPolicy
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
-        + crate::measure::MinClearanceLane,
+        + crate::measure::MinClearanceLane
+        + super::SectionScalar,
 {
     match node {
         Node::Datum(d) => Ok(OpOut::plain(
-            wire_datum(d, results, vals, tol)?,
+            wire_datum(d, doc, results, vals, tol)?,
             names::empty(),
         )),
         Node::Profile(program) => Ok(OpOut::plain(
             wire_profile(program, results, profile_pre, env.lane, tol)?,
             names::empty(),
         )),
-        Node::Extrude { profile, .. } => wire_extrude(id, *profile, results, vals, tol),
+        Node::Extrude { profile, .. } => wire_extrude(id, *profile, doc, results, vals, env, tol),
         Node::Revolve { profile, axis, .. } => {
-            wire_revolve(id, *profile, *axis, doc, results, vals, tol)
+            wire_revolve(id, *profile, *axis, doc, results, vals, env, tol)
         }
         Node::Loft { profiles, .. } => wire_loft(id, profiles, doc, results, vals, env.lane, tol),
         Node::Sweep { profile, path, .. } => {
@@ -180,6 +181,7 @@ where
             doc,
             results,
             vals,
+            env,
             tol,
         ),
         Node::Chamfer {
@@ -192,6 +194,7 @@ where
             doc,
             results,
             vals,
+            env,
             tol,
         ),
         Node::Split { target, tool } => wire_split(id, *target, *tool, results, tol),
@@ -207,8 +210,19 @@ where
             env.boolean_sweep,
             tol,
         ),
+        Node::Union { members } => wire_union(
+            &crate::verbs::boolean::boolean(),
+            id,
+            members,
+            results,
+            env.boolean_sweep,
+            tol,
+        ),
         Node::Transform { input, .. } => wire_transform(id, *input, results, vals, tol),
         Node::Pattern { input, kind, .. } => wire_pattern(id, *input, kind, results, vals, tol),
+        // No `id`: the projection mints no description and no name, so
+        // nothing it produces is stamped or keyed by this node.
+        Node::Part { of, select } => wire_part(*of, select, results, vals),
         Node::PlacedUnion { input, kind, .. } => wire_placed_union(
             id,
             *input,
@@ -305,7 +319,8 @@ where
         + topo::AtRestPolicy
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
-        + crate::measure::MinClearanceLane,
+        + crate::measure::MinClearanceLane
+        + super::SectionScalar,
 {
     let part = env
         .parts
@@ -372,7 +387,19 @@ where
 /// arrived with). Per-evaluation identity — exactly the scope N6's
 /// binding caveat allows.
 fn stamp_minted<T: Decide>(body: &mut Body<T>, node: RecipeNodeId) {
-    let mut idx: u32 = 0;
+    let _ = stamp_minted_from(body, node, 0);
+}
+
+/// [`stamp_minted`] continuing an index space: stamps `body`'s
+/// unsourced descriptions from `first` up and returns the next free
+/// index. A node that mints SEVERAL bodies stamps them all through
+/// this, threading the index, because the same-source theorem (N6:
+/// same `GeomSource` ⇒ bit-identical descriptions) is stated per
+/// NODE — two bodies of one node carrying `minted(node, 0)` on two
+/// different descriptions would be one source over two geometries,
+/// which the boolean's rung 1 reads as identity.
+fn stamp_minted_from<T: Decide>(body: &mut Body<T>, node: RecipeNodeId, first: u32) -> u32 {
+    let mut idx: u32 = first;
     let surfaces: Vec<_> = body
         .surfaces()
         .map(|(k, _)| k)
@@ -401,6 +428,7 @@ fn stamp_minted<T: Decide>(body: &mut Body<T>, node: RecipeNodeId) {
         let _ = body.set_point_source(k, GeomSource::minted(node.0, idx));
         idx += 1;
     }
+    idx
 }
 
 /// Re-stamps `placed`'s descriptions with `input`'s sources wrapped
@@ -585,25 +613,40 @@ fn datum_unit<T: Decide>(
     })
 }
 
-/// **The sketch plane a profile is drawn on, at f64** — the frame node
-/// its payload names, resolved and orthonormalized.
+/// **A profile's `f64` placement, where the document HOLDS one** — an
+/// authored frame's nine expressions, resolved and orthonormalized;
+/// `None` for a frame derived from a face, which the document does not
+/// elaborate at any scalar.
 ///
-/// # Why f64 and not the frame's landed value
+/// # The two frame kinds (DM1c), and why the authored one is read here
 ///
-/// The placement feeds C6 STRUCTURE selection, which must be
-/// lane-identical: the same document has to select the same structure
+/// This is the site that reads the plane, and it forks ONCE on the
+/// frame node's kind, because the two kinds differ in where their
+/// numbers come from.
+///
+/// An AUTHORED frame ([`Datum::Frame`]) is document expressions, and
+/// they are read at `f64` rather than at the lane scalar for the C6
+/// reason: the placement feeds STRUCTURE selection, which must be
+/// lane-identical — the same document has to select the same structure
 /// at `f64` and at the interval scalar, or the lift's two passes are
 /// deciding different questions. That is the rule the profile's own
-/// program already follows — `eval_node` resolves it "at f64 because
-/// it feeds C6 structure selection" — and the frame is now part of the
-/// same input, so it follows the same rule rather than a new one. The
-/// frame's LANDED value is at the lane scalar and is the right answer
-/// to a different question (what a reader sees, what a measure
-/// measures); reading it here would make structure lane-dependent.
+/// program already follows (`eval_node` resolves it "at f64 because it
+/// feeds C6 structure selection"), and the frame's LANDED value is the
+/// right answer to a different question (what a reader sees, what a
+/// measure measures). So an authored frame is read twice, at two
+/// scalars, for two purposes — `Pinned` places with THIS read,
+/// `Guided` with [`frame_plane_lane`]'s.
 ///
-/// So the frame is read twice, at two scalars, for two purposes —
-/// exactly as the profile's own program is, and not a second opinion
-/// about one question.
+/// A DERIVED frame ([`Datum::FaceFrame`]) has no document elaboration
+/// at all: its placement is read off an upstream body's value, at
+/// whatever scalar that body was evaluated at, so there is nothing
+/// here to read and the answer is `None`. The profile's placement into
+/// 3-D then comes from the lane under every lift
+/// ([`frame_plane_lane`]), and its 2-D structure record is assembled
+/// in the conventional `SketchPlane::xy()` ([`prepare_profile`]),
+/// which no decision reads. `ProfilePre::placement_f64` carries the
+/// same `Option`, so a consumer that places with a derived frame's
+/// record has nothing to mistake for a placement.
 ///
 /// # Errors
 ///
@@ -614,20 +657,10 @@ pub(crate) fn profile_plane_f64(
     doc: &crate::doc::Doc<ProfileProgram>,
     plane: RecipeNodeId,
     tol: Tol,
-) -> Result<profile::SketchPlane<f64>, NodeErrorKind> {
-    let found = match doc.node(plane) {
-        None => {
-            return Err(NodeErrorKind::MissingInput { input: plane });
-        }
-        Some(Node::Datum(Datum::Frame { .. })) => None,
-        Some(_) => Some("not a datum frame"),
-    };
-    if let Some(found) = found {
-        return Err(NodeErrorKind::WrongOperand {
-            input: plane,
-            expected: "datum frame",
-            found,
-        });
+) -> Result<Option<profile::SketchPlane<f64>>, NodeErrorKind> {
+    match frame_kind(doc, plane)? {
+        FrameKind::Authored => {}
+        FrameKind::Derived => return Ok(None),
     }
     let node = doc
         .node(plane)
@@ -645,11 +678,47 @@ pub(crate) fn profile_plane_f64(
     };
     let origin = read(SlotId::Origin)?;
     let (u, v) = frame_axes(read(SlotId::U)?, read(SlotId::V)?, band(tol)?)?;
-    Ok(profile::SketchPlane::from_frame(
+    Ok(Some(profile::SketchPlane::from_frame(
         Point3::new(origin.x, origin.y, origin.z),
         u.get(),
         v.get(),
-    ))
+    )))
+}
+
+/// Which kind of frame node a profile's `plane` names — the ONE fork
+/// DM1c adds, keyed by node kind and never by a number.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum FrameKind {
+    /// A [`Datum::Frame`]: nine document expressions, placed from the
+    /// document at `f64` under `Pinned`.
+    Authored,
+    /// A [`Datum::FaceFrame`]: placed from the frame's landed value at
+    /// the lane scalar under every lift.
+    Derived,
+}
+
+/// Classifies the frame node a profile's `plane` names — the variant
+/// read every by-value reader of a frame shares, so "is this a frame"
+/// is answered once with one refusal vocabulary.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::MissingInput`] for an absent node;
+/// [`NodeErrorKind::WrongOperand`] when the node is not a frame.
+pub(crate) fn frame_kind(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    plane: RecipeNodeId,
+) -> Result<FrameKind, NodeErrorKind> {
+    match doc.node(plane) {
+        None => Err(NodeErrorKind::MissingInput { input: plane }),
+        Some(Node::Datum(Datum::Frame { .. })) => Ok(FrameKind::Authored),
+        Some(Node::Datum(Datum::FaceFrame { .. })) => Ok(FrameKind::Derived),
+        Some(_) => Err(NodeErrorKind::WrongOperand {
+            input: plane,
+            expected: "datum frame",
+            found: "not a datum frame",
+        }),
+    }
 }
 
 /// **The sketch plane at the LANE scalar** — the frame's landed value,
@@ -670,11 +739,16 @@ pub(crate) fn profile_plane_f64(
 /// magnitudes stay lane-live. That is the same split the profile's own
 /// program has had since M10-P, applied to the input it just gained.
 ///
+/// A DERIVED frame is read here under EVERY lift (DM1c): it has no
+/// document elaboration, so this by-value read is the only placement
+/// it has, and the profile on it is placed at the lane scalar with
+/// its 2-D structure record still `f64`-pinned.
+///
 /// # Errors
 ///
 /// [`NodeErrorKind::WrongOperand`] when the landed value is not a
 /// frame — the kind door, at the lane where the value is read.
-fn frame_plane_lane<T: Decide>(
+pub(crate) fn frame_plane_lane<T: Decide>(
     results: &Results<T>,
     plane: RecipeNodeId,
 ) -> Result<profile::SketchPlane<T>, NodeErrorKind> {
@@ -689,6 +763,20 @@ fn frame_plane_lane<T: Decide>(
     // Unit and perpendicular by the datum's own construction, which is
     // `SketchPlane::from_frame`'s stated obligation on its caller.
     Ok(profile::SketchPlane::from_frame(*origin, u.get(), y.get()))
+}
+
+/// A lane-scalar placement carried across to `f64`, exactly, where the
+/// scalar is the `f64` lane — every component through
+/// [`super::SectionScalar::pinned_f64`] — and `None` on any analysis
+/// scalar. No component is inspected: the answer is the type's. The
+/// walk itself is [`anchor::map_affine`], the same walk
+/// [`anchor::embed_affine`] runs the other way.
+pub(crate) fn pinned_plane<T: super::SectionScalar>(
+    plane: &profile::SketchPlane<T>,
+) -> Option<profile::SketchPlane<f64>> {
+    anchor::map_affine(&plane.placement, |x| x.pinned_f64().ok_or(()))
+        .ok()
+        .map(profile::SketchPlane::new)
 }
 
 /// **A frame's authored pair, made orthonormal** — the one spelling of
@@ -752,6 +840,7 @@ struct AxisFrame<T: Decide> {
 
 fn wire_datum<T: Decide>(
     d: &Datum,
+    doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
     tol: Tol,
@@ -769,7 +858,7 @@ fn wire_datum<T: Decide>(
             origin: need_point3(vals, SlotId::Origin)?,
             dir: datum_unit(
                 need_vec3(vals, SlotId::Direction)?,
-                "datum axis direction",
+                DATUM_AXIS_ROLE,
                 band(tol)?,
             )?,
         },
@@ -824,7 +913,65 @@ fn wire_datum<T: Decide>(
                 // authored pair is, which is why the sketch direction
                 // above can go to the kernel unnormalized and still get
                 // the same refusal a 3-D axis would.
-                dir: datum_unit(lift(plane_dir), "datum axis direction", band(tol)?)?,
+                dir: datum_unit(lift(plane_dir), DATUM_AXIS_ROLE, band(tol)?)?,
+            }
+        }
+        // **The frame read off a face** (DM1). Its value is exactly an
+        // authored frame's, produced through the same `frame_axes`
+        // door, so every reader of a frame takes it by value; what is
+        // different is where the numbers come from, and every step of
+        // that is a stored fact copied out or a resolution through
+        // the N5 ladder — nothing here decides a number.
+        Datum::FaceFrame { at, face, .. } => {
+            let body = body_operand(results, *at)?;
+            let table = &value_of(results, *at)?.name_table;
+            // The fillet's ladder: rung 1 against the document, rungs
+            // 2 and 3 against the body's own table.
+            let ent = ladder::resolve_in(face, doc, table, |error| {
+                NodeErrorKind::FaceFrameResolve { error }
+            })?;
+            let names::EntityKey::Face(key) = ent.key else {
+                return Err(NodeErrorKind::FaceFrameKind {
+                    name: Box::new(face.clone()),
+                    found: ent.key.kind(),
+                });
+            };
+            // DM1b / DM2: the carrier's KIND is a stored tag, and a
+            // sketch frame wants a plane. A comparison of tags, not a
+            // predicate.
+            let carrier = topo::readback::face_carrier_kind(&body, key)
+                .map_err(|error| NodeErrorKind::FaceFrameReadback { error })?;
+            if carrier != geom_brep::SurfaceKind::Plane {
+                return Err(NodeErrorKind::FaceFrameNotPlanar { carrier });
+            }
+            let pose = topo::readback::face_pose(&body, key)
+                .map_err(|error| NodeErrorKind::FaceFrameReadback { error })?;
+            // DM1a: the outward normal is the sense beside the pose
+            // times the chart axis, formed here, in the open. The
+            // sense is a bool, so the sign is selected, never
+            // computed.
+            let n = if pose.sense { pose.axis } else { -pose.axis };
+            // A plane carrier always fixes its u-reference (readback's
+            // rule 3 leaves `None` only where the carrier fixes none,
+            // which a plane never is); the kind check above is what
+            // makes this arm unreachable for such a carrier.
+            let u_ref = pose.u_ref.ok_or(NodeErrorKind::FaceFrameReadback {
+                error: topo::readback::ReadbackError::NoCanonicalFrame {
+                    carrier: "planar carrier without a u-reference",
+                },
+            })?;
+            // The spin: sketch +x is the u-reference turned about the
+            // outward normal — a rotation, not a predicate. `u_ref`
+            // lies in the plane, so the rotation is the two-term
+            // form, and `v` is the right-handed third leg.
+            let (sin, cos) = need_scalar(vals, SlotId::Spin)?.sin_cos();
+            let u_raw = u_ref * cos + n.cross(u_ref) * sin;
+            let v_raw = n.cross(u_raw);
+            let (u, v) = frame_axes(u_raw, v_raw, band(tol)?)?;
+            DatumValue::Frame {
+                origin: pose.origin,
+                u,
+                v,
             }
         }
     }))
@@ -841,10 +988,16 @@ fn wire_datum<T: Decide>(
 /// replay-time junction checks and both validations run under the
 /// SAME `Tolerance::get()` the evaluation pins.
 pub(crate) fn prepare_profile(
-    plane: profile::SketchPlane<f64>,
+    placement: Option<profile::SketchPlane<f64>>,
     resolved: &[Vec<profile::Step<f64>>],
     tol: Tol,
 ) -> Result<ProfilePre, NodeErrorKind> {
+    // The 2-D record's assembly frame: the placement where there is
+    // one, the conventional frame where there is not (a derived
+    // frame's profile, DM1c). Validation is 2-D and the naming anchor
+    // is loop-derived, so no decision below reads it; what places the
+    // profile is `placement_f64`, carried through as the same Option.
+    let plane = placement.unwrap_or_else(profile::SketchPlane::xy);
     let mut loops = Vec::with_capacity(resolved.len());
     let mut replay_records = Vec::with_capacity(resolved.len());
     for (li, steps) in resolved.iter().enumerate() {
@@ -869,6 +1022,7 @@ pub(crate) fn prepare_profile(
     })?;
     Ok(ProfilePre {
         profile_f64,
+        placement_f64: placement,
         naming,
         structure: profile::ProfileStructure {
             replay: replay_records,
@@ -956,9 +1110,24 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
         });
     };
     let validated = match lane.lift {
-        super::ProfileLift::Pinned => anchor::embed_profile::<T>(&pre.profile_f64)
-            .validate(tol)
-            .map_err(NodeErrorKind::Profile)?,
+        // The build path: the `f64` elaboration embedded bit for bit —
+        // loops AND placement for an authored frame. A DERIVED frame
+        // has no `f64` elaboration of its placement (DM1c: the
+        // document holds a face name, not nine numbers), so its loops
+        // embed exactly the same way and its placement is the lane's
+        // own value, read where every by-value reader of a frame reads
+        // it. The fork is by node kind; the numbers on both sides are
+        // the ones already computed.
+        super::ProfileLift::Pinned => {
+            let mut embedded = anchor::embed_profile::<T>(&pre.profile_f64);
+            embedded.plane = match &pre.placement_f64 {
+                Some(placement) => {
+                    profile::SketchPlane::new(anchor::embed_affine::<T>(&placement.placement))
+                }
+                None => frame_plane_lane(results, program.plane)?,
+            };
+            embedded.validate(tol).map_err(NodeErrorKind::Profile)?
+        }
         super::ProfileLift::Guided => lane_profile::<T>(
             program,
             frame_plane_lane(results, program.plane)?,
@@ -991,11 +1160,48 @@ fn anchored(
     }
 }
 
-fn wire_extrude<T: Decide>(
+/// **The profile-operand verbs' ONE lowering**, driven by the verb's
+/// correspondence ([`crate::verbs::sweep`]) rather than written twice.
+///
+/// It is a THIRD lowering beside `wire_blend` and `wire_boolean`, and
+/// stating that plainly is the honest reading: the three share a
+/// SHAPE — build the verb, run it through its own door, read the birth
+/// record, emit names, stamp provenance, attach the declared flow — and
+/// share no code, because the operand differs at every step (a body
+/// and its name table, two bodies and two tables, a validated profile
+/// and its naming anchor). What this function removes is the SECOND
+/// copy of that shape within the sweep family, which is what a verb's
+/// migration is measured on.
+///
+/// The verb ARGUMENTS come in already resolved. That is the division
+/// the boolean drew for `resolve_declarations` and the reason it holds
+/// here too: an extrude's distance is a slot read, but a revolve's axis
+/// is a node whose value must be an in-plane axis, written against the
+/// same frame the profile is drawn on, with an angle classified full or
+/// partial at a funnel site whose escalation is a document-layer
+/// refusal. None of that is a verb parameter; all of it is what the
+/// document MEANS. So each node's arm resolves its own semantics and
+/// this body takes it from the built verb onward.
+///
+/// # What it writes
+///
+/// The body (moved out of the record), the name table (emitted from the
+/// record, then program-anchor rewritten — canonical → program indices,
+/// LIB-SWITCH §6), the provenance stamp on everything the sweep minted,
+/// and the per-edge parameter sources the verb's flow declares.
+// The 8th argument is the verb's correspondence — the parameter that
+// REMOVES duplication rather than adding a duty, exactly as
+// `wire_blend`'s is; the 7th is the evaluation environment, read for
+// the descent chain the attached tokens' scope is.
+#[allow(clippy::too_many_arguments)]
+fn wire_swept<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane, A>(
+    verb: &crate::verbs::sweep::ProfileVerb<T, A>,
+    args: A,
     id: RecipeNodeId,
     profile: RecipeNodeId,
+    doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
-    vals: &SlotValues<T>,
+    env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
     let v = value_of(results, profile)?;
@@ -1006,19 +1212,64 @@ fn wire_extrude<T: Decide>(
             found: v.payload.kind_name(),
         });
     };
+    let built = (verb.build)(args);
+    // The verb's own declaration of where its parameters land, read off
+    // the value the correspondence just built (VERB-SEAT-DESIGN V1).
+    let flow = built.param_flow();
+    let record = built
+        .run_profile(&vp.validated, tol)
+        .map_err(verb_refused)?;
+    // Eager N4 emission from the emitter's own maps, inside the reader,
+    // BEFORE the structural handoff is taken apart.
+    let out = (verb.read)(id, record, verb.foreign_record)?;
+    let table = anchored(out.table, &vp.naming)?;
+    let mut body = out.body;
+    // The sweep's own surfaces, curves and points are minted HERE
+    // (D1/N6).
+    stamp_minted(&mut body, id);
+    // **Attach-at-mint for the lowered parameter-identity channel**
+    // (VERB-SEAT-DESIGN P2), through the sweeps' per-EDGE flow source.
+    // The token is not this node's: a swept wall's radius is the
+    // PROFILE's, so what lowers is the operand profile's own carrier
+    // radius, under this evaluation's scope, and the walls the record
+    // exported are what it lands on. A profile with no carrier radius
+    // (every polygon) yields no token and attaches nothing, which is
+    // the declaration being obeyed rather than a case skipped.
+    let scope = crate::param_source::ParamScope::of(doc.id(), env.parts.chain());
+    let tokens = crate::param_source::profile_radius_tokens(doc, profile, &vp.naming, scope);
+    crate::param_source::attach_swept(
+        &mut body,
+        flow,
+        crate::verbs::sweep::PROFILE_RADIUS,
+        &tokens,
+        &out.walls,
+    )
+    .map_err(NodeErrorKind::ParamSourceAttach)?;
+    Ok(OpOut::plain(ValuePayload::Body(Arc::new(body)), table))
+}
+
+/// **Extrudes a profile along its sketch normal** — the distance slot
+/// read, and the generic lowering from there.
+fn wire_extrude<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
+    id: RecipeNodeId,
+    profile: RecipeNodeId,
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
+    vals: &SlotValues<T>,
+    env: &OpEnv<'_, T>,
+    tol: Tol,
+) -> OpResult<T> {
     let distance = need_scalar(vals, SlotId::Distance)?;
-    let mut built = extrude(&vp.validated, Extrusion::Distance(distance), tol)
-        .map_err(NodeErrorKind::Extrude)?;
-    // Eager N4 emission from the emitter's own maps, BEFORE the
-    // structural handoff is dropped — then the program-anchor rewrite
-    // (canonical → program indices; LIB-SWITCH §6).
-    let table = names::name_extrude(id, &built).map_err(NodeErrorKind::Naming)?;
-    let table = anchored(table, &vp.naming)?;
-    stamp_minted(&mut built.body, id);
-    Ok(OpOut::plain(
-        ValuePayload::Body(Arc::new(built.body)),
-        table,
-    ))
+    wire_swept(
+        &crate::verbs::sweep::extrude(),
+        distance,
+        id,
+        profile,
+        doc,
+        results,
+        env,
+        tol,
+    )
 }
 
 /// The frame a node is written against, read from the RECIPE.
@@ -1039,23 +1290,38 @@ fn written_against(
     }
 }
 
-fn wire_revolve<T: Decide + geom_brep::PcurveFittedLane>(
+/// **Revolves a profile about an axis written in its own sketch
+/// plane** — the document semantics (the axis operand, the same-frame
+/// rule, the full-vs-partial classification), and the generic lowering
+/// from there.
+// The 8th argument is the evaluation environment, read for the descent
+// chain the attached tokens' scope is; the 7th is the document, read
+// for the frame rule and the operand profile's own expressions.
+#[allow(clippy::too_many_arguments)]
+fn wire_revolve<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
     axis: RecipeNodeId,
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
+    env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
     let pv = value_of(results, profile)?;
-    let ValuePayload::Profile(vp) = &pv.payload else {
+    // `wire_swept` re-checks this and refuses identically, so the only
+    // thing this pre-check decides is ORDER: a node whose profile input
+    // is not a profile AND whose axis is not an in-plane axis must
+    // refuse on the profile, because that is the operand the reader
+    // named first and re-authoring a wrong axis for a document whose
+    // profile was never one is a wasted edit.
+    if !matches!(pv.payload, ValuePayload::Profile(_)) {
         return Err(NodeErrorKind::WrongOperand {
             input: profile,
             expected: "profile",
             found: pv.payload.kind_name(),
         });
-    };
+    }
     let av = value_of(results, axis)?;
     let ValuePayload::Datum(DatumValue::AxisInPlane {
         plane_origin,
@@ -1127,15 +1393,16 @@ fn wire_revolve<T: Decide + geom_brep::PcurveFittedLane>(
             });
         }
     };
-    let mut built =
-        revolve(&vp.validated, axis2, revolution, tol).map_err(NodeErrorKind::Revolve)?;
-    let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
-    let table = anchored(table, &vp.naming)?;
-    stamp_minted(&mut built.body, id);
-    Ok(OpOut::plain(
-        ValuePayload::Body(Arc::new(built.body)),
-        table,
-    ))
+    wire_swept(
+        &crate::verbs::sweep::revolve(),
+        (axis2, revolution),
+        id,
+        profile,
+        doc,
+        results,
+        env,
+        tol,
+    )
 }
 
 /// The spine frame and window a tube door takes, resolved from the
@@ -1318,6 +1585,8 @@ fn verb_refused(refusal: verbs::VerbError) -> NodeErrorKind {
             NodeErrorKind::Blend { verb, error }
         }
         verbs::VerbError::Boolean(error) => NodeErrorKind::Boolean(error),
+        verbs::VerbError::Extrude(error) => NodeErrorKind::Extrude(error),
+        verbs::VerbError::Revolve(error) => NodeErrorKind::Revolve(error),
         verbs::VerbError::Arity { verb, given } => NodeErrorKind::VerbArity { verb, given },
     }
 }
@@ -1385,7 +1654,8 @@ fn verb_refused(refusal: verbs::VerbError) -> NodeErrorKind {
 /// side is ready; the kernel side is not.
 // The 8th is the verb's correspondence — which is what collapses two
 // of these functions into one, so it is the parameter that REMOVES
-// duplication rather than adding a duty.
+// duplication rather than adding a duty; the 9th is the evaluation
+// environment, read for the descent chain the token's scope is.
 #[allow(clippy::too_many_arguments)]
 fn wire_blend<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     verb: &crate::verbs::blend::BlendVerb<T>,
@@ -1395,15 +1665,18 @@ fn wire_blend<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
+    env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
     let body = body_operand(results, target)?;
-    let size = need_scalar(vals, verb.size_slot)?;
+    let size = need_scalar(vals, verb.slots.size_slot)?;
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
     let edges = resolve_selection(verb.selection_label, selection, doc, &target_table)?;
-    let out = (verb.build)(edges, size)
-        .run(&body, tol)
-        .map_err(verb_refused)?;
+    let built = (verb.build)(edges, size);
+    // The verb's own declaration of where its scalar lands, read off
+    // the value the correspondence just built (VERB-SEAT-DESIGN V1).
+    let flow = built.param_flow();
+    let out = built.run(&body, tol).map_err(verb_refused)?;
     // The record channel is per-family; a blend's run produces the
     // blend variant by construction, so another family here is a
     // kernel bug — refused typed, exactly like the `None` record below.
@@ -1412,7 +1685,9 @@ fn wire_blend<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     // and must be routed here deliberately, never silently refused.
     let naming = match out.record {
         verbs::VerbRecord::Blend(naming) => naming,
-        verbs::VerbRecord::Boolean { .. } => {
+        verbs::VerbRecord::Boolean { .. }
+        | verbs::VerbRecord::Extrude(_)
+        | verbs::VerbRecord::Revolve(_) => {
             return Err(NodeErrorKind::Naming(names::NamingError::Emission {
                 what: verb.foreign_record,
             }));
@@ -1428,6 +1703,30 @@ fn wire_blend<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     // (D1/N6); the supports' pass-through descriptions keep the source
     // they arrived with.
     stamp_minted(&mut body, id);
+    // **Attach-at-mint for the lowered parameter-identity channel**
+    // (VERB-SEAT-DESIGN P2). The size slot's expression lowers to an
+    // opaque token under THIS evaluation's scope — the document's own
+    // table, or the reference a part was reached through — and the
+    // verb's DECLARED flow says which stored fields of which minted
+    // carriers that scalar became; the two meet here and nowhere
+    // else. A slot the document does not hold cannot have produced the
+    // value above, so its absence is not a case — but it is a lookup,
+    // so it degrades to attaching nothing rather than asserting.
+    // Nothing downstream is entitled to a token: the channel is opt-in
+    // and its absence refuses typed (P3). The attach's own refusals
+    // cannot fire (its doc says why) and are surfaced typed if they
+    // ever do, never discarded.
+    if let Some(expr) = doc.node(id).and_then(|n| n.expr(verb.slots.size_slot)) {
+        let scope = crate::param_source::ParamScope::of(doc.id(), env.parts.chain());
+        crate::param_source::attach_blend(
+            &mut body,
+            flow,
+            verb.slots.size_param,
+            &crate::param_source::lower(scope, expr),
+            &rec,
+        )
+        .map_err(NodeErrorKind::ParamSourceAttach)?;
+    }
     Ok(OpOut::plain(ValuePayload::Body(Arc::new(body)), table))
 }
 
@@ -1538,6 +1837,24 @@ mod ladder {
         }
     }
 
+    /// **The single-table walk**, all three rungs: rung 1 against the
+    /// document, rungs 2 and 3 against ONE table, every refusal
+    /// through `refuse` in the caller's own vocabulary. The three
+    /// one-table doors (a blend's selection, a measure's reference, a
+    /// derived frame's face) are this function; the declare door
+    /// walks the rungs itself because it reads TWO tables between
+    /// rung 1 and rung 3 and picks a side in between.
+    pub(super) fn resolve_in(
+        name: &StableName,
+        doc: &crate::doc::Doc<ProfileProgram>,
+        table: &NameTable,
+        refuse: impl Fn(Box<ResolveError>) -> super::NodeErrorKind,
+    ) -> Result<EntityRef, super::NodeErrorKind> {
+        let live = live(name, doc).map_err(&refuse)?;
+        let landing = landing(&live, table);
+        resolve(live, landing).map_err(refuse)
+    }
+
     /// Rungs 2 and 3: the entity, or the refusal its landing earns.
     pub(super) fn resolve(
         live: Live<'_>,
@@ -1584,10 +1901,9 @@ fn resolve_selection(
     }
     let mut keys = Vec::with_capacity(selection.len());
     for name in selection {
-        let refused = |error| NodeErrorKind::BlendSelectionResolve { verb, error };
-        let live = ladder::live(name, doc).map_err(refused)?;
-        let landing = ladder::landing(&live, target);
-        let ent = ladder::resolve(live, landing).map_err(refused)?;
+        let ent = ladder::resolve_in(name, doc, target, |error| {
+            NodeErrorKind::BlendSelectionResolve { verb, error }
+        })?;
         let EntityKey::Edge(k) = ent.key else {
             return Err(NodeErrorKind::BlendSelectionKind {
                 verb,
@@ -1652,7 +1968,7 @@ impl<T: Decide> Selected<'_, T> {
 /// # Where a reference resolves
 ///
 /// At the node the reference NAMES AS ITS READING SITE
-/// ([`crate::MeasureRef::at`]), which is what makes the answer the
+/// ([`crate::SitedRef::at`]), which is what makes the answer the
 /// PLACED carrier rather than the authored one — a transform is
 /// identity-preserving, so the minting node's value still holds the
 /// unmoved geometry. `at` is a DAG edge ([`Node::inputs`]), so it has
@@ -1674,7 +1990,7 @@ impl<T: Decide> Selected<'_, T> {
 fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
     node: &Node<ProfileProgram>,
     expr: &crate::measure::MeasureExpr,
-    refs: &[crate::node::MeasureRef],
+    refs: &[crate::node::SitedRef],
     leaves: Option<&[T]>,
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
@@ -1707,11 +2023,10 @@ fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
             continue;
         }
         let name = &r.name;
-        let refused = |error| NodeErrorKind::MeasureRefResolve { error };
-        let live = ladder::live(name, doc).map_err(refused)?;
         let value = value_of(results, r.at)?;
-        let landing = ladder::landing(&live, &value.name_table);
-        let ent = ladder::resolve(live, landing).map_err(refused)?;
+        let ent = ladder::resolve_in(name, doc, &value.name_table, |error| {
+            NodeErrorKind::MeasureRefResolve { error }
+        })?;
         let body =
             crate::names::interrogate::output_body(&value.payload, ent.body).map_err(|error| {
                 NodeErrorKind::MeasureRefUnreadable {
@@ -1915,10 +2230,16 @@ fn wire_split<T: Decide + geom_brep::PcurveFittedLane>(
     };
     let result = split(&body, &plane, tol).map_err(NodeErrorKind::Split)?;
     // Pass-through descriptions keep their sources (the clone carried
-    // them); the split's fresh section planes get THIS node's (D1).
-    let side = |part: SplitPart<T>| match part {
+    // them); the split's fresh section planes get THIS node's (D1) —
+    // in ONE index space across both halves. Each half's section
+    // plane is its own description with its own outward normal, and
+    // the two are the operands of any boolean that joins the halves
+    // back together: a source shared between them would read as one
+    // plane at that boolean's rung 1 while the bits say two.
+    let mut next = 0u32;
+    let mut side = |part: SplitPart<T>| match part {
         SplitPart::Body(mut b) => {
-            stamp_minted(&mut b, id);
+            next = stamp_minted_from(&mut b, id, next);
             SplitSide::Body(Arc::new(b))
         }
         SplitPart::Empty => SplitSide::Empty,
@@ -1944,6 +2265,102 @@ fn wire_split<T: Decide + geom_brep::PcurveFittedLane>(
     )
     .map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(ValuePayload::Split { above, below }, table))
+}
+
+/// **The projection node** (DM3): ONE body out of a split's or a
+/// pattern's value, as the `Body` value every consumer already takes.
+///
+/// The selector and the value must agree in kind — a half against a
+/// `Split`, an index against `Instances` — and any other pairing
+/// refuses `WrongOperand` through the same door `body_operand` uses.
+/// A single body is NOT admitted as its own instance 0: nothing is
+/// several bodies until a node says so ("wire, don't invent", D3).
+///
+/// The body handed on is the half's or the instance's own `Arc` — no
+/// clone, no re-stamp, no transform — so every consumer sees exactly
+/// the body the split or the pattern minted. The table is the input's
+/// PROJECTED onto that body ([`NameTable::project`]): the selected
+/// body's rows, re-keyed to body 0, names verbatim. The projection
+/// mints nothing and adds no segment (`wire_transform`'s
+/// identity-preserving rule), so a selector spelled against the
+/// split's `SplitBody(half)` rows or the pattern's `Instance { i, .. }`
+/// rows resolves here unchanged — and one spelled for another instance
+/// finds no row and refuses through the N5 ladder as absent, never
+/// re-anchored. Totality is re-checked against the projected body:
+/// `check_total` stays the tripwire that the projection dropped
+/// nothing the body still has.
+///
+/// No number is compared to decide anything here: the half is a tag,
+/// and the index is a structural count checked against a length.
+fn wire_part<T: Decide>(
+    of: RecipeNodeId,
+    select: &PartSelect,
+    results: &Results<T>,
+    vals: &SlotValues<T>,
+) -> OpResult<T> {
+    let value = value_of(results, of)?;
+    let (body, index) = match (select, &value.payload) {
+        (PartSelect::SplitHalf(half), ValuePayload::Split { above, below }) => {
+            let side = match half {
+                SplitHalf::Above => above,
+                SplitHalf::Below => below,
+            };
+            match side {
+                SplitSide::Body(b) => (Arc::clone(b), half.output_body()),
+                SplitSide::Empty => {
+                    return Err(NodeErrorKind::EmptyHalf {
+                        input: of,
+                        half: *half,
+                    });
+                }
+            }
+        }
+        (PartSelect::Instance(_), ValuePayload::Instances(instances)) => {
+            let index = slots::count(vals, SlotId::Instance).ok_or(NodeErrorKind::MissingSlot {
+                slot: SlotId::Instance,
+            })?;
+            // The count is a u32 quantity in every table row (a name's
+            // output-body index), so a value past that is the
+            // pattern's own emission bug, refused typed before any
+            // index is judged against it.
+            let count = u32::try_from(instances.len()).map_err(|_| {
+                NodeErrorKind::Naming(names::NamingError::Emission {
+                    what: "a pattern's instance count exceeds u32",
+                })
+            })?;
+            // ONE refusal, one fold: a negative index and one past the
+            // end fail the same way, and an index the fold admits is
+            // in range by construction.
+            let ix = u32::try_from(index).ok().filter(|i| *i < count).ok_or(
+                NodeErrorKind::InstanceOutOfRange {
+                    input: of,
+                    index,
+                    count: instances.len(),
+                },
+            )?;
+            (Arc::clone(&instances[ix as usize]), ix)
+        }
+        (PartSelect::SplitHalf(_), other) => {
+            return Err(NodeErrorKind::WrongOperand {
+                input: of,
+                expected: "split",
+                found: other.kind_name(),
+            });
+        }
+        (PartSelect::Instance(_), other) => {
+            return Err(NodeErrorKind::WrongOperand {
+                input: of,
+                expected: "instances",
+                found: other.kind_name(),
+            });
+        }
+    };
+    let table = value
+        .name_table
+        .project(index)
+        .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
+    names::check_total(&table, &body, 0).map_err(NodeErrorKind::Naming)?;
+    Ok(OpOut::plain(ValuePayload::Body(body), Arc::new(table)))
 }
 
 // `Bounds` rides along for the boolean lane only (M5 PR 8): the sweep's
@@ -1977,6 +2394,11 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     // no silent drop, no best-effort gluing. This stays upstairs: it
     // is the document's semantics (names, freezes, refusal payloads),
     // and the kernel verb receives only the lowered arena-key form.
+    // Both operand tables are read three times downstairs — by the
+    // declare resolution, by the refusal menu and by the emitter — so
+    // they are taken once here rather than re-fetched per reader.
+    let a_table = Arc::clone(&value_of(results, a)?.name_table);
+    let b_table = Arc::clone(&value_of(results, b)?.name_table);
     let mut kernel_decls = BooleanDeclarations::none();
     if let Some(d) = declare {
         let dv = value_of(results, d)?;
@@ -1987,15 +2409,13 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
                 found: dv.payload.kind_name(),
             });
         };
-        let a_table = Arc::clone(&value_of(results, a)?.name_table);
-        let b_table = Arc::clone(&value_of(results, b)?.name_table);
         kernel_decls = resolve_declarations(pairs, doc, &a_table, &b_table)?;
     }
     let body_a = body_operand(results, a)?;
     let body_b = body_operand(results, b)?;
     match (verb.build)(op, kernel_decls)
         .run_pair(&body_a, &body_b, boolean_sweep, tol)
-        .map_err(|err| refusal_menu(results, a, b, err))?
+        .map_err(|err| refusal_menu(&a_table, &b_table, err))?
     {
         verbs::PairOut::Empty => Ok(OpOut::plain(
             ValuePayload::Boolean(BooleanValue::Empty),
@@ -2014,14 +2434,14 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
                     contacts,
                     naming,
                 } => (kind, contacts, naming),
-                verbs::VerbRecord::Blend(_) => {
+                verbs::VerbRecord::Blend(_)
+                | verbs::VerbRecord::Extrude(_)
+                | verbs::VerbRecord::Revolve(_) => {
                     return Err(NodeErrorKind::Naming(names::NamingError::Emission {
                         what: verb.foreign_record,
                     }));
                 }
             };
-            let a_table = Arc::clone(&value_of(results, a)?.name_table);
-            let b_table = Arc::clone(&value_of(results, b)?.name_table);
             let table = (verb.emitter)(
                 id,
                 &out.body,
@@ -2055,6 +2475,215 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     }
 }
 
+/// **The n-ary union's lowering** (DM4): the SAME pair verb, folded
+/// over the members in list order — `((m0 ∪ m1) ∪ m2) ∪ …`, through
+/// the same `run_pair` door, the same refusal menu, and one body out
+/// in the same `BooleanValue::Body` shape a pair union yields, so
+/// every consumer of a union is unchanged.
+///
+/// No new numeric decision is taken anywhere here: the geometry is the
+/// pair verb's at every step, which is what makes the fold and the
+/// chain it replaces the same body. What the node adds is the NAMING
+/// — the fold's own tables record join depth, and `names::name_union`
+/// rewrites the last one into member-keyed names.
+///
+/// **Nothing ∅-absorbing is invented** (D3, "wire, don't invent"). A
+/// member that evaluates to an empty boolean refuses `EmptyOperand`
+/// naming that member, exactly as `body_operand` refuses one for a
+/// pair. An empty INTERMEDIATE — which two non-empty operands cannot
+/// produce under union, so this is a kernel-bug path rather than an
+/// authoring one — is the empty operand the next step would be handed,
+/// and refuses the same way, naming the member the fold had reached;
+/// at the LAST step it is the typed empty success a pair union already
+/// has.
+fn wire_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
+    verb: &crate::verbs::boolean::PairVerb<T>,
+    id: RecipeNodeId,
+    members: &[RecipeNodeId],
+    results: &Results<T>,
+    boolean_sweep: topo::SweepStrategy,
+    tol: Tol,
+) -> OpResult<T> {
+    // Two or more is the node's contract, held at both edit doors
+    // (`EditError::TooFewMembers`). Reaching here with fewer means the
+    // fold has no pair to hand the verb, which is the arity class this
+    // crate already refuses typed — never a panic, and never a
+    // one-member "union" that silently denotes its own input.
+    let Some((first, rest)) = members.split_first().filter(|(_, rest)| !rest.is_empty()) else {
+        return Err(NodeErrorKind::VerbArity {
+            verb: verbs::VerbKind::Boolean(BooleanOp::Union),
+            given: verbs::Arity::One,
+        });
+    };
+    let mut acc_body = body_operand(results, *first)?;
+    // The FIRST member enters member-keyed too, so every operand of
+    // every step is already in this node's name space and nothing
+    // downstream has to recover a member from an inner name.
+    let mut acc_table = Arc::new(
+        names::member_view(id, *first, &value_of(results, *first)?.name_table)
+            .map_err(NodeErrorKind::Naming)?,
+    );
+    let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;
+    for member in rest {
+        let member_body = body_operand(results, *member)?;
+        let member_table = Arc::new(
+            names::member_view(id, *member, &value_of(results, *member)?.name_table)
+                .map_err(NodeErrorKind::Naming)?,
+        );
+        // No declarations: a declared-contact union is spelled with
+        // `Node::Boolean`, which is where the `Declare` input lives.
+        match (verb.build)(BooleanOp::Union, BooleanDeclarations::none())
+            .run_pair(&acc_body, &member_body, boolean_sweep, tol)
+            .map_err(|err| union_refusal(id, &acc_table, &member_table, err))?
+        {
+            // A union of two REAL bodies cannot be empty, and both
+            // operands here are real: `body_operand` refuses a member
+            // whose value is the typed empty before this line, and the
+            // accumulation is a body the previous step returned. So
+            // this arm is a kernel bug and is refused as one — typed,
+            // in the same channel the foreign-record check below uses.
+            // It is NOT attributed to `member`: blaming an operand that
+            // is not empty names the wrong node and sends a caller to
+            // edit a member that is fine.
+            verbs::PairOut::Empty => {
+                return Err(NodeErrorKind::Naming(names::NamingError::Emission {
+                    what: UNION_STEP_EMPTY,
+                }));
+            }
+            verbs::PairOut::Out(out) => {
+                let verbs::VerbRecord::Boolean {
+                    kind,
+                    contacts,
+                    naming,
+                } = out.record
+                else {
+                    return Err(NodeErrorKind::Naming(names::NamingError::Emission {
+                        what: verb.foreign_record,
+                    }));
+                };
+                last = Some((kind, Arc::new(contacts)));
+                // The fold's own table, minted by the PAIR emitter
+                // under THIS node's id: that id is what tells an
+                // intermediate row from a member's own name when the
+                // chain is collapsed, and it is the id the node's
+                // names carry in the end anyway. Both operand
+                // CONTEXTS name this node for the same reason: their
+                // tables are the member-keyed views, so an error this
+                // step raises about an operand is about a row in this
+                // node's space.
+                acc_table = (verb.emitter)(
+                    id,
+                    &out.body,
+                    &naming,
+                    &names::OperandCtx {
+                        node: id,
+                        table: &acc_table,
+                        body: &acc_body,
+                    },
+                    &names::OperandCtx {
+                        node: id,
+                        table: &member_table,
+                        body: &member_body,
+                    },
+                    tol,
+                )
+                .map_err(NodeErrorKind::Naming)?;
+                acc_body = Arc::new(out.body);
+            }
+        }
+    }
+    let table = names::name_union(id, &acc_body, &acc_table).map_err(NodeErrorKind::Naming)?;
+    let mut body = (*acc_body).clone();
+    // ONCE, over the finished body, and not per fold step: the stamp
+    // numbers a node's minted descriptions from zero, so a second pass
+    // would hand a later step's geometry an index an earlier step
+    // already used. Everything carried from a member keeps its own
+    // source (D1); a seam chord minted at any step gets this node's.
+    stamp_minted(&mut body, id);
+    // The LAST step's record is the result's: the kind says how the
+    // body that came out was produced, and the body that came out is
+    // that step's. The contacts are empty at every step — the fold
+    // resolves no declarations — so carrying them is carrying the
+    // channel, not a value; the absent case is the arity refusal above.
+    let Some((kind, contacts)) = last else {
+        return Err(NodeErrorKind::VerbArity {
+            verb: verbs::VerbKind::Boolean(BooleanOp::Union),
+            given: verbs::Arity::One,
+        });
+    };
+    Ok(OpOut::plain(
+        ValuePayload::Boolean(BooleanValue::Body {
+            body: Arc::new(body),
+            kind,
+            contacts,
+        }),
+        table,
+    ))
+}
+
+/// A union fold step returned the typed empty from two real bodies.
+/// Unreachable (see the arm that raises it); surfaced typed.
+const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-empty operands";
+
+/// A union's refusal, with every name it carries in the node's own
+/// published space.
+///
+/// [`refusal_menu`] resolves the raise site's face keys through the two
+/// OPERAND tables it is handed. From the second fold step on the `a`
+/// side is the ACCUMULATED table — the pair emitter's, whose rows are
+/// `FromA`/`FromB`-headed — so the name it finds is in the fold's
+/// internal space: no published table holds it, [`mod@crate::resolve`]
+/// cannot look it up, and a selector written against it matches
+/// nothing. Every name the refusal carries is therefore put through
+/// [`names::collapse_name`], the same rewrite the node's own table gets
+/// from `name_union`, so a refusal denotes member-space entities and
+/// nothing else.
+///
+/// A name that will not collapse is an emission bug in the fold's own
+/// table, and it is raised as one rather than swallowed: the union was
+/// going to fail naming for the same reason had the step succeeded, and
+/// a bug reported as a contact refusal would send a caller to edit
+/// their model over a defect in this crate.
+///
+/// **A union has no `declare` edge**, so a caller whose members touch
+/// has no in-node recourse today: the recourse is to spell that pair as
+/// a `Node::Boolean` union, which is where the `Declare` input lives.
+/// Whether the n-ary node should carry a declaration channel of its own
+/// is filed as `work/docm/n-ary-union-has-no-declaration-channel`.
+fn union_refusal(
+    id: RecipeNodeId,
+    a_table: &crate::names::NameTable,
+    b_table: &crate::names::NameTable,
+    err: verbs::VerbError,
+) -> NodeErrorKind {
+    let refused = refusal_menu(a_table, b_table, err);
+    let NodeErrorKind::UndeclaredContact { finding, diag } = refused else {
+        return refused;
+    };
+    let names::FlushFinding {
+        pair: (a, b),
+        class,
+        evidence,
+    } = *finding;
+    let (Ok(a), Ok(b)) = (names::collapse_name(id, &a), names::collapse_name(id, &b)) else {
+        return NodeErrorKind::Naming(names::NamingError::Emission {
+            what: UNION_REFUSAL_FOREIGN,
+        });
+    };
+    NodeErrorKind::UndeclaredContact {
+        finding: Box::new(names::FlushFinding {
+            pair: (a, b),
+            class,
+            evidence,
+        }),
+        diag,
+    }
+}
+
+/// A union's refusal named a row its own fold table cannot collapse.
+const UNION_REFUSAL_FOREIGN: &str =
+    "a union fold's refusal names a row the member-keying rule cannot collapse";
+
 /// The refusal-menu lift (register R3, LIB-PYG5; SELECT-DESIGN §3d):
 /// a kernel [`topo::BooleanError::UndeclaredCoincidence`] becomes
 /// [`NodeErrorKind::UndeclaredContact`] carrying the raise site's
@@ -2074,10 +2703,13 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
 /// context, so it happens here, before the shared translation: every
 /// other refusal a boolean run can carry falls through to
 /// [`verb_refused`], the same door every verb's refusal goes through.
-fn refusal_menu<T: Decide>(
-    results: &Results<T>,
-    a: RecipeNodeId,
-    b: RecipeNodeId,
+/// The two operands are given as their name TABLES rather than as node
+/// ids: the n-ary union folds the same verb over an ACCUMULATION that
+/// is no node's result, and the menu reads nothing else about an
+/// operand.
+fn refusal_menu(
+    a_table: &crate::names::NameTable,
+    b_table: &crate::names::NameTable,
     err: verbs::VerbError,
 ) -> NodeErrorKind {
     let verbs::VerbError::Boolean(topo::BooleanError::UndeclaredCoincidence {
@@ -2099,11 +2731,11 @@ fn refusal_menu<T: Decide>(
         pair
     };
     let name_of = |(operand, face): (topo::Operand, topo::FaceKey)| {
-        let node = match operand {
-            topo::Operand::A => a,
-            topo::Operand::B => b,
+        let table = match operand {
+            topo::Operand::A => a_table,
+            topo::Operand::B => b_table,
         };
-        face_name(value_of(results, node).ok()?, face)
+        face_name(table, face)
     };
     let (Some(na), Some(nb)) = (name_of(ordered[0]), name_of(ordered[1])) else {
         return NodeErrorKind::Boolean(topo::BooleanError::UndeclaredCoincidence {
@@ -2137,13 +2769,13 @@ fn refusal_menu<T: Decide>(
 /// fact). Ties or multiple denoting names resolve to the canonical
 /// least name — deterministic, and any denoting name identifies the
 /// pair for the declare arm.
-fn face_name<T: Decide>(
-    v: &super::NodeValue<T>,
+fn face_name(
+    table: &crate::names::NameTable,
     face: topo::FaceKey,
 ) -> Option<crate::names::StableName> {
     use crate::names::{EntityKey, EntityKind, EntityRef, Entry};
     let mut found: Option<&crate::names::StableName> = None;
-    for (name, entry) in v.name_table.iter() {
+    for (name, entry) in table.iter() {
         if name.kind != EntityKind::Face {
             continue;
         }
@@ -2263,6 +2895,44 @@ fn resolve_declarations(
     Ok(out)
 }
 
+/// The role word a transform's rotation axis is normalized under —
+/// one spelling, so the evaluation and the mate solve name the same
+/// vector in the same refusal and the K census sees one predicate
+/// role rather than two.
+pub(crate) const TRANSFORM_AXIS_ROLE: &str = "transform rotation axis";
+
+/// The role word a stepped rule's LINEAR direction is normalized
+/// under, for the same reason and with the same two callers: the
+/// evaluation's own rule ([`stepped_map`]) and the mate solve's
+/// re-derivation of it from the recipe.
+pub(crate) const PATTERN_DIRECTION_ROLE: &str = "pattern direction";
+
+/// The role word a DATUM AXIS's direction is normalized under. Three
+/// callers, and they do not all take the same road — the evaluation
+/// decides it under `datum_unit`, the mate solve under
+/// `eval_direction_norm` — so the constant is what keeps the ROLE one
+/// word wherever the refusal comes from (issue 1570 is where the two
+/// roads meeting is homed).
+pub(crate) const DATUM_AXIS_ROLE: &str = "datum axis direction";
+
+/// **The rigid map a [`crate::node::Node::Transform`] applies** — the
+/// one home of that construction, read by the evaluation and by the
+/// mate solve's derived offset, so a transform under a mate and a
+/// transform under the gather move a body by the same arithmetic.
+///
+/// PR 1's die convention: rotate about the axis THROUGH THE WORLD
+/// ORIGIN by `angle`, then translate. `axis` is already unit — the
+/// callers normalize it through [`unit()`] under
+/// [`TRANSFORM_AXIS_ROLE`], where the degenerate and non-finite cases
+/// refuse.
+pub(crate) fn transform_map<T: Decide>(
+    translation: Vec3<T>,
+    axis: Vec3<T>,
+    angle: T,
+) -> Affine3<T> {
+    Affine3::from_parts(Mat3::rotation_about(axis, angle), translation)
+}
+
 fn wire_transform<T: Decide + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     input: RecipeNodeId,
@@ -2274,13 +2944,11 @@ fn wire_transform<T: Decide + geom_brep::PcurveFittedLane>(
     let translation = need_vec3(vals, SlotId::Translation)?;
     let rot_axis = unit(
         need_vec3(vals, SlotId::RotationAxis)?,
-        "transform rotation axis",
+        TRANSFORM_AXIS_ROLE,
         band(tol)?,
     )?;
     let angle = need_scalar(vals, SlotId::RotationAngle)?;
-    // PR 1's die convention: rotate about the axis THROUGH THE WORLD
-    // ORIGIN by `angle`, then translate.
-    let map = Affine3::from_parts(Mat3::rotation_about(rot_axis, angle), translation);
+    let map = transform_map(translation, rot_axis, angle);
     let mut placed = transform_rigid(&body, &map, tol).map_err(NodeErrorKind::Transform)?;
     // N6 composition: `transform_rigid` cleared the source records
     // (its geometric rewrite invalidates the bit-identity claim); the
@@ -2364,7 +3032,7 @@ fn stepped_map<T: Decide>(
         PatternKind::Linear { .. } => SteppedOperands::Linear {
             direction: unit(
                 need_vec3(vals, SlotId::Direction)?,
-                "pattern direction",
+                PATTERN_DIRECTION_ROLE,
                 band(tol)?,
             )?,
             spacing: need_scalar(vals, SlotId::Spacing)?,
@@ -2592,7 +3260,7 @@ pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operan
 /// embedded through `from_f64`. Taking the description directly is
 /// therefore not a shortcut — it is the only way the Interval lane
 /// encloses the SAME surface the `f64` lane defines.
-fn section_of<T: Decide + geom_core::Bounds>(
+fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     id: RecipeNodeId,
@@ -2637,8 +3305,24 @@ fn section_of<T: Decide + geom_core::Bounds>(
     // gate to be added to only one. Sharing the function is what makes
     // "the duplicate ladder did not fork" a fact about the code rather
     // than a claim about two diffs.
-    let plane = profile_plane_f64(doc, program.plane, tol)?;
-    let pre = prepare_profile(plane, &resolved, tol)?;
+    // DM1c: a section on a DERIVED frame has no `f64` placement of its
+    // own — the frame's landed value is the lane's — and a section's
+    // geometry stays `f64`. So the placement comes off the by-value
+    // read, and crosses to `f64` only where the scalar IS `f64`
+    // (`SectionScalar`, decided by the type); anywhere else the
+    // section refuses typed, naming itself and the frame, rather than
+    // placing on a fabricated point of the frame's bracket.
+    let plane = match profile_plane_f64(doc, program.plane, tol)? {
+        Some(authored) => authored,
+        None => {
+            let lane_plane = frame_plane_lane(results, program.plane)?;
+            pinned_plane(&lane_plane).ok_or(NodeErrorKind::DerivedFrameSection {
+                profile: id,
+                frame: program.plane,
+            })?
+        }
+    };
+    let pre = prepare_profile(Some(plane), &resolved, tol)?;
     // The lift's second pass runs HERE TOO, as a GATE. A loft's or a
     // sweep's section stays f64 — the skinned surface's knots, degrees
     // and control bits must be identical in every lane, which is the
@@ -2655,7 +3339,17 @@ fn section_of<T: Decide + geom_core::Bounds>(
             tol,
         )?;
     }
-    let place = pre.profile_f64.plane.placement;
+    // Both arms above handed `prepare_profile` a placement, so the
+    // typed one is `Some` here by construction; a `None` would be an
+    // internal break, refused typed rather than placed at a
+    // convention.
+    let place = pre
+        .placement_f64
+        .ok_or(NodeErrorKind::DerivedFrameSection {
+            profile: id,
+            frame: program.plane,
+        })?
+        .placement;
     // The sections are the REPLAYED loops (program order — exactly
     // the stored-loop handoff LIB-U3 established, one derivation
     // earlier): positions, bulges, declared joints verbatim.
@@ -2671,7 +3365,7 @@ fn need_count(vals: &SlotValues<impl Decide>, slot: SlotId) -> Result<usize, Nod
 /// The Loft node (M6-3: the frontier flipped to the BUILDER — the
 /// §10.3 walls plus the M5-LOG item-6 assembly, tiers 1–3 green at
 /// rest).
-fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds>(
+fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds + super::SectionScalar>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],
     doc: &crate::doc::Doc<ProfileProgram>,
@@ -2729,7 +3423,7 @@ fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds>(
 /// with a bad Count, is a recipe error and must read as one. What the
 /// node cannot do is reach the geometry: see [`SWEEP_FRONTIER`] for
 /// why no recipe-expressible path exists to sweep.
-fn wire_sweep<T: Decide + geom_core::Bounds>(
+fn wire_sweep<T: Decide + geom_core::Bounds + super::SectionScalar>(
     profile: RecipeNodeId,
     path: RecipeNodeId,
     doc: &crate::doc::Doc<ProfileProgram>,

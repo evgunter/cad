@@ -73,3 +73,19 @@ against eps_in 1e-5), and `#389`'s gap mechanism is a
 control-order-reversed wall column — the adoption Line-column
 candidate (the spec's disclosed contingency) is what hands it a
 candidate.
+
+## EXCH-E1 cut and dispatched in parallel (2026-09-04)
+
+While EXCH-H1's fix lane works its coarse-band red, the E tail
+starts: `EXCH-E1` (`exch/d343-typed-payloads`) executes Track U's
+`D343` with its two riders — disjoint files from H1
+(`error.rs`, `step-export/lib.rs`, `writer.rs` against H1's
+`recognize_curve`/`adopt`/`pcurve_cache`), so the lanes cannot
+conflict. E build, single style review, no A/B row (FILLET's E1–E3
+the precedent; dispatched opus, model choice free outside the
+experiment). H1 process note for the record: the first implementer
+was killed by the account's 5h usage limit mid-fix and its resume
+wedged on an orphaned build; a fresh same-arm lane finished the
+takeover with the predecessor's uncommitted diff preserved as
+evidence (`exch-h1-predecessor-wip.patch`) — annotate on the A/B row
+at merge. Unit-2 spec recon runs in the background against main.

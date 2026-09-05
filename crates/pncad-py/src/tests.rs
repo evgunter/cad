@@ -1060,6 +1060,30 @@ fn path_error_tags_are_stable() {
         .tangent_arc_to(Start, Tol::witness())
         .expect_err("no arc spans a chord behind the departure");
     assert_eq!(path_error_tag(&degenerate), "degenerate_arc_chord");
+
+    // The envelope: one tag for the refusal, and one per entry for the
+    // corner's own reason, so a caller branches on the reason without
+    // parsing the sentence. A straight pair derives one corner and the
+    // radius outruns the arrival leg, so the entry is the anchor fit.
+    let overrun = Open
+        .at(p2(0.0, 0.0))
+        .toward(1.0, 0.0, Tol::witness())
+        .expect("the incoming ray runs +x")
+        .fillet(2.5, Tol::witness())
+        .expect("positive radius")
+        .toward(0.0, 1.0, Tol::witness())
+        .expect("the arrival side runs +y")
+        .to(p2(3.0, 2.0), Tol::witness())
+        .expect_err("the setback outruns the arrival leg");
+    assert_eq!(path_error_tag(&overrun), "no_corner_of_pair");
+    let pncad::profile::PathError::NoCornerOfPair { corners, .. } = &overrun else {
+        panic!("expected the envelope, got {overrun:?}")
+    };
+    let entries: Vec<&'static str> = corners
+        .iter()
+        .map(|c| crate::tags::corner_reason_tag(&c.reason))
+        .collect();
+    assert_eq!(entries, ["anchor_outside_trimmed_extent"]);
 }
 
 /// The prose rule's guard, checked against what it actually guards
@@ -1313,35 +1337,39 @@ fn check_registry_tags_are_stable() {
     );
     assert_eq!(
         check_evidence_tag(&CheckEvidence::SeparationUnavailable {
+            kind: pncad::topo::BooleanErrorKind::ClassificationInvariant,
             reason: "boxes refused".into()
         }),
         "separation_unavailable"
     );
 }
 
-/// **The tier-3′ census findings do not read as prose, and that is a
-/// KERNEL rendering, not a binding one.**
+/// **The tier-3′ census findings read as prose, and that is a KERNEL
+/// rendering, not a binding one.**
 ///
 /// `crate::py::typed_err` asserts every message it raises satisfies
 /// [`reads_as_prose`], and every door in this crate obeys the rule the
 /// assertion stands for — the binding never authors a `Debug` dump.
-/// Three `ValidationError` arms are worded by the kernel out of
-/// `Debug` anyway: `UndeclaredContact` renders its `CensusContact` as
-/// `{contact:?}` and carries a `witness` the kernel builds with
-/// `format!("{p:?}")`, and `StaleContactDeclaration` renders its
-/// `DeclaredContact` the same way. Only tier 3′ produces those arms,
-/// so `Body::validate_pseudomanifold` is the first door to reach them
-/// — and reach them it does, on an ordinary call: two touching solids
-/// gathered by `product`, which declares nothing.
+/// Three `ValidationError` arms once broke that rule from the OTHER
+/// side, the kernel wording them out of `Debug`: `UndeclaredContact`
+/// rendered its `CensusContact` as `{contact:?}`, `StaleContactDeclaration`
+/// its `StaleDeclaration` the same way, and the `witness` the kernel
+/// built with `format!("{p:?}")` carried a `Point3`'s field braces.
+/// Each now renders through `Display`, so `Body::run_validator` raises
+/// through `typed_err` like every other door and needs no exemption.
 ///
-/// This pin is the reason `run_validator` raises through
-/// `typed_err_kernel_authored`. It is deliberately an assertion that
-/// the message is NOT prose, so the day the kernel renders these arms
-/// through `Display` (filed at
-/// `work/lib/tier-3-prime-findings-render-through-debug.md`) this row
-/// goes red and the exemption can go with it.
+/// **What this row does and does not cover.** Both findings are built
+/// here with a hand-written `witness`, so the assertion is that the
+/// ARMS' format strings interpolate through `Display` — it says nothing
+/// about `census::witness`, which no code path in this crate reaches.
+/// The witness rendering is guarded in the kernel, by
+/// `topo/tests/mate4a_ef_bound_rung.rs` (a `Debug` golden over the
+/// whole finding list) and `topo/tests/review_mate9_r1_probes.rs`
+/// (which reads coordinates out of the witness text). What this row
+/// adds is that the check runs in the no-interpreter CI row, where the
+/// Python suite cannot.
 #[test]
-fn the_census_findings_are_not_prose_by_this_crate_s_own_rule() {
+fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
     use pncad::topo::{CensusContact, StaleDeclaration, ValidationError};
 
     // Both arms are built here rather than by evaluating a document:
@@ -1352,9 +1380,9 @@ fn the_census_findings_are_not_prose_by_this_crate_s_own_rule() {
             vertex: VertexKey::default(),
             face: FaceKey::default(),
         },
-        // The kernel builds this field with `format!("{p:?}")`
-        // (`census::witness`), so it carries braces of its own.
-        witness: format!("{:?}", pncad::geom_core::Point3::<f64>::origin()),
+        // The kernel builds this field as a coordinate triple
+        // (`census::witness`), so it carries no braces of its own.
+        witness: "(0.0, 0.0, 0.0)".to_owned(),
     };
     let stale = ValidationError::StaleContactDeclaration {
         declaration: StaleDeclaration::VertexOnFace {
@@ -1366,27 +1394,29 @@ fn the_census_findings_are_not_prose_by_this_crate_s_own_rule() {
     for finding in [&census, &stale] {
         let message = finding.to_string();
         assert!(
-            !reads_as_prose(&message),
-            "a tier-3′ census finding reads as prose now — the kernel \
-             rendering was fixed. Drop `typed_err_kernel_authored` and \
-             its exemption, let `run_validator` raise through \
-             `typed_err` again, and close the filed item. Message: \
-             {message}"
+            reads_as_prose(&message),
+            "a tier-3′ census finding must read as prose: it is raised \
+             through `typed_err`, whose assertion is live in every \
+             profile. Message: {message}"
         );
         assert!(
-            message.contains(" { "),
+            !message.contains(" { "),
             "the struct-brace fingerprint is exactly what \
-             `reads_as_prose` rejects; without it the arm was \
-             reworded: {message}"
+             `reads_as_prose` rejects, and a payload that regained a \
+             `Debug` rendering is how it comes back: {message}"
         );
     }
 
-    // The recourse survives the Debug guts: what a Python caller
-    // reads is unusable as a TAG but is still the kernel's whole
-    // diagnosis, which is why the binding pastes it rather than
-    // inventing a second wording.
+    // The payload survives the rewording: an arena key still names
+    // each entity, so the prose is a diagnosis a caller can act on
+    // rather than a sentence that dropped its subject.
+    let message = census.to_string();
     assert!(
-        census.to_string().contains("never blessed from discovery"),
+        message.contains("vertex") && message.contains("(0.0, 0.0, 0.0)"),
+        "the finding still names its entities and its witness: {message}"
+    );
+    assert!(
+        message.contains("never blessed from discovery"),
         "the undeclared-contact recourse is the actionable half"
     );
 }
@@ -1454,7 +1484,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "checks_error_tag",
-        values: &["band", "product_unavailable", "root_without_value"],
+        values: &[
+            "band",
+            "evaluation_of_another_document",
+            "product_unavailable",
+            "root_without_value",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -1477,6 +1512,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "doc_param_dimension_mismatch",
             "doc_param_not_declared",
             "doc_param_value_kind_mismatch",
+            "duplicate_input",
             "duplicate_witness_entry",
             "empty_placement_list",
             "empty_witness_bulk",
@@ -1498,6 +1534,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_on_non_instance",
             "placement_rule_mismatch",
             "profile_program_refused",
+            "read_site_missing_node",
             "rebind_appearance_collision",
             "rebind_identity",
             "rebind_kind_mismatch",
@@ -1505,8 +1542,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rebind_no_references",
             "rebind_target_missing_node",
             "rebind_unknown_name",
+            "set_members_on_non_list",
             "slot_dimension_mismatch",
             "structural_slot_needs_structural_edit",
+            "too_few_members",
             "unknown_doc_param",
             "unknown_node",
             "unknown_payload_param",
@@ -1628,6 +1667,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_datum_too_small_to_lever",
             "mate_frame_degenerate",
             "mate_indeterminate",
+            "mate_poses_of_another_document",
             "mate_self",
             "mate_table_lacks",
             "mate_under",
@@ -1651,14 +1691,21 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "declare_resolve",
             "declare_unsupported_pair",
             "degenerate_direction",
+            "derived_frame_section",
+            "empty_half",
             "empty_operand",
             "escalated",
             "expr",
             "extrude",
+            "face_frame_kind",
+            "face_frame_not_planar",
+            "face_frame_readback",
+            "face_frame_resolve",
             "fillet",
             "fillet_selection_empty",
             "fillet_selection_kind",
             "fillet_selection_resolve",
+            "instance_out_of_range",
             "loft",
             "measure_clearance_refused",
             "measure_malformed",
@@ -1674,6 +1721,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_finite_direction",
             "non_positive_count",
             "param_box",
+            "param_source_attach",
             "payload_expr",
             "placements_uncertified",
             "profile",
@@ -1736,7 +1784,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "path_error_tag",
         values: &[
-            "anchor_outside_trimmed_extent",
             "arc_center_not_equidistant",
             "arc_continue_needs_arc_carrier",
             "arc_continue_off_carrier",
@@ -1750,12 +1797,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "degenerate_arc_spec",
             "escalated",
             "far_end_anchor_without_fillet",
-            "fillet_encloses_leg_carrier",
             "fillet_offset_lever_too_short",
             "guided_structure",
             "junction_cusp",
             "junction_tangent",
             "no_corner_for_fillet",
+            "no_corner_of_pair",
             "nonpositive_circle_radius",
             "nonpositive_fillet_radius",
             "nonpositive_leg",
@@ -1766,6 +1813,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "seam_tangent",
             "underdetermined_leg",
             "zero_direction",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "corner_reason_tag",
+        values: &[
+            "anchor_outside_trimmed_extent",
+            "behind_arrival_anchor",
+            "behind_incoming_ray",
+            "encloses_leg_carrier",
+            "no_corner_side_candidate",
+            "offset_carriers_disjoint",
         ],
         delegates: &[],
     },
@@ -1802,6 +1861,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "product_error_tag",
         values: &[
             "contact_lineage",
+            "evaluation_of_another_document",
             "graft_refused",
             "no_body_roots",
             "product_invalid",
@@ -1884,6 +1944,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "body_name_crosses_cut",
             "empty_cut",
             "name_straddles_cut",
+            "operand_severed_from_mate",
             "part_edit",
             "part_id_collides",
             "part_name_reaches_remainder",
@@ -2490,8 +2551,8 @@ fn read_tag_table(source: &str) -> TagTable {
 /// `part_fault`, `placement_rule_fault`, `product`,
 /// `recorded_program`, `refused_ref`, `resolve_fault`, `root_fault`,
 /// `solid_name`, `split`, `stl`, `update` — have none, and between
-/// them hold 192 of the table's 354 literals, `edit_error_tag`'s
-/// fifty and `node_error_tag`'s fifty-four included. For those the
+/// them hold 199 of the table's 361 literals, `edit_error_tag`'s
+/// fifty and `node_error_tag`'s sixty-one included. For those the
 /// inventory below is the ONLY thing between a rename and a broken
 /// caller. That is a large gain over nothing; it is not the same claim
 /// as "the tag table is verified", and this comment refuses to make
@@ -2528,7 +2589,7 @@ fn the_whole_tag_table_matches_its_committed_inventory() {
 
     // The floors: a reader that came back with nothing, or with a
     // plausible-looking handful, must red rather than pass vacuously.
-    // They are set well under the real numbers (37 functions, 354
+    // They are set well under the real numbers (37 functions, 361
     // literal occurrences) so ordinary churn does not touch them.
     assert!(
         table.functions.len() >= 30,

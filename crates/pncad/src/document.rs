@@ -37,8 +37,8 @@ pub use editor_core::cascade_delete_order;
 // carries directly; it is re-exported here so document-layer code can
 // spell the whole node vocabulary through one module.
 pub use editor_core::{
-    Axis3, BooleanOp, Datum, MeasureNodeFault, Node, PatternKind, PlacementRuleFault, RecipeNodeId,
-    SlotId, TubeWindow, VectorSlot,
+    Axis3, BooleanOp, Datum, InputFault, MeasureNodeFault, Node, PartSelect, PatternKind,
+    PlacementRuleFault, RecipeNodeId, SlotId, TubeWindow, VectorSlot,
 };
 
 // The measurement vocabulary (ERROR-DESIGN E3/E10, CONTACT-DESIGN C5).
@@ -57,8 +57,8 @@ pub use editor_core::{
 // name the outer type and not the inner one can see that there is a
 // reason and never read it.
 pub use editor_core::{
-    ASSERT_BOUND, AssertionDir, AssertionVerdict, MeasureExpr, MeasurePrimitive, MeasureRef,
-    MeasureUnavailableAt, MinClearanceRefusal, UnevaluatedReason,
+    ASSERT_BOUND, AssertionDir, AssertionVerdict, MeasureExpr, MeasurePrimitive,
+    MeasureUnavailableAt, MinClearanceRefusal, SitedRef, UnevaluatedReason,
 };
 
 // Expressions and their text door.
@@ -140,10 +140,15 @@ pub use editor_core::{Distribution, DistributionFault, DistributionField};
 // they are `VerbArity`'s payload, so a consumer can match the variant
 // but not name what it caught without them (the prelude's `BlendKind`
 // rule — the discriminant crosses with the refusal).
+// `Mispaired` rides with `Evaluation` by the same rule: it is
+// `Evaluation::prior_refused`'s payload, so a consumer cannot read why
+// a memo was refused without naming it. The name is not the memo's —
+// it is the one payload all three pairing doors carry (DI3), which is
+// why it is spelled for the QUESTION rather than for any one door.
 pub use editor_core::{
-    Arity, BooleanValue, CancelToken, DatumValue, EvalOptions, EvalOutcome, Evaluation, NodeError,
-    NodeErrorKind, NodeResult, NodeValue, ProfileLift, SplitSide, UnitVec3, UnitVec3Error,
-    ValuePayload, VerbKind, evaluate,
+    Arity, BooleanValue, CancelToken, DatumValue, EvalOptions, EvalOutcome, Evaluation, Mispaired,
+    NodeError, NodeErrorKind, NodeResult, NodeValue, ProfileLift, SplitSide, UnitVec3,
+    UnitVec3Error, ValuePayload, VerbKind, evaluate,
 };
 
 // Persistence: the doors, verbatim.
@@ -180,7 +185,14 @@ pub use editor_core::ContentBits;
 // `DocEdit::SetRoots`; `product` is the whole-document gather those
 // roots name, and `RootFault` is the shared invariant refusal both
 // the edit and persistence doors carry.
-pub use editor_core::{ProductError, RootFault, product};
+pub use editor_core::{Product, ProductError, RootFault, product, product_recorded};
+
+// The gather's own witness, and only where `debug_assertions` are on:
+// how many times this thread has gathered a product. A consumer that
+// owes one gather per operation asserts it on the DIFFERENCE across
+// that operation; a release build carries no counter at all.
+#[cfg(debug_assertions)]
+pub use editor_core::gathers_on_this_thread;
 
 // Instantiated parts. `Frame` is the cluster placement a document
 // records per instantiate node
@@ -232,8 +244,13 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission};
 // direction's frontier (`Uncertified`), which is what `AtRestFinding`
 // and `Attribution` carry per finding. `RefusedRef` says why a mate
 // reference named no product face.
+// `assemble_gathered` is that gate over a product the caller already
+// holds — the canonical door, of which `assemble` is the gather plus a
+// call to it. A caller with several consumers of one product gathers
+// once and finishes here, since this door CONSUMES the product.
 pub use editor_core::{
     Assembly, AssemblyError, AtRestFinding, Attribution, MintedDeclaration, RefusedRef, assemble,
+    assemble_gathered,
 };
 
 // Split and inline: the first-class
@@ -273,9 +290,13 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // `subject_body` resolves a finding's (root, output_ix) attribution
 // back to the flagged body and the declarations its producer minted
 // for it, in the same evaluation.
+// `run_checks_on` is the registry over a `Subject` the caller gathered
+// — the door `run_checks` wraps, for a caller that already holds the
+// document's product.
 pub use editor_core::{
     Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,
-    ChecksError, ChecksReport, Severity, enforce_checks, run_checks, subject_body,
+    ChecksError, ChecksReport, Severity, Subject, enforce_checks, run_checks, run_checks_on,
+    subject_body,
 };
 
 // The profile description node type and its document alias.

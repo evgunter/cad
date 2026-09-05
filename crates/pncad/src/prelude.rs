@@ -138,9 +138,9 @@ pub use ::profile::{
 // `bossplate` scene's three-arc rim IS one), so `circle` alone left
 // half of the closed-carrier vocabulary a crate away.
 pub use ::profile::{
-    ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ClosedLoop, ContinueTarget, LineTarget, Open,
-    PartialPath, PathError, PathNoCornerReason, Radius, Start, Sweep, TangentArcTarget, Via,
-    circle, circle_split,
+    ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ClosedLoop, ContinueTarget, CornerReason,
+    CornerRefusal, CornerWindow, LineTarget, Open, PartialPath, PathError, PathNoCornerReason,
+    Radius, Start, Sweep, TangentArcTarget, Via, circle, circle_split,
 };
 
 // --- 3. The four body operations ------------------------------
@@ -323,8 +323,9 @@ pub use crate::select::{
     NameOrigin, NamePat, NameTable, OpGroup, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError,
     RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector,
     Side, SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
-    attribute, declare, declare_all, declare_node, denotation, edge_frame, edge_name, face_frame,
-    face_name, find_flush_candidates, select, select_where, vertex_position,
+    attribute, declare, declare_all, declare_node, denotation, edge_frame, edge_name,
+    face_carrier_kind, face_frame, face_name, find_flush_candidates, select, select_where,
+    vertex_position,
 };
 // The KERNEL query seat (`topo::query`): the same selection
 // vocabulary as a pure function of a `Body`, for the caller who holds

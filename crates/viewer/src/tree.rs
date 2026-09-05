@@ -55,6 +55,9 @@
 //! So a chain of twenty booleans cutting features out of one solid
 //! draws as one column with its tools one level in, rather than a
 //! staircase twenty levels wide.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use std::collections::BTreeMap;
 
@@ -163,11 +166,14 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Revolve { .. } => "Revolve",
         Node::Transform { .. } => "Transform",
         Node::Boolean { .. } => "Boolean",
+        Node::Union { .. } => "Union",
         Node::Split { .. } => "Split",
         Node::Pattern { .. } => "Pattern",
+        Node::Part { .. } => "Part",
         Node::PlacedUnion { .. } => "PlacedUnion",
         Node::Datum(Datum::Plane { .. }) => "Datum plane",
         Node::Datum(Datum::Frame { .. }) => "Datum frame",
+        Node::Datum(Datum::FaceFrame { .. }) => "Datum frame (on face)",
         Node::Datum(Datum::AxisInPlane { .. }) => "Datum axis (in sketch)",
         Node::Datum(Datum::Axis { .. }) => "Datum axis",
         Node::Datum(Datum::Point { .. }) => "Datum point",
@@ -310,9 +316,8 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> RowStatus {
 /// Exhaustive on purpose: a fault arm the kernel grows must decide
 /// here whether it names a mate, rather than falling into a wildcard
 /// and silently drawing every reached row as downstream of nothing.
-/// [`MateFault::Band`] names none — no band, no decisions, so no mate
-/// is more at fault than any other — and every row it reached keeps
-/// its own `Failed`.
+/// [`MateFault::Band`] and [`MateFault::PosesOfAnotherDocument`] name
+/// none, and every row they reached keeps its own `Failed`.
 fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
     match fault {
         MateFault::Frame { mate, .. }
@@ -321,8 +326,14 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::Indeterminate { mate, .. }
         | MateFault::Under { mate, .. }
         | MateFault::DanglingHead { mate, .. }
-        | MateFault::SelfMate { mate, .. } => vec![*mate],
-        MateFault::Band { .. } => Vec::new(),
+        | MateFault::SelfMate { mate, .. }
+        | MateFault::Unleverable { mate, .. } => vec![*mate],
+        // Neither names a mate: no band, no decisions, so no mate is
+        // more at fault than any other; and a solve read against the
+        // wrong document blames the pairing, not a node — that arm is
+        // raised by `SolvedPoses::placement` and never recorded in a
+        // solve's fault map, so no row here can carry it.
+        MateFault::Band { .. } | MateFault::PosesOfAnotherDocument { .. } => Vec::new(),
         // A contradiction is a claim about a PAIR of mates: neither is
         // the wrong one on the fault's own telling, so both read as
         // causes and the user picks which to relax.

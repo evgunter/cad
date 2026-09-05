@@ -8,25 +8,31 @@
 //! each, and the picks a user believes they are making are not the
 //! picks the tools hold.
 //!
-//! So the set of tools is ONE value with one door in. [`Tools::open`]
-//! closes whatever was open before it opens the next, by REPLACING the
-//! whole value rather than by clearing the other fields one at a time
-//! — a tool added to this struct cannot be forgotten by that rule,
-//! where a chain of assignments grows a missing line per tool and only
-//! fails in the field.
+//! So the set of tools is ONE value with one door in: [`Tools`] holds
+//! an `Option<OpenTool>`, one variant per kind, so "two tools open" is
+//! not a state the door has to avoid but a state that cannot be
+//! written down. A tool added to the set cannot be forgotten by an
+//! exclusivity rule that no longer exists.
 //!
-//! **Every other per-tool rule here dispatches on [`ToolKind`] through
-//! an exhaustive match** — the pick routing, the survival step, the
-//! cursor narrowing, the close-on-commit edit — for the same reason:
-//! a seventh tool must not be able to compile while three of its four
-//! obligations are silently unmet. The one list a compiler cannot
-//! force is [`ToolKind::ALL`], and [`ToolKind::ordinal`] is what makes
-//! its completeness checkable by a row instead of by eye.
+//! **The four per-tool rules here dispatch through an exhaustive
+//! match** — the pick routing, the survival step, the cursor
+//! narrowing, the close-on-commit edit — for the same reason: an
+//! eighth tool must not be able to compile while three of its four
+//! obligations are silently unmet. The READ door is not one of them:
+//! each typed accessor on [`Tools`] matches its own variant and
+//! answers `None` to every other, so an eighth tool that never gets
+//! an accessor compiles clean. The one list a compiler cannot force
+//! is [`ToolKind::ALL`], which nothing outside the test suites reads,
+//! and [`ToolKind::ordinal`] is what makes its completeness checkable
+//! by a row instead of by eye.
 //!
 //! The value is renderer-free on purpose: the pick routing, the
 //! survival step and the exclusivity are all properties a headless row
 //! asserts, and only the widgets that open and read the tools need a
 //! window.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId};
 
@@ -36,7 +42,7 @@ use crate::matetool::{MateTool, MateToolEvent};
 use crate::pick::PickKinds;
 use crate::revolvetool::RevolveTool;
 use crate::seats::SeatEvent;
-use crate::session::SessionOp;
+use crate::session::{Selection, SessionOp};
 
 /// Which modal tool — the vocabulary the open/close door and every
 /// notice are addressed in.
@@ -59,11 +65,13 @@ pub enum ToolKind {
 }
 
 impl ToolKind {
-    /// Every kind, for a chrome that offers them and a test that sweeps
-    /// them.
+    /// Every kind, for the test suites that sweep them — which are
+    /// its only readers. No production code reads it: the chrome names
+    /// each kind it offers literally, and which tool is open is a value
+    /// ([`OpenTool`]), not a scan over this list.
     ///
     /// A hand-written list, which is why [`ToolKind::ordinal`] exists:
-    /// `tools::every_kind_is_listed_in_all` reads the two against each
+    /// `every_tool_kind_is_listed_in_all` reads the two against each
     /// other, so a variant added to the enum and forgotten here fails a
     /// row rather than quietly narrowing every sweep.
     pub const ALL: [Self; 7] = [
@@ -198,17 +206,67 @@ impl core::fmt::Display for ToolNotice {
     }
 }
 
+/// **Which tool is open, and its state** — one variant per kind, so
+/// the open tool is a single value rather than seven optional ones and
+/// "two tools open" has no spelling.
+#[derive(Debug)]
+pub enum OpenTool {
+    /// The mate tool.
+    Mate(MateTool),
+    /// The revolve tool.
+    Revolve(RevolveTool),
+    /// The boolean tool.
+    Boolean(BooleanTool),
+    /// The split tool.
+    Split(SplitTool),
+    /// The transform tool.
+    Transform(TransformTool),
+    /// The pattern tool.
+    Pattern(PatternTool),
+    /// The blend tool.
+    Blend(BlendTool),
+}
+
+impl OpenTool {
+    /// Which kind this is — the vocabulary the rules that do not need
+    /// the tool's own state are addressed in.
+    pub fn kind(&self) -> ToolKind {
+        match self {
+            Self::Mate(_) => ToolKind::Mate,
+            Self::Revolve(_) => ToolKind::Revolve,
+            Self::Boolean(_) => ToolKind::Boolean,
+            Self::Split(_) => ToolKind::Split,
+            Self::Transform(_) => ToolKind::Transform,
+            Self::Pattern(_) => ToolKind::Pattern,
+            Self::Blend(_) => ToolKind::Blend,
+        }
+    }
+}
+
+/// **The one guard every seated tool's pick shares.** A seated tool
+/// takes `Selection::node` and nothing else — a tree click directly, a
+/// face or edge pick through the one viewport→tree inversion — so a
+/// selection carrying no node is a click that tool does not see. The
+/// arms of [`Tools::feed`] that hold seats name the tool and share
+/// this; none of them re-spells it.
+fn on_node_pick(selection: &Selection, pick: impl FnOnce(RecipeNodeId)) {
+    if let Some(node) = selection.node() {
+        pick(node);
+    }
+}
+
 /// The modal tools as one value: at most one is open, and the open one
 /// is the only one the selection stream reaches.
+///
+/// **The read door hands a tool back by value iff that tool is
+/// `Copy`.** The seated tools are small `Copy` values and answer by
+/// value; the mate tool holds picked faces and the blend tool holds a
+/// SET of edges, so those two answer by reference. That is the whole
+/// rule, and the accessors below name which side of it they are on
+/// rather than each re-arguing it.
 #[derive(Debug, Default)]
 pub struct Tools {
-    mate: Option<MateTool>,
-    revolve: Option<RevolveTool>,
-    boolean: Option<BooleanTool>,
-    split: Option<SplitTool>,
-    transform: Option<TransformTool>,
-    pattern: Option<PatternTool>,
-    blend: Option<BlendTool>,
+    open: Option<OpenTool>,
 }
 
 impl Tools {
@@ -226,80 +284,94 @@ impl Tools {
     /// affordance, and the FORM fields (an angle, a count) are drafts
     /// living outside the tool and are untouched either way.
     pub fn open(&mut self, kind: ToolKind) {
-        // Replace the whole value: this is the one line that has to
-        // know the tool set, and it knows it structurally.
-        *self = Self::default();
-        match kind {
-            ToolKind::Mate => self.mate = Some(MateTool::new()),
-            ToolKind::Revolve => self.revolve = Some(RevolveTool::new()),
-            ToolKind::Boolean => self.boolean = Some(BooleanTool::new()),
-            ToolKind::Split => self.split = Some(SplitTool::new()),
-            ToolKind::Transform => self.transform = Some(TransformTool::new()),
-            ToolKind::Pattern => self.pattern = Some(PatternTool::new()),
-            ToolKind::Blend => self.blend = Some(BlendTool::new()),
-        }
+        self.open = Some(match kind {
+            ToolKind::Mate => OpenTool::Mate(MateTool::new()),
+            ToolKind::Revolve => OpenTool::Revolve(RevolveTool::new()),
+            ToolKind::Boolean => OpenTool::Boolean(BooleanTool::new()),
+            ToolKind::Split => OpenTool::Split(SplitTool::new()),
+            ToolKind::Transform => OpenTool::Transform(TransformTool::new()),
+            ToolKind::Pattern => OpenTool::Pattern(PatternTool::new()),
+            ToolKind::Blend => OpenTool::Blend(BlendTool::new()),
+        });
     }
 
     /// Close whatever is open (the Cancel door, and the one a committed
     /// edit takes).
     pub fn close(&mut self) {
-        *self = Self::default();
+        self.open = None;
     }
 
     /// Which tool is open, if any.
     pub fn open_kind(&self) -> Option<ToolKind> {
-        ToolKind::ALL.into_iter().find(|&kind| match kind {
-            ToolKind::Mate => self.mate.is_some(),
-            ToolKind::Revolve => self.revolve.is_some(),
-            ToolKind::Boolean => self.boolean.is_some(),
-            ToolKind::Split => self.split.is_some(),
-            ToolKind::Transform => self.transform.is_some(),
-            ToolKind::Pattern => self.pattern.is_some(),
-            ToolKind::Blend => self.blend.is_some(),
-        })
+        self.open.as_ref().map(OpenTool::kind)
     }
 
-    /// The open mate tool.
+    /// The open mate tool, by reference (the read-door rule on
+    /// [`Tools`]).
     pub fn mate(&self) -> Option<&MateTool> {
-        self.mate.as_ref()
+        match &self.open {
+            Some(OpenTool::Mate(tool)) => Some(tool),
+            _ => None,
+        }
     }
 
     /// The open revolve tool.
     pub fn revolve(&self) -> Option<RevolveTool> {
-        self.revolve
+        match &self.open {
+            Some(OpenTool::Revolve(tool)) => Some(*tool),
+            _ => None,
+        }
     }
 
     /// The open boolean tool.
     pub fn boolean(&self) -> Option<BooleanTool> {
-        self.boolean
+        match &self.open {
+            Some(OpenTool::Boolean(tool)) => Some(*tool),
+            _ => None,
+        }
     }
 
     /// The open split tool.
     pub fn split(&self) -> Option<SplitTool> {
-        self.split
+        match &self.open {
+            Some(OpenTool::Split(tool)) => Some(*tool),
+            _ => None,
+        }
     }
 
     /// The open transform tool.
     pub fn transform(&self) -> Option<TransformTool> {
-        self.transform
+        match &self.open {
+            Some(OpenTool::Transform(tool)) => Some(*tool),
+            _ => None,
+        }
     }
 
     /// The open pattern tool.
     pub fn pattern(&self) -> Option<PatternTool> {
-        self.pattern
+        match &self.open {
+            Some(OpenTool::Pattern(tool)) => Some(*tool),
+            _ => None,
+        }
     }
 
-    /// The open blend tool, by reference: it holds a SET, so it is the
-    /// one tool value too large to hand back by copy.
+    /// The open blend tool, by reference (the read-door rule on
+    /// [`Tools`]).
     pub fn blend(&self) -> Option<&BlendTool> {
-        self.blend.as_ref()
+        match &self.open {
+            Some(OpenTool::Blend(tool)) => Some(tool),
+            _ => None,
+        }
     }
 
     /// The open blend tool, mutably — the door the all-edges
     /// affordance loads its set through, that being a tool-state
     /// operation and not a document edit.
     pub fn blend_mut(&mut self) -> Option<&mut BlendTool> {
-        self.blend.as_mut()
+        match &mut self.open {
+            Some(OpenTool::Blend(tool)) => Some(tool),
+            _ => None,
+        }
     }
 
     /// **What the cursor may pick right now** ([`ToolKind::pick_kinds`]
@@ -352,23 +424,33 @@ impl Tools {
             let SessionOp::Select(selection) = op else {
                 continue;
             };
-            match self.open_kind() {
+            match &mut self.open {
                 None => {}
-                Some(ToolKind::Mate) => {
-                    if let (Some(tool), Some(face)) = (self.mate.as_mut(), selection.face()) {
+                Some(OpenTool::Mate(tool)) => {
+                    if let Some(face) = selection.face() {
                         tool.pick(face.clone());
                     }
                 }
-                Some(ToolKind::Blend) => {
-                    if let (Some(tool), Some(edge)) = (self.blend.as_mut(), selection.edge()) {
+                Some(OpenTool::Blend(tool)) => {
+                    if let Some(edge) = selection.edge() {
                         notices.extend(tool.pick(edge).map(ToolNotice::Blend));
                     }
                 }
-                Some(ToolKind::Revolve) => seat(self.revolve.as_mut(), doc, selection.node()),
-                Some(ToolKind::Boolean) => seat(self.boolean.as_mut(), doc, selection.node()),
-                Some(ToolKind::Split) => seat(self.split.as_mut(), doc, selection.node()),
-                Some(ToolKind::Transform) => seat(self.transform.as_mut(), doc, selection.node()),
-                Some(ToolKind::Pattern) => seat(self.pattern.as_mut(), doc, selection.node()),
+                Some(OpenTool::Revolve(tool)) => {
+                    on_node_pick(selection, |node| tool.pick(doc, node));
+                }
+                Some(OpenTool::Boolean(tool)) => {
+                    on_node_pick(selection, |node| tool.pick(doc, node));
+                }
+                Some(OpenTool::Split(tool)) => {
+                    on_node_pick(selection, |node| tool.pick(doc, node));
+                }
+                Some(OpenTool::Transform(tool)) => {
+                    on_node_pick(selection, |node| tool.pick(doc, node));
+                }
+                Some(OpenTool::Pattern(tool)) => {
+                    on_node_pick(selection, |node| tool.pick(doc, node));
+                }
             }
         }
         notices
@@ -395,31 +477,29 @@ impl Tools {
         doc: &Doc<ProfileProgram>,
         landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
     ) -> Vec<ToolNotice> {
-        let Some(kind) = self.open_kind() else {
+        let Some(open) = self.open.as_mut() else {
             return Vec::new();
         };
-        let dropped = match kind {
-            ToolKind::Mate => {
-                return match (self.mate.as_mut(), landed) {
-                    (Some(tool), Some((landed_doc, eval))) => tool
+        let kind = open.kind();
+        let dropped = match open {
+            OpenTool::Mate(tool) => {
+                return match landed {
+                    Some((landed_doc, eval)) => tool
                         .reconcile(landed_doc, eval)
                         .into_iter()
                         .map(ToolNotice::Mate)
                         .collect(),
-                    _ => Vec::new(),
+                    None => Vec::new(),
                 };
             }
-            ToolKind::Revolve => drop_lost(self.revolve.as_mut(), doc),
-            ToolKind::Boolean => drop_lost(self.boolean.as_mut(), doc),
-            ToolKind::Split => drop_lost(self.split.as_mut(), doc),
-            ToolKind::Transform => drop_lost(self.transform.as_mut(), doc),
-            ToolKind::Pattern => drop_lost(self.pattern.as_mut(), doc),
-            ToolKind::Blend => {
-                return self
-                    .blend
-                    .as_mut()
-                    .map(|tool| tool.reconcile(doc, landed))
-                    .unwrap_or_default()
+            OpenTool::Revolve(tool) => tool.reconcile(doc),
+            OpenTool::Boolean(tool) => tool.reconcile(doc),
+            OpenTool::Split(tool) => tool.reconcile(doc),
+            OpenTool::Transform(tool) => tool.reconcile(doc),
+            OpenTool::Pattern(tool) => tool.reconcile(doc),
+            OpenTool::Blend(tool) => {
+                return tool
+                    .reconcile(doc, landed)
                     .into_iter()
                     .map(ToolNotice::Blend)
                     .collect();
@@ -431,47 +511,3 @@ impl Tools {
             .collect()
     }
 }
-
-/// What [`Tools`] needs of a seated tool: a node pick goes in, and the
-/// survival step comes back out. One trait rather than one arm per tool
-/// per rule, so the routing above is a match on the KIND and nothing
-/// else — and a seventh tool has to implement it before it can be
-/// routed at all.
-trait Seated {
-    fn seat_pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId);
-    fn seat_reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent>;
-}
-
-/// Feed one seated tool, if it is the one open.
-fn seat<T: Seated>(tool: Option<&mut T>, doc: &Doc<ProfileProgram>, node: Option<RecipeNodeId>) {
-    if let (Some(tool), Some(node)) = (tool, node) {
-        tool.seat_pick(doc, node);
-    }
-}
-
-/// Reconcile one seated tool, if it is the one open.
-fn drop_lost<T: Seated>(tool: Option<&mut T>, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
-    tool.map(|tool| tool.seat_reconcile(doc))
-        .unwrap_or_default()
-}
-
-macro_rules! seated {
-    ($($t:ty),+ $(,)?) => {
-        $(impl Seated for $t {
-            fn seat_pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
-                self.pick(doc, node);
-            }
-            fn seat_reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
-                self.reconcile(doc)
-            }
-        })+
-    };
-}
-
-seated!(
-    RevolveTool,
-    BooleanTool,
-    SplitTool,
-    TransformTool,
-    PatternTool
-);

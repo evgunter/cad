@@ -4,6 +4,7 @@ kind: issue
 title: Viewport focus marking is per NODE, so a profile step cannot light the walls it swept
 status: open
 opened: 2026-08-29
+refs: [authored-step-to-canonical-segment-map-has-no-home]
 github: 1182
 ---
 
@@ -24,6 +25,51 @@ So the unit is: establish the authored-step → canonical-segment map as a door 
 
 Not a defect of what shipped — the shipped behaviour is stated as a gap in the module docs of `pick::focus` and in the GUI log — but it is the natural next step and the request that produced the feature asked for it by name.
 
+## Territory, measured (2026-09-04)
+
+The item says the map door "belongs beside the lowering, in
+`profile`/`editor-core`". Read against the territory globs, that is two
+programs and not one, which the program header's `keep_out` now says:
+
+- the authored coordinate is `SlotId::Profile { loop_, step, arg }`,
+  whose `step` is defined by `ProfileProgram::step_args`
+  (`crates/editor-core/src/program.rs:653`, and the slot enumeration at
+  `:1265`). `crates/editor-core/src/program.rs` is **DOCM's** glob.
+- the canonical coordinate is `ProfileEdgeRef { loop_index, segment }`
+  (`crates/editor-core/src/names/role.rs:140` — also DOCM's), whose
+  `segment` indexes the canonical chain that `crates/profile` produces
+  (`structure.rs`'s canonical start/reversal, `path.rs`'s
+  `circle_split`). `crates/profile/*` is **S-BOOL's** glob.
+
+So the map's two endpoints are owned by DOCM and its subdivision
+behaviour by S-BOOL, and the viewer owns neither. Where the door lives
+is a question for the three of us; this program's standing is to state
+what it needs from it, which is the total function authored-step → set
+of canonical segments, refusing rather than guessing where the
+correspondence is not established. Two announces owed before this unit
+is cut.
+
 ## Home
 
 Viewer ground (`crates/viewer/src/pick.rs`) with a lowering-side door in `profile`/`editor-core`; the GUI program is closed and may hold only closed items, so it lands under `work/issues/`.
+
+## The blocker now has a file (VIEW orchestrator, 2026-09-04)
+
+`work/view/plan.md` has said since 2026-09-03 that this item owes "two
+announces" for the authored-step to canonical-segment map. A sentence
+in a plan is not a schedule, so:
+`work/issues/authored-step-to-canonical-segment-map-has-no-home.md`.
+
+The reason it is in `work/issues/` and not parked on a DOCM or BOOL
+row is the finding itself: the authored `step` is
+`ProfileProgram::step_args` (`crates/editor-core/src/program.rs:653`,
+DOCM) and the canonical `segment` is `crates/profile`'s
+canonicalization (BOOL), and **the correspondence between them exists
+in neither crate**, so a door on either side alone does not produce
+it. That makes it unlike `next-id-has-no-layer3-door`, which is a
+door DOCM can simply add.
+
+This item stays `open` rather than parked, for the same reason
+`session-shims-and-test-imports` does: `blocked_on` can name an item
+or a PR, and what gates this is a siting question nobody has claimed.
+See `tracker-has-no-status-for-an-unscheduled-trigger`.

@@ -78,34 +78,44 @@ pub mod tree;
 #[cfg(feature = "app")]
 pub mod app;
 #[cfg(feature = "app")]
+pub mod drafts;
+#[cfg(feature = "app")]
+pub mod forms;
+#[cfg(feature = "app")]
 mod gpu;
+#[cfg(feature = "app")]
+pub mod pane;
+#[cfg(feature = "app")]
+pub mod widgets;
 
-/// **Loud skip.** The two modules above, and every unit test inside
-/// them, are absent from a default-feature build of this crate — the
-/// eframe/wgpu graph is not compiled there, which is what keeps every
-/// `--workspace` job a kernel PR runs off the toolkit — how many there
-/// are is `.github/workflows/ci.yml`'s to say. What that costs is
-/// stated here rather than left to be inferred from a test count: the
-/// modules' own rows, including `gpu`'s pipeline-creation smoke row,
-/// gate under `cargo nextest run -p viewer --features app` (same file)
-/// and nowhere else.
+/// **Loud skip.** Every module this crate gates behind the `app`
+/// feature, and every unit test inside them, is absent from a
+/// default-feature build — the eframe/wgpu graph is not compiled
+/// there, which is what keeps every `--workspace` job a kernel PR runs
+/// off the toolkit — how many modules and how many rows those are is
+/// `.github/workflows/ci.yml`'s to say. What that costs is stated here
+/// rather than left to be inferred from a test count: those modules'
+/// own rows, including the pipeline-creation smoke row, gate under
+/// `cargo nextest run -p viewer --features app` (same file) and
+/// nowhere else.
 ///
 /// **This row closes no gate and cannot fail.** It is evidence, not a
 /// check: its whole payload is its NAME appearing in the PASS list, so
 /// a reader of a default-feature run meets the absence instead of
-/// inferring it. Nothing here goes red if the modules it names start
-/// running, stop existing, or grow a sibling — the enumeration above
-/// is kept by hand, and a marker that silently went stale would look
-/// exactly like this one. Read it as a sentence the log carries, and
-/// keep gating to the rows themselves.
+/// inferring it. It names the FEATURE and what the feature costs, and
+/// nothing else — the roster is the `#[cfg(feature = "app")]` block
+/// above, which the compiler keeps, so there is no hand-kept
+/// enumeration here to go stale when that block gains or loses a
+/// module. Read it as a sentence the log carries, and keep gating to
+/// the rows themselves.
 #[cfg(all(test, not(feature = "app")))]
 #[test]
-fn app_lane_skipped_no_chrome_or_gpu_coverage_here() {
+fn app_lane_skipped_no_app_feature_coverage_here() {
     println!(
-        "SKIPPED (no --features app): `viewer::app` and `viewer::gpu` are not in \
-         this build - the chrome's own unit rows and the pipeline-creation smoke \
-         row (every `create_render_pipeline` call in the viewport) run only where \
-         the `app` feature is built."
+        "SKIPPED (no --features app): every module this crate gates behind the \
+         `app` feature is absent from this build - their unit rows, including the \
+         pipeline-creation smoke row (every `create_render_pipeline` call in the \
+         viewport), run only where the `app` feature is built."
     );
 }
 
@@ -113,12 +123,17 @@ pub use blend::{BlendError, BlendEvent, BlendKindChoice, BlendTarget, BlendTool,
 pub use camera::{Camera, CameraError, CameraOp, CameraOpError};
 pub use datums::{DatumDraw, DatumKind};
 pub use docio::DocIoError;
-pub use evalseam::{EvalDone, EvalRequest, EvalService, Generation, InlineEvaluator};
+pub use evalseam::{
+    EvalDone, EvalRequest, EvalService, Generation, IndexDone, IndexRequest, IndexService,
+    InlineEvaluator, InlineIndexer,
+};
 // The two seam lanes are meant to be interchangeable, so they are named
 // the same way. `ThreadEvaluator` carries the `cfg` its module does.
-pub use display::{DisplayFault, DisplayState, DisplayView, free_move_check, mates_naming};
+pub use display::{
+    DisplayFault, DisplayState, DisplayView, PruneReport, Withdrawn, free_move_check, mates_naming,
+};
 #[cfg(not(target_family = "wasm"))]
-pub use evalseam::{SpawnError, ThreadEvaluator};
+pub use evalseam::{SpawnError, ThreadEvaluator, ThreadIndexer, Worker};
 pub use history::{History, HistoryId};
 pub use input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
 pub use matetool::{
@@ -128,8 +143,8 @@ pub use matetool::{
 pub use parts::{PartChooser, PartEntry};
 pub use pick::{
     EDGE_PICK_RADIUS_PX, EdgeId, EdgeNameFault, EdgeOverlay, EdgePick, Highlight, IdMap,
-    IdMapError, PatchId, PickError, PickIndex, PickIndexError, PickKinds, cursor_projection,
-    edge_id_segments, edge_overlay, edge_segments, highlight,
+    IdMapError, NotIndexed, PatchId, PickError, PickIndex, PickIndexError, PickKinds,
+    cursor_projection, edge_id_segments, edge_overlay, edge_segments, highlight, unindexed,
 };
 pub use prefs::{Notice, Prefs, PrefsError, PrefsStore, StoreError};
 pub use props::{SlotDriver, SlotFault, SlotRow, SlotValue};

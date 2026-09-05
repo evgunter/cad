@@ -75,8 +75,8 @@ use pncad::document::{
     Alignment, Assembly, AssemblyError, Attribution, AxisSense, CancelToken, Datum, Dimension,
     DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame,
     InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, Node, ParamName, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, apply, assemble, content_pin, evaluate, inline, load,
-    mixed_pins, parse_expr, product_named, save, solve_document, split,
+    ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, apply, assemble, content_pin, evaluate,
+    inline, load, mixed_pins, parse_expr, product_named, save, solve_document, split,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -454,8 +454,8 @@ fn stand_doc(
     let mate_1 = insert(
         &mut doc,
         Node::Mate {
-            a: in_part(post_a, post_top),
-            b: in_part(shelf_i, shelf_bottom),
+            a: SitedRef::at_mint(in_part(post_a, post_top)),
+            b: SitedRef::at_mint(in_part(shelf_i, shelf_bottom)),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(POST_SEAT),
@@ -470,8 +470,8 @@ fn stand_doc(
     let mate_2 = insert(
         &mut doc,
         Node::Mate {
-            a: in_part(shelf_i, shelf_bottom),
-            b: in_part(post_b, post_top),
+            a: SitedRef::at_mint(in_part(shelf_i, shelf_bottom)),
+            b: SitedRef::at_mint(in_part(post_b, post_top)),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(SEAT_B),
@@ -534,8 +534,8 @@ fn workspace(dir: &Path, tol: Tol) -> (Workspace, Parts) {
     let parts = Parts {
         post: reference(&post),
         shelf: reference(&shelf),
-        post_top: cap_of(&post, CapEnd::Top, tol),
-        shelf_bottom: cap_of(&shelf, CapEnd::Bottom, tol),
+        post_top: cap_of(&post, CapEnd::End, tol),
+        shelf_bottom: cap_of(&shelf, CapEnd::Start, tol),
     };
     (ws, parts)
 }
@@ -585,7 +585,7 @@ fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: To
     // wrappers deep — pattern index, then instance, then the part's
     // own cap.
     let cap_of_part =
-        NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::Top));
+        NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End));
     let caps = pncad::select::select(
         &ev,
         pattern,
@@ -890,8 +890,8 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     let clash = insert(
         &mut contra.doc,
         Node::Mate {
-            a: in_part(contra.post_a, post_top),
-            b: in_part(contra.shelf_i, shelf_bottom),
+            a: SitedRef::at_mint(in_part(contra.post_a, post_top)),
+            b: SitedRef::at_mint(in_part(contra.shelf_i, shelf_bottom)),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame([POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT]),

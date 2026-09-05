@@ -18,8 +18,8 @@ use editor_core::UnitSym;
 use editor_core::{
     AssertionDir, AssertionVerdict, Axis3, BooleanOp, CancelToken, Dimension, DocEdit, DocParam,
     DocParamValue, DocumentId, EntityKind, EvalOptions, Evaluation, Expr, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, MeasureRef, NamePat, Node, NodeErrorKind, NodeResult, ParamName,
-    ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector,
+    MeasureExpr, MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, ParamName, ProfileDoc,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef,
     StableName, SurfaceKindSet, ValuePayload, apply, evaluate, select_where,
 };
 use fixture::{ang, len, scl};
@@ -107,7 +107,7 @@ fn edges_of_kind(
 ///
 /// Each reference is read AT ITS MINTING NODE — the spelling this
 /// suite means throughout, since none of its fixtures places the
-/// geometry it measures. Adapting to the `MeasureRef` shape the fix
+/// geometry it measures. Adapting to the `SitedRef` shape the fix
 /// pass introduced for MAJ-2; the rows and their oracles are
 /// unchanged.
 fn with_measure(
@@ -116,7 +116,7 @@ fn with_measure(
     refs: Vec<StableName>,
 ) -> (ProfileDoc, RecipeNodeId) {
     let id = RecipeNodeId(doc.len() as u64);
-    let refs: Vec<MeasureRef> = refs.into_iter().map(MeasureRef::at_mint).collect();
+    let refs: Vec<SitedRef> = refs.into_iter().map(SitedRef::at_mint).collect();
     let doc = push(
         doc,
         &DocEdit::InsertNode {

@@ -75,6 +75,9 @@
 //! silently denote the NEW nodes. That aliasing is a class hazard of
 //! layer-3 state holding `RecipeNodeId`s across history rewinds,
 //! tracked as issue #1384.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{Doc, ProfileProgram, RecipeNodeId};
 

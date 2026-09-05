@@ -75,7 +75,9 @@ Details: `memories/cad-working-style.md`, `memories/ev-profile.md`.
   description**, not in commit messages.
 - Agents own this codebase and merge their own PRs to main. Exception:
   PRs that ratify open design questions (e.g. M0's Q1-residue PRs) are
-  design conversations — wait for Ev's sign-off before merging.
+  design conversations — wait for Ev's sign-off before merging. **PRs
+  that add to or change `memories/` wait the same way**: that text is
+  read at the start of every session, so what goes in it is Ev's call.
 
 ## Repo notes
 

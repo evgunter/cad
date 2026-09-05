@@ -2,9 +2,10 @@
 id: parameter-row-field-has-no-text-door
 kind: issue
 title: A parameter row's value field is a bare DragValue — no parser, no unit authoring, no no-op guard
-status: open
+status: parked
 opened: 2026-09-04
 refs: [1776]
+blocked_on: [doc-param-unit-edit-has-no-door]
 ---
 
 
@@ -62,3 +63,13 @@ other — the design call about how notation crosses `props` is shared.
 CHROME. The field is `crates/viewer/src/app.rs`; the parse door is
 `crates/viewer/src/props.rs`. The unit half is blocked on the
 `editor-core` issue above; the guard and the refusal wording are not.
+
+## The fired entry pruned, still parked (2026-09-04)
+
+`viewer-session-god-module-split` closed on 2026-09-04. This row also
+waits on `doc-param-unit-edit-has-no-door`, which is open, so `parked`
+is still TRUE of it and only the fired entry leaves `blocked_on`.
+Pruned from VIEW's PR #1857 for the reason the eight sibling rows carry:
+a `blocked_on` entry that has fired is stale data whether or not the
+status it supports is still true. It is a lint WARNING rather than an
+error precisely because this row is genuinely still blocked.

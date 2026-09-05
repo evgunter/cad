@@ -288,7 +288,7 @@ narrowed_blend: NodeId = doc.insert(Node.fillet(lightened, 0.01 * m, straight))
 # union — and `matches` on a materialized name, the binding reading
 # the text so your code never does.
 top_rim: Selector = Selector.of(
-    NamePat.of_kind(EntityKind.Edge).seg(SegPat.tag(SegTag.RimEdge).side(CapEnd.Top))
+    NamePat.of_kind(EntityKind.Edge).seg(SegPat.tag(SegTag.RimEdge).side(CapEnd.End))
 )
 from_a: NamePat = NamePat.any().seg(
     SegPat.tag(SegTag.Seam).of([NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Cap))])
@@ -419,7 +419,7 @@ clocked: Alignment = Alignment(
 arm: Length | None = datum.lever_arm
 seat_pose: Frame = side_a.placement()
 joint: NodeId = doc.insert(
-    Node.mate("a-name", "b-name", ContactClass.Rest, datum)
+    Node.mate(instance, "a-name", instance, "b-name", ContactClass.Rest, datum)
 )
 
 # The solve's read side, and the admission table a tool asks first.

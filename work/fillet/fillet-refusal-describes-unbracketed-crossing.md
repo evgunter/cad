@@ -2,10 +2,13 @@
 id: fillet-refusal-describes-unbracketed-crossing
 kind: unit
 title: An arc-carrier fillet refusal can describe the crossing the author did not bracket
-status: open
+status: closed
 opened: 2026-08-30
 github: 1281
 refs: [1267]
+branch: fillet/attr-every-crossing
+pr: 1895
+closed: 2026-09-05
 ---
 
 ## From GitHub issue 1281

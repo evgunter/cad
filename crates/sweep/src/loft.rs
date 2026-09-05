@@ -7,11 +7,17 @@
 //! seams as the walls' `u ∈ {0, 1}` boundary iso-curves, struts raised
 //! per vertex. The three edge classes:
 //!
-//! - **Cap–wall rims** need NOTHING new (item 6(ii)): the wall's
+//! - **Cap–wall rims** need no new GEOMETRY (item 6(ii)): the wall's
 //!   `v = 0` / `v = 1` iso IS the placed sketch segment (degree
 //!   elevation and knot refinement are exact), so the carrier stays
-//!   `Curve3::Line`/`Circle` under `MappedCurve::PlacedSegment` and
-//!   certifies today.
+//!   the `Curve3::Line`/`Circle` it was minted as, verbatim, and
+//!   certifies today. Its DESCRIPTION still moves: minted through the
+//!   scaffolding door as `MappedCurve::PlacedSegment` (the cap plane
+//!   is fitted through the rim, so it does not exist yet), it is
+//!   re-stated as an image in the cap's own chart once the plane does
+//!   ([`crate::swept::describe_face_rim_at_rest`] — D3's transience
+//!   fence). No cap–wall dihedral is classified here: unlike extrude,
+//!   loft does not upgrade these rims to `Intersection`.
 //! - **Wall–wall seams** are the genuinely new class (item 6(iii)):
 //!   an iso image of over the wall's boundary
 //!   row (`geom_brep::boundary_iso_u` — a control-net copy, no
@@ -66,7 +72,7 @@ use topo::{
     PcurveMintError, ShellKey, SolidKey,
 };
 
-use crate::skin::{LoftGeometry, Section, SkinError, lift_surface, loft_geometry, sweep_places};
+use crate::skin::{LoftGeometry, Section, SkinError, loft_geometry, sweep_places};
 use crate::swept::{
     SweptSeg, cap_points, describe_face_rim_at_rest, face_surface_key, placed_segment_spec,
     swept_segments,
@@ -210,21 +216,6 @@ impl From<EulerOpError> for LoftError {
     }
 }
 
-/// Exact `f64 → T` lift of a rigid placement (C6: the placement is
-/// stored structure; `from_f64` is exact at every scalar).
-fn lift_affine<T: Real>(a: &Affine3<f64>) -> Affine3<T> {
-    let v =
-        |w: geom_core::Vec3<f64>| Vec3::new(T::from_f64(w.x), T::from_f64(w.y), T::from_f64(w.z));
-    Affine3 {
-        linear: geom_core::Mat3 {
-            c0: v(a.linear.c0),
-            c1: v(a.linear.c1),
-            c2: v(a.linear.c2),
-        },
-        translation: v(a.translation),
-    }
-}
-
 /// One end section as a profile at `T` — the section IS a profile
 /// now (LIB-U3), so this is the exact `f64 → T` embedding of its
 /// loops (positions, bulges, and declared-tangent joints — the
@@ -242,18 +233,13 @@ fn end_profile<T: Decide>(
             ProfileLoop::new(
                 lp.vertices()
                     .iter()
-                    .map(|v| {
-                        ProfileVertex::new(
-                            geom_core::Point2::new(T::from_f64(v.pos().x), T::from_f64(v.pos().y)),
-                            T::from_f64(v.bulge()),
-                        )
-                    })
+                    .map(|v| ProfileVertex::new(v.pos().map(T::from_f64), T::from_f64(v.bulge())))
                     .collect(),
             )
             .with_tangent_joints(lp.tangent_joints().to_vec())
         })
         .collect();
-    Profile::new(SketchPlane::new(lift_affine(place)), loops)
+    Profile::new(SketchPlane::new(place.map(T::from_f64)), loops)
         .validate(tol)
         .map_err(LoftError::Profile)
 }
@@ -287,8 +273,8 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
     };
     let bottom_profile: ValidatedProfile<T> = end_profile(sec_bottom, place_bottom, tol)?;
     let top_profile: ValidatedProfile<T> = end_profile(sec_top, place_top, tol)?;
-    let bplace: Affine3<T> = lift_affine(place_bottom);
-    let tplace: Affine3<T> = lift_affine(place_top);
+    let bplace: Affine3<T> = place_bottom.map(T::from_f64);
+    let tplace: Affine3<T> = place_top.map(T::from_f64);
     let n_bottom = bplace.linear.c2;
     let n_top = tplace.linear.c2;
 
@@ -340,16 +326,16 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
 
     // ---- Lifted walls, kept once: face surfaces AND seam carriers
     // read the same lifted structure (D9 — one lift, shared bits). ----
-    let mut walls_t: Vec<Vec<Arc<NurbsSurface<T>>>> = Vec::with_capacity(geometry.walls.len());
-    for loop_walls in &geometry.walls {
-        let mut lifted = Vec::with_capacity(loop_walls.len());
-        for w in loop_walls {
-            lifted.push(Arc::new(
-                lift_surface::<T>(w).map_err(|e| LoftError::Skin(SkinError::Structure(e)))?,
-            ));
-        }
-        walls_t.push(lifted);
-    }
+    let walls_t: Vec<Vec<Arc<NurbsSurface<T>>>> = geometry
+        .walls
+        .iter()
+        .map(|loop_walls| {
+            loop_walls
+                .iter()
+                .map(|w| Arc::new(w.map_scalar(T::from_f64)))
+                .collect()
+        })
+        .collect();
 
     // ---- Phase 1: bottom lamina (the extrude shape: the seed face's
     // chain is minted at the BOTTOM vertices and survives as the TOP

@@ -26,8 +26,8 @@ use std::sync::Arc;
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CancelToken, CapEnd, ChecksConfig, ContactClass, DocEdit,
     DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive, Node,
-    ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, StableName, assemble,
-    content_pin, evaluate, run_checks,
+    ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName,
+    assemble, content_pin, evaluate, run_checks,
 };
 use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
@@ -137,7 +137,7 @@ fn vanished(instance: RecipeNodeId) -> StableName {
             of: Box::new(StableName {
                 kind: EntityKind::Face,
                 node: RecipeNodeId(99),
-                path: vec![RoleSeg::Cap(CapEnd::Top)],
+                path: vec![RoleSeg::Cap(CapEnd::End)],
             }),
         }],
     }
@@ -158,8 +158,8 @@ fn mate_node(
     seat: f64,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a,
-        b,
+        a: SitedRef::at_mint(a),
+        b: SitedRef::at_mint(b),
         class,
         alignment: Alignment {
             a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),
@@ -183,8 +183,8 @@ fn stand(label: &str, part: DocRef, seat: f64) -> (ProfileDoc, Vec<RecipeNodeId>
         doc,
         DocEdit::InsertNode {
             node: mate_node(
-                in_part(ids[0], CapEnd::Top),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[0], CapEnd::End),
+                in_part(ids[1], CapEnd::Start),
                 ContactClass::Rest,
                 seat,
             ),
@@ -252,7 +252,7 @@ fn p1_first_bad_mate_wins_badref_before_tangent() {
         DocEdit::InsertNode {
             node: mate_node(
                 vanished(ids[0]),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[1], CapEnd::Start),
                 ContactClass::Rest,
                 1.5,
             ),
@@ -262,8 +262,8 @@ fn p1_first_bad_mate_wins_badref_before_tangent() {
         doc,
         DocEdit::InsertNode {
             node: mate_node(
-                in_part(ids[0], CapEnd::Top),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[0], CapEnd::End),
+                in_part(ids[1], CapEnd::Start),
                 ContactClass::Tangent,
                 1.5,
             ),
@@ -286,8 +286,8 @@ fn p2_first_bad_mate_wins_tangent_before_badref() {
         doc,
         DocEdit::InsertNode {
             node: mate_node(
-                in_part(ids[0], CapEnd::Top),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[0], CapEnd::End),
+                in_part(ids[1], CapEnd::Start),
                 ContactClass::Tangent,
                 1.5,
             ),
@@ -298,7 +298,7 @@ fn p2_first_bad_mate_wins_tangent_before_badref() {
         DocEdit::InsertNode {
             node: mate_node(
                 vanished(ids[0]),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[1], CapEnd::Start),
                 ContactClass::Rest,
                 1.5,
             ),
@@ -373,8 +373,8 @@ fn p5_checks_with_a_bad_mate_before_a_good_one() {
         doc,
         DocEdit::InsertNode {
             node: mate_node(
-                in_part(ids[2], CapEnd::Top),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[2], CapEnd::End),
+                in_part(ids[1], CapEnd::Start),
                 ContactClass::Tangent,
                 5.0,
             ),
@@ -386,8 +386,8 @@ fn p5_checks_with_a_bad_mate_before_a_good_one() {
         doc,
         DocEdit::InsertNode {
             node: mate_node(
-                in_part(ids[0], CapEnd::Top),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[0], CapEnd::End),
+                in_part(ids[1], CapEnd::Start),
                 ContactClass::Rest,
                 1.0,
             ),
@@ -470,8 +470,8 @@ fn p8_inner_mint_refusals_stop_at_the_seam() {
         inner,
         DocEdit::InsertNode {
             node: mate_node(
-                in_part(ids[0], CapEnd::Top),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[0], CapEnd::End),
+                in_part(ids[1], CapEnd::Start),
                 ContactClass::Tangent,
                 5.0,
             ),

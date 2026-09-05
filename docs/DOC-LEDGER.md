@@ -504,6 +504,33 @@ tracker paths and were re-pointed in this sweep rather than left:
   `work/pcurve/program.md` as PCURVE's done-state of record; it now points
   at `docs/PCURVE-EXIT-WALK.md`, which is what that record actually is.
 
+## Sweep 6 — 2026-09-04: S-MATE leaves the tracker
+
+Sweep SHA: `386e170f` (`main`'s tip immediately before the deletion),
+so every path below is recoverable at
+`git show 386e170f:work/mate/<FILE>` and
+`git show 386e170f:docs/S-MATE-EXIT-WALK.md`.
+
+Sweep 5's rule. The walk rode PR #1528 as PROPOSED and Ev merged it
+on 2026-09-01; the ratification it asked for was confirmed in-chat on
+2026-09-04 ("if S-MATE's exit walk is merged then it means I approved
+it"), and nothing had run the sweep in between. Four files, one
+program:
+
+- `work/mate/program.md`, `plan.md`, `log.md` — S-MATE's charter,
+  plan and narrative: nine units (ordinals 1300–1308), two in-program
+  ratifications (PRs #1440, #1469).
+- `work/mate/MATE-EXIT.md` — the ratification ruling, closed by this
+  sweep.
+
+Residue was re-homed before the sweep (the log's 2026-09-03 "Seam"
+entry): five issues to `work/fix/`, two to `work/docm/`, six to
+`work/curved/`; the walk's handoffs ledger names every other
+pointer's home. What opens with this sweep: `crates/editor-core/src/mate.rs`,
+`mate/*` and `assembly.rs` pass to DOCM's territory per its program
+header; `crates/topo/src/census.rs`, `boolean/rest.rs` and
+`boolean/carrier_eq.rs` are unowned until a program claims them.
+
 ## Per-merge deletion — M10's merged-unit specs (2026-09-03)
 
 Recoverable at `git show 08931277cf23c29d35daa41a15a4cecc6495022e:docs/<NAME>`
@@ -586,9 +613,8 @@ that lands here resolves without opening the walk:
 | `PCURVE-EXIT-WALK.md` | 2026-08-29 | in-chat | this row; `docs/PCURVE-UNIFY-DESIGN.md` stays (P-2 residue is S-CERT's) |
 | `S-BLEND-EXIT-WALK.md` | 2026-08-31 | PR #1370 | this row; vocabulary at `crates/sweep/README.md`, enclosing tangency at `crates/profile/README.md` |
 | `S-QA-EXIT-WALK.md` | 2026-08-31 | PR #1341 | this row |
+| `S-MATE-EXIT-WALK.md` | 2026-09-04 | PR #1528, merged by Ev 2026-09-01; ratification confirmed in-chat 2026-09-04 | this row; design at `crates/editor-core/ASSEMBLY.md`; sweep 6 below |
 
-`S-MATE-EXIT-WALK.md` is NOT here: it is PROPOSED, awaiting Ev
-(`work/mate/MATE-EXIT.md`), and goes when it is ratified.
 
 - `M5-EXIT-WALK.md` — M5 exit walk (PR 14) — criteria vs evidence
 - `M6-EXIT-WALK.md` — M6 exit walk — criteria vs evidence
@@ -600,8 +626,9 @@ that lands here resolves without opening the walk:
 - `PCURVE-EXIT-WALK.md` — PCURVE — exit walk
 - `S-BLEND-EXIT-WALK.md` — S-BLEND exit walk — criteria vs evidence
 - `S-QA-EXIT-WALK.md` — S-QA exit walk — criteria vs evidence
+- `S-MATE-EXIT-WALK.md` — S-MATE exit walk — criteria vs evidence
 
-### Per-unit specs, unit merged (46 files)
+### Per-unit specs, unit merged (47 files)
 
 The standing rule (`work/README.md`: a spec is deleted at merge; the
 item file, the program log entry and the `MODEL-AB-LOG.md` row are the
@@ -617,6 +644,13 @@ at the parent of the commit that removed it):
 - `TCOST-K1-SPEC.md` — TCOST-K1 — the patch-flux lanes' exhausted-budget cost (removed in 9029480ee; PR 1652's body, `work/tcost/TCOST-K1.md` and the ordinal-1400 row are the record)
 - `TCOST-K2-SPEC.md` — TCOST-K2 — `offset_fit::fit_offset`'s per-station seconds: the Bernstein product weight, hoisted (last on `main` at 87d33648c; PR 1697's body, `work/tcost/TCOST-K2.md` and the ordinal-1401 row are the record)
 - `TCOST-K3-SPEC.md` — TCOST-K3 — the tier-3 gate's discarded certificate (last on `main` at 6381ebdd9; PR 1703's body, `work/tcost/TCOST-K3.md` and the ordinal-1402 row are the record)
+- `FILLET-H4-SPEC.md` — FILLET-H4 — the material-adding closed-rim band, incl. the Phase 1 re-scope (last on `main` at fc38f753b; PR 1752's body, `work/fillet/concave-closed-rim-has-no-band.md` and the ordinal-2000 row are the record)
+- `FILLET-RIM-SPEC.md` — FILLET-RIM — `topo::query::rim_of`, the exact door naming a closed rim by any one of its arcs, incl. its two fix-pass amendments (last on `main` at 40d50f272; PR 1821's body, `work/fillet/no-public-rim-arc-selector.md` and the ordinal-2001 row are the record)
+- `FILLET-H5-SPEC.md` — FILLET-H5 — the plane-hosted closed rim as the annulus band with hostless crossings, incl. §Re-scope at Phase 1 and the fix-pass amendments (last on `main` at 91e6d4309; PR 1824's body, `work/fillet/repaired-pole-rim-serves-no-closed-door.md` and the ordinal-2002 row are the record)
+- `FILLET-ATTR-SPEC.md` — FILLET-ATTR — `NoCornerOfPair`, every refusing crossing named nearest-anchors-first, incl. the fix-pass amendment of C1 to the channel rule (last on `main` at aa5384288; PR 1895's body, `work/fillet/fillet-refusal-describes-unbracketed-crossing.md` and the ordinal-2004 row are the record)
+- `FILLET-H6-SPEC.md` — FILLET-H6 — extrude's cap-rim `Smooth` arm measured unreachable at the shipped K and made a typed refusal below the crossover; the must-carry rule homed as `geom_brep::tangent_second_order`; incl. the fix-pass amendments (last on `main` at 195460c7a; PR 1891's body, `work/fillet/extrude-cap-rim-smooth-arm-noop.md` and the ordinal-2003 row are the record)
+- `FILLET-H7-SPEC.md` — FILLET-H7 — the ruled band and its transverse cut-off (`CornerConfig::TransverseCap` / `RunOutPolicy::CutOffAtTransverseCap`, ratified on PR 1819), incl. the fix-pass amendments (last on `main` at 235d05241; PR 1897's body, `work/fillet/fillet-ruled-spine-arms-no-surgery.md` and the ordinal-2005 row are the record)
+- `PROPS-VERDICT-SHAPES-SPEC.md` — PROPS verdict-shapes — the two derived per-node verdict forms in one module (`resolve/vdiff.rs`), `ReplayOutcome` folded into `RunStatus` with `Absent` kept distinct, the strict-vs-population split pinned (last on `main` at 8ba880fda; PR 1920's body and `work/props/three-per-node-verdict-shapes.md` are the record; an E rider outside the A/B experiment, no row)
 
 - `BOOL-1-SPEC.md` — BOOL-1 — issue 1152: coplanar-split section boundaries cite non-adjacent surfaces
 - `BOOL-2-SPEC.md` — BOOL-2 — issue 1011, the cone arm: point_in_solid learns ray×cone
@@ -729,3 +763,135 @@ residue), `PATHS-DESIGN` and `SELECT-DESIGN` (edited by live units this
 week), `MATE-7-TANGENCY-DESIGN` (ratified this week; the kissing arm
 banks on it). Reference and measurement records stay as sweep 3 left
 them.
+## Sweep 6 — 2026-09-04: VERBS leaves the tracker
+
+Sweep SHA: `c1e7ea19501d9e625dbd0de260d01a53a0384b42` — the closure
+dispositions commit, immediately before the deletion, so every path
+below is recoverable at
+`git show c1e7ea19501d9e625dbd0de260d01a53a0384b42:<PATH>`.
+
+Same rule as sweep 5: `work/` tracks work still to be done, so the
+closed program's directory leaves whole. One program, twenty files,
+`status: closed` with no live items:
+
+| program | title | closed | done-state of record |
+| --- | --- | --- | --- |
+| `verbs` | VERBS — the modeling-verb breadth program | 2026-09-04 | `docs/VERBS-EXIT-WALK.md` (ratified by Ev at PR #1793, merged `fd45920d5`; per-register-row disposition tables, the A/B instrument state at close, and the ten-item open list resolved at this sweep) |
+
+What the walk records: 28 delivered unit/PR rows (every implementation
+row of `docs/KERNEL-VERBS.md`), 2 measured-and-refused boundaries
+standing as done-states (the Steinmetz pinch family's typed refusal;
+the circle-profile rim's torus half), ~10 transfers, and the A/B
+program instrument at close (14 dual ordinals, 7 tally candidates
+pending the blinded coding, the 5.1 era boundary, the sample-number
+cascade note).
+
+### Residue — re-homed, not lost
+
+Before deletion, the dispositions commit closed
+`coplanar-cap-pair-f7-repair-half-b` (delivered by VERBS-1031B,
+PR #1671) and re-homed FOURTEEN live items to `work/issues/`:
+twelve open issues (among them `verbs-1031b-assigner-checker-
+divergence`, the parked `pinch-carrying-machinery-valence-4`, and
+the #1076/#347 register residue) plus `VERBS-C5ARMS` (PR-2
+cone×cylinder remains, spec `docs/VERBS-C5ARMS-SPEC.md`) and
+`VERBS-CONE` (operand lanes, never cut) converted to issues as
+successor-program seeds. Inbound refs re-pointed
+(`work/seat/SEAT-6.md`, `work/issues/sphere-flux-arm-refuses-
+partial-bands.md`, `work/props/m6-sense-gate-recorded-residuals.md`);
+`scripts/work.py lint` green. The A/B band (100–199) stays claimed
+in `docs/MODEL-AB-LOG.md`'s ordinal-bands section as always.
+
+## Per-merge deletion — DOCM-4's spec (2026-09-04)
+
+Recoverable at `git show c20bac059531ccfa00cded39f65ef53474f84e0d:docs/DOCM-4-SPEC.md`
+(the DOCM-4 unit head, before the state-sync commit that deleted it).
+The rule above; the unit's record is its row in `MODEL-AB-LOG.md`
+and its MERGED entry in `work/docm/log.md`.
+
+- `DOCM-4-SPEC.md` — DOCM-4, an evaluation carries its document's identity (#1808)
+
+## Per-merge deletion — DOCM-3's spec (2026-09-04)
+
+Recoverable at `git show d87d012149dfcbc917713ba8c18cbf505390040e:docs/DOCM-3-SPEC.md`
+(the DOCM-3 unit head, before the state-sync commit that deleted it;
+the file carries the stop-clause amendment as its last section). The
+rule above; the unit's record is its row in `MODEL-AB-LOG.md` and its
+MERGED entry in `work/docm/log.md`.
+
+- `DOCM-3-SPEC.md` — DOCM-3, `Node::Union`, `DocEdit::SetMembers`, pairwise-distinct inputs (#1803)
+
+## Per-merge deletion — DOCM-1's spec (2026-09-04)
+
+Recoverable at `git show 17bb8fb18b994b96202d72472864140396b50199:docs/DOCM-1-SPEC.md`
+(the DOCM-1 unit head, before the state-sync commit that deleted it;
+the file carries the stop-clause amendment as its last section). The
+rule above; the unit's record is its row in `MODEL-AB-LOG.md` and its
+MERGED entry in `work/docm/log.md`.
+
+- `DOCM-1-SPEC.md` — DOCM-1, `Datum::FaceFrame`, the sense beside the pose, the carrier-kind read (#1829)
+
+## Per-merge deletion — DOCM-2's spec (2026-09-04)
+
+Recoverable at `git show 286d9a08bb9f2fd8e549742e7213828005c97b89:docs/DOCM-2-SPEC.md`
+(the DOCM-2 unit head, before the state-sync commit that deleted it;
+the file carries the stop-clause amendment as its last section). The
+rule above; the unit's record is its row in `MODEL-AB-LOG.md` and its
+MERGED entry in `work/docm/log.md`.
+
+- `DOCM-2-SPEC.md` — DOCM-2, `Node::Part`, a split's half or a pattern's instance as one body (#1860)
+
+## Per-merge deletion — DOCM-5's spec (2026-09-04)
+
+Recoverable at `git show 9f34220e3938076557f38722554446867a6ef3a0:docs/DOCM-5-SPEC.md`
+(the DOCM-5 unit head, before the state-sync commit that deleted it;
+unamended — no stop clause fired; its citation of `docs/PERF-PLAN.md`
+and its fence over `product.rs` "Dual arms" are both corrected in the
+unit's record). The rule above; the unit's record is its row in
+`MODEL-AB-LOG.md` and its MERGED entry in `work/docm/log.md`.
+
+- `DOCM-5-SPEC.md` — DOCM-5, the check registry's subject: one gather per landing (#1871)
+
+## Per-merge deletion — PROPS-1's spec (2026-09-05)
+
+Recoverable at `git show 62f81827717913c71e1dd5a213ead05e47319058:docs/PROPS-1-SPEC.md`
+(the PROPS-1 unit head, before the commit that deleted it; unamended —
+no stop clause fired). Two of its clauses were argued down rather than
+met, and the argument is in the unit's PR: its pin (a) asks for
+"narrower than the old form on every corpus row", which is false per
+component once the anchor is exact, and its member-3 phrasing about the
+parallel case does not survive measurement. The rule above; the unit's
+record is its row in `MODEL-AB-LOG.md` and its item's `## Closed`
+section.
+
+- `PROPS-1-SPEC.md` — PROPS-1, the lost-correlation members of the linalg audit: `mirror_across_plane` and `reject_from` (#1918)
+## Per-merge deletion — TOPO-S330's spec (2026-09-05)
+
+Recoverable at `git show 57cd299d8225afe4454bd068fa9e374439975363:docs/TOPO-S330-SPEC.md`
+(the S330 unit head after the review fix pass, before the state-sync
+commit that deleted it). Two of its stated facts were falsified by the
+unit and are corrected in the unit's record, not here: `ops_cube` is not
+a tier-3-clean planar cube (every face carries the mvfs placeholder), and
+its Phase-2 shape for the poison door — a second predicate beside
+`is_placeholder` — was replaced by `geom::NetState` at review. The rule
+above; the unit's record is its row in `MODEL-AB-LOG.md` and its MERGED
+entry in `work/topo/log.md`.
+
+- `TOPO-S330-SPEC.md` — TOPO-S330, tier-3 check 1's described-NURBS arm (#1923)
+
+## Per-merge deletion — MSOLVE-1's spec (2026-09-05)
+
+Recoverable at `git show 550a9f2a9febb277ab69cf8d566850af65b51bfb:docs/MSOLVE-1-SPEC.md`
+(the MSOLVE-1 unit head, before the state-sync commit that deleted it;
+unamended — no stop clause fired). Three of its clauses were corrected
+by measurement rather than met, and the argument is in the unit's PR:
+A3's transform-of-pattern cannot reach a product (`Node::Transform`
+takes one body; filed in `work/issues/`), A8's "refuses at the remap"
+became a typed refusal at the split door in both directions
+(`SplitError::OperandSeveredFromMate`), and the acceptance fixture the
+spec's rows were first written against interpenetrated and was
+re-authored as a physical seat at the fix pass. The rule above; the
+unit's record is its item's `## Closed` section and its MERGED entry
+in `work/msolve/log.md` (no A/B row: the program runs none).
+
+- `MSOLVE-1-SPEC.md` — MSOLVE-1, the mate reads at its operand: the transform-aware solve (#1929)

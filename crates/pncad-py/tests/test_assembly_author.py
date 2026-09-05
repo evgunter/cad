@@ -256,7 +256,7 @@ class TestBenchLayout(BenchWorkspace):
         doc, family, _, _ = self.layout()
         ev = evaluate(doc, resolver=self.ws)
         caps = ev.select(
-            family, cap_selector(CapEnd.Top, [SegTag.Instance, SegTag.InPart])
+            family, cap_selector(CapEnd.End, [SegTag.Instance, SegTag.InPart])
         )
         # One per placement, and the name NESTS rather than
         # concatenating: pattern index, then instance, then the part's
@@ -303,7 +303,7 @@ class TestBenchLayout(BenchWorkspace):
         # Rung 1: the part's own cap, in the part's own coordinates.
         part_ev = evaluate(self.post)
         part_root = self.post.roots[0]
-        part_cap = one(part_ev.select(part_root, cap_selector(CapEnd.Top)))
+        part_cap = one(part_ev.select(part_root, cap_selector(CapEnd.End)))
         local = part_ev.face_frame(part_root, part_cap).origin
 
         # Rung 2: the placement the layout gave that instance, applied
@@ -323,7 +323,7 @@ class TestBenchLayout(BenchWorkspace):
         ]
 
         caps = ev.select(
-            family, cap_selector(CapEnd.Top, [SegTag.Instance, SegTag.InPart])
+            family, cap_selector(CapEnd.End, [SegTag.Instance, SegTag.InPart])
         )
         read = sorted(
             tuple(c.meters for c in ev.face_frame(family, cap).origin) for cap in caps
@@ -348,7 +348,7 @@ class TestBenchLayout(BenchWorkspace):
         doc, family, _, _ = self.layout()
         ev = evaluate(doc, resolver=self.ws)
         caps = ev.select(
-            family, cap_selector(CapEnd.Top, [SegTag.Instance, SegTag.InPart])
+            family, cap_selector(CapEnd.End, [SegTag.Instance, SegTag.InPart])
         )
         for cap in caps:
             denotation = ev.denotation(family, cap)
@@ -384,14 +384,14 @@ class TestBenchStand(BenchWorkspace):
         )
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
         post_b = doc.insert(Node.instantiate_part(self.post_ref))
-        a_top = self.instance_face(doc, post_a, CapEnd.Top)
-        b_top = self.instance_face(doc, post_b, CapEnd.Top)
-        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Bottom)
+        a_top = self.instance_face(doc, post_a, CapEnd.End)
+        b_top = self.instance_face(doc, post_b, CapEnd.End)
+        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
         mate_1 = doc.insert(
-            Node.mate(a_top, s_bottom, class_, seat(POST_SEAT, SEAT_A, primitive))
+            Node.mate(post_a, a_top, shelf_i, s_bottom, class_, seat(POST_SEAT, SEAT_A, primitive))
         )
         mate_2 = doc.insert(
-            Node.mate(s_bottom, b_top, class_, seat(SEAT_B, POST_SEAT, primitive))
+            Node.mate(shelf_i, s_bottom, post_b, b_top, class_, seat(SEAT_B, POST_SEAT, primitive))
         )
         return doc, (post_a, shelf_i, post_b), (mate_1, mate_2)
 
@@ -577,14 +577,80 @@ class TestAssemblyRefusals(BenchWorkspace):
     def test_a_mate_naming_one_instance_twice_refuses(self):
         doc = Doc("self-mate")
         post_i = doc.insert(Node.instantiate_part(self.post_ref))
-        face = self.instance_face(doc, post_i, CapEnd.Top)
-        mate = doc.insert(Node.mate(face, face, ContactClass.Rest, seat(POST_SEAT, POST_SEAT)))
+        face = self.instance_face(doc, post_i, CapEnd.End)
+        mate = doc.insert(Node.mate(post_i, face, post_i, face, ContactClass.Rest, seat(POST_SEAT, POST_SEAT)))
         fault = solve_document(doc).fault(mate)
         # A pair is two instances; a self-mate constrains nothing and
         # is a recipe mistake, refused rather than folded into a
         # tautology.
         self.assertEqual(fault.variant, "mate_self")
         self.assertEqual(fault.instance, post_i)
+
+    def test_a_mate_on_a_transformed_instance_is_read_at_the_transform(self):
+        """A mate's reference is a NODE and a NAME. Wrap an instance in
+        a transform and the name is unchanged — a transform mints no
+        name — so the operand is the only thing that says which
+        geometry the mate is about. Read at the transform, the solve
+        composes the transform's map and the seat holds where the
+        transformed body actually is."""
+        doc = Doc("pncad-mate-operand")
+        post_a = doc.insert(Node.instantiate_part(self.post_ref))
+        shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
+        lifted = doc.insert(
+            Node.transform(
+                shelf_i,
+                (0 * m, 0 * m, 0.25 * m),
+                (0.0, 0.0, 1.0),
+                0.0 * pncad.rad,
+            )
+        )
+        a_top = self.instance_face(doc, post_a, CapEnd.End)
+        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
+        mate = doc.insert(
+            Node.mate(
+                post_a,
+                a_top,
+                lifted,
+                s_bottom,
+                ContactClass.Rest,
+                seat(POST_SEAT, SEAT_A),
+            )
+        )
+        # The transform is invisible to NAMING (the reference resolves
+        # through it to the minting instance) and visible to the SOLVE
+        # (which walks from the operand and composes its map).
+        self.assertIsNone(solve_document(doc).fault(mate))
+        self.assertEqual(pncad.clusters(doc), [[post_a, shelf_i]])
+        # Read at the instance instead and it is a different node: the
+        # operand is part of what a mate says.
+        at_mint = Node.mate(
+            post_a, a_top, shelf_i, s_bottom, ContactClass.Rest, seat(POST_SEAT, SEAT_A)
+        )
+        other = doc.insert(at_mint)
+        self.assertNotEqual(other, mate)
+
+    def test_a_mate_whose_operand_is_not_live_refuses_at_the_door(self):
+        """The operand is checked at the edit door exactly as the
+        name's head is: an operand that is not a live node at insert
+        is a typo, refused there rather than discovered as a dangling
+        reference at the solve."""
+        doc, post_i, shelf_i = self.two_instances()
+        top = self.instance_face(doc, post_i, CapEnd.End)
+        bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
+        dead = doc.insert(Node.instantiate_part(self.post_ref))
+        doc.apply(DocEdit.delete_node(dead))
+        with self.assertRaises(pncad.EditError) as caught:
+            doc.insert(
+                Node.mate(
+                    dead,
+                    top,
+                    shelf_i,
+                    bottom,
+                    ContactClass.Rest,
+                    seat(POST_SEAT, SEAT_A),
+                )
+            )
+        self.assertEqual(caught.exception.variant, "read_site_missing_node")
 
     def test_a_class_the_gate_cannot_mint_refuses_at_the_gate(self):
         doc, _, (mate_1, _) = TestBenchStand.stand(self, class_=ContactClass.Tangent)
@@ -614,9 +680,9 @@ class TestAssemblyRefusals(BenchWorkspace):
         doc, post_i, shelf_i = self.two_instances()
         ev = evaluate(doc, resolver=self.ws)
         edge = sorted(ev.all_edges(post_i))[0]
-        bottom = one(ev.select(shelf_i, cap_selector(CapEnd.Bottom, [SegTag.InPart])))
+        bottom = one(ev.select(shelf_i, cap_selector(CapEnd.Start, [SegTag.InPart])))
         mate = doc.insert(
-            Node.mate(edge, bottom, ContactClass.Rest, seat(POST_SEAT, SEAT_A))
+            Node.mate(post_i, edge, shelf_i, bottom, ContactClass.Rest, seat(POST_SEAT, SEAT_A))
         )
         with self.assertRaises(pncad.AssemblyError) as caught:
             assemble(doc, evaluate(doc, resolver=self.ws))

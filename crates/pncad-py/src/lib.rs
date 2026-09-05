@@ -34,6 +34,8 @@ pub mod tags;
 mod py;
 
 #[cfg(test)]
+mod prose_census;
+#[cfg(test)]
 mod surface_census;
 #[cfg(test)]
 mod tests;

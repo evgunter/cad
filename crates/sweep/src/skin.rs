@@ -39,10 +39,13 @@
 //! parameters are chosen in `f64`, deterministically: same sections in,
 //! same knots and same control bits out. The produced surface then
 //! evaluates generically over [`geom_core::Real`] (the substrate's
-//! rule) — [`lift_surface`] carries a chosen structure to any scalar.
-//! No topology decision is made here, so nothing routes through
-//! `k_stats`; the raw `f64` comparisons below are structure selection
-//! under C6.
+//! rule) — [`NurbsSurface::map_scalar`] carries a chosen structure to
+//! any scalar. The control bits and the weights are DATA, so that lift
+//! is exact at every scalar and reads the SAME definition Q8 names
+//! above: the interval lane encloses this surface, never an
+//! approximation of it. No topology decision is made here, so nothing
+//! routes through `k_stats`; the raw `f64` comparisons below are
+//! structure selection under C6.
 
 use std::sync::Arc;
 
@@ -52,7 +55,7 @@ use geom::curves::fit::{FitError, interpolate_columns};
 use geom_brep::SketchSegment;
 use geom_core::Tol;
 use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
-use geom_core::{Affine3, COINCIDENCE_RECOURSE, Point2, Point3, Real, Vec3};
+use geom_core::{Affine3, COINCIDENCE_RECOURSE, Point2, Point3, Vec3};
 use profile::{Profile, ProfileError, ProfileLoop, SketchPlane, ValidatedProfile};
 
 /// The quarter-turn ceiling on one rational-quadratic arc span: every
@@ -411,40 +414,9 @@ pub fn make_compatible(sections: &[NurbsCurve3<f64>]) -> Result<Vec<NurbsCurve3<
             }
         })
         .collect::<Result<_, _>>()?;
-    // §5.3: the union knot vector — every distinct interior value at
-    // the greatest multiplicity any section gives it.
-    let mut union: Vec<(f64, usize)> = Vec::new();
-    for c in &elevated {
-        for (value, mult) in c.knots().interior_knots() {
-            match union.iter_mut().find(|(v, _)| *v == value) {
-                Some((_, m)) => *m = (*m).max(mult),
-                None => union.push((value, mult)),
-            }
-        }
-    }
-    union.sort_by(|a, b| a.0.total_cmp(&b.0));
-    let merged: Vec<NurbsCurve3<f64>> = elevated
-        .iter()
-        .map(|c| {
-            let own: Vec<(f64, usize)> = c.knots().interior_knots().collect();
-            let mut add: Vec<f64> = Vec::new();
-            for (value, want) in &union {
-                let have = own
-                    .iter()
-                    .find(|(v, _)| *v == *value)
-                    .map_or(0, |(_, m)| *m);
-                for _ in have..*want {
-                    add.push(*value);
-                }
-            }
-            if add.is_empty() {
-                Ok(c.clone())
-            } else {
-                c.refine_knots(&add).map_err(SkinError::KnotAlgebra)
-            }
-        })
-        .collect::<Result<_, _>>()?;
-    Ok(merged)
+    // §5.3: one common knot vector — the union, at one degree and on
+    // one domain by the two checks above.
+    NurbsCurve3::refine_to_union(&elevated).map_err(SkinError::KnotAlgebra)
 }
 
 // ---------------------------------------------------------------------
@@ -746,29 +718,6 @@ pub fn skin_on(
     }
     // `NurbsSurface::new` is the `w > 0` door (and the count door).
     NurbsSurface::new(knots_u, knots_v, control, weights).map_err(SkinError::Structure)
-}
-
-/// Carries an `f64`-chosen surface structure to any scalar for
-/// evaluation (crate docs' C6 note): the control bits and weights are
-/// DATA — the Q8 definition — so lifting is `from_f64`, exact at every
-/// scalar, and the interval lane encloses the very same surface.
-///
-/// # Errors
-///
-/// [`SplineError`] — unreachable for a surface that already validated,
-/// surfaced rather than swallowed.
-pub fn lift_surface<T: Real>(s: &NurbsSurface<f64>) -> Result<NurbsSurface<T>, SplineError> {
-    let control = s
-        .control()
-        .iter()
-        .map(|p| Point3::new(T::from_f64(p.x), T::from_f64(p.y), T::from_f64(p.z)))
-        .collect();
-    NurbsSurface::new(
-        s.knots_u().clone(),
-        s.knots_v().clone(),
-        control,
-        s.weights().to_vec(),
-    )
 }
 
 // ---------------------------------------------------------------------
