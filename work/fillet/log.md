@@ -485,3 +485,23 @@ door, so three `topo` meta-gates gained their entries); filed
 produced NO workflow run for twenty minutes — not a filter decision;
 "CI is green" and "CI ran" are different questions, and the state-sync
 verifies the run exists on the head.
+
+**H6 merged (2026-09-05)** at `195460c7a` (PR
+[#1891](https://github.com/evgunter/cad/pull/1891)), **sample #135**,
+ordinal 2003; block FILLET-B2 slot 0 concluded (line on `fillet/b2-block`
+— ATTR, slot 1, reached main first by merge order). `docs/FILLET-H6-SPEC.md`
+deleted, ledgered at the merge SHA. Filed by the pass:
+`ambiguity-k-below-the-cap-rim-crossover`. Block B2 now waits on H7's fix
+pass alone.
+
+## Inherited red on main, from FILLET-ATTR (TOPO relaying, 2026-09-05)
+
+PR 1895 (`fillet/attr-every-crossing`) merged at `aa5384288` and the
+CI run on that merge, 33943429161, was CANCELLED, so main has been red
+at the code tier since: `crates/geom-core/tests/bounds_census.rs`'s
+`every_sole_bracket_bound_door_is_in_the_roster` names
+`crates/profile/src/path/arc_fillet.rs::anchor_span` (`:522`) as
+unrostered. TOPO's S330 lane hit it on PR 1923 and carries one
+`HandedOff` roster line beside the sibling door as the port so lanes
+stop failing on it; the disposition is this program's to sharpen
+(`Selection`/DL5(b) may be the truer one) and the debt is FILLET-ATTR's.
