@@ -23,8 +23,10 @@ pub struct Affine3<T: Real> {
 }
 
 impl<T: Real> Affine3<T> {
-    /// Builds an affine map from its linear part and translation.
-    pub fn from_parts(linear: Mat3<T>, translation: Vec3<T>) -> Self {
+    /// Builds an affine map from its linear part and translation. A
+    /// `const fn` (the doctest at [`Point3::new`] reads a constant
+    /// placement built through it).
+    pub const fn from_parts(linear: Mat3<T>, translation: Vec3<T>) -> Self {
         Self {
             linear,
             translation,
@@ -64,10 +66,12 @@ impl<T: Real> Affine3<T> {
     /// **unchecked**. Non-orthonormal axes yield a well-defined skew map,
     /// not poison; rigidity is a predicate-layer decision.
     ///
-    /// The translation is the origin's displacement from the chart's
-    /// base point, transcribed component by component (`x − 0` keeps
-    /// `−0.0`), so a frame read back from the stored map — its columns
-    /// and its translation — is bitwise the frame that was written.
+    /// The translation is the subtraction `origin − Point3::origin()`:
+    /// componentwise `x − (+0.0)`, which IEEE 754 leaves at `x` for
+    /// every bit pattern — `−0.0`, `±inf` and NaN payloads included
+    /// (the corpus row below measures it) — so a frame read back from
+    /// the stored map, columns and translation, is bitwise the frame
+    /// that was written.
     pub fn from_frame(origin: Point3<T>, u: Vec3<T>, v: Vec3<T>) -> Self {
         Self::from_parts(Mat3::from_cols(u, v, u.cross(v)), origin - Point3::origin())
     }
@@ -584,34 +588,80 @@ mod tests {
         );
     }
 
-    /// The frames the `from_frame` rows sweep: the canonical axes, a
-    /// general (non-orthonormal — the door does not check) triple, and
-    /// every signed-zero placement of the origin, since `−0.0` is the
-    /// component a transcription can quietly launder.
-    fn frame_corpus() -> Vec<(Point3<f64>, Vec3<f64>, Vec3<f64>)> {
-        let mut corpus = vec![
-            (Point3::origin(), Vec3::unit_x(), Vec3::unit_y()),
-            (
-                Point3::new(1.5, -2.25, 3.0e3),
-                Vec3::unit_y(),
-                Vec3::unit_z(),
-            ),
-            (
-                Point3::new(-7.0, 0.5, 2.0),
-                Vec3::new(0.3, -1.2, 2.5),
-                Vec3::new(-4.0, 0.25, 1.0e-3),
-            ),
-        ];
-        for sx in [0.0, -0.0] {
-            for sy in [0.0, -0.0] {
-                for sz in [0.0, -0.0] {
-                    corpus.push((
-                        Point3::new(sx, sy, sz),
-                        Vec3::unit_z(),
-                        Vec3::new(-0.0, 1.0, 0.0),
-                    ));
-                }
+    /// A deterministic generator for the frame sweep (no dev-dependency,
+    /// reproducible to the bit): log-uniform magnitudes in
+    /// `[1e-6, 1e6]`, random sign, one coordinate in sixteen a signed
+    /// zero.
+    struct Lcg(u64);
+
+    impl Lcg {
+        fn next(&mut self) -> u64 {
+            self.0 = self
+                .0
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            self.0 >> 11
+        }
+
+        #[allow(clippy::cast_precision_loss)]
+        fn coord(&mut self) -> f64 {
+            let r = self.next();
+            if r.is_multiple_of(16) {
+                return if r & 16 == 0 { 0.0 } else { -0.0 };
             }
+            let m = 10f64.powf(-6.0 + 12.0 * (self.next() as f64) / ((1u64 << 53) as f64));
+            if r & 32 == 0 { m } else { -m }
+        }
+
+        fn point(&mut self) -> Point3<f64> {
+            Point3::new(self.coord(), self.coord(), self.coord())
+        }
+
+        fn vec(&mut self) -> Vec3<f64> {
+            Vec3::new(self.coord(), self.coord(), self.coord())
+        }
+    }
+
+    /// The frames the `from_frame` rows sweep — THE corpus for the
+    /// door's bit identity (`profile`'s `sketch_plane.rs` keeps only
+    /// its delegation row and points here): every sign pattern of
+    /// zeros over all nine components; a general non-orthonormal frame
+    /// with each single component replaced by `+0.0` and by `−0.0` in
+    /// turn; a subnormal, a huge value, `±inf` and NaN in a slot of
+    /// each of origin, `u` and `v`; and a 2000-frame generated sweep of
+    /// non-unit, non-orthogonal axes.
+    pub(super) fn frame_corpus() -> Vec<(Point3<f64>, Vec3<f64>, Vec3<f64>)> {
+        let mut corpus = Vec::new();
+        for m in 0..512u32 {
+            let z = |k: u32| if m & (1 << k) == 0 { 0.0 } else { -0.0 };
+            corpus.push((
+                Point3::new(z(0), z(1), z(2)),
+                Vec3::new(z(3), z(4), z(5)),
+                Vec3::new(z(6), z(7), z(8)),
+            ));
+        }
+        let general = [0.3, -1.2, 2.5, -4.0, 0.25, 1.0e-3, 7.0, -0.5, 2.0];
+        for k in 0..9 {
+            for z in [0.0, -0.0] {
+                let mut w = general;
+                w[k] = z;
+                corpus.push((
+                    Point3::new(w[6], w[7], w[8]),
+                    Vec3::new(w[0], w[1], w[2]),
+                    Vec3::new(w[3], w[4], w[5]),
+                ));
+            }
+        }
+        for s in [5e-324, 1.0e308, f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            corpus.push((
+                Point3::new(s, 1.0, -0.0),
+                Vec3::new(s, 0.5, -2.0),
+                Vec3::new(-1.0, s, 3.0),
+            ));
+        }
+        let mut r = Lcg(0x9e37_79b9_7f4a_7c15);
+        for _ in 0..2000 {
+            corpus.push((r.point(), r.vec(), r.vec()));
         }
         corpus
     }
@@ -633,15 +683,20 @@ mod tests {
         for (o, u, v) in frame_corpus() {
             let explicit =
                 Affine3::from_parts(Mat3::from_cols(u, v, u.cross(v)), o - Point3::origin());
-            assert_eq!(bits(Affine3::from_frame(o, u, v)), bits(explicit));
+            assert_eq!(
+                bits(Affine3::from_frame(o, u, v)),
+                bits(explicit),
+                "at {o:?} {u:?} {v:?}"
+            );
         }
     }
 
     #[test]
     fn from_frame_stores_the_axes_and_origin_bitwise_and_computes_the_normal() {
-        // The first two columns and the translation are the caller's
-        // values transcribed; the third column is `u × v`, computed —
-        // read back as bits, so `−0.0` in the origin survives.
+        // The first two columns are the caller's values stored; the
+        // translation is `x − (+0.0)`, which is `x` to the bit (signed
+        // zeros, infinities and NaN payloads included); the third
+        // column is `u × v`, computed.
         for (o, u, v) in frame_corpus() {
             let a = Affine3::from_frame(o, u, v);
             let n = u.cross(v);

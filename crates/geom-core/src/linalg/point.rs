@@ -12,7 +12,8 @@ use core::ops::{Add, Sub};
 use crate::linalg::{Vec2, Vec3};
 use crate::real::Real;
 
-/// A point of the 2-D affine space.
+/// A point of the 2-D affine space. There is no `From<Vec2<T>>` door;
+/// the ruling and its reason are written once, at [`Point3`].
 #[derive(Clone, Copy, Debug)]
 pub struct Point2<T: Real> {
     /// The x coordinate (relative to [`Point2::origin`]).
@@ -121,21 +122,33 @@ impl<T: Real> Point3<T> {
     ///
     /// A `const fn` — the body is a struct literal and calls nothing on
     /// `T` — so a scene constant is spelled through this door rather
-    /// than as a field literal. The same holds for [`Point2::new`],
-    /// [`Vec2::new`] and [`Vec3::new`]; this one example reads all
-    /// four:
+    /// than as a field literal. The same holds for every struct-literal
+    /// constructor in this module — [`Point2::new`], [`Vec2::new`],
+    /// [`Vec3::new`], [`Mat3::from_cols`], [`Affine3::from_parts`] —
+    /// and for none of the others: `zero`, `origin`, `unit_*`,
+    /// `identity` call `T::zero()`/`T::one()`, and a trait call in a
+    /// `const fn` is not stable. This one example reads a constant of
+    /// each of the six:
     ///
     /// ```
-    /// use geom_core::{Point2, Point3, Vec2, Vec3};
+    /// use geom_core::{Affine3, Mat3, Point2, Point3, Vec2, Vec3};
     /// const P: Point3<f64> = Point3::new(1.0, 2.0, 3.0);
     /// const Q: Point2<f64> = Point2::new(4.0, 5.0);
     /// const D: Vec3<f64> = Vec3::new(0.0, 0.0, 1.0);
     /// const E: Vec2<f64> = Vec2::new(1.0, 0.0);
+    /// const U: Vec3<f64> = Vec3::new(1.0, 0.0, 0.0);
+    /// const V: Vec3<f64> = Vec3::new(0.0, 1.0, 0.0);
+    /// const PLACE: Affine3<f64> =
+    ///     Affine3::from_parts(Mat3::from_cols(U, V, D), Vec3::new(1.0, 2.0, 3.0));
     /// assert_eq!((P.x, P.y, P.z), (1.0, 2.0, 3.0));
     /// assert_eq!((Q.x, Q.y), (4.0, 5.0));
     /// assert_eq!((D.x, D.y, D.z), (0.0, 0.0, 1.0));
     /// assert_eq!((E.x, E.y), (1.0, 0.0));
+    /// assert_eq!((PLACE.linear.c2.z, PLACE.translation.y), (1.0, 2.0));
     /// ```
+    ///
+    /// [`Mat3::from_cols`]: crate::Mat3::from_cols
+    /// [`Affine3::from_parts`]: crate::Affine3::from_parts
     pub const fn new(x: T, y: T, z: T) -> Self {
         Self { x, y, z }
     }

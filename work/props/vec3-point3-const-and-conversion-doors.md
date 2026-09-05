@@ -55,8 +55,5 @@ this unit's; `teapot.rs`'s three constants are named in PR 1977's sweep
 for the orchestrator to place.
 
 **Ruling (not to be re-asked): there is no `From<Vec3<T>> for
-Point3<T>`, nor the 2-D twin.** A point is not a vector; the
-affine/linear split is a kernel decision (D2-shaped), and an implicit
-conversion would let a displacement be read as a position at every
-`.into()`. `Point3::origin() + v` is the spelling, and the reason is
-written once, at `Point3`'s type doc.
+Point3<T>`, nor the 2-D twin — `Point3::origin() + v` is the spelling,
+and the reason is written once, at `Point3`'s type doc.**

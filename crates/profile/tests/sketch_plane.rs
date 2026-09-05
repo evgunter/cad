@@ -14,7 +14,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use geom_core::{Affine3, Mat3, Point2, Point3, Vec3};
+use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::SketchPlane;
 
 /// Point3/Vec3 carry no `PartialEq` (a geometric type is not an
@@ -143,7 +143,11 @@ fn plane_equality_is_bit_exact_and_the_two_zeros_differ() {
 
 /// The twelve stored components of a placement, as bits — the
 /// comparison `bit_eq` makes, spelled out so a row can hold an
-/// `Affine3` against a `SketchPlane`.
+/// `Affine3` against a `SketchPlane`. The door's bit-identity corpus
+/// (every sign pattern of zeros, extremes, a generated sweep) lives
+/// with the door, in `geom-core`'s `affine.rs` tests; it is not
+/// reachable from here without a new dev-dependency, so this suite
+/// keeps the delegation row on a handful of frames and no corpus.
 fn bits(a: Affine3<f64>) -> [u64; 12] {
     let (l, t) = (a.linear, a.translation);
     [
@@ -152,56 +156,46 @@ fn bits(a: Affine3<f64>) -> [u64; 12] {
     .map(f64::to_bits)
 }
 
-/// Frames for the bit-identity rows: the canonical planes, a general
-/// (non-orthonormal — unchecked by construction) triple, and every
-/// signed-zero placement of the origin, which is the component the
-/// `origin()` accessor's transcription exists to keep.
-fn frame_corpus() -> Vec<(Point3<f64>, Vec3<f64>, Vec3<f64>)> {
-    let mut corpus = vec![
-        (Point3::origin(), Vec3::unit_x(), Vec3::unit_y()),
-        (Point3::origin(), Vec3::unit_y(), Vec3::unit_z()),
-        (Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
-        (
-            Point3::new(1.5, -2.25, 3.0e3),
-            Vec3::unit_y(),
-            Vec3::unit_z(),
-        ),
-        (
-            Point3::new(-7.0, 0.5, 2.0),
-            Vec3::new(0.3, -1.2, 2.5),
-            Vec3::new(-4.0, 0.25, 1.0e-3),
-        ),
-    ];
-    for sx in [0.0, -0.0] {
-        for sy in [0.0, -0.0] {
-            for sz in [0.0, -0.0] {
-                corpus.push((
-                    Point3::new(sx, sy, sz),
-                    Vec3::unit_z(),
-                    Vec3::new(-0.0, 1.0, 0.0),
-                ));
-            }
-        }
-    }
-    corpus
-}
+/// The canonical planes, one general triple, one frame of signed
+/// zeros — enough to pin that the plane IS the door, not to sweep it.
+const FRAMES: [(Point3<f64>, Vec3<f64>, Vec3<f64>); 5] = [
+    (
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+    ),
+    (
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+    ),
+    (
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        Vec3::new(1.0, 0.0, 0.0),
+    ),
+    (
+        Point3::new(-7.0, 0.5, 2.0),
+        Vec3::new(0.3, -1.2, 2.5),
+        Vec3::new(-4.0, 0.25, 1.0e-3),
+    ),
+    (
+        Point3::new(-0.0, 0.0, -0.0),
+        Vec3::new(-0.0, 1.0, 0.0),
+        Vec3::new(0.0, -0.0, 1.0),
+    ),
+];
 
 #[test]
-fn from_frame_stores_bit_for_bit_what_the_placement_door_builds() {
-    // One home: `SketchPlane::from_frame` IS `Affine3::from_frame`, and
-    // both are the explicit spelling `from_cols(u, v, u × v)` with the
-    // origin's displacement from the chart base — the same operations
-    // in the same order, so the twelve stored components agree by BITS
-    // over the corpus, signed zeros included. This row is also the
-    // measurement for a consumer that wants only the placement: it
-    // reads the door directly rather than a plane's `.placement`, and
-    // gets the same bits.
-    for (o, u, v) in frame_corpus() {
+fn from_frame_is_the_placement_door_bit_for_bit() {
+    // One home: `SketchPlane::from_frame` IS `Affine3::from_frame` —
+    // a delegation, so the twelve stored components agree by BITS. The
+    // door's own identity with the explicit spelling, over the wide
+    // corpus, is pinned beside the door in `geom-core`.
+    for (o, u, v) in FRAMES {
         let plane = SketchPlane::from_frame(o, u, v);
         let door = Affine3::from_frame(o, u, v);
-        let explicit = Affine3::from_parts(Mat3::from_cols(u, v, u.cross(v)), o - Point3::origin());
         assert_eq!(bits(plane.placement), bits(door));
-        assert_eq!(bits(plane.placement), bits(explicit));
         assert!(plane.bit_eq(&SketchPlane::new(door)));
     }
 }
@@ -215,7 +209,7 @@ fn map_lifts_the_stored_frame_componentwise_without_recomputing_it() {
     // negated, not the cross product of the negated axes (which would
     // be `u × v` again). That difference is what the two lift spellings
     // in the doc are about.
-    for (o, u, v) in frame_corpus() {
+    for (o, u, v) in FRAMES {
         let plane = SketchPlane::from_frame(o, u, v);
         assert!(plane.map(|x| x).bit_eq(&plane));
         let neg = plane.map(|x: f64| -x);
