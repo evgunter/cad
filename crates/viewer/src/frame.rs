@@ -58,7 +58,7 @@ use pncad::document::{ParamName, ParseError, ProductError, RecipeNodeId, SlotId}
 use pncad::prelude::StableName;
 
 use crate::camera::Folded;
-use crate::display::Withdrawn;
+use crate::display::{DisplayFault, Withdrawn};
 use crate::evalseam::Generation;
 use crate::pick::{IdMap, PickIndex};
 use crate::session::{Refusal, SessionOp};
@@ -227,8 +227,18 @@ pub const NOTICE_SEPARATOR: &str = "; ";
 /// something the tree no longer draws without saying that is why.
 ///
 /// The frame around the faults counts and does not name: every fault
-/// reachable here names its own instance, so naming it again in the
-/// preamble would say it twice.
+/// [`crate::display::DisplayState::prune`] can put here names its own
+/// SUBJECT — the four arms `free_move_check` and `display_check`
+/// answer with — so naming the id again in the preamble would say it
+/// twice. It does not promise a vocabulary for that subject: three of
+/// those four say "instance N" and the absent-node arm says "node N",
+/// which is `DisplayFault`'s own rule and the only honest wording
+/// there.
+///
+/// The other three `DisplayFault` arms name no id at all. They are
+/// about a gesture or a frame rather than a node, no prune path
+/// produces one, and nothing in a type says so — the invariant is
+/// established at `prune` and stated here.
 pub fn supersession_notice(superseded: &[Withdrawn]) -> Option<String> {
     let causes = render_causes(superseded)?;
     Some(if superseded.len() == 1 {
@@ -254,13 +264,21 @@ pub fn supersession_notice(superseded: &[Withdrawn]) -> Option<String> {
 /// answer that question differently — it made the question unaskable.
 /// Nothing takes the hide's place.
 ///
-/// The two cases the fault distinguishes are why one sentence could
-/// not carry both: on a fuse the instance is drawn AGAIN — material
-/// the user took out of the picture is back in it, which is exactly
-/// the state a user reports as a bug against hiding — and on a delete
-/// the instance is gone and nothing reappears. The preamble therefore
-/// says only what is true of both, that the hide was dropped, and the
-/// fault says which happened.
+/// # What happened to the PICTURE is in the sentence
+///
+/// The two arms leave the drawing in opposite states, and that is the
+/// part a user needs: on a **fuse** the instance is drawn AGAIN —
+/// material they took out of the picture is back in it, which is
+/// exactly the state reported as a bug against hiding — and on a
+/// **delete** the instance went, and nothing reappears. A preamble
+/// naming neither is true and useless; a preamble naming one is false
+/// half the time.
+///
+/// So the consequence is said when the frame's withdrawals AGREE on
+/// it, and dropped when they do not, leaving the faults to say the
+/// rest. That is not this module writing prose about someone else's
+/// failure: the fault renders itself, unaltered, and what the chrome
+/// adds is the chrome's own subject — what the drawn scene now shows.
 ///
 /// It is news on the same terms as [`supersession_notice`], reaches
 /// the line the same way, and the two are ranked together: both are
@@ -268,11 +286,19 @@ pub fn supersession_notice(superseded: &[Withdrawn]) -> Option<String> {
 /// both at once.
 pub fn dropped_hide_notice(dropped: &[Withdrawn]) -> Option<String> {
     let causes = render_causes(dropped)?;
+    let fused = |w: &Withdrawn| matches!(w.cause, DisplayFault::FusedGeometry { .. });
+    let consequence = if dropped.iter().all(fused) {
+        " and the hidden geometry is drawn again"
+    } else if !dropped.iter().any(fused) {
+        " with the instance it was on"
+    } else {
+        ""
+    };
     Some(if dropped.len() == 1 {
-        format!("hide: a hidden instance stopped being hideable — {causes}")
+        format!("hide: a hide was dropped{consequence} — {causes}")
     } else {
         format!(
-            "hide: {} hidden instances stopped being hideable — {causes}",
+            "hide: {} hides were dropped{consequence} — {causes}",
             dropped.len()
         )
     })
@@ -282,9 +308,16 @@ pub fn dropped_hide_notice(dropped: &[Withdrawn]) -> Option<String> {
 /// order the prune found them — or `None` for an empty set, which both
 /// notices answer with silence.
 ///
-/// Joined with a separator rather than composed into a sentence, for
-/// the reason [`frame_status`] joins notices that way: a list of
-/// several typed values must not become one written claim about them.
+/// Joined with [`NOTICE_SEPARATOR`] rather than composed into a
+/// sentence, for the reason [`frame_status`] joins notices with it: a
+/// list of several typed values must not become one written claim
+/// about them. The one spelling, so a line carrying two faults reads
+/// like a line carrying two notices.
+///
+/// The join is flat, so a fault whose own text contains the separator
+/// nests inside it and a reader cannot see where one cause ends.
+/// `DisplayFault::NonRigidFrame` is such a text; no prune path
+/// produces it here.
 fn render_causes(withdrawn: &[Withdrawn]) -> Option<String> {
     if withdrawn.is_empty() {
         return None;
@@ -294,7 +327,7 @@ fn render_causes(withdrawn: &[Withdrawn]) -> Option<String> {
             .iter()
             .map(|w| w.cause.to_string())
             .collect::<Vec<_>>()
-            .join("; "),
+            .join(NOTICE_SEPARATOR),
     )
 }
 
@@ -994,9 +1027,11 @@ mod tests {
         let notice = supersession_notice(&[constrained(7, &[9])]).expect("a supersession is news");
         assert!(
             notice.contains("instance 7"),
-            "the notice names which of the user's placements went, in the \
-             vocabulary the properties panel and `DisplayFault` use for a \
-             part instance: {notice}"
+            "the notice names which of the user's placements went — here in \
+             the part-instance vocabulary, because the MateConstrained arm's \
+             subject is an instance. That is `DisplayFault`'s per-arm rule \
+             and not a promise the notice makes across all of them; the \
+             absent-node arm says `node N` and is right to: {notice}"
         );
 
         let acting = [SessionOp::Undo];
@@ -1067,8 +1102,10 @@ mod tests {
         };
         let notice = dropped_hide_notice(core::slice::from_ref(&fused)).expect("news");
         assert!(
-            notice.starts_with("hide: a hidden instance stopped being hideable — "),
-            "its own preamble, not the free-move one: {notice}"
+            notice.starts_with("hide: a hide was dropped and the hidden geometry is drawn again — "),
+            "its own preamble, not the free-move one — and the part being \
+             back on screen, which is the whole reason this is not a \
+             supersession, reaches the words the user reads: {notice}"
         );
         assert!(
             !notice.contains("free move") && !notice.contains("superseded"),
@@ -1094,6 +1131,55 @@ mod tests {
     }
 
     #[test]
+    fn a_frame_that_drops_two_hides_says_so_in_the_plural() {
+        // Reachable in production: one boolean fusing two hidden
+        // instances withdraws both hides in one prune.
+        let fused = |instance: u64, other: u64| Withdrawn {
+            instance: RecipeNodeId(instance),
+            cause: DisplayFault::FusedGeometry {
+                instance: RecipeNodeId(instance),
+                root: RecipeNodeId(8),
+                others: vec![RecipeNodeId(other)],
+            },
+        };
+        let gone = Withdrawn {
+            instance: RecipeNodeId(4),
+            cause: DisplayFault::NoSuchNode {
+                node: RecipeNodeId(4),
+            },
+        };
+
+        let two = [fused(3, 5), fused(5, 3)];
+        assert_eq!(
+            dropped_hide_notice(&two).expect("two dropped hides are news"),
+            format!(
+                "hide: 2 hides were dropped and the hidden geometry is drawn \
+                 again — {}{NOTICE_SEPARATOR}{}",
+                two[0].cause, two[1].cause
+            ),
+            "the plural agrees, and the consequence is said because both \
+             withdrawals agree on it"
+        );
+
+        // A frame whose withdrawals DISAGREE about what the picture
+        // now shows says only the part that is true of both.
+        let mixed = [fused(3, 5), gone.clone()];
+        let notice = dropped_hide_notice(&mixed).expect("news");
+        assert!(
+            notice.starts_with("hide: 2 hides were dropped — "),
+            "no consequence claimed over a frame that has two: {notice}"
+        );
+
+        // And the delete arm alone says the honest opposite: nothing
+        // was re-shown, the instance went.
+        assert_eq!(
+            dropped_hide_notice(core::slice::from_ref(&gone)).expect("news"),
+            "hide: a hide was dropped with the instance it was on — \
+             node 4 is not in the document"
+        );
+    }
+
+    #[test]
     fn every_superseded_instance_is_named_and_none_means_silence() {
         // Not the first and not the last: one transition can discard
         // several probes (a mate lands on two probed instances, a
@@ -1108,21 +1194,19 @@ mod tests {
              free relative motion is intended"
         );
 
-        let both = supersession_notice(&[constrained(3, &[5]), constrained(11, &[5])])
-            .expect("two supersessions are still news");
-        for named in ["instance 3", "instance 11"] {
-            assert!(both.contains(named), "both instances named: {both}");
-        }
-        assert!(
-            both.starts_with("free move: 2 committed placements were discarded — "),
-            "every word of the preamble agreeing with itself in number — \
-             subject, verb and object: {both}"
-        );
+        let two = [constrained(3, &[5]), constrained(11, &[5])];
+        let both = supersession_notice(&two).expect("two supersessions are still news");
         assert_eq!(
-            both.matches("; ").count(),
-            1,
-            "two faults, joined by a separator rather than composed into one \
-             written claim about them: {both}"
+            both,
+            format!(
+                "free move: 2 committed placements were discarded — {}{NOTICE_SEPARATOR}{}",
+                two[0].cause, two[1].cause
+            ),
+            "every word of the preamble agreeing with itself in number, and \
+             the two faults joined by the one separator rather than composed \
+             into a written claim about them. Asserted as the exact join and \
+             not as a separator COUNT, which a fault whose own text contains \
+             the separator would satisfy while reading as three causes"
         );
 
         // Silence has exactly one meaning here: nothing was discarded.

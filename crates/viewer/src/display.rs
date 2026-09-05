@@ -93,6 +93,22 @@ const RIGID_SLACK: f64 = 1e-9;
 /// A typed display-state refusal (closed enum, D4 ¶3). Every arm names
 /// its subject; none is a message composed about another layer's
 /// failure.
+///
+/// # Each arm names its subject in the strongest vocabulary true of it
+///
+/// The rule over the whole enum, not a property of one arm: an arm
+/// whose subject IS a part instance says **"instance N"**
+/// ([`DisplayFault::MateConstrained`], [`DisplayFault::FusedGeometry`])
+/// — the word the properties panel and the feature tree use for the
+/// thing a user hides or probes. An arm whose whole content is that
+/// the id does NOT denote one says **"node N"**
+/// ([`DisplayFault::NoSuchNode`], [`DisplayFault::NotAnInstance`]),
+/// because calling it an instance there would assert the very thing
+/// the arm is denying. The remaining three name no id at all: they are
+/// about a gesture or a frame, not about a node.
+///
+/// A caller rendering these must therefore not promise its reader one
+/// vocabulary across all of them.
 #[derive(Debug, Clone, PartialEq)]
 pub enum DisplayFault {
     /// The document holds no node with this id at all — it was
@@ -105,6 +121,20 @@ pub enum DisplayFault {
     /// reconciliation in [`DisplayState::prune`] reports the fault it
     /// discards on, so the difference is the whole content of the
     /// sentence the status line then shows.
+    ///
+    /// **It is decided in [`drawn_targets`], so every door downstream
+    /// of it answers this arm** and not only the prune:
+    /// [`DisplayState::set_hidden`], the free-move admission
+    /// ([`free_move_check`], and so [`DisplayState::begin_free_move`]),
+    /// and the properties panel's own copy of that test. A user who
+    /// aims a display operation at an id the document does not hold
+    /// now reads *node N is not in the document* where they read *node
+    /// N is not a part instance*, which is the better sentence at every
+    /// one of those doors — the id denotes nothing, and saying only
+    /// that it is not an instance implies something is there.
+    ///
+    /// [`is_instance`] is NOT where this is decided and still collapses
+    /// the two states into `false`.
     NoSuchNode {
         /// The id named.
         node: RecipeNodeId,
@@ -528,7 +558,15 @@ pub struct PruneReport {
 impl PruneReport {
     /// Whether the prune withdrew nothing at all — the ordinary case,
     /// and the one a caller reports nothing for.
-    pub fn is_empty(&self) -> bool {
+    ///
+    /// Private: [`DisplayState::prune`] is its one caller, deciding
+    /// whether the revision moved. The two types themselves are `pub`
+    /// structurally rather than by choice — this is `prune`'s return
+    /// type and [`Withdrawn`] is the element type of two public
+    /// [`crate::session::OpOutcome`] fields, so neither could be
+    /// narrower and both are re-exported to keep those fields
+    /// nameable.
+    fn is_empty(&self) -> bool {
         self.superseded.is_empty() && self.dropped_hides.is_empty()
     }
 }
