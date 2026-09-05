@@ -11,7 +11,7 @@
 //! ([`Sym::param_over`](super::Sym::param_over) — the caller that mints
 //! a parameter axis already holds `(lo, hi)` as two `f64`s), and the
 //! candidate `R` is enclosed over those brackets in the always-compiled,
-//! outward-rounded [`RingInterval`]. No type is punned, no feature is
+//! outward-rounded [`RingInterval`](crate::ring_interval::RingInterval). No type is punned, no feature is
 //! gated, no bound is added: `R` is a polynomial in the parameters and
 //! `π`, evaluated in the ring; a form with any other indeterminate (an
 //! opaque real, an atom, a frozen node) is not enclosable and the fold
@@ -32,7 +32,7 @@
 //!
 //! # Where it runs
 //!
-//! Per node, in the EARLY memo only ([`super::early_form`]) — never in
+//! Per node, in the EARLY memo only (`super::early_form`) — never in
 //! the plain form — so a plain theorem is never re-labelled as gated,
 //! and the fold reaches atoms nested inside other atoms' arguments,
 //! which is where the arc family's `sqrt` of a perfect square sits

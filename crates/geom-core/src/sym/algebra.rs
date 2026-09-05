@@ -18,7 +18,7 @@
 //!
 //! Neither rule reads a value. Rule C (`sqrt(X) = R` by a certified
 //! sign of `R`, clause 3) is the one rule that does, and it lives in
-//! its own module ([`signed`](super::signed)) with the one door the
+//! its own module (`super::signed`) with the one door the
 //! value comes through.
 //!
 //! # Two places the rewrite runs
