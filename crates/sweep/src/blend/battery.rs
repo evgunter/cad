@@ -195,7 +195,7 @@ impl Convexity {
     /// void. Every arm that displaces by `±r` spells its side through
     /// this — [`super::arms::plane_plane_blend`]'s feet,
     /// [`super::arms::plane_sphere_blend`]'s spine depth,
-    /// `surgery::corner_plan`'s `toward` — and
+    /// `open::planar::corner_plan`'s `toward` — and
     /// [`super::arms::corner_ball`] alone needs the rest DEPTH, which is
     /// this value's NEGATIVE by definition of tangency and is spelled
     /// there as `-signed(..)`, the one negation the fold keeps.
@@ -1116,7 +1116,7 @@ fn ruling_arm<T: Real>(sa: &Surface<T>, sb: &Surface<T>) -> Option<BlendArm> {
 /// handed to the trace is [`Convexity::ball_side`] of that bit, the
 /// identity on a convex chain. ONE fold with ONE home, `Convexity`:
 /// `signed` for the arms that displace by `±r` ([`plane_plane_blend`],
-/// [`super::arms::plane_sphere_blend`], `surgery::corner_plan`),
+/// [`super::arms::plane_sphere_blend`], `open::planar::corner_plan`),
 /// `ball_side` for the ones that pick a side, and
 /// [`super::arms::corner_ball`]'s rest depth its one negation. The
 /// `Ruling` row folds it too, on both sides: the convex side carves the

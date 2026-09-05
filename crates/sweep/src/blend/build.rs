@@ -265,7 +265,7 @@ pub(super) fn vertex_faces<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Opti
 /// **That the two tokens are ONE corner's is checked, not assumed** —
 /// no type says it, and [`CornerLinks`] proves only that a link
 /// terminates at its vertex. Today's one call site pairs them by
-/// construction ([`super::surgery`]'s corner plan), so the check
+/// construction ([`super::open::planar`]'s corner plan), so the check
 /// cannot fire; it guards future mis-wiring, and this value is worth
 /// guarding because it fails silently — a wrong `u_ref`/`axis` still
 /// closes and still passes tiers 1 and 2.
@@ -524,7 +524,7 @@ mod tests {
     /// excluding two faces from three still names a face.
     ///
     /// **Today's one production call site pairs them by construction**
-    /// (`surgery`'s corner plan derives both from one vertex), so this
+    /// (`open::planar`'s corner plan derives both from one vertex), so this
     /// is not a live defect being pinned — it is the check that keeps
     /// a future caller from assembling them further apart and getting
     /// no complaint. That direction matters here because the value is

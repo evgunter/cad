@@ -440,7 +440,7 @@ gate() {
     # M5 PR 11, the certified-quadrature plumbing.
     gate_grep -vE '^crates/topo/src/props\.rs$' |
     # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
-    gate_grep -vE '^crates/sweep/src/blend/(battery|build|surgery)\.rs$' |
+    gate_grep -vE '^crates/sweep/src/blend/(battery|build|surgery|open/planar|open/ruled)\.rs$' |
     # M6-2, the SSI rung-3 certificate; edge_nurbs under M7-8.
     gate_grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' |
     # M7-8's 2026-09-02 amendment, the lane's split as a BOUND: the two

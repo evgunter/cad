@@ -683,6 +683,12 @@ pub mod bounds_allowlist {
     //! VERBS-CHAMFER both edge-blend front doors sit here: `chamfer_edges` is
     //! written inside these same three files deliberately, so the
     //! ratification covers the shared lane rather than a fourth file.
+    //! Re-scoped 2026-09-05 (FILLET-SPLIT, under Ev's ruling on PR 1916 that
+    //! a move with no design implication needs no ask): the two open bands'
+    //! carves left `surgery.rs` for `blend/open/planar.rs` and
+    //! `blend/open/ruled.rs` unchanged, so this one seam is now spelled
+    //! over five files — the file list is the entry's spelling, the seam is
+    //! the ratified thing, and nothing about its scope was extended.
     //!
     //! It is the one allowlisted seam with **no refusing lane**, and the
     //! written reason it needs none is the delegation rule below: every

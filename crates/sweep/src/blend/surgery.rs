@@ -23,6 +23,16 @@
 //! the COMPOSED DIE possible: the filleted blank, the 21 pips and the
 //! filleted pip rims in ONE body.
 //!
+//! **Where each carve lives.** This file holds the seam every carve
+//! rests on — the door ([`blend_surgery`]), the refusal constructors,
+//! the plans and their admission, the ring carry-through check, the
+//! description pass ([`attach_contact`]) and the one face-destroying
+//! door ([`SourceFaces::kef_minted`]) — and the two CLOSED-rim walks,
+//! [`rim_phase`] and [`rim_phase_annulus`]. The two OPEN bands are
+//! carved under `open/`: the plane–plane band with its trihedral
+//! corners in [`super::open::planar`], the ruled band with its
+//! transverse cut-off in [`super::open::ruled`].
+//!
 //! # What the surgery does, per chain kind
 //!
 //! **Open chains** (plane–plane links, the box edges): every open
@@ -45,7 +55,7 @@
 //! link: the flat milled along a rod) is the open band on CURVED
 //! supports, and it terminates where its supports do — at TRANSVERSE
 //! CAPS, plane faces perpendicular to the ruling, never at a corner
-//! patch. Its carve is [`ruled_phase`]'s: at each cap the two rim
+//! patch. Its carve is [`super::open::ruled::ruled_phase`]'s: at each cap the two rim
 //! edges the cap shares with the supports are split at the trimlines'
 //! feet and the cap plane's section of the band — an exact arc of the
 //! band's radius about the spine — is `mef`'d between them, cutting a
@@ -172,7 +182,8 @@
 //! # What this surgery may destroy
 //!
 //! A support shrinks; it does not die — enforced, not argued, at
-//! [`SourceFaces::kef_minted`], this file's one face-destroying door.
+//! [`SourceFaces::kef_minted`], the one face-destroying door of this
+//! file and of the two open bands under `open/`.
 
 use geom::Curve3;
 use geom::Surface;
@@ -184,10 +195,12 @@ use topo::{
 };
 
 use super::admit::{AdmittedOpen, CornerFaces, CornerLinks, RequestedBoundary};
-use super::arms::{EdgeBlend, chamfer_corner_patch, corner_ball, line_meet};
+use super::arms::EdgeBlend;
 use super::battery::{BatteryVerdict, Chain, ChainClosure, Convexity, Link};
-use super::build::{Blended, face_cycle, outward_of};
+use super::build::{Blended, face_cycle};
 use super::naming::{BlendNaming, RimSide, second_support_is_host};
+use super::open::planar::{BlankPlan, Corner, blank_phase, corner_plan};
+use super::open::ruled::{RuledPlan, ruled_phase};
 use super::{BlendError, BlendKind, BlendSite, CornerConfig, decide};
 use geom_core::Tol;
 
@@ -264,7 +277,7 @@ pub(super) fn unbuilt_geometry(at: EntityId, detail: &'static str) -> BlendError
 /// so `BlendError::Op` cannot be constructed here without naming its
 /// site, and the operator's own typed refusal — `StaleKey`,
 /// `Certification`, the whole vocabulary — travels intact.
-fn op(site: &'static str, source: topo::EulerOpError) -> BlendError {
+pub(super) fn op(site: &'static str, source: topo::EulerOpError) -> BlendError {
     BlendError::Op { site, source }
 }
 
@@ -278,44 +291,6 @@ const RING_CLEARANCE: &str = "fillet3_ring_clearance";
 // ------------------------------------------------------------------
 // The plan: everything classified and derived before any mutation.
 // ------------------------------------------------------------------
-
-/// One corner: a trivalent vertex all of whose edges are requested.
-struct Corner<'a, T: Real> {
-    /// The admitted open links terminating here — at least one, and
-    /// all of one convexity ([`CornerLinks`]).
-    links: CornerLinks<'a, T>,
-    /// The three incident support faces, in orbit order.
-    faces: CornerFaces,
-    /// The corner patch's foot on each of [`Corner::faces`], in that
-    /// same orbit order — where this corner's two trimlines cross on
-    /// each support. The strut every support face is carved with runs
-    /// out to its own foot, so this array is the whole geometric
-    /// difference between the two verbs' carves.
-    feet: [Point3<T>; 3],
-    /// What the corner patch's bounding edges turn about: the rolling
-    /// ball's rest centre and its radius. `None` for a chamfer, whose
-    /// patch is bounded by straight chords — there is nothing to turn
-    /// about, which is the whole difference at a corner.
-    arc: Option<(Point3<T>, T)>,
-    /// The corner patch's surface: the sphere octant's chart (the
-    /// order-free pick, [`super::build::octant_chart`]), or the
-    /// chamfer's plane through the three feet.
-    surface: Surface<T>,
-    /// The corner patch's orientation bit, read exactly as a blend reads its
-    /// own — off the stored convexity verdict
-    /// ([`Convexity::blend_sense`]), never a sampled normal. A corner
-    /// patch is a sphere about the rolling ball's rest centre whose
-    /// chart normal is the outward radial, and the centre lies on the
-    /// material side precisely when the corner is convex.
-    ///
-    /// **Any one incident link answers for all of them**, and what
-    /// makes that sound is the BATTERY, not this module's door: a
-    /// termination reaches the carve only through predicate 6, which
-    /// runs at every open chain's two ends and admits a trihedron
-    /// only where its three edges carry ONE convexity. So the three
-    /// links here cannot disagree — on either side of the material.
-    convexity: Convexity,
-}
 
 /// One closed chain resolved onto its supports.
 ///
@@ -793,164 +768,6 @@ fn vertex_edges_of<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<E
     edges.sort_unstable();
     edges.dedup();
     Some(edges)
-}
-
-/// The corner patch at one fully-requested trivalent vertex: its
-/// surface, and its foot on each of the three supports.
-///
-/// The two verbs differ here and only here at a corner.
-///
-/// - **Fillet**: the ball at rest touches all three supports, so its
-///   foot on each is the ball centre projected onto it, and that point
-///   lies on both of that support's trimlines because the centre is on
-///   both incident spines ([`super::build::octant_chart`] picks the
-///   octant's chart). The corner's convexity is ONE decision made in
-///   three places that must agree — the ball's side, the feet's sign
-///   (`centre + n·r` at a convex rest, `centre − n·r` at a concave
-///   one, each the tangency point of ITS ball), and the chart's aim —
-///   so all three fold the same verdict, read once below.
-/// - **Chamfer**: there is no ball, so each foot is derived from the
-///   trimlines directly — the two incident strips' trimlines on that
-///   support, crossed in closed form ([`line_meet`]) — and the patch
-///   is the plane through the three feet ([`chamfer_corner_patch`]).
-///   Convexity does not appear in this arm at all: the feet come from
-///   trimlines whose in-plane direction is read off the traversal, and
-///   the patch's chart normal is folded outward against the supports'
-///   own normal sum ([`super::arms`]).
-fn corner_plan<'a, T: Decide + Bounds>(
-    body: &Body<T>,
-    links: CornerLinks<'a, T>,
-    radius: T,
-    kind: BlendKind,
-) -> Result<Corner<'a, T>, BlendError> {
-    // Both corner tokens are derived from THIS vertex, here: the
-    // faces two statements below, the links in the argument. That
-    // pairing is what `octant_chart`'s agreement check reads, and it
-    // is why that check cannot fire from this call site.
-    let vertex = links.vertex();
-    // The caller walked this vertex's edge orbit successfully, which
-    // proves the orbit half of this walk; the `parent_loop` deref
-    // `vertex_faces` adds is a stored reference nothing here proves.
-    // The valence the corner derivation needs is the FACE orbit's; on a
-    // manifold body it is the edge valence the door checked, and a
-    // disagreement is itself the refusal.
-    let faces = CornerFaces::admit(body, vertex)?;
-    let p = *body
-        .get_vertex(vertex)
-        .and_then(|x| body.get_point(x.point))
-        .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a corner's stored point"))?;
-    let mut normals = [Vec3::new(T::zero(), T::zero(), T::zero()); 3];
-    for (slot, &f) in normals.iter_mut().zip(faces.as_slice()) {
-        *slot = outward_of(body, f)
-            .ok_or_else(|| unbuilt_geometry(EntityId::Face(f), CORNER_SUPPORT_NOT_PLANAR))?;
-    }
-    // Any one incident link answers for all of them (`Corner`'s field
-    // doc): the battery's corner predicate admits a termination only
-    // where all three of its edges carry one convexity.
-    let convexity = links.first().convexity();
-    let (arc, feet, surface) = match kind {
-        BlendKind::Fillet => {
-            let ball = corner_ball([p; 3], normals, radius, convexity);
-            // The ball at rest is at distance `radius` from every
-            // support — inside the material at a convex corner, in the
-            // void at a concave one — so its foot on each is the
-            // centre displaced back TOWARD that support: along the
-            // outward normal from a convex rest, against it from a
-            // concave one. Either way the foot is on both of the
-            // support's trimlines, because the centre is on both
-            // incident spines.
-            //
-            // ONE fold, ONE home: `Convexity::signed` — the value the
-            // plane–plane band arm folds into its feet and the
-            // plane–sphere arm into its spine, and (as the side bit
-            // `Convexity::ball_side`) what the shared sheet reduction
-            // hands each trace (`battery::curved_arm`). `corner_ball`
-            // alone needs its NEGATIVE, the rest DEPTH
-            // (`c·n = p·n − toward`), the displacement's opposite by
-            // definition of tangency, and spells it as `-signed(..)`.
-            let toward = convexity.signed(radius);
-            let mut feet = [ball.center; 3];
-            for (foot, &n) in feet.iter_mut().zip(normals.iter()) {
-                *foot = ball.center + n * toward;
-            }
-            let (u_ref, axis) = super::build::octant_chart(body, &faces, &links, convexity)?;
-            (
-                Some((ball.center, radius)),
-                feet,
-                Surface::Sphere {
-                    center: ball.center,
-                    radius,
-                    axis,
-                    u_ref,
-                },
-            )
-        }
-        BlendKind::Chamfer => {
-            let feet = chamfer_feet(&faces, &links, p)?;
-            (None, feet, chamfer_corner_patch(feet, normals))
-        }
-    };
-    Ok(Corner {
-        links,
-        faces,
-        feet,
-        arc,
-        surface,
-        convexity,
-    })
-}
-
-/// The chamfer's three feet at one corner: on each support, where the
-/// two incident strips' trimlines on that support cross.
-///
-/// Exactly two of the corner's admitted links touch each support (the
-/// corner is trivalent and fully requested), and each link's trimline
-/// on that support is the one keyed to it by
-/// `Link::face_a`/`Link::face_b` — read by support key, never by slot
-/// order.
-fn chamfer_feet<T: Decide + Bounds>(
-    faces: &CornerFaces,
-    links: &CornerLinks<'_, T>,
-    vertex_point: Point3<T>,
-) -> Result<[Point3<T>; 3], BlendError> {
-    let (seed, others) = links.sorted();
-    let mut feet = [vertex_point; 3];
-    for (slot, &face) in faces.as_slice().iter().enumerate() {
-        let mut on_face = core::iter::once(&seed)
-            .chain(others.iter())
-            .filter_map(|o| {
-                let l = o.link();
-                let trim = if l.face_a == face {
-                    &l.blend.trim_a.0
-                } else if l.face_b == face {
-                    &l.blend.trim_b.0
-                } else {
-                    return None;
-                };
-                match *trim {
-                    Curve3::Line { origin, dir } => Some(Ok((origin, dir))),
-                    _ => Some(Err(unbuilt_geometry(
-                        EntityId::Edge(l.edge),
-                        "a chamfer strip's trimline is not a line",
-                    ))),
-                }
-            });
-        let (Some(first), Some(second)) = (on_face.next(), on_face.next()) else {
-            return Err(unbuilt_run_out(
-                EntityId::Face(face),
-                "a corner's support does not carry two requested edges; run-outs at such \
-                 corners are not implemented",
-            ));
-        };
-        let (o1, d1) = first?;
-        let (o2, d2) = second?;
-        // Both trimlines lie in this support, so their cross product
-        // is the support's own normal up to a nonzero scale — and
-        // `line_meet`'s ratio is invariant under that scale, so no
-        // second reading of the face's stored plane is needed.
-        feet[slot] = line_meet(o1, d1, o2, d2, d1.cross(d2));
-    }
-    Ok(feet)
 }
 
 /// Resolve one closed chain onto its two supports, with every
@@ -2338,11 +2155,13 @@ fn edge_midpoint<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<Point3<T>> 
 }
 
 // ------------------------------------------------------------------
-// The blank phase: open links and corners, in place.
+// The description pass's vocabulary: what every phase — the two open
+// bands in `open/` and the two rim phases below — records for
+// `attach_contact`.
 // ------------------------------------------------------------------
 
 /// A recorded new edge awaiting its intrinsic description.
-enum ContactCarrier<T: Real> {
+pub(super) enum ContactCarrier<T: Real> {
     /// A straight trimline where the band meets its support
     /// TANGENTIALLY — the rolling ball's contact line (carrier rebuilt
     /// from the edge's vertices).
@@ -2368,348 +2187,7 @@ enum ContactCarrier<T: Real> {
     SeamArc { center: Point3<T>, radius: T },
 }
 
-type Described<T> = Vec<(EdgeKey, ContactCarrier<T>)>;
-
-/// **What the plan read for the blank carve**, in one value because the
-/// three are one reading of one source body and travel together: the
-/// PLANAR open links, the corners their ends terminate at, and the
-/// support faces they are carved along.
-struct BlankPlan<'a, T: Real> {
-    opens: &'a [AdmittedOpen<'a, T>],
-    corners: &'a [Corner<'a, T>],
-    supports: &'a [RequestedBoundary<T>],
-}
-
-#[allow(clippy::type_complexity)]
-fn blank_phase<T: Decide + Bounds>(
-    body: &mut Body<T>,
-    plan: &BlankPlan<'_, T>,
-    sources: &SourceFaces,
-    rec: &mut BlendNaming,
-    tol: Tol,
-    kind: BlendKind,
-) -> Result<(Vec<FaceKey>, Vec<FaceKey>, Described<T>), BlendError> {
-    let (opens, corners, supports) = (plan.opens, plan.corners, plan.supports);
-    // The carve is one shape for both verbs — struts to the feet,
-    // trimline chords between them, a kef per link, three corner
-    // chords and the fusion. What differs is what each new edge IS:
-    // the fillet's band touches its supports tangentially and turns
-    // its corner on an arc; the chamfer's meets them at an angle and
-    // closes its corner on a chord.
-    let trim_carrier = || match kind {
-        BlendKind::Fillet => ContactCarrier::TrimLine,
-        BlendKind::Chamfer => ContactCarrier::Chord,
-    };
-    let mut described: Described<T> = Vec::new();
-    if opens.is_empty() {
-        return Ok((Vec::new(), Vec::new(), described));
-    }
-
-    // ---- Per support face: struts at every boundary vertex, then a
-    // trimline chord per boundary edge. The boundary each face is
-    // carved along was walked, admitted and footed in the plan phase
-    // ([`RequestedBoundary`]) — so this loop reads no source geometry
-    // and has no coverage refusal of its own to make. ----
-    // Per (edge, face): the half-edge of the edge now inside that
-    // face's strip (for the kef), keyed structurally.
-    let mut strip_half: Vec<(EdgeKey, FaceKey, HalfEdgeKey)> = Vec::new();
-    // Per (vertex, face): the strut edge (for the corner merges).
-    let mut strut_of: Vec<(VertexKey, FaceKey, EdgeKey)> = Vec::new();
-    for support in supports {
-        let f = support.face();
-        let walk = support.stations();
-        let n = walk.len();
-        let mut struts = Vec::with_capacity(n);
-        for station in walk {
-            let v = station.vertex;
-            let p = *body
-                .get_vertex(v)
-                .and_then(|x| body.get_point(x.point))
-                .ok_or_else(|| not_intact(EntityId::Vertex(v), "a support boundary vertex"))?;
-            let fp = station.foot;
-            // **NOT re-described at rest, and that is a REPORTED
-            // finding rather than an oversight** (P-1b, #1116; the
-            // CAUSE below is corrected — the first version of this
-            // comment misread it).
-            //
-            // The standing reason: this strut is a straight CHORD
-            // between two points of the support surface, so on a
-            // CURVED support it is a secant — it does not lie on the
-            // surface its two faces share, and no chart image of that
-            // surface describes it. It therefore reaches rest through
-            // the scaffolding door and tier 3's transience fence names
-            // it, on a body whose edge genuinely is not where its
-            // faces are. The fix is fillet-verb work (put the strut ON
-            // the support), not a description change, so it is not
-            // taken here. An independent interval A/B reproduced the
-            // escalation exactly, so declining stands.
-            //
-            // **What was recorded wrongly.** This said stating the
-            // image "makes `ChartResidual` escalate at ε = 1e-6 on the
-            // die fixture, which is the geometry saying so". It is
-            // not the geometry saying anything. The escalation carries
-            // `margin: Invalid`, which is the kernel's POISON outcome
-            // — *the question was never validly posed* — and not a
-            // distance that came out too large. On the die's PLANAR
-            // support the f64 residual is exactly `0e0`: the chord
-            // between two points of a plane lies in that plane, so
-            // there is no disagreement there to report. Reading a
-            // poison verdict as a measurement is the specific mistake,
-            // and it is worth naming because poison and
-            // "definitely too big" are reported through the same
-            // escalation door and read identically at a glance.
-            //
-            // The CLASS — poison reaching this predicate at all — is
-            // #1143 and M10 owns it. What stays here is the mechanism
-            // question this site is the witness for: where poison
-            // enters `pcurve_map_residual` on a secant input.
-            let created = body
-                .mev(
-                    MevSite::Fan {
-                        he1: station.half_edge,
-                        he2: station.half_edge,
-                    },
-                    fp,
-                    EdgeCurveSpec::line_between(p, fp),
-                    tol,
-                )
-                .map_err(|e| op("strut mev", e))?;
-            strut_of.push((v, f, created.edge));
-            rec.feet.push((created.vertex, v, f));
-            struts.push((created.he_minus, fp));
-        }
-        let mut first_trim: Option<HalfEdgeKey> = None;
-        for i in 0..n {
-            let (he1, fp_i) = struts[i];
-            let he2 = if i + 1 < n {
-                struts[i + 1].0
-            } else {
-                first_trim.ok_or_else(|| {
-                    unbuilt_chain(
-                        walk[i].edge,
-                        "a support face with a single boundary edge is not implemented",
-                    )
-                })?
-            };
-            let fp_j = struts[(i + 1) % n].1;
-            let created = body
-                .mef(
-                    MefSite::Chords { he1, he2 },
-                    EdgeCurveSpec::line_between(fp_i, fp_j),
-                    FaceSurface::Inherit,
-                    tol,
-                )
-                .map_err(|e| op("trimline mef", e))?;
-            first_trim.get_or_insert(created.he_plus);
-            described.push((created.edge, trim_carrier()));
-            // The chord runs foot(start of walk[i]) → foot(start of
-            // walk[i+1]): it parallels walk[i]'s own source edge, in
-            // this support face. Birth data, straight off the plan.
-            rec.trims.push((created.edge, walk[i].edge, f));
-            strip_half.push((walk[i].edge, f, walk[i].half_edge));
-        }
-    }
-
-    // ---- Per link: merge the two strips across the dying edge. ----
-    let mut hexagon: Vec<(EdgeKey, LoopKey)> = Vec::new();
-    for o in opens {
-        let e = o.link().edge;
-        // `strip_half` holds a row per (boundary edge, support face)
-        // carved above. A miss means the verdict's two support faces
-        // for this link are not the faces whose boundary carries it.
-        let half_a = strip_half
-            .iter()
-            .find(|(ee, ff, _)| *ee == e && *ff == o.link().face_a)
-            .map(|(_, _, h)| *h)
-            .ok_or_else(|| not_intact(EntityId::Face(o.link().face_a), "a link's support"))?;
-        let half_b = strip_half
-            .iter()
-            .find(|(ee, ff, _)| *ee == e && *ff == o.link().face_b)
-            .map(|(_, _, h)| *h)
-            .ok_or_else(|| not_intact(EntityId::Face(o.link().face_b), "a link's support"))?;
-        let survivor_loop = body
-            .get_half_edge(half_b)
-            .map(|h| h.parent_loop)
-            .ok_or_else(|| not_intact(EntityId::HalfEdge(half_b), "a carved strip's half"))?;
-        sources.kef_minted(body, half_a, "edge-strip kef")?;
-        hexagon.push((e, survivor_loop));
-    }
-    let hex_face = |body: &Body<T>, e: EdgeKey| -> Option<FaceKey> {
-        let lp = hexagon.iter().find(|(ee, _)| *ee == e)?.1;
-        Some(body.get_loop(lp)?.face)
-    };
-
-    // ---- Per corner: three arcs, then the corner fusion. ----
-    let mut corner_faces = Vec::with_capacity(corners.len());
-    for c in corners {
-        let vertex = c.links.vertex();
-        // One arc off one incident link's merged strip: the mint the
-        // loop below runs once per link, hoisted so the SEEDED link and
-        // the rest reach the same body of code.
-        let arc_of = |body: &mut Body<T>,
-                      o: &AdmittedOpen<'_, T>,
-                      described: &mut Described<T>,
-                      rec: &mut BlendNaming|
-         -> Result<EdgeKey, BlendError> {
-            let l = o.link();
-            let f = hex_face(body, l.edge)
-                .ok_or_else(|| not_intact(EntityId::Edge(l.edge), "a merged strip's face"))?;
-            // The arc spans the two feet flanking the corner in the
-            // merged strip's cycle: from the foot whose half-edge ENDS
-            // at the corner to the foot two positions on.
-            let (he1, he2, v1, v2) = chord_site(
-                body,
-                f,
-                |row| body.half_edge_end(row.0) == Some(vertex),
-                0,
-                2,
-            )?;
-            let (p1, p2) = (
-                point_of(body, v1)
-                    .ok_or_else(|| not_intact(EntityId::Vertex(v1), "an arc foot's vertex"))?,
-                point_of(body, v2)
-                    .ok_or_else(|| not_intact(EntityId::Vertex(v2), "an arc foot's vertex"))?,
-            );
-            let created = body
-                .mef(
-                    MefSite::Chords { he1, he2 },
-                    EdgeCurveSpec::line_between(p1, p2),
-                    FaceSurface::Inherit,
-                    tol,
-                )
-                .map_err(|e| op("corner-arc mef", e))?;
-            described.push((
-                created.edge,
-                match c.arc {
-                    Some((center, radius)) => ContactCarrier::CornerArc { center, radius },
-                    None => ContactCarrier::Chord,
-                },
-            ));
-            rec.arcs.push((created.edge, vertex, l.edge));
-            Ok(created.edge)
-        };
-        // The seed's arc is a VALUE: `sorted` keeps one link in a slot
-        // of its own, so there is no "no arc was minted" state to
-        // reach. The seed is the LOWEST-KEYED incident link, which is
-        // the only thing read of it here and below.
-        let (seed, others) = c.links.sorted();
-        let first_arc = arc_of(body, &seed, &mut described, rec)?;
-        for o in &others {
-            arc_of(body, o, &mut described, rec)?;
-        }
-        // Fuse the three triangles: kef the struts that still separate
-        // two faces (sorted), kev the last one together with the sharp
-        // vertex.
-        let mut struts_here: Vec<EdgeKey> = strut_of
-            .iter()
-            .filter(|(v, _, _)| *v == vertex)
-            .map(|(_, _, e)| *e)
-            .collect();
-        struts_here.sort_unstable();
-        // Also checked here rather than inherited: `strut_of` carries
-        // one row per (corner vertex, support face), so three rows at
-        // this vertex is three struts on three DISTINCT supports —
-        // which is the whole premise of the one-spur fusion below.
-        if struts_here.len() != 3 {
-            return Err(unbuilt_run_out(
-                EntityId::Vertex(vertex),
-                "a corner did not receive a strut on each of three distinct supports; \
-                 run-outs at such corners are not implemented",
-            ));
-        }
-        let mut spur: Option<EdgeKey> = None;
-        for s in struts_here {
-            // Every strut was minted by this phase's `mev` above and is
-            // killed at most once, in this loop, by the `kef` below.
-            let Some((hp, hm)) = halves_of(body, s) else {
-                unreachable!(
-                    "corner fusion: a strut edge was minted by this phase's strut `mev` \
-                     and has not been killed"
-                )
-            };
-            let (fa, fb) = (face_of_half(body, hp), face_of_half(body, hm));
-            if fa.is_some() && fa == fb {
-                if spur.replace(s).is_some() {
-                    unreachable!(
-                        "corner fusion: a SECOND strut survived the fusion — exactly \
-                         three struts on three distinct supports (checked immediately \
-                         above) fuse to leave exactly one spur"
-                    )
-                }
-                continue;
-            }
-            sources.kef_minted(body, hp, "corner-strut kef")?;
-        }
-        // Row 0 (`D96`): NO, for both spur arms — the premise is a
-        // COUNT this call checked immediately above, but WHICH strut
-        // survives is the outcome of three Euler operators, not a
-        // shape a type carries (`docs/SMELL-T-LOG.md`, `T-c`).
-        let Some(s) = spur else {
-            unreachable!(
-                "corner fusion: NO strut survived the fusion — exactly three struts on \
-                 three distinct supports (checked immediately above) fuse to leave \
-                 exactly one spur"
-            )
-        };
-        let Some((hp, hm)) = halves_of(body, s) else {
-            unreachable!(
-                "corner fusion: the spur strut was minted by this phase and skipped \
-                          by the `kef` above"
-            )
-        };
-        // The spur's far vertex must be the sharp corner: kev from the
-        // foot-side half.
-        let dying = if body.half_edge_end(hm) == Some(vertex) {
-            hm
-        } else {
-            hp
-        };
-        body.kev(dying).map_err(|e| op("corner kev", e))?;
-        // The corner patch is whatever face the first arc's non-blend
-        // half now bounds.
-        let Some((ahp, ahm)) = halves_of(body, first_arc) else {
-            unreachable!(
-                "corner fusion: the seed link's arc was minted above and nothing \
-                          between here and there kills it"
-            )
-        };
-        // `first_arc` was minted on the SEED's merged strip, so the
-        // face it is not the patch of is that same strip. Read from
-        // `seed`, never from `CornerLinks::first` — those are two
-        // different links unless the caller happens to feed the
-        // incidence lists in ascending edge order, which `sorted`
-        // exists precisely not to depend on.
-        let quad = hex_face(body, seed.edge());
-        let patch = match (face_of_half(body, ahp), face_of_half(body, ahm)) {
-            (Some(f1), Some(f2)) => {
-                if Some(f1) == quad {
-                    f2
-                } else {
-                    f1
-                }
-            }
-            _ => unreachable!(
-                "corner fusion: both halves of an arc this phase minted bound a face; \
-                 `mef` mints the arc into two loops and the `kev` above kills neither"
-            ),
-        };
-        rec.corners.push((patch, vertex));
-        rec.dead.vertices.push(vertex);
-        corner_faces.push(patch);
-    }
-
-    let mut blend_faces = Vec::with_capacity(opens.len());
-    for o in opens {
-        let f = hex_face(body, o.link().edge)
-            .ok_or_else(|| not_intact(EntityId::Edge(o.link().edge), "a merged strip's face"))?;
-        rec.blends.push((f, o.link().edge));
-        // The source edge was excised across its two strips (the kef
-        // above): it is gone from the result.
-        rec.dead.edges.push(o.link().edge);
-        blend_faces.push(f);
-    }
-    Ok((blend_faces, corner_faces, described))
-}
+pub(super) type Described<T> = Vec<(EdgeKey, ContactCarrier<T>)>;
 
 // ------------------------------------------------------------------
 // The rim phase: one torus band per closed chain, in place.
@@ -2849,7 +2327,7 @@ fn scaled<T: Real>(
 /// guard's refuse arm is therefore not reached by any assembly
 /// fixture. It is here because the distance between "measured to be
 /// fine" and "checked" is exactly the comment it replaces.
-fn seam_split_param<T: Decide + Bounds>(
+pub(super) fn seam_split_param<T: Decide + Bounds>(
     body: &Body<T>,
     seam: EdgeKey,
     rim: EdgeKey,
@@ -3471,7 +2949,7 @@ impl HostAnchor {
 /// than a foot edge — still starting at a foot, which is the property
 /// that has to hold. `None` where the loop does not walk or does not
 /// carry the keyed half-edge.
-fn flank<T: Decide>(
+pub(super) fn flank<T: Decide>(
     body: &Body<T>,
     lp: LoopKey,
     at: impl Fn(&(HalfEdgeKey, VertexKey, EdgeKey)) -> bool,
@@ -4081,7 +3559,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
 }
 
 /// Whether `edge` has `v` as one of its endpoints.
-fn edge_touches<T: Decide>(body: &Body<T>, edge: EdgeKey, v: VertexKey) -> bool {
+pub(super) fn edge_touches<T: Decide>(body: &Body<T>, edge: EdgeKey, v: VertexKey) -> bool {
     halves_of(body, edge).is_some_and(|(hp, hm)| {
         body.get_half_edge(hp).map(|h| h.start) == Some(v)
             || body.get_half_edge(hm).map(|h| h.start) == Some(v)
@@ -4089,535 +3567,26 @@ fn edge_touches<T: Decide>(body: &Body<T>, edge: EdgeKey, v: VertexKey) -> bool 
 }
 
 // ------------------------------------------------------------------
-// The ruled band: the open band on curved supports, cut off at
-// transverse caps.
-// ------------------------------------------------------------------
-//
-// A ruled link (`BlendArm::CylinderPlaneCylinder`,
-// `BlendArm::CylinderCylinderCylinder`) is a cylinder band about a
-// straight spine whose two trimlines are lines along the ruling. It
-// terminates where its supports do: at each end of the requested edge
-// the two unrequested edges lie in one plane face perpendicular to
-// the ruling — the CAP, classified `CornerConfig::TransverseCap` by
-// the battery's predicate 6 — and the band ends in that plane's
-// section of it, a circle of the band's radius about the spine's
-// crossing, of which the band's end is the arc between the two feet
-// (`RunOutPolicy::CutOffAtTransverseCap`). Exact and stored; no new
-// surface kind.
-//
-// # The walk, per link
-//
-// Plan ([`RuledPlan::plan`], read-only): per end, the cap face, the
-// two rim edges it shares with the supports, the feet — where each
-// support's trimline meets the cap plane — and the section circle's
-// centre. Every point is the stored trimline or spine carried along
-// the ruling to the stored cap plane; nothing is sampled or decided.
-//
-// Carve (`ruled_phase`): per end, split each rim edge at its foot
-// (`seam_split_param`, the ladder's one home for a split parameter)
-// and `mef` the cut-off arc across the cap between the two
-// feet — the corner region between the arc and the old vertex becomes
-// a SLIVER face. Per support, one trimline `mef` along the ruling
-// between the two feet carves the strip beside the crease. Then the
-// crease's `kef` merges the two strips, and at each end one `kef`
-// folds the sliver into the merged face and one `kev` retires the rim
-// remnant that is now a spur together with the old vertex. What is
-// left is the band face, bounded by two trimlines and two arcs; the
-// caps and supports keep their keys, surfaces, senses and rings.
-//
-// **No strut is minted.** On a curved support a chord between two
-// surface points is a secant, which is the scaffolding-door
-// escalation the planar strut carries; here every new vertex sits on
-// an EXISTING edge and every new edge runs along a ruling or lies in
-// the cap plane, so each is described exactly at rest — the trimlines
-// as the band's tangent contact with the support, the arcs as its
-// transverse intersection with the cap.
-//
-// **Either material side.** The walk reads no convexity: the arm's
-// feet already fold the chain's verdict (`Convexity::ball_side` in
-// the sheet reduction), the band's sense bit folds it once more at
-// the surface pass, and the combinatorics are the same on a concave
-// chain — the cap face then GAINS the region under the arc rather
-// than losing it, which is what "the band adds material" means here.
-// Both sides are pinned through the extrude door: the rod with a flat
-// (convex, `ΔV = −2·A·L`) and a rod's section standing on a block's
-// top edge (concave, `ΔV = +2·A·L`;
-// `tests/review_fillet_h7_r1_probes.rs`). The boolean builds neither
-// concave fixture — the parallel-cylinder union refuses at its
-// curved-pierce door, the block ∪ cylinder at its join lane — which is
-// the boolean's ground and not this walk's.
-
-/// One transverse cap of a ruled link, as the plan read it.
-struct CapEnd<T: Real> {
-    /// The old vertex, which dies with the slivers.
-    vertex: VertexKey,
-    /// The cap face — the one face at `vertex` that is not a support.
-    /// Its two rim edges are NOT stored: two ruled links may end on one
-    /// cap and share a rim (the flat's chord between the rod's two
-    /// creases), which the first carve splits, so the carve reads them
-    /// live ([`cap_rims`]) and the plan only checks the shape.
-    cap: FaceKey,
-    /// The foot of `face_a`'s trimline on the cap — where that trimline
-    /// meets the cap plane, on the rim edge the cap shares with
-    /// `face_a`.
-    foot_a: Point3<T>,
-    /// Likewise for `face_b`.
-    foot_b: Point3<T>,
-    /// The section circle's centre: the spine's crossing of the cap
-    /// plane. Its radius is the band's.
-    center: Point3<T>,
-}
-
-/// **A ruled link whose two ends are transverse caps**, read off the
-/// source body before any mutation. The battery classified each end
-/// (`fillet3_cap_transverse`); this token reads the structure that
-/// classification rests on and refuses where the body disagrees with
-/// the verdict.
-struct RuledPlan<'a, T: Real> {
-    link: AdmittedOpen<'a, T>,
-    ends: [CapEnd<T>; 2],
-    /// The band's radius — the section circles' too.
-    radius: T,
-}
-
-impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
-    /// Plan one ruled link's carve.
-    ///
-    /// # Errors
-    ///
-    /// [`BlendError::UnsupportedGeometry`] when the link's band is not
-    /// a cylinder or a trimline not a line; [`BlendError::UnsupportedChain`]
-    /// when a support carries a ring or the crease is not on its
-    /// support's outer cycle, or when a cap rim is itself requested;
-    /// [`BlendError::BodyNotIntact`] when an end is not among the
-    /// verdict's transverse caps, or its incidence is not the cap the
-    /// verdict classified.
-    fn plan(
-        body: &Body<T>,
-        link: AdmittedOpen<'a, T>,
-        opens: &[AdmittedOpen<'_, T>],
-        caps: &[VertexKey],
-    ) -> Result<Self, BlendError> {
-        let l = link.link();
-        let edge = l.edge;
-        let Surface::Cylinder {
-            origin: spine_origin,
-            axis: tau,
-            radius,
-            ..
-        } = l.blend.surface
-        else {
-            return Err(unbuilt_geometry(
-                EntityId::Edge(edge),
-                "a ruled link's band is not a cylinder about its ruling",
-            ));
-        };
-        let trim_origin = |trim: &Curve3<T>| -> Result<Point3<T>, BlendError> {
-            match *trim {
-                Curve3::Line { origin, .. } => Ok(origin),
-                _ => Err(unbuilt_geometry(
-                    EntityId::Edge(edge),
-                    "an open link's trimline is not a line",
-                )),
-            }
-        };
-        let (q_a, q_b) = (
-            trim_origin(&l.blend.trim_a.0)?,
-            trim_origin(&l.blend.trim_b.0)?,
-        );
-
-        // The supports: ring-free, and carrying the crease on their
-        // outer cycle. A ring on a curved support is not carried
-        // through by this carve, and a crease on a ring would put the
-        // trimline `mef` across a ring's loop. The CAP's rings are NOT
-        // checked, deliberately: the cut-off `mef` runs on the cap's
-        // outer cycle and leaves the old face's rings on the old face,
-        // so a bored rod's cap keeps its bore
-        // (`tests/review_fillet_h7_r1_probes.rs`, the cap-with-a-ring
-        // row).
-        let (hp, hm) = halves_of(body, edge)
-            .ok_or_else(|| not_intact(EntityId::Edge(edge), "a ruled link's edge"))?;
-        for (face, half) in [(l.face_a, hp), (l.face_b, hm)] {
-            let fd = body
-                .get_face(face)
-                .ok_or_else(|| not_intact(EntityId::Face(face), "a ruled link's support"))?;
-            if !fd.rings.is_empty() {
-                return Err(unbuilt_chain(
-                    edge,
-                    "a ruled band's support face carries a ring; the band's carve on a curved \
-                     support does not carry rings through",
-                ));
-            }
-            if loop_of_half(body, half) != Some(fd.outer) {
-                return Err(unbuilt_chain(
-                    edge,
-                    "a ruled band's edge is not on its support's outer cycle",
-                ));
-            }
-            if face_of_half(body, half) != Some(face) {
-                return Err(not_intact(
-                    EntityId::Edge(edge),
-                    "a ruled link's half-edges do not lie in the faces the verdict names",
-                ));
-            }
-        }
-
-        let mut ends = Vec::with_capacity(2);
-        for v in [l.start, l.end] {
-            // The battery's classification, read rather than re-made:
-            // predicate 6 tagged this end `TransverseCap` and the
-            // verdict carries it.
-            if !caps.contains(&v) {
-                return Err(not_intact(
-                    EntityId::Vertex(v),
-                    "a ruled link's end is not among the transverse caps the verdict classified",
-                ));
-            }
-            let (rim_a, rim_b, cap) = cap_rims(body, v, edge, l.face_a, l.face_b)?;
-            if opens.iter().any(|o| o.edge() == rim_a || o.edge() == rim_b) {
-                return Err(unbuilt_chain(
-                    edge,
-                    "a ruled band's cap rim is itself requested; a cap whose rim edges are \
-                     blended too is not implemented",
-                ));
-            }
-            // The cap plane, from the STORED surface — the battery's
-            // classification read the same one.
-            let Some(Surface::Plane {
-                origin: po,
-                normal: n,
-                ..
-            }) = body.get_face(cap).and_then(|f| body.get_surface(f.surface))
-            else {
-                return Err(not_intact(
-                    EntityId::Face(cap),
-                    "a transverse cap's stored surface is not a plane",
-                ));
-            };
-            // Carry a point along the ruling to the cap plane. The
-            // ruling is transverse to the plane by the battery's
-            // classification (its normal is parallel to `tau`), so the
-            // quotient is total.
-            let section = |p: Point3<T>| p + tau * ((*po - p).dot(*n) / tau.dot(*n));
-            ends.push(CapEnd {
-                vertex: v,
-                cap,
-                foot_a: section(q_a),
-                foot_b: section(q_b),
-                center: section(spine_origin),
-            });
-        }
-        let Ok(ends) = <[CapEnd<T>; 2]>::try_from(ends) else {
-            unreachable!("ruled plan: one cap per end of the link's two ends, pushed above")
-        };
-        Ok(Self { link, ends, radius })
-    }
-
-    /// The admitted link this plan carves.
-    fn link(&self) -> AdmittedOpen<'a, T> {
-        self.link
-    }
-}
-
-/// **The two rim edges of a transverse cap at `vertex`**, and the cap
-/// face, read off the LIVE body through the battery's one home for the
-/// rule ([`super::battery::cap_incidence`]): of the three edges at the
-/// vertex, the two other than the crease each join one of the link's
-/// supports to one third face, and that face — one face, shared — is
-/// the cap. Returned as `(rim on face_a, rim on face_b, cap)`. Where the
-/// battery reports an end that does not have this shape as
-/// unclassifiable, the surgery reports it as a body that disagrees with
-/// the verdict it was handed — the same fact, in each door's own words.
-///
-/// # Errors
-///
-/// [`BlendError::BodyNotIntact`]: the incidence is not the transverse
-/// cap the battery classified.
-fn cap_rims<T: Decide>(
-    body: &Body<T>,
-    vertex: VertexKey,
-    crease: EdgeKey,
-    face_a: FaceKey,
-    face_b: FaceKey,
-) -> Result<(EdgeKey, EdgeKey, FaceKey), BlendError> {
-    super::battery::cap_incidence(body, vertex, crease, face_a, face_b).ok_or_else(|| {
-        not_intact(
-            EntityId::Vertex(vertex),
-            "a ruled link's end is not the transverse cap the verdict classified: its other \
-             two edges do not each join one support to one shared cap face",
-        )
-    })
-}
-
-/// A split rim edge, as the carve needs it: the piece still touching
-/// the old vertex (it dies with the sliver) and the foot vertex.
-struct SplitRim {
-    near: EdgeKey,
-    foot: VertexKey,
-}
-
-/// Split one cap rim edge at the trimline's foot on it, recording the
-/// foot and the surviving piece as births of this carve.
-///
-/// **The rim may already be a fragment.** Two creases on one cap share
-/// the rim between them (the rod's two creases share the flat's chord),
-/// so the second carve splits a piece the first one left — a key that is
-/// either the SOURCE rim's or a fresh one, and in either case already
-/// carries a `meridian_remnants` row. Provenance is read off that row:
-/// the surviving piece is recorded as a fragment of the ORIGINAL source,
-/// the stale fragment row is retired, and only a source key that dies is
-/// a retirement (a minted piece that dies needs no row). Without this the
-/// second split recorded the survivor twice, which the document layer's
-/// emitter refuses as "the surgery recorded one entity twice".
-#[allow(clippy::too_many_arguments)]
-fn split_rim<T: Decide + Bounds>(
-    body: &mut Body<T>,
-    rim: EdgeKey,
-    crease: EdgeKey,
-    vertex: VertexKey,
-    support: FaceKey,
-    foot: Point3<T>,
-    rec: &mut BlendNaming,
-    tol: Tol,
-) -> Result<SplitRim, BlendError> {
-    let t = seam_split_param(body, rim, crease, foot)?;
-    let created = body
-        .split_edge(rim, t, tol)
-        .map_err(|e| op("cap rim split", e))?;
-    let (near, far) = if edge_touches(body, rim, vertex) {
-        (rim, created.new_edge)
-    } else {
-        (created.new_edge, rim)
-    };
-    let source = rec
-        .meridian_remnants
-        .iter()
-        .find(|(piece, _)| *piece == rim)
-        .map_or(rim, |(_, source)| *source);
-    rec.meridian_remnants.retain(|(piece, _)| *piece != rim);
-    rec.feet.push((created.vertex, vertex, support));
-    rec.meridian_remnants.push((far, source));
-    if near == source {
-        rec.dead.edges.push(source);
-    }
-    Ok(SplitRim {
-        near,
-        foot: created.vertex,
-    })
-}
-
-/// [`flank`] on a face's OUTER cycle, refusing typed where the cycle
-/// does not walk or does not carry the keyed half-edge — the ruled
-/// band's and the corner arc's spelling, whose chords always hang in an
-/// outer cycle (the cut-off `mef` leaves a cap's rings on the cap; a
-/// support with a ring is refused at the plan).
-fn chord_site<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    at: impl Fn(&(HalfEdgeKey, VertexKey, EdgeKey)) -> bool,
-    back: usize,
-    fwd: usize,
-) -> Result<(HalfEdgeKey, HalfEdgeKey, VertexKey, VertexKey), BlendError> {
-    let outer = body
-        .get_face(face)
-        .ok_or_else(|| not_intact(EntityId::Face(face), "a face whose cycle a chord spans"))?
-        .outer;
-    let ((he1, v1), (he2, v2)) = flank(body, outer, at, back, fwd).ok_or_else(|| {
-        not_intact(
-            EntityId::Face(face),
-            "a face's outer cycle does not walk, or does not carry the half-edge the carve \
-             keys on",
-        )
-    })?;
-    Ok((he1, he2, v1, v2))
-}
-
-/// **Carve one ruled link**: the band between its two transverse caps.
-/// Returns the band face and the new edges awaiting their descriptions.
-///
-/// # Errors
-///
-/// [`BlendError::Op`] when an Euler operator refuses;
-/// [`BlendError::UnsupportedChain`] / [`BlendError::UnsupportedGeometry`]
-/// from the split parameter (a foot off its rim's span, an uncertified
-/// rim); [`BlendError::BodyNotIntact`] where a cycle read disagrees
-/// with the plan.
-fn ruled_phase<T: Decide + Bounds>(
-    body: &mut Body<T>,
-    plan: &RuledPlan<'_, T>,
-    sources: &SourceFaces,
-    rec: &mut BlendNaming,
-    tol: Tol,
-) -> Result<(FaceKey, Described<T>), BlendError> {
-    let l = plan.link.link();
-    let crease = l.edge;
-    let mut described: Described<T> = Vec::new();
-
-    // ---- (1) Per cap: split both rims at their feet, then `mef` the
-    // cut-off arc across the cap between the two feet. The run from
-    // the first foot through the old vertex to the second is what
-    // moves onto the new face, so the new face is the SLIVER and the
-    // cap keeps its key, surface, sense and rings. ----
-    let mut slivers: Vec<(SplitRim, SplitRim)> = Vec::with_capacity(2);
-    for end in &plan.ends {
-        let v = end.vertex;
-        // Live, not planned: an earlier link's carve on the same cap
-        // may have split the rim this end shares with it.
-        let (rim_a, rim_b, cap) = cap_rims(body, v, crease, l.face_a, l.face_b)?;
-        if cap != end.cap {
-            return Err(not_intact(
-                EntityId::Vertex(v),
-                "a transverse cap's face is not the one the plan read",
-            ));
-        }
-        let a = split_rim(body, rim_a, crease, v, l.face_a, end.foot_a, rec, tol)?;
-        let b = split_rim(body, rim_b, crease, v, l.face_b, end.foot_b, rec, tol)?;
-        // In the cap's cycle the half-edge ENDING at the old vertex
-        // starts at one foot; two positions on, the half-edge starts
-        // at the other.
-        let ends_at_v = |body: &Body<T>, he: HalfEdgeKey| body.half_edge_end(he) == Some(v);
-        let (he1, he2, x, y) = chord_site(body, end.cap, |row| ends_at_v(body, row.0), 0, 2)?;
-        if !((x == a.foot && y == b.foot) || (x == b.foot && y == a.foot)) {
-            return Err(not_intact(
-                EntityId::Vertex(v),
-                "a cap's cycle around the old vertex is not flanked by the two feet just split",
-            ));
-        }
-        let (px, py) = (
-            point_of(body, x).ok_or_else(|| not_intact(EntityId::Vertex(x), "a foot"))?,
-            point_of(body, y).ok_or_else(|| not_intact(EntityId::Vertex(y), "a foot"))?,
-        );
-        // Scaffold chord now (the corner-arc precedent); the exact
-        // section arc is attached in the description pass.
-        let created = body
-            .mef(
-                MefSite::Chords { he1, he2 },
-                EdgeCurveSpec::line_between(px, py),
-                FaceSurface::Inherit,
-                tol,
-            )
-            .map_err(|e| op("cap cut-off mef", e))?;
-        described.push((
-            created.edge,
-            ContactCarrier::TransverseArc {
-                center: end.center,
-                radius: plan.radius,
-            },
-        ));
-        rec.arcs.push((created.edge, v, crease));
-        slivers.push((a, b));
-    }
-
-    // ---- (2) Per support: the trimline `mef` along the ruling between
-    // the two feet. The crease's half on that support is the middle of
-    // the moved run — the near rim piece into the old vertex, the
-    // crease, the near rim piece out of the other — so the new face is
-    // the STRIP and the support keeps its key. ----
-    let (hp, hm) = halves_of(body, crease)
-        .ok_or_else(|| not_intact(EntityId::Edge(crease), "the crease being carved"))?;
-    let mut trims: Vec<EdgeKey> = Vec::with_capacity(2);
-    for (face, half, feet) in [
-        (l.face_a, hp, [slivers[0].0.foot, slivers[1].0.foot]),
-        (l.face_b, hm, [slivers[0].1.foot, slivers[1].1.foot]),
-    ] {
-        let (he1, he2, x, y) = chord_site(body, face, |row| row.0 == half, 1, 2)?;
-        if !((x == feet[0] && y == feet[1]) || (x == feet[1] && y == feet[0])) {
-            return Err(not_intact(
-                EntityId::Face(face),
-                "a support's cycle around the crease is not flanked by its two feet",
-            ));
-        }
-        let (px, py) = (
-            point_of(body, x).ok_or_else(|| not_intact(EntityId::Vertex(x), "a foot"))?,
-            point_of(body, y).ok_or_else(|| not_intact(EntityId::Vertex(y), "a foot"))?,
-        );
-        let created = body
-            .mef(
-                MefSite::Chords { he1, he2 },
-                EdgeCurveSpec::line_between(px, py),
-                FaceSurface::Inherit,
-                tol,
-            )
-            .map_err(|e| op("ruled trimline mef", e))?;
-        described.push((created.edge, ContactCarrier::TrimLine));
-        rec.trims.push((created.edge, crease, face));
-        trims.push(created.edge);
-    }
-
-    // ---- (3) Excise the crease across its two strips. ----
-    sources.kef_minted(body, hp, "ruled crease kef")?;
-    rec.dead.edges.push(crease);
-
-    // ---- (4) Per cap: fold the sliver into the band across the
-    // `face_a`-side rim remnant, then retire the `face_b`-side remnant
-    // — now a spur — together with the old vertex. ----
-    for (end, (a, b)) in plan.ends.iter().zip(&slivers) {
-        let v = end.vertex;
-        let (ahp, ahm) = halves_of(body, a.near)
-            .ok_or_else(|| not_intact(EntityId::Edge(a.near), "a split rim's near piece"))?;
-        // The sliver is on whichever side of the near piece is NOT the
-        // merged strip face — which is the face the trimline of
-        // `face_a` now bounds on its non-support side.
-        let band_side = band_face(body, trims[0], l.face_a)?;
-        let dying = if face_of_half(body, ahp) == Some(band_side) {
-            ahm
-        } else {
-            ahp
-        };
-        sources.kef_minted(body, dying, "cap sliver kef")?;
-        let (bhp, bhm) = halves_of(body, b.near)
-            .ok_or_else(|| not_intact(EntityId::Edge(b.near), "a split rim's near piece"))?;
-        let spur = if body.half_edge_end(bhm) == Some(v) {
-            bhm
-        } else {
-            bhp
-        };
-        body.kev(spur).map_err(|e| op("cap vertex kev", e))?;
-        rec.dead.vertices.push(v);
-    }
-
-    let band = band_face(body, trims[0], l.face_a)?;
-    rec.blends.push((band, crease));
-    Ok((band, described))
-}
-
-/// The face a trimline bounds on its non-support side: the band (once
-/// the strips have merged) or the strip (before).
-fn band_face<T: Decide>(
-    body: &Body<T>,
-    trim: EdgeKey,
-    support: FaceKey,
-) -> Result<FaceKey, BlendError> {
-    let (hp, hm) = halves_of(body, trim)
-        .ok_or_else(|| not_intact(EntityId::Edge(trim), "a trimline this carve minted"))?;
-    match (face_of_half(body, hp), face_of_half(body, hm)) {
-        (Some(f1), Some(f2)) if f1 == support => Ok(f2),
-        (Some(f1), Some(_)) => Ok(f1),
-        _ => Err(not_intact(
-            EntityId::Edge(trim),
-            "both halves of a trimline this carve minted bound a face",
-        )),
-    }
-}
-
-// ------------------------------------------------------------------
 // Shared small lookups and the description pass.
 // ------------------------------------------------------------------
 
-fn point_of<T: Decide>(body: &Body<T>, v: VertexKey) -> Option<Point3<T>> {
+pub(super) fn point_of<T: Decide>(body: &Body<T>, v: VertexKey) -> Option<Point3<T>> {
     body.get_point(body.get_vertex(v)?.point).copied()
 }
 
-fn halves_of<T: Decide>(body: &Body<T>, e: EdgeKey) -> Option<(HalfEdgeKey, HalfEdgeKey)> {
+pub(super) fn halves_of<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+) -> Option<(HalfEdgeKey, HalfEdgeKey)> {
     let ed = body.get_edge(e)?;
     Some((ed.he_plus, ed.he_minus))
 }
 
-fn loop_of_half<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<LoopKey> {
+pub(super) fn loop_of_half<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<LoopKey> {
     Some(body.get_half_edge(he)?.parent_loop)
 }
 
-fn face_of_half<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<FaceKey> {
+pub(super) fn face_of_half<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<FaceKey> {
     Some(body.get_loop(loop_of_half(body, he)?)?.face)
 }
 
@@ -4632,15 +3601,15 @@ fn edge_faces<T: Decide>(body: &Body<T>, e: EdgeKey) -> Option<(FaceKey, FaceKey
 }
 
 // ------------------------------------------------------------------
-// The surgery's ONE face-destroying door. Every `kef` in this file is
-// `kef_minted`; nothing else calls `Body::kef`
+// The surgery's ONE face-destroying door. Every `kef` in this file and
+// in `open/` is `kef_minted`; nothing else calls `Body::kef`
 // (`tests/review_fillet_t_r1_probes.rs` is the mechanical pin).
 // ------------------------------------------------------------------
 
 /// **Every face of the body the surgery was handed**, read once before
 /// the clone is touched. It is the door's argument, so there is no
 /// second set to build and no wrong one to spell.
-struct SourceFaces(Vec<FaceKey>);
+pub(super) struct SourceFaces(Vec<FaceKey>);
 
 impl SourceFaces {
     /// The one constructor. Refuses a face-less body: an empty snapshot
@@ -4679,7 +3648,7 @@ impl SourceFaces {
     /// [`BlendError::SurgeryInvariant`] when the half's face is one the
     /// surgery did not mint, or does not resolve;
     /// [`BlendError::Op`] tagged `site` when the operator refuses.
-    fn kef_minted<T: Decide>(
+    pub(super) fn kef_minted<T: Decide>(
         &self,
         body: &mut Body<T>,
         dying: HalfEdgeKey,
@@ -4847,13 +3816,11 @@ mod tests {
 
     use topo::EdgeKey;
 
-    use geom::Surface;
-
-    use super::super::battery::{Chain, ChainClosure, Convexity, Link};
+    use super::super::battery::Convexity;
     use super::super::build::fillet_edges;
-    use super::{AdmittedOpen, BlendError, BlendKind, CornerLinks, corner_plan, rim_trim_circles};
+    use super::{BlendError, rim_trim_circles};
     use crate::blend::arms::plane_sphere_blend;
-    use crate::test_support::{L, R, all_links, cube};
+    use crate::test_support::{L, R, cube};
 
     /// **The door's own one-solid, one-shell clause.**
     /// `blend_surgery` binds the solid and the shell out of the same
@@ -4937,97 +3904,5 @@ mod tests {
         // the selection retires: it would hand back the sphere trim.
         let blind = rim_trim_circles(e, &swapped, true).expect("circles");
         assert_eq!(blind.0.1, a.1.1, "slot-blind trim_a IS the sphere trim");
-    }
-
-    /// One open chain per link of a cube, so the door has something to
-    /// admit. The fixture FALSIFIES nothing about the geometry — the
-    /// convexity carried is the one `all_links` resolved.
-    fn open_chain(link: Link<f64>) -> Chain<f64> {
-        let (head, tail) = (link.start, link.end);
-        Chain::new(
-            link,
-            Vec::new(),
-            Vec::new(),
-            ChainClosure::Open { head, tail },
-        )
-    }
-
-    /// **The corner plan FOLDS its links' convexity verdict — as one
-    /// decision, at every site that reads its sign.** The same cube
-    /// corner is planned twice: once under the verdict its links
-    /// really carry (convex), once under the same links with the
-    /// verdict FALSIFIED to concave. The two plans must disagree in
-    /// exactly the mirrored ways — ball centre reflected to the other
-    /// side of the vertex, feet reflected with it, sense bit flipped,
-    /// chart pole flipped — and any single fold left convex-hardcoded
-    /// breaks one of the four assertions while the others stay green,
-    /// which is what makes each an independent pin.
-    ///
-    /// **The concave half of this probe is not a body.** The fixture
-    /// falsifies the battery's stored verdict on a cube whose geometry
-    /// is untouched — a lie about a convex body, not a concave one.
-    /// What it pins is the PLAN's derivation as a function of the
-    /// verdict. A real concave body carved end to end is the filleted
-    /// vented cavity of the concave-fillet suite.
-    #[test]
-    fn a_corner_plan_takes_its_links_convexity() {
-        let body = cube(L, Tol::witness());
-        let links = all_links(&body, Tol::witness());
-        let v = links[0].start;
-        let plan_with = |flip: bool| {
-            let flipped: Vec<Link<f64>> = links
-                .iter()
-                .cloned()
-                .map(|mut l| {
-                    if flip {
-                        l.convexity = Convexity::Concave;
-                    }
-                    l
-                })
-                .collect();
-            let chains: Vec<Chain<f64>> = flipped.into_iter().map(open_chain).collect();
-            let admitted: Vec<AdmittedOpen<'_, f64>> = chains
-                .iter()
-                .map(|c| AdmittedOpen::admit(c).expect("a cube's links are plane–plane"))
-                .collect();
-            let mut here = admitted.iter().filter(|o| {
-                let l = o.link();
-                l.start == v || l.end == v
-            });
-            let first = *here.next().expect("the seed link of this corner");
-            let mut corner_links = CornerLinks::seed(v, first).expect("the seed link touches v");
-            for o in here {
-                corner_links
-                    .also(*o)
-                    .expect("every filtered link touches v");
-            }
-            let corner = corner_plan(&body, corner_links, R, BlendKind::Fillet)
-                .expect("either verdict plans");
-            let (centre, _) = corner.arc.expect("a fillet corner plans an arc centre");
-            let Surface::Sphere { axis, .. } = corner.surface else {
-                panic!("a fillet corner patch is a sphere");
-            };
-            let p = super::point_of(&body, v).expect("the corner's point");
-            (corner.convexity.blend_sense(), centre, corner.feet, axis, p)
-        };
-        let (conv_sense, cc, conv_feet, ax, p) = plan_with(false);
-        let (conc_sense, kc, conc_feet, kx, _) = plan_with(true);
-        assert!(conv_sense, "a convex octant is outward");
-        assert!(!conc_sense, "a concave octant faces its ball centre");
-        assert!(
-            (kc - (p + (p - cc))).norm() < 1e-14,
-            "the concave rest is the convex one reflected through the vertex"
-        );
-        for i in 0..3 {
-            let mirrored = p + (p - conv_feet[i]);
-            assert!(
-                (conc_feet[i] - mirrored).norm() < 1e-14,
-                "foot {i} reflects with the ball it touches"
-            );
-        }
-        assert!(
-            (ax + kx).norm() < 1e-14,
-            "the two verdicts' chart poles are antipodal (the fold's sign)"
-        );
     }
 }
