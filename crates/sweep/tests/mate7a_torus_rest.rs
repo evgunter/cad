@@ -333,21 +333,31 @@ fn a_fully_covered_torus_pair_reaches_past_the_operand_gate() {
 ///
 /// That refusal is also this unit's measurement of what BINDS. The two
 /// loci it names never meet: the socket's outer wall stands 0.03 m
-/// clear of everything the peg occupies. What overlaps is the
-/// whole-torus BOX, which reads nothing from the face's boundary.
+/// clear of everything the peg occupies. What overlaps is the two
+/// faces' BOXES.
+///
+/// **A boundary-tight torus box does not move this row, and that is
+/// the answer to the question it used to leave open** (issue 1488;
+/// `boolean::boxes`'s `TorusWindow` arm now reads a torus face's
+/// chart window from its boundary's certified pcurves). The socket's
+/// outer wall and the peg's wall are tubes of radius 0.09 and 0.06
+/// about the SAME spine circle, over the same 22° window, so their
+/// windows are the same rectangle and one AABB sits inside the other
+/// in every coordinate. No sound box can separate them; only the 0.03 m
+/// of radial clearance between the two LOCI could, and no box reads a
+/// radius that way. So the covered rung is still defeated here — by a
+/// genuine near-approach rather than by a whole-ring artifact, which
+/// is the difference the box fix made.
 ///
 /// **What that shows, stated no wider than the fixture supports.** An
-/// undeclared face defeats the covered rung when its box meets the
-/// whole-RING box of a torus face on the other operand — which is what
-/// happens here, and what happens easily, since a windowed torus is
-/// boxed as its entire ring. It is NOT the claim that any extra face
-/// defeats it: a face whose box clears the ring is exactly what the
-/// pair-scoped gate was built to let through, and it would not gate.
-/// The two regimes this suite actually demonstrates are the row above
+/// undeclared face defeats the covered rung when its box meets a torus
+/// face's box on the other operand. It is NOT the claim that any extra
+/// face defeats it: a face whose box clears the wall's is exactly what
+/// the pair-scoped gate was built to let through, and it would not
+/// gate. The two regimes this suite demonstrates are the row above
 /// (operands carrying nothing but wall faces, so every pair is
 /// coverable) and this one (an extra face whose box does meet the
-/// ring). Where a boundary-tight torus box would move the line between
-/// them is issue 1488's question, not this unit's.
+/// wall's).
 #[test]
 fn a_partly_covered_torus_pair_still_gates_on_the_uncovered_one() {
     let (s, p) = (socket(), segment_a());
