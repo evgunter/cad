@@ -2,9 +2,11 @@
 id: save-permitted-row-argues-only-half-of-save
 kind: issue
 title: The Save row's argument for being permitted mid-gesture covers save_path and not the resolver rebind
-status: open
+status: dispatched
 opened: 2026-09-04
 refs: [save-is-not-gesture-guarded]
+branch: view/edit-door-wording
+rides_with: refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake
 ---
 
 

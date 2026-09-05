@@ -2,9 +2,11 @@
 id: self-boolean-precheck-duplicates-the-doors-duplicate-input
 kind: issue
 title: add_boolean pre-checks a==b, which DocEdit::InsertNode already refuses as EditError::DuplicateInput
-status: open
+status: dispatched
 opened: 2026-09-04
 refs: [set-param-prechecks-what-the-door-refuses, refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake, 1846]
+branch: view/edit-door-wording
+rides_with: refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake
 ---
 
 

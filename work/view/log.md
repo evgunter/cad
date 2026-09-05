@@ -2218,3 +2218,60 @@ is gone, the probe tessellation remains. Amended in place, with the
 note that #1908 leaves a gather of its own on the refused-gate path at
 the fit's call site, which belongs on that list rather than only in its
 own item.
+
+## The wave is closed; one lane out on the edit-door wording (2026-09-05)
+
+**All four units merged**: #1886, #1885, #1888, #1908, plus #1912 for
+the orchestrator's own state-sync. Board: 37 open, 16 closed, one
+dispatched, one parked, one deferred.
+
+**The open count rose by fourteen while five items closed**, and that
+is the wave's real output rather than an embarrassment: **eighteen new
+items, every one a file rather than a sentence in a merged PR body.**
+That is the rule `work/README.md` states, the rule this program was
+failing when this session picked it up (a residue disclosed in prose
+dies with the directory), and the rule two lanes now apply without
+being told. The board is longer because it is finally honest.
+
+### Housekeeping, and one cost of mine
+
+Reclaimed every finished lane's `target/` (the 6b lane's was 11 GB
+alone) and swept seven merged worktrees; 24 GB free, two worktrees
+live. One cost to record: I deleted `clearing-walk-target` while that
+lane was mid-resume, so it paid a cold rebuild it did not owe.
+`memories/agent-lane-operations.md` says to reclaim *when a review
+returns*; I reclaimed when a **unit** returned, and the lane was not
+done with it.
+
+### Out now
+
+`view/edit-door-wording` — `refusal-edit-arm-doubles-a-prefix-and-
+splits-one-mistake` carrying `self-boolean-precheck-duplicates-the-
+doors-duplicate-input` and `save-permitted-row-argues-only-half-of-
+save`. It is the unit **Ev's `crates/editor-core` amendment was
+authorised for**, and the brief states the fence as the authorisation:
+`EditError`'s user-facing `Display` wording only — the `edit: ` literal
+and the nine `{:?}`-quoted payloads — no variant, no semantics, no
+other file.
+
+The amendment is what unblocks the self-boolean deletion. That item's
+own argument was a **sequencing** claim, not a carve-out: deleting the
+layer-3 arm today would hand the user `DuplicateInput`'s worse
+sentence, so the door's wording had to be fixed first, and VIEW could
+not fix it from its own side. With the amendment in hand the sequence
+can run in one unit.
+
+The claim I told the lane to check hardest: that the prefix and the
+quoting are **presentation only**, with nothing in the suite, the
+serialisers or `pncad-py` matching on `EditError`'s rendered text. 54
+arms is a wide blast radius for a wording change, and that is where it
+stops being safe.
+
+### Still waiting on Ev
+
+[#1883](https://github.com/evgunter/cad/pull/1883), green since 23:50,
+no answer. It carries the three design forks — the news vocabulary's
+expiry, the boundary rule #1848's gate proved false, and the badge
+family — and they gate `status-line-writers-bypass-the-ranking`, the
+nineteen-site sweep that is the largest single item left on this board.
+Nothing else is blocked on it.

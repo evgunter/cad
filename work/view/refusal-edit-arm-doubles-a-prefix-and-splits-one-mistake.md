@@ -2,9 +2,10 @@
 id: refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake
 kind: issue
 title: Refusal::Edit's wrapper doubles EditError's prefix, and one mistyped parameter now gets two sentences
-status: open
+status: dispatched
 opened: 2026-09-04
 refs: [set-param-prechecks-what-the-door-refuses, 1846]
+branch: view/edit-door-wording
 ---
 
 
