@@ -201,6 +201,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/sweep/tests/review_fillet_split_r2_probes.rs",
+        disposition: Shared, // the carve's file roster and its `pub` census, code view
+    },
+    Entry {
         path: "crates/sweep/tests/review_fillet_t_r1_probes.rs",
         disposition: Shared, // the blend surgery's one `kef` door, code view
     },
