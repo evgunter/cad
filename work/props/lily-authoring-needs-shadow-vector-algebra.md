@@ -2,11 +2,12 @@
 id: lily-authoring-needs-shadow-vector-algebra
 kind: unit
 title: API friction — authoring the lily naturally meant building a shadow vector algebra beside Vec3
-status: spec
+status: review
 branch: props/lily-vec3
 opened: 2026-08-20
 github: 796
 refs: [757, 758, 759, 787, D79]
+pr: 1954
 ---
 
 ## From GitHub issue 796
