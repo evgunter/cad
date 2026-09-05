@@ -4,7 +4,7 @@ kind: issue
 title: Nothing owns when news stops being news, so a stale-but-true complaint sits on the line indefinitely
 status: open
 opened: 2026-09-04
-refs: [camera-fold-clears-status-line, status-line-writers-bypass-the-ranking]
+refs: [camera-fold-clears-status-line, status-line-writers-bypass-the-ranking, opoutcome-superseded-has-no-production-reader]
 ---
 
 ## The gap
@@ -68,3 +68,25 @@ nothing. Answering it needs exactly this vocabulary: a superseded probe
 is news if the discard is the outcome of an act, a standing fact if
 "the probe you are reading is stale" persists, and neither answer is
 expressible until "stops being news" has an owner.
+
+## A named instance, now in the tree (VIEW-6, 2026-09-04)
+
+That item answered "news" and shipped `frame::supersession_notice`,
+whose doc says the supersession is "true of nothing" after the frame
+that carries it.
+
+**Nothing implements that lifetime.** The notice is joined into
+`frame_status`'s rank 2 for one frame and then sits on
+`ViewerApp::status` exactly as long as any other message: until an
+acting batch clears it. So a user who supersedes a placement and then
+only orbits reads "free move: the placement on instance 3 was
+discarded" for as long as they navigate — a sentence whose own
+documentation says it stopped being true one frame in.
+
+It is a sharper instance than the pre-existing ones above, because
+here the expiry is **written down as the justification for the
+channel**: the argument for the line over a badge is precisely that the
+fact does not outlive the frame. Candidate 2 (a message carries its
+subject) would expire it on the next document transition; candidate 1
+accepts that the stated lifetime is aspirational and the doc should
+stop claiming it.

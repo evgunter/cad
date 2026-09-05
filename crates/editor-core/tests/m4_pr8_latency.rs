@@ -46,11 +46,15 @@
 //!   machine-independent, hand-maintained, and what the coverage and
 //!   structural assertions below read. Nothing about a box can move
 //!   these numbers.
-//! - [`HISTORY`] — one file per merge to `main`, written by ci.yml's
-//!   `rebuild latency (reporting)` job on a hosted runner and
-//!   committed by it. Append-only: a run adds a filename, never edits
-//!   an existing one, so concurrent merges cannot conflict and a
-//!   cancelled run drops nothing.
+//! - [`HISTORY`] — one file per RUN of the reporting job, written by
+//!   `nightly.yml`'s `rebuild latency (reporting)` job on a hosted
+//!   runner and committed by it. That job is on a nightly cron and is
+//!   gated on `main` having moved since the last one, so the cadence
+//!   is at most one entry per night and quiet days add none — NOT one
+//!   per merge, which is what this said while the job lived in
+//!   ci.yml. Append-only: a run adds a filename, never edits an
+//!   existing one, so concurrent runs cannot conflict and a cancelled
+//!   run drops nothing.
 //!
 //! The `vs base` columns diff against the NEWEST history entry, so on
 //! a PR they read against `main`'s last hosted measurement and on
@@ -79,7 +83,10 @@ use crate::corpus;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use editor_core::{CancelToken, EvalOptions, evaluate};
+use editor_core::{
+    CancelToken, ChecksConfig, DocEdit, DocParam, EvalOptions, ParamName, ProfileDoc, Subject,
+    apply, evaluate, product_recorded, run_checks, run_checks_on,
+};
 
 use corpus::{cone, documents, eval, failures};
 use geom_core::Tol;
@@ -88,10 +95,12 @@ use geom_core::Tol;
 /// Machine-independent; carries no milliseconds.
 const MANIFEST: &str = "tests/baseline/rebuild-latency.json";
 /// The hosted-CI timing history, relative to the repo root. One file
-/// per merge to `main`, named `<epoch-seconds>-<short-sha>.json` so a
-/// lexicographic sort is a chronological one.
+/// per RUN of the nightly reporting job (at most one a night, and none
+/// on a night when `main` has not moved), named
+/// `<epoch-seconds>-<short-sha>.json` so a lexicographic sort is a
+/// chronological one.
 const HISTORY: &str = "docs/perf-data/rebuild-latency";
-/// Set to a path to write this run's measurement there. ci.yml's
+/// Set to a path to write this run's measurement there. `nightly.yml`'s
 /// `rebuild latency (reporting)` job sets it; nothing else does.
 const EMIT: &str = "CAD_LATENCY_EMIT";
 /// Provenance the emitting job supplies (both optional).
@@ -374,6 +383,131 @@ fn measure() -> Vec<Row> {
     rows
 }
 
+/// The fin count the registry/gather split is measured at — the point
+/// the claim in `checks.rs` and `product.rs` is stated for, and the
+/// only place in this file that leaves the corpus's own parameters.
+///
+/// The corpus heat sink is a fin pattern plus an explicit union chain,
+/// so at this count its product is one chain solid and 160 pattern
+/// instances. Both counts are exact and are pinned by
+/// `docm5_subject::the_registry_split_is_measured_at_a_pinned_point`,
+/// which gates on every PR — a wall clock is only worth reading beside
+/// the size it was taken at, and that size must not drift silently.
+const SPLIT_FINS: i64 = 160;
+
+/// The registry's two terms, separated.
+///
+/// `checks.rs`'s cost note used to state one number for the pair and
+/// could not say which term dominated, because the registry gathered
+/// its own subject and the gather was inside the figure. The subject
+/// door separated them, and this is what re-takes them:
+///
+/// - `gather_ms` — [`product_recorded`] alone, from nothing.
+/// - `checks_ms` — the registry over a subject already in hand.
+/// - `whole_ms` — the wrapper, which is the two together and is what
+///   the old single figure measured.
+/// - `census_ms` — the tier-3' census over the SAME aggregate, the
+///   term this resident exists instead of. Fewer reps than the others
+///   ([`CENSUS_REPS`]) because it costs seconds where they cost
+///   milliseconds, and it REFUSES on this document (the fins meet the
+///   base), so it is the cost of a refusing run.
+struct Split {
+    solids: usize,
+    faces: usize,
+    census_findings: usize,
+    gather_ms: (f64, f64, f64),
+    checks_ms: (f64, f64, f64),
+    whole_ms: (f64, f64, f64),
+    census_ms: (f64, f64, f64),
+}
+
+/// Repetitions for the census term alone — MUST BE ODD, same reason as
+/// [`REPS`]. Three rather than five because this term is ~10^3 times
+/// the others and five would be most of this job's wall clock for a
+/// figure quoted to two significant digits.
+const CENSUS_REPS: usize = 3;
+const _: () = assert!(
+    CENSUS_REPS % 2 == 1,
+    "CENSUS_REPS must be odd for the midpoint median"
+);
+
+/// The corpus heat sink with its fin count driven to `fins`.
+fn heatsink_at(fins: i64) -> ProfileDoc {
+    let tol = Tol::witness();
+    let entry = documents()
+        .into_iter()
+        .find(|d| d.name == "heat_sink")
+        .expect("the corpus carries the heat sink");
+    apply(
+        &entry.doc,
+        &DocEdit::SetDocParam {
+            name: ParamName::new("fins"),
+            value: DocParam::Count { value: fins },
+        },
+        tol,
+    )
+    .expect("the fin count is a document parameter")
+    .doc
+}
+
+/// Takes the split (module docs on [`Split`]).
+fn measure_split() -> Split {
+    let tol = Tol::witness();
+    let cfg = ChecksConfig::default();
+    let doc = heatsink_at(SPLIT_FINS);
+    let ev = eval::<f64>(&doc);
+    let bad = failures(&ev);
+    assert!(
+        bad.is_empty(),
+        "the split point must be green:\n{}",
+        bad.join("\n")
+    );
+
+    let subject = product_recorded(&doc, &ev, tol).expect("the heat sink gathers");
+    let (solids, faces) = (subject.body.solids().count(), subject.body.faces().count());
+
+    let mut gathers = Vec::with_capacity(REPS);
+    let mut checks = Vec::with_capacity(REPS);
+    let mut wholes = Vec::with_capacity(REPS);
+    let mut census = Vec::with_capacity(CENSUS_REPS);
+    let mut census_findings = 0;
+    for _ in 0..REPS {
+        let t0 = Instant::now();
+        let gathered = product_recorded(&doc, &ev, tol).expect("gathers");
+        gathers.push(t0.elapsed());
+        drop(gathered);
+
+        let t0 = Instant::now();
+        run_checks_on(&doc, &ev, Subject::Product(&subject), &cfg, tol).expect("the registry runs");
+        checks.push(t0.elapsed());
+
+        let t0 = Instant::now();
+        run_checks(&doc, &ev, &cfg, tol).expect("and so does its wrapper");
+        wholes.push(t0.elapsed());
+    }
+
+    for _ in 0..CENSUS_REPS {
+        let t0 = Instant::now();
+        let verdict = <f64 as topo::AtRestPolicy>::gate_at_rest_declared(
+            &subject.body,
+            &subject.contacts,
+            tol,
+        );
+        census.push(t0.elapsed());
+        census_findings = verdict.as_ref().err().map_or(0, Vec::len);
+    }
+
+    Split {
+        solids,
+        faces,
+        census_findings,
+        gather_ms: stats(gathers),
+        checks_ms: stats(checks),
+        whole_ms: stats(wholes),
+        census_ms: stats(census),
+    }
+}
+
 /// The committed structural manifest, as a value.
 fn manifest() -> serde_json::Value {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(MANIFEST);
@@ -599,7 +733,7 @@ fn environment_from(cpuinfo: &str) -> serde_json::Value {
 /// Writes the FILE ONLY — naming it, committing it and deciding
 /// whether it belongs in the history is ci.yml's job, so a local run
 /// with `CAD_LATENCY_EMIT` set can never touch the committed history.
-fn emit(rows: &[Row], path: &str) {
+fn emit(rows: &[Row], split: &Split, path: &str) {
     let mut docs = serde_json::Map::new();
     for r in rows {
         docs.insert(
@@ -619,6 +753,7 @@ fn emit(rows: &[Row], path: &str) {
     let measured_at = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());
+    let ms = |x: f64| (x * 100.0).round() / 100.0;
     let out = serde_json::json!({
         "commit": std::env::var(COMMIT).unwrap_or_else(|_| "unknown".to_string()),
         "measured_at_epoch_s": measured_at,
@@ -629,6 +764,27 @@ fn emit(rows: &[Row], path: &str) {
         ),
         "environment": environment(),
         "documents": docs,
+        // The registry's two terms at the point `checks.rs` states them
+        // for — the scheduled re-measure that claim rests on.
+        "registry_split": {
+            "document": "heat_sink",
+            "fins": SPLIT_FINS,
+            "solids": split.solids,
+            "faces": split.faces,
+            "gather_ms": ms(split.gather_ms.0),
+            "gather_min_ms": ms(split.gather_ms.1),
+            "gather_max_ms": ms(split.gather_ms.2),
+            "checks_ms": ms(split.checks_ms.0),
+            "checks_min_ms": ms(split.checks_ms.1),
+            "checks_max_ms": ms(split.checks_ms.2),
+            "whole_ms": ms(split.whole_ms.0),
+            "whole_min_ms": ms(split.whole_ms.1),
+            "whole_max_ms": ms(split.whole_ms.2),
+            "census_ms": ms(split.census_ms.0),
+            "census_min_ms": ms(split.census_ms.1),
+            "census_max_ms": ms(split.census_ms.2),
+            "census_findings": split.census_findings,
+        },
     });
     let text = format!(
         "{}\n",
@@ -673,12 +829,13 @@ fn emit(rows: &[Row], path: &str) {
 #[ignore]
 fn rebuild_latency_table() {
     let rows = measure();
+    let split = measure_split();
 
     // Emit BEFORE the assertions: when a structural pin fails, the
     // measurement artifact is exactly what the next reader wants, and
     // a panic here would otherwise throw the whole run's numbers away.
     if let Ok(path) = std::env::var(EMIT) {
-        emit(&rows, &path);
+        emit(&rows, &split, &path);
     }
 
     let history = latest_history();
@@ -734,6 +891,35 @@ fn rebuild_latency_table() {
          machine-dependent — advisory only. `±` is the half-range over the 5 runs; \
          a `vs base` delta inside it is noise.\n",
     );
+
+    // --- the registry's two terms, at the point the claim states them ---
+    let split_base = history.as_ref().and_then(|(_, v)| v.get("registry_split"));
+    out.push_str(&format!(
+        "\n=== registry split (REPORTING ONLY) — heat_sink at {} fins, \
+         {} solids / {} faces ===\n",
+        SPLIT_FINS, split.solids, split.faces
+    ));
+    out.push_str(&format!(
+        "{:<28} {:>10} {:>7} {:>9}\n",
+        "term", "ms", "±", "vs base"
+    ));
+    out.push_str(&format!(
+        "(the census refuses here: {} finding(s); \
+         it is measured over {CENSUS_REPS} runs, the others over {REPS})\n",
+        split.census_findings
+    ));
+    for (label, key, (median, min, max)) in [
+        ("gather (product_recorded)", "gather_ms", split.gather_ms),
+        ("registry over a subject", "checks_ms", split.checks_ms),
+        ("run_checks (the two together)", "whole_ms", split.whole_ms),
+        ("tier-3' census (refuses)", "census_ms", split.census_ms),
+    ] {
+        out.push_str(&format!(
+            "{label:<28} {median:>10.2} {:>6.0}% {:>9}\n",
+            spread_pct(median, min, max),
+            pct(median, field(split_base, key)),
+        ));
+    }
     println!("{out}");
 
     // --- the ε-independent structural pins (arithmetic, not clock) ---

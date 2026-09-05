@@ -185,7 +185,14 @@ pub use editor_core::ContentBits;
 // `DocEdit::SetRoots`; `product` is the whole-document gather those
 // roots name, and `RootFault` is the shared invariant refusal both
 // the edit and persistence doors carry.
-pub use editor_core::{ProductError, RootFault, product};
+pub use editor_core::{Product, ProductError, RootFault, product, product_recorded};
+
+// The gather's own witness, and only where `debug_assertions` are on:
+// how many times this thread has gathered a product. A consumer that
+// owes one gather per operation asserts it on the DIFFERENCE across
+// that operation; a release build carries no counter at all.
+#[cfg(debug_assertions)]
+pub use editor_core::gathers_on_this_thread;
 
 // Instantiated parts. `Frame` is the cluster placement a document
 // records per instantiate node
@@ -237,8 +244,13 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission};
 // direction's frontier (`Uncertified`), which is what `AtRestFinding`
 // and `Attribution` carry per finding. `RefusedRef` says why a mate
 // reference named no product face.
+// `assemble_gathered` is that gate over a product the caller already
+// holds — the canonical door, of which `assemble` is the gather plus a
+// call to it. A caller with several consumers of one product gathers
+// once and finishes here, since this door CONSUMES the product.
 pub use editor_core::{
     Assembly, AssemblyError, AtRestFinding, Attribution, MintedDeclaration, RefusedRef, assemble,
+    assemble_gathered,
 };
 
 // Split and inline: the first-class
@@ -278,9 +290,13 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // `subject_body` resolves a finding's (root, output_ix) attribution
 // back to the flagged body and the declarations its producer minted
 // for it, in the same evaluation.
+// `run_checks_on` is the registry over a `Subject` the caller gathered
+// — the door `run_checks` wraps, for a caller that already holds the
+// document's product.
 pub use editor_core::{
     Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,
-    ChecksError, ChecksReport, Severity, enforce_checks, run_checks, subject_body,
+    ChecksError, ChecksReport, Severity, Subject, enforce_checks, run_checks, run_checks_on,
+    subject_body,
 };
 
 // The profile description node type and its document alias.

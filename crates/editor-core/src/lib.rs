@@ -54,6 +54,7 @@ pub mod measure;
 pub mod meta;
 pub mod names;
 pub mod node;
+pub mod param_source;
 pub mod parse;
 pub mod part;
 pub mod persist;
@@ -94,11 +95,12 @@ pub use appearance::{
 };
 pub use assembly::{
     Assembly, AssemblyError, AtRestFinding, Attribution, MintRefusal, MintedDeclaration,
-    RefusedRef, assemble,
+    RefusedRef, assemble, assemble_gathered,
 };
 pub use checks::{
     Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,
-    ChecksError, ChecksReport, Severity, enforce_checks, run_checks, subject_body,
+    ChecksError, ChecksReport, Severity, Subject, enforce_checks, run_checks, run_checks_on,
+    subject_body,
 };
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
@@ -162,6 +164,8 @@ pub use persist::{
 };
 pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
 pub use placement::Frame;
+#[cfg(debug_assertions)]
+pub use product::gathers_on_this_thread;
 pub use product::{Product, ProductError, product, product_named, product_recorded};
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
