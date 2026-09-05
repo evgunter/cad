@@ -3938,6 +3938,8 @@ ordinal claim at review dispatch goes to main on its own.
 Block FILLET-B2 slot record (branch-side, appended as each slot concludes):
 slot 0 = FILLET-H6 (OPUS) — concluded 2026-09-05 at merge 195460c7a, ordinal 2003, sample #135 (no tally candidate; pair FAIR). Merge order put slot 1 (ATTR) on main first; the slot record lists slots in slot order.
 slot 1 = FILLET-ATTR (OPUS) — concluded 2026-09-05 at merge aa5384288, ordinal 2004, sample #134 (no tally candidate; pair FAIR).
+slot 2 = FILLET-H7 (FABLE) — concluded 2026-09-05 at merge 235d05241, ordinal 2005, sample #136 (one tally candidate, R2/OPUS, recorded in the row; pair FAIR, flagged for two benign glimpses).
+**Block FILLET-B2 CONCLUDED (2026-09-05)** — three slots, three duals (ordinals 2003–2005, samples #135, #134, #136); the block record reaches main with this sync. Block FILLET-B3 (Track T's riders; slots banked for Ev's two open rulings) opens branch-side on `fillet/b3-block`.
 
 ## FILLET-RIM review ordinal fixed at dispatch (2026-09-04)
 
