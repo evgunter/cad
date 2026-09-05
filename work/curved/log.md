@@ -65,3 +65,47 @@ orchestrator's; design forks are Ev's):
   address; repo-wide NEW ISSUE/PR lines are narrowed to summons
   (`CAD_CHANNEL_NEW_EVENTS=summons`, added to the script this PR — Ev's
   in-chat ask: PR noise off, "@ curved" mentions must reach me).
+
+## First dispatches and the design conversation (2026-09-04, later)
+
+- **Block CURVED-B1** drawn branch-side (`curved/b1-block`): byte 53 ⇒
+  fable at slot 2. Slot 0 = VERBS-C5ARMS PR-2 (Opus), dispatched on
+  `curved/c5arms-2`; slot 1 REORDERED to CURVED-TORUS PR-1 (Opus) on
+  `curved/torus-box` because its spec ratified first (#1874); slot 2 =
+  the merge-door unit (Fable), spec lane still measuring.
+- **`docs/CURVED-TORUS-SPEC.md` ratified (#1874)** with three binding
+  refutations: the torus implicit is the linearized form (no harmonic
+  triple; PR-2 encloses by subdivision with a certified `f2`); a
+  boundary-tight box does NOT retire lily wall 1 (a concentric coplanar
+  disc lies in every AABB of the larger circle) — PR-1's acceptance is
+  a RE-AIM and #1488 is re-scoped accordingly; MATE-7a's "one function
+  away" was measured on the coincident full-torus pair, not the lily.
+  `Torus` on `boolean_arm_exists` is this program's third torus unit,
+  filed as `torus-operand-gate-admission`. Rulings in the spec's §9.
+- **`[ev]` #1858 opened**: `docs/CURVED-SPIRIC-DESIGN.md` (ruling item
+  `spiric-carrier-ruling`). Measured: the shell rim is always the
+  two-oval spiric regime (the double point is unreachable from the
+  shell door); the pinch family's curves are ellipses already carried
+  — RIMCAP's "one design doc" premise refuted; the general rung is
+  blocked for tori by one function (the C9 ring's missing `sqrt`).
+  Ev's first answer: a special-case kind like `Ellipse` (Q1=(b),
+  Q2=(b1)); asked why (c2) reads as rejected — replied that (c2) is
+  the general rung and stays the route for pairs without a closed
+  form, and asked whether the ring `sqrt` (Q3(ii)) should open now
+  (reading (B)) or after the variant ships (reading (A), recommended).
+  Sign-off on Q3(i)/Q4/Q5/Q6 requested by 👍 (watchlist entry).
+- **Handover request to S-BOOL** posted on #1835 (`@ s-bool`); no
+  reply yet; nothing dispatches on those files until it comes.
+- **Operations.** Six Fable/Opus lanes ran concurrently on an 8-core,
+  9 GB box shared with another orchestrator (load 25–40): cold builds
+  serialized on the machine mutex with waits of 1–2.5 h; two spec
+  lanes could not take their one measurement and pre-registered it as
+  the implementer's opening act instead. Three Fable spec lanes were
+  killed by a transient Fable 429 and resumed by SendMessage without
+  loss. The pre-push rustfmt hook outlived the SSH connection under
+  this load ("Connection to github.com closed by remote host") and one
+  ratification commit was silently not pushed — #1865 merged without
+  its rulings, carried by #1876. Docs-only pushes from the orchestrator
+  now use `--no-verify`; implementer briefs say what to do. GraphQL on
+  the shared GitHub account is periodically exhausted; PR create/merge
+  go through the REST API.

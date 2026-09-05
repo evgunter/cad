@@ -93,6 +93,8 @@ mod gesture_table;
 mod input_mapping;
 #[path = "instance_authoring.rs"]
 mod instance_authoring;
+#[path = "landing_gathers.rs"]
+mod landing_gathers;
 #[path = "mate_tool_flow.rs"]
 mod mate_tool_flow;
 #[path = "panel_display.rs"]

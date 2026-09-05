@@ -5,7 +5,8 @@
 //!
 //! The driver, and nothing else. `session` owns [`DocSession`] and
 //! dispatches [`SessionOp`]; what stays here is that state, its
-//! `Gesture`, [`Landing`], [`AtRestBadge`], [`DocSession::perform`]
+//! `Gesture`, its [`Derived`] block with the [`LandedRun`] inside it,
+//! [`Landing`], [`AtRestBadge`], [`DocSession::perform`]
 //! and the operation doors — every door mutates the session, and
 //! `perform`'s dispatch is the one place an operation becomes state.
 //!
@@ -52,10 +53,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pncad::document::{
-    BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc, DocEdit, DocParam,
-    DocRef, DocumentId, Evaluation, Expr, LoopProgram, Node, ParamName, PartResolver, ProductError,
-    ProfileProgram, RecipeNodeId, SlotId, apply, assemble, cascade_delete_order, parse_expr,
-    product, run_checks,
+    Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
+    DocEdit, DocParam, DocRef, DocumentId, Evaluation, Expr, LoopProgram, Node, ParamName,
+    PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId, Subject, apply,
+    assemble_gathered, cascade_delete_order, parse_expr, product_recorded, run_checks_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -166,13 +167,7 @@ struct Gesture {
 pub struct DocSession {
     history: History,
     tol: Tol,
-    selection: Selection,
-    /// What the cursor is over: transient, never persisted, and its
-    /// ONE home. A widget that kept its own copy would be the
-    /// per-widget shadow the panels' inventory discipline forbids.
-    hover: Option<Hovered>,
     gesture: Option<Gesture>,
-    scratch: Option<Doc<ProfileProgram>>,
     eval: Box<dyn EvalService>,
     generation: Generation,
     /// The document handed to the seam under [`DocSession::generation`]
@@ -183,30 +178,10 @@ pub struct DocSession {
     /// landed pair and the outstanding request name the SAME document
     /// value for as long as they agree, which is most of the time.
     requested_doc: Arc<Doc<ProfileProgram>>,
-    landed: Option<Arc<Evaluation<f64>>>,
-    /// The document [`DocSession::landed`] answers.
-    ///
-    /// **Resolution is a question about a PAIR.** `resolve` reads the
-    /// recipe and the evaluation together, so asking it about the
-    /// document as it stands now and the evaluation as it stood one
-    /// edit ago is asking about a run that never happened — and the
-    /// diagnosis it answers with would be about that non-run. The two
-    /// move together here, one generation behind the shown document
-    /// while a run is outstanding, which is exactly what the picture
-    /// does.
-    landed_doc: Option<Arc<Doc<ProfileProgram>>>,
-    landed_generation: Option<Generation>,
-    /// The gather's refusal for the landed pair, computed once when it
-    /// lands ([`DocSession::product_fault`]).
-    landed_fault: Option<ProductError>,
-    /// The A5 at-rest verdict for the landed pair, computed once when
-    /// it lands ([`DocSession::at_rest`]); `None` for a document that
-    /// is not assembly-shaped, or before anything lands.
-    landed_at_rest: Option<AtRestBadge>,
-    /// The advisory-check report for the landed pair, computed once
-    /// when it lands ([`DocSession::checks`]); `None` before anything
-    /// lands, or when the registry itself refused.
-    landed_checks: Option<ChecksReport>,
+    /// Everything this session knows *because of* the document under
+    /// it — one value, so that replacing that document is one
+    /// assignment ([`DocSession::clear_for_new_document`]).
+    derived: Derived,
     path: Option<PathBuf>,
     /// Layer-3 display state — hide and free-move — with its one home
     /// here (the seam-friction inventory rule). Never persisted; reset
@@ -220,6 +195,70 @@ pub struct DocSession {
     /// document can never silently resolve against the previous
     /// document's directory.
     resolver: Option<Arc<DirResolver>>,
+}
+
+/// What the session knows because of the document under it: what is
+/// picked out of it, what a drag is previewing over it, what the last
+/// run said about it, and what a range probe found in it.
+///
+/// **One value, because replacing the document invalidates all of it
+/// at once.** `Open` and `NewDocument` install a different document
+/// under a live session, and every field here is a statement about
+/// the document that was there before — left in place they answer
+/// about the previous model until the first run lands, which is the
+/// stale badge these two doors exist to prevent. Held together,
+/// [`Derived::none`] is the ONE spelling of "nothing is known yet":
+/// the constructor's value, both doors' value, and what
+/// [`DocSession::land`] overwrites a part of. A field added here is
+/// therefore reset by being declared, not by being remembered at
+/// three call sites.
+///
+/// **Three neighbours are outside it, each for a reason absorbing
+/// them would destroy.**
+///
+/// - [`DocSession::display`] is reset by [`DisplayState::clear`], not
+///   by reconstruction: its revision counter is the chrome's "does
+///   the drawn scene need rebuilding" key and is monotonic across the
+///   reset, so a fresh value would send it backwards and a scene
+///   built under the old count would read as current. Its own
+///   `clear` closes the same hazard inside it.
+/// - [`DocSession::gesture`] is cleared by nothing, and must not be.
+///   The refusal runs the other way round: while a value drag is in
+///   flight the DOOR is refused — `Open` and `NewDocument` are two of
+///   the rows [`SessionOp::permitted_during_value_gesture`] says no
+///   to, checked once in [`DocSession::perform`] — and the drag is
+///   left untouched, because a gesture silently dissolved under the
+///   pointer is the half-acted state that refusal exists to prevent.
+///   A walk that cleared it would encode the opposite policy. The
+///   precondition is therefore ESTABLISHED at `perform`, before a
+///   door writes anything, which is also why neither door restates it
+///   and why nothing here re-checks it: a check inside this function
+///   could only fire with the session already half-replaced.
+///
+///   **The table governs VALUE gestures only.** The free-move drag
+///   [`DisplayState`] owns is a different value with a different
+///   owner, no door refuses either replacement while one is open, and
+///   the `display.clear()` below discards it with no refusal and no
+///   report. That is what the walk does today, not a policy this
+///   value decides: `work/view/free-move-drag-dissolved-by-open.md`.
+/// - `path` and `resolver` are facts about the backing FILE rather
+///   than about the document, and are the part of the two doors that
+///   genuinely differs: `Open` sets both, `NewDocument` clears both.
+struct Derived {
+    selection: Selection,
+    /// What the cursor is over: transient, never persisted, and its
+    /// ONE home. A widget that kept its own copy would be the
+    /// per-widget shadow the panels' inventory discipline forbids.
+    hover: Option<Hovered>,
+    /// The document the panels show in place of the history's current
+    /// value while a gesture previews against it — `Some` only while
+    /// [`DocSession::gesture`] is `Some`, which is what makes clearing
+    /// it in `clear_for_new_document` a no-op rather than half a
+    /// dissolved drag.
+    scratch: Option<Doc<ProfileProgram>>,
+    /// The last completed run and everything taken from it; `None`
+    /// before anything has landed.
+    landed: Option<LandedRun>,
     /// The last locally-valid-range probe, and the field it was taken
     /// for — layer-3 state, never persisted, and its one home.
     ///
@@ -229,8 +268,66 @@ pub struct DocSession {
     /// moment the document changes. A range is a statement about one
     /// document, and showing yesterday's range beside today's number is
     /// the class of stale-confident answer this crate's staleness rules
-    /// exist to prevent.
+    /// exist to prevent. That discard is at every submit
+    /// ([`DocSession::request_eval`]) and so is STRICTER than this
+    /// value's own reset: a commit or an undo drops the probe without
+    /// touching anything else here. Both doors therefore drop it
+    /// twice, once with this value and again at the submit each ends
+    /// with. The redundancy is deliberate — the walk names every
+    /// field it invalidates rather than leaving one of them to a route
+    /// a reader of the walk cannot see.
     bounds: Option<BoundsReading>,
+}
+
+impl Derived {
+    /// Nothing known about the document underneath: nothing picked,
+    /// nothing hovered, no preview, nothing landed, no range probed.
+    fn none() -> Self {
+        Self {
+            selection: Selection::None,
+            hover: None,
+            scratch: None,
+            landed: None,
+            bounds: None,
+        }
+    }
+}
+
+/// One completed evaluation, landed: the pair it answers and every
+/// verdict taken for that pair.
+///
+/// **These move together or not at all.** Each verdict is a statement
+/// about ONE (document, evaluation) pair, computed once in
+/// [`DocSession::land`]; one field of this value read beside another
+/// run's would describe a run that never happened. As one value,
+/// `land` writes exactly what [`Derived::none`] clears, and a seventh
+/// thing taken at landing cannot be computed at one door and forgotten
+/// at the other.
+struct LandedRun {
+    evaluation: Arc<Evaluation<f64>>,
+    /// The document [`LandedRun::evaluation`] answers.
+    ///
+    /// **Resolution is a question about a PAIR.** `resolve` reads the
+    /// recipe and the evaluation together, so asking it about the
+    /// document as it stands now and the evaluation as it stood one
+    /// edit ago is asking about a run that never happened — and the
+    /// diagnosis it answers with would be about that non-run. The two
+    /// move together here, one generation behind the shown document
+    /// while a run is outstanding, which is exactly what the picture
+    /// does.
+    doc: Arc<Doc<ProfileProgram>>,
+    /// The generation this run answered ([`DocSession::busy`] compares
+    /// it against the one the session is waiting on).
+    generation: Generation,
+    /// The gather's refusal for this pair ([`DocSession::product_fault`]).
+    fault: Option<ProductError>,
+    /// The A5 at-rest verdict for this pair ([`DocSession::at_rest`]);
+    /// `None` for a document that is not assembly-shaped.
+    at_rest: Option<AtRestBadge>,
+    /// The advisory-check report for this pair
+    /// ([`DocSession::checks`]); `None` when the registry itself
+    /// refused.
+    checks: Option<ChecksReport>,
 }
 
 /// The A5 at-rest verdict for the landed pair — a mated document's
@@ -290,22 +387,13 @@ impl DocSession {
             requested_doc: Arc::new(Doc::empty_derived("unsubmitted", tol)),
             history: History::new(doc),
             tol,
-            selection: Selection::None,
-            hover: None,
             gesture: None,
-            scratch: None,
             eval,
             generation: Generation::FIRST,
-            landed: None,
-            landed_doc: None,
-            landed_fault: None,
-            landed_at_rest: None,
-            landed_checks: None,
-            landed_generation: None,
+            derived: Derived::none(),
             path: None,
             display: DisplayState::new(),
             resolver: None,
-            bounds: None,
         };
         session.request_eval();
         session
@@ -320,7 +408,10 @@ impl DocSession {
     /// The document the panels show: the gesture's scratch value while
     /// one is in flight, the history's current value otherwise.
     pub fn doc(&self) -> &Doc<ProfileProgram> {
-        self.scratch.as_ref().unwrap_or_else(|| self.history.doc())
+        self.derived
+            .scratch
+            .as_ref()
+            .unwrap_or_else(|| self.history.doc())
     }
 
     /// The document the history is on, ignoring any preview.
@@ -355,12 +446,12 @@ impl DocSession {
 
     /// The current selection.
     pub fn selection(&self) -> &Selection {
-        &self.selection
+        &self.derived.selection
     }
 
     /// What the cursor is over, if anything.
     pub fn hover(&self) -> Option<&Hovered> {
-        self.hover.as_ref()
+        self.derived.hover.as_ref()
     }
 
     /// Whether the selection still denotes something in the evaluation
@@ -373,7 +464,7 @@ impl DocSession {
     /// resolution ladder or interprets its answer beyond arranging it
     /// beside the other two selection kinds.
     pub fn standing(&self) -> Standing {
-        match &self.selection {
+        match &self.derived.selection {
             Selection::None => Standing::Empty,
             Selection::Node(node) => Standing::Node {
                 node: *node,
@@ -404,21 +495,22 @@ impl DocSession {
 
     /// The most recent evaluation that answered the current document.
     pub fn evaluation(&self) -> Option<&Evaluation<f64>> {
-        self.landed.as_deref()
+        Some(self.derived.landed.as_ref()?.evaluation.as_ref())
     }
 
     /// The most recent evaluation, shared.
     pub fn evaluation_arc(&self) -> Option<&Arc<Evaluation<f64>>> {
-        self.landed.as_ref()
+        Some(&self.derived.landed.as_ref()?.evaluation)
     }
 
     /// The landed evaluation together with the document it answers —
     /// the pair every name question is asked of.
     ///
-    /// The two fields are set in one place and read together, so a
-    /// caller cannot pick up one without the other.
+    /// The two are one value ([`LandedRun`]), so a caller cannot pick
+    /// up one without the other.
     pub fn landed_pair(&self) -> Option<(&Doc<ProfileProgram>, &Evaluation<f64>)> {
-        Some((self.landed_doc.as_deref()?, self.landed.as_deref()?))
+        let run = self.derived.landed.as_ref()?;
+        Some((run.doc.as_ref(), run.evaluation.as_ref()))
     }
 
     /// Why the landed evaluation's product does not gather, if it does
@@ -427,21 +519,21 @@ impl DocSession {
     /// `None` both when the product is well formed and when nothing
     /// has landed yet; [`DocSession::landed_pair`] distinguishes those.
     pub fn product_fault(&self) -> Option<&ProductError> {
-        self.landed_fault.as_ref()
+        self.derived.landed.as_ref()?.fault.as_ref()
     }
 
     /// The A5 at-rest verdict for the landed pair ([`AtRestBadge`]),
     /// when the landed document is assembly-shaped. `None` for a part
     /// document, and before anything lands.
     pub fn at_rest(&self) -> Option<&AtRestBadge> {
-        self.landed_at_rest.as_ref()
+        self.derived.landed.as_ref()?.at_rest.as_ref()
     }
 
     /// The last locally-valid-range probe, with the field it was taken
     /// for and the unit it was searched in. `None` before any probe,
     /// and after every document change (`request_eval`'s discard).
     pub fn bounds(&self) -> Option<&BoundsReading> {
-        self.bounds.as_ref()
+        self.derived.bounds.as_ref()
     }
 
     /// The advisory-check report for the landed pair — findings in
@@ -450,7 +542,7 @@ impl DocSession {
     /// refused (which is distinct from an empty report: "not checked"
     /// and "checked and fine" are different answers).
     pub fn checks(&self) -> Option<&ChecksReport> {
-        self.landed_checks.as_ref()
+        self.derived.landed.as_ref()?.checks.as_ref()
     }
 
     /// The file this session is backed by, if any.
@@ -484,7 +576,7 @@ impl DocSession {
     /// consumer derived from the evaluation (the scene) compares
     /// against to know whether its own copy is current.
     pub fn landed_generation(&self) -> Option<Generation> {
-        self.landed_generation
+        Some(self.derived.landed.as_ref()?.generation)
     }
 
     /// Whether the result on screen answers a document the session has
@@ -497,7 +589,7 @@ impl DocSession {
     /// this is the honest one. "Am I showing the current document" is
     /// the question a busy indicator answers.
     pub fn busy(&self) -> bool {
-        self.landed_generation != Some(self.generation)
+        self.landed_generation() != Some(self.generation)
     }
 
     /// Whether the seam actually has work outstanding.
@@ -545,7 +637,7 @@ impl DocSession {
         if !self.standing().live() {
             return Vec::new();
         }
-        match self.selection.node() {
+        match self.derived.selection.node() {
             Some(id) => props::slot_rows(self.doc(), id),
             None => Vec::new(),
         }
@@ -595,36 +687,75 @@ impl DocSession {
         if !done.completed() {
             return Landing::Canceled;
         }
-        self.landed_generation = Some(done.generation);
-        // **The product's own verdict, once per landed evaluation.**
-        // The gather is the only thing that answers "is this
-        // document's product well formed" — a naming collision across
-        // roots is not a node failure, so the feature tree's badges
-        // cannot see it, and a viewport that draws the parts without
-        // ever asking would render a body nothing says is wrong.
+        // **ONE gather, feeding all three of the landing's consumers.**
         // Computed HERE because here is the one place a result becomes
-        // the session's, so it cannot be run twice or skipped.
-        self.landed_fault = product(self.requested_doc.as_ref(), &done.evaluation, self.tol).err();
-        // The A5 verdict, in the same once-per-landing spot and for
-        // the same reason: nowhere else can it run exactly once per
-        // result that becomes the session's.
-        self.landed_at_rest = at_rest_of(self.requested_doc.as_ref(), &done.evaluation, self.tol);
-        // The advisory registry, same spot and same reason. It REPORTS
-        // — a document with findings still draws, which is the whole
-        // point of running it on the draw path: a product whose roots
-        // interpenetrate renders a picture that looks almost right,
-        // and the finding is the only thing that says otherwise.
-        // A refusal of the registry itself leaves no report rather
-        // than a clean one: "not checked" is not "checked and fine".
-        self.landed_checks = run_checks(
-            self.requested_doc.as_ref(),
-            &done.evaluation,
-            &ChecksConfig::default(),
-            self.tol,
-        )
-        .ok();
-        self.landed = Some(done.evaluation);
-        self.landed_doc = Some(Arc::clone(&self.requested_doc));
+        // the session's, so it cannot be run twice or skipped — and
+        // ONCE because the ORDER below is what makes one enough: the
+        // product's own verdict reads the refusal, the registry
+        // BORROWS the product, and the A5 badge CONSUMES it last.
+        // Nothing after the badge wants a product, so nothing here
+        // clones one.
+        let doc: &Doc<ProfileProgram> = &self.requested_doc;
+        let cfg = ChecksConfig::default();
+        // The A5 badge is taken for assembly-shaped documents only, and
+        // whether the document is one is a fact about the document
+        // rather than about its product — readable on either arm.
+        let assembly_shaped = assembly_shaped(doc);
+        let (fault, checks, at_rest) = match product_recorded(doc, &done.evaluation, self.tol) {
+            Ok(product) => {
+                // The advisory registry. It REPORTS — a document with
+                // findings still draws, which is the whole point of
+                // running it on the draw path: a product whose roots
+                // interpenetrate renders a picture that looks almost
+                // right, and the finding is the only thing that says
+                // otherwise. A refusal of the registry itself leaves
+                // no report rather than a clean one: "not checked" is
+                // not "checked and fine".
+                let checks = run_checks_on(
+                    doc,
+                    &done.evaluation,
+                    Subject::Product(&product),
+                    &cfg,
+                    self.tol,
+                )
+                .ok();
+                let at_rest = assembly_shaped.then(|| badge(assemble_gathered(product, self.tol)));
+                (None, checks, at_rest)
+            }
+            Err(fault) => {
+                // **The product's own verdict.** The gather is the only
+                // thing that answers "is this document's product well
+                // formed" — a naming collision across roots is not a
+                // node failure, so the feature tree's badges cannot see
+                // it, and a viewport that draws the parts without ever
+                // asking would render a body nothing says is wrong.
+                //
+                // A document with no body-denoting root has no product
+                // and no failure either: the registry still runs, over
+                // the subject that says so. Every other refusal leaves
+                // the report absent, which is "not checked".
+                let checks = matches!(fault, ProductError::NoBodyRoots)
+                    .then(|| {
+                        run_checks_on(doc, &done.evaluation, Subject::NoBodyRoots, &cfg, self.tol)
+                            .ok()
+                    })
+                    .flatten();
+                let at_rest = assembly_shaped.then(|| AtRestBadge::Refused {
+                    message: AssemblyError::product_refusal(&fault),
+                });
+                (Some(fault), checks, at_rest)
+            }
+        };
+        // The landed pair and its verdicts become the session's as ONE
+        // value, which is the same value `Derived::none` clears.
+        self.derived.landed = Some(LandedRun {
+            evaluation: done.evaluation,
+            doc: Arc::clone(&self.requested_doc),
+            generation: done.generation,
+            fault,
+            at_rest,
+            checks,
+        });
         Landing::Landed
     }
 
@@ -644,11 +775,11 @@ impl DocSession {
         }
         match op {
             SessionOp::Select(selection) => {
-                self.selection = selection;
+                self.derived.selection = selection;
                 OpOutcome::default()
             }
             SessionOp::Hover(hover) => {
-                self.hover = hover;
+                self.derived.hover = hover;
                 OpOutcome::default()
             }
             SessionOp::DeleteNode { node } => self.delete_node(node),
@@ -669,7 +800,7 @@ impl DocSession {
                 // Same rule as a no-move commit: only a gesture that
                 // actually put a scratch document on screen owes a
                 // re-submit to take it away again.
-                let previewed = self.scratch.take().is_some();
+                let previewed = self.derived.scratch.take().is_some();
                 if had {
                     if previewed {
                         self.request_eval();
@@ -889,14 +1020,18 @@ impl DocSession {
         // candidate is judged against, so a probe cannot seed from one
         // document and search another.
         let base = self.doc().clone();
-        let prior = self.landed.clone();
+        let prior = self
+            .derived
+            .landed
+            .as_ref()
+            .map(|run| Arc::clone(&run.evaluation));
         let resolver = self
             .resolver
             .as_ref()
             .map(|ws| Arc::clone(ws) as Arc<dyn PartResolver>);
         match probe::probe_bounds(&base, target, prior.as_deref(), &resolver, self.tol) {
             Ok(reading) => {
-                self.bounds = Some(reading);
+                self.derived.bounds = Some(reading);
                 OpOutcome::default()
             }
             Err(refusal) => OpOutcome::refused(refusal),
@@ -1008,8 +1143,24 @@ impl DocSession {
         // of them.
         match apply(&gesture.base, &edit, self.tol) {
             Ok(applied) => {
+                // **The display layer's identity, held rather than
+                // argued.** Every display predicate is a function of
+                // the node graph, and the free-move probe is admitted
+                // against the COMMITTED document while the view and
+                // the panel's own admission test resolve against this
+                // scratch — so the two agree only while a gesture's
+                // edits leave the graph alone. This holds the half a
+                // check can hold; the other half is that
+                // [`GestureTarget::edit`] can produce nothing but
+                // `SetParam`, `SetStructuralParam` and
+                // `SetDocParamValue`, none of which removes a node
+                // either.
+                assert!(
+                    applied.record.minted.is_none(),
+                    "a value gesture's preview minted a node, which the display                      layer's admission tests are not re-run against"
+                );
                 gesture.value = Some(slot_value);
-                self.scratch = Some(applied.doc);
+                self.derived.scratch = Some(applied.doc);
                 self.request_eval();
                 OpOutcome {
                     previewed: vec![edit],
@@ -1024,7 +1175,7 @@ impl DocSession {
         let Some(gesture) = self.gesture.take() else {
             return OpOutcome::refused(Refusal::NoGesture);
         };
-        let previewed = self.scratch.take().is_some();
+        let previewed = self.derived.scratch.take().is_some();
         // A gesture that never moved commits nothing: one undo step
         // per gesture that CHANGED something, none for a click that
         // happened to land on a slider. It also asks for NOTHING —
@@ -1059,10 +1210,11 @@ impl DocSession {
         // too — an undo past a mate's insertion does NOT resurrect a
         // discarded probe (the value is gone, not parked), but a redo
         // over one discards the probe it constrains.
-        let superseded = self.display.prune(self.history.doc());
+        let pruned = self.display.prune(self.history.doc());
         self.request_eval();
         OpOutcome {
-            superseded,
+            superseded: pruned.superseded,
+            dropped_hides: pruned.dropped_hides,
             ..OpOutcome::default()
         }
     }
@@ -1081,26 +1233,8 @@ impl DocSession {
                 // resolution (DirResolver's docs carry the posture).
                 self.resolver = Some(Arc::new(DirResolver::new(session_dir(path))));
                 self.history = history;
-                self.selection = Selection::None;
-                self.hover = None;
-                // The landed run answered the PREVIOUS document. Left
-                // in place it would render the old model's tree and
-                // resolve the new document's names against it until
-                // the first run lands.
-                self.landed = None;
-                self.landed_doc = None;
-                self.landed_fault = None;
-                self.landed_at_rest = None;
-                self.landed_checks = None;
-                self.landed_generation = None;
-                self.scratch = None;
                 self.path = Some(path.to_path_buf());
-                // G3: hide and free-move are display state of a
-                // SESSION over a document, never of the document — a
-                // fresh open starts with none, which is also what
-                // makes "save, reopen, layer-3 state gone" a property
-                // of the structure.
-                self.display.clear();
+                self.clear_for_new_document();
                 self.request_eval();
                 OpOutcome::default()
             }
@@ -1131,30 +1265,60 @@ impl DocSession {
     /// [`SessionOp::NewDocument`] semantics (see that arm's docs for
     /// the identity ruling and what is cleared).
     ///
-    /// The same clearing walk as [`DocSession::open`], with the two
-    /// file-shaped fields going the other way: no path and no
-    /// resolver, because nothing backs this document until it is
-    /// saved.
+    /// The same two doors as [`DocSession::open`] — a new history and
+    /// [`DocSession::clear_for_new_document`] — with the file-shaped
+    /// fields going the other way: no path and no resolver, because
+    /// nothing backs this document until it is saved.
     fn new_document(&mut self, name: &str) -> OpOutcome {
         let name = name.trim();
         if name.is_empty() {
             return OpOutcome::refused(Refusal::EmptyName);
         }
         self.history = History::new(Doc::empty_derived(name, self.tol));
-        self.selection = Selection::None;
-        self.hover = None;
-        self.landed = None;
-        self.landed_doc = None;
-        self.landed_fault = None;
-        self.landed_at_rest = None;
-        self.landed_checks = None;
-        self.landed_generation = None;
-        self.scratch = None;
         self.path = None;
         self.resolver = None;
-        self.display.clear();
+        self.clear_for_new_document();
         self.request_eval();
         OpOutcome::default()
+    }
+
+    /// **Drop everything the previous document left behind**, for the
+    /// two doors that replace it ([`SessionOp::Open`],
+    /// [`SessionOp::NewDocument`]). The history and the file-shaped
+    /// fields are the caller's to set; everything else derived from
+    /// the old document goes here.
+    ///
+    /// The landed run answered the PREVIOUS document: left in place it
+    /// would render the old model's tree and resolve the new
+    /// document's names against it until the first run lands. That is
+    /// one instance of the rule, not the rule — hence one value
+    /// rebuilt from nothing ([`Derived`]) rather than a field-by-field
+    /// walk each door has to remember.
+    ///
+    /// G3: hide and free-move are display state of a SESSION over a
+    /// document, never of the document — a fresh open starts with
+    /// none, which is what makes "save, reopen, layer-3 state gone" a
+    /// property of the structure. It is `clear`ed rather than rebuilt
+    /// because its revision counter must not go backwards
+    /// ([`Derived`]'s own docs carry that and the other two
+    /// exclusions).
+    ///
+    /// **Nothing is checked here, and that is the point.** Two things
+    /// hold on entry and neither is this function's to enforce: no
+    /// value gesture is open, because `perform` refused both doors
+    /// while one was (the table's guarantee, a different guarantee
+    /// from the one below), and `scratch` is already `None`, because a
+    /// preview never outlives the gesture that wrote it (`Derived`'s
+    /// own invariant, which is what makes clearing it below a no-op
+    /// rather than half a dissolved drag). A check placed here could
+    /// only fire after a caller had already written `history` and the
+    /// file-shaped fields, which is the half-replaced session the
+    /// refusal exists to prevent — so the precondition lives at
+    /// `perform`, where refusing costs a `Refusal` and nothing has
+    /// moved yet.
+    fn clear_for_new_document(&mut self) {
+        self.derived = Derived::none();
+        self.display.clear();
     }
 
     /// Insert one datum node with literal slots
@@ -1349,7 +1513,9 @@ impl DocSession {
     /// record, re-evaluate — and reconcile the display state, which is
     /// where a free-move probe is superseded by the mate that
     /// constrains its instance (the prune DISCARDS the value; see
-    /// `display`'s module docs for why discard and not zero).
+    /// `display`'s module docs for why discard and not zero) and where
+    /// a hide the picture can no longer honour is dropped. Both are
+    /// reported on the outcome, each with the fault that caused it.
     fn commit(&mut self, edit: DocEdit<ProfileProgram>) -> OpOutcome {
         self.commit_action(vec![edit])
     }
@@ -1421,11 +1587,12 @@ impl DocSession {
             unreachable!("the loop applied at least one edit and kept its output")
         };
         self.history.commit_group(edits.clone(), doc);
-        let superseded = self.display.prune(self.history.doc());
+        let pruned = self.display.prune(self.history.doc());
         self.request_eval();
         OpOutcome {
             committed: edits,
-            superseded,
+            superseded: pruned.superseded,
+            dropped_hides: pruned.dropped_hides,
             ..OpOutcome::default()
         }
     }
@@ -1440,7 +1607,7 @@ impl DocSession {
         // discarding for it too is the conservative direction — a range
         // recomputed on request costs a button press, a stale one costs
         // a wrong decision.
-        self.bounds = None;
+        self.derived.bounds = None;
         self.generation = self.generation.next();
         // ONE clone of the shown document per request: into the
         // `Arc` the session keeps, then out of it into the request the
@@ -1460,26 +1627,28 @@ impl DocSession {
     }
 }
 
-/// The at-rest verdict for one landed pair, taken only for
-/// assembly-shaped documents (see [`AtRestBadge`]). The gate's own
+/// Whether a document is assembly-shaped, which is what decides
+/// whether an A5 badge is taken at all (see [`AtRestBadge`]): a
+/// document that instantiates no part declares no cross-instance rest
+/// and has nothing for the gate to answer about.
+fn assembly_shaped(doc: &Doc<ProfileProgram>) -> bool {
+    doc.order()
+        .iter()
+        .any(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })))
+}
+
+/// One A5 verdict as the badge that shows it — the gate's own
 /// vocabulary either way: a certification with its minted count, or
 /// the typed refusal rendered by its own `Display`.
-fn at_rest_of(doc: &Doc<ProfileProgram>, eval: &Evaluation<f64>, tol: Tol) -> Option<AtRestBadge> {
-    let assembly_shaped = doc
-        .order()
-        .iter()
-        .any(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })));
-    if !assembly_shaped {
-        return None;
-    }
-    Some(match assemble(doc, eval, tol) {
+fn badge(verdict: Result<Assembly<f64>, AssemblyError>) -> AtRestBadge {
+    match verdict {
         Ok(assembly) => AtRestBadge::Certified {
             minted: assembly.minted.len(),
         },
         Err(refusal) => AtRestBadge::Refused {
             message: refusal.to_string(),
         },
-    })
+    }
 }
 
 /// The directory a document at `path` resolves against — its parent,
@@ -1495,9 +1664,9 @@ impl std::fmt::Debug for DocSession {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DocSession")
             .field("generation", &self.generation)
-            .field("landed_generation", &self.landed_generation)
-            .field("selection", &self.selection)
-            .field("hover", &self.hover)
+            .field("landed_generation", &self.landed_generation())
+            .field("selection", &self.derived.selection)
+            .field("hover", &self.derived.hover)
             .field("states", &self.history.len())
             .field("gesture", &self.gesture.is_some())
             .field("path", &self.path)

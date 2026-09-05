@@ -132,9 +132,10 @@ change and is the before-cell of C2.
 ## Acceptance
 
 The Phase 1 table; the envelope with every arm rowed; the consumer sweep's
-hit list; the Python tag inventory updated with its row; hosted CI green at
-the drawn point (the profile suite is scalar-generic — ask for interval on one
-head, `CI-Config: lane=interval`, and say so).
+hit list; the Python tag inventory updated with its row; hosted CI green (the
+profile suite is scalar-generic, and since 2026-09-04 every run gates the
+interval lane with nothing asked for — the `CI-Config: lane=interval` this
+clause used to require is deleted; count twelve `test (…)` jobs and say so).
 
 ## Out of scope
 

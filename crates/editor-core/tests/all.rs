@@ -108,6 +108,8 @@ mod docm2_part_interval;
 mod docm3_union;
 #[path = "docm4_evaluation_identity.rs"]
 mod docm4_evaluation_identity;
+#[path = "docm5_subject.rs"]
+mod docm5_subject;
 #[path = "dsc_checks.rs"]
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
@@ -365,6 +367,8 @@ mod review_m6_5_pr2_probes;
 mod ring_r1_names_probe;
 #[path = "seat4_verb_lowering.rs"]
 mod seat4_verb_lowering;
+#[path = "seat6_param_source.rs"]
+mod seat6_param_source;
 #[path = "switch_display_units.rs"]
 mod switch_display_units;
 #[path = "switch_dump.rs"]
