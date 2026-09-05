@@ -90,3 +90,10 @@ review, outside the experiment — so it draws no block slot; the
 `drive.rs` seam is announced in `work/m10/log.md`. Ruling PR for Span:
 [#1906](https://github.com/evgunter/cad/pull/1906). Subscription works
 for PRs this session opened and fails for others.
+
+**Span ruling: A (2026-09-05).** Ev, in-chat: "A and B both sound ok,
+so if you recommend A then that works." [#1906](https://github.com/evgunter/cad/pull/1906)
+merged with the item converted to a unit and parked on CERT-N3 (#1879);
+the spec is written at that merge against the post-N3 `spline/` layer.
+The three E/S specs queued for build slots: `PROPS-ONB-MEASURE-SPEC`,
+`PROPS-LILY-VEC3-SPEC`; verdict-shapes is dispatched.
