@@ -2,10 +2,11 @@
 id: PROPS-1
 kind: unit
 title: linalg lost-correlation: mirror_across_plane and reject_from mention their operand once
-status: dispatched
+status: review
 opened: 2026-09-05
 branch: props/1-linalg-lost-correlation
 parent: certified-lane-non-real-contract-audit
+pr: 1918
 ---
 
 
