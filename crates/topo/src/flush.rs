@@ -18,7 +18,7 @@
 //!
 //! The detector has NO predicate triple of its own. It enumerates
 //! candidate pairs and asks
-//! [`carrier_pair_relation`](crate::boolean::carrier_pair_relation)
+//! [`carrier_pair_relation`]
 //! in `declared: false` mode — **the same function verify-at-use
 //! calls**, not a second one that agrees with it. Detection and
 //! verification are one door asked two questions:
@@ -79,7 +79,7 @@
 //! # Scope: `Rest`, every carrier the ladder verifies
 //!
 //! The detector detects what
-//! [`carrier_pair_relation`](crate::boolean::carrier_pair_relation)
+//! [`carrier_pair_relation`]
 //! verifies, rung for rung: **plane, sphere, cylinder and torus**
 //! cosurface pairs — a peg's convex wall against its bore's concave
 //! wall is reported exactly as two flush plates' faces are, because
@@ -218,7 +218,7 @@ impl core::error::Error for FlushRefusal {}
 ///
 /// Everything — descriptions, oriented sources, AND the verification
 /// arm — comes from
-/// [`carrier_pair_relation`](crate::boolean::carrier_pair_relation),
+/// [`carrier_pair_relation`],
 /// the door verify-at-use itself calls (module docs). ONE call, in
 /// `declared: false` mode: its `Undeclared` refusal with the
 /// verifier's definite-zero encoding ([`MarginDiag::Invalid`]) is

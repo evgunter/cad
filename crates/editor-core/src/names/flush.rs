@@ -33,10 +33,10 @@
 //! candidate pairs and asks the kernel's own rung at the seat where
 //! that rung lives: [`topo::flush::pair_finding`] — descriptions,
 //! oriented identity evidence and the verification arm all live
-//! inside [`topo::carrier_pair_relation`] under it, which is the very
-//! door verify-at-use calls, asked in its `declared: false` posture
-//! (the argument is stated once, in [`topo::flush`]'s module docs,
-//! and not restated here). Consequences, all deliberate:
+//! inside [`topo::boolean::carrier_pair_relation`] under it, which is
+//! the very door verify-at-use calls, asked in its `declared: false`
+//! posture (the argument is stated once, in [`topo::flush`]'s module
+//! docs, and not restated here). Consequences, all deliberate:
 //!
 //! - detect-then-declare can never disagree with verify-at-use: the
 //!   two paths converge on one verdict function, so there is no

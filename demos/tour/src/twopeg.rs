@@ -136,7 +136,7 @@ const V_MATED: f64 = 2.0 * PLATE_VOL;
 /// the curved arm refuses the same configuration:
 /// `CurvedPierceUnsupported`, with the identical payload the UNDECLARED
 /// mate gets — and declaring them does not help, because
-/// [`ContactClass::Rest`] means *opposed* senses and these two walls
+/// `ContactClass::Rest` means *opposed* senses and these two walls
 /// face the same way. There is no class in the vocabulary for a
 /// cosurface CONTINUATION, and the curved arm has no arm for one.
 ///
