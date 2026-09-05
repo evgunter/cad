@@ -159,3 +159,15 @@ dispatched on the frozen head; ordinal 2400 claimed
 (`docs/MODEL-AB-LOG.md`, the PROPS section). Lane target reclaimed
 (14 GB) — with a ~38 GB allowance this box carries one implementer plus
 one dual at a time, so the queued specs dispatch one at a time.
+
+**Main was red, fixed (2026-09-05).** `bounds_census::every_sole_bracket_bound_door_is_in_the_roster`
+failed in both lanes on `main` after FILLET's `anchor_span` landed
+without its roster line — seen on #1918's merge and on #1920's fix-pass
+head. [#1931](https://github.com/evgunter/cad/pull/1931) carries the
+one-hunk roster line (ported from #1918, `HandedOff` to Track V),
+merged green on the full matrix; the wording stays FILLET's to own
+(`work/fillet/anchor-span-sole-bracket-door-missing-roster-line.md`).
+R2's class finding on the mechanism: a closure-tier run seeded from
+`profile` excludes `geom-core`, so a whole-tree census living in a leaf
+crate's test binary cannot see a door arrive from any other seed — a
+CIW-shaped gap, to be filed.
