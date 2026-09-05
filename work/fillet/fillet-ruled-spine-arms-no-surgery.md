@@ -2,12 +2,13 @@
 id: fillet-ruled-spine-arms-no-surgery
 kind: unit
 title: fillet - the ruled-spine arms classify but no surgery carves their band
-status: dispatched
+status: closed
 opened: 2026-08-25
 github: 987
 refs: [962]
 branch: fillet/h7-transverse-cap
 pr: 1897
+closed: 2026-09-05
 ---
 
 ## From GitHub issue 987
