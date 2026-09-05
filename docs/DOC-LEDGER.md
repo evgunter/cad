@@ -878,3 +878,20 @@ above; the unit's record is its row in `MODEL-AB-LOG.md` and its MERGED
 entry in `work/topo/log.md`.
 
 - `TOPO-S330-SPEC.md` — TOPO-S330, tier-3 check 1's described-NURBS arm (#1923)
+
+## Per-merge deletion — MSOLVE-1's spec (2026-09-05)
+
+Recoverable at `git show 550a9f2a9febb277ab69cf8d566850af65b51bfb:docs/MSOLVE-1-SPEC.md`
+(the MSOLVE-1 unit head, before the state-sync commit that deleted it;
+unamended — no stop clause fired). Three of its clauses were corrected
+by measurement rather than met, and the argument is in the unit's PR:
+A3's transform-of-pattern cannot reach a product (`Node::Transform`
+takes one body; filed in `work/issues/`), A8's "refuses at the remap"
+became a typed refusal at the split door in both directions
+(`SplitError::OperandSeveredFromMate`), and the acceptance fixture the
+spec's rows were first written against interpenetrated and was
+re-authored as a physical seat at the fix pass. The rule above; the
+unit's record is its item's `## Closed` section and its MERGED entry
+in `work/msolve/log.md` (no A/B row: the program runs none).
+
+- `MSOLVE-1-SPEC.md` — MSOLVE-1, the mate reads at its operand: the transform-aware solve (#1929)
