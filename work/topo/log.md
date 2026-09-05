@@ -139,3 +139,20 @@ entries moved to `Shared` instead. One residue filed inside the fence
 S-BOOL's board (`boxes.rs`'s stale "two readers" doc; the two raw-text
 guards in `face_normal.rs` and `sector_shape.rs`). Single style review
 dispatched on the frozen head, claims C1–C6 in the brief.
+
+## D261 adjudicated (2026-09-05)
+
+Style review (single, Fable) on frozen `3f41f605`: MERGEABLE-AFTER-
+FIXES. All six claims held under execution — eighteen planted mutants
+across the four guards, block-comment, raw-string and `'"'` shapes
+included, every one red; the collapse is a deletion; the census count
+is right; the doc gate is real and catches the planted link. What it
+found is prose rot in the unit's own header (three sentences still
+describing the deleted lexer), one class — the item-body carve is
+hand-rolled five times across four crates and the shared home has no
+op for it — and the census's `Shared` check being satisfiable by any
+mention of the crate. Fix pass dispatched to the same lane (seven
+items; the shared op is a one-function widening of the S-TCOST seam,
+announced); the class and the census weakness filed on S-TCOST's slate
+with the reviewer's stricter row embedded; D287's two stale premises
+relayed to S-BOOL. Two reviewer probes handed to the fix pass.

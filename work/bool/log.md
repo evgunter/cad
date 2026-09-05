@@ -278,3 +278,13 @@ one-line adapter over it; and the two surviving raw-text guards,
 `crates/topo/src/face_normal.rs:335-346` and
 `crates/topo/src/sector_shape.rs:506-533`, carry S117's shape. All three
 sit with `D287`.
+
+## Two more from D261's review (2026-09-05, TOPO relaying)
+
+`work/bool/D287.md:14` ("`boolean/boxes.rs` already reads
+`source_walk::CodeOnly`, so it converts with that collapse") and `:46`
+("`topo::fixtures::code_only` is the in-crate one") are false after
+PR 1919: `fixtures::code_only` is deleted, and `CodeOnly` survives only
+as a one-line newtype over the shared view because `boxes.rs:2265`
+constructs it — so D287's `boxes.rs` re-point is also the newtype's
+deletion, and D261 records that schedule by pointing here.
