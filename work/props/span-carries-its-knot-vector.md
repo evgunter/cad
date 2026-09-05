@@ -6,6 +6,7 @@ status: open
 opened: 2026-08-13
 github: 475
 refs: [447, 463, 468]
+needs_ev: true
 ---
 
 ## From GitHub issue 475
@@ -68,3 +69,42 @@ Refs: #447 (deferred the brand), #463 (deleted the guards that were masking it),
 ## Home
 
 `work/issues/`: the scope is the `geom-core` spline layer and its consumers, ground no open program's `paths` covers, and the decision is a DESIGN.md question rather than a code-quality row.
+
+## Question for Ev (PROPS orchestrator, 2026-09-05)
+
+**Which of A, B or C?** This is the plan's `[ev]` ruling for the item,
+asked now because the answer gates an L-class sweep and nothing else
+about the item waits on code.
+
+What changed since the filing: CERT-N3 (#1879) adds two more consumers
+of the unbranded pairing (`spline::algebra::union_refinements` and
+`NurbsCurve::refine_to_union`, where a knot crosses vectors by design
+and `refine_plan` re-validates it against the vector it lands in), and
+`SurfaceWindow` (#468) still carries the same hole one dimension up.
+No live caller mis-pairs today; the hole is a panic-shaped obligation
+carried in prose across four PRs.
+
+**Recommendation: A** — `Span<'a>` holds `&'a KnotVector`, the entry
+points drop their `kv` parameter, and the mismatch becomes
+unrepresentable (the D2 addendum's row 0, available and local: one
+lifetime through `Span`, `SpanSet` and a method-level lifetime on
+`SpanLocate`). Cost is one pointer and the constraint that a `Span` is
+a borrow — nothing may hold one across a mutation of its curve. That
+constraint is checked FIRST in the sweep: if any live site holds a span
+across a mutation, the unit stops and reports, and the answer falls to
+C with the docs saying so. B (an invariant-lifetime brand) is
+rejected for the reason the item gives: a `with_knots(|kv| …)` scope at
+every entry into the spline layer is an ergonomic tax on an API-first
+kernel that A does not charge. C is the fallback, not the
+recommendation: "the pairing is always local" is true today and
+unenforced, which is the accumulation the item was filed to stop.
+
+If A: the unit lands the sweep (`geom-core` spline layer, `geom`
+curves and surfaces incl. `SurfaceWindow`, `geom-brep`, `mesh`; the
+same call-site set the newtype sweep touched three times) and a
+companion note beside the code (`crates/geom-core/README.md`'s spline
+clause, present tense), and closes this item. Dispatch waits for
+CERT-N3's `spline/` edits to merge.
+
+Answer in this PR's comments; the orchestrator edits the item, merges
+and clears the flag.
