@@ -123,37 +123,50 @@ fn build_revolve<T: Decide>((axis, revolution): (RevolveAxis<T>, Revolution<T>))
     Verb::Revolve { axis, revolution }
 }
 
-/// A wrong-family refusal, in the naming vocabulary the blends' and the
-/// boolean's use for the same class. The sentence is the
-/// correspondence's own ([`ProfileVerb::foreign_record`]).
-fn foreign(what: &'static str) -> NodeErrorKind {
-    NodeErrorKind::Naming(names::NamingError::Emission { what })
+/// The extrude family's arm of the record channel. Exhaustive with no
+/// wildcard (D3): a family added to the channel breaks this at compile
+/// time and is routed here deliberately.
+fn extrude_record<T: Decide>(record: VerbRecord<T>) -> Option<Extruded<T>> {
+    match record {
+        VerbRecord::Extrude(built) => Some(built),
+        VerbRecord::Blend(_)
+        | VerbRecord::Boolean { .. }
+        | VerbRecord::Revolve(_)
+        | VerbRecord::Split(_) => None,
+    }
+}
+
+/// The revolve family's arm of the record channel, the same shape.
+fn revolve_record<T: Decide>(record: VerbRecord<T>) -> Option<Revolved<T>> {
+    match record {
+        VerbRecord::Revolve(built) => Some(built),
+        VerbRecord::Blend(_)
+        | VerbRecord::Boolean { .. }
+        | VerbRecord::Extrude(_)
+        | VerbRecord::Split(_) => None,
+    }
 }
 
 /// The extrude's reader. Names FIRST — the emitter reads the whole
 /// bundle — then takes the bundle apart, so nothing is cloned and the
-/// body is moved rather than copied.
+/// body is moved rather than copied. The record comes out of the
+/// channel through [`super::read_record`], the one home of the
+/// foreign-family refusal.
 fn read_extrude<T: Decide>(
     id: RecipeNodeId,
     record: VerbRecord<T>,
     foreign_record: &'static str,
 ) -> Result<SweptOut<T>, NodeErrorKind> {
-    match record {
-        VerbRecord::Extrude(built) => {
-            let table = names::name_extrude(id, &built).map_err(NodeErrorKind::Naming)?;
-            let Extruded {
-                body, side_faces, ..
-            } = built;
-            Ok(SweptOut {
-                body,
-                table,
-                walls: side_faces,
-            })
-        }
-        VerbRecord::Blend(_) | VerbRecord::Boolean { .. } | VerbRecord::Revolve(_) => {
-            Err(foreign(foreign_record))
-        }
-    }
+    let built = super::read_record(record, extrude_record, foreign_record)?;
+    let table = names::name_extrude(id, &built).map_err(NodeErrorKind::Naming)?;
+    let Extruded {
+        body, side_faces, ..
+    } = built;
+    Ok(SweptOut {
+        body,
+        table,
+        walls: side_faces,
+    })
 }
 
 /// The revolve's reader. Its walls are per canonical segment and
@@ -175,20 +188,14 @@ fn read_revolve<T: Decide>(
     record: VerbRecord<T>,
     foreign_record: &'static str,
 ) -> Result<SweptOut<T>, NodeErrorKind> {
-    match record {
-        VerbRecord::Revolve(built) => {
-            let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
-            let Revolved { body, walls, .. } = built;
-            let walls = walls
-                .into_iter()
-                .map(|loop_| loop_.into_iter().flatten().collect())
-                .collect();
-            Ok(SweptOut { body, table, walls })
-        }
-        VerbRecord::Blend(_) | VerbRecord::Boolean { .. } | VerbRecord::Extrude(_) => {
-            Err(foreign(foreign_record))
-        }
-    }
+    let built = super::read_record(record, revolve_record, foreign_record)?;
+    let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
+    let Revolved { body, walls, .. } = built;
+    let walls = walls
+        .into_iter()
+        .map(|loop_| loop_.into_iter().flatten().collect())
+        .collect();
+    Ok(SweptOut { body, table, walls })
 }
 
 /// The extrude's correspondence.

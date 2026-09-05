@@ -5,6 +5,9 @@
 //! the annulus door reaches (the dome's plane–sphere equator, the
 //! sphere zone's sphere–sphere rim pair, the lantern's sphere–plane,
 //! sphere–cone and cone–plane rims, the waisted body's cone–plane rims),
+//! the RULED band (the rod with a flat milled along it — the only row
+//! that reaches `ruled_phase`, whose transverse-cap carve no other
+//! fixture here executes),
 //! and one CONCAVE rim per closed-rim door (the waist annulus, the
 //! `cube ∪ ball` boss's ladder)
 //! — and writes a bit-faithful text dump of every output body to
@@ -50,7 +53,8 @@ use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::{
-    ball_poled_z, closed_plane_sphere_rim, cube, dome, lantern, rim_arcs_at, sphere_zone, waisted,
+    ROD_FILLET, ball_poled_z, closed_plane_sphere_rim, cube, dome, lantern, rim_arcs_at,
+    rod_creases, rod_with_flat, sphere_zone, waisted,
 };
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::{self, SurfaceKindSet};
@@ -58,7 +62,15 @@ use topo::{Body, BooleanDeclarations, EdgeKey};
 
 /// Dump one body, bit for bit, in key iteration order (identical
 /// operation sequences produce identical key orders).
-fn dump(body: &Body<f64>) -> String {
+///
+/// **The one home**, shared by every armed dump row in this suite —
+/// including the ones that live in other files because a review lane
+/// wrote them (`review_arms2_r1_probes::bitdump_dome_annulus`). A
+/// second copy is not a duplicate that costs lines, it is a corpus row
+/// silently blind to whatever the copy left out: this function's own
+/// second copy omitted the `props` line, so the annulus row could not
+/// have seen a volume, area or pad move at all.
+pub(crate) fn dump(body: &Body<f64>) -> String {
     let mut s = String::new();
     let _ = writeln!(
         s,
@@ -198,6 +210,30 @@ fn bitdump_die() {
         out.blend_faces, out.corner_faces, out.band_faces
     );
     save(&dir, "die", &text);
+}
+
+/// **The RULED band**: the rod with a flat milled along it, both
+/// creases carved in one call. `ruled_phase` — the band between
+/// TRANSVERSE CAPS, and two of the surgery's `kef` sites — is reached
+/// by no other row here, so without this one C1's "bit-identical to
+/// the merge base" is taken over a corpus that never executes it.
+#[test]
+fn bitdump_ruled_band() {
+    // An explicit CLEAN SKIP when unarmed, as every row above.
+    let Some(dir) = dump_dir() else {
+        return;
+    };
+    let source = rod_with_flat(Tol::witness());
+    let creases = rod_creases(&source);
+    assert_eq!(creases.len(), 2, "the milled rod has two creases");
+    let out = fillet_edges(&source, &creases, ROD_FILLET, Tol::witness()).unwrap();
+    let mut text = dump(&out.body);
+    let _ = writeln!(
+        text,
+        "blend={:?} corner={:?} band={:?}",
+        out.blend_faces, out.corner_faces, out.band_faces
+    );
+    save(&dir, "ruled_band", &text);
 }
 
 /// The pip rim: the two-arc closed LADDER chain plus the twelve box

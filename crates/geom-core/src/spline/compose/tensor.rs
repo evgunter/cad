@@ -637,8 +637,16 @@ pub fn surface_curve_residual(
             spans.push([RingInterval::poison(); 3]);
             continue;
         }
-        let (u0, u1) = cells_touched(&swt.breaks_u, wu.lo(), wu.hi());
-        let (v0, v1) = cells_touched(&swt.breaks_v, wv.lo(), wv.hi());
+        // Located in the SAME break arrays `cell_residual` indexes
+        // below (`surf[0]`), not in a sibling channel's: all four
+        // channels are `tensor_channel(surface.ku, surface.kv, ..)` and
+        // so carry identical breaks, but that is a construction fact
+        // and nothing enforces it, so the index and the array it
+        // indexes are one object here. `cells_touched` answers within
+        // `0..=breaks.len() − 2`, which is what makes `breaks_u[su + 1]`
+        // below an in-range read without a `.get`.
+        let (u0, u1) = cells_touched(&surf[0].breaks_u, wu.lo(), wu.hi());
+        let (v0, v1) = cells_touched(&surf[0].breaks_v, wv.lo(), wv.hi());
         let mut acc: Option<[RingInterval; 3]> = None;
         for su in u0..=u1 {
             for sv in v0..=v1 {

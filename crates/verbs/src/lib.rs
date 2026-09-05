@@ -5,10 +5,10 @@
 //! # What it is NOT, yet
 //!
 //! It is not "every operation a recipe door can invoke", and reading it
-//! that way would misjudge every later unit's cost. **Five verbs in
-//! four record families live here**: the blend pair, the two sweeps
-//! (extrude and revolve) and the boolean's three regularized ops.
-//! Every other door — split, transform, pattern, loft, sweep along a
+//! that way would misjudge every later unit's cost. **Six verbs in
+//! five record families live here**: the blend pair, the two sweeps
+//! (extrude and revolve), the boolean's three regularized ops and the
+//! split. Every other door — transform, pattern, loft, sweep along a
 //! path, shell, measure — still runs the way it always did, and is
 //! reached by `editor-core`'s lowering calling its op crate directly.
 //! This crate is the SEAT the rest migrate onto, not a description of
@@ -24,10 +24,11 @@
 //! A [`Verb`] is the operation's parameters reified as plain data:
 //! scalars at `T`, entity references as arena keys. Operand bodies are
 //! NOT in the payload — they are borrowed at run time, and the
-//! declaration states what the operand IS instead
-//! ([`VerbKind::arity`]: one body for the blends, two for the
-//! boolean, one validated PROFILE for the sweeps, each behind its own
-//! typed door). Everything else a verb is committed to belongs to whoever
+//! declaration states which door answers the verb instead
+//! ([`VerbKind::arity`]: one body in and one out for the blends, two
+//! bodies for the boolean, one validated PROFILE for the sweeps, one
+//! body in and TWO sides out for the split, each behind its own typed
+//! door). Everything else a verb is committed to belongs to whoever
 //! owns that commitment, not here: the content-key tag beside
 //! `editor-core`'s memo machinery, the wire spelling on `Node`'s serde
 //! derives, the Python constructor, the viewer's tree label. This
@@ -42,8 +43,8 @@
 //! # Why a crate of its own
 //!
 //! The vocabulary spans crates: the blend pair and the two sweeps are
-//! `sweep`'s, the boolean is `topo`'s (the split joins at its own
-//! migration), and more follow. Hosting the enum in either op crate would make one of
+//! `sweep`'s, the boolean and the split are `topo`'s, and more
+//! follow. Hosting the enum in either op crate would make one of
 //! them name the other's ops, so it sits above both and below
 //! `editor-core`, which is the only consumer.
 //!
@@ -51,7 +52,8 @@
 //!
 //! [`VerbOut`] carries the operation's per-entity birth record beside
 //! the body, in the record channel for the verb's family
-//! ([`VerbRecord`]). A verb without a birth channel cannot join this
+//! ([`VerbRecord`]); [`SplitOut`] carries the split's beside its two
+//! sides. A verb without a birth channel cannot join this
 //! enum: the record is what lets the document layer mint
 //! derivation-path names for what the operation created, and an
 //! operation whose output cannot be named is one no recipe can build
@@ -62,5 +64,5 @@ mod run;
 mod verb;
 
 pub use flow::{EdgeScalar, FieldRole, FlowSource, ParamFlow, RoleFamily, ScalarParam};
-pub use run::{PairOut, VerbError, VerbOut, VerbRecord};
+pub use run::{PairOut, SplitOut, VerbError, VerbOut, VerbRecord};
 pub use verb::{Arity, Verb, VerbKind};

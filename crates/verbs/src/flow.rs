@@ -321,6 +321,21 @@ const REVOLVE_FLOW: &[ParamFlow] = &[
 /// birth record, so it is a statement about a run.
 const BOOLEAN_FLOW: &[ParamFlow] = &[];
 
+/// **The split has NO scalar parameters either, and its empty flow
+/// says so for a reason of its own.** The payload is a plane — a
+/// point and a unit normal, a DATUM value read off a datum node
+/// upstairs — and a placement is not a scalar: no document slot
+/// evaluates to a number that the split carries into anything it
+/// mints. What it mints is section faces, and a section face's
+/// carrier is a plane, whose stored data is a placement and nothing
+/// else — `SurfaceField::belongs_to` names no field for the plane
+/// kind — so even a scalar that reached one would have no field to
+/// land in. `ScalarParam` gains no split variant, which is what keeps
+/// the exhaustiveness census true; `tests/param_flow.rs` asserts this
+/// emptiness beside a real split record, so it is a statement about a
+/// run and not an untested constant.
+const SPLIT_FLOW: &[ParamFlow] = &[];
+
 impl VerbKind {
     /// This verb's parameter→field flow, one row per scalar parameter.
     #[must_use]
@@ -331,6 +346,7 @@ impl VerbKind {
             Self::Extrude => EXTRUDE_FLOW,
             Self::Revolve => REVOLVE_FLOW,
             Self::Boolean(_) => BOOLEAN_FLOW,
+            Self::Split => SPLIT_FLOW,
         }
     }
 }

@@ -127,6 +127,7 @@ pub mod arms;
 pub mod battery;
 pub mod build;
 pub mod naming;
+mod open;
 pub mod surgery;
 
 use core::fmt;
@@ -151,10 +152,10 @@ pub use naming::{BlendNaming, RimSide};
 /// rather than counted here (a count in this doc has already gone
 /// stale once): the analytic arm a link resolves to and which of
 /// C8's predicates are facts about the request at all
-/// ([`battery::run_battery_for`]), the corner geometry the surgery
-/// grafts and its face-sense fold, the closed-chain arm (the
-/// fillet's alone), and the carve's contact-carrier kind
-/// ([`surgery`]).
+/// ([`battery::run_battery_for`]), the corner geometry the planar
+/// open band grafts ([`open::planar`]) and its face-sense fold, the
+/// closed-chain arm (the fillet's alone), and the carve's
+/// contact-carrier kind ([`surgery`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BlendKind {
     /// The constant-radius rolling ball: cylinder/torus bands and
@@ -1103,6 +1104,33 @@ pub enum BlendError {
         /// What the plan was reading when the reference failed.
         detail: &'static str,
     },
+    /// **The surgery's OWN invariant did not hold** (D2 addendum row 4,
+    /// announced instead of panicked): a carve step reached a state its
+    /// own earlier steps rule out.
+    ///
+    /// Not [`BlendError::BodyNotIntact`], and the distinction is the
+    /// whole point of the separate variant: that one says the body or
+    /// the verdict that ARRIVED does not hold together, which is a fact
+    /// about the input and true of bodies a caller can really produce.
+    /// This one says the input was fine and the surgery contradicted
+    /// itself, which is a kernel defect. Rendering the second as the
+    /// first tells a caller to go fix a body that is not wrong.
+    ///
+    /// **Why it is not an `unreachable!`.** Row 4's other sites are
+    /// panics because they are reached from inside a walk that has
+    /// nothing to return. A DOOR does not panic: it is on the caller's
+    /// path, it already returns `Result`, and a panic there takes the
+    /// process down over a state the caller cannot have caused and
+    /// cannot see. So the row is announced through this channel.
+    ///
+    /// Carries no recourse, for the reason `BodyNotIntact` carries
+    /// none and a stronger one: there is nothing the caller can change.
+    SurgeryInvariant {
+        /// The entity the step was holding when its premise failed.
+        at: EntityId,
+        /// The invariant that did not hold.
+        detail: &'static str,
+    },
     /// **The surgery's ring carry-through check**
     /// (`fillet3_ring_clearance`): a ring of a support face sits
     /// within (or in band of) a blend trimline, so splitting the face
@@ -1331,6 +1359,12 @@ impl fmt::Display for BlendError {
                  surgery does not hold together there; this is invalid input, not a blend \
                  frontier, and no recourse applies"
             ),
+            Self::SurgeryInvariant { at, detail } => write!(
+                f,
+                "{detail} — at {at}. This is the blend surgery's OWN invariant, established \
+                 by earlier steps of this same carve: the body handed in is not what is \
+                 wrong, so there is nothing to change about it and no recourse applies"
+            ),
             Self::RingClearance { face, margin } => write!(
                 f,
                 "a ring of support face {face:?} sits within a blend's \
@@ -1476,6 +1510,8 @@ mod recourse_tests {
             BlendError::RepeatedEdge { .. } => Recourse::None,
             BlendError::NonpositiveSize { .. } => Recourse::None,
             BlendError::BodyNotIntact { .. } => Recourse::None,
+            // The surgery's own invariant (row 4, announced).
+            BlendError::SurgeryInvariant { .. } => Recourse::None,
             BlendError::Certify { .. } => Recourse::None,
             BlendError::Op { .. } => Recourse::None,
         }
@@ -1597,6 +1633,10 @@ mod recourse_tests {
             BlendError::BodyNotIntact {
                 at: EntityId::HalfEdge(HalfEdgeKey::default()),
                 detail: "a reference the plan followed",
+            },
+            BlendError::SurgeryInvariant {
+                at: EntityId::Face(FaceKey::default()),
+                detail: "an invariant this carve's own earlier steps establish",
             },
             BlendError::RingClearance {
                 face: FaceKey::default(),

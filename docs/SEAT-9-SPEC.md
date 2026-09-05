@@ -27,7 +27,18 @@ consumer (state the visits). `VerbError` gains the shell's typed
 refusal; `ShellError<T>` is generic in the scalar (it carries the
 thickness), which is a structural decision for the closed error
 enum — argue it (a `T` on `VerbError`, or the thickness rendered at
-the door into a scalar-free refusal), never a stringly loss. **No
+the door into a scalar-free refusal), never a stringly loss. A
+second structural decision, measured by SEAT-8's dual: the shell doors
+are bounded `Decide + PropsQuadLane + CertifiedBounds` — TIGHTER than
+`Verb`'s impl header (`Decide + Bounds + PcurveFittedLane`,
+`verbs/src/run.rs`), and `geom-core/src/real.rs` (the compound-`Bounds`
+allowlist entry, ~line 503) records that tightening that header breaks
+its `Dual` caller. So the shell arm cannot ride `run` as written: it
+needs its own door under its own bound (a separately-bounded method or
+impl block, the `run_profile` precedent for shape), with the mismatch
+refusal still spoken by `Arity` at the other doors. Argue the shape;
+the `Dual` caller stays green by construction (it never names the
+shell door), and that is pinned. **No
 content tag and no lowering**: `Node::Shell` does not exist (LIB-G17,
 parked; its `blocked_on` int has fired — say so in the PR as courtesy).
 The tag censuses over `VerbKind::ALL` must therefore learn, as closed

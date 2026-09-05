@@ -240,3 +240,180 @@ reviewers' probes adopted). The spec left `docs/` with the merge
 members. Block PROPS-B1 slot 0 concluded; **slot 1 = the Span sweep**,
 dispatched on `props/span-knot-vector` (L / STRUCTURAL, pre-draw at the
 spec). Lanes live: Span, ONB-measure.
+
+**ONB-measure MERGED (2026-09-05)** —
+[#1939](https://github.com/evgunter/cad/pull/1939), evidence only, green
+on the full matrix. The numbers: the backend (in-repo
+`interval-transcendentals`, not inari) drops the sign of zero in `*`
+and `/` with `normalize` on every plane-minting path, so option (c) is
+unsound as the tree stands; 815 planar faces censused, exactly 12 walls
+with `n.z = −0.0`, all boolean-reversed faces in `die`/`kiss_assembly`;
+under (c′) all 12 move (8 STEP `DIRECTION` records, 4 half-turn `u_ref`
+flips), no `FaceFrame` anywhere in any corpus; on M10-5's prism 6 of 12
+walls narrow from width 2 to ≤ 7.4e-15, 2 stay hulled on a genuinely
+wide `n.z`. The item's "cannot converge" premise was false (the cost is
+a 2× enclosure; `refines` is true today) and is corrected. **Ruling for
+Ev**: `[ev]` PR opening now with recommendation (c′) — canonicalise the
+zero at f64 inside `orthonormal_basis` — and its one cost named (a
+`FaceFrame` on a boolean-reversed wall would rotate silently; none
+exist, no migration channel). Backend findings filed
+(`interval-backend-signed-zero-conventions`); the tour row of table 2
+is the one acceptance gap (the tour's scenes are private modules). Slot
+freed: lily-vec3 dispatches beside the Span sweep.
+
+**Span sweep delivered (2026-09-05)** as
+[#1952](https://github.com/evgunter/cad/pull/1952), head `2eccccead`,
+green on the full matrix (run 33949970914; python suite closure-skipped
+— filed on CIW). The mutation-hold check found no site: the spline layer
+has no `&mut self` method, so a refinement is a new binding and the
+constraint is pinned by an E0506 `compile_fail` row rather than
+observed. 37 files, +1344 −1453; the census's site count was high
+because `SurfaceWindow` collapsed rows. One argued deviation: the three
+surface doors moved ONTO `SurfaceWindow<T>` because a lifetime does not
+brand — `b.eval_in_span(a.window_at(..))` typechecks with the spec's
+shape and would silently answer for A. Residue filed:
+`coefficients-carry-their-knot-vector`. Dual review dispatched on the
+frozen head; ordinal 2401 claimed (#1961 carries it to main). Lanes
+live: two Span reviewers, lily-vec3.
+
+**The exit walk executes its homes in-PR (2026-09-05).** After Ev's
+"as long as all residuals are filed appropriately", #1924 now moves the
+24 items itself: eight to `work/props/` (the two sphere-pole items, the
+two hygiene items, `quad-face-extent`, `purchasable-area-valve`, plus
+`k-report-baseline-fold` and `edge-chord-len` which the charter names
+as Track K's and S-BOOL's), seven to `work/issues/` including the six
+the charter assigns here (the offset_fit lane, `refine-dir-hairline`,
+the QUAD2 dial, `normalize-overflow`) and `orthonormal-basis-poisons`.
+My re-points were not taken in the PR. Plan: after ratification, CLAIM
+the six from `work/issues/` by `git mv` (the README's claim rule) and
+re-home the two non-charter arrivals to `work/issues/` for their owners
+to claim; then the plan's lanes are complete.
+
+**lily-vec3 delivered (2026-09-05)** as
+[#1954](https://github.com/evgunter/cad/pull/1954), head `a700a6c3`,
+green on the full matrix incl. the tour's own row and all three render
+lanes ("matches this render"). Every tuple helper gone; the lift spelled
+once per boundary through `map`; 9 of 15 lily bodies byte-identical,
+six moved by ≤ 4.2e-15 with the cause MEASURED (reverting only the two
+`reject_from` calls restores all 145 artefacts byte-for-byte — the
+respell from PROPS-1, not the rewrite). `D79`(b) deleted member by
+member. Single style review dispatches when a Span reviewer frees a
+slot. Filed: `vec3-point3-const-and-conversion-doors` (props), the
+tour-wide layer-rule sweep and the stale tour `Cargo.lock`
+(`work/issues/`). Lane hazard recorded: the session scratchpad under
+`/tmp/claude-0/…/scratchpad/` is shared between lanes on this box — two
+lanes overwrote each other's file; briefs from here on name a private
+`/home/user/<lane>-tmp/`.
+
+**Span dual interrupted and resumed (2026-09-05, 06:49–08:01Z).** Both
+reviewers died on the account's session limit mid-review (R1 while
+writing a probe; R2 earlier) and were resumed from their transcripts on
+the same arms after the 07:40Z reset — a method note applying to BOTH
+arms equally (the CERT-M3/N3 precedent), not a relaxation; the usage
+counters record post-resume segments only and the row will say so.
+The orchestrator session itself was resumed cold from its transcript
+by the same limit; every worktree and target survived. Lily's style
+review still waits for a slot behind the two reviewers.
+
+**Span dual adjudicated (2026-09-05).** R1 NOT-MERGEABLE-AS-IS 4/7/4
+(idiom 3 / tests 3 / docs 2); R2 A-W-F 1/2/8 (4 / 4 / 4). Held under
+both: the borrow, the surface half, bit identity (R2 re-derived it at
+the merge base over 11 151 rows), the `compile_fail` codes, `pncad-py`
+compiles. **The curve half is not closed, and the spec's own curve-door
+paragraph is why**: the retired `admits` at the curve doors was
+load-bearing — a span from a longer vector now PANICS where it poisoned
+(R1's M1, executed; R2's probe used equal control counts and saw only
+finite wrong answers — a MINOR). Converged: the `quad.rs` `(kv, span)`
+door left standing while the body said it was converted (both MAJOR —
+bilateral). Unilateral: R1's M1 (the panic, executed) — **one v6 tally
+candidate, R1/OPUS, flagged for the blinded adjudication**; R1's M2/M3
+(the dead private guard; the surface argument indicting the curve half)
+are reading/design, not executed. **Ruling**: close the curve half the
+way the surface half was closed — a curve-held window with the doors on
+it — with the poison-guard restoration as the stated fallback and a
+filed follow-up if the fence cannot carry it. Fix pass
+implementer-inherited, items A–K, all taken. The M6 sense-gate item
+re-read: a tracker, not a unit — residual 4 is CURVED's on TOPO's
+territory, residuals 1–2's single-face halves closed by the wedge arm,
+the remainder design-shaped; citations repaired. Next spec written:
+`docs/PROPS-KSTATS-SPEC.md` (the verdict bracket with a stack + the
+escalation channel; L; block slot 2) — dispatches when a slot frees.
+
+**lily-vec3 reviewed (2026-09-05).** Style review on `a700a6c3`:
+APPROVE-WITH-FIXES, MAJOR 0 / MINOR 3 / NOTE 2 / style 8; rubric 4 / 4 / 4.
+Every executable claim reproduced (the artefact table number for number;
+the two-call revert restores 143/143). **The dispatcher's census missed
+a door**: `pncad::authoring::{p3, v3}` already exist beside the `p2` the
+file uses — so the lift has one spelling per dimension and `map` is only
+for computed values; taken as the first fix item. The other fixes are
+the header's over-claim ("exactly once" — two `Affine3<f64>` doors cross
+unlifted), the body's sweep claim (`skinned.rs`, `cutaway.rs` carry the
+shape — the tour-wide sweep is filed), and the probe half's last
+duplicated spellings. A second library finding filed on the doors item:
+no `Affine3::from_frame` and no `SketchPlane` lift. Fix pass
+implementer-inherited.
+**lily-vec3 MERGED (2026-09-05)** —
+[#1954](https://github.com/evgunter/cad/pull/1954), head `1111cf0f5`,
+green on the full matrix with all three render lanes at "matches this
+render". The lily is authored in the kernel's own vector types with one
+lift spelling per dimension (`pncad::authoring::{p2, v2, p3, v3}` for
+literals at the door, `map` for composed values), the tuple algebra gone,
+the header stating the layer rule and its two `Affine3<f64>` exceptions;
+`D79`(b) closed member by member. The six moved bodies are the
+`reject_from` respell's ulps (PROPS-1), measured by the two-call revert.
+The item is closed; the spec is ledgered in the per-merge form — the
+form the ledger's recent entries use, and the right one: a closed
+sweep's list carries its own count and recovery SHA. The two earlier
+PROPS lines appended to sweep 6's list (verdict-shapes, ONB-measure)
+move to that form at the next orchestrator sync.
+
+**Span sweep MERGED (2026-09-05)** —
+[#1952](https://github.com/evgunter/cad/pull/1952), head `e13d5df0d`,
+merge `46020d6b9`, green on the full matrix (37 jobs; the first fix head
+was red on the doc gate alone — a broken intra-doc link — and the lane
+now runs `scripts/doc-gate.sh` locally). The fix pass took the
+STRUCTURAL close: evaluation in a span moved onto `CurveWindow{2,3}`
+borrowing its curve, so the panic R1 executed no longer compiles; both
+bit-identity digests unchanged after the doors changed receivers twice.
+A/B row recorded (ordinal 2401, **sample #140**, one tally candidate
+R1/OPUS — the executed panic; both arms interrupted and resumed equally);
+block PROPS-B1 slot 1 concluded on `props/b1-block`. **Orchestrator
+error disclosed**: the ordinal-2401 claim paragraph was committed at
+dispatch on the block branch instead of this one, so #1961 did not carry
+it to main as its body said — carried now, with the note in the ledger.
+The lane's three out-of-fence notes: (1) `ssi/enclose.rs:418,456` is a
+subject edit on cert's ground (net read through `win.surface()`),
+disclosed in the PR body — S-CERT is at its exit walk, so it is recorded
+here rather than in a tracker about to be deleted; (2) `benches`,
+`demos/tour` and `demos/wild` lockfiles were stale on main (a `profile`
+edge on the `verbs` entry) and dirtied every lane that ran the doc
+gate — regenerated with cargo in this sync, closing the stale-lockfile
+half of `work/issues/tour-scenes-lift-componentwise-not-through-map`;
+(3) the python-suite closure skip is the CIW finding already filed
+(`closure-tier-skips-python-suite-on-geom-core-changes`, also carried
+to main only now). Lane reclaimed. Live: the k-stats bracket (slot 2).
+
+**k-stats bracket delivered (2026-09-05)** as
+[#1969](https://github.com/evgunter/cad/pull/1969), head `e832a1fc2`,
+green on the full matrix (run 33958408008, 37 jobs; the python suite
+RAN this time — the closure tier reached it through `editor-core`).
+The returned-value alternative measured and declined in writing (530
+`decide*` call sites, 261 enclosing functions, 104 public signatures);
+the bracket with a stack, `!Send`, `Drop`-popped; escalations recorded
+beside verdicts on both `NodeValue` and `NodeError` (deviation 1) and
+read first by `drive::classify_replay`; both red-first rows quoted
+(0-vs-724 nesting on the instantiate fixture; `Budget`→`SliverTerminal`
+on `slab(20ε, 40ε)`); witness-vector keys byte-identical, the accounting
+goldens re-blessed as the acceptance's own move. Five argued deviations
+including one hunk in `eval/parts.rs` outside the fence (the part-cache
+miss path shielded by its own discarded frame) and a bless arm on
+M10-7's tier-off differential. Dual review dispatched on the frozen head
+at 09:57Z: ordinal 2402 claimed (#1972 carries it — committed on THIS
+branch), byte 200 ⇒ R1 opus, R2 fable; briefs stored on `props/b1-block`
+with sha256 (`kstats-review-brief-{r1,r2}.md`). The reviewers' first
+targets are the spec's: the nesting fix under memo reuse and
+cancellation; the channel's completeness. Four findings the lane left
+for filing wait on the dual (the pre-bracket decisions of the profile
+pre-pass and the mate solve; a part's per-node logs dropped with its
+nested evaluation; the coincidence zone priced `Budget` at the floor —
+M10's; `refuse_non_finite`'s out-of-funnel `sign_within`).
