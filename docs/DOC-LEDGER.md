@@ -1027,3 +1027,19 @@ the stem-glue pin stays because the refusal was never the detector's
 blindness. The rule above; the unit's record is its item's `## Closed`
 section (`work/seat/SEAT-FW.md`) and its MERGED entry in
 `work/seat/log.md`; its A/B row is MODEL-AB-LOG SEATFW.
+
+## Per-merge deletion — VERBS-C5ARMS's spec (2026-09-05)
+
+Recoverable at `git show ae69dfeb2:docs/VERBS-C5ARMS-SPEC.md` (PR #1864's
+merge commit, the last head carrying it). Both halves delivered: PR-1
+plane×torus (#1577, VERBS) and PR-2 coaxial cone×cylinder (#1864,
+CURVED — the first CURVED unit). One acceptance clause was measured a
+category error rather than met: "`coned_tube`'s offset validates tier-3
+with a closed-form volume pin" — the direct per-chart door is right to
+refuse, and `shell(coned_tube)` succeeds flag-independently (a TORAX
+row); recorded in the PR body and the A/B row (C5A2), not by amending
+the spec. The rows 3/4/8 hold note points at
+`docs/CURVED-SPIRIC-DESIGN.md` (ratified 2026-09-04), which supersedes
+`docs/VERBS-RIMCAP-SPEC.md` §PR-2 as the klein elbow's binding text.
+The unit's record is `work/curved/VERBS-C5ARMS.md`'s `## Closed` and
+the MERGED entry in `work/curved/log.md`.
