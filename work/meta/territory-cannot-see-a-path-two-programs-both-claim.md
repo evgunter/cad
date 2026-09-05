@@ -75,3 +75,45 @@ against the code-quality K–X fences. Id, body and header are unchanged;
 the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
+
+## Measured tree-wide (2026-09-05, at the TOPO/META merge with main)
+
+The instance this was filed on is closed; the state at rest is not. A
+`fnmatch` pass of every open program's `paths` over `git ls-files`
+finds **17 program pairs sharing at least one tracked path**, none of
+them reported by anything today:
+
+| pair | paths | shape |
+|---|---|---|
+| `exch`+`tcost` | 177 | `crates/*/tests/*` against a crate owner |
+| `mesh`+`tcost` | 56 | same |
+| `chrome`+`tcost` | 50 | same |
+| `chrome`+`view` | 44 | **stated** — CHROME lands first, `crates/viewer/src/*` |
+| `bool`+`tcost` | 42 | `crates/*/tests/*` |
+| `bool`+`curved` | 37 | **stated** — the prose fence on `boolean/*`, `splitting/*` |
+| `m10`+`tcost`, `lib`+`tcost` | 32, 30 | `crates/*/tests/*` |
+| `fillet`+`tcost`, `seat`+`tcost`, `shell`+`tcost` | 11, 6, 3 | same |
+| `docm`+`msolve` | 3 | **stated** — `mate.rs`, `mate/*`, announced not assumed |
+| `bool`+`fillet` | 2 | `profile/src/{fillet_select,path/arc_fillet}.rs` |
+| `cert`+`m10`, `cert`+`props`, `docm`+`lib` | 1 each | `dual.rs`, `k_stats.rs`, `RECIPE-DOORS-DESIGN.md` |
+
+**This is the argument for shape (1), the lint rule, and it also
+settles the open decision inside it.** Deliberate overlaps plainly
+exist — four of these are written into a `keep_out` on both sides and
+are the tracker working as intended — so a rule that errors on any
+shared path would be unusable on the day it landed. What the rule
+should say instead: **an overlap is an error unless BOTH programs'
+`keep_out` name the other**, which passes CHROME/VIEW, BOOL/CURVED and
+DOCM/MSOLVE today and fires on the eleven `crates/*/tests/*` pairs
+and the three singletons, which nobody has recorded either way.
+
+The `*/tests/*` family is the interesting one and probably wants its
+own answer rather than eleven `keep_out` lines: S-TCOST's territory is
+every crate's tests by design, and code-quality Track W states the
+seam in prose already ("a track that owns a crate's `src/` does **not**
+otherwise own its `tests/`"). Whether the lint learns that seam or
+eleven programs write it down is the one thing left to decide.
+
+Method, so it is re-derivable: `fnmatch.fnmatchcase` of each open
+`program.md`'s `paths` globs against `git ls-files`, counting paths
+matched by more than one program. Same matcher `work.py` uses.
