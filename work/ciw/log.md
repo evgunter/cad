@@ -545,3 +545,64 @@ its **own** row: a PR green on row X can be ejected by row Y, the author
 cannot reproduce it by re-running, and re-queueing draws again. Ev has
 authorised un-sampling k-lint; that lands first
 (`klint-row-still-sampled`), then the switch.
+
+## 2026-09-05 — the merge queue is not available to this repository, and the unit closes (`merge-queue-trial`)
+
+**The entry above this one is the story of a design that could never
+have been enabled.** Ev went to turn the queue on after PR 1845 landed
+and found no toggle. It is not a misconfiguration and not a plan tier:
+`github/docs@main`, `data/reusables/gated-features/merge-queue.md`, says
+in full that *"Pull request merge queues are available in any public
+repository owned by an organization, or in private repositories owned by
+organizations using GitHub Enterprise Cloud"* — and `evgunter/cad`
+(repository id 1302372371) reports `"visibility": "public"` with
+`"type": "User"` on its owner. A personal-account repository is outside
+both arms of the grant.
+
+**Going public on 2026-09-03 removed the BILLING gate on Actions
+minutes. Merge queue is gated on OWNERSHIP.** Two different gates, and
+this program conflated them — the whole re-costing arc was built on the
+first and the queue needed the second.
+
+**Ev has ruled** (2026-09-05): *"ok i don't plan to move this to an
+organization"*. So the avenue is closed rather than blocked, and
+`merge-queue-trial` is `closed`, not parked and not deferred: nothing is
+waiting on anything.
+
+**The process failure, named, because this program has been filing this
+exact shape all day.** The unit costed the queue to two decimals — 99.5
+job-min/h, ρ = 0.39, a latency simulation over 138 observed merge
+arrivals — argued the required-check design, shipped a nine-setting
+runbook, and wrote a section listing six things it could not
+demonstrate. **Nobody, at any point — not the unit, not its style
+review, not the orchestrator — asked whether the feature was available.**
+It is a true mechanism carrying an unchecked premise, arriving at the
+program that has been filing that pattern in other people's work.
+**The lesson, actionable and one sentence: an availability/entitlement
+check belongs BEFORE the costing, not after the design.**
+
+**What survives and must not be swept up as residue.** `gate ok` is
+live, green on every pull request run, and has nothing to do with a
+queue; requiring it as a status check is still available, because branch
+protection with required status checks works fine on a public
+personal-account repository — a different feature from a merge queue.
+`scripts/check-run-jobs.py` and its `--selftest` (in `discipline` and in
+`ci-local.sh`), and the `page_is_whole` paging guard PR 1845 also put
+into `scripts/opt-level-calibrate.py`, are all unaffected. Two facts
+from the dead design are durable and should be quoted forward: GitHub
+builds one merge group **per queued pull request**, so merge limits and
+batch size are not a CI-cost lever (the mechanism error under PR 1796's
+44 job-min/h figure — do not quote that number again), and the
+2026-09-04 post-un-sampling measurements (44.8 job-min and 528 s wall
+per code-tier run, 5.76 merges/h, 41 % code-tier) are real and reusable.
+
+**The dead wiring in `ci.yml` is left in place and is not this unit's
+call.** `on: merge_group` and the `merge_group` exclusion on `renders`
+can never fire here; they cost no run and no minute, and removing them is
+a workflow edit on a file several lanes touch. The trade is written up
+for the orchestrator rather than acted on.
+
+**The fallback for the defect class the queue was chosen over is open
+again** — the full push job set plus the per-SHA concurrency design pass,
+48 job-min/h, named in `work/ciw/f3-recosting-on-a-public-repo`. That is
+not reopened here; it is a ruling for Ev whenever CIW asks it.
