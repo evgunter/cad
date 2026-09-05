@@ -377,6 +377,8 @@ mod seat6_param_source;
 mod seat7_sweep_lowering;
 #[path = "seat8_split_lowering.rs"]
 mod seat8_split_lowering;
+#[path = "seatfw_curved_flush.rs"]
+mod seatfw_curved_flush;
 #[path = "switch_display_units.rs"]
 mod switch_display_units;
 #[path = "switch_dump.rs"]
