@@ -1217,12 +1217,14 @@ def classify(files: list[str], root: str) -> dict[str, str]:
             continue
         # A read edge fires on SEEDS, not on the closure: what this crate reads
         # is another crate's TEXT, and only that crate's own files move it.
-        # A destination OUTSIDE `crates/` needs no branch here and must not
+        #
+        # A DESTINATION OUTSIDE `crates/` NEEDS NO BRANCH HERE and must not
         # have one: the allowlist above already makes every tracked path that
         # is not inside a member unscopable, so a change to `demos/tour/src`,
         # to the workspace manifest or to a page a suite reads is TIER=all
-        # before this runs. `reach.paths` is read by `_suite_read_markdown`,
-        # which is the one place a destination like that decides anything.
+        # before this runs. `reach.paths` is read by `_suite_read_markdown`
+        # instead, which is the one place a destination like that decides
+        # anything — and what it decides is that the page is not documentation.
         if {dir_of[o] for o in reach.crates.get(member, ()) if o in dir_of} & seeds:
             pinned.add(pkg)
     pkgs = sorted(closed | pinned)
