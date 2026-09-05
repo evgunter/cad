@@ -77,6 +77,10 @@ Ev's standing instructions for implementation work:
   you explicitly requested sign-off on. Arrange to be woken by comments
   on every `[ev]` PR you open (the away-channel monitor locally, a PR
   subscription on a remote box) — the answer arrives as a comment.
+  A file move or other reshuffle with NO design implication is not an
+  `[ev]` question — Ev (PR 1916, 2026-09-05): "you don't need to ask me
+  about moving things around, unless it has design implications"; just
+  do it and log it.
 - **State-sync records RIDE THE UNIT'S OWN PR (Ev, 2026-08-27)** — a
   unit's ledger row and log entries go on as one more commit to that
   unit's branch. Two conditions: **LAST, after both reviews are
@@ -105,6 +109,6 @@ Ev's standing instructions for implementation work:
   ADJUDICATION time, as part of reading a report, any finding asserting
   a CLASS rather than an instance gets a log line or an issue. A report
   that exists only in a session's context is one outage from never
-  having happened. A file move or other reshuffle with NO design implication is not an `[ev]` question — Ev (PR 1916, 2026-09-05): "you don't need to ask me about moving things around, unless it has design implications"; just do it and log it.
+  having happened.
 
 Handing the session to a successor: [[orchestrator-switch-runbook]].
