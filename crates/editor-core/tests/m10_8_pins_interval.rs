@@ -32,17 +32,21 @@ use crate::m10_7_plate::plate;
 use crate::m10_7_r2_probes_interval::bracket as r2_bracket;
 use crate::m10_8_harness::{ceiling, dials};
 
-/// **The shipped set is A0 + rule C in the early walk, and nothing
-/// else** — one default, carried by `SymbolicDials::default()` and
-/// `with_session` alike. Pinned as the measured decision it is: A/B
-/// over the top residual add no discharge on the documents; A/B per
-/// node are minutes per replay on the BigInt ring.
+/// **The shipped set is A0 alone** — one default, carried by
+/// `SymbolicDials::default()` and `with_session` alike. Pinned as the
+/// measured decision it is (`geom_core::SymRules::shipped`'s docs carry
+/// the numbers): A/B over the top residual add no discharge on the
+/// documents; A/B per node are minutes per replay; rule C's early walk
+/// folds on no document and moves no ceiling while costing 2× per leaf.
 #[test]
-fn m10_8_the_shipped_set_is_a0_and_rule_c() {
+fn m10_8_the_shipped_set_is_a0_alone() {
     let s = SymRules::shipped();
     assert_eq!(SymRules::default(), s, "one default");
     assert!(s.const_fold, "A0 ships");
-    assert!(s.early && s.signed_root, "rule C ships, in the early walk");
+    assert!(
+        !s.early && !s.signed_root,
+        "rule C is built and dial-selectable, and does not ship (inert, 2x per leaf)"
+    );
     assert!(!s.early_ab, "per-node A/B does not ship (cost)");
     assert!(
         !s.sqrt_square && !s.pythagoras,
@@ -100,13 +104,14 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
 }
 
 /// **On curved geometry the shipped set discharges MORE than the plain
-/// form and never less** — the bracket at a box M10-7's tier cannot
-/// certify whole: more symbolic decisions, fewer numeric ones, at least
-/// as many leaves certified.
+/// form and never less** — the bracket at `1e2 · ε` of its study, a box
+/// between the plain tier's ceiling (`3.7e1 · ε`) and the shipped
+/// one's (`3.9e2 · ε`): more symbolic decisions, fewer numeric ones, at
+/// least as many leaves certified, at every ε row.
 #[test]
 fn m10_8_the_shipped_set_discharges_more_on_the_bracket() {
     let tol = Tol::witness();
-    let doc = r2_bracket(1.0e-7, tol).0;
+    let doc = r2_bracket(1.0e2 * tol.eps(), tol).0;
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let run = |rules: SymRules| {
         let v = drive(
@@ -165,11 +170,15 @@ fn measured_ceiling(
     (c_lo, c_hi)
 }
 
-/// **The two-hole plate's ceiling**: M10-7's `7.81e-7` is the PLAIN
-/// tier's number at the default epsilon and `7.81e2 · ε` at every row
-/// (the ceiling is the numeric channel's and scales with the band;
-/// measured `7.8e-4`, `7.8e-7`, `7.8e-10` at `1e-6`, `1e-9`, `1e-12`).
-/// Under the shipped set it is `K_PLATE_SHIPPED · ε` — PLATE_SENTENCE
+/// **The two-hole plate's ceiling is UNMOVED**: M10-7's `7.81e-7` is
+/// `7.81e2 · ε` at every row (the ceiling is the numeric channel's and
+/// scales with the band; measured `7.8e-4`, `7.8e-7`, `7.8e-10` at
+/// `1e-6`, `1e-9`, `1e-12`), under the plain tier and the shipped one
+/// alike — the rim residual `carrier_endpoint_start` is bounded by a
+/// nested `sqrt(…)²` no shipped rule reaches
+/// (`work/m10/plate-rim-residual-needs-the-wide-coefficient-ring`).
+/// Both tiers' brackets are asserted at both ends and must contain the
+/// same `7.81e2 · ε`.
 #[test]
 fn m10_8_the_plate_ceiling_under_the_plain_and_the_shipped_tier() {
     let tol = Tol::witness();
@@ -196,10 +205,9 @@ fn m10_8_the_plate_ceiling_under_the_plain_and_the_shipped_tier() {
         eps,
         eps * 1.0e6,
     );
-    let shipped = 7.81e2 * eps;
     assert!(
-        s_lo <= shipped && shipped <= s_hi,
-        "the shipped bracket [{s_lo:e}, {s_hi:e}] must contain {shipped:e} (K_PLATE_SHIPPED · eps)"
+        s_lo <= m10_7 && m10_7 <= s_hi,
+        "the shipped bracket [{s_lo:e}, {s_hi:e}] must contain the same {m10_7:e}: unmoved"
     );
     assert!(
         s_lo >= lo,
@@ -210,10 +218,15 @@ fn m10_8_the_plate_ceiling_under_the_plain_and_the_shipped_tier() {
 /// **The filleted bracket's ceiling MOVES**: M10-7's "factor exactly
 /// 1.0" (tier on == off) held because M10-7's tier reached nothing on
 /// this document; the PLAIN tier certifies the bracket whole below
-/// `K_BRACKET_PLAIN · ε` and the shipped tier below `K_BRACKET_SHIPPED
-/// · ε` — a factor of BRACKET_FACTOR, from the constant fold alone
-/// (`sqrt(1)^k` and `sqrt` of exact-square dyadics froze every rim
-/// form). Both brackets are asserted at both ends.
+/// `3.7e1 · ε` and the shipped tier below `3.9e2 · ε` — a factor of
+/// 10.4, from the constant fold alone (`sqrt(1)^k` and `sqrt` of
+/// exact-square dyadics froze every rim form). Measured at `1e-6`,
+/// `1e-9` and `1e-12`: plain `[3.70, 3.75]e1 · ε` at every row; shipped
+/// `[3.82, 3.87]e2 · ε` at `1e-6` and `[3.87, 3.92]e2 · ε` at the other
+/// two (the true ceiling sits near `3.87e2 · ε`, on either side of the
+/// bisection grid), so the pin asks each ten-step bracket to OVERLAP
+/// the measured band rather than to contain one number. Both brackets
+/// are asserted at both ends.
 #[test]
 fn m10_8_the_bracket_ceiling_moves_under_the_shipped_tier() {
     let tol = Tol::witness();
@@ -227,10 +240,10 @@ fn m10_8_the_bracket_ceiling_moves_under_the_shipped_tier() {
         eps * 1.0e-2,
         eps * 1.0e4,
     );
-    let plain = 37.4 * eps;
+    let (p_lo, p_hi) = (3.65e1 * eps, 3.80e1 * eps);
     assert!(
-        lo <= plain && plain <= hi,
-        "the plain bracket [{lo:e}, {hi:e}] must contain {plain:e} (K_BRACKET_PLAIN · eps)"
+        lo <= p_hi && hi >= p_lo,
+        "the plain bracket [{lo:e}, {hi:e}] must overlap [{p_lo:e}, {p_hi:e}] (the measured [3.70, 3.75]e1 · eps)"
     );
     let (s_lo, s_hi) = measured_ceiling(
         "bracket, shipped tier",
@@ -240,10 +253,10 @@ fn m10_8_the_bracket_ceiling_moves_under_the_shipped_tier() {
         eps * 1.0e-2,
         eps * 1.0e4,
     );
-    let shipped = 388.0 * eps;
+    let (b_lo, b_hi) = (3.80e2 * eps, 3.95e2 * eps);
     assert!(
-        s_lo <= shipped && shipped <= s_hi,
-        "the shipped bracket [{s_lo:e}, {s_hi:e}] must contain {shipped:e} (K_BRACKET_SHIPPED · eps)"
+        s_lo <= b_hi && s_hi >= b_lo,
+        "the shipped bracket [{s_lo:e}, {s_hi:e}] must overlap [{b_lo:e}, {b_hi:e}] (the measured [3.82, 3.92]e2 · eps)"
     );
     assert!(
         s_lo > hi,

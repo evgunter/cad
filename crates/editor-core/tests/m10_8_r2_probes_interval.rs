@@ -244,18 +244,20 @@ fn r2_the_shape_report_attributes_each_decision_to_its_own_door() {
     );
 }
 
-/// **The bracket at `1e-7` of its study certifies under the shipped
+/// **The bracket at `1e2 · ε` of its study certifies under the shipped
 /// tier and NOT under M10-7's.** R2's review found the first cut of the
-/// bracket pin asserting only that two rule sets AGREE at this scale,
+/// bracket pin asserting only that two rule sets AGREE at one scale,
 /// both `false` — a `false == false` that would have stayed green had
 /// the mechanism moved. It moved: A0 (the constant fold, shipped) lifts
-/// the bracket's whole-certifying ceiling past this scale, so the two
-/// sides DIFFER here, and that difference is what this row pins. The
-/// ceiling itself is pinned ε-relative in `m10_8_pins_interval`.
+/// the bracket's whole-certifying ceiling from `3.7e1 · ε` to
+/// `3.9e2 · ε`, so at `1e2 · ε` (the first cut's `1e-7` at the default
+/// epsilon, made ε-relative) the two sides DIFFER at every ε row, and
+/// that difference is what this row pins. The ceilings themselves are
+/// pinned in `m10_8_pins_interval`.
 #[test]
-fn r2_the_bracket_at_1e_7_certifies_under_the_shipped_tier_only() {
+fn r2_the_bracket_between_the_two_ceilings_certifies_under_the_shipped_tier_only() {
     let tol = Tol::witness();
-    let doc = crate::m10_7_r2_probes_interval::bracket(1.0e-7, tol).0;
+    let doc = crate::m10_7_r2_probes_interval::bracket(1.0e2 * tol.eps(), tol).0;
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let whole = |rules: SymRules| {
         drive(
@@ -275,10 +277,10 @@ fn r2_the_bracket_at_1e_7_certifies_under_the_shipped_tier_only() {
         .is_ok_and(|v| v.receipt().certified == 1)
     };
     let (shipped, off) = (whole(SymRules::shipped()), whole(SymRules::none()));
-    println!("   bracket at x1e-7: shipped {shipped}, M10-7's tier {off}");
+    println!("   bracket at x1e2·eps: shipped {shipped}, M10-7's tier {off}");
     assert!(
         shipped,
-        "the shipped tier certifies the bracket whole at 1e-7"
+        "the shipped tier certifies the bracket whole at 1e2 · eps"
     );
     assert!(
         !off,
