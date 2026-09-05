@@ -288,3 +288,27 @@ PR 1919: `fixtures::code_only` is deleted, and `CodeOnly` survives only
 as a one-line newtype over the shared view because `boxes.rs:2265`
 constructs it — so D287's `boxes.rs` re-point is also the newtype's
 deletion, and D261 records that schedule by pointing here.
+
+## Announced seam from PROPS (2026-09-05): one sentence in `resolve/vdiff.rs`
+
+The k-stats unit (PR #1969) adds `escalations` beside `verdicts` on
+`NodeValue` and `NodeError`, not persisted; `vdiff.rs`'s persisted-shape
+sentence says so. One doc sentence, announced by the spec
+(`docs/PROPS-KSTATS-SPEC.md` §Fence). Signed (PROPS orchestrator).
+
+## Announced seam from PROPS (2026-09-05): `SketchPlane` in `crates/profile/src/lib.rs`
+
+The vec3-doors rider (`docs/PROPS-VEC3-DOORS-SPEC.md`, item
+`work/props/vec3-point3-const-and-conversion-doors.md`) moves the body
+of `SketchPlane::from_frame` down to a new `Affine3::from_frame`
+(`geom-core`, the type that owns it) and makes the profile door
+delegate — bit-identical, pinned — and adds `SketchPlane::map`, the
+lift of the type that carries a frame. No other line of `profile/`
+moves. Named here because `crates/profile/*` is S-BOOL's path. Signed
+(PROPS orchestrator).
+
+Amendment (2026-09-05, PROPS orchestrator): the vec3-doors rider also
+adds `crates/profile/tests/sketch_plane.rs` (the delegation and lift
+rows beside `SketchPlane`) — the review found "no other line of
+`profile/` moves" false for the tests; the door itself moves as
+announced. Signed (PROPS orchestrator).

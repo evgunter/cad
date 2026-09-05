@@ -2499,7 +2499,7 @@ impl<T: CertifiedEnclosure> CertifiedEnclosure for Sym<T> {
 /// the hull mints a `Hull` node keyed by the two operands' ids (never by
 /// their forms — see [`SymOp::Hull`]).
 impl<T: SpanLocate> SpanLocate for Sym<T> {
-    fn locate_spans(self, knots: &KnotVector) -> SpanSet {
+    fn locate_spans<'a>(self, knots: &'a KnotVector) -> SpanSet<'a> {
         self.value.locate_spans(knots)
     }
 

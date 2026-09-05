@@ -65,37 +65,30 @@
 //! `residual.hi() <= eps` under every comparison direction, so a
 //! structural mistake can never be mistaken for a certificate.
 //!
-//! A span this `kv` does not admit is on that list too, and it is the
-//! **only** span refusal left. A [`Span`] carries "in range and
-//! nonempty" for the vector it was drawn from, but it carries no borrow
-//! of that vector, so a span of a *different* one is a representable
-//! input: [`span_indices`] therefore asks [`KnotVector::admits`]
-//! alongside the coefficient-length check, and either failing is
-//! poison. **Emptiness is part of that**, and it matters most here
-//! rather than least: an empty span reads no knots at all in this
-//! module, so without it a foreign span could yield a perfectly
-//! finite hull over a window this vector's basis never reads — and
-//! [`sup_norm_bound_span`] is the C2.2 honesty limb, where a finite
-//! wrong bound **certifies a span it never bounded**. That is a worse
-//! outcome than the panic, and it is refused.
+//! **No span carries a pairing question.** A [`Span`] borrows the knot
+//! vector it is a proof about, every span-taking door here reads its
+//! knots from that borrow ([`Span::knots`]) and takes no second
+//! vector, so "in range", "degree agreement" and "nonempty" are facts
+//! about the very knots being read and there is nothing to refuse.
 //!
-//! # The relation that is still length-only, and is a residue
+//! # The relation that is length-only, and is the residue
 //!
 //! One check here is a relation of *length*, not of identity.
 //! `coeffs.len() == kv.control_count()` says nothing about which curve
-//! the coefficients came from, and [`KnotVector::admits`] says nothing
-//! about which vector the span came from: a same-degree,
-//! same-control-count vector whose index `i` is nonempty too admits the
-//! span, and a same-length `coeffs` passes the count.
-//! In both cases the bound is then computed over the wrong data and is
-//! **wrong rather than refused** — a silent answer, and a deliberate
-//! residue.
+//! the coefficients came from: a same-length `coeffs` from another
+//! curve passes it, the bound is then computed over the wrong data,
+//! and it is **wrong rather than refused** — a silent answer, and the
+//! one deliberate residue here.
 //!
-//! What is closed is the worse failure: neither can index out of bounds
-//! any more, so no public door here panics (D9). Closing the residue
-//! means the `Span` and the coefficients carrying their vector — a
-//! borrow, or an invariant-lifetime brand — which is a design change
-//! and not paid for here.
+//! **These free functions are where it lives.** `geom`'s curve and
+//! surface windows borrow the curve or surface they evaluate and read
+//! the coefficients from it, so they do not have this relation; a
+//! door here takes a loose `&[E]` and does. Closing it wants the
+//! coefficients carrying their vector, the way a [`Span`] carries its
+//! own.
+//!
+//! What the length check does close is the worse failure: nothing here
+//! can index out of bounds, so no public door here panics (D9).
 
 use super::knots::{KnotVector, Span};
 use crate::real::CertifiedEnclosure;
@@ -105,15 +98,15 @@ use crate::ring_interval::RingInterval;
 /// `span` — the [`Span`]'s own window, `[span − p, span]`, computed
 /// once at its construction rather than re-derived here.
 ///
-/// `None` — the poison route for every caller below — on either of the
-/// two disagreements a `Span` cannot rule out by itself: a `coeffs`
-/// array that is not the length this `kv` requires, or a span this `kv`
-/// does not admit ([`KnotVector::admits`]). With both discharged,
-/// `last = span.index() <= kv.last_span() = control_count() − 1 =
-/// coeff_len − 1` and `first = last − degree >= 0`, so the whole window
-/// indexes `coeffs` in range.
-fn span_indices(kv: &KnotVector, coeff_len: usize, span: Span) -> Option<(usize, usize)> {
-    if coeff_len != kv.control_count() || !kv.admits(span) {
+/// `None` — the poison route for every caller below — on the one
+/// disagreement a `Span` cannot rule out by itself: a `coeffs` array
+/// that is not the length the span's own vector requires. With that
+/// discharged, `last = span.index() <= kv.last_span() =
+/// control_count() − 1 = coeff_len − 1` and `first = last − degree >=
+/// 0` come from the span's construction, so the whole window indexes
+/// `coeffs` in range.
+fn span_indices(coeff_len: usize, span: Span<'_>) -> Option<(usize, usize)> {
+    if coeff_len != span.knots().control_count() {
         return None;
     }
     Some((span.first_control(), span.index()))
@@ -123,13 +116,12 @@ fn span_indices(kv: &KnotVector, coeff_len: usize, span: Span) -> Option<(usize,
 /// brackets of the `p + 1` coefficients active there (module docs: the
 /// convexity fact).
 ///
-/// Poison for a coefficient-count mismatch, a span this `kv` does not
-/// admit, or a poisoned coefficient. The result is the polynomial's
-/// bound on
+/// Poison for a coefficient-count mismatch or a poisoned coefficient.
+/// The result is the polynomial's bound on
 /// `[u_span, u_{span+1}]` only — outside it the span's polynomial
 /// extension is unbounded by anything here.
-pub fn span_hull<E: CertifiedEnclosure>(kv: &KnotVector, coeffs: &[E], span: Span) -> RingInterval {
-    let Some((first, last)) = span_indices(kv, coeffs.len(), span) else {
+pub fn span_hull<E: CertifiedEnclosure>(coeffs: &[E], span: Span<'_>) -> RingInterval {
+    let Some((first, last)) = span_indices(coeffs.len(), span) else {
         return RingInterval::poison();
     };
     let mut acc = RingInterval::poison();
@@ -163,7 +155,7 @@ pub fn domain_hull<E: CertifiedEnclosure>(kv: &KnotVector, coeffs: &[E]) -> Ring
     for index in kv.first_span()..=kv.last_span() {
         // Emptiness check and span validation are one step.
         let Some(span) = kv.span(index) else { continue };
-        let h = span_hull(kv, coeffs, span);
+        let h = span_hull(coeffs, span);
         acc = if seeded {
             RingInterval::hull(acc, h)
         } else {
@@ -177,8 +169,8 @@ pub fn domain_hull<E: CertifiedEnclosure>(kv: &KnotVector, coeffs: &[E]) -> Ring
 /// Whether every weight active on `span` is strictly positive and
 /// finite — the precondition that licenses the hull bound for a
 /// rational spline (module docs).
-fn span_weights_positive(kv: &KnotVector, weights: &[f64], span: Span) -> bool {
-    let Some((first, last)) = span_indices(kv, weights.len(), span) else {
+fn span_weights_positive(weights: &[f64], span: Span<'_>) -> bool {
+    let Some((first, last)) = span_indices(weights.len(), span) else {
         return false;
     };
     // `w > 0.0` is false for NaN, so a NaN weight refuses (the spline
@@ -199,15 +191,14 @@ fn span_weights_positive(kv: &KnotVector, weights: &[f64], span: Span) -> bool {
 /// the control values. A non-positive, non-finite, or miscounted weight
 /// is poison.
 pub fn span_hull_rational<E: CertifiedEnclosure>(
-    kv: &KnotVector,
     coeffs: &[E],
     weights: &[f64],
-    span: Span,
+    span: Span<'_>,
 ) -> RingInterval {
-    if !span_weights_positive(kv, weights, span) {
+    if !span_weights_positive(weights, span) {
         return RingInterval::poison();
     }
-    span_hull(kv, coeffs, span)
+    span_hull(coeffs, span)
 }
 
 /// Whole-domain enclosure of a rational scalar spline: the hull over
@@ -226,7 +217,7 @@ pub fn domain_hull_rational<E: CertifiedEnclosure>(
     for index in kv.first_span()..=kv.last_span() {
         // Emptiness check and span validation are one step.
         let Some(span) = kv.span(index) else { continue };
-        let h = span_hull_rational(kv, coeffs, weights, span);
+        let h = span_hull_rational(coeffs, weights, span);
         acc = if seeded {
             RingInterval::hull(acc, h)
         } else {
@@ -302,12 +293,9 @@ pub fn derivative_coeffs<E: CertifiedEnclosure>(
 /// The range is nonempty for every [`Span`]: `first = s − p < s = last`
 /// because `KnotVector::clamped` refuses degree 0. It is the `Span`'s
 /// own window minus its top end.
-pub fn derivative_span_hull<E: CertifiedEnclosure>(
-    kv: &KnotVector,
-    coeffs: &[E],
-    span: Span,
-) -> RingInterval {
-    let Some((first, last)) = span_indices(kv, coeffs.len(), span) else {
+pub fn derivative_span_hull<E: CertifiedEnclosure>(coeffs: &[E], span: Span<'_>) -> RingInterval {
+    let kv = span.knots();
+    let Some((first, last)) = span_indices(coeffs.len(), span) else {
         return RingInterval::poison();
     };
     let mut acc = RingInterval::poison();
@@ -348,12 +336,8 @@ pub fn derivative_domain_hull<E: CertifiedEnclosure>(
 /// Returns `NaN` for every poison path, which fails that comparison
 /// under every direction (D4 ¶2). The value is an upper bound on the
 /// true supremum, never an approximation of it.
-pub fn sup_norm_bound_span<E: CertifiedEnclosure>(
-    kv: &KnotVector,
-    coeffs: &[E],
-    span: Span,
-) -> f64 {
-    span_hull(kv, coeffs, span).mag()
+pub fn sup_norm_bound_span<E: CertifiedEnclosure>(coeffs: &[E], span: Span<'_>) -> f64 {
+    span_hull(coeffs, span).mag()
 }
 
 /// A certified upper bound on `|f|` over the whole domain. See

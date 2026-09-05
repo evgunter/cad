@@ -15,6 +15,8 @@
 //!   `block ∪ cylinder`), which is pinned beside them;
 //! - a cap carrying a RING (the bored D-rod): the plan checks the
 //!   supports for rings, not the cap;
+//! - a SUPPORT carrying a ring (a pocket sunk into the flat): the plan's
+//!   support gate refuses it, typed — the one row that pins that gate;
 //! - a cap rim requested beside its crease: a typed refusal (the
 //!   battery's, not the surgery's);
 //! - a flat past the axis (`ROD_FLAT < 0`): the section's fillet arc
@@ -31,7 +33,8 @@ use geom_core::{Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::{BlendError, fillet_edges};
 use sweep::test_support::{
-    ROD_FILLET, ROD_L, ROD_R, assert_naming_totality, rod_creases, rod_section_cut,
+    ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, rod_creases, rod_section_cut,
+    rod_with_flat,
 };
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, mass_properties, validate_geometric};
@@ -269,6 +272,79 @@ fn a_sunk_rod_has_concave_ruled_creases_that_add_material() {
         (dv - 2.0 * a * L).abs() < 1e-12,
         "sunk rod: ΔV = +2·A·L, measured {dv} vs {}",
         2.0 * a * L
+    );
+}
+
+/// **A SUPPORT carrying a ring refuses at the ruled plan.** The row above
+/// puts a ring on the CAP, which the plan does not check; this one puts
+/// a ring on the flat — a shallow square pocket sunk into it, inside the
+/// flat's own extent and clear of the caps and the cylinder — so the
+/// PLANE support of both creases carries a ring. `RuledPlan::plan`'s
+/// support gate (`if !fd.rings.is_empty()`) refuses it, typed, with the
+/// recourse that is true of it — a curved-support carve does not carry
+/// rings through. Before this row the gate was pinned by nothing
+/// (FILLET-SPLIT review: neutered, every H7 row stayed green). Measured
+/// at the fix pass: with the gate neutered THIS fixture is still
+/// refused, but later and for a different reason — the ring check's
+/// circle-only arm (`ring_circle`, "a ring edge's carrier is not a
+/// circle"), whose recourse talks about circle rings and blends on the
+/// face, not about the ruled carve — so what the row pins is that the
+/// support gate answers first, in its own words.
+#[test]
+fn a_support_carrying_a_ring_refuses_at_the_ruled_plan() {
+    let rod = rod_with_flat(tol());
+    let plane = SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
+    let pocket = extruded(
+        plane,
+        vec![rect(ROD_FLAT - 0.05, ROD_FLAT + 0.1, -0.1, 0.1)],
+        0.2,
+    );
+    let source = topo::subtract(&rod, &pocket, tol())
+        .expect("the pocket sinks into the flat")
+        .body()
+        .expect("a body remains")
+        .body
+        .clone();
+    validate_geometric(&source, tol()).expect("the pocketed rod is tier-3 valid");
+    let ringed: Vec<_> = source
+        .faces()
+        .filter(|(_, f)| !f.rings.is_empty())
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(
+        ringed.len(),
+        1,
+        "exactly the flat carries the pocket as a ring"
+    );
+    let creases = rod_creases(&source);
+    assert_eq!(
+        creases.len(),
+        2,
+        "the pocket adds no cylinder–plane line edge"
+    );
+    for crease in &creases {
+        let (a, b) = {
+            let e = source.get_edge(*crease).unwrap();
+            let face = |he| {
+                let lp = source.get_half_edge(he).unwrap().parent_loop;
+                source.get_loop(lp).unwrap().face
+            };
+            (face(e.he_plus), face(e.he_minus))
+        };
+        assert!(
+            a == ringed[0] || b == ringed[0],
+            "each crease has the ringed flat as a support"
+        );
+    }
+    let err = fillet_edges(&source, &creases, R, tol())
+        .expect_err("a ruled band whose support carries a ring is refused");
+    assert!(
+        matches!(
+            &err.error,
+            BlendError::UnsupportedChain { detail, .. }
+                if detail.contains("support face carries a ring")
+        ),
+        "refused by `RuledPlan::plan`'s support gate and nothing earlier: {err}"
     );
 }
 

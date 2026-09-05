@@ -30,6 +30,12 @@ Raised by lane T-1 (code-quality, Track T) during its closing citation sweep
 and routed here rather than edited, per `docs/prompts/implementer-discipline.md`
 §6. The citations are accurate as of 2026-09-04; re-derive before acting.
 
+## FILLET's half (2026-09-05, PR 1964)
+
+`work/fillet/program.md`'s `keep_out` clause naming Track T's rows is deleted:
+`D322`, `D325` and `D326` are all closed, so nothing it kept out is live.
+`work/fillet/plan.md:71` is left as written — the exit walk quotes it verbatim.
+
 ## Was
 
 `unrowed` — raised by lane T-1 (code-quality, Track T).

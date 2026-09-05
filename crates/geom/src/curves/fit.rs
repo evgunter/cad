@@ -228,7 +228,7 @@ pub struct FitOutcome<C> {
 /// ascending `j` (D9).
 fn rational_row(kv: &KnotVector, weights: &[f64], t: f64) -> (usize, Vec<f64>) {
     let span = kv.span_at(t);
-    let n = basis::basis_funs(kv, span, t);
+    let n = basis::basis_funs(span, t);
     let first = span.first_control();
     let mut den = 0.0f64;
     for (j, nj) in n.iter().enumerate() {
@@ -738,7 +738,11 @@ macro_rules! nurbs_fit {
                 if n_ctrl > n_data || n_ctrl < 3 || n_data < 3 {
                     return Ok((cur, bound, Some(RefitSkip::StructureRicherThanData)));
                 }
-                let kv = cur.knots().clone();
+                // Borrowed, not cloned: `rational_row` locates a span
+                // in this vector and evaluates the basis through it, so
+                // the vector the span names should be the curve's own
+                // rather than a copy of it.
+                let kv = cur.knots();
                 let weights = cur.weights().to_vec();
                 let q0 = points[0];
                 let qm = points[n_data - 1];
@@ -784,7 +788,8 @@ macro_rules! nurbs_fit {
                 // Endpoints re-pinned to the exact end samples.
                 control[0] = q0;
                 control[n_ctrl - 1] = qm;
-                let refit = Self::new(kv, control, weights).map_err(FitError::Structure)?;
+                let refit =
+                    Self::new(kv.clone(), control, weights).map_err(FitError::Structure)?;
                 let refit_bound = refit.deviation_from(reference)?;
                 // `!(≤)` is NaN-catching: a poisoned refit bound keeps
                 // the certified pipeline curve.

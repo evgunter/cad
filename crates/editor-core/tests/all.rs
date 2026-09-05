@@ -375,6 +375,8 @@ mod seat4_verb_lowering;
 mod seat6_param_source;
 #[path = "seat7_sweep_lowering.rs"]
 mod seat7_sweep_lowering;
+#[path = "seat8_split_lowering.rs"]
+mod seat8_split_lowering;
 #[path = "switch_display_units.rs"]
 mod switch_display_units;
 #[path = "switch_dump.rs"]
@@ -434,3 +436,6 @@ mod m10_8_r1_probes_interval;
 
 #[path = "m10_8_r2_probes_interval.rs"]
 mod m10_8_r2_probes_interval;
+
+#[path = "kstats_bracket_rows.rs"]
+mod kstats_bracket_rows;
