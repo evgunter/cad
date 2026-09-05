@@ -490,3 +490,5 @@ mod review_h4_r1_probes;
 mod fillet_h4_r2_probes;
 #[path = "fillet_h6_cap_rim.rs"]
 mod fillet_h6_cap_rim;
+#[path = "review_fillet_h6_r1_probes.rs"]
+mod review_fillet_h6_r1_probes;
