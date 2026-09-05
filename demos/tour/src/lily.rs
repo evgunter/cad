@@ -121,8 +121,8 @@
 //!
 //! Every builder here is generic over the run scalar `S`, and every
 //! number in the scene is an `f64` literal or an `f64` trig call. So
-//! the scene is COMPOSED at `f64` — in [`Vec3<f64>`] and
-//! [`Point3<f64>`], through the kernel's own doors (`normalize`,
+//! the scene is COMPOSED at `f64` — in `Vec3<f64>` and
+//! `Point3<f64>`, through the kernel's own doors (`normalize`,
 //! `dot`, `cross`, `reject_from`, `Mat3::rotation_about`, the
 //! operators) — and each value is LIFTED to `S` exactly once, at the
 //! door it is handed to, through `map(S::from_f64)`. That is the
@@ -233,7 +233,7 @@ impl Turtle {
 fn sketch_axis<S: Scalar>() -> RevolveAxis<S> {
     RevolveAxis {
         origin: p2(0.0, 0.0),
-        dir: Vec2::new(S::from_f64(0.0), S::from_f64(1.0)),
+        dir: Vec2::unit_y().map(S::from_f64),
     }
 }
 
@@ -492,7 +492,7 @@ fn corm<S: Scalar>(
 /// the split count is part of what the seam looks like.
 fn foot<S: Scalar>(z0: f64, z1: f64, r: f64, tol: Tol) -> Body<S> {
     let rim = pncad::profile::circle_split(
-        Point2::new(S::from_f64(0.0), S::from_f64(0.0)),
+        Point2::origin().map(S::from_f64),
         S::from_f64(r),
         3,
         S::from_f64(0.0),
@@ -921,14 +921,14 @@ impl Section {
     fn outline(self, tol: Tol) -> Vec<ProfileLoop<f64>> {
         // The shoulder between tips `a` and `b`: their midpoint at
         // `shoulder = 0`, their vector sum (the rectangle corner) at 1.
-        let shoulder = |a: (f64, f64), b: (f64, f64)| {
-            let m = (0.5 * (a.0 + b.0), 0.5 * (a.1 + b.1));
-            (m.0 + self.shoulder * m.0, m.1 + self.shoulder * m.1)
+        let shoulder = |a: Vec2<f64>, b: Vec2<f64>| {
+            let m = (a + b) * 0.5;
+            m + m * self.shoulder
         };
-        let right = (0.5 * self.width, 0.0);
-        let ridge = (0.0, self.ridge);
-        let left = (-0.5 * self.width, 0.0);
-        let keel = (0.0, -self.keel);
+        let right = Vec2::new(0.5 * self.width, 0.0);
+        let ridge = Vec2::new(0.0, self.ridge);
+        let left = Vec2::new(-0.5 * self.width, 0.0);
+        let keel = Vec2::new(0.0, -self.keel);
         // The outline is FOUR corners said on EIGHT vertices, because a
         // loft matches segment j to segment j and the tip and
         // attachment sections must be spelled on one vertex budget. So
@@ -956,7 +956,10 @@ impl Section {
         // says why it is not derived from it), and every declaration
         // this makes is then CHECKED by the kernel against the points
         // the section authored.
-        let p = |(x, y): (f64, f64)| Point2::new(x, y);
+        // The ring is authored as offsets from the sketch origin —
+        // the shoulder SCALES them, which a point cannot do — and each
+        // becomes a sketch point at the door it is handed to.
+        let p = |v: Vec2<f64>| Point2::origin() + v;
         let ring = [
             right,
             shoulder(right, ridge),
@@ -2562,15 +2565,6 @@ mod review_probes {
         found.expect("a torus wall")
     }
 
-    fn cross_norm(a: Vec3<f64>, b: Vec3<f64>) -> f64 {
-        let c = (
-            a.y * b.z - a.z * b.y,
-            a.z * b.x - a.x * b.z,
-            a.x * b.y - a.y * b.x,
-        );
-        (c.0 * c.0 + c.1 * c.1 + c.2 * c.2).sqrt()
-    }
-
     /// Independently re-derived joint data (reviewer's own turtle
     /// algebra, computed outside this codebase — NOT lifted from
     /// [`Turtle`]): world (x, z) of the two stem joints and the unit
@@ -2636,7 +2630,7 @@ mod review_probes {
     /// closing wedge has near-coincident caps at a real angle.
     fn assert_two_cap_planes(caps: &WedgeFrames<f64>, what: &str) {
         let (a, b) = (caps.start, caps.end);
-        let angle = cross_norm(a.axis, b.axis);
+        let angle = a.axis.cross(b.axis).norm();
         let offset = ((b.origin.x - a.origin.x) * a.axis.x
             + (b.origin.y - a.origin.y) * a.axis.y
             + (b.origin.z - a.origin.z) * a.axis.z)
@@ -2682,9 +2676,9 @@ mod review_probes {
                 .into_iter()
                 .any(|(pose, outward): (_, f64)| {
                     let (o, n) = (pose.origin, pose.axis);
-                    cross_norm(n, tv) < 1e-14
-                        && outward * (n.x * tv.x + n.y * tv.y + n.z * tv.z) > 0.0
-                        && ((p.0 - o.x) * n.x + (0.0 - o.y) * n.y + (p.1 - o.z) * n.z).abs() < 1e-12
+                    n.cross(tv).norm() < 1e-14
+                        && outward * n.dot(tv) > 0.0
+                        && (Point3::new(p.0, 0.0, p.1) - o).dot(n).abs() < 1e-12
                 });
         assert!(
             hit,
@@ -2780,7 +2774,7 @@ mod review_probes {
                     }) => {
                         saw_sphere = true;
                         assert!(
-                            cross_norm(*axis, tv) < 1e-14,
+                            axis.cross(tv).norm() < 1e-14,
                             "{name}: sphere axis || tangent"
                         );
                         assert!((center.x - cen.0).abs() < 1e-12, "{name} center.x");
@@ -2791,7 +2785,7 @@ mod review_probes {
                     Some(Surface::Cone { axis, .. }) => {
                         cones += 1;
                         assert!(
-                            cross_norm(*axis, tv) < 1e-14,
+                            axis.cross(tv).norm() < 1e-14,
                             "{name}: cone axis || tangent"
                         );
                     }
@@ -3011,7 +3005,7 @@ mod review_probes {
             "the weld circle's centre is in the plant's own plane"
         );
         assert!(
-            cross_norm(circle.n, Vec3::new(T2.0, 0.0, T2.1)) < 1e-14,
+            circle.n.cross(Vec3::new(T2.0, 0.0, T2.1)).norm() < 1e-14,
             "the weld circle's normal is the stem tangent there"
         );
     }
@@ -3312,7 +3306,7 @@ mod review_probes {
             &flat[0]
         };
         assert!(
-            cross_norm(flat_tip.n, tip.n) < 1e-12,
+            flat_tip.n.cross(tip.n).norm() < 1e-12,
             "the twin's tip cap must be coplanar with the blade's"
         );
         // The SIGN is part of the claim, not an accident: the
