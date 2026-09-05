@@ -865,3 +865,15 @@ record is its row in `MODEL-AB-LOG.md` and its item's `## Closed`
 section.
 
 - `PROPS-1-SPEC.md` — PROPS-1, the lost-correlation members of the linalg audit: `mirror_across_plane` and `reject_from` (#1918)
+
+## Per-merge deletion — SEAT-8's spec (2026-09-05)
+
+Recoverable at `git show 57dc0fe3a8558920c43cf433a61395d43470d337:docs/SEAT-8-SPEC.md`
+(the SEAT-8 fix-pass head, before the state-sync commit that deleted
+it; unamended — no stop clause fired, no ledger answer touched). Every
+clause was met as written except one argued choice the spec left open:
+the two-sided result landed as a per-door out-type (`SplitOut`) rather
+than a record-with-body door, argued in the unit's PR as a choice, not
+a force. The rule above; the unit's record is its item's `## Closed`
+section (`work/seat/SEAT-8.md`) and its MERGED entry in
+`work/seat/log.md`; its A/B row is MODEL-AB-LOG SEAT8.
