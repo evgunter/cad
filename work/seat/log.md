@@ -760,3 +760,21 @@ the cross-program courtesy: every file another program owns that the
 unit touches is listed in the PR body. Sample bookkeeping: SEATDN's
 row was written as #144 and renumbered to #146 here — PROPS coeffs
 (#144) and M10-8 (#145) reached main first.
+
+## ORDINAL 1011 CLAIMED — SEAT-9 dual (2026-09-05)
+
+SEAT-9's implementation phase delivered: PR 1995, frozen head
+`2ede596574939056173c0d89a5448c6fcbd52f45`, hosted CI green on the
+full matrix (run 33987318935). Two blinded reviewers dispatch
+concurrently on that head (v6 instrument; arms by the parity byte,
+recorded privately until the block closes at this unit's merge —
+SEAT-B3's last slot). The implementation reports ONE central fork for
+the dual to weigh: the `Tol` witness stops at `topo::props::
+fit_precision` and `geom-brep`'s fit-engine doors keep a numeric
+target, against the spec's letter, on a measurement (the engine's own
+suite drives those doors at ~116 targets from 1e-2 to 1e-18, and the
+`bowed()` fixture refuses at 1e-12); plus `Arity::Shell` in place of
+"arity One", and one shell consumer test re-expressed because at
+eps = 1e-12 the curved fit now refuses before the structural door.
+Whether the fork is an elaboration or a deviation from Ev's ruling
+(i) on PR 1904 is adjudicated after the dual.

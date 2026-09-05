@@ -2,7 +2,7 @@
 id: SEAT-9
 kind: unit
 title: the shell arm on Verb, and ε stops travelling as an f64 (Ev's ruling (i), ZST-only)
-status: open
+status: review
 opened: 2026-09-05
 branch: seat/shell-arm
 refs: [shell-doors-take-tolerance-beside-tol, 1904, LIB-G17]
