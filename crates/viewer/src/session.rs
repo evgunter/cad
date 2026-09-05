@@ -1021,16 +1021,17 @@ impl DocSession {
     /// reading it answered, taken together because they are about one
     /// moment.
     ///
-    /// The chooser is a vocabulary and may not name this driver
-    /// (`crates/viewer/README.md`, Module boundaries), so the read is
-    /// hoisted to here rather than the rule widened; the derivation
-    /// moving into the driver is what that costs.
+    /// The chooser is a vocabulary and may not name this driver, so
+    /// the read is hoisted to here rather than the rule widened
+    /// (`crates/viewer/README.md`, *What a vocabulary reads, it is
+    /// handed*); the derivation moving into the driver is what that
+    /// costs.
     #[must_use]
     pub fn part_census(&self) -> parts::PartCensus {
-        parts::PartCensus {
-            dir: self.resolve_dir().map(Path::to_path_buf),
-            offered: self.part_catalogue(),
-        }
+        parts::PartCensus::taken(
+            self.resolve_dir().map(Path::to_path_buf),
+            self.part_catalogue(),
+        )
     }
 
     /// **What a pick index is built from** ([`pick::IndexInputs`]):
@@ -1038,20 +1039,25 @@ impl DocSession {
     /// tessellate at — or `None` when nothing has landed, which is the
     /// cache's own "forget everything" case.
     ///
-    /// The four are read here, together, for the same reason the pair
-    /// is one value: they are set together, so a caller cannot pick up
-    /// a generation without the run it describes. `pick` is a
-    /// vocabulary and may not name this driver, so the read is hoisted
-    /// rather than the rule widened.
+    /// Three of the four are read together for the same reason the
+    /// pair is one value: one landing writes them, so a caller cannot
+    /// pick up a generation without the run it answers. The fourth,
+    /// `tol`, is this session's ε — construction-time, never rewritten
+    /// by a landing — and rides along because the build needs it.
+    ///
+    /// `pick` is a vocabulary and may not name this driver, so the
+    /// read is hoisted rather than the rule widened
+    /// (`crates/viewer/README.md`, *What a vocabulary reads, it is
+    /// handed*, carries the argument).
     #[must_use]
     pub fn index_inputs(&self) -> Option<pick::IndexInputs<'_>> {
         let run = self.derived.landed.as_ref()?;
-        Some(pick::IndexInputs {
-            generation: run.generation,
-            doc: run.doc.as_ref(),
-            evaluation: &run.evaluation,
-            tol: self.tol,
-        })
+        Some(pick::IndexInputs::of(
+            run.generation,
+            run.doc.as_ref(),
+            &run.evaluation,
+            self.tol,
+        ))
     }
 
     /// Insert an instance of the part `id` names, minting its

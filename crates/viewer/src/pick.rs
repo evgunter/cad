@@ -47,10 +47,9 @@
 //! failure #1098 exists to name.
 //!
 //! Module kind: **vocabulary** (`crates/viewer/README.md`, Module
-//! boundaries). It took a `&DocSession` as a read-only argument until
-//! #1883 ruled the read hoisted rather than the rule widened: the
-//! session mints [`IndexInputs`] and this module takes that, so it
-//! names no driver type and no `app`-only crate.
+//! boundaries). It names no driver type and no `app`-only crate: what
+//! the pick cache needs from a session arrives as [`IndexInputs`],
+//! which the session mints.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -2214,33 +2213,48 @@ pub fn cursor_projection(
 /// **What a pick index is built from**: a landed run, its generation
 /// and the ε to tessellate at.
 ///
-/// The four move together because they are SET together — the session
-/// writes the landed pair, its generation and nothing between them —
-/// so a caller cannot pick up a generation without the pair it
-/// describes, which is the property the destructuring in
-/// [`PickCache::sync`] used to spell out by hand over three accessors.
+/// **Three of the four move together, and that is the point of the
+/// value.** The generation, the document and the evaluation are
+/// written by one landing and describe one run, so a caller cannot
+/// pick up a generation without the pair it answers — the property
+/// [`PickCache::sync`] used to spell out by hand across three
+/// accessors. `tol` is not one of them: it is the session's ε, fixed
+/// at construction and never rewritten by a landing. It rides here
+/// because the build needs it and this is what the build is handed.
 ///
-/// **It exists so that this module names no driver.** `sync` took a
-/// `&DocSession` and read four things off it; the rule
-/// (`crates/viewer/README.md`, Module boundaries) is that no
-/// vocabulary may name a driver, and the read is hoisted rather than
-/// the rule widened — Ev's ruling on `#1883`, whose reason is the
-/// asymmetry: hoisting keeps widening available later, and widening
-/// does not keep hoisting available, because by the time anyone wants
-/// it back there is a set of sites written against the clause. The
-/// session mints this value (`DocSession::index_inputs`); the driver
-/// may name a vocabulary, which is the direction the rule allows.
+/// The session mints it ([`crate::session::DocSession::index_inputs`])
+/// so that this module names no driver; the argument for hoisting
+/// rather than widening the rule has one home, in
+/// `crates/viewer/README.md`'s *What a vocabulary reads, it is
+/// handed*.
 pub struct IndexInputs<'a> {
-    /// The generation of the run the index will describe.
-    pub generation: Generation,
-    /// The document whose roots are walked. Borrowed here and CLONED
-    /// into the request, so the worker owns what it reads.
-    pub doc: &'a Doc<ProfileProgram>,
-    /// The run those roots' payloads are read from — shared, not
-    /// copied: the panels, the scene and the build read one value.
-    pub evaluation: &'a Arc<Evaluation<f64>>,
-    /// The ε the tessellation decides at.
-    pub tol: Tol,
+    generation: Generation,
+    doc: &'a Doc<ProfileProgram>,
+    evaluation: &'a Arc<Evaluation<f64>>,
+    tol: Tol,
+}
+
+impl<'a> IndexInputs<'a> {
+    /// One landing's inputs, minted together.
+    ///
+    /// The fields are private and this is the only door, so the
+    /// pairing the doc above claims is held BY THE TYPE and not by
+    /// every caller remembering: nothing in this crate can write a
+    /// generation beside another run's document.
+    #[must_use]
+    pub fn of(
+        generation: Generation,
+        doc: &'a Doc<ProfileProgram>,
+        evaluation: &'a Arc<Evaluation<f64>>,
+        tol: Tol,
+    ) -> Self {
+        Self {
+            generation,
+            doc,
+            evaluation,
+            tol,
+        }
+    }
 }
 
 /// A [`PickIndex`] kept current with a session — **the rebuild-on-stale
@@ -2249,8 +2263,9 @@ pub struct IndexInputs<'a> {
 /// Two things made this a type rather than a habit. Ergonomics: a
 /// consumer that only wanted to pick had to notice `current_for` said
 /// stale, then rebuild with four arguments (document, evaluation,
-/// generation, δ) it had to keep in step by hand, three of which come
-/// from one `DocSession`. And correctness: the application's own
+/// generation, δ) it had to keep in step by hand, three of which are
+/// one landing's and arrive together as [`IndexInputs`]. And
+/// correctness: the application's own
 /// rebuild loop retried on **every repainted frame** whenever a build
 /// refused — a failed or poisoned root is an ordinary editing state,
 /// and each frame then re-tessellated every healthy root before
@@ -2372,8 +2387,8 @@ impl PickCache {
     ///
     /// The document is CLONED into the request and the evaluation is
     /// shared, so the worker owns everything it reads and the session
-    /// goes on being edited. Both come from the landed pair, which is
-    /// set in one place and read together.
+    /// goes on being edited. Both arrive on [`IndexInputs`], already
+    /// paired: this cache is HANDED a landing and never reads one.
     pub fn sync(&mut self, landed: Option<IndexInputs<'_>>, delta: DisplayTolerance) -> CacheStep {
         // **The one way out on "nothing landed", and it FORGETS.**
         let Some(IndexInputs {

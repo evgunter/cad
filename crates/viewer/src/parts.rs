@@ -29,10 +29,9 @@
 //! reference should carry.
 //!
 //! Module kind: **vocabulary** (`crates/viewer/README.md`, Module
-//! boundaries). It took a `&DocSession` as a read-only argument until
-//! #1883 ruled the read hoisted rather than the rule widened: the
-//! session mints [`PartCensus`] and this module takes that, so it
-//! names no driver type and no `app`-only crate.
+//! boundaries). It names no driver type and no `app`-only crate: what
+//! the chooser needs from a session arrives as [`PartCensus`], which
+//! the session mints.
 
 use std::path::{Path, PathBuf};
 
@@ -129,26 +128,28 @@ pub fn catalogue(
 /// **One scan of the document's directory**, as the session hands it
 /// out ([`crate::session::DocSession::part_census`]).
 ///
-/// The two halves are taken together and are about one moment: the
+/// The two halves are about ONE moment and travel as one value: the
 /// directory that was read, and what reading it answered. A chooser
-/// built from one and a listing from the other would show a path that
-/// did not produce the entries under it.
+/// holding one and a listing from the other would show a path that did
+/// not produce the entries under it, which is why
+/// [`PartCensus::taken`] is the only way to build one.
 ///
-/// **It exists so that this module names no driver.**
-/// [`PartChooser::opened`] took a `&DocSession` and read exactly these
-/// two things off it; the rule (`crates/viewer/README.md`, Module
-/// boundaries) is that no vocabulary may name a driver, and the read is
-/// hoisted rather than the rule widened — Ev's ruling on `#1883`. The
-/// asymmetry is the reason: hoisting keeps widening available later,
-/// widening does not keep hoisting available.
+/// The session mints it so that this module names no driver;
+/// `crates/viewer/README.md`'s *What a vocabulary reads, it is handed*
+/// carries the argument for hoisting rather than widening the rule.
 #[derive(Debug)]
 pub struct PartCensus {
-    /// The directory the scan read, or `None` for a session with no
-    /// backing file.
-    pub dir: Option<PathBuf>,
-    /// What that scan answered: the parts on offer, or the typed
-    /// refusal to render in place of a list.
-    pub offered: Result<Vec<PartEntry>, Refusal>,
+    dir: Option<PathBuf>,
+    offered: Result<Vec<PartEntry>, Refusal>,
+}
+
+impl PartCensus {
+    /// One scan, as taken: the directory and its answer, minted
+    /// together so the pair cannot be assembled from two moments.
+    #[must_use]
+    pub fn taken(dir: Option<PathBuf>, offered: Result<Vec<PartEntry>, Refusal>) -> Self {
+        Self { dir, offered }
+    }
 }
 
 /// Layer-3 state and nothing else — it never enters the document,
@@ -156,39 +157,36 @@ pub struct PartCensus {
 /// transient-state rule, the mate tool's posture one size down).
 #[derive(Debug)]
 pub struct PartChooser {
-    /// The directory the scan read, when the session had one.
-    dir: Option<PathBuf>,
-    /// What that scan answered: the parts on offer, or the typed
-    /// refusal the chooser renders in place of a list.
-    offered: Result<Vec<PartEntry>, Refusal>,
+    /// The scan this chooser was opened over. Held as the value it
+    /// arrived as rather than unpacked into two fields, which would be
+    /// a second copy of [`PartCensus`] thirty lines from the first.
+    census: PartCensus,
 }
 
 impl PartChooser {
     /// Open a chooser over a census the session has already taken.
+    #[must_use]
     pub fn opened(census: PartCensus) -> Self {
-        Self {
-            dir: census.dir,
-            offered: census.offered,
-        }
+        Self { census }
     }
 
     /// Replace the scan, in place: the answer to a directory that
     /// changed while the chooser was open.
     pub fn rescan(&mut self, census: PartCensus) {
-        *self = Self::opened(census);
+        self.census = census;
     }
 
     /// The directory the entries came from, for the chooser's header.
     /// `None` for a session with no backing file — the case
     /// [`Self::offered`] refuses.
     pub fn dir(&self) -> Option<&Path> {
-        self.dir.as_deref()
+        self.census.dir.as_deref()
     }
 
     /// The scan's answer: the parts on offer, or the refusal to show
     /// instead of a list.
     pub fn offered(&self) -> Result<&[PartEntry], &Refusal> {
-        match &self.offered {
+        match &self.census.offered {
             Ok(entries) => Ok(entries.as_slice()),
             Err(refusal) => Err(refusal),
         }

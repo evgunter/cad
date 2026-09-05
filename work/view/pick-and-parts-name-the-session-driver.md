@@ -6,7 +6,7 @@ status: closed
 opened: 2026-09-04
 closed: 2026-09-05
 pr: 1953
-refs: [1848, 1883, exception-arms-untested-while-the-list-is-empty]
+refs: [1848, 1883, inserting-an-item-above-another-steals-its-docs]
 ---
 
 
@@ -195,6 +195,21 @@ could not pass a clean tree. Fixed here, with the reason written at the
 line. It had survived because the clean self-test fixture plants the
 exempted files, so no run had ever had zero hits.
 
-Four of the self-test's five exception arms aim at a live entry and so
-stop running with the list empty:
-`exception-arms-untested-while-the-list-is-empty`.
+The self-test's four exception arms used to aim at
+`VOCAB_EXCEPTIONS[0]` — whatever the tree was currently wrong about —
+so retiring the last entry would have retired their coverage with it.
+Borrowing a live defect WAS the defect: they now plant their own entry
+(the list is overridable for a planted tree, and only for one — the
+override is honoured under `--root`, which only the self-test passes),
+so the exemption machinery stays exercised whether or not the tree
+carries an exemption. The zero-hit path is a control of its own rather
+than an accident of the list being empty.
+
+The first fix for the empty-hits crash was `|| true` on the whole
+pipeline, which is the pattern `scripts/gates/lib.sh` exists to remove:
+it folds "could not search" (exit 2) and "no grep at all" (127) into
+"nothing matched", so it would have greened over a scan that never ran.
+The pipeline now writes `gate_grep` at every filter, which draws that
+distinction per stage. Three OTHER `|| true`s in the same function
+predate this unit and went with it — the worst interpolated its pattern
+from an exception entry, so a malformed needle read as zero hits.

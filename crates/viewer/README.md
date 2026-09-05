@@ -487,7 +487,7 @@ values the receiving module already defines, and none names `egui`.
 ### What a vocabulary reads, it is handed
 
 `pick` and `parts` each took a `&DocSession` as a read-only argument —
-`PickIndex::sync`, `PartChooser::opened` and `PartChooser::rescan` —
+`PickCache::sync`, `PartChooser::opened` and `PartChooser::rescan` —
 which made the rule above false of the tree at five sites, and false
 before `viewer-module-kinds.sh` existed to find them. Ev ruled
 (`#1883`) to **hoist the read**, not to widen the rule: the session
@@ -496,8 +496,9 @@ mints `pick::IndexInputs` (the landed pair, its generation, ε) and
 and the two vocabularies take those. *No vocabulary may name a driver*
 stays unqualified.
 
-**The reason generalises and is worth more than the answer.** The two
-branches are not symmetric in reversibility. Hoisting keeps widening
+**The reason generalises and is worth more than the answer, and this
+is its one home** — the values point here rather than restating it.
+The two branches are not symmetric in reversibility. Hoisting keeps widening
 available: if the values turn out to be a bad trade, the rule can still
 be widened. Widening first does not keep hoisting available — the
 clause gets relied on, and by the time anyone wants it back there is a
@@ -518,8 +519,12 @@ reason: fixing a site without lowering the count reds, which is how
 these two retired in the same PR as the seam they described. That
 granularity was offered as evidence to `work/code-quality/D103.md`
 (*"the allowlist is file-granular while its justifications are
-per-seam, so later bounds inherit ratification"*), and **its retirement
-is more evidence for the same ruling, not a withdrawal of it**.
+per-seam, so later bounds inherit ratification"*). **D103 is unruled**,
+and the entries retiring is more for it to weigh rather than a
+withdrawal of the offer: a per-seam entry ended when its seam did, in
+the same change, which a file-granular one would not have. That
+argument is made where the entries were deleted, in
+`scripts/gates/viewer-module-kinds.sh`.
 
 ### `Refusal`'s delegation discipline
 
