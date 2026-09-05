@@ -288,3 +288,19 @@ My re-points were not taken in the PR. Plan: after ratification, CLAIM
 the six from `work/issues/` by `git mv` (the README's claim rule) and
 re-home the two non-charter arrivals to `work/issues/` for their owners
 to claim; then the plan's lanes are complete.
+
+**lily-vec3 delivered (2026-09-05)** as
+[#1954](https://github.com/evgunter/cad/pull/1954), head `a700a6c3`,
+green on the full matrix incl. the tour's own row and all three render
+lanes ("matches this render"). Every tuple helper gone; the lift spelled
+once per boundary through `map`; 9 of 15 lily bodies byte-identical,
+six moved by ≤ 4.2e-15 with the cause MEASURED (reverting only the two
+`reject_from` calls restores all 145 artefacts byte-for-byte — the
+respell from PROPS-1, not the rewrite). `D79`(b) deleted member by
+member. Single style review dispatches when a Span reviewer frees a
+slot. Filed: `vec3-point3-const-and-conversion-doors` (props), the
+tour-wide layer-rule sweep and the stale tour `Cargo.lock`
+(`work/issues/`). Lane hazard recorded: the session scratchpad under
+`/tmp/claude-0/…/scratchpad/` is shared between lanes on this box — two
+lanes overwrote each other's file; briefs from here on name a private
+`/home/user/<lane>-tmp/`.
