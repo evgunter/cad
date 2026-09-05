@@ -972,9 +972,7 @@ fn a_sliver_wrapped_in_the_ops_own_error_is_priced_sliver_terminal_not_budget() 
         })
         .collect();
     assert!(
-        slivers
-            .iter()
-            .all(|p| *p == "extrusion_normal_component"),
+        slivers.iter().all(|p| *p == "extrusion_normal_component"),
         "every sliver here is the extrude's normal component: {slivers:?}"
     );
     let sliver_mass = v

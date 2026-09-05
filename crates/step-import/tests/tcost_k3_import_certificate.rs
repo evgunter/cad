@@ -73,7 +73,9 @@ fn arc_prism(s: f64) -> topo::Body<f64> {
 fn quad_verdicts(run: impl FnOnce()) -> usize {
     let bracket = Bracket::open();
     run();
-    bracket.finish().verdicts
+    bracket
+        .finish()
+        .verdicts
         .iter()
         .filter(|v| v.predicate.starts_with("props_quad"))
         .count()

@@ -382,7 +382,8 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
         second.len()
     );
     assert_eq!(
-        first, second,
+        first,
+        second,
         "the two instances' ops make the same decisions: {} vs {} verdicts",
         first.len(),
         second.len()
