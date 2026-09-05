@@ -2453,16 +2453,40 @@ impl PickCache {
 /// of anybody to ask, and doing nothing quietly is what made the
 /// window between two indexes look like a viewport that had decided
 /// the user was pointing at empty space.
+///
+/// **Two arms, because waiting and not waiting are different advice.**
+/// They are named for what is observably true rather than for a cause,
+/// so neither can be shown over a state it does not describe: a
+/// refused build and a document that has never been evaluated are both
+/// "no index and nobody building one", and a sentence promising an
+/// answer shortly would be false in both.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct NotIndexed;
+pub enum NotIndexed {
+    /// A build is under way ([`PickCache::indexing`]): the answer is
+    /// coming, and the toolbar is already saying so.
+    Building,
+    /// No index, and no build under way — the last attempt refused
+    /// (its reason is [`PickCache::error`]), or nothing has been
+    /// evaluated yet. Waiting will not help; the retry policy holds
+    /// until the generation or δ moves.
+    Absent,
+}
 
 impl core::fmt::Display for NotIndexed {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "not picked: the picture is still being indexed, and a pick \
-             is answered from the index or not at all"
-        )
+        match self {
+            Self::Building => write!(
+                f,
+                "not picked: the picture is still being indexed, and a pick \
+                 is answered from the index or not at all"
+            ),
+            Self::Absent => write!(
+                f,
+                "not picked: the picture on screen has no pick index and none \
+                 is being built — the last index build refused, or nothing has \
+                 been evaluated yet"
+            ),
+        }
     }
 }
 
@@ -2479,11 +2503,21 @@ impl core::error::Error for NotIndexed {}
 /// inert while they move over it. A click is an act — the user asked
 /// for something and did not get it — and that is exactly what the
 /// line carries.
-pub fn unindexed<'a>(actions: impl IntoIterator<Item = &'a PickAction>) -> Option<NotIndexed> {
+///
+/// `indexing` is [`PickCache::indexing`] — which of the two sentences
+/// is true, asked of the one value that knows.
+pub fn unindexed<'a>(
+    actions: impl IntoIterator<Item = &'a PickAction>,
+    indexing: bool,
+) -> Option<NotIndexed> {
     actions
         .into_iter()
         .any(|action| matches!(action, PickAction::Select(_)))
-        .then_some(NotIndexed)
+        .then_some(if indexing {
+            NotIndexed::Building
+        } else {
+            NotIndexed::Absent
+        })
 }
 
 #[cfg(test)]

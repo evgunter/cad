@@ -176,7 +176,7 @@ impl ViewerBehavior<'_> {
                     Err(error) => *self.status = Some(error.to_string()),
                 }
             }
-        } else if let Some(refusal) = pick::unindexed(&actions) {
+        } else if let Some(refusal) = pick::unindexed(&actions, self.indexing) {
             // **Not indexed yet is not a miss.** There is no index to
             // ask, because one is being built on its own seam, and a
             // click that quietly did nothing here is the fail-quiet

@@ -820,23 +820,41 @@ fn an_answer_built_at_another_delta_is_discarded_too() {
 /// inside the pane is not.
 #[test]
 fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
+    let click = [input::PickAction::Select([10.0, 10.0])];
     assert_eq!(
-        pick::unindexed(&[input::PickAction::Select([10.0, 10.0])]),
-        Some(pick::NotIndexed),
+        pick::unindexed(&click, true),
+        Some(pick::NotIndexed::Building),
     );
     assert_eq!(
-        pick::unindexed(&[
-            input::PickAction::Hover([10.0, 10.0]),
-            input::PickAction::ClearHover,
-        ]),
-        None,
-        "an observation asked every frame is not a refusal to report",
+        pick::unindexed(&click, false),
+        Some(pick::NotIndexed::Absent),
+        "a refused build is not a build that is still running, and the \
+         sentence must not promise an answer that is not coming",
     );
-    assert_eq!(pick::unindexed(&[]), None);
-    assert!(
-        pick::NotIndexed.to_string().contains("index"),
-        "and the sentence says which of the two answers it is",
+    for indexing in [true, false] {
+        assert_eq!(
+            pick::unindexed(
+                &[
+                    input::PickAction::Hover([10.0, 10.0]),
+                    input::PickAction::ClearHover,
+                ],
+                indexing,
+            ),
+            None,
+            "an observation asked every frame is not a refusal to report",
+        );
+        assert_eq!(pick::unindexed(&[], indexing), None);
+    }
+    assert_ne!(
+        pick::NotIndexed::Building.to_string(),
+        pick::NotIndexed::Absent.to_string(),
     );
+    for refusal in [pick::NotIndexed::Building, pick::NotIndexed::Absent] {
+        assert!(
+            refusal.to_string().contains("index"),
+            "and each sentence says which of the two answers it is",
+        );
+    }
 }
 
 /// One indicator for one wait, and the ranking that decides which.

@@ -1157,7 +1157,7 @@ impl eframe::App for ViewerApp {
                         ui.separator();
                         ui.spinner();
                         ui.label("indexing…")
-                            .on_hover_text(crate::pick::NotIndexed.to_string());
+                            .on_hover_text(crate::pick::NotIndexed::Building.to_string());
                         ui.ctx().request_repaint();
                     }
                     None => {}
@@ -1330,6 +1330,7 @@ impl eframe::App for ViewerApp {
                     budget_delta: self.budget_delta,
                     scene: &self.scene,
                     index: self.picks.index(),
+                    indexing: self.picks.indexing(),
                     revision: self.revision,
                     camera: &mut self.camera,
                     input: self.input,
@@ -1417,6 +1418,13 @@ pub(crate) struct ViewerBehavior<'a> {
     pub(crate) budget_delta: Option<crate::scene::FittedDelta>,
     pub(crate) scene: &'a Arc<SceneMesh>,
     pub(crate) index: Option<&'a PickIndex>,
+    /// Whether a build for the picture this frame WANTS is under way —
+    /// the other half of what `index: None` means, and the half that
+    /// decides which sentence a refused pick gets
+    /// (`pick::NotIndexed`). Carried as a value rather than re-derived
+    /// from the session, because "someone is building one" is the pick
+    /// cache's answer and nothing else's.
+    pub(crate) indexing: bool,
     pub(crate) revision: u64,
     pub(crate) camera: &'a mut Camera,
     pub(crate) input: InputMap,
