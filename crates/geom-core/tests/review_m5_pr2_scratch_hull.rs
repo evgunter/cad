@@ -91,7 +91,9 @@ fn near_collapse_weights_never_escape_the_hull() {
                     }
                 })
                 .collect();
-            let pair = kv.coeffs_rational(&coeffs, &weights).unwrap();
+            let Some(pair) = kv.coeffs_rational(&coeffs, &weights) else {
+                unreachable!("both arrays are this vector's length by construction");
+            };
             let domain = pair.domain_hull_rational();
             assert!(
                 !domain.is_poison(),
@@ -163,7 +165,10 @@ fn derivative_coefficients_are_exact_by_i128_cross_multiplication() {
             };
             let n = kv.control_count();
             let (coeffs, cints) = dyadic_coeffs(&mut rng, n);
-            let qs = kv.coeffs(&coeffs).unwrap().derivative_coeffs();
+            let Some(pair) = kv.coeffs(&coeffs) else {
+                unreachable!("the coefficients are this vector's length by construction");
+            };
+            let qs = pair.derivative_coeffs();
             assert_eq!(
                 qs.len(),
                 n - 1,
