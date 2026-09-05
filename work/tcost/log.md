@@ -1380,3 +1380,11 @@ TOPO's `D261` (`topo/d261-reader-collapse`) converts four
 re-deriving `UNCONVERTED_TODAY` from the table at its landing (S-BOOL's
 `D287` lowers the same constant; whichever lands second re-counts).
 Nothing else under `crates/test-utils/` moves.
+
+## Filed by TOPO; one more seam (2026-09-05)
+
+`source-lacks-an-item-body-carve-and-shared-means-any-mention` filed on
+this slate from D261's style review. The seam already announced widens
+by ONE function: D261's fix pass adds an item-body carve beside
+`balanced_end` in `crates/test-utils/src/source.rs`, with its rows, and
+converts its own caller; the other four copies are this item's.

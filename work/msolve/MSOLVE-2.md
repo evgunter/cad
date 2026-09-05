@@ -19,3 +19,13 @@ must, re-keys `by_pair` and `edge_of`, and owes the loop-closure rows
 for a nested member that nothing in the suite has. Ruled in by Ev on
 PR 1731 (`nested-pattern-mate-heads-refuse`, parked on this unit).
 Spec is written when MSOLVE-1 merges, against the walk as landed.
+
+## A decision this unit takes with it (from MSOLVE-1's report)
+
+`Node::Part { select: PartSelect::Instance(i) }` is a third
+identity-transparent node (`crates/editor-core/src/node.rs`, the
+variant's doc: "every name VERBATIM"). It moves no geometry, so
+MSOLVE-1's correctness did not need it, but a mate reference could be
+read at one and the walk refuses it `DanglingHead` today. Rule on it
+here, with the chain: admit as a pose-neutral pass-through, or fence
+with a sentence at `member_of`.
