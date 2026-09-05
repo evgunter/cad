@@ -251,10 +251,8 @@ const ROSTER: &[Site] = &[
         path: "crates/profile/src/path/arc_fillet.rs",
         subject: "anchor_span",
         why: HandedOff(
-            "Track V's ground, beside `map_refusal` above: the presentation sort key for \
-             derived fillet corners. Its own doc states the D9 argument (a stable sort, \
-             ties on enumeration order, payloads identical whatever order they land in); \
-             the disposition is the owning track's to sharpen",
+            "Track V's, beside `map_refusal` above; \
+             `anchor-span-sole-bracket-door-missing-roster-line` owns the disposition",
         ),
     },
     Site {

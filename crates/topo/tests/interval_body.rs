@@ -15,7 +15,7 @@
 
 use std::sync::Arc;
 
-use geom::{NurbsSurface, Surface};
+use geom::{NetState, NurbsSurface, Surface};
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Bounds, Interval, Point3, Real};
@@ -155,8 +155,9 @@ fn interval_described_net_carrying_poison_is_named_by_the_surface_check() {
         })
         .collect();
     let net = NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap();
-    assert!(
-        !net.is_placeholder() && net.carries_poison(),
+    assert_eq!(
+        net.net_state(),
+        NetState::Poisoned,
         "the fixture is corrupt DESCRIBED geometry at this scalar, not the placeholder"
     );
     body.set_face_surface(face, FaceSurface::New(Surface::Nurbs(Arc::new(net))))

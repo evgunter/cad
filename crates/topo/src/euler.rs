@@ -3473,6 +3473,13 @@ mod tests {
             },
             EulerOpError::CrossSolid { f1: fc, f2: fc },
         ];
+        // The two derives agree on order: `from(err) as usize` is
+        // the declaration index and `iter()` walks the same
+        // sequence, so zipping them below pairs each flag with the
+        // kind it stands for. Asserted rather than assumed.
+        for (i, kind) in EulerOpErrorKind::iter().enumerate() {
+            assert_eq!(kind as usize, i, "EnumIter order is the discriminant order");
+        }
         let mut covered = [false; EulerOpErrorKind::COUNT];
         for error in &errors {
             assert!(!error.to_string().is_empty(), "{error:?}");

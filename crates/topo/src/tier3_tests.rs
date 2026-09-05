@@ -12,7 +12,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::{NurbsSurface, Surface};
+use geom::{NetState, NurbsSurface, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
@@ -147,10 +147,10 @@ fn the_scaffolding_door_still_passes_mid_construction() {
 }
 
 // ----------------------------------------------------------------------
-// Tier 3, check 1: the three states of a `Nurbs` face surface. The
-// placeholder's own row is `tests/geometric_cube.rs`'s
-// `without_the_top_cap_tier3_rejects_the_nurbs_seed`, which is not
-// duplicated here; these two are the other two states.
+// Tier 3, check 1: a `Nurbs` face surface's `NetState`. The
+// placeholder's own verdict row is `tests/geometric_cube.rs`'s
+// `without_the_top_cap_tier3_rejects_the_nurbs_seed`; the ladder below
+// covers all three states and where their boundaries lie.
 // ----------------------------------------------------------------------
 
 /// A bilinear net over the given control points, on the pillow's face.
@@ -161,22 +161,21 @@ fn bilinear_net(control: Vec<Point3<f64>>) -> Surface<f64> {
     ))
 }
 
-/// Corrupt DESCRIBED geometry: every control point carries poison in
-/// `x` over finite `y`/`z`. Poison in some channel of every point, not
-/// in every channel — so this is not the placeholder, and it claims a
-/// locus it cannot evaluate.
+/// A finite control point of the unit-square net.
+fn finite_point(i: i32) -> Point3<f64> {
+    pt(f64::from(i % 2), f64::from(i / 2), 0.0)
+}
+
+/// `NetState::Poisoned`: every control point carries poison in `x` over
+/// finite `y`/`z`.
 fn poisoned_net() -> Surface<f64> {
     bilinear_net((0..4).map(|i| pt(f64::NAN, f64::from(i), 2.0)).collect())
 }
 
-/// The same knots and weights over finite control points: real
-/// geometry, and the control for the row above.
+/// `NetState::Described`: the same knots and weights over finite
+/// control points.
 fn finite_net() -> Surface<f64> {
-    bilinear_net(
-        (0..4)
-            .map(|i| pt(f64::from(i % 2), f64::from(i / 2), 0.0))
-            .collect(),
-    )
+    bilinear_net((0..4).map(finite_point).collect())
 }
 
 /// The refusals a body draws once the check-1 surface verdicts are
@@ -225,15 +224,9 @@ fn a_described_net_carrying_poison_is_named_by_the_surface_check() {
     );
 }
 
-/// The control, and what makes the row above a statement about check 1
-/// rather than about the body: the same face, the same knots and
-/// weights, FINITE control points — no surface verdict of either kind.
-///
-/// What the rest of tier 3 says is identical in the two runs (the
-/// swapped face's edges describe the chart they were attached to, which
-/// is check 2's adjacency finding either way). So check 2 cannot tell
-/// corrupt described geometry from honest described geometry, and the
-/// refusal that separates them has to be check 1's own.
+/// The control: the same face, the same knots and weights, FINITE
+/// control points. Real geometry earns no surface verdict of either
+/// kind, whatever else the body reports.
 #[test]
 fn a_finite_described_net_draws_no_surface_verdict() {
     let tol = Tol::witness();
@@ -243,12 +236,98 @@ fn a_finite_described_net_draws_no_surface_verdict() {
         finite,
         "real geometry earns no verdict from the surface check: {finite:?}",
     );
-    let (poisoned, _) = pillow_on(poisoned_net(), tol);
-    assert_eq!(
-        without_surface_verdicts(&poisoned),
-        finite,
-        "every other check answers the two states alike: {poisoned:?}",
-    );
+}
+
+/// **Where the state boundaries lie**, on one body per rung: the state
+/// `geom` reports for a net is exactly the verdict check 1 gives it,
+/// each face draws at most one surface verdict, and the face named is
+/// the swapped one.
+///
+/// The rungs that carry the argument are the near misses. Poison in
+/// EVERY channel of every point is the placeholder however the net was
+/// built, so a hand-built all-poison net is `Placeholder` and not
+/// `Poisoned`; poison in every channel of ONE point is not, because the
+/// width rule quantifies over points as well as channels; and `+∞` is
+/// not `f64` poison at all, so a net of infinities is described data
+/// that this check passes.
+#[test]
+fn the_net_state_ladder_decides_check_1s_verdict() {
+    let tol = Tol::witness();
+    let cases: Vec<(&str, Surface<f64>)> = vec![
+        ("the mvfs placeholder", Surface::nurbs_placeholder()),
+        (
+            "all channels of all points, hand-built",
+            bilinear_net((0..4).map(|_| pt(f64::NAN, f64::NAN, f64::NAN)).collect()),
+        ),
+        ("finite", finite_net()),
+        ("poison x at every point", poisoned_net()),
+        (
+            "poison y at every point",
+            bilinear_net((0..4).map(|i| pt(f64::from(i), f64::NAN, 2.0)).collect()),
+        ),
+        (
+            "poison z at ONE point",
+            bilinear_net(
+                (0..4)
+                    .map(|i| {
+                        let p = finite_point(i);
+                        if i == 2 { pt(p.x, p.y, f64::NAN) } else { p }
+                    })
+                    .collect(),
+            ),
+        ),
+        (
+            "all channels of ONE point",
+            bilinear_net(
+                (0..4)
+                    .map(|i| {
+                        if i == 3 {
+                            pt(f64::NAN, f64::NAN, f64::NAN)
+                        } else {
+                            finite_point(i)
+                        }
+                    })
+                    .collect(),
+            ),
+        ),
+        (
+            "infinite x at every point",
+            bilinear_net(
+                (0..4)
+                    .map(|i| pt(f64::INFINITY, f64::from(i), 2.0))
+                    .collect(),
+            ),
+        ),
+    ];
+
+    for (name, surface) in cases {
+        let Surface::Nurbs(payload) = &surface else {
+            unreachable!("every rung is a Nurbs surface")
+        };
+        let state = payload.net_state();
+        let (errs, face) = pillow_on(surface.clone(), tol);
+        let placeholder = errs.contains(&ValidationError::UncertifiableSurface { face });
+        let poisoned = errs.contains(&ValidationError::PoisonedSurfaceDescription { face });
+        assert_eq!(
+            (placeholder, poisoned),
+            match state {
+                NetState::Placeholder => (true, false),
+                NetState::Poisoned => (false, true),
+                NetState::Described => (false, false),
+            },
+            "{name}: the state is {state:?} and check 1 answered {errs:?}",
+        );
+        // No other face is named by a surface verdict, ever.
+        for e in &errs {
+            match e {
+                ValidationError::UncertifiableSurface { face: f }
+                | ValidationError::PoisonedSurfaceDescription { face: f } => {
+                    assert_eq!(*f, face, "{name}: a surface verdict names the wrong face");
+                }
+                _ => {}
+            }
+        }
+    }
 }
 
 #[test]

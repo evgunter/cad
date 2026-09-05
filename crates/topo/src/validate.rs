@@ -271,7 +271,7 @@
 
 use core::fmt;
 
-use geom::Surface;
+use geom::{NetState, Surface};
 use geom_brep::{
     CertifyError, DihedralClass, MaterialPairing, MaterialWedge, classify_dihedral,
     classify_material_pairing,
@@ -453,39 +453,21 @@ pub enum ValidationError {
         /// The dangling surface reference.
         to: GeomRef,
     },
-    /// Tier 3: a face's surface is the `Nurbs` **placeholder** at rest
-    /// — `mvfs`'s all-poison "no description yet" seed state, which
-    /// must be replaced via `Body::set_face_surface` before rest.
-    /// Nothing can be certified against poison.
-    ///
-    /// This names ONLY the placeholder. A `Nurbs` payload has THREE
-    /// states and check 1 answers each with its own arm: the
-    /// placeholder reports here; a **described** net of finite data is
-    /// real geometry and passes (its seams certify through the chart
-    /// iso-line pcurve lane, `Pcurve::IsoLine`, and its volume flux
-    /// through the quadrature door); a described net carrying poison
-    /// reports [`ValidationError::PoisonedSurfaceDescription`].
-    /// `NurbsSurface::is_placeholder` and
-    /// `NurbsSurface::carries_poison` are the shared discriminators.
+    /// Tier 3: a face's surface is a `Nurbs` net in
+    /// [`geom::NetState::Placeholder`] at rest, which must be replaced
+    /// via `Body::set_face_surface` before rest.
     UncertifiableSurface {
         /// The face whose surface is the placeholder.
         face: FaceKey,
     },
-    /// Tier 3: a face's surface is a **described** `Nurbs` net that
-    /// carries poison in some channel of some control point — corrupt
-    /// described geometry.
+    /// Tier 3: a face's surface is a `Nurbs` net in
+    /// [`geom::NetState::Poisoned`] — a description that claims a locus
+    /// and cannot evaluate one.
     ///
-    /// The distinction from [`ValidationError::UncertifiableSurface`]
-    /// is the distinction between two states, not two symptoms. The
-    /// placeholder is the benign one: `mvfs` mints it to say "no
-    /// description yet", and a body mid-surgery legitimately carries
-    /// it. This is a surface that CLAIMS to describe a locus and
-    /// cannot — evaluation on it yields poison in the poisoned channel
-    /// and finite values in the others, so a consumer reading only the
-    /// finite channels gets an answer the geometry does not support.
-    /// `geom`'s totality-and-poison rule requires such a net to fail at
-    /// every consumer's described arm; this is that arm for a face's
-    /// surface.
+    /// A different STATE from [`ValidationError::UncertifiableSurface`],
+    /// not a different symptom; `NetState`'s docs are where the three
+    /// states are defined and this pair of variants is check 1's
+    /// answer to two of them.
     PoisonedSurfaceDescription {
         /// The face whose surface net carries the poison.
         face: FaceKey,
@@ -2250,13 +2232,11 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 /// geometric re-checks at rest, in documented order:
 ///
 /// 1. **Surface implementedness** (faces, arena order): a `Nurbs`
-///    payload's three states are told apart — no face's surface is the
-///    representable-unimplemented placeholder
-///    ([`ValidationError::UncertifiableSurface`], nothing can be
-///    certified against it) and none is a described net carrying
-///    poison ([`ValidationError::PoisonedSurfaceDescription`], a
-///    description that cannot evaluate), while a described net of
-///    finite data passes; and every torus honours D3's ring
+///    payload's [`geom::NetState`] is read and each state answered —
+///    `Placeholder` reports [`ValidationError::UncertifiableSurface`],
+///    `Poisoned` reports
+///    [`ValidationError::PoisonedSurfaceDescription`], `Described`
+///    passes; and every torus honours D3's ring
 ///    convention `R > r > 0`
 ///    ([`ValidationError::DegenerateTorus`] /
 ///    [`ValidationError::DegenerateTorusEscalated`]).
@@ -3131,25 +3111,10 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // ------------------------------------------------------------------
     // Tier 3, check 1: surface implementedness (face-arena order).
     //
-    // A `Nurbs` payload is in one of THREE states and each gets its own
-    // answer here, in the order the arms are written:
-    //
-    //   - the mvfs PLACEHOLDER (every channel of every control point
-    //     poison) is a mid-surgery "no description yet" fact, never a
-    //     certifiable surface — `UncertifiableSurface`;
-    //   - a DESCRIBED net carrying poison in some channel is a
-    //     description that cannot evaluate one, and `geom`'s
-    //     totality-and-poison rule puts its refusal at each consumer's
-    //     described arm — this is that arm for a face's surface;
-    //   - a DESCRIBED net of finite data is real geometry and passes:
-    //     the loft/sweep assembly mints faces on it, its seams certify
-    //     at check 2 through the chart iso-line pcurve lane
-    //     (`Pcurve::IsoLine`) and its volume flux at check 7 through
-    //     the quadrature door.
-    //
-    // The two discriminators are `geom`'s and are asked in that order,
-    // because a placeholder answers `carries_poison` too:
-    // `NurbsSurface::is_placeholder` then `NurbsSurface::carries_poison`.
+    // This is the consumer's described arm for a face's SURFACE, which
+    // `geom`'s totality-and-poison rule requires to exist: the three
+    // states a control net can be in are `NetState`'s, defined there,
+    // and each is answered below.
     //
     // A torus is implemented only under D3's ring convention
     // `R > r > 0`: a horn or spindle torus puts a singular point on the
@@ -3160,17 +3125,18 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
         match body.surfaces.get(face.surface) {
-            Some(Surface::Nurbs(payload)) if payload.is_placeholder() => {
-                errors.push(ValidationError::UncertifiableSurface { face: face_key });
-            }
-            Some(Surface::Nurbs(payload)) if payload.carries_poison() => {
-                errors.push(ValidationError::PoisonedSurfaceDescription { face: face_key });
-            }
-            // The described net of finite data: real geometry, and the
-            // checks that examine it are elsewhere — its seams at check
-            // 2, its flux at check 7. Nothing about the payload itself
-            // is a tier-3 fact.
-            Some(Surface::Nurbs(_)) => {}
+            Some(Surface::Nurbs(payload)) => match payload.net_state() {
+                NetState::Placeholder => {
+                    errors.push(ValidationError::UncertifiableSurface { face: face_key });
+                }
+                NetState::Poisoned => {
+                    errors.push(ValidationError::PoisonedSurfaceDescription { face: face_key });
+                }
+                // Real geometry, and the checks that examine it are
+                // elsewhere — its seams at check 2, its flux at check
+                // 7. Nothing about the payload itself is a tier-3 fact.
+                NetState::Described => {}
+            },
             // The approximating surface's re-derivation (O5): the
             // two-limb certificate is recomputed from the stored
             // description and fit on EVERY call, and the stored
@@ -3241,19 +3207,31 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
                     }
                 }
             }
-            // A plane's stored frame carries no datum that can fail to
-            // describe a locus: every triple of an origin and two
-            // directions is a plane, and the frame's own conventions
-            // (unit, orthogonal) are the crate's unchecked kind.
+            // A plane's frame CAN fail to describe a locus — a zero or
+            // poisoned normal, a poisoned origin — and check 1 does not
+            // say so. Such a face is refused downstream instead: its
+            // plane equation is read at check 3 and its normal at check
+            // 4, where the residual and the wedge angle come out
+            // `Invalid` and escalate (`PlanarFaceEscalated`,
+            // `PlanarBoundaryEscalated`, `SliverDihedral`). Loud, but
+            // by accident of evaluation and never naming the datum —
+            // the shape this check exists to close for `Nurbs`.
             Some(Surface::Plane { .. }) => {}
-            // The quadric datums — a cylinder's and a sphere's radius,
-            // a cone's half-angle — are conventional-and-unchecked in
-            // `geom` and no tier-3 check reads them. The torus arm
-            // above is the one datum check at rest, and it is here
-            // because D3's ring convention is a REPRESENTABILITY claim
-            // (a horn or spindle torus has a chart singularity no chart
-            // in the tree represents), not because a stored radius is
-            // checked anywhere as a matter of course.
+            // Same, for the quadric datums: a cylinder's or sphere's
+            // radius and a cone's half-angle are read through
+            // EVALUATION, not by any datum check, so a poisoned or
+            // nonpositive one reaches check 4's dihedral arm and
+            // escalates there (`SliverDihedral`, predicate
+            // `dihedral_arm` / `dihedral_wedge`) without check 1 or
+            // anything else naming the surface.
+            //
+            // The torus arm above is the one datum check at rest, and
+            // it is there because D3's ring convention is a
+            // REPRESENTABILITY claim (a horn or spindle torus has a
+            // chart singularity no chart in the tree represents), not
+            // because a stored radius is checked as a matter of course.
+            // Whether the argument stops at the torus is an open
+            // question, filed.
             Some(Surface::Cylinder { .. }) => {}
             Some(Surface::Sphere { .. }) => {}
             Some(Surface::Cone { .. }) => {}
@@ -6531,6 +6509,13 @@ mod tests {
             },
             ValidationError::ApproxLaneUnsupported { face: t.face_a },
         ];
+        // The two derives agree on order: `from(err) as usize` is
+        // the declaration index and `iter()` walks the same
+        // sequence, so zipping them below pairs each flag with the
+        // kind it stands for. Asserted rather than assumed.
+        for (i, kind) in ValidationErrorKind::iter().enumerate() {
+            assert_eq!(kind as usize, i, "EnumIter order is the discriminant order");
+        }
         let mut covered = [false; ValidationErrorKind::COUNT];
         for err in &all {
             // Display and Error are wired up; content is human-oriented.
