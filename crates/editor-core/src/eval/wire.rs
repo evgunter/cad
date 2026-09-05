@@ -2804,7 +2804,7 @@ pub(crate) const TRANSFORM_AXIS_ROLE: &str = "transform rotation axis";
 ///
 /// PR 1's die convention: rotate about the axis THROUGH THE WORLD
 /// ORIGIN by `angle`, then translate. `axis` is already unit — the
-/// callers normalize it through [`unit`] under
+/// callers normalize it through [`unit()`] under
 /// [`TRANSFORM_AXIS_ROLE`], where the degenerate and non-finite cases
 /// refuse.
 pub(crate) fn transform_map<T: Decide>(
