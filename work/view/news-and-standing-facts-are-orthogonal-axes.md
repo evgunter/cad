@@ -4,7 +4,6 @@ kind: issue
 title: News and standing fact are orthogonal to subject, and three facts of one class got two answers
 status: open
 opened: 2026-09-05
-needs_ev: true
 ---
 
 
@@ -96,3 +95,54 @@ it re-sorts most of the sweep's standing-fact list. Getting it wrong
 costs twenty sites written against the wrong rule, which is the thing
 the fence around #1933 was built to prevent and the reason that unit
 stopped where it did.
+
+## RULED (Ev, #1945, 2026-09-05): state both axes
+
+> "1945's proposal sounds good"
+
+**The two classifications are independent and both get stated:**
+
+- a **badge** is a *read of held state a reader consults*;
+- a **line message** is the *outcome of something that just happened*;
+- **either can carry a subject**, because a subject only says what
+  retires it.
+
+So "is this news or a standing fact" and "what is its subject" are
+different questions with independent answers, and the sweep sorts on
+the first while assigning the second.
+
+### What this settles, concretely
+
+The three facts of one class in #1933 are **all badges** — each is a
+read of seam state (`scene_refusal`, `index_refusal` /
+`unindexed_refusal`, `projection_refusal`), and each keeps a subject,
+which is now what retires the **badge** rather than what retires a
+sentence. That agrees with `status-line-writers-bypass-the-ranking`'s
+own classification of all three and resolves it against #1883's
+example, which named the projection refusal as news.
+
+**#1883's ruling is not overturned by this.** Its subject-carrying
+mechanism stands exactly as ruled and as built; what #1945 adds is that
+carrying a subject was never what decided *which channel* a fact goes
+to. The projection refusal is a badge that has a subject — which was
+unavailable as an answer when #1883 was written, because `Badge` had no
+subject then.
+
+### What has to change
+
+1. **`Badge` gains a subject.** That is the API change this ruling
+   costs, and it is why this was a decision rather than a fix.
+2. **Three call sites move** from the line to the badge family, keeping
+   their subjects.
+3. **The rule gets written where the classification is made** —
+   `crates/viewer/src/frame.rs`'s header, which today states only the
+   news/standing-fact half, and `crates/viewer/README.md`.
+
+Per CLAUDE.md the README and header prose ride the unit that makes
+them true, not this ruling.
+
+### What it unblocks
+
+`status-line-writers-bypass-the-ranking` — the twenty-writer sweep,
+the largest item on this board — which has been waiting for a rule to
+sort on since #1849 filed it.
