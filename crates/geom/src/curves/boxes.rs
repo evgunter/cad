@@ -11,12 +11,12 @@
 //! containment contract and stop. What looseness costs is the reading
 //! door's to state, per door, where the doors are.
 //!
-//! These land now and are consumed later (the planar boolean consumes
-//! only vertex-extent boxes in PR 8); they live HERE, not in the `bvh`
-//! crate, so the tree stays below the geometry crate (PR 7's SSI
-//! subdivision duty inside them must be able to consume it — see
-//! `bvh`'s crate docs) and each constructor sits next to the invariant
-//! it cites.
+//! They live HERE, not in the `bvh` crate, so the tree stays below the
+//! geometry crate (the SSI subdivision duty inside them must be able
+//! to consume it — see `bvh`'s crate docs) and each constructor sits
+//! next to the invariant it cites. [`conic_arc_aabb`] is the one door
+//! a consumer boxing an edge of unknown conic kind reads; the two kind
+//! doors under it are its arms.
 //!
 //! This is certified-box driver code, a **sole**-bound [`Bounds`] seam
 //! under the 2026-07-29 amendment (geom-core `real.rs`, Bounds scope
@@ -137,28 +137,42 @@ fn angle_interval_in_span(phi_lo: f64, phi_hi: f64, lo: f64, hi: f64) -> bool {
 }
 
 /// The extremal-angle INTERVAL of `atan2(v, u)` over the bracket
-/// rectangle `u × v` (fix-pass item 3 — the reviewer's wide-bracket
-/// gap): evaluated on the four corners, which carry the angular
-/// extremes of a convex region not containing the origin (a
-/// supporting ray through the origin touches a polygon at a vertex).
-/// `None` means "no bound" — the rectangle possibly contains the
-/// origin (amplitude sign unknown) or crosses the atan2 branch cut
-/// (the wedge wraps ±π): the caller must include BOTH extrema.
+/// rectangle `u × v`: evaluated on the four corners, which carry the
+/// angular extremes of a convex region not containing the origin (a
+/// supporting ray through the origin touches a polygon at a vertex) —
+/// provided the wedge does not cross `atan2`'s ±π cut, where the
+/// corner angles would read as a full turn. A rectangle touching the
+/// negative `u` axis (`v` straddling zero, `u ≤ 0`) does cross it, so
+/// its corners are read in the frame rotated by π, `atan2(−v, −u)`,
+/// whose cut lies on the positive `u` axis the rectangle is clear of,
+/// and the interval is shifted back by π; the translate-aware span
+/// test downstream reads it like any other. The exact case that
+/// matters is an extremal angle of exactly π — a conic in a tilted
+/// plane has one on the axis its plane's normal tilts along — and
+/// it now yields the point interval `[π, π]` rather than "no bound".
+///
+/// `None` means "no bound": the rectangle possibly contains the
+/// origin, so the amplitude's sign is unknown and the caller must
+/// include BOTH extrema.
 fn extremal_angle_interval(u: Brk, v: Brk) -> Option<(f64, f64)> {
     if u.lo.is_nan() || u.hi.is_nan() || v.lo.is_nan() || v.hi.is_nan() {
         return None; // poison: no exclusion possible
     }
     let u_straddles = u.lo <= 0.0 && u.hi >= 0.0;
     let v_straddles = v.lo <= 0.0 && v.hi >= 0.0;
-    if v_straddles && (u_straddles || u.hi <= 0.0) {
-        // Origin possibly inside, or the wedge crosses the ±π cut.
-        return None;
+    if u_straddles && v_straddles {
+        return None; // origin possibly inside
     }
+    let (sign, shift) = if v_straddles && u.hi <= 0.0 {
+        (-1.0, core::f64::consts::PI)
+    } else {
+        (1.0, 0.0)
+    };
     let corners = [
-        geom_core::Real::atan2(v.lo, u.lo),
-        geom_core::Real::atan2(v.lo, u.hi),
-        geom_core::Real::atan2(v.hi, u.lo),
-        geom_core::Real::atan2(v.hi, u.hi),
+        geom_core::Real::atan2(sign * v.lo, sign * u.lo),
+        geom_core::Real::atan2(sign * v.lo, sign * u.hi),
+        geom_core::Real::atan2(sign * v.hi, sign * u.lo),
+        geom_core::Real::atan2(sign * v.hi, sign * u.hi),
     ];
     let mut lo = f64::INFINITY;
     let mut hi = f64::NEG_INFINITY;
@@ -169,7 +183,7 @@ fn extremal_angle_interval(u: Brk, v: Brk) -> Option<(f64, f64)> {
         lo = lo.min(c);
         hi = hi.max(c);
     }
-    Some((lo, hi))
+    Some((lo + shift, hi + shift))
 }
 
 /// The certified-conservative box of a **circular arc**: the carrier's
@@ -219,7 +233,11 @@ pub fn circle_arc_aabb<T: Bounds>(
     let vy = az.mul(ux).sub(ax.mul(uz));
     let vz = ax.mul(uy).sub(ay.mul(ux));
 
-    // The slop-widened span (orientation-normalized outward).
+    // The slop-widened span (orientation-normalized outward). On a
+    // DESCENDING run at a wide scalar these are the INNER ends of the
+    // two brackets; the range is still covered because the endpoint
+    // hull above enters both ends as whole brackets — that seed is
+    // load-bearing for span coverage, not a convenience.
     let (s0, s1) = (theta0.lo(), theta1.hi());
     let lo = pfold(s0, s1, f64::min) - ANGLE_SLOP;
     let hi = pfold(s0, s1, f64::max) + ANGLE_SLOP;
@@ -338,7 +356,11 @@ pub fn ellipse_arc_aabb<T: Bounds>(
     let vy = az.mul(ux).sub(ax.mul(uz));
     let vz = ax.mul(uy).sub(ay.mul(ux));
 
-    // The slop-widened span (orientation-normalized outward).
+    // The slop-widened span (orientation-normalized outward). On a
+    // DESCENDING run at a wide scalar these are the INNER ends of the
+    // two brackets; the range is still covered because the endpoint
+    // hull above enters both ends as whole brackets — that seed is
+    // load-bearing for span coverage, not a convenience.
     let (s0, s1) = (theta0.lo(), theta1.hi());
     let lo = pfold(s0, s1, f64::min) - ANGLE_SLOP;
     let hi = pfold(s0, s1, f64::max) + ANGLE_SLOP;
@@ -378,6 +400,28 @@ pub fn ellipse_arc_aabb<T: Bounds>(
         hi,
     );
     Some(b)
+}
+
+/// The certified-conservative box of a conic ARC, whichever conic the
+/// carrier is: [`circle_arc_aabb`] for a `Circle`, [`ellipse_arc_aabb`]
+/// for an `Ellipse` — one match on the kind, so a consumer that has
+/// already decided "this edge is a conic" reads one door. `None` for a
+/// `Line` or `Nurbs` carrier: those kinds have their own rule (the
+/// chord; the control hull, [`nurbs_curve_aabb`]) and this door refuses
+/// rather than guesses. Everything else — span restriction, outward
+/// rounding, poison — is the kind door's contract, verbatim.
+pub fn conic_arc_aabb<T: Bounds>(
+    carrier: &Curve3<T>,
+    theta0: T,
+    theta1: T,
+    end0: Point3<T>,
+    end1: Point3<T>,
+) -> Option<Aabb> {
+    match carrier {
+        Curve3::Circle { .. } => circle_arc_aabb(carrier, theta0, theta1, end0, end1),
+        Curve3::Ellipse { .. } => ellipse_arc_aabb(carrier, theta0, theta1, end0, end1),
+        Curve3::Line { .. } | Curve3::Nurbs(_) => None,
+    }
 }
 
 /// The certified-conservative box of a NURBS curve: the AABB of its

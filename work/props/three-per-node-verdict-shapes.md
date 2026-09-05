@@ -1,6 +1,6 @@
 ---
 id: three-per-node-verdict-shapes
-kind: issue
+kind: unit
 title: Three shapes for per-node verdicts: consolidate or record the split deliberately
 status: closed
 opened: 2026-08-29
@@ -45,6 +45,17 @@ Neither subsumes the other, so a naive merge would either weaken certification o
 Nothing is wrong today: each shape has a stated job and the strict/permutation-invariant split is deliberate. This is a consolidation review, filed so the split is a decision on the record rather than an accumulation.
 
 Raised by M10-3's review (PR #1231) and referenced from `drive::VerdictVector`'s docs.
+
+## Decided (PROPS orchestrator, 2026-09-05)
+
+The split stays; the two modules and the two outcome enums do not.
+Spec: `docs/PROPS-VERDICT-SHAPES-SPEC.md` (binding) — the three
+derived-shape types move beside `NodeVerdicts` in `resolve/vdiff.rs`,
+`ReplayOutcome` folds into `RunStatus` with `Absent` kept distinct, the
+docs say which shape persists, and the strict-vs-population claim gets
+the executable pin the census (2026-09-05) found it never had. An E
+rider: single style review, outside the A/B experiment. `drive.rs` is
+edited by announced seam (`work/m10/log.md`).
 
 ## Home
 

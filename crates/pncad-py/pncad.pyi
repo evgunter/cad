@@ -288,9 +288,19 @@ class StepImportError(PncadError):
 
 class PathError(PncadError):
     """The PATHS authoring algebra refused the geometry, at the call
-    site of the verb that wrote it."""
+    site of the verb that wrote it.
+
+    `corners` is the `no_corner_of_pair` envelope: one
+    `(x, y, reason)` row per REFUSING corner — not per derived corner,
+    since a carrier pair derives up to two and most refusals list only
+    one of them — nearest the bracketing anchors first, with `reason`
+    one of `behind_incoming_ray`, `behind_arrival_anchor`,
+    `offset_carriers_disjoint`, `no_corner_side_candidate`,
+    `anchor_outside_trimmed_extent` or `encloses_leg_carrier`. It is
+    `None` on every refusal that names no corner."""
 
     variant: str
+    corners: list[tuple[float, float, str]] | None
 
 class SelectRefusal(PncadError):
     """`Evaluation.select_where` could not answer — the Rust door's
