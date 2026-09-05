@@ -2257,18 +2257,61 @@ impl<T: Decide> Body<T> {
 ///
 /// A described NURBS operand in an `Intersection` certifies only
 /// through `geom_brep`'s injected lane, whose derivation needs a
-/// CERTIFYING scalar (`geom_brep::EdgeNurbsLane`'s static split; the
-/// lane fn's own bound is `Decide + Bounds + CertifiedEnclosure`, and
-/// since D1, 2026-08-19, it is that last term rather than `Bounds` that
-/// a dual fails). Raising the whole Euler surface to that bound would push it
+/// CERTIFYING scalar (`geom_brep::plane_nurbs_limbs`'s own bound is
+/// `Decide + Bounds + CertifiedEnclosure`, and since D1, 2026-08-19, it
+/// is that last term rather than `Bounds` that a dual fails, so a dual
+/// cannot write this door's call at all rather than being refused
+/// inside it). Raising the whole Euler surface to that bound would push it
 /// through hundreds of `T: Decide` signatures for a capability three
 /// of the four sealed scalars have unconditionally, so the lane is a
 /// SEPARATE DOOR onto the same shared machinery: identical
 /// preconditions, identical adjacency rules, identical mutation. The
 /// default door keeps refusing the class exactly as before — there is
 /// no door that accepts it uncertified.
-impl<T: geom_brep::EdgeNurbsLane> Body<T> {
+impl<T: Decide + geom_core::CertifiedBounds> Body<T> {
     /// [`Body::set_edge_curve`] with the plane × NURBS lane wired in.
+    ///
+    /// **A scalar without certification rights cannot write this
+    /// call**, and that is the door's guarantee rather than a side
+    /// effect: nothing runs, nothing refuses, the call cannot be
+    /// formed.
+    ///
+    /// The code is **`E0599`, not `E0277`**, and the difference is
+    /// where the bound sits: this is an INHERENT METHOD on an `impl`
+    /// block whose bound `Dual` fails, so the method is not in scope
+    /// at all and the compiler says *method exists … but its trait
+    /// bounds were not satisfied: `Dual<f64>: CertifiedEnclosure`*
+    /// rather than reporting an unsatisfied bound on a call it
+    /// resolved. A free function with the same bound gives `E0277`
+    /// (`geom_brep::plane_nurbs_limbs`' own row does).
+    ///
+    /// ```compile_fail,E0599
+    /// use geom_core::{Dual64, Tol};
+    /// use topo::{Body, EdgeCurveSpec, entity::EdgeKey};
+    /// fn lane_door(b: &mut Body<Dual64>, e: EdgeKey, c: EdgeCurveSpec<Dual64>, tol: Tol) {
+    ///     let _ = b.set_edge_curve_nurbs_lane(e, c, tol);
+    /// }
+    /// ```
+    ///
+    /// **What that annotation is worth, said out loud** (`S216`): on
+    /// stable, rustdoc does NOT compare the emitted code to the one
+    /// written here — the row passes green whichever code is named, so
+    /// the annotation documents the expectation and checks nothing.
+    /// The live check is the twin below: it differs in exactly one
+    /// identifier and every path either row names resolves, so the
+    /// failing row can only be failing on the bound. Read the pair,
+    /// never the annotation alone.
+    ///
+    /// The DEFAULT door is open to it, which is the capability this
+    /// separation exists to keep:
+    ///
+    /// ```
+    /// use geom_core::{Dual64, Tol};
+    /// use topo::{Body, EdgeCurveSpec, entity::EdgeKey};
+    /// fn default_door(b: &mut Body<Dual64>, e: EdgeKey, c: EdgeCurveSpec<Dual64>, tol: Tol) {
+    ///     let _ = b.set_edge_curve(e, c, tol);
+    /// }
+    /// ```
     ///
     /// # Errors
     ///
