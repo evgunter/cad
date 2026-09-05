@@ -304,3 +304,13 @@ tour-wide layer-rule sweep and the stale tour `Cargo.lock`
 `/tmp/claude-0/…/scratchpad/` is shared between lanes on this box — two
 lanes overwrote each other's file; briefs from here on name a private
 `/home/user/<lane>-tmp/`.
+
+**Span dual interrupted and resumed (2026-09-05, 06:49–08:01Z).** Both
+reviewers died on the account's session limit mid-review (R1 while
+writing a probe; R2 earlier) and were resumed from their transcripts on
+the same arms after the 07:40Z reset — a method note applying to BOTH
+arms equally (the CERT-M3/N3 precedent), not a relaxation; the usage
+counters record post-resume segments only and the row will say so.
+The orchestrator session itself was resumed cold from its transcript
+by the same limit; every worktree and target survived. Lily's style
+review still waits for a slot behind the two reviewers.
