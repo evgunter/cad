@@ -161,16 +161,19 @@ impl SolvedPoses {
 
 // ---- A12: reading edges, recomputed ----
 
-/// **The member a mate reference's head names** (A11's member
-/// vocabulary): a live `InstantiatePart`, or a pattern-placed instance
-/// — the `Pattern` node with its `Instance(i)` qualifier.
+/// **The member a mate reference resolves to** (A11's member
+/// vocabulary): a live `InstantiatePart`, reached from the
+/// reference's operand through any number of transforms and at most
+/// one pattern level.
 ///
-/// A member is more than its cluster-graph vertex: mates to SIBLING
-/// copies of one pattern relate the same pair of instances through
-/// different static offsets, so the copy is part of the member's
-/// identity — it is what makes a second sibling mate close a LOOP
+/// A member is more than its cluster-graph vertex. Two references
+/// that reach one instance through DIFFERENT placings relate the same
+/// pair of instances through different static offsets, so what stands
+/// between the reference and the instance is part of the member's
+/// identity — it is what makes a second such mate close a LOOP
 /// (non-tree, declaring) instead of folding into the first mate's
-/// pair.
+/// pair. Two kinds of placing say so: the pattern COPY, and the
+/// OPERAND the reference was read at.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Member {
     /// The cluster-graph vertex this member stands on: the head

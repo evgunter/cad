@@ -1510,6 +1510,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_on_non_instance",
             "placement_rule_mismatch",
             "profile_program_refused",
+            "read_site_missing_node",
             "rebind_appearance_collision",
             "rebind_identity",
             "rebind_kind_mismatch",

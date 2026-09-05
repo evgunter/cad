@@ -1011,8 +1011,7 @@ fn a8e_a_cut_that_would_sever_the_operand_refuses_at_the_precondition() {
         DocumentId::derive("msolve1-a8e-part"),
         Tol::witness(),
     )
-    .err()
-    .expect("the cut severs the mate's operand");
+    .expect_err("the cut severs the mate's operand");
     assert!(
         matches!(err, editor_core::SplitError::TornCluster { .. }),
         "expected the whole-cluster precondition, got {err:?}"
