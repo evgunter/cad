@@ -1186,3 +1186,11 @@ remaining traits' questions and the bound's honest end state. Track M is
 now empty of dispatchable rows: H5 is a schedule of two questions for Ev.
 Slate: CERT-N3's close-out in flight (its dual returned no MAJOR); then
 the exit walk and the blinded tally adjudication.
+
+## Seam announced by TOPO (2026-09-05)
+
+TOPO enters `crates/geom/src/surfaces/nurbs.rs` for ONE public method:
+the complement of `NurbsSurface::is_placeholder`, delegating to
+`net::any_poison` (spec `docs/TOPO-S330-SPEC.md` §Phase 2 (a)). Tier-3
+check 1 gains its described-NURBS arm on it. Nothing else in `geom`
+moves; the channel walk stays spelled once, in `net.rs`.
