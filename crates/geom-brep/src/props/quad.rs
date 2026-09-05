@@ -641,7 +641,7 @@ fn bspline_range_hull(kv: &KnotVector, coeffs: &[RingInterval], lo: f64, hi: f64
     for index in s0.index()..=s1.index() {
         // Emptiness check and span validation are one step.
         let Some(span) = kv.span(index) else { continue };
-        let h = span_hull(kv, coeffs, span);
+        let h = span_hull(coeffs, span);
         acc = if seeded {
             RingInterval::hull(acc, h)
         } else {
@@ -1075,19 +1075,20 @@ impl Dir {
 /// `t`, exact-in-kind for the Newton–Cotes nodes, which lie in the
 /// span's closure.
 fn bspline_eval_ring_in_span(
-    kv: &KnotVector,
     coeffs: &[RingInterval],
-    span: Span,
+    span: Span<'_>,
     t: RingInterval,
 ) -> RingInterval {
+    let kv = span.knots();
     if coeffs.len() != kv.control_count() {
         return RingInterval::poison();
     }
     let p = kv.degree();
     let u = kv.knots();
     // The window's base, off the `Span` — as in [`bspline_eval_ring`],
-    // whose recurrence this is. The length check above is the only
-    // structure left to verify: in-range-ness came with the `Span`.
+    // whose recurrence this is. Degree, knots and window all come from
+    // the one borrow, so the length check against `coeffs` is the only
+    // structure left to verify.
     let first = span.first_control();
     let mut d: Vec<RingInterval> = (0..=p).map(|j| coeffs[first + j]).collect();
     for r in 1..=p {
@@ -1257,7 +1258,7 @@ impl PatchGrid {
         match (dir, op) {
             (Dir::Kv(kv), Collapse::At(t)) => bspline_eval_ring(kv, coeffs, t),
             (Dir::Kv(kv), Collapse::AtSpan { mid, t }) => {
-                bspline_eval_ring_in_span(kv, coeffs, kv.span_at(mid), *t)
+                bspline_eval_ring_in_span(coeffs, kv.span_at(mid), *t)
             }
             (Dir::Kv(kv), Collapse::Over(lo, hi)) => bspline_range_hull(kv, coeffs, lo, hi),
             (Dir::Raw { knots, degree }, Collapse::At(t)) => raw_eval(knots, *degree, coeffs, t),
@@ -4115,8 +4116,8 @@ mod tests {
                 // basis ladder, S_d by the quotient rule.
                 let at = |u: f64, v: f64| -> ([f64; 3], [f64; 3], [f64; 3]) {
                     let (su, sv) = (kv_u.span_at(u), kv_v.span_at(v));
-                    let bu = ders_basis_funs::<f64>(&kv_u, su, u, 1);
-                    let bv = ders_basis_funs::<f64>(&kv_v, sv, v, 1);
+                    let bu = ders_basis_funs::<f64>(su, u, 1);
+                    let bv = ders_basis_funs::<f64>(sv, v, 1);
                     // The `iu * nv + iv` stride stays written out on
                     // purpose: this oracle shares NO derivation with
                     // the code under test, so it does not borrow the

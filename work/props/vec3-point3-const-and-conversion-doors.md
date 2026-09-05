@@ -23,3 +23,11 @@ rewritten through `geom_core`'s doors:
   question (D2-shaped: a point is not a vector).
 
 Both are small E decisions; neither blocks anything.
+
+- (From the lily style review, 2026-09-05.) No `Affine3::from_frame(origin, u, v)`:
+  `lily.rs` (two sites) and `skinned.rs::normal_start_place` build a
+  `SketchPlane<f64>` only to take `.placement`; the shared thing has no
+  home. And no `SketchPlane::map`/lift, so a `from_frame` boundary lifts
+  three times. Both are the same door-shaped hole as the first bullet:
+  the frame-from-three-vectors constructor, and the lift of the type
+  that carries it.

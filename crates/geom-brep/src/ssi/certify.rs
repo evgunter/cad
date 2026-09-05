@@ -549,9 +549,9 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
         // Emptiness check and span validation are one step.
         let Some(span) = kv.span(index) else { continue };
         let (a, b) = (kv.knots()[index], kv.knots()[index + 1]);
-        let hx = hull::span_hull(kv, &coords[0], span);
-        let hy = hull::span_hull(kv, &coords[1], span);
-        let hz = hull::span_hull(kv, &coords[2], span);
+        let hx = hull::span_hull(&coords[0], span);
+        let hy = hull::span_hull(&coords[1], span);
+        let hz = hull::span_hull(&coords[2], span);
         let bx = Box3 {
             x: hx,
             y: hy,
@@ -640,8 +640,8 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         let Some(span) = kv.span(index) else { continue };
         let (a, b) = (kv.knots()[index], kv.knots()[index + 1]);
         let m = 0.5 * (a + b);
-        let hu = hull::span_hull(kv, &coords[0], span);
-        let hv = hull::span_hull(kv, &coords[1], span);
+        let hu = hull::span_hull(&coords[0], span);
+        let hv = hull::span_hull(&coords[1], span);
         let (u0, u1) = (hu.lo() - radius_uv.0, hu.hi() + radius_uv.0);
         let (v0, v1) = (hv.lo() - radius_uv.1, hv.hi() + radius_uv.1);
         let du = boxes.deriv_box(u0, u1, v0, v1, true);

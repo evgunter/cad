@@ -18,7 +18,9 @@ elsewhere in the tour: componentwise `S::from_f64` lifts in `az.rs`
 tuples only because `Point3` is not `Ord`. A style sweep (Track X
 ground, `demos/`), `lily.rs` the pattern to copy.
 
-Separately: `demos/tour/Cargo.lock` is stale on `main` — any tour build
-adds a `profile` edge to the `pncad` entry; CI does not build the tour
-with `--locked`, so nothing catches it. Needs an owner (CIW or the
-program that last touched the tour's dependencies).
+Separately (RESOLVED 2026-09-05 by the PROPS orchestrator's sync):
+`demos/tour/Cargo.lock` was stale on `main` — along with `benches/` and
+`demos/wild/`, a `profile` edge missing on the `verbs` entry since
+`410d1d6cc`; every lane running `scripts/doc-gate.sh` dirtied all three.
+Regenerated with cargo. The class gap stands: CI does not build the
+excluded roots with `--locked`, so nothing catches the next one — CIW's.

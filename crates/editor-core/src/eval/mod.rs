@@ -266,6 +266,17 @@ pub struct NodeValue<T: Decide> {
     /// consumer that needs a run's decisions across a process boundary
     /// summarizes; one that needs them in hand reads this.
     pub verdicts: Arc<VerdictLog>,
+    /// The node's escalation log: every INDETERMINATE predicate outcome
+    /// the node's op met, in decision order, recorded in the same
+    /// `k_stats` frame as the verdicts. Non-empty on a value only when
+    /// the op absorbed an escalation and built anyway — a leaf the
+    /// subdivision driver must not certify (E6: every predicate
+    /// definite), which is what it reads this for. Rides the value with
+    /// the verdicts, for the same reason.
+    ///
+    /// **Not persisted**, like the verdicts and unlike their summary:
+    /// an escalation is a fact about one run at one box, read in hand.
+    pub escalations: Arc<EscalationLog>,
     /// RESERVED empty slot: the solved witness assignment (M6 fills).
     pub witness: WitnessSlot,
     /// The node's input-content hash (spec D4) — the memo currency.
@@ -280,6 +291,11 @@ pub struct NodeValue<T: Decide> {
 /// One evaluation's per-node verdict vector (the [`NodeValue::verdicts`]
 /// payload): [`geom_core::k_stats::Verdict`]s in decision order.
 pub type VerdictLog = Vec<geom_core::k_stats::Verdict>;
+
+/// One node's escalations (the [`NodeValue::escalations`] and
+/// [`NodeError::escalations`] payload):
+/// [`geom_core::k_stats::Escalation`]s in decision order.
+pub type EscalationLog = Vec<geom_core::k_stats::Escalation>;
 
 /// M6's solved-assignment slot, as a type stub (spec D2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -446,6 +462,23 @@ pub struct NodeError {
     pub node: RecipeNodeId,
     /// The typed cause.
     pub kind: NodeErrorKind,
+    /// Every indeterminate predicate outcome the op met before it
+    /// failed, in decision order (the same frame [`NodeValue::escalations`]
+    /// reads on success). This is how a consumer learns that a failure
+    /// IS an escalation — and on which margin — without matching on
+    /// whichever op error enum `kind` wrapped it in: a kernel refusal
+    /// that carries an `Indeterminate` inside its own variant is
+    /// recorded here too, because the funnel saw it first. Empty when
+    /// the node failed before its op ran (a slot, an input, a cycle).
+    ///
+    /// **Not persisted**, like [`NodeValue::escalations`]: a failure's
+    /// escalations are a fact about one run at one box, read in hand
+    /// by the subdivision driver. The verdicts the op recorded before
+    /// failing are NOT carried here — a failed node has no verdict
+    /// vector to certify against — which is why the frame's two
+    /// channels are two `Arc`s at this seam rather than one record:
+    /// the value carries both, the error only this one.
+    pub escalations: Arc<EscalationLog>,
 }
 
 /// The closed set of node-evaluation failures. Kernel errors are
@@ -687,16 +720,15 @@ pub enum NodeErrorKind {
         /// The absent slot.
         slot: SlotId,
     },
-    /// A verb run door was handed a different operand count than the
-    /// verb declares — [`NodeErrorKind::MissingSlot`]'s class: a
-    /// wiring bug surfaced typed (unreachable while the per-verb
-    /// correspondences and the run doors agree; no panic paths in this
-    /// crate).
+    /// A verb was run through a door it does not declare —
+    /// [`NodeErrorKind::MissingSlot`]'s class: a wiring bug surfaced
+    /// typed (unreachable while the per-verb correspondences and the
+    /// run doors agree; no panic paths in this crate).
     VerbArity {
         /// The verb whose door refused.
         verb: verbs::VerbKind,
-        /// The operand count the door was handed; the declared count
-        /// is `verb.arity()`.
+        /// The door the verb was handed to; the declared one is
+        /// `verb.arity()`.
         given: verbs::Arity,
     },
     /// A decided predicate escalated (in-band indeterminacy).
@@ -2083,6 +2115,7 @@ where
                 NodeResult::Failed(NodeError {
                     node: id,
                     kind: NodeErrorKind::UnschedulableCycle,
+                    escalations: Arc::new(Vec::new()),
                 }),
             );
         }
@@ -2209,6 +2242,7 @@ where
                 NodeResult::Failed(NodeError {
                     node: id,
                     kind: kind(),
+                    escalations: Arc::new(Vec::new()),
                 }),
             )
         })
@@ -2269,8 +2303,14 @@ fn eval_node<T>(
 where
     T: EvalScalar,
 {
+    // A failure before the op runs: no bracket was open, so there is
+    // nothing recorded to carry.
     let fail = |kind: NodeErrorKind| NodeStep {
-        result: NodeResult::Failed(NodeError { node: id, kind }),
+        result: NodeResult::Failed(NodeError {
+            node: id,
+            kind,
+            escalations: Arc::new(Vec::new()),
+        }),
         reused: false,
     };
     let Some(node) = doc.node(id) else {
@@ -2450,13 +2490,18 @@ where
         };
     }
 
-    // Verdict-log bracket (M4 PR 4): every definite decision the op
-    // makes — kernel predicates and N2 discriminators alike — lands in
-    // this node's log through the one `k_stats` funnel. The bracket is
-    // per-node and thread-confined (kernel ops are single-threaded;
-    // idiom-1 parallelism runs whole nodes on one worker each), so
-    // logs never interleave across nodes.
-    geom_core::k_stats::start_verdict_log();
+    // The verdict bracket (N5): every decision the op makes — kernel
+    // predicates and N2 discriminators alike, definite or escalated —
+    // lands in this node's frame through the one `k_stats` funnel. The
+    // guard is per node and `!Send`, so the frame closes on the worker
+    // that opened it (idiom-1 parallelism runs whole nodes on one
+    // worker each); an op that evaluates another document (an
+    // instantiated part) has that document's nodes open and close
+    // their own frames ABOVE this one, so this frame receives exactly
+    // this op's decisions and theirs land on their own nodes. A memo
+    // hit above never reaches here and carries the prior's frame with
+    // the value it reuses.
+    let bracket = geom_core::k_stats::Bracket::open();
     let op = wire::run_op(
         id,
         node,
@@ -2468,21 +2513,32 @@ where
         op_env,
         tol,
     );
-    let verdicts = geom_core::k_stats::take_verdict_log();
+    let recorded = bracket.finish();
+    let escalations = Arc::new(recorded.escalations);
     match op {
         Ok(out) => NodeStep {
             result: NodeResult::Ok(NodeValue {
                 payload: out.payload,
                 name_table: out.names,
                 contacts: out.contacts,
-                verdicts: Arc::new(verdicts),
+                verdicts: Arc::new(recorded.verdicts),
+                escalations,
                 witness: WitnessSlot {},
                 content_key,
                 naming_key,
             }),
             reused: false,
         },
-        Err(kind) => fail(kind),
+        // The failure carries what the op escalated on its way to it:
+        // the frame is the node's whether or not the op built.
+        Err(kind) => NodeStep {
+            result: NodeResult::Failed(NodeError {
+                node: id,
+                kind,
+                escalations,
+            }),
+            reused: false,
+        },
     }
 }
 
@@ -2524,6 +2580,7 @@ fn verb_content_tag(kind: verbs::VerbKind) -> u8 {
         verbs::VerbKind::Boolean(topo::BooleanOp::Union) => 8,
         verbs::VerbKind::Boolean(topo::BooleanOp::Intersect) => 9,
         verbs::VerbKind::Boolean(topo::BooleanOp::Subtract) => 10,
+        verbs::VerbKind::Split => 7,
     }
 }
 
@@ -2637,14 +2694,14 @@ where
         Node::Profile(_) => 4,
         // The numbers are not written here either, and they are the
         // ones that were: a migrated verb's tag is a function of the
-        // KERNEL's name for it, so 5 and 6 move to `verb_content_tag`
-        // unchanged. A tag that MOVED would invalidate nothing on disk
-        // (keys are process-internal) and would still be wrong — an
-        // existing tag never gains a new meaning, and never loses its
-        // old one either.
+        // KERNEL's name for it, so 5, 6 and 7 move to
+        // `verb_content_tag` unchanged. A tag that MOVED would
+        // invalidate nothing on disk (keys are process-internal) and
+        // would still be wrong — an existing tag never gains a new
+        // meaning, and never loses its old one either.
         Node::Extrude { .. } => verb_content_tag(verbs::VerbKind::Extrude),
         Node::Revolve { .. } => verb_content_tag(verbs::VerbKind::Revolve),
-        Node::Split { .. } => 7,
+        Node::Split { .. } => verb_content_tag(verbs::VerbKind::Split),
         // The numbers are not written here: a migrated verb's tag is a
         // function of the KERNEL's name for it, and the boolean's name
         // carries its op (`VerbKind::Boolean(op)` — the three
@@ -3992,6 +4049,10 @@ mod verb_content_tag_tests {
         // red anywhere to say so.
         assert_eq!(verb_content_tag(verbs::VerbKind::Extrude), 5);
         assert_eq!(verb_content_tag(verbs::VerbKind::Revolve), 6);
+        // The split's, read the same way: 7 was the tag match's inline
+        // number for `Node::Split`, and every split-carrying document
+        // in the registry keys on it.
+        assert_eq!(verb_content_tag(verbs::VerbKind::Split), 7);
         assert_eq!(
             verb_content_tag(verbs::VerbKind::Boolean(topo::BooleanOp::Union)),
             8
