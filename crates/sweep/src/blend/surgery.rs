@@ -4625,12 +4625,24 @@ fn face_of_half<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<FaceKey> {
 /// check omitted is the one the annulus host trim states: the
 /// alternative to checking is killing a face blind, and that is a wrong
 /// solid rather than a refusal.
+///
+/// **An EMPTY `anchors` refuses too**, because the door's whole content
+/// is the set it compares against: a caller that passes none has turned
+/// the check off, and that is the one way past this door that would not
+/// show as a failure anywhere.
 fn kef_minted<T: Decide>(
     body: &mut Body<T>,
     dying: HalfEdgeKey,
     anchors: &[FaceKey],
     site: &'static str,
 ) -> Result<(), BlendError> {
+    if anchors.is_empty() {
+        return Err(not_intact(
+            EntityId::HalfEdge(dying),
+            "a carve step reached the `kef` door naming no source face of its own; the \
+             door's content is the set it refuses",
+        ));
+    }
     let f = face_of_half(body, dying).ok_or_else(|| {
         not_intact(
             EntityId::HalfEdge(dying),
