@@ -3044,3 +3044,67 @@ moving it means *holding* the notices rather than rendering them once,
 so it is the sweep's work. And the sweep item's hit list **never names
 `unindexed_refusal`**, so its census was one short at its own merge
 base. Noted on that item by the lane.
+
+## #1953: the hoist landed, and it found the gate could not pass a clean tree (2026-09-05)
+
+**Green** on `4dfad829` — 37 jobs, twelve `test (…)`, five
+`k-lint (gate, …)`. Under style review.
+
+Two values: **`pick::IndexInputs<'a>`** (generation, doc, evaluation,
+tol — exactly what `sync` used to destructure by hand off a
+`&DocSession`) and **`parts::PartCensus`** (dir, offered). The property
+the call site's destructuring spelled out — *the four are read together
+because they are set together* — is now the value's own. Both
+`VOCAB_EXCEPTIONS` entries retired; the gate reports **0 recorded
+exceptions, 31 vocabularies naming none of 2 driver types**.
+
+**No site was awful to hoist** — every read was four fields or fewer,
+all already behind accessors. The lane says if one had been, Ev's
+asymmetry is what it would have weighed. Nothing came close, so the
+ruling cost nothing it did not have to.
+
+### The find: a gate that could not pass a clean tree
+
+**Emptying the exception list turned the gate red with exit 1 and no
+diagnosis.** With zero hits the union pipeline's `grep -v` matched
+nothing, exited 1, and `set -euo pipefail` killed the assignment.
+
+The failure mode is the worst available: **on CI it is
+indistinguishable from a real finding**. And it survived because the
+clean fixture *plants the exempted files*, so no run in the gate's life
+had ever seen a zero-hit tree — the gate was only ever exercised in the
+state its own exemptions created.
+
+That is the same shape this program keeps meeting one level up: a
+guard whose passing case was never run. VIEW built this gate two days
+ago at #1848 and it took the first unit to actually empty the list to
+find it.
+
+### And the self-test stops testing when the list empties
+
+Filed by the lane: four of the five exception arms aim at
+`VOCAB_EXCEPTIONS[0]`, a **live** entry, so they go dormant the moment
+the list is empty. Guarded off with the gap stated in the self-test's
+own printed summary rather than silently skipped, which is the right
+interim — and every driver-name arm is now *stronger*, since it asserts
+a vocabulary naming a driver **with no exemption in force**. The fix is
+a fixture the self-test plants and exempts itself; filed, not taken, in
+a PR whose subject it was not.
+
+### A claim of mine, false again
+
+*"Nothing outside `crates/viewer/src` depends on those signatures."*
+**False** — `crates/viewer/tests/` depends on them at **27 sites** (22
+in `frame_policy.rs`, 5 in `instance_authoring.rs`). Inside VIEW's
+territory and mechanical, but the inventory was not empty, and I
+asserted it was. Fifteenth correction.
+
+### D103, restated rather than withdrawn
+
+The entries retired **in the same PR as the seam they described**,
+mechanically, because a site fixed without lowering the count reds.
+That is the property a file-granular entry does not have — so the
+retirement is **more** evidence for the open ruling, not the end of it.
+Written at the deletion site beside `interval-square-allowlist.sh`'s
+equivalent argument, which is where a reader of the deletion will meet
+it.
