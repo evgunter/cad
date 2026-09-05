@@ -2228,8 +2228,11 @@ pub fn cursor_projection(
 /// (landed generation, δ)**, success or failure. A failure is kept and
 /// readable ([`PickCache::error`]) rather than retried into a stall.
 /// [`PickCache::attempted`] is written when the attempt is SUBMITTED
-/// and never cleared, so the policy costs the same one comparison
-/// whether the answer is in this frame or several seconds away.
+/// rather than when it is answered, so the policy costs the same one
+/// comparison whether the answer is in this frame or several seconds
+/// away. It is cleared in exactly one place, and never as part of the
+/// retry rule: [`PickCache::forget`] drops it when the picture it
+/// names stops existing at all.
 ///
 /// # Current or absent, never behind
 ///
@@ -2380,6 +2383,17 @@ impl PickCache {
         self.index = None;
         // The refusal on the cache is a statement about the attempt
         // that produced it, and this is a different attempt.
+        //
+        // **No row reds if this line goes**, and the reason is stated
+        // rather than left to be rediscovered: what it buys is
+        // narrower than the two lines above it. A refusal is only ever
+        // read alongside the `Held` step that keeps it, and that step
+        // is unreachable for a key still being built — so a stale
+        // refusal surviving this window is readable through
+        // [`PickCache::error`] and shown by nothing. It is cleared
+        // because a cache whose error outlives its subject is a
+        // question a later reader would have to answer, not because a
+        // caller can tell.
         self.error = None;
         self.seam.submit(IndexRequest {
             generation,
@@ -2540,7 +2554,15 @@ pub fn unindexed<'a>(
 ) -> Option<NotIndexed> {
     actions
         .into_iter()
-        .any(|action| matches!(action, PickAction::Select(_)))
+        .any(|action| match action {
+            // An ACT: the user asked for something and did not get it.
+            PickAction::Select(_) => true,
+            // Observations. Exhaustive on purpose, the way
+            // `ToolKind::pick_kinds` is: a fifth action added to the
+            // stream must be classified here rather than falling into
+            // "not news" because a wildcard put it there.
+            PickAction::Hover(_) | PickAction::ClearHover => false,
+        })
         .then_some(if indexing {
             NotIndexed::Building
         } else {

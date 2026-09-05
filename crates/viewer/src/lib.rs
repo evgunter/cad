@@ -133,7 +133,7 @@ pub use display::{
     DisplayFault, DisplayState, DisplayView, PruneReport, Withdrawn, free_move_check, mates_naming,
 };
 #[cfg(not(target_family = "wasm"))]
-pub use evalseam::{SpawnError, ThreadEvaluator, ThreadIndexer};
+pub use evalseam::{SpawnError, ThreadEvaluator, ThreadIndexer, Worker};
 pub use history::{History, HistoryId};
 pub use input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
 pub use matetool::{

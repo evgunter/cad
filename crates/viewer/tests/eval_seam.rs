@@ -465,15 +465,19 @@ fn the_index_seam_answers_with_the_key_it_was_asked_with() {
     assert!(seam.poll().is_none(), "and there is nothing else to take");
 }
 
-/// **Restart without cancel, and the wasted build is real.** A submit
-/// while a build is in flight does not stop it; the seam lets it
-/// finish and drops its answer, so two submits produce exactly one
-/// result and it is the newer one. This is the promise the evaluation
-/// seam above makes STRONGER: there, the superseded run is stopped at
-/// its next node.
+/// **Two submits, one answer, and it is the newer one.**
+///
+/// Named for what it measures. The row does NOT measure that the
+/// superseded build ran to completion — a seam that cancelled the
+/// first build would satisfy every assertion here identically — and
+/// nothing needs to: "restart without cancel" is structural rather
+/// than behavioural, because [`IndexService`] offers no cancel door
+/// for anything to call. What is left to check is that the caller
+/// sees one answer for its latest ask, which is the part a queue or a
+/// lost `waiting` slot would break.
 #[cfg(not(target_family = "wasm"))]
 #[test]
-fn the_threaded_index_seam_restarts_without_canceling_and_answers_once() {
+fn the_threaded_index_seam_answers_only_the_newest_of_two_submits() {
     let tol = Tol::witness();
     let (doc, _profile, _extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
@@ -535,6 +539,22 @@ fn the_threaded_index_seam_keeps_an_answer_a_waiting_request_asks_for() {
         value: SlotValue::Continuous(0.0),
     });
     broken.pump();
+    // **The premise, asserted where it is used.** The discrimination
+    // below is `Ok` against `Err`, so a broken document that started
+    // indexing cleanly would leave the row passing in both directions
+    // instead of going red. It is checked here rather than inherited
+    // from a row in another file.
+    let mut probe = InlineIndexer::new();
+    probe.submit(index_request(&broken, generation));
+    assert!(
+        probe
+            .poll()
+            .expect("the inline seam answers inside poll")
+            .index
+            .is_err(),
+        "a zero-distance extrude must refuse to index, or this row \
+         measures nothing",
+    );
 
     let mut seam = viewer::evalseam::ThreadIndexer::spawn().expect("the worker starts");
     seam.submit(index_request(&session, generation));

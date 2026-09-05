@@ -1,7 +1,9 @@
 //! The two seams the picture is built across — where a document
 //! becomes a result DAG, and where that DAG becomes the pick index the
-//! viewport draws and picks against. The one place in this crate that
-//! may know about threads.
+//! viewport draws and picks against. **The one place in this crate
+//! that OWNS a thread**: `app` spawns both workers because it decides
+//! which implementation this build runs, and every join handle,
+//! channel and hand-off between them is here.
 //!
 //! # Why a seam at all
 //!
@@ -10,7 +12,8 @@
 //! GUI plan carries that as a standing constraint for the web lane:
 //! natively a background thread, on wasm a Worker or an inline slice,
 //! with no source change above this boundary. So the vocabulary here
-//! is submit / poll / cancel over a [`Generation`], and
+//! is submit / poll over a [`Generation`] — plus cancel, for the one
+//! of the two seams whose work can be stopped — and
 //! [`InlineEvaluator`] — which runs the whole evaluation inside
 //! `poll` — satisfies it exactly as well as [`ThreadEvaluator`] does.
 //! Every test in this crate drives the inline one; the application
@@ -484,10 +487,7 @@ const _: fn() = || {
 };
 
 #[cfg(not(target_family = "wasm"))]
-pub use threaded::ThreadIndexer;
-
-#[cfg(not(target_family = "wasm"))]
-pub use threaded::{SpawnError, ThreadEvaluator};
+pub use threaded::{SpawnError, ThreadEvaluator, ThreadIndexer, Worker};
 
 /// The native seam: one worker thread, a request channel, a result
 /// channel.
@@ -523,6 +523,26 @@ mod threaded {
         cancel: CancelToken,
     }
 
+    /// Which of this module's two workers a refusal is about (D4 ¶3:
+    /// a closed enum, because the set is this file's own and a reader
+    /// asking which values occur should be able to see them).
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Worker {
+        /// The evaluation worker ([`ThreadEvaluator`]).
+        Evaluation,
+        /// The index worker ([`ThreadIndexer`]).
+        Index,
+    }
+
+    impl core::fmt::Display for Worker {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            f.write_str(match self {
+                Self::Evaluation => "evaluation",
+                Self::Index => "index",
+            })
+        }
+    }
+
     /// Why a worker could not be started.
     ///
     /// The worker is NAMED, because this crate spawns one per seam and
@@ -532,8 +552,8 @@ mod threaded {
     pub enum SpawnError {
         /// The OS refused the thread.
         Thread {
-            /// Which worker: `"evaluation"` or `"index"`.
-            worker: &'static str,
+            /// Which worker.
+            worker: Worker,
             /// What the OS said.
             error: std::io::Error,
         },
@@ -596,7 +616,7 @@ mod threaded {
                 .name("viewer-eval".to_owned())
                 .spawn(move || work(&requests, &results))
                 .map_err(|error| SpawnError::Thread {
-                    worker: "evaluation",
+                    worker: Worker::Evaluation,
                     error,
                 })?;
             Ok(Self {
@@ -715,6 +735,8 @@ mod threaded {
             }
         }
     }
+    // --- the index seam ------------------------------------------
+
     /// A background-thread index seam.
     ///
     /// [`ThreadEvaluator`]'s shape with the token taken out: at most
@@ -759,7 +781,7 @@ mod threaded {
                 .name("viewer-index".to_owned())
                 .spawn(move || index_work(&requests, &results))
                 .map_err(|error| SpawnError::Thread {
-                    worker: "index",
+                    worker: Worker::Index,
                     error,
                 })?;
             Ok(Self {

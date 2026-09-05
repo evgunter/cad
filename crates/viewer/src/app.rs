@@ -404,10 +404,12 @@ pub enum StartupError {
     /// application was built against a renderer it does not have.
     NoWgpuRenderState,
     /// A seam's worker thread could not be started — the evaluation
-    /// worker or the index one; [`crate::evalseam::SpawnError`] names
-    /// which. Fatal on purpose: a seam with no worker accepts every
-    /// submit and answers none, so the application would open onto a
-    /// permanent "evaluating…" or a permanent "indexing…".
+    /// worker or the index one; [`crate::evalseam::Worker`] names
+    /// which, inside the payload, which is where a set of two belongs
+    /// rather than as two arms here. Fatal on purpose: a seam with no
+    /// worker accepts every submit and answers none, so the
+    /// application would open onto a permanent "evaluating…" or a
+    /// permanent "indexing…".
     ///
     /// Absent on wasm, where the seams are
     /// [`crate::evalseam::InlineEvaluator`] and
@@ -417,7 +419,7 @@ pub enum StartupError {
     /// because a closed enum (D4 ¶3) whose reader must ask which arms
     /// are reachable is no longer telling the truth about its states.
     #[cfg(not(target_family = "wasm"))]
-    Evaluator(crate::evalseam::SpawnError),
+    Worker(crate::evalseam::SpawnError),
 }
 
 impl core::fmt::Display for StartupError {
@@ -443,7 +445,7 @@ impl core::fmt::Display for StartupError {
                  against a renderer it does not have",
             ),
             #[cfg(not(target_family = "wasm"))]
-            Self::Evaluator(error) => write!(f, "{error}"),
+            Self::Worker(error) => write!(f, "{error}"),
         }
     }
 }
@@ -473,14 +475,14 @@ impl core::error::Error for StartupError {}
 ///
 /// # Errors
 ///
-/// [`StartupError::Evaluator`] if the OS refuses the worker thread.
+/// [`StartupError::Worker`] if the OS refuses the worker thread.
 /// The wasm arm is infallible — it spawns nothing — and returns
 /// `Ok` unconditionally.
 fn evaluator() -> Result<Box<dyn crate::evalseam::EvalService>, StartupError> {
     #[cfg(not(target_family = "wasm"))]
     {
         Ok(Box::new(
-            ThreadEvaluator::spawn().map_err(StartupError::Evaluator)?,
+            ThreadEvaluator::spawn().map_err(StartupError::Worker)?,
         ))
     }
     #[cfg(target_family = "wasm")]
@@ -494,7 +496,7 @@ fn evaluator() -> Result<Box<dyn crate::evalseam::EvalService>, StartupError> {
 ///
 /// # Errors
 ///
-/// [`StartupError::Evaluator`] if the OS refuses the thread. A viewer
+/// [`StartupError::Worker`] if the OS refuses the thread. A viewer
 /// whose index seam never started would draw its opening picture and
 /// then refuse every pick on every document forever, which is a
 /// failure to meet at startup rather than to discover by clicking.
@@ -502,7 +504,7 @@ fn indexer() -> Result<Box<dyn crate::evalseam::IndexService>, StartupError> {
     #[cfg(not(target_family = "wasm"))]
     {
         Ok(Box::new(
-            crate::evalseam::ThreadIndexer::spawn().map_err(StartupError::Evaluator)?,
+            crate::evalseam::ThreadIndexer::spawn().map_err(StartupError::Worker)?,
         ))
     }
     #[cfg(target_family = "wasm")]
@@ -1149,10 +1151,12 @@ impl eframe::App for ViewerApp {
                     }
                     Some(frame::Progress::Canceled { indexing }) => {
                         ui.separator();
-                        // The recourse first, and unconditionally: the
-                        // cancel is what the reader has to act on, and
-                        // an index build behind it must not take the
-                        // button away for the seconds it runs.
+                        // The recourse is UNCONDITIONAL: the cancel is
+                        // what the reader has to act on, and an index
+                        // build behind it must not take the button
+                        // away for the seconds it runs. The spinner
+                        // reads left of the label because that is
+                        // where the other two arms put theirs.
                         if indexing {
                             ui.spinner();
                         }
