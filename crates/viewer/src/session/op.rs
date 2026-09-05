@@ -371,8 +371,11 @@ pub enum SessionOp {
     /// **The operand order is data**: `Subtract` keeps `a` and removes
     /// `b`, so the two seats are not interchangeable and the form says
     /// which pick is which. Either seat's non-body pick refuses
-    /// [`Refusal::WrongNodeKind`]; one node in both seats refuses
-    /// [`Refusal::SelfBoolean`].
+    /// [`Refusal::WrongNodeKind`] at this layer; one node in BOTH
+    /// seats is refused by the edit door, as
+    /// `EditError::DuplicateInput` — the pairwise-distinct rule is a
+    /// fact about any node's inputs, not about booleans, so it is
+    /// stated once where every node kind reaches it.
     ///
     /// `declare` is authored `None`: coincidence intent is a
     /// `Node::Declare` input, and authoring one needs the entity picks
@@ -641,10 +644,21 @@ impl SessionOp {
     ///   family, [`SessionOp::SetInstanceHidden`]) and the evaluation
     ///   controls ([`SessionOp::CancelEvaluation`],
     ///   [`SessionOp::Reevaluate`]);
-    /// - [`SessionOp::Save`], which writes the COMMITTED history and
-    ///   so ignores a preview that is not in it. Whether a save under
-    ///   an open drag should be permitted at all is a question this
-    ///   table only records the current answer to.
+    /// - [`SessionOp::Save`], which has TWO effects and this row is
+    ///   about both. It writes the COMMITTED history, so it ignores a
+    ///   preview that is not in it; and on a save-as whose parent
+    ///   directory differs it rebinds the resolver and re-evaluates,
+    ///   which submits the SHOWN document — mid-gesture, the scratch.
+    ///   That second half acts on the preview the first half ignores.
+    ///   What makes it safe is the door it goes through:
+    ///   `DocSession::request_eval` submits a document and writes no
+    ///   history state, so the drag's base and the committed history
+    ///   are both untouched and the picture being dragged is the one
+    ///   the new directory's references resolve for — the directory
+    ///   rule following the file. That is a property of `request_eval`
+    ///   and is asserted where it lives, not here. Whether a save
+    ///   under an open drag should be permitted at all is a question
+    ///   this table only records the current answer to.
     ///
     /// Everything else moves the document, the history or the file the
     /// drag is previewing against, and is refused.

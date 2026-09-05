@@ -711,9 +711,26 @@ fn project_association_is_the_documented_one() {
     assert_eq!(p.x.to_bits(), hand.x.to_bits());
     assert_eq!(p.y.to_bits(), hand.y.to_bits());
     assert_eq!(p.z.to_bits(), hand.z.to_bits());
+    // The rejection is NOT `v - p`: it is the triple product
+    // `(n × v) × n / |n|²`, which names `v` once. What the doc pins is
+    // the association above and the relation below — `project + reject`
+    // reconstructs `v` to within 4 ulps of its largest component, the
+    // one metric that method's doc uses. A bitwise `v - p` check would
+    // pass or fail by which component it happened to read.
     let r = v.reject_from(n);
-    let hand_r = v - p;
+    let hand_r = n.cross(v).cross(n) / n.norm_squared();
     assert_eq!(r.x.to_bits(), hand_r.x.to_bits());
+    assert_eq!(r.y.to_bits(), hand_r.y.to_bits());
+    assert_eq!(r.z.to_bits(), hand_r.z.to_bits());
+    let sum = p + r;
+    let biggest = v.x.abs().max(v.y.abs()).max(v.z.abs());
+    let ulp = f64::from_bits(biggest.to_bits() + 1) - biggest;
+    for (a, b) in [(sum.x, v.x), (sum.y, v.y), (sum.z, v.z)] {
+        assert!(
+            (a - b).abs() <= 4.0 * ulp,
+            "project + reject is more than 4 ulps of the largest component from v: {a} vs {b}"
+        );
+    }
 }
 
 /// Revolve-style consumer: sweep a profile point about an off-origin

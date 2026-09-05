@@ -10,7 +10,7 @@ use std::sync::Arc;
 use geom_core::k_stats::decide;
 use geom_core::{Affine3, Band, Decide, Margin, Mat3, Point2, Point3, Sign, Tol, Vec2, Vec3};
 use sweep::blend::BlendKind;
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use sweep::{Revolution, RevolveAxis};
 use topo::query::is_finite_length;
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::transform::transform_rigid;
@@ -156,9 +156,9 @@ where
             wire_profile(program, results, profile_pre, env.lane, tol)?,
             names::empty(),
         )),
-        Node::Extrude { profile, .. } => wire_extrude(id, *profile, results, vals, tol),
+        Node::Extrude { profile, .. } => wire_extrude(id, *profile, doc, results, vals, env, tol),
         Node::Revolve { profile, axis, .. } => {
-            wire_revolve(id, *profile, *axis, doc, results, vals, tol)
+            wire_revolve(id, *profile, *axis, doc, results, vals, env, tol)
         }
         Node::Loft { profiles, .. } => wire_loft(id, profiles, doc, results, vals, env.lane, tol),
         Node::Sweep { profile, path, .. } => {
@@ -1160,11 +1160,48 @@ fn anchored(
     }
 }
 
-fn wire_extrude<T: Decide>(
+/// **The profile-operand verbs' ONE lowering**, driven by the verb's
+/// correspondence ([`crate::verbs::sweep`]) rather than written twice.
+///
+/// It is a THIRD lowering beside `wire_blend` and `wire_boolean`, and
+/// stating that plainly is the honest reading: the three share a
+/// SHAPE — build the verb, run it through its own door, read the birth
+/// record, emit names, stamp provenance, attach the declared flow — and
+/// share no code, because the operand differs at every step (a body
+/// and its name table, two bodies and two tables, a validated profile
+/// and its naming anchor). What this function removes is the SECOND
+/// copy of that shape within the sweep family, which is what a verb's
+/// migration is measured on.
+///
+/// The verb ARGUMENTS come in already resolved. That is the division
+/// the boolean drew for `resolve_declarations` and the reason it holds
+/// here too: an extrude's distance is a slot read, but a revolve's axis
+/// is a node whose value must be an in-plane axis, written against the
+/// same frame the profile is drawn on, with an angle classified full or
+/// partial at a funnel site whose escalation is a document-layer
+/// refusal. None of that is a verb parameter; all of it is what the
+/// document MEANS. So each node's arm resolves its own semantics and
+/// this body takes it from the built verb onward.
+///
+/// # What it writes
+///
+/// The body (moved out of the record), the name table (emitted from the
+/// record, then program-anchor rewritten — canonical → program indices,
+/// LIB-SWITCH §6), the provenance stamp on everything the sweep minted,
+/// and the per-edge parameter sources the verb's flow declares.
+// The 8th argument is the verb's correspondence — the parameter that
+// REMOVES duplication rather than adding a duty, exactly as
+// `wire_blend`'s is; the 7th is the evaluation environment, read for
+// the descent chain the attached tokens' scope is.
+#[allow(clippy::too_many_arguments)]
+fn wire_swept<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane, A>(
+    verb: &crate::verbs::sweep::ProfileVerb<T, A>,
+    args: A,
     id: RecipeNodeId,
     profile: RecipeNodeId,
+    doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
-    vals: &SlotValues<T>,
+    env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
     let v = value_of(results, profile)?;
@@ -1175,19 +1212,64 @@ fn wire_extrude<T: Decide>(
             found: v.payload.kind_name(),
         });
     };
+    let built = (verb.build)(args);
+    // The verb's own declaration of where its parameters land, read off
+    // the value the correspondence just built (VERB-SEAT-DESIGN V1).
+    let flow = built.param_flow();
+    let record = built
+        .run_profile(&vp.validated, tol)
+        .map_err(verb_refused)?;
+    // Eager N4 emission from the emitter's own maps, inside the reader,
+    // BEFORE the structural handoff is taken apart.
+    let out = (verb.read)(id, record, verb.foreign_record)?;
+    let table = anchored(out.table, &vp.naming)?;
+    let mut body = out.body;
+    // The sweep's own surfaces, curves and points are minted HERE
+    // (D1/N6).
+    stamp_minted(&mut body, id);
+    // **Attach-at-mint for the lowered parameter-identity channel**
+    // (VERB-SEAT-DESIGN P2), through the sweeps' per-EDGE flow source.
+    // The token is not this node's: a swept wall's radius is the
+    // PROFILE's, so what lowers is the operand profile's own carrier
+    // radius, under this evaluation's scope, and the walls the record
+    // exported are what it lands on. A profile with no carrier radius
+    // (every polygon) yields no token and attaches nothing, which is
+    // the declaration being obeyed rather than a case skipped.
+    let scope = crate::param_source::ParamScope::of(doc.id(), env.parts.chain());
+    let tokens = crate::param_source::profile_radius_tokens(doc, profile, &vp.naming, scope);
+    crate::param_source::attach_swept(
+        &mut body,
+        flow,
+        crate::verbs::sweep::PROFILE_RADIUS,
+        &tokens,
+        &out.walls,
+    )
+    .map_err(NodeErrorKind::ParamSourceAttach)?;
+    Ok(OpOut::plain(ValuePayload::Body(Arc::new(body)), table))
+}
+
+/// **Extrudes a profile along its sketch normal** — the distance slot
+/// read, and the generic lowering from there.
+fn wire_extrude<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
+    id: RecipeNodeId,
+    profile: RecipeNodeId,
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
+    vals: &SlotValues<T>,
+    env: &OpEnv<'_, T>,
+    tol: Tol,
+) -> OpResult<T> {
     let distance = need_scalar(vals, SlotId::Distance)?;
-    let mut built = extrude(&vp.validated, Extrusion::Distance(distance), tol)
-        .map_err(NodeErrorKind::Extrude)?;
-    // Eager N4 emission from the emitter's own maps, BEFORE the
-    // structural handoff is dropped — then the program-anchor rewrite
-    // (canonical → program indices; LIB-SWITCH §6).
-    let table = names::name_extrude(id, &built).map_err(NodeErrorKind::Naming)?;
-    let table = anchored(table, &vp.naming)?;
-    stamp_minted(&mut built.body, id);
-    Ok(OpOut::plain(
-        ValuePayload::Body(Arc::new(built.body)),
-        table,
-    ))
+    wire_swept(
+        &crate::verbs::sweep::extrude(),
+        distance,
+        id,
+        profile,
+        doc,
+        results,
+        env,
+        tol,
+    )
 }
 
 /// The frame a node is written against, read from the RECIPE.
@@ -1208,23 +1290,38 @@ fn written_against(
     }
 }
 
-fn wire_revolve<T: Decide + geom_brep::PcurveFittedLane>(
+/// **Revolves a profile about an axis written in its own sketch
+/// plane** — the document semantics (the axis operand, the same-frame
+/// rule, the full-vs-partial classification), and the generic lowering
+/// from there.
+// The 8th argument is the evaluation environment, read for the descent
+// chain the attached tokens' scope is; the 7th is the document, read
+// for the frame rule and the operand profile's own expressions.
+#[allow(clippy::too_many_arguments)]
+fn wire_revolve<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
     axis: RecipeNodeId,
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
+    env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
     let pv = value_of(results, profile)?;
-    let ValuePayload::Profile(vp) = &pv.payload else {
+    // `wire_swept` re-checks this and refuses identically, so the only
+    // thing this pre-check decides is ORDER: a node whose profile input
+    // is not a profile AND whose axis is not an in-plane axis must
+    // refuse on the profile, because that is the operand the reader
+    // named first and re-authoring a wrong axis for a document whose
+    // profile was never one is a wasted edit.
+    if !matches!(pv.payload, ValuePayload::Profile(_)) {
         return Err(NodeErrorKind::WrongOperand {
             input: profile,
             expected: "profile",
             found: pv.payload.kind_name(),
         });
-    };
+    }
     let av = value_of(results, axis)?;
     let ValuePayload::Datum(DatumValue::AxisInPlane {
         plane_origin,
@@ -1296,15 +1393,16 @@ fn wire_revolve<T: Decide + geom_brep::PcurveFittedLane>(
             });
         }
     };
-    let mut built =
-        revolve(&vp.validated, axis2, revolution, tol).map_err(NodeErrorKind::Revolve)?;
-    let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
-    let table = anchored(table, &vp.naming)?;
-    stamp_minted(&mut built.body, id);
-    Ok(OpOut::plain(
-        ValuePayload::Body(Arc::new(built.body)),
-        table,
-    ))
+    wire_swept(
+        &crate::verbs::sweep::revolve(),
+        (axis2, revolution),
+        id,
+        profile,
+        doc,
+        results,
+        env,
+        tol,
+    )
 }
 
 /// The spine frame and window a tube door takes, resolved from the
@@ -1487,6 +1585,8 @@ fn verb_refused(refusal: verbs::VerbError) -> NodeErrorKind {
             NodeErrorKind::Blend { verb, error }
         }
         verbs::VerbError::Boolean(error) => NodeErrorKind::Boolean(error),
+        verbs::VerbError::Extrude(error) => NodeErrorKind::Extrude(error),
+        verbs::VerbError::Revolve(error) => NodeErrorKind::Revolve(error),
         verbs::VerbError::Arity { verb, given } => NodeErrorKind::VerbArity { verb, given },
     }
 }
@@ -1585,7 +1685,9 @@ fn wire_blend<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     // and must be routed here deliberately, never silently refused.
     let naming = match out.record {
         verbs::VerbRecord::Blend(naming) => naming,
-        verbs::VerbRecord::Boolean { .. } => {
+        verbs::VerbRecord::Boolean { .. }
+        | verbs::VerbRecord::Extrude(_)
+        | verbs::VerbRecord::Revolve(_) => {
             return Err(NodeErrorKind::Naming(names::NamingError::Emission {
                 what: verb.foreign_record,
             }));
@@ -2332,7 +2434,9 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
                     contacts,
                     naming,
                 } => (kind, contacts, naming),
-                verbs::VerbRecord::Blend(_) => {
+                verbs::VerbRecord::Blend(_)
+                | verbs::VerbRecord::Extrude(_)
+                | verbs::VerbRecord::Revolve(_) => {
                     return Err(NodeErrorKind::Naming(names::NamingError::Emission {
                         what: verb.foreign_record,
                     }));

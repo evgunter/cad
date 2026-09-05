@@ -2,8 +2,9 @@
 id: four-badges-five-spellings
 kind: issue
 title: The toolbar's badge family is one concept in prose and five spellings in code
-status: open
+status: closed
 opened: 2026-09-04
+closed: 2026-09-05
 refs: [camera-fold-clears-status-line]
 ---
 
@@ -142,3 +143,19 @@ value states.
 The 2026-09-05 section above is part of the job: the family has two
 implementations *of the notice itself* as well as five spellings of the
 badge, and four members of the function shape rather than two.
+
+## Closed by `view/news-and-badges` (PR #1933)
+
+`frame::Badge` — label, `Tone`, detail, `Affordance` — with
+`at_rest_badge`, `checks_badge`, `product_badge` and `delta_badge` as
+the four members and `app::draw_badge` as the one draw. Every member's
+`None` is a row, including the `!findings.is_empty()` rule that lived
+in a `ui` closure. Both ratified constraints survive: the checks badge
+is `Affordance::Opens` with the argument on the variant, and
+`Tone::{Advisory, Actionable}` states the actionable-or-not split.
+`Withdrawal` replaces the two free notice functions with one typed
+value carrying `Display`.
+
+**Residue with a file**: `tone-is-a-value-in-frame-and-a-comment-in-two-panes`
+— the split is a value at the toolbar and still hand-picked at
+`pane/features.rs` and `pane/create.rs`.

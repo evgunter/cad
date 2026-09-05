@@ -10,12 +10,13 @@
 //! What was scattered is the CORRESPONDENCE between the two
 //! vocabularies, and this module is where it now lives, one declaration
 //! per verb: which [`SlotId`] feeds which verb parameter, which payload
-//! selection feeds the key list, which emitter mints the names. The
+//! selection feeds the key list, which emitter mints the names, which
+//! arm of the record channel a family's result arrives in. The
 //! lowering in [`mod@crate::eval`] is generic over it — one body of
-//! code per declared operand arity (`wire_blend` for the one-operand
-//! verbs, `wire_boolean`'s two-operand shape for the pair family),
-//! each driven by the declarations here rather than matching a verb
-//! vocabulary of its own.
+//! code per declared operand shape (`wire_blend` for the one-body
+//! verbs, `wire_boolean` for the pair family, `wire_swept` for the
+//! profile family), each driven by the declarations here rather than
+//! matching a verb vocabulary of its own.
 //!
 //! [`Expr`]: crate::expr::Expr
 //! [`StableName`]: crate::names::StableName
@@ -23,3 +24,4 @@
 
 pub(crate) mod blend;
 pub(crate) mod boolean;
+pub(crate) mod sweep;
