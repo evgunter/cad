@@ -97,3 +97,13 @@ merged with the item converted to a unit and parked on CERT-N3 (#1879);
 the spec is written at that merge against the post-N3 `spline/` layer.
 The three E/S specs queued for build slots: `PROPS-ONB-MEASURE-SPEC`,
 `PROPS-LILY-VEC3-SPEC`; verdict-shapes is dispatched.
+
+**Verdict shapes delivered (2026-09-05)** as
+[#1920](https://github.com/evgunter/cad/pull/1920), head `0dcec746`,
+green on the full matrix (run 33943451208). No golden key moved (no
+fixture carries an absent row); the two pins passed against the
+unchanged tree first; `certifying` stays in `drive.rs` as the gate's
+policy. Style review dispatched on the frozen head with seven claims
+(C1 the absent-row behaviour change hidden by "no key moved"; C2/C3 the
+pins' non-vacuity and the spec's own pin (b) misstatement; C4 the
+re-export lanes; C5 the split inherent impl; C6/C7 docs and tracker).
