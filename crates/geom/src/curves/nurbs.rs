@@ -1324,7 +1324,8 @@ macro_rules! nurbs_curve {
 
             /// The per-span scan of [`Self::rational_speed_lower_bound`],
             /// run on the refined curve: the ascending `Real::min` fold
-            /// of [`Self::rational_span_bound`] over nonempty spans.
+            /// of each span window's own `rational_span_bound` over the
+            /// nonempty spans.
             fn rational_span_scan(&self) -> T {
                 let poison = T::from_f64(f64::NAN);
                 let p = self.knots.degree();
