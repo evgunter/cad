@@ -314,3 +314,27 @@ counters record post-resume segments only and the row will say so.
 The orchestrator session itself was resumed cold from its transcript
 by the same limit; every worktree and target survived. Lily's style
 review still waits for a slot behind the two reviewers.
+
+**Span dual adjudicated (2026-09-05).** R1 NOT-MERGEABLE-AS-IS 4/7/4
+(idiom 3 / tests 3 / docs 2); R2 A-W-F 1/2/8 (4 / 4 / 4). Held under
+both: the borrow, the surface half, bit identity (R2 re-derived it at
+the merge base over 11 151 rows), the `compile_fail` codes, `pncad-py`
+compiles. **The curve half is not closed, and the spec's own curve-door
+paragraph is why**: the retired `admits` at the curve doors was
+load-bearing — a span from a longer vector now PANICS where it poisoned
+(R1's M1, executed; R2's probe used equal control counts and saw only
+finite wrong answers — a MINOR). Converged: the `quad.rs` `(kv, span)`
+door left standing while the body said it was converted (both MAJOR —
+bilateral). Unilateral: R1's M1 (the panic, executed) — **one v6 tally
+candidate, R1/OPUS, flagged for the blinded adjudication**; R1's M2/M3
+(the dead private guard; the surface argument indicting the curve half)
+are reading/design, not executed. **Ruling**: close the curve half the
+way the surface half was closed — a curve-held window with the doors on
+it — with the poison-guard restoration as the stated fallback and a
+filed follow-up if the fence cannot carry it. Fix pass
+implementer-inherited, items A–K, all taken. The M6 sense-gate item
+re-read: a tracker, not a unit — residual 4 is CURVED's on TOPO's
+territory, residuals 1–2's single-face halves closed by the wedge arm,
+the remainder design-shaped; citations repaired. Next spec written:
+`docs/PROPS-KSTATS-SPEC.md` (the verdict bracket with a stack + the
+escalation channel; L; block slot 2) — dispatches when a slot frees.
