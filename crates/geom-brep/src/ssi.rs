@@ -1064,11 +1064,22 @@ fn pcurve_windows(p: &NurbsCurve2<f64>, pad_u: f64, pad_v: f64) -> Vec<UvRect> {
     let coords = p.ring_coords();
     let kv = p.knots();
     let mut out = Vec::new();
+    // One pair per coordinate channel, minted once outside the span
+    // walk: the coordinates and the knots come from the same curve, so
+    // the count relation is `NurbsCurve2::new`'s fact. A pair that
+    // failed to mint banks no window at all — the same direction as a
+    // window this pass cannot bound (below).
+    let (Some(cu), Some(cv)) = (kv.coeffs(&coords[0]), kv.coeffs(&coords[1])) else {
+        return out;
+    };
     for index in kv.first_span()..=kv.last_span() {
-        // Emptiness check and span validation are one step.
-        let Some(span) = kv.span(index) else { continue };
-        let hu = geom_core::spline::hull::span_hull(&coords[0], span);
-        let hv = geom_core::spline::hull::span_hull(&coords[1], span);
+        // Emptiness check and window construction are one step; both
+        // channels share the vector, so both refuse the same indices.
+        let (Some(wu), Some(wv)) = (cu.span(index), cv.span(index)) else {
+            continue;
+        };
+        let hu = wu.hull();
+        let hv = wv.hull();
         if hu.is_poison() || hv.is_poison() {
             // A window this pass cannot bound is not banked. Dropping
             // it only ever SHRINKS the accounted set, so the accounting

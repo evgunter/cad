@@ -956,6 +956,19 @@ residue item `work/props/coefficients-carry-their-knot-vector.md`.
 
 - `PROPS-SPAN-SPEC.md` — PROPS span, `Span<'a>` carries its `KnotVector` (#1952)
 
+## Per-merge deletion — PROPS coeffs' spec (2026-09-05)
+
+Recoverable at `git show ea11576b4342fe00fc00639950119df5eb4e95a7:docs/PROPS-COEFFS-SPEC.md`
+(the merge base the unit was cut against; the spec is on every `main`
+commit from #1982's merge to the unit's). Met as written except the one
+decision it left open, taken and argued at the module doc: weight
+positivity stays a per-window check at the rational doors rather than
+a mint-time refusal. The rule the unit lands is `crates/geom-core/README.md`
+SPLINE-DESIGN S1 (coefficients against knots); the unit's record is PR
+1985's body and `work/props/coefficients-carry-their-knot-vector.md`.
+
+- `PROPS-COEFFS-SPEC.md` — PROPS coeffs, coefficients carry their knot vector (#1985)
+
 ## Per-merge deletion — PROPS vec3-doors' spec (2026-09-05)
 
 Recoverable at

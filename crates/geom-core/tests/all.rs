@@ -65,6 +65,10 @@ mod cert3r1_poison_detail;
 mod cert3r1_probes;
 #[path = "certified_door.rs"]
 mod certified_door;
+#[path = "coeffs_bit_identity.rs"]
+mod coeffs_bit_identity;
+#[path = "coeffs_bit_identity_interval.rs"]
+mod coeffs_bit_identity_interval;
 #[path = "d8_knot_queries_adversarial.rs"]
 mod d8_knot_queries_adversarial;
 #[path = "decoration_seam.rs"]

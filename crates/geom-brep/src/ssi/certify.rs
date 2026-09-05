@@ -109,7 +109,6 @@
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface, tensor};
-use geom_core::spline::hull;
 use geom_core::{
     Band, Bounds, CertifiedEnclosure, Decide, Margin, Point3, Real, RingInterval, Sign, Vec3,
 };
@@ -545,13 +544,29 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
     let coords = fine.ring_coords();
     let kv = fine.knots();
     let mut out = Vec::new();
+    // One pair per coordinate channel, minted once outside the span
+    // walk. The coordinates and the knots are both read from `fine` —
+    // the SAME refined curve — so the count relation is
+    // `NurbsCurve3::new`'s fact, and a pair that failed to mint is an
+    // empty chain, which limb 3 reads as a definite refusal.
+    let (Some(cx), Some(cy), Some(cz)) = (
+        kv.coeffs(&coords[0]),
+        kv.coeffs(&coords[1]),
+        kv.coeffs(&coords[2]),
+    ) else {
+        return out;
+    };
     for index in kv.first_span()..=kv.last_span() {
-        // Emptiness check and span validation are one step.
-        let Some(span) = kv.span(index) else { continue };
+        // Emptiness check and window construction are one step; the
+        // three channels share the vector, so they refuse alike.
+        let (Some(wx), Some(wy), Some(wz)) = (cx.span(index), cy.span(index), cz.span(index))
+        else {
+            continue;
+        };
         let (a, b) = (kv.knots()[index], kv.knots()[index + 1]);
-        let hx = hull::span_hull(&coords[0], span);
-        let hy = hull::span_hull(&coords[1], span);
-        let hz = hull::span_hull(&coords[2], span);
+        let hx = wx.hull();
+        let hy = wy.hull();
+        let hz = wz.hull();
         let bx = Box3 {
             x: hx,
             y: hy,
@@ -633,15 +648,24 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
     let kv = pcurve.knots();
     let boxes = NurbsBoxes::new(surface);
     let coords = pcurve.ring_coords();
+    // One pair per chart channel, minted once: the coordinates and the
+    // knots are both the pcurve's, so the count is `NurbsCurve2::new`'s
+    // fact; a pair that failed to mint probes no span, and an empty
+    // probe is the structural `None` below.
+    let (Some(cu), Some(cv)) = (kv.coeffs(&coords[0]), kv.coeffs(&coords[1])) else {
+        return None;
+    };
     let mut worst = f64::INFINITY;
     let mut count = 0u32;
     for index in kv.first_span()..=kv.last_span() {
-        // Emptiness check and span validation are one step.
-        let Some(span) = kv.span(index) else { continue };
+        // Emptiness check and window construction are one step.
+        let (Some(wu), Some(wv)) = (cu.span(index), cv.span(index)) else {
+            continue;
+        };
         let (a, b) = (kv.knots()[index], kv.knots()[index + 1]);
         let m = 0.5 * (a + b);
-        let hu = hull::span_hull(&coords[0], span);
-        let hv = hull::span_hull(&coords[1], span);
+        let hu = wu.hull();
+        let hv = wv.hull();
         let (u0, u1) = (hu.lo() - radius_uv.0, hu.hi() + radius_uv.0);
         let (v0, v1) = (hv.lo() - radius_uv.1, hv.hi() + radius_uv.1);
         let du = boxes.deriv_box(u0, u1, v0, v1, true);

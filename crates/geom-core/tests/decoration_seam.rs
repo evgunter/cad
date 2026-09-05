@@ -53,7 +53,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::predicate::{Band, Decide, Indeterminate, MarginDiag};
-use geom_core::spline::{KnotVector, hull};
+use geom_core::spline::KnotVector;
 use geom_core::{Bounds, CertifiedEnclosure, Interval, Real, RingInterval};
 
 /// A domain violation with finite endpoints: `sqrt([−1, 4])` clamps to
@@ -167,7 +167,9 @@ fn the_certified_door_refuses_a_violated_decoration() {
 /// `RingInterval` through a public door.
 fn hull_bound(c: Interval) -> RingInterval {
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    hull::domain_hull(&kv, &[c, Interval::from_f64(1.0)])
+    kv.coeffs(&[c, Interval::from_f64(1.0)])
+        .unwrap()
+        .domain_hull()
 }
 
 /// The seam, swept across the domain boundary rather than probed at one

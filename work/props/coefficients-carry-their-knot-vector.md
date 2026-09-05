@@ -1,9 +1,13 @@
 ---
 id: coefficients-carry-their-knot-vector
-kind: issue
+kind: unit
 title: The coefficient↔knot-vector pairing is length-only
-status: open
+status: closed
 opened: 2026-09-05
+closed: 2026-09-05
+branch: props/coeffs-window
+refs: [span-carries-its-knot-vector]
+pr: 1985
 ---
 
 
@@ -103,3 +107,63 @@ no owner to borrow. Candidates when this is scheduled:
 
 Not urgent: no live caller mis-pairs, and the failure is bounded to a
 wrong number rather than a panic.
+
+## Closed
+
+**Ruled (a), in the structural form the curve half took; landed as
+ruled.** `crates/geom-core/src/spline/hull.rs` has no free function
+taking a coefficient array. `SplineCoeffs<'a, E>` borrows the
+`KnotVector` its array was fitted against (and optionally the weights),
+minted only by `KnotVector::coeffs` and `KnotVector::coeffs_rational`,
+where the count relation is checked once and a wrong length is `None`.
+`SplineCoeffs::{span, span_at}` mint a `CoeffWindow<'a, E>` — the pair
+beside a `Span<'a>` of ITS vector — and the doors are methods reading
+through the borrow: `CoeffWindow::{hull, hull_rational, derivative_hull,
+sup_norm_bound}` per span, `SplineCoeffs::{domain_hull,
+domain_hull_rational, derivative_coeffs, derivative_domain_hull,
+sup_norm_bound, sup_norm_bound_rational}` over the domain.
+`span_indices` and `span_weights_positive` are gone with the check they
+made; weight positivity stays a per-window check at the rational doors
+(a value precondition on exactly the weights a window reads, where the
+count is a pairing fact), argued at the module doc.
+
+**The three shapes** (a), (b), (c) are `compile_fail` doctests on
+`SplineCoeffs` with legal twins (`E0308`, `E0451`, `E0061` at 1.97.0,
+read off `rustc`; stable rustdoc does not verify the codes). The four
+rows this item named as the residue's pins went red at the type level
+and are replaced: the mint's count refusal keeps one behavioural row
+and every window a pair mints answers what the domain door hulls over
+its window (`geom-core/tests/span_hull_window.rs`); a curve's
+`ring_coords()` channels mint against its own vector
+(`geom/tests/curves/span_window_pairing.rs`); the constructor row stays.
+
+**Bit identity is the receipt:** `geom-core/tests/coeffs_bit_identity.rs`
+— 960 default-lane rows (`f64` and `RingInterval` brackets) — and its
+whole-file-gated twin `coeffs_bit_identity_interval.rs` — 480
+`interval`-lane rows; six vectors at degrees 1–4 with interior
+multiplicities up to the degree, every span, every door — captured
+through the retired spellings at the merge base and unchanged at the
+head; `geom`'s 1001- and 11,151-row span digests unchanged too.
+
+**Consumers, all on the pair:** `ssi.rs` `pcurve_windows` and
+`ssi/certify.rs` (one pair per coordinate channel outside the span
+walk; coordinates and knots from the same curve — `refined(carrier)`
+included), `props/quad.rs` (`bspline_range_hull` takes the pair; the
+ladder and the `DerivTake` closures mint), `spline/net.rs`
+(`diff_{u,v}_knots`), `curves/nurbs.rs` (the weights' derivative),
+`mesh/chords.rs`. Every mint refusal these consumers carry is dead by
+construction and answers what the retired door's poison answered.
+
+**Sweep residue, reported in PR for the orchestrator to place:** the
+same shape survives outside `hull` — `quad.rs`'s
+`bspline_eval_ring(kv, coeffs, t)` / `bspline_eval_ring_in_span(coeffs,
+span, t)` evaluators, `compose.rs`'s `to_bezier_spans(kv, coeffs)`, the
+tensor nets beside two vectors (`TensorNet`, `quad.rs`'s grids,
+`compose/tensor.rs`), and the knot-algebra plans' `(kv, weights)` — none
+a hull door, each length-checked, none this unit's.
+
+**Companion note:** `crates/geom-core/README.md` SPLINE-DESIGN S1 (the
+"one pairing S1 leaves open" paragraph rewritten to the closed state;
+`InteriorKnot` the deliberate exception), its row in `docs/DESIGN.md`'s
+companion table. The spec is deleted and ledgered (`docs/DOC-LEDGER.md`,
+"Per-merge deletion — PROPS coeffs' spec").

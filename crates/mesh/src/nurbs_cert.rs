@@ -10,7 +10,7 @@
 //! `S(u,v) = Σᵢⱼ Nᵢ(u)·Nⱼ(v)·Pᵢⱼ`, each second partial is itself a
 //! tensor-product B-spline whose coefficient net comes from knot
 //! differencing (The NURBS Book eq. 3.24, applied per direction —
-//! exactly [`geom_core::spline::hull::derivative_coeffs`], iterated):
+//! exactly [`geom_core::spline::SplineCoeffs::derivative_coeffs`], iterated):
 //! `S_uu` differences twice along `u`, `S_vv` twice along `v`, `S_uv`
 //! once along each. The B-spline bases in both directions are
 //! nonnegative partitions of unity (degree ≥ 0), so every value of
@@ -68,7 +68,7 @@
 //!
 //! - `sup|Ã_kl|` — hull of the recentred homogeneous derivative
 //!   coefficients active on the cell
-//!   ([`geom_core::spline::hull::derivative_coeffs`]
+//!   ([`geom_core::spline::SplineCoeffs::derivative_coeffs`]
 //!   iterated, exactly as the integral arm; recentring commutes with
 //!   knot differencing, `d(A − c·w) = dA − c·dw`);
 //! - `sup|S^c − c^c| ≤ max_active |P^c − c^c|` — the rational value
