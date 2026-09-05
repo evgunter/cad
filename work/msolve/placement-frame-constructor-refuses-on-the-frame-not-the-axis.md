@@ -4,6 +4,7 @@ kind: issue
 title: Frame::rotate_then_translate normalizes a degenerate axis to NaN and is refused downstream on the frame it built, not on the axis
 status: open
 opened: 2026-09-05
+rides_with: MSOLVE-3
 ---
 
 
