@@ -1760,13 +1760,17 @@ print `symbolic_zero` and `sign_gated` side by side.
 ### The driver population, with an arc fixture
 
 `m10_3_driver_k_probe_interval` gains `two_hole_plate_narrow` — the
-tour's plate scaled to `1e-6` of its real study, well below its
-`7.81e-7` whole-certifying ceiling, so the driver certifies leaves whose
-certified-midpoint replay carries the arc family. Measured at ε = 1e-9,
-the plate certifies 2 leaves and contributes ~2,940 samples; the CSV
-lints clean (rule 1 = 0), with `symbolic_zero` non-zero (the plate's
-carriers discharge through the PLAIN quotient form) and **`sign_gated`
-= 0**.
+tour's plate scaled to `1e3 · ε` of its real study, just above its
+whole-certifying ceiling (`7.81e2 · ε` at every ε row: the ceiling is
+the numeric channel's and scales with the band), so the driver splits
+once and certifies leaves whose certified-midpoint replay carries the
+arc family. The scale is ε-relative like the slabs': as the constant
+`1e-6` it was 1280× the ceiling at ε = 1e-12 and the fixture certified
+nothing on that row (hosted run 33950882617). Measured at ε = 1e-6,
+1e-9 and 1e-12 alike, the plate certifies 2 leaves and contributes
+2,826 samples; each CSV lints clean (rule 1 = 0), with 33,074
+`symbolic_zero` (the plate's carriers discharge through the PLAIN
+quotient form) and **`sign_gated` = 0**.
 
 `sign_gated` is 0 because rule C is filed unbuilt (nothing produces it),
 and `symbolic_zero` here comes from the PLAIN quotient form (M10-7),
