@@ -288,3 +288,10 @@ PR 1919: `fixtures::code_only` is deleted, and `CodeOnly` survives only
 as a one-line newtype over the shared view because `boxes.rs:2265`
 constructs it — so D287's `boxes.rs` re-point is also the newtype's
 deletion, and D261 records that schedule by pointing here.
+
+## Announced seam from PROPS (2026-09-05): one sentence in `resolve/vdiff.rs`
+
+The k-stats unit (PR #1969) adds `escalations` beside `verdicts` on
+`NodeValue` and `NodeError`, not persisted; `vdiff.rs`'s persisted-shape
+sentence says so. One doc sentence, announced by the spec
+(`docs/PROPS-KSTATS-SPEC.md` §Fence). Signed (PROPS orchestrator).
