@@ -956,6 +956,22 @@ residue item `work/props/coefficients-carry-their-knot-vector.md`.
 
 - `PROPS-SPAN-SPEC.md` — PROPS span, `Span<'a>` carries its `KnotVector` (#1952)
 
+## Per-merge deletion — PROPS vec3-doors' spec (2026-09-05)
+
+Recoverable at
+`git show 552b9cb0f35c1f1bc44d1b512df97d57f6f8a628:docs/PROPS-VEC3-DOORS-SPEC.md`
+(the last commit carrying it, before the state-sync commit that deleted
+it; unamended — no stop clause fired: the generic `const fn` compiled
+at 1.97.0, so the fallback shape was never picked). Every clause was
+met as written; the unit's PR argues three small choices rather than
+deviations (one doctest reading all four constants; the 2-D twin named
+in the one refusal sentence; the `skinned.rs` measurement taken as the
+corpus row). The rule above; the unit's record is its item's `## Closed`
+section (`work/props/vec3-point3-const-and-conversion-doors.md`, which
+carries the `From` ruling) and its MERGED entry in `work/props/log.md`
+(an E rider outside the A/B experiment — no `MODEL-AB-LOG.md` row).
+
+- `PROPS-VEC3-DOORS-SPEC.md` — PROPS vec3-doors, `const fn new` on the four vector types, `Affine3::from_frame` as the one home, `SketchPlane::map`, the `Vec → Point` conversion refused at the type (#1977)
 ## Per-merge deletion — PROPS k-stats' spec (2026-09-05)
 
 Recoverable at `git show 1d847bc84cfb4667eb296acf6233f2c3a88f4723:docs/PROPS-KSTATS-SPEC.md`
@@ -980,3 +996,21 @@ unit's record is its item's `## Closed` section
 and the six issues it filed.
 
 - `PROPS-KSTATS-SPEC.md` — PROPS k-stats, the verdict log as a bracket with a stack and the escalation channel beside it (#1969)
+
+## Per-merge deletion — PROPS rotation-floor's spec (2026-09-05)
+
+Recoverable at
+`git show 92dac21117c66ac8190eda9f80028bf1b49cce77:docs/PROPS-ROTATION-FLOOR-SPEC.md`
+(the last commit carrying it, before the state-sync commit that deleted
+it; unamended — no stop clause fired). A doc unit: every clause was met
+as written — the ~17 % / 0 % pair re-verified at the head and unmoved,
+the paragraph at `Mat3::rotation_about`, the composition rider filed at
+`work/issues/mapped-curve-restrict-composes-placements-per-split.md`
+(no program's `paths:` names `mapped.rs`, so `issues/` rather than a
+program's slate), the item closed with the ruling. The rule above; the
+unit's record is its item's `## Closed` section
+(`work/props/rotation-about-diagonal-width-floor.md`) and its entry in
+`work/props/log.md` (an E rider outside the A/B experiment — no
+`MODEL-AB-LOG.md` row).
+
+- `PROPS-ROTATION-FLOOR-SPEC.md` — PROPS rotation-floor, the diagonal's width floor documented at `rotation_about` rather than respelled; the composition rider re-homed (#1980)

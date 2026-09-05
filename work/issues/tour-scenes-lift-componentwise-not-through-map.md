@@ -24,3 +24,17 @@ Separately (RESOLVED 2026-09-05 by the PROPS orchestrator's sync):
 `410d1d6cc`; every lane running `scripts/doc-gate.sh` dirtied all three.
 Regenerated with cargo. The class gap stands: CI does not build the
 excluded roots with `--locked`, so nothing catches the next one — CIW's.
+
+(2026-09-05, from the vec3-doors lane, PR 1977.) `lily.rs` is this
+sweep's too, on three counts, and these sites are the consumers the
+doors that PR minted were minted for: `demos/tour/src/lily.rs:822` and
+`:1155` build a `SketchPlane<f64>` only to read `.placement` — now
+`Affine3::from_frame(origin, u, v)` directly; `:402`, `:482`, `:651`,
+`:1894` and `:2102` lift a frame at the `from_frame` boundary three
+times, component by component, where the choice is now per site
+between `SketchPlane::map(S::from_f64)` (the `f64` normal lifted as a
+value) and constructing at `S` (the normal's cross product at the
+target scalar — the spellings and their difference are written at
+`SketchPlane::map`); and the three struct-literal constants
+`LEAF_A_BASE` / `LEAF_A_DIR` / `LEAF_A_UP` (`:697`, `:703`, `:709`) can
+be `Point3::new` / `Vec3::new` now that the constructors are `const fn`.
