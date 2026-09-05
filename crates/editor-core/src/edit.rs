@@ -521,6 +521,16 @@ pub enum EditError {
         /// The name whose node is not live.
         name: StableName,
     },
+    /// A reference's READ SITE — the operand a mate is authored
+    /// against ([`Node::payload_read_sites`]) — names a node that does
+    /// not exist at edit time. The name half's rule, applied to the
+    /// half that is a node id rather than a name: a never-existed id
+    /// is a TYPO. (A later `DeleteNode` stranding an operand is
+    /// ALLOWED — N5 dangling semantics — and the solve refuses typed.)
+    ReadSiteMissingNode {
+        /// The operand that is not live.
+        at: RecipeNodeId,
+    },
     /// A non-finite (NaN/inf) float on a continuous doc param — its
     /// value or one of its distribution's offsets — refused at the
     /// edit door (ruled door 1 of the non-finite policy; F3's
@@ -920,6 +930,11 @@ impl core::fmt::Display for EditError {
             Self::DeclareNamesMissingNode { name } => write!(
                 f,
                 "edit: the declared {name} refers to a node that is not live"
+            ),
+            Self::ReadSiteMissingNode { at } => write!(
+                f,
+                "edit: the reference is read at node {}, which is not live",
+                at.0
             ),
             Self::NonFiniteDocParam { name } => write!(
                 f,
@@ -1410,6 +1425,17 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             for name in node.payload_names() {
                 if !new.nodes.contains_key(&name.node) {
                     return Err(EditError::DeclareNamesMissingNode { name: name.clone() });
+                }
+            }
+            // The same check for the node a reference is READ AT
+            // where that node is not also an input
+            // (`Node::payload_read_sites` — a mate's two operands).
+            // Same rule, same door, same N5 aftermath: a
+            // never-existed id is a typo; a later delete stranding it
+            // is the solve's to refuse.
+            for at in node.payload_read_sites() {
+                if !new.nodes.contains_key(&at) {
+                    return Err(EditError::ReadSiteMissingNode { at });
                 }
             }
             let id = RecipeNodeId(new.next_id);

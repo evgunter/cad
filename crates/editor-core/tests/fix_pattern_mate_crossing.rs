@@ -35,8 +35,8 @@ use std::collections::BTreeSet;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EntityKind, Expr,
-    MateFrame, MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
-    content_pin, split,
+    MateFrame, MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef,
+    StableName, content_pin, split,
 };
 use fixture::{insert, len, on_frame, scl, step};
 use geom_core::Tol;
@@ -109,8 +109,8 @@ fn mate_frame(origin: [f64; 3]) -> MateFrame {
 /// A determining `Rest` mate seating `b`'s bottom onto `a`.
 fn seat(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a,
-        b,
+        a: SitedRef::at_mint(a),
+        b: SitedRef::at_mint(b),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: mate_frame([0.0, 0.0, 1.0]),
@@ -321,10 +321,10 @@ fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
     };
     assert_eq!(
         *a,
-        in_copy(new_pattern, COPY, in_part(new_leg, CapEnd::End)),
+        SitedRef::at_mint(in_copy(new_pattern, COPY, in_part(new_leg, CapEnd::End))),
         "ids remap through the recorded map; the copy index does not"
     );
-    let RoleSeg::Instance { i, .. } = a.path[0] else {
+    let RoleSeg::Instance { i, .. } = a.name.path[0] else {
         panic!("the head keeps its Instance(i) qualifier");
     };
     assert_eq!(i, COPY, "the structural index is not in the map's domain");

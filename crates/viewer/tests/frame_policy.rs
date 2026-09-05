@@ -17,7 +17,9 @@
 use crate::common;
 
 use common::asm;
-use pncad::document::{Doc, Frame, Node, ParamName, ProfileProgram, RecipeNodeId, SlotId};
+use pncad::document::{
+    Doc, Frame, Node, ParamName, ProfileProgram, RecipeNodeId, SitedRef, SlotId,
+};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{ContactClass, Ray};
 use viewer::camera::{Camera, CameraOp};
@@ -953,8 +955,8 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
 
     // Then they mate it, and that placement is discarded under them.
     let mate = SessionOp::AddMate {
-        a: asm::in_part(bench.post_b, &bench.post_top),
-        b: asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        a: SitedRef::at_mint(asm::in_part(bench.post_b, &bench.post_top)),
+        b: SitedRef::at_mint(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Rest,
         alignment: asm::seat_alignment(asm::SHELF_LENGTH / 2.0, None),
     };

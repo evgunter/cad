@@ -863,16 +863,24 @@ fn remap_node(
         },
         Node::InstantiatePart { .. } => node.clone(),
         // A mate's references cross the cut like any other name
-        // reference: both heads remap, or the cut severed the mate and
-        // the remap MISSES loudly.
+        // reference, and BOTH halves of each remap: the NAME through
+        // the name door, and the OPERAND through the id door, because
+        // an operand is a node id. Either one the cut severed makes
+        // the remap MISS loudly.
         Node::Mate {
             a,
             b,
             class,
             alignment,
         } => Node::Mate {
-            a: nm(a)?,
-            b: nm(b)?,
+            a: crate::node::SitedRef {
+                at: id(a.at)?,
+                name: nm(&a.name)?,
+            },
+            b: crate::node::SitedRef {
+                at: id(b.at)?,
+                name: nm(&b.name)?,
+            },
             class: *class,
             alignment: *alignment,
         },
@@ -888,7 +896,7 @@ fn remap_node(
             refs: refs
                 .iter()
                 .map(|r| {
-                    Ok(crate::node::MeasureRef {
+                    Ok(crate::node::SitedRef {
                         at: id(r.at)?,
                         name: nm(&r.name)?,
                     })
@@ -1282,21 +1290,19 @@ pub fn split(
     // is banked as ASM-XSPLIT. Exhausted over every subset of two
     // recipes in `rev_fix_xsplit_unreachable.rs`.
     //
-    // A mate with a DANGLING head — one resolving to no member at all
-    // — is not an edge and contributes NO crossing, however its names
-    // fall across the cut. Such a mate never solved, so a record
+    // A mate with a DANGLING reference — one resolving to no member at
+    // all — is not an edge and contributes NO crossing, however its
+    // names fall across the cut. Such a mate never solved, so a record
     // minted from it would be trusted-at-rest state. Unlike (1)-(3),
     // this arm is NOT forced by the cut rules: a nested-pattern head
     // welds no cluster, so its mate's ends do reach opposite sides of
     // an accepted cut, and the gate is the only thing that skips it.
-    // That is AQ8 option (b), SKIP — ruled at the ASM-R2b review but
-    // NOT carried into `crates/editor-core/ASSEMBLY.md`, whose AQ8
-    // clause states only the weld/`TornCluster` half; the ruling is
-    // recorded in `asm_r2b_assembly.rs`'s rows-5-and-6 header and
-    // pinned by `row5_d`. The mate itself stays in the document (N5)
-    // and its names rebind like any other; it simply says nothing
-    // about the seam.
-    let is_mate_edge_end = |name: &StableName| crate::mate::member_of(doc, name).is_some();
+    // That is AQ8 option (b), SKIP — its home is
+    // `crates/editor-core/ASSEMBLY.md`'s AQ8 clause, and `row5_d` in
+    // `asm_r2b_assembly.rs` pins it. The mate itself stays in the
+    // document (N5) and its names rebind like any other; it simply
+    // says nothing about the seam.
+    let is_mate_edge_end = |r: &crate::node::SitedRef| crate::mate::member_of(doc, r).is_some();
     let mut crossings: Vec<InterfaceCrossing> = Vec::new();
     for &id in doc.order() {
         if cut.contains(&id) {
@@ -1310,9 +1316,9 @@ pub fn split(
             continue;
         }
         let inside = |name: &StableName| derivation_nodes(name).is_subset(cut);
-        let (outer, inner) = match (inside(a), inside(b)) {
-            (false, true) => (a, b),
-            (true, false) => (b, a),
+        let (outer, inner) = match (inside(&a.name), inside(&b.name)) {
+            (false, true) => (&a.name, &b.name),
+            (true, false) => (&b.name, &a.name),
             _ => continue,
         };
         // The part-side reference is stored in the PART's own names:

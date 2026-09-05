@@ -20,8 +20,8 @@ use editor_core::{
     Alignment, AxisSense, CancelToken, ClusterMaintenance, ContactClass, DocEdit, DocRef,
     DocumentId, EditError, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive,
     MateRole, Node, NodeErrorKind, NodeResult, PartResolver, ProfileDoc, RecipeNodeId,
-    ResolveFailure, ResolveFault, RoleSeg, StableName, apply, clusters, content_pin, evaluate,
-    load, product, relative_freedom_components, save, solve_document,
+    ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName, apply, clusters, content_pin,
+    evaluate, load, product, relative_freedom_components, save, solve_document,
 };
 use fixture::{insert, len, on_frame, square, step};
 use geom_core::Tol;
@@ -142,8 +142,8 @@ fn mate(
     clocking: Option<f64>,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: in_part(a, PART_BODY),
-        b: in_part(b, PART_BODY),
+        a: SitedRef::at_mint(in_part(a, PART_BODY)),
+        b: SitedRef::at_mint(in_part(b, PART_BODY)),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: fa,
@@ -1464,7 +1464,7 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
         &DocEdit::InsertNode {
             node: Node::Mate {
                 a,
-                b: bogus.clone(),
+                b: SitedRef::at_mint(bogus.clone()),
                 class,
                 alignment,
             },

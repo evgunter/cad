@@ -195,6 +195,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::PathOffTree { .. } => "path_off_tree",
         EditError::Dimension { .. } => "dimension",
         EditError::DeclareNamesMissingNode { .. } => "declare_names_missing_node",
+        EditError::ReadSiteMissingNode { .. } => "read_site_missing_node",
         EditError::NonFiniteDocParam { .. } => "non_finite_doc_param",
         EditError::InvalidDistribution { .. } => "invalid_distribution",
         EditError::RebindTargetMissingNode { .. } => "rebind_target_missing_node",
@@ -907,7 +908,7 @@ pub const NODE_NOT_EVALUATED: &str = "node_not_evaluated";
 /// second word for it at the pick.
 ///
 /// `unnamed` is the BUG arm (spec D4): the node evaluated and the
-/// entity has no name in its table. Its payload is an `EntityRef`,
+/// entity has no name in its table. Its payload is an `SitedRef`,
 /// which is an arena key plus a body index — the key does not cross
 /// (G1), so what the Python side projects beside this tag is the
 /// entity's KIND and its body index, which is the whole of the

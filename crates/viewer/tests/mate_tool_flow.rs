@@ -296,14 +296,14 @@ fn a_pattern_placed_pick_mates_through_an_instance_headed_reference() {
 
     // The reference is `Instance(i)`-headed, on the pattern node —
     // which is what makes it a MEMBER rather than a bare pattern head.
-    assert_eq!(proposal.a.node, pattern);
+    assert_eq!(proposal.a.name.node, pattern);
     assert!(
         matches!(
-            proposal.a.path.first(),
+            proposal.a.name.path.first(),
             Some(RoleSeg::Instance { i: 1, .. })
         ),
         "the copy rides in the head: {:?}",
-        proposal.a.path.first()
+        proposal.a.name.path.first()
     );
 
     // The alignment is in the MASTER's part coordinates — the same

@@ -17,7 +17,7 @@ use std::path::PathBuf;
 
 use pncad::document::{
     Alignment, BooleanOp, DocEdit, DocParam, DocumentId, Expr, Frame, LoopProgram, ParamName,
-    ProfileProgram, RecipeNodeId, SlotId,
+    ProfileProgram, RecipeNodeId, SitedRef, SlotId,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
@@ -259,11 +259,12 @@ pub enum SessionOp {
     /// commit door as every other edit: one apply, one history state,
     /// one re-evaluation, and the free-move supersession prune.
     AddMate {
-        /// The `a` reference — the head names a member of A11's
-        /// vocabulary (`pncad::document::member_of`).
-        a: StableName,
+        /// The `a` reference — a name and the operand it is read at,
+        /// resolving to a member of A11's vocabulary
+        /// (`pncad::document::member_of`).
+        a: SitedRef,
         /// The `b` reference, same vocabulary.
-        b: StableName,
+        b: SitedRef,
         /// The declared contact class.
         class: ContactClass,
         /// The alignment datum (frames in each member's own part

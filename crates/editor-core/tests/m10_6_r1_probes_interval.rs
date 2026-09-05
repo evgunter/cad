@@ -60,8 +60,8 @@ use editor_core::report::{Dials, MassBasis, MassBudget, leaf_histogram, report_k
 use editor_core::stackup::stackup;
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
-    DocParam, EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureRef, Node,
-    NodeResult, ParamName, ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId, RoleSeg,
+    DocParam, EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult,
+    ParamName, ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef,
     UnevaluatedReason, UnitSym, ValuePayload, evaluate,
 };
 use geom_core::{Bounds, Tol};
@@ -202,8 +202,8 @@ fn notch(bound: f64, dir: AssertionDir) -> (ProfileDoc, RecipeNodeId, RecipeNode
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
             vec![
-                MeasureRef::at_mint(fixture::fname(ell, RoleSeg::Cap(CapEnd::End))),
-                MeasureRef::at_mint(fixture::fname(block, RoleSeg::Cap(CapEnd::Start))),
+                SitedRef::at_mint(fixture::fname(ell, RoleSeg::Cap(CapEnd::End))),
+                SitedRef::at_mint(fixture::fname(block, RoleSeg::Cap(CapEnd::Start))),
             ],
         )
         .expect("both indices in range"),
@@ -466,8 +466,8 @@ fn web_plate(bound: f64, law: Distribution) -> (ProfileDoc, RecipeNodeId, Recipe
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
             vec![
-                MeasureRef::new(placed, fixture::fname(solid, fixture::wall(0))),
-                MeasureRef::new(placed, fixture::fname(solid, fixture::wall(2))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(0))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(2))),
             ],
         )
         .expect("in range"),
@@ -750,8 +750,8 @@ fn neck_dir(
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
             vec![
-                MeasureRef::new(placed, fixture::fname(solid, fixture::wall(2))),
-                MeasureRef::new(placed, fixture::fname(solid, fixture::wall(wall_b))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(2))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(wall_b))),
             ],
         )
         .expect("in range"),
@@ -910,8 +910,8 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
             vec![
-                MeasureRef::new(placed, fixture::fname(solid, fixture::wall(0))),
-                MeasureRef::new(placed, fixture::fname(solid, fixture::wall(2))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(0))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(2))),
             ],
         )
         .expect("in range"),
@@ -1022,8 +1022,8 @@ fn bracket(
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
             vec![
-                MeasureRef::new(post, fixture::fname(post_solid, fixture::wall(3))),
-                MeasureRef::at_mint(fixture::fname(base, fixture::wall(3))),
+                SitedRef::new(post, fixture::fname(post_solid, fixture::wall(3))),
+                SitedRef::at_mint(fixture::fname(base, fixture::wall(3))),
             ],
         )
         .expect("in range"),
@@ -1037,7 +1037,7 @@ fn bracket(
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
             vec![
-                MeasureRef::new(
+                SitedRef::new(
                     post,
                     editor_core::StableName {
                         kind: editor_core::EntityKind::Body,
@@ -1045,7 +1045,7 @@ fn bracket(
                         path: vec![RoleSeg::OutputBody],
                     },
                 ),
-                MeasureRef::at_mint(editor_core::StableName {
+                SitedRef::at_mint(editor_core::StableName {
                     kind: editor_core::EntityKind::Body,
                     node: base,
                     path: vec![RoleSeg::OutputBody],
@@ -1337,7 +1337,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
         )
         .expect("exact atom");
         faces.sort();
-        MeasureRef::new(node, faces.remove(0))
+        SitedRef::new(node, faces.remove(0))
     };
     let refs = vec![wall(hole_a), wall(hole_b)];
     let radius_of = |n: &str| MeasureExpr::value(Expr::param(name(n), Dimension::Length));

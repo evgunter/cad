@@ -960,24 +960,37 @@ pub fn payload_exprs<P>(node: &Node<P>) -> Option<Vec<&Expr>> {
     }
 }
 
-/// **A measured entity reference: a name, and the node to read it at.**
+/// **An entity reference: a name, and the node it is read at.**
 ///
 /// Both halves are load-bearing and they are not the same node.
 /// `name` says WHICH entity (N1: the name embeds the node that minted
-/// it); `at` says which evaluated value to read its carrier out of.
-/// They coincide for a reference to a body's own minting node and
-/// diverge the moment anything places that body — which is the case
-/// this type exists for, because a transform is identity-preserving
-/// and mints no name of its own.
+/// it); `at` says which node's geometry that entity is being spoken
+/// about. They coincide for a reference to a body's own minting node
+/// and diverge the moment anything PLACES that body — a transform is
+/// identity-preserving, so it mints no name of its own and a name
+/// resolved through it still points at the minting node while the
+/// geometry has moved.
 ///
-/// `at` is an ordinary DAG edge ([`Node::inputs`]); `name` resolves
-/// against `at`'s table through the same N5 ladder every other
-/// authored name takes.
+/// One type, two readers, and what `at` means to each is the same
+/// question answered at different layers:
+///
+/// - a [`Node::Measure`]'s reference reads the carrier out of `at`'s
+///   evaluated value, and `at` is therefore an ordinary DAG edge
+///   ([`Node::inputs`]);
+/// - a [`Node::Mate`]'s reference names the OPERAND the mate is
+///   authored against, and `at` is an A12 reading edge — never
+///   consuming, or the mated bodies would leave A10's root set. The
+///   solve walks from `at` down to the name's head and composes every
+///   pose-bearing node it passes ([`crate::mate::member_of`]).
+///
+/// `name` resolves against `at`'s table through the same N5 ladder
+/// every other authored name takes, and there is no `Option` on `at`:
+/// "as authored" is spelled [`SitedRef::at_mint`].
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(deny_unknown_fields)]
-pub struct MeasureRef {
+pub struct SitedRef {
     /// The node whose evaluated value the carrier is read at — the
     /// PLACED geometry, when that node placed it.
     pub at: RecipeNodeId,
@@ -985,7 +998,7 @@ pub struct MeasureRef {
     pub name: StableName,
 }
 
-impl MeasureRef {
+impl SitedRef {
     /// A reference read at the node that minted the name — the
     /// degenerate case, and the honest spelling of "as authored".
     pub fn at_mint(name: StableName) -> Self {
@@ -1627,25 +1640,40 @@ pub enum Node<P> {
     /// and the contact declaration, so there is no second vocabulary
     /// to keep synced.
     ///
-    /// **A leaf.** `a`/`b` are instance-qualified stable references,
-    /// and name references are not DAG edges — the shipped D3
-    /// carve-out `Declare` established — so [`Node::inputs`] is empty
-    /// and inserting a mate transfers no root. A12 adds *reading*
-    /// edges on top: the instantiate node each reference's head
-    /// resolves through, RECOMPUTED at need
-    /// ([`crate::mate::reading_edges`]) and never stored. A9's
-    /// relative-freedom partition and A11's placement clusters read
-    /// consuming ∪ reading edges; A10's invariants, maintenance and
-    /// product gather read consuming edges only. Under consuming edges
-    /// a mate is an isolated sink, so it is an ordinary NON-BODY root:
-    /// listed like any other, denoting no body, ignored by the gather.
-    /// A dangling head is N5's ratified semantics — no edge until
-    /// `Rebind`, and the solve refuses typed naming it.
+    /// **A leaf.** `a`/`b` are [`SitedRef`]s — each an
+    /// instance-qualified stable name plus the OPERAND node it is
+    /// read at — and neither half is a consuming edge, so
+    /// [`Node::inputs`] is empty and inserting a mate transfers no
+    /// root. A12 adds *reading* edges on top: the walk from each
+    /// operand down to its name's head yields the member the edge
+    /// lands on, RECOMPUTED at need ([`crate::mate::reading_edges`])
+    /// and never stored. A9's relative-freedom partition and A11's
+    /// placement clusters read consuming ∪ reading edges; A10's
+    /// invariants, maintenance and product gather read consuming
+    /// edges only. Under consuming edges a mate is an isolated sink,
+    /// so it is an ordinary NON-BODY root: listed like any other,
+    /// denoting no body, ignored by the gather.
+    ///
+    /// **The operand is why a mate on placed geometry means what it
+    /// says.** A transform mints no name (N1), so a reference read at
+    /// the transform and one read at the instance carry the same
+    /// name; the operand is the only thing that tells them apart, and
+    /// the solve composes the map of every pose-bearing node between
+    /// the operand and the minting instance
+    /// ([`crate::mate::member_of`]). Two mates from one instance
+    /// through two different transforms are two MEMBERS.
+    ///
+    /// The insert door checks both halves against the live document —
+    /// a never-existed operand or name node is a typo. A later delete
+    /// may strand either, which is N5's ratified semantics: no edge
+    /// until the mate is re-authored, and the solve refuses typed
+    /// naming the head.
     Mate {
-        /// The `a` reference: an entity of one instance's product.
-        a: StableName,
+        /// The `a` reference: an entity of one instance's product,
+        /// read at the operand the mate is authored against.
+        a: SitedRef,
         /// The `b` reference: an entity of the other's.
-        b: StableName,
+        b: SitedRef,
         /// The declared contact class — the KERNEL vocabulary (M9-1),
         /// re-exported rather than re-minted, so a mate's declaration
         /// is already the currency the boolean wrapper's records
@@ -1701,7 +1729,7 @@ pub enum Node<P> {
     ///
     /// # What a reference denotes: the carrier AT a named node
     ///
-    /// A [`MeasureRef`] is a pair — the entity's [`StableName`], and
+    /// A [`SitedRef`] is a pair — the entity's [`StableName`], and
     /// the node its carrier is READ AT. The second half is what makes
     /// a measure report placed geometry.
     ///
@@ -1725,7 +1753,7 @@ pub enum Node<P> {
         expr: crate::measure::MeasureExpr,
         /// The referenced entities, in argument order, frozen at
         /// authoring time.
-        refs: Vec<MeasureRef>,
+        refs: Vec<SitedRef>,
     },
     /// **A recorded tolerance requirement** (ERROR-DESIGN E10): design
     /// intent as document data — "this web is at least 0.5 mm" lives
@@ -2390,8 +2418,10 @@ impl<P> Node<P> {
             // `Rebind` is its repair.
             Node::Datum(Datum::FaceFrame { face, .. }) => vec![face],
             // A12: a mate's two heads are the instance-qualified
-            // references its reading edges are recomputed from.
-            Node::Mate { a, b, .. } => vec![a, b],
+            // names its reading edges are recomputed from. The
+            // operands they are read at are node ids, not names, and
+            // are listed by [`Node::payload_read_sites`].
+            Node::Mate { a, b, .. } => vec![&a.name, &b.name],
             // A measure's references are argument-ORDERED, so they are
             // listed in that order rather than a canonical one.
             Node::Measure { refs, .. } => refs.iter().map(|r| &r.name).collect(),
@@ -2434,8 +2464,8 @@ impl<P> Node<P> {
                 }
             }
             Node::Mate { a, b, .. } => {
-                hits += rewrite(a, from, to);
-                hits += rewrite(b, from, to);
+                hits += rewrite(&mut a.name, from, to);
+                hits += rewrite(&mut b.name, from, to);
             }
             // One name, no set to re-canonicalize.
             Node::Datum(Datum::FaceFrame { face, .. }) => {
@@ -2459,6 +2489,26 @@ impl<P> Node<P> {
     /// existence the insert door checks.
     pub fn named_nodes(&self) -> Vec<RecipeNodeId> {
         self.payload_names().iter().map(|name| name.node).collect()
+    }
+
+    /// **The nodes a payload's references are READ AT that are not
+    /// also DAG inputs** — today, a mate's two operands.
+    ///
+    /// The insert door checks these are live exactly as it checks a
+    /// payload name's head, and for the same reason: a never-existed
+    /// id is a typo, and a later delete stranding one is N5's
+    /// dangling case, refused at the solve rather than at the edit.
+    ///
+    /// A measure's `at` is absent here because it is an ordinary
+    /// input ([`Node::inputs`] reports it), and the input check
+    /// already covers it. A mate's is not: an operand is an A12
+    /// READING edge, and making it consuming would take the mated
+    /// bodies out of A10's root set.
+    pub fn payload_read_sites(&self) -> Vec<RecipeNodeId> {
+        match self {
+            Node::Mate { a, b, .. } => vec![a.at, b.at],
+            _ => Vec::new(),
+        }
     }
 
     /// Builds a [`Node::InstantiatePart`] with the EMPTY interface
@@ -2602,7 +2652,7 @@ impl<P> Node<P> {
     /// ([`Node::measure_fault`]).
     pub fn measure(
         expr: crate::measure::MeasureExpr,
-        refs: Vec<MeasureRef>,
+        refs: Vec<SitedRef>,
     ) -> Result<Self, MeasureNodeFault> {
         let node = Node::Measure { expr, refs };
         match node.measure_fault() {
