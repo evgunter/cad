@@ -353,10 +353,11 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
 
     // It draws. The scene is the thing the modeller needs in order to
     // see what is wrong with it.
-    let (landed_doc, landed_ev) = session.landed_pair().expect("an evaluation landed");
-    let scene = viewer::scene::scene_of_evaluation(
-        landed_doc,
-        landed_ev,
+    let body = session
+        .landed_body()
+        .expect("an evaluation landed and gathered");
+    let scene = viewer::scene::scene_of_body(
+        body,
         viewer::DisplayTolerance::new(5e-3).expect("a display delta"),
         tol,
     )

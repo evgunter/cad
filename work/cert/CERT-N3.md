@@ -2,9 +2,12 @@
 id: CERT-N3
 kind: unit
 title: Track N's surviving rows — S235, D31, D98, D244, C24
-status: dispatched
+status: closed
 opened: 2026-09-01
 refs: [1558]
+closed: 2026-09-05
+pr: 1879
+branch: cert/n3-track-n-remainder
 ---
 
 Track N's last lane: the rows left after CERT-N1 (the scalar-lift lane) and

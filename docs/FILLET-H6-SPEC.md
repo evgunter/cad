@@ -30,8 +30,19 @@ other `Smooth` arms in this crate — the extrude strut upgrade (`extrude.rs`
 ~`:881`) and the revolve rim upgrade (`revolve/upgrade.rs` ~`:177`) — apply
 OQ7's must-carry: a jet-determinate smooth join (`tangent_second_order`
 definite) upgrades to `TangentIntersection`, an under-determined one keeps a
-conventional chart image, in-band escalates typed. The cap-rim arm is the
-one Smooth arm in the crate that does neither, on a premise that is false.
+conventional chart image. The cap-rim arm is the one Smooth arm in the crate
+that does neither, on a premise that is false.
+
+> **AMENDED 2026-09-05 (measured during the unit).** The sentence above said
+> the two sibling arms both "escalate typed" in-band. They do not agree:
+> `extrude.rs`'s strut arm escalates as `SliverJoin`, while
+> `revolve/upgrade.rs::jet_determinate` folds an in-band verdict into `false`
+> and keeps the conventional description — a body a reviewer built and tier 3
+> then refused under the very predicate the fold swallowed
+> (`review_fillet_h6_r1_probes`). Reconciling them is a behaviour change on
+> bodies that build today; it is filed as
+> `work/fillet/smooth-arm-siblings-disagree-on-the-in-band-case.md`, not
+> settled here.
 
 **What is probably true, to be measured, not assumed:** an extrusion's walls
 are ruled along the extrusion normal `n`, so at every rim point the wall's
@@ -42,6 +53,32 @@ non-`Transverse` outcome is an escalation (a poisoned or collapsed arm →
 arm is unreachable and its sentence must say that argument; if some caller
 builds a body whose cap is not perpendicular to its walls, the arm is the
 next instance of issue 1152's class and takes the must-carry treatment.
+
+> **AMENDED 2026-09-05 (measured during the unit).** Three things in that
+> paragraph are wrong, and the unit's deliverable is the corrected version.
+>
+> 1. **"Ruled along `n`" is half right.** A LINE leg's wall is a Newell plane
+>    whose two rulings are the extrusion vector `w`; an ARC leg's wall is a
+>    cylinder about `turn_axis(_, n)`, ruled in `n`. The two are ruled in
+>    different directions, and only the cylinder's rulings are `n`.
+> 2. **"Exactly 90°" is false**, and the gap is the whole finding. The
+>    obliquity gate admits an in-plane component up to ε while the normal gate
+>    demands at least `K·ε`, so an admitted `w` may part from `n`. The honest
+>    bound is `sin θ ≥ K/√(K² + 1)` — ε-free but **K-conditional**, and it
+>    closes the `Smooth` outcome (`sin θ ≤ 1/K`) only above `K* ≈ 1.272`. `Tol`
+>    accepts any `K > 1`. At K = 1.1 a rectangle both gates admit reaches the
+>    arm on all four short rims.
+> 3. **"The only non-`Transverse` outcome is an escalation of a collapsed arm"
+>    is false at EVERY K**, the shipped one included: at the smallest admitted
+>    arm `K·ε` the wedge margin is `sin θ · K·ε`, in-band for any admitted
+>    obliquity with a perfectly DEFINITE arm — `SliverRim { dihedral_wedge }`,
+>    a third outcome the dichotomy does not admit.
+>
+> Shape A therefore stands **at the shipped K and says so**, and the arm is a
+> typed refusal (`ExtrudeError::SmoothCapRim`) below `K*` rather than a
+> description, because the body it would otherwise mint is one tier 3 refuses.
+> Whether `Tol` should carry a K floor is a kernel-policy question, filed as
+> `work/fillet/ambiguity-k-below-the-cap-rim-crossover.md`.
 
 ## Phase 1 — measure
 
