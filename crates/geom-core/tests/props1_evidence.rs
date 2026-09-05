@@ -275,7 +275,7 @@ fn parallel_rejection_is_exactly_zero_at_f64() {
 #[cfg(feature = "interval")]
 mod enclosure {
     use super::{
-        ANCHORS, ANCHOR_RADII, NORMALS, NORMAL_RADII, ONTOS, PARALLEL_SCALE, SELVES, p3,
+        ANCHOR_RADII, ANCHORS, NORMAL_RADII, NORMALS, ONTOS, PARALLEL_SCALE, SELVES, p3,
         retired_mirror_translation, retired_rejection, scaled, shipped_mirror_translation, v3,
     };
     use geom_core::{Bounds, Interval, Point3, Real, Vec3};
