@@ -265,84 +265,94 @@ fn n3r1_f64_adversarial_corpus_is_contained_at_zero_pad() {
 /// Wide-bracket realizations: every corner and a grid of interior
 /// points of each bracket, realized as an `f64` carrier, must lie in the
 /// `Interval` box.
+/// The wide-bracket helper lives in a gated module: the gate on the
+/// `interval` feature admits whole items of a few kinds (a `mod` is
+/// one; a bare helper `fn` is not), and the tests that read it are
+/// gated the same way.
 #[cfg(feature = "interval")]
-#[allow(clippy::too_many_arguments)] // one argument per named quantity, as the door's own helper
-fn check_interval_dominates(
-    what: &str,
-    iv_carrier: &Curve3<Interval>,
-    t0: Interval,
-    t1: Interval,
-    scale: f64,
-) {
-    let end0 = iv_carrier.eval(t0);
-    let end1 = iv_carrier.eval(t1);
-    let b = conic_arc_aabb(iv_carrier, t0, t1, end0, end1).unwrap();
-    // Realizations: pick each bracketed quantity at lo, mid, hi.
-    let pick = |x: Interval, k: usize| -> f64 {
-        match k {
-            0 => x.lo(),
-            1 => 0.5 * (x.lo() + x.hi()),
-            _ => x.hi(),
-        }
-    };
-    let mut worst = f64::NEG_INFINITY;
-    for kc in 0..3 {
-        for ka in 0..3 {
-            for ku in 0..3 {
-                for kr in 0..3 {
-                    for kt in 0..3 {
-                        let (t0f, t1f) = (pick(t0, kt), pick(t1, 2 - kt));
-                        let real: Curve3<f64> = match iv_carrier {
-                            Curve3::Circle {
-                                center,
-                                axis,
-                                radius,
-                                u_ref,
-                            } => circle(
-                                Point3::new(
-                                    pick(center.x, kc),
-                                    pick(center.y, kc),
-                                    pick(center.z, kc),
+mod interval_support {
+    use super::*;
+
+    #[allow(clippy::too_many_arguments)] // one argument per named quantity, as the door's own helper
+    pub(super) fn check_interval_dominates(
+        what: &str,
+        iv_carrier: &Curve3<Interval>,
+        t0: Interval,
+        t1: Interval,
+        scale: f64,
+    ) {
+        let end0 = iv_carrier.eval(t0);
+        let end1 = iv_carrier.eval(t1);
+        let b = conic_arc_aabb(iv_carrier, t0, t1, end0, end1).unwrap();
+        // Realizations: pick each bracketed quantity at lo, mid, hi.
+        let pick = |x: Interval, k: usize| -> f64 {
+            match k {
+                0 => x.lo(),
+                1 => 0.5 * (x.lo() + x.hi()),
+                _ => x.hi(),
+            }
+        };
+        let mut worst = f64::NEG_INFINITY;
+        for kc in 0..3 {
+            for ka in 0..3 {
+                for ku in 0..3 {
+                    for kr in 0..3 {
+                        for kt in 0..3 {
+                            let (t0f, t1f) = (pick(t0, kt), pick(t1, 2 - kt));
+                            let real: Curve3<f64> = match iv_carrier {
+                                Curve3::Circle {
+                                    center,
+                                    axis,
+                                    radius,
+                                    u_ref,
+                                } => circle(
+                                    Point3::new(
+                                        pick(center.x, kc),
+                                        pick(center.y, kc),
+                                        pick(center.z, kc),
+                                    ),
+                                    Vec3::new(pick(axis.x, ka), pick(axis.y, ka), pick(axis.z, ka)),
+                                    pick(*radius, kr),
+                                    Vec3::new(
+                                        pick(u_ref.x, ku),
+                                        pick(u_ref.y, 2 - ku),
+                                        pick(u_ref.z, ku),
+                                    ),
                                 ),
-                                Vec3::new(pick(axis.x, ka), pick(axis.y, ka), pick(axis.z, ka)),
-                                pick(*radius, kr),
-                                Vec3::new(
-                                    pick(u_ref.x, ku),
-                                    pick(u_ref.y, 2 - ku),
-                                    pick(u_ref.z, ku),
+                                Curve3::Ellipse {
+                                    center,
+                                    axis,
+                                    major,
+                                    minor,
+                                    u_ref,
+                                } => ellipse(
+                                    Point3::new(
+                                        pick(center.x, kc),
+                                        pick(center.y, kc),
+                                        pick(center.z, kc),
+                                    ),
+                                    Vec3::new(pick(axis.x, ka), pick(axis.y, ka), pick(axis.z, ka)),
+                                    pick(*major, kr),
+                                    pick(*minor, 2 - kr),
+                                    Vec3::new(
+                                        pick(u_ref.x, ku),
+                                        pick(u_ref.y, 2 - ku),
+                                        pick(u_ref.z, ku),
+                                    ),
                                 ),
-                            ),
-                            Curve3::Ellipse {
-                                center,
-                                axis,
-                                major,
-                                minor,
-                                u_ref,
-                            } => ellipse(
-                                Point3::new(
-                                    pick(center.x, kc),
-                                    pick(center.y, kc),
-                                    pick(center.z, kc),
-                                ),
-                                Vec3::new(pick(axis.x, ka), pick(axis.y, ka), pick(axis.z, ka)),
-                                pick(*major, kr),
-                                pick(*minor, 2 - kr),
-                                Vec3::new(
-                                    pick(u_ref.x, ku),
-                                    pick(u_ref.y, 2 - ku),
-                                    pick(u_ref.z, ku),
-                                ),
-                            ),
-                            _ => unreachable!(),
-                        };
-                        let who = format!("{what} realization c{kc} a{ka} u{ku} r{kr} t{kt}");
-                        check_contains(&who, &b, &real, t0f, t1f, 2_000, scale, &mut worst);
+                                _ => unreachable!(),
+                            };
+                            let who = format!("{what} realization c{kc} a{ka} u{ku} r{kr} t{kt}");
+                            check_contains(&who, &b, &real, t0f, t1f, 2_000, scale, &mut worst);
+                        }
                     }
                 }
             }
         }
     }
 }
+#[cfg(feature = "interval")]
+use interval_support::check_interval_dominates;
 
 #[cfg(feature = "interval")]
 #[test]
