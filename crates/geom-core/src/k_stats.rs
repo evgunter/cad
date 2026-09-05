@@ -236,9 +236,10 @@ fn classify_in<T: Decide>(
                         predicate: name,
                         sign: *sign,
                     }),
-                    Err(source) => top.recorded.escalations.push(Escalation {
-                        source: source.clone(),
-                    }),
+                    Err(source) => top
+                        .recorded
+                        .escalations
+                        .push(Escalation { source: *source }),
                 }
             }
         });
