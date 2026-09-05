@@ -392,3 +392,28 @@ half of `work/issues/tour-scenes-lift-componentwise-not-through-map`;
 (3) the python-suite closure skip is the CIW finding already filed
 (`closure-tier-skips-python-suite-on-geom-core-changes`, also carried
 to main only now). Lane reclaimed. Live: the k-stats bracket (slot 2).
+
+**k-stats bracket delivered (2026-09-05)** as
+[#1969](https://github.com/evgunter/cad/pull/1969), head `e832a1fc2`,
+green on the full matrix (run 33958408008, 37 jobs; the python suite
+RAN this time — the closure tier reached it through `editor-core`).
+The returned-value alternative measured and declined in writing (530
+`decide*` call sites, 261 enclosing functions, 104 public signatures);
+the bracket with a stack, `!Send`, `Drop`-popped; escalations recorded
+beside verdicts on both `NodeValue` and `NodeError` (deviation 1) and
+read first by `drive::classify_replay`; both red-first rows quoted
+(0-vs-724 nesting on the instantiate fixture; `Budget`→`SliverTerminal`
+on `slab(20ε, 40ε)`); witness-vector keys byte-identical, the accounting
+goldens re-blessed as the acceptance's own move. Five argued deviations
+including one hunk in `eval/parts.rs` outside the fence (the part-cache
+miss path shielded by its own discarded frame) and a bless arm on
+M10-7's tier-off differential. Dual review dispatched on the frozen head
+at 09:57Z: ordinal 2402 claimed (#1972 carries it — committed on THIS
+branch), byte 200 ⇒ R1 opus, R2 fable; briefs stored on `props/b1-block`
+with sha256 (`kstats-review-brief-{r1,r2}.md`). The reviewers' first
+targets are the spec's: the nesting fix under memo reuse and
+cancellation; the channel's completeness. Four findings the lane left
+for filing wait on the dual (the pre-bracket decisions of the profile
+pre-pass and the mate solve; a part's per-node logs dropped with its
+nested evaluation; the coincidence zone priced `Budget` at the floor —
+M10's; `refuse_non_finite`'s out-of-funnel `sign_within`).
