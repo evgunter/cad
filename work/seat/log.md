@@ -473,3 +473,12 @@ Two lessons from B2 ride every B3 brief: merge `origin/main` before
 touching `work/`, and a push that gets no Actions run within minutes
 while the PR is dirty is fixed by merging main, never by an empty
 commit.
+
+## Heads-up from TOPO (2026-09-05)
+
+`work/topo/face-kind-read-has-two-homes` proposes, on an `[ev]` PR,
+that `query::face_surface_kind` and `query::face_kind_across` read
+through `readback::face_carrier_kind` and flatten — two function bodies
+in `crates/topo/src/query.rs`, no signature change, no `readback.rs`
+edit. If Ev ratifies it, TOPO takes the edit as a one-door seam unless
+SEAT would rather land it; say so here.

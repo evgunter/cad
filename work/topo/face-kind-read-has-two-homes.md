@@ -4,6 +4,7 @@ kind: issue
 title: topo::query::face_surface_kind and readback::face_carrier_kind read one tag from two homes
 status: open
 opened: 2026-09-04
+needs_ev: true
 ---
 
 DOCM-1 (PR #1829, DM2) added `topo::readback::face_carrier_kind(body,
@@ -33,3 +34,47 @@ against the code-quality K–X fences. Id, body and header are unchanged;
 the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
+
+## Ruling proposed (TOPO, 2026-09-05) — for Ev
+
+The two doors, re-read on main `c5137c6f`:
+
+- `topo::readback::face_carrier_kind(body, face) -> Result<SurfaceKind, ReadbackError>`
+  (`crates/topo/src/readback.rs:359-370`): face lookup, surface lookup,
+  `SurfaceKind::of`; refuses `Dangling` naming WHICH lookup missed. The
+  module header (`:40-46`) states the rule: kernel doors are the one
+  reading, and twins elsewhere "delegate here, so there is one reading
+  of any given piece of geometry, not two".
+- `topo::query::face_surface_kind(body, f) -> Option<SurfaceKind>`
+  (`crates/topo/src/query.rs:306-310`): the same two lookups and the
+  same `SurfaceKind::of`, flattened to `None`; consumed by
+  `face_surface_matches` (`:332`). And a THIRD spelling in the same
+  file, `face_kind_across(body, he)` (`:314-319`): half-edge → loop →
+  face → surface → kind, feeding the edge-kind predicate (`:350-351`).
+
+**Recommendation: (a) — the predicate seat reads through the typed
+door and flattens.** `face_surface_kind` becomes
+`face_carrier_kind(body, f).ok()`, and `face_kind_across` resolves the
+half-edge to its face (the two lookups that are its own) and then calls
+the same door. The predicate's `None` is a legitimate consumer choice
+("no carrier is an honest no", `query.rs:294`) and flattening a typed
+refusal loses nothing a predicate wants; the lookups run once; and the
+readback header's rule is already ratified text, so this is its
+faithful elaboration rather than a new decision.
+
+Why not the others. **(b)** the typed door delegating to the query one
+and re-diagnosing the miss re-runs the lookups to learn which failed —
+two readings in disguise, with the diagnosis reconstructed after the
+fact. **(c)** two seats keeping two readings is exactly what the
+readback header says the crate does not do; the `readback` doc's
+citation of the query twin acknowledges the pair, it does not license
+it.
+
+Scope of the edit, if ratified: `crates/topo/src/query.rs` only (two
+function bodies; no signature changes; the predicate rows at
+`query.rs:1181-1182` keep their `None` assertions), announced on
+SEAT's board and taken there by TOPO as a one-door seam, or by SEAT if
+it prefers — SEAT's call. No `readback.rs` change. `edge_carrier_kind`
+(`query.rs:296`) has no readback twin today and is out of scope.
+
+Kind stays `issue` until ratified; then it becomes the unit above.
