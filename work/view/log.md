@@ -2488,3 +2488,90 @@ concluding anything — inherited, fix already on main, cleared by
 merging main. That is the procedure `memories/agent-lane-operations.md`
 asks for and it is the first time this session a lane has met a red it
 did not cause.
+
+## `view/edit-door-wording` green; a lane met a fence correctly (2026-09-05)
+
+**#1932, green** on `1c2da907` — 37 jobs, twelve `test (…)`, five
+`k-lint (gate, …)`. Under style review.
+
+### The fence, and the right way to meet one
+
+The amendment Ev authorised says **"no other file in that crate"**.
+`crates/editor-core/tests/lib_doors_node_result.rs:160` asserted the
+exact string `"edit: node 7 is not live"` — **the pin for the very
+sentence the amendment authorises changing**. Three options: edit it,
+stall, or ship red.
+
+The lane **edited it, disclosed it at the top of its report, and asked
+for ratification rather than assuming it.** That is the behaviour a
+fence is for: it did not quietly widen the scope, and it did not stop
+work over a line that a wording change necessarily entails.
+
+**Ratified here**, with the reasoning short enough for DOCM to check:
+a wording change that leaves its own pin red is not a wording change,
+it is a broken build — so the edit is *entailed by* the authorisation
+rather than an extension of it. The blast radius was **measured, not
+assumed**: `cargo test --workspace` finds exactly one such prose
+assertion, and `crates/pncad-py/tests/` asserts only on `.variant`
+tags. Announced on the PR with an explicit offer to hand it back.
+
+### Both of my claims to falsify were false
+
+1. *"Nothing in the suite matches on `EditError`'s rendered text."*
+   **False** — the one assertion above. This is why claim 1 was the one
+   the brief said to check hardest, and it was still wrong.
+2. *"Deleting `Refusal::SelfBoolean` leaves no reader."* **False** —
+   four: `rank()`'s or-pattern and three test sites. All now assert the
+   door's refusal instead, and `story_authoring`'s asserts the rendered
+   sentence names the double-picked node, which is what that story was
+   about.
+
+Thirteenth and fourteenth corrections.
+
+### The item was wrong about the door's sentence
+
+`self-boolean-precheck-duplicates-the-doors-duplicate-input` argued
+the deletion was **blocked** on `DuplicateInput`'s wording because it
+"names no recourse". The lane found that reading was **of the
+doubled-prefix rendering, not of the sentence**: the forwarded
+`InputFault::Duplicate` clause already states the rule. So the fix
+needed less than the item claimed, and the sequencing argument that
+made this unit wait was resting on an artifact of the defect it was
+waiting to have fixed.
+
+Worth keeping as a shape: **an item that reasons from a rendered
+string can be wrong about the value behind it**, and the tell is that
+the reading and the defect share a cause.
+
+### The convergence decision
+
+One mistyped parameter refused two ways by route. The lane **converged
+on the recourse, not the sentence**: `NoSuchParam` now names the same
+remedy the door names over the same fact, while the frames stay apart —
+the door's sentence is about an edit that was refused, and a drag has
+no edit behind it, so a gesture borrowing that frame would report a
+refusal of something nobody attempted. Converging further would mean
+restoring the pre-check #1846 deleted. Pinned by a row that asserts
+both routes say it.
+
+### The row that proved the point about rows
+
+`panel_edits.rs`'s *"every refusal renders through `Display`, not a
+debug dump"* asserted `!contains('"')` and **stayed green while
+`Refusal::Edit` dumped a quoted name** — because it walked `Io` alone.
+Its title claimed the universal and its evidence was one point. It now
+walks five arms through five real ops. The item flagged that row as
+CHROME's glob; it is VIEW's since Ev widened `paths`, so the lane took
+it.
+
+Residue filed: `refusal-has-no-all-to-walk` — every property over the
+`Refusal` vocabulary is a hand-maintained list, to be decided with
+`viewer-const-all-tables-have-no-exhaustiveness-guard`, which this
+program claimed from CHROME for exactly that reason.
+
+### Reported to DOCM, not taken
+
+`edit.rs` renders a slot id through `Debug` in **six** more places
+(`{slot:?}` → `PointX`) where `SlotId::label()` gives `point x` and
+`refuse.rs` already uses it. Same class as the nine names, **not in the
+amendment's enumeration**, so the lane left them and I announced them.
