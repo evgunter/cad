@@ -254,6 +254,14 @@ pub struct NodeValue<T: Decide> {
     /// substrate ("both evaluations' verdict logs exist"). Rides the
     /// value, so memo reuse transfers the log with the geometry it
     /// certified (same content key ⇒ same decisions, D9).
+    ///
+    /// **This log is not persisted, and neither is the strict form
+    /// derived from it.** The one persisted projection is
+    /// [`crate::resolve::VerdictSummary`] — per-predicate sign
+    /// populations, written by [`crate::resolve::verdict_summary`] and
+    /// carried by the strict codecs in `crate::persist::strict` — so a
+    /// consumer that needs a run's decisions across a process boundary
+    /// summarizes; one that needs them in hand reads this.
     pub verdicts: Arc<VerdictLog>,
     /// RESERVED empty slot: the solved witness assignment (M6 fills).
     pub witness: WitnessSlot,

@@ -188,6 +188,11 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/geom/src/curves/boxes.rs",
+        subject: "conic_arc_aabb",
+        why: Payload("the one-match dispatcher over the two arc constructors above"),
+    },
+    Site {
+        path: "crates/geom/src/curves/boxes.rs",
         subject: "nurbs_curve_aabb",
         why: Payload("bracket reads only, no arithmetic on the bracket"),
     },
@@ -229,8 +234,29 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/profile/src/path/arc_fillet.rs",
+        subject: "anchor_span",
+        why: HandedOff(
+            "Track V's, as `map_refusal` below; the arc-fillet ladder's presentation \
+             sort key, whose own doc states the argument — it is read off the diagnostic \
+             channel, the sort is stable so the order is a function of the inputs (D9), \
+             and the permuted entries carry identical payloads",
+        ),
+    },
+    Site {
+        path: "crates/profile/src/path/arc_fillet.rs",
         subject: "map_refusal",
         why: HandedOff("Track V's; a refusal-payload door S88's handoff names"),
+    },
+    Site {
+        path: "crates/profile/src/path/arc_fillet.rs",
+        subject: "anchor_span",
+        why: Payload(
+            "the corner-outcome PRESENTATION sort key: the two bracketing anchors' span, read \
+             as an `f64` enclosure lower bound off the diagnostic channel. A sort key and \
+             nothing else — the sort is stable, so the order is a function of the inputs \
+             (D9), and the permuted entries carry identical payloads, so nothing downstream \
+             branches on it",
+        ),
     },
     Site {
         path: "crates/sweep/src/blend/battery.rs",
@@ -281,11 +307,6 @@ const ROSTER: &[Site] = &[
         path: "crates/topo/src/boolean/boxes.rs",
         subject: "bracket_point",
         why: Payload("the C10 span-box reader: brackets into an f64 `SpanBox`"),
-    },
-    Site {
-        path: "crates/topo/src/boolean/boxes.rs",
-        subject: "bracket_span",
-        why: Payload("as `bracket_point`, one axis at a time"),
     },
     Site {
         path: "crates/topo/src/boolean/boxes.rs",

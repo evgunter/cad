@@ -18,6 +18,7 @@
 // `-D warnings`. Nothing else in this file is this lane's.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use core::num::NonZeroUsize;
 use geom::NurbsSurface;
 use geom_brep::patch_bound::{self, PatchCell};
 use geom_core::Point3;
@@ -205,7 +206,7 @@ fn probe1_signed_reading_encloses_random_rational_sweep() {
 /// must not read its fixture from the claim.
 fn quarter_cylinder() -> NurbsSurface<f64> {
     let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
-    let kv_v = KnotVector::unit_segment(1);
+    let kv_v = KnotVector::unit_segment(NonZeroUsize::MIN);
     let w = core::f64::consts::FRAC_1_SQRT_2;
     let arc = [(1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
     let mut control = Vec::new();
