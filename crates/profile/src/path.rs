@@ -945,13 +945,20 @@ pub enum PathError<T: Real> {
     /// reason and its own point.
     ///
     /// One envelope for the whole pair, because a refusal about a pair
-    /// is about every corner of it. A carrier pair derives 0, 1 or 2
-    /// corners; if any of them takes the fillet the resolve succeeds,
-    /// so a refusal that names a corner names all of them, each with
-    /// the reason THAT corner refused for. Where the two crossings
-    /// refuse for different reasons — the common case — both sentences
-    /// reach the author, and the deixis of each is "this corner", which
-    /// is true because [`CornerRefusal::at`] is beside it.
+    /// is about every corner of it: every corner that refused AT THE
+    /// STAGE THE ANSWER COMES FROM is an entry, with the reason THAT
+    /// corner refused for. Where the two crossings refuse for different
+    /// reasons — the common case — both sentences reach the author, and
+    /// the deixis of each is "this corner", which is true because
+    /// [`CornerRefusal::at`] is beside it.
+    ///
+    /// The stage is the arc-carrier resolve's two channels, unchanged:
+    /// a corner that passed the anchor windows and then failed to admit
+    /// a tangent circle is the real answer and outranks a corner the
+    /// windows discarded, so the windows' entries appear only when NO
+    /// corner reached the construction. A corner the author did not
+    /// bracket, listed beside the answer about the one they did, would
+    /// be noise rather than attribution.
     ///
     /// The pair-level conditions that name no corner at all
     /// ([`PathNoCornerReason`]) stay

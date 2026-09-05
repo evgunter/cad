@@ -220,7 +220,7 @@ fn label(res: &Result<ProfileLoop<f64>, PathError<f64>>) -> String {
 /// `enclosing_cases` row 1: equal carriers R = 0.2 whose centres sit
 /// d = 0.2828 apart, a right-angle turn, σ = τ = +1. The largest
 /// ordinary fillet is (R₁+R₂−d)/2 = 0.0586. At r = 0.5 the door now
-/// refuses `FilletEnclosesLegCarrier` and its message says *"use a
+/// refuses `CornerReason::EnclosesLegCarrier` and its message says *"use a
 /// radius below that side's carrier radius (0.2 m)"*.
 ///
 /// This probe asks whether that sentence names radii that BUILD.

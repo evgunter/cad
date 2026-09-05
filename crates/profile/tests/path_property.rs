@@ -1143,14 +1143,13 @@ fn the_carrier_bound_lens_lowers_and_keeps_its_authored_point() {
 ///    lens never reached that gate honestly, because on this geometry
 ///    every radius past the waist (1/2) is either offset-disjoint or
 ///    enclosing;
-/// 2. the boundary's **attribution**: both crossings of this pair
-///    refuse, for DIFFERENT reasons — the discarded root's advance gate
-///    refuses while the bracketed one is enclosing — so the envelope
-///    carries two entries and each says which corner it is about. The
-///    row reads the ENCLOSING entry by name rather than the first
-///    refusal seen, and the deixis of the other entry is its own
-///    corner, so neither claims the other's corner is behind the
-///    anchor. Do not weaken it to `matches!(.., PathError::_)`.
+/// 2. the boundary's **attribution**: the discarded root's advance gate
+///    also refuses here, so a single-channel "first refusal wins"
+///    would report a corner that is behind the ray about a corner that
+///    is in fact ahead of it. The construction channel answers instead,
+///    and the envelope carries exactly the corners that reached it —
+///    one, here, and it says which corner it is about. Do not weaken
+///    this to `matches!(.., PathError::_)`.
 #[test]
 fn an_oversized_carrier_fillet_refuses_as_the_enclosing_class() {
     let err = lens(5.0).unwrap_err();
@@ -1163,11 +1162,13 @@ fn an_oversized_carrier_fillet_refuses_as_the_enclosing_class() {
     else {
         panic!("expected the enclosing-class entry, got {err:?}");
     };
-    // Both crossings refuse here, and they refuse differently: the
-    // envelope says so rather than picking one.
-    assert!(
-        crate::common::corners(&err).len() >= 2,
-        "both crossings of this pair refuse: {err:?}"
+    // The window-discarded root is NOT listed beside the answer: the
+    // construction channel is what refused, so the envelope carries the
+    // corner that reached it and nothing else.
+    assert_eq!(
+        crate::common::corners(&err).len(),
+        1,
+        "only the corner that reached the construction is reported: {err:?}"
     );
     assert!(
         (carrier_radius - 1.0).abs() < 1e-12,

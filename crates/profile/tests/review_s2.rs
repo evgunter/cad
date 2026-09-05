@@ -46,7 +46,7 @@
 //! σ·τ = +1 and r > R — and every row DEMANDS the enclosing tangency.
 //! `the_lattice_door_never_emits_an_enclosing_tangency` pins what the
 //! shipped door answers on that table: the typed refusal
-//! `PathError::FilletEnclosesLegCarrier`, on every band.
+//! `CornerReason::EnclosesLegCarrier`, on every band.
 //!
 //! **That boundary is permanent, not a finding.**
 //! `crates/profile/README.md` rules the class out for good — an
@@ -1047,7 +1047,7 @@ fn enclosing_cases() -> Vec<EnclosingCase> {
 /// leg carriers, hence the corner, so the arc cannot touch the corner it
 /// would round — which makes it no fillet OF that corner at all — and a
 /// radius demanding it is answered by the typed
-/// `PathError::FilletEnclosesLegCarrier`, gated on the construction's own
+/// `CornerReason::EnclosesLegCarrier`, gated on the construction's own
 /// signed ρ before any candidate centre is computed.
 ///
 /// This test pins exactly that: every table corner still DEMANDS the
@@ -1176,7 +1176,7 @@ fn the_lattice_door_never_emits_an_enclosing_tangency() {
             }
             Err(other) => panic!(
                 "{name}: a radius demanding the enclosing class must refuse with \
-                 FilletEnclosesLegCarrier (crates/profile/README.md), not with \
+                 the enclosing-class entry (crates/profile/README.md), not with \
                  {other:?}"
             ),
             Ok(lp) => {
@@ -1305,7 +1305,7 @@ fn an_enclosing_leg_forces_an_equally_enclosing_partner() {
             other => panic!(
                 "{name}: a swallowed carrier next to this partner is geometrically \
                  impossible, and the swallowing itself is refused typed, so the sugar must \
-                 refuse with FilletEnclosesLegCarrier; got {other:?}"
+                 refuse with the enclosing-class entry; got {other:?}"
             ),
         }
     }
@@ -1543,7 +1543,7 @@ fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
 /// nobody would author), at the permanent boundary the table test pins:
 /// the geometry still DEMANDS the enclosing tangency (both rho < 0,
 /// re-derived), and **the door refuses with
-/// `PathError::FilletEnclosesLegCarrier`**, on every band. That is the
+/// `CornerReason::EnclosesLegCarrier`**, on every band. That is the
 /// ruling of `crates/profile/README.md`, not a finding about
 /// today's ladder: a blend circle that swallows both leg carriers
 /// swallows the corner, so it can never touch the corner it would round.
@@ -1628,7 +1628,7 @@ fn enclosing_fillet_swallows_both_leg_carriers() {
             assert_swallows_nothing(pf, o2, r2, endorsed, &ctx);
         }
         Err(other) => panic!(
-            "the mined enclosing corner must refuse with FilletEnclosesLegCarrier \
+            "the mined enclosing corner must refuse with the enclosing-class entry \
              (crates/profile/README.md), not with {other:?}"
         ),
         Ok(lp) => {
@@ -1747,6 +1747,12 @@ fn an_ill_conditioned_corner_lands_its_tangent_point_on_the_carrier() {
 ///   DEFINITE arm — and, per the resolve doctrine, ABORTS the whole
 ///   resolve rather than being outranked by the hairline pair's twin
 ///   corner (the silent-build class this pin caught once already).
+///
+/// The abort survives the refusal envelope: the lever gate is a
+/// conditioning fact about the run, not a fact about one crossing of
+/// the pair, so it reaches the caller as its own variant and never as
+/// a `NoCornerOfPair` entry beside the twin corner's story. The match
+/// below is exhaustive on that, which is what pins it.
 ///
 /// What must never happen — on any band — is a build.
 #[test]

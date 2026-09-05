@@ -548,13 +548,18 @@ pub(crate) fn resolve<T: Decide + Bounds>(
 ) -> Result<ArcFilletTrims<T>, PathError<T>> {
     let consumed = guide.consume().map_err(structure)?;
     let band = linear_band(tol)?;
-    // ONE refusal channel: every corner that refuses is an entry, with
-    // the reason THAT corner refused for and the point it sits at. A
-    // gate refusal and a construction refusal are both facts about
-    // their own corner, so neither outranks the other; the envelope
-    // orders them by distance to the bracketing anchors, which is
-    // presentation and not a claim.
-    let mut entries: Vec<CornerRefusal<T>> = Vec::new();
+    // Two refusal channels, deliberately, and each is now a LIST rather
+    // than a first-one-wins pick. A corner the GATES discard is the
+    // weaker story — the author's anchors simply do not bracket it, and
+    // the other root is usually the one they meant. A corner that
+    // PASSED the gates and then failed to admit a tangent circle is the
+    // real answer, so the construction's list outranks the gates' when
+    // both are non-empty; adding the unbracketed corner's "you did not
+    // bracket me" beside the answer is noise, not attribution. Within
+    // the answering channel nothing is picked: every corner that
+    // refused there is an entry, with its own reason and its own point.
+    let mut build_entries: Vec<CornerRefusal<T>> = Vec::new();
+    let mut gate_entries: Vec<CornerRefusal<T>> = Vec::new();
     // The refusals that name NO corner — the pair tangent at a derived
     // corner, a leg with no length scale, a band failure. First one
     // wins, and one surfaces only when no entry does.
@@ -643,7 +648,7 @@ pub(crate) fn resolve<T: Decide + Bounds>(
             (false, Err((_, GateRefusal::Escalated(source)))) => {
                 return Err(PathError::Escalated { source });
             }
-            (false, Err((_, GateRefusal::Outside(window)))) => entries.push(CornerRefusal {
+            (false, Err((_, GateRefusal::Outside(window)))) => gate_entries.push(CornerRefusal {
                 at: corner,
                 reason: CornerReason::OutsideAnchors(window),
             }),
@@ -714,7 +719,7 @@ pub(crate) fn resolve<T: Decide + Bounds>(
             }
             Err(refusal) => match map_refusal(refusal, radius) {
                 CornerOutcome::Reason(reason) => {
-                    entries.push(CornerRefusal { at: corner, reason });
+                    build_entries.push(CornerRefusal { at: corner, reason });
                 }
                 CornerOutcome::Whole(e) => {
                     if whole_refused.is_none() {
@@ -726,6 +731,11 @@ pub(crate) fn resolve<T: Decide + Bounds>(
     }
     // (4) the lifted ladder over the flattened joint space.
     if joints.is_empty() {
+        let mut entries = if build_entries.is_empty() {
+            gate_entries
+        } else {
+            build_entries
+        };
         if !entries.is_empty() {
             // Presentation order: the sum of the distances from the
             // corner to the two bracketing anchors, ascending, ties in

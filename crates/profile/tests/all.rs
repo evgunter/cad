@@ -59,6 +59,8 @@ mod arc_fillet;
 mod blend7_review_probes;
 #[path = "bool11_probes.rs"]
 mod bool11_probes;
+#[path = "fillet_refusal_envelope.rs"]
+mod fillet_refusal_envelope;
 
 #[path = "bool12_probes.rs"]
 mod bool12_probes;

@@ -52,7 +52,7 @@
 //! Every definite fillet refusal this file provokes ends in a second
 //! request written into its own Display arm — `NoCornerForFillet`'s
 //! "use a smaller radius", `AnchorOutsideTrimmedExtent`'s "reduce the
-//! radius or move the anchor", `FilletEnclosesLegCarrier`'s "try a
+//! radius or move the anchor", `CornerReason::EnclosesLegCarrier`'s "try a
 //! radius below that". Those are recourses by every working definition
 //! this unit uses, and the rows below execute them: it is the same
 //! second request in each case, so following the dead constant and

@@ -200,7 +200,8 @@ authoring act.
   leg's ray extension); otherwise the joint at the tip is a
   constructed tangency onto a new carrier — sound for every
   authored `r`. A trim that would eat the tip's authored anchor
-  refuses (`AnchorOutsideTrimmedExtent`). `Center` from a
+  refuses (`CornerReason::AnchorOutsideTrimmedExtent`, an entry
+  of the `NoCornerOfPair` envelope). `Center` from a
   directed tip stays EXCLUDED — the tip's direction is bound, so
   an authored centre's derived tangent would have to value-match
   it, and no direction remains for the centre to supply
@@ -832,7 +833,7 @@ typestate, and it retires:
 - **What is unchanged**: shipped geometry — the census
   (2026-08-16, in LIB-LOG) found the fit gate already refuses
   a trim that would eat the authored anchor
-  (`AnchorOutsideTrimmedExtent`), so every constructing chain
+  (`CornerReason::AnchorOutsideTrimmedExtent`), so every constructing chain
   already has its trim at/after the anchor and re-emits the
   IDENTICAL final vertex chain; `p: Start` closes; the entry
   fused rows. The all-blended-loop entry gap is NOT addressed
@@ -912,12 +913,15 @@ unrepresentable, not refused (at the wire the same pair is the
 replay driver's Transition class). Typed runtime errors, from
 geometry — the lattice guarantees the authoring, never the
 geometry: the junction check (§4 item 1); `NoCornerForFillet`
-(r too large, carriers parallel/non-intersecting/never meeting,
-corner behind the ray, no tangent circle); the M8 conditioning
-gate `FilletOffsetLeverTooShort`; `AnchorOutsideTrimmedExtent`
-(a trim would eat an anchor — the #101 `TangentJointOutOfRange`
-fit-gating generalized, carrying the side's carrier kind; also
-checked for the entry point under a seam fillet);
+(the pair-level conditions that name no corner at all: carriers
+parallel, carriers never meeting); `NoCornerOfPair`, the envelope
+naming EVERY derived corner that refused with that corner's own
+reason and point (r too large, corner behind the ray or before the
+arrival anchor, no tangent circle, a trim that would eat an anchor
+— the #101 `TangentJointOutOfRange` fit-gating generalized,
+carrying the side's carrier kind, also checked for the entry point
+under a seam fillet — or the permanently refused enclosing class);
+the M8 conditioning gate `FilletOffsetLeverTooShort`;
 `SeamRetrimsArcFirstSide` (a `.to(Start)` seam needs a straight
 side 1 — closing onto a carrier while keeping the entry vertex is
 `fillet_arc(r, Center { c, winding, p: Start })`);

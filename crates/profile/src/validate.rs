@@ -248,8 +248,8 @@ impl fmt::Display for FilletLegCarrier {
 
 /// Why a fillet corner admits **no** tangent circle of the requested
 /// radius (the finer split inside
-/// [`crate::path::PathNoCornerReason::NoTangentCircle`], carried by
-/// [`crate::PathError::NoCornerForFillet`] — the situation
+/// [`crate::path::CornerReason::NoTangentCircle`], one entry of the
+/// [`crate::PathError::NoCornerOfPair`] envelope — the situation
 /// `docs/PATHS-DESIGN.md` §2 (the Fillet section) names for the
 /// algebra's `.fillet(r)`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -383,8 +383,9 @@ pub const FILLET_OFFSET_LEVER_RECOURSE: &str = "the tangent point is recovered b
 /// (`crates/profile/README.md`) — is below the tolerance.
 ///
 /// One sentence for the in-band escalation of `fillet_enclosing_carrier`
-/// and for its definite sibling [`crate::PathError::FilletEnclosesLegCarrier`]
-/// alike (D4 ¶1 clause (iv)). It names the same lever the author can
+/// and for its definite sibling
+/// [`crate::path::CornerReason::EnclosesLegCarrier`] alike
+/// (D4 ¶1 clause (iv)). It names the same lever the author can
 /// move as the conditioning gate's recourse does, because at ρ ≈ 0 the
 /// two situations are the same degenerate one: a fillet radius equal to
 /// the leg's carrier radius.
@@ -698,7 +699,7 @@ impl fmt::Display for ProfileError {
                         // MINOR-1): its situation is whether a corner of
                         // this radius exists on the corner side, and its
                         // definite refusal is the path door's
-                        // `PathError::NoCornerForFillet`, so the trio
+                        // `CornerReason::NoTangentCircle`, so the trio
                         // renders one sentence end to end.
                         Some(
                             "fillet_offset_line_circle"
