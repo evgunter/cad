@@ -153,14 +153,17 @@ fn describe_as_intersections<T: Decide>(body: &mut Body<T>) {
         let s2 = face_surface_of_he(body, edge.he_minus);
         let start = body.get_half_edge(edge.he_plus).unwrap().start;
         let end = body.half_edge_end(edge.he_plus).unwrap();
-        let p0 = *body.get_point(body.get_vertex(start).unwrap().point).unwrap();
+        let p0 = *body
+            .get_point(body.get_vertex(start).unwrap().point)
+            .unwrap();
         let p1 = *body.get_point(body.get_vertex(end).unwrap().point).unwrap();
         let witness = p0.lerp(p1, T::from_f64(0.5));
         let (surf1, surf2) = (
             body.get_surface(s1).unwrap().clone(),
             body.get_surface(s2).unwrap().clone(),
         );
-        match geom_brep::classify_dihedral(&surf1, &surf2, witness, p0.distance(p1), band).unwrap() {
+        match geom_brep::classify_dihedral(&surf1, &surf2, witness, p0.distance(p1), band).unwrap()
+        {
             geom_brep::DihedralClass::Smooth => continue,
             geom_brep::DihedralClass::Transverse => {}
         }
@@ -189,7 +192,10 @@ fn nurbs_wall(bow: f64) -> Surface<f64> {
     Surface::Nurbs(Arc::new(n))
 }
 
-fn face_surface_of_he<T: Decide>(body: &Body<T>, he: crate::entity::HalfEdgeKey) -> crate::geometry::SurfaceKey {
+fn face_surface_of_he<T: Decide>(
+    body: &Body<T>,
+    he: crate::entity::HalfEdgeKey,
+) -> crate::geometry::SurfaceKey {
     let he_data = body.get_half_edge(he).unwrap();
     let loop_data = body.get_loop(he_data.parent_loop).unwrap();
     body.get_face(loop_data.face).unwrap().surface
@@ -199,7 +205,11 @@ fn face_surface_of_he<T: Decide>(body: &Body<T>, he: crate::entity::HalfEdgeKey)
 /// the wall's four edges re-described as plane × NURBS `Intersection`s
 /// through the lane door (M7-8). Returns the wall's surface key and the
 /// four edge keys.
-fn m7_8_cube() -> (Body<f64>, crate::geometry::SurfaceKey, Vec<crate::entity::EdgeKey>) {
+fn m7_8_cube() -> (
+    Body<f64>,
+    crate::geometry::SurfaceKey,
+    Vec<crate::entity::EdgeKey>,
+) {
     let cube = geometric_cube::<f64>();
     let mut body = cube.body;
     describe_as_intersections(&mut body);
@@ -217,7 +227,9 @@ fn m7_8_cube() -> (Body<f64>, crate::geometry::SurfaceKey, Vec<crate::entity::Ed
         }
         let start = body.get_half_edge(edge.he_plus).unwrap().start;
         let end = body.half_edge_end(edge.he_plus).unwrap();
-        let p0 = *body.get_point(body.get_vertex(start).unwrap().point).unwrap();
+        let p0 = *body
+            .get_point(body.get_vertex(start).unwrap().point)
+            .unwrap();
         let p1 = *body.get_point(body.get_vertex(end).unwrap().point).unwrap();
         let witness = p0.lerp(p1, 0.5);
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -231,7 +243,9 @@ fn m7_8_cube() -> (Body<f64>, crate::geometry::SurfaceKey, Vec<crate::entity::Ed
             param_end: 1.0,
         };
         body.set_edge_curve_nurbs_lane(edge_key, spec, Tol::witness())
-            .unwrap_or_else(|e| panic!("the plane x flat-NURBS edge attaches through the lane: {e:?}"));
+            .unwrap_or_else(|e| {
+                panic!("the plane x flat-NURBS edge attaches through the lane: {e:?}")
+            });
         lane_edges.push(edge_key);
     }
     assert_eq!(lane_edges.len(), 4, "the front wall has four edges");
@@ -277,17 +291,25 @@ fn four_doors(body: &Body<f64>) -> [String; 4] {
 fn m3r1_corrupt_m7_8_edge_at_f64_which_door_catches_it() {
     let (mut body, wall, lane_edges) = m7_8_cube();
     let before = four_doors(&body);
-    eprintln!("[m3r1] certified body  : composed={} structural={} pseudomanifold={} contact_marks={}", before[0], before[1], before[2], before[3]);
+    eprintln!(
+        "[m3r1] certified body  : composed={} structural={} pseudomanifold={} contact_marks={}",
+        before[0], before[1], before[2], before[3]
+    );
     // The described-NURBS face has no certified flux lane, so check 7
     // answers VolumeUncomputable at the composed door; what this probe
     // measures is check 2, so the premise is "no EdgeCertification".
     for d in &before {
-        assert!(!d.contains("EdgeCertification") || d.contains("(0 EdgeCertification"), "{d}");
+        assert!(
+            !d.contains("EdgeCertification") || d.contains("(0 EdgeCertification"),
+            "{d}"
+        );
     }
     // needs_nurbs_lane answers YES on exactly the four wall edges.
     let mut needs = 0;
     for (k, e) in body.edges() {
-        let Some(crate::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else { continue };
+        let Some(crate::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else {
+            continue;
+        };
         if c.needs_nurbs_lane(|s| body.surfaces.get(s).cloned()) {
             needs += 1;
             assert!(lane_edges.contains(&k));
@@ -297,10 +319,23 @@ fn m3r1_corrupt_m7_8_edge_at_f64_which_door_catches_it() {
     // CORRUPT: the wall under its own key bows 0.05 at the centre.
     body.surfaces[wall] = nurbs_wall(0.05);
     let after = four_doors(&body);
-    eprintln!("[m3r1] CORRUPT wall     : composed={} structural={} pseudomanifold={} contact_marks={}", after[0], after[1], after[2], after[3]);
-    let caught = |d: &String| d.contains("EdgeCertification") && !d.contains("(0 EdgeCertification");
-    eprintln!("[m3r1] CATCHES the corrupt M7-8 wall: composed={} structural={} pseudomanifold={} contact_marks={}", caught(&after[0]), caught(&after[1]), caught(&after[2]), caught(&after[3]));
-    assert!(caught(&after[0]), "the composed validator must catch the corrupt wall");
+    eprintln!(
+        "[m3r1] CORRUPT wall     : composed={} structural={} pseudomanifold={} contact_marks={}",
+        after[0], after[1], after[2], after[3]
+    );
+    let caught =
+        |d: &String| d.contains("EdgeCertification") && !d.contains("(0 EdgeCertification");
+    eprintln!(
+        "[m3r1] CATCHES the corrupt M7-8 wall: composed={} structural={} pseudomanifold={} contact_marks={}",
+        caught(&after[0]),
+        caught(&after[1]),
+        caught(&after[2]),
+        caught(&after[3])
+    );
+    assert!(
+        caught(&after[0]),
+        "the composed validator must catch the corrupt wall"
+    );
 }
 
 /// CLAIM 2 — the door table at `Dual64` on a body that CAN exist there.
@@ -313,7 +348,10 @@ fn m3r1_dual64_body_through_the_lane_keeping_doors() {
     let s = validate::validate_geometric_structural(&d.body, tol);
     let pm = validate::validate_pseudomanifold(&d.body, &ContactRecords::default(), tol);
     let cm = validate::contact_marks(&d.body, tol).map(|_| ());
-    eprintln!("[m3r1] Dual64 cube: structural={s:?} pseudomanifold={pm:?} contact_marks={}", cm.is_ok());
+    eprintln!(
+        "[m3r1] Dual64 cube: structural={s:?} pseudomanifold={pm:?} contact_marks={}",
+        cm.is_ok()
+    );
     assert!(s.is_ok() && pm.is_ok() && cm.is_ok());
 }
 
@@ -368,11 +406,22 @@ fn shared_key_pillow<T: Decide>(tol: Tol) -> Body<T> {
 fn m3r1_census_lane_absence_reached_at_dual64_through_the_public_door() {
     use geom_core::Dual64;
     let tol = Tol::witness();
-    let f = validate::validate_pseudomanifold(&shared_key_pillow::<f64>(tol), &ContactRecords::default(), tol);
-    let d = validate::validate_pseudomanifold(&shared_key_pillow::<Dual64>(tol), &ContactRecords::default(), tol);
+    let f = validate::validate_pseudomanifold(
+        &shared_key_pillow::<f64>(tol),
+        &ContactRecords::default(),
+        tol,
+    );
+    let d = validate::validate_pseudomanifold(
+        &shared_key_pillow::<Dual64>(tol),
+        &ContactRecords::default(),
+        tol,
+    );
     let short = |r: &Result<(), Vec<ValidationError>>| match r {
         Ok(()) => vec!["Ok".to_owned()],
-        Err(v) => v.iter().map(|e| format!("{e:?}").chars().take(70).collect()).collect(),
+        Err(v) => v
+            .iter()
+            .map(|e| format!("{e:?}").chars().take(70).collect())
+            .collect(),
     };
     eprintln!("[m3r1] pillow f64    : {:?}", short(&f));
     eprintln!("[m3r1] pillow Dual64 : {:?}", short(&d));
@@ -382,9 +431,21 @@ fn m3r1_census_lane_absence_reached_at_dual64_through_the_public_door() {
     // this degenerate fixture at BOTH scalars; the census entry itself
     // is pub(crate), so drive it directly to see the arm's two answers.
     let band = Band::linear(tol).unwrap();
-    let cf = crate::census::census_and_certify(&shared_key_pillow::<f64>(tol), &ContactRecords::default(), band);
-    let cd = crate::census::census_and_certify(&shared_key_pillow::<Dual64>(tol), &ContactRecords::default(), band);
-    let brief = |v: &Vec<ValidationError>| v.iter().map(|e| format!("{e:?}").chars().take(80).collect::<String>()).collect::<Vec<_>>();
+    let cf = crate::census::census_and_certify(
+        &shared_key_pillow::<f64>(tol),
+        &ContactRecords::default(),
+        band,
+    );
+    let cd = crate::census::census_and_certify(
+        &shared_key_pillow::<Dual64>(tol),
+        &ContactRecords::default(),
+        band,
+    );
+    let brief = |v: &Vec<ValidationError>| {
+        v.iter()
+            .map(|e| format!("{e:?}").chars().take(80).collect::<String>())
+            .collect::<Vec<_>>()
+    };
     eprintln!("[m3r1] census direct f64    : {:?}", brief(&cf));
     eprintln!("[m3r1] census direct Dual64 : {:?}", brief(&cd));
 }

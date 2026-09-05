@@ -1,5 +1,5 @@
-use geom_core::{Band, Sym};
 use geom::{NurbsCurve3, NurbsSurface, Surface};
+use geom_core::{Band, Sym};
 fn symbolic(
     carrier: &NurbsCurve3<Sym<f64>>,
     plane: &Surface<Sym<f64>>,

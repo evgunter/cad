@@ -164,6 +164,8 @@ pub mod geometry;
 #[cfg(test)]
 pub(crate) mod source_walk;
 
+#[cfg(test)]
+mod cert_m3r1_probes;
 pub mod instance;
 #[cfg(test)]
 pub(crate) mod iso;
@@ -172,8 +174,6 @@ pub mod merge_faces;
 pub mod movefac;
 #[cfg(test)]
 mod n2r1_probes;
-#[cfg(test)]
-mod cert_m3r1_probes;
 pub mod null;
 pub mod offset_axial;
 pub mod offset_together;

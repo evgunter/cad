@@ -1,5 +1,5 @@
-use geom_core::Band;
 use geom::{NurbsCurve3, NurbsSurface, Surface};
+use geom_core::Band;
 fn certified(
     carrier: &NurbsCurve3<f64>,
     plane: &Surface<f64>,

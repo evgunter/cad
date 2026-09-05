@@ -1,8 +1,15 @@
-use geom_core::{Band, Dual64, Point3, Tol};
 use geom::Surface;
 use geom_brep::{EdgeCurve, EdgeCurveSpec, keys::SurfaceKey};
+use geom_core::{Band, Dual64, Point3, Tol};
 use topo::{Body, ContactRecords};
-fn certify_doors(spec: EdgeCurveSpec<Dual64>, p: Point3<Dual64>, q: Point3<Dual64>, s: impl Fn(SurfaceKey) -> Option<Surface<Dual64>> + Copy, band: Band, ec: &EdgeCurve<Dual64>) {
+fn certify_doors(
+    spec: EdgeCurveSpec<Dual64>,
+    p: Point3<Dual64>,
+    q: Point3<Dual64>,
+    s: impl Fn(SurfaceKey) -> Option<Surface<Dual64>> + Copy,
+    band: Band,
+    ec: &EdgeCurve<Dual64>,
+) {
     let _ = EdgeCurve::certify(spec, p, q, s, band);
     let _ = ec.recertify(p, q, s, band);
     let _ = ec.recertify_via(p, q, s, band, None);
