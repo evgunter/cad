@@ -65,21 +65,30 @@ binding.
   disagree. Already a frame product (`frame::disagreement`); only its
   delivery bypasses the ranking.
 
-**Standing facts** — still true after the frame ends, so per
+**Standing facts** — reads of held state, so per
 `crates/viewer/src/frame.rs`'s header they want a badge, not the line:
 
-- `crates/viewer/src/app.rs:629` — `pick index: {error}`. The cache
-  holds a refused build (one attempt per landed generation and δ), so
-  the picture on screen is stale for exactly as long as this stands.
-- `crates/viewer/src/app.rs:674` — `scene: {error}`. Same lifetime.
-- `crates/viewer/src/pane/viewport.rs:324` — `projection: {error}`.
-  True on every frame until the camera moves, and re-written on every
-  one of them while early-returning out of the paint.
-- `crates/viewer/src/app.rs:580` — **the writer the grep missed.** The
-  startup preferences notices, written as a struct-literal
-  initializer. "Your preferences file has a key I do not understand"
-  is a standing fact about the file; it sits on the news line, where
-  the first acting batch of the session silently deletes it.
+- **Landed** (`news-and-standing-facts-are-orthogonal-axes`): the
+  pick-index refusal, the scene refusal and the projection refusal are
+  `frame::index_badge`, `frame::scene_badge` and
+  `frame::projection_badge`, and their three assignment sites are
+  gone. Three fewer writers for this sweep.
+- `crates/viewer/src/app.rs:580` — **the writer the grep missed**, and
+  the one standing fact still on the line. The startup preferences
+  notices, written as a struct-literal initializer. "Your preferences
+  file has a key I do not understand" is a standing fact about the
+  file; it sits on the news line, where the first acting batch of the
+  session silently deletes it. Under the ruled rule it is a read of
+  held state — of the file as it stands — so it badges, which means
+  the notices have to be HELD rather than rendered once into the
+  field.
+
+**One line message that reads like a standing fact.**
+`frame::unindexed_refusal` reports seam state but is raised by a click
+and by nothing else, so the rule leaves it on the line; the ruling's
+worked example named it a badge. That disagreement is
+`unindexed-refusal-is-an-outcome-not-a-read` and it decides which of
+the two tests this sweep sorts twenty writers on.
 
 **A policy that reaches the field without the ranking**, which is
 this item's own module being one of its subjects:

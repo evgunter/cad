@@ -2,7 +2,7 @@
 id: news-and-standing-facts-are-orthogonal-axes
 kind: issue
 title: News and standing fact are orthogonal to subject, and three facts of one class got two answers
-status: dispatched
+status: review
 opened: 2026-09-05
 branch: view/axes-and-badges
 ---
@@ -147,3 +147,22 @@ them true, not this ruling.
 `status-line-writers-bypass-the-ranking` — the twenty-writer sweep,
 the largest item on this board — which has been waiting for a rule to
 sort on since #1849 filed it.
+
+
+## What landed
+
+`Badge` carries a `Subject`; `frame::SeamSubject` states a seam's
+subject once, at the type of its refusal, so a seam speaking on both
+channels cannot answer twice; `scene_refusal`, `index_refusal` and
+`projection_refusal` became `scene_badge`, `index_badge` and
+`projection_badge`, held by `ViewerApp` and read at the toolbar; and
+the rule is written in `crates/viewer/src/frame.rs`'s header and in
+`crates/viewer/README.md`.
+
+**One of the four doors did not move.** `unindexed_refusal` is raised
+by a click and takes the frame's own pick stream, so the ruled rule
+makes it an outcome and leaves it on the line, against the ruling's
+worked example which named it a badge. The unit built the rule and
+disclosed the disagreement as
+`work/view/unindexed-refusal-is-an-outcome-not-a-read.md`, which is
+for Ev.

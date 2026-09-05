@@ -407,26 +407,46 @@ has its own item
 | `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `PathVerb`, `ArcMode`, `DatumKind`, `ShapeKind`, `PatternKindChoice`, `BOOLEAN_OPS`, `MATE_PRIMITIVES` — are hand-maintained mirrors of a kernel or sketch enum; the field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
 | `drafts` | `Drafts` and `CommitFault`: the in-flight form state, its defaults, and its lowering of typed field values to `Expr` and `LoopProgram` — the same layer as `session::author`, and today the larger half of it |
 
-### The status line's two lifetimes
+### Two axes: which channel, and what retires it
 
-The chrome has two channels for something that went wrong, and which
-one a fact belongs in is decided by how long it stays true.
+The chrome has two channels for something it has to say, and a fact is
+sorted twice. **The two sorts are independent, and both get stated.**
 
-**The status line carries NEWS, for the frame that produced it.** A
-message is a `frame::Message`: what it is ABOUT (`frame::Subject`) and
-its own words. The subject is what retires it — a later EVENT about the
-same subject supersedes the message, whatever that event says — and the
-subjects are named by the event stream that retires them: the camera
-(the next camera event, issued by `frame::fold_status` on every clean
-fold), the cursor (the next cursor move, issued by
+**Which channel.** A `frame::Badge` is a **read of held state** a
+reader consults; a `frame::Message` on the status line is the
+**outcome of something that just happened**. The test is mechanical at
+the door: a badge is a function of state the application HOLDS, so it
+is recomputed on the frame it is drawn and ends when that state ends,
+while a door whose input includes the frame's own EVENTS is reporting
+an outcome and belongs on the line. `frame::unindexed_refusal` is where
+that boundary shows: it takes this frame's pick stream, and a click
+that got no answer is an outcome even though what it reports is seam
+state. A badge therefore outlives the frame that raised it and the line
+carries one frame's news — the lifetime is the consequence of the test,
+not the test.
+
+**What retires it.** Both channels carry a `frame::Subject`: the
+recurring event stream whose next event makes the thing the wrong
+answer, named by that stream rather than by who wrote the sentence —
+the camera (the next camera event, issued by `frame::fold_status` on
+every clean fold), the cursor (the next cursor move, issued by
 `frame::cursor_status` off the id pass's own bookkeeping), the document
 (the next act the document accepts), the picture drawn from it, and the
-viewer's preferences. `frame::StatusUpdate::Expire` retires one subject;
-`Clear` sweeps the whole line and belongs to the acting batch alone,
-because an act the document accepted makes every standing complaint
-stale. `frame::apply` is the one place a verdict becomes the field.
+viewer's preferences. Carrying a subject never decided which channel a
+fact goes to: the projection refusal is a **badge** that has the
+subject **camera**, and the pick index's refused click is a **line
+message** that has the subject **display**.
 
-Twenty writers still assign that field rather than answering
+What differs between the channels is the ENFORCEMENT. A message is
+stored, so retiring it is bookkeeping: `frame::StatusUpdate::Expire`
+retires one subject and `Clear` sweeps the whole line, belonging to the
+acting batch alone because an act the document accepted makes every
+standing complaint stale. `frame::apply` is the one place a verdict
+becomes the field. A badge is stored nowhere and nothing retires it —
+its subject names the event that changes the state it reads, and the
+badge goes because the read does.
+
+Twenty writers still assign the message field rather than answering
 `frame::frame_status`'s ranking, and two more — `frame::fold_status`
 and `frame::cursor_status` — answer in the vocabulary and apply it at
 `pane::viewport` without asking it. Each of the twenty names its
@@ -434,21 +454,23 @@ subject — `Message` is the only spelling there is — but naming a
 subject is not asking the ranking, and routing them through it is
 tracked as its own item.
 
-**A fact still true after the frame ends is a STANDING FACT, and its
-home is a toolbar badge.** A `frame::Badge` is a label carrying its own
-subject, a `frame::Tone` (`Advisory` for a report, `Actionable` for a
-verdict a reader may need to act on — the rule `pane::features` argues
-for poisoned rows, stated by a value rather than picked per call site),
-an optional hover detail, and a `frame::Affordance`: `Read` for a
-label, `Opens` for a control, which the advisory-checks badge is
-because a tooltip is the wrong home for text a reader keeps open while
-acting on it. There is one member per standing fact —
-`frame::at_rest_badge`, `checks_badge`, `product_badge`, `delta_badge`
-— each a function of the typed value it reads, so each one's SILENCE is
-a row a test can write. `app::draw_badge` is the single draw; what a
-click on a control means stays at the call site, which is why the draw
-hands the response back and names no window. `tree::RowStatus::badge`
-is the same shape at the row rather than the toolbar.
+**The badges.** A `frame::Badge` carries its subject, a `frame::Tone`
+(`Advisory` for a report, `Actionable` for a verdict a reader may need
+to act on — the rule `pane::features` argues for poisoned rows, stated
+by a value rather than picked per call site), an optional hover detail,
+and a `frame::Affordance`: `Read` for a label, `Opens` for a control,
+which the advisory-checks badge is because a tooltip is the wrong home
+for text a reader keeps open while acting on it. There is one member
+per read — `frame::at_rest_badge`, `checks_badge`, `product_badge`,
+`delta_badge`, and the three display seams that hold a refusal,
+`scene_badge`, `index_badge` and `projection_badge` — each a function
+of the typed value it reads, so each one's SILENCE is a row a test can
+write. A seam that speaks on both channels states its subject once, at
+the type of its refusal, so the badge and the line message cannot
+disagree about it. `app::draw_badge` is the single draw; what a click
+on a control means stays at the call site, which is why the draw hands
+the response back and names no window. `tree::RowStatus::badge` is the
+same shape at the row rather than the toolbar.
 
 Notices — a tool's declined pick, a survival drop, a
 `frame::Withdrawal` — are typed values with `Display`, joined into rank
