@@ -1932,3 +1932,70 @@ The lane asked whether my orchestrator branch had written the same
 residue file. **It had not** — I recorded at round 1 that its file
 stands and I write none, and I kept to that. The duplicate never
 existed.
+
+## 6b's delta round: the MAJOR stays fixed, and the reviewer corrected itself (2026-09-05)
+
+**Merge recommended.** The reviewer verified the collapse rather than
+accepting it, and its verification is stronger than the lane's own
+argument: `landed_generation`, `landed` and `landed_doc` have exactly
+three writers, all three move them together with no early return
+between, so the destructuring cannot pick up a generation without its
+pair — **the old second arm was unreachable rather than merely
+redundant.** The retry receipt holds by construction too: `open` and
+`new_document` both call `request_eval`, which mints a new generation,
+so the same key cannot return after a `forget`. MINOR 1 and MINOR 2
+both sound, including that the two progress rows labelled unreachable
+genuinely are, since `running()` implies `busy()`.
+
+### The row constrained half of the fix, and the missing half is the ordinary case
+
+The question I sent — *would the new row go red under a different wrong
+fix, or only under the one its author tried* — paid for itself. The row
+reds under the no-op stub, under `forget` omitting `attempted`, and
+under `forget` omitting `outstanding`. It does **not** red under
+`forget` omitting `self.index = None`: that mutation leaves the whole
+481-row suite green.
+
+The reason is structural. On the path the row drives, `index` and
+`error` are **already** `None` when `forget` runs, because the
+preceding `sync` submitted and cleared them — so the row only ever
+exercises the two fields that are non-`None` there. **The arm it never
+reaches is the ordinary one**: a *current* index at the moment the
+document is replaced, i.e. an `Open` with no build in flight.
+
+This is the shape `docs/prompts/reviewer-style-lane.md` Q3 exists for —
+a row that passes and cannot fail in the direction that matters — found
+by asking a reviewer to mutate against a fix rather than to read it.
+
+### The live harm channel, which is neither the lane's nor the reviewer's first story
+
+`frame::disagreement` (`pane/viewport.rs:366`) reads `self.index` with
+**no `session.evaluation()` co-guard**, unlike the pick path at `:161`.
+The GPU id pass renders the previous document's mesh and the id is
+resolved through the replaced document's id map, so a mismatch writes
+*"the two picking paths disagree"* — which issue #1097 §4 instructs an
+operator to read as an `R32Uint` clear fault. **A false sentence
+pointing at the wrong subsystem is worse than silence.**
+`blend::mark_segments` (`:215`) is ungated the same way. Filed as a
+class by the lane, with the sweep as the fix's obligation; pre-existing,
+but 6b is what makes the window it needs common.
+
+### The reviewer corrected its own severity argument
+
+Its first report said the defect produced a wrong **pick answer**. It
+did not: `viewport.rs:161` gates the pick path on `(Some(index),
+Some(eval))`, and after an `Open` the evaluation is `None`, so clicks
+were refused rather than misanswered — and no frame has both `Some`,
+because `sync_scene` runs at the top of `ui` and clears the stale index
+before the viewport draws.
+
+**The defect and the fix are both real; the mechanism the severity
+rested on was already blocked by a second guard.** A reviewer applying
+"the dispatch is a hypothesis" to its own previous report, unprompted,
+is the discipline reaching the place it is hardest to apply. Recorded
+so the wrong framing does not survive into the PR body — the lane is
+told to write the invariant breach and the `disagreement` channel,
+not the wrong-answer story.
+
+That makes eleven corrections in this program's history, and the first
+a reviewer made against itself.
