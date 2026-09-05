@@ -1188,6 +1188,10 @@ type IndetMap<V> = HashMap<u128, V, core::hash::BuildHasherDefault<IdHasher>>;
 /// renders.
 struct AtomInfo {
     op: SymOp,
+    /// R2's experiment: the node payload the atom's id was keyed with,
+    /// without which a rule that rewrites an atom's ARGUMENT cannot
+    /// re-mint the atom's id.
+    payload: u64,
     args: [Option<Rc<Form>>; 2],
 }
 
@@ -1618,6 +1622,7 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
         let id = indet_atom(op.tag(), node.payload, &[a.digest()]);
         sess.atoms.entry(id).or_insert_with(|| AtomInfo {
             op,
+            payload: node.payload,
             args: [Some(Rc::new(a.clone())), None],
         });
         Some(Form::poly(Poly::indet(id)))
@@ -1655,7 +1660,10 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
                 )?;
                 match node.op {
                     SymOp::Sqrt => c.sqrt_exact(),
-                    _ => Some(Rat { num: c.num.checked_abs()?, ..c }),
+                    _ => Some(Rat {
+                        num: c.num.checked_abs()?,
+                        ..c
+                    }),
                 }
             })();
             match folded {
@@ -1693,6 +1701,7 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
             let id = indet_atom(node.op.tag(), node.payload, &[a.digest(), b.digest()]);
             sess.atoms.entry(id).or_insert_with(|| AtomInfo {
                 op: node.op,
+                payload: node.payload,
                 args: [Some(Rc::new(a.clone())), Some(Rc::new(b.clone()))],
             });
             Some(Form::poly(Poly::indet(id)))
@@ -1865,7 +1874,8 @@ fn is_identically_zero(id: SymId) -> bool {
             return true;
         }
         let rules = sess.rules;
-        // R1 PROBE: the early-reduced form, ALONGSIDE the plain one.
+        // The early-reduced form (rules A/B per node, ALONGSIDE the
+        // plain one — asked second, so it can only add a discharge).
         if rules.early && early_form(sess, id).is_zero() {
             return true;
         }
