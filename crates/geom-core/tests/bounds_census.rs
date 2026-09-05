@@ -238,6 +238,16 @@ const ROSTER: &[Site] = &[
         why: HandedOff("Track V's; a refusal-payload door S88's handoff names"),
     },
     Site {
+        path: "crates/profile/src/path/arc_fillet.rs",
+        subject: "anchor_span",
+        why: HandedOff(
+            "Track V's ground, beside `map_refusal` above: the presentation sort key for \
+             derived fillet corners. Its own doc states the D9 argument (a stable sort, \
+             ties on enumeration order, payloads identical whatever order they land in); \
+             the disposition is the owning track's to sharpen",
+        ),
+    },
+    Site {
         path: "crates/sweep/src/blend/battery.rs",
         subject: "classified",
         why: Payload(
