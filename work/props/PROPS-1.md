@@ -1,36 +1,28 @@
 ---
 id: PROPS-1
 kind: unit
-title: linalg lost-correlation: mirror_across_plane and reject_from mention their operand once
+title: The lost-correlation members of the linalg audit — mirror_across_plane and reject_from respelled, one re-baseline pass
 status: review
-opened: 2026-09-05
-branch: props/1-linalg-lost-correlation
 parent: certified-lane-non-real-contract-audit
+branch: props/1-linalg-lost-correlation
+opened: 2026-09-05
 pr: 1918
+refs: [certified-lane-non-real-contract-audit, 1277, 1143]
 ---
 
+The first unit of the linalg interval-honesty lane, cut ahead of
+S-CERT's exit because no live PR touched
+`geom-core/src/linalg/{frame,vec,point}.rs` at dispatch —
+`work/props/log.md`, the early opening entry.
 
-The lost-correlation members of the DL6 audit
-(`certified-lane-non-real-contract-audit`), CERT-3 batch members 1, 3
-and 4, taken together so the tree re-baselines once:
+What: `frame::mirror_across_plane`'s translation respelled through the
+Householder identity so the anchor is mentioned once;
+`Vec3::reject_from` respelled through the triple cross so `self` is
+mentioned once; `Point{2,3}::lerp` decided and left with its `Interval`
+cost stated at the site. Both respells move `f64` bits, so the unit
+takes the golden / k-lint / render accounting both members owed, once.
 
-- **`frame::mirror_across_plane`** (member 1) — the translation is
-  `n̂·(2·(n̂·q))` rather than `q − L·q`, so the anchor is mentioned once.
-  At `Interval` the retired spelling charged `2·width(point)` to every
-  component, including the ones where the plane's normal vanishes and
-  the true translation is exactly zero; the shipped spelling attains the
-  true width of the image of the anchor's enclosure.
-- **`Vec3::reject_from`** (member 3) — `(onto × self) × onto / |onto|²`,
-  so `self` is mentioned once. `onto` is still mentioned three times;
-  the gain is on `self`'s width only. The doc's two rounding claims are
-  re-derived and measured for the new spelling.
-- **`Point2::lerp` / `Point3::lerp`** (member 4) — decided and LEFT. The
-  one-difference form stays; each doc now carries a paragraph stating
-  its `Interval` cost (`2·width(self)` at `t = 1`, exact at `t = 0`) so
-  the trade is on the record at the site.
-
-Evidence: `crates/geom-core/tests/props1_evidence.rs` — corpora as
-literals, four `#[ignore]`d instruments, nine gating pins (single-mention
-bound, vanishing-component exactness, parallel narrowing, containment of
-the true value over sampled boxes in both spellings, and the re-derived
-reconstruction claim).
+Not here: the `rotation_about` diagonal floor
+(`rotation-about-diagonal-width-floor`), the `orthonormal_basis` sign
+hull (`interval-orthonormal-basis-sign-hull`, the next unit on the
+file), `normalize`'s overflow (S-CERT's until the inheritance).
