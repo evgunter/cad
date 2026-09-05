@@ -1428,3 +1428,60 @@ clause declines to use it. Filed as
 disclosed in a merged PR body warns nobody once this directory is
 deleted — which is the rule `work/README.md` states and the shape this
 program has now caught four times in two days.
+
+## `view/clearing-walk` built and green; the walk was half-defensive (2026-09-05)
+
+**#1885, CI green** on `00275985` — run 33932029198, 37 jobs, 31
+success / 6 skipped, twelve `test (…)` and all five
+`k-lint (gate, …)` rows. First run was red on `rustfmt + rustdoc
+(gate) + wasm32` (a renamed accessor needed reflowing) and the lane
+fixed it rather than reporting green over it. Not merged; sequencing
+is mine.
+
+The shape is the one my brief predicted and said might be wrong:
+`land` writes the same value the constructor clears, rather than one
+`reset()` called four times. Two values — `Derived` (selection, hover,
+scratch, landed, bounds) and `LandedRun` (the six `landed_*` fields as
+one, so `landed_pair` can no longer hand out half of it). Under style
+review.
+
+### Three findings from the lane worth carrying whatever the review says
+
+**`display` cannot join a reset-by-construction value, and the reason
+is a counter.** `DisplayState::clear` deliberately preserves and
+**bumps** its `revision` — the chrome's "does the drawn scene need
+rebuilding" key — while `DisplayState::new()` starts at 0. Rebuilding
+the field would send that counter **backwards**, and a scene built
+under the old count would then read as current. So the walk is one
+assignment plus one `clear()`, with the reason written where the walk
+is. That is a real constraint on the *idea* of reset-by-construction
+and not an exception to it: a field added inside `DisplayState` is
+still cleared by that type's own `clear`.
+
+**The old walk was HALF-defensive, which the item did not know.**
+`scratch` is `Some` only while `gesture` is `Some` — set only in
+`preview_gesture` under a live gesture, taken at both gesture ends — so
+`self.scratch = None` in the two doors was as unreachable as a
+`gesture = None` would have been. The doors were clearing the preview
+while leaving the drag that owns it. The item filed `bounds` and
+`gesture` as "two fields already sit outside the walk"; the truer
+statement is that a third field was inside it for no reason.
+
+**The one behavioural addition, disclosed rather than smuggled.**
+`clear_for_new_document` asserts `gesture.is_none() && scratch.is_none()`,
+over state the policy table makes unreachable, so that relaxing
+`permitted_during_value_gesture` reds a test instead of silently
+leaving a drag pointed at a document that is gone. Disclosed and
+argued, which is the procedure `docs/prompts/implementer-discipline.md`
+§3 asks for. **Sent to the review as the first claim to falsify** —
+whether "unreachable" holds on every path, and whether an `assert!`
+(a panic, in a GUI, compiled differently in release) is the right
+instrument or whether the honest one is a refusal. I have not
+adjudicated it here.
+
+### Reclaimed
+
+`review-prune-target` (1.7 GB) deleted the moment its report was in
+hand, per `memories/agent-lane-operations.md`. The box was at 12 GB
+free with the 6b lane's target at 9.4 GB and still growing, which is
+the one lane that must not meet a full disk.
