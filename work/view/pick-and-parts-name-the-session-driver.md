@@ -5,7 +5,7 @@ title: pick and parts are vocabularies that name DocSession, so the boundary rul
 status: closed
 opened: 2026-09-04
 closed: 2026-09-05
-pr: 1949
+pr: 1953
 refs: [1848, 1883, exception-arms-untested-while-the-list-is-empty]
 ---
 
