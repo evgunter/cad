@@ -1,9 +1,9 @@
 # The spiric rim carrier and the pinch machinery — design conversation
 
-**STATUS: OPEN — an `[ev]` design conversation** (CURVED orchestrator;
-drafted 2026-09-04 against main `d799235e2`, every code cite
-re-derived by symbol at that head; the tracker item is
-`work/curved/spiric-carrier-ruling.md`). Two questions the VERBS exit walk transferred
+**STATUS: RATIFIED (Ev, PR #1858, 2026-09-04)** — see §0a for the
+rulings. (CURVED orchestrator; drafted 2026-09-04 against main
+`d799235e2`, every code cite re-derived by symbol at that head; the
+tracker item is `work/curved/spiric-carrier-ruling.md`.) Two questions the VERBS exit walk transferred
 to design: `docs/VERBS-RIMCAP-SPEC.md` PR-2 (the torus half of the
 partial-revolve rim — the spiric carrier) and
 `work/curved/pinch-carrying-machinery-valence-4.md` (#1377, the
@@ -29,6 +29,37 @@ column, so it deserves to be argued on that ground), Q4 = (i), Q5 =
 (ii) for the carrier unit with the props lane funded as a separate
 numeric unit right behind it, and Q6 = ratify. Answer in this PR's
 comments; I edit the doc in place and merge.
+
+## 0a. Rulings (Ev, PR #1858 comments, 2026-09-04)
+
+- **Q1 = (b), Q2 = (b1)**: an exact `Curve3::Spiric` variant, a
+  per-configuration special case exactly as `Ellipse` is ("given that
+  the kernel already represents Ellipse as a special case, probably do
+  that").
+- **(c2) is the general route, not a rejected one.** Ev: "for the
+  cases where it's not something we already have a special case for
+  we'd want to do something like that." §5(c2) is re-read
+  accordingly: the rung-3 fitted carrier stays the ratified route for
+  every pair without a closed form (the bulb's cylinder×torus and
+  cone×torus rims); the spiric takes the closed form only because it
+  exists.
+- **Sequencing "(A) then (B)"**: ship the spiric variant first (PR-1
+  as pre-logged), then open the C9 ring `sqrt` (Q3(ii)) as its own
+  `[ev]` conversation — the change that unblocks the general rung for
+  every torus operand.
+- **Q3(i), Q4(i), Q5(ii), Q6**: taken as answered by Ev's 👍 on the
+  orchestrator's summary comment (2026-09-04): a data-free exact
+  `Pcurve` variant for the spiric's chart images; STEP export as an
+  export-only approximating spline at ε; the carrier ships first and
+  the elbow stops at the lune's `VolumeUncomputable` door with the
+  props quadrature lane as the next numeric unit; the pinch is
+  independent, RIMCAP's one-doc premise retired, the double-point
+  spiric recorded as a #1377 member.
+
+What follows from the rulings: `docs/DESIGN.md`'s D3 curve inventory
+gains the spiric (the ratifying edit rides the unit's PR, where the
+variant lands); `docs/VERBS-RIMCAP-SPEC.md` §PR-2 is superseded by this
+document; PR-1's spec is cut from §8 by the orchestrator.
 
 ## 1. Decisions asked (each with the viable answers; §7 argues)
 
@@ -334,7 +365,8 @@ configuration, and that is the honest shape.
 - **(c2) the rung-3 fitted carrier** — `Curve3::Nurbs` under
   `Intersection { torus, cap, witness }` with the full C2 certificate.
   This is the RATIFIED general rung (C1), not the fenced class, and
-  it is exactly what `route` says the spiric should take. Its cost
+  it is exactly what `route` says the spiric should take — and it
+  STAYS the route for every pair without a closed form (§0a). Its cost
   is the torus meters conversion (Q3(ii)), the ℝ³ implicit-pair march
   (`ssi::cylinder_sphere_ssi`'s shape, exhaustiveness and all) run
   from inside a door whose law is "No marching, no SSI"

@@ -2,9 +2,9 @@
 id: spiric-carrier-ruling
 kind: ruling
 title: The spiric rim carrier - fund an exact Curve3 kind or fence the torus half of the partial-revolve rim (docs/CURVED-SPIRIC-DESIGN.md)
-status: open
+status: closed
 opened: 2026-09-04
-needs_ev: true
+closed: 2026-09-04
 refs: [VERBS-C5ARMS, c5-plane-torus-cone-cylinder-arms, pinch-carrying-machinery-valence-4, torus-declared-rest-lane-banked]
 ---
 
@@ -27,3 +27,14 @@ names them) when the PR merges.
   doc" premise.
 - The C9 ring `sqrt` (Q3(ii)) opens as its own conversation if Ev
   wants it argued.
+
+## Closed (2026-09-04)
+
+Ev ruled on PR #1858: Q1 = (b), Q2 = (b1) `Curve3::Spiric` as a
+per-configuration special case like `Ellipse`; (c2) is the general
+route and stays so for pairs without a closed form; sequencing "(A)
+then (B)" — the variant first, then the C9 ring `sqrt` as its own
+`[ev]` conversation; Q3(i)/Q4(i)/Q5(ii)/Q6 by 👍. Recorded in
+`docs/CURVED-SPIRIC-DESIGN.md` §0a. Successor items: the spiric
+carrier unit (spec to cut from the doc's §8), the props quadrature
+lane, and the ring-`sqrt` conversation.
