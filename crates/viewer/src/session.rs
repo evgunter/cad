@@ -71,6 +71,7 @@ use crate::docio::{self, DirResolver};
 use crate::evalseam::{EvalRequest, EvalService, Generation, InlineEvaluator};
 use crate::history::History;
 use crate::parts;
+use crate::pick;
 use crate::props::{self, SlotDriver, SlotValue};
 use crate::tree::{self, TreeRow};
 
@@ -1013,6 +1014,50 @@ impl DocSession {
             .ok_or(Refusal::NoDocumentDirectory)?;
         parts::catalogue(resolver, self.committed_doc().id())
             .map_err(|error| Refusal::Workspace(Box::new(error)))
+    }
+
+    /// **One scan of the document's directory, as a value**
+    /// ([`parts::PartCensus`]) — the directory that was read and what
+    /// reading it answered, taken together because they are about one
+    /// moment.
+    ///
+    /// The chooser is a vocabulary and may not name this driver, so
+    /// the read is hoisted to here rather than the rule widened
+    /// (`crates/viewer/README.md`, *What a vocabulary reads, it is
+    /// handed*); the derivation moving into the driver is what that
+    /// costs.
+    #[must_use]
+    pub fn part_census(&self) -> parts::PartCensus {
+        parts::PartCensus::taken(
+            self.resolve_dir().map(Path::to_path_buf),
+            self.part_catalogue(),
+        )
+    }
+
+    /// **What a pick index is built from** ([`pick::IndexInputs`]):
+    /// the landed pair, the generation it answered and the ε to
+    /// tessellate at — or `None` when nothing has landed, which is the
+    /// cache's own "forget everything" case.
+    ///
+    /// Three of the four are read together for the same reason the
+    /// pair is one value: one landing writes them, so a caller cannot
+    /// pick up a generation without the run it answers. The fourth,
+    /// `tol`, is this session's ε — construction-time, never rewritten
+    /// by a landing — and rides along because the build needs it.
+    ///
+    /// `pick` is a vocabulary and may not name this driver, so the
+    /// read is hoisted rather than the rule widened
+    /// (`crates/viewer/README.md`, *What a vocabulary reads, it is
+    /// handed*, carries the argument).
+    #[must_use]
+    pub fn index_inputs(&self) -> Option<pick::IndexInputs<'_>> {
+        let run = self.derived.landed.as_ref()?;
+        Some(pick::IndexInputs::of(
+            run.generation,
+            run.doc.as_ref(),
+            &run.evaluation,
+            self.tol,
+        ))
     }
 
     /// Insert an instance of the part `id` names, minting its

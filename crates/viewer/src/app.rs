@@ -728,7 +728,7 @@ impl ViewerApp {
         // Every arm but `Current` leaves the viewport drawing the mesh
         // it already has — an older picture, which the indexing
         // indicator names and `pick::unindexed` refuses picks against.
-        match self.picks.sync(&self.session, self.delta) {
+        match self.picks.sync(self.session.index_inputs(), self.delta) {
             pick::CacheStep::Held
             | pick::CacheStep::Nothing
             | pick::CacheStep::Submitted

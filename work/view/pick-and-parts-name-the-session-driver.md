@@ -2,9 +2,11 @@
 id: pick-and-parts-name-the-session-driver
 kind: issue
 title: pick and parts are vocabularies that name DocSession, so the boundary rule is false at two sites
-status: open
+status: closed
 opened: 2026-09-04
-refs: [1848]
+closed: 2026-09-05
+pr: 1953
+refs: [1848, 1883, inserting-an-item-above-another-steals-its-docs]
 ---
 
 
@@ -154,3 +156,60 @@ tidier one.
   should say so where the entries are deleted, the way
   `interval-square-allowlist.sh:125-133` argues about its own retired
   entries.
+
+## Closed
+
+Hoisted, per the ruling. The session mints two values and the two
+vocabularies take them:
+
+- `pick::IndexInputs<'a>` — `generation`, `doc`, `evaluation`, `tol`.
+  `PickCache::sync` took a `&DocSession` and destructured three
+  accessors by hand to get exactly these; it now takes
+  `Option<IndexInputs>` and keeps its "nothing landed → forget" arm as
+  the `None` case, so the behaviour is unchanged and the property the
+  destructuring spelled out (the four are read together because they
+  are SET together) is now the value's own.
+- `parts::PartCensus` — `dir` and `offered`, which is precisely what
+  `PartChooser::opened` used to read off the session and store.
+
+`DocSession::index_inputs` and `DocSession::part_census` are the
+minting doors. A driver naming a vocabulary is the direction the rule
+allows, so nothing moved the wrong way.
+
+Both `VOCAB_EXCEPTIONS` entries are gone, both module headers stopped
+claiming an exception, and `crates/viewer/README.md`'s section is
+rewritten as **What a vocabulary reads, it is handed** — carrying Ev's
+reversibility argument as the general test it is, not just this fork's
+answer. The gate's site-granular machinery stays, empty, and the
+argument it offered to `work/code-quality/D103.md` is restated at the
+deletion site: the entries retired in the same PR as the seam they
+described, without anyone having to notice, which is the property a
+file-granular entry does not have. That is evidence FOR the ruling.
+
+## What the retirement turned up
+
+Emptying the list exposed a latent crash in the gate: with no hits at
+all the union pipeline's `grep -v` matched nothing and `set -euo
+pipefail` killed the run with exit 1 and NO diagnosis — a gate that
+could not pass a clean tree. Fixed here, with the reason written at the
+line. It had survived because the clean self-test fixture plants the
+exempted files, so no run had ever had zero hits.
+
+The self-test's four exception arms used to aim at
+`VOCAB_EXCEPTIONS[0]` — whatever the tree was currently wrong about —
+so retiring the last entry would have retired their coverage with it.
+Borrowing a live defect WAS the defect: they now plant their own entry
+(the list is overridable for a planted tree, and only for one — the
+override is honoured under `--root`, which only the self-test passes),
+so the exemption machinery stays exercised whether or not the tree
+carries an exemption. The zero-hit path is a control of its own rather
+than an accident of the list being empty.
+
+The first fix for the empty-hits crash was `|| true` on the whole
+pipeline, which is the pattern `scripts/gates/lib.sh` exists to remove:
+it folds "could not search" (exit 2) and "no grep at all" (127) into
+"nothing matched", so it would have greened over a scan that never ran.
+The pipeline now writes `gate_grep` at every filter, which draws that
+distinction per stage. Three OTHER `|| true`s in the same function
+predate this unit and went with it — the worst interpolated its pattern
+from an exception entry, so a malformed needle read as zero hits.
