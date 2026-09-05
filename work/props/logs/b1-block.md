@@ -13,8 +13,8 @@ when the block concludes.
 
 | slot | unit | pre-draw difficulty (logged at spec) | arm |
 |---|---|---|---|
-| 0 | PROPS-1 — `docs/PROPS-1-SPEC.md` (mirror + reject_from respells, the one re-baseline pass) | M | OPUS |
-| 1 | banked — the next kernel-logic unit cut | — | OPUS |
+| 0 | PROPS-1 — `docs/PROPS-1-SPEC.md` (mirror + reject_from respells, the one re-baseline pass) | M | OPUS — concluded 2026-09-05 at merge 93baf9ce0, ordinal 2400, sample #136 (no tally candidate; pair FAIR — both MAJORs converged with a severity divergence) |
+| 1 | Span sweep — `docs/PROPS-SPAN-SPEC.md` (`span-carries-its-knot-vector`, ruling A) | L / STRUCTURAL | OPUS — dispatched 2026-09-05 |
 | 2 | banked | — | FABLE |
 
 Dual reviews draw their R1/R2 parity byte at review dispatch and record
