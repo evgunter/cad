@@ -17,12 +17,13 @@ use std::path::PathBuf;
 
 use pncad::document::{
     Alignment, BooleanOp, DocEdit, DocParam, DocumentId, Expr, Frame, LoopProgram, ParamName,
-    ProfileProgram, RecipeNodeId, SlotId,
+    ProfileProgram, RecipeNodeId, SitedRef, SlotId,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
 use pncad::select::ContactClass;
 
+use crate::display::Withdrawn;
 use crate::props::SlotValue;
 use crate::session::author::{DatumSpec, PatternRuleSpec};
 use crate::session::probe::BoundsTarget;
@@ -258,11 +259,12 @@ pub enum SessionOp {
     /// commit door as every other edit: one apply, one history state,
     /// one re-evaluation, and the free-move supersession prune.
     AddMate {
-        /// The `a` reference — the head names a member of A11's
-        /// vocabulary (`pncad::document::member_of`).
-        a: StableName,
+        /// The `a` reference — a name and the operand it is read at,
+        /// resolving to a member of A11's vocabulary
+        /// (`pncad::document::member_of`).
+        a: SitedRef,
         /// The `b` reference, same vocabulary.
-        b: StableName,
+        b: SitedRef,
         /// The declared contact class.
         class: ContactClass,
         /// The alignment datum (frames in each member's own part
@@ -369,8 +371,11 @@ pub enum SessionOp {
     /// **The operand order is data**: `Subtract` keeps `a` and removes
     /// `b`, so the two seats are not interchangeable and the form says
     /// which pick is which. Either seat's non-body pick refuses
-    /// [`Refusal::WrongNodeKind`]; one node in both seats refuses
-    /// [`Refusal::SelfBoolean`].
+    /// [`Refusal::WrongNodeKind`] at this layer; one node in BOTH
+    /// seats is refused by the edit door, as
+    /// `EditError::DuplicateInput` — the pairwise-distinct rule is a
+    /// fact about any node's inputs, not about booleans, so it is
+    /// stated once where every node kind reaches it.
     ///
     /// `declare` is authored `None`: coincidence intent is a
     /// `Node::Declare` input, and authoring one needs the entity picks
@@ -551,13 +556,74 @@ impl SessionOp {
     /// **It is not a statement about the free-move gesture.** That is
     /// a second, independent drag living on the display state
     /// ([`crate::display::DisplayState::begin_free_move`]), with its own in-flight
-    /// refusal. Nothing observed so far enforces either an exclusion
-    /// or an independence between the two: they can be open at once
-    /// and neither answer implies the other, and whether that is
-    /// intended is open — see
-    /// `work/view/two-gestures-can-be-in-flight-together.md`. An
-    /// operation this returns `true` for is permitted
-    /// mid-value-gesture and nothing more.
+    /// refusal. The two can be open at once, and the four `*FreeMove`
+    /// rows below are what permits it. An operation this returns
+    /// `true` for is permitted mid-value-gesture and nothing more.
+    ///
+    /// # Why the two drags may overlap, and until when
+    ///
+    /// **This section is scoped to the tree as it stands.** DI5
+    /// (`docs/DOCM-IDENTITY-DESIGN.md`, ratified) rules that releasing
+    /// a free-move gesture emits one `DocEdit::SetPlacement` and that
+    /// `DisplayState::moves` empties, because a committed frame
+    /// becomes document data. When that lands,
+    /// [`SessionOp::CommitFreeMove`] becomes the only `true` row here
+    /// that commits to the history while a value gesture is open, and
+    /// a commit applies against the history's document while the value
+    /// gesture previews against its own snapshot — so **that row has
+    /// to be re-decided then**, and the argument below does not carry
+    /// over to it. The other three `*FreeMove` rows are unaffected: a
+    /// begin, a preview and a cancel stay display-only under DI5. The
+    /// build is CHROME's (`no-persistent-setplacement-session-op`).
+    ///
+    /// Today the two drags own disjoint state. A value gesture owns a
+    /// `Doc` snapshot and writes a scratch `Doc`; the free-move
+    /// gesture's previews and its committed frames enter no `Doc`, so
+    /// a probe committed or discarded mid-drag cannot reach what a
+    /// preview is applied to or what a commit records.
+    ///
+    /// They meet in three places, and that is where the safety
+    /// actually lives — all three ask a display predicate about a
+    /// document, and they do not all ask about the SAME document:
+    ///
+    /// - the operation admits against the COMMITTED document
+    ///   ([`crate::display::free_move_check`], via
+    ///   [`crate::display::DisplayState::begin_free_move`]);
+    /// - the view the scene draws
+    ///   ([`super::DocSession::display_view`]) resolves against the
+    ///   PREVIEWED one, and so does the Properties pane's own copy of
+    ///   the admission test, which decides whether to DRAW the control
+    ///   the operation then decides whether to ACCEPT;
+    /// - every committed edit prunes the display state against the new
+    ///   document — a prune that DISCARDS committed probes and kills
+    ///   an in-flight free-move whose instance stopped being eligible,
+    ///   without reporting the kill in [`OpOutcome::superseded`]
+    ///   (recorded as current behaviour, not endorsed:
+    ///   `crates/viewer/tests/review_gui4_r1.rs`).
+    ///
+    /// **The identity that makes all three the same answer**: a value
+    /// gesture's edits are `SetParam` and `SetStructuralParam`, which
+    /// replace an expression on a node that already exists, and
+    /// `SetDocParamValue`, which writes a declaration in `doc.params`
+    /// and touches no node at all. None of the three mints or removes
+    /// one. Every display predicate is a function of the node graph —
+    /// which nodes exist, of what kind, with which inputs and which
+    /// mate references — and never of a slot's expression or a
+    /// parameter's value. So the previewed document and the committed
+    /// one agree on every display question, at every point of a drag.
+    /// Break that — let a gesture's edit change the graph — and
+    /// committing a slider would take an in-flight probe away under
+    /// the pointer holding it, saying nothing. The minting half is
+    /// held rather than argued, by an assertion on the applied
+    /// record in `DocSession::preview_gesture`; the rest is what
+    /// `a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other`
+    /// pins, dragging both node-writing doors.
+    ///
+    /// Whether the overlap was ever DECIDED is a separate question and
+    /// the record does not answer it: these four rows were carried
+    /// forward from a tree where the `*FreeMove` operations were
+    /// merely unguarded. What is established is that it is sound
+    /// today, on the mechanism above.
     ///
     /// The whole policy is here, exhaustively, so that the set of
     /// operations a drag refuses can be READ rather than reconstructed
@@ -578,10 +644,21 @@ impl SessionOp {
     ///   family, [`SessionOp::SetInstanceHidden`]) and the evaluation
     ///   controls ([`SessionOp::CancelEvaluation`],
     ///   [`SessionOp::Reevaluate`]);
-    /// - [`SessionOp::Save`], which writes the COMMITTED history and
-    ///   so ignores a preview that is not in it. Whether a save under
-    ///   an open drag should be permitted at all is a question this
-    ///   table only records the current answer to.
+    /// - [`SessionOp::Save`], which has TWO effects and this row is
+    ///   about both. It writes the COMMITTED history, so it ignores a
+    ///   preview that is not in it; and on a save-as whose parent
+    ///   directory differs it rebinds the resolver and re-evaluates,
+    ///   which submits the SHOWN document — mid-gesture, the scratch.
+    ///   That second half acts on the preview the first half ignores.
+    ///   What makes it safe is the door it goes through:
+    ///   `DocSession::request_eval` submits a document and writes no
+    ///   history state, so the drag's base and the committed history
+    ///   are both untouched and the picture being dragged is the one
+    ///   the new directory's references resolve for — the directory
+    ///   rule following the file. That is a property of `request_eval`
+    ///   and is asserted where it lives, not here. Whether a save
+    ///   under an open drag should be permitted at all is a question
+    ///   this table only records the current answer to.
     ///
     /// Everything else moves the document, the history or the file the
     /// drag is previewing against, and is refused.
@@ -646,7 +723,37 @@ pub struct OpOutcome {
     /// rather than inferred: a mate landing on a probed instance
     /// removes its probe here, and the instance is drawn at its
     /// solved placement from the next landed evaluation on.
-    pub superseded: Vec<RecipeNodeId>,
+    ///
+    /// Each entry carries the [`crate::display::DisplayFault`] that
+    /// discarded it, straight from the predicate that decided
+    /// (`display::free_move_check`), so the chrome can say WHY the
+    /// placement went — the mates to delete, the fuse, or the
+    /// instance being gone — instead of naming an id and stopping.
+    ///
+    /// **Only COMMITTED probes.** A gesture in flight when the
+    /// transition lands dies too and is not named here — recorded as
+    /// current behaviour and explicitly not endorsed
+    /// (`crates/viewer/tests/review_gui4_r1.rs`), which is the same
+    /// rule [`SessionOp::permitted_during_value_gesture`] states from
+    /// the other side. A caller learns of the death from
+    /// `DisplayState::probing` and from the typed refusal the next
+    /// gesture op gives it.
+    ///
+    /// The chrome renders this through `frame::supersession_notice`.
+    pub superseded: Vec<Withdrawn>,
+    /// Instances whose HIDE this operation's document transition
+    /// dropped, each with the `display::display_check` fault that
+    /// dropped it.
+    ///
+    /// **Not a supersession, and a separate field for that reason.**
+    /// A probe is superseded — the document answers the placement
+    /// question better than the hand placement did. A hide is not
+    /// answered better by anything: it stops being expressible, and
+    /// where the cause is a fuse the instance the user took out of the
+    /// picture is back in it. `crate::display::PruneReport` carries
+    /// the argument; the chrome renders this through
+    /// `frame::dropped_hide_notice`.
+    pub dropped_hides: Vec<Withdrawn>,
 }
 
 impl OpOutcome {

@@ -42,31 +42,24 @@ on:
   # NARROWING THE GATE TO A CONFIGURATION YOU CHOOSE (2026-08-28, Ev's ask;
   # repurposed 2026-09-04).
   #
-  # A run gates EVERY point of {lane} x {eps} — both compile modes, all three
-  # tolerance rows — and draws only the k-lint row. scripts/ci-filter.py's
-  # CONFIGURATION COVERAGE note is the argument. These inputs no longer buy
-  # COVERAGE for the first two dimensions, because a run already has it; what
-  # they buy is a NARROWED run, which is what a fast re-gate of one axis wants,
-  # and for the k-lint row they are still the only way to choose.
+  # A run gates EVERY point of {lane} x {eps} and every one of `k-lint (gate)`'s
+  # five feature unifications — nothing is drawn any more (2026-09-04).
+  # scripts/ci-filter.py's CONFIGURATION COVERAGE note is the argument. These
+  # inputs no longer buy COVERAGE on any dimension, because a run already has
+  # it; what they buy is a NARROWED run, which is what a fast re-gate of one
+  # axis wants. THIS DISPATCH IS THE ONLY WAY TO NARROW ONE.
   #
-  # THE OTHER SPELLING IS A COMMIT TRAILER — `CI-Config: eps=1e-12` in the
-  # head commit's message — and it is read on ORDINARY pull_request runs by
-  # the same `filter` job. The two are not redundant. A dispatch's checks
-  # belong to the run and never appear on a pull request's head commit, so it
-  # cannot be the thing a reviewer looks at before merging; and a trailer
-  # cannot re-gate a commit already written, which is the whole of "that
-  # landed, now run it at 1e-12" in a repository that does not rewrite
-  # history. ci-filter.py's REQUESTING A POINT section carries the full
-  # argument and the precedence rule (invocation > trailer > draw, per
-  # dimension).
-  #
-  # THE TRAILER IS READ OFF THE HEAD COMMIT AND ONLY THAT ONE, so a narrowing
-  # lasts exactly one push: the next commit — a merge of main into the branch
-  # included — runs the whole matrix again unless it carries the trailer too.
-  # That is the deliberate reading, and since 2026-09-04 it fails in the safe
-  # direction: forgetting the trailer now gives you MORE gate, where it used
-  # to give you a different drawn point. Asking again is one line, and the
-  # step below prints which of the three dimensions was asked for on every run.
+  # THERE WAS A SECOND SPELLING — a `CI-Config:` trailer in the head commit's
+  # message, read on ordinary pull_request runs by the same `filter` job — AND
+  # IT IS DELETED (2026-09-04, Ev: "i see in 1855 it's still talking about the
+  # ci config trailer; that code should be deleted since it's no longer live").
+  # It was additive-only: it could never gate less than an unmarked run. Once
+  # un-sampling reached the last dimension, every dimension already ran whole,
+  # so the only values the trailer could legally name were the whole-dimension
+  # ones it was already getting — it could restate the default or red the
+  # classify step, and nothing else. ci-filter.py's NARROWING A RUN TO ONE
+  # POINT section carries what is left of the argument: precedence is the
+  # invocation over the whole dimension, per dimension.
   #
   # WHAT IT COSTS: a dispatch costs what a code-tier run costs and buys a
   # SECOND gate over a tree, since the ordinary run already happened. Narrowing
@@ -80,13 +73,13 @@ on:
   # new frames are what you want.
   # `unset` IS THE NEUTRAL TOKEN ON ALL THREE, AND IT REPLACED `sample`
   # (2026-09-04). It used to be spelled `sample` because leaving a dimension
-  # alone meant letting the SHA draw it. That is still true of `klint` and is
-  # false of the other two, and one input list cannot carry two vocabularies
-  # without one of them lying: `lane: sample` would now name a draw that does
-  # not exist. `unset` says the same thing about all three — do not narrow this
-  # dimension — and what each dimension DOES when nobody narrows it is on its
-  # own description. A dispatch that still passes `sample` reds the classify
-  # step naming the values it would have accepted, which is this file's
+  # alone meant letting the SHA draw it. That stopped being true of the lane and
+  # the eps rows in the morning and of `klint` the same day, and one input list
+  # cannot carry two vocabularies without one of them lying: `lane: sample`
+  # would name a draw that does not exist. `unset` says the same thing about all
+  # three — do not narrow this dimension — and every one of them now runs WHOLE
+  # when nobody narrows it. A dispatch that still passes `sample` reds the
+  # classify step naming the values it would have accepted, which is this file's
   # standing rule for an input it gets wrong.
   workflow_dispatch:
     inputs:
@@ -109,7 +102,7 @@ on:
         default: unset
         options: [unset, default, "1e-6", "1e-12", all]
       klint:
-        description: "Which `k-lint (gate)` feature unification to gate (`unset` draws one from the SHA; `all` runs all five)"
+        description: "Narrow to one `k-lint (gate)` feature unification (`unset` gates all five, as an ordinary run does)"
         required: false
         type: choice
         default: unset
@@ -121,14 +114,15 @@ on:
       # `all` is for the dispatch aimed at the default branch itself — the
       # tree that landed, whose diff against that branch is empty. It takes NO
       # diff, so the path-keyed signals have nothing to read and fail CLOSED:
-      # the oracle tier runs and the k-lint row pins to `all` (all five
-      # unifications) because nothing can prove `tools/` held still.
+      # the oracle tier runs. The k-lint row is no longer among those signals —
+      # every run gates all five unifications, so there is nothing left for an
+      # empty file list to fail closed into there either.
       #
       # IT NO LONGER SURPRISES ANYONE ABOUT THE LANE, and the note that stood
       # here said it did: `scope: all` used to hit `_forces_interval`'s
       # fail-closed empty-file-list arm and pin `LANE=interval`, so a dispatch
       # aimed at "run everything" gated one compile mode every time. Both lanes
-      # run on every run now, so there is nothing left to fail closed into.
+      # run on every run now, and so do all five k-lint rows.
       scope:
         description: "Classify the change set against the default branch, or run everything unscoped"
         required: false
@@ -431,9 +425,9 @@ jobs:
       # is where a constant belongs.
       run_k_lint: ${{ steps.classify.outputs.RUN_K_LINT }}
       # THE MATRIX THIS RUN GATES (scripts/ci-filter.py, CONFIGURATION
-      # COVERAGE). `both` / `all` unless a dispatch input or a `CI-Config:`
-      # trailer in the head commit NARROWED it; `config_source` below says
-      # which of the three that happened to. Every compile-mode job reads
+      # COVERAGE). `both` / `all` unless a dispatch input NARROWED it, which
+      # is the only spelling that can; `config_source` below says which of the
+      # three that happened to. Every compile-mode job reads
       # `lane`; the two archive-run matrices read `eps_rows`.
       lane: ${{ steps.classify.outputs.LANE }}
       eps: ${{ steps.classify.outputs.EPS }}
@@ -448,9 +442,22 @@ jobs:
       # written once in this file. The rows themselves are `EPS_ROWS` in
       # scripts/ci-filter.py.
       eps_rows: ${{ steps.classify.outputs.EPS == 'all' && '["default", "1e-6", "1e-12"]' || format('["{0}"]', steps.classify.outputs.EPS) }}
-      # The one DRAWN dimension (2026-08-22): which of `k-lint (gate)`'s five
-      # feature unifications this run gates. Only that job reads it.
+      # WHICH OF `k-lint (gate)`'s FIVE FEATURE UNIFICATIONS THIS RUN GATES.
+      # `all` — every one of them — unless a dispatch input narrowed it; the
+      # draw that used to pick one per run was retired on 2026-09-04 with the
+      # measured miss at `#1756` -> `#1775` on the record against it
+      # (scripts/ci-filter.py's CONFIGURATION COVERAGE note). Published as the
+      # one-word value for the configuration step to print, and as the JSON list
+      # below for the matrix to expand.
       klint_row: ${{ steps.classify.outputs.KLINT_ROW }}
+      # THE K-LINT ROWS AS A MATRIX, exactly as `eps_rows` above: `klint_row` is
+      # one word and a matrix dimension is a JSON list. The expansion lives here
+      # rather than in ci-filter.py so the filter's KEY=value stream stays a
+      # stream of words. The rows themselves are `KLINT_ROWS` in
+      # scripts/ci-filter.py, and `_selftest_klint_workflow` re-derives THIS
+      # literal against that tuple rather than trusting a comment to keep them
+      # in step.
+      klint_rows: ${{ steps.classify.outputs.KLINT_ROW == 'all' && '["dev-default", "release-default", "release-budget", "dev-budget", "dev-probe"]' || format('["{0}"]', steps.classify.outputs.KLINT_ROW) }}
       # THE GATED SUITES THIS RUN DOES NOT EXECUTE, as one nextest `-E`
       # expression that EXCLUDES them, or empty for the ordinary whole-suite
       # run. A suite carrying a `test_utils::gated_to!` marker names the
@@ -473,14 +480,16 @@ jobs:
       # `RUN_VIEWER_TOOLKIT` in scripts/ci-filter.py.
       run_viewer_toolkit: ${{ steps.classify.outputs.RUN_VIEWER_TOOLKIT }}
       # WHERE THE THREE VALUES ABOVE CAME FROM — `unsampled` for a dimension
-      # that runs whole (always the lane and the eps rows), `sampled` for the
-      # k-lint row the SHA drew, `pinned` for a k-lint row `_forces_klint`
-      # substituted ahead of the draw, `requested` for one a dispatch input
-      # named, `commit-trailer` for one the head commit's `CI-Config:` line
-      # named. No job reads it; it is published so that "which configuration
-      # gated this run, and did anyone choose it" is answerable from the run's
-      # outputs rather than from a log line, and it is printed in a step of its
-      # own.
+      # that runs whole, which since 2026-09-04 is what all three do unless
+      # someone says otherwise; `requested` for one a dispatch input named.
+      # THOSE ARE THE ONLY TWO WORDS. `sampled` and `pinned` were the draw's
+      # and the pin's, `commit-trailer` was the deleted `CI-Config:` line's,
+      # and no run can print any of them any more — a source vocabulary that
+      # names a thing that cannot happen is a reader's wrong turn.
+      # No job reads it; it is published so that
+      # "which configuration gated this run, and did anyone choose it" is
+      # answerable from the run's outputs rather than from a log line, and it
+      # is printed in a step of its own.
       config_source: ${{ steps.classify.outputs.CONFIG_SOURCE }}
       # WHETHER THIS RUN'S DIFF TOUCHES INTERVAL-NAMED FILES WHILE A REQUEST
       # NARROWED IT TO THE DEFAULT LANE (#1122's advisory, which replaced the
@@ -518,7 +527,11 @@ jobs:
         # path is tier `all`, not a wrong answer.
         env:
           RUSTUP_TOOLCHAIN: stable
-          SEED: ${{ github.event.pull_request.head.sha || github.sha }}
+          # `HEAD_COMMIT` STOOD HERE AND IS GONE (2026-09-04). It addressed the
+          # PR's head commit for two readers that no longer exist: the k-lint
+          # draw's seed, retired earlier the same day, and the `CI-Config:`
+          # trailer, whose whole path is deleted. Nothing in this job reads the
+          # head commit's message any more.
           DRAFT: ${{ github.event.pull_request.draft }}
           # The dispatch inputs (empty on every other event). `unset` is the
           # dispatch's own spelling of "do not narrow this dimension", and the
@@ -565,30 +578,28 @@ jobs:
             echo "changed files:"
             git diff --name-only "$BASE"...HEAD || true
           fi
-          # THE CONFIGURATION REQUEST, in its two spellings. Both are optional,
-          # both are per-dimension, and the invocation wins over the trailer —
-          # ci-filter.py's REQUESTING A POINT section is the argument for all
-          # of that. The trailer is read off the PR's HEAD commit rather than
-          # off the merge ref this job is checked out at: the merge commit's
-          # message is written by GitHub, and what was asked for is what the
-          # author wrote.
+          # THE CONFIGURATION REQUEST, in the one spelling there is: the
+          # dispatch inputs, optional and per-dimension. ci-filter.py's
+          # NARROWING A RUN TO ONE POINT section is the argument.
+          #
+          # THE COMMIT-TRAILER SPELLING STOOD HERE AND IS DELETED (2026-09-04).
+          # This step used to write the PR head commit's message to a file and
+          # pass it as `--config-from-message`. That path was additive-only, so
+          # once every dimension ran whole by default it could only restate the
+          # default or red this step; the flag is gone from ci-filter.py and
+          # passing it now reds, which is this file's standing answer to an
+          # input the filter cannot make sense of.
           CONFIG=()
           for pair in "lane=$IN_LANE" "eps=$IN_EPS" "klint=$IN_KLINT"; do
             case "$pair" in *=|*=unset) continue ;; esac
             CONFIG+=(--config "$pair")
           done
-          git log -1 --format=%B "$SEED" > commit-message.txt
           echo "classification:"
-          # THE DRAW'S SEED IS THE PR'S HEAD SHA, not the merge-ref HEAD this
-          # job is checked out at. The merge ref changes whenever main moves,
-          # so seeding on it would re-draw the k-lint row under a branch that
-          # did not change — losing the "a re-run of the same commit picks the
-          # same row" property that is the whole reason the draw is seeded
-          # rather than random. The lane and the eps rows read no seed at all.
-          # `github.sha` is the fallback for the push trigger, which runs no
-          # drawn job today.
-          scripts/ci-filter.py "${FILTER[@]}" --seed "$SEED" \
-            --config-from-message commit-message.txt "${CONFIG[@]}" \
+          # `--seed` STOOD ON THIS LINE AND IS GONE (2026-09-04). It handed the
+          # head SHA to the k-lint draw; the draw is retired, the option is
+          # deleted rather than left to accept a value it ignores, and passing
+          # one now reds this step.
+          scripts/ci-filter.py "${FILTER[@]}" "${CONFIG[@]}" \
             --notices filter-notices.txt > filter.out
           # DRAFT PRs SKIP THE GATE (2026-08-22, Ev's ask; F5 of the
           # minutes audit, which called it "the largest single lever
@@ -671,9 +682,9 @@ jobs:
           printf 'lane=%s eps=%s klint_row=%s\n' "$LANE" "$EPS" "$KLINT_ROW"
           printf 'source: %s\n' "$CONFIG_SOURCE"
           case "$CONFIG_SOURCE" in
-            *requested*|*commit-trailer*)
+            *requested*)
               echo "CHOSEN BY HAND: at least one dimension above was named" \
-                   "(a workflow_dispatch input, or a CI-Config: trailer in the head commit)."
+                   "by a workflow_dispatch input."
               ;;
           esac
           # A NARROWED RUN GETS A RUN-PAGE ANNOTATION, and this is the only
@@ -685,25 +696,33 @@ jobs:
           # legs. An annotation is rendered on the run page and on the PR's
           # checks tab without anyone opening a job.
           #
-          # KEYED ON THE VALUE, NOT ON `CONFIG_SOURCE`. A trailer can no
-          # longer narrow the lane or the eps rows at all (ci-filter.py's
-          # `WHOLE_BY_DEFAULT` refuses it), so a source-keyed test would fire
-          # on `lane:commit-trailer` — which can only be `lane=both`, a
-          # narrowing of nothing — and stay silent on any future path that
-          # narrows some other way. What matters is what the run GATES.
-          if [ "$LANE" != both ] || [ "$EPS" != all ]; then
-            echo "::warning title=CI narrowed: this run does NOT gate the whole matrix::lane=$LANE eps=$EPS (source: $CONFIG_SOURCE). An un-narrowed run gates {default,interval} x {default,1e-6,1e-12} as twelve test jobs; this one gates fewer. Re-run without the dispatch input, or drop the CI-Config: trailer, to gate all of it."
+          # KEYED ON THE VALUE, NOT ON `CONFIG_SOURCE`. A source-keyed test
+          # fires on a request that narrowed nothing — `--config lane=both`
+          # names a dimension and gates all of it — and stays silent on any
+          # future path that narrows some other way. What matters is what the
+          # run GATES. (It also outlived the source it was first written
+          # against: `commit-trailer` was a value CONFIG_SOURCE could print
+          # until that spelling was deleted on 2026-09-04.)
+          #
+          # THE K-LINT ROW IS IN THIS TEST NOW, and it was not while it was
+          # drawn: a drawn row was not a narrowing by anyone, so warning about
+          # it would have fired on every run and taught readers to skip the
+          # annotation. Un-sampled, `KLINT_ROW` is one row only when someone
+          # asked for one, which is exactly the population this warning is for.
+          if [ "$LANE" != both ] || [ "$EPS" != all ] || [ "$KLINT_ROW" != all ]; then
+            echo "::warning title=CI narrowed: this run does NOT gate the whole matrix::lane=$LANE eps=$EPS klint=$KLINT_ROW (source: $CONFIG_SOURCE). An un-narrowed run gates {default,interval} x {default,1e-6,1e-12} as twelve test jobs and all five k-lint unifications as five k-lint jobs; this one gates fewer. Re-run without the dispatch input to gate all of it."
             {
               echo "### CI narrowed by hand"
               echo
-              echo "This run gates \`lane=$LANE eps=$EPS\` — **not** the whole {default, interval} x {default, 1e-6, 1e-12} matrix."
+              echo "This run gates \`lane=$LANE eps=$EPS klint=$KLINT_ROW\` — **not** the whole {default, interval} x {default, 1e-6, 1e-12} matrix at all five k-lint unifications."
               echo "Source: \`$CONFIG_SOURCE\`."
             } >> "$GITHUB_STEP_SUMMARY"
           fi
           # THE FILTER'S OWN NOTICES, WHERE A READER OF THE RUN IS ALREADY
-          # LOOKING — the k-lint row's `tools/` pin, the gated suites this run
-          # does not execute, or the interval advisory that replaced the
-          # basename pin (#1122). ci-filter.py prints them on
+          # LOOKING — the gated suites this run does not execute, or the
+          # interval advisory that replaced the basename pin (#1122). The
+          # k-lint row's `tools/` pin used to be the third and is retired with
+          # the draw it pre-empted. ci-filter.py prints them on
           # stderr inside `classify the change set`, which lands under the
           # changed-file list and is not where anyone asking "what gated this?"
           # looks; `--notices` is the same text in a file, RELAYED VERBATIM
@@ -713,12 +732,45 @@ jobs:
           # This step used to carry its own prose for both notices, and both
           # copies drifted from the script's: one asserted that a pin's reason
           # names a file, which the fail-closed arm cannot, and the other said
-          # "DEFAULT LANE DRAWN" over a lane that a CI-Config trailer had
-          # REQUESTED. The script can see those values and this step cannot, so
+          # "DEFAULT LANE DRAWN" over a lane a request had NARROWED. The
+          # script can see those values and this step cannot, so
           # the wording belongs there and only there.
           if [ -s filter-notices.txt ]; then
             cat filter-notices.txt
           fi
+
+      # THE READ REACH — ITS VERDICT, IN THE SAME SEAT AND FOR THE SAME REASON.
+      #
+      # `PKGS` is the dependent closure PLUS the crates the change filter
+      # reached for what their sources READ rather than for what they depend on
+      # (see THE READ REACH in scripts/ci-filter.py). A tree-wide guard —
+      # `test-utils::reader_census`, `geom-core::bounds_census`,
+      # `bvh::aggregator_headers` — is in scope because of that widening and
+      # not because anything in the diff is under it, so a reader who sees
+      # `-p test-utils` in a scope and cannot find the dependency that put it
+      # there is reading the run correctly and has nowhere to look. This is
+      # where it says so.
+      #
+      # IT SPEAKS ON EVERY RUN, INCLUDING WHEN IT REACHED NOTHING, because the
+      # empty verdict is the one worth being able to see: a filter that
+      # silently stopped reaching would look exactly like a run whose closure
+      # already held every guard.
+      - name: the read reach - what the closure did not already hold
+        env:
+          TIER: ${{ steps.classify.outputs.TIER }}
+          REACHED: ${{ steps.classify.outputs.REACHED }}
+        run: |
+          case "$TIER" in
+            docs) echo "read reach: n/a — TIER=docs builds nothing" ;;
+            all)  echo "read reach: n/a — TIER=all is unscoped (--workspace)" ;;
+            *)
+              if [ -n "$REACHED" ]; then
+                echo "read reach: in scope for what they READ, not for what they depend on: $REACHED"
+              else
+                echo "read reach: nothing added — the dependent closure already held every crate the tree-wide guards live in"
+              fi
+              ;;
+          esac
 
       # THE PYTHON SUITE AXIS — ITS VERDICT, IN A SEAT THAT ALWAYS SPEAKS.
       #
@@ -766,8 +818,8 @@ jobs:
       #
       # ONE CAUSE, DERIVED FROM THE ACTUAL PRODUCER. `RUN_BUILD=false` has
       # exactly three possible producers and they compose, so the first shape
-      # of this step got them wrong in both directions: a draft PR whose head
-      # carried a `CI-Config:` trailer was told its TIER classified the change
+      # of this step got them wrong in both directions: a draft PR that also
+      # carried a configuration request was told its TIER classified the change
       # as non-triggering (the DRAFT zeroing had done it, and `DRAFT` sat in
       # this step's env unread), and a docs-tier run with a request printed
       # "GATE SKIPPED" and "gate active" in the same breath. So the branches
@@ -787,7 +839,7 @@ jobs:
           CONFIG_SOURCE: ${{ steps.classify.outputs.CONFIG_SOURCE }}
         run: |
           requested=no
-          case "$CONFIG_SOURCE" in *requested*|*commit-trailer*) requested=yes ;; esac
+          case "$CONFIG_SOURCE" in *requested*) requested=yes ;; esac
 
           if [ "$RUN_BUILD" = "true" ]; then
             echo "gate active: tier=$TIER run_build=true."
@@ -914,17 +966,20 @@ jobs:
     # skip every `if: run_build` job — so a condition here would stop it
     # firing on the only change class that can break it.
     #
-    # It is also the wrong thing to sample on its own merits, and the
-    # distinction is the rule for the one dimension this file still samples.
-    # The k-lint draw rests on a missed break PERSISTING: a clippy finding or
-    # a failed assertion stays in the tree, so a later draw still finds it.
-    # This job detects an ABSENCE — a check dropped from one half of CI, a
-    # gate sited where it cannot fire — and an absence leaves no future red
-    # for a later draw to catch. Sample the detector and the thing it detects
-    # merges silently, once. (The lane and ε draws rested on the same
-    # persistence argument and are gone since 2026-09-04, for a reason that
-    # was never about soundness: the minutes they saved stopped being scarce.
-    # This paragraph outlives them because the RULE is what it states.)
+    # It is also the wrong thing to sample on its own merits, and NOTHING IN
+    # THIS FILE IS SAMPLED ANY MORE — the lane and the ε rows stopped being
+    # drawn on 2026-09-04 and the k-lint unification the same day. The rule
+    # this paragraph states outlives all three draws, because it is the rule
+    # that would license a fourth. A draw is sound over a detector whose missed
+    # break PERSISTS: a clippy finding or a failed assertion stays in the tree,
+    # so a later draw still finds it. This job detects an ABSENCE — a check
+    # dropped from one half of CI, a gate sited where it cannot fire — and an
+    # absence leaves no future red for a later draw to catch. Sample the
+    # detector and the thing it detects merges silently, once. (What ended the
+    # three draws was not the soundness argument: the lane and ε lost the
+    # scarce minutes they were saving, and k-lint lost the argument that
+    # persistence is free — `#1756` -> `#1775` is a persistent break that
+    # merged green and cost three lanes a day.)
     #
     # So it runs on every event, drafts and pushes to main included, for
     # about one billed minute and no toolchain, cargo or cache.
@@ -1017,8 +1072,9 @@ jobs:
       # provenance line, and refuses to walk it forward past the rows it
       # describes. Sited HERE, in the tier-blind job, because it is git
       # and stdlib only (a scratch repo, ~1 s) and because the row that
-      # exercises it for real — the budget sweep — is one of five
-      # SAMPLED k-lint unifications, so a bug in it would sit undrawn.
+      # exercises it for real — the budget sweep — runs in ONE of the five
+      # k-lint unifications, so a bug in it would sit behind whichever of the
+      # five legs is slowest to be read.
       - name: tess-budget cut-stamp selftest (the baseline's provenance)
         run: scripts/tess_budget_cut.sh --selftest
       # The claims in the tree about what CI does to probe-gated suites.
@@ -1967,7 +2023,7 @@ jobs:
   # `k-lint (gate)` already COMPILES the probe-gated suites (`cargo test
   # --features probe --all-targets --no-run`, one crate at a time). That
   # is a compile, not a lint: it carries no `-D warnings`, so a warning
-  # passes it in silence, and its own row is one of five sampled feature
+  # passes it in silence, and it runs in one of that job's five feature
   # unifications. This row is the lint.
   #
   # ITS OWN JOB, and not a second step in `clippy`, for three reasons that
@@ -2589,7 +2645,7 @@ jobs:
       #
       # THE ROWS ARE A MATRIX DIMENSION AND NOT THREE JOBS, and they come
       # from `needs.filter.outputs.eps_rows` rather than a literal here: a
-      # dispatch or a `CI-Config: eps=` trailer narrows that list to one
+      # dispatch's `eps` input narrows that list to one
       # row, and a narrowed run then runs two legs instead of six with
       # nothing else in this job changing.
       #
@@ -3835,7 +3891,7 @@ jobs:
   # re-argument, and the ε-coupled ruling; the m4-/m5- baselines stay
   # committed as the durable record).
   k-lint:
-    name: k-lint (gate)
+    name: k-lint (gate, ${{ matrix.row }})
     runs-on: ubuntu-latest
     needs: filter
     # No minimal root set, deliberately: this is the ONLY job that compiles
@@ -3843,73 +3899,49 @@ jobs:
     # its probe sweep records margins from every kernel crate. So it runs
     # whenever anything builds at all.
     if: github.event_name != 'push' && needs.filter.outputs.run_k_lint == 'true'
-    #
-    # ONE OF FIVE FEATURE UNIFICATIONS PER RUN (2026-08-22, the
-    # configuration-sampling ruling that also drew the lane and the ε; the
-    # roster and the soundness argument are at `KLINT_ROWS` in
-    # scripts/ci-filter.py). THIS IS THE ONE DIMENSION STILL DRAWN — the lane
-    # and the ε rows stopped being sampled on 2026-09-04 and this did not,
-    # because five unifications are five COMPILES sharing almost no artifacts
-    # while three ε rows are one archive replayed. The residue is filed as
-    # work/ciw/klint-row-still-sampled.md.
-    # DRAWN, EXCEPT WHERE IT IS PINNED: a change under `tools/` substitutes the
-    # row that RUNS THAT CRATE'S OWN SUITE rather than sampling one (four of
-    # these five rows COMPILE tools/tess-meter, through demos/tour's plain
-    # dependency on it; only `dev-default` runs its tests — Ev's ruling,
-    # 2026-08-29; the mapping and its derivation are at `KLINT_PATH_ROWS`, and
-    # the run says `klint:pinned` in the step above). `demos/` is deliberately
-    # left to the draw, argued at the same site.
-    #
-    # WHY THIS JOB AND NOT A CACHE FIX. This note used to open "it bills
-    # 8-10 minutes — the third largest line item in the gate", and THAT
-    # FIGURE IS STALE, in the exact way this repository keeps finding.
-    # docs/CI-MINUTES-2026-08.md's per-job table does carry a `k-lint (gate)`
-    # row at 9.78 wall / 10 billed — but that column is a ONE-SHOT reading of
-    # reference run 32425890937, taken BEFORE the unification sampling this
-    # very note goes on to describe. The same document's 2026-08-22 section
-    # then derives that sampling at −7 to −8 billed minutes for this job, and
-    # its 2026-08-31 addendum states the rule that settles it: a billed-minute
-    # figure there is maintained BY HAND and is only true as of the
-    # measurement it carries the run id for. So the pre-sampling row and the
-    # post-sampling derivation are both the register's, they disagree by
-    # design, and the sentence that quoted the first as current was wrong. A
-    # reader wanting today's cost reads this job's own duration on any recent
-    # run; a reader wanting the trend reads that document's later columns, not
-    # its reference table.
-    #
-    # WHAT SURVIVES, and it is the only thing this argument needed: running
-    # FEWER UNIFICATIONS is the lever, because the cost is
-    # not one slow check: the
-    # steps below compile demos/tour and the kernel crates FIVE TIMES, once
-    # per unification, and the five share almost nothing. `--release` and dev
-    # are different profiles; `budget` and `probe` are opt-in features gated
-    # at a module boundary, so every crate that sees one carries a different
-    # fingerprint under it. No cache configuration collapses five distinct
-    # compilations into one — only running fewer of them does.
-    #
-    # EACH STEP CARRIES ITS OWN `if:` naming the row it belongs to, rather
-    # than a matrix: the rows are not interchangeable (two of them consume a
-    # CSV the step above them wrote), and a matrix would pay this job's setup
-    # and cache restore five times to run one row's worth of work.
-    # `klint_row == 'all'` is the no-seed spelling and runs everything; the
-    # hosted `filter` job always passes a seed, so it is the local half's
-    # value and a safety net rather than a live path here.
+    strategy:
+      fail-fast: false
+      # ALL FIVE FEATURE UNIFICATIONS, EVERY RUN (2026-09-04, Ev in chat: "you
+      # can un-sample k-lint"). The roster and the argument are at `KLINT_ROWS`
+      # in scripts/ci-filter.py; the rows come from
+      # `needs.filter.outputs.klint_rows` rather than a literal here, so a
+      # dispatch narrowing the `klint` input runs ONE leg with nothing else in
+      # this job changing — the same shape the eps rows have.
+      #
+      # WHAT THIS UNDOES. From 2026-08-22 to 2026-09-04 one row was DRAWN per
+      # run from the head SHA and the other four did not execute, which this
+      # job reported as a single green `k-lint (gate)`. The bill came due at
+      # `#1756` -> `#1775`: run 33834607784 concluded success with `demos tour
+      # fmt + clippy` skipped, the clippy break that step would have caught
+      # reached main, and three lanes read the same green three different ways.
+      # The demo roots are excluded workspaces that no `--workspace` check
+      # reaches, so the drawn row was their only gate.
+      #
+      # A MATRIX, AND THE HEADER HERE USED TO ARGUE AGAINST ONE. The argument
+      # was that a matrix "would pay this job's setup and cache restore five
+      # times to run one row's worth of work" — true of a drawn row and false
+      # of an un-sampled one, where the work IS five rows' worth and the five
+      # setups buy parallelism instead. The other half of that argument was
+      # that the rows are not interchangeable because two of them consume a CSV
+      # the step above them wrote; they do, and both pairs sit INSIDE one row
+      # (the tess-budget sweep and its lint are `release-budget`; the k-probe
+      # sweep and its two lints are `dev-probe`), which is what makes the row
+      # the right matrix axis.
+      #
+      # FIVE NAMED CHECKS, which the draw could not give: a merge queue gates on
+      # check NAMES, and `k-lint (gate)` meant a different thing on every run.
+      matrix:
+        row: ${{ fromJSON(needs.filter.outputs.klint_rows) }}
     #
     # SAID OUT LOUD, because two ratified review outcomes read on the steps
-    # below as UNCONDITIONAL and are now 1-in-5:
-    #   * MIN-1's per-triangle certificate falsifier, in `dev-budget`. The
-    #     step's own comment says making the row conditional "reopens a
-    #     ratified review outcome and must be said out loud" — this is that
-    #     sentence, and the falsifier now runs on an expected 1 run in 5
-    #     rather than on every build-triggering change.
-    #   * `crates/sweep/tests/k_report.rs` and docs/K-REPORT.md both say the
-    #     probe harness is type-checked and run "on every building merge".
-    #     With `dev-probe` sampled that is false in those four words. The
-    #     census gate greps for the STEP NAME, not for how often it runs, so
-    #     nothing reds — the sentences are simply owed a correction.
-    # Both are PERSISTENCE-detectors (a failed falsification, a probe suite
-    # that stopped compiling, stay broken until fixed), which is what makes
-    # the sampling sound; frequency is the only thing given up.
+    # below as UNCONDITIONAL and were 1-in-5 from 2026-08-22 to 2026-09-04.
+    # Both are unconditional again:
+    #   * MIN-1's per-triangle certificate falsifier, in `dev-budget`.
+    #   * `crates/sweep/tests/k_report.rs` and docs/K-REPORT.md's "on every
+    #     building merge", in `dev-probe`.
+    # The census gate greps for the STEP NAME and not for how often it runs, so
+    # nothing reds on a frequency claim either way; those sites are corrected by
+    # hand, in the PR that makes the correction true.
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -3925,19 +3957,41 @@ jobs:
         run: rm -rf local-scripts .claude
 
       - uses: dtolnay/rust-toolchain@stable
-      # ONE CACHE LANE PER PROFILE, keyed on the drawn row's first token.
-      # A `--release` artifact and a dev one share no fingerprint, so a
-      # single entry would be overwritten by whichever profile ran last and
-      # served cold to the other; two entries let each draw restore what a
-      # previous run of its own profile left. The features do NOT get lanes
-      # of their own: `budget` and `probe` are gated at a module boundary
-      # inside WORKSPACE crates, and Swatinem/rust-cache evicts workspace
-      # crates before saving, so what an entry actually holds is the
-      # third-party dependency graph — which the feature selection barely
-      # moves and the profile moves entirely.
+      # ONE CACHE LANE PER ROW, keyed on the whole matrix value.
+      #
+      # THE PROFILE ALONE IS NOT ENOUGH A KEY, and this job used
+      # `startsWith(row, 'release')` until 2026-09-04. That was survivable
+      # while ONE row ran per run; with five legs running concurrently it is
+      # not, because Swatinem/rust-cache builds its key as
+      # `v0-rust-<key>-<GITHUB_JOB>-<os>-<env>-<lockfile>` and `GITHUB_JOB` is
+      # the job ID (`k-lint`) and NOT the matrix value. So a per-profile key
+      # gave the three dev legs ONE identical key and the two release legs
+      # another; the first leg to reach its post step reserved the key and the
+      # rest logged `Failed to save: Unable to reserve cache with key ...,
+      # another job may be creating this cache.`
+      #
+      # MEASURED, off run 33895150877's job logs: `dev-default` (83 s, first to
+      # finish) saved 222 MB under `v0-rust-k-lint-dev-...`; `dev-probe`
+      # (360 s) and `release-default` (413 s) both failed to reserve and saved
+      # nothing. Because the winner is decided by DURATION this was
+      # deterministic and not a race — the two CHEAPEST legs won the two lanes
+      # every run, and the two most expensive ones (between them ~70 % of this
+      # job's seconds) could never write to theirs and restored a sibling's
+      # `target/`, which holds none of their `--features probe` / `--release`
+      # artifacts. Five entries, one writer and one reader each, is the fix,
+      # and it is the shape the eps rows' siblings already use.
+      #
+      # THE FEATURES DO GET LANES under this key, and they need them. The
+      # earlier note here argued they did not, on the grounds that `budget`
+      # and `probe` are gated at a module boundary inside WORKSPACE crates and
+      # rust-cache evicts workspace crates before saving, so an entry holds
+      # the third-party dependency graph, which the feature selection barely
+      # moves. True of the dependency graph and beside the point: `target/` is
+      # in the cache paths too, and it is exactly the half `--features probe`
+      # and `--release` move entirely.
       - uses: Swatinem/rust-cache@v2
         with:
-          key: k-lint-${{ startsWith(needs.filter.outputs.klint_row, 'release') && 'release' || 'dev' }}
+          key: k-lint-${{ matrix.row }}
           workspaces: |
             .
             demos/tour
@@ -3952,10 +4006,10 @@ jobs:
       # (the wild-corpus montage generator) rides the same row for the
       # same reason.
       - name: demos tour fmt + clippy
-        if: contains(fromJSON('["dev-default", "all"]'), needs.filter.outputs.klint_row)
+        if: matrix.row == 'dev-default'
         run: cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings
       - name: demos wild fmt + clippy
-        if: contains(fromJSON('["dev-default", "all"]'), needs.filter.outputs.klint_row)
+        if: matrix.row == 'dev-default'
         run: cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings
       # THE #99 ε PIN, ARMED. `--all-targets` above type-checks the test
       # targets and runs none of them, so until this row landed nothing
@@ -3974,8 +4028,8 @@ jobs:
       #
       # THOSE TWO SECONDS FIGURES ARE A DEVELOPER BOX'S, UNDATED, AND
       # RE-TAKEN BY NOTHING — no register carries a demo-tour run time,
-      # and this job's own duration is the only current reading of the
-      # pair, printed on every run that draws this row. They are kept
+      # and this leg's own duration is the only current reading of the
+      # pair, printed on every code-tier run. They are kept
       # because the SHAPE is what the siting argument uses: the runs are
       # cheap and the release build in front of them is not, so the
       # question is which build this row shares, not how many seconds it
@@ -4005,8 +4059,9 @@ jobs:
       # `verbs_gate_r1_probes` modules. All of that was dead code in
       # the gate until this line.
       #
-      # COST, MEASURED on the run that armed it (32973311618, this
-      # row's own draw): release build 2m11, then the bin's unit tests
+      # COST, MEASURED on the run that armed it (32973311618, which drew
+      # this row while rows were still drawn): release build 2m11, then
+      # the bin's unit tests
       # 0.21 s and the three-ε `eps_regression` tour runs 13.60 s.
       # RE-MEASURED 2026-09-03 with `--features interval` below: the
       # bin's unit tests go 0.21 s -> ~32 s. **That is NOT the tolerance
@@ -4039,10 +4094,10 @@ jobs:
       # walking one scene fewer in silence.
       #
       # COST: the kernel is built once more with the certified scalar
-      # for this crate's graph. It rides the same `release-default` draw
-      # as the rest of this row, so it is not a per-run price.
+      # for this crate's graph. It rides the same `release-default` leg
+      # as the rest of this row, so it costs that leg and nothing else.
       - name: demos tour suite (the #99 ε pin + the tour's own probes)
-        if: contains(fromJSON('["release-default", "all"]'), needs.filter.outputs.klint_row)
+        if: matrix.row == 'release-default'
         run: cd demos/tour && cargo test --release --features interval
       # THE COMMITTED DIE CORPUS IS STILL THE SCENE THAT AUTHORED IT.
       # `crates/editor-core/tests/corpus/die_composed_tour.rs` registers
@@ -4055,21 +4110,22 @@ jobs:
       # builds `demo-tour` in release and the diff costs one sub-second
       # run of it.
       #
-      # It rides this job's sampled row, so it is not a per-run gate: a
-      # PR that changes the die scene and draws another row lands with
-      # the corpus unchecked, and the next sampled run is where it goes
-      # red. Stated rather than papered over — the alternative is a
-      # sixth kernel build in the code tier for a file that moves rarely.
+      # IT IS A PER-RUN GATE AGAIN (2026-09-04). While the row was drawn
+      # this note said the opposite and had to: a PR that changed the die
+      # scene and drew another row landed with the corpus unchecked, and
+      # the next run to draw `release-default` was where it went red.
+      # Every run gates every row now, so the byte diff runs on the merge
+      # that changes the scene.
       #
       # The committed bytes record the ε they were written at, so this
       # runs at the ambient default like the row above it.
       - name: the tour die corpus is regenerable byte-for-byte
-        if: contains(fromJSON('["release-default", "all"]'), needs.filter.outputs.klint_row)
+        if: matrix.row == 'release-default'
         run: |
           cd demos/tour && cargo run --release -- die-corpus /tmp/die_composed_tour.pncad
           diff -u ../../crates/editor-core/tests/corpus/tour/die_composed_tour.pncad /tmp/die_composed_tour.pncad
       - name: k-lint tool fmt + clippy + tests (incl. the #99 litmus)
-        if: contains(fromJSON('["dev-default", "all"]'), needs.filter.outputs.klint_row)
+        if: matrix.row == 'dev-default'
         run: cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
       # NO `cargo doc` STEP HERE, and that is the fix rather than an
       # omission: this crate's prose — which carries the gate's own
@@ -4080,7 +4136,7 @@ jobs:
       # workspace, this one included, from a DERIVED list. Adding a
       # third copy is never the answer to a fourth root.
       - name: tess-lint tool fmt + clippy + tests (the three exit voices)
-        if: contains(fromJSON('["dev-default", "all"]'), needs.filter.outputs.klint_row)
+        if: matrix.row == 'dev-default'
         run: |
           cd tools/tess-lint
           cargo fmt --check
@@ -4099,7 +4155,7 @@ jobs:
       # to uncovered BY MOVING; the rustdoc gate reads them now because
       # it reads every cargo root, not because this row remembers to.
       - name: tess-meter tool fmt + clippy + tests
-        if: contains(fromJSON('["dev-default", "all"]'), needs.filter.outputs.klint_row)
+        if: matrix.row == 'dev-default'
         run: |
           cd tools/tess-meter
           cargo fmt --check
@@ -4121,19 +4177,18 @@ jobs:
       # hosted gate runs it unconditionally". The falsification is now
       # the meter's deviation pass reduced to one ratio per face and
       # asserted in the suite, so it rides the `budget` build rather
-      # than a feature of its own. THIS ROW IS NO LONGER UNCONDITIONAL,
-      # and MIN-1's intent is met in a weaker form than it was written
-      # in: the `if:` below draws it 1 run in 5, so the falsifier runs
-      # on an expected fifth of build-triggering changes rather than on
-      # all of them. The job header carries the argument for why that is
-      # admissible and is not restated here — a failed falsification
-      # PERSISTS in the tree, so a later draw finds it, and frequency is
-      # the only thing given up. What the `tools/` path pin does NOT do
-      # is restore it: this row's subject is `crates/mesh`, which no
-      # pin reaches. Dropping the row, or narrowing it past the draw,
-      # goes beyond what that argument covers and must be said out loud.
+      # than a feature of its own. THIS ROW IS UNCONDITIONAL AGAIN
+      # (2026-09-04), which is MIN-1's intent as it was written: "the
+      # hosted gate runs it unconditionally". From 2026-08-22 to that day
+      # it was not — the `if:` below named a row drawn 1 in 5, so the
+      # falsifier ran on an expected fifth of build-triggering changes,
+      # and the note that stood here said so. The `if:` now selects this
+      # job's `dev-budget` matrix leg, which every code-tier run has.
+      # Narrowing it again — by re-introducing a draw, or by a dispatch
+      # aimed at another row — is a weakening of a ratified review
+      # outcome and must be said out loud where it is done.
       - name: mesh budget meter + certificate falsifier (feature = budget)
-        if: contains(fromJSON('["dev-budget", "all"]'), needs.filter.outputs.klint_row)
+        if: matrix.row == 'dev-budget'
         run: |
           cargo clippy -p mesh --all-targets --features budget -- -D warnings
           cargo test -p mesh --features budget
@@ -4162,7 +4217,7 @@ jobs:
       # because this job is the one that builds demos/tour, and the
       # sweep IS the tour walking its own scenes (~4 s in release — an
       # undated reading on this job's own runner, re-taken by nothing but
-      # visible in this step's duration on every run that draws the row;
+      # visible in this step's duration on every code-tier run;
       # no threshold reads it and the siting argument needs only that the
       # sweep is cheap against the build in front of it).
       #
@@ -4216,10 +4271,10 @@ jobs:
       # baseline still carries it); re-cutting the baseline runs the
       # script without this flag.
       - name: tessellation-budget sweep (every tour scene, per face)
-        if: contains(fromJSON('["release-budget", "all"]'), needs.filter.outputs.klint_row)
+        if: matrix.row == 'release-budget'
         run: scripts/tess_budget_sweep.sh target/tess-budget-fresh.csv --sizing-only
       - name: tessellation-budget lint (gate — a grown budget fails this row)
-        if: contains(fromJSON('["release-budget", "all"]'), needs.filter.outputs.klint_row)
+        if: matrix.row == 'release-budget'
         run: |
           cd tools/tess-lint && cargo run -- \
             ../../target/tess-budget-fresh.csv \
@@ -4287,7 +4342,7 @@ jobs:
       # None of the link is waste: `scripts/k_probe_sweep.sh` runs
       # `--test all` on the next step but one, and this primes it.
       - name: compile and list every probe-gated test target
-        if: contains(fromJSON('["dev-probe", "all"]'), needs.filter.outputs.klint_row)
+        if: matrix.row == 'dev-probe'
         run: |
           set -euo pipefail
           crates=$(scripts/gates/probe-suite-census.sh --crates)
@@ -4339,10 +4394,10 @@ jobs:
       # `--ignored` half ran, so a suite cannot grow a test no selection
       # reaches.
       - name: K-telemetry probe sweep (corpus + M2 corpus + demo scenes, 3 eps rows)
-        if: contains(fromJSON('["dev-probe", "all"]'), needs.filter.outputs.klint_row)
+        if: matrix.row == 'dev-probe'
         run: scripts/k_probe_sweep.sh target/k-fresh
       - name: large-K lint (gate — a flagged margin fails this row)
-        if: contains(fromJSON('["dev-probe", "all"]'), needs.filter.outputs.klint_row)
+        if: matrix.row == 'dev-probe'
         run: |
           cd tools/k-lint && cargo run -- \
             ../../target/k-fresh/k-eps-1e-6.csv \
@@ -4351,12 +4406,12 @@ jobs:
       # **M10-6's THIRD E10 CI ROW: the E6 driver's own K population**
       # (ERROR-DESIGN E6's T6 obligation; docs/K-REPORT.md's runbook).
       #
-      # WHICH AXIS IT RIDES, and what a green means. This row is inside
-      # `k-lint (gate)` and gated on the `dev-probe` draw of the
-      # `klint_row` axis, exactly like the sweep that produces its
-      # input — so a green on a run that drew another row means the row
-      # did not run, not that the population is clean. A branch that
-      # wants it says `CI-Config: klint=dev-probe` on its head commit.
+      # WHICH LEG IT RIDES, and what a green means. This row is inside
+      # `k-lint (gate)`'s `dev-probe` matrix leg, with the sweep that
+      # produces its input. Every code-tier run has that leg since
+      # 2026-09-04, so a green here is a green about this population —
+      # which it was not while the row was drawn 1 in 5, when a green
+      # `k-lint (gate)` most often meant the row had not run at all.
       #
       # WHY IT IS ADVISORY, stated rather than assumed. The lint's
       # thresholds were calibrated over the Band 4 corpus and the tour
@@ -4378,7 +4433,7 @@ jobs:
       # summarized. So the row cannot rot into a green over a broken
       # sweep, which is the failure a plain `|| true` would have.
       - name: driver K-telemetry lint (E6 evidence — rule 1 GATES, rules 2/3 advisory)
-        if: contains(fromJSON('["dev-probe", "all"]'), needs.filter.outputs.klint_row)
+        if: matrix.row == 'dev-probe'
         run: |
           set -uo pipefail
           cd tools/k-lint
@@ -4596,12 +4651,11 @@ jobs:
   #
   #   * TWO OF THE NAMES ARE COMPUTED. `test (eps = …, …/2)` and
   #     `test (interval, eps = …, …/2)` interpolate
-  #     `needs.filter.outputs.eps_rows`, which a `workflow_dispatch` or a
-  #     `CI-Config:` trailer can still narrow. Neither spelling can reach a
-  #     merge_group run (a group's head commit message is GitHub's own, and a
-  #     queue takes no inputs) — but a required-check list is SHARED with pull
-  #     requests, where both can. A gate whose names a commit message can shrink
-  #     is a gate a commit message can shrink.
+  #     `needs.filter.outputs.eps_rows`, which a `workflow_dispatch` can still
+  #     narrow. It cannot reach a merge_group run (a queue takes no inputs) —
+  #     but a required-check list is SHARED with pull requests, where a
+  #     dispatch's narrowed names show up. A gate whose names a run's inputs
+  #     can shrink is a gate those inputs can shrink.
   #   * A LIST GOES STALE SILENTLY. A job added to this file and forgotten in a
   #     branch-protection setting is a gate nobody removed and nobody runs. The
   #     sweep below is what makes that impossible, and it is why this job reads

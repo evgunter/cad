@@ -35,6 +35,7 @@ test_utils::gated_to![
     "crates/geom-core/src/real.rs",
 ];
 
+use core::num::NonZeroUsize;
 use geom_core::spline::{KnotVector, basis, hull};
 use geom_core::{Enclosure, RingInterval};
 use test_utils::fuzz;
@@ -54,7 +55,7 @@ fn random_kv(rng: &mut fuzz::Rng, degree: usize, interior: usize) -> KnotVector 
 /// the sampling oracle, independent of the hull machinery.
 fn eval_poly(kv: &KnotVector, coeffs: &[f64], t: f64) -> f64 {
     let span = kv.span_at(t);
-    let n = basis::basis_funs(kv, span, t);
+    let n = basis::basis_funs(span, t);
     let first = span.first_control();
     let mut acc = 0.0;
     for (j, nj) in n.iter().enumerate() {
@@ -66,7 +67,7 @@ fn eval_poly(kv: &KnotVector, coeffs: &[f64], t: f64) -> f64 {
 /// Value of the rational scalar spline (positive weights).
 fn eval_rational(kv: &KnotVector, coeffs: &[f64], weights: &[f64], t: f64) -> f64 {
     let span = kv.span_at(t);
-    let n = basis::basis_funs(kv, span, t);
+    let n = basis::basis_funs(span, t);
     let first = span.first_control();
     let (mut num, mut den) = (0.0, 0.0);
     for (j, nj) in n.iter().enumerate() {
@@ -128,7 +129,7 @@ fn span_and_domain_bounds_contain_every_sample() {
                 assert!(!domain.is_poison());
                 for index in kv.first_span()..=kv.last_span() {
                     let Some(span) = kv.span(index) else { continue };
-                    let b = hull::span_hull(&kv, &coeffs, span);
+                    let b = hull::span_hull(&coeffs, span);
                     assert!(!b.is_poison());
                     // Non-vacuity: the bound IS the coefficient hull —
                     // over exactly the `Span`'s own window.
@@ -183,7 +184,7 @@ fn rational_bounds_contain_every_sample_under_adversarial_weights() {
                 assert!(!domain.is_poison());
                 for index in kv.first_span()..=kv.last_span() {
                     let Some(span) = kv.span(index) else { continue };
-                    let b = hull::span_hull_rational(&kv, &coeffs, &weights, span);
+                    let b = hull::span_hull_rational(&coeffs, &weights, span);
                     let (u0, u1) = (kv.knots()[index], kv.knots()[index + 1]);
                     let grid = fuzz::scaled(4);
                     for k in 0..=grid {
@@ -293,7 +294,7 @@ fn refinement_tightens_the_bound() {
             let mut tightest = f64::INFINITY;
             for index in kv.first_span()..=kv.last_span() {
                 if let Some(span) = kv.span(index) {
-                    tightest = tightest.min(hull::span_hull(&kv, &coeffs, span).width());
+                    tightest = tightest.min(hull::span_hull(&coeffs, span).width());
                 }
             }
             assert!(
@@ -324,7 +325,7 @@ fn derivative_coefficient_bounds_contain_the_slope() {
             let dom = hull::derivative_domain_hull(&kv, &coeffs);
             for index in kv.first_span()..=kv.last_span() {
                 let Some(span) = kv.span(index) else { continue };
-                let b = hull::derivative_span_hull(&kv, &coeffs, span);
+                let b = hull::derivative_span_hull(&coeffs, span);
                 assert!(!b.is_poison());
                 let (u0, u1) = (kv.knots()[index], kv.knots()[index + 1]);
                 let h = (u1 - u0) * 1e-4;
@@ -387,8 +388,8 @@ fn bounds_are_bit_identical_across_repeats_and_coefficient_types() {
             assert_eq!(da.hi().to_bits(), dc.hi().to_bits());
             for index in kv.first_span()..=kv.last_span() {
                 let Some(span) = kv.span(index) else { continue };
-                let s1 = hull::span_hull(&kv, &coeffs, span);
-                let s2 = hull::span_hull(&kv, &rings, span);
+                let s1 = hull::span_hull(&coeffs, span);
+                let s2 = hull::span_hull(&rings, span);
                 assert_eq!(s1.lo().to_bits(), s2.lo().to_bits());
                 assert_eq!(s1.hi().to_bits(), s2.hi().to_bits());
             }
@@ -398,7 +399,7 @@ fn bounds_are_bit_identical_across_repeats_and_coefficient_types() {
 
 #[test]
 fn structural_errors_poison_rather_than_panic() {
-    let kv = KnotVector::unit_segment(3);
+    let kv = KnotVector::unit_segment(const { NonZeroUsize::new(3).unwrap() });
     let n = kv.control_count();
     let coeffs: Vec<f64> = (0..n).map(|i| i as f64).collect();
     let first = kv
@@ -407,9 +408,9 @@ fn structural_errors_poison_rather_than_panic() {
     // Wrong coefficient count — the ONE structural refusal a `Span`
     // cannot make on the caller's behalf, and so the only one left on
     // the span-restricted entry points.
-    assert!(hull::span_hull(&kv, &coeffs[..n - 1], first).is_poison());
-    assert!(hull::derivative_span_hull(&kv, &coeffs[..n - 1], first).is_poison());
-    assert!(hull::sup_norm_bound_span(&kv, &coeffs[..n - 1], first).is_nan());
+    assert!(hull::span_hull(&coeffs[..n - 1], first).is_poison());
+    assert!(hull::derivative_span_hull(&coeffs[..n - 1], first).is_poison());
+    assert!(hull::sup_norm_bound_span(&coeffs[..n - 1], first).is_nan());
     assert!(hull::domain_hull(&kv, &coeffs[..n - 1]).is_poison());
     assert!(hull::sup_norm_bound(&kv, &coeffs[..n - 1]).is_nan());
     // The out-of-range-span cases this test used to enumerate are gone:
@@ -418,7 +419,7 @@ fn structural_errors_poison_rather_than_panic() {
     let mut poisoned: Vec<RingInterval> = coeffs.iter().map(|c| RingInterval::point(*c)).collect();
     poisoned[0] = RingInterval::poison();
     assert!(hull::domain_hull(&kv, &poisoned).is_poison());
-    assert!(hull::span_hull(&kv, &poisoned, first).is_poison());
+    assert!(hull::span_hull(&poisoned, first).is_poison());
     // A NaN f64 coefficient is the same poison through the Enclosure seam.
     let mut nans = coeffs.clone();
     nans[n - 1] = f64::NAN;

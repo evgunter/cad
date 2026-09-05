@@ -87,6 +87,16 @@ to the layer whose types it serves:
   (`k_stats` is `geom-core`, already below `topo`; the site moves,
   it is not twinned). Datum-node resolution — `RecipeNodeId` →
   `DatumValue` — stays in `editor-core`'s `prepare`.
+- **`rim_of(&Body<T>, EdgeKey) -> Result<Vec<EdgeKey>, RimError>`** —
+  the rim an arc belongs to, whole (FILLET, `docs/FILLET-RIM-SPEC.md`;
+  Ev's ruling on PR 1735, entered by announced seam in `work/seat/log.md`).
+  EXACT by the same standard as the atoms above — stored tags and stored
+  carrier fields read BIT for bit, no funnel, no margin — but a
+  SET-returning door, so it refuses typed where a predicate answers NO:
+  an empty set and a partial set are both answers a caller would act on,
+  and a rim handed back short is a fillet request that stalls at a seam
+  vertex. It adds no vocabulary beyond `RimError`; naming a rim is the
+  names vocabulary's question, not this door's.
 
 **S2 — `select_where` becomes a wrapper.** The engine is already
 factored for this: after `prepare`
@@ -298,7 +308,7 @@ masquerading as structure, the thing the contract forbids.
   it (the tube's inner wall has no equal-radius partner to
   declare).
 - **VS-Q4 — `ParamSource` representation.** Recommendation: an
-  opaque interned token, minted deterministically by `editor-core`
+  opaque token — a canonical injective encoding (revised below) — minted deterministically by `editor-core`
   from the lowered expression address, `Eq`-compared by the kernel
   and inverted upstairs for diagnosis (P1). Rejected: a
   SourceExpr-style structural address IN the kernel — a second
@@ -306,6 +316,18 @@ masquerading as structure, the thing the contract forbids.
   consumer for the structure (nothing composes a motion-invariant
   field). Rejected: a content digest — identity claims become
   hash-collision-shaped for no gain over interning.
+  **Revised (SEAT-6, PR #1593; Ev's sign-off on PR #1870,
+  2026-09-04):** the token is a canonical injective ENCODING of the
+  lowered expression — `Arc<[u8]>`, a tag byte per node, operands in
+  child order, literals as f64 bits, parameters by name — not an index
+  into an interning table. An interner's ids are facts about a run,
+  and the memo serves bodies minted by an earlier run beside siblings
+  re-minted under fresh state, so equal indices from two tables would
+  read as a false `Declared`; the encoding is a function of the recipe
+  alone (D9) and, being injective, is not the rejected digest. The
+  rest of this answer stands unchanged: opaque and `Eq`-only below the
+  line, `editor-core`-minted, inverted upstairs for diagnosis, no
+  structural address in the kernel.
 - **VS-Q5 — does `RimSide`/`RimSupport` collapse onto V2's
   pattern?** Once a canonical owner exists, the persisted spelling
   can be a stable-tag match over the kernel enum and the twin

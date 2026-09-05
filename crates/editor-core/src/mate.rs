@@ -8,14 +8,16 @@
 //!
 //! # What a mate is, structurally
 //!
-//! A mate is a **leaf**: its `a`/`b` are instance-qualified stable
-//! names, and name references are not DAG edges (the shipped D3
-//! carve-out, which `Declare` established). What A12 adds on top is
-//! the *reading* edge: the MEMBER instance each name's head resolves
-//! through — the instantiate node itself, or a pattern's input
-//! instance for an `Instance(i)`-qualified head (A11's member
-//! vocabulary) — RECOMPUTED from the recipe at need
-//! ([`reading_edges`]) and never stored beside it. The partitions
+//! A mate is a **leaf**: its `a`/`b` are `SitedRef`s — an
+//! instance-qualified stable name plus the OPERAND node it is read at
+//! — and neither half is a DAG edge (the shipped D3 carve-out, which
+//! `Declare` established, extended to the node half by A12's reading
+//! rule). What A12 adds on top is the *reading* edge: the MEMBER
+//! instance each reference's OPERAND resolves through, walking down
+//! to the minting instance past any number of transforms and at most
+//! one pattern level (A11's member vocabulary) — RECOMPUTED from the
+//! recipe at need ([`reading_edges`]) and never stored beside it. The
+//! partitions
 //! divide on that distinction — A9's relative-freedom components and
 //! A11's placement clusters run over consuming ∪ reading edges, while
 //! A10's coverage, ancestor-freedom, maintenance and product gather
@@ -622,18 +624,22 @@ pub enum MateFault {
         /// What survived the fold.
         residual: Subgroup,
     },
-    /// A mate's name head does not resolve to a live MEMBER — a live
-    /// instantiate node, or a pattern-placed instance (the `Pattern`
-    /// node with its `Instance(i)` qualifier at a derivable pose;
-    /// A11's member vocabulary) — N5's dangling reference. It
-    /// contributes no reading edge; the solve refuses typed rather
-    /// than pretending the mate is absent.
+    /// A mate's reference does not resolve to a live MEMBER — the
+    /// walk from its operand down to its name's head found no live
+    /// instantiate node, reached through transforms and at most one
+    /// pattern level at a derivable pose (A11's member vocabulary) —
+    /// N5's dangling reference. It contributes no reading edge; the
+    /// solve refuses typed rather than pretending the mate is absent.
     DanglingHead {
         /// The mate.
         mate: RecipeNodeId,
         /// Which side dangles.
         side: MateSide,
-        /// The head the name claims.
+        /// **The node at which the reference resolves to no member**:
+        /// where the walk stopped, which is a stranded operand when
+        /// the operand is the broken half and the first node outside
+        /// the vocabulary otherwise. Not in general the reference's
+        /// own head, which is often live and fine.
         head: RecipeNodeId,
     },
     /// A mate names ONE instance on both sides. A pair is two

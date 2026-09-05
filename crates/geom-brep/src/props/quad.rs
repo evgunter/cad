@@ -641,7 +641,7 @@ fn bspline_range_hull(kv: &KnotVector, coeffs: &[RingInterval], lo: f64, hi: f64
     for index in s0.index()..=s1.index() {
         // Emptiness check and span validation are one step.
         let Some(span) = kv.span(index) else { continue };
-        let h = span_hull(kv, coeffs, span);
+        let h = span_hull(coeffs, span);
         acc = if seeded {
             RingInterval::hull(acc, h)
         } else {
@@ -1075,19 +1075,20 @@ impl Dir {
 /// `t`, exact-in-kind for the Newton–Cotes nodes, which lie in the
 /// span's closure.
 fn bspline_eval_ring_in_span(
-    kv: &KnotVector,
     coeffs: &[RingInterval],
-    span: Span,
+    span: Span<'_>,
     t: RingInterval,
 ) -> RingInterval {
+    let kv = span.knots();
     if coeffs.len() != kv.control_count() {
         return RingInterval::poison();
     }
     let p = kv.degree();
     let u = kv.knots();
     // The window's base, off the `Span` — as in [`bspline_eval_ring`],
-    // whose recurrence this is. The length check above is the only
-    // structure left to verify: in-range-ness came with the `Span`.
+    // whose recurrence this is. Degree, knots and window all come from
+    // the one borrow, so the length check against `coeffs` is the only
+    // structure left to verify.
     let first = span.first_control();
     let mut d: Vec<RingInterval> = (0..=p).map(|j| coeffs[first + j]).collect();
     for r in 1..=p {
@@ -1257,7 +1258,7 @@ impl PatchGrid {
         match (dir, op) {
             (Dir::Kv(kv), Collapse::At(t)) => bspline_eval_ring(kv, coeffs, t),
             (Dir::Kv(kv), Collapse::AtSpan { mid, t }) => {
-                bspline_eval_ring_in_span(kv, coeffs, kv.span_at(mid), *t)
+                bspline_eval_ring_in_span(coeffs, kv.span_at(mid), *t)
             }
             (Dir::Kv(kv), Collapse::Over(lo, hi)) => bspline_range_hull(kv, coeffs, lo, hi),
             (Dir::Raw { knots, degree }, Collapse::At(t)) => raw_eval(knots, *degree, coeffs, t),
@@ -3879,7 +3880,7 @@ mod tests {
     fn nurbs_patch_flux_matches_flat_and_warped_oracles() {
         let band = Band::linear(Tol::witness()).unwrap();
         let eps = Tol::witness().get().eps;
-        let kv = KnotVector::unit_segment(1);
+        let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
         // Row-major iu·nv+iv, nu = nv = 2: [(u0v0), (u0v1), (u1v0), (u1v1)].
         let flat = [
@@ -3980,7 +3981,7 @@ mod tests {
     #[test]
     fn rational_patch_encloses_the_reparameterized_square() {
         let band = Band::linear(Tol::witness()).unwrap();
-        let kv = KnotVector::unit_segment(1);
+        let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
         let flat = [
             p(0.0, 0.0, 1.0),
@@ -4013,7 +4014,7 @@ mod tests {
     fn rational_two_span_quarter_cylinder() {
         let band = Band::linear(Tol::witness()).unwrap();
         let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
-        let kv_v = KnotVector::unit_segment(1);
+        let kv_v = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
         let h = 2.0;
         let d = core::f64::consts::FRAC_PI_4;
@@ -4074,7 +4075,7 @@ mod tests {
     fn interior_multiplicity_ladder_never_certifies_a_wrong_enclosure() {
         use geom_core::spline::basis::ders_basis_funs;
         let band = Band::linear(Tol::witness()).unwrap();
-        let kv_v = KnotVector::unit_segment(1);
+        let kv_v = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         // `pv` is gone: the oracle's v-window base is the `Span`'s own
         // `first_control()`, not a re-derived `span − degree`.
         let (pu, nv, height) = (3usize, 2usize, 2.0f64);
@@ -4115,8 +4116,8 @@ mod tests {
                 // basis ladder, S_d by the quotient rule.
                 let at = |u: f64, v: f64| -> ([f64; 3], [f64; 3], [f64; 3]) {
                     let (su, sv) = (kv_u.span_at(u), kv_v.span_at(v));
-                    let bu = ders_basis_funs::<f64>(&kv_u, su, u, 1);
-                    let bv = ders_basis_funs::<f64>(&kv_v, sv, v, 1);
+                    let bu = ders_basis_funs::<f64>(su, u, 1);
+                    let bv = ders_basis_funs::<f64>(sv, v, 1);
                     // The `iu * nv + iv` stride stays written out on
                     // purpose: this oracle shares NO derivation with
                     // the code under test, so it does not borrow the
@@ -4146,7 +4147,7 @@ mod tests {
                 // copies of one value and divides by N. Two premises,
                 // both visible in the construction above — check them
                 // before touching the net:
-                //   (i)  `kv_v` is `unit_segment(1)`: degree 1, two
+                //   (i)  `kv_v` is `unit_segment(core::num::NonZeroUsize::MIN)`: degree 1, two
                 //        control points, no interior knot;
                 //   (ii) the weight pushed for BOTH v-rows of profile
                 //        point `i` is the same `ws[i]` — the weight is
@@ -4261,7 +4262,7 @@ mod tests {
     fn rational_quarter_cylinder_brackets_the_closed_form() {
         let band = Band::linear(Tol::witness()).unwrap();
         let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
-        let kv_v = KnotVector::unit_segment(1);
+        let kv_v = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
         let h = 2.0;
         let net = [

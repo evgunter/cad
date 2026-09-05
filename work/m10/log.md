@@ -797,3 +797,47 @@ twin certifies: `geom_core::sym::form_in` budget-freezes the rational
 forms that re-normalising the kernel's stored unit vectors produces
 (degree 400–700). The kernel's symbolic lane, M10's territory; the
 red pin is on `docm/1-review-r1`. Signed (DOCM orchestrator).
+
+## Announced seam from PROPS (2026-09-05)
+
+The verdict-recording lane (`work/props/plan.md`) edits `drive.rs` by
+announced seam, as the PROPS program header records. First build: the
+unit `three-per-node-verdict-shapes` on `props/verdict-shapes` moves
+`VerdictVector`/`VerdictRow`/`VerdictVectorKey` out of `drive.rs` into
+`resolve/vdiff.rs` beside `NodeVerdicts`, folds `ReplayOutcome` into
+`RunStatus` (`Absent` kept distinct; existing key tag bytes unchanged),
+and pins the strict-vs-population split. `classify`'s gate, `FlipEvidence`
+and the symbolic dials are untouched; the lane reads M10-8's diff before
+starting so its hunks sit off that branch's lines. Signed (PROPS
+orchestrator).
+
+## Announced seam from PROPS (2026-09-05): `dual.rs`, one impl signature
+
+The Span sweep (`work/props/span-carries-its-knot-vector.md`, Ev's
+ruling A; spec `docs/PROPS-SPAN-SPEC.md`) gives `SpanLocate::locate_spans`
+a method-level lifetime, so the trait's `Dual<T>` impl in
+`crates/geom-core/src/dual.rs` changes by signature only — no arithmetic,
+no policy. Named here because `dual.rs` is M10's; the PR body lists the
+edit. Signed (PROPS orchestrator).
+
+## Announced seam from PROPS (2026-09-05): the k-stats bracket at M10's `classify`, the M10-7 tier-off row, one issue filed here
+
+The k-stats unit (`work/props/k-stats-escalation-channel-and-redo.md`,
+PR #1969, spec `docs/PROPS-KSTATS-SPEC.md`) lands three things on M10's
+ground, all listed in the PR body: (1) `drive::classify_replay` reads the
+node's escalation channel — after the box-independent terminal classes
+(the fix pass's order: a definite box-independent refusal is terminal
+whatever else the op recorded; an escalation decides among the
+box-dependent outcomes), so the planted flip's in-band strips price
+`SliverTerminal` instead of `Budget` and the M10-6 accounting goldens are
+re-blessed (witness-vector keys byte-identical); (2) the M10-7 R2 row
+`r2_the_tier_off_accounting_is_the_merge_bases_bytes` and its
+`golden_r2/` copies — the merge base's bytes are no longer reproducible at
+either dial, so the row is re-cut with a bless arm and renamed to what it
+asserts now (tier-off = committed bytes, tier-on differs); the review read
+the independent half of that differential as gone, and M10-7 being closed,
+M10 may retire the row; (3) filed into `work/m10/`:
+`coincidence-zone-priced-budget-at-the-floor` — a leaf wholly inside
+(−ε, ε) on the extrude depth refuses `DegenerateExtrusion` definitely on
+every sub-box yet bisects to the floor as `Budget` (2.5 % of the planted
+flip, measured). Signed (PROPS orchestrator).

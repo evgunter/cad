@@ -331,12 +331,130 @@ and cannot leave it: every door returns a `Refusal` and mutates the
 session, and `perform`'s dispatch is the one place an operation becomes
 state.
 
+### What the session knows because of the document is one value
+
+`DocSession` holds a `Derived`: what is selected, what is hovered,
+what a drag previews over the document, what the last run said about
+it (`LandedRun`), and what a range probe found in it. `Open` and
+`NewDocument` install a different document under a live session, and
+all five of those are statements about the document that was there
+before — left in place they answer about the previous model until the
+first run lands. Both doors therefore reset the whole block by
+construction (`Derived::none`) rather than field by field, and the
+constructor writes that same value, which makes it the one spelling of
+"nothing is known yet". A field added to `Derived` does not become
+correct on its own: `Derived::none` stops compiling until someone
+writes its cleared value, at one site, by hand. That is the whole
+mechanism — one site to update instead of three, and a compiler error
+instead of a silent omission.
+
+`LandedRun` is the same rule one level down. The seven things a
+landing produces — the evaluation, the document it answers, its
+generation, the gather's refusal, the A5 badge, the advisory report
+and the gathered body — are statements about one (document,
+evaluation) pair, taken from that pair's single gather in `land`. As
+one value they cannot come from different runs, which is the property
+`landed_pair` needs: it returns two of the seven, and the two it
+returns are the pair a single run answered.
+
+The body is the one of the seven that is not always there, and the one
+with a cost on the other side of the ledger. It is kept so that the
+display fit does not gather the same product a second time — 87 ms
+against an `Arc` clone, on a 165-root, 990-face document — and the
+price is that the session retains one gathered aggregate for the life
+of a landing, beside the `Doc` and `Evaluation` it already holds. One
+at a time: the next landing replaces it, and `Open` drops it with the
+rest of `Derived`. It is absent when the gather refused, and when the
+A5 gate refused and so consumed the product it was judging; the
+consumer that needs one there gathers it itself, at a door that says
+so (`scene::product_of_evaluation`). `bounds` sits in
+`Derived` but is discarded on a stricter rule than the block's: every
+submit drops it (`request_eval`), because a range is a statement about
+one document and a commit or an undo already invalidates it. Both
+doors consequently drop it twice, which is redundant on purpose — the
+walk names every field it invalidates rather than leaving one to a
+route its reader cannot see.
+
+Three neighbours stay outside `Derived`, and the reasons are the
+interesting part. `DisplayState` is `clear`ed rather than rebuilt,
+since its revision counter is the chrome's rebuild key and must not go
+backwards; its own `clear` closes the same hazard inside it. `gesture`
+is cleared by nothing and must not be, and the refusal runs the other
+way round from the sentence one reaches for: while a value drag is in
+flight the DOOR is refused (`permitted_during_value_gesture`, checked
+once in `perform`) and the drag is left untouched, because a gesture
+dissolved under the pointer is the half-acted state that refusal
+exists to prevent. So the precondition is established before either
+door writes anything, and the reset re-checks nothing — a check there
+could only fire with the session already half-replaced. `path` and
+`resolver` are facts about the backing file rather than about the
+document, and are the part of the two doors that genuinely differs:
+`Open` sets both, `NewDocument` clears both.
+
+**That table governs value gestures only.** The free-move drag
+`DisplayState` owns is a different value with a different owner, and
+no door refuses a replacement while one is open: `clear`ing the
+display discards an in-flight free move with no refusal and no report,
+which is the walk applying to one gesture kind the opposite of what it
+says about the other. The behaviour is older than the block above and
+has its own item
+(`work/view/free-move-drag-dissolved-by-open.md`).
+
 ### The app's vocabularies
 
 | Module | Holds |
 |---|---|
 | `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `PathVerb`, `ArcMode`, `DatumKind`, `ShapeKind`, `PatternKindChoice`, `BOOLEAN_OPS`, `MATE_PRIMITIVES` — are hand-maintained mirrors of a kernel or sketch enum; the field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
 | `drafts` | `Drafts` and `CommitFault`: the in-flight form state, its defaults, and its lowering of typed field values to `Expr` and `LoopProgram` — the same layer as `session::author`, and today the larger half of it |
+
+### The status line's two lifetimes
+
+The chrome has two channels for something that went wrong, and which
+one a fact belongs in is decided by how long it stays true.
+
+**The status line carries NEWS, for the frame that produced it.** A
+message is a `frame::Message`: what it is ABOUT (`frame::Subject`) and
+its own words. The subject is what retires it — a later EVENT about the
+same subject supersedes the message, whatever that event says — and the
+subjects are named by the event stream that retires them: the camera
+(the next camera event, issued by `frame::fold_status` on every clean
+fold), the cursor (the next cursor move, issued by
+`frame::cursor_status` off the id pass's own bookkeeping), the document
+(the next act the document accepts), the picture drawn from it, and the
+viewer's preferences. `frame::StatusUpdate::Expire` retires one subject;
+`Clear` sweeps the whole line and belongs to the acting batch alone,
+because an act the document accepted makes every standing complaint
+stale. `frame::apply` is the one place a verdict becomes the field.
+
+Twenty writers still assign that field rather than answering
+`frame::frame_status`'s ranking, and two more — `frame::fold_status`
+and `frame::cursor_status` — answer in the vocabulary and apply it at
+`pane::viewport` without asking it. Each of the twenty names its
+subject — `Message` is the only spelling there is — but naming a
+subject is not asking the ranking, and routing them through it is
+tracked as its own item.
+
+**A fact still true after the frame ends is a STANDING FACT, and its
+home is a toolbar badge.** A `frame::Badge` is a label carrying its own
+subject, a `frame::Tone` (`Advisory` for a report, `Actionable` for a
+verdict a reader may need to act on — the rule `pane::features` argues
+for poisoned rows, stated by a value rather than picked per call site),
+an optional hover detail, and a `frame::Affordance`: `Read` for a
+label, `Opens` for a control, which the advisory-checks badge is
+because a tooltip is the wrong home for text a reader keeps open while
+acting on it. There is one member per standing fact —
+`frame::at_rest_badge`, `checks_badge`, `product_badge`, `delta_badge`
+— each a function of the typed value it reads, so each one's SILENCE is
+a row a test can write. `app::draw_badge` is the single draw; what a
+click on a control means stays at the call site, which is why the draw
+hands the response back and names no window. `tree::RowStatus::badge`
+is the same shape at the row rather than the toolbar.
+
+Notices — a tool's declined pick, a survival drop, a
+`frame::Withdrawal` — are typed values with `Display`, joined into rank
+2 by `frame_status` with one separator. None of them composes prose
+about another value's failure: the failure renders itself, and what the
+chrome adds is its own subject.
 
 ### The app driver, split for size
 
@@ -451,9 +569,14 @@ than inferred from every dispatch target.
 
 It says nothing about the free-move gesture, which is a different value
 with a different owner (`display::DisplayState`) and carries its own
-in-flight refusal. The name carries that limit deliberately: both
-fields are spelled `self.gesture`, and a predicate reading as a general
-guarantee would be a table that looks complete and is not.
+in-flight refusal. The name carries that limit: a predicate reading as
+a general guarantee would be a table that looks complete and is not.
+The two fields are spelled apart for the same reason — `DocSession`
+holds `gesture` and `DisplayState` holds `free_move` — so a reader who
+greps `self.gesture` gets one concept back. What the table's four
+`*FreeMove` rows permit, and the identity that makes the overlap sound,
+is stated at `permitted_during_value_gesture` itself, scoped to the
+tree DI5 has not yet changed.
 
 The table records behaviour rather than deciding it — `save` is
 permitted mid-gesture and `open` is refused, which is what the code did
@@ -664,6 +787,68 @@ deterministic `Bvh::ray` query, authoritative, with the GPU id-buffer
 pass advisory. Docking is `egui_tiles`, a `Tree<Pane>` value the app
 owns. All of it sits behind the non-default `app` feature; without it
 the crate is renderer-free and headless-tested.
+
+**The pick index is built off the UI thread, and it adds no frame
+state.** Tessellating a document's roots and building their triangle
+BVHs is the expensive step behind every picture here — seconds on a
+dense document, and the window did not repaint while it ran, because
+`sync_scene` called `PickIndex::build` inline. It runs on its own
+worker now, across the same submit/poll vocabulary the evaluation
+crosses (`src/evalseam.rs`, two seams and two workers), keyed by the
+`(generation, δ)` pair it was built for.
+
+**What that window looks like, exactly.** `PickCache` drops the index
+it holds at the moment it submits, not when the replacement lands, so
+between the two there is no index at all — the state is **current or
+absent, never behind**. Replacing one picture's key with another's is
+what keeps it that way for every ordinary transition, and the one
+transition with no next key — a document opened or authored while a
+build is still with the seam — is where the invariant has to be
+enforced by hand: `PickCache::sync`'s nothing-landed arm FORGETS the
+outstanding attempt, so the build that finishes afterwards has no key
+to match and is discarded. Leaving it a key was a state in which the
+index of a replaced document installed over the scene of the one
+before it, with nothing running and nothing said.
+
+The viewport goes on drawing the mesh it last
+received, which is the previous document's, and three things say so
+rather than letting it pass for the current one: the toolbar shows one
+progress state and it reads `indexing…` (`frame::progress` — one
+value, so an evaluation and an index build cannot light two spinners
+for one wait), a click is refused typed as `pick::NotIndexed`, which
+is a different answer from *nothing under the cursor*, and a hover is
+left alone because it is an observation pushed on every frame and not
+an act.
+
+**What that does to the frame-state inventory** — the per-field
+justifications on `ViewerApp`'s own non-document fields, in
+`src/app.rs`, which is the live form of what GUI-3's §5 ratification
+rested on. It gains **no entry**, and the claim is exactly that
+narrow. The index itself is current or absent, so it is not derived
+data that can be WRONG about the document — which is the shape GQ6's
+first condition is about, and `Doc` stays authoritative exactly as
+before. What the seam does add is state *about the seam*:
+`PickCache`'s record of what it has asked for and not yet been
+answered, read every frame by the indicator and by the refusal's
+wording. That is a fact about work in flight, not a second opinion
+about the document, and it is the same shape `DocSession::running`
+already has — including the same failure, recorded rather than
+claimed away: a worker that dies leaves either of them describing
+work nobody is doing.
+
+**The index seam's promise is weaker than the evaluation seam's, and
+the asymmetry is deliberate.** It has no cancel — not a cancel that
+does nothing, but no door at all. The shipped `CancelToken` is checked
+BETWEEN NODES and the step behind this seam has no nodes to be checked
+between: neither `mesh::tessellate` nor the BVH build takes a token,
+and giving them one is other crates' territory. So the policy is
+**restart without cancel**: a δ change mid-build lets that build run to
+completion and discards its answer, which costs a second full build —
+on a document whose index takes 13 s, about 27 s before the picture is
+right. An edit made during an index build is not delayed by it, which
+is why the two seams are two workers: one queue would have put an
+uninterruptible build in front of the next evaluation and quietly
+weakened the cancel-and-restart promise made above it.
 
 **Where the `app` feature gates.** The workspace nextest archive builds
 this crate at DEFAULT features, so nothing behind the feature is in it.

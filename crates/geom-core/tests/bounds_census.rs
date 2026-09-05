@@ -188,6 +188,11 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/geom/src/curves/boxes.rs",
+        subject: "conic_arc_aabb",
+        why: Payload("the one-match dispatcher over the two arc constructors above"),
+    },
+    Site {
+        path: "crates/geom/src/curves/boxes.rs",
         subject: "nurbs_curve_aabb",
         why: Payload("bracket reads only, no arithmetic on the bracket"),
     },
@@ -231,6 +236,17 @@ const ROSTER: &[Site] = &[
         path: "crates/profile/src/path/arc_fillet.rs",
         subject: "map_refusal",
         why: HandedOff("Track V's; a refusal-payload door S88's handoff names"),
+    },
+    Site {
+        path: "crates/profile/src/path/arc_fillet.rs",
+        subject: "anchor_span",
+        why: Payload(
+            "the corner-outcome PRESENTATION sort key: the two bracketing anchors' span, read \
+             as an `f64` enclosure lower bound off the diagnostic channel. A sort key and \
+             nothing else — the sort is stable, so the order is a function of the inputs \
+             (D9), and the permuted entries carry identical payloads, so nothing downstream \
+             branches on it",
+        ),
     },
     Site {
         path: "crates/sweep/src/blend/battery.rs",
@@ -284,11 +300,6 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/topo/src/boolean/boxes.rs",
-        subject: "bracket_span",
-        why: Payload("as `bracket_point`, one axis at a time"),
-    },
-    Site {
-        path: "crates/topo/src/boolean/boxes.rs",
         subject: "bracket_vector",
         why: Payload("as `bracket_point`, over a vector"),
     },
@@ -311,15 +322,66 @@ const ROSTER: &[Site] = &[
         why: Selection("the C6 inventory gate's `is the trig channel exactly 0.0` read"),
     },
     Site {
+        path: "crates/topo/src/query.rs",
+        subject: "rim_of",
+        why: Selection(
+            "the rim selector: which stored circle edges carry the SAME circle as the seed, \
+             read bit for bit (both bracket ends, so two enclosures that merely overlap are \
+             different values) — an exact-f64 structure read, locally constant by \
+             construction. It chooses edges for a request and decides nothing about them; \
+             its one other read is the refusal's gap parameter, a payload (DL5(a))",
+        ),
+    },
+    Site {
+        path: "crates/topo/src/query.rs",
+        subject: "order_rim",
+        why: Payload(
+            "`rim_of`'s chain walk. Its ONE bracket read is the refusal's gap parameter, \
+             which becomes an `f64` field of `NotOneRim` and stops there — DL5(a), not a \
+             selection: the walk itself branches on vertex-KEY equality and never on a \
+             bracket. The bound is carried because the read is in this function",
+        ),
+    },
+    Site {
+        path: "crates/topo/src/query.rs",
+        subject: "impl<T: Bounds> CircleId<T>",
+        why: Impl("`rim_of`'s circle-identity comparison, whose bound is the bracket door itself"),
+    },
+    Site {
+        path: "crates/topo/src/query.rs",
+        subject: "same_bits",
+        why: Selection("the bitwise same-stored-value test `rim_of`'s circle match is built from"),
+    },
+    Site {
+        path: "crates/topo/src/query.rs",
+        subject: "same_point_bits",
+        why: Selection("[`same_bits`] over a point"),
+    },
+    Site {
+        path: "crates/topo/src/query.rs",
+        subject: "same_vec_bits",
+        why: Selection("[`same_bits`] over a vector"),
+    },
+    Site {
+        path: "crates/sweep/src/test_support.rs",
+        subject: "arcs_at",
+        why: Selection(
+            "the raw radius-and-station scan `rim_arcs_at` seeds from, and the fixture \
+             selector for the one row whose subject is a set of arcs that is NOT a rim; \
+             same reads and same disposition as `rim_arcs_at` below",
+        ),
+    },
+    Site {
         path: "crates/sweep/src/test_support.rs",
         subject: "rim_arcs_at",
         why: Selection(
             "a test-side fixture SELECTOR, generic so the interval lane picks its rims \
-             through the same door as f64: which stored circle edges sit at a named \
+             through the same door as f64: which stored circle edge sits at a named \
              radius and station, both enclosure ends compared against a fixed 1e-9 — a \
-             fixture-selection tolerance, not a kernel predicate. It chooses edges for a \
-             request and decides nothing about them; at a dual it reads the value \
-             channel's bracket and selects the edges the f64 lane selects",
+             fixture-selection tolerance, not a kernel predicate. It chooses ONE seed \
+             edge for a request and decides nothing about it (`topo::query::rim_of` \
+             hands back the rim that seed belongs to); at a dual it reads the value \
+             channel's bracket and selects the edge the f64 lane selects",
         ),
     },
 ];
@@ -525,6 +587,26 @@ fn is_ident(b: u8) -> bool {
 /// is written or removed — which is the whole instrument: the rule that
 /// prescribes the sole bound now has something that watches the class,
 /// and it is not the gate (which cannot see this form by construction).
+/// The roster names each `(path, subject)` ONCE. Two rows for one door with
+/// two dispositions are not a stronger census but a contradiction it cannot
+/// see — measured 2026-09-05, when two lanes fixed one red in parallel and
+/// `anchor_span` sat in the roster as both `HandedOff` and `Payload` while
+/// this file stayed green.
+#[test]
+fn the_roster_names_each_door_once() {
+    let mut seen: BTreeSet<(&str, &str)> = BTreeSet::new();
+    let mut dup: Vec<(&str, &str)> = Vec::new();
+    for site in ROSTER {
+        if !seen.insert((site.path, site.subject)) {
+            dup.push((site.path, site.subject));
+        }
+    }
+    assert!(
+        dup.is_empty(),
+        "the roster lists these doors more than once (one door, one disposition): {dup:?}"
+    );
+}
+
 #[test]
 fn every_sole_bracket_bound_door_is_in_the_roster() {
     let root = repo_root();

@@ -1,11 +1,14 @@
 ---
 id: lily-authoring-needs-shadow-vector-algebra
-kind: issue
+kind: unit
 title: API friction — authoring the lily naturally meant building a shadow vector algebra beside Vec3
-status: open
+status: closed
+branch: props/lily-vec3
 opened: 2026-08-20
 github: 796
 refs: [757, 758, 759, 787, D79]
+pr: 1954
+closed: 2026-09-05
 ---
 
 ## From GitHub issue 796
@@ -53,6 +56,70 @@ Either a door (or three) that makes the tuple detour unattractive, and `lily.rs`
 
 — Claude (smell-scan Track G, lane G-b)
 
+## Decided (PROPS orchestrator, 2026-09-05 — a read-only census)
+
+**No `Vec3` door is missing.** Every tuple helper in `lily.rs` has an
+exact door today: `nrm` → `Vec3::normalize`; `v_len`/`v_dot`/`v_cross`/
+`v_sub` → `norm`/`dot`/`cross`/`Sub`; `blade_frame`'s Gram–Schmidt →
+`reject_from` then `normalize` then `cross`; `rot` (a rotation in the
+xz-plane) → `Mat3::rotation_about(unit_y, a)` applied to the lifted
+vector. The frame-from-an-axis builders pin `e1` to a scene convention
+(the xz-plane) that no kernel door should choose for the caller, and
+they are two lines of `cross`/`normalize` each.
+
+**The friction is real and it is not a door**: `lily` is generic over
+`S: Scalar` (transitively `Real`), the scene is described in `f64`
+literals and `f64` trig, and `Real` has no mixed-scalar arithmetic, so
+authoring straight into `Vec3<S>` puts `S::from_f64` on every literal —
+which is what pushed the author to tuples. The right layer is the one
+the author found: **compose the scene at `f64`, lift at the API
+boundary** — but in `Vec3<f64>`/`Point3<f64>` with the kernel's own
+doors, lifted through `Vec3::map(S::from_f64)`, not in bare tuples.
+`skinned.rs`'s `normal_start_place` already does the same frame
+construction in `Vec3<f64>`, non-generically, which is the shape the
+whole tour should share.
+
+**The unit** (`docs/PROPS-LILY-VEC3-SPEC.md`): rewrite `lily.rs`'s
+authoring half through the doors above, delete the tuple algebra, and
+state the layer rule at the file header in one paragraph. That is the
+check the item asked for. At landing, `D79`'s member (b) is deleted
+member by member (the row keeps (f), parked on `L2`); this item closes.
+An E rider: single style review, outside the A/B experiment.
+
 ## Home
 
 `work/issues/`: the question is about `geom_core::Vec3`'s surface — kernel ground LIB's `keep_out` explicitly cedes to VERBS and SEAT, neither of whose charters names it — while the demo-side half is already carried by the code-quality row `D79`, which cites this issue as its reason.
+
+## Closed (2026-09-05, #1954)
+
+**The answer is the layer, not a door.** The census found every tuple
+helper had an exact door already; what pushed the author to tuples is
+that `Real` has no mixed-scalar arithmetic, so authoring into
+`Vec3<S>` puts an `S::from_f64` on every literal. `demos/tour/src/lily.rs`
+now composes the scene at `f64` in `Vec3<f64>`/`Point3<f64>` through
+`normalize`, `dot`, `cross`, `reject_from`, `Mat3::rotation_about` and
+the operators, and lifts at the door two ways: the kernel's own
+`pncad::authoring::{p2, v2, p3, v3}` where the components are written
+at the call, `map(S::from_f64)` where an already-composed `f64` value
+crosses. Readback is `map(S::f)`. The file's header states that rule as
+its invariant. `rot`, `nrm`, `v3`/`pt3`, `blade_frame`'s and `bud`'s
+hand-rolled Gram–Schmidt, the two radial-frame builders, the
+`v_sub`/`v_dot`/`v_cross`/`v_len` family, `Section::outline`'s 2-D
+tuple algebra and `review_probes::cross_norm` are all gone.
+`D79`(b) and the `S130`(b) text it mirrors are deleted with it.
+
+**Geometry, measured**: nine of the fifteen lily bodies are
+byte-identical in STEP and STL and no other scene in the tour changed a
+byte; six moved by ulps (≤4.2e-15 m), and every one of those traces to
+`reject_from`'s triple-product association at exactly two call sites —
+respelling only those two subtractively makes all 143 artefacts
+byte-identical to the merge base. The render lanes report no drift.
+
+**Two spec statements were argued rather than met** (both in the PR):
+its helper census missed two sites, and its single `map` spelling for
+the lift is right only for composed values. Residue outside the fence
+is filed: `work/issues/tour-scenes-lift-componentwise-not-through-map.md`
+(the rest of the tour, and the stale `demos/tour/Cargo.lock`) and
+`work/props/vec3-point3-const-and-conversion-doors.md` (no `const fn`
+constructor, no `Vec → Point` door — the two spellings this file could
+not route through a door).

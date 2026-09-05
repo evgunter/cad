@@ -100,10 +100,16 @@ mod display_contract;
 mod docm1_face_frame;
 #[path = "docm1_face_frame_interval.rs"]
 mod docm1_face_frame_interval;
+#[path = "docm2_part.rs"]
+mod docm2_part;
+#[path = "docm2_part_interval.rs"]
+mod docm2_part_interval;
 #[path = "docm3_union.rs"]
 mod docm3_union;
 #[path = "docm4_evaluation_identity.rs"]
 mod docm4_evaluation_identity;
+#[path = "docm5_subject.rs"]
+mod docm5_subject;
 #[path = "dsc_checks.rs"]
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
@@ -113,8 +119,6 @@ mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
 mod fix_pattern_mate_crossing;
 
-#[path = "fix_xblind_probe.rs"]
-mod fix_xblind_probe;
 #[path = "gui1_pick.rs"]
 mod gui1_pick;
 #[path = "gui1_pick_r2.rs"]
@@ -165,6 +169,10 @@ mod m10_3_r2_probes_interval;
 mod m10_4_r1_probes_interval;
 #[path = "m10_4_seed.rs"]
 mod m10_4_seed;
+#[path = "msolve1_transform_aware.rs"]
+mod msolve1_transform_aware;
+#[path = "onb_wall_normal_census.rs"]
+mod onb_wall_normal_census;
 
 #[path = "m10_4_r2_probes_interval.rs"]
 mod m10_4_r2_probes_interval;
@@ -320,6 +328,8 @@ mod mate6r2_probes;
 mod pirad_wire;
 #[path = "placedunion_wire.rs"]
 mod placedunion_wire;
+#[path = "props_verdict_shapes.rs"]
+mod props_verdict_shapes;
 
 #[path = "r1_bool11_ec_probe.rs"]
 mod r1_bool11_ec_probe;
@@ -361,6 +371,12 @@ mod review_m6_5_pr2_probes;
 mod ring_r1_names_probe;
 #[path = "seat4_verb_lowering.rs"]
 mod seat4_verb_lowering;
+#[path = "seat6_param_source.rs"]
+mod seat6_param_source;
+#[path = "seat7_sweep_lowering.rs"]
+mod seat7_sweep_lowering;
+#[path = "seat8_split_lowering.rs"]
+mod seat8_split_lowering;
 #[path = "switch_display_units.rs"]
 mod switch_display_units;
 #[path = "switch_dump.rs"]
@@ -409,3 +425,6 @@ mod lib_tube_r2_probes;
 
 #[path = "m10_7_r2_probes_interval.rs"]
 mod m10_7_r2_probes_interval;
+
+#[path = "kstats_bracket_rows.rs"]
+mod kstats_bracket_rows;

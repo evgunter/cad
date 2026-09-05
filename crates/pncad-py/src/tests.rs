@@ -1060,6 +1060,30 @@ fn path_error_tags_are_stable() {
         .tangent_arc_to(Start, Tol::witness())
         .expect_err("no arc spans a chord behind the departure");
     assert_eq!(path_error_tag(&degenerate), "degenerate_arc_chord");
+
+    // The envelope: one tag for the refusal, and one per entry for the
+    // corner's own reason, so a caller branches on the reason without
+    // parsing the sentence. A straight pair derives one corner and the
+    // radius outruns the arrival leg, so the entry is the anchor fit.
+    let overrun = Open
+        .at(p2(0.0, 0.0))
+        .toward(1.0, 0.0, Tol::witness())
+        .expect("the incoming ray runs +x")
+        .fillet(2.5, Tol::witness())
+        .expect("positive radius")
+        .toward(0.0, 1.0, Tol::witness())
+        .expect("the arrival side runs +y")
+        .to(p2(3.0, 2.0), Tol::witness())
+        .expect_err("the setback outruns the arrival leg");
+    assert_eq!(path_error_tag(&overrun), "no_corner_of_pair");
+    let pncad::profile::PathError::NoCornerOfPair { corners, .. } = &overrun else {
+        panic!("expected the envelope, got {overrun:?}")
+    };
+    let entries: Vec<&'static str> = corners
+        .iter()
+        .map(|c| crate::tags::corner_reason_tag(&c.reason))
+        .collect();
+    assert_eq!(entries, ["anchor_outside_trimmed_extent"]);
 }
 
 /// The prose rule's guard, checked against what it actually guards
@@ -1460,7 +1484,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "checks_error_tag",
-        values: &["band", "product_unavailable", "root_without_value"],
+        values: &[
+            "band",
+            "evaluation_of_another_document",
+            "product_unavailable",
+            "root_without_value",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -1505,6 +1534,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_on_non_instance",
             "placement_rule_mismatch",
             "profile_program_refused",
+            "read_site_missing_node",
             "rebind_appearance_collision",
             "rebind_identity",
             "rebind_kind_mismatch",
@@ -1662,6 +1692,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "declare_unsupported_pair",
             "degenerate_direction",
             "derived_frame_section",
+            "empty_half",
             "empty_operand",
             "escalated",
             "expr",
@@ -1674,6 +1705,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "fillet_selection_empty",
             "fillet_selection_kind",
             "fillet_selection_resolve",
+            "instance_out_of_range",
             "loft",
             "measure_clearance_refused",
             "measure_malformed",
@@ -1689,6 +1721,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_finite_direction",
             "non_positive_count",
             "param_box",
+            "param_source_attach",
             "payload_expr",
             "placements_uncertified",
             "profile",
@@ -1751,7 +1784,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "path_error_tag",
         values: &[
-            "anchor_outside_trimmed_extent",
             "arc_center_not_equidistant",
             "arc_continue_needs_arc_carrier",
             "arc_continue_off_carrier",
@@ -1765,12 +1797,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "degenerate_arc_spec",
             "escalated",
             "far_end_anchor_without_fillet",
-            "fillet_encloses_leg_carrier",
             "fillet_offset_lever_too_short",
             "guided_structure",
             "junction_cusp",
             "junction_tangent",
             "no_corner_for_fillet",
+            "no_corner_of_pair",
             "nonpositive_circle_radius",
             "nonpositive_fillet_radius",
             "nonpositive_leg",
@@ -1781,6 +1813,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "seam_tangent",
             "underdetermined_leg",
             "zero_direction",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "corner_reason_tag",
+        values: &[
+            "anchor_outside_trimmed_extent",
+            "behind_arrival_anchor",
+            "behind_incoming_ray",
+            "encloses_leg_carrier",
+            "no_corner_side_candidate",
+            "offset_carriers_disjoint",
         ],
         delegates: &[],
     },
@@ -1900,6 +1944,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "body_name_crosses_cut",
             "empty_cut",
             "name_straddles_cut",
+            "operand_severed_from_mate",
             "part_edit",
             "part_id_collides",
             "part_name_reaches_remainder",
@@ -2506,8 +2551,8 @@ fn read_tag_table(source: &str) -> TagTable {
 /// `part_fault`, `placement_rule_fault`, `product`,
 /// `recorded_program`, `refused_ref`, `resolve_fault`, `root_fault`,
 /// `solid_name`, `split`, `stl`, `update` — have none, and between
-/// them hold 197 of the table's 359 literals, `edit_error_tag`'s
-/// fifty and `node_error_tag`'s fifty-nine included. For those the
+/// them hold 199 of the table's 361 literals, `edit_error_tag`'s
+/// fifty and `node_error_tag`'s sixty-one included. For those the
 /// inventory below is the ONLY thing between a rename and a broken
 /// caller. That is a large gain over nothing; it is not the same claim
 /// as "the tag table is verified", and this comment refuses to make
@@ -2544,7 +2589,7 @@ fn the_whole_tag_table_matches_its_committed_inventory() {
 
     // The floors: a reader that came back with nothing, or with a
     // plausible-looking handful, must red rather than pass vacuously.
-    // They are set well under the real numbers (37 functions, 359
+    // They are set well under the real numbers (37 functions, 361
     // literal occurrences) so ordinary churn does not touch them.
     assert!(
         table.functions.len() >= 30,

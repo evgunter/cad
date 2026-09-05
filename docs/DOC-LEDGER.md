@@ -645,6 +645,13 @@ at the parent of the commit that removed it):
 - `TCOST-K2-SPEC.md` — TCOST-K2 — `offset_fit::fit_offset`'s per-station seconds: the Bernstein product weight, hoisted (last on `main` at 87d33648c; PR 1697's body, `work/tcost/TCOST-K2.md` and the ordinal-1401 row are the record)
 - `TCOST-K3-SPEC.md` — TCOST-K3 — the tier-3 gate's discarded certificate (last on `main` at 6381ebdd9; PR 1703's body, `work/tcost/TCOST-K3.md` and the ordinal-1402 row are the record)
 - `FILLET-H4-SPEC.md` — FILLET-H4 — the material-adding closed-rim band, incl. the Phase 1 re-scope (last on `main` at fc38f753b; PR 1752's body, `work/fillet/concave-closed-rim-has-no-band.md` and the ordinal-2000 row are the record)
+- `FILLET-RIM-SPEC.md` — FILLET-RIM — `topo::query::rim_of`, the exact door naming a closed rim by any one of its arcs, incl. its two fix-pass amendments (last on `main` at 40d50f272; PR 1821's body, `work/fillet/no-public-rim-arc-selector.md` and the ordinal-2001 row are the record)
+- `FILLET-H5-SPEC.md` — FILLET-H5 — the plane-hosted closed rim as the annulus band with hostless crossings, incl. §Re-scope at Phase 1 and the fix-pass amendments (last on `main` at 91e6d4309; PR 1824's body, `work/fillet/repaired-pole-rim-serves-no-closed-door.md` and the ordinal-2002 row are the record)
+- `FILLET-ATTR-SPEC.md` — FILLET-ATTR — `NoCornerOfPair`, every refusing crossing named nearest-anchors-first, incl. the fix-pass amendment of C1 to the channel rule (last on `main` at aa5384288; PR 1895's body, `work/fillet/fillet-refusal-describes-unbracketed-crossing.md` and the ordinal-2004 row are the record)
+- `FILLET-H6-SPEC.md` — FILLET-H6 — extrude's cap-rim `Smooth` arm measured unreachable at the shipped K and made a typed refusal below the crossover; the must-carry rule homed as `geom_brep::tangent_second_order`; incl. the fix-pass amendments (last on `main` at 195460c7a; PR 1891's body, `work/fillet/extrude-cap-rim-smooth-arm-noop.md` and the ordinal-2003 row are the record)
+- `FILLET-H7-SPEC.md` — FILLET-H7 — the ruled band and its transverse cut-off (`CornerConfig::TransverseCap` / `RunOutPolicy::CutOffAtTransverseCap`, ratified on PR 1819), incl. the fix-pass amendments (last on `main` at 235d05241; PR 1897's body, `work/fillet/fillet-ruled-spine-arms-no-surgery.md` and the ordinal-2005 row are the record)
+- `FILLET-T-SPEC.md` — FILLET-T — Track T's `D325` + `D326`: the corner fusion's first arc a value, one `kef` door over a snapshot of the input body's faces (last on `main` at b1cc95604; PR 1943's body, `work/fillet/D325.md`, `work/fillet/D326.md` and the ordinal-2006 row are the record)
+- `FILLET-SPLIT-SPEC.md` — FILLET-SPLIT — the open bands leave `surgery.rs` for `blend/open/{planar,ruled}.rs` behind the compound-bound entry re-scoped (last on `main` at 71cce611d; PR 1964's body, `work/fillet/surgery-module-holds-four-surgeries.md` and the ordinal-2007 row are the record)
 
 - `BOOL-1-SPEC.md` — BOOL-1 — issue 1152: coplanar-split section boundaries cite non-adjacent surfaces
 - `BOOL-2-SPEC.md` — BOOL-2 — issue 1011, the cone arm: point_in_solid learns ray×cone
@@ -824,3 +831,152 @@ rule above; the unit's record is its row in `MODEL-AB-LOG.md` and its
 MERGED entry in `work/docm/log.md`.
 
 - `DOCM-1-SPEC.md` — DOCM-1, `Datum::FaceFrame`, the sense beside the pose, the carrier-kind read (#1829)
+
+## Per-merge deletion — DOCM-2's spec (2026-09-04)
+
+Recoverable at `git show 286d9a08bb9f2fd8e549742e7213828005c97b89:docs/DOCM-2-SPEC.md`
+(the DOCM-2 unit head, before the state-sync commit that deleted it;
+the file carries the stop-clause amendment as its last section). The
+rule above; the unit's record is its row in `MODEL-AB-LOG.md` and its
+MERGED entry in `work/docm/log.md`.
+
+- `DOCM-2-SPEC.md` — DOCM-2, `Node::Part`, a split's half or a pattern's instance as one body (#1860)
+
+## Per-merge deletion — DOCM-5's spec (2026-09-04)
+
+Recoverable at `git show 9f34220e3938076557f38722554446867a6ef3a0:docs/DOCM-5-SPEC.md`
+(the DOCM-5 unit head, before the state-sync commit that deleted it;
+unamended — no stop clause fired; its citation of `docs/PERF-PLAN.md`
+and its fence over `product.rs` "Dual arms" are both corrected in the
+unit's record). The rule above; the unit's record is its row in
+`MODEL-AB-LOG.md` and its MERGED entry in `work/docm/log.md`.
+
+- `DOCM-5-SPEC.md` — DOCM-5, the check registry's subject: one gather per landing (#1871)
+
+## Per-merge deletion — PROPS-1's spec (2026-09-05)
+
+Recoverable at `git show 62f81827717913c71e1dd5a213ead05e47319058:docs/PROPS-1-SPEC.md`
+(the PROPS-1 unit head, before the commit that deleted it; unamended —
+no stop clause fired). Two of its clauses were argued down rather than
+met, and the argument is in the unit's PR: its pin (a) asks for
+"narrower than the old form on every corpus row", which is false per
+component once the anchor is exact, and its member-3 phrasing about the
+parallel case does not survive measurement. The rule above; the unit's
+record is its row in `MODEL-AB-LOG.md` and its item's `## Closed`
+section.
+
+- `PROPS-1-SPEC.md` — PROPS-1, the lost-correlation members of the linalg audit: `mirror_across_plane` and `reject_from` (#1918)
+## Per-merge deletion — TOPO-S330's spec (2026-09-05)
+
+Recoverable at `git show 57cd299d8225afe4454bd068fa9e374439975363:docs/TOPO-S330-SPEC.md`
+(the S330 unit head after the review fix pass, before the state-sync
+commit that deleted it). Two of its stated facts were falsified by the
+unit and are corrected in the unit's record, not here: `ops_cube` is not
+a tier-3-clean planar cube (every face carries the mvfs placeholder), and
+its Phase-2 shape for the poison door — a second predicate beside
+`is_placeholder` — was replaced by `geom::NetState` at review. The rule
+above; the unit's record is its row in `MODEL-AB-LOG.md` and its MERGED
+entry in `work/topo/log.md`.
+
+- `TOPO-S330-SPEC.md` — TOPO-S330, tier-3 check 1's described-NURBS arm (#1923)
+
+## Per-merge deletion — MSOLVE-1's spec (2026-09-05)
+
+Recoverable at `git show 550a9f2a9febb277ab69cf8d566850af65b51bfb:docs/MSOLVE-1-SPEC.md`
+(the MSOLVE-1 unit head, before the state-sync commit that deleted it;
+unamended — no stop clause fired). Three of its clauses were corrected
+by measurement rather than met, and the argument is in the unit's PR:
+A3's transform-of-pattern cannot reach a product (`Node::Transform`
+takes one body; filed in `work/issues/`), A8's "refuses at the remap"
+became a typed refusal at the split door in both directions
+(`SplitError::OperandSeveredFromMate`), and the acceptance fixture the
+spec's rows were first written against interpenetrated and was
+re-authored as a physical seat at the fix pass. The rule above; the
+unit's record is its item's `## Closed` section and its MERGED entry
+in `work/msolve/log.md` (no A/B row: the program runs none).
+
+- `MSOLVE-1-SPEC.md` — MSOLVE-1, the mate reads at its operand: the transform-aware solve (#1929)
+
+## Per-merge deletion — PROPS lily-vec3's spec (2026-09-05)
+
+Recoverable at
+`git show 577338f4e452f3ff5839604eb4d810246671e75b:docs/PROPS-LILY-VEC3-SPEC.md`
+(the unit head after the review fix pass, before the commit that
+deleted it; unamended — no stop clause fired). Two of its statements
+were argued rather than met, and the argument is in the unit's PR: its
+census of the tuple helpers missed `Section::outline`'s 2-D algebra and
+`review_probes::cross_norm`, both of which the unit converted because
+the acceptance asks for ZERO tuple-algebra helpers; and its lift
+spelling — "`map(S::from_f64)` at each boundary" — is right only for an
+already-composed `f64` value, because `pncad::authoring::{p2, v2, p3,
+v3}` are the kernel's own doors for components written at the call, so
+the landed file spells the lift both ways on that line. The rule above;
+the unit's record is its item's `## Closed` section (an E rider outside
+the A/B experiment — no `MODEL-AB-LOG.md` row).
+
+- `PROPS-LILY-VEC3-SPEC.md` — PROPS lily-vec3, the lily authored in `Vec3<f64>` through the kernel's own doors, lifted at the boundary (#1954)
+
+## Per-merge deletion — PROPS verdict-shapes' spec (2026-09-05)
+
+Recoverable at `git show 9f52d8df89ba4d45197ee0654c2837f67ebeae21:docs/PROPS-VERDICT-SHAPES-SPEC.md`
+(the unit's last head; merged as PR 1920 at 000d0100b). Moved here from
+sweep 6's closed list at the 2026-09-05 sync — that list carries its own
+count and recovery SHA.
+
+- `PROPS-VERDICT-SHAPES-SPEC.md` — PROPS verdict-shapes — the two derived per-node verdict forms in one module (`resolve/vdiff.rs`), `ReplayOutcome` folded into `RunStatus` with `Absent` kept distinct, the strict-vs-population split pinned (last on `main` at 8ba880fda; PR 1920's body and `work/props/three-per-node-verdict-shapes.md` are the record; an E rider outside the A/B experiment, no row)
+
+## Per-merge deletion — SEAT-8's spec (2026-09-05)
+
+Recoverable at `git show 57dc0fe3a8558920c43cf433a61395d43470d337:docs/SEAT-8-SPEC.md`
+(the SEAT-8 fix-pass head, before the state-sync commit that deleted
+it; unamended — no stop clause fired, no ledger answer touched). Every
+clause was met as written except one argued choice the spec left open:
+the two-sided result landed as a per-door out-type (`SplitOut`) rather
+than a record-with-body door, argued in the unit's PR as a choice, not
+a force. The rule above; the unit's record is its item's `## Closed`
+section (`work/seat/SEAT-8.md`) and its MERGED entry in
+`work/seat/log.md`; its A/B row is MODEL-AB-LOG SEAT8.
+
+## Per-merge deletion — PROPS span's spec (2026-09-05)
+
+Recoverable at `git show c4cfa1c5a9349b18c67bf911f29befb610d1c9eb:docs/PROPS-SPAN-SPEC.md`
+(the last commit on `main` carrying it). Two of its clauses were argued
+rather than met, and the argument is in the unit's PR: it kept the three
+surface `*_in_span` doors on `NurbsSurface` and, by the same shape, the
+curve doors on `NurbsCurve`, on the premise that a door reading the
+window's surface makes the mismatch "a type-level mismatch". Rust
+lifetimes do not brand — two live references unify — so a door taking
+`(structure, proof)` leaves the mismatch representable, and at the curve
+half it left an index panic where the retired guard had returned poison.
+Both families of doors therefore moved ONTO the windows
+(`CurveWindow{2,3}`, `SurfaceWindow`), which is the only spelling in
+which the pairing is unrepresentable. The rule above; the unit's record
+is PR 1952's body, `work/props/span-carries-its-knot-vector.md` and the
+residue item `work/props/coefficients-carry-their-knot-vector.md`.
+
+- `PROPS-SPAN-SPEC.md` — PROPS span, `Span<'a>` carries its `KnotVector` (#1952)
+
+## Per-merge deletion — PROPS k-stats' spec (2026-09-05)
+
+Recoverable at `git show 1d847bc84cfb4667eb296acf6233f2c3a88f4723:docs/PROPS-KSTATS-SPEC.md`
+(the k-stats fix-pass head, before the state-sync commit that deleted
+it; unamended). The ruling held — the bracket with a stack, the
+returned value measured (530 call sites, 261 enclosing functions) and
+declined in writing. Five clauses were argued rather than met, all in
+PR 1969's body: `NodeError` carries the escalation channel beside
+`NodeValue` (the named fixture fails its node, so the value cannot);
+one shielding bracket on the part cache's miss path in `eval/parts.rs`
+outside the named fence (an instantiate node's log is its own op's,
+hit or miss, under both schedules); `Ok` nodes with escalations
+bisect; the M10-6 accounting goldens and M10-7's tier-off copies re-cut
+for the class the acceptance moves; and the acceptance's "did any
+predicate escalate" holds for funnel predicates only — the op-minted
+family, the raw `sign_within` calls and the mate solve are filed as
+`work/props/escalation-channel-misses-op-minted-indeterminates.md`.
+The dual's fix pass replaced the mis-nesting rule (frame ids; defined
+in every profile) and the completeness claim. The rule above; the
+unit's record is its item's `## Closed` section
+(`work/props/k-stats-escalation-channel-and-redo.md`), PR 1969's body
+and the six issues it filed.
+
+- `PROPS-KSTATS-SPEC.md` — PROPS k-stats, the verdict log as a bracket with a stack and the escalation channel beside it (#1969)

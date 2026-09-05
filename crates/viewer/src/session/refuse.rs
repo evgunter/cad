@@ -129,6 +129,18 @@ pub enum Refusal {
     /// value door does refuse an undeclared name, and says so in
     /// editor-core's words ([`EditError::DocParamNotDeclared`], reached
     /// through [`Self::Edit`]).
+    ///
+    /// **One mistake reaches two sentences, and that is decided rather
+    /// than left.** Typing an undeclared name into the value field
+    /// goes to the edit door; dragging its row comes here. The two
+    /// cannot be made one refusal without putting back the pre-check
+    /// the door already refuses — so what is converged is what the
+    /// user must DO: this arm names the same recourse the door names
+    /// ("declare it first"), over the same fact. What stays apart is
+    /// the frame, and it has to: the door's sentence is about an edit
+    /// that was refused, and a drag has no edit behind it, so a
+    /// gesture that borrowed the door's frame would report a
+    /// refusal of something nobody attempted.
     NoSuchParam(ParamName),
     /// The CREATE door was asked for a name that is already declared.
     ///
@@ -160,22 +172,16 @@ pub enum Refusal {
         /// The kind the seat requires.
         wanted: NodeKindWanted,
     },
-    /// A boolean was authored with one node in both operand seats.
+    /// `apply` refused the edit — the door's own sentence, forwarded.
     ///
-    /// The DAG admits it — an id in two input positions is neither a
-    /// cycle nor a dangling reference — and the kernel would be asked
-    /// to regularize a body against itself, whose answer is the body
-    /// (or, for a subtraction, ∅) and whose faces are all coincident.
-    /// It is a mis-pick every time, so the door says so rather than
-    /// letting a degenerate operand pair reach the classifier. Two
-    /// DIFFERENT nodes denoting the same geometry are not this
-    /// refusal: it is a fact about the authored references, which is
-    /// the only thing a door can be sure of.
-    SelfBoolean {
-        /// The node picked into both seats.
-        node: RecipeNodeId,
-    },
-    /// `apply` refused the edit.
+    /// **Layer 3 adds a frame and never a second opinion.** Every
+    /// condition `apply` refuses is refused there and rendered in
+    /// `EditError`'s words; a flat arm restating one would be two
+    /// spellings of a rule with one home (`crates/viewer/README.md`).
+    /// One node in both operand seats used to be such an arm and is
+    /// now this one: `Node::input_fault`'s pairwise-distinct rule is a
+    /// fact about ANY node's inputs, so the boolean tool, `SetMembers`
+    /// and the load validator all reach it at the same door.
     ///
     /// Boxed, as `Io` is below: these two payloads are an order of
     /// magnitude larger than every other arm, and a refusal is
@@ -195,9 +201,10 @@ pub enum Refusal {
     Io(Box<DocIoError>),
     /// Undo at the root, or redo at the tip of the current branch.
     NothingToDo,
-    /// A display-state operation refused (hide on a non-instance, a
-    /// free-move on a mate-constrained instance, a gesture out of
-    /// order) — the fault's own typed vocabulary, unaltered.
+    /// A display-state operation refused (a display op on an id the
+    /// document does not hold, hide on a non-instance, a free-move on
+    /// a mate-constrained instance, a gesture out of order) — the
+    /// fault's own typed vocabulary, unaltered.
     Display(DisplayFault),
     /// A written-unit change refused — the panel model's own typed
     /// vocabulary, unaltered.
@@ -260,7 +267,6 @@ impl Refusal {
             | Self::ParamExists { .. }
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
-            | Self::SelfBoolean { .. }
             | Self::Edit(_)
             | Self::Dimension(_)
             | Self::Parse(_)
@@ -365,7 +371,13 @@ impl core::fmt::Display for Refusal {
             Self::NoSuchSlot { node, slot } => {
                 write!(f, "node {} has no {} slot", node.0, slot.label())
             }
-            Self::NoSuchParam(name) => write!(f, "no document parameter named {}", name.0),
+            Self::NoSuchParam(name) => {
+                write!(
+                    f,
+                    "no document parameter named {} — declare it first",
+                    name.0
+                )
+            }
             Self::ParamExists { name, dimension } => {
                 write!(f, "{}", Self::exists_wording(name, *dimension))
             }
@@ -383,13 +395,10 @@ impl core::fmt::Display for Refusal {
                     wanted.name()
                 )
             }
-            Self::SelfBoolean { node } => {
-                write!(
-                    f,
-                    "a boolean needs two different bodies; node {} is in both operand seats",
-                    node.0
-                )
-            }
+            // The frame is layer 3's and the sentence is the door's.
+            // Nothing is doubled: `EditError`'s arms state the problem
+            // and carry no category prefix of their own, so this reads
+            // as one sentence rather than as two openings.
             Self::Edit(error) => write!(f, "the edit was refused: {error}"),
             Self::Dimension(error) => write!(f, "{error}"),
             Self::Parse(error) => write!(f, "the expression did not parse: {error}"),

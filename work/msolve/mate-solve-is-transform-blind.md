@@ -2,8 +2,9 @@
 id: mate-solve-is-transform-blind
 kind: issue
 title: the mate solve is transform-blind: a Node::Transform between an instance and mated material silently yields a green document with a gap where contact was authored
-status: open
+status: closed
 opened: 2026-09-04
+closed: 2026-09-05
 ---
 
 
@@ -135,3 +136,9 @@ pattern's.
 
 `work/msolve/` — S-MATE's successor, opened 2026-09-04 for exactly this
 residue.
+
+## Closed (2026-09-05, PR 1929)
+
+Fixed by MSOLVE-1: the mate reads at its operand and the solve
+composes the chain. The characterization rows went red as their
+header promised and were deleted with the defect.

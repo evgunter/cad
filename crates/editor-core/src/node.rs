@@ -3,6 +3,7 @@
 //! data against the kernel ops.
 
 use crate::expr::{Dimension, Expr};
+use crate::names::SplitHalf;
 // The contact vocabulary is the KERNEL's (CONTACT-DESIGN C4, M9-1
 // PR-1). Imported, never redefined: the boolean's own refusals must
 // carry the same words this node authors, and `crate::names::flush`
@@ -39,6 +40,7 @@ macro_rules! name_free_node {
             | $crate::node::Node::Union { .. }
             | $crate::node::Node::Transform { .. }
             | $crate::node::Node::Pattern { .. }
+            | $crate::node::Node::Part { .. }
             | $crate::node::Node::PlacedUnion { .. }
             | $crate::node::Node::InstantiatePart { .. }
             | $crate::node::Node::Assertion { .. }
@@ -325,6 +327,13 @@ pub enum SlotId {
     /// A pattern's instance count — the STRUCTURAL slot (spec D3/A8:
     /// Count-typed, edited only via `SetStructuralParam`).
     Count,
+    /// A [`crate::Node::Part`]'s INSTANCE INDEX into a pattern's
+    /// value — STRUCTURAL (Count-typed, edited only via
+    /// `SetStructuralParam`): which body the projection selects is
+    /// structure, not a continuous quantity. Its own slot rather than
+    /// a reuse of [`SlotId::Count`]: a panel that spelled an index
+    /// "count" would be lying about it.
+    Instance,
     /// A loft's / sweep's v-direction interpolation degree (Book
     /// §10.3) — STRUCTURAL: changing it changes the produced
     /// surface's knot vector, so it is Count-typed like every other
@@ -474,7 +483,7 @@ impl SlotId {
             | Self::Step
             | Self::TubeWindowStart
             | Self::TubeWindowEnd => Dimension::Angle,
-            Self::Count | Self::VDegree | Self::Stations => Dimension::Count,
+            Self::Count | Self::VDegree | Self::Stations | Self::Instance => Dimension::Count,
             // Profile-program roles carry V2's per-role table; none is
             // Count, so `is_structural` stays false for every StepArg
             // (LIB-SWITCH §4c — program structure is the STEP LIST,
@@ -518,6 +527,7 @@ impl SlotId {
             Self::Spacing => "spacing".to_owned(),
             Self::Step => "angular step".to_owned(),
             Self::Count => "count".to_owned(),
+            Self::Instance => "instance".to_owned(),
             Self::VDegree => "v degree".to_owned(),
             Self::Stations => "stations".to_owned(),
             Self::Profile { loop_, step, arg } => {
@@ -566,6 +576,7 @@ impl SlotId {
             | Self::Spacing
             | Self::Step
             | Self::Count
+            | Self::Instance
             | Self::VDegree
             | Self::Stations
             | Self::Profile { .. } => None,
@@ -885,6 +896,24 @@ pub enum PatternKind {
     Explicit(Vec<crate::placement::Frame>),
 }
 
+/// **Which body of a multi-body value a [`Node::Part`] selects**
+/// (DOCM-REFERENCES-DESIGN DM3): the named half of a split, or one
+/// instance of a pattern by index.
+///
+/// The two are one enum because the node is one sentence — "this
+/// body, out of those" — and the value it reads decides which arm is
+/// well-typed: a half against a split, an index against a pattern's
+/// instances, and any other pairing refuses at evaluation.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub enum PartSelect {
+    /// The named half of a [`Node::Split`] value.
+    SplitHalf(SplitHalf),
+    /// The `i`-th instance of a [`Node::Pattern`] value — a
+    /// Count-typed STRUCTURAL slot ([`SlotId::Instance`]).
+    Instance(Expr),
+}
+
 /// **The `Expr`s a node carries OUTSIDE its slots**, in deterministic
 /// order — `None` for the nodes that carry none, which is every node
 /// but the two the measurement vocabulary adds.
@@ -923,6 +952,7 @@ pub fn payload_exprs<P>(node: &Node<P>) -> Option<Vec<&Expr>> {
         | Node::Union { .. }
         | Node::Transform { .. }
         | Node::Pattern { .. }
+        | Node::Part { .. }
         | Node::PlacedUnion { .. }
         | Node::Declare { .. }
         | Node::InstantiatePart { .. }
@@ -930,24 +960,54 @@ pub fn payload_exprs<P>(node: &Node<P>) -> Option<Vec<&Expr>> {
     }
 }
 
-/// **A measured entity reference: a name, and the node to read it at.**
+/// **An entity reference: a name, and the node it is read at.**
 ///
 /// Both halves are load-bearing and they are not the same node.
 /// `name` says WHICH entity (N1: the name embeds the node that minted
-/// it); `at` says which evaluated value to read its carrier out of.
-/// They coincide for a reference to a body's own minting node and
-/// diverge the moment anything places that body — which is the case
-/// this type exists for, because a transform is identity-preserving
-/// and mints no name of its own.
+/// it); `at` says which node's geometry that entity is being spoken
+/// about. They coincide for a reference to a body's own minting node
+/// and diverge the moment anything PLACES that body — a transform is
+/// identity-preserving, so it mints no name of its own and a name
+/// resolved through it still points at the minting node while the
+/// geometry has moved.
 ///
-/// `at` is an ordinary DAG edge ([`Node::inputs`]); `name` resolves
-/// against `at`'s table through the same N5 ladder every other
-/// authored name takes.
+/// One type, two readers, and what `at` means to each is the same
+/// question answered at different layers:
+///
+/// - a [`Node::Measure`]'s reference reads the carrier out of `at`'s
+///   evaluated value, and `at` is therefore an ordinary DAG edge
+///   ([`Node::inputs`]);
+/// - a [`Node::Mate`]'s reference names the OPERAND the mate is
+///   authored against, and `at` is an A12 reading edge — never
+///   consuming, or the mated bodies would leave A10's root set. The
+///   solve walks from `at` down to the name's head and composes every
+///   pose-bearing node it passes ([`crate::mate::member_of`]).
+///
+/// **Where `name` resolves differs with the reader, and that is not a
+/// contradiction.** A measure's name resolves against `at`'s own
+/// evaluated name table, through the N5 ladder every other authored
+/// name takes — the carrier has to be findable there or the measure
+/// has nothing to read. A mate's name resolves nowhere at the solve:
+/// the solve is structural and inspects no geometry, so it reads the
+/// name's HEAD and its `Instance(i)` qualifiers as recipe data and
+/// nothing more. The mate's name is resolved later, against the
+/// PRODUCT's table, by the at-rest gate that mints its declaration.
+///
+/// There is no `Option` on `at`: "as authored" is spelled
+/// [`SitedRef::at_mint`].
+///
+/// **`Rebind` moves a mate's at-mint operand and never a measure's.**
+/// One repair, two shapes, because the two `at`s are different kinds
+/// of fact: a mate's at-mint operand is the reference saying "read me
+/// where I was minted", so it follows the name it was authored to
+/// coincide with; a measure's `at` is a DAG edge the author chose, and
+/// an edit that rewrote it would be re-pointing a dependency behind
+/// the author's back.
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(deny_unknown_fields)]
-pub struct MeasureRef {
+pub struct SitedRef {
     /// The node whose evaluated value the carrier is read at — the
     /// PLACED geometry, when that node placed it.
     pub at: RecipeNodeId,
@@ -955,7 +1015,7 @@ pub struct MeasureRef {
     pub name: StableName,
 }
 
-impl MeasureRef {
+impl SitedRef {
     /// A reference read at the node that minted the name — the
     /// degenerate case, and the honest spelling of "as authored".
     pub fn at_mint(name: StableName) -> Self {
@@ -1479,6 +1539,32 @@ pub enum Node<P> {
         /// The replication rule.
         kind: PatternKind,
     },
+    /// **One body out of a multi-body value** (DOCM-REFERENCES-DESIGN
+    /// DM3): the named half of a [`Node::Split`] value or the `i`-th
+    /// instance of a [`Node::Pattern`] value, as a `Body` value every
+    /// body-consuming node takes. The recipe's way of saying "union
+    /// the upper half of that split into this block" or "subtract
+    /// instance 3 of that pattern".
+    ///
+    /// A projection, not an operation: the selected body is the
+    /// half's or the instance's own (the same `Arc`, no clone, no
+    /// re-stamp), and the node's name table is the input's table
+    /// restricted to that body with every name VERBATIM — a
+    /// pass-through in `Transform`'s sense, contributing no role
+    /// segment, so every selector already spelled against that half
+    /// or that instance resolves here unchanged.
+    ///
+    /// A node rather than a selector inside every consumer's operand:
+    /// one meaning, one node, and every consumer's operand door stays
+    /// as it is ([`Node::PlacedUnion`]'s ruling). A bare split or
+    /// pattern is still refused at a body seat; this node is how a
+    /// user says which body they meant.
+    Part {
+        /// The split or pattern whose value is read.
+        of: RecipeNodeId,
+        /// Which body of it.
+        select: PartSelect,
+    },
     /// **The group boolean** (GROUP-BOOLEAN-DESIGN, ratified A′): ONE
     /// prototype, a placement rule, ONE BODY OUT — the union of the
     /// prototype placed at each placement.
@@ -1571,25 +1657,40 @@ pub enum Node<P> {
     /// and the contact declaration, so there is no second vocabulary
     /// to keep synced.
     ///
-    /// **A leaf.** `a`/`b` are instance-qualified stable references,
-    /// and name references are not DAG edges — the shipped D3
-    /// carve-out `Declare` established — so [`Node::inputs`] is empty
-    /// and inserting a mate transfers no root. A12 adds *reading*
-    /// edges on top: the instantiate node each reference's head
-    /// resolves through, RECOMPUTED at need
-    /// ([`crate::mate::reading_edges`]) and never stored. A9's
-    /// relative-freedom partition and A11's placement clusters read
-    /// consuming ∪ reading edges; A10's invariants, maintenance and
-    /// product gather read consuming edges only. Under consuming edges
-    /// a mate is an isolated sink, so it is an ordinary NON-BODY root:
-    /// listed like any other, denoting no body, ignored by the gather.
-    /// A dangling head is N5's ratified semantics — no edge until
-    /// `Rebind`, and the solve refuses typed naming it.
+    /// **A leaf.** `a`/`b` are [`SitedRef`]s — each an
+    /// instance-qualified stable name plus the OPERAND node it is
+    /// read at — and neither half is a consuming edge, so
+    /// [`Node::inputs`] is empty and inserting a mate transfers no
+    /// root. A12 adds *reading* edges on top: the walk from each
+    /// operand down to its name's head yields the member the edge
+    /// lands on, RECOMPUTED at need ([`crate::mate::reading_edges`])
+    /// and never stored. A9's relative-freedom partition and A11's
+    /// placement clusters read consuming ∪ reading edges; A10's
+    /// invariants, maintenance and product gather read consuming
+    /// edges only. Under consuming edges a mate is an isolated sink,
+    /// so it is an ordinary NON-BODY root: listed like any other,
+    /// denoting no body, ignored by the gather.
+    ///
+    /// **The operand is why a mate on placed geometry means what it
+    /// says.** A transform mints no name (N1), so a reference read at
+    /// the transform and one read at the instance carry the same
+    /// name; the operand is the only thing that tells them apart, and
+    /// the solve composes the map of every pose-bearing node between
+    /// the operand and the minting instance
+    /// ([`crate::mate::member_of`]). Two mates from one instance
+    /// through two different transforms are two MEMBERS.
+    ///
+    /// The insert door checks both halves against the live document —
+    /// a never-existed operand or name node is a typo. A later delete
+    /// may strand either, which is N5's ratified semantics: no edge
+    /// until the mate is re-authored, and the solve refuses typed
+    /// naming the head.
     Mate {
-        /// The `a` reference: an entity of one instance's product.
-        a: StableName,
+        /// The `a` reference: an entity of one instance's product,
+        /// read at the operand the mate is authored against.
+        a: SitedRef,
         /// The `b` reference: an entity of the other's.
-        b: StableName,
+        b: SitedRef,
         /// The declared contact class — the KERNEL vocabulary (M9-1),
         /// re-exported rather than re-minted, so a mate's declaration
         /// is already the currency the boolean wrapper's records
@@ -1645,7 +1746,7 @@ pub enum Node<P> {
     ///
     /// # What a reference denotes: the carrier AT a named node
     ///
-    /// A [`MeasureRef`] is a pair — the entity's [`StableName`], and
+    /// A [`SitedRef`] is a pair — the entity's [`StableName`], and
     /// the node its carrier is READ AT. The second half is what makes
     /// a measure report placed geometry.
     ///
@@ -1669,7 +1770,7 @@ pub enum Node<P> {
         expr: crate::measure::MeasureExpr,
         /// The referenced entities, in argument order, frozen at
         /// authoring time.
-        refs: Vec<MeasureRef>,
+        refs: Vec<SitedRef>,
     },
     /// **A recorded tolerance requirement** (ERROR-DESIGN E10): design
     /// intent as document data — "this web is at least 0.5 mm" lives
@@ -1857,6 +1958,7 @@ impl<P> Node<P> {
             // is pairwise distinct at the edit door, so no edge repeats.
             Node::Union { members } => members.clone(),
             Node::Transform { input, .. } => vec![*input],
+            Node::Part { of, .. } => vec![*of],
             // The two placement-rule nodes take the same edges: the
             // body, plus the datum a circular rule turns about.
             Node::Pattern { input, kind, .. } | Node::PlacedUnion { input, kind, .. } => {
@@ -1902,6 +2004,7 @@ impl<P> Node<P> {
             | Node::Boolean { .. }
             | Node::Transform { .. }
             | Node::Pattern { .. }
+            | Node::Part { .. }
             | Node::PlacedUnion { .. }
             | Node::Declare { .. }
             | Node::InstantiatePart { .. }
@@ -2004,6 +2107,7 @@ impl<P> Node<P> {
             | Node::Boolean { .. }
             | Node::Transform { .. }
             | Node::Pattern { .. }
+            | Node::Part { .. }
             | Node::PlacedUnion { .. }
             | Node::Declare { .. }
             | Node::InstantiatePart { .. }
@@ -2114,6 +2218,12 @@ impl<P> Node<P> {
                 // (the frames are structural data, D8).
                 PatternKind::Explicit(_) => Vec::new(),
             },
+            // A half is recipe payload, not a number anyone sets; an
+            // index is the one structural slot the projection carries.
+            Node::Part { select, .. } => match select {
+                PartSelect::SplitHalf(_) => Vec::new(),
+                PartSelect::Instance(_) => vec![SlotId::Instance],
+            },
         }
     }
 
@@ -2177,6 +2287,13 @@ impl<P> Node<P> {
             (Node::Transform { rotation_angle, .. }, S::RotationAngle) => Some(rotation_angle),
             (Node::Pattern { count, kind, .. }, s) => rule_expr(Some(count), kind, s),
             (Node::PlacedUnion { count, kind, .. }, s) => rule_expr(count.as_ref(), kind, s),
+            (
+                Node::Part {
+                    select: PartSelect::Instance(index),
+                    ..
+                },
+                S::Instance,
+            ) => Some(index),
             // EXHAUSTIVE on the NODE axis, open on the slot axis: a new
             // node kind must be classified here or the compile breaks,
             // while "this node does not carry that slot" stays the
@@ -2196,6 +2313,7 @@ impl<P> Node<P> {
                 | Node::Boolean { .. }
                 | Node::Union { .. }
                 | Node::Transform { .. }
+                | Node::Part { .. }
                 | Node::Declare { .. }
                 | Node::InstantiatePart { .. }
                 | Node::Mate { .. }
@@ -2263,6 +2381,13 @@ impl<P> Node<P> {
             (Node::Transform { rotation_angle, .. }, S::RotationAngle) => Some(rotation_angle),
             (Node::Pattern { count, kind, .. }, s) => rule_expr_mut(Some(count), kind, s),
             (Node::PlacedUnion { count, kind, .. }, s) => rule_expr_mut(count.as_mut(), kind, s),
+            (
+                Node::Part {
+                    select: PartSelect::Instance(index),
+                    ..
+                },
+                S::Instance,
+            ) => Some(index),
             // EXHAUSTIVE on the NODE axis, open on the slot axis (the
             // `expr` rule).
             (
@@ -2278,6 +2403,7 @@ impl<P> Node<P> {
                 | Node::Boolean { .. }
                 | Node::Union { .. }
                 | Node::Transform { .. }
+                | Node::Part { .. }
                 | Node::Declare { .. }
                 | Node::InstantiatePart { .. }
                 | Node::Mate { .. }
@@ -2309,8 +2435,10 @@ impl<P> Node<P> {
             // `Rebind` is its repair.
             Node::Datum(Datum::FaceFrame { face, .. }) => vec![face],
             // A12: a mate's two heads are the instance-qualified
-            // references its reading edges are recomputed from.
-            Node::Mate { a, b, .. } => vec![a, b],
+            // names its reading edges are recomputed from. The
+            // operands they are read at are node ids, not names, and
+            // are listed by [`Node::payload_read_sites`].
+            Node::Mate { a, b, .. } => vec![&a.name, &b.name],
             // A measure's references are argument-ORDERED, so they are
             // listed in that order rather than a canonical one.
             Node::Measure { refs, .. } => refs.iter().map(|r| &r.name).collect(),
@@ -2352,9 +2480,22 @@ impl<P> Node<P> {
                     selection.dedup();
                 }
             }
+            // A mate's two references: the NAME rewrites like any
+            // other, and a reference read AT ITS OWN MINT stays read
+            // at its own mint — the operand follows the name it was
+            // authored to coincide with. A reference read somewhere
+            // ELSE keeps its operand: that node is an authored fact
+            // this edit knows nothing about, and re-targeting it is
+            // re-authoring the mate.
             Node::Mate { a, b, .. } => {
-                hits += rewrite(a, from, to);
-                hits += rewrite(b, from, to);
+                for r in [a, b] {
+                    let at_mint = r.at == r.name.node;
+                    let moved = rewrite(&mut r.name, from, to);
+                    if moved > 0 && at_mint {
+                        r.at = r.name.node;
+                    }
+                    hits += moved;
+                }
             }
             // One name, no set to re-canonicalize.
             Node::Datum(Datum::FaceFrame { face, .. }) => {
@@ -2378,6 +2519,26 @@ impl<P> Node<P> {
     /// existence the insert door checks.
     pub fn named_nodes(&self) -> Vec<RecipeNodeId> {
         self.payload_names().iter().map(|name| name.node).collect()
+    }
+
+    /// **The nodes a payload's references are READ AT that are not
+    /// also DAG inputs** — today, a mate's two operands.
+    ///
+    /// The insert door checks these are live exactly as it checks a
+    /// payload name's head, and for the same reason: a never-existed
+    /// id is a typo, and a later delete stranding one is N5's
+    /// dangling case, refused at the solve rather than at the edit.
+    ///
+    /// A measure's `at` is absent here because it is an ordinary
+    /// input ([`Node::inputs`] reports it), and the input check
+    /// already covers it. A mate's is not: an operand is an A12
+    /// READING edge, and making it consuming would take the mated
+    /// bodies out of A10's root set.
+    pub fn payload_read_sites(&self) -> Vec<RecipeNodeId> {
+        match self {
+            Node::Mate { a, b, .. } => vec![a.at, b.at],
+            _ => Vec::new(),
+        }
     }
 
     /// Builds a [`Node::InstantiatePart`] with the EMPTY interface
@@ -2459,6 +2620,7 @@ impl<P> Node<P> {
             | Node::Boolean { .. }
             | Node::Union { .. }
             | Node::Transform { .. }
+            | Node::Part { .. }
             | Node::Declare { .. }
             | Node::InstantiatePart { .. }
             | Node::Mate { .. }
@@ -2520,7 +2682,7 @@ impl<P> Node<P> {
     /// ([`Node::measure_fault`]).
     pub fn measure(
         expr: crate::measure::MeasureExpr,
-        refs: Vec<MeasureRef>,
+        refs: Vec<SitedRef>,
     ) -> Result<Self, MeasureNodeFault> {
         let node = Node::Measure { expr, refs };
         match node.measure_fault() {

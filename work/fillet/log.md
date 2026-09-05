@@ -338,3 +338,260 @@ Ordinal **2001** claimed; the v6 dual is dispatched concurrently on the
 frozen head. Two other programs' finds routed, not fixed: the tour's
 `blend1_r1_wall6_probes.rs:94` selects a rim at a 5e-4 radius
 tolerance (the reviewers measure whether that is real slack).
+
+**H7's vocabulary ratified (2026-09-05).** Ev merged the `[ev]` spec PR
+[#1819](https://github.com/evgunter/cad/pull/1819) without comment, so
+`CornerConfig::TransverseCap` / `RunOutPolicy::CutOffAtTransverseCap` are
+the names `docs/FILLET-H7-SPEC.md` builds on; `needs_ev` cleared on
+`fillet-ruled-spine-arms-no-surgery`. Nothing else on that item waits on Ev.
+
+**RIM dual delivered; union fix pass sent (2026-09-05).** Both reviews
+MERGEABLE-AFTER-FIXES on `9b9ae75e`. Convergent: the rotation claim is
+unconditional in the doc and false under the match's negated-axis
+admission at ≥3 arcs (both lanes); the interval row exercises point
+enclosures only; seven roster lines not six; the wall6 5e-4 disposition
+rests on a premise both measured false (the lily rims are bit-exact).
+Orchestrator's call in the pass: the match drops axis negation (Phase 1
+and both reviews measured none on any corpus rim; spec amended as a
+deviation), the tiling contract is restated as a closed chain on shared
+vertices with the double cover filed, `circle_param` folds the negative
+radius the way `param_near` does, and the seed-finder class is filed not
+swept. Adjudication is written into the unit's row at merge, after the
+pass lands; ordinal 2001, sample assigned in main's merge order.
+
+**H5 dual dispatched (2026-09-05)** on frozen `e44f1a7fe` (PR
+[#1824](https://github.com/evgunter/cad/pull/1824)): ordinal **2002**
+claimed on main, parity byte 110 ⇒ R1 OPUS / R2 FABLE, briefs stored with
+sha256 before dispatch, concurrent, isolated. Emphasis: the C4
+`validate_closed` window after the strut `mev` (the lane measured it is
+inherited from the ladder — the reviewers verify the ladder claim and
+judge whether C4 is met or owed a deviation), `HostSide` passed not
+derived, the `Struts` gate's exact-outer-cycle question, `strut_foot` as
+one home, `refresh_annulus_seams` carrying a `Strut`, the ungated
+default-ε / 1e-12 points and the unbuilt tour.
+
+**RIM merged (2026-09-05)** at `40d50f272` (PR
+[#1821](https://github.com/evgunter/cad/pull/1821)), **sample #131**
+(ledger max #130 at merge), ordinal 2001; block FILLET-B1 slot 1 concluded
+(line on `fillet/b1-block`). Adjudicated in the row: R2's MAJOR-2 (the
+unused-arcs guard with no row, mutant-proven) is a UNILATERAL tally
+candidate; R2's MAJOR-1 (the interval fixture's point enclosures) flagged
+for the blinded adjudication; v6 tally +1 this pair. The fix pass took
+every decision, and its landing run was the FULL matrix: `ci.yml` retired
+the `CI-Config` trailer and the k-lint draw on 2026-09-04, so every PR run
+now gates every point — the trailer is prose, and the "which point gated"
+sentence leaves the briefs. `docs/FILLET-RIM-SPEC.md` deleted, ledgered at
+the merge SHA. Filed by the pass: `rim-door-admits-a-double-cover`,
+`rim-seed-finders-disagree-on-at-this-radius`.
+
+**H6 landed (2026-09-05)** on PR [#1891](https://github.com/evgunter/cad/pull/1891),
+head `f9cfceaef`, full matrix green (run 33935813397; the first head red
+on the lane's own probe — absolute-metre radii refused at ε = 1e-6 — re-cut
+to `tol.eps()`). Shape A: sixteen cap-rim shapes through the public doors,
+none reaches `Smooth`; the spec's "exactly 90°" premise corrected to the
+`1/K` obliquity bound (`sin θ ≥ √(1 − 1/K²)`); the must-carry rule homed
+as `geom_brep::tangent_second_order` with both siblings calling it
+bit-neutrally; the dump corpus gained an extrude/revolve row, identical at
+base and head. The lane's "worth a decision" — the two smooth siblings
+disagree on the in-band policy and on how much edge they read — filed as
+`smooth-arm-siblings-disagree-on-the-in-band-case`. **H6 dual dispatched**
+on frozen `f9cfceaef`: ordinal **2003**, parity byte 211 ⇒ R1 FABLE / R2
+OPUS, briefs stored with sha256, concurrent, isolated. H7 dispatched into
+block B2 slot 2 (the box was quiet) — three implementer lanes and two
+reviewers live.
+
+**ATTR landed (2026-09-05)** on PR [#1895](https://github.com/evgunter/cad/pull/1895),
+head `e8813f998`, full matrix green (run 33937888422, twelve test jobs,
+five k-lint tiers, python suite). Phase 1 confirmed the premise at the
+merge base (arc×arc: 8.2 % of refusals named a corner other than the
+anchors' nearest, max 0.792 m; 16 % mixed reasons across crossings;
+line×arc 0 % but 50 % mixed). Landed: `NoCornerOfPair { radius, corners }`
+with `CornerReason` arms carrying the three retired variants' payloads
+verbatim, both channels (arc-carrier resolve and the straight pair)
+feeding it, `FilletOffsetLeverTooShort` still aborting alone; Python
+`no_corner_of_pair` + `corner_reason_tag` + `PathError.corners`. Reported
+not filed by the lane (outside its fence): the same first-wins discard
+shape at `editor-core/src/clearance.rs:1237` and `drive.rs:1707`, and
+`sugar.rs:612` one level down. **ATTR dual dispatched** on frozen
+`e8813f998`: ordinal **2004**, parity byte 43 ⇒ R1 FABLE / R2 OPUS, briefs
+stored with sha256, concurrent, isolated.
+
+**H5 merged; block FILLET-B1 concluded (2026-09-05).** PR
+[#1824](https://github.com/evgunter/cad/pull/1824) merged at `91e6d4309`,
+**sample #132**, ordinal 2002, its fix pass the whole union: the assembly
+recourse conditioned on a ring-free host carrying the rim as its whole
+outer cycle with every `Struts`-routed refusal audited at its site, the
+concave corpus in a bit-identical dump, the curved single host stated and
+filed, `validate_closed` amended to validity-at-rest, `waist_fill` folded
+(measured not bit-identical, ≤ 2.6e-17, both H4 bars hold), and one red
+leg on the way (two intra-doc links — `scripts/doc-gate.sh --pr` joins
+every lane's local scope from here). Filed by the pass:
+`hostless-rim-on-a-ringed-host-refuses`,
+`curved-single-host-rim-refuses-at-the-half-band-gate`. `docs/FILLET-H5-SPEC.md`
+deleted, ledgered at the merge SHA. **Block B1 is concluded** — H4 (FABLE,
+#126), RIM (OPUS, #131), H5 (OPUS, #132) — and its record reaches main
+with this sync. Block B2 runs: H6 in its fix pass, ATTR under review, H7
+implementing.
+
+**H7 landed (2026-09-05)** on PR [#1897](https://github.com/evgunter/cad/pull/1897),
+head `fc6ca2268`, full matrix green (run 33939777803; the previous head
+red on the discipline gate's interval-square `powi(2)` allowlist, fixed in
+place). Phase 1: the rod ∖ box and the D-profile extrusion build and their
+creases refuse `UnsupportedChain` at `AdmittedOpen::admit`; the
+parallel-cylinder union refuses `CurvedPierceUnsupported` (no concave
+ruled fixture — pinned as the refusal); the box edge refuses
+`UnsupportedRunOut` and stays so (`arm.is_ruled()` gates the cut-off).
+Landed: `CornerConfig::TransverseCap` / `RunOutPolicy::CutOffAtTransverseCap`
+as ratified, `fillet3_cap_transverse` levered by the link extent with its
+trio pin in both lanes, the ruled band as `RuledPlan`/`ruled_phase` in
+`surgery.rs` (deviation 1: the compound-bound allowlist names
+`blend/{battery,surgery,build}` only — a new module would need Ev's
+ratification), the rod row at its prism closed form (`A = 4.6977159e-4`,
+`ΔV = 9.3954318e-4` for two creases, 800k-point shoelace to 2e-15), the
+oblique cap refusing `RULED_END_NOT_TRANSVERSE` through the front door,
+`seam_split_param` generalised to line carriers bit-identically, dump
+identical at two bases. **H7 dual dispatched** on frozen `fc6ca2268`:
+ordinal **2005**, parity byte 115 ⇒ R1 FABLE / R2 OPUS, briefs stored with
+sha256, concurrent, isolated. With this every FILLET unit is landed; what
+remains is three fix passes (H6, ATTR, H7 after its dual) and the block
+B2 record.
+
+**ATTR merged (2026-09-05)** at `aa5384288` (PR
+[#1895](https://github.com/evgunter/cad/pull/1895)), **sample #134**,
+ordinal 2004; block FILLET-B2 slot 1 concluded (line on `fillet/b2-block`).
+The fix pass took every decision: whole-pair refusals outrank the envelope
+again (the hairline pair answers `CarriersParallel` as at the base), the
+header counts what it counts, the fence justification withdrawn for the
+acceptance row's reason with the spec amended in place, C4 pinned at every
+band (mutant red at all three ε), exact pins restored through one
+`assert_corners`, three no-assert probe rows deleted, the `NoTangentCircle`
+sub-kinds carried by the tag. Filed by the pass:
+`overrun-attribution-picks-the-first-candidate` (the `sugar.rs:612`
+first-candidate discard, 232 discards on grid A with differing payloads).
+`docs/FILLET-ATTR-SPEC.md` deleted, ledgered at the merge SHA.
+
+**H6 fix pass landed (2026-09-05)** on PR [#1891](https://github.com/evgunter/cad/pull/1891),
+head `8abdf250b`, full matrix green (run 33942855470). The arm's argument
+is K-conditional and says so (tight bound `K/√(K²+1)`, crossover
+K ≈ 1.272; shape A at the shipped K = 10); the door now REFUSES typed
+(`ExtrudeError::SmoothCapRim`, naming the run's K and the crossover)
+where it used to hand back a body tier 3 rejects — measured at K = 1.1
+(refuses) and K = 3 (builds, tier 3 green); the stale-sentence class swept
+at thirteen sites; `certify.rs` and `rim_wedge.rs` migrated to the one
+home (bit-identical by the dump, corpus widened to thirteen rows); three
+`describe_at_rest` copies became `topo::Body::describe_at_rest` (a public
+door, so three `topo` meta-gates gained their entries); filed
+`ambiguity-k-below-the-cap-rim-crossover`. One process fact: a push
+produced NO workflow run for twenty minutes — not a filter decision;
+"CI is green" and "CI ran" are different questions, and the state-sync
+verifies the run exists on the head.
+
+**H6 merged (2026-09-05)** at `195460c7a` (PR
+[#1891](https://github.com/evgunter/cad/pull/1891)), **sample #135**,
+ordinal 2003; block FILLET-B2 slot 0 concluded (line on `fillet/b2-block`
+— ATTR, slot 1, reached main first by merge order). `docs/FILLET-H6-SPEC.md`
+deleted, ledgered at the merge SHA. Filed by the pass:
+`ambiguity-k-below-the-cap-rim-crossover`. Block B2 now waits on H7's fix
+pass alone.
+
+## Inherited red on main, from FILLET-ATTR (TOPO relaying, 2026-09-05)
+
+PR 1895 (`fillet/attr-every-crossing`) merged at `aa5384288` and the
+CI run on that merge, 33943429161, was CANCELLED, so main has been red
+at the code tier since: `crates/geom-core/tests/bounds_census.rs`'s
+`every_sole_bracket_bound_door_is_in_the_roster` names
+`crates/profile/src/path/arc_fillet.rs::anchor_span` (`:522`) as
+unrostered. TOPO's S330 lane hit it on PR 1923 and carries one
+`HandedOff` roster line beside the sibling door as the port so lanes
+stop failing on it; the disposition is this program's to sharpen
+(`Selection`/DL5(b) may be the truer one) and the debt is FILLET-ATTR's.
+
+**H7 merged; block FILLET-B2 concluded (2026-09-05).** PR
+[#1897](https://github.com/evgunter/cad/pull/1897) merged at `235d05241`,
+**sample #136**, ordinal 2005; the fix pass took all fourteen decisions —
+the lever pinned at its call site through `run_battery` at two lengths
+(the `T::one()` mutant red), the concave ruled band pinned through the
+extrude door, both halves of the `seam_split_param` change disclosed,
+`corner_at` returning the ratified tag so "classifies" is true, one
+chord-site core and one `cap_incidence` home, `assert_naming_totality`
+generic (and catching a double-recorded fragment in `split_rim` on the
+way), four issues filed, an inherited sole-`Bounds` door given its roster
+line. `docs/FILLET-H7-SPEC.md` deleted, ledgered at the merge SHA.
+**Block B2 is concluded** — H6 (OPUS, #135), ATTR (OPUS, #134), H7
+(FABLE, #136) — and its record reaches main with this sync. Every unit
+of the plan's seven, plus the two the rulings grew, is merged.
+**FILLET-T specced** (`docs/FILLET-T-SPEC.md`, S / STRUCTURAL): Track T's
+`D325` + `D326` as one unit now that no lane contends `surgery.rs`; block
+FILLET-B3 opens branch-side for it.
+
+**FILLET-T landed (2026-09-05)** on PR [#1943](https://github.com/evgunter/cad/pull/1943),
+head `9290f0b21`, full matrix green (run 33948095965). Phase 1: EIGHT
+`kef` sites (the spec's six plus H7's two), every one killing a face the
+surgery's own `mef` minted — two of them (the rim strut and the annulus
+seam-crossing) with no local argument at all before this, the strongest
+evidence for `D326`'s premise; the stop clause did not fire. Landed:
+`CornerLinks::sorted` seeded (`(first, rest)`, the minimum carried as the
+walk runs), the arc-mint body hoisted into one closure, `first_arc` an
+`EdgeKey` with its `unreachable!` deleted (24 → 23 in the file);
+`kef_minted` the ONE `kef` door in `surgery.rs` (`grep -c 'body.kef('`
+= 1), refusing a half whose face is a source face — and refusing an
+EMPTY source set, the one way past the door that would leave no trace;
+`D323`'s five-sentence argument at `naming::Retired` cut to two; dump
+identical over all 9 armed rows / 13 files. Filed:
+`ruled-band-has-no-bit-identity-corpus-row` (no dump row reaches
+`ruled_phase` — H7's two `kef` sites sit outside every blend PR's C1).
+**FILLET-T dual dispatched** on frozen `9290f0b21`: ordinal **2006**,
+parity byte 129 ⇒ R1 FABLE / R2 OPUS, briefs stored with sha256,
+concurrent, isolated.
+
+**FILLET-T merged (2026-09-05)** at `b1cc95604` (PR
+[#1943](https://github.com/evgunter/cad/pull/1943)), **sample #139**,
+ordinal 2006; block FILLET-B3 slot 0 concluded (line on `fillet/b3-block`).
+The fix pass took the whole union: `SourceFaces` — one snapshot of the
+input body's faces at `blend_surgery` entry threaded to all four phases,
+the `kef` door its method so a narrower set is unspellable (the
+reviewers' snapshot mutant now refuses; all eight per-site mutants
+refuse), `BlendError::SurgeryInvariant` as the D2 row-4 refusal, the
+ruled dump row in `bitdump.rs` (its issue closed), one dump home with the
+dome-annulus row dumping props, the `sorted` seed decided as the minimum
+with the dependent read fixed. `D325` and `D326` closed; **Track T is
+empty.** `docs/FILLET-T-SPEC.md` deleted, ledgered at the merge SHA.
+**FILLET-SPLIT specced** (`docs/FILLET-SPLIT-SPEC.md`, S / STRUCTURAL —
+a move: the two open bands leave `surgery.rs` behind the compound-bound
+entry re-scoped, `--color-moved` clean, bit-identical by the dump) and
+dispatches into block B3 slot 1 (FABLE) now that nothing contends the
+file.
+
+**FILLET-SPLIT landed (2026-09-05)** on PR [#1964](https://github.com/evgunter/cad/pull/1964),
+head `d1d22839e`, full matrix green (run 33955215351). Phase 1 mapped
+`surgery.rs`'s 5 033 lines by section and found no open-band read into a
+closed-rim section's private state (the stop clause did not fire); the
+shape taken is `blend/open/{mod,planar,ruled}.rs` — `open/mod.rs` holding
+`chord_site`, the one helper both open bands share and no rim uses —
+with `surgery.rs` at 3 892 lines keeping the seam and the two closed-rim
+walks. `--color-moved` shows the 2 456 changed lines as moves bar 323
+enumerated non-move lines (module docs, `use` blocks, a `//`→`//!` prefix
+promotion, forced path edits, visibility lines, the header tour); nothing
+`pub`; the allowlist line gains `open/planar|open/ruled` and the ledger
+entry one sentence naming the re-scope; the one-`kef`-door census widened
+to the directory; the dump identical over all 14 files at two bases.
+**FILLET-SPLIT dual dispatched** on frozen `d1d22839e`: ordinal **2007**,
+parity byte 203 ⇒ R1 FABLE / R2 OPUS, briefs stored with sha256,
+concurrent, isolated.
+
+**FILLET-SPLIT merged (2026-09-05)** at `71cce611d` (PR
+[#1964](https://github.com/evgunter/cad/pull/1964)), **sample #141**
+(written #140 at the state-sync; PROPS's Span row reached main first —
+renumbered at this sync per the late-discovery precedent), ordinal 2007;
+block FILLET-B3 slot 1 concluded (line on `fillet/b3-block`). The fix
+pass swept the "the surgery" prose class (KERNEL-VERBS included — the
+sentence's third correction), trimmed `surgery.rs`'s header to the tour,
+moved `chord_site` back beside `flank`, made the `kef` census walk the
+directory, folded four probe rows into one census file and one
+visibility file, and pinned the ruled support-ring refusal with a new row.
+`docs/FILLET-SPLIT-SPEC.md` deleted, ledgered at the merge SHA. **Every
+unit of the program is merged**: the plan's seven, the two the rulings
+grew (RIM, ATTR), Track T's riders (T), and the split (SPLIT) — samples
+#126, #131, #132, #134, #135, #136, #139, #141. What remains: the exit
+walk (an `[ev]` PR for Ev's ratification), Ev's answer on PR 1935 (the
+trihedron tag — the walk carries it either way), the residue sweep.

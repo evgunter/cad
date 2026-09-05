@@ -1371,3 +1371,41 @@ derivation keeps it; authorship is not a reason), and sweep's
 "fixture drift" argument for a compensating row was retracted as a
 nuisance change detector: the unit suites' pinned volumes and oracles
 already red on a changed body. Issue closed; nothing else moves.
+
+## Seam announced by TOPO (2026-09-05)
+
+TOPO's `D261` (`topo/d261-reader-collapse`) converts four
+`crates/topo/src` readers onto `test_utils::source` and edits
+`crates/test-utils/tests/reader_census.rs` for exactly those entries,
+re-deriving `UNCONVERTED_TODAY` from the table at its landing (S-BOOL's
+`D287` lowers the same constant; whichever lands second re-counts).
+Nothing else under `crates/test-utils/` moves.
+
+## Filed by TOPO; one more seam (2026-09-05)
+
+`source-lacks-an-item-body-carve-and-shared-means-any-mention` filed on
+this slate from D261's style review. The seam already announced widens
+by ONE function: D261's fix pass adds an item-body carve beside
+`balanced_end` in `crates/test-utils/src/source.rs`, with its rows, and
+converts its own caller; the other four copies are this item's.
+
+## Announced seam from PROPS (2026-09-05): two editor-core test files
+
+The k-stats unit (PR #1969, `work/props/k-stats-escalation-channel-and-redo.md`)
+converts every caller of the retired `start_verdict_log`/`take_verdict_log`
+pair to the new `k_stats::Bracket`, and two of them are TCOST's:
+`crates/editor-core/tests/m4_pr4_resolve.rs` (mechanical) and
+`crates/editor-core/tests/asm2a_instantiate.rs`, which also gains the
+unit's red-first nesting row (an instantiate node records its own op's
+decisions whichever instance ran the part) and the parallel-schedule rows
+adopted from the review. The spec's fence named the callers as a class;
+the review found these two unlisted in the body and the fix pass lists
+them. Signed (PROPS orchestrator).
+
+Addendum (2026-09-05, PROPS orchestrator): the k-stats bracket also
+adds `crates/editor-core/tests/kstats_bracket_rows.rs` (the
+schedule-independence, part-in-part, memo, cancel and pre-pass rows the
+review adopted) and one row in `tests/asm_r2a_mate_solve.rs` (a
+mate-solve escalation sits on no node's log), and registers both in
+`tests/all.rs`; `m10_7_r2_probes_interval.rs` and its goldens are M10's
+by that program's own seam note. Signed (PROPS orchestrator).

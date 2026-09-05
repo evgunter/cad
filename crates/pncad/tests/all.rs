@@ -269,7 +269,12 @@ fn corner_config_is_matchable(corner: CornerConfig) -> &'static str {
     // exhaustively is what makes `RunOutPolicy`'s carriage
     // load-bearing rather than decorative.
     match corner.policy() {
-        Some(RunOutPolicy::RunOutStopAtVertex | RunOutPolicy::RunOutFeather) | None => {}
+        Some(
+            RunOutPolicy::RunOutStopAtVertex
+            | RunOutPolicy::RunOutFeather
+            | RunOutPolicy::CutOffAtTransverseCap,
+        )
+        | None => {}
     }
     match corner {
         CornerConfig::ThreeConvexEdges => "three_convex_edges",
@@ -286,6 +291,9 @@ fn corner_config_is_matchable(corner: CornerConfig) -> &'static str {
         // door that EXISTS — the distinction a caller who could not
         // name this type had to read out of the prose.
         CornerConfig::SeamVertex => "seam_vertex",
+        // The ruled band's own termination — a configuration that
+        // CARVES, whose policy is the cut-off the tag's map assigns.
+        CornerConfig::TransverseCap => "transverse_cap",
         CornerConfig::Indeterminate => "indeterminate",
     }
 }
@@ -1576,7 +1584,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
             // node, spelled explicitly rather than assumed.
             walls
                 .into_iter()
-                .map(|name| pncad::document::MeasureRef::new(plate, name))
+                .map(|name| pncad::document::SitedRef::new(plate, name))
                 .collect(),
         )
         .expect("both indices address a reference"),
@@ -2192,8 +2200,8 @@ fn asm_r2a_mated_assembly(
     let (doc, _) = doors_insert(
         doc,
         Node::Mate {
-            a: name(ids[0]),
-            b: name(ids[1]),
+            a: pncad::document::SitedRef::at_mint(name(ids[0])),
+            b: pncad::document::SitedRef::at_mint(name(ids[1])),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: axis([30.0, 0.0, 0.0]),
@@ -3034,7 +3042,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   display one. `crate::document` carries all three now.
 /// - **Types whose curated face is a different shape**
 ///   (`ProfilePayload`, `ProgramRefusal`, `ExprPath`, `ParamValue`,
-///   `Product`, `product_recorded`, `BifurcationKind`, `NamingError`,
+///   `BifurcationKind`, `NamingError`,
 ///   `MetaValue`, `MetaError`, `MetaVersionError`, `from_value`,
 ///   `to_value`): each has a curated door of its own or is machinery
 ///   behind one. (`ClassAdmission`/`class_admission` left this family
@@ -3049,9 +3057,15 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   assembly is valid at rest, and the façade carried the whole
 ///   authoring vocabulary that constructs one. A consumer could build
 ///   an assembly and not check it. `crate::document` carries them
-///   now; `product_recorded` stays out because `product`/
-///   `product_named` are the curated gather and `assemble` is what
-///   needs the recorded one.
+///   now. `Product` and `product_recorded` came WITH them, and the
+///   reason is the doors that take a gathered product:
+///   `assemble_gathered` and `run_checks_on` are the canonical
+///   spellings of the at-rest gate and the check registry, and a
+///   consumer with several consumers of one document's product
+///   gathers once and feeds them. `product`/`product_named` stay the
+///   curated gather for a caller that wants only a body, and they
+///   cannot serve that one — a caller who cannot name `Product`
+///   cannot hold one.
 ///
 ///   **`MintRefusal` is not part of that carry**, and the split is
 ///   the point: it is the GATHER's row for a mate whose declaration
@@ -3081,8 +3095,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   preferred door but the only one. `PickTarget` is carried because
 ///   `pick_face`'s signature names it, not because it can be built.
 /// - **The analysis lane's INTERIOR residue** (`FlipEvidence`,
-///   `StructureFlip`, `ReplayOutcome`, `VerdictVector`, `VerdictRow`,
-///   `VerdictVectorKey`, `AxisScalar`, `param_env_over`, `SeedScalar`,
+///   `StructureFlip`, `AxisScalar`, `param_env_over`, `SeedScalar`,
 ///   `SectionScalar` (which scalars carry a loft or sweep section's
 ///   placement off a derived frame — a lane fact, decided by the type),
 ///   `SeedError`, `seed_env`, `std_deviation`, `sensitivities`,
@@ -3102,12 +3115,13 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   head rather than here.
 ///
 ///   What stays interior is what a consumer of the REPORTS does not
-///   hold: the verdict-vector vocabulary (a certification identity,
-///   not a report), the flip evidence a refusal carries (read through
-///   the refusal's own `Display`), the two scalar CAPABILITY seams and
+///   hold: the flip evidence a refusal carries (read through the
+///   refusal's own `Display`), the two scalar CAPABILITY seams and
 ///   their env plumbing, and `sensitivities` — the intermediate whose
-///   answer `stackup` already carries.
-const NOT_CARRIED: [&str; 93] = [
+///   answer `stackup` already carries. `VerdictVector`, `VerdictRow`
+///   and `VerdictVectorKey` are the STRICT form of the verdict diff and
+///   are argued with the instrumentation family above.
+const NOT_CARRIED: [&str; 90] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -3150,12 +3164,10 @@ const NOT_CARRIED: [&str; 93] = [
     "PairingViolation",
     "ParamValue",
     "PredicateDivergence",
-    "Product",
     "ProfilePayload",
     "ProgramRefusal",
     "Qualifier",
     "RecipeEditRef",
-    "ReplayOutcome",
     "ResolutionFailure",
     "ResolveError",
     "ResolveIndeterminate",
@@ -3192,7 +3204,6 @@ const NOT_CARRIED: [&str; 93] = [
     "entity_name",
     "from_value",
     "param_env_over",
-    "product_recorded",
     "rebind_suggestions",
     "resolve_with_prior",
     "seed_env",

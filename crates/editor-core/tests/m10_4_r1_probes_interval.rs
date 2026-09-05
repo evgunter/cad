@@ -24,9 +24,9 @@ use editor_core::stackup::{
 };
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Evaluation, Expr,
-    LoopProgram, MeasureExpr, MeasurePrimitive, MeasureRef, Node, ParamName, ParamValue,
-    ProfileDoc, ProfileLift, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, UnitSym, ValuePayload, evaluate, seed_env,
+    LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamName, ParamValue, ProfileDoc,
+    ProfileLift, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
+    SitedRef, UnitSym, ValuePayload, evaluate, seed_env,
 };
 use geom_core::{Dual64, Tol};
 
@@ -164,8 +164,8 @@ fn stepped_shaft_sized(
         rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
     });
     let refs = vec![
-        MeasureRef::new(base, fname(base, RoleSeg::Cap(CapEnd::Start))),
-        MeasureRef::new(boss, fname(boss_raw, RoleSeg::Cap(CapEnd::End))),
+        SitedRef::new(base, fname(base, RoleSeg::Cap(CapEnd::Start))),
+        SitedRef::new(boss, fname(boss_raw, RoleSeg::Cap(CapEnd::End))),
     ];
     let m = r.insert(
         Node::measure(
@@ -242,8 +242,8 @@ fn arc_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
     // Segment 3 is the x = 0 wall, segment 1 the x = w wall; their
     // distance is `w`, so ∂m/∂w = 1 exactly.
     let refs = vec![
-        MeasureRef::new(slab, fname(slab, wall(3))),
-        MeasureRef::new(slab, fname(slab, wall(1))),
+        SitedRef::new(slab, fname(slab, wall(3))),
+        SitedRef::new(slab, fname(slab, wall(1))),
     ];
     let m = r.insert(
         Node::measure(

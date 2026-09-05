@@ -74,18 +74,22 @@
 //! all-poison point (representable ≠ described; the poison fails every
 //! downstream certification loudly, per D4 ¶2).
 //!
-//! **Telling the two states apart is one rule with one spelling.** The
-//! discriminator is the control net's poison: a placeholder's every
-//! control point is poison in **every channel** by construction, a
-//! described net is finite data. `all`, not `any`, and all over the
-//! channels as well as over the points — a described net with one
-//! poisoned CHANNEL of one point is corrupt *described* geometry and
-//! must fail loudly as such (certification, +V, export), never
-//! masquerade as the benign placeholder. The two payloads that carry
-//! the state expose it as [`NurbsCurve3::is_placeholder`] and
-//! [`NurbsSurface::is_placeholder`]; every consumer that tells the
-//! states apart goes through one of those rather than re-deriving the
-//! test inline.
+//! **There are THREE states, and telling them apart is one rule with
+//! one spelling.** The discriminator is the control net's poison. A
+//! placeholder's every control point is poison in **every channel** by
+//! construction; a described net of finite data carries none; and
+//! between them sits corrupt *described* geometry — a net with a
+//! poisoned CHANNEL of a point, which is not the placeholder (`all`,
+//! not `any`, and all over the channels as well as over the points)
+//! and which must fail loudly as such at every consumer's described
+//! arm (certification, +V, export), never masquerade as the benign
+//! placeholder. [`NetState`] names the three and is the one place they
+//! are defined; [`NurbsSurface::net_state`] is the door that answers
+//! it, and a consumer that must tell all three apart matches on that
+//! rather than composing predicates or re-deriving the test inline.
+//! [`NurbsCurve3::is_placeholder`] and
+//! [`NurbsSurface::is_placeholder`] answer the placeholder question
+//! alone, for the consumers that only ask it.
 //!
 //! **Which poison, per scalar, because the sets differ in extension.**
 //! The rule is spelled once, over [`geom_core::Real::is_poison`], and
@@ -133,9 +137,9 @@ mod scalar_lift;
 pub mod surfaces;
 
 pub use curves::{
-    ComposeError, Curve3, EllipseInvalid, FIT_REMOVAL_BUDGET, FitError, FitOutcome, NurbsCurve2,
-    NurbsCurve3, Projection2, Projection3, ProjectionInconclusive, RefitSkip, SeamSide,
-    compose_chain,
+    ComposeError, Curve3, CurveWindow2, CurveWindow3, EllipseInvalid, FIT_REMOVAL_BUDGET, FitError,
+    FitOutcome, NurbsCurve2, NurbsCurve3, Projection2, Projection3, ProjectionInconclusive,
+    RefitSkip, SeamSide, compose_chain,
 };
 // The §6.1 policy module is interior — its body is the argument for
 // these four values, not API — but the values themselves are the
@@ -144,7 +148,7 @@ pub use projection_policy::{
     PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN,
 };
 pub use surfaces::{
-    ApproxSurface, ApproxWindow, NurbsSurface, OffsetCertificate, Surface, SurfaceDescription,
-    SurfaceJet, SurfaceJet3, SurfaceProjection, SurfaceProjectionInconclusive, SurfaceSpec,
-    SurfaceWindow,
+    ApproxSurface, ApproxWindow, NetState, NurbsSurface, OffsetCertificate, Surface,
+    SurfaceDescription, SurfaceJet, SurfaceJet3, SurfaceProjection, SurfaceProjectionInconclusive,
+    SurfaceSpec, SurfaceWindow,
 };

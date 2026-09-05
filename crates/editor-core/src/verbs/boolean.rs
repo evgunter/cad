@@ -37,8 +37,10 @@
 use std::sync::Arc;
 
 use geom_core::{Decide, Tol};
-use topo::{Body, BooleanDeclarations, BooleanNaming, BooleanOp};
-use verbs::Verb;
+use topo::{
+    Body, BooleanDeclarations, BooleanNaming, BooleanOp, BooleanResultKind, ContactRecords,
+};
+use verbs::{Verb, VerbRecord};
 
 use crate::names::{self, NameTable, NamingError};
 use crate::node::RecipeNodeId;
@@ -65,6 +67,10 @@ pub(crate) struct PairVerb<T: Decide> {
     pub(crate) build: fn(BooleanOp, BooleanDeclarations) -> Verb<T>,
     /// This verb's naming emitter.
     pub(crate) emitter: PairEmitter<T>,
+    /// **This family's arm of the closed record channel**, as a
+    /// projection — read through [`super::read_record`], which owns
+    /// the foreign-family refusal.
+    pub(crate) record: fn(VerbRecord<T>) -> Option<BooleanRecord>,
     /// What a WRONG-FAMILY record is called when this verb's result
     /// arrives carrying another family's channel — the blends'
     /// `foreign_record` class exactly: a kernel bug surfaced typed,
@@ -72,10 +78,42 @@ pub(crate) struct PairVerb<T: Decide> {
     pub(crate) foreign_record: &'static str,
 }
 
+/// The boolean's record, out of its channel arm: the three non-body
+/// halves of the kernel's `BooleanBody`, each the kernel's own type.
+pub(crate) struct BooleanRecord {
+    /// How the result body came to be.
+    pub(crate) kind: BooleanResultKind,
+    /// Declared contacts surviving into the result, result keys.
+    pub(crate) contacts: ContactRecords,
+    /// Mint-time naming facts the naming layer consumes.
+    pub(crate) naming: BooleanNaming,
+}
+
 /// The boolean's kernel payload. A named function rather than a
 /// closure so it can be a plain `fn` pointer in the struct above.
-fn build_boolean<T>(op: BooleanOp, declare: BooleanDeclarations) -> Verb<T> {
+fn build_boolean<T: geom_core::Real>(op: BooleanOp, declare: BooleanDeclarations) -> Verb<T> {
     Verb::Boolean { op, declare }
+}
+
+/// The boolean family's arm of the record channel. Exhaustive with no
+/// wildcard (D3): a family added to the channel breaks this at compile
+/// time and is routed here deliberately.
+fn boolean_record<T: geom_core::Real>(record: VerbRecord<T>) -> Option<BooleanRecord> {
+    match record {
+        VerbRecord::Boolean {
+            kind,
+            contacts,
+            naming,
+        } => Some(BooleanRecord {
+            kind,
+            contacts,
+            naming,
+        }),
+        VerbRecord::Blend(_)
+        | VerbRecord::Extrude(_)
+        | VerbRecord::Revolve(_)
+        | VerbRecord::Split(_) => None,
+    }
 }
 
 /// The boolean's correspondence.
@@ -87,6 +125,7 @@ pub(crate) fn boolean<T: Decide>() -> PairVerb<T> {
     PairVerb {
         build: build_boolean,
         emitter: names::name_boolean,
+        record: boolean_record,
         foreign_record: "the boolean returned a record that is not a boolean's",
     }
 }

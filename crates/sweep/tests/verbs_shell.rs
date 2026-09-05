@@ -13,7 +13,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::k_stats::{start_verdict_log, take_verdict_log};
+use geom_core::k_stats::Bracket;
 use geom_core::{Band, Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -196,11 +196,11 @@ const VALIDATOR_SHARED: &str = "bool_ring_run_winding";
 #[test]
 fn shell_runs_no_intersection_machinery() {
     let body = boxy(2.0, 3.0, 4.0);
-    start_verdict_log();
+    let bracket = Bracket::open();
     let hollow = topo::shell(&body, 0.25, FIT_TOL, Tol::witness())
         .expect("it shells")
         .body;
-    let verdicts = take_verdict_log();
+    let verdicts = bracket.finish().verdicts;
     assert!(!verdicts.is_empty(), "the verb decided something");
     let crossing: Vec<&'static str> = verdicts
         .iter()

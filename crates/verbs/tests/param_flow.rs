@@ -5,10 +5,15 @@
 //! operation does not mint, or forgot a parameter entirely. These rows
 //! are what make it a checked claim instead of a comment:
 //!
-//! 1. **Every scalar parameter has exactly one row.** Computed over
-//!    `ScalarParam::ALL`, so a verb the vocabulary gains is measured
+//! 1. **Every scalar parameter has exactly one row, and every flow
+//!    SOURCE is declared somewhere.** Computed over `ScalarParam::ALL`
+//!    and `FlowSource::ALL`, so a verb the vocabulary gains is measured
 //!    the moment its parameter is named — never a per-verb count copied
-//!    into an assertion.
+//!    into an assertion. The two censuses differ in shape because the
+//!    two source kinds do: a verb scalar belongs to exactly one verb, so
+//!    it is declared exactly once, while an operand-carried scalar is
+//!    declared by every verb that sweeps that operand — the extrude and
+//!    the revolve both name the profile edge's radius.
 //! 2. **Every field a row names belongs to the verb whose row it is**,
 //!    and no field is claimed twice within a row.
 //! 3. **Every role family a row names is one the birth record really
@@ -29,14 +34,15 @@
 
 use std::collections::BTreeSet;
 
-use geom_core::{Affine3, Tol, Vec3};
+use geom_core::{Affine3, Vec3};
+use sweep::Revolution;
 use sweep::blend::naming::BlendNaming;
 use topo::{Body, BooleanDeclarations, BooleanOp, SweepStrategy};
-use verbs::{PairOut, RoleFamily, ScalarParam, Verb, VerbKind, VerbRecord};
+use verbs::{
+    Arity, EdgeScalar, FlowSource, PairOut, RoleFamily, ScalarParam, Verb, VerbKind, VerbRecord,
+};
 
-fn tol() -> Tol {
-    Tol::witness()
-}
+use crate::fixture::{disc, offset_disc, tol, x_axis, z_plane};
 
 /// Every scalar parameter in the vocabulary is named by exactly one
 /// flow row, on the verb it belongs to.
@@ -45,15 +51,18 @@ fn every_scalar_parameter_has_one_flow_row() {
     let mut rows: Vec<ScalarParam> = Vec::new();
     for kind in VerbKind::ALL {
         for flow in kind.param_flow() {
+            let FlowSource::Param(param) = flow.source else {
+                continue;
+            };
             assert_eq!(
-                flow.param.verb(),
+                param.verb(),
                 *kind,
                 "{:?}'s flow declares {:?}, which belongs to {:?}",
                 kind,
-                flow.param,
-                flow.param.verb()
+                param,
+                param.verb()
             );
-            rows.push(flow.param);
+            rows.push(param);
         }
     }
     rows.sort_unstable();
@@ -62,6 +71,37 @@ fn every_scalar_parameter_has_one_flow_row() {
     assert_eq!(
         rows, expected,
         "the flow declarations do not cover the scalar-parameter census exactly once each"
+    );
+}
+
+/// **Every source in the vocabulary is declared by some verb, and no
+/// verb declares one twice.**
+///
+/// The "exactly once" census above cannot cover an operand-carried
+/// source: the profile edge's radius belongs to the OPERAND, so every
+/// verb that sweeps a profile declares it and the count is two, not
+/// one. What is checkable — and what a dead vocabulary entry would
+/// break — is coverage: a source nothing declares is a name with no
+/// meaning, and a source declared twice by one verb would make a
+/// consumer stamp one field from two rows.
+#[test]
+fn every_flow_source_is_declared_and_never_twice_by_one_verb() {
+    let mut seen: BTreeSet<FlowSource> = BTreeSet::new();
+    for kind in VerbKind::ALL {
+        let mut here: BTreeSet<FlowSource> = BTreeSet::new();
+        for flow in kind.param_flow() {
+            assert!(
+                here.insert(flow.source),
+                "{kind:?} declares {:?} twice",
+                flow.source
+            );
+        }
+        seen.extend(here);
+    }
+    let all: BTreeSet<FlowSource> = FlowSource::ALL.iter().copied().collect();
+    assert_eq!(
+        seen, all,
+        "the declared sources are not the source vocabulary"
     );
 }
 
@@ -78,7 +118,7 @@ fn no_flow_row_repeats_a_field() {
                 flow.fields.len(),
                 "{:?}'s {:?} row repeats a field: {:?}",
                 kind,
-                flow.param,
+                flow.source,
                 flow.fields
             );
         }
@@ -222,6 +262,146 @@ fn the_booleans_flow_is_empty_beside_a_real_record() {
         assert!(
             VerbKind::Boolean(op).param_flow().is_empty(),
             "the boolean has no scalar parameters; a row appeared with nothing to declare"
+        );
+    }
+}
+
+/// **The split's flow has no rows, and that is a claim beside a real
+/// record.** A cube is parted through its middle and the record read
+/// back — non-trivial (a section face on each side) — so "no scalar
+/// parameter lands in anything this record names" is a statement
+/// about an actual result. The split HAS no scalar parameter: its
+/// payload is a plane, a placement read off a datum, and the faces it
+/// mints are planes with no stored scalar field for anything to land
+/// in — so, like the boolean, the emptiness is one level up from the
+/// chamfer's, and the census above is what proves nothing was skipped.
+#[test]
+fn the_splits_flow_is_empty_beside_a_real_record() {
+    let cube = sweep::test_support::cube(1.0, tol());
+    let out = Verb::Split {
+        plane: z_plane(0.5),
+    }
+    .run_split(&cube, tol())
+    .expect("the mid-plane cut is inside the door");
+    let VerbRecord::Split(naming) = out.record else {
+        panic!("a split run produced another family's record");
+    };
+    assert_eq!(
+        naming.sections.len(),
+        2,
+        "the mid-plane cut minted a section face per side; the fixture no longer exercises the record"
+    );
+    assert!(
+        VerbKind::Split.param_flow().is_empty(),
+        "the split has no scalar parameters; a row appeared with nothing to declare"
+    );
+}
+
+/// **A profile-edge source may be declared only by a verb whose
+/// operand IS a profile.**
+///
+/// Nothing in the types stops a one-body verb from writing a
+/// `FlowSource::ProfileEdge` row, and the consequence would be silent
+/// rather than typed: the row would attach nothing — a blend's record
+/// has no swept walls, and `attach_swept` is reached only from the
+/// profile lowering — while still flipping the GLOBAL predicate
+/// `editor-core` reads to decide whether a carrier radius's spelling
+/// enters a profile node's content key. Every profile in every
+/// document would key differently for a row that reaches no field
+/// anywhere. So the census is the guard: the source kind names the
+/// operand, and the operand is the arity.
+#[test]
+fn only_profile_operand_verbs_declare_a_profile_edge_source() {
+    for kind in VerbKind::ALL {
+        for flow in kind.param_flow() {
+            let FlowSource::ProfileEdge(scalar) = flow.source else {
+                continue;
+            };
+            assert_eq!(
+                kind.arity(),
+                Arity::Profile,
+                "{kind:?} declares the operand-carried {scalar:?} but its operand is \
+                 {:?}, so nothing would ever attach it — and the key feed would widen anyway",
+                kind.arity()
+            );
+        }
+    }
+}
+
+/// **The sweeps' flow names a family their records really mint**, and
+/// the walls it names are non-empty on both fixtures — the row that
+/// fires if a sweep stopped exporting its per-loop wall lists, which is
+/// the only thing a per-edge source can be attached through.
+#[test]
+fn the_sweeps_flow_names_the_wall_family_their_records_mint() {
+    let extruded = Verb::Extrude { distance: 1.0 }
+        .run_profile(&disc(0.5), tol())
+        .expect("the disc extrudes");
+    let VerbRecord::Extrude(built) = extruded else {
+        panic!("an extrude run produced another family's record");
+    };
+    assert!(
+        built.side_faces.iter().any(|loop_| !loop_.is_empty()),
+        "the extruded disc minted no side walls"
+    );
+
+    let revolved = Verb::Revolve {
+        axis: x_axis(),
+        revolution: Revolution::Full,
+    }
+    .run_profile(&offset_disc(0.25, 1.0), tol())
+    .expect("the offset disc revolves");
+    let VerbRecord::Revolve(built) = revolved else {
+        panic!("a revolve run produced another family's record");
+    };
+    assert!(
+        built.walls.iter().flatten().any(Option::is_some),
+        "the revolved disc minted no walls"
+    );
+
+    // Every family the two flows name is the wall family, and it is the
+    // one both records just filled.
+    for kind in [VerbKind::Extrude, VerbKind::Revolve] {
+        for flow in kind.param_flow() {
+            for field in flow.fields {
+                assert_eq!(
+                    field.family(),
+                    RoleFamily::SweptWalls,
+                    "{kind:?}'s flow names {field:?}, whose family no sweep record mints"
+                );
+            }
+        }
+    }
+}
+
+/// **The two extents' rows are empty beside real records.** The
+/// distance and the angle are how far the sweep runs, and a sweep that
+/// ran is what makes the emptiness a statement rather than a constant:
+/// both fixtures above produced bodies, and neither verb's own scalar
+/// reaches a field of them.
+#[test]
+fn the_sweep_extents_reach_no_field() {
+    for (kind, param) in [
+        (VerbKind::Extrude, ScalarParam::ExtrudeDistance),
+        (VerbKind::Revolve, ScalarParam::RevolveAngle),
+    ] {
+        let row = kind
+            .param_flow()
+            .iter()
+            .find(|row| row.source == FlowSource::Param(param))
+            .expect("the extent's row must be present, not absent");
+        assert!(
+            row.fields.is_empty(),
+            "{param:?} reaches no stored field: an extent is not a surface's data"
+        );
+        let edge = kind
+            .param_flow()
+            .iter()
+            .find(|row| row.source == FlowSource::ProfileEdge(EdgeScalar::Radius))
+            .expect("the profile edge's row must be present");
+        assert!(
+            !edge.fields.is_empty(),
+            "{kind:?} declares the profile edge's radius and lands it nowhere"
         );
     }
 }

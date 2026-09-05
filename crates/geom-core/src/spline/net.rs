@@ -44,8 +44,8 @@
 //! answer with zeros turns one refusal into one poison plus `n - 2`
 //! finite zeros, which is a finite bound over a window nothing covered
 //! — the failure this module exists to make impossible, and the same
-//! shape [`super::hull::sup_norm_bound_span`] refuses one dimension
-//! down. **Truncating** a long answer hides a caller bug behind a
+//! shape [`super::hull::sup_norm_bound_span`] answers poison for one
+//! dimension down when the coefficient count disagrees. **Truncating** a long answer hides a caller bug behind a
 //! plausible net. Poisoning the line is the only answer that reaches a
 //! consumer as a refusal.
 //!
@@ -358,7 +358,7 @@ mod tests {
     /// coefficient is `p·(c1 − c0)/Δu` with `p = 1`, `Δu = 1`.
     #[test]
     fn diff_matches_the_knot_difference() {
-        let kv = KnotVector::unit_segment(1);
+        let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let n = TensorNet::from_rows(&[vec![pt(0.0), pt(1.0)], vec![pt(2.0), pt(5.0)]]);
         // The ring rounds outward, so each answer is ENCLOSED, not
         // equalled (D4 ¶2: a bound, never an estimate).

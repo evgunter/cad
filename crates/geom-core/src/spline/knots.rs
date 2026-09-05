@@ -3,6 +3,8 @@
 //! deterministic f64 lane. Raw `f64` comparisons are legal throughout
 //! this file (structure selection, never a topology decision).
 
+use core::num::NonZeroUsize;
+
 /// A typed construction failure for spline structure — fail-loud per
 /// D4: every invalid input is a named refusal, never a silent repair.
 #[derive(Clone, Debug, PartialEq)]
@@ -165,17 +167,28 @@ pub struct KnotVector {
 /// from outside), so an end value, an out-of-domain value or a NaN is
 /// not a representable insertion point.
 ///
-/// **What the type proves, and what privacy proves.** Like [`Span`], it
-/// carries no borrow of its vector: a knot interior to vector A handed
-/// to vector B's raw list IS representable, so the type alone does not
-/// make the insertion guard unnecessary. What does is the type PLUS the
-/// privacy of the one consumer: `compose::insert_once_ring` is a
-/// private function whose only caller mints every `InteriorKnot` from
-/// the very `KnotVector` it read the raw list from, and mutates that
-/// list without touching either clamp run — so the domain the knot was
-/// minted against is the list's domain at every step. The type is
-/// therefore crate-private until a second consumer exists; a public
-/// one would need the pairing argument `Span` carries.
+/// **What the type proves, and what privacy proves.** Unlike [`Span`],
+/// which borrows the vector it indexes and so cannot be held beside
+/// another one, it carries no borrow of its vector: a knot interior to
+/// vector A handed to vector B's raw list IS representable, so the type
+/// alone does not make the insertion guard unnecessary. What does is the type PLUS the
+/// privacy of its consumers, of which there are two, and they use it
+/// in opposite ways:
+///
+/// - `compose::insert_once_ring` is a private function whose only
+///   caller mints every `InteriorKnot` from the very `KnotVector` it
+///   read the raw list from, and mutates that list without touching
+///   either clamp run — so the domain the knot was minted against is
+///   the list's domain at every step. Here the type IS the guard.
+/// - [`super::algebra::union_refinements`] reads several vectors' runs
+///   and hands each vector the values it lacks from the OTHERS — the
+///   one place a knot crosses vectors. It therefore returns plain
+///   `f64`, not this type: the proof stops at the vector the knot came
+///   from, and the insertion is re-validated by [`super::algebra::refine_plan`]
+///   against the vector it lands in.
+///
+/// The type stays crate-private; a public one would need the borrow
+/// [`Span`] carries.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct InteriorKnot(f64);
 
@@ -187,54 +200,171 @@ impl InteriorKnot {
 }
 
 /// A span index **proven** in range and nonempty for the knot vector it
-/// was drawn from, carrying the control-point window it selects.
+/// indexes, carried **together with that vector** — a borrow, so the
+/// span and the structure it is a proof about are one value.
 ///
-/// Its fields are private and its only constructors are
-/// [`KnotVector::span`] (checked) and [`KnotVector::span_at`] (total),
-/// so an index invalid **for the vector that minted it** is not a
-/// representable state. That is a fact about one vector, not about the
-/// value: nothing stops the `Span` being carried to a *different*
-/// `KnotVector`, so evaluation does carry a guard and does have a
-/// poison-on-bad-index path — [`KnotVector::admits`], asked at every
-/// door. The window is computed once, at construction, so
-/// `span − degree` never appears at a use site and cannot underflow
-/// there.
+/// The window it selects (`[index − degree, index]`) is computed once,
+/// at construction, so `span − degree` never appears at a use site and
+/// cannot underflow there.
 ///
-/// **Not branded to its knot vector — the pairing is checked, not
-/// structural.** A `Span` is a plain value with no borrow of the
-/// vector it came from, so one drawn from a *different* `KnotVector`
-/// can be handed to any door that takes one. Every door that takes a
-/// `Span` therefore asks [`KnotVector::admits`] first and answers a
-/// refused span with poison, never with an out-of-bounds index:
-/// [`super::basis`], [`super::hull`], and the curve evaluators in
-/// `geom`. That is what keeps D9's *"the kernel never panics on any
-/// input"* true of them, and it is true of the doors that take a
-/// `Span` inside a **wrapper** too: `geom`'s `SurfaceWindow` holds two
-/// of them and is unbranded in the same way, so its three evaluators
-/// ask their own surface-level predicate — this one in both
-/// directions, plus the row-major stride, which is the part a `Span`
-/// says nothing about — before indexing anything.
+/// **Branded to its knot vector by the borrow.** The fields are
+/// private and the only constructors are [`KnotVector::span`]
+/// (checked) and [`KnotVector::span_at`] (total), so an index invalid
+/// for the vector it names is not a representable state — and neither
+/// is a span held beside a *different* vector: every door that
+/// consumes a `Span` reads its knots through the span
+/// ([`Span::knots`]) and takes no second [`KnotVector`] parameter to
+/// disagree with it. [`super::basis`] and [`super::hull`] therefore
+/// index without a pairing guard and without a poison route for one.
+/// `geom` carries the shape one level further: `CurveWindow{2,3}`
+/// borrows the curve and `SurfaceWindow` the surface, so the doors
+/// that read a control net get the net and the knots from one borrow
+/// too.
 ///
-/// What `admits` does **not** buy is exactness. Two vectors of equal
-/// degree and equal control count, whose index `i` is a nonempty span
-/// in both, admit each other's span `i`, and evaluation against the
-/// wrong one is then a **wrong answer rather than a refusal**. That
-/// residue is deliberate
-/// and it is the same species as the one
-/// [`super::hull::span_hull`] already leaves: its `coeffs` are related
-/// to the vector by length alone, so a same-length coefficient array
-/// from a different curve is silently wrong too. Making either
-/// structural means the `Span` (and the coefficients) carrying their
-/// vector — a borrow, or an invariant-lifetime brand — which is a
-/// design change and not paid for here.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Span {
+/// **The pairing this does not close** is coefficients against knots
+/// at the **free** hull functions: [`super::hull::span_hull`] and its
+/// siblings take a `&[E]` beside a span and relate the two by *length*
+/// alone (`KnotVector::control_count`), so a same-length array from
+/// another curve is a wrong answer rather than a refusal. `geom`'s
+/// curve and surface windows do not have it — they read their
+/// coefficients from the borrow. `InteriorKnot` is the third member of
+/// the family and stays crate-private for it.
+///
+/// **Equality is address equality on the vector**, plus the indices:
+/// a `Span` is a proof about *that* vector, and two bit-equal vectors
+/// at different addresses are two structures a proof does not
+/// transfer between. (`KnotVector` is not [`Eq`] — its knots are
+/// `f64` — so a by-value derive is not available here in any case.)
+///
+/// # What does not typecheck
+///
+/// These are library doctests: they run under
+/// `cargo test -p geom-core --doc`, so the claims below redden if the
+/// borrow is undone rather than merely dating a comment.
+///
+/// **A door takes one vector, and it is the span's.** There is no
+/// parameter through which a second one could arrive, so a span of one
+/// vector cannot be evaluated against another.
+///
+/// ```compile_fail,E0061
+/// use geom_core::spline::{KnotVector, basis};
+/// let long = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 3.0, 3.0], 2).unwrap();
+/// let short = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+/// let span = long.span(3).unwrap();
+/// let _ = basis::basis_funs(&short, span, 0.5f64);
+/// ```
+///
+/// Its twin, differing in one respect — the second vector is not
+/// passed, because there is nowhere to pass it:
+///
+/// ```
+/// use geom_core::spline::{KnotVector, basis};
+/// let long = geom_core::spline::KnotVector::clamped(
+///     vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 3.0, 3.0], 2).unwrap();
+/// let span = long.span(3).unwrap();
+/// let row = basis::basis_funs(span, 0.5f64);
+/// assert_eq!(row.len(), long.degree() + 1);
+/// ```
+///
+/// **A span cannot outlive its vector**, so it cannot be carried to
+/// where another one is in scope:
+///
+/// ```compile_fail,E0597
+/// use geom_core::spline::{KnotVector, basis};
+/// let span = {
+///     let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+///     kv.span_at(0.5)
+/// };
+/// let _ = basis::basis_funs(span, 0.5f64);
+/// ```
+///
+/// The twin differs in one identifier — the vector is bound outside
+/// the block, so the borrow lives as long as the span:
+///
+/// ```
+/// use geom_core::spline::{KnotVector, basis};
+/// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+/// let span = { kv.span_at(0.5) };
+/// let _ = basis::basis_funs(span, 0.5f64);
+/// ```
+///
+/// **Nor can a span be held across a rebinding of its vector.** Every
+/// knot-algebra door here is `&self -> Self`, so a refinement is a new
+/// binding and a span of the original goes on naming the original:
+///
+/// ```compile_fail,E0506
+/// use geom_core::spline::{KnotVector, basis};
+/// let mut kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+/// let span = kv.span_at(0.5);
+/// kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+/// let _ = basis::basis_funs(span, 0.5f64);
+/// ```
+///
+/// The twin differs in one identifier — the refinement is a *new*
+/// binding, which is what every knot-algebra door here returns:
+///
+/// ```
+/// use geom_core::spline::{KnotVector, basis};
+/// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+/// let span = kv.span_at(0.5);
+/// let refined = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+/// let _ = basis::basis_funs(span, 0.5f64);
+/// let _ = basis::basis_funs(refined.span_at(0.5), 0.5f64);
+/// ```
+///
+/// **What these rows do and do not check.** Stable rustdoc checks only
+/// that a `compile_fail` block fails to build; the `,E0061` /
+/// `,E0597` / `,E0506` annotation beside it is **not** verified there
+/// (that is a nightly rustdoc feature), so a row could be red for a
+/// typo instead of for its subject. That is what each twin above is
+/// for: it differs from its block in exactly one respect and it
+/// compiles, so a typo shared by both would redden the twin. The
+/// codes themselves were read off `rustc` directly on each snippet at
+/// the pinned toolchain — and the first snippet emits `E0277`
+/// (`Span<'_>: Real` unsatisfied, the knot vector landing in `t`'s
+/// position) alongside its `E0061`, so the annotation names one of
+/// two codes there rather than the only one.
+#[derive(Clone, Copy)]
+pub struct Span<'a> {
+    kv: &'a KnotVector,
     index: usize,
     first_control: usize,
     degree: usize,
 }
 
-impl Span {
+/// The borrow is printed as an ADDRESS, never followed: a derived
+/// `Debug` would dump the whole knot vector through the reference at
+/// every `{:?}`, which is the one cost a borrow-carrying token can
+/// impose by accident. The address is also what equality reads.
+impl core::fmt::Debug for Span<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Span")
+            .field("kv", &core::ptr::from_ref(self.kv))
+            .field("index", &self.index)
+            .field("first_control", &self.first_control)
+            .field("degree", &self.degree)
+            .finish()
+    }
+}
+
+impl PartialEq for Span<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        core::ptr::eq(self.kv, other.kv)
+            && self.index == other.index
+            && self.first_control == other.first_control
+            && self.degree == other.degree
+    }
+}
+
+impl Eq for Span<'_> {}
+
+impl<'a> Span<'a> {
+    /// The [`KnotVector`] this span is a proof about — the one every
+    /// door that takes a span reads its knots from.
+    pub fn knots(self) -> &'a KnotVector {
+        self.kv
+    }
+
     /// The span index itself (the `i` of `knots[i] ≤ t < knots[i+1]`).
     pub fn index(self) -> usize {
         self.index
@@ -414,11 +544,12 @@ impl KnotVector {
     /// NaN ends land on the first span per `span_at`.
     ///
     /// Both ends are [`Span`]s: locating is where span validity
-    /// originates, and `span_at` is total, so there is nothing for a
-    /// caller to re-check. Iterate the interior with
-    /// `first.index() + 1 ..= last.index()` and [`KnotVector::span`],
-    /// which refuses the empty spans in between.
-    pub fn span_range(&self, lo: f64, hi: f64) -> (Span, Span) {
+    /// originates, `span_at` is total, and each end borrows this
+    /// vector, so there is nothing for a caller to re-check and no
+    /// second vector for either end to be paired against. Iterate the
+    /// interior with `first.index() + 1 ..= last.index()` and
+    /// [`KnotVector::span`], which refuses the empty spans in between.
+    pub fn span_range(&self, lo: f64, hi: f64) -> (Span<'_>, Span<'_>) {
         (self.span_at(lo), self.span_at(hi))
     }
 
@@ -438,7 +569,7 @@ impl KnotVector {
     /// out of range or names an **empty** span (interior knot
     /// multiplicity). This and [`KnotVector::span_at`] are the only
     /// ways to obtain a `Span`.
-    pub fn span(&self, index: usize) -> Option<Span> {
+    pub fn span(&self, index: usize) -> Option<Span<'_>> {
         if index < self.first_span() || index > self.last_span() || !self.span_is_nonempty(index) {
             return None;
         }
@@ -447,64 +578,17 @@ impl KnotVector {
         // puts `index + 1` inside the knot array. Every consumer of the
         // resulting `Span` inherits both facts.
         Some(Span {
+            kv: self,
             index,
             first_control: index - self.degree,
             degree: self.degree,
         })
     }
 
-    /// Whether `span` may be evaluated against **this** knot vector —
-    /// the three-way agreement every door here asks before it indexes.
-    ///
-    /// - `span.degree() == degree`. Supplies the low end,
-    ///   `index >= first_span()`, because a `Span` always satisfies
-    ///   `index >= degree` (both constructors set
-    ///   `first_control = index − degree`), and makes the basis row and
-    ///   the control window the same length.
-    /// - `span.index() <= last_span()`. `last_span() ==
-    ///   control_count() − 1`, so this puts the whole window
-    ///   `[index − degree, index]` inside the control arrays, and the
-    ///   knot reads centred on it — which reach `index + degree + 1` in
-    ///   the derivative ladder — inside `knots`. That upper bound is
-    ///   **exact**, not slack: one higher reads past the end.
-    /// - `span_is_nonempty(index)`. Not a bounds fact — the other two
-    ///   already close every index. This one is about the answer: an
-    ///   empty span's knot difference is zero, which divides in
-    ///   [`super::basis::basis_funs`] and lets
-    ///   [`super::hull::span_hull`] return a *finite* bound over a
-    ///   window this vector's basis never reads. A wrong number that
-    ///   passes `sup_norm_bound_span(..) <= eps` is worse than a panic,
-    ///   so it is refused.
-    ///
-    /// **It refuses nothing correctly paired.** Every `Span` this
-    /// vector mints satisfies all three against it: [`KnotVector::span`]
-    /// returns `None` on exactly the second and third conditions, and
-    /// [`KnotVector::span_at`] establishes them structurally (its
-    /// `debug_assert` is the teeth on the third). So `kv.admits(s)` is
-    /// true for every `s` drawn from `kv`, and the check is pure
-    /// refusal of foreign spans.
-    ///
-    /// **What it does not decide.** It relates a span to a vector's
-    /// *shape* — degree, length, and whether that one index is a real
-    /// interval — never to its knot **values**. Two vectors of equal
-    /// degree and equal control count whose index `i` is nonempty in
-    /// both admit each other's span `i`, and evaluation against the
-    /// wrong one is a **wrong answer rather than a refusal**. That
-    /// residue is deliberate: it is the same length-only relation
-    /// [`super::hull::span_hull`] holds its `coeffs` to, and closing
-    /// either wants the `Span` (and the coefficients) to carry their
-    /// vector — a borrow or an invariant-lifetime brand — which is a
-    /// design change and not paid for here.
-    pub fn admits(&self, span: Span) -> bool {
-        span.degree() == self.degree
-            && span.index() <= self.last_span()
-            && self.span_is_nonempty(span.index())
-    }
-
     /// [`KnotVector::find_span`] as a validated [`Span`] — total on all
     /// of `f64` for exactly the reasons `find_span` is (see its docs:
     /// out-of-domain clamps to an end span, NaN lands on the first).
-    pub fn span_at(&self, t: f64) -> Span {
+    pub fn span_at(&self, t: f64) -> Span<'_> {
         // The search runs in window coordinates, so its result *is* the
         // window's first control point: there is no subtraction to
         // check and no `Option` to discharge. Nonemptiness comes from
@@ -523,6 +607,7 @@ impl KnotVector {
             "span_at located an empty span {index}"
         );
         Span {
+            kv: self,
             index,
             first_control,
             degree: self.degree,
@@ -619,18 +704,22 @@ impl KnotVector {
     }
 
     /// The clamped single-segment (Bézier) vector on `[0, 1]`:
-    /// `degree + 1` zeros followed by `degree + 1` ones. Infallible —
-    /// statically valid for every `degree ≥ 1`.
+    /// `degree + 1` zeros followed by `degree + 1` ones. Total, with
+    /// nothing refused and nothing substituted: the clamped-v1 form
+    /// represents every degree except 0, and the argument's type is
+    /// exactly that set, so every spellable call names a vector
+    /// [`KnotVector::clamped`] would accept. `NonZeroUsize::MIN` is the
+    /// degree-1 segment the placeholder payloads ride.
     ///
-    /// **`unit_segment(0)` silently yields the degree-1 vector** (the
-    /// argument is clamped up with `max(1)`, not refused): the
-    /// `DegreeZero` refusal is [`KnotVector::clamped`]'s job — the one
-    /// validating door for externally supplied structure — while this
-    /// constructor exists precisely to be panic- and error-free for
-    /// the placeholder/fixture paths, which never ask for degree 0.
-    /// Callers that must *distinguish* degree 0 go through `clamped`.
-    pub fn unit_segment(degree: usize) -> Self {
-        let p = degree.max(1);
+    /// Degree 0 — the request `clamped` answers with `DegreeZero` when
+    /// it arrives as data — is not a spellable argument here:
+    ///
+    /// ```compile_fail,E0308
+    /// # use geom_core::spline::KnotVector;
+    /// let _ = KnotVector::unit_segment(0);
+    /// ```
+    pub fn unit_segment(degree: NonZeroUsize) -> Self {
+        let p = degree.get();
         let mut knots = vec![0.0; p + 1];
         knots.extend(core::iter::repeat_n(1.0, p + 1));
         Self { knots, degree: p }
@@ -738,7 +827,7 @@ fn runs_in(sorted: &[f64]) -> impl DoubleEndedIterator<Item = (f64, usize)> + Cl
 /// not a public door — [`find_span_in`] is `pub(crate)` and
 /// `span_offset_in` is private — so the obligation cannot escape the
 /// crate. Widening either to `pub` is what would change that, and would
-/// want the `Span`-holds-its-vector shape [`Span`] already documents.
+/// want the borrow [`Span`] carries.
 ///
 /// Total on all of `f64` with [`KnotVector::find_span`]'s three
 /// documented behaviours — below-domain and NaN give the first span, at
@@ -883,7 +972,7 @@ mod tests {
         assert_eq!(k.find_span(f64::NAN), 2);
         // Range form — validated ends, compared as the indices they name.
         let range = |lo, hi| {
-            let (a, b): (Span, Span) = k.span_range(lo, hi);
+            let (a, b): (Span<'_>, Span<'_>) = k.span_range(lo, hi);
             (a.index(), b.index())
         };
         assert_eq!(range(0.5, 2.5), (2, 5));
