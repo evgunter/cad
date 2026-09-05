@@ -9,8 +9,11 @@ opened: 2026-09-03
 The E12 symbolic identity tier (`geom_core::sym`) replays a driver leaf
 at `Sym<Interval>`. Every lane trait it has to satisfy is scalar-generic
 and runs there unaltered — `topo::props::{PropsQuadLane, AtRestPolicy}`,
-`topo::chart_region::ChartRegionLane`, `geom_brep::{PcurveFittedLane,
-EdgeNurbsLane}` — with one exception.
+`topo::chart_region::ChartRegionLane` and `geom_brep::PcurveFittedLane` —
+with one exception. (The plane × NURBS lane is no longer a trait: its
+certified body `geom_brep::plane_nurbs_limbs` is bounded
+`Decide + Bounds + CertifiedEnclosure`, and `Sym<T>` satisfies each of
+those exactly when its base scalar does, so that tier needs no arm.)
 
 `editor_core::measure::MinClearanceLane` cannot. The engine behind it,
 `editor_core::clearance::min_separation`
