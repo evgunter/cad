@@ -240,3 +240,23 @@ reviewers' probes adopted). The spec left `docs/` with the merge
 members. Block PROPS-B1 slot 0 concluded; **slot 1 = the Span sweep**,
 dispatched on `props/span-knot-vector` (L / STRUCTURAL, pre-draw at the
 spec). Lanes live: Span, ONB-measure.
+
+**ONB-measure MERGED (2026-09-05)** —
+[#1939](https://github.com/evgunter/cad/pull/1939), evidence only, green
+on the full matrix. The numbers: the backend (in-repo
+`interval-transcendentals`, not inari) drops the sign of zero in `*`
+and `/` with `normalize` on every plane-minting path, so option (c) is
+unsound as the tree stands; 815 planar faces censused, exactly 12 walls
+with `n.z = −0.0`, all boolean-reversed faces in `die`/`kiss_assembly`;
+under (c′) all 12 move (8 STEP `DIRECTION` records, 4 half-turn `u_ref`
+flips), no `FaceFrame` anywhere in any corpus; on M10-5's prism 6 of 12
+walls narrow from width 2 to ≤ 7.4e-15, 2 stay hulled on a genuinely
+wide `n.z`. The item's "cannot converge" premise was false (the cost is
+a 2× enclosure; `refines` is true today) and is corrected. **Ruling for
+Ev**: `[ev]` PR opening now with recommendation (c′) — canonicalise the
+zero at f64 inside `orthonormal_basis` — and its one cost named (a
+`FaceFrame` on a boolean-reversed wall would rotate silently; none
+exist, no migration channel). Backend findings filed
+(`interval-backend-signed-zero-conventions`); the tour row of table 2
+is the one acceptance gap (the tour's scenes are private modules). Slot
+freed: lily-vec3 dispatches beside the Span sweep.
