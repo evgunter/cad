@@ -3912,6 +3912,35 @@ names no model.
 
 
 
+Block FILLET-B2 pre-draw fields (2026-09-05, logged before the draw;
+opened with every FILLET-B1 slot dispatched — slot 0 merged, slot 1 in
+its fix pass, slot 2 under review): slot 0 = FILLET-H6
+(`docs/FILLET-H6-SPEC.md`, `extrude-cap-rim-smooth-arm-noop`) —
+difficulty **S**, task-class **STRUCTURAL** (Phase 1 measures whether
+extrude's cap-rim `Smooth` arm is reachable; either way the must-carry
+rule gets ONE home its sibling arms call). Slot 1 = FILLET-ATTR
+(`docs/FILLET-ATTR-SPEC.md`, `fillet-refusal-describes-unbracketed-crossing`)
+— **M / STRUCTURAL** (the `NoCornerOfPair` envelope reporting every
+refusing crossing nearest-anchors-first, per Ev's ruling on PR 1734).
+Slot 2 = FILLET-H7 (`docs/FILLET-H7-SPEC.md`,
+`fillet-ruled-spine-arms-no-surgery`) — **L / NUMERIC** (the ruled band
+with the transverse cut-off at perpendicular caps; new predicate
+`fillet3_cap_transverse`; vocabulary ratified by PR 1819's merge).
+
+Block FILLET-B2 draw (2026-09-05, after the pre-draw fields above; v3
+triple {opus, opus, fable}, one /dev/urandom byte, reject ≥252): byte
+**200**, 200 mod 3 = 2 = fable's position ⇒ **fable at slot 2**.
+So: slot 0 FILLET-H6 = OPUS, slot 1 FILLET-ATTR = OPUS, slot 2
+FILLET-H7 = FABLE. Recorded branch-side (`fillet/b2-block`); this
+record reaches main when the block's last slot's reviews conclude; each
+ordinal claim at review dispatch goes to main on its own.
+
+Block FILLET-B2 slot record (branch-side, appended as each slot concludes):
+slot 0 = FILLET-H6 (OPUS) — concluded 2026-09-05 at merge 195460c7a, ordinal 2003, sample #135 (no tally candidate; pair FAIR). Merge order put slot 1 (ATTR) on main first; the slot record lists slots in slot order.
+slot 1 = FILLET-ATTR (OPUS) — concluded 2026-09-05 at merge aa5384288, ordinal 2004, sample #134 (no tally candidate; pair FAIR).
+slot 2 = FILLET-H7 (FABLE) — concluded 2026-09-05 at merge 235d05241, ordinal 2005, sample #136 (one tally candidate, R2/OPUS, recorded in the row; pair FAIR, flagged for two benign glimpses).
+**Block FILLET-B2 CONCLUDED (2026-09-05)** — three slots, three duals (ordinals 2003–2005, samples #135, #134, #136); the block record reaches main with this sync. Block FILLET-B3 (Track T's riders; slots banked for Ev's two open rulings) opens branch-side on `fillet/b3-block`.
+
 ## FILLET-RIM review ordinal fixed at dispatch (2026-09-04)
 
 FILLET-RIM (`no-public-rim-arc-selector`, PR #1821 open — frozen head
