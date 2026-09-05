@@ -238,6 +238,17 @@ const ROSTER: &[Site] = &[
         why: HandedOff("Track V's; a refusal-payload door S88's handoff names"),
     },
     Site {
+        path: "crates/profile/src/path/arc_fillet.rs",
+        subject: "anchor_span",
+        why: Payload(
+            "the corner-outcome PRESENTATION sort key: the two bracketing anchors' span, read \
+             as an `f64` enclosure lower bound off the diagnostic channel. A sort key and \
+             nothing else — the sort is stable, so the order is a function of the inputs \
+             (D9), and the permuted entries carry identical payloads, so nothing downstream \
+             branches on it",
+        ),
+    },
+    Site {
         path: "crates/sweep/src/blend/battery.rs",
         subject: "classified",
         why: Payload(

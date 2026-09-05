@@ -568,31 +568,33 @@ fn the_parallel_cylinder_union_still_refuses_and_a_box_edge_is_still_a_run_out()
 
 /// **The lever `corner_at` hands `fillet3_cap_transverse` is the link's
 /// own extent**, pinned through the battery's public entry on a cap
-/// tilted 1e-3 rad — the smallest tilt the split door builds (1e-4
-/// escalates at the join's carrier lane, 1e-5 refuses `CircularAxes`)
-/// — at two lengths. The lever is the crease's extent, `0.6·L` (the
-/// cut sits at six tenths of the rod), so the margins are `1.8e-4` and
-/// `1.5e-3`. At the fillet door's own band both are DEFINITE
+/// tilted 1e-2 rad at two lengths. The tilt is the smallest the split
+/// door builds at EVERY eps row: its own near-parallel margin grows as
+/// the tilt squared (1e-4 escalates at the join's carrier lane at
+/// eps 1e-9, 1e-3 falls under the 1e-6 row's band, 1e-5 refuses
+/// `CircularAxes`). The lever is the crease's extent, `0.6·L` (the cut
+/// sits at six tenths of the rod), so the margins are `1.8e-3` and
+/// `1.5e-2`. At the fillet door's own band both are DEFINITE
 /// departures (every buildable tilt is, at every buildable length), so
 /// both rods refuse there identically; `run_battery` takes its band as
-/// an argument, and under `Band::new(1.2e-4, 1.2e-3)` the same angle is
-/// IN BAND at `L = 0.3` (escalates naming the predicate) and DEFINITE
-/// at `L = 2.5` (refuses as the run-out). A lever of `T::one()` in
-/// place of the extent would put both at `1e-3` — in band — and red the
-/// long rod's arm; a band one decade lower (`2e-4, 2e-3`) admitted the
-/// short rod's tilted cap as transverse, which is the lever seen from
-/// the other side.
+/// an argument — explicit, so the same at every eps row — and under
+/// `Band::new(1.2e-3, 1.2e-2)` the same angle is IN BAND at `L = 0.3`
+/// (escalates naming the predicate) and DEFINITE at `L = 2.5` (refuses
+/// as the run-out). A lever of `T::one()` in place of the extent would
+/// put both at `1e-2` — in band — and red the long rod's arm; a band one
+/// decade lower admitted the short rod's tilted cap as transverse, which
+/// is the lever seen from the other side.
 #[test]
 fn the_cap_lever_is_the_links_extent() {
-    let phi = 1e-3_f64;
-    let band = Band::new(1.2e-4, 1.2e-3).expect("a band ten wide, like the door's");
+    let phi = 1e-2_f64;
+    let band = Band::new(1.2e-3, 1.2e-2).expect("a band ten wide, like the door's");
     for (len, in_band) in [(0.3, true), (2.5, false)] {
         let rod = rod_d_profile_of_length_at::<f64>(len, tol());
         let plane = SplitPlane {
             origin: Point3::new(0.0, 0.0, 0.6 * len),
             normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
         };
-        let result = split(&rod, &plane, tol()).expect("a 1e-3 tilt splits");
+        let result = split(&rod, &plane, tol()).expect("a 1e-2 tilt splits");
         let SplitPart::Body(below) = &result.below else {
             panic!("the lower part carries material");
         };
