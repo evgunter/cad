@@ -269,7 +269,12 @@ fn corner_config_is_matchable(corner: CornerConfig) -> &'static str {
     // exhaustively is what makes `RunOutPolicy`'s carriage
     // load-bearing rather than decorative.
     match corner.policy() {
-        Some(RunOutPolicy::RunOutStopAtVertex | RunOutPolicy::RunOutFeather) | None => {}
+        Some(
+            RunOutPolicy::RunOutStopAtVertex
+            | RunOutPolicy::RunOutFeather
+            | RunOutPolicy::CutOffAtTransverseCap,
+        )
+        | None => {}
     }
     match corner {
         CornerConfig::ThreeConvexEdges => "three_convex_edges",
@@ -286,6 +291,9 @@ fn corner_config_is_matchable(corner: CornerConfig) -> &'static str {
         // door that EXISTS — the distinction a caller who could not
         // name this type had to read out of the prose.
         CornerConfig::SeamVertex => "seam_vertex",
+        // The ruled band's own termination — a configuration that
+        // CARVES, whose policy is the cut-off the tag's map assigns.
+        CornerConfig::TransverseCap => "transverse_cap",
         CornerConfig::Indeterminate => "indeterminate",
     }
 }
@@ -3087,8 +3095,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   preferred door but the only one. `PickTarget` is carried because
 ///   `pick_face`'s signature names it, not because it can be built.
 /// - **The analysis lane's INTERIOR residue** (`FlipEvidence`,
-///   `StructureFlip`, `ReplayOutcome`, `VerdictVector`, `VerdictRow`,
-///   `VerdictVectorKey`, `AxisScalar`, `param_env_over`, `SeedScalar`,
+///   `StructureFlip`, `AxisScalar`, `param_env_over`, `SeedScalar`,
 ///   `SectionScalar` (which scalars carry a loft or sweep section's
 ///   placement off a derived frame — a lane fact, decided by the type),
 ///   `SeedError`, `seed_env`, `std_deviation`, `sensitivities`,
@@ -3108,12 +3115,13 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   head rather than here.
 ///
 ///   What stays interior is what a consumer of the REPORTS does not
-///   hold: the verdict-vector vocabulary (a certification identity,
-///   not a report), the flip evidence a refusal carries (read through
-///   the refusal's own `Display`), the two scalar CAPABILITY seams and
+///   hold: the flip evidence a refusal carries (read through the
+///   refusal's own `Display`), the two scalar CAPABILITY seams and
 ///   their env plumbing, and `sensitivities` — the intermediate whose
-///   answer `stackup` already carries.
-const NOT_CARRIED: [&str; 91] = [
+///   answer `stackup` already carries. `VerdictVector`, `VerdictRow`
+///   and `VerdictVectorKey` are the STRICT form of the verdict diff and
+///   are argued with the instrumentation family above.
+const NOT_CARRIED: [&str; 90] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -3160,7 +3168,6 @@ const NOT_CARRIED: [&str; 91] = [
     "ProgramRefusal",
     "Qualifier",
     "RecipeEditRef",
-    "ReplayOutcome",
     "ResolutionFailure",
     "ResolveError",
     "ResolveIndeterminate",

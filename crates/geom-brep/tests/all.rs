@@ -91,6 +91,8 @@ mod m8_f67_r1_probes;
 mod offa_r1_probes;
 #[path = "offb_r1_probes.rs"]
 mod offb_r1_probes;
+#[path = "onb_c_payoff_interval.rs"]
+mod onb_c_payoff_interval;
 #[path = "r2_probe_sphere_polar.rs"]
 mod r2_probe_sphere_polar;
 
