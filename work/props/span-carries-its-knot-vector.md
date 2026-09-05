@@ -2,8 +2,7 @@
 id: span-carries-its-knot-vector
 kind: unit
 title: Consider giving Span its KnotVector — close the unbranded-pairing hole structurally
-status: parked
-blocked_on: [1879]
+status: spec
 opened: 2026-08-13
 github: 475
 refs: [447, 463, 468]
@@ -109,5 +108,5 @@ CERT-N3's `spline/` edits to merge.
 **RULED: A** (Ev, in-chat, 2026-09-05: "A and B both sound ok, so if
 you recommend A then that works"). The item is a unit: the sweep per
 §Scope, the mutation-hold check first, `crates/geom-core/README.md`'s
-spline clause as the companion note. Parked on CERT-N3 (#1879), whose
-`spline/` edits it must be cut against; spec to follow at that merge.
+spline clause as the companion note. CERT-N3 (#1879) merged 2026-09-05 04:08; the unit is cut against the
+post-N3 `spline/` layer (spec to follow the census of that layer).

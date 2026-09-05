@@ -107,3 +107,21 @@ policy. Style review dispatched on the frozen head with seven claims
 (C1 the absent-row behaviour change hidden by "no key moved"; C2/C3 the
 pins' non-vacuity and the spec's own pin (b) misstatement; C4 the
 re-export lanes; C5 the split inherent impl; C6/C7 docs and tracker).
+
+**S-CERT's two track lanes merged (2026-09-05).** CERT-M3
+[#1877](https://github.com/evgunter/cad/pull/1877) at 03:33 and CERT-N3
+[#1879](https://github.com/evgunter/cad/pull/1879) at 04:08, both after
+a dual and a fix pass. What that unblocks here: the Span sweep
+(`span-carries-its-knot-vector`, ruled A) is un-parked to `spec` and cut
+against the post-N3 `spline/` layer; `validate.rs` is free of live PRs,
+so `m6-sense-gate-recorded-residuals` (check 6's arc-bounded arm) is
+dispatchable when a slot frees. Still S-CERT's: the ChartRegionLane
+ruling (#1878, restated on the corrected three-consumer premise, awaiting
+Ev), the tally adjudication, and the exit walk — no walk exists on main
+yet, `normalize-overflow-yields-zero-axis` still sits in `work/cert/`,
+and the stale `nurbs-net-point-map-helper` review row is unanswered; no
+reply yet to the territory notice. PROPS-1's implementer opened
+[#1918](https://github.com/evgunter/cad/pull/1918) (in flight); this
+session is subscribed to #1918 and #1920. Dispatch order for the next
+free slots: ONB-measure → Span sweep (block slot 1) → lily-vec3 →
+M6 sense gate.
