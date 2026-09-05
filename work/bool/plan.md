@@ -34,7 +34,8 @@ remaining half, #1031 half B, #1076, #1077; #1059 resolved into
   untouched until PCURVE's P-2 (#1177) resumes and lands.
 
 The fence is confirmed from the other side:
-`work/verbs/plan.md`'s work-stream note names
+`work/verbs/plan.md`'s work-stream note (VERBS closed; recoverable at
+`git show c1e7ea19501d9e625dbd0de260d01a53a0384b42:work/verbs/plan.md`) names
 "#1011/#750/#542/#368/#433/#1152/#134" as "S-BOOL's honest remainder
 (… never VERBS')".
 
@@ -264,7 +265,7 @@ logged pre-draw per the protocol.
   (its third door in `geom/src/curves/boxes.rs` is outside the fence
   — filed on N's owner, not edited), S234, D95, D280, D66 (the unit
   decides sentence-vs-row; if the row, `sweep/tests` is Track T's to
-  file), D284, D287, D288; the ledger rows D57/D46/D281 (D281 is a
+  file), D284, D287; the ledger rows D57/D46/D281 (D281 is a
   per-row read, the row's own bold). Carve-outs per Substrate: D283
   (Ev's), S83/D36 (wait on P-2). Rows land per §D's conventions.
 

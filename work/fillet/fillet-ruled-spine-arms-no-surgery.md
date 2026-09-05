@@ -2,10 +2,13 @@
 id: fillet-ruled-spine-arms-no-surgery
 kind: unit
 title: fillet - the ruled-spine arms classify but no surgery carves their band
-status: open
+status: closed
 opened: 2026-08-25
 github: 987
 refs: [962]
+branch: fillet/h7-transverse-cap
+pr: 1897
+closed: 2026-09-05
 ---
 
 ## From GitHub issue 987
@@ -59,7 +62,7 @@ shape in the corpus asks for it yet.
 
 ## Home
 
-Fillet band and surgery were S-BLEND's, which is closed and may hold only closed items; VERBS ceded that ground explicitly, so this open residue lands under `work/issues/`.
+Fillet band and surgery were S-BLEND's, which is closed and may hold only closed items; VERBS ceded that ground explicitly, so this residue was filed under `work/issues/` and is now a unit of the FILLET program (this file, `work/fillet/`).
 
 ## For Ev — what terminates a ruled band (the OQ6 question this unit waits on)
 
@@ -106,3 +109,9 @@ name is proposed in the unit's spec for ratification, as `SeamVertex`
 was. The mid-curve run-out taxonomy (A3-3) stays reserved and is not
 touched by this. This item is now the unit that builds it (H7, last in
 order); the spec follows.
+
+**Spec for ratification (2026-09-04):** `docs/FILLET-H7-SPEC.md` proposes
+`CornerConfig::TransverseCap` and `RunOutPolicy::CutOffAtTransverseCap`
+for the cut-off Ev chose on PR 1736; a 👍 on this PR ratifies the names
+and the unit dispatches (block FILLET-B2). `needs_ev` set for that
+ratification only.

@@ -65,6 +65,14 @@ mod cert3r1_poison_detail;
 mod cert3r1_probes;
 #[path = "certified_door.rs"]
 mod certified_door;
+#[path = "coeffs_bit_identity.rs"]
+mod coeffs_bit_identity;
+#[path = "coeffs_bit_identity_ext.rs"]
+mod coeffs_bit_identity_ext;
+#[path = "coeffs_bit_identity_interval.rs"]
+mod coeffs_bit_identity_interval;
+#[path = "coeffs_pair_identity.rs"]
+mod coeffs_pair_identity;
 #[path = "d8_knot_queries_adversarial.rs"]
 mod d8_knot_queries_adversarial;
 #[path = "decoration_seam.rs"]
@@ -152,5 +160,22 @@ mod r2_cert3_probes;
 #[path = "cert3_evidence.rs"]
 mod cert3_evidence;
 
+#[path = "onb_signed_zero_evidence.rs"]
+mod onb_signed_zero_evidence;
+
 #[path = "m10_7_r2_sym_probes.rs"]
 mod m10_7_r2_sym_probes;
+
+#[path = "unit_segment.rs"]
+mod unit_segment;
+
+#[path = "props1_evidence.rs"]
+mod props1_evidence;
+
+#[path = "m10_8_r1_sym_probes.rs"]
+mod m10_8_r1_sym_probes;
+#[path = "props1_review_rows.rs"]
+mod props1_review_rows;
+
+#[path = "m10_8_r2_sym_probes.rs"]
+mod m10_8_r2_sym_probes;

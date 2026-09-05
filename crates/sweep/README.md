@@ -14,9 +14,9 @@ one verb-neutral refusal vocabulary. Nothing is sampled or approximated.
 The fillet design proper (the battery's six predicates in binding
 order, the arm table, the corner-configuration scope) is in
 `crates/geom-brep/README.md` under CURVED-DESIGN C8. What is not yet
-built (run-outs, the canal-surface blend, curved-support chamfers, the
-ruled-spine carve) is registered in `docs/KERNEL-VERBS.md`; the canal
-blend is `docs/DESIGN.md` frontier (f).
+built (mid-curve run-outs, the canal-surface blend, curved-support
+chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
+`docs/DESIGN.md` frontier (f).
 
 ## Where in the code
 
@@ -33,7 +33,8 @@ blend is `docs/DESIGN.md` frontier (f).
 | Analytic arms: sheet derivation, `BlendArm`, chamfer strip, corner ball | `crates/sweep/src/blend/arms.rs` |
 | Admission tokens (holding the value is the fact) | `crates/sweep/src/blend/admit.rs` |
 | Assembly front doors, `Blended` result type, octant charts | `crates/sweep/src/blend/build.rs` |
-| In-place composition surgery; open chains, ladder rims, annulus rims across seams | `crates/sweep/src/blend/surgery.rs` |
+| In-place composition surgery: the door, the plans, the ring check, the description pass, the one `kef` door; the closed-rim walks (ladder rims, annulus rims across seams) | `crates/sweep/src/blend/surgery.rs` |
+| The open bands: the plane–plane band with its trihedral corners, the ruled band with its transverse cut-off | `crates/sweep/src/blend/open/planar.rs`, `crates/sweep/src/blend/open/ruled.rs` |
 | Birth records (`BlendNaming`) the document layer turns into names | `crates/sweep/src/blend/naming.rs` |
 
 ## Blend vocabulary (BLEND-VOCAB-DESIGN V1–V4)
@@ -92,11 +93,14 @@ line through the centres, so the pair is coaxial by construction and
 `coaxial_arm` maps `(Sphere, Sphere)` to `BlendArm::SphereSphereTorus`;
 the centre is the crossing of the two offset circles in the meridian
 sheet through the rim (`Meridian::trace`), material sides read from
-each face's stored sense bit. A tangential pair poisons the spine
-radius and escalates at predicate 3 (`spine_regularity`). The band
-carves only on a CONVEX closed rim; a concave one (a two-sphere
-snowman's waist) refuses in `surgery::resolve_rim`, since a concave
-band adds material (`work/issues/concave-closed-rim-has-no-band.md`).
+each face's stored sense bit folded with the chain's convexity verdict
+(the ball rests on the material side of each support on a convex
+chain and in the void on a concave one — S10/S11, the one fold every
+arm spells, `plane_plane_blend`'s `signed` its precedent). A
+tangential pair poisons the spine radius and escalates at predicate 3
+(`spine_regularity`). The band carves on either material side: a
+lentil's convex equator loses material to it, a two-sphere snowman's
+waist gains it, through one surgery.
 
 **A3-2 — a valence-4 seam vertex is not a corner.** Where a chart seam
 (the `u = 0` meridian of a revolved wall) crosses an otherwise smooth
@@ -110,15 +114,28 @@ so a payload cannot disagree with its tag. `battery::is_seam_vertex`
 reads pure incidence, never convexity, which fixes the rule: **a
 recourse must be true at every site its tag can fire**.
 `FILLET3_SEAM_VERTEX_RECOURSE` therefore names the REQUEST (ask for the
-rim whole, every arc the seam split it into) and conditions the carve:
-on a convex rim the closed-rim surgery takes that multi-link closed
-chain as one annulus (`AnnulusRim::crossings`, one `SeamCrossing` per
-arc, each side's support several faces of one surface); on a concave
-rim the same request meets the material-side refusal. A pole-touching
-body with merged caps (`merge_coplanar_faces`) hosts both arcs on one
-plane face and routes to the ladder rim, which refuses on its ring
-gate; the tag does not fire there
-(`work/issues/repaired-pole-rim-serves-no-closed-door.md`).
+rim whole, every arc the seam split it into), and the closed-rim
+surgery serves it on either material side: it takes that multi-link
+closed chain as one annulus (`AnnulusRim::crossings`, one
+`SeamCrossing` per arc, each side's support several faces of one
+surface), removing material on a convex rim and adding it on a concave
+one, so the sentence conditions on nothing. A pole-touching body with
+merged caps (`merge_coplanar_faces` — the repair every boolean consumer
+runs) hosts every arc on ONE plane face, in that face's own outer
+cycle. The same annulus serves that too: `resolve_rim` routes it there
+on WHERE the rim sits in its host's loop structure (a ring is the
+ladder, the face's own outer cycle is this), and each crossing's host
+foot is minted by the LADDER's strut (`HostFoot::Strut`) because the
+merge consumed the host's seam and left the crossing TRIVALENT. The tag
+does not fire at such a crossing — there is no seam there to make a
+seam vertex — and the subset request that does refuse names the whole
+rim, which carves. **Two conditions on that host, and they are what the
+recourse states**: it carries no RING of its own, and the rim is its
+WHOLE outer cycle. A merged cap that is an ANNULUS meets neither and
+refuses (`work/fillet/hostless-rim-on-a-ringed-host-refuses.md`); a
+CURVED single face carrying every arc is authorable through `topo`'s
+`kef` and refuses at the half-band gate on both routes
+(`work/fillet/curved-single-host-rim-refuses-at-the-half-band-gate.md`).
 
 **A3-3 — the genuine mid-curve run-out is named and not implemented.**
 Stopping a band part-way along a smooth rim, at a station with no
@@ -126,5 +143,40 @@ vertex, has two honest shapes: a ball-cap stop (the ball at rest at the
 final spine station caps the band with a sphere patch; new surgery, no
 new surface kinds) and a feather-out (the radius tapers to zero toward
 the station; variable-radius machinery). Neither has a constructor
-(`RunOutPolicy` is refusal-payload vocabulary only); the ball-cap is
-the presumptive first pick when a consumer arrives.
+(`RunOutStopAtVertex` and `RunOutFeather` are refusal-payload
+vocabulary only); the ball-cap is the presumptive first pick when a
+consumer arrives.
+
+**What IS built beside it is a different termination — the ruled
+band's TRANSVERSE CUT-OFF (FILLET-H7, Ev's ruling on PR 1736).** A
+ruled link (`CylinderPlaneCylinder`, `CylinderCylinderCylinder`: a
+cylinder band about a straight spine, both trimlines lines along the
+ruling) ends where its supports do, at a vertex whose two unrequested
+edges lie in one plane face perpendicular to the ruling —
+`CornerConfig::TransverseCap`, decided by `fillet3_cap_transverse`
+(the cap normal's departure from the ruling, in meters at the link's
+own extent, the lever the shared-ruling hypothesis is metered at). The
+band ends in that plane's section of it, an exact stored arc of the
+band's radius about the spine's crossing
+(`RunOutPolicy::CutOffAtTransverseCap`; `CornerConfig::policy` maps
+the tag). The carve (`blend/open/ruled.rs`, beside the planar band's
+`blend/open/planar.rs`; the rim phases stay in `blend/surgery.rs`)
+mints no strut: the cap's two
+rim edges are split at the trimlines' feet, the arc is `mef`'d across
+the cap, one trimline `mef` per support carves its strip along the
+ruling, and the crease's `kef` with two `kef`/`kev` pairs folds the
+slivers in and retires the old vertices — the trimlines described as
+the band's tangent contact with a curved support, the arcs as its
+transverse intersection with the cap, on either material side. An
+oblique or curved end face refuses typed as the run-out A3-3 reserves.
+Consumer: the rod with a flat milled along it (`cylinder ∖ box`), both
+creases in one call, at the prism closed form `ΔV = A_section · L`
+(`crates/sweep/tests/fillet_h7_transverse_cap.rs`). The CONCAVE
+ruled band — the material-adding side, the cap gaining the region
+under the arc — is pinned through the extrude door too: a rod's section
+standing on a block's top edge (the sunk rod,
+`crates/sweep/tests/review_fillet_h7_r1_probes.rs`, `ΔV = +2·A·L`). The
+`CylinderCylinderCylinder` consumer — two parallel cylinders unioned at
+a common ruling — has no body yet: the union refuses at the boolean's
+curved-pierce door, and so does a block ∪ cylinder at its join lane;
+that is the boolean's ground, not the band's.

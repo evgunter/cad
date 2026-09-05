@@ -109,6 +109,28 @@ fn documents() -> Vec<(&'static str, ProfileDoc)> {
     vec![
         ("slab_narrow", slab(1.0, eps / 16.0)),
         ("slab_across_zero", slab(20.0 * eps, 40.0 * eps)),
+        // **An ARC-bearing fixture**, so the driver population carries
+        // the M10-8 atom family: the tour's two-hole plate scaled to
+        // `1e3 * eps` of the real study — just ABOVE its
+        // whole-certifying ceiling, which is `7.81e2 * eps` at every
+        // epsilon row (M10-8's plate pin), so the driver splits once
+        // and certifies two leaves whose certified-midpoint replays
+        // exercise the symbolic tier on the holes' cylindrical
+        // carriers. The slabs above contribute `symbolic_zero` samples
+        // too (their straight-walled identities discharge through the
+        // plain form); what only this fixture contributes is the ARC
+        // family's — the constant fold A0's discharges, and `sign_gated`
+        // rows the day rule C is switched on. The scale is
+        // epsilon-RELATIVE like the slabs': written as the constant
+        // `1e-6` it was 1280x the ceiling at `eps = 1e-12`, where the
+        // driver certified nothing and the fixture fell out of the
+        // linted population on that row. Cost: ~40 s per epsilon row on
+        // the sweep at the default epsilon, measured on hosted CI at the
+        // run the PR body names.
+        (
+            "two_hole_plate_narrow",
+            crate::m10_7_plate::plate(5.0e-5 * 1.0e3 * eps, 1.0e-5 * 1.0e3 * eps, Tol::witness()).0,
+        ),
     ]
 }
 

@@ -63,6 +63,7 @@ mod teapot;
 mod tessbudget;
 #[cfg(feature = "interval")]
 mod tolerance;
+mod torusvessel;
 mod tube;
 mod tubewall;
 mod twopeg;
@@ -679,6 +680,14 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
          lifted lid, and the two unions that refuse) --"
     );
     for stop in teapot::stops(tol) {
+        visit(&stop);
+    }
+
+    println!(
+        "\n-- the torus-walled vessel (TORAX #1494 + C5ARMS PR-1 #1577: a donut band \
+         in the wall, hollowed and opened) --"
+    );
+    for stop in torusvessel::stops(tol) {
         visit(&stop);
     }
 

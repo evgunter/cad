@@ -24,6 +24,18 @@
 //!   carrier, a dangling key or an unreadable adjacency is an honest
 //!   NO, never a panic — which is what makes a purely-exact filter
 //!   total.
+//!
+//!   **[`rim_of`] is a fourth EXACT door and it does NOT answer NO.**
+//!   It reads stored data the same way the three predicates do — the
+//!   carrier's tag, then its `center`, `radius` and `axis` compared
+//!   BIT for bit, and side surface KEYS — with no funnel, no margin
+//!   and nothing decided. What it does differently is its answer
+//!   shape: a predicate returns a `bool`, so "the key dangles" and
+//!   "the kind is wrong" can both honestly be NO; a door that returns
+//!   a SET has no such spelling, because an empty set and a partial
+//!   set are both answers a caller would act on. So it refuses typed
+//!   ([`RimError`]) at every point a predicate would answer NO, and
+//!   the totality is in the refusals rather than in the `false`.
 //! - **DECIDED** — [`datum_distance_sign`] is a real numeric
 //!   comparison and therefore a `k_stats::decide` site with a named
 //!   `sel_*` predicate ([`SEL_DATUM_DISTANCE`]), an honest
@@ -79,12 +91,14 @@
 //! the point.
 
 use geom::Curve3;
-use geom_brep::SurfaceKind;
+use geom_brep::{SurfaceKey, SurfaceKind};
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
+use geom_core::{
+    Band, Bounds, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3,
+};
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::null::CurveGeom;
 
 /// Which [`Curve3`] variant a carrier is: the fieldless mirror of the
@@ -679,6 +693,445 @@ pub fn datum_distance_sign<T: Decide>(
     )
 }
 
+// ---------------------------------------------------------------
+// The rim door: the whole closed rim one arc belongs to. EXACT —
+// stored tags and stored carriers, read bitwise; no funnel, no
+// margin, no sampled geometry.
+// ---------------------------------------------------------------
+
+/// Why [`rim_of`] could not name a rim — a closed enum (D4 ¶3): every
+/// arm is a fact about the seed or about the body, and none of them is
+/// a lane that hands back part of a rim.
+#[derive(Debug, Clone, PartialEq)]
+pub enum RimError {
+    /// The seed's certified carrier is not a circle, so it names no
+    /// rim. `kind` is the carrier's kind, or `None` where the edge
+    /// carries no certified carrier at all (a null scaffold) — the two
+    /// are different facts and the payload says which.
+    NotAnArc {
+        /// The seed.
+        edge: EdgeKey,
+        /// The seed's carrier kind, `None` when it has no certified
+        /// carrier.
+        kind: Option<CurveKind>,
+    },
+    /// The seed's two sides lie on ONE surface: a chart-seam meridian,
+    /// not a rim edge. A rim's two sides are two surfaces, so no seam
+    /// meridian can ever be a rim's arc — which is the exclusion every
+    /// hand-rolled radius scan had to remember.
+    CoSurface {
+        /// The seed.
+        edge: EdgeKey,
+        /// The one surface both its sides rest on.
+        surface: SurfaceKey,
+    },
+    /// **The arcs that matched the seed do not form one closed chain
+    /// on shared vertices**: the walk dangles at a vertex (a partial
+    /// revolve's open rim is the honest instance), it branches there,
+    /// or it closes leaving matched arcs unused. A partial set is
+    /// never returned.
+    ///
+    /// **What was tested, stated so the payload can be read.** The
+    /// arcs in `arcs` are the ones whose stored `center`, `radius` and
+    /// `axis` are bit-equal to the seed's and whose two sides rest on
+    /// the seed's two surfaces; the chain is walked over THOSE. So a
+    /// refusal has two quite different causes and the payload
+    /// distinguishes them: there is really a hole in the rim, or an
+    /// arc of the rim is stored on a carrier this door does not call
+    /// the same circle (a different `u_ref` is fine — it is not read —
+    /// but a fresh `center`, `radius` or `axis`, a negated axis
+    /// included, is not). A caller seeing `gap` at a parameter its
+    /// body has an edge across should look at carrier identity, not
+    /// for a missing edge.
+    NotOneRim {
+        /// Every arc that matched the seed, in arena order. The chain
+        /// was walked over exactly these.
+        arcs: Vec<EdgeKey>,
+        /// The seed carrier's parameter at the vertex the walk stopped
+        /// at — the lower end of the bracket at an enclosing scalar. A
+        /// report, not a comparand: nothing in this door branches on
+        /// it.
+        gap: f64,
+    },
+    /// A dangling key or an unreadable reference on the way — the
+    /// `sweep::blend` `not_intact` shape.
+    NotIntact(EntityId),
+}
+
+impl core::fmt::Display for RimError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NotAnArc { edge, kind } => {
+                // The kind is NAMED, not `Debug`-rendered: a payload
+                // reaching a message through `Debug` is what the prose
+                // census hunts, and words read better in a refusal. The
+                // match is exhaustive with no wildcard arm, so a new
+                // `CurveKind` fails to compile here; the circle arm is
+                // unreachable through the door and is stated rather
+                // than folded into a catch-all.
+                let carries = match kind {
+                    None => "no certified carrier",
+                    Some(CurveKind::Line) => "a line",
+                    Some(CurveKind::Circle) => "a circle",
+                    Some(CurveKind::Ellipse) => "an ellipse",
+                    Some(CurveKind::Nurbs) => "a NURBS curve",
+                };
+                write!(
+                    f,
+                    "edge {edge:?} carries {carries}, and a rim is named by an \
+                     arc of a circle"
+                )
+            }
+            Self::CoSurface { edge, surface } => write!(
+                f,
+                "edge {edge:?} has surface {surface:?} on both sides: a chart-seam \
+                 meridian, and a rim's two sides are two surfaces"
+            ),
+            Self::NotOneRim { arcs, gap } => write!(
+                f,
+                "the {} arcs stored on this arc's own circle, between its two \
+                 surfaces, do not form one closed chain: the walk stops at \
+                 carrier parameter {gap}. Either the rim really is open there, \
+                 or an arc of it is stored on a carrier this door does not call \
+                 the same circle",
+                arcs.len()
+            ),
+            Self::NotIntact(at) => write!(f, "the body is not intact at {at}"),
+        }
+    }
+}
+
+impl std::error::Error for RimError {}
+
+/// A circle carrier's IDENTITY as a set of points: centre, axis and
+/// radius. `u_ref` is deliberately NOT part of it — it carries the
+/// seam (D2, conventional data), and one rim's arcs are minted one per
+/// chart with a seam each, so their `u_ref`s differ on every
+/// seam-split body in the corpus.
+struct CircleId<T: Real> {
+    center: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+}
+
+/// Are the two scalars the SAME STORED VALUE, bit for bit? At an
+/// enclosing scalar both bracket ends must agree, so two enclosures
+/// that merely overlap are different values. This is the whole of the
+/// door's numeric comparison: no subtraction, no threshold, no funnel.
+fn same_bits<T: Bounds>(a: T, b: T) -> bool {
+    a.lo().to_bits() == b.lo().to_bits() && a.hi().to_bits() == b.hi().to_bits()
+}
+
+/// [`same_bits`] over a point.
+fn same_point_bits<T: Bounds>(a: Point3<T>, b: Point3<T>) -> bool {
+    same_bits(a.x, b.x) && same_bits(a.y, b.y) && same_bits(a.z, b.z)
+}
+
+/// [`same_bits`] over a vector.
+fn same_vec_bits<T: Bounds>(a: Vec3<T>, b: Vec3<T>) -> bool {
+    same_bits(a.x, b.x) && same_bits(a.y, b.y) && same_bits(a.z, b.z)
+}
+
+impl<T: Bounds> CircleId<T> {
+    /// The same circle: `center`, `radius` and `axis`, each bit-equal.
+    ///
+    /// **The axis is compared bit-for-bit and its NEGATION is not
+    /// admitted**, though `-axis` names the same point set. Admitting
+    /// it would cost the order contract: an arc stored on `-axis` runs
+    /// its `he_plus` the other way round the circle, so a rim carrying
+    /// one answers `[a, b, c]` from one seed and `[c, b, a]` from
+    /// another — a reversal, not the rotation
+    /// [`rim_of`] promises. Measurement is what makes the narrower rule
+    /// free: no producer in the corpus stores a rim's arcs on opposed
+    /// axes, so nothing that exists is refused by this. An arc that IS
+    /// stored opposed does not match, and the rim it belongs to refuses
+    /// [`RimError::NotOneRim`] — an honest refusal rather than an order
+    /// nobody can rely on.
+    fn same_circle(&self, other: &Self) -> bool {
+        same_point_bits(self.center, other.center)
+            && same_bits(self.radius, other.radius)
+            && same_vec_bits(self.axis, other.axis)
+    }
+}
+
+/// The circle a carrier is, or `None` for any other kind.
+fn circle_id<T: Real>(carrier: &Curve3<T>) -> Option<CircleId<T>> {
+    match carrier {
+        Curve3::Circle {
+            center,
+            axis,
+            radius,
+            ..
+        } => Some(CircleId {
+            center: *center,
+            axis: *axis,
+            radius: *radius,
+        }),
+        _ => None,
+    }
+}
+
+/// **Where on a circle a point sits**, as the carrier's own parameter:
+/// the four-quadrant angle of `p − center` in the stored frame,
+/// measured against the same two vectors [`Curve3::param_near`] takes
+/// at `near = 0` — the position `u_ref·radius` and the tangent
+/// `(axis × u_ref)·radius`.
+///
+/// **The radius factor is carried, not cancelled**, and that is the
+/// whole of what this had to get right. `atan2(y·r, x·r)` is
+/// `atan2(y, x)` for `r > 0` and `atan2(y, x) ± π` for `r < 0`, so
+/// dropping `r` — which a first cut did, calling it a folded constant
+/// — silently disagrees with the door above by half a turn on a
+/// carrier whose stored radius is negative. A negative radius is
+/// degenerate data the constructors reject and tier 3 refuses, but a
+/// refusal PAYLOAD is exactly where such a body still reaches a
+/// reader, and a payload that disagrees with the tree's own parameter
+/// door is worse than one that is merely surprising.
+///
+/// It differs from `param_near`'s circle arm only in reaching those
+/// two vectors directly instead of through `eval`/`deriv`: at `θ = 0`
+/// those evaluate `u_ref·cos 0 + v_ref·sin 0` and its derivative,
+/// whose `v_ref` terms are exact zeros. What that leaves is a
+/// signed-zero difference in a summand, which changes an answer only
+/// where the whole dot product is zero and `atan2` then reads the
+/// sign of a zero.
+///
+/// Spelled here rather than reached through that door because the door
+/// is generic over every carrier kind and so carries the NURBS arm's
+/// span-locate bound; taking it would make this door's bound compound,
+/// which is the shape `Bounds`' scope rule exists to catch. This one
+/// is arithmetic on a circle, and it feeds nothing but a refusal's
+/// report.
+fn circle_param<T: Real>(carrier: &Curve3<T>, p: Point3<T>) -> Option<T> {
+    let Curve3::Circle {
+        center,
+        axis,
+        radius,
+        u_ref,
+    } = carrier
+    else {
+        return None;
+    };
+    let w = p - *center;
+    let r_near = *u_ref * *radius;
+    let tau_near = axis.cross(*u_ref) * *radius;
+    Some(w.dot(tau_near).atan2(w.dot(r_near)))
+}
+
+/// The surface the face across `he` rests on, or the reference that
+/// could not be read.
+fn surface_across<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Result<SurfaceKey, EntityId> {
+    let h = body.get_half_edge(he).ok_or(EntityId::HalfEdge(he))?;
+    let l = body
+        .get_loop(h.parent_loop)
+        .ok_or(EntityId::Loop(h.parent_loop))?;
+    let face = body.get_face(l.face).ok_or(EntityId::Face(l.face))?;
+    Ok(face.surface)
+}
+
+/// An edge's two side surfaces, `he_plus` first.
+fn edge_sides<T: Real>(body: &Body<T>, e: EdgeKey) -> Result<(SurfaceKey, SurfaceKey), EntityId> {
+    let edge = body.get_edge(e).ok_or(EntityId::Edge(e))?;
+    Ok((
+        surface_across(body, edge.he_plus)?,
+        surface_across(body, edge.he_minus)?,
+    ))
+}
+
+/// An edge's two end vertices, in `he_plus`-forward order — start
+/// first, so the carrier's parameter increases from the first to the
+/// second (the `he_plus` forward contract).
+fn edge_ends<T: Real>(body: &Body<T>, e: EdgeKey) -> Result<(VertexKey, VertexKey), EntityId> {
+    let edge = body.get_edge(e).ok_or(EntityId::Edge(e))?;
+    let h = body
+        .get_half_edge(edge.he_plus)
+        .ok_or(EntityId::HalfEdge(edge.he_plus))?;
+    let end = body
+        .half_edge_end(edge.he_plus)
+        .ok_or(EntityId::HalfEdge(edge.he_plus))?;
+    Ok((h.start, end))
+}
+
+/// Whether two unordered surface pairs are the same pair.
+fn same_pair(a: (SurfaceKey, SurfaceKey), b: (SurfaceKey, SurfaceKey)) -> bool {
+    (a.0 == b.0 && a.1 == b.1) || (a.0 == b.1 && a.1 == b.0)
+}
+
+/// **The rim an arc belongs to, whole.**
+///
+/// A rim is named by any ONE of its arcs. `rim_of` returns every edge
+/// of `body` whose certified carrier is the SAME circle as `edge`'s and
+/// whose two sides lie on the SAME TWO SURFACES — surface keys, so
+/// several faces of one surface across chart seams count as one side —
+/// in carrier order starting at `edge` and running in the direction
+/// `edge`'s carrier parameter increases. The result is what a fillet
+/// verb's `&[EdgeKey]` wants: the rim entire, no more (a co-surface
+/// seam meridian can never match, because its two sides are one
+/// surface and a rim's are two) and no less (a strict subset is never
+/// returned — a matched set that does not close refuses).
+///
+/// Same circle means the stored carriers' `center`, `radius` and
+/// `axis` are each bit-equal; `u_ref` is not read, because it carries
+/// the per-chart seam and a rim's arcs disagree on it. An axis stored
+/// NEGATED is a different circle to this door although it is the same
+/// point set — see [`CircleId::same_circle`] for why the narrower rule
+/// is the one that keeps the order contract. Same surfaces means equal
+/// [`SurfaceKey`]s. That is a total read of stored data — the EXACT
+/// class this module's header names, no funnel and no margin — and the
+/// corpus is what makes it honest: every producer a consumer holds a
+/// body from (revolve, `merge_coplanar_faces`, the boolean, extrude)
+/// stores one rim's arcs on bit-identical centres, radii and axes.
+///
+/// **What "closes" means, exactly**: the matched arcs form one closed
+/// chain on SHARED VERTICES, walked from `edge` and returning to it
+/// having used every matched arc. It is not a covering test. Arcs that
+/// cover part of the circle twice and another part not at all still
+/// chain, and this door answers them as a rim — the instance is issue
+/// `rim-door-admits-a-double-cover`, and what refuses such a body is
+/// tier 3's conventional specs, not this door.
+///
+/// The order is deterministic (D9) and `rim_of(b)` is a rotation of
+/// `rim_of(a)` for any two arcs `a`, `b` of one rim — unconditionally,
+/// because every arc that matches shares the seed's stored `axis` and
+/// therefore winds the same way round the circle, so which arc a walk
+/// starts at is the only freedom left.
+///
+/// # Errors
+///
+/// [`RimError::NotAnArc`] when the seed carries no circle,
+/// [`RimError::CoSurface`] when its two sides are one surface,
+/// [`RimError::NotOneRim`] when the matched arcs do not form one closed
+/// chain, [`RimError::NotIntact`] on a dangling key or an unreadable
+/// reference.
+pub fn rim_of<T: Bounds>(body: &Body<T>, edge: EdgeKey) -> Result<Vec<EdgeKey>, RimError> {
+    let seed_edge = body
+        .get_edge(edge)
+        .ok_or(RimError::NotIntact(EntityId::Edge(edge)))?;
+    let seed_carrier = match body
+        .get_curve_geom(seed_edge.curve)
+        .and_then(CurveGeom::certified)
+    {
+        Some(c) => c.carrier().clone(),
+        None => return Err(RimError::NotAnArc { edge, kind: None }),
+    };
+    let Some(seed_circle) = circle_id(&seed_carrier) else {
+        return Err(RimError::NotAnArc {
+            edge,
+            kind: Some(CurveKind::of(&seed_carrier)),
+        });
+    };
+    let seed_sides = edge_sides(body, edge).map_err(RimError::NotIntact)?;
+    if seed_sides.0 == seed_sides.1 {
+        return Err(RimError::CoSurface {
+            edge,
+            surface: seed_sides.0,
+        });
+    }
+
+    // The matched set, in arena order (D9).
+    let mut matched: Vec<EdgeKey> = Vec::new();
+    for (k, e) in body.edges() {
+        let Some(circle) = body
+            .get_curve_geom(e.curve)
+            .and_then(CurveGeom::certified)
+            .and_then(|c| circle_id(c.carrier()))
+        else {
+            continue;
+        };
+        if !seed_circle.same_circle(&circle) {
+            continue;
+        }
+        // Only a carrier match reaches the adjacency, so an edge with
+        // no readable sides is a fault of this rim's neighbourhood and
+        // not of every unrelated edge in the arena.
+        let sides = edge_sides(body, k).map_err(RimError::NotIntact)?;
+        if same_pair(sides, seed_sides) {
+            matched.push(k);
+        }
+    }
+
+    order_rim(body, edge, &seed_carrier, matched)
+}
+
+/// The matched set as ONE closed chain starting at `edge`, or the
+/// typed refusal that names the vertex the walk stopped at.
+///
+/// **The test is a CLOSED CHAIN ON SHARED VERTICES, and that is all it
+/// is.** Consecutive arcs share a vertex — key equality, which is what
+/// makes the test exact — the walk starts at `edge` and it must return
+/// to `edge`'s start having consumed every matched arc. It is not a
+/// covering test: arcs that between them cover one part of the circle
+/// TWICE and another not at all still form a closed chain, and this
+/// door answers them as a rim (issue `rim-door-admits-a-double-cover`;
+/// only tier 3's conventional specs refuse such a body). The
+/// alternative is a parametric test, and the arcs of one rim are
+/// minted one per chart with a seam each, so their stored parameter
+/// intervals are each stated in their own frame — comparing them
+/// across arcs needs a decided comparison this door does not have.
+fn order_rim<T: Bounds>(
+    body: &Body<T>,
+    edge: EdgeKey,
+    seed_carrier: &Curve3<T>,
+    matched: Vec<EdgeKey>,
+) -> Result<Vec<EdgeKey>, RimError> {
+    // The parameter the refusal reports, computed only when it refuses:
+    // where the walk stopped, in the seed's own frame. A vertex whose
+    // point cannot be read is an intactness fault and is refused as
+    // one — a NaN in the payload would be this door reporting a
+    // parameter it never computed.
+    let fail = |at: VertexKey, arcs: &[EdgeKey]| -> RimError {
+        let Ok(point) = crate::readback::vertex_point(body, at) else {
+            return RimError::NotIntact(EntityId::Vertex(at));
+        };
+        let Some(gap) = circle_param(seed_carrier, point) else {
+            // Unreachable: the seed's carrier is a circle by the time
+            // the walk runs. Stated rather than unwrapped.
+            return RimError::NotIntact(EntityId::Edge(edge));
+        };
+        RimError::NotOneRim {
+            arcs: arcs.to_vec(),
+            gap: gap.lo(),
+        }
+    };
+
+    let (start, mut frontier) = edge_ends(body, edge).map_err(RimError::NotIntact)?;
+    let mut ordered = vec![edge];
+    loop {
+        if frontier == start {
+            // Closed. It is one rim exactly when the walk consumed
+            // every matched arc; anything left over is a second
+            // component on the same circle and support pair.
+            return if ordered.len() == matched.len() {
+                Ok(ordered)
+            } else {
+                Err(fail(frontier, &matched))
+            };
+        }
+        let mut next = None;
+        for k in &matched {
+            if ordered.contains(k) {
+                continue;
+            }
+            let (a, b) = edge_ends(body, *k).map_err(RimError::NotIntact)?;
+            if a == frontier || b == frontier {
+                if next.is_some() {
+                    // A branch: three arcs of one circle meeting at one
+                    // vertex is not a chain, and picking one would be
+                    // the guess this door refuses to make.
+                    return Err(fail(frontier, &matched));
+                }
+                next = Some((*k, if a == frontier { b } else { a }));
+            }
+        }
+        let Some((k, beyond)) = next else {
+            // A dangling end — the partial revolve's open rim.
+            return Err(fail(frontier, &matched));
+        };
+        ordered.push(k);
+        frontier = beyond;
+    }
+}
+
 // The door-only contracts: totality on dangling keys, materializer
 // determinism, empty-set and unordered-pair semantics, the unit
 // constructor's two refusals, and the decided door's band partition.
@@ -743,6 +1196,76 @@ mod tests {
             SurfaceKindSet::of(ALL_SURFACE_KINDS),
             SurfaceKindSet::of(ALL_SURFACE_KINDS)
         ));
+    }
+
+    /// The rim door's OTHER `NotAnArc` payload: an edge whose curve
+    /// entry is null scaffolding carries no kind at all, and the arm
+    /// says so rather than guessing one. Rowed here because minting a
+    /// null curve is crate-internal; every other refusal is reachable
+    /// from outside and rowed there (`topo/tests/rim_of.rs`,
+    /// `sweep/tests/rim_of_rows.rs`).
+    #[test]
+    fn a_seed_with_no_certified_carrier_is_not_an_arc_and_names_no_kind() {
+        let mut body = mixed();
+        let e = all_edges(&body)[0];
+        let null = body.add_null_curve(crate::null::NullEdge {
+            below_end: VertexKey::default(),
+            above_end: VertexKey::default(),
+        });
+        body.get_edge_mut(e).expect("an edge just listed").curve = null;
+        assert_eq!(
+            rim_of(&body, e),
+            Err(RimError::NotAnArc {
+                edge: e,
+                kind: None
+            })
+        );
+    }
+
+    /// **[`circle_param`] agrees with [`Curve3::param_near`], including
+    /// on the carrier whose stored radius is NEGATIVE** — the case the
+    /// first cut of this function got wrong by half a turn, because it
+    /// cancelled the radius out of both `atan2` arguments and `atan2`
+    /// only ignores a POSITIVE common factor.
+    ///
+    /// Both doors are callable here: `param_near` needs `SpanLocate`
+    /// for its NURBS arm, and `f64` has it — it is `rim_of`'s own
+    /// signature that may not take that bound, not a test's.
+    #[test]
+    fn the_gap_parameter_agrees_with_the_curve_doors_own_reading() {
+        use core::f64::consts::{FRAC_PI_3, FRAC_PI_4, PI};
+        let frame = |radius: f64| Curve3::Circle {
+            center: Point3::new(0.25, -1.5, 0.75),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        for radius in [2.0_f64, -2.0] {
+            let c = frame(radius);
+            for theta in [0.0, FRAC_PI_4, FRAC_PI_3, 2.0, PI - 0.5, -1.25] {
+                let p = c.eval(theta);
+                let want = c.param_near(p, 0.0).expect("a circle locates");
+                let got = circle_param(&c, p).expect("and so does this one");
+                assert!(
+                    (got - want).abs() < 1e-12,
+                    "radius {radius}, theta {theta}: {got} vs the curve door's {want}"
+                );
+            }
+        }
+        // The claim is not vacuous: cancelling the radius would flip
+        // the negative-radius readings by exactly pi.
+        let c = frame(-2.0);
+        let p = c.eval(FRAC_PI_3);
+        let w = p - Point3::new(0.25, -1.5, 0.75);
+        let cancelled = w
+            .dot(Vec3::new(0.0, 0.0, 1.0).cross(Vec3::new(1.0, 0.0, 0.0)))
+            .atan2(w.dot(Vec3::new(1.0, 0.0, 0.0)));
+        let got = circle_param(&c, p).expect("locates");
+        assert!(
+            (got - cancelled).abs() > 1.0,
+            "the radius-cancelling reading really is the wrong one here: \
+             {cancelled} against {got}"
+        );
     }
 
     #[test]

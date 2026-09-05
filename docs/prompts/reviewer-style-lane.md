@@ -7,6 +7,9 @@ review, alongside the claims to falsify you were handed.
 must carry the `sure` / `likely` / `unsure` confidence vocabulary.** That is how
 a skipped read is visible in the output rather than invisible.
 
+**Every finding carries one, including those filed under "off-target" or "worth
+mentioning".**
+
 Dispatcher-facing material — why this lane exists, how to calibrate it, and how
 to dispatch it — is in `docs/REVIEW-STYLE-DISPATCH.md`.
 

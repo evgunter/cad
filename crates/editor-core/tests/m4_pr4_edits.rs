@@ -52,7 +52,7 @@ fn cap(node: RecipeNodeId) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node,
-        path: vec![RoleSeg::Cap(CapEnd::Top)],
+        path: vec![RoleSeg::Cap(CapEnd::End)],
     }
 }
 

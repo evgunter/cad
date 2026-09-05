@@ -82,11 +82,17 @@
 //! the geometry here is what it would be built from; this module's
 //! answer would gain a triangle list beside its segments rather than
 //! changing shape.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
     DatumValue, Doc, Evaluation, Node, ProfileProgram, RecipeNodeId, ValuePayload,
 };
 use pncad::geom_core::{Point3, Vec3};
+
+use crate::camera::Camera;
+use crate::input::ViewportSize;
 
 /// **Where the eye is and how much world a pixel spans** — everything
 /// this module needs to size a drawing against the window rather than
@@ -613,5 +619,25 @@ fn unit(v: Vec3<f64>) -> Vec3<f64> {
         Vec3::new(v.x / len, v.y / len, v.z / len)
     } else {
         Vec3::new(1.0, 0.0, 0.0)
+    }
+}
+
+/// **What a datum is drawn against**: where the eye is, and how much
+/// world one pixel of this window spans.
+///
+/// The one place the camera and the pane's pixel size become
+/// `datums::View`, so the module below stays a value over two numbers
+/// rather than a borrow of the renderer. The scale is the vertical
+/// field of view over the vertical pixel count — one pixel's angular
+/// share — which at one metre from the eye is that many metres.
+pub fn datum_view(camera: &Camera, viewport: ViewportSize) -> View {
+    let height = viewport.height_px.max(1.0);
+    View {
+        eye: camera.eye(),
+        look_at: camera.target(),
+        metres_per_pixel_at_one_metre: 2.0 * (camera.fov_y() * 0.5).tan() / height,
+        // The LARGER side: a patch that covered the height of a wide
+        // window would still be pannable off sideways.
+        viewport_px: viewport.width_px.max(height),
     }
 }

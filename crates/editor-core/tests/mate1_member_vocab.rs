@@ -23,7 +23,8 @@ use editor_core::{
     Alignment, AssemblyError, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocRef,
     DocumentId, EntityKind, EvalOptions, Evaluation, Expr, Frame, MateFrame, MatePrimitive,
     MateRole, Node, PartResolver, PatternKind, ProfileDoc, RecipeNodeId, ResolveFailure,
-    ResolveFault, RoleSeg, StableName, assemble, clusters, content_pin, evaluate, solve_document,
+    ResolveFault, RoleSeg, SitedRef, StableName, assemble, clusters, content_pin, evaluate,
+    solve_document,
 };
 use fixture::{insert, len, on_frame, scl, step};
 use geom_core::Tol;
@@ -153,8 +154,8 @@ fn seat_mate(
     sense: AxisSense,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a,
-        b,
+        a: SitedRef::at_mint(a),
+        b: SitedRef::at_mint(b),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame(origin, [0.0, 0.0, 1.0]),
@@ -205,8 +206,8 @@ fn four_legs(
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, i, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, i, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 sense,
             ),
@@ -338,8 +339,8 @@ fn a_circular_pattern_copy_rotates_the_solved_member() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 1, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.5, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -413,8 +414,8 @@ fn two_seats(
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 0, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 0, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -424,8 +425,8 @@ fn two_seats(
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 1, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -601,8 +602,8 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
     let seat = |origin| {
         seat_mate(
-            in_copy(pattern, 1, in_part(leg, CapEnd::Top)),
-            in_part(top, CapEnd::Bottom),
+            in_copy(pattern, 1, in_part(leg, CapEnd::End)),
+            in_part(top, CapEnd::Start),
             origin,
             AxisSense::Aligned,
         )
@@ -665,8 +666,8 @@ fn the_master_name_spelling_still_refuses_vanished() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_part(leg, CapEnd::Top),
-                in_part(top, CapEnd::Bottom),
+                in_part(leg, CapEnd::End),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -724,8 +725,8 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 5, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 5, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -764,14 +765,14 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
     let master_face = StableName {
         kind: EntityKind::Face,
         node: extrude,
-        path: vec![RoleSeg::Cap(CapEnd::Top)],
+        path: vec![RoleSeg::Cap(CapEnd::End)],
     };
     let (doc2, m) = step(
         doc2,
         DocEdit::InsertNode {
             node: seat_mate(
                 in_copy(body_pattern, 0, master_face),
-                in_part(other, CapEnd::Bottom),
+                in_part(other, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -783,7 +784,10 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
     assert!(
         matches!(
             fault2,
-            editor_core::MateFault::DanglingHead { head, .. } if *head == body_pattern
+            // The node the walk STOPPED at: it gets through the
+            // pattern's copy qualifier and stops on the body the
+            // pattern replicates, which is no member.
+            editor_core::MateFault::DanglingHead { head, .. } if *head == extrude
         ),
         "a pattern of a non-instance stands no member: {fault2:?}"
     );
@@ -816,8 +820,8 @@ fn sibling_copies_declare_and_one_copy_twice_is_a_self_mate() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 0, in_part(leg, CapEnd::Top)),
-                in_copy(pattern, 1, in_part(leg, CapEnd::Top)),
+                in_copy(pattern, 0, in_part(leg, CapEnd::End)),
+                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -828,8 +832,8 @@ fn sibling_copies_declare_and_one_copy_twice_is_a_self_mate() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 2, in_part(leg, CapEnd::Top)),
-                in_copy(pattern, 2, in_part(leg, CapEnd::Top)),
+                in_copy(pattern, 2, in_part(leg, CapEnd::End)),
+                in_copy(pattern, 2, in_part(leg, CapEnd::End)),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),

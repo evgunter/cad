@@ -31,42 +31,48 @@ id: 04c718374cb49ae558c3d9f6b5fce9f6
       "3": {
         "Mate": {
           "a": {
-            "kind": "Face",
-            "node": 0,
-            "path": [
-              {
-                "InPart": {
-                  "of": {
-                    "kind": "Face",
-                    "node": 2,
-                    "path": [
-                      {
-                        "Cap": "Top"
-                      }
-                    ]
+            "at": 0,
+            "name": {
+              "kind": "Face",
+              "node": 0,
+              "path": [
+                {
+                  "InPart": {
+                    "of": {
+                      "kind": "Face",
+                      "node": 2,
+                      "path": [
+                        {
+                          "Cap": "End"
+                        }
+                      ]
+                    }
                   }
                 }
-              }
-            ]
+              ]
+            }
           },
           "b": {
-            "kind": "Face",
-            "node": 1,
-            "path": [
-              {
-                "InPart": {
-                  "of": {
-                    "kind": "Face",
-                    "node": 2,
-                    "path": [
-                      {
-                        "Cap": "Bottom"
-                      }
-                    ]
+            "at": 1,
+            "name": {
+              "kind": "Face",
+              "node": 1,
+              "path": [
+                {
+                  "InPart": {
+                    "of": {
+                      "kind": "Face",
+                      "node": 2,
+                      "path": [
+                        {
+                          "Cap": "Start"
+                        }
+                      ]
+                    }
                   }
                 }
-              }
-            ]
+              ]
+            }
           },
           "class": "rest",
           "alignment": {
@@ -112,42 +118,48 @@ id: 04c718374cb49ae558c3d9f6b5fce9f6
       "4": {
         "Mate": {
           "a": {
-            "kind": "Face",
-            "node": 1,
-            "path": [
-              {
-                "InPart": {
-                  "of": {
-                    "kind": "Face",
-                    "node": 2,
-                    "path": [
-                      {
-                        "Cap": "Bottom"
-                      }
-                    ]
+            "at": 1,
+            "name": {
+              "kind": "Face",
+              "node": 1,
+              "path": [
+                {
+                  "InPart": {
+                    "of": {
+                      "kind": "Face",
+                      "node": 2,
+                      "path": [
+                        {
+                          "Cap": "Start"
+                        }
+                      ]
+                    }
                   }
                 }
-              }
-            ]
+              ]
+            }
           },
           "b": {
-            "kind": "Face",
-            "node": 2,
-            "path": [
-              {
-                "InPart": {
-                  "of": {
-                    "kind": "Face",
-                    "node": 2,
-                    "path": [
-                      {
-                        "Cap": "Top"
-                      }
-                    ]
+            "at": 2,
+            "name": {
+              "kind": "Face",
+              "node": 2,
+              "path": [
+                {
+                  "InPart": {
+                    "of": {
+                      "kind": "Face",
+                      "node": 2,
+                      "path": [
+                        {
+                          "Cap": "End"
+                        }
+                      ]
+                    }
                   }
                 }
-              }
-            ]
+              ]
+            }
           },
           "class": "rest",
           "alignment": {

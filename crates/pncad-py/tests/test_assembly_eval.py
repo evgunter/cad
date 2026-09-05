@@ -398,10 +398,12 @@ class TestTheMemoIsObservable(CorpusCase):
         self.assertVolumes(volumes(again, again.order()[-1]), [2 * POST_VOLUME])
 
     def test_a_prior_of_another_document_reuses_nothing_and_is_legal(self):
-        """The memo is PER DOCUMENT: the lookup is by node id first and
-        content second, and ids are minted per document, so a prior
-        from elsewhere is legal and simply misses. Total, like the rest
-        of evaluation: no refusal, no wrong answer."""
+        """The memo is PER DOCUMENT (DI3): an evaluation carries the
+        id of the document it is of, and a prior from elsewhere is
+        REFUSED whole — dropped before the first node is looked up,
+        never mined for a hit. `evaluate` stays total: the run reuses
+        nothing and recomputes everything, with no refusal and no
+        wrong answer."""
         store, docs = opened()
         prior = evaluate(docs["post"])
         stand = evaluate(docs["stand"], resolver=store, prior=prior)
@@ -413,9 +415,10 @@ class TestTheMemoIsObservable(CorpusCase):
         "a key is content, not position" was the wrong sentence.
 
         The layout and the stand instantiate the SAME two documents at
-        the SAME pins, so their instantiate nodes agree on content. The
-        lookup is `prior[node_id]` first, and the two documents mint
-        their ids independently — so the overlap is worth nothing and
+        the SAME pins, so their instantiate nodes agree on content, and
+        two documents built from one recipe CAN mint the same ids. What
+        makes the overlap worth nothing is not luck but DI3's refusal:
+        the prior is of another document, so it is dropped whole and
         all five of the stand's nodes recompute.
         """
         store, docs = opened()
@@ -446,9 +449,15 @@ class TestTheMemoServesWithoutTheSeamsGates(CorpusCase):
       this document's own `DocRef` pins, certified by content key.
       Nothing is retargeted; what is skipped is the RE-CHECK.
 
-    Whether that is correct by design, or whether memo admission should
-    know about resolver state, is **issue #1185** — kernel-side, and
-    deliberately not decided here. Adopted from the reviewer probe
+    That is correct BY DESIGN (`docs/DOCM-IDENTITY-DESIGN.md` DI2):
+    the memo is a pure function of the document, and for an instantiate
+    node the pin IS the content, so the served value is exactly what
+    the document pins. Putting store state into memo admission would
+    make an evaluation with a prior depend on the filesystem, against
+    D9, and cost a seam crossing per reused node. Store freshness is
+    the mounting SESSION's, not the memo's — which is why these rows
+    pin what they pin, and why weakening them would be a change of
+    design and not a change of test. Adopted from the reviewer probe
     branches `lib/g18a-r1b-probes` (two rows, red as written against
     the unstated contract) and `lib/g18a-r2-probes` (`R2P1`).
     """

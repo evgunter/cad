@@ -1755,6 +1755,23 @@ and this addendum re-carries it (the lane-ops note, met live).
 
 CI-Config: klint=release-budget
 
+   **SUPERSEDED 2026-09-04 (PR 1850, `ciw/unsample-klint`) — the
+   procedure in the paragraph above is now WRONG in both halves, and
+   the trailer line above it would RED a run rather than narrow one.**
+   The k-lint row stopped being drawn: every code-tier run gates all
+   five unifications as five `k-lint (gate, <row>)` legs, so
+   `release-budget` runs on every diff and the premise — that a
+   baseline-CSV-only diff would not draw the budget row — is gone.
+   And `CI-Config:` became additive-only on all three dimensions, so
+   `klint=release-budget` no longer pins anything: it fails the
+   classify step and names the `workflow_dispatch` inputs, which are
+   now the only spelling that narrows. A re-baseline PR needs no pin.
+   Left in place rather than deleted because this log is append-only
+   and the entry is the record of what was done; annotated because it
+   reads as durable procedure rather than as a dated note, and a lane
+   following it today gets a red. Announced to LIB in PR 1850 rather
+   than edited silently — this is LIB's file.
+
 **G16 MERGED (2026-08-29, #1224 — ordinal 301, sample #47, row in
 MODEL-AB-LOG). Audit G16 CLOSED; RECIPE-DOORS unit 1 of 3 complete;
 schema v16.** `Node::Chamfer` lands as the fillet's twin with the
@@ -2698,3 +2715,12 @@ kernel #1202; a LIB-13 block draw still owed before any full-protocol
 unit. Twenty-four issues open, and the mechanical feedstock is now
 spent: what remains is design questions, Ev rulings, kernel-crate prose
 and multi-unit surfaces. The next LIB unit is a substantive one.
+
+## Hand-off from DOCM (2026-09-04)
+
+`no-door-mints-mate-frame-from-face` re-homed here by header-preserving
+`git mv`: the frozen-at-authoring answer is ratified as the mate side's
+(`docs/DOCM-REFERENCES-DESIGN.md` DM1, the asymmetry paragraph), the
+viewer's mate tool already derives its frames that way, and what is
+left is the headless door — a `Pose` into a `MateFrame` from the façade
+— which is LIB's surface. Signed (DOCM orchestrator).

@@ -485,6 +485,20 @@ pub(crate) enum MevCurveMint<T: Real> {
 /// (`Eq` was dropped at M2 PR 3: [`EulerOpError::Certification`]
 /// carries margin diagnostics with `f64` payloads.)
 #[derive(Clone, Debug, PartialEq)]
+// The companion fieldless enum is the compiler's own statement of this
+// enum's variants and their order: the Display-coverage row indexes by
+// it and sizes its array from its `COUNT`, so neither the count nor the
+// order is written down twice. Test builds only — nothing in the
+// production surface names it.
+#[cfg_attr(test, derive(strum::EnumDiscriminants))]
+#[cfg_attr(
+    test,
+    strum_discriminants(
+        name(EulerOpErrorKind),
+        vis(pub(crate)),
+        derive(strum::EnumCount, strum::EnumIter)
+    )
+)]
 pub enum EulerOpError {
     /// The curve-geometry spec failed its D4 ¶2 certification at the
     /// attachment gate (residual exceeded, sliver escalation,
@@ -2243,18 +2257,61 @@ impl<T: Decide> Body<T> {
 ///
 /// A described NURBS operand in an `Intersection` certifies only
 /// through `geom_brep`'s injected lane, whose derivation needs a
-/// CERTIFYING scalar (`geom_brep::EdgeNurbsLane`'s static split; the
-/// lane fn's own bound is `Decide + Bounds + CertifiedEnclosure`, and
-/// since D1, 2026-08-19, it is that last term rather than `Bounds` that
-/// a dual fails). Raising the whole Euler surface to that bound would push it
+/// CERTIFYING scalar (`geom_brep::plane_nurbs_limbs`'s own bound is
+/// `Decide + Bounds + CertifiedEnclosure`, and since D1, 2026-08-19, it
+/// is that last term rather than `Bounds` that a dual fails, so a dual
+/// cannot write this door's call at all rather than being refused
+/// inside it). Raising the whole Euler surface to that bound would push it
 /// through hundreds of `T: Decide` signatures for a capability three
 /// of the four sealed scalars have unconditionally, so the lane is a
 /// SEPARATE DOOR onto the same shared machinery: identical
 /// preconditions, identical adjacency rules, identical mutation. The
 /// default door keeps refusing the class exactly as before — there is
 /// no door that accepts it uncertified.
-impl<T: geom_brep::EdgeNurbsLane> Body<T> {
+impl<T: Decide + geom_core::CertifiedBounds> Body<T> {
     /// [`Body::set_edge_curve`] with the plane × NURBS lane wired in.
+    ///
+    /// **A scalar without certification rights cannot write this
+    /// call**, and that is the door's guarantee rather than a side
+    /// effect: nothing runs, nothing refuses, the call cannot be
+    /// formed.
+    ///
+    /// The code is **`E0599`, not `E0277`**, and the difference is
+    /// where the bound sits: this is an INHERENT METHOD on an `impl`
+    /// block whose bound `Dual` fails, so the method is not in scope
+    /// at all and the compiler says *method exists … but its trait
+    /// bounds were not satisfied: `Dual<f64>: CertifiedEnclosure`*
+    /// rather than reporting an unsatisfied bound on a call it
+    /// resolved. A free function with the same bound gives `E0277`
+    /// (`geom_brep::plane_nurbs_limbs`' own row does).
+    ///
+    /// ```compile_fail,E0599
+    /// use geom_core::{Dual64, Tol};
+    /// use topo::{Body, EdgeCurveSpec, entity::EdgeKey};
+    /// fn lane_door(b: &mut Body<Dual64>, e: EdgeKey, c: EdgeCurveSpec<Dual64>, tol: Tol) {
+    ///     let _ = b.set_edge_curve_nurbs_lane(e, c, tol);
+    /// }
+    /// ```
+    ///
+    /// **What that annotation is worth, said out loud** (`S216`): on
+    /// stable, rustdoc does NOT compare the emitted code to the one
+    /// written here — the row passes green whichever code is named, so
+    /// the annotation documents the expectation and checks nothing.
+    /// The live check is the twin below: it differs in exactly one
+    /// identifier and every path either row names resolves, so the
+    /// failing row can only be failing on the bound. Read the pair,
+    /// never the annotation alone.
+    ///
+    /// The DEFAULT door is open to it, which is the capability this
+    /// separation exists to keep:
+    ///
+    /// ```
+    /// use geom_core::{Dual64, Tol};
+    /// use topo::{Body, EdgeCurveSpec, entity::EdgeKey};
+    /// fn default_door(b: &mut Body<Dual64>, e: EdgeKey, c: EdgeCurveSpec<Dual64>, tol: Tol) {
+    ///     let _ = b.set_edge_curve(e, c, tol);
+    /// }
+    /// ```
     ///
     /// # Errors
     ///
@@ -3349,51 +3406,12 @@ mod tests {
 
     /// Display smoke test, one sample per [`EulerOpError`] variant.
     ///
-    /// What the compiler enforces: `variant_index` matches the enum with
-    /// NO wildcard arm, so a new variant fails to build until an arm
-    /// exists for it, and the coverage assertion then names the variant
-    /// whose sample is missing.
-    ///
-    /// What it does NOT enforce: `VARIANTS` is hand-written, so a new
-    /// variant given an arm but no sample still passes. Closing that
-    /// needs the variant count from the compiler — `strum`'s `EnumCount`
-    /// derive or the workspace's first proc-macro crate — and neither is
-    /// bought here. When you add an arm, its index is the new
-    /// `VARIANTS - 1`.
+    /// The index and the count are the compiler's: `EulerOpErrorKind`
+    /// is derived from the enum, so a variant added without a sample
+    /// fails this row by name and nothing here restates the enum.
     #[test]
     fn every_error_displays() {
-        const VARIANTS: usize = 27;
-        fn variant_index(e: &EulerOpError) -> usize {
-            match e {
-                EulerOpError::Certification { .. } => 0,
-                EulerOpError::DescriptionNotAdjacent { .. } => 1,
-                EulerOpError::StaleKey { .. } => 2,
-                EulerOpError::StaleGeometry { .. } => 3,
-                EulerOpError::FanStartMismatch { .. } => 4,
-                EulerOpError::FanOrbitBroken { .. } => 5,
-                EulerOpError::NotSameLoop { .. } => 6,
-                EulerOpError::LoopCycleBroken { .. } => 7,
-                EulerOpError::LoopNotEmpty { .. } => 8,
-                EulerOpError::LoopNotCycle { .. } => 9,
-                EulerOpError::NotSameEdge { .. } => 10,
-                EulerOpError::UnclaimedHalfEdge { .. } => 11,
-                EulerOpError::SelfLoopEdge { .. } => 12,
-                EulerOpError::OrbitBroken { .. } => 13,
-                EulerOpError::EmptyAnchorsCollide { .. } => 14,
-                EulerOpError::SameLoop { .. } => 15,
-                EulerOpError::NotSameFace { .. } => 16,
-                EulerOpError::RingIsOuter { .. } => 17,
-                EulerOpError::SameFace { .. } => 18,
-                EulerOpError::CrossShell { .. } => 19,
-                EulerOpError::FaceHasRings { .. } => 20,
-                EulerOpError::SolidNotSingleShell { .. } => 21,
-                EulerOpError::ShellNotSingleFace { .. } => 22,
-                EulerOpError::NullScaffoldCurve { .. } => 23,
-                EulerOpError::SplitParamNotInterior { .. } => 24,
-                EulerOpError::SplitParamEscalated { .. } => 25,
-                EulerOpError::CrossSolid { .. } => 26,
-            }
-        }
+        use strum::{EnumCount as _, IntoEnumIterator as _};
         let he = HalfEdgeKey::default();
         let lp = LoopKey::default();
         let fc = FaceKey::default();
@@ -3455,15 +3473,25 @@ mod tests {
             },
             EulerOpError::CrossSolid { f1: fc, f2: fc },
         ];
-        let mut covered = [false; VARIANTS];
+        // The two derives agree on order: `from(err) as usize` is
+        // the declaration index and `iter()` walks the same
+        // sequence, so zipping them below pairs each flag with the
+        // kind it stands for. Asserted rather than assumed.
+        for (i, kind) in EulerOpErrorKind::iter().enumerate() {
+            assert_eq!(kind as usize, i, "EnumIter order is the discriminant order");
+        }
+        let mut covered = [false; EulerOpErrorKind::COUNT];
         for error in &errors {
             assert!(!error.to_string().is_empty(), "{error:?}");
-            covered[variant_index(error)] = true;
+            covered[EulerOpErrorKind::from(error) as usize] = true;
         }
+        let missing: Vec<EulerOpErrorKind> = EulerOpErrorKind::iter()
+            .zip(covered)
+            .filter_map(|(kind, seen)| (!seen).then_some(kind))
+            .collect();
         assert!(
-            covered.iter().all(|&c| c),
-            "every EulerOpError variant needs a Display sample; missing index {:?}",
-            covered.iter().position(|&c| !c),
+            missing.is_empty(),
+            "every EulerOpError variant needs a Display sample; missing {missing:?}",
         );
     }
 

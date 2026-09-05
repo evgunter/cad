@@ -1,11 +1,14 @@
 ---
 id: revolve-pole-export-interior-on-axis-vertex
-kind: issue
-title: "M9/D1 revolve naming: a subdivided axis run is now representable, so the pole export's deleted-interior branch is editor-reachable"
-status: open
+kind: unit
+title: M9/D1 revolve naming: a subdivided axis run is now representable, so the pole export's deleted-interior branch is editor-reachable
+status: closed
 opened: 2026-09-03
 github: 1610
 refs: [1573, BOOL-12]
+closed: 2026-09-04
+pr: 1839
+branch: docm/revolve-pole-rule
 ---
 
 ## From GitHub issue 1610
@@ -23,3 +26,23 @@ BOOL-12 renamed the row, kept its fixture, asserts that the chain now applies, a
 ## Home
 
 `work/issues/` — the issue states it is M9/D1's question and not S-BOOL's, and the revolve-naming/M9 lane in `editor-core`'s names module is in no open program's territory globs.
+
+## Unit (2026-09-04)
+
+The rule is already the honest one, stated here and owed to
+`crates/editor-core/src/names/README.md` beside the revolve roles: a
+full revolve deletes its axis run outright, so an interior on-axis
+vertex has no body entity and nothing to name (`check_total` would
+catch an unnamed vertex); a partial revolve keeps the axis run, every
+meridian chain meets at the vertex, and it is structurally a `Pole`.
+E-class: write the rule, one row per direction through the program
+layer, and re-record the `m9_d1` premise text. No `[ev]` PR.
+
+## Closed (2026-09-04)
+
+Merged as PR 1839, a mechanical unit (no review lane, no A/B row): the
+rule is written beside the revolve roles in
+`crates/editor-core/src/names/README.md` (N1, the revolve poles), one
+row per direction through the program layer pins it, and the sweep's
+`poles` doc states the present. The emitter already did what the rule
+says; nothing moved but prose and rows.

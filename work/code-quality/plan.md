@@ -1,7 +1,10 @@
 # Code quality — the plan
 
-Every live finding, row, ruling and sweep of this program is a file in
-this directory, and `work/STATUS.md` is the board. This page is the
+Every live finding, row, ruling and sweep **that no program has claimed**
+is a file in this directory, and `work/STATUS.md` is the board. A
+claimed row moves into the claiming program's directory in the PR that
+claims it (`program.md`'s charter), so a track's rows are not all in one
+place and are not meant to be — what is here is what is unclaimed. This page is the
 rules those files run on. Nothing here is ratified and nothing here is
 a commitment: a finding is a *question worth answering*, not a defect;
 several describe deliberate, ratified positions that a scanning agent
@@ -160,8 +163,11 @@ The partition rule is the only one that matters: **no two tracks may
 edit the same file**, so no branch waits on, fences against, or
 re-derives another's scope. Dependencies *inside* a track are its own
 orchestrator's to sequence, and there are no dependencies *between*
-tracks that any lane must honour. A track can be claimed the day it is
-read. `L`, `O` and `S` are not tracks: `L` is the *Last, deliberately*
+tracks that any lane must honour. A track could be claimed the day it
+was read, and eight of the eleven since have been — by the programs
+that own their ground, not from here; `program.md`'s territory table
+names them, and it is the check before a `smell/` lane is cut. `L`, `O`
+and `S` are not tracks: `L` is the *Last, deliberately*
 rows, `S` is the finding namespace, `O` reads as a zero; `J` is retired,
 its ground stated under *What this partition leaves out*.
 
@@ -178,9 +184,10 @@ its ground stated under *What this partition leaves out*.
    moves it, never after.
 3. **A row leaves when it lands, and its finding leaves with it.** Both
    close and neither is annotated; the relocation rule for standing
-   sentences is under *How to read an item*. Landing PRs edit files in
-   this directory and conflict by construction, so within a track,
-   **merge one at a time**.
+   sentences is under *How to read an item*. Landing PRs edit the row's
+   file and conflict by construction, so within a track, **merge one at
+   a time** — in whichever directory the track's rows now live, since a
+   claimed track's rows have moved to the claiming program.
 4. **A style review runs on every unit** against
    `docs/prompts/reviewer-style-lane.md`, carrying the two questions the
    standing brief does not ask — *is the original problem completely
@@ -206,21 +213,21 @@ its ground stated under *What this partition leaves out*.
 
 ## The territories
 
-| Track | Territory (the fence) | Block |
-|---|---|---|
-| **K** | `scripts/gates/` less `gate-roster.sh` and `probe-suite-census.sh`, `tools/`, `docs/K-REPORT.md` | `D200`–`D219` / `S270`–`S289` |
-| **M** | `crates/geom-core/src/{real,ring_interval,dual,interval,k_stats}.rs`, `interval-transcendentals/`, `crates/bvh/`, `crates/topo/src/props.rs` | `D220`–`D239` / `S290`–`S309` |
-| **N** | `crates/geom/src/`, `crates/geom-core/src/{spline/,linalg/}` | `D240`–`D259` / `S310`–`S329` |
-| **P** | `crates/topo/src/{euler.rs,euler_ring.rs,euler_kill.rs,split.rs,attach.rs,movefac.rs,revert.rs,live.rs,merge_faces.rs,seqgen.rs,validate.rs,review_d18.rs,review_d18_probes.rs,fixtures.rs,source_walk.rs}` | `D260`–`D279` / `S330`–`S349` |
-| **Q** | `crates/topo/src/{boolean/,splitting/,census.rs,chord_join.rs,chart_region.rs,face_normal.rs}`, `crates/geom-brep/src/{ssi*,pcurve_cache.rs,nurbs_iso.rs,edge_nurbs.rs}`, `docs/predicate-dimension-audit.md` | `D280`–`D299` / `S350`–`S369` |
-| **R** | `crates/geom-brep/src/` **less the four paths Q names**, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` |
-| **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` |
-| **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` |
-| **V** | `crates/editor-core/` **less the DOCM program's paths** (`persist/`, `program.rs`, `doc.rs`, `edit.rs`, `node.rs`, `names/role.rs`, `eval/{parts,memo}.rs`, `resolve/` less `vdiff.rs`, `mate*`, `assembly.rs` — ceded 2026-09-03 with rows `C6`, `D365`, `D366` and the `debug-in-prose` finding, which moved to `work/docm/` keeping their ids), `crates/profile/` | `D360`–`D379` / `S430`–`S449` |
-| **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` |
-| **X** | `demos/` (Rust and Markdown; its Python is not X's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` |
+| Track | Territory (the fence) | Block | Claimed by |
+|---|---|---|---|
+| **K** | `scripts/gates/` less `gate-roster.sh` and `probe-suite-census.sh`, `tools/`, `docs/K-REPORT.md` | `D200`–`D219` / `S270`–`S289` | this program |
+| **M** | `crates/geom-core/src/{real,ring_interval,dual,interval,k_stats}.rs`, `interval-transcendentals/`, `crates/bvh/`, `crates/topo/src/props.rs` | `D220`–`D239` / `S290`–`S309` | `cert` (`CERT-M3`) |
+| **N** | `crates/geom/src/`, `crates/geom-core/src/{spline/,linalg/}` | `D240`–`D259` / `S310`–`S329` | `cert` (`CERT-N3`) |
+| **P** | `crates/topo/src/{euler.rs,euler_ring.rs,euler_kill.rs,split.rs,attach.rs,movefac.rs,revert.rs,live.rs,merge_faces.rs,seqgen.rs,validate.rs,review_d18.rs,review_d18_probes.rs,fixtures.rs,source_walk.rs}` | `D260`–`D279` / `S330`–`S349` | **`topo`, whole track, 2026-09-04** |
+| **Q** | `crates/topo/src/{boolean/,splitting/,census.rs,chord_join.rs,chart_region.rs,face_normal.rs}`, `crates/geom-brep/src/{ssi*,pcurve_cache.rs,nurbs_iso.rs,edge_nurbs.rs}`, `docs/predicate-dimension-audit.md` | `D280`–`D299` / `S350`–`S369` | `bool` (`BOOL-Q`), `trim` |
+| **R** | `crates/geom-brep/src/` **less the four paths Q names**, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` | `mesh` (`MESH-R`) |
+| **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` | `fillet` |
+| **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | `exch`, `lib` |
+| **V** | `crates/editor-core/` **less the DOCM program's paths** (`persist/`, `program.rs`, `doc.rs`, `edit.rs`, `node.rs`, `names/role.rs`, `eval/{parts,memo}.rs`, `resolve/` less `vdiff.rs`, `mate*`, `assembly.rs` — ceded 2026-09-03 with rows `C6`, `D365`, `D366` and the `debug-in-prose` finding, which moved to `work/docm/` keeping their ids), `crates/profile/` | `D360`–`D379` / `S430`–`S449` | `docm` and seven others |
+| **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | **`tcost`, whole track, 2026-09-04** |
+| **X** | `demos/` (Rust and Markdown; its Python is not X's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` | this program |
 
-**Three seams are stated rather than left to be discovered**, because
+**Four seams are stated rather than left to be discovered**, because
 each is a place where a reasonable reader would think the fence
 ambiguous:
 
@@ -253,6 +260,56 @@ ambiguous:
   as nobody's: a row's work reaching an unowned path is not a licence to
   edit it, it is a fence that has not been drawn, and R takes this
   ground because `mesh` is what consumes it.
+
+**Track `P` and Track `W` both left this directory on 2026-09-04**,
+each claimed whole by a program: **P by `topo`** at its opening — P's
+fence *is* the `crates/topo/src` territory that was in no program's
+`paths`, and no `smell/p-*` lane had ever run — and **W by `tcost`**,
+whose own `paths` (`crates/*/tests/*`, `crates/test-utils/*`) are an
+exact match for W's fence. Their rows moved with their ids and their
+`track:` letters and this directory does not track them; each row's
+`## Claimed by` section carries the reason.
+
+What stays true here is the fence text in the table above: **a letter's
+territory outlives the program holding it**, so a later row landing on
+P's or W's ground is still a P or a W row and goes to its claimant.
+P's three-sub-lane partition — Euler surgery and validation, the review
+and fixture readers, liveness and the generator — is restated in
+`work/topo/plan.md` and is not repeated here. `split.rs`, `attach.rs`,
+`movefac.rs` and `revert.rs` still carry no live row and stay inside
+P's fence.
+
+**Their number blocks stay with this program** (`D260`–`D279`/`S330`–`S349`
+for P, `D380`–`D399`/`S450`–`S469` for W, in the `blocks` header here),
+because a block is minted by the scan that raises a row and a scan is
+this program's, not a claimant's. A new row on P's or W's ground is
+minted here with the next id from its block and its `track:` letter,
+and goes straight to `work/topo/` or `work/tcost/` in the same PR — it
+does not wait in this directory, because the letter already has an
+owner.
+
+The seam below is the one that outlives both moves and is why it is
+kept in full: `D261` (now `topo`'s) and `D287` (Q's) both convert their
+own readers onto a shared home that is **W's fence and `tcost`'s
+territory**, so the ceiling rule binds two programs that no longer
+share this directory.
+
+- **`crates/test-utils/src/source.rs` and its census are W's, and three
+  tracks' rows land in them.** The source-text guard class has one
+  shared home and one census (`crates/test-utils/tests/reader_census.rs`),
+  and the census tags each unconverted reader with the track that owes
+  it. So `D261` (P) and `D287` (Q) both convert their own `topo/src`
+  readers, and both lower the SAME hand-synced constant,
+  `UNCONVERTED_TODAY`; `D386` (W) adds to the same shared home.
+  `test-utils/` is **W's fence and `tcost`'s territory**, so neither P's
+  nor Q's row owns it. Two rules, and the second is the one a lane gets
+  wrong: the converting track lands its own files and its own census
+  ENTRIES, and **the ceiling is re-derived from the table at the
+  landing, never lowered by the row's own member count** — the row texts
+  say "by its own member count" and that is right only for whichever
+  lands first. The `==` assertion catches the error rather than letting
+  it through, which is why this is a sequencing rule and not a defect;
+  it costs a red CI run to whoever transcribes.
 
 ## What this partition leaves out, said explicitly
 

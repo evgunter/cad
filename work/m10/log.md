@@ -964,3 +964,124 @@ plate, as a numbered next ceiling. Process: the lane kept pushing
 after its report while "watching" a run and moved the PR head under
 the review freeze — harmless (the reviews were on the commit), and
 the next brief says the report ends the phase.
+## Announced seam from DOCM (2026-09-04)
+
+PROFILE-LIFT-DESIGN PP6 (`crates/editor-core/README.md`) is amended on
+Ev's ruling (in-chat, 2026-09-04): its "the sketch plane stays f64"
+sentence now holds for an AUTHORED frame only; a DERIVED frame's
+profile (`Datum::FaceFrame`, DOCM-REFERENCES-DESIGN DM1/DM1c) is placed
+at the lane scalar through `frame_plane_lane` under every lift, and a
+section on a derived frame refuses typed off f64. The build is DOCM-1
+(`docm/1-face-frame`); it touches `eval/wire.rs`'s profile placement
+under `ProfileLift::Pinned` and nothing in the analysis lane. Signed
+(DOCM orchestrator).
+
+## Filed from DOCM (2026-09-04): the derived frame on the symbolic lane
+
+`derived-frame-placement-freezes-on-the-symbolic-lane` — DOCM-1's
+derived sketch frame (DM1c, PP6 as amended) places a profile at the
+lane scalar, and on `Sym<Interval>` the extrude above it refuses
+certification under a widened upstream parameter while the authored
+twin certifies: `geom_core::sym::form_in` budget-freezes the rational
+forms that re-normalising the kernel's stored unit vectors produces
+(degree 400–700). The kernel's symbolic lane, M10's territory; the
+red pin is on `docm/1-review-r1`. Signed (DOCM orchestrator).
+
+## Announced seam from PROPS (2026-09-05)
+
+The verdict-recording lane (`work/props/plan.md`) edits `drive.rs` by
+announced seam, as the PROPS program header records. First build: the
+unit `three-per-node-verdict-shapes` on `props/verdict-shapes` moves
+`VerdictVector`/`VerdictRow`/`VerdictVectorKey` out of `drive.rs` into
+`resolve/vdiff.rs` beside `NodeVerdicts`, folds `ReplayOutcome` into
+`RunStatus` (`Absent` kept distinct; existing key tag bytes unchanged),
+and pins the strict-vs-population split. `classify`'s gate, `FlipEvidence`
+and the symbolic dials are untouched; the lane reads M10-8's diff before
+starting so its hunks sit off that branch's lines. Signed (PROPS
+orchestrator).
+
+## Announced seam from PROPS (2026-09-05): `dual.rs`, one impl signature
+
+The Span sweep (`work/props/span-carries-its-knot-vector.md`, Ev's
+ruling A; spec `docs/PROPS-SPAN-SPEC.md`) gives `SpanLocate::locate_spans`
+a method-level lifetime, so the trait's `Dual<T>` impl in
+`crates/geom-core/src/dual.rs` changes by signature only — no arithmetic,
+no policy. Named here because `dual.rs` is M10's; the PR body lists the
+edit. Signed (PROPS orchestrator).
+
+## Announced seam from PROPS (2026-09-05): the k-stats bracket at M10's `classify`, the M10-7 tier-off row, one issue filed here
+
+The k-stats unit (`work/props/k-stats-escalation-channel-and-redo.md`,
+PR #1969, spec `docs/PROPS-KSTATS-SPEC.md`) lands three things on M10's
+ground, all listed in the PR body: (1) `drive::classify_replay` reads the
+node's escalation channel — after the box-independent terminal classes
+(the fix pass's order: a definite box-independent refusal is terminal
+whatever else the op recorded; an escalation decides among the
+box-dependent outcomes), so the planted flip's in-band strips price
+`SliverTerminal` instead of `Budget` and the M10-6 accounting goldens are
+re-blessed (witness-vector keys byte-identical); (2) the M10-7 R2 row
+`r2_the_tier_off_accounting_is_the_merge_bases_bytes` and its
+`golden_r2/` copies — the merge base's bytes are no longer reproducible at
+either dial, so the row is re-cut with a bless arm and renamed to what it
+asserts now (tier-off = committed bytes, tier-on differs); the review read
+the independent half of that differential as gone, and M10-7 being closed,
+M10 may retire the row; (3) filed into `work/m10/`:
+`coincidence-zone-priced-budget-at-the-floor` — a leaf wholly inside
+(−ε, ε) on the extrude depth refuses `DegenerateExtrusion` definitely on
+every sub-box yet bisects to the floor as `Budget` (2.5 % of the planted
+flip, measured). Signed (PROPS orchestrator).
+
+## M10-8 MERGED (2026-09-05)
+
+PR #1828 merged, sample #145 (ordinal 509). The unit was written
+measurement-first and its own headline was a negative result: the
+arc family's atom algebra inert on every document, rule C
+unbuildable within the discipline, the reserve filed and the tier
+M10-7 byte for byte. The dual review showed the negative result was
+an artefact of the implementation. R1, by execution: the freezes
+the unit blamed were `sqrt` atoms over CONSTANT forms with
+exact-rational roots, and a value-free fold of them (A0) moved the
+bracket's whole-certifying ceiling 10.4× and an annulus 39×; the
+runaway was the first commit's per-node variant and the downgrade
+came from replacing the plain form rather than reducing beside it;
+rule C's `dyn Any` objection was a corner, and the spec's candidate
+shape — the plate's own ceiling — had never been built. R2, by
+execution: the §1 table, the sole deliverable, was read off a broken
+instrument (a stale thread-local mis-attributing each replay's first
+decisions; a detector comparing one column), and a rounded-corner
+pad refuses first on a constructor-DECLARED tangency — the consumer
+the registered-identity door was said to lack. Landed: A0 alongside
+the plain form on a hybrid `i128`/`BigInt` ring; rule C built in the
+candidate shape through per-parameter brackets and the ring
+interval, measured to zero folds at the shipped bound and dial-off
+with its receipts live; the instrument fixed; the pins re-cut
+ε-relative with the moved numbers; two M10-4 rows moved by the tier
+(the stepped shaft's real study certifies in one leaf); the K
+instrument's 1,054 unnamed corpus samples named (F18). The honest
+miss stands: the plate's real study is UNMOVED at `7.81e2·ε` with
+every rule on — the spec's acceptance is not met, and what bounds it
+next is filed with the rendered residual
+(`plate-rim-residual-needs-the-wide-coefficient-ring`). Two tally
+candidates, one each way; the lane died twice on Fable limits and
+was resumed in place both times. Sixteen deviations. The spec leaves
+`docs/` with this merge; the exit walk stays a draft — whether a
+further unit for the plate is owed goes to Ev.
+
+## M10-8 merged; the block's third slot waits on Ev (2026-09-05)
+
+#1828 merged at 1a081655d (sample #145, ordinal 509 — #144 was
+claimed on main while the row was being written; the row says so).
+The state-sync rode the unit PR; the branch-side records (the B4
+draw, the dispatch, the dual draw, the adjudication) stay here until
+the block concludes. Worktrees and targets reclaimed. The measured
+state at merge: the plate's real study UNMOVED at `7.81e2·ε` under
+A0, C and the early walk — the acceptance Ev set for the program
+("parameter-aware so it's usable") is met on the slab, the stepped
+shaft, R2's bracket (10.4×) and R1's annulus (39×), and NOT on the
+plate, whose rim residual the lane filed with its rendered form
+(`plate-rim-residual-needs-the-wide-coefficient-ring`). Put to Ev:
+whether block B4's third slot (OPUS by the draw) goes to the plate's
+ceiling — the wide-ring residual and the registered-identity door
+with `carrier_line_circle` as its declared-tangency consumer — or
+whether the exit walk (#1700, draft) is re-cut with the plate stated
+as the frontier item S-CERT already holds.

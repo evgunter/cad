@@ -99,17 +99,15 @@ raw `cargo` invocations yourself.
   wait for long queues — a blocking wait can eat a Bash call's 10-min
   cap. Long rows that must survive the harness 590s timeout: launch
   under `setsid`, then poll the output file in the foreground.
-- **A green job NAME can sit over a SKIPPED step — k-lint's demos rows
-  are their own sampled axis (`klint_row`).** Third face of the
+- **A green job NAME can sit over a SKIPPED step.** Third face of the
   silent-coverage class (after CONFLICTING-no-run and
   queued-with-zero-jobs): the TEAPOT dual found the PR's junction
   tables had never executed hosted — both runs' k-lint jobs were green
-  while `demos tour suite` recorded `skipped` (the drawn klint_row
-  didn't carry it). One reviewer read ci.yml and concluded the steps
-  ran; the other read the RUN's jobs API and saw `skipped` — the run
-  record is the instrument, the workflow source is not. Verify
-  coverage at the STEP level (`gh api .../jobs`, step conclusions),
-  never by job-name green. (Ordinal 100, 2026-08-27.)
+  while `demos tour suite` recorded `skipped`. One reviewer read ci.yml
+  and concluded the steps ran; the other read the RUN's jobs API and
+  saw `skipped` — the run record is the instrument, the workflow source
+  is not. Verify coverage at the STEP level (`gh api .../jobs`, step
+  conclusions), never by job-name green. (Ordinal 100, 2026-08-27.)
 - **A detached job whose evidence is SUPERSEDED still takes the mutex
   (2026-08-27, PCURVE P-1a).** The `setsid` rule keeps a long job alive
   through a harness reap — but alive is not the same as useful. A P-1a
@@ -126,12 +124,6 @@ raw `cargo` invocations yourself.
   (`fuser -v` on the lock, or watch the holder file get rewritten by
   the next lane): "parent dead, lock still held" is the failure mode
   that looks identical to success from outside.
-- **A `CI-Config:` trailer is read from the PR-HEAD commit only — any
-  subsequent commit or merge VOIDS it silently back to sampling**
-  (met twice in one fix pass, ordinal 104). The filter reports
-  `CONFIG_SOURCE=...sampled` instead of `commit-trailer` — check that
-  field, and put the trailer on the FINAL head (an empty trailer-only
-  commit that says so in its message is the clean spelling).
 - **A CONFLICTING PR gets NO CI run — silently, and none retroactively
   once resolved.** GitHub skips the pull_request trigger while a PR is
   CONFLICTING; pushes during that window produce nothing, and merging
@@ -208,7 +200,7 @@ main gets NO check runs at all — pushes during that window produce
 nothing and merging main afterwards fires nothing retroactively. A run
 can also queue with ZERO jobs behind a superseded run, `mergeable:
 CLEAN`, and never start. And a green job NAME can sit over a SKIPPED
-step (k-lint's demos rows are their own sampled axis). A step can also
+step. A step can also
 be green having EXECUTED nothing: `cargo clippy --all-targets` and
 `cargo check --all-targets` compile the test targets and run none of
 them, so a root whose only gate row is one of those has its assertions
@@ -218,12 +210,8 @@ origin/main immediately before opening a PR and whenever main moves;
 after any push, confirm jobs are actually RUNNING by reading the
 workflow **runs** list, not the PR's checks list; re-roll with a real
 code commit (an empty commit classifies docs-only); and verify coverage
-at the STEP level (`gh api .../jobs`, step conclusions). A missing row
-can be ASKED FOR rather than re-rolled for: a `CI-Config:
-klint=dev-probe` trailer on the head commit, or ci.yml's
-`workflow_dispatch` inputs, pin lane/eps/klint for one run
-(`docs/CI-MINUTES-2026-08.md`). **The run record is the instrument; the
-workflow source is not.**
+at the STEP level (`gh api .../jobs`, step conclusions). **The run record is
+the instrument; the workflow source is not.**
 
 **Merging is destructive to checks — four rules, each guarding a silent
 or permanent failure rather than a red build.** Before merging, filter
@@ -300,9 +288,24 @@ REF (`git push origin <sha>:refs/heads/<branch>`), or make the commit
 inside the lane's worktree while it is dead; never on the shared local
 ref. The lane then merges origin (merge-only) before its next push.
 
+**Where subagents share the orchestrator's checkout** (no per-lane
+worktree — the remote-session default), that hazard runs BOTH ways: a
+lane branching from the shared HEAD picks up the orchestrator's
+in-flight commits, and an orchestrator checkout or merge on the shared
+ref leaves the lane's own commit on no branch. Symptom: the lane
+reports a pushed sha the remote ref does not have, and any guard it
+ran (`work.py territory`, a test sweep) silently saw a tree without its
+work and reported a pass. The commit object survives — recover it with
+a merge, never a force-push, and confirm the remote ref actually moved.
+
 **The session scratchpad is SHARED between concurrently running agents
 of one session.** PR/issue bodies, logs and run artifacts go to
 LANE-PRIVATE paths (`~/.local/share/cad-work/<lane>-*.md`,
 `cad-work/<lane>/`), never the scratchpad — filenames alone leak, which
 makes it a blinding channel as well as a confusion one. Orchestrator
 briefs state this.
+- **The session scratchpad is SHARED across every lane a session spawns**
+  (`/tmp/claude-0/<project>/<session>/scratchpad/`): two concurrent
+  reviewer lanes writing `build.sh` there overwrote each other, and one
+  ran the other's script — a v6 item 5 glimpse. Every lane brief names
+  a private scratch directory of its own beside its private target dir.

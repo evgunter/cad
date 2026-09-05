@@ -288,9 +288,19 @@ class StepImportError(PncadError):
 
 class PathError(PncadError):
     """The PATHS authoring algebra refused the geometry, at the call
-    site of the verb that wrote it."""
+    site of the verb that wrote it.
+
+    `corners` is the `no_corner_of_pair` envelope: one
+    `(x, y, reason)` row per REFUSING corner — not per derived corner,
+    since a carrier pair derives up to two and most refusals list only
+    one of them — nearest the bracketing anchors first, with `reason`
+    one of `behind_incoming_ray`, `behind_arrival_anchor`,
+    `offset_carriers_disjoint`, `no_corner_side_candidate`,
+    `anchor_outside_trimmed_extent` or `encloses_leg_carrier`. It is
+    `None` on every refusal that names no corner."""
 
     variant: str
+    corners: list[tuple[float, float, str]] | None
 
 class SelectRefusal(PncadError):
     """`Evaluation.select_where` could not answer — the Rust door's
@@ -509,10 +519,12 @@ class ChecksError(PncadError):
     `variant` is `root_without_value` (a root produced no value in this
     evaluation — checks are defined over roots that evaluated, and a
     report over a partial one would claim more than was checked),
-    `band` (the tolerance forms no band) or `product_unavailable` (the
-    roots gather into no product, so the separation resident has no
-    subject). `node` names the root on the first arm and is `None` on
-    the others.
+    `band` (the tolerance forms no band), `evaluation_of_another
+    _document` (the evaluation is not an evaluation of this document —
+    DI3, refused before any check runs) or `product_unavailable` (the
+    roots gather into no product, so the registry has no subject for a
+    check that reads one). `node` names the root on the first arm and
+    is `None` on the others.
 
     NOT a finding. A check that ran and disagreed is a value in the
     report; this class means nothing was checked."""
@@ -1357,7 +1369,9 @@ class Node:
 
     @staticmethod
     def mate(
+        a_at: NodeId,
         a: str,
+        b_at: NodeId,
         b: str,
         class_: ContactClass,
         alignment: Alignment,
@@ -1365,11 +1379,16 @@ class Node:
         """A mate between two instances: ONE node carrying both the
         placement constraint and the contact declaration.
 
-        `a` and `b` are instance-qualified names — an entity of one
-        instance's product and an entity of the other's, the text
-        `Evaluation.select` answers with when queried on an
-        instantiate node. They are name REFERENCES, not recipe edges:
-        inserting a mate transfers no root.
+        Each side is a node and a name, mirroring the kernel type.
+        `a_at` / `b_at` is the OPERAND — the node the reference is
+        read at, whose geometry the mate speaks about — and `a` / `b`
+        is the instance-qualified name text of an entity of that
+        node's product, what `Evaluation.select` answers with. They
+        coincide for a mate authored on an instance directly and
+        diverge the moment a transform places it; there is no
+        default, because a transform mints no name and the operand is
+        the only thing that tells the two apart. Neither half is a
+        recipe edge: inserting a mate transfers no root.
 
         `class_` is the declared contact class; ask `class_admission`
         BEFORE authoring, because a class the solve folds may still
@@ -1377,8 +1396,8 @@ class Node:
         data — nothing checks it against the faces `a` and `b` name,
         so a mate can solve cleanly and still be refuted at the gate.
 
-        A dangling reference head is not refused here: the solve
-        refuses typed naming it (`mate_dangling_head`)."""
+        A dangling reference is not refused here: the solve refuses
+        typed naming its head (`mate_dangling_head`)."""
 
 class Expr:
     """A dimension-checked expression — the recipe's arithmetic, as a
@@ -1890,6 +1909,7 @@ class SegTag:
     AxisEdge: Final[SegTag]
     FromA: Final[SegTag]
     FromB: Final[SegTag]
+    FromMember: Final[SegTag]
     Seam: Final[SegTag]
     Merged: Final[SegTag]
     Fragment: Final[SegTag]
@@ -1927,10 +1947,10 @@ class OpGroup:
     InstantiatePart: Final[OpGroup]
 
 class CapEnd:
-    """An extrude/revolve cap end (`SegPat.side`)."""
+    """Which end of the sweep vector a cap face closes (`SegPat.side`)."""
 
-    Top: Final[CapEnd]
-    Bottom: Final[CapEnd]
+    End: Final[CapEnd]
+    Start: Final[CapEnd]
 
 class MeridianEnd:
     """A revolve meridian end (`SegPat.side`)."""
@@ -2264,9 +2284,11 @@ class PlaneRelation:
     Distinct: Final[PlaneRelation]
 
 class ContactClass:
-    """The contact class a declaration asserts. `Rest` (coincident
-    planes) is the only class the flush DETECTOR mints, so it is the
-    only one a `FlushFinding` from `find_flush_candidates` carries;
+    """The contact class a declaration asserts. `Rest` (cosurface
+    contact, on any carrier the verify ladder names — plane, sphere,
+    cylinder, torus) is the only class the flush DETECTOR mints, so
+    it is the only one a `FlushFinding` from
+    `find_flush_candidates` carries;
     `Tangent` crossed the mirror with M9-1 and is nameable here
     because a class the binding cannot name would refuse typed at the
     crossing instead."""
@@ -2283,11 +2305,13 @@ class FlushRung:
     DecidedCoincident: Final[FlushRung]
 
 class FlushFinding:
-    """One flush-plane finding: "this face pair would verify as
-    declared contact" — a VALUE to inspect and declare, never itself
-    a declaration. `a`/`b` are the pair's names in the same OPAQUE
-    text alphabet every materializer speaks (store them, hand them
-    back; never parse). `class_` spells `class` (a Python keyword)
+    """One flush finding: "this face pair would verify as declared
+    contact" — a VALUE to inspect and declare, never itself a
+    declaration. The detector's reach is the `Rest` ladder's, so a
+    pair may be cosurface on a plane, a sphere, a cylinder or a
+    torus. `a`/`b` are the pair's names in the same OPAQUE text
+    alphabet every materializer speaks (store them, hand them back;
+    never parse). `class_` spells `class` (a Python keyword)
     with the `or_` trailing-underscore precedent."""
 
     @property
@@ -2714,8 +2738,8 @@ class Evaluation:
         name."""
 
     def find_flush_candidates(self, a: NodeId, b: NodeId) -> list[FlushFinding]:
-        """The cross-body flush-plane candidates between `a`'s and
-        `b`'s outputs, as of THIS evaluation — the detect arm of the
+        """The cross-body flush candidates between `a`'s and `b`'s
+        outputs, as of THIS evaluation — the detect arm of the
         detect/declare protocol, run by the C4 verifier itself (a
         finding cannot disagree with the boolean's verify-at-use).
         Findings are DEFINITE and canonically ordered; empty when
@@ -2810,9 +2834,14 @@ def evaluate(
     The memo is PER DOCUMENT and node-id-keyed: the lookup finds
     `prior`'s result for the SAME node id and then certifies it by
     content. An evaluation of a different document is a legal prior
-    that reuses nothing — ids are minted per document, and two
-    assemblies over the same parts at the same pins share none. Pass
-    the prior evaluation of THIS document.
+    that reuses nothing — not because the ids miss, but because the
+    memo REFUSES it: an evaluation carries the id of the document it
+    was run on, and a prior of another document is dropped whole
+    before the schedule is built. Ids alone would not decide it, since
+    two documents built from one recipe carry the same ids for the
+    same nodes. The run stays total — every node recomputed — and says
+    so: `Evaluation.reused` is 0. Pass the prior evaluation of THIS
+    document.
 
     A MEMO HIT IS SERVED WITHOUT RE-RUNNING THE SEAM'S GATES. A reused
     `InstantiatePart` node never asks the resolver, so the availability
@@ -3106,11 +3135,13 @@ class SolvedPoses:
         frame composed onto the solved relative pose. A singleton
         returns its recorded frame verbatim.
 
-        `doc` must be the document this solve is OF — passing another
-        composes this document's relative poses onto that one's
-        cluster frames, which is a pose of neither, and nothing here
-        can check it. Raises MateError when the cluster did not
-        solve."""
+        `doc` must be the document this solve is OF. Passing another
+        would compose this document's relative poses onto that one's
+        cluster frames, which is a pose of neither, so the door
+        refuses first: a `SolvedPoses` carries the id of the document
+        `solve_document` solved, and a mismatch raises MateError with
+        tag `mate_poses_of_another_document` before any frame is
+        read. Raises MateError when the cluster did not solve."""
 
 def solve_document(doc: Doc) -> SolvedPoses:
     """Solve the document's mates: the per-pair coset fold along a
@@ -3185,9 +3216,15 @@ def product(doc: Doc, evaluation: Evaluation) -> Body:
     node's value is the assembly. A pure function of the root list and
     the evaluation.
 
-    `evaluation` must be an evaluation OF `doc`: node ids are minted
-    per document, so a foreign one refuses `unknown_node` rather than
-    answering about the wrong document. Raises ProductError, typed."""
+    `evaluation` must be an evaluation OF `doc`, and the door checks
+    it: an evaluation carries the id of the document it was run on,
+    and a foreign one raises ProductError with tag
+    `evaluation_of_another_document` before the first root is read.
+    Node ids alone could not decide this — they are minted by a
+    per-document counter, so two documents built from one recipe
+    carry the same ids for the same nodes and a gather over the wrong
+    one would succeed, in full, about other geometry. Raises
+    ProductError, typed."""
 
 def product_named(doc: Doc, evaluation: Evaluation) -> tuple[Body, list[str]]:
     """The product with the stable names its entities answer to —

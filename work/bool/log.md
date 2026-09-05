@@ -258,3 +258,57 @@ directory's item files and in `work/STATUS.md`; this log stays the
 narrative. Items created at migration: BOOL-12 (review, PR 1573 held for
 Ev's sign-off), BOOL-9 (spec), BOOL-10 (spec), BOOL-4 (open), BOOL-5 (open),
 BOOL-6 (open), BOOL-7 (open), BOOL-Q (open).
+
+## Seam announced by TOPO (2026-09-05)
+
+TOPO's `D261` deletes `topo::fixtures::code_only` and re-points its one
+consumer, `crates/topo/src/face_normal.rs:460`, to
+`test_utils::source::code_only` — that single call and nothing else in
+the file; `face_normal.rs`'s raw-text reads stay `D287`'s. `D261` and
+`D287` both lower `reader_census.rs`'s `UNCONVERTED_TODAY`; the second
+to land re-derives it from the table rather than subtracting.
+
+## Findings relayed by TOPO (2026-09-05, from D261's lane)
+
+Reported by the `topo/d261-reader-collapse` lane, Track Q's ground, not
+filed by TOPO: `crates/topo/src/boolean/boxes.rs:2167` says `CodeOnly`
+is "the more competent of this crate's two readers" — after D261 there
+is one reader (the shared `test_utils::source`) and `CodeOnly` is a
+one-line adapter over it; and the two surviving raw-text guards,
+`crates/topo/src/face_normal.rs:335-346` and
+`crates/topo/src/sector_shape.rs:506-533`, carry S117's shape. All three
+sit with `D287`.
+
+## Two more from D261's review (2026-09-05, TOPO relaying)
+
+`work/bool/D287.md:14` ("`boolean/boxes.rs` already reads
+`source_walk::CodeOnly`, so it converts with that collapse") and `:46`
+("`topo::fixtures::code_only` is the in-crate one") are false after
+PR 1919: `fixtures::code_only` is deleted, and `CodeOnly` survives only
+as a one-line newtype over the shared view because `boxes.rs:2265`
+constructs it — so D287's `boxes.rs` re-point is also the newtype's
+deletion, and D261 records that schedule by pointing here.
+
+## Announced seam from PROPS (2026-09-05): one sentence in `resolve/vdiff.rs`
+
+The k-stats unit (PR #1969) adds `escalations` beside `verdicts` on
+`NodeValue` and `NodeError`, not persisted; `vdiff.rs`'s persisted-shape
+sentence says so. One doc sentence, announced by the spec
+(`docs/PROPS-KSTATS-SPEC.md` §Fence). Signed (PROPS orchestrator).
+
+## Announced seam from PROPS (2026-09-05): `SketchPlane` in `crates/profile/src/lib.rs`
+
+The vec3-doors rider (`docs/PROPS-VEC3-DOORS-SPEC.md`, item
+`work/props/vec3-point3-const-and-conversion-doors.md`) moves the body
+of `SketchPlane::from_frame` down to a new `Affine3::from_frame`
+(`geom-core`, the type that owns it) and makes the profile door
+delegate — bit-identical, pinned — and adds `SketchPlane::map`, the
+lift of the type that carries a frame. No other line of `profile/`
+moves. Named here because `crates/profile/*` is S-BOOL's path. Signed
+(PROPS orchestrator).
+
+Amendment (2026-09-05, PROPS orchestrator): the vec3-doors rider also
+adds `crates/profile/tests/sketch_plane.rs` (the delegation and lift
+rows beside `SketchPlane`) — the review found "no other line of
+`profile/` moves" false for the tests; the door itself moves as
+announced. Signed (PROPS orchestrator).

@@ -29,8 +29,8 @@ use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
     Datum, Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, MeasureRef, NamePat, Node, ParamName, ProfileDoc,
-    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SurfaceKindSet, UnitSym,
+    MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
+    ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym,
     select_where,
 };
 use geom_core::Tol;
@@ -65,7 +65,7 @@ const BORE_B_X: f64 = 2.2e-3;
 ///
 /// `scale` multiplies every tolerance together, so `1.0` is the study a
 /// user would actually ask for and a smaller number is a narrower one.
-fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
         r.push(DocEdit::SetDocParam {
@@ -184,7 +184,7 @@ fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             .expect("the surface-kind atom is exact");
             faces.sort();
             assert!(!faces.is_empty(), "a bore extrude has a cylindrical wall");
-            MeasureRef::new(node, faces.remove(0))
+            SitedRef::new(node, faces.remove(0))
         };
         vec![wall(bore_a), wall(bore_b)]
     };
@@ -286,20 +286,7 @@ fn r2_end_to_end_bracket_study() {
 fn r2_the_ceiling_on_an_arc_bearing_bracket() {
     let tol = Tol::witness();
     let certifies_whole = |scale: f64, dials: SymbolicDials| {
-        let (doc, _, _) = bracket(scale, tol);
-        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-        drive(
-            &doc,
-            &analyzed,
-            &DriveConfig {
-                max_depth: 0,
-                max_leaves: 1,
-                symbolic: dials,
-                ..DriveConfig::default()
-            },
-            tol,
-        )
-        .is_ok_and(|v| v.receipt().certified == 1)
+        crate::m10_8_harness::certifies_whole_with(&bracket(scale, tol).0, dials, tol)
     };
     let ceiling = |dials: SymbolicDials| -> f64 {
         let (mut lo, mut hi) = (1.0e-14, 1.0e3);
@@ -337,20 +324,7 @@ fn r2_re_derives_the_slab_ceiling() {
     use crate::m10_3_driver_interval::slab;
     let tol = Tol::witness();
     let whole = |half: f64, dials: SymbolicDials| {
-        let doc = slab(1.0, half);
-        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-        drive(
-            &doc,
-            &analyzed,
-            &DriveConfig {
-                max_depth: 0,
-                max_leaves: 1,
-                symbolic: dials,
-                ..DriveConfig::default()
-            },
-            tol,
-        )
-        .is_ok_and(|v| v.receipt().certified == 1)
+        crate::m10_8_harness::certifies_whole_with(&slab(1.0, half), dials, tol)
     };
     for (name, dials) in [
         ("TIER ON ", SymbolicDials::default()),
@@ -463,6 +437,7 @@ fn r2_a_zero_term_budget_reproduces_the_tier_off_verdict() {
             enabled: true,
             max_terms: 0,
             max_degree: 0,
+            ..SymbolicDials::default()
         },
         tol,
     )
@@ -650,27 +625,40 @@ fn r2_collinear_walls_should_discharge_side_planes_cosurface() {
 
 // ------------------------------- claim 1: the merge-base differential
 
-/// **The tier-off differential, against the MERGE BASE's own bytes.**
+/// **The tier-off differential, against committed tier-off bytes.**
 ///
-/// M10-6's accounting golden is the sharpest serialized artefact this
-/// unit moved, and neither fixture it goldens (`m10_3_driver_interval`'s
-/// `slab` and `sliver_axis`) changed in this PR. So a drive of those two
-/// fixtures at `SymbolicDials::off()` must reproduce the merge base's
-/// committed golden BYTE FOR BYTE — the tier-off differential claim 1
-/// makes, taken against a file this PR did not write rather than against
-/// a row it did.
+/// M10-6's accounting golden is the sharpest serialized artefact the
+/// symbolic tier moved. A drive of its two fixtures
+/// (`m10_3_driver_interval`'s `slab` and `sliver_axis`) at
+/// `SymbolicDials::off()` must reproduce the committed tier-off bytes
+/// under `tests/golden_r2/` BYTE FOR BYTE, and the tier ON must not —
+/// the differential claim, taken against a file the tier's own re-bless
+/// did not write.
 ///
-/// The three files under `tests/golden_r2/` are
-/// `git show d935a96ad23:crates/editor-core/tests/golden/…`, copied
-/// verbatim. They are R2's evidence and expire with this review.
+/// The three files began as the tier's merge base's goldens
+/// (`git show d935a96ad23:crates/editor-core/tests/golden/…`). They
+/// are re-cut whenever the driver's classification moves for BOTH
+/// dials — last for the escalation channel, which prices an escalation
+/// wrapped in an op's own error as a sliver rather than refining it to
+/// the floor, at either dial — with `M10_7_BLESS_TIER_OFF=1`, committed
+/// with the change they record.
 #[test]
-fn r2_the_tier_off_accounting_is_the_merge_bases_bytes() {
+fn r2_the_tier_off_accounting_is_the_committed_tier_off_bytes_and_the_tier_on_differs() {
     let eps = format!("{:e}", Tol::witness().eps());
-    let base = match eps.as_str() {
-        "1e-6" => include_str!("golden_r2/base_m10_6_accounting_1e-6.txt"),
-        "1e-9" => include_str!("golden_r2/base_m10_6_accounting_1e-9.txt"),
-        "1e-12" => include_str!("golden_r2/base_m10_6_accounting_1e-12.txt"),
-        other => panic!("r2 differential has no merge-base golden for eps={other}"),
+    let (base, path) = match eps.as_str() {
+        "1e-6" => (
+            include_str!("golden_r2/base_m10_6_accounting_1e-6.txt"),
+            "tests/golden_r2/base_m10_6_accounting_1e-6.txt",
+        ),
+        "1e-9" => (
+            include_str!("golden_r2/base_m10_6_accounting_1e-9.txt"),
+            "tests/golden_r2/base_m10_6_accounting_1e-9.txt",
+        ),
+        "1e-12" => (
+            include_str!("golden_r2/base_m10_6_accounting_1e-12.txt"),
+            "tests/golden_r2/base_m10_6_accounting_1e-12.txt",
+        ),
+        other => panic!("r2 differential has no tier-off golden for eps={other}"),
     };
     let text = |dials: SymbolicDials| {
         let mut s = String::new();
@@ -706,17 +694,25 @@ fn r2_the_tier_off_accounting_is_the_merge_bases_bytes() {
         }
         s
     };
+    let off = text(SymbolicDials::off());
+    if std::env::var("M10_7_BLESS_TIER_OFF").is_ok() {
+        std::fs::write(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(path),
+            &off,
+        )
+        .expect("bless writes");
+        panic!("tier-off golden for eps={eps} re-blessed — commit it WITH the change it records");
+    }
     assert_eq!(
-        text(SymbolicDials::off()),
-        base,
-        "the tier OFF did not reproduce the merge base's accounting bytes at eps={eps}"
+        off, base,
+        "the tier OFF did not reproduce the committed tier-off accounting bytes at eps={eps}"
     );
     // And the same measurement the other way: with the tier ON the bytes
     // MOVE, which is what the re-blessed golden records.
     assert_ne!(
         text(SymbolicDials::default()),
         base,
-        "the tier ON reproduced the merge base's bytes — then the re-bless \
+        "the tier ON reproduced the tier-off bytes — then the re-bless \
          of tests/golden/m10_6_accounting_{eps}.txt records nothing"
     );
 }

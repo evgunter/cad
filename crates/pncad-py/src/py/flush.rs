@@ -60,14 +60,16 @@ pub(crate) enum FlushRung {
     DecidedCoincident,
 }
 
-/// One flush-plane finding: "this face pair would verify as declared
+/// One flush finding: "this face pair would verify as declared
 /// contact" — a VALUE to inspect and pass to `Node.declare` /
 /// `Doc.declare` / `Doc.declare_all`, never itself a declaration.
+/// The detector's reach is the `Rest` ladder's, so the pair may be
+/// cosurface on a plane, a sphere, a cylinder or a torus.
 ///
 /// `a` and `b` are the pair's names as opaque text (`a` from the
 /// query's first node, `b` from its second); `relation` is the verify
 /// door's own verdict (`SameOpposite` = resting contact, opposed
-/// outward normals; `SameOriented` = flush walls, the merge-stage
+/// material sides; `SameOriented` = flush walls, the merge-stage
 /// flavor); `class_` names the contact class (trailing underscore:
 /// `class` is a Python keyword — the `or_` precedent); `rung` says
 /// which ladder rung decided (`SharedSource` = syntactic recipe

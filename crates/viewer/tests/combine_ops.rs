@@ -25,11 +25,13 @@ use crate::common;
 use common::{ang, body_volume, insert, len, len2, len3, near, scl2, scl3, shape};
 use pncad::document::SplitSide;
 use pncad::document::{
-    Axis3, BooleanOp, Datum, Dimension, DimensionError, Doc, Expr, LoopProgram, Node, NodeError,
-    NodeErrorKind, NodeResult, PatternKind, ProfileProgram, RecipeNodeId, SlotId,
+    Axis3, BooleanOp, Datum, Dimension, DimensionError, Doc, EditError, Expr, LoopProgram, Node,
+    NodeError, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileProgram, RecipeNodeId,
+    SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
+use pncad::select::SplitHalf;
 use viewer::combine::{
     BooleanTool, PatternOutputChoice, PatternTool, SplitTool, TransformTool, denotes_body,
 };
@@ -276,17 +278,41 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
             );
         }
     }
-    // One body in both seats: the DAG would take it, the door does
-    // not.
+    // One body in both seats: the EDIT DOOR refuses it, as it refuses
+    // any node reached twice through one node's edges. Layer 3 does
+    // not pre-check it — the rule is `Node::input_fault`'s and is the
+    // same rule for a split or a list.
     let refused = session.perform(SessionOp::AddBoolean {
         op: BooleanOp::Subtract,
         a,
         b: a,
     });
+    let Some(Refusal::Edit(ref error)) = refused.refusal else {
+        panic!(
+            "expected the edit door's refusal, got {:?}",
+            refused.refusal
+        )
+    };
     assert!(
-        matches!(refused.refusal, Some(Refusal::SelfBoolean { node }) if node == a),
-        "{:?}",
-        refused.refusal
+        matches!(**error, EditError::DuplicateInput { input, .. } if input == a),
+        "{error:?}"
+    );
+    // **The WHOLE sentence, deliberately.** This is what a person reads
+    // when they pick one body into both seats, and it is the sentence
+    // that replaced a layer-3 arm — so the row pins it exactly rather
+    // than sampling substrings out of it. Two things substring
+    // assertions let through and this does not: an id the reader cannot
+    // act on (`DuplicateInput` also carries the id `InsertNode` WOULD
+    // have minted, which does not exist and never will if the edit is
+    // refused), and a rule with no action beside it.
+    assert_eq!(
+        refused.refusal.as_ref().expect("refused").to_string(),
+        format!(
+            "the edit was refused: the node this edit writes would be invalid: \
+             node {} is taken as an input twice — a node's inputs are pairwise \
+             distinct. Replace one of the two with a different node.",
+            a.0
+        )
     );
     // And the kind gate speaks FIRST: two profiles in both seats is
     // reported as "that is not a body", the fact a user can act on.
@@ -1057,7 +1083,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
         assert!(
             matches!(
                 refused.refusal,
-                Some(Refusal::WrongNodeKind { .. } | Refusal::SelfBoolean { .. })
+                Some(Refusal::WrongNodeKind { .. } | Refusal::Edit(_))
             ),
             "{:?}",
             refused.refusal
@@ -1796,15 +1822,17 @@ fn a_tool_closes_on_its_own_committed_edit() {
 /// refused. That is asserted here in the same shape, so the day the
 /// frontier moves this row notices.
 ///
-/// **What it does not reach**, stated rather than implied: four of the
-/// eighteen node kinds are absent. `Mate`, `Measure` and `Assertion`
+/// **What it does not reach**, stated rather than implied: six of the
+/// twenty-two node kinds are absent. `Mate`, `Measure` and `Assertion`
 /// need substrate this row does not build (a solved assembly, a
 /// measured expression) and are all answered `false` by the seat;
 /// `InstantiatePart` is answered `true` and needs a resolver with a
 /// sibling document on disk, so its evaluates-to-a-body path is
-/// exercised by the assembly suites instead. The fourteen that ARE
-/// here include every kind whose classification is load-bearing for
-/// this unit.
+/// exercised by the assembly suites instead; the two tube kinds are
+/// answered `true` and evaluate through their own doors, exercised by
+/// `lib_tube_node`. The sixteen that ARE here — `Part` counted once
+/// for its two selectors — include every kind whose classification is
+/// load-bearing for this unit.
 #[test]
 fn the_body_seat_tracks_the_evaluators_operand_door() {
     let tol = Tol::witness();
@@ -1878,6 +1906,34 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         tol,
     );
     doc = next;
+    // A SECOND independently minted body, stood clear of the first,
+    // for the n-ary union candidate. Standing clear is the load-bearing
+    // part: two members that MEET refuse the undeclared contact rather
+    // than answering this row's question. They need not be
+    // independently minted — a union keys its names on the member EDGE,
+    // so a body and a placement of it are two members and name fine
+    // (`docm3_union::two_placements_of_one_prototype_are_two_members`);
+    // two extrudes are simply the clearest thing to stand apart.
+    let (next, extruded_b) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile: profile_b,
+            distance: common::len(0.01),
+        },
+        tol,
+    );
+    doc = next;
+    let (next, body_b) = common::inserted(
+        &doc,
+        Node::Transform {
+            input: extruded_b,
+            translation: [common::len(0.1), common::len(0.0), common::len(0.0)],
+            rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+            rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+        },
+        tol,
+    );
+    doc = next;
     let (next, other) = common::inserted(
         &doc,
         Node::Transform {
@@ -1885,6 +1941,31 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             translation: [common::len(0.01), common::len(0.002), common::len(0.002)],
             rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
             rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+        },
+        tol,
+    );
+    doc = next;
+    // A split and a pattern for the two Part candidates to read: each
+    // is SEVERAL bodies (refused at the seat below, as candidates in
+    // their own right), and a Part of either is one.
+    let (next, split_of_body) = common::inserted(
+        &doc,
+        Node::Split {
+            target: body,
+            tool: plane,
+        },
+        tol,
+    );
+    doc = next;
+    let (next, pattern_of_body) = common::inserted(
+        &doc,
+        Node::Pattern {
+            input: body,
+            count: Expr::count(2),
+            kind: PatternKind::Linear {
+                direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
+                spacing: common::len(0.05),
+            },
         },
         tol,
     );
@@ -1942,6 +2023,20 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
                 declare: None,
             },
         ),
+        // The n-ary union at its minimal size. Its two members are
+        // `body` and the SECOND extrude rather than `other` because
+        // those two stand CLEAR of each other, and a union whose
+        // members meet refuses the undeclared contact before the seat's
+        // question is reached. `other` is a placement of `body`, which
+        // a union names perfectly well — the member edge tells the two
+        // apart even though a transform passes names through — but it
+        // sits where `body` is.
+        (
+            "union",
+            Node::Union {
+                members: vec![body, body_b],
+            },
+        ),
         (
             "transform",
             Node::Transform {
@@ -1967,6 +2062,22 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
                     direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
                     spacing: common::len(0.05),
                 },
+            },
+        ),
+        // ONE body out of a split or a pattern: the projection is
+        // what makes one of several bodies a body at a seat.
+        (
+            "part of a split",
+            Node::Part {
+                of: split_of_body,
+                select: PartSelect::SplitHalf(SplitHalf::Above),
+            },
+        ),
+        (
+            "part of a pattern",
+            Node::Part {
+                of: pattern_of_body,
+                select: PartSelect::Instance(Expr::count(1)),
             },
         ),
         (

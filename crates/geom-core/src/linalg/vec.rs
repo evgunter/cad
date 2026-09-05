@@ -30,8 +30,10 @@ pub struct Vec3<T: Real> {
 }
 
 impl<T: Real> Vec2<T> {
-    /// Builds a vector from its components.
-    pub fn new(x: T, y: T) -> Self {
+    /// Builds a vector from its components. A `const fn` (the doctest
+    /// at [`super::Point3::new`] reads a constant of each of the four
+    /// types).
+    pub const fn new(x: T, y: T) -> Self {
         Self { x, y }
     }
 
@@ -136,8 +138,10 @@ impl<T: Real> Vec2<T> {
 }
 
 impl<T: Real> Vec3<T> {
-    /// Builds a vector from its components.
-    pub fn new(x: T, y: T, z: T) -> Self {
+    /// Builds a vector from its components. A `const fn` (the doctest
+    /// at [`super::Point3::new`] reads a constant of each of the four
+    /// types).
+    pub const fn new(x: T, y: T, z: T) -> Self {
         Self { x, y, z }
     }
 
@@ -274,15 +278,84 @@ impl<T: Real> Vec3<T> {
     }
 
     /// The orthogonal rejection of `self` from the line spanned by
-    /// `onto`: exactly `self - self.project_onto(onto)` (the
-    /// componentwise subtraction of [`Vec3::project_onto`]'s result —
-    /// the one sanctioned association, same D9 contract). The result is
-    /// orthogonal to `onto` up to rounding; `project + reject = self` up
-    /// to one rounding per component.
+    /// `onto`: the triple product `(onto × self) × onto / |onto|²`.
     ///
-    /// **Total.** Poison propagates from [`Vec3::project_onto`].
+    /// The association is part of the contract, exactly as it is for
+    /// [`Vec3::project_onto`] (the M2 watchlist's D9 hazard). Order:
+    /// `onto.cross(self)` first, in [`Vec3::cross`]'s own association;
+    /// that crossed with `onto`; then **one division per component** by
+    /// [`Vec3::norm_squared`]. Call sites must use this method, never
+    /// re-derive a rejection with their own grouping.
+    ///
+    /// **`self` is mentioned once — and `onto` is amplified.** That is
+    /// the whole trade, and both halves are load-bearing:
+    ///
+    /// - **The gain, on `self`.** `self − self.project_onto(onto)` is
+    ///   the same vector over the reals but names `self` twice, so at an
+    ///   enclosure scalar it charges about `2·width(self)` to the
+    ///   components ALONG `onto`, where the rejection does not depend on
+    ///   `self` at all and its true width is zero. The triple product
+    ///   charges nothing there: rejecting an enclosure of half-width
+    ///   1e-9 from `+z` gives a `z` component of width exactly zero
+    ///   rather than 4e-9. Per component, over the corpus in
+    ///   `geom-core/tests/props1_evidence.rs`, an exact `onto` against a
+    ///   `self` carrying width narrows by 0.95× to 4× plus seven
+    ///   components that become exactly zero.
+    /// - **The cost, on `onto`.** `onto` is named three times here as it
+    ///   was three times before, but two of those mentions are now cross
+    ///   products rather than one scalar quotient, so a `self`-shaped
+    ///   width in `onto` is AMPLIFIED rather than merely repeated. Where
+    ///   `onto` itself carries width the shipped rejection is up to
+    ///   **34× wider** than the subtractive spelling on that corpus, and
+    ///   a randomized sweep with a zero-straddling `onto` component
+    ///   reaches 1022×.
+    ///
+    /// **So `onto` is expected to be an exact or narrow direction**, and
+    /// a wide `onto` is the case where the subtractive spelling was the
+    /// tighter one. That is the shape every caller in this kernel has —
+    /// a stored axis or a unit normal as `onto`, a computed and often
+    /// wide vector as `self` — which is why the trade is taken this way
+    /// round. At `f64` an exactly parallel pair rejects to exactly the
+    /// zero vector.
+    ///
+    /// # The two rounding claims, measured
+    ///
+    /// One metric throughout: **ulps of the vector's largest
+    /// component**, so a 100 m coordinate and a 1 mm coordinate are held
+    /// to the same absolute scale. Measured in
+    /// `geom-core/tests/props1_evidence.rs` and, adversarially, in
+    /// `props1_review_rows.rs`.
+    ///
+    /// - **Orthogonal to `onto`**: `|reject · onto|` is at most
+    ///   **3.5e-17** of `|self|·|onto|` on that corpus. The cross
+    ///   products put the result in the plane through the origin normal
+    ///   to `onto` by construction, so this is a property of the
+    ///   spelling and not of the inputs.
+    /// - **`project + reject` returns `self`** to within **4 ulps** of
+    ///   the largest component — 1 ulp on the corpus, 4 over 200 000
+    ///   adversarial pairs (near-parallel, near-orthogonal, magnitudes
+    ///   from 1e-8 to 1e8). Judged per component instead, the same sweep
+    ///   reaches 65536 ulps of a component that is itself near zero,
+    ///   which is why the metric is stated. A caller who needs the split
+    ///   to re-sum bit-exactly must keep `self` and subtract rather than
+    ///   adding the two halves back.
+    ///
+    /// **Total.** A zero (or poisoned) `onto` yields all-poison
+    /// components through the 0/0 division. The overflow and underflow
+    /// bands are NOT [`Vec3::project_onto`]'s: that method's numerator
+    /// is `self.dot(onto)`, this one's is `(onto × self) × onto`, which
+    /// scales as `|onto|²·|self|` and therefore leaves the finite range
+    /// sooner from both ends. `onto` near 1e150 with `|self|` near 1e20
+    /// overflows the numerator to `±∞` and returns infinities where the
+    /// subtractive spelling was exact; `onto` below ~1e-140 pushes the
+    /// numerator into the subnormals and then to zero, so a `self`
+    /// entirely orthogonal to `onto` rejects to a silent exact zero.
+    /// Both bands are far outside the session box (D4 ¶4) — the same
+    /// posture and the same kind of boundary [`Vec3::normalize`]'s doc
+    /// note states for its own ~1e154 band — and both are pinned in
+    /// `props1_review_rows.rs`.
     pub fn reject_from(self, onto: Self) -> Self {
-        self - self.project_onto(onto)
+        onto.cross(self).cross(onto) / onto.norm_squared()
     }
 
     /// An orthonormal basis completing `self` (a **unit** vector) to a

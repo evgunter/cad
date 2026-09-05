@@ -25,6 +25,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
+/// The provenance-extended evaluation digest the verb-migration suites
+/// pin their documents with — one feed, per-suite constants.
+pub mod digest;
+
 use editor_core::{
     CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKind, Expr, LoopProgram, Node, ParamName,
     ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg,
@@ -402,12 +406,12 @@ pub fn die() -> Die {
         })
     };
     let mut cube_face_names: [StableName; 6] = [
-        face_name(cube, RoleSeg::Cap(CapEnd::Bottom)),
+        face_name(cube, RoleSeg::Cap(CapEnd::Start)),
         face_name(cube, wall(1)),
         face_name(cube, wall(3)),
         face_name(cube, wall(2)),
         face_name(cube, wall(0)),
-        face_name(cube, RoleSeg::Cap(CapEnd::Top)),
+        face_name(cube, RoleSeg::Cap(CapEnd::End)),
     ];
     let mut acc = cube;
     let mut pz_transform = acc; // overwritten below
@@ -427,7 +431,7 @@ pub fn die() -> Die {
             // The pip master extrudes INWARD (negative distance), so
             // its OUTER cap — the flush one — is Bottom (on the
             // sketch plane, which IS the cube face's plane).
-            let pip_cap = face_name(ext, RoleSeg::Cap(CapEnd::Bottom));
+            let pip_cap = face_name(ext, RoleSeg::Cap(CapEnd::Start));
             let decl = r.insert(Node::declare_rest(vec![(
                 cube_face_names[face_idx].clone(),
                 pip_cap,
@@ -494,8 +498,8 @@ pub fn prism_edges(node: RecipeNodeId, n: u32) -> Vec<StableName> {
             loop_index: 0,
             segment: seg,
         };
-        out.push(ename(node, RoleSeg::RimEdge(CapEnd::Bottom, e)));
-        out.push(ename(node, RoleSeg::RimEdge(CapEnd::Top, e)));
+        out.push(ename(node, RoleSeg::RimEdge(CapEnd::Start, e)));
+        out.push(ename(node, RoleSeg::RimEdge(CapEnd::End, e)));
         out.push(ename(
             node,
             RoleSeg::LateralEdge(ProfileVertexRef {
@@ -530,12 +534,12 @@ pub fn declare_x_offset_flush(
         (fname(a_ext, wall(0)), fname(b_ext, wall(0))),
         (fname(a_ext, wall(2)), fname(b_ext, wall(2))),
         (
-            fname(a_ext, RoleSeg::Cap(CapEnd::Bottom)),
-            fname(b_ext, RoleSeg::Cap(CapEnd::Bottom)),
+            fname(a_ext, RoleSeg::Cap(CapEnd::Start)),
+            fname(b_ext, RoleSeg::Cap(CapEnd::Start)),
         ),
         (
-            fname(a_ext, RoleSeg::Cap(CapEnd::Top)),
-            fname(b_ext, RoleSeg::Cap(CapEnd::Top)),
+            fname(a_ext, RoleSeg::Cap(CapEnd::End)),
+            fname(b_ext, RoleSeg::Cap(CapEnd::End)),
         ),
     ];
     insert(doc, Node::declare_rest(pairs))

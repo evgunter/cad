@@ -313,6 +313,89 @@ fn row2_one_part_two_instances_one_evaluation() {
     assert_eq!(run(&doc, &opts).part_evaluations, 2);
 }
 
+/// **The instantiate node's verdict log is its own op's, and it is the
+/// same log whichever instance actually ran the part.** The op
+/// evaluates the referenced document INSIDE its own verdict bracket
+/// (the part cache's miss path), so the first instance's bracket has a
+/// whole nested evaluation opening and closing brackets under it; the
+/// second instance is a cache hit and runs none. Both frames must come
+/// back holding exactly the instantiate op's own decisions — the
+/// placement and the geometric validation of the placed body — which
+/// is what "the verdicts a node's op produced" means when the op's
+/// work includes another document: that document's decisions are
+/// recorded on ITS nodes, in the nested evaluation, and never in the
+/// instantiator's frame.
+///
+/// A log that is empty at the first instance and populated at the
+/// second is the signature of a nested bracket destroying its parent's
+/// frame; one that is LARGER at the first is the miss path's work —
+/// the part's own decisions — landing on whichever instance ran it.
+#[test]
+fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_part() {
+    let mut store = StubStore::default();
+    let doc_ref = store.insert(part("asm2a-vlog-part", 0.0, 1.0), Tol::witness());
+    let opts = with_resolver(store);
+    let (doc, ids) = assembly("asm2a-vlog-asm", &[doc_ref, doc_ref]);
+    // Both instances placed, so both ops do the same work on the part
+    // they share: an identity placement is applied by doing nothing,
+    // and an op that does nothing decides nothing.
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetPlacement {
+            node: ids[0],
+            frame: Frame::translation([0.0, 9.0, 0.0]),
+        },
+    );
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetPlacement {
+            node: ids[1],
+            frame: Frame::translation([9.0, 0.0, 0.0]),
+        },
+    );
+    let ev = run(&doc, &opts);
+    assert_eq!(ev.part_evaluations, 1, "the second instance is a cache hit");
+    let log = |id: RecipeNodeId| {
+        ev.result(id)
+            .and_then(NodeResult::value)
+            .expect("the instance evaluates")
+            .verdicts
+            .clone()
+    };
+    let (first, second) = (log(ids[0]), log(ids[1]));
+    // The part's own decisions are the part document's, not the
+    // instantiator's: evaluated directly, the part records far more
+    // than the op that places it does.
+    let part_doc = part("asm2a-vlog-part", 0.0, 1.0);
+    let direct = run(&part_doc, &EvalOptions::default());
+    let direct_total: usize = direct
+        .nodes
+        .values()
+        .filter_map(NodeResult::value)
+        .map(|v| v.verdicts.len())
+        .sum();
+    assert!(
+        !first.is_empty(),
+        "the instance that ran the part records its own op's decisions: {} verdicts at the \
+         first instance, {} at the second, {direct_total} on the part evaluated directly",
+        first.len(),
+        second.len()
+    );
+    assert_eq!(
+        first,
+        second,
+        "the two instances' ops make the same decisions: {} vs {} verdicts",
+        first.len(),
+        second.len()
+    );
+    // The counts are literals on purpose: a row that only compares the
+    // two instances passes when both lose the same decisions. 466 is
+    // the placing op's own log on this part (placement + validation of
+    // the placed body); 724 is the part's, on its own nodes.
+    assert_eq!(first.len(), 466, "the instantiate op's own decisions");
+    assert_eq!(direct_total, 724, "the part's decisions on its own nodes");
+}
+
 // ---- Row 3: instance-qualified naming ----
 
 fn instance_names(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<StableName> {
@@ -706,7 +789,11 @@ fn row6_placement_is_part_of_the_content_key() {
     assert!((min_x(&body) - 3.5).abs() < 1e-12);
 
     // And a re-evaluation with NO edit reuses — and asks the seam
-    // nothing at all (the lazy cache's whole point).
+    // nothing at all. That is the memo's contract and not a shortcut
+    // in it (DI2): the memo is a pure function of the document, and
+    // for an instantiate node the pin IS the content, so the served
+    // value is exactly what this document pins. Store freshness is the
+    // mounting session's question.
     let third = evaluate::<f64>(
         &moved,
         Some(&second),

@@ -102,38 +102,59 @@ fn dump(body: &Body<f64>) -> String {
 /// **Opening nappe, the pass.** On the apex-below cone the window is
 /// `v ∈ [0.5, 1.0]` and `d = -0.05` shifts it toward the apex by
 /// `0.0375` — nowhere near zero, so the predicate must pass and the
-/// door must fall through to the C5 gate (`cone × cylinder` unrouted).
-/// A predicate whose mirror-nappe derivation broke the primary form
-/// would refuse HERE.
+/// door must fall THROUGH it. A predicate whose mirror-nappe derivation
+/// broke the primary form would refuse HERE.
+///
+/// **This row does not pin an ordering** — on this fixture the C5 gate
+/// cannot fire at all (both of the cone's neighbours are cylinders, and
+/// that pair is routed), so nothing here says the apex predicate runs
+/// FIRST; the crossing rows do. What it pins is the pass itself: the
+/// predicate lets a small `d` through, and the door that then refuses
+/// is named with its magnitude — the per-chart re-anchor gate at
+/// `|d|·cos α`, `cos α = 0.6` on this fixture. `cone × cylinder` was
+/// this row's stop until the coaxial arm routed the pair, and the same
+/// call now proceeds one door deeper.
 #[test]
 fn opening_nappe_small_d_passes_the_apex_predicate() {
     for d in [-0.05_f64, 0.05] {
         let mut body = cone_up_tube();
         let face = cone_face(&body);
         let e = topo::replace_face_offset(&mut body, face, d, FIT_TOL, band(), Tol::witness())
-            .expect_err("cone x cylinder has no route arm");
+            .expect_err("the untouched cylinders cannot hold the cone's moved rims");
         assert!(
-            matches!(
-                e,
-                ReplaceFaceError::NeighborPairUnroutable {
-                    kind: geom_brep::SurfaceKind::Cone,
-                    other_kind: geom_brep::SurfaceKind::Cylinder,
-                    ..
-                }
-            ),
-            "d = {d}: the apex predicate must pass on the opening nappe and \
-             the C5 gate must be what refuses; got {e}"
+            !matches!(e, ReplaceFaceError::ApexWindow { .. }),
+            "d = {d}: the apex predicate must pass on the opening nappe; got {e}"
+        );
+        assert!(
+            !matches!(e, ReplaceFaceError::NeighborPairUnroutable { .. }),
+            "d = {d}: cone x cylinder is routed and must not shadow the honest \
+             door; got {e}"
+        );
+        let ReplaceFaceError::ReanchorOffCarrier { gap, .. } = e else {
+            panic!("d = {d}: expected the per-chart re-anchor refusal, got {e}");
+        };
+        assert!(
+            (gap - d.abs() * 0.6).abs() < 1e-12,
+            "d = {d}: the corner error is |d|·cos alpha, got {gap}"
         );
     }
 }
 
 /// **Opening nappe, the crossing.** `cot α = 0.75`, window inf `0.5`:
-/// `d = -1.0` shifts the inf to `-0.25`, across the apex — the refusal
-/// must be `ApexWindow`, NOT the C5 refusal that the same face draws at
-/// small `d`, which pins the predicate ahead of the route gate on THIS
-/// nappe too (the suite pins it only on the mirror one).
+/// `d = -1.0` shifts the inf to `-0.25`, across the apex, and the
+/// refusal must be `ApexWindow` on THIS nappe as it is on the mirror
+/// one — the mirror-nappe derivation of the predicate applied to the
+/// primary form is what this fixture isolates.
+///
+/// **This row no longer pins an ORDERING**, and its old name said it
+/// did. On `cone_up_tube` the C5 gate cannot fire at any `d`: both of
+/// the cone's neighbours are cylinders and that pair is routed, so
+/// "before the route gate" names a race with nothing in the other lane.
+/// What still carries the apex predicate's PLACE in the sequence is the
+/// mirror-nappe crossing row in the acceptance suite, whose fixture has
+/// an unrouted neighbour.
 #[test]
-fn opening_nappe_apex_crossing_refuses_before_the_route_gate() {
+fn opening_nappe_apex_crossing_refuses_typed() {
     let mut body = cone_up_tube();
     let face = cone_face(&body);
     let e = topo::replace_face_offset(&mut body, face, -1.0, FIT_TOL, band(), Tol::witness())
@@ -147,13 +168,14 @@ fn opening_nappe_apex_crossing_refuses_before_the_route_gate() {
 /// **The sign is monotone the right way.** A large `d` AWAY from the
 /// apex (`+5.0` on the opening nappe, window landing at `[4.25, 4.75]`)
 /// must not trip the predicate — a `|shift|`-shaped bug would refuse
-/// here. The C5 gate is again the expected stop.
+/// here. Some later door is the expected stop, and which one is not
+/// this row's claim: the property is that the apex predicate is not it.
 #[test]
 fn a_large_d_away_from_the_apex_is_not_an_apex_crossing() {
     let mut body = cone_up_tube();
     let face = cone_face(&body);
     let e = topo::replace_face_offset(&mut body, face, 5.0, FIT_TOL, band(), Tol::witness())
-        .expect_err("cone x cylinder still has no route arm");
+        .expect_err("a shift this large leaves the body undescribable somewhere");
     assert!(
         !matches!(e, ReplaceFaceError::ApexWindow { .. }),
         "a shift away from the apex must not read as a crossing; got {e}"

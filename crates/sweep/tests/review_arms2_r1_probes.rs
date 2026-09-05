@@ -18,9 +18,9 @@ use geom::{Curve3, Surface};
 use geom_core::{Point2, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::revolved_about_y;
+use sweep::test_support::pappus::{pappus_volume, sector, segment, triangle};
+use sweep::test_support::{one_edge_rim, revolved_about_y};
 use topo::{Body, EdgeKey, validate_geometric};
 
 fn tol() -> Tol {
@@ -61,7 +61,7 @@ fn closed_rim_at(body: &Body<f64>, r: f64, y: f64) -> EdgeKey {
         .map(|(k, _)| k)
         .collect();
     assert_eq!(hits.len(), 1, "one closed rim of radius {r} at y = {y}");
-    hits[0]
+    one_edge_rim(body, hits[0])
 }
 
 fn band_torus(body: &Body<f64>, face: topo::FaceKey) -> (f64, f64, f64) {
@@ -296,13 +296,26 @@ fn snowman() -> Body<f64> {
 }
 
 /// The waist of two UNIONED spheres is a valley: the rolling ball sits
-/// in the void and its band would ADD material, which the composition
-/// surgery does not build. So the honest refusal here is the concave
-/// chain's, and the fact this row now pins is that the SPINE door is
-/// passed — the battery classifies the pair, mints its torus, and hands
-/// the chain on.
+/// in the void and its band ADDS material. The SPINE door is passed —
+/// the battery classifies the pair and mints its torus — and the
+/// closed-rim surgery then carves that torus as one annulus band on the
+/// void side: tier-3 valid, the two-crossing census delta, the volume
+/// pad exactly zero, and the volume grown by a closed form. The lentil's
+/// convex equator (`verbs_arms3`) is the same arm with the other sign.
+///
+/// **The fill, by hand.** In the meridian half-plane the spheres are
+/// `C₁ = (0, 0)` and `C₂ = (0, 1.2)`, both of radius `1`, meeting at
+/// `V = (0.8, 0.6)`; the ball rests in the void OUTSIDE both, so its
+/// centre is at `1 + r` from each, on the bisector `y = 0.6`:
+/// `C = (√((1+r)² − 0.36), 0.6)`. Its feet are the points of each
+/// sphere on the ray from that sphere's centre through `C`:
+/// `Fᵢ = Cᵢ + (C − Cᵢ)/(1 + r)`. The fill is the kite `V F₁ C F₂` minus
+/// the ball's sector between the feet, minus the two circular segments
+/// between each chord `V Fᵢ` and its sphere arc — the arcs bulge AWAY
+/// from their centres, INTO the kite, and what lies between chord and
+/// arc is material. Pappus over the pieces' first moments gives `ΔV`.
 #[test]
-fn a_sphere_sphere_waist_reaches_its_arm_and_refuses_as_a_concave_chain() {
+fn a_sphere_sphere_waist_reaches_its_arm_and_carves_as_a_concave_chain() {
     let source = snowman();
     // Both walls really are spheres with distinct centres.
     let mut sphere_centres: Vec<f64> = source
@@ -319,15 +332,58 @@ fn a_sphere_sphere_waist_reaches_its_arm_and_refuses_as_a_concave_chain() {
     assert_eq!(sphere_centres.len(), 2, "two sphere walls");
     assert!((sphere_centres[0]).abs() < 1e-12 && (sphere_centres[1] - 1.2).abs() < 1e-12);
     let waist = closed_rim_at(&source, 0.8, 0.6);
-    match fillet_edges(&source, &[waist], 0.05, tol()).map_err(|r| r.error) {
-        Err(BlendError::UnsupportedChain { detail, .. }) => {
-            assert!(
-                detail.contains("concave"),
-                "the waist is a valley, so the refusal is the concave chain's: {detail}"
-            );
-        }
-        other => panic!("a sphere-sphere waist refuses as a concave chain, got {other:?}"),
-    }
+    let v0 = topo::mass_properties(&source, tol())
+        .expect("mass properties")
+        .volume;
+    let out = fillet_edges(&source, &[waist], 0.05, tol())
+        .unwrap_or_else(|e| panic!("a sphere-sphere waist carves as a concave chain, got {e:?}"));
+    assert_eq!(out.band_faces.len(), 1, "one annulus band");
+    validate_geometric(&out.body, tol())
+        .unwrap_or_else(|e| panic!("the waist carves tier-3 valid, got {e:?}"));
+    let props1 = topo::mass_properties(&out.body, tol()).expect("mass properties");
+    let v1 = props1.volume;
+    assert!(
+        v1 > v0,
+        "a concave band ADDS material: {v1} must exceed {v0}"
+    );
+    assert_eq!(
+        props1.volume_pad, 0.0,
+        "closed-form inventory: spheres and a torus, the pad is exactly zero"
+    );
+    let census = |b: &Body<f64>| (b.vertices().count(), b.edges().count(), b.faces().count());
+    let (c0, c1) = (census(&source), census(&out.body));
+    // A ONE-edge rim crossed by one wall seam: the crossing mints a host
+    // and a mate foot and retires the rim's one vertex (+1), the trimlines
+    // and seam pieces net +2 edges against the rim edge retired, and the
+    // strips merge into the one band face (+1).
+    assert_eq!(
+        (c1.0 - c0.0, c1.1 - c0.1, c1.2 - c0.2),
+        (1, 2, 1),
+        "the one-crossing band's census delta, {c0:?} → {c1:?}"
+    );
+    let r = 0.05_f64;
+    let (c1_, c2_) = ((0.0, 0.0), (0.0, 1.2));
+    let vtx = (0.8, 0.6);
+    let ball_c = (((1.0 + r).powi(2) - 0.36).sqrt(), 0.6);
+    let foot = |o: (f64, f64)| {
+        (
+            o.0 + (ball_c.0 - o.0) / (1.0 + r),
+            o.1 + (ball_c.1 - o.1) / (1.0 + r),
+        )
+    };
+    let (f1, f2) = (foot(c1_), foot(c2_));
+    let fill = pappus_volume(&[
+        (1.0, triangle(vtx, f1, ball_c)),
+        (1.0, triangle(vtx, ball_c, f2)),
+        (-1.0, sector(ball_c, r, f1, f2)),
+        (-1.0, segment(c1_, 1.0, vtx, f1)),
+        (-1.0, segment(c2_, 1.0, vtx, f2)),
+    ]);
+    assert!(
+        (v1 - v0 - fill).abs() < 1e-13,
+        "the sphere×sphere fill is the Pappus closed form: measured {} vs derived {fill}",
+        v1 - v0
+    );
     // The arm door itself is PASSED, and the roster says so: the pair
     // the refusal above no longer names is advertised as implemented.
     assert!(
@@ -343,51 +399,11 @@ fn a_sphere_sphere_waist_reaches_its_arm_and_refuses_as_a_concave_chain() {
 // Armed by BITDUMP_DIR exactly as `bitdump.rs` is; clean skip unarmed.
 // ------------------------------------------------------------------
 
-fn dump(body: &Body<f64>) -> String {
-    let mut s = String::new();
-    let _ = writeln!(
-        s,
-        "census V={} E={} F={}",
-        body.vertices().count(),
-        body.edges().count(),
-        body.faces().count()
-    );
-    for (k, _) in body.vertices() {
-        let p = body
-            .get_vertex(k)
-            .and_then(|vv| body.get_point(vv.point))
-            .unwrap();
-        let _ = writeln!(s, "V {k:?} ({:?}, {:?}, {:?})", p.x, p.y, p.z);
-    }
-    for (k, e) in body.edges() {
-        let _ = write!(s, "E {k:?} he+={:?} he-={:?}", e.he_plus, e.he_minus);
-        match body.get_curve_geom(e.curve).and_then(|g| g.certified()) {
-            Some(c) => {
-                let (t0, t1) = c.params();
-                let _ = writeln!(
-                    s,
-                    " carrier={:?} params=({t0:?}, {t1:?}) desc={:?}",
-                    c.carrier(),
-                    c.description()
-                );
-            }
-            None => {
-                let _ = writeln!(s, " UNCERTIFIED");
-            }
-        }
-    }
-    for (k, _) in body.faces() {
-        let fd = body.get_face(k).unwrap();
-        let surf = body.get_surface(fd.surface).unwrap();
-        let _ = writeln!(
-            s,
-            "F {k:?} sense={:?} rings={} surface={surf:?}",
-            fd.sense,
-            fd.rings.len()
-        );
-    }
-    s
-}
+// The dump function has ONE home, `bitdump::dump` — this row used to
+// carry a copy that omitted the mass-properties line, which made it
+// blind to a volume, area or pad move on the very path it exists to
+// watch.
+use crate::bitdump::dump;
 
 #[test]
 fn bitdump_dome_annulus() {

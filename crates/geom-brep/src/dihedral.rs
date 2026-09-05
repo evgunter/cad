@@ -194,17 +194,92 @@ pub fn classify_dihedral<T: Decide>(
 /// second-order jet margin the tier-3 validator decides.
 ///
 /// "One home" is **aspiration, not fact**, and the gap is filed as
-/// issue 1439: six hand-rolled siblings of this fold remain across
-/// the workspace, and `contact_tangent_opposed` is
+/// issue 1439. Three hand-rolled siblings of this fold remain across
+/// the workspace — `topo::boolean::contact_verify` (the fold's own
+/// stated origin), `crate::ssi` and `topo::boolean::ops` — down from
+/// the six that issue counted: `crate::certify`, `sweep::extrude` and
+/// `sweep::revolve::upgrade` reach the fold through
+/// [`tangent_second_order`] now. `contact_tangent_opposed` is also
 /// [`classify_material_pairing`]'s own twin — the same C1 lemma
-/// between bodies rather than within one. Consolidating them is that
-/// issue's work, deliberately NOT absorbed here; until it lands, a
-/// new site levering against its own fold is a silent
+/// between bodies rather than within one. Consolidating the rest is
+/// that issue's work, deliberately NOT absorbed here; until it lands,
+/// a new site levering against its own fold is a silent
 /// non-comparability, so route new callers through this function.
 pub fn folded_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>, extent: T) -> T {
     curvature_lever_arm(s1, p)
         .min(curvature_lever_arm(s2, p))
         .min(extent)
+}
+
+/// **`tangent_second_order`** — the must-carry rule's one metered
+/// spelling (D2/OQ7): at a point `p` where the tangent planes already
+/// coincide ([`DihedralClass::Smooth`]), do the two surfaces still
+/// DETERMINE the locus one order up?
+///
+/// The margin is the sagitta the relative transverse normal curvature
+/// subtends over the pair's folded lever arm — `|κ_rel|·arm²/2` in
+/// meters, `κ_rel` from [`crate::tangent_jet`] along `tangent` and
+/// `arm` from [`folded_lever_arm`] — classified against the run's
+/// linear band:
+///
+/// - **`Positive`** — jet-determinate: the surfaces determine the
+///   locus, so prefer-intrinsic demands the intrinsic
+///   [`crate::EdgeDescription::TangentIntersection`] and a constructor
+///   that stores less is storing a description tier 3 will refuse.
+/// - **`Zero`/`Negative`** — under-determined (a G2 join, a
+///   same-surface split, coplanar planes): the conventional
+///   description is the honest one, BY THIS PREDICATE.
+/// - **`Err`** — in-band: near-osculating geometry that is certifiable
+///   as neither, escalated typed at the caller (D4 ¶3).
+///
+/// **Why one home.** The constructor that stores the description and
+/// the tier-3 arm that demands it must read the SAME quantity under
+/// the SAME predicate name, or the demanded set and the stored set are
+/// two sets and every disagreement is a spurious
+/// `DescriptionNotAdjacent`. Every smooth-join arm in the sweep verbs
+/// routes here, as do `Intersection`-tangency certification and the
+/// boolean rim wedge; the two remaining hand-rolled siblings are the
+/// tier-3 validator's (`topo::validate`) and the boolean rebuild's
+/// (`topo::boolean::ops`), which fold this margin into a per-sample
+/// walk they already run — issue 1439's work. A new site spelling its
+/// own is a silent non-comparability.
+///
+/// The [`SecondOrder`] return carries the jet and the arm beside the
+/// verdict, because the two callers that fold this into a longer walk
+/// need the same numbers again a line later (the tangency certificate's
+/// parallelism lever arm, the wedge's signed cusp side) and computing
+/// them twice is how two spellings start.
+pub fn tangent_second_order<T: Decide>(
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    p: Point3<T>,
+    tangent: geom_core::Vec3<T>,
+    extent: T,
+    band: Band,
+) -> SecondOrder<T> {
+    let jet = crate::tangent::tangent_jet(s1, s2, p, tangent);
+    let arm = folded_lever_arm(s1, s2, p, extent);
+    let verdict = decide(
+        "tangent_second_order",
+        Margin::sagitta(jet.kappa_rel.abs(), arm),
+        band,
+    );
+    SecondOrder { jet, arm, verdict }
+}
+
+/// [`tangent_second_order`]'s reading: the verdict, and the two
+/// quantities it was read from.
+#[derive(Clone, Copy, Debug)]
+pub struct SecondOrder<T: geom_core::Real> {
+    /// The pair's jet at the sample ([`crate::tangent_jet`]).
+    pub jet: crate::TangentJet<T>,
+    /// The folded lever arm the sagitta was subtended over
+    /// ([`folded_lever_arm`]).
+    pub arm: T,
+    /// The classified sagitta — `Positive` jet-determinate,
+    /// `Zero`/`Negative` under-determined, `Err` in-band (predicate
+    /// `"tangent_second_order"`).
+    pub verdict: Result<Sign, Indeterminate>,
 }
 
 /// **The material wedge** an edge's two faces subtend at a sample —

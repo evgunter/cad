@@ -75,17 +75,17 @@ pub mod ssi;
 pub mod tangent;
 
 pub use certify::{
-    CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec, edge_extent,
-    sample_param,
+    CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec, NurbsLane,
+    edge_extent, sample_param,
 };
 pub use description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };
 pub use dihedral::{
-    DihedralClass, MaterialPairing, MaterialWedge, classify_dihedral, classify_material_pairing,
-    folded_lever_arm, material_kappa_rel,
+    DihedralClass, MaterialPairing, MaterialWedge, SecondOrder, classify_dihedral,
+    classify_material_pairing, folded_lever_arm, material_kappa_rel, tangent_second_order,
 };
-pub use edge_nurbs::{EdgeNurbsLane, PlaneNurbsLimbs, PlaneNurbsRefusal};
+pub use edge_nurbs::{PlaneNurbsLimbs, PlaneNurbsRefusal, plane_nurbs_limbs};
 pub use enters::{
     EntersMaterial, OutwardNormal, ReferenceNormal, enters_material, enters_material_order2,
 };
@@ -94,11 +94,11 @@ pub use implicit::{
     implicit_gradient, implicit_hessian_form, implicit_max_normal_curvature, implicit_residual,
 };
 pub use intersect::{
-    CoaxialEvidence, CylinderSphereSection, EqualCylinderSection, PairRoute, PlaneConeSection,
-    PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection, RadiusEvidence, Rung,
-    SectionError, SphereSphereSection, SurfaceKind, cylinder_cylinder_section,
-    cylinder_sphere_section, plane_cone_section, plane_cylinder_section, plane_sphere_section,
-    plane_torus_section, route, sphere_sphere_section,
+    CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, PairRoute,
+    PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection, RadiusEvidence,
+    Rung, SectionError, SphereSphereSection, SurfaceKind, cone_cylinder_section,
+    cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section, plane_cylinder_section,
+    plane_sphere_section, plane_torus_section, route, sphere_sphere_section,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use mapped::{MappedCurve, SketchSegment};

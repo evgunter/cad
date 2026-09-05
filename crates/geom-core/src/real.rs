@@ -467,9 +467,12 @@ pub trait Real:
 /// obligation because it DELEGATES to already-listed doors
 /// (`sweep::blend::build`'s `fillet_edges`/`chamfer_edges`; since the
 /// boolean's migration also `topo::boolean_op_with`, itself listed
-/// under the M5 PR 8 BVH candidate-generation allowance), passing
-/// its operands and parameters through unchanged, and therefore
-/// inherits their signatures rather than widening the rule's reach.
+/// under the M5 PR 8 BVH candidate-generation allowance; since the
+/// sweeps' and the split's migrations also `sweep::extrude`,
+/// `sweep::revolve` and `topo::split`, the last of which asks for no
+/// [`Bounds`] at all), passing its operands and parameters through
+/// unchanged, and therefore inherits their signatures rather than
+/// widening the rule's reach.
 ///
 /// **It clears the first thing an entry owes** — that its reads stay
 /// on the prune/report side — vacuously and checkably: the file
@@ -663,7 +666,7 @@ pub mod bounds_allowlist {
     //! by propagation. **Doors tighten; passes keep their lanes.** (The
     //! NON-generic return type is not the discriminator; the M9-2 entry
     //! states it. Whether an answer is *wrong* at a dual is a third question,
-    //! homed at `geom::projection`'s `mid`, #874.)
+    //! homed at `geom::projection_policy`'s `mid`, #874.)
     //!
     //! **M5 PR 11 (Ev's lane-split ruling) — `topo::props`'s
     //! certified-quadrature plumbing**, which decides (its `props_quad_*`
@@ -683,6 +686,12 @@ pub mod bounds_allowlist {
     //! VERBS-CHAMFER both edge-blend front doors sit here: `chamfer_edges` is
     //! written inside these same three files deliberately, so the
     //! ratification covers the shared lane rather than a fourth file.
+    //! Re-scoped 2026-09-05 (FILLET-SPLIT, under Ev's ruling on PR 1916 that
+    //! a move with no design implication needs no ask): the two open bands'
+    //! carves left `surgery.rs` for `blend/open/planar.rs` and
+    //! `blend/open/ruled.rs` unchanged, so this one seam is now spelled
+    //! over five files — the file list is the entry's spelling, the seam is
+    //! the ratified thing, and nothing about its scope was extended.
     //!
     //! It is the one allowlisted seam with **no refusing lane**, and the
     //! written reason it needs none is the delegation rule below: every
@@ -703,7 +712,7 @@ pub mod bounds_allowlist {
     //! branch is the base scalar's branch. The locally-constant condition is
     //! load-bearing, not decoration: a frozen `f64` choice is tangent-sound
     //! only while the chosen quantity cannot move with a seed, and
-    //! `geom::projection`'s `mid` freeze (issue 874's class) is the live
+    //! `geom::projection_policy`'s `mid` freeze (issue 874's class) is the live
     //! counterexample shape when it is not. A read that MINTS a certificate
     //! object or feeds a [`CertifiedEnclosure`](super::CertifiedEnclosure) consumer is never exempt: it
     //! needs a refusing lane in the `PropsQuadLane` shape, and admitting one
@@ -727,13 +736,48 @@ pub mod bounds_allowlist {
     //! plane × NURBS declare-and-check edge lane and the narrowest possible
     //! extension of M6-2: it DELEGATES to the already-listed `certify_rung3`
     //! door with a **declared** carrier instead of a marched one, inheriting
-    //! that door's signature rather than widening the rule's reach, and
-    //! splits in the ratified shape (`EdgeNurbsLane`, refusing at a dual). It
+    //! that door's signature rather than widening the rule's reach. It
     //! is what keeps `Bounds` off `topo`'s DEFAULT doors: the lane is a
     //! SEPARATE door whose own impl block carries the lane bound
     //! (`Body::set_edge_curve_nurbs_lane`), with `_via(…, f)` parameterising
     //! the shared machinery. Injection moves a bound onto a narrower
     //! signature; it does not remove one.
+    //!
+    //! **2026-09-02, amending the entry above rather than adding a row — the
+    //! lane's split is a BOUND, not a trait.** This lane's static split was
+    //! spelled as a `Decide` subtrait with three forwarding impls and a
+    //! refusing `Dual` one. The trait is deleted: the shared certified body
+    //! is the free function `geom_brep::plane_nurbs_limbs`, at
+    //! `Decide + `[`Bounds`](super::Bounds)` + `[`CertifiedEnclosure`](super::CertifiedEnclosure)
+    //! exactly as before, and the two DOORS that name it carry
+    //! `Decide + `[`CertifiedBounds`](super::CertifiedBounds) —
+    //! `geom_brep::certify`'s `certify_nurbs_lane`/`recertify_nurbs_lane`
+    //! impl block and `topo::euler`'s `set_edge_curve_nurbs_lane` door. Both
+    //! files join this allowlist for that reason and no other; the
+    //! per-file scope consequence is real and is the price of writing the
+    //! obligation where a grep can read it, which is the whole point of
+    //! retiring the trait name. **The compound is forced rather than
+    //! preferred**: [`Decide`](crate::Decide) descends from `SpanLocate` and
+    //! [`Bounds`](super::Bounds) from [`Real`](super::Real), so no sole bound in
+    //! the tree spells "decides AND may certify" — the next tighter spelling
+    //! is not a weaker term but a missing one, and dropping either term stops
+    //! the door compiling. **What changed is the mechanism, not the
+    //! strictness**: a dual reached the trait and got
+    //! `PlaneNurbsRefusal::LaneUnsupported` at run time; now it cannot form
+    //! the call, and the refusal variant is retired with the impl that raised
+    //! it. **What a mixed pass does instead** is take the lane as an
+    //! ARGUMENT: `topo::validate`'s check 2 re-certifies through
+    //! `EdgeCurve::recertify_via`, whose `Option<NurbsLane>` the composed
+    //! certified entry fills and the structural half and the two lane-keeping
+    //! at-rest passes leave empty — the M7-8 class is then not re-derived
+    //! and, being outside those doors' rights, not reported either
+    //! (`EdgeCurve::needs_nurbs_lane` is where that question is asked).
+    //! **The symbolic tier needs no arm of its own and gains none**:
+    //! `Sym<T>` implements [`Bounds`](super::Bounds),
+    //! [`CertifiedEnclosure`](super::CertifiedEnclosure) and
+    //! [`Decide`](crate::Decide) exactly when its base scalar does, so it
+    //! satisfies the free function's signature for every certifying base —
+    //! which is what the deleted trait's symbolic impl said with an impl.
     //!
     //! **M9-2 PR-1 (under the PR 11 precedent; retroactive Ev review) —
     //! `topo::chart_region`**, the chart-region overlap predicate: it decides

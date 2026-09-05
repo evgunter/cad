@@ -45,8 +45,8 @@ use editor_core::stackup::{
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
     DocParam, DocParamValue, EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr,
-    MeasurePrimitive, MeasureRef, Node, NodeResult, ParamName, ProfileDoc, ProfileProgram,
-    RecipeNodeId, RoleSeg, ValuePayload, evaluate,
+    MeasurePrimitive, Node, NodeResult, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId,
+    RoleSeg, SitedRef, ValuePayload, evaluate,
 };
 use geom_core::Tol;
 
@@ -155,7 +155,7 @@ fn contains_nominal(chamber: &Chamber) -> bool {
 
 /// One cylindrical wall of a circular extrude, read at that extrude,
 /// found the way a user finds it (the selection door).
-fn cyl_wall(ev: &Evaluation<f64>, doc: &ProfileDoc, node: RecipeNodeId) -> MeasureRef {
+fn cyl_wall(ev: &Evaluation<f64>, doc: &ProfileDoc, node: RecipeNodeId) -> SitedRef {
     let mut faces = editor_core::select_where(
         ev,
         node,
@@ -168,11 +168,11 @@ fn cyl_wall(ev: &Evaluation<f64>, doc: &ProfileDoc, node: RecipeNodeId) -> Measu
     )
     .expect("the surface-kind atom is exact");
     faces.sort();
-    MeasureRef::new(node, faces.remove(0))
+    SitedRef::new(node, faces.remove(0))
 }
 
 /// The vertex of `node`'s body at `at`, by name.
-fn vertex_at(ev: &Evaluation<f64>, node: RecipeNodeId, at: [f64; 3]) -> MeasureRef {
+fn vertex_at(ev: &Evaluation<f64>, node: RecipeNodeId, at: [f64; 3]) -> SitedRef {
     let v = editor_core::all_vertices(ev, node)
         .into_iter()
         .find(|v| {
@@ -180,7 +180,7 @@ fn vertex_at(ev: &Evaluation<f64>, node: RecipeNodeId, at: [f64; 3]) -> MeasureR
             p.x == at[0] && p.y == at[1] && p.z == at[2]
         })
         .unwrap_or_else(|| panic!("node {node:?} has a vertex at {at:?}"));
-    MeasureRef::new(node, v)
+    SitedRef::new(node, v)
 }
 
 /// **The two-hole plate** (M10-2's e2e document, distributions from
@@ -326,8 +326,8 @@ fn kink(dist: Distribution) -> (ProfileDoc, RecipeNodeId) {
             .unwrap_or_else(|| panic!("node {node:?} has a vertex at ({x}, 0, 0)"))
     };
     let refs = vec![
-        MeasureRef::new(cube, at(cube, 1.0)),
-        MeasureRef::new(copy, at(copy, 1.0)),
+        SitedRef::new(cube, at(cube, 1.0)),
+        SitedRef::new(copy, at(copy, 1.0)),
     ];
     let m = r.insert(
         Node::measure(
@@ -363,8 +363,8 @@ fn slab(half: f64) -> (ProfileDoc, RecipeNodeId) {
         distance: param("depth", Dimension::Length),
     });
     let refs = vec![
-        MeasureRef::new(block, fname(block, RoleSeg::Cap(CapEnd::Bottom))),
-        MeasureRef::new(block, fname(block, RoleSeg::Cap(CapEnd::Top))),
+        SitedRef::new(block, fname(block, RoleSeg::Cap(CapEnd::Start))),
+        SitedRef::new(block, fname(block, RoleSeg::Cap(CapEnd::End))),
     ];
     let m = r.insert(
         Node::measure(
@@ -929,8 +929,8 @@ fn a_refusing_measure_is_a_per_entry_refusal_not_a_driver_failure() {
     .expect("exact atom");
     walls.sort();
     let refs = vec![
-        MeasureRef::new(hole, walls.remove(0)),
-        MeasureRef::new(plate_node, fname(plate_node, wall(0))),
+        SitedRef::new(hole, walls.remove(0)),
+        SitedRef::new(plate_node, fname(plate_node, wall(0))),
     ];
     let doc = push(
         &doc,

@@ -65,12 +65,20 @@
 //! the census reaches the touching/overlap space and nothing in it
 //! validates silently). The gather stays on the local battery because
 //! tier 3′ is quadratic in the aggregate's entities, which a caller
-//! gathering on every edit cannot afford: the heatsink at 160 fins
-//! (966 faces) costs ~1.1 s there, against ~28 ms for the whole check
-//! registry over the same product (gather included). The per-call
-//! split between this gather and the resident above it was never
-//! measured separately and no number for it is stated here. What the
-//! gather
+//! gathering on every edit cannot afford: the heat sink at 160 fins
+//! (161 solids / 991 faces) costs ~11.4 s there — refusing, with 125
+//! findings — where THIS gather costs ~250 ms and the whole check
+//! registry over a subject already gathered costs ~8 ms. The split is
+//! the reason a caller gathers ONCE: the gather, not the resident
+//! above it, is what a landing pays for. (That the doubled gather was
+//! therefore most of the doubled cost is an INFERENCE from those three
+//! numbers, not a fourth measurement: nothing here has timed a landing
+//! before and after.) The figures are a dev-profile wall clock and
+//! machine-dependent; the ones of record are hosted, re-taken by the
+//! `registry split` row of
+//! `crates/editor-core/tests/m4_pr8_latency.rs` on a nightly cron
+//! gated on `main` having moved, and appended to
+//! `docs/perf-data/rebuild-latency/`. What the gather
 //! DOES owe — [`topo::graft_disjoint_all_keyed`] asserts nothing about
 //! its operands, so every caller of it must establish disjointness —
 //! is discharged by [`crate::checks`]'s separation resident, which
@@ -85,7 +93,7 @@ use topo::{AtRestPolicy, Body, ContactRecords, ValidationError};
 
 use crate::doc::Doc;
 use crate::eval::{BooleanValue, Evaluation, NodeResult, NodeValue, SplitSide, ValuePayload};
-use crate::names::{EntityKey, EntityRef, Entry, NameTable, StableName};
+use crate::names::{EntityKey, EntityRef, Entry, NameTable, SplitHalf, StableName};
 use crate::node::RecipeNodeId;
 use geom_core::Tol;
 
@@ -93,6 +101,17 @@ use geom_core::Tol;
 /// the roots or none of them — there are no partial products.
 #[derive(Debug)]
 pub enum ProductError {
+    /// The evaluation is an evaluation of ANOTHER document (DI3).
+    /// Raised before the first root is read: node ids are minted per
+    /// document, so a foreign evaluation can carry entries for these
+    /// very ids and gather a product out of another document's
+    /// geometry without a single lookup missing.
+    EvaluationOfAnotherDocument {
+        /// The document whose product was asked for.
+        expected: crate::ident::DocumentId,
+        /// The document the handed evaluation is of.
+        found: crate::ident::DocumentId,
+    },
     /// A root has no entry in this evaluation (never scheduled, or
     /// past a cancelation's completed prefix).
     UnknownNode {
@@ -174,6 +193,11 @@ impl core::fmt::Display for ProductError {
             Ok(())
         };
         match self {
+            Self::EvaluationOfAnotherDocument { expected, found } => write!(
+                f,
+                "product: the evaluation is of document {found}, not of \
+                 document {expected}",
+            ),
             Self::UnknownNode { node } => {
                 write!(
                     f,
@@ -252,6 +276,12 @@ impl core::error::Error for ProductError {}
 /// (the `BooleanBody` contract, which predates the channel), every
 /// other op's ride [`crate::eval::NodeValue::contacts`]. Downstream
 /// therefore never asks which op put records where.
+///
+/// A [`crate::Node::Part`] is a `Body` value and contributes exactly
+/// the body it selected. The half or instance it did NOT select is in
+/// no product through it: a split or a pattern consumed by a Part is
+/// no longer a sink, so it is no longer a root, and the product of a
+/// document whose only root is a `Part(Above)` is that one half.
 pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<T>>> {
     let carried = || Arc::clone(&value.contacts);
     let none = || Arc::new(ContactRecords::default());
@@ -277,15 +307,16 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
                 })
                 .collect(),
         ),
-        // Split's halves are output bodies 0 (above) and 1 (below);
-        // an EMPTY half contributes nothing but does not shift the
-        // other half's index — the index is the value's layout, not a
-        // position in this list.
+        // Split's halves are output bodies by `SplitHalf::output_body`
+        // (the one definition of that mapping); an EMPTY half
+        // contributes nothing but does not shift the other half's
+        // index — the index is the value's layout, not a position in
+        // this list.
         ValuePayload::Split { above, below } => Some(
-            [(0u32, above), (1u32, below)]
+            [(SplitHalf::Above, above), (SplitHalf::Below, below)]
                 .into_iter()
-                .filter_map(|(ix, side)| match side {
-                    SplitSide::Body(body) => Some((ix, Arc::clone(body), none())),
+                .filter_map(|(half, side)| match side {
+                    SplitSide::Body(body) => Some((half.output_body(), Arc::clone(body), none())),
                     SplitSide::Empty => None,
                 })
                 .collect(),
@@ -306,6 +337,37 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
     }
 }
 
+// Gathers this thread has performed, the debug-only witness of the
+// one-gather-per-landing invariant. Thread-local rather than global: a
+// witness two tests running in one process can both read is a witness
+// neither can trust.
+#[cfg(debug_assertions)]
+thread_local! {
+    static GATHERS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// How many times [`product_recorded`] has run on THIS thread — every
+/// call, refusals included, since a refused gather is still a gather
+/// paid for.
+///
+/// `cfg(debug_assertions)`-gated, the shape `topo::source`'s bit
+/// witnesses use. **That is not the same as "absent from a release
+/// build" here**: this workspace's `[profile.release]` sets
+/// `debug-assertions = true` deliberately (and says so, and says it
+/// comes out before publish), so every build this repo produces today
+/// carries the counter and the increment. What the gate buys is that
+/// cargo's OWN release defaults strip both, which is what a consumer
+/// building this crate normally gets — and that the day the stanza
+/// comes out, nothing here has to change.
+///
+/// It counts, and a caller reads a DIFFERENCE across the operation it
+/// is asking about; the absolute value means nothing.
+#[cfg(debug_assertions)]
+#[must_use]
+pub fn gathers_on_this_thread() -> u64 {
+    GATHERS.with(std::cell::Cell::get)
+}
+
 /// The document's product: every body-denoting root's solids gathered,
 /// in root-list order, into one [`Body`] (module docs).
 ///
@@ -315,10 +377,11 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
 ///
 /// # Errors
 ///
-/// Every arm of [`ProductError`]: a root that failed, was poisoned, or
-/// is absent from this evaluation; a document whose roots denote no
-/// body ([`ProductError::NoBodyRoots`]); the kernel's graft and
-/// at-rest validity refusals.
+/// Every arm of [`ProductError`]: an evaluation of another document
+/// ([`ProductError::EvaluationOfAnotherDocument`]); a root that
+/// failed, was poisoned, or is absent from this evaluation; a document
+/// whose roots denote no body ([`ProductError::NoBodyRoots`]); the
+/// kernel's graft and at-rest validity refusals.
 pub fn product<P, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
@@ -337,6 +400,16 @@ pub fn product<P, T: Decide + AtRestPolicy>(
 /// them would be a second truth about what a document's product is.
 #[derive(Debug)]
 pub struct Product<T: Decide> {
+    /// The document this product is OF (DI3).
+    ///
+    /// A gather is a statement about one document, and the doors that
+    /// take a gathered product rather than gathering for themselves
+    /// have no other way to check that it is the one they were asked
+    /// about — `crate::run_checks_on` refuses a product from another
+    /// document exactly as this gather refuses a foreign evaluation.
+    /// Written from `doc.id()` after the pairing door below, so it is
+    /// the identity BOTH arguments agreed on.
+    pub document: crate::ident::DocumentId,
     /// The gathered aggregate.
     pub body: Body<T>,
     /// Its stable names, re-keyed onto the aggregate ([`product_named`]).
@@ -400,9 +473,11 @@ pub struct SolidOrigin {
 ///
 /// # Errors
 ///
-/// Every arm of [`ProductError`], including [`ProductError::Naming`]
-/// when two roots' rows would name one aggregate entity or collide on
-/// one name — an aliasing bug surfaced, never resolved silently.
+/// Every arm of [`ProductError`], including
+/// [`ProductError::EvaluationOfAnotherDocument`] when `evaluation` is
+/// not an evaluation of `doc`, and [`ProductError::Naming`] when two
+/// roots' rows would name one aggregate entity or collide on one name
+/// — an aliasing bug surfaced, never resolved silently.
 pub fn product_named<P, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
@@ -428,13 +503,28 @@ pub fn product_named<P, T: Decide + AtRestPolicy>(
 /// # Errors
 ///
 /// Every arm of [`ProductError`], including
-/// [`ProductError::ContactLineage`] when the graft's bridge has no
-/// image for a record's entity.
+/// [`ProductError::EvaluationOfAnotherDocument`] — `evaluation` must
+/// be an evaluation OF `doc`, and this is the door all three read it
+/// through — and [`ProductError::ContactLineage`] when the graft's
+/// bridge has no image for a record's entity.
 pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     tol: Tol,
 ) -> Result<Product<T>, ProductError> {
+    #[cfg(debug_assertions)]
+    GATHERS.with(|gathers| gathers.set(gathers.get().saturating_add(1)));
+    // The pairing door (DI3), before the first root is read: this
+    // gather is a statement about `doc`, and an evaluation of another
+    // document answers about other geometry — silently, whenever the
+    // two documents' node ids overlap, which two documents built from
+    // one recipe always do.
+    if let Some(m) = crate::ident::mispaired(doc.id(), evaluation.document) {
+        return Err(ProductError::EvaluationOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        });
+    }
     // Pass 1: every root's value, refused whole. "No partial products"
     // means a FAILED root refuses even when a later root would have
     // supplied a body, so the whole list is read before anything is
@@ -534,6 +624,7 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     // refuses before any mate is read.
     let (minted, unminted) = crate::assembly::mint(doc, evaluation, &names, &mut contacts);
     Ok(Product {
+        document: doc.id(),
         body: aggregate,
         names,
         contacts,

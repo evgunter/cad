@@ -1207,11 +1207,26 @@ pub fn eval<T: Decide>(expr: &Expr, params: &ParamEnv<T>) -> Result<T, EvalError
 ///
 /// Band construction with these constants cannot fail; the `else` arm
 /// is unreachable but typed (no panic paths in this crate).
+///
+/// **Named, through the funnel.** This decision used to call
+/// `sign_within` directly, outside any named `classify` — and because
+/// the recorder's name channel was never reset, every K sample it
+/// recorded was charged to whichever predicate had classified LAST
+/// (1,054 samples in the corpus sweep at ε = 1e-6, found when M10-8
+/// scoped the name). It goes through the recorder's named evaluator
+/// door now (`k_stats::check_unlogged`) — its samples carry its own
+/// name, and it stays out of the VERDICT log, which is the verdict-diff
+/// engine's row-for-row comparison of certification predicates between
+/// the witness and a leaf: this check fires once per expression
+/// evaluation, a count the two lanes do not share, and logging it
+/// refused every M10-6 min-clearance box on a vector mismatch with no
+/// geometry changed. The ledger row says why no `Margin` door fits:
+/// `value · 0` carries `value`'s dimension, whatever that is.
 pub(crate) fn refuse_non_finite<T: Decide>(value: T) -> Result<T, EvalError> {
     let Ok(band) = Band::new(1e-100, 1e-50) else {
         return Err(EvalError::NonFiniteResult);
     };
-    match (value * T::zero()).sign_within(band) {
+    match geom_core::k_stats::check_unlogged("expr_non_finite", value * T::zero(), band, "F18") {
         Ok(Sign::Zero) => Ok(value),
         _ => Err(EvalError::NonFiniteResult),
     }

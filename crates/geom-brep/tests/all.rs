@@ -91,6 +91,8 @@ mod m8_f67_r1_probes;
 mod offa_r1_probes;
 #[path = "offb_r1_probes.rs"]
 mod offb_r1_probes;
+#[path = "onb_c_payoff_interval.rs"]
+mod onb_c_payoff_interval;
 #[path = "r2_probe_sphere_polar.rs"]
 mod r2_probe_sphere_polar;
 
@@ -206,6 +208,8 @@ mod cert_n2r2_class56_probes;
 
 #[path = "iso_rectangle_door.rs"]
 mod iso_rectangle_door;
+#[path = "kstats_escalation_channel.rs"]
+mod kstats_escalation_channel;
 #[path = "mesh10r1_probes.rs"]
 mod mesh10r1_probes;
 #[path = "mesh10r2_probes.rs"]

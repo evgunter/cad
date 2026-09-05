@@ -212,20 +212,17 @@ const LID_BASE: f64 = Y_MOUTH + LIFT;
 /// dome's foot at [`R_NECK`], the skirt between them is a cone of
 /// `Δr = −2/256` over `Δy = +6/256`.
 ///
-/// **That slope is a CONVEXITY constraint, not a taste.** The dome's
-/// foot is the sphere's 5-12-13 point, where the meridian's own slope
-/// is `|dy/dr| = 12/5 = 2.4`. A cone shallower than that meets the
-/// sphere in a VALLEY, and a concave chain adds material where a
-/// closed-rim carve only removes it — measured, not reasoned: a 45°
-/// skirt (`Δr = −4` over `Δy = +4`) authors and builds, and the fillet
-/// arm refuses its foot `UnsupportedChain { edge, detail: "a concave
-/// chain adds material, which no closed-rim carve builds — not
-/// implemented" }` while the flange's own rim and the knob's COMPOSE in
-/// the same breath. (That variant keeps the dome's 5-12-13 junctions
-/// exact by putting `DOME_C` at `LID_BASE − 1/256`; a 45° skirt against
-/// THIS centre would refuse one door earlier, at the arc's own
-/// equidistance check.) At `|dy/dr| = 3` the junction is convex and all
-/// three roll.
+/// **That slope is a CONVEXITY choice.** The dome's foot is the
+/// sphere's 5-12-13 point, where the meridian's own slope is
+/// `|dy/dr| = 12/5 = 2.4`. A cone shallower than that meets the sphere
+/// in a VALLEY — a concave rim, whose fillet band ADDS material (the
+/// closed-rim carve builds either side) — and a lid whose skirt fills
+/// into its own dome is not this lid. At `|dy/dr| = 3` the junction is
+/// convex and all three rims roll outward, the way a lid's skirt
+/// should. (A 45° skirt, `Δr = −4` over `Δy = +4`, authors and builds;
+/// the variant that keeps the dome's 5-12-13 junctions exact puts
+/// `DOME_C` at `LID_BASE − 1/256`, and against THIS centre it refuses
+/// one door earlier, at the arc's own equidistance check.)
 const R_FLANGE: f64 = 14.0 / 256.0;
 /// Where the conical flange ends and the dome's sphere begins.
 const Y_FLANGE: f64 = LID_BASE + 6.0 / 256.0;
@@ -490,7 +487,20 @@ fn rim_at(body: &Body<f64>, y: f64, r: f64) -> EdgeKey {
         1,
         "the description (station {y}, radius {r}) names exactly one rim"
     );
-    hits[0]
+    // The description names an ARC; the query seat says which rim it
+    // belongs to, and on this body that rim is the arc itself.
+    //
+    // These five lines are a STRUCTURAL copy of
+    // `sweep::test_support::one_edge_rim`, not a drifted one: the tour
+    // is a detached workspace that reaches the kernel through the
+    // `pncad` façade, and `test_support` is a test-vocabulary module
+    // the façade does not carry. Sharing it would put the kernel's test
+    // vocabulary on a demo's dependency path to save five lines. What
+    // is shared is the door under both.
+    match query::rim_of(body, hits[0]).expect("the description names a whole rim")[..] {
+        [only] => only,
+        ref many => panic!("this rim is one closed edge, got {many:?}"),
+    }
 }
 
 // ---------------------------------------------------------------------

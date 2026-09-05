@@ -25,7 +25,10 @@ mod schedule;
 mod slots;
 mod wire;
 
-pub(crate) use wire::{SteppedOperands, stepped_rule_map, unit as unit_direction};
+pub(crate) use wire::{
+    DATUM_AXIS_ROLE, PATTERN_DIRECTION_ROLE, SteppedOperands, TRANSFORM_AXIS_ROLE,
+    stepped_rule_map, transform_map, unit as unit_direction,
+};
 
 pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue, embed_profile};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
@@ -44,19 +47,60 @@ use topo::{Body, BooleanError, BooleanResultKind, ContactClass, ContactRecords};
 use crate::appearance::{self, AppearanceResolution};
 use crate::doc::Doc;
 use crate::expr::EvalError;
+use crate::ident::Mispaired;
 use crate::names::{NameTable, NamingError};
-use crate::node::{RecipeNodeId, SlotId, StableName};
+use crate::node::{PartSelect, RecipeNodeId, SlotId, StableName};
 use crate::program::ProfileProgram;
 use geom_core::Tol;
 
 /// The result DAG (F2 verbatim, spec D2): a deterministic order plus a
-/// per-node result map, with the run's epoch, outcome, and the
-/// D4-acceptance recompute counters.
+/// per-node result map, with the run's epoch, the id of the document
+/// it is OF, its outcome, and the D4-acceptance recompute counters.
 #[derive(Debug)]
 pub struct Evaluation<T: Decide> {
     /// This evaluation's identity token (spec D5) — the caller's
     /// stale-result discrimination hook.
     pub epoch: Epoch,
+    /// **Which document this is an evaluation OF** (DI3): the id
+    /// [`Doc::id`] answered when the run started. Identity only, no
+    /// pin: within one document the per-node content keys decide
+    /// reuse, so the version half would cost a canonicalization per
+    /// run for a check the keys already make.
+    ///
+    /// THREE doors read this field to refuse a mispairing typed,
+    /// before reading anything of the value: [`product`](fn@crate::product)
+    /// (with its `_named` and `_recorded` siblings), [`crate::assemble`]
+    /// through them, and — for the solve's own twin of this stamp —
+    /// [`crate::mate::SolvedPoses::placement`]. The memo is the fourth
+    /// reader and refuses differently, below. Node ids alone could not
+    /// decide any of it: they are minted by a per-document counter, so
+    /// two documents built from one recipe carry the SAME ids for the
+    /// same nodes, and every lookup would hit.
+    ///
+    /// Other doors taking such a pair — `run_checks`,
+    /// `resolve::apply_with_names`, `stackup` and `sensitivities`,
+    /// `drive::certifying` — do NOT read it today (`assembly::mint` is
+    /// covered downstream by `product_recorded`); that gap is tracked
+    /// at
+    /// `work/docm/pair-doors-outside-the-three-do-not-check-document-identity`.
+    ///
+    /// The field is `pub` like every other field of this struct, so a
+    /// caller CAN restamp it. That is a deliberate act, not a slip, and
+    /// nothing downstream re-derives it.
+    pub document: crate::ident::DocumentId,
+    /// **A prior of another document, refused** (DI3): `Some` when
+    /// `evaluate` was handed a `prior` whose [`Evaluation::document`]
+    /// is not this document's, in which case the run had NO memo —
+    /// every node recomputed and [`Evaluation::reused`] is zero. The
+    /// payload is the same [`Mispaired`] the two erroring doors carry,
+    /// because the question is the same one.
+    ///
+    /// `evaluate` is total (it returns no `Result`) and [`EvalOutcome`]
+    /// is completed-or-canceled, so the refusal is recorded on the
+    /// value the caller already reads rather than pushed into an
+    /// outcome arm that would mean something else. `None` is both "no
+    /// prior" and "a prior of this document".
+    pub prior_refused: Option<Mispaired>,
     /// Deterministic topological order of the live nodes (spec D2:
     /// a pure function of the DAG; Kahn's algorithm, tiebreak
     /// `RecipeNodeId` ascending). Always the FULL order, even when
@@ -213,7 +257,26 @@ pub struct NodeValue<T: Decide> {
     /// substrate ("both evaluations' verdict logs exist"). Rides the
     /// value, so memo reuse transfers the log with the geometry it
     /// certified (same content key ⇒ same decisions, D9).
+    ///
+    /// **This log is not persisted, and neither is the strict form
+    /// derived from it.** The one persisted projection is
+    /// [`crate::resolve::VerdictSummary`] — per-predicate sign
+    /// populations, written by [`crate::resolve::verdict_summary`] and
+    /// carried by the strict codecs in `crate::persist::strict` — so a
+    /// consumer that needs a run's decisions across a process boundary
+    /// summarizes; one that needs them in hand reads this.
     pub verdicts: Arc<VerdictLog>,
+    /// The node's escalation log: every INDETERMINATE predicate outcome
+    /// the node's op met, in decision order, recorded in the same
+    /// `k_stats` frame as the verdicts. Non-empty on a value only when
+    /// the op absorbed an escalation and built anyway — a leaf the
+    /// subdivision driver must not certify (E6: every predicate
+    /// definite), which is what it reads this for. Rides the value with
+    /// the verdicts, for the same reason.
+    ///
+    /// **Not persisted**, like the verdicts and unlike their summary:
+    /// an escalation is a fact about one run at one box, read in hand.
+    pub escalations: Arc<EscalationLog>,
     /// RESERVED empty slot: the solved witness assignment (M6 fills).
     pub witness: WitnessSlot,
     /// The node's input-content hash (spec D4) — the memo currency.
@@ -228,6 +291,11 @@ pub struct NodeValue<T: Decide> {
 /// One evaluation's per-node verdict vector (the [`NodeValue::verdicts`]
 /// payload): [`geom_core::k_stats::Verdict`]s in decision order.
 pub type VerdictLog = Vec<geom_core::k_stats::Verdict>;
+
+/// One node's escalations (the [`NodeValue::escalations`] and
+/// [`NodeError::escalations`] payload):
+/// [`geom_core::k_stats::Escalation`]s in decision order.
+pub type EscalationLog = Vec<geom_core::k_stats::Escalation>;
 
 /// M6's solved-assignment slot, as a type stub (spec D2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -394,6 +462,23 @@ pub struct NodeError {
     pub node: RecipeNodeId,
     /// The typed cause.
     pub kind: NodeErrorKind,
+    /// Every indeterminate predicate outcome the op met before it
+    /// failed, in decision order (the same frame [`NodeValue::escalations`]
+    /// reads on success). This is how a consumer learns that a failure
+    /// IS an escalation — and on which margin — without matching on
+    /// whichever op error enum `kind` wrapped it in: a kernel refusal
+    /// that carries an `Indeterminate` inside its own variant is
+    /// recorded here too, because the funnel saw it first. Empty when
+    /// the node failed before its op ran (a slot, an input, a cycle).
+    ///
+    /// **Not persisted**, like [`NodeValue::escalations`]: a failure's
+    /// escalations are a fact about one run at one box, read in hand
+    /// by the subdivision driver. The verdicts the op recorded before
+    /// failing are NOT carried here — a failed node has no verdict
+    /// vector to certify against — which is why the frame's two
+    /// channels are two `Arc`s at this seam rather than one record:
+    /// the value carries both, the error only this one.
+    pub escalations: Arc<EscalationLog>,
 }
 
 /// The closed set of node-evaluation failures. Kernel errors are
@@ -588,6 +673,29 @@ pub enum NodeErrorKind {
         /// The empty input node.
         input: RecipeNodeId,
     },
+    /// A [`crate::Node::Part`] selected a split half that holds no
+    /// material — the tool plane missed the target on that side. Its
+    /// own arm rather than [`NodeErrorKind::EmptyOperand`]: that
+    /// one's prose is a boolean's, and what is empty here is a side
+    /// of a cut, which has a name.
+    EmptyHalf {
+        /// The split node whose value was read.
+        input: RecipeNodeId,
+        /// The empty half.
+        half: crate::names::SplitHalf,
+    },
+    /// A [`crate::Node::Part`] indexed a pattern's instances outside
+    /// `0..count`. A negative index lands here too — the index is
+    /// neither wrapped nor clamped, because either would be a body the
+    /// author did not name.
+    InstanceOutOfRange {
+        /// The pattern node whose value was read.
+        input: RecipeNodeId,
+        /// The index as authored (resolved through its slot).
+        index: i64,
+        /// How many instances the value holds.
+        count: usize,
+    },
     /// A direction-valued vector decided to zero length (datum
     /// normal/direction, transform rotation axis, pattern direction).
     DegenerateDirection {
@@ -612,16 +720,15 @@ pub enum NodeErrorKind {
         /// The absent slot.
         slot: SlotId,
     },
-    /// A verb run door was handed a different operand count than the
-    /// verb declares — [`NodeErrorKind::MissingSlot`]'s class: a
-    /// wiring bug surfaced typed (unreachable while the per-verb
-    /// correspondences and the run doors agree; no panic paths in this
-    /// crate).
+    /// A verb was run through a door it does not declare —
+    /// [`NodeErrorKind::MissingSlot`]'s class: a wiring bug surfaced
+    /// typed (unreachable while the per-verb correspondences and the
+    /// run doors agree; no panic paths in this crate).
     VerbArity {
         /// The verb whose door refused.
         verb: verbs::VerbKind,
-        /// The operand count the door was handed; the declared count
-        /// is `verb.arity()`.
+        /// The door the verb was handed to; the declared one is
+        /// `verb.arity()`.
         given: verbs::Arity,
     },
     /// A decided predicate escalated (in-band indeterminacy).
@@ -696,6 +803,14 @@ pub enum NodeErrorKind {
     /// emission bug, a kernel-emission gap, or an in-band N2
     /// discriminator escalation — carried unaltered.
     Naming(NamingError),
+    /// The lowered parameter-identity attach refused (VERB-SEAT-DESIGN
+    /// P2): the kernel's per-field door would not take a token on a
+    /// key or a field the attach pass just read off the same body. A
+    /// broken invariant of `param_source::attach_blend` — its doc says
+    /// why neither refusal can fire — surfaced typed rather than
+    /// discarded, so that a channel fed nothing is never mistaken for
+    /// a channel that refused.
+    ParamSourceAttach(topo::ParamAttachError),
     /// A `Declare` pair failed to resolve through the operands' name
     /// tables (F5, M4 PR 5) — the N5 typed error VERBATIM: a Declare
     /// naming a vanished/ambiguous/deleted name refuses loudly; no
@@ -779,6 +894,56 @@ pub enum NodeErrorKind {
     BlendSelectionEmpty {
         /// Which blend the refusing node is.
         verb: sweep::blend::BlendKind,
+    },
+    /// A derived frame's face name failed to resolve through its
+    /// body's name table — [`NodeErrorKind::BlendSelectionResolve`]'s
+    /// twin, through the same N5 ladder, for the same reason: the
+    /// name is a commitment, so a face that stops answering fails the
+    /// frame typed and poisons the sketch above it rather than
+    /// re-anchoring it silently. The repair is `Rebind`.
+    FaceFrameResolve {
+        /// The resolution failure (N5's closed trio).
+        error: Box<crate::resolve::ResolveError>,
+    },
+    /// A derived frame's name denotes something that is not a FACE
+    /// (an edge, a vertex, the body) — a recipe bug, refused rather
+    /// than reinterpreted.
+    FaceFrameKind {
+        /// The offending name.
+        name: Box<crate::names::StableName>,
+        /// What it actually denotes.
+        found: crate::names::EntityKind,
+    },
+    /// A derived frame's face is not planar (DM1b): a sketch frame
+    /// needs a plane, and the carrier found is named so a headless
+    /// author gets the same answer the chrome pre-empts. A tag read,
+    /// not a predicate — the carrier's own kind, copied out.
+    FaceFrameNotPlanar {
+        /// The carrier kind the face actually has.
+        carrier: geom_brep::SurfaceKind,
+    },
+    /// A derived frame's face resolved to a key its own body could not
+    /// read back — an evaluation-internal inconsistency between the
+    /// emitted table and the body, surfaced typed rather than guessed
+    /// around.
+    FaceFrameReadback {
+        /// The kernel-side refusal, unaltered.
+        error: topo::readback::ReadbackError,
+    },
+    /// A loft's or a sweep's SECTION is drawn on a derived frame
+    /// ([`crate::Datum::FaceFrame`]) and this evaluation's scalar is
+    /// not `f64` (DM1c). A section's geometry stays `f64` in every lane
+    /// (the skinned surface's structure must be lane-identical), and a
+    /// derived frame has no `f64` elaboration off the `f64` lane — its
+    /// placement is the lane's own value — so the section refuses,
+    /// naming the profile and the frame, rather than placing itself
+    /// on a fabricated point of the frame's bracket.
+    /// [`NodeErrorKind::SeedPinnedSection`]'s shape.
+    DerivedFrameSection {
+        /// The section profile node.
+        profile: RecipeNodeId,
+        /// The derived frame it is drawn on.
+        frame: RecipeNodeId,
     },
     /// A sketch node's branch selection refused (SOLVER-DESIGN W3;
     /// M4 PR 4 pins the document semantics — a per-node failure
@@ -1098,6 +1263,26 @@ impl core::fmt::Display for NodeErrorKind {
                 "input {} is the empty value — the body ops take real bodies",
                 input.0
             ),
+            Self::EmptyHalf { input, half } => write!(
+                f,
+                "the split's {} half (node {}) holds no material",
+                match half {
+                    crate::names::SplitHalf::Above => "above",
+                    crate::names::SplitHalf::Below => "below",
+                },
+                input.0
+            ),
+            Self::InstanceOutOfRange {
+                input,
+                index,
+                count,
+            } => write!(
+                f,
+                "instance index {index} is outside the pattern's {count} instances (node {}; \
+                 the admitted indices are 0 to {})",
+                input.0,
+                count.saturating_sub(1)
+            ),
             // Every role word is already a complete noun phrase for the
             // vector ("pattern direction", "transform rotation axis"),
             // so the sentence names the role and nothing after it.
@@ -1170,6 +1355,10 @@ impl core::fmt::Display for NodeErrorKind {
             // kernel refusal riding the variant — it has no other route
             // to a human, so it is carried through rather than dropped.
             Self::Naming(e) => write!(f, "name emission failed: {e}"),
+            Self::ParamSourceAttach(e) => write!(
+                f,
+                "the parameter-identity attach refused on a carrier the blend just minted: {e}"
+            ),
             Self::DeclareResolve { error } => write!(
                 f,
                 "a declared name failed to resolve through the operands' tables: {error}"
@@ -1210,6 +1399,37 @@ impl core::fmt::Display for NodeErrorKind {
             Self::BlendSelectionEmpty { verb } => write!(
                 f,
                 "the {verb} selection is empty — an unfinished recipe, not the identity"
+            ),
+            Self::FaceFrameResolve { error } => {
+                write!(
+                    f,
+                    "the derived frame's face name failed to resolve: {error}"
+                )
+            }
+            Self::FaceFrameKind { name, found } => write!(
+                f,
+                "the derived frame's name minted by node {} denotes {} {}, not a face",
+                name.node.0,
+                found.article(),
+                found.noun()
+            ),
+            Self::FaceFrameNotPlanar { carrier } => write!(
+                f,
+                "the derived frame's face lies on a {} carrier, not a plane — a sketch frame \
+                 needs a planar face",
+                carrier.name()
+            ),
+            Self::FaceFrameReadback { error } => write!(
+                f,
+                "the derived frame's face resolved to a key its body could not read back: {error}"
+            ),
+            Self::DerivedFrameSection { profile, frame } => write!(
+                f,
+                "section profile node {} is drawn on derived frame node {}, and a loft's or a \
+                 sweep's section stays f64 in every lane — a derived frame is placed at the \
+                 lane's own scalar, so this node refuses off the f64 lane rather than place \
+                 the section on a fabricated point of the frame's bracket",
+                profile.0, frame.0
             ),
             Self::MeasureRefResolve { error } => {
                 write!(f, "a measure reference failed to resolve: {error}")
@@ -1334,6 +1554,7 @@ pub trait EvalScalar:
     + crate::analysis::AxisScalar
     + crate::analysis::SeedScalar
     + crate::measure::MinClearanceLane
+    + SectionScalar
 {
 }
 
@@ -1347,6 +1568,7 @@ impl<T> EvalScalar for T where
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
+        + SectionScalar
 {
 }
 
@@ -1386,8 +1608,9 @@ pub(crate) mod leaf {
     pub(crate) enum LeafLane {
         /// Plain `Interval`, the pre-E12 replay.
         Numeric,
-        /// `Sym<Interval>` inside a fresh session at this budget.
-        Symbolic(geom_core::SymBudget),
+        /// `Sym<Interval>` inside a fresh session at this budget, with
+        /// these atom-algebra rules.
+        Symbolic(geom_core::SymBudget, geom_core::SymRules),
     }
 
     /// A shared memo prior over the nominal box, for the numeric lane.
@@ -1423,7 +1646,7 @@ pub(crate) mod leaf {
                     opts,
                     tol,
                 ))),
-                LeafLane::Symbolic(_) => Self::None,
+                LeafLane::Symbolic(..) => Self::None,
             }
         }
     }
@@ -1492,8 +1715,8 @@ pub(crate) mod leaf {
                     evaluate(doc, prior, &CancelToken::new(), opts, tol);
                 read_leaf(&ev, want, |v| v)
             }
-            LeafLane::Symbolic(budget) => {
-                let (out, _) = geom_core::sym::with_session(budget, || {
+            LeafLane::Symbolic(budget, rules) => {
+                let (out, _) = geom_core::sym::with_session_rules(budget, rules, || {
                     let ev: Evaluation<geom_core::Sym<geom_core::Interval>> =
                         evaluate(doc, None, &CancelToken::new(), opts, tol);
                     read_leaf(&ev, want, |v: geom_core::Sym<geom_core::Interval>| v.value)
@@ -1648,6 +1871,64 @@ pub enum ProfileLift {
     Guided,
 }
 
+/// **Which scalars carry a section's placement** — the lane door DM1c
+/// turns on: a loft's or a sweep's section keeps `f64` geometry, and a
+/// section drawn on a derived frame takes its placement from the
+/// frame's landed value, which is exact `f64` only where the
+/// evaluation scalar IS `f64`.
+///
+/// Per-scalar like [`crate::analysis::AxisScalar`], and for the same
+/// reason: which lane an evaluation runs in is a fact about the type,
+/// so the type answers it. `f64` hands its value across; `Probe` is
+/// `f64` wearing a counter and does the same; every analysis scalar
+/// (`Interval`, `Dual`, `Sym`) answers `None`, because a bracket or a
+/// tangent has no single `f64` that is not a fabricated choice. No
+/// number is inspected: the answer is decided by the impl, never by a
+/// comparison.
+pub trait SectionScalar: geom_core::Real {
+    /// The value as exact `f64` where this scalar is the `f64` lane;
+    /// `None` on every analysis scalar.
+    fn pinned_f64(self) -> Option<f64>;
+}
+
+impl SectionScalar for f64 {
+    fn pinned_f64(self) -> Option<f64> {
+        Some(self)
+    }
+}
+
+#[cfg(feature = "probe")]
+impl SectionScalar for geom_core::Probe {
+    fn pinned_f64(self) -> Option<f64> {
+        Some(self.0)
+    }
+}
+
+#[cfg(feature = "interval")]
+impl SectionScalar for geom_core::Interval {
+    fn pinned_f64(self) -> Option<f64> {
+        None
+    }
+}
+
+impl<T: SectionScalar> SectionScalar for geom_core::Sym<T>
+where
+    geom_core::Sym<T>: geom_core::Real,
+{
+    fn pinned_f64(self) -> Option<f64> {
+        None
+    }
+}
+
+impl<T: geom_core::Real> SectionScalar for geom_core::Dual<T>
+where
+    geom_core::Dual<T>: geom_core::Real,
+{
+    fn pinned_f64(self) -> Option<f64> {
+        None
+    }
+}
+
 impl Default for EvalOptions {
     fn default() -> Self {
         Self {
@@ -1668,7 +1949,10 @@ impl Default for EvalOptions {
 ///
 /// `prior` is the memo (spec D4): nodes whose content key matches the
 /// prior evaluation reuse the prior value without re-running the op;
-/// only the downstream cone of changed keys re-evaluates.
+/// only the downstream cone of changed keys re-evaluates. A prior of
+/// ANOTHER document is not a memo for this one (DI3): it is refused
+/// whole, recorded on [`Evaluation::prior_refused`], and the run
+/// recomputes every node.
 ///
 /// `cancel` is checked between nodes (sequential) or between levels
 /// (parallel) — spec D5's cooperative yield points at node
@@ -1717,13 +2001,25 @@ fn evaluate_at_descent<T>(
 where
     T: EvalScalar,
 {
+    // The memo's own door (DI3): a prior is a prior OF a document, and
+    // node ids are minted per document, so an evaluation of another
+    // document can collide on them and be mined for hits that are
+    // about other geometry. Refused HERE, once, before the schedule is
+    // even built — which is what makes the per-node lookup below
+    // (`prior.and_then(|p| p.nodes.get(&id))`) a lookup that cannot
+    // reach a foreign node, rather than a check repeated per node.
+    let (prior, prior_refused) =
+        match prior.and_then(|p| crate::ident::mispaired(doc.id(), p.document).map(|m| (p, m))) {
+            Some((_, refused)) => (None, Some(refused)),
+            None => (prior, None),
+        };
     let sched = schedule::schedule(doc);
     // D4 door (M4 PR 6): the recorded ε must BE the committed process
     // ε — otherwise every predicate below would silently decide at
     // the wrong tolerance. Refuse loudly, per node, staying total.
     let process_eps = tol.eps();
     if doc.epsilon().to_bits() != process_eps.to_bits() {
-        return refuse_tolerance_conflict(doc, sched, opts, process_eps);
+        return refuse_tolerance_conflict(doc, sched, opts, prior_refused, process_eps);
     }
     // The lane environment, built ONCE and shared by every reader
     // below (slot evaluation, the lift's second pass, the two profile
@@ -1734,7 +2030,7 @@ where
         None => doc.param_env::<T>(),
         Some(b) => match crate::analysis::param_env_over::<T, _>(doc, b) {
             Ok(env) => env,
-            Err(source) => return refuse_param_box(doc, sched, opts, source),
+            Err(source) => return refuse_param_box(doc, sched, opts, prior_refused, source),
         },
     };
     // The E4 seed rides the SAME environment (a seed is a separate act
@@ -1745,7 +2041,7 @@ where
         None => env,
         Some(name) => match crate::analysis::seed_env(doc, env, name) {
             Ok(env) => env,
-            Err(source) => return refuse_seed(doc, sched, opts, source),
+            Err(source) => return refuse_seed(doc, sched, opts, prior_refused, source),
         },
     };
     let parts = parts::PartCache::<T>::new(
@@ -1820,6 +2116,7 @@ where
                 NodeResult::Failed(NodeError {
                     node: id,
                     kind: NodeErrorKind::UnschedulableCycle,
+                    escalations: Arc::new(Vec::new()),
                 }),
             );
         }
@@ -1847,6 +2144,8 @@ where
 
     Evaluation {
         epoch: opts.epoch,
+        document: doc.id(),
+        prior_refused,
         order,
         nodes,
         outcome,
@@ -1862,15 +2161,18 @@ fn refuse_tolerance_conflict<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
+    prior_refused: Option<Mispaired>,
     process_eps: f64,
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     let document_eps = doc.epsilon();
-    refuse_every_node(doc, sched, opts, move || NodeErrorKind::ToleranceConflict {
-        document_eps,
-        process_eps,
+    refuse_every_node(doc, sched, opts, prior_refused, move || {
+        NodeErrorKind::ToleranceConflict {
+            document_eps,
+            process_eps,
+        }
     })
 }
 
@@ -1883,13 +2185,16 @@ fn refuse_param_box<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
+    prior_refused: Option<Mispaired>,
     source: crate::analysis::ParamBoxError,
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
-    refuse_every_node(doc, sched, opts, move || NodeErrorKind::ParamBox {
-        source: source.clone(),
+    refuse_every_node(doc, sched, opts, prior_refused, move || {
+        NodeErrorKind::ParamBox {
+            source: source.clone(),
+        }
     })
 }
 
@@ -1902,13 +2207,16 @@ fn refuse_seed<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
+    prior_refused: Option<Mispaired>,
     source: crate::analysis::SeedError,
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
-    refuse_every_node(doc, sched, opts, move || NodeErrorKind::Seed {
-        source: source.clone(),
+    refuse_every_node(doc, sched, opts, prior_refused, move || {
+        NodeErrorKind::Seed {
+            source: source.clone(),
+        }
     })
 }
 
@@ -1919,6 +2227,7 @@ fn refuse_every_node<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
+    prior_refused: Option<Mispaired>,
     kind: impl Fn() -> NodeErrorKind,
 ) -> Evaluation<T>
 where
@@ -1934,6 +2243,7 @@ where
                 NodeResult::Failed(NodeError {
                     node: id,
                     kind: kind(),
+                    escalations: Arc::new(Vec::new()),
                 }),
             )
         })
@@ -1947,6 +2257,8 @@ where
     drop(states);
     Evaluation {
         epoch: opts.epoch,
+        document: doc.id(),
+        prior_refused,
         order,
         nodes,
         outcome: EvalOutcome::Completed,
@@ -1992,8 +2304,14 @@ fn eval_node<T>(
 where
     T: EvalScalar,
 {
+    // A failure before the op runs: no bracket was open, so there is
+    // nothing recorded to carry.
     let fail = |kind: NodeErrorKind| NodeStep {
-        result: NodeResult::Failed(NodeError { node: id, kind }),
+        result: NodeResult::Failed(NodeError {
+            node: id,
+            kind,
+            escalations: Arc::new(Vec::new()),
+        }),
         reused: false,
     };
     let Some(node) = doc.node(id) else {
@@ -2065,11 +2383,11 @@ where
             // The frame the profile is drawn on, at f64 and from the
             // DOCUMENT — `wire::profile_plane_f64` carries why that is
             // the right scalar and the right source.
-            let plane = match wire::profile_plane_f64(doc, program.plane, tol) {
-                Ok(plane) => plane,
+            let placement = match wire::profile_plane_f64(doc, program.plane, tol) {
+                Ok(placement) => placement,
                 Err(kind) => return fail(kind),
             };
-            match wire::prepare_profile(plane, resolved, tol) {
+            match wire::prepare_profile(placement, resolved, tol) {
                 Ok(pre) => Some(pre),
                 Err(kind) => return fail(kind),
             }
@@ -2158,6 +2476,11 @@ where
     // is not separably re-derivable — and D9 makes the re-run's
     // geometry bit-identical, so re-running IS "reuse the geometry,
     // re-derive the names", spelled honestly.
+    //
+    // `prior` is an evaluation of THIS document: `evaluate_at_descent`
+    // drops a foreign one before the schedule is built (DI3), so this
+    // lookup cannot serve a coincidental id collision from another
+    // document.
     if let Some(NodeResult::Ok(v)) = prior.and_then(|p| p.nodes.get(&id))
         && v.content_key == content_key
         && v.naming_key == naming_key
@@ -2168,13 +2491,18 @@ where
         };
     }
 
-    // Verdict-log bracket (M4 PR 4): every definite decision the op
-    // makes — kernel predicates and N2 discriminators alike — lands in
-    // this node's log through the one `k_stats` funnel. The bracket is
-    // per-node and thread-confined (kernel ops are single-threaded;
-    // idiom-1 parallelism runs whole nodes on one worker each), so
-    // logs never interleave across nodes.
-    geom_core::k_stats::start_verdict_log();
+    // The verdict bracket (N5): every decision the op makes — kernel
+    // predicates and N2 discriminators alike, definite or escalated —
+    // lands in this node's frame through the one `k_stats` funnel. The
+    // guard is per node and `!Send`, so the frame closes on the worker
+    // that opened it (idiom-1 parallelism runs whole nodes on one
+    // worker each); an op that evaluates another document (an
+    // instantiated part) has that document's nodes open and close
+    // their own frames ABOVE this one, so this frame receives exactly
+    // this op's decisions and theirs land on their own nodes. A memo
+    // hit above never reaches here and carries the prior's frame with
+    // the value it reuses.
+    let bracket = geom_core::k_stats::Bracket::open();
     let op = wire::run_op(
         id,
         node,
@@ -2186,21 +2514,32 @@ where
         op_env,
         tol,
     );
-    let verdicts = geom_core::k_stats::take_verdict_log();
+    let recorded = bracket.finish();
+    let escalations = Arc::new(recorded.escalations);
     match op {
         Ok(out) => NodeStep {
             result: NodeResult::Ok(NodeValue {
                 payload: out.payload,
                 name_table: out.names,
                 contacts: out.contacts,
-                verdicts: Arc::new(verdicts),
+                verdicts: Arc::new(recorded.verdicts),
+                escalations,
                 witness: WitnessSlot {},
                 content_key,
                 naming_key,
             }),
             reused: false,
         },
-        Err(kind) => fail(kind),
+        // The failure carries what the op escalated on its way to it:
+        // the frame is the node's whether or not the op built.
+        Err(kind) => NodeStep {
+            result: NodeResult::Failed(NodeError {
+                node: id,
+                kind,
+                escalations,
+            }),
+            reused: false,
+        },
     }
 }
 
@@ -2237,9 +2576,12 @@ fn verb_content_tag(kind: verbs::VerbKind) -> u8 {
     match kind {
         verbs::VerbKind::Fillet => 17,
         verbs::VerbKind::Chamfer => 24,
+        verbs::VerbKind::Extrude => 5,
+        verbs::VerbKind::Revolve => 6,
         verbs::VerbKind::Boolean(topo::BooleanOp::Union) => 8,
         verbs::VerbKind::Boolean(topo::BooleanOp::Intersect) => 9,
         verbs::VerbKind::Boolean(topo::BooleanOp::Subtract) => 10,
+        verbs::VerbKind::Split => 7,
     }
 }
 
@@ -2318,7 +2660,26 @@ where
     // existing node reaches is strictly additive and is the case the
     // rule does not cover. A future channel that any existing node
     // writes into gets the bump.
-    h.write_tag(3);
+    //
+    // Key format v4 (SEAT-6): a blend node's flow-bearing size slot
+    // feeds its lowered EXPRESSION beside its value (`feed_blend`,
+    // through `param_source::feed_content_key`). An existing node
+    // writes into the channel, so by the rule above this is the bump,
+    // not the exception: every key moves, and no pre-bump memo entry
+    // is reused — which is what the channel needs, since a body minted
+    // before its spelling was part of the key could carry a token the
+    // current document does not hold.
+    //
+    // Key format v5 (SEAT-7): a profile node's CARRIER LOOP RADIUS
+    // feeds its lowered expression beside the resolved value, because
+    // the sweeps now land that expression's identity in the walls they
+    // mint. An existing node writes into the channel, so by the rule
+    // above this is the bump, not the exception: every key moves, and
+    // no pre-bump memo entry is reused — which is what the channel
+    // needs, since a body minted before the profile's spelling was part
+    // of the key could carry a token the current document does not
+    // hold.
+    h.write_tag(5);
     let tol = tol.get();
     h.write_f64_bits(tol.eps);
     h.write_f64_bits(tol.k);
@@ -2332,9 +2693,16 @@ where
         Node::Datum(Datum::Axis { .. }) => 2,
         Node::Datum(Datum::Point { .. }) => 3,
         Node::Profile(_) => 4,
-        Node::Extrude { .. } => 5,
-        Node::Revolve { .. } => 6,
-        Node::Split { .. } => 7,
+        // The numbers are not written here either, and they are the
+        // ones that were: a migrated verb's tag is a function of the
+        // KERNEL's name for it, so 5, 6 and 7 move to
+        // `verb_content_tag` unchanged. A tag that MOVED would
+        // invalidate nothing on disk (keys are process-internal) and
+        // would still be wrong — an existing tag never gains a new
+        // meaning, and never loses its old one either.
+        Node::Extrude { .. } => verb_content_tag(verbs::VerbKind::Extrude),
+        Node::Revolve { .. } => verb_content_tag(verbs::VerbKind::Revolve),
+        Node::Split { .. } => verb_content_tag(verbs::VerbKind::Split),
         // The numbers are not written here: a migrated verb's tag is a
         // function of the KERNEL's name for it, and the boolean's name
         // carries its op (`VerbKind::Boolean(op)` — the three
@@ -2411,6 +2779,28 @@ where
         // quoted above a published tag is never taken back — so the
         // unpublished one moves. This is that rule applied to itself.
         Node::Datum(Datum::AxisInPlane { .. }) => 30,
+        // The n-ary union's tag. It does NOT share the pair union's 8: the two nodes carry different payloads (a list
+        // against two named operands and a `declare` slot) and mint
+        // different names, so a shared key would serve one's geometry
+        // and table for the other out of the memo. The member list
+        // itself is not written here — members are input EDGES, and
+        // the inputs' own keys carry them in list order below, which
+        // is the rule `Loft`'s profiles already run on.
+        Node::Union { .. } => 31,
+        // The derived sketch frame. It does NOT share the authored
+        // frame's 27 even though it evaluates to the same value kind:
+        // the two carry different payloads (a body edge, a face name
+        // and one spin slot against nine slots), and a shared tag
+        // would let a memo entry for one serve the other's geometry.
+        Node::Datum(Datum::FaceFrame { .. }) => 32,
+        // The projection node: two tags, as `Pattern`'s rule kinds are
+        // two. A half and an index are different payloads read off
+        // different value kinds, and a memo entry for one must never
+        // serve the other.
+        Node::Part { select, .. } => match select {
+            PartSelect::SplitHalf(_) => 33,
+            PartSelect::Instance(_) => 34,
+        },
     };
     // NODE-TAG-SPACE END
     h.write_tag(tag);
@@ -2426,7 +2816,7 @@ where
     // The tag match above is exhaustive for the same reason; the two
     // halves of one key had different answers to that until now.
     match node {
-        Node::Profile(_) => {
+        Node::Profile(program) => {
             // LIB-SWITCH §4e: the program's structural payload feeds
             // as (tag, payload) tokens — per loop a LoopStart tag and
             // per RESOLVED step the verb
@@ -2471,6 +2861,79 @@ where
                     for step in steps {
                         feed_lane_step(&mut h, step);
                     }
+                }
+            }
+            // A carrier loop's RADIUS EXPRESSION, when a migrated verb
+            // declares that operand-carried scalar into a stored field
+            // (SEAT-7, key format v5). The stream above carries the
+            // radius's VALUE, at f64 bits, which is what the geometry
+            // is a function of; what it cannot carry is the spelling,
+            // and the spelling is now an input to the BODY a downstream
+            // sweep mints — the wall's field source is the lowered
+            // expression. So a value-preserving re-spelling (`r` for
+            // `0.125`) must move this key, or the sweep's memo would
+            // serve a body whose token names an expression the document
+            // no longer holds. Exactly the blend's rule (`feed_blend`,
+            // v4) at the node that HOLDS the expression rather than the
+            // node that attaches it: the sweep's key folds this one in
+            // as an upstream key already, so writing it here covers
+            // every consumer at once.
+            //
+            // The rule is read off the declaration, never per node: the
+            // moment no verb declares the profile edge's radius into a
+            // field, nothing is written and the keys are the v4 ones.
+            //
+            // **How wide this is, stated rather than implied.** Three
+            // separate breadths, none of which moves a VALUE — keys are
+            // process-internal and never persisted (spec D3), so what
+            // widens here is memo hit rate and nothing else.
+            //
+            // 1. The predicate is GLOBAL. `operand_flow_bearing` asks
+            //    the whole vocabulary, not this document, so tag 45 is
+            //    written for every profile with a carrier loop in every
+            //    document — one that no sweep ever consumes included.
+            // 2. Keys FOLD upstream keys, so a carrier radius
+            //    re-spelled invalidates the whole downstream subtree,
+            //    not only its sweeps: a loft, a section or a boolean
+            //    over that profile re-runs too, and none of them
+            //    attaches anything.
+            // 3. The format-version bump moves every key in the
+            //    document, sweeps or not, once.
+            //
+            // A narrower guard is constructible — per document (does
+            // any node consume this profile through a sweep?) or per
+            // consumer (write the tag at the sweep instead of the
+            // profile) — and is not worth its cost. Per consumer is the
+            // one that would fix (2), and `content_key` has no document
+            // handle with which to reach a sweep's operand payload, so
+            // it means threading one through the whole key surface for
+            // a hit-rate gain on a re-spelling edit, which is rare by
+            // construction (a value-preserving edit is a deliberate
+            // rewrite, not a drag). Per document costs a reachability
+            // walk per profile node per key. Both trade a real
+            // invariant — the rule read off the declaration alone — for
+            // an unmeasured saving.
+            if crate::param_source::operand_flow_bearing(verbs::FlowSource::ProfileEdge(
+                verbs::EdgeScalar::Radius,
+            )) {
+                for lp in &program.loops {
+                    if let Some(expr) = lp.carrier_radius() {
+                        // 45: the next free number in this key's tag
+                        // space (44 is the tangent arrival's, 43 the
+                        // blend's flow-bearing slot). Append-only —
+                        // an existing tag never gains a meaning.
+                        h.write_tag(45);
+                        crate::param_source::feed_content_key(&mut h, expr);
+                    }
+                    // A CHAIN loop answers `None` above and writes
+                    // nothing, which is correct exactly while nothing
+                    // attaches its per-segment arc radii either. The
+                    // guard cannot see the difference — the declaration
+                    // this feed reads is true of the profile edge's
+                    // radius already — so chain radii enter the key in
+                    // the same change that attaches them
+                    // (`LoopProgram::carrier_radius` carries the same
+                    // obligation at the door that would widen).
                 }
             }
         }
@@ -2529,15 +2992,20 @@ where
             }
         }
         // A mate's own key is its references, its class and its
-        // alignment: the recipe payload that decides what it says.
+        // alignment: the recipe payload that decides what it says. A
+        // reference is a NAME AND AN OPERAND, and both are fed —
+        // two mates differing only in the node they are read at say
+        // different things about different geometry.
         Node::Mate {
             a,
             b,
             class,
             alignment,
         } => {
-            feed_stable_name(&mut h, a);
-            feed_stable_name(&mut h, b);
+            h.write_u64(a.at.0);
+            feed_stable_name(&mut h, &a.name);
+            h.write_u64(b.at.0);
+            feed_stable_name(&mut h, &b.name);
             h.write_tag(contact_class_tag(*class));
             feed_alignment(&mut h, alignment);
         }
@@ -2577,11 +3045,21 @@ where
         // blends of the same size on different edges are different
         // nodes (M6-5). Canonical order (the construction doors) is
         // what makes this a set hash rather than an order hash.
-        Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => {
-            h.write_u64(selection.len() as u64);
-            for n in selection {
-                feed_stable_name(&mut h, n);
-            }
+        //
+        // Its size slot's EXPRESSION is an input too, when the verb's
+        // declared flow lands that parameter in a stored field: the
+        // minted body then carries the expression's lowered identity
+        // in its field rows, so two spellings of one value are two
+        // different bodies and must not serve each other from the
+        // memo (SEAT-6, key format v4). The fillet's radius is
+        // flow-bearing; the chamfer's setback reaches no field and
+        // feeds nothing — the rule is read off the declaration rather
+        // than written per verb.
+        Node::Fillet { selection, .. } => {
+            feed_blend(&mut h, node, selection, crate::verbs::blend::FILLET_SLOTS);
+        }
+        Node::Chamfer { selection, .. } => {
+            feed_blend(&mut h, node, selection, crate::verbs::blend::CHAMFER_SLOTS);
         }
         // A measure's REFERENCES and its measured EXPRESSION are both
         // recipe payload rather than slots: two measures with the same
@@ -2629,16 +3107,45 @@ where
                 crate::node::TubeWindow::Arc { .. } => 1,
             });
         }
+        // The derived frame's FACE is recipe payload, hashed the way a
+        // blend's selection is: two frames on two faces of one body
+        // share a tag, an upstream key and (possibly) a spin, and
+        // differ in exactly this name. `at` is an input edge and is
+        // carried by the upstream keys.
+        Node::Datum(Datum::FaceFrame { face, .. }) => feed_stable_name(&mut h, face),
+        // The HALF is recipe payload outside the slots: two Parts of
+        // the two halves of one split share a tag, an upstream key and
+        // no slot at all, and differ in exactly this — so it feeds as
+        // a tag, or a memo hit would serve one half's body for the
+        // other. The INDEX is a slot and rides the resolved-slot
+        // stream below like every slot; `of` is an input edge and is
+        // carried by the upstream keys.
+        Node::Part { select, .. } => match select {
+            PartSelect::SplitHalf(half) => h.write_u64(split_half_tag(*half)),
+            PartSelect::Instance(_) => {}
+        },
         // Fully expressed by tag plus slots: their whole recipe payload
         // is either an input edge (excluded from the key by design — the
         // inputs' own keys carry it) or a slot expression, fed below.
-        Node::Datum(_)
+        // The datum variants are listed, not wildcarded, so a datum
+        // that grows a payload outside its slots has to answer here.
+        Node::Datum(
+            Datum::Plane { .. }
+            | Datum::Axis { .. }
+            | Datum::Point { .. }
+            | Datum::Frame { .. }
+            | Datum::AxisInPlane { .. },
+        )
         | Node::Extrude { .. }
         | Node::Revolve { .. }
         | Node::Loft { .. }
         | Node::Sweep { .. }
         | Node::Split { .. }
         | Node::Boolean { .. }
+        // The member list is edges, so the upstream keys carry it — in
+        // list order, and prefixed by its length, so neither a
+        // reordering nor a dropped member can alias another list.
+        | Node::Union { .. }
         | Node::Transform { .. } => {}
     }
     // Evaluated slot values, in the node's deterministic slot order.
@@ -3156,6 +3663,27 @@ fn dimension_tag(dim: crate::expr::Dimension) -> u8 {
 /// a name is an identity, and two names differing anywhere are two
 /// different recipe payloads. Names are float-free by construction
 /// (pure tags and integers), so nothing here is eps-dependent.
+/// A blend node's recipe payload beyond its slot values: the canonical
+/// selection, and — for a flow-bearing size parameter — the lowered
+/// spelling of its slot (`content_key`'s blend arms).
+fn feed_blend(
+    h: &mut KeyHasher,
+    node: &crate::node::Node<ProfileProgram>,
+    selection: &[StableName],
+    slots: crate::verbs::blend::BlendSlots,
+) {
+    h.write_u64(selection.len() as u64);
+    for n in selection {
+        feed_stable_name(h, n);
+    }
+    if crate::param_source::flow_bearing(slots.size_param)
+        && let Some(expr) = node.expr(slots.size_slot)
+    {
+        h.write_tag(43);
+        crate::param_source::feed_content_key(h, expr);
+    }
+}
+
 fn feed_stable_name(h: &mut KeyHasher, name: &StableName) {
     use crate::names::EntityKind;
     h.write_tag(match name.kind {
@@ -3171,13 +3699,24 @@ fn feed_stable_name(h: &mut KeyHasher, name: &StableName) {
     }
 }
 
+/// A split half's key tag — ONE spelling, read by the role-segment
+/// feed (every split segment carries a half) and by the projection
+/// node's payload feed (a `Part` of a half carries the half itself).
+fn split_half_tag(half: crate::names::SplitHalf) -> u64 {
+    use crate::names::SplitHalf;
+    match half {
+        SplitHalf::Above => 1,
+        SplitHalf::Below => 2,
+    }
+}
+
 /// Feeds one role segment (closed enum — every variant tagged; the
 /// tags are part of the key format version).
 fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
-    use crate::names::{CapEnd, MeridianEnd, Qualifier, RoleSeg, SideVerdict, SplitHalf};
+    use crate::names::{CapEnd, MeridianEnd, Qualifier, RoleSeg, SideVerdict};
     let cap = |c: CapEnd| match c {
-        CapEnd::Top => 1u64,
-        CapEnd::Bottom => 2,
+        CapEnd::End => 1u64,
+        CapEnd::Start => 2,
     };
     let mer = |m: MeridianEnd| match m {
         MeridianEnd::Start => 1u64,
@@ -3185,10 +3724,7 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         MeridianEnd::Seam => 3,
         MeridianEnd::Pi => 4,
     };
-    let half = |s: SplitHalf| match s {
-        SplitHalf::Above => 1u64,
-        SplitHalf::Below => 2,
-    };
+    let half = split_half_tag;
     let rim = |s: crate::names::RimSupport| match s {
         crate::names::RimSupport::Host => 1u64,
         crate::names::RimSupport::Mate => 2,
@@ -3221,6 +3757,12 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             h.write_u64(u64::from(*of));
         }
     };
+    // SEG-TAG-SPACE BEGIN — the sentinel `seg_tag_space_is_injective`
+    // reads. Every segment tag lives INSIDE this match, written as a
+    // literal `write_tag(<number>)`; a tag written outside it is
+    // invisible to the census, so do not write one there. The nested
+    // closures above (qualifier, verdict, cap, meridian) have tag
+    // spaces of their OWN and are deliberately outside.
     match seg {
         RoleSeg::OutputBody => h.write_tag(1),
         RoleSeg::Cap(c) => {
@@ -3402,7 +3944,21 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             h.write_tag(39);
             feed_stable_name(h, n);
         }
+        // The n-ary union's member key. It does not share `FromA`'s
+        // 16: that would key a member's face and a pair operand's face
+        // identically.
+        // BOTH halves feed: two members of one union can be
+        // placements of ONE prototype and then carry the same inner
+        // name, so a key without the member edge would give their
+        // entities one key — the memo hazard this tag space exists to
+        // prevent.
+        RoleSeg::FromMember { member, of } => {
+            h.write_tag(41);
+            h.write_u64(member.0);
+            feed_stable_name(h, of);
+        }
     }
+    // SEG-TAG-SPACE END
 }
 
 #[cfg(test)]
@@ -3486,6 +4042,18 @@ mod verb_content_tag_tests {
     fn verb_content_tags_are_the_committed_numbers() {
         assert_eq!(verb_content_tag(verbs::VerbKind::Fillet), 17);
         assert_eq!(verb_content_tag(verbs::VerbKind::Chamfer), 24);
+        // The sweeps' two, read off the pre-change source the same
+        // way: 5 and 6 were the tag match's inline numbers for the
+        // extrude and the revolve, and moving the match must not move
+        // them — a moved tag re-keys every document in the registry
+        // that carries a sweep, which is nearly all of them, with no
+        // red anywhere to say so.
+        assert_eq!(verb_content_tag(verbs::VerbKind::Extrude), 5);
+        assert_eq!(verb_content_tag(verbs::VerbKind::Revolve), 6);
+        // The split's, read the same way: 7 was the tag match's inline
+        // number for `Node::Split`, and every split-carrying document
+        // in the registry keys on it.
+        assert_eq!(verb_content_tag(verbs::VerbKind::Split), 7);
         assert_eq!(
             verb_content_tag(verbs::VerbKind::Boolean(topo::BooleanOp::Union)),
             8
@@ -3607,6 +4175,85 @@ mod verb_content_tag_tests {
                     .unwrap_or_default()
             );
             seen.push((tag, who));
+        }
+    }
+
+    /// **The SEGMENT tag space is injective too** — the same property
+    /// [`node_tag_space_is_injective`] holds for node tags, held for
+    /// [`feed_role_seg`]'s.
+    ///
+    /// It matters for the same reason and is a memo hazard of the same
+    /// class: two role segments sharing a tag make two different names
+    /// hash alike, and a content key that collides serves one node's
+    /// cached geometry for another's. `RoleSeg` is the enum this unit
+    /// grew (`FromMember`, tag 41) and it is the widest enum in the
+    /// crate, so the space had the most room to collide in and the
+    /// least to catch it with.
+    ///
+    /// A SOURCE census, for the reason the node one is: the tags live
+    /// in a match over `&RoleSeg`, and enumerating them by calling the
+    /// function would mean constructing one of every variant. The
+    /// sentinels bracket the match, every literal `write_tag(<number>)`
+    /// inside them is one segment tag, and nothing is hand-listed — a
+    /// tag added inside the sentinels is measured the moment it is
+    /// typed.
+    ///
+    /// What it cannot see, stated: a tag written outside the sentinels
+    /// (the sentinel comment says not to), and a tag whose arm computes
+    /// rather than names a number. Neither exists today. The nested
+    /// closures' tag spaces (qualifier, verdict, cap end, meridian end,
+    /// split half, rim support) are deliberately outside the region:
+    /// each is its own small space, keyed under a segment tag that this
+    /// census does hold unique.
+    #[test]
+    fn seg_tag_space_is_injective() {
+        const SOURCE: &str = include_str!("mod.rs");
+        let region = SOURCE
+            .split_once("SEG-TAG-SPACE BEGIN")
+            .expect("the segment match carries its opening sentinel")
+            .1
+            .split_once("SEG-TAG-SPACE END")
+            .expect("the segment match carries its closing sentinel")
+            .0;
+        // The same shared Rust reader the node census uses, so a tag
+        // number discussed in a comment or a string is not read as one.
+        let code_only = test_utils::source::code_and_literals(region);
+        let mut tags: Vec<(u8, usize)> = Vec::new();
+        for (n, code) in code_only.lines().enumerate() {
+            let Some(rest) = code.split_once("write_tag(") else {
+                continue;
+            };
+            let token: String = rest.1.chars().take_while(char::is_ascii_digit).collect();
+            if let Ok(tag) = token.parse::<u8>() {
+                tags.push((tag, n));
+            }
+        }
+        // A census that read nothing would pass vacuously. `RoleSeg`
+        // has 41 variants and every one writes a tag.
+        assert!(
+            tags.len() >= 41,
+            "the segment census found only {} tags — the sentinels or the scan have drifted from \
+             the match they are supposed to read",
+            tags.len()
+        );
+        // And the tag this unit added is in the region, which is what
+        // says the census is reading the match that grew.
+        assert!(
+            tags.iter().any(|(t, _)| *t == 41),
+            "`FromMember`'s tag 41 is not reachable from the segment match — the census is \
+             measuring the wrong region"
+        );
+        let mut seen: Vec<(u8, usize)> = Vec::new();
+        for (tag, line) in tags {
+            assert!(
+                !seen.iter().any(|(t, _)| *t == tag),
+                "segment tag {tag} is claimed twice: at region line {line} and at region line {}",
+                seen.iter()
+                    .find(|(t, _)| *t == tag)
+                    .map(|(_, l)| *l)
+                    .unwrap_or_default()
+            );
+            seen.push((tag, line));
         }
     }
 }

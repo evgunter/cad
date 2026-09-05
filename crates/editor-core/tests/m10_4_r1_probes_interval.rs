@@ -24,9 +24,9 @@ use editor_core::stackup::{
 };
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Evaluation, Expr,
-    LoopProgram, MeasureExpr, MeasurePrimitive, MeasureRef, Node, ParamName, ParamValue,
-    ProfileDoc, ProfileLift, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, UnitSym, ValuePayload, evaluate, seed_env,
+    LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamName, ParamValue, ProfileDoc,
+    ProfileLift, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
+    SitedRef, UnitSym, ValuePayload, evaluate, seed_env,
 };
 use geom_core::{Dual64, Tol};
 
@@ -164,8 +164,8 @@ fn stepped_shaft_sized(
         rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
     });
     let refs = vec![
-        MeasureRef::new(base, fname(base, RoleSeg::Cap(CapEnd::Bottom))),
-        MeasureRef::new(boss, fname(boss_raw, RoleSeg::Cap(CapEnd::Top))),
+        SitedRef::new(base, fname(base, RoleSeg::Cap(CapEnd::Start))),
+        SitedRef::new(boss, fname(boss_raw, RoleSeg::Cap(CapEnd::End))),
     ];
     let m = r.insert(
         Node::measure(
@@ -242,8 +242,8 @@ fn arc_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
     // Segment 3 is the x = 0 wall, segment 1 the x = w wall; their
     // distance is `w`, so ∂m/∂w = 1 exactly.
     let refs = vec![
-        MeasureRef::new(slab, fname(slab, wall(3))),
-        MeasureRef::new(slab, fname(slab, wall(1))),
+        SitedRef::new(slab, fname(slab, wall(3))),
+        SitedRef::new(slab, fname(slab, wall(1))),
     ];
     let m = r.insert(
         Node::measure(
@@ -882,8 +882,17 @@ fn r1_an_arc_carrying_profile_propagates_the_seed() {
 
 /// **EVIDENCE-ONLY + DATUM — a real ±0.1 mm study on my own document.**
 /// The stepped shaft with realistic tolerances (±0.1 on a 1.0 nominal)
-/// is what a consumer actually wants. Records what they get, and
-/// whether the refusal is legible.
+/// is what a consumer actually wants. Records what they get.
+///
+/// **The datum MOVED under M10-8's shipped tier** (the constant fold
+/// A0, `geom_core::SymRules::shipped`): through M10-7 this study got
+/// `NothingCertified` — a refusal carrying its accounting and two
+/// `LocalOnly` sensitivities — and this row pinned that refusal. Under
+/// A0 the shaft's arc-carrier identities no longer freeze, the whole
+/// ±0.1 box certifies in ONE leaf at every ε row (`1e-6`, `1e-9`,
+/// `1e-12`; measured 2026-09-05), and the study is a `Stackup` with a
+/// `ChamberCertified` chamber over the whole box. The row pins the new
+/// datum with the same strictness the old one had.
 #[test]
 fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
     let (doc, m) = stepped_shaft(1.0, 0.5, Some(uniform(0.1)), Some(uniform(0.1)));
@@ -900,19 +909,22 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
     let got = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness());
     println!("EVIDENCE-ONLY r1 ±0.1 stackup: {got:?}");
     match got {
-        Err(StackupRefusal::NothingCertified {
-            sensitivities,
-            coverage,
-            ..
-        }) => {
-            // DATUM: today's answer to a real study — a refusal that
-            // CARRIES the accounting it points at and the `LocalOnly`
-            // sensitivities the driver computed (the fix pass's answer
-            // to this row's original finding, which was that both were
-            // thrown away).
-            assert!(verdict.certified().is_empty());
-            assert_eq!(&*coverage, verdict.accounting());
-            assert_eq!(sensitivities.len(), 2);
+        Ok(report) => {
+            // DATUM (M10-8): the whole ±0.1 box certifies in one leaf,
+            // and the study's chamber is that leaf — the whole box.
+            assert_eq!(verdict.certified().len(), 1, "{:?}", verdict.receipt());
+            assert!(verdict.refused().is_empty(), "{:?}", verdict.receipt());
+            let Chamber::ChamberCertified { leaf, .. } = &report.chamber else {
+                panic!("DATUM changed — the chamber is {:?}", report.chamber)
+            };
+            for name in ["h1", "h2"] {
+                let (lo, hi) = leaf.get(&ParamName::new(name)).expect("the axis").span();
+                assert!(
+                    (lo + 0.1).abs() < 1e-12 && (hi - 0.1).abs() < 1e-12,
+                    "{name}: [{lo}, {hi}]"
+                );
+            }
+            assert_eq!(report.per_param.len(), 2);
         }
         other => panic!("DATUM changed — a ±0.1 study now yields {other:?}"),
     }
@@ -955,10 +967,18 @@ fn r1_seed_env_refuses_a_foreign_name() {
 /// multiplies a derivative marked valid over a leaf by a span many
 /// times the leaf\'s — the extrapolation E4\'s marking clause exists to
 /// make unwritable. This row measures the ratio on a drive that split.
+///
+/// **The document moved under M10-8's shipped tier**: the stepped shaft
+/// at `ε/8` — and at ±0.1 — now certifies WHOLE in one leaf (the row
+/// above), so it no longer splits and cannot carry this measurement.
+/// The two-hole plate at `1e3 · ε` of its study does: just above its
+/// whole-certifying ceiling (`7.81e2 · ε` at every ε row), the driver
+/// splits once and certifies both halves (the same fixture the E6
+/// driver population carries as `two_hole_plate_narrow`).
 #[test]
 fn r1_the_contribution_extrapolates_past_its_certified_chamber() {
-    let half = eps() / 8.0;
-    let (doc, m) = stepped_shaft(1.0, 0.5, Some(uniform(half)), Some(uniform(half)));
+    let scale = 1.0e3 * eps();
+    let (doc, m, _) = crate::m10_7_plate::plate(5.0e-5 * scale, 1.0e-5 * scale, Tol::witness());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
     assert!(
