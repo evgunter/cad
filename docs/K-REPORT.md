@@ -639,6 +639,33 @@ Adding a name carrier without recording it here still silently drops
 its rows from the roster; that is now a disclosed cost rather than an
 undetected one.
 
+**Roster addition (TRIM-3): the chart-boundary outside test.** Five
+names, in the crate scan's blind spot #4 — four of them are a
+`ray_parity::ParityRows` value, the carrier this document already
+lists, and `ParityRows`' own type docs say a new value is a roster
+change and belongs here. `topo/src/chart_bound.rs` decides:
+
+| name | carrier |
+|---|---|
+| `chart_bound_gap` | a bare literal at the `decide` site (the five-axis separating-axis test) |
+| `chart_bound_segment` | `ParityRows` field |
+| `chart_bound_boundary` | `ParityRows` field |
+| `chart_bound_side` | `ParityRows` field |
+| `chart_bound_advance` | `ParityRows` field |
+
+Their dimensions and dispositions are `docs/predicate-dimension-audit.md`'s
+**F18**. They pool with nothing: a chart-boundary cell margin is its own
+population, which is exactly why the shared parity walk takes its row
+names from the caller.
+
+**They emit nothing on today's corpus, and that is a fact to read, not
+a hole.** `chart_boundary` has no shipped caller until the clearance
+seam lands, so a `k_probe_sweep.sh` CSV taken at this merge carries no
+`chart_bound_*` row — the roster's code half reaches them and its
+behavioural half does not, which is the second blind spot this section
+names, in its live form. The first sweep after the consumer lands is
+what reads their distribution.
+
 **Why no per-predicate margin data in this snapshot.** The recording
 mechanism is the `Probe` scalar: per-predicate CSVs require running a
 corpus end-to-end at `T = Probe` with `CAD_K_REPORT_OUT` set, one

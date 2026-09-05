@@ -135,6 +135,7 @@ pub mod body;
 pub mod boolean;
 pub(crate) mod census;
 pub mod chart;
+pub mod chart_bound;
 pub mod chart_iso;
 pub mod chart_region;
 // The shared chord-join core — ch. 14's `join`/`cut` mechanics and the
@@ -303,6 +304,7 @@ pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).
 pub use chart::{Chart, ChartKind};
+pub use chart_bound::{ChartBound, ChartEdge, ChartLoop, MetredBound, MetredRect};
 pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth, unwrap_near};
 pub use chart_region::{
     ChartOverlap, ChartRegionError, ChartRegionLane, chart_region_overlap, declared_pair_overlap,
@@ -327,7 +329,7 @@ pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergedGroup, Ski
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use offset_axial::{is_axial, offset_charts_together};
 pub use offset_together::{ChartMove, offset_planes_together};
-pub use pcurves::{PcurveMintError, mint_pcurves, pcurve_of};
+pub use pcurves::{PcurveMintError, chart_boundary, mint_pcurves, pcurve_of};
 pub use props::{
     AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, PropsQuadLane,
     ShellClassification, ShellClassifyError, ShellRole, classify_shells, mass_properties,

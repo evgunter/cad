@@ -1,9 +1,11 @@
 ---
 id: clearance-window-tightening-needs-chart-boundary
-kind: issue
+kind: unit
 title: Clearance windows are bounding rectangles: tightening needs the face boundary in chart coordinates
-status: open
+status: dispatched
 opened: 2026-09-03
+branch: trim/3-chart-bound
+pr: 1911
 ---
 
 ## What

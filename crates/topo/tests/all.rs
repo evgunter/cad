@@ -206,6 +206,8 @@ mod seat3_flush_detector;
 mod shell_roles;
 #[path = "solid_separation.rs"]
 mod solid_separation;
+#[path = "trim_3_chart_bound.rs"]
+mod trim_3_chart_bound;
 #[path = "void_door.rs"]
 mod void_door;
 
