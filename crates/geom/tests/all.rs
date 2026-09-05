@@ -104,6 +104,12 @@ mod curves_n1r2_dump;
 mod curves_n1r2_lift_probes;
 #[path = "curves/n1r2_lift_probes_interval.rs"]
 mod curves_n1r2_lift_probes_interval;
+#[path = "curves/n3r2_c24_meter.rs"]
+mod curves_n3r2_c24_meter;
+
+#[path = "curves/n3r2_probes.rs"]
+mod curves_n3r2_probes;
+
 #[path = "curves/nurbs_differential.rs"]
 mod curves_nurbs_differential;
 #[path = "curves/nurbs_interval.rs"]
