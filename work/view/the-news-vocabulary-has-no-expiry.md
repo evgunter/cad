@@ -5,7 +5,6 @@ title: Nothing owns when news stops being news, so a stale-but-true complaint si
 status: open
 opened: 2026-09-04
 refs: [camera-fold-clears-status-line, status-line-writers-bypass-the-ranking, opoutcome-superseded-has-no-production-reader]
-needs_ev: true
 ---
 
 ## The gap
@@ -128,3 +127,30 @@ supersession is "true of nothing" after the frame that carries it, and
 acting batch clears it. So the tree already contains a written
 lifetime with no mechanism. Candidate 1 is not the status quo plus
 nothing; it is the status quo plus deleting that sentence.
+
+## RULED (Ev, #1883, 2026-09-05): candidate 2 — a message carries its subject
+
+> "b sounds good"
+
+**A message carries its subject, and a later message about the SAME
+subject supersedes it.** A camera verdict expires on the next camera
+event whatever it says, a projection refusal on the next camera move, a
+disagreement on the next cursor move, a supersession on the next
+document transition.
+
+So this is a **vocabulary change, not a routing change**, and the
+consequence stated when the question was asked now binds:
+`StatusUpdate::Show(String)` grows a subject, and every writer
+`status-line-writers-bypass-the-ranking` sweeps has to answer it. That
+is why the sweep waited for this: answering it after the sweep would
+have meant doing the sweep twice.
+
+**What this settles that was left dangling.** `frame::supersession_notice`'s
+doc says the supersession is "true of nothing" after the frame that
+carries it, and nothing implemented that lifetime — the notice sat on
+the line until an acting batch cleared it. Under this ruling the
+written lifetime becomes the implemented one, so the sentence stops
+being aspirational rather than being deleted.
+
+Rides with `four-badges-five-spellings`, per the same PR's answer to
+question 3.

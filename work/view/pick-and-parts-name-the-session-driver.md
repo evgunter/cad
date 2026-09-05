@@ -5,7 +5,6 @@ title: pick and parts are vocabularies that name DocSession, so the boundary rul
 status: open
 opened: 2026-09-04
 refs: [1848]
-needs_ev: true
 ---
 
 
@@ -111,3 +110,47 @@ file-granular while its justifications are per-seam, so later bounds
 inherit ratification"*. D103 lists "a count pinned per file" as one of
 three shapes; this is that shape, built inside D103's fence. It is
 evidence for that ruling, not a substitute for it.
+
+## RULED (Ev, #1883, 2026-09-05): hoist the read, and the reason generalises
+
+> "i think a sounds good, since it's easy to switch to b later and hard
+> to do the reverse"
+
+**Answer (a): hoist the read.** The session hands out a value — the
+parts census, the pick-cache inputs — and `pick.rs` and `parts.rs` take
+that instead of a `&DocSession`. `crates/viewer/README.md`'s
+*no vocabulary may name a driver* stays **unqualified**; the cost is a
+new value per reader and the derivation moving into the driver.
+
+**The reason is worth more than the answer and this program should
+carry it as a rule.** The two options are not symmetric in
+reversibility. Hoisting keeps widening available: if the values turn
+out to be a bad trade, the rule can still be widened later. Widening
+first does not keep hoisting available — the clause gets relied on, and
+by the time anyone wants it back there is a set of sites that were
+written against it. *"Easy to switch to b later and hard to do the
+reverse"* is the general test for a fork between a strict rule and a
+rule with a clause, and this item is now the worked instance of it.
+
+That is also the answer to the item's own worry, which was that a
+clause is "exactly the kind a later unit widens again". It is — and the
+asymmetry is why the strict branch is the safe one, not merely the
+tidier one.
+
+## What lands, and what does not
+
+- `scripts/gates/viewer-module-kinds.sh`'s two `VOCAB_EXCEPTIONS`
+  entries **go** when the sites do. The entry is `FILE|NEEDLE|COUNT`
+  and site-granular, so it cannot outlive its reason: fixing a site
+  without lowering the count reds.
+- `crates/viewer/README.md`'s `### Two vocabularies that read the
+  session` section goes with them, and both modules' doc headers stop
+  recording the exception.
+- **The evidence offered to `work/code-quality/D103.md` stands and is
+  not withdrawn.** That ruling asks whether an allowlist should be
+  file-granular or per-seam; this exemption was the per-seam shape
+  built inside D103's fence, and its retirement is evidence about the
+  shape rather than a reason to stop offering it. The retiring unit
+  should say so where the entries are deleted, the way
+  `interval-square-allowlist.sh:125-133` argues about its own retired
+  entries.

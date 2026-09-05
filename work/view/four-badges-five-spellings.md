@@ -5,7 +5,6 @@ title: The toolbar's badge family is one concept in prose and five spellings in 
 status: open
 opened: 2026-09-04
 refs: [camera-fold-clears-status-line]
-needs_ev: true
 ---
 
 ## What this is
@@ -120,3 +119,26 @@ format literals.
 carry: `frame::product_badge` and `frame::dialog_status` are the same
 `fn(...) -> Option<String>` / `StatusUpdate` shape over other people's
 typed values. That makes four members of the function shape, not two.
+
+## RULED (Ev, #1883, 2026-09-05): yes, and it rides the news vocabulary
+
+> "sure"
+
+Answering *is a badge vocabulary worth having* — a typed value per
+standing fact, its own rendering, its own `None`, one draw at the
+toolbar, with `tree::RowStatus::badge()` as the model — and the
+recommendation it was put with: **take it WITH the news vocabulary as
+one unit**, because `status-line-writers-bypass-the-ranking` sorts its
+nineteen writers into news and standing facts and needs both
+vocabularies to sort them into.
+
+The constraints stated when the question was asked are part of what was
+ratified and a uniformity pass must not flatten them: the checks badge
+is a **button** because a tooltip is the wrong home for text a reader
+acts on, and the `weak`/`unresolved` split encodes "actionable or not",
+which `pane/features.rs` argues explicitly for poisoned rows and no
+value states.
+
+The 2026-09-05 section above is part of the job: the family has two
+implementations *of the notice itself* as well as five spellings of the
+badge, and four members of the function shape rather than two.
