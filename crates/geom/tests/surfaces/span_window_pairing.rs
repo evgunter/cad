@@ -243,9 +243,15 @@ fn a_window_answers_for_its_own_surface() {
     // parameters — the door that locates its own span pair.
     assert_eq!(pbits(pa), pbits(a.eval(1.5, 1.5)));
     assert_eq!(pbits(pb), pbits(b.eval(1.5, 1.5)));
-    // And the borrow is what says so: the window names its surface.
+    // And the borrow is what says so: the window names its surface —
+    // through BOTH public mints, which is the whole of the surface
+    // half's claim.
     assert!(core::ptr::eq(wa.surface(), &a));
     assert!(core::ptr::eq(wb.surface(), &b));
+    let indexed = a.window(2, 2).expect("nonempty span pair");
+    assert!(core::ptr::eq(indexed.surface(), &a));
+    assert!(core::ptr::eq(indexed.span_u().knots(), a.knots_u()));
+    assert!(core::ptr::eq(indexed.span_v().knots(), a.knots_v()));
 }
 
 /// **Both knot vectors and the stride come from the one borrow.** The
@@ -277,27 +283,39 @@ fn the_stride_and_both_vectors_come_from_the_windows_surface() {
     assert!(!is_poison_point(wn.eval_in_span(1.5, 1.5)));
 }
 
-/// The residue one level down, pinned so it stays a decision: a
-/// `NurbsSurface` relates its control net to its two knot vectors by
-/// COUNT alone, so two nets of the same shape are interchangeable at
-/// construction and the window inherits that. Same species as
-/// `span_hull`'s coefficient count.
-/// (`work/props/coefficients-carry-their-knot-vector.md`.)
+/// **Where the count-only relation lives, and what it does and does
+/// not refuse** — `NurbsSurface::new`, once, at construction.
+///
+/// The window doors read their net through the borrow, so no
+/// evaluation door has this relation any more; the constructor does.
+/// This row is falsifiable in both directions: it reds if `new` ever
+/// starts *refusing* a net of matching counts (the pairing closed) and
+/// it reds if `new` ever stops refusing a net of the wrong counts (the
+/// bound that keeps every window in range).
 #[test]
-fn the_net_is_related_to_the_vectors_by_count_alone() {
+fn the_constructor_relates_the_net_to_the_vectors_by_count_alone() {
     let ku = clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0], 2);
     let kv = clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0], 2);
     let mine = surface(ku.clone(), kv.clone());
-    // Another surface's net, same counts, accepted without complaint.
+    let (nu, nv) = mine.control_counts();
+    assert_eq!(mine.control().len(), nu * nv);
+
+    // A net that is not this surface's, at the same counts: accepted.
     let mut theirs = mine.control().to_vec();
     theirs[0] = Point3::new(1.0e6, -1.0e6, 1.0e6);
-    let hybrid = NurbsSurface::new(ku, kv, theirs, mine.weights().to_vec())
+    let hybrid = NurbsSurface::new(ku.clone(), kv.clone(), theirs, mine.weights().to_vec())
         .expect("the count relation is all `new` checks");
-    let p = mine.window_at(0.25, 0.25).eval_in_span(0.25, 0.25);
-    let q = hybrid.window_at(0.25, 0.25).eval_in_span(0.25, 0.25);
-    assert!(
-        !is_poison_point(q),
-        "a foreign net is answered, not refused"
+    assert_ne!(
+        pbits(hybrid.window_at(0.25, 0.25).eval_in_span(0.25, 0.25)),
+        pbits(mine.window_at(0.25, 0.25).eval_in_span(0.25, 0.25)),
+        "the two nets must disagree, or this row proves nothing"
     );
-    assert_ne!(pbits(p), pbits(q));
+
+    // A net of the wrong count: refused — and that refusal is what
+    // makes every window's `row(i) + j` a construction fact.
+    let short = mine.control()[..nu * nv - 1].to_vec();
+    let short_w = mine.weights()[..nu * nv - 1].to_vec();
+    assert!(NurbsSurface::new(ku.clone(), kv.clone(), short.clone(), short_w.clone()).is_err());
+    // And a net whose length matches but whose WEIGHTS do not.
+    assert!(NurbsSurface::new(ku, kv, mine.control().to_vec(), short_w).is_err());
 }

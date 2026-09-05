@@ -138,6 +138,8 @@ mod net_placeholder_width;
 mod net_placeholder_width_interval;
 #[path = "span_bit_identity.rs"]
 mod span_bit_identity;
+#[path = "span_bit_identity_ext.rs"]
+mod span_bit_identity_ext;
 
 // ---- surfaces ----
 #[path = "surfaces/boxes.rs"]

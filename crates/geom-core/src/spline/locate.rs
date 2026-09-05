@@ -72,6 +72,8 @@ pub(crate) mod sealed {
 /// travels with it. Iterate the interior with
 /// `first.index() + 1 ..= last.index()` and [`KnotVector::span`],
 /// which refuses the empty spans in between.
+/// `Debug` comes from [`Span`]'s, which prints the borrow as an
+/// address rather than following it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SpanSet<'a> {
     /// The first overlapped span.

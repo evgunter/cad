@@ -65,22 +65,27 @@
 //! `residual.hi() <= eps` under every comparison direction, so a
 //! structural mistake can never be mistaken for a certificate.
 //!
-//! There is **no span refusal left**. A [`Span`] borrows the knot
+//! **No span carries a pairing question.** A [`Span`] borrows the knot
 //! vector it is a proof about, every span-taking door here reads its
 //! knots from that borrow ([`Span::knots`]) and takes no second
-//! vector, so "in range", "degree agreement" and "nonempty" are all
-//! facts about the very knots being read. The state the old refusal
-//! tested — a span beside a foreign vector — is unrepresentable.
+//! vector, so "in range", "degree agreement" and "nonempty" are facts
+//! about the very knots being read and there is nothing to refuse.
 //!
-//! # The relation that is still length-only, and is the residue
+//! # The relation that is length-only, and is the residue
 //!
 //! One check here is a relation of *length*, not of identity.
 //! `coeffs.len() == kv.control_count()` says nothing about which curve
 //! the coefficients came from: a same-length `coeffs` from another
 //! curve passes it, the bound is then computed over the wrong data,
 //! and it is **wrong rather than refused** — a silent answer, and the
-//! one deliberate residue here. Closing it wants the coefficients
-//! carrying their vector, the way a [`Span`] carries its own.
+//! one deliberate residue here.
+//!
+//! **These free functions are where it lives.** `geom`'s curve and
+//! surface windows borrow the curve or surface they evaluate and read
+//! the coefficients from it, so they do not have this relation; a
+//! door here takes a loose `&[E]` and does. Closing it wants the
+//! coefficients carrying their vector, the way a [`Span`] carries its
+//! own.
 //!
 //! What the length check does close is the worse failure: nothing here
 //! can index out of bounds, so no public door here panics (D9).

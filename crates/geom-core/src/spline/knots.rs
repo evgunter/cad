@@ -324,12 +324,27 @@ impl InteriorKnot {
 /// (`Span<'_>: Real` unsatisfied, the knot vector landing in `t`'s
 /// position) alongside its `E0061`, so the annotation names one of
 /// two codes there rather than the only one.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct Span<'a> {
     kv: &'a KnotVector,
     index: usize,
     first_control: usize,
     degree: usize,
+}
+
+/// The borrow is printed as an ADDRESS, never followed: a derived
+/// `Debug` would dump the whole knot vector through the reference at
+/// every `{:?}`, which is the one cost a borrow-carrying token can
+/// impose by accident. The address is also what equality reads.
+impl core::fmt::Debug for Span<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Span")
+            .field("kv", &core::ptr::from_ref(self.kv))
+            .field("index", &self.index)
+            .field("first_control", &self.first_control)
+            .field("degree", &self.degree)
+            .finish()
+    }
 }
 
 impl PartialEq for Span<'_> {

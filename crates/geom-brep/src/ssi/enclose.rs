@@ -410,11 +410,13 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
 
     /// The hull of the Cartesian control block of one span cell.
     ///
-    /// The cell is a [`SurfaceWindow`], so the `su < pu || sv < pv`
-    /// refusal this used to open with is gone: the window's two `Span`s
-    /// carry `index ≥ degree` from their construction. What remains is
-    /// the length check the window cannot make — `ctl.get`, below,
-    /// against the caller's control array.
+    /// The cell is a [`SurfaceWindow`]: its two `Span`s carry
+    /// `index ≥ degree` and `index ≤ last_span()` from their
+    /// construction, and the net below is the window's OWN surface, so
+    /// every `row(i) + j` is in range. The `ctl.get` arm is therefore
+    /// unreachable — it is kept as the total spelling (D9: an
+    /// out-of-range read is a poison box, never an index panic), not as
+    /// a refusal any input can reach.
     fn cell_point_box(&self, win: SurfaceWindow<'_, T>) -> Box3 {
         // The net comes from the window's own surface, not from
         // `self.surface` beside it: the window is a borrow of the
@@ -444,13 +446,13 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// weight and weight-derivative hulls, over one span cell:
     /// `(A_d hull, w_d hull, w hull)`.
     ///
-    /// Both the range refusal (`su < pu`) and the degree-0 one this
-    /// used to open with are gone with the [`SurfaceWindow`]: the
-    /// former is the `Span` invariant, and `KnotVector::clamped`
-    /// refuses degree 0 outright, so `pu == 0 || pv == 0` named a state
-    /// no constructible window can reach. The remaining `.get`
-    /// refusals — against `ctl`, `wts` and the raw knot slices — are
-    /// the ones a window cannot make.
+    /// The window's invariants carry the range (`index ≥ degree`,
+    /// `index ≤ last_span()`) and `KnotVector::clamped` refuses degree
+    /// 0, so no constructible window reaches `pu == 0 || pv == 0`. The
+    /// `.get` arms below — against `ctl`, `wts` and the raw knot
+    /// slices — are the total spelling for reads the differencing
+    /// ladder shifts by one index, where the shift, not the window,
+    /// decides the bound.
     fn cell_homogeneous_deriv(
         &self,
         win: SurfaceWindow<'_, T>,

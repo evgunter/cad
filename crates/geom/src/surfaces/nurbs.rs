@@ -142,7 +142,7 @@ pub struct SurfaceJet3<T: Real> {
 /// construction), which is the same length-only relation
 /// [`geom_core::spline::hull::span_hull`] holds its coefficients to.
 /// That residue is the coefficient↔vector pairing, not this one.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct SurfaceWindow<'a, T: Real> {
     surface: &'a NurbsSurface<T>,
     span_u: Span<'a>,
@@ -155,6 +155,21 @@ pub struct SurfaceWindow<'a, T: Real> {
 /// (themselves address-equal on their vectors): a window is a proof
 /// about *that* net, and `NurbsSurface` is not [`Eq`] — its knots and
 /// weights are `f64` — so a by-value derive is not available either.
+/// The borrow is printed as an ADDRESS, never followed. A derived
+/// `Debug` would dump the whole control net, both knot vectors and the
+/// weights through the reference at every `{:?}`.
+impl<T: Real> core::fmt::Debug for SurfaceWindow<'_, T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("SurfaceWindow")
+            .field("surface", &core::ptr::from_ref(self.surface))
+            .field("span_u", &self.span_u)
+            .field("span_v", &self.span_v)
+            .field("base", &self.base)
+            .field("stride", &self.stride)
+            .finish()
+    }
+}
+
 impl<T: Real> PartialEq for SurfaceWindow<'_, T> {
     fn eq(&self, other: &Self) -> bool {
         core::ptr::eq(self.surface, other.surface)

@@ -230,6 +230,63 @@ fn every_window_a_curve_mints_evaluates_that_curve() {
     );
 }
 
+/// **The shapes the retired guard refused, at the doors that still
+/// have loose coefficients** — adopted from the review lane's probe.
+///
+/// Three equal-control-count mismatches: (a) same degree, different
+/// interior knots; (b) a span whose index is EMPTY in the vector the
+/// coefficients belong to; (c) a span of a DIFFERENT degree. The curve
+/// doors cannot be handed any of them any more — a window borrows its
+/// curve — so the surface they are still reachable through is
+/// `geom-core`'s free `hull` functions, where the coefficients are a
+/// loose slice. All three are **answered, not refused**, and (c) is
+/// the sharpest: the basis row it would pair with is a different
+/// length from this vector's.
+#[test]
+fn the_free_hull_doors_answer_every_shape_the_guard_refused() {
+    use geom_core::spline::hull;
+
+    // Equal control count throughout, so the one surviving check
+    // (`coeffs.len() == kv.control_count()`) passes in every row.
+    let mine = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0], 3)
+        .expect("valid");
+    let theirs = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 1.0, 1.0, 1.0, 1.0], 3)
+        .expect("valid");
+    let quad =
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.3, 0.6, 0.8, 1.0, 1.0, 1.0], 2).expect("valid");
+    assert_eq!(mine.control_count(), theirs.control_count());
+    assert_eq!(mine.control_count(), quad.control_count());
+
+    #[allow(clippy::cast_precision_loss)]
+    let coeffs: Vec<f64> = (0..mine.control_count())
+        .map(|i| (i % 5) as f64 * 0.5 - 1.0)
+        .collect();
+
+    // (b): index 4 is empty in `mine` and nonempty in `theirs`.
+    assert!(mine.span(4).is_none() && theirs.span(4).is_some());
+    let b = theirs.span(4).expect("nonempty in theirs");
+    assert!(
+        !hull::span_hull(&coeffs, b).is_poison(),
+        "(b) an index empty in this vector is answered by the free doors"
+    );
+    // (c): a degree-2 span, so `span.degree() != mine.degree()`.
+    let c = quad.span_at(0.7);
+    assert_ne!(c.degree(), mine.degree());
+    assert!(
+        !hull::span_hull(&coeffs, c).is_poison(),
+        "(c) a span of another degree is answered by the free doors"
+    );
+    assert!(
+        hull::sup_norm_bound_span(&coeffs, c).is_finite(),
+        "(c) and the honesty limb certifies on it"
+    );
+    // (a) is the row above this one; here only the count matters, and
+    // a wrong count is still poison at all three shapes.
+    for s in [b, c] {
+        assert!(hull::span_hull(&coeffs[..coeffs.len() - 1], s).is_poison());
+    }
+}
+
 /// The knot vectors the two sweeps above range over: several degrees,
 /// several lengths, clamped and interior-knotted.
 ///
