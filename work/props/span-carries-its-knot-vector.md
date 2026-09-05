@@ -109,4 +109,8 @@ CERT-N3's `spline/` edits to merge.
 you recommend A then that works"). The item is a unit: the sweep per
 §Scope, the mutation-hold check first, `crates/geom-core/README.md`'s
 spline clause as the companion note. CERT-N3 (#1879) merged 2026-09-05 04:08; the unit is cut against the
-post-N3 `spline/` layer (spec to follow the census of that layer).
+post-N3 `spline/` layer: spec `docs/PROPS-SPAN-SPEC.md` (binding; L,
+block PROPS-B1 slot 1). The census (2026-09-05) found no span held
+across a mutation, no storage beyond `SurfaceWindow`, no serialization
+or FFI crossing, ~82 src + 112 test sites over five crates; the
+coefficient↔vector pairing stays open and is filed by the unit.
