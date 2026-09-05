@@ -19,39 +19,56 @@ coverage rather than a bound. CERT-M3 landed the row the census called
 independently landable (the scalar-level absence split out as
 `ValidationError::CensusLaneUnsupported`) and left the split itself here.
 
+
+## Corrected at CERT-M3's dual (2026-09-05)
+
+The census's premise — *"the conformal face-pair arm is the only arm
+reaching `ChartRegionLane`"* — was FALSE, found by the unit's first
+blinded reviewer and confirmed at adjudication. The trait has two methods
+(`chart_overlap`, `declared_overlap`; `crates/topo/src/chart_region.rs`)
+and three consumers in `crates/topo/src/census.rs`:
+
+| arm | method | what a structural half would do |
+|---|---|---|
+| conformal face-pair sweep (`census.rs:1627`) | `chart_overlap` | go silent — no conformal pair is examined |
+| declared-record confirm pass (`:2777`) | `declared_overlap` | go silent — no `PatchContact` record is confirmed, so a stale one is not reported either |
+| edge-edge crossing backing (`:1366` via `pair_region_verified`, `:511`) | `declared_overlap` | fold to `false` — every consulted pair reads as unverified, so crossings a declaration DOES back are refused as if it did not |
+
+The third arm is what makes this a contract question rather than a
+refactor: a structural half's error set is not "the composed one minus
+the conformal findings" — it also GAINS findings, because unbacked
+crossings stay loud by design. The mechanical half (which arms reach the
+trait, that no other arm depends on them, the error-set difference) is
+now verified and is the table above; the completeness claim itself is
+not a lane's to verify.
+
 ## The sentence
 
-Splitting `ChartRegionLane` the way `EdgeNurbsLane` was split means
-`census_and_certify` gains a structural half that runs every coincidence
-arm except the conformal face-pair one, which needs the certified overlap
-predicate. The sentence that half's doc would have to carry:
+The one a structural half's doc would have to carry is closer to:
 
-> *"The coincidence census, minus the conformal face-pair arm, is complete
-> for the classes it does cover."*
+> *"The coincidence census, minus the conformal face-pair arm and the
+> declared-record patch confirm, is complete for the classes it does
+> cover; and a crossing whose backing pair could not be verified is
+> refused rather than passed."*
 
-That claims the census's remaining arms (the exact planar sweeps, the
-vertex/edge/face coincidence arms, the declared-record confirm pass) are
+It claims that the census's remaining arms — the exact planar sweeps,
+the vertex/edge/face coincidence arms, the curve-record confirm — are
 individually complete over the classes they are written for, so dropping
-the conformal arm subtracts exactly one class of contact and no part of
-any other. The census's whole job is *no scan-to-bless in either
-direction*, so a coverage statement about it is a claim about the kernel's
-contact guarantee, not about a function.
-
-A lane can verify the mechanical half (the conformal arm is the only arm
-reaching `ChartRegionLane`; no other arm's result depends on it; the
-structural half's error set is the composed one minus exactly the
-conformal findings). A lane cannot verify the claim itself: whether the
-covered classes are complete is a statement about the C9 exclusion ring's
-missing first step (`CONTACT-DESIGN` C2 step 1) and about the same-solid
-distinct-key and pure-tangency residues the census already names as open.
+two arms subtracts exactly two classes of contact and no part of any
+other; and that the third arm's conservative direction is the sound one
+to be left in. The census's whole job is *no scan-to-bless in either
+direction*, so this is a claim about the kernel's contact guarantee, not
+about a function — a statement about the C9 exclusion ring's missing
+first step (`CONTACT-DESIGN` C2 step 1) and the same-solid distinct-key
+and pure-tangency residues the census already names as open.
 
 ## The question
 
 Is that sentence one you are willing to have in the tree as a public
 door's contract?
 
-- **Yes** → the split is mechanical and small; it becomes a unit on
-  `H5` (Track M's remainder) with the sentence as its contract.
+- **Yes** → the split is mechanical (three arms, two methods); it becomes
+  a unit on `H5` (Track M's remainder) with the sentence as its contract.
 - **No** → `ChartRegionLane` stays until the exclusion ring lands, and
   `H5` says so.
 
@@ -59,4 +76,8 @@ door's contract?
 
 `PcurveFittedLane`'s non-split (a representation question: what is a
 fitted pcurve cache with no certificate) is `H5`'s other open question
-and is not asked here.
+and is not asked here. A third question from the same unit — whether the
+certified form of the at-rest doors should become their DEFAULT name,
+evicting `Body<Dual64>` from `validate_pseudomanifold` — lives on
+`work/cert/lane-keeping-at-rest-doors-skip-the-m7-8-class.md` (PR #1877)
+and is not asked here either.
