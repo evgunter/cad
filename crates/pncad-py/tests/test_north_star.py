@@ -2260,20 +2260,22 @@ class TestBudfillet(unittest.TestCase):
 
 
 class TestTwopeg(unittest.TestCase):
-    """Tour scenes `twopeg_apart` (row 40, YES) and `twopeg` (row 39,
-    NO — G19), demos/tour/src/twopeg.rs: two plates that locate on
-    each other three ways at once — the mating plane, and each peg's
-    wall against its own bore's wall.
+    """Tour scene `twopeg` (row 38), demos/tour/src/twopeg.rs: two
+    plates that locate on each other three ways at once — the mating
+    plane, and each peg's wall against its own bore's wall.
 
     The two PARTS are ordinary work: plate P is a plate with two pegs
     unioned on (transverse curved booleans, `bossplate`'s lane), plate
     Q the same plate with two through-bores subtracted, and the apart
-    framing lifts Q by a rigid transform. All of that is bound, which
-    is why `twopeg_apart` is a YES row.
+    framing lifts Q by a rigid transform.
 
-    The MATE is not, and the reason is G19, pinned below. Its three
-    declared contacts are one planar `Rest` and two CYLINDRICAL ones,
-    and Python can say only the planar third."""
+    The MATE is ordinary work too, since the flush detector's reach
+    became the `Rest` ladder's reach: its three declared contacts are
+    one planar `Rest` and two CYLINDRICAL ones, and the detector
+    reports all three as findings a Python author can inspect and
+    declare. That is G19 closed, and the rows below are the
+    measurement — including the differential that says the curved
+    declarations are what unlock the arm."""
 
     PLATE: ClassVar[tuple] = (6.0, 4.0, 1.0)
     PEG_R: ClassVar[float] = 0.5
@@ -2330,27 +2332,30 @@ class TestTwopeg(unittest.TestCase):
                 body.mass_properties().volume, want, delta=1e-12
             )
 
-    def test_the_mate_has_no_python_path_because_the_detector_is_planar(self):
-        """G19, pinned as the audit's NO rows are.
+    def test_the_mate_is_authorable_and_the_declaration_is_what_unlocks_it(self):
+        """Row 38's mate, through the curated surface, end to end.
 
-        Three assertions, and together they are the gap: the detector
-        reports only PLANAR pairs on this scene's two parts (one
-        `SameOpposite` — the mating plane — and six `SameOriented`
-        merge-stage walls, and NOT the four cylindrical patches the
-        scene declares); declaring every one of them still refuses;
-        and the refusal is the CURVED-face arm, which is precisely
-        what the scene says a cylindrical declaration unlocks.
+        The detector reports all THREE of this mate's contacts now —
+        the mating plane and both peg fits, since its reach is the
+        `Rest` ladder's reach — so the findings a Python author can
+        hold are the whole declaration, and the union GLUES at the
+        scene's own exactly-additive oracle, 2·6·4·1 = 48.
 
-        The day the detector grows its curved arm this test fails —
-        with the union succeeding at the scene's exactly-additive
-        oracle, 2·6·4·1 = 48 — and row 39 is promoted."""
+        The second half is what keeps the first honest: declaring only
+        the PLANAR findings — everything the detector could report
+        while it was plane-only — still refuses, in the reduction's
+        curved-face arm. So the cylindrical declarations are what
+        unlock the arm, not a decoration on a union that would have
+        built anyway."""
         doc = Doc()
         p, q, _, _ = self.parts(doc)
         ev = evaluate(doc)
         findings = ev.find_flush_candidates(p, q)
-        self.assertEqual(len(findings), 7)
+        self.assertEqual(len(findings), 25)
+        # One mating plane and 18 peg-against-bore pairs oppose (Rest);
+        # the six flush walls are the merge-stage flavor.
         self.assertEqual(
-            sum(1 for f in findings if f.relation == PlaneRelation.SameOpposite), 1
+            sum(1 for f in findings if f.relation == PlaneRelation.SameOpposite), 19
         )
         self.assertTrue(all(f.class_ == ContactClass.Rest for f in findings))
 
@@ -2360,22 +2365,49 @@ class TestTwopeg(unittest.TestCase):
             )
         )
         ev = evaluate(doc)
+        self.assertTrue(ev.succeeded(declared))
+        body = ev.value(declared).body()
+        body.validate()
+        self.assertAlmostEqual(body.mass_properties().volume, 48.0, delta=1e-12)
+
+    def test_declaring_only_the_walls_the_plane_rung_reaches_still_refuses(self):
+        """The other half of row 38, and the reason the mate above is
+        a statement about DECLARATION rather than about the detector.
+
+        The six `SameOriented` wall findings are declarable and always
+        were; on their own they leave the curved contact undeclared,
+        and the boolean refuses in the same curved-face arm it refused
+        in before the detector could see that contact at all."""
+        doc = Doc()
+        p, q, _, _ = self.parts(doc)
+        ev = evaluate(doc)
+        walls = [
+            f
+            for f in ev.find_flush_candidates(p, q)
+            if f.relation == PlaneRelation.SameOriented
+        ]
+        self.assertEqual(len(walls), 6)
+        declared = doc.insert(
+            Node.boolean(BooleanOp.Union, p, q, declare=doc.declare_all(walls))
+        )
+        ev = evaluate(doc)
         self.assertFalse(ev.succeeded(declared))
         with self.assertRaises(EvaluationError) as caught:
             ev.value(declared)
         self.assertEqual(caught.exception.kind, "boolean")
         self.assertIn("curved face", str(caught.exception))
 
-    def test_a_finding_is_the_only_route_to_a_declaration_and_is_planar(self):
-        """The other half of G19, on the smallest shape that shows it.
-
-        A solid cylinder standing inside a block's bore of the SAME
+    def test_a_cylindrical_only_coincidence_is_a_finding_and_still_the_only_route(self):
+        """A solid cylinder standing inside a block's bore of the SAME
         radius is a cylindrical `Rest` and nothing else: the block
         overshoots both ways, so no plane of one coincides with a
-        plane of the other. The detector reports NOTHING, because its
-        probe answers `None` for any curved carrier — and a
-        `FlushFinding` cannot be built by hand, so there is no second
-        route to the declaration."""
+        plane of the other. The detector reports the wall pairs — its
+        rungs are the verifier's — and every one of them is a resting
+        contact.
+
+        What has NOT changed is the route: a `FlushFinding` still
+        cannot be built by hand, so a declaration can only come from
+        something the kernel reported (the no-fusion boundary)."""
         import pncad
 
         doc = Doc()
@@ -2396,7 +2428,11 @@ class TestTwopeg(unittest.TestCase):
         )
         block = doc.insert(Node.extrude(block_p, 3 * m))
         ev = evaluate(doc)
-        self.assertEqual(ev.find_flush_candidates(peg, block), [])
+        findings = ev.find_flush_candidates(peg, block)
+        self.assertEqual(len(findings), 4)
+        for f in findings:
+            self.assertEqual(f.relation, PlaneRelation.SameOpposite)
+            self.assertEqual(f.class_, ContactClass.Rest)
         with self.assertRaises(TypeError):
             pncad.FlushFinding()
 
