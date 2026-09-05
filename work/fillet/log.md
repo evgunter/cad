@@ -695,3 +695,13 @@ probe rows adopted with the ruled row moving into `bitdump.rs` and its
 issue closed, one dump home, one seed contract, one statement of the
 rule. No unilateral MAJOR — tally +0; pair FAIR (no glimpse). Row at
 merge, ordinal 2006.
+
+**Ev ruled on the split (2026-09-05, PR 1916):** "you don't need to ask
+me about moving things around, unless it has design implications". The
+re-scoping is approved and the rule generalises — recorded on the item
+(now the FILLET-SPLIT unit, S / STRUCTURAL, block FILLET-B3 slot 1 =
+FABLE by the draw; it branches after FILLET-T's fix pass leaves
+`surgery.rs`) and offered to `memories/orchestration-model.md` as one
+sentence on its own `[ev]` PR (memory changes wait for Ev's sign-off).
+Spec drafted (`FILLET-SPLIT-SPEC.md`: a move, `--color-moved` clean, the
+allowlist entry re-scoped not extended, bit-identical by the dump).
