@@ -2823,3 +2823,84 @@ The PR offers an escape hatch cheaper than the general rule: answering
 only *is `projection: {error}` a badge or a line message* unblocks the
 sweep, and this program takes the general rule as whatever that
 implies.
+
+## #1932 MERGED; the phantom id had a root cause worth the name (2026-09-05)
+
+Merged at `22d72a06`, green on `b566f7e5`. Three item-file conflicts on
+the orchestrator branch, all `dispatched` here against `closed` from
+the lane's own PR; main's side taken each time. **That is the fourth
+wave in a row with the same conflict shape**, and it is structural
+rather than careless: a lane closes its items in the PR that carries
+the work, and the orchestrator branch that dispatched them still says
+so. Cheap to resolve, and the alternative — the orchestrator not
+recording dispatch — is worse.
+
+### The regression had a root cause, not just a symptom
+
+I sent this back saying the boolean sentence named a phantom node id
+and should not. The lane found **why**, which is better: `check_node_inputs`
+is reached from `InsertNode` with `RecipeNodeId(new.next_id)` — an id
+that does not exist and never will if the edit is refused — **and**
+from `SetMembers` with a live one. The `Display` cannot tell which, so
+**no framing that names that id is honest**, not merely the one we had.
+
+What it names instead is `input`, which the forwarded fault carries and
+which is live on both callers, and the action became a **second
+sentence** rather than a third em-dash clause:
+
+> the edit was refused: the node this edit writes would be invalid:
+> node 7 is taken as an input twice — a node's inputs are pairwise
+> distinct. Replace one of the two with a different node.
+
+The forwarding rule survives — `InputFault` still owns the fault's
+words, the door adds the frame and the action — and `TooFewMembers`
+gets the same frame with **no** action, because its own fault names the
+count required. The asymmetry is stated rather than accidental.
+
+**And it is pinned whole.** `combine_ops.rs` now asserts the entire
+rendered sentence with `assert_eq!`, with the reason in a comment:
+substring sampling is exactly what let the phantom id and the missing
+action through in the first place.
+
+### The lane declined to widen, and said why
+
+`EditError`'s `MetaNotSet`/`MetaNonFinite`/`MetaUnversioned`/
+`RebindMetadataCollision` render a `key: String` through `Debug`, one
+of them embedding a literal `\"v\"` — the same defect this unit removed
+from the nine name-bearing arms, in arms the amendment did not
+enumerate. The lane left them, on the ground that *"widening the unit
+on my own reading of a ratified fence is the thing I should not do
+twice in one PR"*. Correct, and it is the disclosure from the first
+fence crossing paying for itself: a lane that got one ratification does
+not treat that as a licence for the next.
+
+**I restated the fence on the announce rather than extending it**: the
+authorisation is `EditError`'s user-facing `Display` **wording**, and
+the two items Ev named were a description of what needed fixing rather
+than an exhaustive licence. Under that reading these four arms and the
+six `{slot:?}` sites are in scope for the same kind of change — but
+they are DOCM's to sequence, and VIEW is not going to keep reaching for
+them one review at a time. Offered either way.
+
+### Two amendments the lane made to its own items
+
+`refusal-has-no-all-to-walk` **no longer proposes a third home**: it
+records that `prose_census.rs` already answers the `{`/variant-name
+half by source census over the whole tree including `crates/viewer/`,
+that `display_contract.rs`'s `assert_f6` is a third spelling, and that
+the uncovered half is the **quoting** question. The ask became "extend
+the census", not "add a roster" — which is the right correction to a
+finding I passed on as "file it".
+
+And `self-boolean-…` now says, in the review's words, that **the item
+was right and the fix was smaller than it asked for**. My framing that
+it had misread the tree is removed from the item, the log and the PR.
+
+### Routed, not taken
+
+To FIX: `verb-and-dimension-render-through-debug.md:48` cites
+`session.rs:750` for a site the 1c split moved to
+`session/refuse.rs:337`. **VIEW's split broke the citation**, so the
+correction is owed; the item is FIX's to edit. Another instance of
+`stale-file-citations-after-the-split`'s general case, which stays
+open.
