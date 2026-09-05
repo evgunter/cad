@@ -3632,6 +3632,7 @@ its own.
 
 Block FILLET-B1 slot record (branch-side, appended as each slot concludes):
 slot 0 = FILLET-H4 (FABLE) — concluded 2026-09-04 at merge fc38f753b, ordinal 2000, sample #126 (tally candidate recorded in the row).
+slot 1 = FILLET-RIM (OPUS) — concluded 2026-09-05 at merge 40d50f272, ordinal 2001, sample #131 (one tally candidate recorded in the row, a second flagged for the blinded adjudication).
 Reorder (2026-09-04, before any slot-1 dispatch): slot 1 = FILLET-RIM
 (`docs/FILLET-RIM-SPEC.md`, `no-public-rim-arc-selector`; pre-draw
 **S / STRUCTURAL**, logged at the spec), slot 2 = H5
