@@ -5,6 +5,7 @@ title: the flush detector widens to the curved Rest rungs — the content review
 status: dispatched
 opened: 2026-09-05
 branch: seat/flushwide
+pr: 1974
 refs: [flush-detector-widening-to-curved-rungs, 1531]
 ---
 

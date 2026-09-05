@@ -27,7 +27,7 @@ Opened 2026-09-02; 0 comments.
 
 ## Closed
 
-SEAT-FW (PR PRNUM, 2026-09-05). The swap is one identifier in
+SEAT-FW (PR 1974, 2026-09-05). The swap is one identifier in
 `topo::flush::pair_finding` and no verify table moved, exactly as
 measured here; the unit was the content review it forces. Both seats'
 answers grew curved findings (the twopeg parts go from 7 findings to
