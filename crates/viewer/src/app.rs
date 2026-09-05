@@ -403,17 +403,23 @@ pub enum StartupError {
     /// `eframe` handed the application no wgpu render state — the
     /// application was built against a renderer it does not have.
     NoWgpuRenderState,
-    /// The evaluation worker could not be started. Fatal on purpose: a
-    /// seam with no worker accepts every submit and answers none, so
-    /// the application would open onto a permanent "evaluating…".
+    /// A seam's worker thread could not be started — the evaluation
+    /// worker or the index one; [`crate::evalseam::Worker`] names
+    /// which, inside the payload, which is where a set of two belongs
+    /// rather than as two arms here. Fatal on purpose: a seam with no
+    /// worker accepts every submit and answers none, so the
+    /// application would open onto a permanent "evaluating…" or a
+    /// permanent "indexing…".
     ///
-    /// Absent on wasm, where the seam is [`crate::evalseam::InlineEvaluator`]
-    /// — nothing is spawned, so nothing can refuse to spawn. The arm
+    /// Absent on wasm, where the seams are
+    /// [`crate::evalseam::InlineEvaluator`] and
+    /// [`crate::evalseam::InlineIndexer`] — nothing is spawned, so
+    /// nothing can refuse to spawn. The arm
     /// is `cfg`-ed away rather than kept and never constructed,
     /// because a closed enum (D4 ¶3) whose reader must ask which arms
     /// are reachable is no longer telling the truth about its states.
     #[cfg(not(target_family = "wasm"))]
-    Evaluator(crate::evalseam::SpawnError),
+    Worker(crate::evalseam::SpawnError),
 }
 
 impl core::fmt::Display for StartupError {
@@ -439,7 +445,7 @@ impl core::fmt::Display for StartupError {
                  against a renderer it does not have",
             ),
             #[cfg(not(target_family = "wasm"))]
-            Self::Evaluator(error) => write!(f, "{error}"),
+            Self::Worker(error) => write!(f, "{error}"),
         }
     }
 }
@@ -469,19 +475,41 @@ impl core::error::Error for StartupError {}
 ///
 /// # Errors
 ///
-/// [`StartupError::Evaluator`] if the OS refuses the worker thread.
+/// [`StartupError::Worker`] if the OS refuses the worker thread.
 /// The wasm arm is infallible — it spawns nothing — and returns
 /// `Ok` unconditionally.
 fn evaluator() -> Result<Box<dyn crate::evalseam::EvalService>, StartupError> {
     #[cfg(not(target_family = "wasm"))]
     {
         Ok(Box::new(
-            ThreadEvaluator::spawn().map_err(StartupError::Evaluator)?,
+            ThreadEvaluator::spawn().map_err(StartupError::Worker)?,
         ))
     }
     #[cfg(target_family = "wasm")]
     {
         Ok(Box::new(crate::evalseam::InlineEvaluator::new()))
+    }
+}
+
+/// The index seam this build runs on — the same choice
+/// [`evaluator`] makes, for the same reason.
+///
+/// # Errors
+///
+/// [`StartupError::Worker`] if the OS refuses the thread. A viewer
+/// whose index seam never started would draw its opening picture and
+/// then refuse every pick on every document forever, which is a
+/// failure to meet at startup rather than to discover by clicking.
+fn indexer() -> Result<Box<dyn crate::evalseam::IndexService>, StartupError> {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        Ok(Box::new(
+            crate::evalseam::ThreadIndexer::spawn().map_err(StartupError::Worker)?,
+        ))
+    }
+    #[cfg(target_family = "wasm")]
+    {
+        Ok(Box::new(crate::evalseam::InlineIndexer::new()))
     }
 }
 
@@ -550,7 +578,7 @@ impl ViewerApp {
             session: DocSession::new(document, tol, evaluator()?),
             delta,
             scene: Arc::new(mesh),
-            picks: PickCache::new(),
+            picks: PickCache::new(indexer()?),
             id_answer: Arc::new(AtomicU64::new(0)),
             id_log: IdQueryLog::new(),
             revision: 1,
@@ -634,21 +662,41 @@ impl ViewerApp {
                 self.budget_delta = fitted.requested_cost.map(|_| fitted);
             }
         }
+        // **The index seam answers here.** A build that finished is
+        // installed or refused now, before the currency check below
+        // reads the cache — so an index that landed for the picture on
+        // screen is used on the frame it arrives rather than the next
+        // one. A refusal is this frame's news; a superseded answer is
+        // nothing to say (`pick::IndexLanding::Stale` is what
+        // restart-without-cancel produces, once per δ changed
+        // mid-build).
+        let mut rebuilt = false;
+        for landing in self.picks.pump() {
+            match landing {
+                pick::IndexLanding::Built => rebuilt = true,
+                pick::IndexLanding::Refused => {
+                    self.status = self
+                        .picks
+                        .error()
+                        .map(|error| format!("pick index: {error}"));
+                }
+                pick::IndexLanding::Stale => {}
+            }
+        }
         // The cache owns the retry policy: one attempt per (landed
         // generation, δ). A refused build is reported and held, not
         // re-attempted every frame behind a stale picture.
-        let rebuilt = match self.picks.sync(&self.session, self.delta) {
-            pick::CacheStep::Held | pick::CacheStep::Nothing => return,
-            pick::CacheStep::Refused => {
-                self.status = self
-                    .picks
-                    .error()
-                    .map(|error| format!("pick index: {error}"));
-                return;
-            }
-            pick::CacheStep::Rebuilt => true,
-            pick::CacheStep::Current => false,
-        };
+        //
+        // Every arm but `Current` leaves the viewport drawing the mesh
+        // it already has — an older picture, which the indexing
+        // indicator names and `pick::unindexed` refuses picks against.
+        match self.picks.sync(&self.session, self.delta) {
+            pick::CacheStep::Held
+            | pick::CacheStep::Nothing
+            | pick::CacheStep::Submitted
+            | pick::CacheStep::Indexing => return,
+            pick::CacheStep::Current => {}
+        }
         // The scene is a function of (index, display state, focus): a
         // display or selection change over a current index still owes
         // exactly one rebuild.
@@ -1096,9 +1144,13 @@ impl eframe::App for ViewerApp {
                 // fourth thing to say: the picture is older than the
                 // document AND nothing is running. A spinner there
                 // would be a lie about work nobody is doing.
-                if self.session.busy() {
-                    ui.separator();
-                    if self.session.running() {
+                match frame::progress(
+                    self.session.busy(),
+                    self.session.running(),
+                    self.picks.indexing(),
+                ) {
+                    Some(frame::Progress::Evaluating) => {
+                        ui.separator();
                         ui.spinner();
                         ui.label("evaluating…");
                         if ui.button("Cancel").clicked() {
@@ -1108,12 +1160,40 @@ impl eframe::App for ViewerApp {
                         // nothing else would wake the frame loop to
                         // collect it.
                         ui.ctx().request_repaint();
-                    } else {
+                    }
+                    Some(frame::Progress::Canceled { indexing }) => {
+                        ui.separator();
+                        // The recourse is UNCONDITIONAL: the cancel is
+                        // what the reader has to act on, and an index
+                        // build behind it must not take the button
+                        // away for the seconds it runs. The spinner
+                        // reads left of the label because that is
+                        // where the other two arms put theirs.
+                        if indexing {
+                            ui.spinner();
+                        }
                         ui.label("canceled — showing an older result");
                         if ui.button("Re-evaluate").clicked() {
                             ops.push(SessionOp::Reevaluate);
                         }
+                        if indexing {
+                            ui.weak("indexing…")
+                                .on_hover_text(crate::pick::NotIndexed::Building.to_string());
+                            ui.ctx().request_repaint();
+                        }
                     }
+                    // No Cancel button beside it, and that is the
+                    // seam's promise showing through the chrome: the
+                    // build cannot be stopped, only outrun by a newer
+                    // one (`evalseam`, the index seam).
+                    Some(frame::Progress::Indexing) => {
+                        ui.separator();
+                        ui.spinner();
+                        ui.label("indexing…")
+                            .on_hover_text(crate::pick::NotIndexed::Building.to_string());
+                        ui.ctx().request_repaint();
+                    }
+                    None => {}
                 }
                 // The A5 at-rest badge, for assembly-shaped documents:
                 // the verification verdict living past the commit.
@@ -1283,6 +1363,7 @@ impl eframe::App for ViewerApp {
                     budget_delta: self.budget_delta,
                     scene: &self.scene,
                     index: self.picks.index(),
+                    indexing: self.picks.indexing(),
                     revision: self.revision,
                     camera: &mut self.camera,
                     input: self.input,
@@ -1370,6 +1451,13 @@ pub(crate) struct ViewerBehavior<'a> {
     pub(crate) budget_delta: Option<crate::scene::FittedDelta>,
     pub(crate) scene: &'a Arc<SceneMesh>,
     pub(crate) index: Option<&'a PickIndex>,
+    /// Whether a build for the picture this frame WANTS is under way —
+    /// the other half of what `index: None` means, and the half that
+    /// decides which sentence a refused pick gets
+    /// (`pick::NotIndexed`). Carried as a value rather than re-derived
+    /// from the session, because "someone is building one" is the pick
+    /// cache's answer and nothing else's.
+    pub(crate) indexing: bool,
     pub(crate) revision: u64,
     pub(crate) camera: &'a mut Camera,
     pub(crate) input: InputMap,

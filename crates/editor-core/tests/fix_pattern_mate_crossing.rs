@@ -17,11 +17,7 @@
 //!   asking the vocabulary apart from one merely matching a head's
 //!   spelling.
 //!
-//! That SKIP ruling was made at the ASM-R2b review and is recorded in
-//! `asm_r2b_assembly.rs`'s rows-5-and-6 header; `ASSEMBLY.md`'s AQ8
-//! clause carries only the weld/`TornCluster` half, so the ruling is
-//! cited here from where it actually lives rather than as ratified
-//! design text.
+//! That SKIP ruling is `crates/editor-core/ASSEMBLY.md`'s AQ8 clause.
 //!
 //! The whole-cluster cut also pins A4's recorded map over an
 //! `Instance(i)` head: the node ids remap, the STRUCTURAL INDEX does
@@ -334,9 +330,8 @@ fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
 /// member vocabulary, so the mate is not an edge, welds nothing, and
 /// its two ends DO reach opposite sides of an accepted cut.
 ///
-/// INVARIANT (AQ8 option (b), SKIP — ruled at the ASM-R2b review and
-/// recorded in `asm_r2b_assembly.rs`'s rows-5-and-6 header, NOT in
-/// `ASSEMBLY.md`'s AQ8 clause, which carries only the weld half):
+/// INVARIANT (AQ8 option (b), SKIP — `crates/editor-core/ASSEMBLY.md`'s
+/// AQ8 clause):
 /// such a mate contributes NO crossing however its names fall, because
 /// it never solved and a record minted from it would be
 /// trusted-at-rest state. This is the
