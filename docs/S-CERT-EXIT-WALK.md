@@ -3,9 +3,11 @@
 **STATUS: PROPOSED — awaiting Ev's ratification.** Per the convention Ev
 confirmed for S-MATE (2026-09-04: merging a PROPOSED walk is the
 ratification), this walk rides an `[ev]` PR; merging it ratifies it, and
-the closing sweep that follows (re-home the residue below, delete
-`work/cert/`, ledger the deletion in `docs/DOC-LEDGER.md` with the sweep
-SHA) is the program's last act. Until then `work/cert/log.md`'s tail is the
+the closing sweep that follows (delete `work/cert/`, ledger the deletion
+in `docs/DOC-LEDGER.md` with the sweep SHA) is the program's last act.
+**The residue is already re-homed in this PR** — every open item that
+lived under `work/cert/` now sits in the home the handoffs ledger names,
+so the sweep moves nothing. Until then `work/cert/log.md`'s tail is the
 program's live status.
 
 S-CERT = the certificates-that-lie program (`work/cert/{program,plan,log}.md`,
@@ -130,19 +132,22 @@ MET-WITH-RECORDED-HONESTY / CARRIED (named owner). Walked against main
   exit walk stays at `docs/S-CERT-EXIT-WALK.md` and is deleted with the
   directory at close, the DOC-LEDGER row being the done-state of record.
 
-## Handoffs ledger — the residue and its proposed homes for the closing sweep
+## Handoffs ledger — the residue and its homes (RE-HOMED IN THIS PR)
 
 `work/README.md`: a closed program's directory is deleted whole, and its
 residue is re-homed to a live program or to `work/issues/` BEFORE the
-sweep. Every open item under `work/cert/` at main `37eaf5b9b`, with the
-home this walk proposes (Ev may re-point any of them at ratification;
-the sweep executes what stands):
+sweep. Every open item under `work/cert/` at main `37eaf5b9b` is moved in this
+PR to the home below (Ev, on the PR: "as long as all residuals are filed
+appropriately"); ids are unchanged, so every reference still resolves, and
+the two `work/code-quality/` filings that named CERT-N3 and S235 (D291,
+D292) now cite PR 1879 instead. Re-point any of them by moving the file;
+`work.py lint` is green on this head.
 
-| Item (`work/cert/`) | github | Proposed home |
+| Item (formerly `work/cert/`) | github | Home (moved in this PR) |
 |---|---|---|
 | `H5` — Track M's schedule of three questions for Ev | — | `work/code-quality/` (its origin; `parent:` cleared — no unit carries it; `refs` kept) |
 | `lane-keeping-at-rest-doors-skip-the-m7-8-class` | — | `work/code-quality/` beside H5 (its third question; the fix is a ruling) |
-| `chart-region-lane-contract` (ruling, `[ev]` PR #1878, needs_ev) | — | `work/code-quality/` beside H5 until Ev answers; the answer's unit is Track M's |
+| `chart-region-lane-contract` (ruling, `[ev]` PR #1878, needs_ev) | — | `work/code-quality/` beside H5 — moved on PR #1878's own branch, where the file lives until Ev answers |
 | `rimless-polar-cap-refuses-degenerateface` | 1250 | `work/props/` |
 | `two-face-sphere-split-measures-zero-volume` | 1598 | `work/props/` |
 | `props-refusal-cannot-carry-measured-overshoot` | 1602 | `work/props/` |
@@ -164,7 +169,7 @@ the sweep executes what stands):
 | `param-box-certification-of-implicit-quantities` | — | `work/m10/` (the frontier M10-7's identity layer does not reach) |
 | `tess-budget-doc-finding-block-stale` | — | `work/tcost/` (TESS-BUDGET.md) |
 | `nurbs-net-point-map-helper` (status review, PR 1742 from `fix/`) | — | `work/fix/` (its PR's program) |
-| `unify-edge-descriptions-on-pcurves` (ruling, closed) | 427 | deleted with the directory (closed; recoverable at the sweep SHA) |
+| `unify-edge-descriptions-on-pcurves` (ruling, closed) and every closed unit/row item (CERT-M3, CERT-N3, C24, D31, D98, D244, S235, …) | 427 | deleted with the directory at the sweep (closed; recoverable at the sweep SHA) |
 
 Program-header keep-outs that survive the close and need no re-homing:
 PR 883 (lane H-g) stays parked as lane H-f on `work/code-quality/S90-impl.md`;
@@ -208,5 +213,5 @@ remote, cheap).
    become the DEFAULT name (evicting `Body<Dual64>` from
    `validate_pseudomanifold`) — are not this walk's to answer; they are
    listed so ratification does not read as answering them.
-5. The proposed homes in the handoffs ledger. The sweep moves what stands
-   when this walk merges.
+5. The homes in the handoffs ledger are executed in this PR; merging
+   accepts them. The sweep after the merge deletes and ledgers only.
