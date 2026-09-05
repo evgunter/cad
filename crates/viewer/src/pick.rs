@@ -53,6 +53,7 @@
 //! (`crates/viewer/README.md`, Two vocabularies that read the session).
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use pncad::document::{Doc, Evaluation, Frame, ParamName, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};
@@ -61,7 +62,7 @@ use pncad::select::{HitTestError, NodePick, NodePickError, PickHit, PickTarget, 
 
 use crate::camera::{Camera, CameraError};
 use crate::display::DisplayView;
-use crate::evalseam::Generation;
+use crate::evalseam::{Generation, IndexDone, IndexRequest, IndexService, InlineIndexer};
 use crate::input::{PickAction, ViewportSize};
 use crate::scene::{DisplayTolerance, SceneError, SceneMesh, ScenePart};
 use crate::session::{DocSession, EdgeSelection, FaceSelection, Hovered, Selection, SessionOp};
@@ -2226,13 +2227,47 @@ pub fn cursor_projection(
 /// So the retry policy is stated once, here: **at most one attempt per
 /// (landed generation, δ)**, success or failure. A failure is kept and
 /// readable ([`PickCache::error`]) rather than retried into a stall.
-#[derive(Debug, Default)]
+/// [`PickCache::attempted`] is written when the attempt is SUBMITTED
+/// and never cleared, so the policy costs the same one comparison
+/// whether the answer is in this frame or several seconds away.
+///
+/// # Current or absent, never behind
+///
+/// The build happens on the [`IndexService`] seam, so between the
+/// submit and the answer there is no index at all: [`PickCache::sync`]
+/// drops the held one the moment it submits. That is the whole of the
+/// staleness rule and it is deliberate — an index that is never READ
+/// while stale is not derived data that can be wrong, so nothing here
+/// has to reason about how far behind it is. What the window costs is
+/// carried elsewhere: the viewport keeps drawing the mesh it last got
+/// (an older picture), the chrome says a build is under way
+/// (`crate::frame::progress`), and a pick made meanwhile is refused
+/// typed ([`NotIndexed`]) rather than answered from something older.
 pub struct PickCache {
     index: Option<PickIndex>,
-    /// What the last attempt was for. `Some` after any attempt,
-    /// successful or not — which is what stops the retry loop.
+    /// What the last attempt was for. `Some` after any attempt is
+    /// SUBMITTED, answered or not — which is what stops the retry loop.
     attempted: Option<(Generation, DisplayTolerance)>,
+    /// The attempt that has been submitted and not yet answered — what
+    /// [`PickCache::indexing`] reports.
+    ///
+    /// Distinct from `attempted`, which outlives the answer: together
+    /// they separate "asked, still waiting" from "asked, and the answer
+    /// was a refusal we are not retrying".
+    outstanding: Option<(Generation, DisplayTolerance)>,
     error: Option<PickIndexError>,
+    seam: Box<dyn IndexService>,
+}
+
+impl std::fmt::Debug for PickCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PickCache")
+            .field("index", &self.index.as_ref().map(PickIndex::generation))
+            .field("attempted", &self.attempted)
+            .field("outstanding", &self.outstanding)
+            .field("error", &self.error)
+            .finish_non_exhaustive()
+    }
 }
 
 /// What one [`PickCache::sync`] did.
@@ -2240,25 +2275,58 @@ pub struct PickCache {
 pub enum CacheStep {
     /// The held index already describes the run on screen.
     Current,
-    /// Rebuilt for a new generation or δ.
-    Rebuilt,
-    /// The rebuild refused; the error is on the cache and will NOT be
-    /// retried until the generation or δ moves.
-    Refused,
+    /// A build for a new generation or δ was submitted to the seam.
+    /// The held index is gone from this moment, not from the moment
+    /// the answer arrives.
+    Submitted,
+    /// A build for exactly this (generation, δ) is already with the
+    /// seam — nothing was done and nothing was resubmitted.
+    Indexing,
     /// This attempt was already made and refused — nothing was done.
     Held,
     /// No evaluation has landed, so there is nothing to index.
     Nothing,
 }
 
+/// What one answer from the seam did to the cache.
+///
+/// [`crate::session::Landing`]'s counterpart for the second seam, and
+/// the same two filters read the same way: a build for a key the cache
+/// is no longer asking about is discarded here rather than installed
+/// and compared later.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IndexLanding {
+    /// The index landed and is what picks are answered from.
+    Built,
+    /// The build refused; the error is on the cache and will NOT be
+    /// retried until the generation or δ moves.
+    Refused,
+    /// The answer was for a (generation, δ) the cache has moved past,
+    /// so it was dropped. Restart-without-cancel produces exactly
+    /// this: the superseded build was allowed to finish.
+    Stale,
+}
+
 impl PickCache {
-    /// An empty cache.
-    pub fn new() -> Self {
-        Self::default()
+    /// A cache over `seam`.
+    pub fn new(seam: Box<dyn IndexService>) -> Self {
+        Self {
+            index: None,
+            attempted: None,
+            outstanding: None,
+            error: None,
+            seam,
+        }
     }
 
-    /// Bring the cache in line with the session's landed evaluation at
-    /// `delta`, at most one build attempt per (generation, δ).
+    /// A cache that builds its index inside [`PickCache::pump`] —
+    /// the browser's shape and the tests' ([`InlineIndexer`]).
+    pub fn inline() -> Self {
+        Self::new(Box::new(InlineIndexer::new()))
+    }
+
+    /// Ask the seam for an index of the session's landed evaluation at
+    /// `delta`, at most one attempt per (generation, δ).
     ///
     /// **δ is built at, verbatim.** `scene::TRIANGLE_BUDGET` chooses
     /// the δ a document OPENS at (`app`'s `fit_delta_on_scene`), and
@@ -2266,6 +2334,11 @@ impl PickCache {
     /// force it is the value someone asked for, and a cache that
     /// quietly built a different picture would make the View pane's δ
     /// field a control that does nothing.
+    ///
+    /// The document is CLONED into the request and the evaluation is
+    /// shared, so the worker owns everything it reads and the session
+    /// goes on being edited. Both come from the landed pair, which is
+    /// set in one place and read together.
     pub fn sync(&mut self, session: &DocSession, delta: DisplayTolerance) -> CacheStep {
         let Some(generation) = session.landed_generation() else {
             return CacheStep::Nothing;
@@ -2277,39 +2350,140 @@ impl PickCache {
         {
             return CacheStep::Current;
         }
-        if self.attempted == Some((generation, delta)) {
+        let wanted = (generation, delta);
+        if self.outstanding == Some(wanted) {
+            // Asked, and the answer is not here yet. Asking again
+            // would be the per-frame rebuild loop with a thread in it.
+            return CacheStep::Indexing;
+        }
+        if self.attempted == Some(wanted) {
             // Attempted and refused for this exact picture. Retrying
             // is the per-frame rebuild loop; the error is already
             // recorded and the caller has already seen it.
             return CacheStep::Held;
         }
-        self.attempted = Some((generation, delta));
-        self.index = None;
-        let Some((doc, eval)) = session.landed_pair() else {
+        let (Some((doc, _)), Some(evaluation)) = (session.landed_pair(), session.evaluation_arc())
+        else {
             return CacheStep::Nothing;
         };
-        match PickIndex::build(doc, eval, generation, delta, session.tol()) {
+        self.attempted = Some(wanted);
+        self.outstanding = Some(wanted);
+        // **Dropped before the answer, not after it.** What is held
+        // from here describes a run nobody is looking at any more, and
+        // the one thing this cache must never do is answer a pick from
+        // it.
+        self.index = None;
+        // The refusal on the cache is a statement about the attempt
+        // that produced it, and this is a different attempt.
+        self.error = None;
+        self.seam.submit(IndexRequest {
+            generation,
+            delta,
+            doc: doc.clone(),
+            evaluation: Arc::clone(evaluation),
+            tol: session.tol(),
+        });
+        CacheStep::Submitted
+    }
+
+    /// Take whatever the seam has finished, discarding answers for
+    /// pictures the cache has moved past.
+    ///
+    /// Returns one entry per answer handled, so a caller can assert on
+    /// what was discarded rather than infer it.
+    pub fn pump(&mut self) -> Vec<IndexLanding> {
+        let mut landings = Vec::new();
+        while let Some(done) = self.seam.poll() {
+            landings.push(self.land(done));
+        }
+        landings
+    }
+
+    /// Decide one answer's fate. Public so the staleness rule is
+    /// testable without a scheduler.
+    ///
+    /// **The key is the PAIR.** A build carrying the generation on
+    /// screen at a δ the user has since moved off is a picture nobody
+    /// asked for, and it would install without complaint if only the
+    /// generation were compared — the sharper half of the same failure
+    /// a wrong generation is, because the document is right and only
+    /// the tessellation is not.
+    pub fn land(&mut self, done: IndexDone) -> IndexLanding {
+        if self.attempted != Some((done.generation, done.delta)) {
+            return IndexLanding::Stale;
+        }
+        self.outstanding = None;
+        match done.index {
             Ok(index) => {
                 self.index = Some(index);
                 self.error = None;
-                CacheStep::Rebuilt
+                IndexLanding::Built
             }
             Err(error) => {
                 self.error = Some(error);
-                CacheStep::Refused
+                IndexLanding::Refused
             }
         }
     }
 
-    /// The held index, if the last attempt produced one.
+    /// The held index, if the last attempt produced one — `None` for
+    /// every frame between a submit and its answer.
     pub fn index(&self) -> Option<&PickIndex> {
         self.index.as_ref()
+    }
+
+    /// Whether a build is outstanding: the indexing state the chrome
+    /// reads, as a value (`crate::frame::progress`).
+    pub fn indexing(&self) -> bool {
+        self.outstanding.is_some()
     }
 
     /// Why the last attempt refused, if it did.
     pub fn error(&self) -> Option<&PickIndexError> {
         self.error.as_ref()
     }
+}
+
+/// **A pick attempted while no index describes the document on
+/// screen** — the typed *not indexed yet*.
+///
+/// Distinct from a miss, and that distinction is the whole of it. A
+/// miss is an answer: the index was asked and there is nothing under
+/// the cursor, so clearing the selection is right. This is the absence
+/// of anybody to ask, and doing nothing quietly is what made the
+/// window between two indexes look like a viewport that had decided
+/// the user was pointing at empty space.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NotIndexed;
+
+impl core::fmt::Display for NotIndexed {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "not picked: the picture is still being indexed, and a pick \
+             is answered from the index or not at all"
+        )
+    }
+}
+
+impl core::error::Error for NotIndexed {}
+
+/// The refusal a pick stream earns when there is no index to answer it
+/// — `Some` for an ACT, `None` for an observation.
+///
+/// **A hover is not news.** It is pushed on every frame the pointer is
+/// inside the pane, so a refusal raised for one would rewrite the
+/// status line sixty times a second and erase every other writer's
+/// sentence with it (`crate::frame`, the status line's two lifetimes);
+/// the indexing indicator is what tells a reader why the model is
+/// inert while they move over it. A click is an act — the user asked
+/// for something and did not get it — and that is exactly what the
+/// line carries.
+pub fn unindexed<'a>(actions: impl IntoIterator<Item = &'a PickAction>) -> Option<NotIndexed> {
+    actions
+        .into_iter()
+        .any(|action| matches!(action, PickAction::Select(_)))
+        .then_some(NotIndexed)
 }
 
 #[cfg(test)]

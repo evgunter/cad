@@ -485,6 +485,28 @@ fn evaluator() -> Result<Box<dyn crate::evalseam::EvalService>, StartupError> {
     }
 }
 
+/// The index seam this build runs on — the same choice
+/// [`evaluator`] makes, for the same reason.
+///
+/// # Errors
+///
+/// [`StartupError::Evaluator`] if the OS refuses the thread. A viewer
+/// whose index seam never started would draw its opening picture and
+/// then refuse every pick on every document forever, which is a
+/// failure to meet at startup rather than to discover by clicking.
+fn indexer() -> Result<Box<dyn crate::evalseam::IndexService>, StartupError> {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        Ok(Box::new(
+            crate::evalseam::ThreadIndexer::spawn().map_err(StartupError::Evaluator)?,
+        ))
+    }
+    #[cfg(target_family = "wasm")]
+    {
+        Ok(Box::new(crate::evalseam::InlineIndexer::new()))
+    }
+}
+
 impl ViewerApp {
     /// Build the application: author the starting document, evaluate
     /// it, tessellate at the initial δ, frame a camera on the result,
@@ -550,7 +572,7 @@ impl ViewerApp {
             session: DocSession::new(document, tol, evaluator()?),
             delta,
             scene: Arc::new(mesh),
-            picks: PickCache::new(),
+            picks: PickCache::new(indexer()?),
             id_answer: Arc::new(AtomicU64::new(0)),
             id_log: IdQueryLog::new(),
             revision: 1,
@@ -622,21 +644,41 @@ impl ViewerApp {
                 self.budget_delta = fitted.requested_cost.map(|_| fitted);
             }
         }
+        // **The index seam answers here.** A build that finished is
+        // installed or refused now, before the currency check below
+        // reads the cache — so an index that landed for the picture on
+        // screen is used on the frame it arrives rather than the next
+        // one. A refusal is this frame's news; a superseded answer is
+        // nothing to say (`pick::IndexLanding::Stale` is what
+        // restart-without-cancel produces, once per δ changed
+        // mid-build).
+        let mut rebuilt = false;
+        for landing in self.picks.pump() {
+            match landing {
+                pick::IndexLanding::Built => rebuilt = true,
+                pick::IndexLanding::Refused => {
+                    self.status = self
+                        .picks
+                        .error()
+                        .map(|error| format!("pick index: {error}"));
+                }
+                pick::IndexLanding::Stale => {}
+            }
+        }
         // The cache owns the retry policy: one attempt per (landed
         // generation, δ). A refused build is reported and held, not
         // re-attempted every frame behind a stale picture.
-        let rebuilt = match self.picks.sync(&self.session, self.delta) {
-            pick::CacheStep::Held | pick::CacheStep::Nothing => return,
-            pick::CacheStep::Refused => {
-                self.status = self
-                    .picks
-                    .error()
-                    .map(|error| format!("pick index: {error}"));
-                return;
-            }
-            pick::CacheStep::Rebuilt => true,
-            pick::CacheStep::Current => false,
-        };
+        //
+        // Every arm but `Current` leaves the viewport drawing the mesh
+        // it already has — an older picture, which the indexing
+        // indicator names and `pick::unindexed` refuses picks against.
+        match self.picks.sync(&self.session, self.delta) {
+            pick::CacheStep::Held
+            | pick::CacheStep::Nothing
+            | pick::CacheStep::Submitted
+            | pick::CacheStep::Indexing => return,
+            pick::CacheStep::Current => {}
+        }
         // The scene is a function of (index, display state, focus): a
         // display or selection change over a current index still owes
         // exactly one rebuild.
@@ -1079,9 +1121,13 @@ impl eframe::App for ViewerApp {
                 // fourth thing to say: the picture is older than the
                 // document AND nothing is running. A spinner there
                 // would be a lie about work nobody is doing.
-                if self.session.busy() {
-                    ui.separator();
-                    if self.session.running() {
+                match frame::progress(
+                    self.session.busy(),
+                    self.session.running(),
+                    self.picks.indexing(),
+                ) {
+                    Some(frame::Progress::Evaluating) => {
+                        ui.separator();
                         ui.spinner();
                         ui.label("evaluating…");
                         if ui.button("Cancel").clicked() {
@@ -1091,12 +1137,26 @@ impl eframe::App for ViewerApp {
                         // nothing else would wake the frame loop to
                         // collect it.
                         ui.ctx().request_repaint();
-                    } else {
+                    }
+                    Some(frame::Progress::Canceled) => {
+                        ui.separator();
                         ui.label("canceled — showing an older result");
                         if ui.button("Re-evaluate").clicked() {
                             ops.push(SessionOp::Reevaluate);
                         }
                     }
+                    // No Cancel button beside it, and that is the
+                    // seam's promise showing through the chrome: the
+                    // build cannot be stopped, only outrun by a newer
+                    // one (`evalseam`, the index seam).
+                    Some(frame::Progress::Indexing) => {
+                        ui.separator();
+                        ui.spinner();
+                        ui.label("indexing…")
+                            .on_hover_text(crate::pick::NotIndexed.to_string());
+                        ui.ctx().request_repaint();
+                    }
+                    None => {}
                 }
                 // The A5 at-rest badge, for assembly-shaped documents:
                 // the verification verdict living past the commit.

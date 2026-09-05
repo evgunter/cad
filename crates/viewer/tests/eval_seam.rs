@@ -22,8 +22,12 @@ use std::sync::Arc;
 
 use pncad::document::{CancelToken, EvalOptions, EvalOutcome, ProfileProgram, SlotId, evaluate};
 use pncad::geom_core::Tol;
-use viewer::evalseam::{EvalDone, EvalRequest, EvalService, Generation, InlineEvaluator};
+use viewer::evalseam::{
+    EvalDone, EvalRequest, EvalService, Generation, IndexDone, IndexRequest, IndexService,
+    InlineEvaluator, InlineIndexer,
+};
 use viewer::props::SlotValue;
+use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, Landing, SessionOp};
 
 #[test]
@@ -411,4 +415,104 @@ fn the_seams_traffic_is_send() {
     assert_send::<EvalDone>();
     assert_send::<Arc<pncad::document::Evaluation<f64>>>();
     assert_send::<pncad::document::Doc<ProfileProgram>>();
+}
+
+// --- the index seam -------------------------------------------------
+
+/// The δ the plate indexes at in this suite. Coarse on purpose: these
+/// rows are about the seam's bookkeeping, not about tessellation.
+fn index_delta() -> DisplayTolerance {
+    DisplayTolerance::new(2.0e-4).expect("a positive delta")
+}
+
+fn index_request(session: &DocSession, generation: Generation) -> IndexRequest {
+    let (doc, _) = session.landed_pair().expect("a landed pair");
+    IndexRequest {
+        generation,
+        delta: index_delta(),
+        doc: doc.clone(),
+        evaluation: Arc::clone(session.evaluation_arc().expect("a landed run")),
+        tol: session.tol(),
+    }
+}
+
+/// **The index seam answers with the key it was asked with**, and the
+/// index it carries was built under that same generation — the pair a
+/// consumer matches against its own request.
+#[test]
+fn the_index_seam_answers_with_the_key_it_was_asked_with() {
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let generation = session.landed_generation().expect("a landed generation");
+
+    let mut seam = InlineIndexer::new();
+    assert!(!seam.busy());
+    seam.submit(index_request(&session, generation));
+    assert!(seam.busy(), "asked, and not yet answered");
+    let done = seam.poll().expect("the inline seam answers inside poll");
+    assert!(!seam.busy());
+    assert_eq!(done.generation, generation);
+    assert_eq!(done.delta, index_delta());
+    let index = done.index.expect("the plate indexes");
+    assert_eq!(
+        index.generation(),
+        generation,
+        "the index is stamped with the generation the answer is filed under",
+    );
+    assert!(index.current_for(Some(generation), index_delta()));
+    assert!(seam.poll().is_none(), "and there is nothing else to take");
+}
+
+/// **Restart without cancel, and the wasted build is real.** A submit
+/// while a build is in flight does not stop it; the seam lets it
+/// finish and drops its answer, so two submits produce exactly one
+/// result and it is the newer one. This is the promise the evaluation
+/// seam above makes STRONGER: there, the superseded run is stopped at
+/// its next node.
+#[cfg(not(target_family = "wasm"))]
+#[test]
+fn the_threaded_index_seam_restarts_without_canceling_and_answers_once() {
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let first = session.landed_generation().expect("a landed generation");
+    let second = first.next();
+
+    let mut seam = viewer::evalseam::ThreadIndexer::spawn().expect("the worker starts");
+    seam.submit(index_request(&session, first));
+    seam.submit(index_request(&session, second));
+
+    let mut results = Vec::new();
+    for _ in 0..10_000 {
+        while let Some(done) = seam.poll() {
+            results.push(done);
+        }
+        if !seam.busy() && !results.is_empty() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert!(!seam.busy());
+    assert_eq!(
+        results.len(),
+        1,
+        "the superseded build dies inside the seam rather than travelling \
+         up to be discarded by key",
+    );
+    assert_eq!(results[0].generation, second);
+    assert!(results[0].index.is_ok());
+}
+
+/// The index seam's traffic is `Send` too — checked here as well as by
+/// the compile-time assertion in the module, because the threaded
+/// implementation that would otherwise force it is absent on wasm.
+#[test]
+fn the_index_seams_traffic_is_send() {
+    fn assert_send<T: Send>() {}
+    assert_send::<IndexRequest>();
+    assert_send::<IndexDone>();
+    assert_send::<viewer::PickIndex>();
 }

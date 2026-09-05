@@ -176,6 +176,13 @@ impl ViewerBehavior<'_> {
                     Err(error) => *self.status = Some(error.to_string()),
                 }
             }
+        } else if let Some(refusal) = pick::unindexed(&actions) {
+            // **Not indexed yet is not a miss.** There is no index to
+            // ask, because one is being built on its own seam, and a
+            // click that quietly did nothing here is the fail-quiet
+            // this window's indexing indicator would otherwise be
+            // painted over.
+            *self.status = Some(refusal.to_string());
         }
 
         // What to mark, as a pure function of what is drawn and what is
