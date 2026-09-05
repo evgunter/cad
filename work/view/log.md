@@ -1999,3 +1999,72 @@ not the wrong-answer story.
 
 That makes eleven corrections in this program's history, and the first
 a reviewer made against itself.
+
+## `view/scene-gathers` green; the lane re-took the measurement (2026-09-05)
+
+**#1908, CI green** on `6b317c72` — 37 jobs, twelve `test (…)`, five
+`k-lint (gate, …)`. Under style review. Not merged: it overlaps #1888
+on `app.rs` (eight lines inside `sync_scene`'s fit block) and
+`scene.rs`, and sequencing beats resolving twice.
+
+### It removed the door rather than making it cheaper
+
+The finding was that `scene_of_evaluation` gathers a product it is
+handed and **has no production caller** — a test-only door that would
+have paid per frame if anything wired it. The obvious fixes are to
+delete it or to make it cheaper. The lane did neither: `scene_of` now
+**composes** `scene_of_body`, so the shared core gained a production
+caller (startup, `app.rs:501`) and the redundant door is gone.
+
+Worth carrying, because this board holds two open items of the same
+shape — `tool-kind-all-and-ordinal-have-no-production-reader` and its
+`Seat::ALL` sibling — and both are probably better closed this way than
+by deletion.
+
+### It re-took the measurement instead of repeating the one it was handed
+
+The brief said DOCM-5's 248 ms / 8 ms was **inherited, not this unit's**,
+and must be cited as such. The lane cited it that way and then measured
+its own path: **87 ms gather against 2.4 ms body-clone at 165 roots /
+990 faces**, and 27.2 against 0.69 ms at 40 / 240 — 36–39× at both
+scales, so nothing in the PR rests on DOCM's number.
+
+That is rare and it is the behaviour the measure-first rule wants. Most
+lanes repeat the figure they are given; `memories/refusal-text-is-not-
+cause.md` exists because of the ones that do.
+
+### The hole it found, measured before choosing
+
+An assembly whose **A5 gate refuses** keeps no body: `assemble_gathered`
+takes `Product<T>` **by value**, and that is an editor-core door this
+unit may not change. Three ways out, costed rather than argued:
+
+| | cost |
+|---|---|
+| clone before every gate | 2.4 ms **per landing** of every assembly |
+| skip the fit when no body | regression — a gate-refused assembly opens unfitted |
+| gather once there, memoize | 87 ms **per landing that asks**, refused gate only |
+
+Cloning is 2.7% of a gather but is paid per *landing* while the gather
+it saves is paid per *opened document*, so it loses after a few edits.
+`landed_body` therefore takes **`&mut`**, gathers in that one case and
+memoizes. Filed as `refused-a5-gate-eats-the-body-the-fit-then-
+regathers`, with the real fix named as DOCM's door: a refusal that
+carries its product back.
+
+**The `&mut` accessor is the decision I am least confident in and I
+have said so to both the lane and the reviewer.** The arithmetic is
+sound; what is untested is the *shape* — whether a getter that takes
+`&mut` and may cost 87 ms is a good way to say "reading this can cost
+you", or an invariant living in a signature nobody reads. If the review
+says take the clone, I want the lane's view before deciding.
+
+### `LandedRun`'s property held
+
+This unit was dispatched partly as the first real test of the value
+`view/clearing-walk` shipped — that a new derived-from-the-landing
+field joins by being declared. It did: the field was declared, filled
+in the arm that already had the value, `Derived::none()` refused to
+compile until the cleared value was written, and **no walk was
+edited**. The only friction was editor-core's by-value door, which is
+not `LandedRun`'s.
