@@ -4,8 +4,10 @@ kind: issue
 title: scene_of_evaluation and fit_delta each gather the landed evaluation's product again after the landing already did
 status: closed
 opened: 2026-09-04
-closed: 2026-09-05
+branch: view/scene-gathers
 refs: [refused-a5-gate-eats-the-body-the-fit-then-regathers]
+pr: 1908
+closed: 2026-09-05
 ---
 
 

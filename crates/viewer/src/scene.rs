@@ -911,7 +911,9 @@ impl FittedDelta {
 /// again would pay a whole second gather on the one path a user reads
 /// as "how long Open takes". Measured on a 165-root, 990-face
 /// document (dev profile, this lane): 87 ms to gather, against 2.4 ms
-/// to clone the body that gather produced.
+/// to clone the body that gather produced. What that measurement
+/// decides, and why it carries no guard, is stated where the decision
+/// is (`session`'s `LandedRun::body`).
 ///
 /// # Errors
 ///

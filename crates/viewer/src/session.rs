@@ -347,6 +347,20 @@ struct LandedRun {
     ///   opened document — the wrong trade for an edit session.
     ///   [`DocSession::landed_body`] gathers once, there, and memoizes
     ///   into this field.
+    ///
+    /// **What those numbers are load-bearing for, and why they carry
+    /// no guard.** They chose between two designs that are both
+    /// CORRECT — memoize, or clone at every gate — so nothing here
+    /// breaks if the ratio drifts; what would break is the TRADE, and
+    /// a trade is re-decided by re-measuring, not by a failing
+    /// assertion. A wall-clock guard in the gate would be a flake
+    /// rather than a witness, and a scheduled re-measure would be a
+    /// standing chore over a number no behaviour reads. What IS
+    /// guarded is the consequence: `viewer/tests/landing_gathers.rs`
+    /// counts the gathers of every path that must not pay one, so a
+    /// change that reintroduced a gather fails there loudly and
+    /// deterministically. Re-measure before changing the shape; do not
+    /// trust the figures to have stayed true.
     body: Option<Arc<Body<f64>>>,
 }
 
