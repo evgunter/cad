@@ -13,7 +13,9 @@ LADDER path is unchanged by H5 and this defect is in it.
 ## The doc's claim
 
 `ring_clearance_pass`'s outer-boundary arm
-(`crates/sweep/src/blend/surgery.rs:1937`–`:1951`) scopes itself
+(`crates/sweep/src/blend/surgery.rs:2200`–`:2248` on the H5 head
+`e44f1a7fe` and after; `:1937`–`:1951` at the merge base it was filed
+against) scopes itself
 honestly and then asserts reachability:
 
 > the two false-refusal classes are (1) a trim circle NESTED inside a

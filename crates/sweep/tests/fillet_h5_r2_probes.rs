@@ -223,8 +223,7 @@ fn a_hostless_host_with_an_unrequested_outer_cycle_edge_refuses_at_the_host_gate
     let before = census(&body);
 
     let err = fillet_edges(&body, &arcs, 0.05, tol())
-        .err()
-        .expect("a host with an unrequested outer-cycle edge must refuse");
+        .expect_err("a host with an unrequested outer-cycle edge must refuse");
     let detail = detail_of(err.error);
     assert!(
         detail.contains("outside the requested chain in its outer cycle"),
@@ -263,8 +262,7 @@ fn a_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate_on_both
     );
     let detail = detail_of(
         fillet_edges(&body, &arcs, 0.05, tol())
-            .err()
-            .expect("a curved single host refuses (Seams route)")
+            .expect_err("a curved single host refuses (Seams route)")
             .error,
     );
     assert!(
@@ -286,8 +284,7 @@ fn a_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate_on_both
     );
     let detail = detail_of(
         fillet_edges(&body, &arcs, 0.05, tol())
-            .err()
-            .expect("a curved single mate refuses (Struts route)")
+            .expect_err("a curved single mate refuses (Struts route)")
             .error,
     );
     assert!(
@@ -408,8 +405,7 @@ fn a_hostless_rim_beside_a_ladder_rim_and_a_ringed_host_measured() {
     assert_eq!(outer.len(), 2);
     let detail = detail_of(
         fillet_edges(&body, &outer, 0.05, tol())
-            .err()
-            .expect("the ringed host refuses")
+            .expect_err("the ringed host refuses")
             .error,
     );
     assert!(
@@ -443,7 +439,10 @@ fn the_hostless_closed_forms_match_an_independent_derivation() {
     const BOWL_FILL: f64 = 3.375_275_670_086_987_4e-4;
     const PLANE_SPHERE_CUT: f64 = 3.611_716_124_594_630_2e-3;
     let r = 0.05;
-    let cases: [(&str, Body<f64>, (f64, f64), f64); 3] = [
+    /// One case: name, body, the rim's `(radius, station)`, and the
+    /// volume delta an independent derivation says the carve makes.
+    type Case = (&'static str, Body<f64>, (f64, f64), f64);
+    let cases: [Case; 3] = [
         ("bowl floor", repaired(bowl(tol())), (1.0, 1.0), BOWL_FILL),
         (
             "lantern neck",

@@ -47,8 +47,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::PI;
-
 use geom::NurbsCurve3;
 use geom_brep::PcurveFittedLane;
 use geom_core::{Affine3, Band, Bounds, Decide, Point2, Point3, Real, Vec2, Vec3};
@@ -756,42 +754,37 @@ pub mod pappus {
     }
 }
 
-/// **The waist's material-adding fill, by Pappus** — nothing of the
-/// kernel enters.
+/// **The waist's material-adding fill, by Pappus** — the 90-degree case
+/// of [`wedge_fill`], at the waist's own two generators.
 ///
-/// In the meridian half-plane `(x, y)` the waist vertex is
-/// `V = (x_v, y_v) = (0.5, 0.5)`, where the lower generator (from
-/// `(1, 0)`, direction `(−1, 1)/√2`) meets the upper one (to `(1, 1)`,
-/// direction `(1, 1)/√2`). The material is on the axis side, so the
-/// VOID wedge at `V` opens toward `+x` between the two generators and
-/// is `90°`; the rim is concave. The rolling ball of radius `r` rests in
-/// that void, tangent to both generators: its centre is on the wedge's
-/// bisector (the `+x` ray from `V`) at distance `r/sin 45° = r√2`, so
-/// `C = (x_v + r√2, y_v)`, and its feet are `r` from `V` along each
-/// generator, `F± = (x_v + r/√2, y_v ± r/√2)`.
+/// In the meridian half-plane the waist vertex is `V = (x_v, y_v)`,
+/// where the lower generator (from `(1, 0)`, direction `(-1, 1)/2^(1/2)`)
+/// meets the upper one (to `(1, 1)`, direction `(1, 1)/2^(1/2)`). The
+/// material is on the axis side, so the VOID wedge at `V` opens toward
+/// `+x` between the two generators and is 90 degrees; the rim is
+/// concave, and the rolling ball rests in that void.
 ///
-/// The fill region is the curvilinear triangle `V, F−, F+` bounded by
-/// the two generators and the fillet arc — the kite `V F− C F+` minus
-/// the circular sector at `C` between the feet. The kite is two right
-/// triangles of legs `r, r`, area `r²`; the sector's angle is
-/// `π − π/2 = π/2`, area `πr²/4`; so the fill's area is `r²(1 − π/4)`.
+/// The fill region is the curvilinear triangle bounded by the two
+/// generators and the fillet arc — the kite minus the sector at the
+/// ball's centre — which is exactly what [`wedge_fill`] composes for any
+/// wedge. This name survives because the waist's own generator
+/// directions are worth stating once; the ARITHMETIC has one home.
 ///
-/// Its first moment about the axis, `∫ x dA`:
-/// - the kite is symmetric about `y = y_v` and each of its two
-///   triangles has centroid `x = x_v + r/√2` (the mean of `x_v`,
-///   `x_v + r/√2` and `x_v + r√2`), so `∫_kite x dA = r²(x_v + r/√2)`;
-/// - the sector's centroid lies `4√2 r/(3π)` from `C` toward `V`
-///   (`2R sin θ / 3θ` at half-angle `θ = π/4`), so
-///   `∫_sector x dA = (πr²/4)(x_v + r√2) − √2 r³/3`.
-///
-/// Subtracting and collecting,
-/// `∫_fill x dA = x_v r²(1 − π/4) + √2 r³(5/6 − π/4)`, and Pappus gives
-/// `ΔV = 2π ∫_fill x dA`. Both brackets are positive, as the fill lies
-/// on the `+x` side of `V`.
+/// **Not bit-identical to the collected algebraic form it replaces**,
+/// and measured rather than assumed: the composed value differs by at
+/// most `2.6e-17` over `r` in `{0.02, 0.05, 0.1}` — an
+/// association-order difference, on fills of order `1e-3`, far under
+/// both callers' bars (H4's `1e-14` absolute and its interval twin's
+/// `1e-9` enclosure width, both re-run green). Output stability may
+/// choose between two spellings; it may not keep a second
+/// implementation (`memories/output-stability-as-justification.md`).
 #[must_use]
 pub fn waist_fill(x_v: f64, r: f64) -> f64 {
-    2.0 * PI
-        * (x_v * r.powi(2) * (1.0 - PI / 4.0) + 2f64.sqrt() * r.powi(3) * (5.0 / 6.0 - PI / 4.0))
+    let s2 = core::f64::consts::SQRT_2;
+    // The station is not an argument because it cannot matter: Pappus's
+    // first moment about the axis is invariant under a shift in `y`, and
+    // the wedge's shape is fixed by its two directions.
+    wedge_fill((x_v, 0.0), (1.0 / s2, -1.0 / s2), (1.0 / s2, 1.0 / s2), r)
 }
 
 /// **The bowl**: a flat floor at `y = 1` from the axis out to radius 1,
@@ -863,6 +856,61 @@ pub fn wedge_fill(k: (f64, f64), da: (f64, f64), db: (f64, f64), r: f64) -> f64 
     pappus::pappus_volume(&[
         (1.0, pappus::triangle(k, fa, c)),
         (1.0, pappus::triangle(k, c, fb)),
+        (-1.0, pappus::sector(c, r, fa, fb)),
+    ])
+}
+
+/// **A pole-touching hemisphere of radius `r` on a flat base disc**: the
+/// base `(0,0)→(r,0)` and the sphere quarter `(r,0)→(0,r)`, revolved
+/// fully. The simplest plane-hosted closed rim there is — one profile
+/// segment per support — and after `merge_coplanar_faces` its equator is
+/// the hostless-crossing shape with a plane×sphere pair.
+pub fn hemisphere_on_flat_base(r: f64, tol: Tol) -> Body<f64> {
+    hemisphere_on_flat_base_at(r, tol)
+}
+
+/// [`hemisphere_on_flat_base`] at any scalar, so the interval twin
+/// differs in the scalar and nothing else.
+pub fn hemisphere_on_flat_base_at<T: Decide + PcurveFittedLane>(r: T, tol: Tol) -> Body<T> {
+    // A quarter turn: `tan(theta/4)` at `theta = pi/2`.
+    let bulge = T::from_f64((core::f64::consts::FRAC_PI_2 / 4.0).tan());
+    revolved_about_y_at(
+        vec![
+            ProfileVertex::new(Point2::new(T::zero(), T::zero()), T::zero()),
+            ProfileVertex::new(Point2::new(r, T::zero()), bulge),
+            ProfileVertex::new(Point2::new(T::zero(), r), T::zero()),
+        ],
+        crate::Revolution::Full,
+        tol,
+    )
+}
+
+/// **The plane×sphere hostless carve's removed volume, by Pappus** — the
+/// unit sphere of radius `big_r` centred at the origin meeting the plane
+/// `y = 0` at the rim of radius `big_r`, material above the plane and
+/// inside the sphere, filleted at radius `r`.
+///
+/// The ball rests `r` above the floor and internally tangent to the
+/// sphere, so its centre is `C = (sqrt((R-r)^2 - r^2), r)` and its feet
+/// are `F_a = (C_x, 0)` and `F_b = C·R/(R-r)`. The removed meridian
+/// region is the kite `K, F_a, C, F_b` PLUS the circular segment of the
+/// sphere's own circle between the chord `K`–`F_b` and its arc (the arc
+/// bulges away from the centre, so the region holds it and the
+/// straight-sided kite does not) MINUS the sector at `C` between the
+/// feet. One home, because the `f64` rows and the interval twin read the
+/// same truth.
+#[must_use]
+pub fn plane_sphere_cut(big_r: f64, r: f64) -> f64 {
+    let k = (big_r, 0.0);
+    let cx = ((big_r - r).powi(2) - r.powi(2)).sqrt();
+    let c = (cx, r);
+    let fa = (cx, 0.0);
+    let scale = big_r / (big_r - r);
+    let fb = (c.0 * scale, c.1 * scale);
+    pappus::pappus_volume(&[
+        (1.0, pappus::triangle(k, fa, c)),
+        (1.0, pappus::triangle(k, c, fb)),
+        (1.0, pappus::segment((0.0, 0.0), big_r, k, fb)),
         (-1.0, pappus::sector(c, r, fa, fb)),
     ])
 }

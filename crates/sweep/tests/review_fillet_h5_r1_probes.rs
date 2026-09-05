@@ -121,17 +121,24 @@ fn r1_the_bosss_base_rim_is_hostless_and_carves() {
     );
 }
 
-/// **A hostless rim whose host face ALSO carries a ring refuses — and
-/// the recourse it carries promises the carve it just refused.**
+/// **A hostless rim whose host face ALSO carries a ring refuses, and
+/// the recourse it carries states that condition.**
 ///
 /// The boss's top outer rim `(1, 1)` is one plane host, the rim in that
-/// host's own OUTER cycle, crossings trivalent — everything
-/// `FILLET3_ASSEMBLY_RECOURSE`'s rewritten closed clause now names
-/// ("whether each support face carries one arc of the rim or one face
-/// carries every arc"). It refuses anyway, because the merged flat top
-/// is an annulus and the `Struts` host gate requires a RING-FREE host.
-/// The refusal is an `UnsupportedChain`, which carries that very
-/// sentence.
+/// host's own OUTER cycle, crossings trivalent. It refuses anyway,
+/// because the merged flat top is an ANNULUS and the `Struts` host gate
+/// requires a ring-free host. The refusal is an `UnsupportedChain`,
+/// which carries `FILLET3_ASSEMBLY_RECOURSE`.
+///
+/// **This row caught an unconditional wording** — a closed clause
+/// reading "whether each support face carries one arc of the rim or one
+/// face carries every arc", which promised the carve it had just
+/// refused. The clause now states both of its conditions, a RING-FREE
+/// host and the rim as that face's WHOLE outer cycle, so the sentence is
+/// true at this site; the row asserts the conditions rather than the
+/// bare promise. The frontier is
+/// `work/fillet/hostless-rim-on-a-ringed-host-refuses.md`, and this row
+/// reds the day it closes.
 #[test]
 fn r1_a_hostless_rim_on_a_ringed_host_refuses_under_a_recourse_that_promises_it() {
     let body = boss();
@@ -163,8 +170,14 @@ fn r1_a_hostless_rim_on_a_ringed_host_refuses_under_a_recourse_that_promises_it(
                 "the hostless host gate's ring arm: {detail}"
             );
             assert!(
-                FILLET3_ASSEMBLY_RECOURSE.contains("one face carries every arc"),
-                "the recourse this refusal carries promises exactly this shape"
+                FILLET3_ASSEMBLY_RECOURSE.contains("one ring-free face carrying every arc"),
+                "the recourse conditions its one-face half on a ring-free host: \
+                 {FILLET3_ASSEMBLY_RECOURSE}"
+            );
+            assert!(
+                FILLET3_ASSEMBLY_RECOURSE.contains("whole outer cycle"),
+                "and on the rim being that face's whole outer cycle: \
+                 {FILLET3_ASSEMBLY_RECOURSE}"
             );
         }
         other => panic!("expected the ring arm of the hostless host gate, got {other:?}"),

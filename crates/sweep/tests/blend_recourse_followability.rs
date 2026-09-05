@@ -391,7 +391,8 @@ fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
 }
 
 /// **`FILLET3_ASSEMBLY_RECOURSE` — the refusal it rides carries it, and
-/// every door it names is executed.**
+/// every door it names is executed.** Four of them, since the closed
+/// clause gained its "one ring-free face carries every arc" half.
 ///
 /// The refusal: an OPEN chain whose supports are not plane–plane (the
 /// edge between a wedge wall and the sphere zone of a PARTIAL revolve),
@@ -412,7 +413,7 @@ fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
 /// side", and the concave side would need an all-plane concave
 /// trivalent corner, which no fixture here builds.
 #[test]
-fn the_assembly_recourse_names_two_doors_that_both_carve() {
+fn the_assembly_recourse_names_four_doors_that_all_carve() {
     // A PARTIAL revolve of the dome profile: its wedge walls are planes
     // and its zone wall is a sphere, so the edge between them is an OPEN
     // chain whose supports are not plane–plane — the termination clause
@@ -446,8 +447,12 @@ fn the_assembly_recourse_names_two_doors_that_both_carve() {
         "an open plane–sphere chain",
         false,
     );
+    // The refusal is pinned by its exact detail, not by a substring that
+    // several other `UnsupportedChain` arms also satisfy.
     assert!(
-        matches!(&err, BlendError::UnsupportedChain { detail, .. } if detail.contains("plane")),
+        matches!(&err, BlendError::UnsupportedChain { detail, .. }
+            if *detail == "an open chain's supports are not plane–plane (the trivalent \
+                 corner patch is the only termination built)"),
         "an open chain whose supports are not plane–plane has no built termination: {err:?}"
     );
     carries(&err, FILLET3_ASSEMBLY_RECOURSE, "unsupported chain");

@@ -32,8 +32,8 @@ use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
-    assert_naming_totality, bowl, lantern, pappus, revolved_about_y, rim_arcs_at, waisted,
-    wedge_fill,
+    assert_naming_totality, bowl, hemisphere_on_flat_base, lantern, plane_sphere_cut,
+    revolved_about_y, rim_arcs_at, waisted, wedge_fill,
 };
 use topo::{Body, EdgeKey, FaceKey, LoopBoundary, VertexKey, mass_properties, validate_geometric};
 
@@ -129,23 +129,6 @@ fn co_surface(body: &Body<f64>, e: EdgeKey) -> bool {
 // The fixtures.
 // ------------------------------------------------------------------
 
-/// A pole-touching hemisphere of radius 1 on a flat base disc: the
-/// simplest plane×sphere instance, one segment per support.
-fn hemisphere_on_flat_base() -> Body<f64> {
-    revolved_about_y(
-        vec![
-            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
-            ProfileVertex::new(
-                Point2::new(1.0, 0.0),
-                (core::f64::consts::FRAC_PI_2 / 4.0).tan(),
-            ),
-            ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
-        ],
-        Revolution::Full,
-        tol(),
-    )
-}
-
 /// **The boss**: a cylinder of radius 1 and height 1 whose flat top
 /// runs in to radius 0.5, where a hemispherical dome of radius 0.5
 /// rises to the pole. `up` false is its dimple twin — the same pocket
@@ -194,7 +177,7 @@ fn the_plane_hosted_rim_carves_on_either_material_side() {
         ("lantern lip", repaired(lantern(tol())), 0.2, 1.2, false),
         (
             "hemisphere equator",
-            repaired(hemisphere_on_flat_base()),
+            repaired(hemisphere_on_flat_base(1.0, tol())),
             1.0,
             0.0,
             false,
@@ -602,17 +585,7 @@ fn a_hostless_rim_composes_with_a_shared_wall_neighbour() {
 #[test]
 fn the_plane_sphere_hostless_carve_matches_its_hand_closed_form() {
     let r: f64 = 0.05;
-    let k = (1.0, 0.0);
-    let cx = ((1.0 - r).powi(2) - r.powi(2)).sqrt();
-    let c = (cx, r);
-    let fa = (cx, 0.0);
-    let fb = (c.0 / (1.0 - r), c.1 / (1.0 - r));
-    let removed = pappus::pappus_volume(&[
-        (1.0, pappus::triangle(k, fa, c)),
-        (1.0, pappus::triangle(k, c, fb)),
-        (1.0, pappus::segment((0.0, 0.0), 1.0, k, fb)),
-        (-1.0, pappus::sector(c, r, fa, fb)),
-    ]);
+    let removed = plane_sphere_cut(1.0, r);
     assert!(
         removed > 0.0,
         "the convex plane-sphere rim's band removes material: {removed}"
@@ -622,7 +595,7 @@ fn the_plane_sphere_hostless_carve_matches_its_hand_closed_form() {
         ("the lantern's neck", repaired(lantern(tol()))),
         (
             "the hemisphere's equator",
-            repaired(hemisphere_on_flat_base()),
+            repaired(hemisphere_on_flat_base(1.0, tol())),
         ),
     ] {
         let arcs = rim_arcs_at(&body, 1.0, 0.0);

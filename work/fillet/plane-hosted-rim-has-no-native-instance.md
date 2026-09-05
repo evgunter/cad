@@ -42,6 +42,26 @@ revolve only after `merge_coplanar_faces`. The item's own framing
 (`repaired-pole-rim-serves-no-closed-door`, GitHub issue 1245) was
 right: it is a REPAIRED shape.
 
+## The repaired boss, measured on BOTH of its rims
+
+The boss below is the spec's own "pole-touching dome on a wider flat
+top". After `merge_coplanar_faces` it carries two plane-hosted rims and
+they answer differently, which is the whole content of this section:
+
+| rim | host's loop structure | route | answer |
+|---|---|---|---|
+| **base** `(1, 0)` | one plane face, rim its whole outer cycle, ring-free | hostless annulus | **carves** (convex) |
+| **top outer** `(1, 1)` | one plane face, rim its outer cycle, but ALSO one ring (the dome rim) | hostless annulus | refuses, `"a hostless-crossing rim's host face carries rings of its own"` |
+| top **ring** `(0.5, 1)` | the rim IS a ring of that face | LADDER | refuses, false `RingClearance` |
+
+The base rim is an instance of the unit's shape and is in the table
+above. The top OUTER rim is the counterexample that made
+`FILLET3_ASSEMBLY_RECOURSE`'s closed clause state its condition rather
+than promise unconditionally, and it has its own file
+(`hostless-rim-on-a-ringed-host-refuses.md`). The top RING rim is the
+separate numeric defect
+(`ring-clearance-refuses-a-nested-trim-circle.md`).
+
 ## The repaired boss and dimple are not substitutes
 
 Repairing the boss/dimple with `merge_coplanar_faces` merges the flat
@@ -68,6 +88,7 @@ support" }`:
 | `test_support::waisted` base | `(1, 0)` | plane×cone | convex |
 | `test_support::waisted` top | `(1, 1)` | plane×cone | convex |
 | bowl floor (below) | `(1, 1)` | plane×cone | **concave** |
+| boss BASE rim (below) | `(1, 0)` | plane×cone | convex |
 
 The bowl is `revolved_about_y` of `(0,0) (1.5,0) (1.5,1.5) (1,1)
 (0,1)`: a flat floor at `y = 1` out to radius 1, then a lip rising to

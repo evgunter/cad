@@ -100,8 +100,15 @@ not the one this spec describes: stop at the report and file it.
    band's torus as the annulus does (`ContactCarrier::Exact`); the excise
    and crossing merges are the annulus's, with the strut dying at the
    crossing the way the ladder's struts do. Every Euler step named in the
-   PR body with its census delta; `topo::validate_closed` holds after every
-   step (the surgery's debug postcondition).
+   PR body with its census delta; `topo::validate_closed` holds at REST
+   (the surgery's debug postcondition). **Amended at the fix pass, on
+   both reviewers' measurement**: it does NOT hold after every step —
+   the strut `mev` leaves its foot valence-1 (`ScaffoldingStrutVertex`,
+   one per crossing) until that crossing's trim `mef` lands, and the
+   LADDER's own `mev`-then-`mef` walk has the identical window. The
+   claim this unit owes is validity at rest plus tier 3 at rest, and the
+   strut's window is inherited with the ladder's move rather than
+   introduced by this arm.
 4. **Refresh.** `refresh_annulus_seams` (#935, two rims sharing a support)
    learns the hostless crossing (a `Strut` has no seam to re-read); a row
    composes a hostless rim with a second rim on the shared mate wall in one
@@ -182,8 +189,10 @@ v6 dual on the frozen head, claims to falsify:
   (re-derive the closed forms independently).
 - **C3** The host foot is the ladder's spelling, one home, and its
   parameter is the crossing's own (the mutant reds only the hostless rows).
-- **C4** The crossing's Euler walk is total: `validate_closed` after every
-  step; naming totality three-directional on a hostless band.
+- **C4** The crossing's Euler walk is total: `validate_closed` at rest
+  (see item 3's amendment — the strut's valence-1 window is the
+  ladder's, measured on both arms); naming totality three-directional on
+  a hostless band.
 - **C5** No sentence in `crates/`, `docs/`, `demos/` still states the
   repaired/one-host-face rim as unserved; the sweep's blind spot is stated.
 - **C6** The composition with a second rim on the shared mate wall matches

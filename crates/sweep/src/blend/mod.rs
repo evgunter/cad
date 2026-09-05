@@ -627,26 +627,38 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — every 
 /// stored convexity verdict, and a concave rim's band adds material
 /// through the same carve that removes a convex rim's.
 ///
-/// **The closed clause names the door's extent, and it is now
-/// unconditional in the support's shape.** Any coaxial revolution pair
+/// **The closed clause names the door's extent, and its second half is
+/// CONDITIONED because the door is.** Any coaxial revolution pair
 /// carves — the plane–cylinder top rim of
 /// `review_fillet_e2_probes::open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves`
 /// included, which answers §2 of
 /// `work/fillet/blend-recourses-under-describe-their-doors.md` (§1, the
-/// spine-kind sentence, stays open there) — whether each support face
-/// carries one arc of the rim or ONE face carries them all. The standing
-/// exception this clause used to name, a pole-touching body whose merged
-/// cap hosts every arc on one plane face, is the annulus band's hostless
-/// crossing and carves like the rest (README A3-2;
-/// `blend::surgery::HostFoot`). `blend_recourse_followability` follows
-/// the clause to a carve.
+/// spine-kind sentence, stays open there) — either with each support
+/// face carrying one arc of the rim, or with ONE face carrying them all.
+/// The second is the pole-touching body whose merged cap hosts every arc
+/// on one plane face, and it carves through the annulus band's HOSTLESS
+/// crossing (README A3-2; [`super::surgery`]'s `HostFoot`).
+///
+/// **The condition on that second half is load-bearing and was measured
+/// missing**: the host must carry NO RING of its own and the rim must be
+/// its WHOLE outer cycle, which is what the hostless host gate asks. A
+/// merged flat top that is an ANNULUS satisfies "one face carries every
+/// arc, in its outer cycle" and still refuses, on the ring arm — the
+/// boss fixture of
+/// `review_fillet_h5_r1_probes::r1_a_hostless_rim_on_a_ringed_host_refuses_under_a_recourse_that_promises_it`,
+/// which is the row that caught an unconditional wording promising the
+/// carve it had just refused. That frontier is
+/// `work/fillet/hostless-rim-on-a-ringed-host-refuses.md`; the sentence
+/// says the condition rather than over-promise at that body, exactly as
+/// its previous wording did for the previous frontier.
+/// `blend_recourse_followability` follows the clause to a carve.
 pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend a set of edges whose open chains are single plane\u{2013}plane links ending at \
      fully-requested trivalent corners, on either material side; for a fillet, closed \
      chains that are circular rims between two coaxial revolution surfaces (a pip's \
      plane\u{2013}sphere rim, a solid of revolution's latitude rim) also carve, on either \
-     material side, whether each support face carries one arc of the rim or one face \
-     carries every arc (a chamfer has no closed-chain band); junction carry-through \
-     and run-outs are not implemented";
+     material side, either with each support face carrying one arc of the rim, or with \
+     one ring-free face carrying every arc as its whole outer cycle (a chamfer has no \
+     closed-chain band); junction carry-through and run-outs are not implemented";
 /// The recourse for a BODY the surgery has not been built for. The
 /// surgery operates in place on one solid; multi-solid and shell-less
 /// bodies are a separate door.
