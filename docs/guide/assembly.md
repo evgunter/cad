@@ -255,7 +255,8 @@ assert list(stand.placements()) == [post_a]
 
 # A mate's references are NOT recipe edges — inserting one transfers
 # no root. What couples the graph is the reading edges, recomputed
-# from the name heads every time and never stored.
+# every time by walking from each reference's OPERAND down to the
+# instance that minted its name, and never stored.
 assert set(reading_edges(stand)) == {
     (mate_a, post_a), (mate_a, shelf_i), (mate_b, shelf_i), (mate_b, post_b),
 }

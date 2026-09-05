@@ -812,6 +812,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::UnknownCutNode { .. } => "unknown_cut_node",
         SplitError::PartIdCollides { .. } => "part_id_collides",
         SplitError::SeveredEdge { .. } => "severed_edge",
+        SplitError::OperandSeveredFromMate { .. } => "operand_severed_from_mate",
         SplitError::TornCluster { .. } => "torn_cluster",
         SplitError::UncutParamReference { .. } => "uncut_param_reference",
         SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",
@@ -936,7 +937,7 @@ pub const NODE_NOT_EVALUATED: &str = "node_not_evaluated";
 /// second word for it at the pick.
 ///
 /// `unnamed` is the BUG arm (spec D4): the node evaluated and the
-/// entity has no name in its table. Its payload is an `SitedRef`,
+/// entity has no name in its table. Its payload is an `EntityRef`,
 /// which is an arena key plus a body index — the key does not cross
 /// (G1), so what the Python side projects beside this tag is the
 /// entity's KIND and its body index, which is the whole of the

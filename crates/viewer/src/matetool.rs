@@ -152,11 +152,9 @@ pub fn admitted_classes() -> Vec<MateAdmission> {
 /// The admission rule is A11's member vocabulary READ, not restated
 /// ([`pncad::document::member_of`]): the walk from the operand down to
 /// the name's head, through transforms and at most one pattern level,
-/// ending on a live `InstantiatePart`. Restating it here is what let
-/// this door refuse picks the solve already places — and the walk
-/// refuses a fused body's node for the reason a hand-written guard
-/// used to: a boolean is not a pass-through, so no member stands on
-/// it.
+/// ending on a live `InstantiatePart`. The walk refuses a fused
+/// body's node because a boolean is not a pass-through: it mints its
+/// own geometry and its own names, and no member stands on it.
 ///
 /// **A pattern copy's pose is read at the MASTER**, on the pattern's
 /// input instance. An alignment is authored in the member's part

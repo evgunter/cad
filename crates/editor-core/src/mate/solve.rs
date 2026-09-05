@@ -5,8 +5,8 @@
 //! is inspected, nothing derived is stored beside the DAG. The
 //! entry points, in the order the layers use them:
 //!
-//! - [`reading_edges`] — A12's second sort of edge, RECOMPUTED from
-//!   the name heads every time it is wanted.
+//! - [`reading_edges`] — A12's second sort of edge, RECOMPUTED by
+//!   walking from each reference's OPERAND every time it is wanted.
 //! - [`relative_freedom_components`] — A9's partition, over consuming
 //!   ∪ reading edges (so mates couple components).
 //! - [`clusters`] — A11's placement clusters, the finer partition over
@@ -174,7 +174,7 @@ impl SolvedPoses {
 /// (non-tree, declaring) instead of folding into the first mate's
 /// pair. Two kinds of placing say so: the pattern COPY, and the
 /// OPERAND the reference was read at.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Member {
     /// The cluster-graph vertex this member stands on: the head
     /// instance itself, or — for a pattern-placed member — the
@@ -191,13 +191,31 @@ pub struct Member {
     /// two different transforms are two members over one instance, so
     /// they key `by_pair` as different pairs and the second mate
     /// closes a loop rather than folding into the first.
-    ///
-    /// Last in declaration order on purpose: the derived `Ord` is
-    /// then the prior `(instance, copy)` order refined, and in a
-    /// document whose every reference is read at its own mint the
-    /// operand is a function of the other two fields, so no existing
-    /// pair set, spanning tree or solve moves.
     pub at: RecipeNodeId,
+}
+
+/// **The member key, written out.** `Member` is the `BTreeMap` key
+/// `by_pair` and `edge_of` are built on and the order the spanning
+/// tree picks its edges by, so the ordering is stated rather than
+/// derived: `(instance, copy, at)`, with the OPERAND last.
+///
+/// Last is load-bearing. In a document whose every reference is read
+/// at its own mint the operand is a function of the other two fields,
+/// so this order is the pre-operand `(instance, copy)` order refined
+/// and no such document's pair set, spanning tree or solve moves. A
+/// derive would tie that guarantee to the order the fields happen to
+/// be written in, where an edit that reads as cosmetic could change
+/// which mate a cluster takes as its tree edge.
+impl Ord for Member {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        (self.instance, self.copy, self.at).cmp(&(other.instance, other.copy, other.at))
+    }
+}
+
+impl PartialOrd for Member {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 /// One pose-bearing node the member walk passed, with what it
@@ -240,7 +258,15 @@ struct Walk {
 /// Structural only: no expression is evaluated here (the vocabulary
 /// is decided on node kinds and name segments alone), so the cluster
 /// partition never depends on a slot value.
-fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedRef) -> Option<Walk> {
+///
+/// # Errors
+///
+/// The node the walk STOPPED at: the one that is neither a
+/// pass-through it can continue through nor a live instance it can
+/// stand a member on. That is the node a refusal names, and it is not
+/// in general the reference's own head — a stranded operand stops the
+/// walk before the head is ever reached.
+fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedRef) -> Result<Walk, RecipeNodeId> {
     let mut at = r.at;
     let mut name = &r.name;
     let mut copy = None;
@@ -254,7 +280,7 @@ fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedRef) -> Option<Walk> {
             // union, a split — is a different body, not this one
             // moved.
             let Some(Node::Transform { input, .. }) = doc.node(at) else {
-                return None;
+                return Err(at);
             };
             chain.push(Placer::Transform(at));
             at = *input;
@@ -262,7 +288,7 @@ fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedRef) -> Option<Walk> {
         }
         match doc.node(at) {
             Some(Node::InstantiatePart { .. }) => {
-                return Some(Walk {
+                return Ok(Walk {
                     member: Member {
                         instance: at,
                         copy,
@@ -279,14 +305,14 @@ fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedRef) -> Option<Walk> {
             // `Member::copy` and its keying.
             Some(Node::Pattern { input, .. }) if copy.is_none() => {
                 let Some(RoleSeg::Instance { i, of }) = name.path.first() else {
-                    return None;
+                    return Err(at);
                 };
                 copy = Some((at, *i));
                 chain.push(Placer::Pattern { node: at, i: *i });
                 name = of;
                 at = *input;
             }
-            _ => return None,
+            _ => return Err(at),
         }
     }
 }
@@ -320,25 +346,27 @@ fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedRef) -> Option<Walk> {
 /// which is what AQ8 option (b) SKIP refuses (`ASSEMBLY.md`'s AQ8
 /// clause).
 pub fn member_of<P>(doc: &Doc<P>, r: &crate::node::SitedRef) -> Option<Member> {
-    walk(doc, r).map(|w| w.member)
+    walk(doc, r).ok().map(|w| w.member)
 }
 
 /// The member a mate reference resolves to, or the typed
 /// dangling-head refusal (N5) — [`member_of`] with the mate and side
-/// that attribute the refusal. The `head` it names is the reference's
-/// own head node: the operand is where the walk STARTED, and a walk
-/// that refuses says which entity it could not stand a member on.
+/// that attribute the refusal.
+///
+/// The `head` it names is the node the WALK STOPPED AT, which is
+/// where the reference stopped resolving: a stranded operand, or the
+/// first node the chain met that no member stands on. Naming the
+/// reference's own head instead would attribute the refusal to a node
+/// that is often perfectly live and perfectly fine.
 fn head_of<P>(
     doc: &Doc<P>,
     mate: RecipeNodeId,
     side: MateSide,
     r: &crate::node::SitedRef,
 ) -> Result<Member, MateFault> {
-    member_of(doc, r).ok_or(MateFault::DanglingHead {
-        mate,
-        side,
-        head: r.name.node,
-    })
+    walk(doc, r)
+        .map(|w| w.member)
+        .map_err(|head| MateFault::DanglingHead { mate, side, head })
 }
 
 /// **The reference's derived offset**: the rigid map every
@@ -400,13 +428,7 @@ fn derived_offset<P>(
     r: &crate::node::SitedRef,
     band: Band,
 ) -> Result<Option<Affine3<f64>>, Box<MateFault>> {
-    let Some(w) = walk(doc, r) else {
-        return Err(Box::new(MateFault::DanglingHead {
-            mate,
-            side,
-            head: r.name.node,
-        }));
-    };
+    let w = walk(doc, r).map_err(|head| Box::new(MateFault::DanglingHead { mate, side, head }))?;
     let env = doc.param_env::<f64>();
     let mut composed: Option<Affine3<f64>> = None;
     for placer in &w.chain {
@@ -462,7 +484,7 @@ fn derived_offset<P>(
                 }
                 let ops = match kind {
                     PatternKind::Linear { direction, spacing } => SteppedOperands::Linear {
-                        direction: unit(triple(direction)?, "pattern direction")?,
+                        direction: unit(triple(direction)?, crate::eval::PATTERN_DIRECTION_ROLE)?,
                         spacing: scalar(spacing)?,
                     },
                     PatternKind::Circular { axis, step } => {
@@ -472,7 +494,7 @@ fn derived_offset<P>(
                         };
                         SteppedOperands::Circular {
                             origin: Point3::origin() + triple(origin)?,
-                            dir: unit(triple(direction)?, "datum axis direction")?,
+                            dir: unit(triple(direction)?, crate::eval::DATUM_AXIS_ROLE)?,
                             step: scalar(step)?,
                         }
                     }

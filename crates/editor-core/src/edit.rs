@@ -1634,10 +1634,9 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // ruled #217) re-canonicalizes there — for a chamfer's
             // selection exactly as for a fillet's, since both are the
             // same canonical set. A mate reference read AT ITS OWN
-            // MINT stays read at its own mint, so a rebind repairs
-            // exactly the references it repaired before an operand
-            // existed; a reference read elsewhere keeps its operand,
-            // which is an authored fact this edit knows nothing about.
+            // MINT stays read at its own mint; one read elsewhere
+            // keeps its operand, which is an authored fact this edit
+            // knows nothing about.
             let mut declare_sites = 0usize;
             for node in new.nodes.values_mut() {
                 declare_sites += node.rebind_payload_names(from, to);

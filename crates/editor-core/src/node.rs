@@ -983,9 +983,26 @@ pub fn payload_exprs<P>(node: &Node<P>) -> Option<Vec<&Expr>> {
 ///   solve walks from `at` down to the name's head and composes every
 ///   pose-bearing node it passes ([`crate::mate::member_of`]).
 ///
-/// `name` resolves against `at`'s table through the same N5 ladder
-/// every other authored name takes, and there is no `Option` on `at`:
-/// "as authored" is spelled [`SitedRef::at_mint`].
+/// **Where `name` resolves differs with the reader, and that is not a
+/// contradiction.** A measure's name resolves against `at`'s own
+/// evaluated name table, through the N5 ladder every other authored
+/// name takes — the carrier has to be findable there or the measure
+/// has nothing to read. A mate's name resolves nowhere at the solve:
+/// the solve is structural and inspects no geometry, so it reads the
+/// name's HEAD and its `Instance(i)` qualifiers as recipe data and
+/// nothing more. The mate's name is resolved later, against the
+/// PRODUCT's table, by the at-rest gate that mints its declaration.
+///
+/// There is no `Option` on `at`: "as authored" is spelled
+/// [`SitedRef::at_mint`].
+///
+/// **`Rebind` moves a mate's at-mint operand and never a measure's.**
+/// One repair, two shapes, because the two `at`s are different kinds
+/// of fact: a mate's at-mint operand is the reference saying "read me
+/// where I was minted", so it follows the name it was authored to
+/// coincide with; a measure's `at` is a DAG edge the author chose, and
+/// an edit that rewrote it would be re-pointing a dependency behind
+/// the author's back.
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
@@ -2464,13 +2481,11 @@ impl<P> Node<P> {
                 }
             }
             // A mate's two references: the NAME rewrites like any
-            // other, and a reference that was read AT ITS OWN MINT
-            // stays read at its own mint — the operand follows the
-            // name it was authored to coincide with, so a rebind
-            // repairs exactly the references it repaired before it
-            // carried an operand. A reference read somewhere ELSE
-            // keeps its operand: that node is an authored fact this
-            // edit knows nothing about, and re-targeting it is
+            // other, and a reference read AT ITS OWN MINT stays read
+            // at its own mint — the operand follows the name it was
+            // authored to coincide with. A reference read somewhere
+            // ELSE keeps its operand: that node is an authored fact
+            // this edit knows nothing about, and re-targeting it is
             // re-authoring the mate.
             Node::Mate { a, b, .. } => {
                 for r in [a, b] {

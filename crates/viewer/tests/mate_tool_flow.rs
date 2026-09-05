@@ -482,34 +482,32 @@ fn a_pick_on_a_fused_body_is_not_an_instance_pick() {
     );
 }
 
-/// **A9 — a pick on a TRANSFORMED instance is admitted**, and the
-/// reference it authors is read at the transform rather than at the
-/// instance. Before the operand existed the two were the same
-/// reference and the mate seated the un-transformed body.
+/// **A9 — a pick on a TRANSFORMED instance is admitted, and the mate
+/// it authors SEATS.** The reference the tool writes is read at the
+/// node the ray met — the transform — not at the instance, which is
+/// the only thing that tells a mate on the moved body from a mate on
+/// the body it was moved from: a transform mints no name. The row
+/// carries it all the way through the session's commit door and
+/// measures the landed geometry, so a proposal that authored the
+/// right operand and then seated the wrong body would still fail.
 #[test]
-fn a_pick_on_a_transformed_instance_authors_the_transform_as_its_operand() {
+fn a_pick_on_a_moved_instance_authors_the_transform_and_seats() {
     let tol = Tol::witness();
-    let bench = asm::bench("matexformpick", tol);
+    let bench = asm::bench("matexformseat", tol);
     let mut session = asm::open_bench(&bench, tol);
+    // A quarter turn about z through the world origin plus an offset:
+    // post_b's centre (0.07, 0.01) lands at (-0.01, 0.07) + (0.015, -0.005).
     let moved = common::insert(
         &mut session,
         SessionOp::AddTransform {
             input: bench.post_b,
-            translation: [len(0.0), len(0.0), len(0.0)],
+            translation: [len(0.015), len(-0.005), len(0.02)],
             rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
+            rotation_angle: ang(core::f64::consts::FRAC_PI_2),
         },
     );
     session.pump();
-    // The ray now meets the TRANSFORM's body where it used to meet the
-    // instance's (a zero transform, so the geometry is where it was).
-    let post_top = pick_at(
-        &session,
-        &asm::down_at(
-            asm::POST_B_AT[0] + asm::POST_SECTION / 2.0,
-            asm::POST_B_AT[1] + asm::POST_SECTION / 2.0,
-        ),
-    );
+    let post_top = pick_at(&session, &asm::down_at(0.005, 0.065));
     assert_eq!(post_top.node, moved, "the ray met the transform's body");
     assert_eq!(
         post_top.name.node, bench.post_b,
@@ -523,14 +521,49 @@ fn a_pick_on_a_transformed_instance_authors_the_transform_as_its_operand() {
         ),
     );
     let mut tool = MateTool::new();
-    tool.pick(post_top);
-    tool.pick(shelf_bottom);
+    tool.pick(post_top.clone());
+    tool.pick(shelf_bottom.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
         .proposal(doc, eval, tol, asm::seat())
-        .expect("a transformed instance carries a member");
+        .expect("a moved instance carries a member");
     assert_eq!(proposal.a.at, moved, "authored at the node the ray met");
     assert_eq!(proposal.a.name.node, bench.post_b, "naming the instance");
+    // The alignment is in the POST's own part coordinates — the top
+    // cap at z = POST_HEIGHT — because the frame is read at the
+    // member's instance and divided by that instance's placement.
+    // The transform's map is the SOLVE's to apply, not the tool's.
+    assert!(
+        (proposal.alignment.a.origin[2] - asm::POST_HEIGHT).abs() < 1e-12,
+        "the authored frame is the master's: {:?}",
+        proposal.alignment.a
+    );
+
+    let outcome = session.perform(proposal.op());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    for row in session.tree_rows() {
+        assert_eq!(row.status, viewer::tree::RowStatus::Ok, "{row:?}");
+    }
+
+    // THE SEAT, in the landed evaluation: the moved post's top cap —
+    // the face the product gathers — against the shelf's underside.
+    let (_doc, eval) = session.landed_pair().expect("landed");
+    let top = face_frame(eval, moved, &post_top.name).expect("the moved post's top cap");
+    let under = face_frame(eval, bench.shelf_i, &shelf_bottom.name).expect("the shelf underside");
+    // The OUTWARD normal: the pose's axis times the face's own
+    // orientation sense — the direction material is not.
+    let outward = |f: &pncad::select::Pose<f64>| if f.sense { f.axis } else { -f.axis };
+    let (n_top, n_under) = (outward(&top), outward(&under));
+    let gap = (under.origin - top.origin).dot(n_top).abs();
+    let slide = (under.origin - top.origin - n_top * (under.origin - top.origin).dot(n_top)).norm();
+    assert!(gap < 1e-9, "the mated faces are {gap} apart");
+    assert!(slide < 1e-9, "the mated frames are {slide} apart in-plane");
+    assert!(
+        (n_top.dot(n_under) + 1.0).abs() < 1e-9,
+        "outward normals not opposed: {}",
+        n_top.dot(n_under)
+    );
 }
 
 /// The quarter turn the circular row spins post_b by.

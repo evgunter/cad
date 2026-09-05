@@ -858,7 +858,7 @@ fn wire_datum<T: Decide>(
             origin: need_point3(vals, SlotId::Origin)?,
             dir: datum_unit(
                 need_vec3(vals, SlotId::Direction)?,
-                "datum axis direction",
+                DATUM_AXIS_ROLE,
                 band(tol)?,
             )?,
         },
@@ -913,7 +913,7 @@ fn wire_datum<T: Decide>(
                 // authored pair is, which is why the sketch direction
                 // above can go to the kernel unnormalized and still get
                 // the same refusal a 3-D axis would.
-                dir: datum_unit(lift(plane_dir), "datum axis direction", band(tol)?)?,
+                dir: datum_unit(lift(plane_dir), DATUM_AXIS_ROLE, band(tol)?)?,
             }
         }
         // **The frame read off a face** (DM1). Its value is exactly an
@@ -2797,6 +2797,20 @@ fn resolve_declarations(
 /// role rather than two.
 pub(crate) const TRANSFORM_AXIS_ROLE: &str = "transform rotation axis";
 
+/// The role word a stepped rule's LINEAR direction is normalized
+/// under, for the same reason and with the same two callers: the
+/// evaluation's own rule ([`stepped_map`]) and the mate solve's
+/// re-derivation of it from the recipe.
+pub(crate) const PATTERN_DIRECTION_ROLE: &str = "pattern direction";
+
+/// The role word a DATUM AXIS's direction is normalized under. Three
+/// callers, and they do not all take the same road — the evaluation
+/// decides it under `datum_unit`, the mate solve under
+/// `eval_direction_norm` — so the constant is what keeps the ROLE one
+/// word wherever the refusal comes from (issue 1570 is where the two
+/// roads meeting is homed).
+pub(crate) const DATUM_AXIS_ROLE: &str = "datum axis direction";
+
 /// **The rigid map a [`crate::node::Node::Transform`] applies** — the
 /// one home of that construction, read by the evaluation and by the
 /// mate solve's derived offset, so a transform under a mate and a
@@ -2914,7 +2928,7 @@ fn stepped_map<T: Decide>(
         PatternKind::Linear { .. } => SteppedOperands::Linear {
             direction: unit(
                 need_vec3(vals, SlotId::Direction)?,
-                "pattern direction",
+                PATTERN_DIRECTION_ROLE,
                 band(tol)?,
             )?,
             spacing: need_scalar(vals, SlotId::Spacing)?,

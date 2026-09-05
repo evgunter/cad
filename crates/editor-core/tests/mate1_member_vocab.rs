@@ -784,7 +784,10 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
     assert!(
         matches!(
             fault2,
-            editor_core::MateFault::DanglingHead { head, .. } if *head == body_pattern
+            // The node the walk STOPPED at: it gets through the
+            // pattern's copy qualifier and stops on the body the
+            // pattern replicates, which is no member.
+            editor_core::MateFault::DanglingHead { head, .. } if *head == extrude
         ),
         "a pattern of a non-instance stands no member: {fault2:?}"
     );

@@ -1944,6 +1944,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "body_name_crosses_cut",
             "empty_cut",
             "name_straddles_cut",
+            "operand_severed_from_mate",
             "part_edit",
             "part_id_collides",
             "part_name_reaches_remainder",

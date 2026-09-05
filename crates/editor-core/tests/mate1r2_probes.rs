@@ -705,7 +705,9 @@ fn r2_nested_pattern_head_refuses_dangling() {
     assert!(
         matches!(
             fault,
-            editor_core::MateFault::DanglingHead { head, .. } if *head == outer
+            // The walk stops at the INNER pattern: one copy level is
+            // in the vocabulary, a second is not.
+            editor_core::MateFault::DanglingHead { head, .. } if *head == inner
         ),
         "a nested pattern head is outside the vocabulary: {fault:?}"
     );

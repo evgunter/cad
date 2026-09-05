@@ -727,7 +727,11 @@ fn r1_a_nested_pattern_refuses_and_a_pattern_of_transform_places() {
     assert!(
         matches!(
             fault,
-            editor_core::MateFault::DanglingHead { head, .. } if *head == outer
+            // The walk gets through the OUTER pattern — one copy
+            // level is in the vocabulary — and stops at the inner
+            // one, which is where the reference resolves to no
+            // member.
+            editor_core::MateFault::DanglingHead { head, .. } if *head == inner
         ),
         "a nested pattern refuses DanglingHead at the OUTER pattern: {fault:?}"
     );

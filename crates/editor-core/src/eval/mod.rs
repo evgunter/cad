@@ -26,7 +26,8 @@ mod slots;
 mod wire;
 
 pub(crate) use wire::{
-    SteppedOperands, TRANSFORM_AXIS_ROLE, stepped_rule_map, transform_map, unit as unit_direction,
+    DATUM_AXIS_ROLE, PATTERN_DIRECTION_ROLE, SteppedOperands, TRANSFORM_AXIS_ROLE,
+    stepped_rule_map, transform_map, unit as unit_direction,
 };
 
 pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue, embed_profile};

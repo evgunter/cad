@@ -105,8 +105,14 @@ bodies out of A10's root set. A9's partition and A11's clusters run over
 consuming ∪ reading edges; A10's invariants, maintenance and gather run
 over consuming edges only, so a mate is an ordinary non-body root: an
 isolated sink, listed, ignored by the gather. A dangling reference —
-name or operand — contributes no edge; `Rebind` repairs a name and
-carries an at-mint operand with it, and a stranded operand is re-authored.
+name or operand — contributes no edge, and the fault names the node the
+walk stopped at; `Rebind` repairs a name and carries an at-mint operand
+with it, and a stranded operand is re-authored. A cut that would leave a
+mate and one of its operands on opposite sides is refused at the split
+door (`SplitError::OperandSeveredFromMate`), the reading edge's twin of
+D-2's closure rule — except for the interface crossing itself, where a
+kept mate's at-mint operand re-anchors through the minted instance with
+the name it is authored on.
 
 ## Identity, pins, split and inline
 
