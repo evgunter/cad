@@ -1246,7 +1246,8 @@ fn sepals<S: Scalar>(
 type BladeFrame = (Vec3<f64>, Vec3<f64>, Vec3<f64>);
 
 /// The right-handed `(d, v, u)` blade frame: `d` the spine's start
-/// tangent, `v` the `up` vector Gram–Schmidt'd against it, and
+/// tangent, `v` the `up` vector rejected from it ([`Vec3::reject_from`],
+/// whose grouping is the kernel's contract and not this file's), and
 /// `u = v x d`, so a sketch plane built on `(u, v)` has `d` for its
 /// normal. Shared by [`leaf`] and [`lofted_blade`] so the swept and
 /// lofted blades sit in the SAME frame — the difference between them
