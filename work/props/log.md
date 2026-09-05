@@ -473,3 +473,15 @@ backend's `cos` at exact angles) — a present-tense paragraph at
 at its own home, the item closed with the ruling. One lane, two PRs in
 sequence, single style reviews, outside the experiment. Seam posted to
 BOOL for `SketchPlane`.
+
+**vec3-doors LANDED (2026-09-05)** —
+[#1977](https://github.com/evgunter/cad/pull/1977). `const fn new` on
+the four vector types (generic; the bound costs nothing), one home for
+the frame constructor (`Affine3::from_frame`, `SketchPlane::from_frame`
+delegating bit-identically), `SketchPlane::map` with the two lift
+spellings written at the door, `skinned.rs` reading the door; the
+`Vec → Point` conversion refused as a ruling at `Point3`'s type doc and
+in the item's `## Closed`. `lily.rs` untouched (the tour-wide sweep's
+sites); `teapot.rs`'s three struct-literal constants named in the PR's
+sweep for placing. Item closed; spec deleted and ledgered in the
+per-merge form.
