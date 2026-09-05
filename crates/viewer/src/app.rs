@@ -403,12 +403,16 @@ pub enum StartupError {
     /// `eframe` handed the application no wgpu render state — the
     /// application was built against a renderer it does not have.
     NoWgpuRenderState,
-    /// The evaluation worker could not be started. Fatal on purpose: a
-    /// seam with no worker accepts every submit and answers none, so
-    /// the application would open onto a permanent "evaluating…".
+    /// A seam's worker thread could not be started — the evaluation
+    /// worker or the index one; [`crate::evalseam::SpawnError`] names
+    /// which. Fatal on purpose: a seam with no worker accepts every
+    /// submit and answers none, so the application would open onto a
+    /// permanent "evaluating…" or a permanent "indexing…".
     ///
-    /// Absent on wasm, where the seam is [`crate::evalseam::InlineEvaluator`]
-    /// — nothing is spawned, so nothing can refuse to spawn. The arm
+    /// Absent on wasm, where the seams are
+    /// [`crate::evalseam::InlineEvaluator`] and
+    /// [`crate::evalseam::InlineIndexer`] — nothing is spawned, so
+    /// nothing can refuse to spawn. The arm
     /// is `cfg`-ed away rather than kept and never constructed,
     /// because a closed enum (D4 ¶3) whose reader must ask which arms
     /// are reachable is no longer telling the truth about its states.

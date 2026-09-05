@@ -524,19 +524,28 @@ mod threaded {
     }
 
     /// Why a worker could not be started.
+    ///
+    /// The worker is NAMED, because this crate spawns one per seam and
+    /// a startup refusal that did not say which would send its reader
+    /// to the wrong half of this module.
     #[derive(Debug)]
     pub enum SpawnError {
         /// The OS refused the thread.
-        Thread(std::io::Error),
+        Thread {
+            /// Which worker: `"evaluation"` or `"index"`.
+            worker: &'static str,
+            /// What the OS said.
+            error: std::io::Error,
+        },
     }
 
     impl core::fmt::Display for SpawnError {
         fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
             match self {
-                Self::Thread(error) => {
+                Self::Thread { worker, error } => {
                     write!(
                         f,
-                        "the evaluation worker could not be started: the OS refused \
+                        "the {worker} worker could not be started: the OS refused \
                          the thread: {error}"
                     )
                 }
@@ -586,7 +595,10 @@ mod threaded {
             let worker = std::thread::Builder::new()
                 .name("viewer-eval".to_owned())
                 .spawn(move || work(&requests, &results))
-                .map_err(SpawnError::Thread)?;
+                .map_err(|error| SpawnError::Thread {
+                    worker: "evaluation",
+                    error,
+                })?;
             Ok(Self {
                 to_worker: Some(to_worker),
                 from_worker,
@@ -746,7 +758,10 @@ mod threaded {
             std::thread::Builder::new()
                 .name("viewer-index".to_owned())
                 .spawn(move || index_work(&requests, &results))
-                .map_err(SpawnError::Thread)?;
+                .map_err(|error| SpawnError::Thread {
+                    worker: "index",
+                    error,
+                })?;
             Ok(Self {
                 to_worker: Some(to_worker),
                 from_worker,
