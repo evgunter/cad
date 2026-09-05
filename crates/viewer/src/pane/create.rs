@@ -10,6 +10,7 @@ use crate::app::{GLYPH_DOWN, GLYPH_REMOVE, GLYPH_UP, ViewerBehavior, chrome};
 use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
 use crate::combine::PatternOutputChoice;
 use crate::drafts::{CommitFault, Drafts, scalars};
+use crate::frame::{Message, Subject};
 use crate::forms::{
     ANGLE_DRAG_SPEED, BOOLEAN_OPS, COUNT_DRAG_SPEED, DatumKind, FIELD_DRAG_SPEED, MATE_PRIMITIVES,
     PathVerb, PatternKindChoice, ShapeKind, UNIT_DRAG_SPEED,
@@ -23,6 +24,18 @@ use crate::tools::ToolKind;
 use crate::widgets::{
     angle_picker, fresh_step, length_picker, path_step_fields, unit_field, unit_vec3_row, vec3_row,
 };
+
+/// **This pane's news, about the document.** Every sentence the
+/// authoring panels write is an answer to an act the user aimed at the
+/// document, so they share one subject and the next act the document
+/// accepts is what retires them (`frame::Subject::Document`).
+///
+/// The words are the typed refusal's own — each caller renders its
+/// failure and hands the text here; nothing in this function composes
+/// prose.
+fn document_news(text: impl Into<String>) -> Message {
+    Message::new(Subject::Document, text)
+}
 
 /// **The smallest pattern count the form offers.**
 ///
@@ -161,14 +174,14 @@ impl ViewerBehavior<'_> {
                                 close = true;
                             }
                             Err(error) => {
-                                *self.status = Some(ToolKind::Mate.says(&error));
+                                *self.status = Some(document_news(ToolKind::Mate.says(&error)));
                             }
                         }
                     }
                     _ => {
-                        *self.status = Some(
+                        *self.status = Some(document_news(
                             ToolKind::Mate.says(&"no landed evaluation to derive frames from"),
-                        );
+                        ));
                     }
                 }
             }
@@ -374,7 +387,9 @@ impl ViewerBehavior<'_> {
                 // The add-datum form is not a seated TOOL, so it has
                 // no `ToolKind` to compose the prefix — the form's own
                 // name is the sentence's subject here.
-                Err(error) => *self.status = Some(format!("add datum: {error}")),
+                Err(error) => {
+                    *self.status = Some(document_news(format!("add datum: {error}")));
+                }
             }
         }
     }
@@ -599,8 +614,12 @@ impl ViewerBehavior<'_> {
                 // and typed rather than unwrapped: a form's enabling
                 // condition and its commit are two pieces of code, and
                 // this one does not assume the other got it right.
-                (None, _) => *self.status = Some("add profile: no frame picked".to_owned()),
-                (_, Err(error)) => *self.status = Some(format!("add profile: {error}")),
+                (None, _) => {
+                    *self.status = Some(document_news("add profile: no frame picked"));
+                }
+                (_, Err(error)) => {
+                    *self.status = Some(document_news(format!("add profile: {error}")));
+                }
             }
         }
     }
@@ -807,7 +826,9 @@ impl ViewerBehavior<'_> {
                             profile: node,
                             distance,
                         }),
-                        Err(error) => *self.status = Some(format!("extrude: {error}")),
+                        Err(error) => {
+                            *self.status = Some(document_news(format!("extrude: {error}")));
+                        }
                     }
                 }
             }
@@ -1138,7 +1159,7 @@ impl ViewerBehavior<'_> {
             .blend_mut()
             .and_then(|tool| tool.load_all_edges(target, eval, index));
         if let Some(event) = event {
-            *self.status = Some(ToolKind::Blend.says(&event));
+            *self.status = Some(document_news(ToolKind::Blend.says(&event)));
         }
     }
 
@@ -1170,12 +1191,15 @@ impl ViewerBehavior<'_> {
                         match op {
                             Some(Ok(op)) => self.ops.push(op),
                             Some(Err(error)) => {
-                                *self.status = Some(ToolKind::Blend.says(&error));
+                                *self.status =
+                                    Some(document_news(ToolKind::Blend.says(&error)));
                             }
                             None => {}
                         }
                     }
-                    Err(error) => *self.status = Some(ToolKind::Blend.says(&error)),
+                    Err(error) => {
+                        *self.status = Some(document_news(ToolKind::Blend.says(&error)));
+                    }
                 }
             }
             if ui
@@ -1216,7 +1240,9 @@ impl ViewerBehavior<'_> {
             if ui.button(label).clicked() {
                 match op(self.drafts) {
                     Ok(op) => self.ops.push(op),
-                    Err(error) => *self.status = Some(kind.says(&error)),
+                    Err(error) => {
+                        *self.status = Some(document_news(kind.says(&error)));
+                    }
                 }
             }
             if ui.button("Cancel").clicked() {

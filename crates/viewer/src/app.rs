@@ -173,6 +173,40 @@ const DOC_EXTENSION: &str = "pncad";
 /// The one place a [`Rgba8`] becomes an `egui::Color32`, matching
 /// `theme::linear`'s role on the viewport side: a palette states sRGB
 /// and each renderer converts once, at its own door.
+/// **Draw one standing-fact badge**, and hand the response back.
+///
+/// The one draw the badge family has. What a badge SAYS, how loud it
+/// is, whether it has more to say on hover and whether it is a control
+/// are all the value's (`frame::Badge`); what a click on a control
+/// MEANS is the caller's, which is why this returns the response
+/// instead of naming a window.
+///
+/// The separator rides here too: a badge that is drawn is a badge that
+/// is separated from what precedes it, and a badge that is silent
+/// leaves no gap behind.
+fn draw_badge(ui: &mut egui::Ui, theme: &Theme, badge: &frame::Badge) -> egui::Response {
+    ui.separator();
+    let text = egui::RichText::new(&badge.label);
+    // The tone's two spellings, in the one place the mapping is made.
+    // `Theme::unresolved`'s contract is that the colour is REDUNDANT —
+    // every badge wearing it says its own words — so this decides
+    // salience and never meaning.
+    let text = match badge.tone {
+        frame::Tone::Advisory => text.weak(),
+        frame::Tone::Actionable => text.color(chrome(theme.unresolved)),
+    };
+    let response = match badge.affordance {
+        frame::Affordance::Read => ui.label(text),
+        // Frameless, so a control the reader can open still reads as a
+        // badge in a row of badges.
+        frame::Affordance::Opens => ui.add(egui::Button::new(text).frame(false)),
+    };
+    match &badge.detail {
+        Some(detail) => response.on_hover_text(detail),
+        None => response,
+    }
+}
+
 pub(crate) fn chrome(color: Rgba8) -> egui::Color32 {
     egui::Color32::from_rgb(color.r, color.g, color.b)
 }
@@ -355,8 +389,10 @@ pub struct ViewerApp {
     /// fitting immediately would frame the outgoing picture.
     fit_on_scene: bool,
     /// The last thing that went wrong, kept so a refused operation is
-    /// visible instead of silently dropped.
-    status: Option<String>,
+    /// visible instead of silently dropped — with what it is ABOUT, so
+    /// the next event about that subject can retire it
+    /// (`frame::Subject`).
+    status: Option<frame::Message>,
     /// **What THIS frame has to say that is not a refusal** — the open
     /// tool's declined picks and survival drops, and the display state
     /// the frame's own operations withdrew (the free-move placements
@@ -367,7 +403,7 @@ pub struct ViewerApp {
     /// `frame::frame_status` carries that argument, and it is the one
     /// place it is made. Drained every frame by `perform_batch`, so
     /// nothing here survives into the next one.
-    notices: Vec<String>,
+    notices: Vec<frame::Message>,
     /// Whether the environment can show a file dialog at all — probed
     /// once at startup ([`frame::chooser_backend`]); the Open/Save As
     /// controls read it every frame.
@@ -607,7 +643,12 @@ impl ViewerApp {
             fit_on_scene: false,
             // Whatever the preferences file had to say, in the one
             // place this crate puts a thing that went wrong.
-            status: (!notices.is_empty()).then(|| notices.join(frame::NOTICE_SEPARATOR)),
+            status: (!notices.is_empty()).then(|| {
+                frame::Message::new(
+                    frame::Subject::Preferences,
+                    notices.join(frame::NOTICE_SEPARATOR),
+                )
+            }),
             notices: Vec::new(),
             chooser: frame::chooser_backend(),
             store,
@@ -630,7 +671,12 @@ impl ViewerApp {
         let dropped = self
             .tools
             .reconcile(self.session.doc(), self.session.landed_pair());
-        self.notices.extend(dropped.iter().map(ToString::to_string));
+        self.notices.extend(dropped.iter().map(|dropped| {
+            // A tool's survival drop is provoked by the document
+            // transition it did not survive, so the act that accepts
+            // the next one is what retires it.
+            frame::Message::new(frame::Subject::Document, dropped.to_string())
+        }));
         // **The budget picks the δ a document opens at**, once, before
         // anything is built at the δ in force — so the un-budgeted
         // build is never paid for, only avoided. `scene::fit_delta`
@@ -675,10 +721,12 @@ impl ViewerApp {
             match landing {
                 pick::IndexLanding::Built => rebuilt = true,
                 pick::IndexLanding::Refused => {
-                    self.status = self
-                        .picks
-                        .error()
-                        .map(|error| format!("pick index: {error}"));
+                    self.status = self.picks.error().map(|error| {
+                        frame::Message::new(
+                            frame::Subject::Display,
+                            format!("pick index: {error}"),
+                        )
+                    });
                 }
                 pick::IndexLanding::Stale => {}
             }
@@ -733,7 +781,12 @@ impl ViewerApp {
                 // read of held state and so cannot be stale here or
                 // erased by anything the rest of the frame does.
             }
-            Err(error) => self.status = Some(format!("scene: {error}")),
+            Err(error) => {
+                self.status = Some(frame::Message::new(
+                    frame::Subject::Display,
+                    format!("scene: {error}"),
+                ));
+            }
         }
     }
 
@@ -756,7 +809,12 @@ impl ViewerApp {
                 self.budget_delta = None;
                 self.sync_scene();
             }
-            Err(error) => self.status = Some(format!("{error}")),
+            Err(error) => {
+                self.status = Some(frame::Message::new(
+                    frame::Subject::Display,
+                    format!("{error}"),
+                ));
+            }
         }
     }
 
@@ -842,12 +900,18 @@ impl ViewerApp {
             // placements this operation's document transition
             // discarded, onto the frame's notices like every other
             // one (`frame::frame_status` carries the argument).
-            notices.extend(frame::supersession_notice(&outcome.superseded));
+            notices.extend(
+                frame::Withdrawal::superseded(&outcome.superseded)
+                    .map(|withdrawal| withdrawal.notice()),
+            );
             // And the hides the same transition dropped, ranked
             // beside them — the same class of fact (display state an
             // accepted edit withdrew) and a different sentence
             // (`frame::dropped_hide_notice` carries the argument).
-            notices.extend(frame::dropped_hide_notice(&outcome.dropped_hides));
+            notices.extend(
+                frame::Withdrawal::dropped_hide(&outcome.dropped_hides)
+                    .map(|withdrawal| withdrawal.notice()),
+            );
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 // A replaced document owes a re-frame AND a fresh δ
@@ -927,7 +991,10 @@ impl ViewerApp {
             keys: self.keys_pref.clone(),
         };
         if let Err(error) = self.store.save(&prefs.to_toml()) {
-            self.status = Some(error.to_string());
+            self.status = Some(frame::Message::new(
+                frame::Subject::Preferences,
+                error.to_string(),
+            ));
         }
     }
 
@@ -1195,56 +1262,32 @@ impl eframe::App for ViewerApp {
                     }
                     None => {}
                 }
-                // The A5 at-rest badge, for assembly-shaped documents:
-                // the verification verdict living past the commit.
-                match self.session.at_rest() {
-                    Some(crate::session::AtRestBadge::Certified { minted }) => {
-                        ui.separator();
-                        ui.weak(format!("at rest: certified ({minted} declaration(s))"));
-                    }
-                    Some(crate::session::AtRestBadge::Refused { message }) => {
-                        ui.separator();
-                        ui.colored_label(
-                            chrome(self.theme.unresolved),
-                            format!("at rest: {message}"),
-                        );
-                    }
-                    None => {}
+                // **The standing facts, one draw each.** Each is a
+                // function of the typed value it reads — including its
+                // silence, which is what lets a row assert the `None`
+                // — and each states its own tone and affordance, so
+                // nothing about how a badge looks is decided here
+                // (`frame::Badge`).
+                //
+                // The A5 at-rest verdict, for assembly-shaped
+                // documents: the verification verdict living past the
+                // commit.
+                if let Some(badge) = frame::at_rest_badge(self.session.at_rest()) {
+                    draw_badge(ui, &self.theme, &badge);
                 }
-                // The advisory-check badge. It REPORTS: the scene below
-                // is drawn either way, because a product whose roots
+                // The advisory checks. It REPORTS: the scene below is
+                // drawn either way, because a product whose roots
                 // interpenetrate renders a picture that looks almost
                 // right and the finding is the only thing that says
-                // otherwise. Hover for the findings' own sentences —
-                // each carries its recourse, so the badge never
-                // composes one here.
-                if let Some(report) = self.session.checks()
-                    && !report.findings.is_empty()
+                // otherwise. The badge OPENS the window the findings'
+                // own sentences live in, and what a click means is
+                // this call site's — which is why the draw hands the
+                // response back rather than naming a window.
+                let checks = frame::checks_badge(self.session.checks());
+                if let Some(badge) = checks
+                    && draw_badge(ui, &self.theme, &badge).clicked()
                 {
-                    ui.separator();
-                    // **A button, not a label.** The findings were
-                    // reachable only by hovering the badge, which is
-                    // a poor home for text a reader needs to keep
-                    // open while they act on it: a tooltip is gone
-                    // the moment the pointer moves toward the feature
-                    // it names. The badge opens the window instead,
-                    // and the window is where the sentences live.
-                    if ui
-                        .add(
-                            egui::Button::new(
-                                egui::RichText::new(format!(
-                                    "checks: {} finding(s)",
-                                    report.findings.len()
-                                ))
-                                .color(chrome(self.theme.unresolved)),
-                            )
-                            .frame(false),
-                        )
-                        .on_hover_text("show what the checks found")
-                        .clicked()
-                    {
-                        self.checks_shown = !self.checks_shown;
-                    }
+                    self.checks_shown = !self.checks_shown;
                 }
                 // The gather's verdict, for the landed pair. **A
                 // standing fact, so a badge** — the status line beside
@@ -1252,36 +1295,18 @@ impl eframe::App for ViewerApp {
                 // next acting batch, while "the product on screen does
                 // not gather" is true until another pair lands.
                 //
-                // Drawn in the unresolved colour, like the at-rest
-                // refusal and the checks findings and unlike the
-                // budget's weak advisory below: the colour is
-                // REDUNDANT here, in `Theme::unresolved`'s own sense —
-                // the badge says "product: …" in words either way — and
-                // it is the spelling this toolbar already uses for a
-                // verdict a reader may need to act on.
-                //
                 // Which faults reach it is `frame::product_badge`'s,
                 // and it declines every state another channel carries:
                 // the three per-node arms are the feature tree's, and
                 // an empty document is the blank viewport's.
-                if let Some(fault) = frame::product_badge(self.session.product_fault()) {
-                    ui.separator();
-                    ui.colored_label(chrome(self.theme.unresolved), fault);
+                if let Some(badge) = frame::product_badge(self.session.product_fault()) {
+                    draw_badge(ui, &self.theme, &badge);
                 }
-                // The display budget's badge: shown while the δ on
-                // screen is the one the budget CHOSE when the document
-                // opened, and gone the moment the user picks their
-                // own. A read of held state, like the badges above,
-                // which is why it is here rather than in the status
-                // line below — that line carries one frame's news, and
-                // "this δ was chosen for you" has to outlive a mouse
-                // drag.
-                if let Some(fitted) = self.budget_delta
-                    && let Some(wording) = fitted.wording()
-                {
-                    ui.separator();
-                    ui.weak(format!("δ {:.3} mm chosen", fitted.delta.get() * 1.0e3))
-                        .on_hover_text(wording);
+                // The display budget's: shown while the δ on screen is
+                // the one the budget CHOSE when the document opened,
+                // and gone the moment the user picks their own.
+                if let Some(badge) = frame::delta_badge(self.budget_delta.as_ref()) {
+                    draw_badge(ui, &self.theme, &badge);
                 }
                 ui.separator();
                 // The palette picker. Every registered theme, by the
@@ -1297,7 +1322,7 @@ impl eframe::App for ViewerApp {
                     });
                 if let Some(status) = &self.status {
                     ui.separator();
-                    ui.label(status.as_str());
+                    ui.label(status.text.as_str());
                 }
             });
         });
@@ -1416,8 +1441,11 @@ impl eframe::App for ViewerApp {
         // `Tools::feed`'s to know, and a pick a tool DECLINED comes
         // back as a notice shown exactly as a survival drop is.
         let declined = self.tools.feed(self.session.doc(), &ops);
-        self.notices
-            .extend(declined.iter().map(ToString::to_string));
+        self.notices.extend(declined.iter().map(|declined| {
+            // A declined pick answers an act the user aimed at the
+            // document, like every other rank-2 notice this frame.
+            frame::Message::new(frame::Subject::Document, declined.to_string())
+        }));
 
         self.perform_batch(ops);
     }
@@ -1484,7 +1512,7 @@ pub(crate) struct ViewerBehavior<'a> {
     /// Set by the add-profile form while it draws; read next frame.
     pub(crate) profile_form_drawn: &'a mut bool,
     pub(crate) pending_fit: &'a mut bool,
-    pub(crate) status: &'a mut Option<String>,
+    pub(crate) status: &'a mut Option<frame::Message>,
     pub(crate) id_answer: &'a Arc<AtomicU64>,
     pub(crate) id_log: &'a mut IdQueryLog,
     pub(crate) ops: &'a mut Vec<SessionOp>,

@@ -30,7 +30,11 @@ use crate::sketch::{heading, tip_mark};
 /// has, and one that assigned the line on every clean fold would erase
 /// the news of whichever writer shares its frame — including, on the
 /// frame a document lands, the landing's own.
-pub(crate) fn land(camera: &mut Camera, status: &mut Option<String>, folded: &camera::Folded) {
+pub(crate) fn land(
+    camera: &mut Camera,
+    status: &mut Option<frame::Message>,
+    folded: &camera::Folded,
+) {
     *camera = folded.camera;
     frame::apply(status, frame::fold_status(folded));
 }
@@ -145,6 +149,14 @@ impl ViewerBehavior<'_> {
         // is inside the pane — true of every frame of a drag.
         let generation = self.index.map(PickIndex::generation);
         let step = self.id_log.step(cursor_px, generation);
+        // **A cursor event retires what the cursor last said.** The id
+        // log has just judged whether the outstanding pick question
+        // still describes this cursor and this picture; a message
+        // about what was under the cursor is stale on exactly that
+        // judgement, so `frame::cursor_status` reads it. It only ever
+        // expires — what the cursor has to SAY is raised below, where
+        // the two picking paths are compared.
+        frame::apply(self.status, frame::cursor_status(step));
 
         // The cursor path: actions in, session operations out. Every
         // step of it — the un-projection, the ray service, the miss
@@ -173,7 +185,15 @@ impl ViewerBehavior<'_> {
                     // is churn in the one log a test reads.
                     Ok(SessionOp::Hover(face)) if face.as_ref() == self.session.hover() => {}
                     Ok(op) => self.ops.push(op),
-                    Err(error) => *self.status = Some(error.to_string()),
+                    // The pick index refused what the cursor
+                    // asked of the document; the act that lands next
+                    // is what retires it.
+                    Err(error) => {
+                        *self.status = Some(frame::Message::new(
+                            frame::Subject::Document,
+                            error.to_string(),
+                        ));
+                    }
                 }
             }
         } else if let Some(refusal) = pick::unindexed(&actions, self.indexing) {
@@ -182,7 +202,10 @@ impl ViewerBehavior<'_> {
             // click that quietly did nothing here is the fail-quiet
             // this window's indexing indicator would otherwise be
             // painted over.
-            *self.status = Some(refusal.to_string());
+            *self.status = Some(frame::Message::new(
+                frame::Subject::Document,
+                refusal.to_string(),
+            ));
         }
 
         // What to mark, as a pure function of what is drawn and what is
@@ -332,7 +355,13 @@ impl ViewerBehavior<'_> {
         let matrix = match self.camera.view_projection(aspect) {
             Ok(matrix) => matrix,
             Err(error) => {
-                *self.status = Some(format!("projection: {error}"));
+                // A projection that could not be formed is about
+                // the CAMERA — the next camera event is the user
+                // asking again, and it retires this whatever it says.
+                *self.status = Some(frame::Message::new(
+                    frame::Subject::Camera,
+                    format!("projection: {error}"),
+                ));
                 return;
             }
         };
@@ -371,7 +400,12 @@ impl ViewerBehavior<'_> {
                 from_ray.as_ref().map(|face| &face.name),
             )
         }) {
-            *self.status = Some(report.to_string());
+            // What the two picking paths said about THIS cursor:
+            // the next cursor move retires it (`frame::cursor_status`).
+            *self.status = Some(frame::Message::new(
+                frame::Subject::Cursor,
+                report.to_string(),
+            ));
         }
 
         let id_query = match (step, cursor_px) {
@@ -428,7 +462,7 @@ mod tests {
 
     use super::land;
     use crate::camera::{Camera, CameraOp, fold_recorded};
-    use crate::frame::product_badge;
+    use crate::frame::{self, product_badge};
     use crate::props::SlotValue;
     use crate::scene;
     use crate::session::{DocSession, SessionOp};
@@ -455,12 +489,19 @@ mod tests {
         let folded = fold_recorded(&camera, std::slice::from_ref(&fit));
         assert!(folded.refused.is_none(), "the re-frame applies");
 
-        let mut status = Some("product: the landing's own news".to_owned());
+        // A message about the DOCUMENT: a clean fold retires what the
+        // camera said and nothing else, so this row goes red if the
+        // expiry reaches past its own subject.
+        let landing = frame::Message::new(
+            frame::Subject::Document,
+            "product: the landing's own news",
+        );
+        let mut status = Some(landing.clone());
         land(&mut camera, &mut status, &folded);
         assert_eq!(camera, folded.camera, "the camera still lands");
         assert_eq!(
-            status.as_deref(),
-            Some("product: the landing's own news"),
+            status,
+            Some(landing),
             "and the line is not the fold's to clear"
         );
     }
@@ -470,12 +511,39 @@ mod tests {
         let mut camera = framed();
         let refuses = CameraOp::Dolly { factor: 0.0 };
         let folded = fold_recorded(&camera, std::slice::from_ref(&refuses));
-        let mut status = Some("older news".to_owned());
+        let mut status = Some(frame::Message::new(frame::Subject::Document, "older news"));
         land(&mut camera, &mut status, &folded);
         let shown = status.expect("a refused fold is news");
         assert!(
-            shown.contains("camera:") && shown.contains("dolly by a factor"),
+            shown.text.contains("camera:") && shown.text.contains("dolly by a factor"),
             "{shown}"
+        );
+        assert_eq!(shown.subject, frame::Subject::Camera);
+    }
+
+    #[test]
+    fn landing_a_clean_fold_retires_the_camera_refusal_it_landed_before() {
+        // The item's own reproduction, through the driver: refuse a
+        // camera operation, then navigate. Nothing acts, so nothing
+        // clears the line, and before the subject rule the refusal
+        // stayed for as long as the user orbited.
+        let mut camera = framed();
+        let refuses = CameraOp::Dolly { factor: 0.0 };
+        let mut status = None;
+        let folded = fold_recorded(&camera, std::slice::from_ref(&refuses));
+        land(&mut camera, &mut status, &folded);
+        assert!(status.is_some(), "the refusal reaches the line");
+
+        let orbit = CameraOp::Orbit {
+            yaw: 0.2,
+            pitch: 0.1,
+        };
+        let folded = fold_recorded(&camera, std::slice::from_ref(&orbit));
+        assert!(folded.refused.is_none(), "the orbit applies");
+        land(&mut camera, &mut status, &folded);
+        assert_eq!(
+            status, None,
+            "and the next camera event retires it, whatever that event says"
         );
     }
 
@@ -534,11 +602,15 @@ mod tests {
         let mut camera = framed();
         let fit = the_re_frame_an_open_books();
         let folded = fold_recorded(&camera, std::slice::from_ref(&fit));
-        let mut status = Some("product: two roots collide in the name table".to_owned());
+        let raised = frame::Message::new(
+            frame::Subject::Document,
+            "product: two roots collide in the name table",
+        );
+        let mut status = Some(raised.clone());
         land(&mut camera, &mut status, &folded);
         assert_eq!(
-            status.as_deref(),
-            Some("product: two roots collide in the name table"),
+            status,
+            Some(raised),
             "the re-frame an Open books is not news and erases none"
         );
     }

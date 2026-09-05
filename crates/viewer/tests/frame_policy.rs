@@ -89,7 +89,14 @@ fn a_clean_action_clears_and_a_refusal_shows_even_from_a_hover_batch() {
     // if one ever did.
     let refusal = viewer::session::Refusal::NothingToDo;
     let shown = frame::batch_status(&[SessionOp::Hover(None)], Some(&refusal));
-    assert_eq!(shown, StatusUpdate::Show(refusal.to_string()));
+    assert_eq!(
+        shown,
+        StatusUpdate::Show(frame::Message::new(
+            frame::Subject::Document,
+            refusal.to_string()
+        )),
+        "the document's answer to the act is about the document"
+    );
     assert!(!refusal.to_string().is_empty());
 }
 
@@ -109,7 +116,10 @@ fn a_clean_action_clears_and_a_refusal_shows_even_from_a_hover_batch() {
 #[test]
 fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
     let declined = [SessionOp::Select(Selection::None)];
-    let notice = "blend tool: the held edges are on feature 3 body 0".to_owned();
+    let notice = frame::Message::new(
+        frame::Subject::Document,
+        "blend tool: the held edges are on feature 3 body 0",
+    );
 
     // The batch policy alone: the frame acted, nothing refused, so the
     // line is cleared. This is the seam.
@@ -130,7 +140,10 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
     let refusal = Refusal::NothingToDo;
     assert_eq!(
         frame::frame_status(std::slice::from_ref(&notice), &declined, Some(&refusal)),
-        StatusUpdate::Show(refusal.to_string())
+        StatusUpdate::Show(frame::Message::new(
+            frame::Subject::Document,
+            refusal.to_string()
+        ))
     );
 
     // With no notices the frame policy is the batch policy, verdict
@@ -152,13 +165,28 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
     // `status` from each in turn keeps the last and loses the rest,
     // which is the keep-last defect the batch policy already exists to
     // stop for refusals.
-    let second = "blend tool: an edit removed 6 of the picked edges".to_owned();
+    let second = frame::Message::new(
+        frame::Subject::Document,
+        "blend tool: an edit removed 6 of the picked edges",
+    );
     let both = frame::frame_status(&[notice.clone(), second.clone()], &declined, None);
     let StatusUpdate::Show(line) = &both else {
         panic!("two notices are shown, got {both:?}");
     };
-    assert!(line.contains(&notice) && line.contains(&second), "{line}");
-    assert_eq!(*line, [notice, second].join(frame::NOTICE_SEPARATOR));
+    assert!(
+        line.text.contains(&notice.text) && line.text.contains(&second.text),
+        "{line}"
+    );
+    assert_eq!(
+        line.text,
+        [notice.text.as_str(), second.text.as_str()].join(frame::NOTICE_SEPARATOR)
+    );
+    assert_eq!(
+        line.subject,
+        frame::Subject::Document,
+        "notices that agree on a subject are joined under it, so the \
+         joined line still knows what retires it"
+    );
 }
 
 #[test]
@@ -205,10 +233,10 @@ fn an_empty_dialog_is_loud_only_under_a_confidently_absent_backend() {
     let StatusUpdate::Show(message) = frame::dialog_status(ChooserBackend::Absent, false) else {
         panic!("an empty-handed dialog with no backend reaches the status line");
     };
-    assert_eq!(message, frame::NO_CHOOSER_BACKEND);
-    assert!(message.contains("zenity"));
-    assert!(message.contains("xdg-desktop-portal"));
-    assert!(message.contains("command line"));
+    assert_eq!(message.text, frame::NO_CHOOSER_BACKEND);
+    assert!(message.text.contains("zenity"));
+    assert!(message.text.contains("xdg-desktop-portal"));
+    assert!(message.text.contains("command line"));
     // A plausibly-present backend reads `None` as a genuine cancel,
     // which should not nag.
     for backend in [
@@ -1345,9 +1373,10 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     // it has to model every producer that feeds the notices there —
     // both withdrawal channels, not just the one this row provokes. A
     // half-mirror would pass while the real loop dropped the other.
-    let notices: Vec<String> = frame::supersession_notice(&outcome.superseded)
+    let notices: Vec<frame::Message> = frame::Withdrawal::superseded(&outcome.superseded)
         .into_iter()
-        .chain(frame::dropped_hide_notice(&outcome.dropped_hides))
+        .chain(frame::Withdrawal::dropped_hide(&outcome.dropped_hides))
+        .map(|withdrawal| withdrawal.notice())
         .collect();
     assert_eq!(
         notices.len(),
@@ -1364,8 +1393,13 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
         panic!("a discarded placement is news, not silence: {update:?}");
     };
     assert!(
-        message.contains(&format!("instance {}", bench.post_b.0)),
+        message.text.contains(&format!("instance {}", bench.post_b.0)),
         "the line names which of the user's placements went: {message}"
+    );
+    assert_eq!(
+        message.subject,
+        frame::Subject::Document,
+        "and it is about the document that superseded it"
     );
 
     // The counterfactual, so this row is not asserting about a frame
