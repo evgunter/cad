@@ -829,9 +829,7 @@ fn r2_step_frontier_kind() {
         ),
         tol,
     );
-    let hollow = pncad::topo::shell(&pot, 0.1, tol)
-        .expect("hollows")
-        .body;
+    let hollow = pncad::topo::shell(&pot, 0.1, tol).expect("hollows").body;
     let e = pncad::step_export::step_string(
         &hollow,
         &pncad::step_export::StepOptions {
