@@ -57,8 +57,8 @@ pub use editor_core::{
 // name the outer type and not the inner one can see that there is a
 // reason and never read it.
 pub use editor_core::{
-    ASSERT_BOUND, AssertionDir, AssertionVerdict, MeasureExpr, MeasurePrimitive, MeasureRef,
-    MeasureUnavailableAt, MinClearanceRefusal, UnevaluatedReason,
+    ASSERT_BOUND, AssertionDir, AssertionVerdict, MeasureExpr, MeasurePrimitive,
+    MeasureUnavailableAt, MinClearanceRefusal, SitedRef, UnevaluatedReason,
 };
 
 // Expressions and their text door.

@@ -650,6 +650,7 @@ at the parent of the commit that removed it):
 - `FILLET-ATTR-SPEC.md` — FILLET-ATTR — `NoCornerOfPair`, every refusing crossing named nearest-anchors-first, incl. the fix-pass amendment of C1 to the channel rule (last on `main` at aa5384288; PR 1895's body, `work/fillet/fillet-refusal-describes-unbracketed-crossing.md` and the ordinal-2004 row are the record)
 - `FILLET-H6-SPEC.md` — FILLET-H6 — extrude's cap-rim `Smooth` arm measured unreachable at the shipped K and made a typed refusal below the crossover; the must-carry rule homed as `geom_brep::tangent_second_order`; incl. the fix-pass amendments (last on `main` at 195460c7a; PR 1891's body, `work/fillet/extrude-cap-rim-smooth-arm-noop.md` and the ordinal-2003 row are the record)
 - `FILLET-H7-SPEC.md` — FILLET-H7 — the ruled band and its transverse cut-off (`CornerConfig::TransverseCap` / `RunOutPolicy::CutOffAtTransverseCap`, ratified on PR 1819), incl. the fix-pass amendments (last on `main` at 235d05241; PR 1897's body, `work/fillet/fillet-ruled-spine-arms-no-surgery.md` and the ordinal-2005 row are the record)
+- `FILLET-T-SPEC.md` — FILLET-T — Track T's `D325` + `D326`: the corner fusion's first arc a value, one `kef` door over a snapshot of the input body's faces (last on `main` at b1cc95604; PR 1943's body, `work/fillet/D325.md`, `work/fillet/D326.md` and the ordinal-2006 row are the record)
 - `PROPS-VERDICT-SHAPES-SPEC.md` — PROPS verdict-shapes — the two derived per-node verdict forms in one module (`resolve/vdiff.rs`), `ReplayOutcome` folded into `RunStatus` with `Absent` kept distinct, the strict-vs-population split pinned (last on `main` at 8ba880fda; PR 1920's body and `work/props/three-per-node-verdict-shapes.md` are the record; an E rider outside the A/B experiment, no row)
 
 - `BOOL-1-SPEC.md` — BOOL-1 — issue 1152: coplanar-split section boundaries cite non-adjacent surfaces
@@ -865,3 +866,33 @@ record is its row in `MODEL-AB-LOG.md` and its item's `## Closed`
 section.
 
 - `PROPS-1-SPEC.md` — PROPS-1, the lost-correlation members of the linalg audit: `mirror_across_plane` and `reject_from` (#1918)
+## Per-merge deletion — TOPO-S330's spec (2026-09-05)
+
+Recoverable at `git show 57cd299d8225afe4454bd068fa9e374439975363:docs/TOPO-S330-SPEC.md`
+(the S330 unit head after the review fix pass, before the state-sync
+commit that deleted it). Two of its stated facts were falsified by the
+unit and are corrected in the unit's record, not here: `ops_cube` is not
+a tier-3-clean planar cube (every face carries the mvfs placeholder), and
+its Phase-2 shape for the poison door — a second predicate beside
+`is_placeholder` — was replaced by `geom::NetState` at review. The rule
+above; the unit's record is its row in `MODEL-AB-LOG.md` and its MERGED
+entry in `work/topo/log.md`.
+
+- `TOPO-S330-SPEC.md` — TOPO-S330, tier-3 check 1's described-NURBS arm (#1923)
+
+## Per-merge deletion — MSOLVE-1's spec (2026-09-05)
+
+Recoverable at `git show 550a9f2a9febb277ab69cf8d566850af65b51bfb:docs/MSOLVE-1-SPEC.md`
+(the MSOLVE-1 unit head, before the state-sync commit that deleted it;
+unamended — no stop clause fired). Three of its clauses were corrected
+by measurement rather than met, and the argument is in the unit's PR:
+A3's transform-of-pattern cannot reach a product (`Node::Transform`
+takes one body; filed in `work/issues/`), A8's "refuses at the remap"
+became a typed refusal at the split door in both directions
+(`SplitError::OperandSeveredFromMate`), and the acceptance fixture the
+spec's rows were first written against interpenetrated and was
+re-authored as a physical seat at the fix pass. The rule above; the
+unit's record is its item's `## Closed` section and its MERGED entry
+in `work/msolve/log.md` (no A/B row: the program runs none).
+
+- `MSOLVE-1-SPEC.md` — MSOLVE-1, the mate reads at its operand: the transform-aware solve (#1929)

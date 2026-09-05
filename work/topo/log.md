@@ -205,3 +205,61 @@ as a class in `work/issues/` with the `NetState` door as the tool.
 `program.md`'s `keep_out` now says how this program treats
 `crates/topo/tests/*` (S-TCOST's glob): rows added as ordinary tests,
 said in the PR, no second fence.
+
+## D261 merged (2026-09-05)
+
+PR 1919 merged at `da6f159e` (green run 33947129437 on `aed0b564`,
+full matrix). `D261` and `D264` closed; `probe-message-carve` open on
+this slate. The unit's own account is the PR body. Two operations
+notes for the record: the lane re-rolled a seed-dependent `mesh` gate
+failure with an EMPTY commit, which the lane rules forbid (the run did
+classify code-tier that time; the reliable re-roll is a real commit —
+stated here so the next brief says it); and the branch went
+conflicting twice against a main that moved under it (S-CERT's log,
+then FILLET's own roster line for the inherited red), both resolved by
+the orchestrator in a throwaway worktree and pushed by ref, the
+second by taking main's line outright. The seeded floor is filed on
+S-MESH's slate (`cert10-strict-gap-floor-gates-on-a-varying-seed`).
+
+## S330 merged; block TOPO-B1 slot 0 concluded (2026-09-05)
+
+PR 1923 merged at `d9b7b26d` (green run 33947772289 on `c90a6752`,
+full matrix). `S330` and `S94` closed; `quadric-datums-unchecked-at-rest`
+open on this slate, widened at review to the poison case and the
+`Plane` frame. The A/B row is recorded at merge (ordinal 2700, sample
+#138) in `docs/MODEL-AB-LOG.md`'s TOPO section; block TOPO-B1's record
+on `topo/b1-block` marks slot 0 concluded, slots 1–2 banked. Sixteen
+items on the slate, two closed today (`D261`, `D264`) plus these two.
+Next: the `live.rs` pair — `D50`'s source-level guard on the shared
+lexer now that `D261` has landed it, `D260` as one sentence in the
+same PR, single style review, no row.
+
+## Third lane out: the live.rs pair (2026-09-05)
+
+`D50` (+`D260` riding) dispatched on `topo/d50-live-guard`, the brief
+in the item file. Outside the experiment (single style review, no row).
+The survey corrected the row's premise: the compiler already makes
+`Live` unforgeable from outside `live.rs` (private field, private
+`new`); what nothing guards is the header's real claim — that every
+door INSIDE the file looks up before it hands a token out — and that
+is what the row builds, on the shared lexer and item carve `D261`
+landed.
+
+## The two-homes ruling goes to Ev (2026-09-05)
+
+`face-kind-read-has-two-homes`: recommendation (a) — the predicate
+seat reads through the typed readback door and flattens; the
+readback header's "one reading, not two" is the ratified rule this
+elaborates. Three viable answers on paper, one dominant argument, so
+it goes out as an `[ev]` PR rather than self-merging, per the
+"when unsure, treat it as a fork" rule; `needs_ev: true` on the item,
+the seam announced on SEAT's board as a heads-up.
+
+## Two-homes ruled (2026-09-05)
+
+PR 1948: Ev asked whether SEAT's PR 1902 had just ruled the same
+question the other way; it had not (a decide site under two funnel
+names versus a tag read, and #1902's "one kernel door, callers keep
+their names" is this item's (a)). Ratified (a). The item is a unit,
+dispatched on `topo/two-homes-face-kind` as a one-door seam on SEAT's
+`query.rs`, announced; single style review, no row.

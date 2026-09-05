@@ -4158,3 +4158,76 @@ applying to BOTH arms equally (not a relaxation): the pair runs on one
 4-core cloud box beside one other lane, every lane at `-j2`; R1's
 target directory is the implementer's warm one, R2's is seeded from an
 older warm build — a wall-clock asymmetry, not an instrument one.
+
+S330 row, recorded AT MERGE (2026-09-05, merge `d9b7b26dc`, PR #1923;
+`work/topo/S330.md` + rider `S94`): tier-3 check 1's described-NURBS
+arm — the three-state read of a NURBS net becomes `geom::NetState`
+with `net_state()` as the one door, check 1 matches exhaustively on it,
+a new `PoisonedSurfaceDescription` variant, named no-op arms for every
+`Surface` variant, red-first + control + state-ladder + interval rows;
+S94: both hand-kept `VARIANTS` ladders replaced by a test-only
+`strum::EnumDiscriminants` derive with the iteration-order premise
+asserted. Difficulty **S/M**, task class STRUCTURAL (logged AFTER the
+block byte was drawn — disclosed above; the covariate is contaminated
+for this row). Implementer arm **OPUS** (block TOPO-B1 slot 0, byte
+92). **DUAL: ordinal 2700; sample #138; byte 119 parity 1 ⇒ R1 FABLE +
+R2 OPUS; CONCURRENT same-head on frozen `55931a3e`; briefs stored with
+sha256 before dispatch, identical modulo lane paths.** R1
+MERGEABLE, counts 0/3/6, rubric idiom 4 / tests 4 / docs 4; R2
+MERGEABLE-AFTER-FIXES, counts 1/4/5, rubric 4/4/2. Spec deviations:
+5 reported (fixture swap — the spec's `ops_cube` datum was false;
+`assembly.rs` forced placement; derive lines on `EulerOpError`'s
+declaration; `interval_body.rs` outside `paths`; a roster line for an
+inherited main red, later dropped for FILLET's own), silent 0 (R1) / 2
+(R2: two `geom` crate-doc sentences the arm made false, undisclosed).
+**One unilateral executed MAJOR (R2): the `Plane` no-op arm's
+justification is false** — a zero or poisoned plane frame describes no
+locus, check 1 says nothing, and checks 3/4/5 refuse it by escalation
+with an `Invalid` margin, the "answered by accident" shape the unit
+closed for NURBS; the quadric arms' "no check reads them" loose the
+same way. Adjudicated as a claim on a comment plus a residue-scope gap,
+not shipped behaviour — the comments rewritten, the residue item
+widened with the executed table, no row pinning the escalations —
+**recorded as a tally candidate under 3(b)'s doc exclusion for the
+blinded adjudication** (H4 precedent). Convergent style finding from
+both arms (the guard pair whose order a comment held → a state type)
+taken at the fix pass. Method relaxations: none; the shared-box note
+above applies to both arms; R2's target was seeded colder than R1's
+(wall-clock asymmetry only). Fix pass by the implementer lane
+(inherited arm), eight items, union of both reviews; one R2 probe
+adopted as the state-ladder row. Tokens: impl ≈190k / verification
+≈90k (lane's split of ≈280k), fix ≈55k, R1 ≈202k, R2 ≈210k. Wall: impl
+≈50 min (25 implementing, 25 verifying across two CI rounds), R1 ≈14
+min, R2 ≈21 min, fix ≈35 min; gaps: the inherited `bounds_census` red
+on main (FILLET-ATTR under a cancelled gate) cost one red round and a
+port, and the PR went conflicting twice against a moving main
+(resolved by the orchestrator in throwaway worktrees). Tally after
+this entry: unchanged; candidates +1.
+
+FILLET-T RECORDED AT MERGE (2026-09-05, PR #1943, sample **#139** — prior highest #138 on main at the state-sync; re-checked at merge in main's merge order; block FILLET-B3 slot 0 concluded, the block record staying on `fillet/b3-block` until the block concludes or closes short with the program's exit):
+
+| T | 2026-09-05 | FILLET-T (PR #1943; Track T's `D325` + `D326` as one unit; spec `docs/FILLET-T-SPEC.md`): the corner fusion's `first_arc` a VALUE — `CornerLinks::sorted` returns a seeded `(first, rest)` (the minimum carried as the walk runs), the ~40-line arc-mint body hoisted into one closure both the seed and the rest run, the `unreachable!` deleted (24 → 23 in `surgery.rs`); and the `kef`-argument invariant carried at the door — after the fix pass `SourceFaces`, ONE snapshot of every face of the input body taken at `blend_surgery` entry and threaded to all four phases, with `kef_minted` its method (a narrower set unspellable), refusing a source face typed as the new `BlendError::SurgeryInvariant` (D2 row 4 announced, "the body handed in is not what is wrong"); `grep -c 'body.kef('` = 1 in the file, eight call sites; `D323`'s five-sentence argument at `naming::Retired` cut to two; Phase 1 found EIGHT `kef` sites (the spec's six plus H7's two), every one killing a surgery-minted face, two with no local argument at all before this | S / STRUCTURAL (pre-draw, at the spec) | OPUS (block FILLET-B3 slot 0; byte 199 → fable at slot 1; record branch-side on `fillet/b3-block`) | **DUAL (ordinal 2006; byte 129 parity 1 ⇒ R1 FABLE + R2 OPUS; CONCURRENT same-head on frozen `9290f0b21`, briefs stored with sha256 pre-dispatch, private target dirs; v6 instrument; pair FAIR — no glimpse either side, both complete).** R1 MERGEABLE-AFTER-FIXES 1/2/3, rubric 3/3/3 — MAJOR: the door refused the running PHASE's hand-built anchor list, not "a source face": a snapshot source face outside the blank phase's list (the pip's sphere) passed the door and `kef` KILLED it on 4 rows, while the header, `Retired` and `emit_blend.rs` claimed the stronger invariant; MINOR: the refusal rendered through Row 1's Display for the surgery's own logic; no mechanical one-door pin (probe: a source-text census row); NOTE: `sorted` not order-equivalent on equal keys; the code-quality issue's stale quote. R2 MERGEABLE 0/2/4, rubric 4/2/3 — the same door finding by reading (four disjoint per-phase lists; the mixed planar+ruled seam uncovered) as MINOR; MINOR: at one site the OTHER minted half carves green and moves bits (disclosed by deviation 2); NOTE: the ruled dump row missing — R2 WROTE it and took C1 over 14 files (identical); the `sorted` seed contract stated two ways (lowest key vs discovering link) with a dependent read at `:2655` and the min-swap branch measured DEAD across 1159 rows; the empty-anchors arm unreachable and untested; the dump function copied in two test files and DIVERGED (the arms2 copy omits `props`). CORRESPONDENCE: the door's claim vs enforcement BILATERAL (R1 executed, R2 read; adjudicated MAJOR); the refusal row bilateral (R1 MINOR-1 ≡ R2 NOTE-3); the missing ruled row bilateral; the `sorted` seed/order class bilateral. Unilateral: R1's one-door pin, R2's other-half mutant and the dump-copy divergence. **No unilateral MAJOR → v6 tally +0 this pair** | 1 silent (the door's claim overstated at three homes — disclosed nowhere until the reviews; fixed) | R1 3 / R2 4 | R1 3 / R2 2 | R1 3 / R2 3 | substantial, IMPLEMENTER-INHERITED, all seven decisions: the `SourceFaces` carrier (the snapshot mutant now REFUSES; all eight per-site mutants refuse), `BlendError::SurgeryInvariant` with its own Display, `Recourse::None`, witness and D2 class arm; the empty-snapshot guard one home at `SourceFaces::of` (row-4 shape, unreachable once the entry gate admits); both probe rows adopted with the ruled dump row moved INTO `bitdump.rs` and `ruled-band-has-no-bit-identity-corpus-row` CLOSED; the dump function one home with the dome-annulus row now dumping props; the seed contract decided as the MINIMUM (`quad` fixed to read the seed, both docs agreeing, the min-swap kept as the guarantee); the rule at one statement with pointers; the code-quality quote refreshed; differential re-taken over 10 rows / 14 files (base `src/` + head tests vs head) EMPTY; a `BlankPlan` bundle rather than an 8-argument function; one red CI leg on the way (the adopted census row `include_str!`s `surgery.rs` and owed `test-utils`' reader ledger a line — fixed, then `nextest --workspace` 6249 as the scope correction) | impl CI 33948095965 GREEN on 9290f0b21 (full matrix); fix CI 33952266254 GREEN on f240acb1f (full matrix, 37 jobs: 33 success + 4 path-skipped; the run's existence on the head verified); local workspace 6249 | impl ~220k / fix ~146k (harness delta) / R1 ~171k / R2 ~258k | impl ~43 min / fix ~69 min / R1 ~20 min / R2 ~25 min concurrent |
+
+## FILLET-T review ordinal fixed at dispatch (2026-09-05)
+
+FILLET-T (`D325` + `D326`, PR #1943 open — frozen head `9290f0b21`, merge
+base `f1e1e5222`): **ordinal 2006** (FILLET band; seventh claimant after
+H7's 2005). Pre-draw fields at the spec (`docs/FILLET-T-SPEC.md`):
+difficulty **S**, task-class **STRUCTURAL**; implementer arm per block
+FILLET-B3 slot 0 (recorded branch-side on `fillet/b3-block`). Protocol v6
+dual: draw = `/dev/urandom` byte **129**, parity 1 ⇒ **R1 = FABLE, R2 =
+OPUS**. Method, recorded before either review runs: CONCURRENT same-head
+on frozen `9290f0b21`, both briefs authored and STORED with sha256 before
+either dispatches (identical text modulo lane names and lane paths,
+verified by diff; digests in the orchestrator's draw record), neither
+reviewer sees the other's report, v6 item 5 isolation in both briefs,
+PRIVATE `CARGO_TARGET_DIR` per reviewer (fresh for both); the
+implementer's unit log entry is not written until the dual concludes.
+Orchestrator's framing, so the reviewers read it as settled: the unit is
+two code-quality riders judged as a Q1/Q7 unit with bit identity as the
+hard fence; the stop clause did not fire (eight `kef` sites, every one
+killing a surgery-minted face); deviation 2 — the door REFUSES a source
+face rather than picking between two minted ones — is the lane's reading
+of the `canonicalize_chart` shape, judged on its merits. Disclosed: every
+PR run executes the whole matrix; the GitHub write path appends a
+`Generated by Claude Code` footer naming no model.

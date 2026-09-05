@@ -214,12 +214,39 @@ impl<'a, T: Real> CornerLinks<'a, T> {
     /// The incident links in edge-key order — what the corner fusion
     /// walks, ordered here rather than by trusting the order the caller
     /// fed them in.
-    pub(super) fn sorted(&self) -> Vec<AdmittedOpen<'a, T>> {
-        let mut all: Vec<AdmittedOpen<'a, T>> = core::iter::once(self.first)
-            .chain(self.rest.iter().copied())
-            .collect();
-        all.sort_by_key(AdmittedOpen::edge);
-        all
+    ///
+    /// **Seeded, in the shape this type's own fields have**: the
+    /// lowest-keyed link in its own slot, the remainder behind it. The
+    /// non-emptiness that makes [`CornerLinks::first`] total therefore
+    /// survives the ordering, and a consumer that walks the links in
+    /// order still holds one of them by the type.
+    ///
+    /// **The seed is the MINIMUM, not [`CornerLinks::first`]**, and the
+    /// two are not interchangeable at a consumer even though today's
+    /// one builder makes them equal: it seeds each corner from the
+    /// first link that reaches it while walking the open links in
+    /// ascending edge order, so the swap below never fires. Not
+    /// depending on that walk is the whole reason this function
+    /// exists — a consumer that needs the ordered walk's first element
+    /// reads it HERE, and one that needs any single incident link (a
+    /// convexity, a chart candidate) reads `first`, where order does
+    /// not enter.
+    pub(super) fn sorted(&self) -> (AdmittedOpen<'a, T>, Vec<AdmittedOpen<'a, T>>) {
+        // The minimum is carried in a slot as the walk runs, never
+        // searched for in a built `Vec` — so there is no empty case to
+        // answer for and none to refuse.
+        let mut first = self.first;
+        let mut rest: Vec<AdmittedOpen<'a, T>> = Vec::with_capacity(self.rest.len());
+        for &link in &self.rest {
+            if link.edge() < first.edge() {
+                rest.push(first);
+                first = link;
+            } else {
+                rest.push(link);
+            }
+        }
+        rest.sort_by_key(AdmittedOpen::edge);
+        (first, rest)
     }
 }
 

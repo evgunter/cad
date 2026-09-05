@@ -20,8 +20,8 @@ use crate::fixture;
 
 use editor_core::{
     Datum, Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, MeasureRef, NamePat, Node, ParamName, ProfileDoc,
-    ProfileProgram, RecipeNodeId, Selector, SurfaceKindSet, UnitSym, select_where,
+    MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
+    RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, select_where,
 };
 use geom_core::Tol;
 
@@ -154,7 +154,7 @@ pub(crate) fn plate(
             .expect("the surface-kind atom is exact");
             faces.sort();
             assert!(!faces.is_empty(), "a hole extrude has a cylindrical wall");
-            MeasureRef::new(node, faces.remove(0))
+            SitedRef::new(node, faces.remove(0))
         };
         vec![wall(hole_a), wall(hole_b)]
     };
