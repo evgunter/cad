@@ -33,7 +33,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use geom::NurbsCurve3;
-use geom_core::spline::{KnotVector, hull};
+use geom_core::spline::KnotVector;
 use geom_core::{Point3, RingInterval, Vec3};
 
 /// The plane `n · P = 1.5`. Both are dyadic: `n = (0.5, 0.5, 0.75)`,
@@ -124,8 +124,14 @@ fn the_clean_fit_is_certified_and_the_plant_is_refused() {
 
     // --- the clean curve certifies -----------------------------------
     let clean = residual_coeffs(&curve);
-    let bound = hull::sup_norm_bound(kv, &clean);
-    let bound_rat = hull::sup_norm_bound_rational(kv, &clean, weights);
+    let clean_pair = kv
+        .coeffs(&clean)
+        .expect("the residual is the curve's length");
+    let bound = clean_pair.sup_norm_bound();
+    let bound_rat = kv
+        .coeffs_rational(&clean, weights)
+        .expect("the residual is the curve's length")
+        .sup_norm_bound_rational();
     assert!(bound.is_finite() && bound_rat.is_finite(), "poisoned bound");
     assert!(
         bound <= EPS,
@@ -156,7 +162,10 @@ fn the_clean_fit_is_certified_and_the_plant_is_refused() {
     let corrupted =
         NurbsCurve3::new(kv.clone(), control, weights.to_vec()).expect("still a valid curve");
     let dirty = residual_coeffs(&corrupted);
-    let dirty_bound = hull::sup_norm_bound(kv, &dirty);
+    let dirty_pair = kv
+        .coeffs(&dirty)
+        .expect("the residual is the curve's length");
+    let dirty_bound = dirty_pair.sup_norm_bound();
     assert!(
         dirty_bound > EPS,
         "the {PLANT:e} plant must be refused at eps={EPS:e}, bound was {dirty_bound:e}"
@@ -188,12 +197,14 @@ fn the_clean_fit_is_certified_and_the_plant_is_refused() {
     let mut refusing_spans = 0;
     let mut certifying_spans = 0;
     for index in kv.first_span()..=kv.last_span() {
-        let Some(span) = kv.span(index) else { continue };
+        let Some(clean_win) = clean_pair.span(index) else {
+            continue;
+        };
         assert!(
-            hull::sup_norm_bound_span(&clean, span) <= EPS,
+            clean_win.sup_norm_bound() <= EPS,
             "clean span {index} must certify"
         );
-        if hull::sup_norm_bound_span(&dirty, span) > EPS {
+        if dirty_pair.span(index).unwrap().sup_norm_bound() > EPS {
             refusing_spans += 1;
         } else {
             certifying_spans += 1;
@@ -238,7 +249,10 @@ fn a_sub_eps_perturbation_still_certifies() {
     let mut control = curve.control().to_vec();
     control[1] = Point3::new(control[1].x, control[1].y, control[1].z + 1e-10);
     let nudged = NurbsCurve3::new(kv.clone(), control, curve.weights().to_vec()).unwrap();
-    let bound = hull::sup_norm_bound(kv, &residual_coeffs(&nudged));
+    let bound = kv
+        .coeffs(&residual_coeffs(&nudged))
+        .unwrap()
+        .sup_norm_bound();
     assert!(
         bound <= EPS,
         "a 1e-10 nudge must still certify at eps={EPS:e}, bound was {bound:e}"

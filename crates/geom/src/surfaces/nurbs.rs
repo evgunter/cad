@@ -138,12 +138,13 @@ pub struct SurfaceJet3<T: Real> {
 /// cannot make two live references to different surfaces a type
 /// error. With no such parameter there is nothing to disagree.
 ///
-/// **What is left open**, one level down and stated rather than
-/// implied away: a `NurbsSurface` relates its control net to its two
-/// knot vectors by *count* alone (`control.len() == nu·nv`, checked at
-/// construction), which is the same length-only relation
-/// [`geom_core::spline::hull::span_hull`] holds its coefficients to.
-/// That residue is the coefficient↔vector pairing, not this one.
+/// **The count relation, stated rather than implied away**: a
+/// `NurbsSurface` relates its control net to its two knot vectors by
+/// *count* (`control.len() == nu·nv`), checked once at construction —
+/// the same relation [`geom_core::spline::KnotVector::coeffs`] checks
+/// once at its mint. It is what makes every window's `row(i) + j` a
+/// construction fact; the pairing itself is closed by the borrow, here
+/// as there.
 #[derive(Clone, Copy)]
 pub struct SurfaceWindow<'a, T: Real> {
     surface: &'a NurbsSurface<T>,

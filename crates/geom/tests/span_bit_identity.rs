@@ -12,8 +12,8 @@
 //! bicubic-by-quadratic surface — driven through every door that took a
 //! span or a window: `eval`/`deriv`/`deriv2`, `eval_in_span`,
 //! `ders_in_span`, `ders1_in_span`, `deriv_in_span`, `deriv2_in_span`,
-//! `basis_funs`, `ders_basis_funs`, `span_hull`, `span_hull_rational`,
-//! `derivative_span_hull`, `sup_norm_bound_span`, and the surface's
+//! `basis_funs`, `ders_basis_funs`, the coefficient windows' `hull`,
+//! `hull_rational`, `derivative_hull`, `sup_norm_bound`, and the surface's
 //! `eval`/`ders`/`ders3` plus their three window doors. Every `f64`
 //! that comes out is recorded by its bits.
 //!
@@ -33,7 +33,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{NurbsCurve3, NurbsSurface};
-use geom_core::spline::{KnotVector, basis, hull};
+use geom_core::spline::{KnotVector, basis};
 use geom_core::{Point3, Vec3};
 
 fn kv(knots: Vec<f64>, degree: usize) -> KnotVector {
@@ -178,10 +178,19 @@ fn rows() -> Vec<(String, u64)> {
                 .map(|i| (i % 5) as f64 * 0.5 - 1.0)
                 .collect();
             let w: Vec<f64> = c.weights().to_vec();
-            let h = hull::span_hull(&coeffs, span);
+            let pair = k.coeffs(&coeffs).expect("minted against its own vector");
+            let cw = pair
+                .span(index)
+                .expect("the span the curve minted is nonempty");
+            let rw = k
+                .coeffs_rational(&coeffs, &w)
+                .expect("minted against its own vector")
+                .span(index)
+                .expect("the same span");
+            let h = cw.hull();
             out.push((format!("{name}.span_hull.lo@{index}"), h.lo().to_bits()));
             out.push((format!("{name}.span_hull.hi@{index}"), h.hi().to_bits()));
-            let hr = hull::span_hull_rational(&coeffs, &w, span);
+            let hr = rw.hull_rational();
             out.push((
                 format!("{name}.span_hull_rat.lo@{index}"),
                 hr.lo().to_bits(),
@@ -190,7 +199,7 @@ fn rows() -> Vec<(String, u64)> {
                 format!("{name}.span_hull_rat.hi@{index}"),
                 hr.hi().to_bits(),
             ));
-            let hd = hull::derivative_span_hull(&coeffs, span);
+            let hd = cw.derivative_hull();
             out.push((
                 format!("{name}.deriv_span_hull.lo@{index}"),
                 hd.lo().to_bits(),
@@ -201,7 +210,7 @@ fn rows() -> Vec<(String, u64)> {
             ));
             out.push((
                 format!("{name}.sup_norm@{index}"),
-                hull::sup_norm_bound_span(&coeffs, span).to_bits(),
+                cw.sup_norm_bound().to_bits(),
             ));
         }
     }

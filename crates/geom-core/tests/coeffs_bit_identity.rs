@@ -35,7 +35,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::spline::{KnotVector, hull};
+use geom_core::spline::KnotVector;
 use geom_core::{CertifiedEnclosure, RingInterval};
 
 type Rows = Vec<(String, u64)>;
@@ -46,8 +46,14 @@ fn vectors() -> Vec<(&'static str, KnotVector)> {
     let kv = |k: &[f64], p: usize| KnotVector::clamped(k.to_vec(), p).expect("valid");
     vec![
         ("d1", kv(&[0.0, 0.0, 0.5, 1.5, 2.0, 2.0], 1)),
-        ("d2m2", kv(&[0.0, 0.0, 0.0, 0.5, 0.5, 1.25, 3.0, 3.0, 3.0], 2)),
-        ("d3", kv(&[0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 4.0, 4.0, 4.0], 3)),
+        (
+            "d2m2",
+            kv(&[0.0, 0.0, 0.0, 0.5, 0.5, 1.25, 3.0, 3.0, 3.0], 2),
+        ),
+        (
+            "d3",
+            kv(&[0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 4.0, 4.0, 4.0], 3),
+        ),
         (
             "d3m2",
             kv(&[0.0, 0.0, 0.0, 0.0, 0.3, 0.3, 1.7, 2.0, 2.0, 2.0, 2.0], 3),
@@ -59,7 +65,9 @@ fn vectors() -> Vec<(&'static str, KnotVector)> {
         (
             "d4",
             kv(
-                &[0.0, 0.0, 0.0, 0.0, 0.0, 0.4, 0.9, 0.9, 1.0, 1.0, 1.0, 1.0, 1.0],
+                &[
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.4, 0.9, 0.9, 1.0, 1.0, 1.0, 1.0, 1.0,
+                ],
                 4,
             ),
         ),
@@ -95,48 +103,50 @@ fn ri(o: &mut Rows, tag: &str, r: RingInterval) {
 }
 
 /// Every door, for one vector, one coefficient array and one weight
-/// vector. The doors' spellings are the only thing that changes when
-/// the coefficients start carrying their vector; the labels do not.
-fn drive<E: CertifiedEnclosure>(o: &mut Rows, name: &str, kv: &KnotVector, coeffs: &[E], w: &[f64]) {
+/// vector — one pair minted non-rationally and one rationally, each
+/// asked for every window. The labels are the ones the free
+/// `(coeffs, span)` and `(kv, coeffs)` spellings produced.
+fn drive<E: CertifiedEnclosure>(
+    o: &mut Rows,
+    name: &str,
+    kv: &KnotVector,
+    coeffs: &[E],
+    w: &[f64],
+) {
+    let pair = kv.coeffs(coeffs).expect("minted against its own vector");
+    let rational = kv
+        .coeffs_rational(coeffs, w)
+        .expect("minted against its own vector");
     for index in kv.first_span()..=kv.last_span() {
-        let Some(span) = kv.span(index) else { continue };
-        ri(o, &format!("{name}.hull@{index}"), hull::span_hull(coeffs, span));
-        ri(
-            o,
-            &format!("{name}.hull_rat@{index}"),
-            hull::span_hull_rational(coeffs, w, span),
-        );
-        ri(
-            o,
-            &format!("{name}.dhull@{index}"),
-            hull::derivative_span_hull(coeffs, span),
-        );
+        let Some(win) = pair.span(index) else {
+            continue;
+        };
+        let rwin = rational.span(index).expect("the same vector's span");
+        ri(o, &format!("{name}.hull@{index}"), win.hull());
+        ri(o, &format!("{name}.hull_rat@{index}"), rwin.hull_rational());
+        ri(o, &format!("{name}.dhull@{index}"), win.derivative_hull());
         o.push((
             format!("{name}.sup@{index}"),
-            hull::sup_norm_bound_span(coeffs, span).to_bits(),
+            win.sup_norm_bound().to_bits(),
         ));
     }
-    ri(o, &format!("{name}.domain"), hull::domain_hull(kv, coeffs));
+    ri(o, &format!("{name}.domain"), pair.domain_hull());
     ri(
         o,
         &format!("{name}.domain_rat"),
-        hull::domain_hull_rational(kv, coeffs, w),
+        rational.domain_hull_rational(),
     );
-    for (i, q) in hull::derivative_coeffs(kv, coeffs).iter().enumerate() {
+    for (i, q) in pair.derivative_coeffs().iter().enumerate() {
         ri(o, &format!("{name}.dcoeff.{i}"), *q);
     }
-    ri(
-        o,
-        &format!("{name}.ddomain"),
-        hull::derivative_domain_hull(kv, coeffs),
-    );
+    ri(o, &format!("{name}.ddomain"), pair.derivative_domain_hull());
     o.push((
         format!("{name}.sup_domain"),
-        hull::sup_norm_bound(kv, coeffs).to_bits(),
+        pair.sup_norm_bound().to_bits(),
     ));
     o.push((
         format!("{name}.sup_domain_rat"),
-        hull::sup_norm_bound_rational(kv, coeffs, w).to_bits(),
+        rational.sup_norm_bound_rational().to_bits(),
     ));
 }
 

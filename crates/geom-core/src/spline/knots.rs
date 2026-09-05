@@ -188,7 +188,8 @@ pub struct KnotVector {
 ///   against the vector it lands in.
 ///
 /// The type stays crate-private; a public one would need the borrow
-/// [`Span`] carries.
+/// [`Span`] carries, and — the second precedent — the one
+/// [`super::hull::SplineCoeffs`] carries for a coefficient array.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct InteriorKnot(f64);
 
@@ -221,14 +222,14 @@ impl InteriorKnot {
 /// that read a control net get the net and the knots from one borrow
 /// too.
 ///
-/// **The pairing this does not close** is coefficients against knots
-/// at the **free** hull functions: [`super::hull::span_hull`] and its
-/// siblings take a `&[E]` beside a span and relate the two by *length*
-/// alone (`KnotVector::control_count`), so a same-length array from
-/// another curve is a wrong answer rather than a refusal. `geom`'s
-/// curve and surface windows do not have it — they read their
-/// coefficients from the borrow. `InteriorKnot` is the third member of
-/// the family and stays crate-private for it.
+/// **One level down, coefficients against knots take the same shape**:
+/// a [`super::hull::SplineCoeffs`] borrows the vector its array was
+/// fitted against and is minted only by [`KnotVector::coeffs`] and
+/// [`KnotVector::coeffs_rational`] (the count relation, checked once
+/// there), and every hull door reads through a
+/// [`super::hull::CoeffWindow`] the pair minted — a `Span` of ITS
+/// vector beside the pair. `InteriorKnot` is the third member of the
+/// family and stays crate-private for it.
 ///
 /// **Equality is address equality on the vector**, plus the indices:
 /// a `Span` is a proof about *that* vector, and two bit-equal vectors

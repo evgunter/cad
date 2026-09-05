@@ -140,50 +140,74 @@ fn degree_one_and_degree_five_read_exactly_their_windows() {
 // `curves::nurbs` module — not here, because a row here would have to
 // write the expression it says cannot be written.
 //
-// What is left open, one level down, is the coefficients: `geom-core`'s
-// FREE hull functions take a `&[E]` beside a `Span` and relate them by
-// LENGTH alone. The rows below drive exactly that, at the doors where
-// it is still reachable.
+// One level down, the coefficients take the same shape: `geom-core`'s
+// hull doors read a `SplineCoeffs` — an array with the vector it was
+// minted against — through a `CoeffWindow` the pair minted, so a span
+// of another vector beside a coefficient array has no spelling either.
+// The three equal-count shapes the retired guard refused are
+// `compile_fail` doctests on `SplineCoeffs` in `spline/hull.rs`, each
+// with a legal twin; the row below is the curve-side half.
 
-/// **The residue, at the only doors that still have it.**
-/// `hull::span_hull` and its three siblings take loose coefficients
-/// beside a span and check `coeffs.len() == kv.control_count()` and
-/// nothing else, so a same-length array from another curve is answered
-/// — finitely, and wrongly.
-///
-/// The curve doors are *not* in this row's scope and cannot be: they
-/// read their coefficients from the curve the window borrows.
-/// (`work/props/coefficients-carry-their-knot-vector.md`.)
+/// **A curve's own coordinate channels mint against its own vector, and
+/// the windows they mint are the curve's windows.** `ring_coords()` and
+/// `knots()` are read from one curve, so every channel mints (`Some`),
+/// every window the pair mints selects the span the curve mints at that
+/// index and refuses the indices the curve refuses, and the window's
+/// hull is the channel's plain hull over that span's window — which is
+/// what the SSI box chains and the chart tubes bank. A channel of a
+/// curve of another length is refused at the mint, which is the only
+/// relation a length can state.
 #[test]
-fn the_free_hull_doors_relate_coefficients_by_length_alone() {
-    use geom_core::spline::hull;
+fn a_curves_channels_mint_against_its_own_vector() {
+    let mut windows = 0usize;
+    for (knots, degree) in span_families() {
+        let c = curve(knots, degree);
+        let k = c.knots();
+        let coords = c.ring_coords();
+        for (ch, coeffs) in coords.iter().enumerate() {
+            let pair = k
+                .coeffs(coeffs)
+                .expect("a curve's channel is its own vector's length");
+            assert_eq!(pair.knots() as *const _, k as *const _);
+            for index in 0..k.knots().len() + 2 {
+                match (pair.span(index), c.span(index)) {
+                    (Some(win), Some(cw)) => {
+                        assert_eq!(
+                            win.span(),
+                            cw.span(),
+                            "degree {degree} channel {ch} index {index}"
+                        );
+                        let h = win.hull();
+                        let (lo, hi) = coeffs[win.window()]
+                            .iter()
+                            .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), r| {
+                                (lo.min(r.lo()), hi.max(r.hi()))
+                            });
+                        assert_eq!((h.lo(), h.hi()), (lo, hi));
+                        windows += 1;
+                    }
+                    (None, None) => {}
+                    (a, b) => panic!(
+                        "degree {degree} channel {ch} index {index}: the pair {} where the curve {}",
+                        if a.is_some() { "mints" } else { "refuses" },
+                        if b.is_some() { "mints" } else { "refuses" },
+                    ),
+                }
+            }
+        }
+    }
+    assert!(windows >= 20, "the families produced {windows} windows");
 
-    let mine = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 1.0, 1.0, 1.0, 1.0], 3)
-        .expect("valid");
-    let n = mine.control_count();
-    let span = mine.span(mine.first_span()).expect("nonempty");
-
-    #[allow(clippy::cast_precision_loss)]
-    let ours: Vec<f64> = (0..n).map(|i| (i % 5) as f64 * 0.5 - 1.0).collect();
-    let mut theirs = ours.clone();
-    theirs[0] = 1.0e6;
-
-    let right = hull::span_hull(&ours, span);
-    let wrong = hull::span_hull(&theirs, span);
-    assert!(!right.is_poison() && !wrong.is_poison());
-    assert_ne!(
-        (right.lo(), right.hi()),
-        (wrong.lo(), wrong.hi()),
-        "the two arrays must disagree on this span, or the row proves nothing"
+    // Another curve's channel, of another length: refused where the
+    // retired relation would have been wrong instead.
+    let mine = curve(vec![0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 1.0, 1.0, 1.0, 1.0], 3);
+    let longer = curve(
+        vec![0.0, 0.0, 0.0, 0.0, 0.2, 0.4, 0.6, 1.0, 1.0, 1.0, 1.0],
+        3,
     );
-    assert!(
-        hull::sup_norm_bound_span(&theirs, span).is_finite(),
-        "the honesty limb certifies a curve whose coefficients it never saw"
-    );
-    // A wrong LENGTH is still refused, which is what keeps the window
-    // in range at every door here.
-    assert!(hull::span_hull(&ours[..n - 1], span).is_poison());
-    assert!(hull::derivative_span_hull(&ours[..n - 1], span).is_poison());
+    let theirs = longer.ring_coords();
+    assert!(mine.knots().coeffs(&theirs[0]).is_none());
+    assert!(longer.knots().coeffs(&theirs[0]).is_some());
 }
 
 /// The other direction, which is how a guard fails when it cannot
@@ -233,60 +257,6 @@ fn every_window_a_curve_mints_evaluates_that_curve() {
 /// **The shapes the retired guard refused, at the doors that still
 /// have loose coefficients** — adopted from the review lane's probe.
 ///
-/// Three equal-control-count mismatches: (a) same degree, different
-/// interior knots; (b) a span whose index is EMPTY in the vector the
-/// coefficients belong to; (c) a span of a DIFFERENT degree. The curve
-/// doors cannot be handed any of them any more — a window borrows its
-/// curve — so the surface they are still reachable through is
-/// `geom-core`'s free `hull` functions, where the coefficients are a
-/// loose slice. All three are **answered, not refused**, and (c) is
-/// the sharpest: the basis row it would pair with is a different
-/// length from this vector's.
-#[test]
-fn the_free_hull_doors_answer_every_shape_the_guard_refused() {
-    use geom_core::spline::hull;
-
-    // Equal control count throughout, so the one surviving check
-    // (`coeffs.len() == kv.control_count()`) passes in every row.
-    let mine = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0], 3)
-        .expect("valid");
-    let theirs = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 1.0, 1.0, 1.0, 1.0], 3)
-        .expect("valid");
-    let quad =
-        KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.3, 0.6, 0.8, 1.0, 1.0, 1.0], 2).expect("valid");
-    assert_eq!(mine.control_count(), theirs.control_count());
-    assert_eq!(mine.control_count(), quad.control_count());
-
-    #[allow(clippy::cast_precision_loss)]
-    let coeffs: Vec<f64> = (0..mine.control_count())
-        .map(|i| (i % 5) as f64 * 0.5 - 1.0)
-        .collect();
-
-    // (b): index 4 is empty in `mine` and nonempty in `theirs`.
-    assert!(mine.span(4).is_none() && theirs.span(4).is_some());
-    let b = theirs.span(4).expect("nonempty in theirs");
-    assert!(
-        !hull::span_hull(&coeffs, b).is_poison(),
-        "(b) an index empty in this vector is answered by the free doors"
-    );
-    // (c): a degree-2 span, so `span.degree() != mine.degree()`.
-    let c = quad.span_at(0.7);
-    assert_ne!(c.degree(), mine.degree());
-    assert!(
-        !hull::span_hull(&coeffs, c).is_poison(),
-        "(c) a span of another degree is answered by the free doors"
-    );
-    assert!(
-        hull::sup_norm_bound_span(&coeffs, c).is_finite(),
-        "(c) and the honesty limb certifies on it"
-    );
-    // (a) is the row above this one; here only the count matters, and
-    // a wrong count is still poison at all three shapes.
-    for s in [b, c] {
-        assert!(hull::span_hull(&coeffs[..coeffs.len() - 1], s).is_poison());
-    }
-}
-
 /// The knot vectors the two sweeps above range over: several degrees,
 /// several lengths, clamped and interior-knotted.
 ///

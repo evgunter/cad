@@ -9,7 +9,7 @@
 //! tensor-product B-spline whose coefficient net comes from knot
 //! differencing per direction (The NURBS Book Eq. 3.24 — exactly
 //! [`geom_core::spline::net::TensorNet::diff_u_knots`], which is
-//! [`geom_core::spline::hull::derivative_coeffs`] iterated across the
+//! [`geom_core::spline::SplineCoeffs::derivative_coeffs`] iterated across the
 //! net's lines; that iteration is the ONE spelling, here and in every
 //! other tensor consumer). Both
 //! bases are nonnegative partitions of unity, so on a knot-span cell

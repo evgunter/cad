@@ -24,7 +24,7 @@ test_utils::gated_to![
     "crates/geom-core/src/ring_interval.rs",
 ];
 
-use geom_core::spline::{KnotVector, basis, hull};
+use geom_core::spline::{KnotVector, basis};
 use test_utils::fuzz;
 
 /// A clamped knot vector on `[0, 1]` whose interior knots are multiples
@@ -91,15 +91,18 @@ fn near_collapse_weights_never_escape_the_hull() {
                     }
                 })
                 .collect();
-            let domain = hull::domain_hull_rational(&kv, &coeffs, &weights);
+            let pair = kv.coeffs_rational(&coeffs, &weights).unwrap();
+            let domain = pair.domain_hull_rational();
             assert!(
                 !domain.is_poison(),
                 "positive weights must not poison — {}",
                 fuzz::replay()
             );
             for index in kv.first_span()..=kv.last_span() {
-                let Some(span) = kv.span(index) else { continue };
-                let b = hull::span_hull_rational(&coeffs, &weights, span);
+                let Some(win) = pair.span(index) else {
+                    continue;
+                };
+                let b = win.hull_rational();
                 let (u0, u1) = (kv.knots()[index], kv.knots()[index + 1]);
                 // Falsification grid across the span; its density is a
                 // sweep count like any other, so it rides the EFFORT dial.
@@ -160,7 +163,7 @@ fn derivative_coefficients_are_exact_by_i128_cross_multiplication() {
             };
             let n = kv.control_count();
             let (coeffs, cints) = dyadic_coeffs(&mut rng, n);
-            let qs = hull::derivative_coeffs(&kv, &coeffs);
+            let qs = kv.coeffs(&coeffs).unwrap().derivative_coeffs();
             assert_eq!(
                 qs.len(),
                 n - 1,
