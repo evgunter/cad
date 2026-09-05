@@ -531,3 +531,49 @@ differs, and that the floor is the backend's. The composition rider is
 its own file in `work/issues/` (`mapped.rs` is in no program's paths),
 with the composition-side fix named: compose in the parameter, keep one
 placement. Item closed; spec deleted and ledgered in the per-merge form.
+**vec3-doors reviewed (2026-09-05).** Style review on `1e168c607`
+(#1977): APPROVE-WITH-FIXES, MAJOR 0 / MINOR 2 / NOTE 6 / style 6;
+rubric 4 / 4 / 4. Every executable claim held — bit identity of the
+frame over 2535 frames at `f64` and `Interval` (sign patterns, NaN,
+±inf, non-orthogonal pairs), the `const` doctest red on main with
+`E0015` ×4, the `map` doc's normal widths measured as written. Fixes:
+the deferral's carrier issue does not cover `lily.rs`'s sites as
+written (extend it); the profile TEST file is a fence deviation to
+disclose (BOOL's seam amended); `Mat3::from_cols` and
+`Affine3::from_parts` are literal bodies and go `const` too; two doc
+overstatements ("transcribed", "not the same plane"); the signed-zero
+corpus widened to its prose; the duplicated test helpers given one
+home; the obligation rule one home; `Point2` points at the ruling. A
+non-tour consumer of the lift found by the review
+(`eval/wire.rs:1132` through `anchor::embed_affine`) is filed, not
+fixed — editor-core is outside the fence. Fix pass implementer-inherited,
+sequenced after the rotation-floor unit's PR opens.
+
+**Check-in (2026-09-05, 11:54Z).** #1944 (sign-hull ruling): no answer
+yet. #1924 (S-CERT exit walk): still open, but its 10:40Z update takes
+every PROPS re-point — the offset_fit, rational-quad and linalg-lane
+items (`budgetexhausted…`, `offset-fit-mignitude…`, `patch-bound…`,
+`refine-dir…`, `quad2-rational…`, `normalize-overflow…`,
+`orthonormal-basis…`, `pole-branch…`) now move INTO `work/props/` in
+that PR, nothing goes to `work/issues/`, and PROPS' territory paths
+(`geom-brep/src/props/*`, `offset_fit.rs`, `patch_bound.rs`,
+`geom-core/src/*`, `geom/src/*`) join `program.md` there. So the
+post-ratification plan is no longer a `git mv` sweep: retire the
+header's successor clause, update the plan's §Opening condition and
+§Early lanes, and dispatch the offset_fit lane (E→H→D) and the sphere
+lane (still behind MESH-12, #1617). Riders: #1977 (vec3-doors) reviewed,
+fix pass queued behind #1980 (rotation-floor), whose head is on CI.
+
+**rotation-floor reviewed (2026-09-05).** Style review on `f02fce570`
+(#1980): MERGEABLE, MAJOR 0 / MINOR 3 / NOTE 4; rubric 4 / 5 / 4. The
+instrument reproduced line for line and the decomposition checked by
+hand (the axis entry's width is EXACTLY the sum of the two enclosures;
+`t` from the half angle is exact at θ = 0, what remains is `c`). Fixes,
+all prose: the paragraph omits `t`-alone's 133 % regression at full
+period; one cite off by six lines in the re-homed issue; the body's
+territory sentence contradicts the tool (`DOC-LEDGER.md` is META's);
+a test-file sentence this unit rotted (`revolved_point_anchor.rs:95`);
+the "different reason" wording reconciled across the paragraph, the
+neighbour's bullet and the item; the three homes of the decomposition's
+digits pointed at the one paragraph. Fix pass implementer-inherited,
+sequenced after the vec3-doors fix pass in the same lane.
