@@ -61,3 +61,34 @@ Unmeasured. 6b measured the step it moved; these three are named from
 their call sites and their shapes, not from a stopwatch, and (2) and (3)
 in particular could be milliseconds. A taker should measure before
 choosing, the way #1259's own table did.
+
+
+## Hit (2) is half-false as of #1908 (VIEW orchestrator, 2026-09-05)
+
+Routed here rather than edited by the lane that invalidated it —
+`work/README.md`'s one-file-one-item rule makes a second program's
+edit of this file a merge conflict by design, and the lane reported it
+instead, which is the contract working.
+
+**`scene::fit_delta` no longer gathers.** This file's hit (2) reads
+*"`fit_delta`'s probe tessellation and gather"* and cites
+`scene.rs:917-919`. #1908 (merged `b20e13da`) made `fit_delta` take
+the landing's body, so:
+
+- the **gather** half of that hit is gone — the landing pays it once
+  and hands it on;
+- what remains is the **probe tessellation**, which is still on the UI
+  thread and still ~1/8 of a full one, once per document that arrives;
+- the line numbers moved.
+
+So the hit is smaller than recorded and still real. It stays on this
+list; nothing about the *class* — unbounded per-document work run
+inside `eframe::App::ui` — changed.
+
+One residue of the residue, recorded because it is the kind of thing
+that dies otherwise: #1908 left a **gather** on the refused-A5-gate
+path, at the fit's own call site (`scene::product_of_evaluation`, in
+`app.rs`'s fit block). It is deliberate, argued and named there, and it
+runs once per opened document rather than per landing — but it is a
+gather on the UI thread, so it belongs on this list rather than only in
+`refused-a5-gate-eats-the-body-the-fit-then-regathers`.

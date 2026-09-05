@@ -2154,3 +2154,67 @@ already re-takes half the measurement** — `m4_pr8_latency`'s
 `gather_ms`, run and committed by `nightly.yml` — which the "no guard"
 paragraph does not mention, so the unguardable claim is true only of
 the denominator.
+
+## #1908 MERGED, and the lane corrected my premise (2026-09-05)
+
+Merged at `b20e13da`, green on `a8d09399`. **The wave's fourth and
+last unit.**
+
+### I was wrong about "the fit always asks", and the lane checked it
+
+I overruled the `&mut` accessor — correctly, on the review's S18 and
+S8 — and then proposed a shape of my own: gather **eagerly in `land`**
+on the refused-gate arm, arguing that "the fit is the consumer and it
+always asks, so the memo pays that same 87 ms on exactly the same
+landings".
+
+**That premise is false and the lane checked it rather than taking
+it.** `fit_delta_on_scene` is latched at construction (`app.rs:593`)
+and on `opened` (`app.rs:861`) and nowhere else — **once per opened
+document, never per landing**. So eager would have paid 87 ms on
+*every* landing of a refused-gate assembly (an ordinary authoring state
+while a mate does not certify) to save nothing on the landings nobody
+asks about. That is the same per-landing-against-per-open trade that
+rejects the clone, an order of magnitude worse: 87 ms against 2.4 ms.
+
+Verified here against the tree before accepting: two writers, both
+latches, neither per-landing.
+
+**What it built instead gets all three properties.** `landed_body` is
+`&self -> Option<&Body<f64>>`, pure, never gathers; the fallback moves
+to the **consumer**, spelled out at the fit's own call site, so the one
+path that costs a gather is the one path that names one. No memo, no
+`&mut`, no untested path, #1888's move stays open, and the cost on that
+path is what it was before this unit.
+
+That is the twelfth correction this program has taken and the second
+against a *premise* of the orchestrator's rather than a detail — and
+this one I asserted in the same breath as telling the lane to **check
+it rather than take it**. The instruction is what saved it. Worth
+keeping as the argument for writing dispatches that way: a claim
+labelled as a claim gets checked, and this one was wrong.
+
+### The evil merge, fixed and filed
+
+The 18 lines are re-landed as ordinary content in `4e9f7dcf` — and
+**rewritten**, because one of them made a false claim about what
+`landing_gathers.rs` guards. That is the cost of prose reaching no
+reviewer, demonstrated inside the instance that named it. Filed as a
+class: `authored-content-folded-into-a-merge-commit`, with the shape of
+a check (`git show --cc` scoped to the conflicted paths) and the one
+decision it needs first.
+
+### One thing the sweep for stale prose found and one it did not
+
+The lane swept DOCM-5's "three consumers" phrasing: one hit inside its
+own fence, and **none in `editor-core`** — neither `checks.rs` nor
+`product.rs` carries it, so nothing is owed to DOCM. A sweep that
+returns nothing to route is still a result.
+
+Routed by me, since one-file-one-item forbids the lane doing it:
+`ui-thread-work-after-the-index-seam`'s hit (2) cited *"`fit_delta`'s
+probe tessellation **and gather**"* and is now half-false — the gather
+is gone, the probe tessellation remains. Amended in place, with the
+note that #1908 leaves a gather of its own on the refused-gate path at
+the fit's call site, which belongs on that list rather than only in its
+own item.
