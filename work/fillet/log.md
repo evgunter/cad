@@ -790,3 +790,13 @@ grew (RIM, ATTR), Track T's riders (T), and the split (SPLIT) — samples
 #126, #131, #132, #134, #135, #136, #139, #141. What remains: the exit
 walk (an `[ev]` PR for Ev's ratification), Ev's answer on PR 1935 (the
 trihedron tag — the walk carries it either way), the residue sweep.
+
+**Exit walk proposed (2026-09-05).** `docs/FILLET-EXIT-WALK.md` — the
+plan's criteria verbatim, eleven MET, two MET-WITH-RECORDED-HONESTY, one
+CARRIED (the trihedron-tag ruling, code-quality's, re-asked on PR 1935),
+eight honesty rows, and the residue table naming every open item's home
+at the sweep — out as an `[ev]` PR for Ev's ratification. On his 👍:
+the sweep (twenty items re-homed per the table, `work/fillet/` and the
+walk deleted, the ledger entry as the program's done-state of record).
+Still open for Ev beside it: PR 1935 (the tag) and PR 1955 (the memory
+sentence); neither blocks the walk.
