@@ -2,9 +2,12 @@
 id: set-param-prechecks-what-the-door-refuses
 kind: issue
 title: set_param pre-checks a parameter's existence, which DocEdit::SetDocParamValue already refuses typed
-status: open
+status: closed
 opened: 2026-09-04
-refs: [viewer-session-god-module-split]
+refs: [viewer-session-god-module-split, self-boolean-precheck-duplicates-the-doors-duplicate-input, sweep-blind-spots-the-precheck-sweep-could-not-see, refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake]
+branch: view/set-param-precheck
+pr: 1846
+closed: 2026-09-04
 ---
 
 
@@ -87,3 +90,53 @@ an early return.
 VIEW's: `crates/viewer/src/session.rs`. Rides unit 1's ground and is
 not unit 1's fix — the boundary rule says what the discipline is; the
 sweep that enforces it is work.
+
+## What landed
+
+The pre-check is gone. `DocSession::set_param` commits
+`props::param_edit` unconditionally, so an undeclared name is refused
+by `DocEdit::SetDocParamValue` and reaches layer 3 as
+`Refusal::Edit(EditError::DocParamNotDeclared { name })` —
+`commit_action` boxes every `apply` failure into that arm and nothing
+between it and `OpOutcome` inspects it. `set_param`'s doc-comment now
+states the rule in `delete_node`'s words.
+
+`Refusal::NoSuchParam` KEEPS its two readers and stays: the range
+probe's `BoundsTarget::Param` arm
+(`crates/viewer/src/session/probe.rs:196`) and `begin_param_gesture`
+(`crates/viewer/src/session.rs:977`). Both are lookups — one needs the
+parameter's value and unit, the other its dimension — and neither
+commits an edit, so no door refuses on their behalf. The arm's
+doc-comment now says so, which is what keeps a future reader from
+re-adding a pre-check to it.
+
+`story_parametric`'s walk asserted the layer-3 arm on the `SetParam`
+path; it now asserts the door's, still checking that the payload names
+`"tapper"`. That is the whole user-visible change and it is stated at
+the assertion. No rendered text is asserted anywhere in the tree.
+
+**The item's citations were pre-split and stale** (`session.rs:2577`,
+`:2613`, `:2469`, `:2590`, `:2299`, `:2454`, `:2783`, `:3046`). The
+four sites it names as correctly flat all check out at their post-split
+lines: `begin_param_gesture` (`session.rs:977`), the probe's param arm
+(`session/probe.rs:196`), `create_param`'s `ParamExists`
+(`session.rs:959` — `write_doc_param` has no existence check at all,
+`editor-core/src/edit.rs:1144`), and both `NoSuchSlot` sites
+(`session.rs:837` in `driver_of`, `session/probe.rs:181`).
+
+`crates/viewer/README.md`'s ratified list of what a flat `Refusal` arm
+is named *"this boolean's operands are the same node"* as a fact
+existing only at layer 3. This unit proved by execution that
+`DocEdit::InsertNode` refuses it as `EditError::DuplicateInput`, so the
+example was false — corrected here, with the rule left standing and a
+sentence added saying that an entry in that list names a fact `apply`
+has been read for.
+
+The sweep's hit list is in the PR; what it could NOT see is
+`sweep-blind-spots-the-precheck-sweep-could-not-see`. Its one other hit
+— `add_boolean`'s `a == b` pre-check — is
+`self-boolean-precheck-duplicates-the-doors-duplicate-input`. The
+message the change now shows a user is
+`refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake`. The
+whole-file finding the review turned up alongside it is
+`session-clearing-walk-is-hand-maintained-three-times`.

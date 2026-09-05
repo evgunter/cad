@@ -30,6 +30,9 @@
 //! survival step and the exclusivity are all properties a headless row
 //! asserts, and only the widgets that open and read the tools need a
 //! window.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId};
 

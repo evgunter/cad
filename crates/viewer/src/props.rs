@@ -114,6 +114,9 @@
 //! What the field SHOWS is [`field_text`]: a bare literal shows its
 //! number alone (the unit is the picker's to say, not the field's),
 //! and everything else shows its source.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
     Dimension, Doc, DocEdit, DocParam, DocParamValue, EvalError, Expr, Node, ParamName,

@@ -1007,6 +1007,13 @@ cost-shape deferral with no known cost: it has a measured instance of the
 remaining sampled dimension hiding a real failure. That raises its
 priority and the item says so.
 
+**Overtaken the same day (2026-09-04, PR 1850).** The k-lint draw is
+gone: five matrix legs, no draw, `KLINT_ROW=all` on every run. So "which
+is still one-in-five" above is a record of what was true when written,
+and this unit's Q2 answer — "zero of five recorded main-reds are
+attributable to the draw" — no longer has a surviving draw to be scoped
+against. `klint-row-still-sampled` is closed by that PR.
+
 **A correction of the shape this program kept making.** PR 1805's author
 first filed the two-green-PRs class as a *finding*, then withdrew it on
 discovering `ci.yml` already documents it in the F3 note — *"a semantic
@@ -1023,3 +1030,96 @@ is deleted here, as that PR intended.
 34 m 25 s) as evidence for this unit, not the class as a discovery. An
 instance of a ratified residue is worth keeping; the class was already
 written down.
+
+## Three verdicts here are superseded by the trial design (2026-09-04)
+
+`work/ciw/merge-queue-trial` re-derived this unit's queue pricing after
+PR 1823's un-sampling landed, and **three** things in the sections above
+do not survive it. Corrected here rather than left for the next reader.
+(Two corrections and a closure when this was written; the third
+correction — `renders` — was added on 2026-09-04 after a style review
+pointed out that the unit reversed that verdict and this addendum left it
+standing.)
+
+1. **The batch-size table and the "44 job-min/h at batch ≤5" figure are
+   wrong in MECHANISM, not only in magnitude.** They come from a
+   simulation in which batching reduces the number of CI runs. GitHub's
+   merge queue builds one merge group **per queued pull request**, and
+   its documentation says so directly: *"Merge limits do not combine
+   `merge_group` **builds**. Merge limits only affect merges to the base
+   branch once one or more `merge_group` has satisfied build checks."*
+   So a queue costs one full gate per pull request at any batch size,
+   the "batching makes the queue slightly cheaper" line is void, and the
+   lever that actually moves latency is **build concurrency**, which
+   this document does not name. Re-measured after un-sampling, the gate
+   is 44.8 job-minutes rather than 24.4 — and a MERGE GROUP does not run
+   the render lanes (see 3 below), which are 330 of those 2686
+   job-seconds, so a queue run is **40.2 job-minutes** and the queue costs
+   **99 job-min/h**, not 44. *The conclusion is unchanged*: the queue
+   still prevents where the push gate detects, and it still needs no
+   concurrency design pass, which the push gate does. (This addendum first
+   said 110 job-min/h, on the pull-request run cost; corrected here on
+   2026-09-04 after a style review caught that ~13 job-min/h of it was
+   render work no merge group runs.)
+2. **"The two test-cost report steps degrade silently" is false.**
+   `scripts/base-test-listing.sh:86-88` answers an empty `BASE_SHA` with
+   a stated skip — *"this run is not a pull_request run, so it has no
+   base tree to diff against"* — into the job log and the step summary.
+
+3. **`renders`' "correct by default" verdict is REVERSED, not merely
+   qualified.** This document's enumeration reads *"**`renders`' `push_to`**
+   is `github.event_name == 'push' && …`, so it is empty under
+   `merge_group`: report-only, **correct by default**"*. The `push_to`
+   half of that is true and the verdict is not: the job's own guard is
+   `!= 'workflow_dispatch'`, so under `merge_group` the whole reusable
+   workflow **would have run** — rendering a tree the pull-request run has
+   already rendered and `main`'s push run re-renders, against a
+   `gh-readonly-queue/…` sha that is deleted at the merge.
+   `work/ciw/merge-queue-trial`'s PR excludes it from `merge_group`
+   outright. "Correct by default" would have left a reader of this
+   document with the superseded answer.
+
+One thing this document left open is **closed** rather than corrected:
+the change filter's basis under `merge_group` ("unverified here") is
+right with no edit, because a merge group's first parent is the group
+before it, so `git rev-parse HEAD^1` yields exactly the one pull request
+that group adds.
+
+## 2026-09-05: THE OPTION THIS DOCUMENT RECOMMENDED DOES NOT EXIST HERE
+
+**Read this before acting on anything above.** *THE OPTIONS, RE-PRICED*,
+*THE RECOMMENDATION, REVISED* and *Ev's ruling (2026-09-04)* all turn on
+a merge queue, and **a merge queue is not available to this
+repository.** `github/docs@main`,
+`data/reusables/gated-features/merge-queue.md`: *"Pull request merge
+queues are available in any public repository owned by an organization,
+or in private repositories owned by organizations using GitHub
+Enterprise Cloud."* `evgunter/cad` is public and its owner reports
+`"type": "User"`, so it is outside both arms; Ev has ruled
+(2026-09-05) that the repository is not moving to an organization.
+`work/ciw/merge-queue-trial` is closed on that, and carries the whole
+finding and the process failure behind it.
+
+Three consequences for this document specifically:
+
+1. **The `merge queue` row of the options table, and the recommendation
+   built on it, are unavailable options.** They are left standing as the
+   record of what was argued, not as a live recommendation.
+2. **Both of that row's numbers were wrong anyway, and in mechanism.**
+   `44 job-min/h` at "batch ≤5" came from a simulation in which batching
+   reduces the number of CI runs; GitHub builds one merge group **per
+   queued pull request**, so a queue costs one full gate per PR at any
+   batch size. Re-derived post-un-sampling that is ~99 job-min/h, and
+   the latency figures (median 442 s, p90 676 s, max 857 s) were
+   re-simulated to 528 s flat at build concurrency ≥ 4. **Do not quote
+   the 44 or the 442 forward.**
+3. **The fallback named here is now the only surviving option for the
+   composition-defect class**: the FULL push job set plus the per-SHA
+   concurrency design pass, 48 job-min/h — never the tests-only variant,
+   which catches 0 of the 2 recorded instances. It is not reopened by
+   this note; taking it is a new ruling for Ev, because Ev's 2026-09-04
+   ruling explicitly declined to restore the push gate *in favour of the
+   queue*, and the queue is gone.
+
+**F3 itself still needs no revision**, which this document argued under
+either answer.

@@ -32,7 +32,33 @@ $ cargo test --doc -p pncad                    # runs every Rust block in the gu
 $ cd demos/tour && cargo run --release -- ../out   # render the example corpus
 $ ./crates/pncad-py/run-python-tests.sh        # build and exercise the bindings
 $ cargo run -p viewer --features app -- [document.pncad]   # the v1 GUI
+$ ./scripts/doc-gate.sh                        # the rustdoc gate (all 8 cargo roots, minutes)
 ```
+
+Check documentation with that gate rather than with a bare `cargo doc`. It
+documents every cargo root at `--all-features` — with one standing exception
+its header names and argues, `interval-transcendentals` at default features,
+and a second under `--skip-viewer-toolkit`, which puts `viewer` at default
+features too — and then re-reads every root that has a
+`#[cfg(not(feature = …))]` half at `--no-default-features`. Three passes over
+eight roots is a minutes-long run rather than a seconds-long one, which is why
+it is what nightly CI and `local-scripts/ci-local.sh` run and not something for
+a tight edit loop.
+
+A plain `cargo doc -D warnings` runs default features instead, and there prose
+that links to a feature-gated item cannot resolve, so rustdoc reports correct
+links as broken. `SweepStrategy::Idealized` in `topo`'s boolean prose is the
+live case: over this workspace's public items at default features there are 22
+such sites, in `geom-core`, `editor-core` and `topo`, read 2026-09-04. You will
+see fewer than that in one invocation, because cargo stops scheduling after the
+first unit fails; `--keep-going` shows them all. A red there is usually your
+feature selection, not the tree. (The gate's header carries its own count of
+the same prose, under its own selection — which adds `--document-private-items`
+and so is the larger number. Two populations, not two copies of one.)
+
+The header also carries the whole argument, including the one blind spot the
+gate accepts rather than closes: a broken link written *inside* a
+`#[cfg(not(feature = …))]` half is reported by nothing, on any tier.
 
 Depend on the façade crate `pncad` and nothing else — it re-exports every
 kernel crate as a module and offers a curated prelude. The Python package is

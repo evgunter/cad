@@ -2,7 +2,7 @@
 id: SEAT-6
 kind: unit
 title: the lowered parameter-identity channel
-status: dispatched
+status: review
 opened: 2026-09-02
 pr: 1593
 branch: seat/psource

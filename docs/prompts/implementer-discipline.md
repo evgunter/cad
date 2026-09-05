@@ -15,35 +15,39 @@ Final report ≤150 lines.
 **Hosted CI is the verification of record.** Push and let it run. It runs on
 hardware not shared with any other lane and its result is a durable artifact.
 
-**It covers the full lane/eps matrix again, and you are expected to know that**
-(2026-09-04, Ev's authorisation). A code-tier run gates EVERY point of {default
-features, `interval`} x {default eps, 1e-6, 1e-12} — twelve `test (…)` jobs,
-each naming its lane, its eps row and its shard. The python suite, the gates,
-the discipline and parity rows and the render lanes are unchanged and still run
-on every code-tier run. Three things follow for you:
+**It covers the full configuration matrix again, and you are expected to know
+that** (2026-09-04, Ev's two authorisations). A code-tier run gates EVERY point
+of {default features, `interval`} x {default eps, 1e-6, 1e-12} — twelve
+`test (…)` jobs, each naming its lane, its eps row and its shard — and all five
+`k-lint (gate, <row>)` feature unifications. **Nothing is sampled any more.**
+The python suite, the gates, the discipline and parity rows and the render lanes
+are unchanged and still run on every code-tier run. Three things follow for you:
 
-- **A green run means green at all six points.** That is what the job list
-  shows: if you cannot see twelve test jobs on a code-tier run, something
+- **A green run means green at all six lane/eps points and all five k-lint
+  unifications.** That is what the job list shows: if you cannot see twelve
+  test jobs and five `k-lint (gate, …)` jobs on a code-tier run, something
   narrowed it and you should find out what.
-- **Do NOT put a `CI-Config: lane=…` or `eps=…` trailer on your head commit
-  as a matter of course.** Between 2026-08-22 and 2026-09-04 the run drew one
-  point and the trailer was how you ASKED for the one your change was about.
-  It now does the opposite: it NARROWS the run to what you name, so a habit
-  copied from an older brief or an older spec buys you LESS gate than doing
-  nothing. Several specs still carry the old advice; the run is the authority,
-  not the spec. Use the trailer only when you deliberately want a narrow, fast
-  re-gate of one axis — and say in the PR that you narrowed it, because a
-  reader counting six test jobs where there should be twelve cannot tell a
-  narrowing from a broken matrix.
-- **The k-lint row is still drawn, one of five, from your head SHA.** That is
-  the one dimension a re-run cannot change and a trailer still buys you:
-  `CI-Config: klint=dev-probe` on the head commit, or the dispatch input. A
-  re-run of the same commit draws the same row, so re-running a red k-lint leg
-  will not turn it green; push a fix. The trailer is read off the head commit
-  and only that one, so it lasts exactly one push — a later commit, a merge of
-  main included, draws again unless it carries the trailer too. The run
-  records the source as `klint:requested` / `klint:commit-trailer` in
-  `CONFIG_SOURCE`, printed by a step that always runs.
+- **A commit trailer cannot configure a run, and nothing in CI reads one.**
+  Between 2026-08-22 and 2026-09-04 the run drew one point per dimension and a
+  `CI-Config:` trailer on the head commit was how you ASKED for the one your
+  change was about. Nothing is drawn now, so that spelling was deleted on
+  2026-09-04 — the flag, the workflow plumbing and the parser are gone, and a
+  trailer line in a commit message is inert text. Several specs and older
+  briefs still instruct it; the run is the authority, not the spec, and the fix
+  is to delete the line and, if the spec really wanted one configuration
+  proved, dispatch the workflow instead. **To narrow deliberately, dispatch the
+  workflow** with the `lane` / `eps` / `klint` inputs — and say in the PR that
+  you narrowed it, because a reader counting six test jobs where there should
+  be twelve cannot tell a narrowing from a broken matrix.
+- **The k-lint row is not drawn either, since 2026-09-04.** `k-lint (gate)`'s
+  five feature unifications run as five jobs — `k-lint (gate, dev-default)`,
+  `(release-default)`, `(release-budget)`, `(dev-budget)`, `(dev-probe)` — on
+  every code-tier run, so **a green k-lint means green at all five** and a
+  green over a skipped step is no longer the thing to check for there. Until
+  that day one row was drawn from your head SHA and the other four did not
+  execute under a single green `k-lint (gate)`; `#1756` -> `#1775` is what that
+  cost, and any brief telling you to name one row on the head commit predates
+  the change and names a spelling that no longer exists.
 
   A filename decides nothing (Ev's ruling, 2026-08-29, on #1122).
   `scripts/ci-filter.py` used to pin `LANE=interval` whenever any changed
@@ -57,10 +61,10 @@ on every code-tier run. Three things follow for you:
   interval-named files.
 
 **When the hosted gate is not enough**, run `local-scripts/ci-local.sh`. It is
-no longer the only lane that runs every lane and eps row on one tree — hosted
-does that now — and what it still adds is all five k-lint unifications and its
-opt-in `--nightly` row. Reach for it before a merge that would be expensive to
-get wrong, not routinely.
+no longer the only lane that runs every lane, eps row and k-lint unification on
+one tree — hosted does all three now — and what it still adds is its opt-in
+`--nightly` row. Reach for it before a merge that would be expensive to get
+wrong, not routinely.
 
 **Draft PRs do not run the gate at all.** Mark the PR ready for review when you
 want it gated; undrafting triggers a full run on the same head.

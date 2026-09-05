@@ -18,11 +18,29 @@ plus a value that must be OF that document still answers about a
 foreign one when the ids collide, which two documents of one recipe do
 by construction:
 
-- `checks::run_checks` (`crates/editor-core/src/checks.rs:544`) — with
-  `separation: Advisory::Off`, `connectedness` reads `ev.value(root)`
-  first and returns `Ok` (red probe in both lanes); with the default
-  config the gather's refusal arrives, but as `ChecksError::Product {
-  reason: String }`, untyped. The spec forbade a second check there.
+- ~~`checks::run_checks`~~ — **SETTLED at DOCM-5** (PR 1871). The
+  registry's doors now check the pairing themselves:
+  `run_checks_on` runs `ident::mispaired` over `(doc, ev)` AND over
+  the `DocumentId` a `Subject::Product` carries, before any resident
+  runs, and refuses
+  `ChecksError::EvaluationOfAnotherDocument { expected, found }` —
+  typed, mirroring `ProductError`'s arm rather than a `String`.
+  `run_checks` inherits it, being the wrapper. Both directions of the
+  original probe are pinned in
+  `docm5_subject::the_subject_door_refuses_an_evaluation_or_a_subject_of_another_document`.
+
+  **The premise this file gave for deferring it was wrong**, and the
+  correction is the reason the fix had to be a door check rather than
+  a subject decision: *"a resident handed a subject never reads the
+  evaluation itself"* is false for `connectedness`, which reads
+  `doc.roots()` against `ev.value(root)` and needs no product at all.
+  So handing residents a subject moved the gather (and its DI3 door)
+  off the path entirely for a config with `separation: Advisory::Off`
+  — the `Off` probe both DOCM-4 lanes wrote, still green after the
+  subject door, and a NEW hole with the default config, since
+  `run_checks_on` is public and takes the pair. Measured by DOCM-5's
+  R2 lane: one separation finding for a document whose solids are
+  metres apart, computed from a twin's product.
 - `resolve::apply_with_names` (`resolve/mod.rs:1132`) — the
   forward-reference carve-out is SATISFIED on a twin, so the name is
   checked against the wrong table: a spurious
@@ -34,18 +52,27 @@ by construction:
   module knows the move for one of its two foreign-input channels.
 - `drive::certifying` (`drive.rs:471`) — M10's lane, by announced seam.
 
-And the three doors that do check spell the predicate three times with
-three payloads (`PriorIgnored`, `ProductError::EvaluationOfAnotherDocument`,
-`MateFault::PosesOfAnotherDocument`; `eval/mod.rs:1763`,
-`product.rs:464`, `mate/solve.rs:142`). The fix is one predicate with
-one payload struct, each door wrapping it in its own error vocabulary,
-applied to every door above — a class, not five patches. The
-`run_checks` case wants the registry's subject decision
-(`check-registry-gathers-product-twice`) since a resident handed a
-subject never reads the evaluation itself.
+And the doors that DO check spell the predicate with four payloads now
+(`PriorIgnored`, `ProductError::EvaluationOfAnotherDocument`,
+`MateFault::PosesOfAnotherDocument`,
+`ChecksError::EvaluationOfAnotherDocument`; `eval/mod.rs:1763`,
+`product.rs:464`, `mate/solve.rs:142`, `checks.rs`'s new arm). All four
+go through the ONE predicate `ident::mispaired`, which is the half of
+the fix that held: what differs is the error vocabulary each door
+wraps it in, and that is each door's own — a typed arm a caller can
+match beats a shared type a caller must import. DOCM-5 adding a fourth
+arm rather than a fourth predicate is the pattern for the rest.
+
+## What remains
+
+`resolve::apply_with_names`, the three `stackup` doors, and
+`drive::certifying` (M10's, by announced seam). Three of the five
+original entries; the `run_checks` entry is closed above, and the
+"spell it three ways" half is answered — one predicate, per-door
+vocabularies, by design.
 
 ## Where it stands
 
 DOCM's slate; the `drive.rs` door is edited by announced seam to M10's
-successor. Not a unit until `check-registry-gathers-product-twice` is
-ruled, since the two share the registry's shape.
+successor. No longer blocked on `check-registry-gathers-product-twice`,
+which DOCM-5 closed.

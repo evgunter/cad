@@ -446,7 +446,8 @@ pub enum ValidationError {
     ///
     /// Since M6-3 this names ONLY the placeholder: a **described**
     /// NURBS surface (finite control net) is real geometry and passes
-    /// check 1 — its seams certify through the `IsoCurve` lane and its
+    /// check 1 — its seams certify through the chart iso-line pcurve lane
+    /// (`Pcurve::IsoLine`) and its
     /// volume flux through the quadrature door. The two states used to
     /// be conflated here; `NurbsSurface::is_placeholder` is the one
     /// shared discriminator.
@@ -2940,7 +2941,8 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     //
     // M6-3 flip A: a DESCRIBED NURBS surface (finite control net) is
     // real geometry — the loft/sweep assembly mints faces on it, its
-    // seams certify through the IsoCurve lane, and its volume flux
+    // seams certify through the chart iso-line pcurve lane
+    // (`Pcurve::IsoLine`), and its volume flux
     // goes through the quadrature door — so it passes here. What keeps
     // refusing is the mvfs PLACEHOLDER (all-poison control points),
     // which is a mid-surgery "no description yet" fact, never a

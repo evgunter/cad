@@ -44,6 +44,8 @@
 //! this module knows about threads is one constructor call; everything
 //! else is the seam's vocabulary, which the wasm build satisfies with
 //! no thread at all.
+//!
+//! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -52,7 +54,6 @@ use std::sync::atomic::AtomicU64;
 use editor_core::appearance::Rgba8;
 use eframe::egui;
 use egui_tiles::{ContainerKind, EditAction, Tile, TileId, Tiles, Tree, UiResponse};
-use pncad::document::ProductError;
 use pncad::geom_core::Tol;
 
 use crate::camera::{self, Camera};
@@ -356,16 +357,16 @@ pub struct ViewerApp {
     /// The last thing that went wrong, kept so a refused operation is
     /// visible instead of silently dropped.
     status: Option<String>,
-    /// **What the open tool said about THIS frame** — declined picks
-    /// and survival drops, collected as they happen and applied with
-    /// the batch verdict rather than before it.
+    /// **What THIS frame has to say that is not a refusal** — the open
+    /// tool's declined picks and survival drops, and the free-move
+    /// placements the frame's own operations superseded — collected as
+    /// they happen and applied with the batch verdict rather than
+    /// before it.
     ///
-    /// They cannot be written straight to [`ViewerApp::status`]: the
-    /// batch of the same frame is performed afterwards, and a clean
-    /// acting batch clears the line, so a notice assigned early lives
-    /// for zero frames (`frame::frame_status` carries the argument).
-    /// Drained every frame by `perform_batch`, so nothing here
-    /// survives into the next one.
+    /// They cannot be written straight to [`ViewerApp::status`] —
+    /// `frame::frame_status` carries that argument, and it is the one
+    /// place it is made. Drained every frame by `perform_batch`, so
+    /// nothing here survives into the next one.
     notices: Vec<String>,
     /// Whether the environment can show a file dialog at all — probed
     /// once at startup ([`frame::chooser_backend`]); the Open/Save As
@@ -662,36 +663,15 @@ impl ViewerApp {
                     self.fit_on_scene = false;
                     self.pending_fit = true;
                 }
-                // The gather's own verdict, computed once when the
-                // evaluation landed. A naming collision across roots is
-                // not a node failure, so no tree badge carries it and
-                // the viewport would otherwise draw a product nothing
-                // says is malformed.
-                //
-                // The budget's verdict is NOT here, and the reason is
-                // worth writing down: this line is transient — a
-                // camera fold clears it through `land`, which every
-                // re-frame performs, including the one an Open books —
-                // and a coarsened δ is not transient, it is a standing
-                // fact about the picture on screen. It is a BADGE, up
-                // with the at-rest and checks reads.
-                self.status = self
-                    .session
-                    .product_fault()
-                    // **A document with no body root is EMPTY, not
-                    // malformed.** A fresh document is in that state,
-                    // and so is one whose last feature was just
-                    // deleted — and the blank viewport this arm has
-                    // just drawn says so more plainly than a line of
-                    // text could. Reporting it made deleting the last
-                    // feature look like a failure. Every other gather
-                    // refusal is a fault no tree badge carries, which
-                    // is what this line exists for, and stays here.
-                    .filter(|fault| !matches!(fault, ProductError::NoBodyRoots))
-                    // `ProductError`'s own `Display` opens every arm
-                    // with "product: ", so the prefix this used to add
-                    // by hand said the word twice.
-                    .map(ToString::to_string);
+                // The gather's own verdict is NOT written here. A
+                // naming collision across roots is not a node failure,
+                // so no tree badge carries it — but it is a standing
+                // fact about the landed pair, not this frame's news,
+                // and the status line carries news
+                // (`frame`'s header). It badges beside the at-rest and
+                // checks reads, off `frame::product_badge`, which is a
+                // read of held state and so cannot be stale here or
+                // erased by anything the rest of the frame does.
             }
             Err(error) => self.status = Some(format!("scene: {error}")),
         }
@@ -783,7 +763,7 @@ impl ViewerApp {
         // without queueing an op — a survival drop on a document the
         // seam just landed — is exactly the frame that needs its
         // notice shown.
-        let notices = core::mem::take(&mut self.notices);
+        let mut notices = core::mem::take(&mut self.notices);
         if ops.is_empty() && notices.is_empty() {
             return;
         }
@@ -797,7 +777,13 @@ impl ViewerApp {
             performed.push(op.clone());
             let opened = matches!(op, SessionOp::Open(_));
             let tool_edit = self.tools.commits_open_tool(&op);
-            match self.session.perform(op).refusal {
+            let outcome = self.session.perform(op);
+            // **Where a supersession reaches the user**: the free-move
+            // placements this operation's document transition
+            // discarded, onto the frame's notices like every other
+            // one (`frame::frame_status` carries the argument).
+            notices.extend(frame::supersession_notice(&outcome.superseded));
+            match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 // A replaced document owes a re-frame AND a fresh δ
                 // — both taken when its scene actually lands, not on
@@ -852,9 +838,6 @@ impl ViewerApp {
         self.apply_status(update);
     }
 
-    /// Apply a policy verdict to the status line — the one place a
-    /// [`StatusUpdate`] becomes the field, shared by the batch policy
-    /// and the dialog policy so neither hand-assigns.
     /// Write the current theme choice to the preferences store.
     ///
     /// **Best-effort, and it reports.** A store that cannot be
@@ -883,12 +866,16 @@ impl ViewerApp {
         }
     }
 
+    /// This application's door onto [`frame::apply`]: the batch policy
+    /// and the dialog policy hand their verdict here rather than
+    /// assigning the field.
+    ///
+    /// **Not the one place a [`StatusUpdate`] becomes the field** —
+    /// that is `frame::apply`, and `pane::viewport::land` reaches it
+    /// directly, having a `&mut Option<String>` and no `&mut self` to
+    /// come through. This is the `&mut self` shorthand, nothing more.
     fn apply_status(&mut self, update: StatusUpdate) {
-        match update {
-            StatusUpdate::Keep => {}
-            StatusUpdate::Clear => self.status = None,
-            StatusUpdate::Show(message) => self.status = Some(message),
-        }
+        frame::apply(&mut self.status, update);
     }
 
     /// **The advisory-check findings, in a window a reader can keep
@@ -1162,14 +1149,36 @@ impl eframe::App for ViewerApp {
                         self.checks_shown = !self.checks_shown;
                     }
                 }
+                // The gather's verdict, for the landed pair. **A
+                // standing fact, so a badge** — the status line beside
+                // it carries one frame's news and is cleared by the
+                // next acting batch, while "the product on screen does
+                // not gather" is true until another pair lands.
+                //
+                // Drawn in the unresolved colour, like the at-rest
+                // refusal and the checks findings and unlike the
+                // budget's weak advisory below: the colour is
+                // REDUNDANT here, in `Theme::unresolved`'s own sense —
+                // the badge says "product: …" in words either way — and
+                // it is the spelling this toolbar already uses for a
+                // verdict a reader may need to act on.
+                //
+                // Which faults reach it is `frame::product_badge`'s,
+                // and it declines every state another channel carries:
+                // the three per-node arms are the feature tree's, and
+                // an empty document is the blank viewport's.
+                if let Some(fault) = frame::product_badge(self.session.product_fault()) {
+                    ui.separator();
+                    ui.colored_label(chrome(self.theme.unresolved), fault);
+                }
                 // The display budget's badge: shown while the δ on
                 // screen is the one the budget CHOSE when the document
                 // opened, and gone the moment the user picks their
-                // own. A read of held state, like the two badges
-                // above, which is why it is here rather than in the
-                // status line below — that line is cleared by the next
-                // camera fold (issue filed), and "this δ was chosen
-                // for you" has to outlive a mouse drag.
+                // own. A read of held state, like the badges above,
+                // which is why it is here rather than in the status
+                // line below — that line carries one frame's news, and
+                // "this δ was chosen for you" has to outlive a mouse
+                // drag.
                 if let Some(fitted) = self.budget_delta
                     && let Some(wording) = fitted.wording()
                 {
