@@ -240,3 +240,67 @@ reviewers' probes adopted). The spec left `docs/` with the merge
 members. Block PROPS-B1 slot 0 concluded; **slot 1 = the Span sweep**,
 dispatched on `props/span-knot-vector` (L / STRUCTURAL, pre-draw at the
 spec). Lanes live: Span, ONB-measure.
+
+**ONB-measure MERGED (2026-09-05)** —
+[#1939](https://github.com/evgunter/cad/pull/1939), evidence only, green
+on the full matrix. The numbers: the backend (in-repo
+`interval-transcendentals`, not inari) drops the sign of zero in `*`
+and `/` with `normalize` on every plane-minting path, so option (c) is
+unsound as the tree stands; 815 planar faces censused, exactly 12 walls
+with `n.z = −0.0`, all boolean-reversed faces in `die`/`kiss_assembly`;
+under (c′) all 12 move (8 STEP `DIRECTION` records, 4 half-turn `u_ref`
+flips), no `FaceFrame` anywhere in any corpus; on M10-5's prism 6 of 12
+walls narrow from width 2 to ≤ 7.4e-15, 2 stay hulled on a genuinely
+wide `n.z`. The item's "cannot converge" premise was false (the cost is
+a 2× enclosure; `refines` is true today) and is corrected. **Ruling for
+Ev**: `[ev]` PR opening now with recommendation (c′) — canonicalise the
+zero at f64 inside `orthonormal_basis` — and its one cost named (a
+`FaceFrame` on a boolean-reversed wall would rotate silently; none
+exist, no migration channel). Backend findings filed
+(`interval-backend-signed-zero-conventions`); the tour row of table 2
+is the one acceptance gap (the tour's scenes are private modules). Slot
+freed: lily-vec3 dispatches beside the Span sweep.
+
+**Span sweep delivered (2026-09-05)** as
+[#1952](https://github.com/evgunter/cad/pull/1952), head `2eccccead`,
+green on the full matrix (run 33949970914; python suite closure-skipped
+— filed on CIW). The mutation-hold check found no site: the spline layer
+has no `&mut self` method, so a refinement is a new binding and the
+constraint is pinned by an E0506 `compile_fail` row rather than
+observed. 37 files, +1344 −1453; the census's site count was high
+because `SurfaceWindow` collapsed rows. One argued deviation: the three
+surface doors moved ONTO `SurfaceWindow<T>` because a lifetime does not
+brand — `b.eval_in_span(a.window_at(..))` typechecks with the spec's
+shape and would silently answer for A. Residue filed:
+`coefficients-carry-their-knot-vector`. Dual review dispatched on the
+frozen head; ordinal 2401 claimed (#1961 carries it to main). Lanes
+live: two Span reviewers, lily-vec3.
+
+**The exit walk executes its homes in-PR (2026-09-05).** After Ev's
+"as long as all residuals are filed appropriately", #1924 now moves the
+24 items itself: eight to `work/props/` (the two sphere-pole items, the
+two hygiene items, `quad-face-extent`, `purchasable-area-valve`, plus
+`k-report-baseline-fold` and `edge-chord-len` which the charter names
+as Track K's and S-BOOL's), seven to `work/issues/` including the six
+the charter assigns here (the offset_fit lane, `refine-dir-hairline`,
+the QUAD2 dial, `normalize-overflow`) and `orthonormal-basis-poisons`.
+My re-points were not taken in the PR. Plan: after ratification, CLAIM
+the six from `work/issues/` by `git mv` (the README's claim rule) and
+re-home the two non-charter arrivals to `work/issues/` for their owners
+to claim; then the plan's lanes are complete.
+
+**lily-vec3 delivered (2026-09-05)** as
+[#1954](https://github.com/evgunter/cad/pull/1954), head `a700a6c3`,
+green on the full matrix incl. the tour's own row and all three render
+lanes ("matches this render"). Every tuple helper gone; the lift spelled
+once per boundary through `map`; 9 of 15 lily bodies byte-identical,
+six moved by ≤ 4.2e-15 with the cause MEASURED (reverting only the two
+`reject_from` calls restores all 145 artefacts byte-for-byte — the
+respell from PROPS-1, not the rewrite). `D79`(b) deleted member by
+member. Single style review dispatches when a Span reviewer frees a
+slot. Filed: `vec3-point3-const-and-conversion-doors` (props), the
+tour-wide layer-rule sweep and the stale tour `Cargo.lock`
+(`work/issues/`). Lane hazard recorded: the session scratchpad under
+`/tmp/claude-0/…/scratchpad/` is shared between lanes on this box — two
+lanes overwrote each other's file; briefs from here on name a private
+`/home/user/<lane>-tmp/`.

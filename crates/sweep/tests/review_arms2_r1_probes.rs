@@ -399,51 +399,11 @@ fn a_sphere_sphere_waist_reaches_its_arm_and_carves_as_a_concave_chain() {
 // Armed by BITDUMP_DIR exactly as `bitdump.rs` is; clean skip unarmed.
 // ------------------------------------------------------------------
 
-fn dump(body: &Body<f64>) -> String {
-    let mut s = String::new();
-    let _ = writeln!(
-        s,
-        "census V={} E={} F={}",
-        body.vertices().count(),
-        body.edges().count(),
-        body.faces().count()
-    );
-    for (k, _) in body.vertices() {
-        let p = body
-            .get_vertex(k)
-            .and_then(|vv| body.get_point(vv.point))
-            .unwrap();
-        let _ = writeln!(s, "V {k:?} ({:?}, {:?}, {:?})", p.x, p.y, p.z);
-    }
-    for (k, e) in body.edges() {
-        let _ = write!(s, "E {k:?} he+={:?} he-={:?}", e.he_plus, e.he_minus);
-        match body.get_curve_geom(e.curve).and_then(|g| g.certified()) {
-            Some(c) => {
-                let (t0, t1) = c.params();
-                let _ = writeln!(
-                    s,
-                    " carrier={:?} params=({t0:?}, {t1:?}) desc={:?}",
-                    c.carrier(),
-                    c.description()
-                );
-            }
-            None => {
-                let _ = writeln!(s, " UNCERTIFIED");
-            }
-        }
-    }
-    for (k, _) in body.faces() {
-        let fd = body.get_face(k).unwrap();
-        let surf = body.get_surface(fd.surface).unwrap();
-        let _ = writeln!(
-            s,
-            "F {k:?} sense={:?} rings={} surface={surf:?}",
-            fd.sense,
-            fd.rings.len()
-        );
-    }
-    s
-}
+// The dump function has ONE home, `bitdump::dump` — this row used to
+// carry a copy that omitted the mass-properties line, which made it
+// blind to a volume, area or pad move on the very path it exists to
+// watch.
+use crate::bitdump::dump;
 
 #[test]
 fn bitdump_dome_annulus() {
