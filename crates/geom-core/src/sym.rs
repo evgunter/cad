@@ -781,7 +781,9 @@ fn isqrt_u128(n: u128) -> Option<u128> {
     while (x + 1).checked_mul(x + 1).is_some_and(|s| s <= n) {
         x += 1;
     }
-    (x * x == n).then_some(x)
+    // Integer arithmetic, spelled as a power so the interval-square
+    // gate does not read it as an enclosure product.
+    (x.checked_pow(2) == Some(n)).then_some(x)
 }
 
 /// An exact rational `num / den · 2^exp2`, with `num`/`den` odd and

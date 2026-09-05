@@ -226,7 +226,9 @@ fn r1_ceilings_per_variant() {
     let plate_at = |scale: f64| plate(5.0e-5 * scale, 1.0e-5 * scale, tol).0;
     let bracket_at = |scale: f64| r2_bracket(scale, tol).0;
     let annulus_at = |scale: f64| annulus(scale, tol).0;
-    let docs: [(&str, &dyn Fn(f64) -> ProfileDoc, f64, f64); 3] = [
+    /// A document at a scale, with the sweep's ends.
+    type Swept<'a> = (&'a str, &'a dyn Fn(f64) -> ProfileDoc, f64, f64);
+    let docs: [Swept<'_>; 3] = [
         ("two_hole_plate", &plate_at, eps, eps * 1.0e7),
         ("r2_filleted_bracket", &bracket_at, 1.0e-9, 1.0e-1),
         ("r1_annulus", &annulus_at, 1.0e-9, 1.0e1),
