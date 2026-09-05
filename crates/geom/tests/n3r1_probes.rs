@@ -143,6 +143,7 @@ fn spans(extremals: &[f64]) -> Vec<(f64, f64, String)> {
     out
 }
 
+#[allow(clippy::too_many_arguments)] // one argument per named quantity, as the door's own helper
 fn check_contains(
     what: &str,
     b: &Aabb,
@@ -265,6 +266,7 @@ fn n3r1_f64_adversarial_corpus_is_contained_at_zero_pad() {
 /// points of each bracket, realized as an `f64` carrier, must lie in the
 /// `Interval` box.
 #[cfg(feature = "interval")]
+#[allow(clippy::too_many_arguments)] // one argument per named quantity, as the door's own helper
 fn check_interval_dominates(
     what: &str,
     iv_carrier: &Curve3<Interval>,

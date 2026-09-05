@@ -2,6 +2,8 @@
 //! ordinary row: the pruning-delta corpus. The reviewer ran it against both arms through an env-gated plant in `edge_box`; the plant stays out of the tree, so this row pins the adopted arm's side of the table — the candidate total on the corpus and the superset property wherever the brute-force reference runs — with the base arm's 134 recorded in the landing PR.
 //!
 //!
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
