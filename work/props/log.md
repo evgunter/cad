@@ -140,3 +140,22 @@ exchange between two predicates cancels in the populations") was wrong
 — populations are per predicate, so it yields two flips; the documented
 blind spot is two instances of ONE predicate trading signs, which is the
 row the lane shipped. Fix pass dispatched implementer-inherited.
+
+**PROPS-1 delivered (2026-09-05)** as
+[#1918](https://github.com/evgunter/cad/pull/1918), head `acc0719ad`,
+green on the full matrix (run 33943922769; the python suite skipped by
+the seed filter and run locally, 493 OK). Both respells landed: the
+exact-axis mirror translation `[4e-9]³ → [0, 0, 4e-9]`, the axis
+rejection `[2e-9, 2e-9, 4e-9] → [2e-9, 2e-9, 0]`; f64 drift ≤ 2 ulp on
+oblique inputs only; no committed expectation moved. One claim
+re-derived and weakened (`project + reject = self`, exact → ≤ 4 ulp),
+flagged for review. Sweep: one new hit (`orthonormal_basis`'s double
+mention of `s`, a rider on the sign-hull item); `svd.rs`/`lsq.rs` read
+and confirmed concrete `f64`. Out of fence: `profile`'s `anchor_span`
+lacks a `bounds_census` roster line (the lane reports main red at the
+interval lane); ported as `HandedOff` and filed on FILLET's slate
+(`anchor-span-sole-bracket-door-missing-roster-line`). Dual review
+dispatched on the frozen head; ordinal 2400 claimed
+(`docs/MODEL-AB-LOG.md`, the PROPS section). Lane target reclaimed
+(14 GB) — with a ~38 GB allowance this box carries one implementer plus
+one dual at a time, so the queued specs dispatch one at a time.
