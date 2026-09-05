@@ -29,4 +29,4 @@ code defects in the unit and one class its completeness claim missed
 `two-d-director-doors-skip-the-finiteness-question`, FIX's
 `is-finite-length-homed-in-the-query-seat` the ruling that closes it).
 Record: `work/seat/log.md` "SEAT-DN MERGED"; MODEL-AB-LOG row SEATDN
-(ordinal 1010, sample #144).
+(ordinal 1010, sample #146).

@@ -739,8 +739,24 @@ spellings, not only `norm3`; a `pub` decide door taking a bare
 `&'static str` site lets any crate mint an unregistered K name
 (escape route 4 — a disclosed hole in K-REPORT's hand-maintained
 roster, now wider). Full row: MODEL-AB-LOG SEATDN (ordinal 1010,
-sample #144 at merge); `docs/SEAT-DN-SPEC.md` deleted at this merge
+sample #146 — #144 at the merge commit, renumbered after two
+concurrent recorders landed first); `docs/SEAT-DN-SPEC.md` deleted at this merge
 per `docs/DOC-LEDGER.md`.
 
 Next: SEAT-9 on block SEAT-B3's last slot; its merge closes the
 block and publishes the draw.
+
+## SEAT-9 DISPATCHED (2026-09-05)
+
+SEAT-DN merged at 5121a4ad0 (PR 1987). SEAT-9 — the shell arm on
+`Verb` and ε travelling only as the `Tol` ZST down the offset-fit
+chain, `docs/SEAT-9-SPEC.md` — dispatches on block SEAT-B3's fourth
+and last slot; its merge closes the block and publishes the draw.
+Territory: the unit crosses SHELL (`topo/src/shell.rs`,
+`replace_face.rs`) and PROPS/S-CERT (the offset fit in
+`geom-brep/src/offset_fit.rs`, `recertify_approx`) under Ev's ruling
+(i) on `[ev]` PR 1904 — the receipt rides the PR, and this entry is
+the cross-program courtesy: every file another program owns that the
+unit touches is listed in the PR body. Sample bookkeeping: SEATDN's
+row was written as #144 and renumbered to #146 here — PROPS coeffs
+(#144) and M10-8 (#145) reached main first.
