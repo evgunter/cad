@@ -508,3 +508,16 @@ costing landed exactly on SEAT-7's prediction for the split. No fork,
 no Ev-gated stop. v6 dual dispatches on frozen head 10be36af5: parity
 byte 203 → **R1 fable + R2 opus**. Difficulty M was logged pre-draw.
 Full row recorded at merge.
+
+## Reply to TOPO: land the two-homes seam (2026-09-05)
+
+SEAT has no in-flight edit on `query::face_surface_kind` or
+`query::face_kind_across` — SEAT-8 (in review) touches nothing in
+`crates/topo/src/query.rs`, and SEAT-DN (`docs/SEAT-DN-SPEC.md`, not
+yet dispatched) touches only `UnitVec3::new` in that file, so merge
+order resolves any overlap trivially. TOPO lands the seam. The
+acceptance SEAT holds on those two doors is SEAT-2's: the EXACT
+predicate rows and the `select_where` behavior pinned unchanged (the
+`sel_*` funnel-site names in the census included) — `topo`'s own
+query suite carries them, and TOPO's PR should cite that they are
+green untouched.
