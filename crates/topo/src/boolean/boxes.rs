@@ -646,10 +646,12 @@ pub(crate) fn torus_window_extent<T: Real>(
         y: Span::exact(poison_value::<T>()),
         z: Span::exact(poison_value::<T>()),
     });
-    let eighth = T::from_f64(0.125);
-    let (hu2, hv2) = (hu.powi(2), hv.powi(2));
+    // The two channels' charges, each in [`subdivision_charge`]'s one
+    // spelling: `‖f_uu‖·h_u²/8` and `‖f_vv‖·h_v²/8`.
     let outer = major.hi + minor.hi;
-    let charge = |a: Span<T>| (hu2 * (outer * perp_room(a)) + hv2 * minor.hi) * eighth;
+    let charge = |a: Span<T>| {
+        subdivision_charge(outer * perp_room(a), hu) + subdivision_charge(minor.hi, hv)
+    };
     SpanBox {
         x: hulled.x.widen(charge(axis.x)),
         y: hulled.y.widen(charge(axis.y)),
@@ -713,13 +715,15 @@ pub(crate) fn harmonic_extent<T: Real>(
         )
     };
     let (a, b) = (at(t0), at(t1));
-    let eighth = (t1 - t0).powi(2) * T::from_f64(0.125);
     let channel = |x: T, y: T, ca: T, cb: T| {
         Span {
             lo: x.min(y),
             hi: x.max(y),
         }
-        .widen((ca.powi(2) + cb.powi(2)).sqrt() * eighth)
+        .widen(subdivision_charge(
+            (ca.powi(2) + cb.powi(2)).sqrt(),
+            t1 - t0,
+        ))
     };
     Some((channel(a.0, b.0, pa.x, pb.x), channel(a.1, b.1, pa.y, pb.y)))
 }
@@ -1220,8 +1224,18 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                         &ax,
                         &bracket_vector(u_ref),
                         &bracket_vector(axis.cross(u_ref)),
-                        bracket_span(major_radius),
-                        bracket_span(minor_radius),
+                        // BOTH ends of each radius bracket, not one:
+                        // `R + r·cos v` is not monotone in `r`, so a
+                        // bracketed description's whole family of tori
+                        // is covered only by entering the span.
+                        Span {
+                            lo: major_radius.lo(),
+                            hi: major_radius.hi(),
+                        },
+                        Span {
+                            lo: minor_radius.lo(),
+                            hi: minor_radius.hi(),
+                        },
                         (u, v),
                     ),
                     whole,
