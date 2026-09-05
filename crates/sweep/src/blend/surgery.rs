@@ -472,8 +472,10 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // The two open bands part here: a PLANAR link terminates in corners
     // and carves its supports whole (below); a RULED link terminates in
     // transverse caps and carves in `ruled`. Both are admitted opens.
-    let (planar, ruled): (Vec<AdmittedOpen<'_, T>>, Vec<AdmittedOpen<'_, T>>) =
-        opens.iter().copied().partition(|o| !o.link().arm.is_ruled());
+    let (planar, ruled): (Vec<AdmittedOpen<'_, T>>, Vec<AdmittedOpen<'_, T>>) = opens
+        .iter()
+        .copied()
+        .partition(|o| !o.link().arm.is_ruled());
 
     // ---- Corners: every planar open-link end must be a
     // fully-requested trivalent vertex. Each end's incidence list is
@@ -676,7 +678,10 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 // ------------------------------------------------------------------
 
 /// A vertex's incident edges, sorted (the corner front-door check).
-pub(super) fn vertex_edges_of<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<EdgeKey>> {
+pub(super) fn vertex_edges_of<T: Decide>(
+    body: &Body<T>,
+    vertex: VertexKey,
+) -> Option<Vec<EdgeKey>> {
     let he = body.get_vertex(vertex)?.emanating?;
     let mut edges: Vec<EdgeKey> = body
         .vertex_orbit(he)?

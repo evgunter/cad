@@ -1633,11 +1633,7 @@ pub fn cap_transverse<T: Decide + Bounds>(
 /// one of the link's supports from a third face, and that third face —
 /// one face, shared by both — is the cap. `None` where the incidence
 /// does not have that shape.
-fn cap_face_at<T: Decide>(
-    body: &Body<T>,
-    edges: &[EdgeKey],
-    link: &Link<T>,
-) -> Option<FaceKey> {
+fn cap_face_at<T: Decide>(body: &Body<T>, edges: &[EdgeKey], link: &Link<T>) -> Option<FaceKey> {
     let faces_of = |e: EdgeKey| -> Option<(FaceKey, FaceKey)> {
         let ed = body.get_edge(e)?;
         Some((face_of(body, ed.he_plus)?, face_of(body, ed.he_minus)?))
@@ -1695,9 +1691,8 @@ fn corner_at<T: Decide + Bounds>(
         let Some(cap) = cap_face_at(body, &edges, link) else {
             return Err(indeterminate());
         };
-        let Some(Surface::Plane { normal, .. }) = body
-            .get_face(cap)
-            .and_then(|f| body.get_surface(f.surface))
+        let Some(Surface::Plane { normal, .. }) =
+            body.get_face(cap).and_then(|f| body.get_surface(f.surface))
         else {
             return Err(super::surgery::unbuilt_run_out(
                 EntityId::Vertex(vertex),

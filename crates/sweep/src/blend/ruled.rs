@@ -60,9 +60,8 @@ use super::BlendError;
 use super::admit::AdmittedOpen;
 use super::naming::BlendNaming;
 use super::surgery::{
-    ContactCarrier, Described, edge_faces, face_of_half, halves_of, loop_of_half,
-    loop_walk_face, not_intact, op, point_of, seam_split_param, unbuilt_chain, unbuilt_geometry,
-    vertex_edges_of,
+    ContactCarrier, Described, edge_faces, face_of_half, halves_of, loop_of_half, loop_walk_face,
+    not_intact, op, point_of, seam_split_param, unbuilt_chain, unbuilt_geometry, vertex_edges_of,
 };
 
 /// One transverse cap of a ruled link, as the plan read it.
@@ -137,7 +136,10 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
                 )),
             }
         };
-        let (q_a, q_b) = (trim_origin(&l.blend.trim_a.0)?, trim_origin(&l.blend.trim_b.0)?);
+        let (q_a, q_b) = (
+            trim_origin(&l.blend.trim_a.0)?,
+            trim_origin(&l.blend.trim_b.0)?,
+        );
 
         // The supports: ring-free, and carrying the crease on their
         // outer cycle. A ring on a curved support is not carried
@@ -186,9 +188,7 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
                 origin: po,
                 normal: n,
                 ..
-            }) = body
-                .get_face(cap)
-                .and_then(|f| body.get_surface(f.surface))
+            }) = body.get_face(cap).and_then(|f| body.get_surface(f.surface))
             else {
                 return Err(not_intact(
                     EntityId::Face(cap),

@@ -250,8 +250,9 @@ fn open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves() 
         );
         let shown = err.to_string();
         assert!(
-            shown.contains("an open chain's supports are neither plane–plane nor a ruled cylinder pair")
-                && shown.contains(FILLET3_ASSEMBLY_RECOURSE),
+            shown.contains(
+                "an open chain's supports are neither plane–plane nor a ruled cylinder pair"
+            ) && shown.contains(FILLET3_ASSEMBLY_RECOURSE),
             "{shown}"
         );
     }
