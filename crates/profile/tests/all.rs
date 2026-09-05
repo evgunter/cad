@@ -61,6 +61,8 @@ mod blend7_review_probes;
 mod bool11_probes;
 #[path = "fillet_refusal_envelope.rs"]
 mod fillet_refusal_envelope;
+#[path = "review_fillet_attr_r1_probes.rs"]
+mod review_fillet_attr_r1_probes;
 
 #[path = "bool12_probes.rs"]
 mod bool12_probes;
