@@ -196,11 +196,10 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
         bench.post_b,
         common::asm::seat_alignment(common::asm::SHELF_LENGTH / 4.0, Some(0.3)),
     );
-    // ONE evaluation over both mates. Pumping between them leaves the
-    // sound mate's row reading `Ok` off the memo — a mate's key does
-    // not carry the solve, so a cluster that breaks around it does not
-    // re-run it. That is kernel behaviour this row neither exercises
-    // nor endorses; what it pins is the attribution.
+    // ONE evaluation over both mates. Pumping between them would give
+    // the same rows: a mate's key carries the solve's answer, so the
+    // sound mate re-runs when the cluster breaks around it. What this
+    // row pins is the attribution, not that.
     session.pump();
 
     let rows = session.tree_rows();
@@ -264,15 +263,15 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
     std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
 }
 
-/// **A contradiction between two mates blames both, and the rows it
-/// reaches point at one the evaluation agrees is failing.**
+/// **A contradiction between two mates blames both, both carry the
+/// cause, and the rows it reaches point at one of them.**
 ///
 /// Two mates on ONE pair at incompatible alignments: the fold names
 /// `held` and `added` together, because neither is the wrong one on
-/// the fault's own telling. What a downstream row must never do is
-/// point at a row reading `Ok` — which is reachable, since a mate's
-/// memo key does not carry the solve and the mate already evaluated
-/// before the second one broke the pair.
+/// the fault's own telling. The first of them EVALUATED before the
+/// second broke the pair, and its row still reports the refusal: a
+/// mate's content key carries the solve's answer, so the memo cannot
+/// serve last evaluation's `Ok` into the run whose fault names it.
 #[test]
 fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
     let tol = Tol::witness();
@@ -306,22 +305,20 @@ fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
     let rows = session.tree_rows();
     let status_of = |id| common::status_of(&rows, id);
     // THE PREMISE THIS ROW RESTS ON, asserted rather than assumed: the
-    // run reports `held` as `Ok` even though the fault names it. That
-    // is the memo hazard (`work/issues/mate-memo-key-does-not-carry-
-    // the-solve`), and it is what makes the two blamed mates
-    // distinguishable here — fix the kernel and this row must be
-    // rewritten rather than quietly passing as a copy of the one
-    // above.
-    assert_eq!(
-        status_of(held),
-        RowStatus::Ok,
-        "the memo hazard is the premise: the first mate reads Ok in the run that blames it"
-    );
+    // mate that evaluated FIRST reports the refusal too. What made
+    // this row distinct from the one above was once a memo hazard —
+    // `held` reading `Ok` in the run that blames it — and what makes
+    // it distinct now is the kernel's own consistency: a fault naming
+    // TWO mates leaves both of them actionable.
     let failing: Vec<_> = rows
         .iter()
         .filter(|row| matches!(row.status, RowStatus::Failed { .. }))
         .map(|row| row.id)
         .collect();
+    assert!(
+        failing.contains(&held),
+        "the mate that evaluated before the pair broke is a cause too: {rows:?}"
+    );
     assert!(
         failing.contains(&added),
         "the mate that broke the pair is a cause: {rows:?}"
@@ -330,9 +327,9 @@ fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
         !failing.contains(&bench.post_a) && !failing.contains(&bench.shelf_i),
         "the mated instances are not causes: {rows:?}"
     );
-    // Both mates are blamed, so whichever of them this evaluation
-    // reports as failing is where the instances point — never at a row
-    // the evaluation calls `Ok`.
+    // Both mates are blamed, so the instances point at the first the
+    // fault names — a row this same tree badges FAILED, never one the
+    // evaluation calls `Ok`.
     for instance in [bench.post_a, bench.shelf_i] {
         match status_of(instance) {
             RowStatus::Poisoned { through, message } => {
