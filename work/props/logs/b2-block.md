@@ -13,7 +13,7 @@ when the block concludes (PROPS-B1's shape, #1978).
 
 | slot | unit | pre-draw difficulty (logged at spec) | arm |
 |---|---|---|---|
-| 0 | coeffs-window — `docs/PROPS-COEFFS-SPEC.md` (`coefficients-carry-their-knot-vector`, ruling A one level down) | L / STRUCTURAL | FABLE — dispatched 2026-09-05 |
+| 0 | coeffs-window — `docs/PROPS-COEFFS-SPEC.md` (`coefficients-carry-their-knot-vector`, ruling A one level down) | L / STRUCTURAL | FABLE — MERGED 2026-09-05 at 55d541ae5 (#1985) BEFORE the dual, by the orchestrator's spec defect (§Landing said close, not review); dual dispatched on the merged head, ordinal 2403, sample #144; fix pass to follow as its own PR |
 | 1 | (next kernel unit in dispatch order) | — | OPUS |
 | 2 | (next kernel unit in dispatch order) | — | OPUS |
 
