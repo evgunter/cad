@@ -7,9 +7,9 @@
 //! makes that checkable: they run both paths on the same fixture and
 //! compare bit-for-bit, so a dispatch that reordered arguments, dropped
 //! a parameter or re-derived a band would red here rather than showing
-//! up as drifted geometry three layers up. The arity rows at the end
-//! are the run doors' one own decision — refusing the operand count a
-//! verb does not declare — exercised in both directions so neither
+//! up as drifted geometry three layers up. The door rows at the end
+//! are the run doors' one own decision — refusing a verb at every door
+//! but the one it declares — exercised in both directions so no
 //! mismatch arm is untested code.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -19,10 +19,13 @@ use std::fmt::Write as _;
 use geom_core::{Affine3, Vec3};
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::{Extrusion, Revolution};
-use topo::{Body, BooleanDeclarations, BooleanOp, BooleanResult, SweepStrategy, boolean_op_with};
+use topo::{
+    Body, BooleanDeclarations, BooleanOp, BooleanResult, SplitPart, SweepStrategy, boolean_op_with,
+    split,
+};
 use verbs::{Arity, PairOut, Verb, VerbError, VerbKind, VerbRecord};
 
-use crate::fixture::{disc, offset_disc, tol, x_axis};
+use crate::fixture::{disc, offset_disc, pinch_plane, pinch_prism, tol, x_axis, z_plane};
 
 /// Every vertex point's BITS, plus the entity census — enough that a
 /// carve differing anywhere in position or structure differs here.
@@ -262,18 +265,23 @@ fn sample(kind: VerbKind) -> Verb<f64> {
             op,
             declare: BooleanDeclarations::none(),
         },
+        VerbKind::Split => Verb::Split { plane: z_plane(0.5) },
     }
 }
 
-/// **Each door refuses exactly the verbs whose declared arity is not
-/// its own**, over the whole vocabulary — the typed mismatch refusal
-/// exercised in both directions, so neither door's cross-arity arms
-/// are untested. The declared-arity door's behavior is the dispatch
-/// rows above; what is pinned here is that the OTHER door answers
-/// `Arity` with the right verb and the right count, and never runs the
-/// op — proven by the returned variant itself: `Arity` is minted only
-/// at the doors' own mismatch arms, before any op door is reached, so
-/// its arrival IS the non-execution.
+/// **Each door refuses exactly the verbs that do not declare it**,
+/// over the whole vocabulary — the typed mismatch refusal exercised
+/// in both directions, so no door's cross-door arms are untested. The
+/// declared door's behavior is the dispatch rows above; what is
+/// pinned here is that every OTHER door answers `Arity` with the
+/// right verb and the right door, and never runs the op — proven by
+/// the returned variant itself: `Arity` is minted only at the doors'
+/// own mismatch arms, before any op door is reached, so its arrival
+/// IS the non-execution. The split door is the row where this matters
+/// most: a split's operand is one body like a blend's, so the ONE
+/// door is the door a wiring bug would most plausibly hand it to, and
+/// the refusal must name the split door rather than an operand count
+/// that agrees.
 #[test]
 fn each_door_refuses_the_undeclared_arity() {
     let a = sweep::test_support::cube(1.0, tol());
@@ -292,6 +300,7 @@ fn each_door_refuses_the_undeclared_arity() {
                 verb.run_pair(&a, &b, SweepStrategy::Realized, tol()).err(),
             ),
             (Arity::Profile, verb.run_profile(&disc, tol()).err()),
+            (Arity::Split, verb.run_split(&a, tol()).err()),
         ]
         .into_iter()
         .filter(|(door, _)| *door != kind.arity())
@@ -302,7 +311,7 @@ fn each_door_refuses_the_undeclared_arity() {
             )
         })
         .collect();
-        assert_eq!(refusals.len(), 2, "there are three doors, not three-plus");
+        assert_eq!(refusals.len(), 3, "there are four doors, not four-plus");
         for (door, err) in refusals {
             let VerbError::Arity { verb: who, given } = err else {
                 panic!("{kind:?} at the {door:?} door refused with {err:?}, not Arity");
@@ -313,15 +322,19 @@ fn each_door_refuses_the_undeclared_arity() {
     }
 }
 
-/// **The arity refusal's sentence, pinned.**
+/// **The door refusal's sentence, pinned.**
 ///
 /// It is the one refusal string this door owns rather than forwards,
-/// and it reads the verb's DECLARED operand out of `VerbKind::arity`
-/// while naming the door it was handed to — so a shape added to
+/// and it reads the verb's DECLARED door out of `VerbKind::arity`
+/// while naming the door it was handed to — so a row added to
 /// `Arity` changes what it says without any match to visit. That is
 /// worth having and worth pinning: the sentence is what a direct
 /// caller who picked the wrong door gets, and nothing else asserts a
-/// word of it.
+/// word of it. The split rows are why it speaks DOORS and not
+/// operands: a split's operand is one body, so "declares a One
+/// operand and was run through the One door" would have been the
+/// sentence for a split handed to the blend door — true of the
+/// operand and false of the refusal.
 #[test]
 fn the_arity_refusal_names_the_declared_operand_and_the_door() {
     let err = Verb::Fillet {
@@ -332,16 +345,153 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
     .expect_err("a fillet is not a profile verb");
     assert_eq!(
         err.to_string(),
-        "the Fillet verb declares a One operand and was run through the Profile door"
+        "the Fillet verb answers the One door and was run through the Profile door"
     );
 
+    let cube = sweep::test_support::cube(1.0, tol());
     let err = Verb::Extrude { distance: 1.0_f64 }
-        .run(&sweep::test_support::cube(1.0, tol()), tol())
+        .run(&cube, tol())
         .expect_err("an extrude is not a one-body verb");
     assert_eq!(
         err.to_string(),
-        "the Extrude verb declares a Profile operand and was run through the One door"
+        "the Extrude verb answers the Profile door and was run through the One door"
     );
+
+    let err = Verb::Split { plane: z_plane(0.5) }
+        .run(&cube, tol())
+        .expect_err("a split hands back two sides, which the one-body door cannot");
+    assert_eq!(
+        err.to_string(),
+        "the Split verb answers the Split door and was run through the One door"
+    );
+    let err = Verb::Fillet {
+        edges: Vec::new(),
+        radius: 0.1_f64,
+    }
+    .run_split(&cube, tol())
+    .expect_err("a fillet hands back one body, not two sides");
+    assert_eq!(
+        err.to_string(),
+        "the Fillet verb answers the One door and was run through the Split door"
+    );
+}
+
+/// The two sides' dumps, in order, with an empty side as its own
+/// token — so a dispatch that swapped the sides, dropped one, or
+/// turned the typed empty into a body differs here.
+fn dump_sides(above: &SplitPart<f64>, below: &SplitPart<f64>) -> String {
+    let side = |part: &SplitPart<f64>| match part {
+        SplitPart::Body(b) => dump(b),
+        SplitPart::Empty => "empty\n".to_owned(),
+    };
+    format!("above:\n{}below:\n{}", side(above), side(below))
+}
+
+#[test]
+fn the_split_dispatch_is_the_split_door() {
+    let cube = sweep::test_support::cube(1.0, tol());
+    let plane = z_plane(0.5);
+
+    let door = split(&cube, &plane, tol()).unwrap();
+    let via = Verb::Split { plane }.run_split(&cube, tol()).unwrap();
+
+    assert_eq!(
+        dump_sides(&door.above, &door.below),
+        dump_sides(&via.above, &via.below)
+    );
+    let VerbRecord::Split(naming) = via.record else {
+        panic!("a split run produced another family's record: {:?}", via.record);
+    };
+    assert!(
+        !naming.sections.is_empty(),
+        "the mid-plane cut minted no section face; the fixture no longer exercises the record"
+    );
+    assert_eq!(
+        format!("{:?}", door.naming),
+        format!("{naming:?}"),
+        "the birth record is carried across, not rebuilt"
+    );
+}
+
+/// **The dispatch agrees with the door THROUGH the D7 pinch lane.**
+///
+/// The kernel door reruns a one-sided pinch mirrored and swaps the
+/// sides back, so on this operand what `topo::split` returns is the
+/// mirrored run's decomposition re-labelled — not the direct run's,
+/// which refuses. The dispatch calls the door and nothing beneath it,
+/// so agreement is by construction; it is pinned rather than assumed
+/// because "by construction" is exactly the claim a dispatch that
+/// reached for `split_direct`, or re-derived the plane, would break
+/// while every other row stayed green. The operand is the lane's own
+/// fixture, and the pinched pieces landing BELOW `+y` is what says
+/// the swap-back happened on both paths.
+#[test]
+fn the_split_dispatch_agrees_with_the_door_through_the_pinch_lane() {
+    let prism = pinch_prism();
+    let plane = pinch_plane();
+
+    let door = split(&prism, &plane, tol()).unwrap();
+    let via = Verb::Split { plane }.run_split(&prism, tol()).unwrap();
+
+    let SplitPart::Body(pieces) = &via.below else {
+        panic!("the pinched floor pieces are below +y: {:?}", via.below);
+    };
+    assert_eq!(
+        pieces.shells().count(),
+        3,
+        "the pinch lane's three floor pieces did not reach the dispatch"
+    );
+    assert_eq!(
+        dump_sides(&door.above, &door.below),
+        dump_sides(&via.above, &via.below)
+    );
+    let VerbRecord::Split(naming) = via.record else {
+        panic!("a split run produced another family's record");
+    };
+    assert_eq!(format!("{:?}", door.naming), format!("{naming:?}"));
+}
+
+/// **An empty side crosses as the typed empty** — a plane clear of the
+/// body puts everything below it, and the above side is the kernel's
+/// `SplitPart::Empty` on both paths, never a phantom body and never
+/// a refusal.
+#[test]
+fn an_empty_split_side_crosses_as_the_typed_empty() {
+    let cube = sweep::test_support::cube(1.0, tol());
+    let plane = z_plane(5.0);
+
+    let door = split(&cube, &plane, tol()).unwrap();
+    assert!(matches!(door.above, SplitPart::Empty));
+
+    let via = Verb::Split { plane }.run_split(&cube, tol()).unwrap();
+    assert!(
+        matches!(via.above, SplitPart::Empty),
+        "the dispatch turned the typed empty into {:?}",
+        via.above
+    );
+    assert_eq!(
+        dump_sides(&door.above, &door.below),
+        dump_sides(&via.above, &via.below)
+    );
+}
+
+/// **A split refusal crosses unaltered.** The fixture is an operand
+/// with no solid at all — the split contract is one solid, and an
+/// empty body is the refusal reachable without building a degenerate
+/// section.
+#[test]
+fn a_split_refusal_crosses_the_dispatch_unaltered() {
+    let empty = Body::<f64>::new();
+    let plane = z_plane(0.5);
+
+    let door = split(&empty, &plane, tol()).unwrap_err();
+    let via = Verb::Split { plane }.run_split(&empty, tol()).unwrap_err();
+
+    let VerbError::Split(carried) = via else {
+        panic!("a split refusal crossed as another family's: {via:?}");
+    };
+    assert_eq!(format!("{door:?}"), format!("{carried:?}"));
+    assert_eq!(door.to_string(), carried.to_string());
 }
 
 #[test]

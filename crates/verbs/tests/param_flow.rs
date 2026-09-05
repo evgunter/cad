@@ -42,7 +42,7 @@ use verbs::{
     Arity, EdgeScalar, FlowSource, PairOut, RoleFamily, ScalarParam, Verb, VerbKind, VerbRecord,
 };
 
-use crate::fixture::{disc, offset_disc, tol, x_axis};
+use crate::fixture::{disc, offset_disc, tol, x_axis, z_plane};
 
 /// Every scalar parameter in the vocabulary is named by exactly one
 /// flow row, on the verb it belongs to.
@@ -264,6 +264,35 @@ fn the_booleans_flow_is_empty_beside_a_real_record() {
             "the boolean has no scalar parameters; a row appeared with nothing to declare"
         );
     }
+}
+
+/// **The split's flow has no rows, and that is a claim beside a real
+/// record.** A cube is parted through its middle and the record read
+/// back — non-trivial (a section face on each side) — so "no scalar
+/// parameter lands in anything this record names" is a statement
+/// about an actual result. The split HAS no scalar parameter: its
+/// payload is a plane, a placement read off a datum, and the faces it
+/// mints are planes with no stored scalar field for anything to land
+/// in — so, like the boolean, the emptiness is one level up from the
+/// chamfer's, and the census above is what proves nothing was skipped.
+#[test]
+fn the_splits_flow_is_empty_beside_a_real_record() {
+    let cube = sweep::test_support::cube(1.0, tol());
+    let out = Verb::Split { plane: z_plane(0.5) }
+        .run_split(&cube, tol())
+        .expect("the mid-plane cut is inside the door");
+    let VerbRecord::Split(naming) = out.record else {
+        panic!("a split run produced another family's record");
+    };
+    assert_eq!(
+        naming.sections.len(),
+        2,
+        "the mid-plane cut minted a section face per side; the fixture no longer exercises the record"
+    );
+    assert!(
+        VerbKind::Split.param_flow().is_empty(),
+        "the split has no scalar parameters; a row appeared with nothing to declare"
+    );
 }
 
 /// **A profile-edge source may be declared only by a verb whose

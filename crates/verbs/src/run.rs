@@ -1,5 +1,5 @@
 //! The dispatch sites over the kernel's op doors, one per declared
-//! arity, and what comes back out of them.
+//! door ([`Arity`]), and what comes back out of them.
 
 use core::fmt;
 
@@ -8,9 +8,10 @@ use profile::ValidatedProfile;
 use sweep::blend::BlendRefusal;
 use sweep::blend::naming::BlendNaming;
 use sweep::{ExtrudeError, Extruded, RevolveError, Revolved};
+use topo::splitting::SplitNaming;
 use topo::{
     Body, BooleanError, BooleanNaming, BooleanResult, BooleanResultKind, ContactRecords,
-    SweepStrategy, boolean_op_with,
+    SplitError, SplitPart, SplitResult, SweepStrategy, boolean_op_with, split,
 };
 
 use crate::verb::{Arity, Verb, VerbKind};
@@ -84,6 +85,42 @@ pub enum VerbRecord<T: Real> {
     /// The revolve door's whole bundle — body, solid, shell,
     /// cavities, walls, rims, poles and the case split's own keys.
     Revolve(Revolved<T>),
+    /// The split's mint-time naming facts — the section faces with
+    /// their side, the chord-mef fragment rows and the null-edge
+    /// vertex pairs — the kernel's own type moved across by value.
+    /// It sits BESIDE the two sides rather than around them
+    /// ([`SplitOut`]): the split's emitter takes the sides and the
+    /// record as separate arguments, so nothing is restated by
+    /// taking the door's result apart — unlike a sweep's bundle,
+    /// whose emitter reads the whole.
+    Split(SplitNaming),
+}
+
+/// **What the split produced**: its two sides, each a body or the
+/// typed empty, under ONE record — the out-type of the split door
+/// ([`Verb::run_split`]).
+///
+/// It is its own out-type, per door, for the reason [`PairOut`] is:
+/// a one-body consumer reads [`VerbOut::body`] without matching,
+/// and widening that into "one body or two sides" would make every
+/// blend consumer handle a two-sidedness its verbs cannot mean. The
+/// two sides are the kernel's own [`SplitPart`]s moved across by
+/// value — never a list of bodies, because which side is ABOVE is
+/// the plane's own fact and a role the consumer selects by, and
+/// never a single body with a side marker, because an EMPTY side is
+/// a value of the split's contract (a plane that misses the material
+/// on one side) and not a failure. The record is the third field of
+/// the door's own result moved into the closed channel; the door
+/// destructures that result exhaustively, so a field grown onto it
+/// breaks the door at compile time instead of vanishing in the move.
+#[derive(Debug)]
+pub struct SplitOut<T: Real> {
+    /// The material on the plane normal's side.
+    pub above: SplitPart<T>,
+    /// The material on the opposite side.
+    pub below: SplitPart<T>,
+    /// The split's own record of what it minted, in its channel.
+    pub record: VerbRecord<T>,
 }
 
 /// **What a two-operand verb produced**: the typed empty success, or a
@@ -122,16 +159,18 @@ pub enum VerbError {
     Extrude(ExtrudeError),
     /// The revolve door refused.
     Revolve(RevolveError),
-    /// A run door was handed a different operand shape than the verb
-    /// declares ([`VerbKind::arity`]) — a caller wiring bug surfaced
-    /// typed, never a panic. Unreachable through a lowering that
-    /// consults the declaration; a direct caller that picks the wrong
-    /// door is told so by name.
+    /// The split op refused.
+    Split(SplitError),
+    /// A verb was run through a door that is not the one it declares
+    /// ([`VerbKind::arity`]) — a caller wiring bug surfaced typed,
+    /// never a panic. Unreachable through a lowering that consults
+    /// the declaration; a direct caller that picks the wrong door is
+    /// told so by name.
     Arity {
         /// The verb whose door refused.
         verb: VerbKind,
-        /// The operand shape the door was handed (the door's own
-        /// arity, so the declared one is `verb.arity()`).
+        /// The door the verb was handed to (its own row, so the
+        /// declared one is `verb.arity()`).
         given: Arity,
     },
 }
@@ -143,9 +182,10 @@ impl fmt::Display for VerbError {
             Self::Boolean(refusal) => write!(f, "{refusal}"),
             Self::Extrude(refusal) => write!(f, "{refusal}"),
             Self::Revolve(refusal) => write!(f, "{refusal}"),
+            Self::Split(refusal) => write!(f, "{refusal}"),
             Self::Arity { verb, given } => write!(
                 f,
-                "the {verb:?} verb declares a {:?} operand and was run through the {given:?} door",
+                "the {verb:?} verb answers the {:?} door and was run through the {given:?} door",
                 verb.arity()
             ),
         }
@@ -167,8 +207,8 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
     /// verbatim; the door's own docs
     /// (`sweep::blend::build::fillet_edges`,
     /// `sweep::blend::build::chamfer_edges`) enumerate the cases.
-    /// [`VerbError::Arity`] if this verb's operand is two bodies or a
-    /// profile.
+    /// [`VerbError::Arity`] if this verb answers another door — its
+    /// operand is two bodies or a profile, or it hands back two sides.
     pub fn run(&self, operand: &Body<T>, tol: Tol) -> Result<VerbOut<T>, VerbError> {
         let blended = match self {
             Self::Fillet { edges, radius } => {
@@ -177,7 +217,10 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
             Self::Chamfer { edges, distance } => {
                 sweep::blend::build::chamfer_edges(operand, edges, *distance, tol)
             }
-            Self::Boolean { .. } | Self::Extrude { .. } | Self::Revolve { .. } => {
+            Self::Boolean { .. }
+            | Self::Extrude { .. }
+            | Self::Revolve { .. }
+            | Self::Split { .. } => {
                 return Err(VerbError::Arity {
                     verb: self.kind(),
                     given: Arity::One,
@@ -203,8 +246,8 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
     ///
     /// [`VerbError::Boolean`] carrying the pipeline's [`BooleanError`]
     /// verbatim (`topo::boolean_op_with` enumerates the cases);
-    /// [`VerbError::Arity`] if this verb's operand is one body or a
-    /// profile.
+    /// [`VerbError::Arity`] if this verb answers another door — its
+    /// operand is one body or a profile.
     pub fn run_pair(
         &self,
         a: &Body<T>,
@@ -241,7 +284,8 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
             Self::Fillet { .. }
             | Self::Chamfer { .. }
             | Self::Extrude { .. }
-            | Self::Revolve { .. } => Err(VerbError::Arity {
+            | Self::Revolve { .. }
+            | Self::Split { .. } => Err(VerbError::Arity {
                 verb: self.kind(),
                 given: Arity::Two,
             }),
@@ -264,7 +308,8 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
     /// [`VerbError::Extrude`] / [`VerbError::Revolve`] carrying the
     /// door's own typed refusal verbatim (`sweep::extrude` and
     /// `sweep::revolve` enumerate the cases); [`VerbError::Arity`] if
-    /// this verb's operand is one or two bodies.
+    /// this verb answers another door — its operand is one or two
+    /// bodies.
     pub fn run_profile(
         &self,
         operand: &ValidatedProfile<T>,
@@ -279,12 +324,58 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
             Self::Revolve { axis, revolution } => sweep::revolve(operand, *axis, *revolution, tol)
                 .map(VerbRecord::Revolve)
                 .map_err(VerbError::Revolve),
-            Self::Fillet { .. } | Self::Chamfer { .. } | Self::Boolean { .. } => {
+            Self::Fillet { .. } | Self::Chamfer { .. } | Self::Boolean { .. } | Self::Split { .. } => {
                 Err(VerbError::Arity {
                     verb: self.kind(),
                     given: Arity::Profile,
                 })
             }
+        }
+    }
+
+    /// **Run this parting verb against its operand body.**
+    ///
+    /// The operand comes in borrowed, never in the payload, exactly as
+    /// at [`Verb::run`]; what differs is what comes back. A split hands
+    /// back TWO sides, each a body or the typed empty, and the one-body
+    /// out-type cannot carry them — so this is the split's own door
+    /// with its own out-type ([`SplitOut`]), and the D7 pinch lane
+    /// inside the kernel door (`topo::split` reruns a one-sided pinch
+    /// mirrored and swaps the sides back) is the door's, reached here
+    /// unchanged: this dispatches and re-wraps, and adds no decision
+    /// of its own.
+    ///
+    /// # Errors
+    ///
+    /// [`VerbError::Split`] carrying the door's [`SplitError`]
+    /// verbatim (`topo::split` enumerates the cases — every stage's
+    /// typed refusal passed through whole); [`VerbError::Arity`] if
+    /// this verb answers another door.
+    pub fn run_split(&self, operand: &Body<T>, tol: Tol) -> Result<SplitOut<T>, VerbError> {
+        match self {
+            Self::Split { plane } => {
+                // Exhaustive destructure, deliberately: a field grown
+                // onto `SplitResult` breaks this door at compile time
+                // instead of silently vanishing in the move.
+                let SplitResult {
+                    above,
+                    below,
+                    naming,
+                } = split(operand, plane, tol).map_err(VerbError::Split)?;
+                Ok(SplitOut {
+                    above,
+                    below,
+                    record: VerbRecord::Split(naming),
+                })
+            }
+            Self::Fillet { .. }
+            | Self::Chamfer { .. }
+            | Self::Extrude { .. }
+            | Self::Revolve { .. }
+            | Self::Boolean { .. } => Err(VerbError::Arity {
+                verb: self.kind(),
+                given: Arity::Split,
+            }),
         }
     }
 }
