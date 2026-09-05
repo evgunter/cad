@@ -138,8 +138,9 @@ its window (`geom-core/tests/span_hull_window.rs`); a curve's
 (`geom/tests/curves/span_window_pairing.rs`); the constructor row stays.
 
 **Bit identity is the receipt:** `geom-core/tests/coeffs_bit_identity.rs`
-— 960 default-lane rows (`f64` and `RingInterval` brackets) and 480
-`interval`-lane rows, six vectors at degrees 1–4 with interior
+— 960 default-lane rows (`f64` and `RingInterval` brackets) — and its
+whole-file-gated twin `coeffs_bit_identity_interval.rs` — 480
+`interval`-lane rows; six vectors at degrees 1–4 with interior
 multiplicities up to the degree, every span, every door — captured
 through the retired spellings at the merge base and unchanged at the
 head; `geom`'s 1001- and 11,151-row span digests unchanged too.
