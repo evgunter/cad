@@ -650,6 +650,7 @@ at the parent of the commit that removed it):
 - `FILLET-ATTR-SPEC.md` — FILLET-ATTR — `NoCornerOfPair`, every refusing crossing named nearest-anchors-first, incl. the fix-pass amendment of C1 to the channel rule (last on `main` at aa5384288; PR 1895's body, `work/fillet/fillet-refusal-describes-unbracketed-crossing.md` and the ordinal-2004 row are the record)
 - `FILLET-H6-SPEC.md` — FILLET-H6 — extrude's cap-rim `Smooth` arm measured unreachable at the shipped K and made a typed refusal below the crossover; the must-carry rule homed as `geom_brep::tangent_second_order`; incl. the fix-pass amendments (last on `main` at 195460c7a; PR 1891's body, `work/fillet/extrude-cap-rim-smooth-arm-noop.md` and the ordinal-2003 row are the record)
 - `FILLET-H7-SPEC.md` — FILLET-H7 — the ruled band and its transverse cut-off (`CornerConfig::TransverseCap` / `RunOutPolicy::CutOffAtTransverseCap`, ratified on PR 1819), incl. the fix-pass amendments (last on `main` at 235d05241; PR 1897's body, `work/fillet/fillet-ruled-spine-arms-no-surgery.md` and the ordinal-2005 row are the record)
+- `FILLET-T-SPEC.md` — FILLET-T — Track T's `D325` + `D326`: the corner fusion's first arc a value, one `kef` door over a snapshot of the input body's faces (last on `main` at b1cc95604; PR 1943's body, `work/fillet/D325.md`, `work/fillet/D326.md` and the ordinal-2006 row are the record)
 - `PROPS-VERDICT-SHAPES-SPEC.md` — PROPS verdict-shapes — the two derived per-node verdict forms in one module (`resolve/vdiff.rs`), `ReplayOutcome` folded into `RunStatus` with `Absent` kept distinct, the strict-vs-population split pinned (last on `main` at 8ba880fda; PR 1920's body and `work/props/three-per-node-verdict-shapes.md` are the record; an E rider outside the A/B experiment, no row)
 
 - `BOOL-1-SPEC.md` — BOOL-1 — issue 1152: coplanar-split section boundaries cite non-adjacent surfaces
@@ -895,3 +896,22 @@ unit's record is its item's `## Closed` section and its MERGED entry
 in `work/msolve/log.md` (no A/B row: the program runs none).
 
 - `MSOLVE-1-SPEC.md` — MSOLVE-1, the mate reads at its operand: the transform-aware solve (#1929)
+
+## Per-merge deletion — PROPS lily-vec3's spec (2026-09-05)
+
+Recoverable at
+`git show 577338f4e452f3ff5839604eb4d810246671e75b:docs/PROPS-LILY-VEC3-SPEC.md`
+(the unit head after the review fix pass, before the commit that
+deleted it; unamended — no stop clause fired). Two of its statements
+were argued rather than met, and the argument is in the unit's PR: its
+census of the tuple helpers missed `Section::outline`'s 2-D algebra and
+`review_probes::cross_norm`, both of which the unit converted because
+the acceptance asks for ZERO tuple-algebra helpers; and its lift
+spelling — "`map(S::from_f64)` at each boundary" — is right only for an
+already-composed `f64` value, because `pncad::authoring::{p2, v2, p3,
+v3}` are the kernel's own doors for components written at the call, so
+the landed file spells the lift both ways on that line. The rule above;
+the unit's record is its item's `## Closed` section (an E rider outside
+the A/B experiment — no `MODEL-AB-LOG.md` row).
+
+- `PROPS-LILY-VEC3-SPEC.md` — PROPS lily-vec3, the lily authored in `Vec3<f64>` through the kernel's own doors, lifted at the boundary (#1954)
