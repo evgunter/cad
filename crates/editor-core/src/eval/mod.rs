@@ -2508,6 +2508,8 @@ fn verb_content_tag(kind: verbs::VerbKind) -> u8 {
     match kind {
         verbs::VerbKind::Fillet => 17,
         verbs::VerbKind::Chamfer => 24,
+        verbs::VerbKind::Extrude => 5,
+        verbs::VerbKind::Revolve => 6,
         verbs::VerbKind::Boolean(topo::BooleanOp::Union) => 8,
         verbs::VerbKind::Boolean(topo::BooleanOp::Intersect) => 9,
         verbs::VerbKind::Boolean(topo::BooleanOp::Subtract) => 10,
@@ -2598,7 +2600,17 @@ where
     // is reused — which is what the channel needs, since a body minted
     // before its spelling was part of the key could carry a token the
     // current document does not hold.
-    h.write_tag(4);
+    //
+    // Key format v5 (SEAT-7): a profile node's CARRIER LOOP RADIUS
+    // feeds its lowered expression beside the resolved value, because
+    // the sweeps now land that expression's identity in the walls they
+    // mint. An existing node writes into the channel, so by the rule
+    // above this is the bump, not the exception: every key moves, and
+    // no pre-bump memo entry is reused — which is what the channel
+    // needs, since a body minted before the profile's spelling was part
+    // of the key could carry a token the current document does not
+    // hold.
+    h.write_tag(5);
     let tol = tol.get();
     h.write_f64_bits(tol.eps);
     h.write_f64_bits(tol.k);
@@ -2612,8 +2624,15 @@ where
         Node::Datum(Datum::Axis { .. }) => 2,
         Node::Datum(Datum::Point { .. }) => 3,
         Node::Profile(_) => 4,
-        Node::Extrude { .. } => 5,
-        Node::Revolve { .. } => 6,
+        // The numbers are not written here either, and they are the
+        // ones that were: a migrated verb's tag is a function of the
+        // KERNEL's name for it, so 5 and 6 move to `verb_content_tag`
+        // unchanged. A tag that MOVED would invalidate nothing on disk
+        // (keys are process-internal) and would still be wrong — an
+        // existing tag never gains a new meaning, and never loses its
+        // old one either.
+        Node::Extrude { .. } => verb_content_tag(verbs::VerbKind::Extrude),
+        Node::Revolve { .. } => verb_content_tag(verbs::VerbKind::Revolve),
         Node::Split { .. } => 7,
         // The numbers are not written here: a migrated verb's tag is a
         // function of the KERNEL's name for it, and the boolean's name
@@ -2728,7 +2747,7 @@ where
     // The tag match above is exhaustive for the same reason; the two
     // halves of one key had different answers to that until now.
     match node {
-        Node::Profile(_) => {
+        Node::Profile(program) => {
             // LIB-SWITCH §4e: the program's structural payload feeds
             // as (tag, payload) tokens — per loop a LoopStart tag and
             // per RESOLVED step the verb
@@ -2772,6 +2791,39 @@ where
                     h.write_tag(1); // LoopStart
                     for step in steps {
                         feed_lane_step(&mut h, step);
+                    }
+                }
+            }
+            // A carrier loop's RADIUS EXPRESSION, when a migrated verb
+            // declares that operand-carried scalar into a stored field
+            // (SEAT-7, key format v5). The stream above carries the
+            // radius's VALUE, at f64 bits, which is what the geometry
+            // is a function of; what it cannot carry is the spelling,
+            // and the spelling is now an input to the BODY a downstream
+            // sweep mints — the wall's field source is the lowered
+            // expression. So a value-preserving re-spelling (`r` for
+            // `0.125`) must move this key, or the sweep's memo would
+            // serve a body whose token names an expression the document
+            // no longer holds. Exactly the blend's rule (`feed_blend`,
+            // v4) at the node that HOLDS the expression rather than the
+            // node that attaches it: the sweep's key folds this one in
+            // as an upstream key already, so writing it here covers
+            // every consumer at once.
+            //
+            // The rule is read off the declaration, never per node: the
+            // moment no verb declares the profile edge's radius into a
+            // field, nothing is written and the keys are the v4 ones.
+            if crate::param_source::operand_flow_bearing(verbs::FlowSource::ProfileEdge(
+                verbs::EdgeScalar::Radius,
+            )) {
+                for lp in &program.loops {
+                    if let Some(expr) = lp.carrier_radius() {
+                        // 45: the next free number in this key's tag
+                        // space (44 is the tangent arrival's, 43 the
+                        // blend's flow-bearing slot). Append-only —
+                        // an existing tag never gains a meaning.
+                        h.write_tag(45);
+                        crate::param_source::feed_content_key(&mut h, expr);
                     }
                 }
             }

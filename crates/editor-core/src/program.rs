@@ -654,6 +654,39 @@ fn step_expr_mut(step: &mut ProgramStep, arg: StepArg) -> Option<&mut Expr> {
 }
 
 impl LoopProgram {
+    /// **The one radius every edge of this loop is drawn at**, where
+    /// the loop is a CARRIER form and has one.
+    ///
+    /// The carrier forms — `circle(centre, r)` and
+    /// `circle_split(centre, r, n, phase)` — are the loops whose whole
+    /// boundary is a single arc carrier: every segment they replay to
+    /// is an arc of that one radius, whatever the subdivision. So the
+    /// answer is per LOOP and needs no per-segment address, and a
+    /// consumer that has a canonical loop index has everything it
+    /// needs.
+    ///
+    /// A CHAIN loop answers `None`, and that is a scope statement, not
+    /// an omission: a chain's arc steps carry their own radii
+    /// (`StepArg::CarrierRadius` and the arrival spec's twin), each
+    /// addressing one segment, and pairing those with swept walls
+    /// needs the step→segment map that the replay owns. Nothing today
+    /// reads a chain's radii, so the map stays unbuilt rather than
+    /// guessed at.
+    ///
+    /// The address is the loop's `Radius` slot
+    /// (`SlotId::Profile { loop_, step: 0, arg: StepArg::Radius }`);
+    /// this hands back the expression that slot holds, which is what a
+    /// lowering needs to lower.
+    #[must_use]
+    pub fn carrier_radius(&self) -> Option<&Expr> {
+        match self {
+            LoopProgram::Circle { radius, .. } | LoopProgram::CircleSplit { radius, .. } => {
+                Some(radius)
+            }
+            LoopProgram::Chain(_) => None,
+        }
+    }
+
     /// This loop's argument roles per step, deterministic order.
     fn step_args(&self) -> Vec<(u32, StepArg)> {
         let mut out = Vec::new();

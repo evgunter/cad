@@ -91,7 +91,7 @@ use geom::Surface;
 use geom_core::Real;
 use sweep::blend::naming::BlendNaming;
 use topo::{Body, FaceKey, ParamAttachError, ParamSource, SurfaceField};
-use verbs::{FieldRole, ParamFlow, RoleFamily, ScalarParam};
+use verbs::{FieldRole, FlowSource, ParamFlow, RoleFamily, ScalarParam};
 
 use crate::eval::KeyHasher;
 use crate::expr::{Dimension, Expr, ExprKind};
@@ -263,7 +263,26 @@ pub(crate) fn flow_bearing(param: ScalarParam) -> bool {
         .verb()
         .param_flow()
         .iter()
-        .any(|row| row.param == param && !row.fields.is_empty())
+        .any(|row| row.source == FlowSource::Param(param) && !row.fields.is_empty())
+}
+
+/// **Whether an OPERAND-carried scalar reaches a value** — the same
+/// rule as [`flow_bearing`], asked of a source no single verb owns.
+///
+/// A profile's carrier radius is not a parameter of any verb: the
+/// profile node holds it, and a sweep downstream lands it in the walls
+/// it mints. So the question "does re-spelling it change what a body
+/// carries?" cannot be answered from one verb's declaration — it is
+/// answered by whether ANY migrated verb declares that source into a
+/// field, which is what this reads. The moment no verb does, a
+/// profile's radius is a number again and its spelling stops being an
+/// input to any key.
+pub(crate) fn operand_flow_bearing(source: FlowSource) -> bool {
+    verbs::VerbKind::ALL.iter().any(|kind| {
+        kind.param_flow()
+            .iter()
+            .any(|row| row.source == source && !row.fields.is_empty())
+    })
 }
 
 /// **The token read back, as an address that holds it** — the
@@ -332,6 +351,13 @@ fn role_fields(role: FieldRole) -> &'static [SurfaceField] {
         }
         FieldRole::CornerCarrierRadius => &[SurfaceField::SphereRadius],
         FieldRole::BandCarrierMinorRadius => &[SurfaceField::TorusMinorRadius],
+        // A circular profile edge dragged along the sweep: the
+        // cylinder an extrusion mints, the torus a revolution mints.
+        // Both store the edge's own radius, under the two names the
+        // two surface kinds give it.
+        FieldRole::SweptWallRadius => {
+            &[SurfaceField::CylinderRadius, SurfaceField::TorusMinorRadius]
+        }
     }
 }
 
@@ -359,6 +385,13 @@ fn family_faces(family: RoleFamily, rec: &BlendNaming) -> Vec<FaceKey> {
         RoleFamily::Blends => rec.blends.iter().map(|&(f, _)| f).collect(),
         RoleFamily::Corners => rec.corners.iter().map(|&(f, _)| f).collect(),
         RoleFamily::Bands => rec.bands.iter().map(|(f, _)| *f).collect(),
+        // A blend record has no swept walls — that family's rows live
+        // in the sweeps' own records, which this door never sees. The
+        // empty list is the honest answer: a flow row naming it
+        // attaches nothing HERE, and [`attach_swept`] is where it
+        // attaches. Not a wildcard arm: the day a blend door mints a
+        // family this record carries, it is written here.
+        RoleFamily::SweptWalls => Vec::new(),
     }
 }
 
@@ -388,7 +421,10 @@ pub(crate) fn attach_blend<T: Real>(
     token: &ParamSource,
     rec: &BlendNaming,
 ) -> Result<(), ParamAttachError> {
-    let Some(row) = flow.iter().find(|row| row.param == param) else {
+    let Some(row) = flow
+        .iter()
+        .find(|row| row.source == FlowSource::Param(param))
+    else {
         return Ok(());
     };
     let mut stamps: Vec<(topo::SurfaceKey, SurfaceField)> = Vec::new();
@@ -407,6 +443,78 @@ pub(crate) fn attach_blend<T: Real>(
     }
     for (surface_key, field) in stamps {
         body.set_surface_field_source(surface_key, field, token.clone())?;
+    }
+    Ok(())
+}
+
+/// **Attach-at-mint for a per-edge flow source**: stamp each profile
+/// loop's own token on the walls swept from that loop.
+///
+/// The blend's attach ([`attach_blend`]) carries ONE token, because a
+/// verb scalar is one expression however many carriers it reaches. A
+/// per-edge source is the other shape: the value differs per profile
+/// loop, so what comes in is one token per CANONICAL loop — `None`
+/// where that loop carries no such scalar at all (a polygon has no
+/// radius; only the carrier loop forms hold one), which is an answer
+/// and not a gap.
+///
+/// `walls[i]` is the faces swept from canonical loop `i`, as the
+/// verb's own record exported them, and `tokens[i]` is that loop's
+/// lowered radius. The two are indexed by the same canonical loop
+/// index, which is what makes "this wall carries THIS radius" a fact
+/// about the record rather than a guess: a wall in loop `i`'s list was
+/// swept from an edge of loop `i` and from no other.
+///
+/// A flow with no per-edge row attaches nothing, which is the
+/// declaration being obeyed rather than a case being skipped — the
+/// same rule the chamfer's empty row runs on.
+///
+/// # Errors
+///
+/// The kernel's attach door refuses a stale key or a field the carrier
+/// does not store. Neither can happen here — every key was read off
+/// `body` a moment earlier with no mutation between, and every field
+/// came out of `belongs_to` — so a refusal is a broken invariant of
+/// this function, surfaced typed rather than discarded.
+pub(crate) fn attach_swept<T: Real>(
+    body: &mut Body<T>,
+    flow: &[ParamFlow],
+    source: FlowSource,
+    tokens: &[Option<ParamSource>],
+    walls: &[Vec<FaceKey>],
+) -> Result<(), ParamAttachError> {
+    let Some(row) = flow.iter().find(|row| row.source == source) else {
+        return Ok(());
+    };
+    let mut stamps: Vec<(topo::SurfaceKey, SurfaceField, ParamSource)> = Vec::new();
+    for &role in row.fields {
+        // The role's family is the walls, and the walls are what the
+        // caller passed: a role whose family is another verb's rows
+        // has nothing here to attach to, which is the same `None`
+        // answer `field_of` gives for a carrier that stores no such
+        // field.
+        if role.family() != RoleFamily::SweptWalls {
+            continue;
+        }
+        for (loop_index, faces) in walls.iter().enumerate() {
+            let Some(Some(token)) = tokens.get(loop_index) else {
+                continue;
+            };
+            for &face in faces {
+                let Some(surface_key) = body.get_face(face).map(|f| f.surface) else {
+                    continue;
+                };
+                let Some(carrier) = body.get_surface(surface_key) else {
+                    continue;
+                };
+                if let Some(field) = field_of(role, carrier) {
+                    stamps.push((surface_key, field, token.clone()));
+                }
+            }
+        }
+    }
+    for (surface_key, field, token) in stamps {
+        body.set_surface_field_source(surface_key, field, token)?;
     }
     Ok(())
 }
@@ -695,13 +803,24 @@ mod tests {
                 .verb()
                 .param_flow()
                 .iter()
-                .filter(|row| row.param == param)
+                .filter(|row| row.source == FlowSource::Param(param))
                 .map(|row| row.fields.len())
                 .sum();
             assert_eq!(flow_bearing(param), fields > 0, "{param:?}");
         }
         assert!(flow_bearing(ScalarParam::FilletRadius));
         assert!(!flow_bearing(ScalarParam::ChamferDistance));
+        // The sweeps' two extents are the same case as the chamfer's
+        // setback and are asserted beside it rather than left to the
+        // loop: an extent that started feeding the key would be a memo
+        // invalidation nobody asked for.
+        assert!(!flow_bearing(ScalarParam::ExtrudeDistance));
+        assert!(!flow_bearing(ScalarParam::RevolveAngle));
+        // The operand-carried source IS flow-bearing, which is what
+        // puts a carrier loop's spelling into the profile's key.
+        assert!(operand_flow_bearing(FlowSource::ProfileEdge(
+            verbs::EdgeScalar::Radius
+        )));
     }
 
     /// **One rule, not two spellings**: for every role and every
