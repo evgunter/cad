@@ -3912,6 +3912,18 @@ names no model.
 
 
 
+Block FILLET-B3 pre-draw fields (2026-09-05, logged before the draw;
+opened with every FILLET-B2 slot concluded): slot 0 = FILLET-T
+(`docs/FILLET-T-SPEC.md`; Track T's `D325` + `D326` as one unit — the
+corner fusion's `first_arc` made a value by a seeded `sorted`, and the
+`kef`-argument invariant carried at every call site as `shell.rs`'s
+picker does) — difficulty **S**, task-class **STRUCTURAL**. Slots 1–2
+BANK for Ev's two open rulings: the `surgery.rs` split behind a re-scoped
+compound-bound allowlist (`[ev]` PR 1916; S / STRUCTURAL if approved) and
+the `ThreeConcaveEdges` mint (`[ev]` PR 1935; S / STRUCTURAL if "mint").
+If either is declined its slot stays empty and the block closes short,
+recorded here.
+
 ## FILLET-RIM review ordinal fixed at dispatch (2026-09-04)
 
 FILLET-RIM (`no-public-rim-arc-selector`, PR #1821 open — frozen head
