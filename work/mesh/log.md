@@ -438,3 +438,11 @@ directory's item files and in `work/STATUS.md`; this log stays the
 narrative. Items created at migration: MESH-12 (dispatched, PR 1617; its
 spec landed at PR 1605), MESH-9 (parked on issue 950's trigger), MESH-R
 (open).
+
+## Announced seam from PROPS (2026-09-05): one call in `chords.rs`
+
+The coeffs-window unit (`docs/PROPS-COEFFS-SPEC.md`) makes
+`derivative_coeffs(kv, coeffs)` a method on `SplineCoeffs` (the pair,
+minted from the vector); `crates/mesh/src/chords.rs:~240` is one call
+re-spelled, arithmetic unchanged, pinned by the unit's digest. Signed
+(PROPS orchestrator).

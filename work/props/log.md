@@ -615,3 +615,20 @@ lift's non-tour consumer (`eval/wire.rs` through
 `work/issues/affine-lift-has-a-second-home-in-anchor-embed-affine`;
 `lily.rs`'s sites and constants named on the tour-wide sweep's carrier.
 E rider: no A/B row. Both riders landed; the lane is reclaimed.
+
+**coeffs-window dispatched (2026-09-05)** — the Span sweep's residue,
+`coefficients-carry-their-knot-vector`, as the first kernel unit of
+**block PROPS-B2** (drawn: byte 87 ⇒ fable at slot 0; record branch-side
+on `props/b2-block`). Ruling: option (a) in the structural form the
+curve half took — `SplineCoeffs<'a, E>` minted only by
+`KnotVector::coeffs*` (the length check once, at the mint),
+`CoeffWindow` carrying the pair, every free `hull` door a method on one
+of the two so no free function takes a coefficient array; the three
+residue shapes become `compile_fail` rows with twins; a bit-identity
+digest captured at the merge base through the retired spellings.
+Spec `docs/PROPS-COEFFS-SPEC.md`; L / STRUCTURAL; seams posted to TRIM
+(`ssi.rs`, `ssi/certify.rs`) and MESH (`chords.rs`). The riders lane's
+one finding for CIW filed
+(`no-ci-run-on-a-conflicting-pr`); `teapot.rs`'s three struct-literal
+constants (const-convertible, the tour's) stay with the tour-wide
+sweep's carrier.
