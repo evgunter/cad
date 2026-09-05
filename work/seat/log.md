@@ -425,3 +425,39 @@ document — is pinned, closing SEAT-6's residue. No fork, no Ev-gated
 stop. v6 dual dispatches on frozen head f635e12c: parity byte 95 →
 **R1 fable + R2 opus**. Difficulty M was logged pre-draw. Full row
 recorded at merge; block SEAT-B2 closes at that row.
+
+## SEAT-7 MERGED (2026-09-05, PR 1910) — BLOCK SEAT-B2 CLOSES
+
+Extrude and revolve are on the Verb substrate: the profile arity as a
+third operand SHAPE whose door hands back the record (a sweep's bundle
+holds its body); the flow's second source kind — a carrier loop's
+radius reaches the swept wall's `CylinderRadius` / `TorusMinorRadius`
+through a per-LOOP address, the two unreachable radii (a revolved
+straight edge's; a chain loop's per-step arcs) measured and declined
+with the map they would need named; a third lowering, said plainly;
+the profile node's content key certifying its carrier-radius
+expression (v5, memo-only, its full breadth now stated); and the §6
+end-to-end row — one declared `r` reaching the cyl×cyl germ from a
+document — closing SEAT-6's residue. The corpus goldens needed no
+re-blessing. The dual (R1 fable + R2 opus) found ZERO MAJORs and
+converged tightly: both proved the per-loop anchor alignment correct
+and unguarded with the same hole-first annulus probe, both corrected
+the stated merge base, both retracted the loft costing claim; the fix
+pass landed the anchor guard, the sweep stale-token row, a census
+forbidding profile-edge flows on body verbs, and the real v5 breadth.
+Two process notes: the implementer's worktree was reclaimed for disk
+before the fix pass and the task could not be resumed — a FRESH lane on
+the same arm ran the fix (rule from here: an implementer's worktree
+stays until its fix pass is dispatched; disk comes from target dirs);
+and the fix push produced NO Actions run because the PR had gone dirty
+against a moved main — an absence, not a red, filed as
+`work/issues/dirty-pr-gets-no-actions-run.md` (the lane's empty
+re-run commit did not help and is disclosed as a method deviation).
+Full row: MODEL-AB-LOG SEAT7 (ordinal 1007, sample #137 at merge);
+the SEAT-B2 block-close record publishes draw byte 165 there.
+
+Wave 2's migrations (blend pair, boolean, sweeps) and Wave 3's channel
+are complete; the plan's remaining migrations (split, the shell arm)
+and the side units form block SEAT-B3, whose paper is cut
+(`docs/SEAT-8-SPEC.md`, `docs/SEAT-FW-SPEC.md`, `docs/SEAT-DN-SPEC.md`,
+`docs/SEAT-9-NOTE.md`). Next: the B3 draw and SEAT-8.
