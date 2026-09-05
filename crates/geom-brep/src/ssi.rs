@@ -1067,8 +1067,8 @@ fn pcurve_windows(p: &NurbsCurve2<f64>, pad_u: f64, pad_v: f64) -> Vec<UvRect> {
     for index in kv.first_span()..=kv.last_span() {
         // Emptiness check and span validation are one step.
         let Some(span) = kv.span(index) else { continue };
-        let hu = geom_core::spline::hull::span_hull(kv, &coords[0], span);
-        let hv = geom_core::spline::hull::span_hull(kv, &coords[1], span);
+        let hu = geom_core::spline::hull::span_hull(&coords[0], span);
+        let hv = geom_core::spline::hull::span_hull(&coords[1], span);
         if hu.is_poison() || hv.is_poison() {
             // A window this pass cannot bound is not banked. Dropping
             // it only ever SHRINKS the accounted set, so the accounting
