@@ -338,3 +338,17 @@ territory, residuals 1–2's single-face halves closed by the wedge arm,
 the remainder design-shaped; citations repaired. Next spec written:
 `docs/PROPS-KSTATS-SPEC.md` (the verdict bracket with a stack + the
 escalation channel; L; block slot 2) — dispatches when a slot frees.
+
+**lily-vec3 reviewed (2026-09-05).** Style review on `a700a6c3`:
+APPROVE-WITH-FIXES, MAJOR 0 / MINOR 3 / NOTE 2 / style 8; rubric 4 / 4 / 4.
+Every executable claim reproduced (the artefact table number for number;
+the two-call revert restores 143/143). **The dispatcher's census missed
+a door**: `pncad::authoring::{p3, v3}` already exist beside the `p2` the
+file uses — so the lift has one spelling per dimension and `map` is only
+for computed values; taken as the first fix item. The other fixes are
+the header's over-claim ("exactly once" — two `Affine3<f64>` doors cross
+unlifted), the body's sweep claim (`skinned.rs`, `cutaway.rs` carry the
+shape — the tour-wide sweep is filed), and the probe half's last
+duplicated spellings. A second library finding filed on the doors item:
+no `Affine3::from_frame` and no `SketchPlane` lift. Fix pass
+implementer-inherited.
