@@ -171,7 +171,7 @@ companion table. The spec is deleted and ledgered (`docs/DOC-LEDGER.md`,
 ## Fix pass
 
 The dual review's findings (APPROVE-WITH-FIXES, both arms) landed as
-`props/coeffs-fixpass`. The pair is **two types**: `SplineCoeffs<'a, E>`
+PR #1992 (`props/coeffs-fixpass`). The pair is **two types**: `SplineCoeffs<'a, E>`
 (knots + coefficients, minted by `KnotVector::with_coeffs`) carries the
 nonrational doors and no other; `RationalCoeffs<'a, E>` (knots +
 coefficients + weights, minted by `KnotVector::with_rational_coeffs`)

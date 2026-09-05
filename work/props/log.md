@@ -668,7 +668,8 @@ those words. The lane's three findings for placement (the
 `bspline_eval_ring*` evaluators, the tensor grids, `to_bezier_spans`)
 wait on the dual.
 
-**coeffs-window fix pass (2026-09-05)** — branch `props/coeffs-fixpass`,
+**coeffs-window fix pass (2026-09-05)** — PR
+[#1992](https://github.com/evgunter/cad/pull/1992), branch `props/coeffs-fixpass`,
 the dual's APPROVE-WITH-FIXES (0/4/4 and 1/5/4) on the merged head
 `4521bd658`. Taken in full: the pair split into `SplineCoeffs` /
 `RationalCoeffs` with the rational and nonrational doors partitioned by
