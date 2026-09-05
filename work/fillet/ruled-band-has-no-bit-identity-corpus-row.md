@@ -2,9 +2,12 @@
 id: ruled-band-has-no-bit-identity-corpus-row
 kind: issue
 title: The ruled band has no bitdump row, so blend PRs' C1 never covers ruled_phase
-status: open
+status: closed
 opened: 2026-09-05
 track: T
+closed: 2026-09-05
+pr: 1943
+branch: fillet/t-riders
 ---
 
 ## What
@@ -35,13 +38,21 @@ touched: two of the eight `kef` sites in `surgery.rs` are
 kef` at each end's fold-in), and their bit-identity in that PR rests on
 `fillet_h7_transverse_cap.rs` passing rather than on a dump.
 
-## Fix
+## Fix — landed, PR 1943
 
-One fixture and one `#[test]` in `bitdump.rs`, beside the existing rows
-and armed by the same `BITDUMP_DIR` read: a rod with a flat milled along
-it (the module docs' own description of the ruled band), filleted
-through `fillet_edges`, dumped by the file's `dump_body`. The corpus
-comment at the head of the file gains the row.
+`crates/sweep/tests/bitdump.rs::bitdump_ruled_band`: the rod with a flat
+milled along it (`test_support::rod_with_flat`, the module docs' own
+fixture), both creases carved in one `fillet_edges` call at
+`ROD_FILLET`, dumped by that file's own `dump` and armed by the same
+`BITDUMP_DIR` read as every other row. The corpus comment at the head of
+the file names it. `ruled_band.txt` is now one of the 14 files a blend
+PR's C1 differential compares.
+
+The same PR gave `dump` ONE home. `review_arms2_r1_probes.rs` carried a
+copy that omitted the mass-properties line, so the dome-annulus row —
+the only armed row on the plane–sphere annulus path — could not have
+seen a volume, area or pad move at all. It now calls
+`bitdump::dump`.
 
 ## Fence
 
