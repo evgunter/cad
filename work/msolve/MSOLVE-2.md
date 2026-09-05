@@ -2,10 +2,10 @@
 id: MSOLVE-2
 kind: unit
 title: The member chain: nested patterns and sibling distinctness at every level
-status: parked
+status: spec
 opened: 2026-09-05
-blocked_on: [MSOLVE-1]
 refs: [nested-pattern-mate-heads-refuse]
+branch: msolve/2-member-chain
 ---
 
 
@@ -29,3 +29,24 @@ MSOLVE-1's correctness did not need it, but a mate reference could be
 read at one and the walk refuses it `DanglingHead` today. Rule on it
 here, with the chain: admit as a pose-neutral pass-through, or fence
 with a sentence at `member_of`.
+
+## Carried from MSOLVE-1's reviews
+
+- `Placer::Pattern { node, i }` and `Member.copy` spell the pattern
+  index twice (`mate/solve.rs`); when `copy` becomes the chain it IS
+  the walk's chain filtered to patterns — collapse them.
+- The walk runs three times per reference per solve (`member_of`,
+  `head_of` for `by_pair`, `derived_offset` via `pair_left_factor`);
+  carry the `Walk` in `by_pair`'s value.
+- `mate/solve.rs` is 1300 lines with the member vocabulary as its
+  first third; split `mate/member.rs` out when the chain lands.
+
+## Spec (2026-09-05)
+
+`docs/MSOLVE-2-SPEC.md`. What the read of the landed walk changed:
+a pattern over a pattern does not evaluate (`wire_pattern` takes one
+body), so the reachable nested shape runs through `Node::Part {
+Instance(i) }` — the third identity-transparent node is the road, not
+a side decision. Dispatches after MSOLVE-4 (they share `mate/solve.rs`
+only at the key's consumer; sequenced for the lane, not for a
+dependency).

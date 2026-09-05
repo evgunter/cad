@@ -16,8 +16,8 @@ use editor_core::report::MassBudget;
 use editor_core::stackup::stackup;
 use editor_core::{
     Datum, Dimension, Distribution, DocEdit, DocParam, EntityKind, EvalOptions, Expr, GeomPred,
-    LoopProgram, MeasureExpr, MeasurePrimitive, MeasureRef, NamePat, Node, NodeResult, ParamName,
-    ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId, Selector, SurfaceKindSet, UnitSym,
+    LoopProgram, MeasureExpr, MeasurePrimitive, NamePat, Node, NodeResult, ParamName, ProfileDoc,
+    ProfileLift, ProfileProgram, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym,
     evaluate, select_where,
 };
 use fixture::Recorder;
@@ -471,7 +471,7 @@ fn bracket_with(
             )
             .unwrap();
             faces.sort();
-            MeasureRef::new(node, faces.remove(0))
+            SitedRef::new(node, faces.remove(0))
         };
         vec![wall(hole_a), wall(hole_b)]
     };

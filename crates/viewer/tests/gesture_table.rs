@@ -65,7 +65,7 @@ use crate::common;
 use common::{len, len3, scl3};
 use pncad::document::{
     Alignment, AxisSense, BooleanOp, Dimension, Doc, DocEdit, DocParam, DocumentId, Expr, Frame,
-    MateFrame, MatePrimitive, Node, ParamName, ProfileProgram, RecipeNodeId, SlotId,
+    MateFrame, MatePrimitive, Node, ParamName, ProfileProgram, RecipeNodeId, SitedRef, SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, MM, StableName};
@@ -198,8 +198,8 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
         SessionOp::CommitFreeMove,
         SessionOp::CancelFreeMove,
         SessionOp::AddMate {
-            a: face(node),
-            b: face(node),
+            a: SitedRef::at_mint(face(node)),
+            b: SitedRef::at_mint(face(node)),
             class: ContactClass::Rest,
             alignment: alignment(),
         },
