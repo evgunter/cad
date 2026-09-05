@@ -588,3 +588,47 @@ the "different reason" wording reconciled across the paragraph, the
 neighbour's bullet and the item; the three homes of the decomposition's
 digits pointed at the one paragraph. Fix pass implementer-inherited,
 sequenced after the vec3-doors fix pass in the same lane.
+
+**rotation-floor MERGED (2026-09-05)** —
+[#1980](https://github.com/evgunter/cad/pull/1980), head `2c42a8bff`,
+merge `5a483b12a`, green on the full matrix (run 33966034494). The
+ruling stands as landed: no respell; the diagonal's floor documented
+once at `rotation_about` with the re-verified pair and the 133 %
+regression; the two operators' reasons reconciled; the law row and the
+audit item point at the one home; the composition rider filed as
+`work/issues/mapped-curve-restrict-composes-placements-per-split`
+(`mapped.rs` is in no program's paths). Fix pass all taken. One
+disclosed fence deviation (a doc block in `revolved_point_anchor.rs`,
+tcost's — rot this unit created). E rider: no A/B row.
+
+**vec3-doors MERGED (2026-09-05)** —
+[#1977](https://github.com/evgunter/cad/pull/1977), head `cfd272ce7`,
+merge `db07a1641`, green on the full matrix (run 33966064457). Landed:
+`const fn` on the four vector constructors and on `Mat3::from_cols` /
+`Affine3::from_parts` (a `const` placement reads through them);
+`Affine3::from_frame` as the one home with the 2535-frame bit-identity
+corpus beside it; `SketchPlane::map` with the conditional two-spellings
+doc; `skinned.rs` on the door; the `Vec → Point` conversion refused as a
+ruling at `Point3` (`Point2` points there). Fix pass all taken; the
+lift's non-tour consumer (`eval/wire.rs` through
+`anchor::embed_affine`) filed as
+`work/issues/affine-lift-has-a-second-home-in-anchor-embed-affine`;
+`lily.rs`'s sites and constants named on the tour-wide sweep's carrier.
+E rider: no A/B row. Both riders landed; the lane is reclaimed.
+
+**coeffs-window dispatched (2026-09-05)** — the Span sweep's residue,
+`coefficients-carry-their-knot-vector`, as the first kernel unit of
+**block PROPS-B2** (drawn: byte 87 ⇒ fable at slot 0; record branch-side
+on `props/b2-block`). Ruling: option (a) in the structural form the
+curve half took — `SplineCoeffs<'a, E>` minted only by
+`KnotVector::coeffs*` (the length check once, at the mint),
+`CoeffWindow` carrying the pair, every free `hull` door a method on one
+of the two so no free function takes a coefficient array; the three
+residue shapes become `compile_fail` rows with twins; a bit-identity
+digest captured at the merge base through the retired spellings.
+Spec `docs/PROPS-COEFFS-SPEC.md`; L / STRUCTURAL; seams posted to TRIM
+(`ssi.rs`, `ssi/certify.rs`) and MESH (`chords.rs`). The riders lane's
+one finding for CIW filed
+(`no-ci-run-on-a-conflicting-pr`); `teapot.rs`'s three struct-literal
+constants (const-convertible, the tour's) stay with the tour-wide
+sweep's carrier.
