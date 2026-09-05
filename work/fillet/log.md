@@ -339,6 +339,37 @@ frozen head. Two other programs' finds routed, not fixed: the tour's
 `blend1_r1_wall6_probes.rs:94` selects a rim at a 5e-4 radius
 tolerance (the reviewers measure whether that is real slack).
 
+**H7's vocabulary ratified (2026-09-05).** Ev merged the `[ev]` spec PR
+[#1819](https://github.com/evgunter/cad/pull/1819) without comment, so
+`CornerConfig::TransverseCap` / `RunOutPolicy::CutOffAtTransverseCap` are
+the names `docs/FILLET-H7-SPEC.md` builds on; `needs_ev` cleared on
+`fillet-ruled-spine-arms-no-surgery`. Nothing else on that item waits on Ev.
+
+**RIM dual delivered; union fix pass sent (2026-09-05).** Both reviews
+MERGEABLE-AFTER-FIXES on `9b9ae75e`. Convergent: the rotation claim is
+unconditional in the doc and false under the match's negated-axis
+admission at ≥3 arcs (both lanes); the interval row exercises point
+enclosures only; seven roster lines not six; the wall6 5e-4 disposition
+rests on a premise both measured false (the lily rims are bit-exact).
+Orchestrator's call in the pass: the match drops axis negation (Phase 1
+and both reviews measured none on any corpus rim; spec amended as a
+deviation), the tiling contract is restated as a closed chain on shared
+vertices with the double cover filed, `circle_param` folds the negative
+radius the way `param_near` does, and the seed-finder class is filed not
+swept. Adjudication is written into the unit's row at merge, after the
+pass lands; ordinal 2001, sample assigned in main's merge order.
+
+**H5 dual dispatched (2026-09-05)** on frozen `e44f1a7fe` (PR
+[#1824](https://github.com/evgunter/cad/pull/1824)): ordinal **2002**
+claimed on main, parity byte 110 ⇒ R1 OPUS / R2 FABLE, briefs stored with
+sha256 before dispatch, concurrent, isolated. Emphasis: the C4
+`validate_closed` window after the strut `mev` (the lane measured it is
+inherited from the ladder — the reviewers verify the ladder claim and
+judge whether C4 is met or owed a deviation), `HostSide` passed not
+derived, the `Struts` gate's exact-outer-cycle question, `strut_foot` as
+one home, `refresh_annulus_seams` carrying a `Strut`, the ungated
+default-ε / 1e-12 points and the unbuilt tour.
+
 **Block FILLET-B2 opened branch-side (2026-09-05)** on `fillet/b2-block`
 with every B1 slot dispatched (H4 merged, RIM in its fix pass, H5 under
 review): pre-draw fields first (slot 0 H6 S/STRUCTURAL, slot 1 ATTR

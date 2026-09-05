@@ -441,8 +441,10 @@ clearance. Both **NUMERIC** (certified enclosures, no topology).
 
 ## Lane obligations (both PRs)
 
-`docs/prompts/implementer-discipline.md` binds; no `CI-Config` trailer
-(the run gates the full matrix); measure-first checkpoint before code
+`docs/prompts/implementer-discipline.md` binds; the run gates the full
+matrix (this clause used to forbid a `CI-Config` trailer; that spelling
+was deleted on 2026-09-04 and nothing in CI reads one); measure-first
+checkpoint before code
 (`memories/refusal-text-is-not-cause.md` — R3 is exactly that shape,
 and the lily row is the instrument); lane-private `CARGO_TARGET_DIR`
 outside the worktree; merge origin/main before opening; confirm the

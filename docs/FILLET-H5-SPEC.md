@@ -120,8 +120,9 @@ not the one this spec describes: stop at the report and file it.
    - naming totality via `test_support::assert_naming_totality` on a
      hostless band;
    - the #935 composition row (item 4);
-   - the interval twin (`--features interval`, `CI-Config: lane=interval`
-     on one head, said in the PR);
+   - the interval twin (`--features interval` locally; hosted CI gates the
+     interval lane on every run since 2026-09-04, so nothing needs to be
+     asked for — count twelve `test (…)` jobs and say so in the PR);
    - a mutant: the strut foot at the wrong parameter (e.g. the window's
      far end) reds the hostless rows through tier 3 and nothing else.
 6. **Sentences, present tense only.** H4's exception clause in
