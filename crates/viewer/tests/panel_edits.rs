@@ -408,19 +408,28 @@ fn the_affordance_outranks_the_bookkeeping_refusal_it_causes() {
     assert!(shown.rank() < Refusal::NoGesture.rank());
 }
 
-/// **Refusals render through `Display`, not as a debug dump** — over
-/// the arms a panel can actually provoke, not over one.
+/// **Five refusals a panel can provoke render as sentences** — five,
+/// named, and not a claim about the vocabulary.
 ///
-/// The title used to claim the vocabulary and the body exercised the
-/// `Io` arm alone, which is why it stayed green while
-/// `Refusal::Edit` rendered a `{:?}`-quoted parameter name straight
-/// into the status line. Each row below is a real op through a real
-/// door, so the rendering asserted is the one a person reads.
+/// The title used to say "every refusal" while the body exercised the
+/// `Io` arm alone, which is why it stayed green while `Refusal::Edit`
+/// rendered a `{:?}`-quoted parameter name into the status line. Each
+/// row below is now a real op through a real door, so the rendering
+/// asserted is the one a person reads.
 ///
-/// **Still not the whole vocabulary**: `Refusal` has no `ALL` value to
-/// walk, so a new arm joins this list by being added to it by hand.
-/// That gap is `work/view/refusal-has-no-all-to-walk.md`, and it is
-/// the reason this row's title says which arms rather than "every".
+/// **The universal is not restored, because it is not true.**
+/// `Refusal` has 18 arms and this walks 5; worse, one of them is
+/// `Edit`, which forwards ~50 sub-variants, so what decides the
+/// rendering is the payload's variant one level down —
+/// `crates/pncad-py/src/prose_census.rs` states exactly that failure
+/// mode, and a roster that picks its own samples excludes the failing
+/// mode by construction. It is excluded here too: `EditError`'s
+/// metadata arms (`MetaNotSet`, `MetaNonFinite`, `MetaUnversioned`,
+/// `RebindMetadataCollision`) render a `key: String` through `Debug`,
+/// so `!contains('"')` is FALSE of them today and this row cannot see
+/// it. What covers a claim of that shape is a source census over the
+/// tree, not a sample: `work/view/refusal-has-no-all-to-walk.md`
+/// carries the gap and the two censuses that already exist.
 #[test]
 fn refusals_render_as_sentences() {
     let tol = Tol::witness();

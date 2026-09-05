@@ -1701,9 +1701,12 @@ impl DocSession {
     fn request_eval(&mut self) {
         // **Every route that changes the shown document passes here**,
         // which is why the range probe is discarded here and nowhere
-        // else: a commit, a gesture preview, an undo, an open. The one
-        // caller that does not change the document is `Reevaluate`, and
-        // discarding for it too is the conservative direction — a range
+        // else: a commit, a gesture preview, an undo, an open. TWO
+        // callers do not change the document — `Reevaluate`, and a
+        // save-as into a different directory, which resubmits the same
+        // document against a new resolver (`SessionOp::Save`'s row in
+        // the mid-gesture table argues that half) — and discarding for
+        // them too is the conservative direction: a range
         // recomputed on request costs a button press, a stale one costs
         // a wrong decision.
         self.derived.bounds = None;

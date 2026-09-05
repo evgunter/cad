@@ -6,7 +6,7 @@ status: closed
 opened: 2026-09-04
 closed: 2026-09-05
 pr: 1932
-refs: [refusal-has-no-all-to-walk, set-param-prechecks-what-the-door-refuses, 1846]
+refs: [refusal-has-no-all-to-walk, converged-recourse-has-no-home, set-param-prechecks-what-the-door-refuses, 1846]
 ---
 
 
@@ -111,7 +111,10 @@ the status line needs.
 
 **The two routes.** Converged on what the user must DO, not on the
 sentence: `Refusal::NoSuchParam` now names the same recourse the edit
-door names ("declare it first") over the same fact. The frames stay
+door names ("declare it first") over the same fact. That clause is now
+a literal in each crate, held in step by a test and not by a home,
+because the home would be editor-core API surface rather than
+`Display` wording — `converged-recourse-has-no-home`. The frames stay
 apart and the decision is written at the variant: the door's sentence
 is about an edit that was refused, and a drag has no edit behind it, so
 a gesture borrowing the door's frame would report a refusal of

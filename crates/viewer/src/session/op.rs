@@ -648,12 +648,14 @@ impl SessionOp {
     ///   preview that is not in it; and on a save-as whose parent
     ///   directory differs it rebinds the resolver and re-evaluates,
     ///   which submits the SHOWN document — mid-gesture, the scratch.
-    ///   That second half acts on the preview the first half ignores,
-    ///   and is still safe: it is a re-evaluation, not an edit, so the
-    ///   history is untouched, the gesture goes on previewing against
-    ///   its own base, and the picture the person is dragging is the
-    ///   one the new directory's references are resolved for — which
-    ///   is the directory rule following the file. Whether a save
+    ///   That second half acts on the preview the first half ignores.
+    ///   What makes it safe is the door it goes through:
+    ///   [`DocSession::request_eval`] submits a document and writes no
+    ///   history state, so the drag's base and the committed history
+    ///   are both untouched and the picture being dragged is the one
+    ///   the new directory's references resolve for — the directory
+    ///   rule following the file. That is a property of `request_eval`
+    ///   and is asserted where it lives, not here. Whether a save
     ///   under an open drag should be permitted at all is a question
     ///   this table only records the current answer to.
     ///

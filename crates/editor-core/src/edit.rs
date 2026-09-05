@@ -776,8 +776,17 @@ pub enum EditError {
 // spelling of the caller's own frame, and a `{:?}` name arrived
 // double-quoted inside prose that quotes nothing else — a dump in the
 // middle of a sentence. Both are gone: the frame belongs to whoever
-// received the refusal, and a name is written the way the rest of this
-// crate writes one. What still renders through `Debug` is the SLOT id
+// received the refusal, and a name is written unquoted.
+//
+// **That makes `EditError` the exception in this crate, not the rule,
+// and the exception is deliberate.** Its neighbours still open with a
+// category of their own — `persist:`, `split:`, `inline:`, `parse:`,
+// `product:` — and `refactor.rs` quotes a parameter name exactly the
+// way this impl used to. They are outside the amendment that changed
+// this one, so they keep their spelling until someone decides for
+// them; a reader comparing the two should not read this paragraph as
+// describing the crate. What still renders through `Debug` here is the
+// SLOT id
 // ({slot:?}), which has a prose spelling (`SlotId::label`) it does not
 // use — that is a separate question, outside the amendment that
 // removed the other two, and it is filed rather than taken here.
@@ -796,14 +805,29 @@ impl core::fmt::Display for EditError {
             }
             // Forwarded, not restated: `InputFault` owns this
             // vocabulary and `node.rs` promises every door that renders
-            // it forwards. The door adds only its own frame — which
-            // edit, and which node the fault is about — and joins it
-            // with a colon, because the forwarded sentence carries an
-            // em-dash of its own and two in a row read as a dump.
-            Self::DuplicateInput { node, input } => write!(
+            // it forwards. The door adds its own frame — which edit the
+            // fault is about — and joins it with a colon, because the
+            // forwarded sentence carries an em-dash of its own and two
+            // in a row read as a dump.
+            //
+            // **The frame does not name `node`, and must not.**
+            // `check_node_inputs` is reached from `InsertNode` with
+            // `RecipeNodeId(new.next_id)` — an id that does not exist
+            // and never will if the edit is refused — and from
+            // `SetMembers` with a live one. This rendering cannot tell
+            // which, so a sentence naming that id tells a person to go
+            // and look at a node that may be a phantom. The id the
+            // reader CAN act on is `input`, which the forwarded fault
+            // names, and it is live on both paths.
+            //
+            // The action is the door's to add: `InputFault` states the
+            // rule ("pairwise distinct"), which says what is wrong and
+            // not what to do about it. `TooFew` needs no such clause —
+            // its own sentence carries the count that is required.
+            Self::DuplicateInput { input, .. } => write!(
                 f,
-                "node {} would be left invalid: {}",
-                node.0,
+                "the node this edit writes would be invalid: {}. Replace one of the two with a \
+                 different node.",
                 crate::node::InputFault::Duplicate { input: *input }
             ),
             Self::SetMembersOnNonList { node } => write!(
@@ -811,10 +835,9 @@ impl core::fmt::Display for EditError {
                 "node {} carries no list input, so it has no members to set",
                 node.0
             ),
-            Self::TooFewMembers { node, found } => write!(
+            Self::TooFewMembers { found, .. } => write!(
                 f,
-                "node {} would be left invalid: {}",
-                node.0,
+                "the node this edit writes would be invalid: {}",
                 crate::node::InputFault::TooFew { found: *found }
             ),
             Self::DeleteWouldDangle { id, referenced_by } => write!(
@@ -903,6 +926,11 @@ impl core::fmt::Display for EditError {
                 "parameter {}: a continuous parameter cannot be a count — use a count parameter",
                 name.0
             ),
+            // The closing clause is also `Refusal::NoSuchParam`'s, in
+            // the viewer: one mistake reaches this door by typing and
+            // that lookup by dragging, and the two are converged on the
+            // RECOURSE rather than on the sentence. A viewer test holds
+            // them in step (`panel_edits::refusals_render_as_sentences`).
             Self::DocParamNotDeclared { name } => write!(
                 f,
                 "parameter {} is not declared, so a value edit has no declaration to carry \

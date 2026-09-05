@@ -281,9 +281,7 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
     // One body in both seats: the EDIT DOOR refuses it, as it refuses
     // any node reached twice through one node's edges. Layer 3 does
     // not pre-check it — the rule is `Node::input_fault`'s and is the
-    // same rule for a split or a list — so what the row pins is that
-    // the refusal arrives, carries the door's words, and names the
-    // repeated node.
+    // same rule for a split or a list.
     let refused = session.perform(SessionOp::AddBoolean {
         op: BooleanOp::Subtract,
         a,
@@ -299,10 +297,22 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
         matches!(**error, EditError::DuplicateInput { input, .. } if input == a),
         "{error:?}"
     );
-    let rendered = refused.refusal.as_ref().expect("refused").to_string();
-    assert!(
-        rendered.contains("taken as an input twice") && rendered.contains("pairwise distinct"),
-        "the sentence states the rule the user has to satisfy: {rendered}"
+    // **The WHOLE sentence, deliberately.** This is what a person reads
+    // when they pick one body into both seats, and it is the sentence
+    // that replaced a layer-3 arm — so the row pins it exactly rather
+    // than sampling substrings out of it. Two things substring
+    // assertions let through and this does not: an id the reader cannot
+    // act on (`DuplicateInput` also carries the id `InsertNode` WOULD
+    // have minted, which does not exist and never will if the edit is
+    // refused), and a rule with no action beside it.
+    assert_eq!(
+        refused.refusal.as_ref().expect("refused").to_string(),
+        format!(
+            "the edit was refused: the node this edit writes would be invalid: \
+             node {} is taken as an input twice — a node's inputs are pairwise \
+             distinct. Replace one of the two with a different node.",
+            a.0
+        )
     );
     // And the kind gate speaks FIRST: two profiles in both seats is
     // reported as "that is not a body", the fact a user can act on.
