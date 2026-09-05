@@ -40,8 +40,8 @@ use editor_core::mc::{McConfig, monte_carlo};
 use editor_core::report::{Dials, report_key};
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, DocParam,
-    EntityKind, EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureRef, Node,
-    NodeResult, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, StableName, UnitSym,
+    EntityKind, EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult,
+    ParamName, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, StableName, UnitSym,
     ValuePayload, evaluate,
 };
 use geom_core::{Bounds, Tol};
@@ -155,8 +155,8 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
             vec![
-                MeasureRef::new(placed, fixture::fname(solid, fixture::wall(1))),
-                MeasureRef::new(placed, fixture::fname(solid, fixture::wall(3))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(1))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(3))),
             ],
         )
         .expect("both indices in range"),
@@ -389,8 +389,8 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
             vec![
-                MeasureRef::new(c, bname(c)),
-                MeasureRef::new(block, bname(block)),
+                SitedRef::new(c, bname(c)),
+                SitedRef::new(block, bname(block)),
             ],
         )
         .expect("both indices in range"),
@@ -770,8 +770,8 @@ fn guide(bound: f64) -> Guide {
     });
     let refs = || {
         vec![
-            MeasureRef::new(rail, fixture::fname(rail, fixture::wall(1))),
-            MeasureRef::new(placed, fixture::fname(tongue, fixture::wall(3))),
+            SitedRef::new(rail, fixture::fname(rail, fixture::wall(1))),
+            SitedRef::new(placed, fixture::fname(tongue, fixture::wall(3))),
         ]
     };
     let by_distance = r.insert(

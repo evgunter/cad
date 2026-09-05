@@ -47,9 +47,9 @@ use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::stackup::stackup;
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, DocParam,
-    EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureRef,
-    MeasureUnavailableAt, Node, NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram,
-    RecipeNodeId, UnevaluatedReason, UnitSym, ValuePayload, evaluate,
+    EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureUnavailableAt, Node,
+    NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef,
+    UnevaluatedReason, UnitSym, ValuePayload, evaluate,
 };
 use geom_core::{Bounds, Tol};
 
@@ -155,8 +155,8 @@ fn dumbbell() -> Dumbbell {
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
             vec![
-                MeasureRef::new(placed, fixture::fname(solid, fixture::wall(2))),
-                MeasureRef::new(placed, fixture::fname(solid, fixture::wall(9))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(2))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(9))),
             ],
         )
         .expect("both indices in range"),
@@ -489,8 +489,8 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_typed() {
                 // profile vertex 0 — so the reference resolves and the
                 // refusal is about its KIND rather than about a name
                 // that names nothing.
-                MeasureRef::at_mint(fixture::prism_edges(solid, 4).remove(2)),
-                MeasureRef::at_mint(fixture::fname(solid, fixture::wall(2))),
+                SitedRef::at_mint(fixture::prism_edges(solid, 4).remove(2)),
+                SitedRef::at_mint(fixture::fname(solid, fixture::wall(2))),
             ],
         )
         .expect("both indices in range"),
