@@ -45,6 +45,12 @@
 //! whether the index still describes the run on screen, and a stale
 //! one is dropped and rebuilt whole. Re-pairing by hand is the
 //! failure #1098 exists to name.
+//!
+//! Module kind: **vocabulary**, with a recorded exception — it
+//! takes a `&DocSession` as a read-only argument at the sites
+//! `scripts/gates/viewer-module-kinds.sh` records, and names no
+//! other driver type and no `app`-only crate
+//! (`crates/viewer/README.md`, Two vocabularies that read the session).
 
 use std::collections::BTreeMap;
 

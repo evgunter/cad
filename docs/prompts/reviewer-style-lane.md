@@ -7,21 +7,8 @@ review, alongside the claims to falsify you were handed.
 must carry the `sure` / `likely` / `unsure` confidence vocabulary.** That is how
 a skipped read is visible in the output rather than invisible.
 
-**Every finding carries one — including the ones filed under "off-target" or
-"worth mentioning".** A reviewer who caught a false finding in its own report
-traced it precisely: of nine findings, the one with **no confidence marker** was
-the only false one, filed under a heading that let it skip the vocabulary. Its
-own diagnosis:
-
-> The tag is where I would have had to ask "how do I know this," and routing the
-> finding around the tag routed it around the question. **A finding that resists
-> carrying a confidence marker is a finding that hasn't been checked.**
-
-The same report supplies the tell to watch for in yourself: it justified that
-finding with *"reporting because it cost me a build"* — which was false (the
-thing had failed loudly and correctly, costing one round trip), and which did
-the work of making an inference read as first-hand experience. A clause
-asserting how you came by a fact is not evidence that you came by it that way.
+**Every finding carries one, including those filed under "off-target" or "worth
+mentioning".**
 
 Dispatcher-facing material — why this lane exists, how to calibrate it, and how
 to dispatch it — is in `docs/REVIEW-STYLE-DISPATCH.md`.

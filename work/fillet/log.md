@@ -307,3 +307,65 @@ band with the transverse cut-off, out as an `[ev]` PR because it
 proposes `CornerConfig::TransverseCap` / `RunOutPolicy::CutOffAtTransverseCap`
 for ratification; `needs_ev` set on the item for that alone). Block
 FILLET-B2 opens with ATTR, H6 and H7 once slot 2 concludes.
+
+**H5 stopped at Phase 1 and was re-scoped, same lane (2026-09-04).** The
+lane measured that the spec's "native instance" does not exist (a full
+revolve splits the whole loop at its seam, so the plane-hosted rim
+arises only after `merge_coplanar_faces`), that the repaired boss and
+dimple route to the LADDER and refuse on a FALSE ring clearance (a
+nested trim circle judged by external separation — filed as
+`ring-clearance-refuses-a-nested-trim-circle`, its own numeric unit),
+and that the seam-split resolution refuses the shape at its half-band
+gate rather than at `wall_seam`. Six repaired fixtures carry the defect
+on both material sides (the bowl floor is the concave one). Spec
+amended §"Re-scope at Phase 1"; the Phase 2 design stands; PR
+[#1824](https://github.com/evgunter/cad/pull/1824) is the unit's PR.
+`D323`/`D324` turn out closed by code-quality (PR 1783) — this log's
+opening note that they land as FILLET riders is superseded.
+
+**RIM landed (2026-09-04)** on PR [#1821](https://github.com/evgunter/cad/pull/1821),
+head `9b9ae75e`, green at the asked-for interval lane. Phase 1 measured
+every body class's rim arcs bit-equal on centre, radius and axis (never
+negated; `u_ref` differs across chart seams and is not compared), so
+the EXACT door is the spec's own outcome: `topo::query::rim_of` with
+its four typed refusals, a topological tiling test (shared vertices,
+key equality — the arcs' params live in their own frames, so a
+parametric test would need a decision), eleven hand-rolled scans
+turned into calls including the tour's bud mouth, and
+`test_support::rim_arcs_at` now seeding one arc into the door. The PR
+carried H4's title from a brief-template slip — corrected at dispatch.
+Ordinal **2001** claimed; the v6 dual is dispatched concurrently on the
+frozen head. Two other programs' finds routed, not fixed: the tour's
+`blend1_r1_wall6_probes.rs:94` selects a rim at a 5e-4 radius
+tolerance (the reviewers measure whether that is real slack).
+
+**H7's vocabulary ratified (2026-09-05).** Ev merged the `[ev]` spec PR
+[#1819](https://github.com/evgunter/cad/pull/1819) without comment, so
+`CornerConfig::TransverseCap` / `RunOutPolicy::CutOffAtTransverseCap` are
+the names `docs/FILLET-H7-SPEC.md` builds on; `needs_ev` cleared on
+`fillet-ruled-spine-arms-no-surgery`. Nothing else on that item waits on Ev.
+
+**RIM dual delivered; union fix pass sent (2026-09-05).** Both reviews
+MERGEABLE-AFTER-FIXES on `9b9ae75e`. Convergent: the rotation claim is
+unconditional in the doc and false under the match's negated-axis
+admission at ≥3 arcs (both lanes); the interval row exercises point
+enclosures only; seven roster lines not six; the wall6 5e-4 disposition
+rests on a premise both measured false (the lily rims are bit-exact).
+Orchestrator's call in the pass: the match drops axis negation (Phase 1
+and both reviews measured none on any corpus rim; spec amended as a
+deviation), the tiling contract is restated as a closed chain on shared
+vertices with the double cover filed, `circle_param` folds the negative
+radius the way `param_near` does, and the seed-finder class is filed not
+swept. Adjudication is written into the unit's row at merge, after the
+pass lands; ordinal 2001, sample assigned in main's merge order.
+
+**H5 dual dispatched (2026-09-05)** on frozen `e44f1a7fe` (PR
+[#1824](https://github.com/evgunter/cad/pull/1824)): ordinal **2002**
+claimed on main, parity byte 110 ⇒ R1 OPUS / R2 FABLE, briefs stored with
+sha256 before dispatch, concurrent, isolated. Emphasis: the C4
+`validate_closed` window after the strut `mev` (the lane measured it is
+inherited from the ladder — the reviewers verify the ladder claim and
+judge whether C4 is met or owed a deviation), `HostSide` passed not
+derived, the `Struts` gate's exact-outer-cycle question, `strut_foot` as
+one home, `refresh_annulus_seams` carrying a `Strut`, the ungated
+default-ε / 1e-12 points and the unbuilt tour.

@@ -16,12 +16,15 @@ because no unit's diff contains both halves.
 ## What happens
 
 `add_revolve` requires a `NodeKindWanted::SketchAxis` seat
-(`crates/viewer/src/session.rs:2867`), and `admits`
-(`crates/viewer/src/session.rs:425`) satisfies that seat for
+(`crates/viewer/src/session.rs:1196`, the `require_kind` at `:1200`;
+the seat itself is `crates/viewer/src/seats.rs:161`), and `admits`
+(`crates/viewer/src/session/refuse.rs:61`, the `SketchAxis` arm at
+`:65`) satisfies that seat for
 `Datum::AxisInPlane` and nothing else.
 
 The panel that authors datums offers four kinds — `DatumKind` is
-Plane, Axis, Point, Frame (`crates/viewer/src/app.rs:742`) — and
+Plane, Axis, Point, Frame (`crates/viewer/src/forms.rs:52`; the four
+arms are built in `crates/viewer/src/pane/create.rs:354-363`) — and
 `AxisInPlane` is not among them. `add_datum_ui` is the only
 `DatumSpec` construction site in `src/`; every
 `DatumSpec::AxisInPlane` in the tree is in `crates/viewer/tests/`.
@@ -62,3 +65,12 @@ this program's unit 1, and `work/README.md` forbids copying an item
 between slates. Re-home by header edit when CHROME next moves; the
 announce is owed either way, because the class guard above is a
 coverage row and coverage is CHROME's word.
+
+
+## Citations re-pointed after the 1c split (VIEW orchestrator, 2026-09-04)
+
+This file was written against the pre-split tree. The `file:line`
+citations above are corrected in place; this note exists so a reader
+who remembers the old ones can tell a correction from a claim change.
+Nothing about the finding moved — `stale-file-citations-after-the-split`
+is the general case, and this is VIEW's own half of it being paid.

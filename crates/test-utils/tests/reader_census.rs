@@ -99,6 +99,19 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/editor-core/tests/docm1_face_frame.rs",
+        disposition: Shared, // the two read-door module docs, prose view
+    },
+    Entry {
+        path: "crates/editor-core/tests/docm4_evaluation_identity.rs",
+        disposition: Shared, // Evaluation-literal census, code view
+    },
+    Entry {
+        path: "crates/editor-core/tests/docm5_subject.rs",
+        disposition: Shared, // the landing's gather call sites and the no-sharing
+                             // needles, code view
+    },
+    Entry {
         path: "crates/editor-core/tests/fix_loop_polygon_expr.rs",
         disposition: Shared, // polygon-close uniqueness census, code view
     },
@@ -250,6 +263,10 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/viewer/tests/all.rs",
         disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/viewer/tests/landing_gathers.rs",
+        disposition: Shared, // the gather counter's three gated sites, code view
     },
     Entry {
         path: "tools/tess-meter/tests/derivations.rs",

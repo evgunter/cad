@@ -1460,7 +1460,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "checks_error_tag",
-        values: &["band", "product_unavailable", "root_without_value"],
+        values: &[
+            "band",
+            "evaluation_of_another_document",
+            "product_unavailable",
+            "root_without_value",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -1483,6 +1488,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "doc_param_dimension_mismatch",
             "doc_param_not_declared",
             "doc_param_value_kind_mismatch",
+            "duplicate_input",
             "duplicate_witness_entry",
             "empty_placement_list",
             "empty_witness_bulk",
@@ -1511,8 +1517,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rebind_no_references",
             "rebind_target_missing_node",
             "rebind_unknown_name",
+            "set_members_on_non_list",
             "slot_dimension_mismatch",
             "structural_slot_needs_structural_edit",
+            "too_few_members",
             "unknown_doc_param",
             "unknown_node",
             "unknown_payload_param",
@@ -1634,6 +1642,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_datum_too_small_to_lever",
             "mate_frame_degenerate",
             "mate_indeterminate",
+            "mate_poses_of_another_document",
             "mate_self",
             "mate_table_lacks",
             "mate_under",
@@ -1657,14 +1666,21 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "declare_resolve",
             "declare_unsupported_pair",
             "degenerate_direction",
+            "derived_frame_section",
+            "empty_half",
             "empty_operand",
             "escalated",
             "expr",
             "extrude",
+            "face_frame_kind",
+            "face_frame_not_planar",
+            "face_frame_readback",
+            "face_frame_resolve",
             "fillet",
             "fillet_selection_empty",
             "fillet_selection_kind",
             "fillet_selection_resolve",
+            "instance_out_of_range",
             "loft",
             "measure_clearance_refused",
             "measure_malformed",
@@ -1808,6 +1824,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "product_error_tag",
         values: &[
             "contact_lineage",
+            "evaluation_of_another_document",
             "graft_refused",
             "no_body_roots",
             "product_invalid",
@@ -2496,8 +2513,8 @@ fn read_tag_table(source: &str) -> TagTable {
 /// `part_fault`, `placement_rule_fault`, `product`,
 /// `recorded_program`, `refused_ref`, `resolve_fault`, `root_fault`,
 /// `solid_name`, `split`, `stl`, `update` — have none, and between
-/// them hold 192 of the table's 354 literals, `edit_error_tag`'s
-/// fifty and `node_error_tag`'s fifty-four included. For those the
+/// them hold 199 of the table's 361 literals, `edit_error_tag`'s
+/// fifty and `node_error_tag`'s sixty-one included. For those the
 /// inventory below is the ONLY thing between a rename and a broken
 /// caller. That is a large gain over nothing; it is not the same claim
 /// as "the tag table is verified", and this comment refuses to make
@@ -2534,7 +2551,7 @@ fn the_whole_tag_table_matches_its_committed_inventory() {
 
     // The floors: a reader that came back with nothing, or with a
     // plausible-looking handful, must red rather than pass vacuously.
-    // They are set well under the real numbers (37 functions, 354
+    // They are set well under the real numbers (37 functions, 361
     // literal occurrences) so ordinary churn does not touch them.
     assert!(
         table.functions.len() >= 30,

@@ -402,10 +402,25 @@ impl core::fmt::Display for RefusedRef {
     }
 }
 
+impl AssemblyError {
+    /// How this door renders a document that did not gather: the
+    /// [`AssemblyError::Product`] arm's own sentence, over a refusal
+    /// the caller still owns.
+    ///
+    /// One copy of that sentence, and [`Display`](core::fmt::Display)
+    /// reads it from here: a caller that gathered for itself and holds
+    /// the refusal reports the gate's verdict in the gate's words
+    /// without re-spelling them.
+    #[must_use]
+    pub fn product_refusal(source: &crate::ProductError) -> String {
+        format!("assembly: {source}")
+    }
+}
+
 impl core::fmt::Display for AssemblyError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Product(e) => write!(f, "assembly: {e}"),
+            Self::Product(e) => f.write_str(&Self::product_refusal(e)),
             // The name forwards `StableName`'s `Display` rather than
             // re-spelling the kind-plus-minting-node phrase, and the
             // article comes from the kind because the value decides
@@ -464,6 +479,11 @@ impl core::error::Error for AssemblyError {}
 /// evaluated body's contact record set*) — and run the kernel's
 /// tier-3′ at-rest door over the two together.
 ///
+/// **Gather, then [`assemble_gathered`], and nothing else.** The gate
+/// itself lives at that door; this one exists for a caller with no
+/// product in hand and adds only the gather and
+/// [`AssemblyError::Product`], its own arm.
+///
 /// **This door mints nothing of its own.** Construction composes and
 /// verification runs once: minting belongs to the gather, so a
 /// sub-assembly's declarations are already in the product this gate is
@@ -494,9 +514,12 @@ impl core::error::Error for AssemblyError {}
 ///
 /// # Errors
 ///
-/// [`AssemblyError`]: the gather's own refusals, a mate reference that
-/// names no product face, a class with no at-rest record
-/// ([`crate::mate::class_admission`]), and the kernel's tier-3′
+/// [`AssemblyError`]: the gather's own refusals — including
+/// [`crate::ProductError::EvaluationOfAnotherDocument`], which is the
+/// ONE path this gate reads an evaluation through, so a mispaired
+/// (document, evaluation) never reaches a predicate here — a mate
+/// reference that names no product face, a class with no at-rest
+/// record ([`crate::mate::class_admission`]), and the kernel's tier-3′
 /// findings attributed back to their mates.
 ///
 /// The success arm is narrower than the signature, and the type says
@@ -510,6 +533,38 @@ pub fn assemble<P, T: Decide + AtRestPolicy>(
 ) -> Result<Assembly<T>, AssemblyError> {
     let product =
         product_recorded(doc, evaluation, tol).map_err(|e| AssemblyError::Product(Box::new(e)))?;
+    assemble_gathered(product, tol)
+}
+
+/// **The A5 gate over a product the caller already gathered** — the
+/// canonical door, and everything [`assemble`] is once its gather is
+/// done.
+///
+/// [`assemble`] is the wrapper for a caller with no product in hand;
+/// this is the one for a caller that has one, so a document is gathered
+/// once however many of its consumers need the product. The gate, its
+/// verdicts, its attributions and its refusal order are the same — they
+/// are here, and there is one copy of them.
+///
+/// The product is CONSUMED: its body, names and records become the
+/// [`Assembly`] on the success arm. A caller with another consumer of
+/// the same product runs that consumer first.
+///
+/// This door reads no `(doc, evaluation)` pair and so re-states nothing
+/// about the DI3 pairing: the gather is where an evaluation of another
+/// document is refused, and this door's subject is whatever that gather
+/// returned.
+///
+/// # Errors
+///
+/// [`AssemblyError`] except [`AssemblyError::Product`], which is the
+/// wrapper's arm: a mate reference that names no product face, a class
+/// with no at-rest record ([`crate::mate::class_admission`]), and the
+/// kernel's tier-3' findings attributed back to their mates.
+pub fn assemble_gathered<T: Decide + AtRestPolicy>(
+    product: Product<T>,
+    tol: Tol,
+) -> Result<Assembly<T>, AssemblyError> {
     let Product {
         body,
         names,

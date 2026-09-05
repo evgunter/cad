@@ -2,8 +2,10 @@
 id: blamed-mates-lost-its-exhaustive-arm
 kind: issue
 title: "main does not compile at --workspace --features interval: blamed_mates lost its exhaustive arm when MateFault grew Unleverable"
-status: open
+status: closed
 opened: 2026-09-04
+closed: 2026-09-04
+refs: [ci-draw-can-hide-a-compile-break-on-main, mate-fault-accessors-wildcard-into-silence]
 ---
 
 ## The breakage
@@ -71,11 +73,67 @@ is the process half below, which the duplicate work also demonstrates:
 two agents spent effort on one line because a red `main` was invisible
 until each independently drew the lane that builds it.
 
-## The other half, unfixed
+## The other half — swept (VIEW orchestrator, 2026-09-04)
 
-Worth a look while the file is open: is `blamed_mates` the only
-exhaustive match on `MateFault` outside `editor-core`? If there are
-others, they took the same risk and got lucky, and the pattern (a
-downstream crate matching a kernel enum exhaustively, with the
-kernel free to grow it) may want a `#[non_exhaustive]` conversation
-rather than one more arm.
+The question was whether `blamed_mates` is the only exhaustive match on
+`MateFault` outside `editor-core`. **It is not: there are two, and the
+second is not this program's.**
+
+- `crates/viewer/src/tree.rs:316` — `blamed_mates`, this issue's.
+- `crates/pncad-py/src/tags.rs:400` — the mate-fault tag function, and
+  **LIB's** ground (`crates/pncad-py/*`). It took the identical risk
+  and it did get its arm: `MateFault::Unleverable { .. } =>
+  "mate_datum_too_small_to_lever"` at `:411`. So both exhaustive
+  matches are correct as of this sweep, and both were repaired by
+  someone who happened to be looking.
+
+Everything else that names `MateFault` outside `editor-core` wildcards:
+`crates/pncad-py/src/py/mate.rs` (eight `_ => None` arms at :261, :524,
+:535, :546, :605, :614, :623, :632, :641) and
+`crates/viewer/src/app.rs:2880`. Those cannot break the build — and
+that is the point worth carrying, because **they fail the other way**:
+a new fault arm that names a mate returns `None` from every one of
+those accessors, silently, which is exactly the "drawing every reached
+row as downstream of nothing" that `blamed_mates`'s doc comment says
+its exhaustiveness exists to prevent. The wildcards are not the safe
+choice here; they are the same defect with the compiler switched off.
+
+**The `#[non_exhaustive]` question is real and is not VIEW's to answer.**
+`crates/editor-core/src/mate.rs` is DOCM's glob, and there is already a
+convention to argue from: `pncad-py`'s own module doc names
+`select_refusal_tag`'s enum as a documented `#[non_exhaustive]`
+exception (`tags.rs:34`, `:137`), so the tree has both patterns and no
+stated rule for choosing. Announced to DOCM and LIB rather than
+decided here.
+
+**The CI half stays open and is CIW's**: a draw that can hide a hard
+compile break on `main` for an unbounded number of merges. This issue
+states it well and this program is not the owner; the announce is
+owed with the others.
+
+## Closed — both residues have files now (VIEW orchestrator, 2026-09-04)
+
+The code half was closed on arrival, above. `main` compiles at this
+lane today: the arm is at `crates/viewer/src/tree.rs:325`, and
+`crates/pncad-py/src/tags.rs:411` has its sibling.
+
+The two halves this file said were "announced, not decided here" were
+announced **in prose in this file and nowhere else**, which
+`work/README.md` says is not a schedule: *"a residue a lane discloses
+inside its own item's prose reads as a record of work done, not as an
+open thread, so it is invisible to the re-homing and dies with the
+directory."* This item would have been swept away carrying both. They
+now have their own files, in `work/issues/` because neither owner's
+slate is VIEW's to write on:
+
+- `work/issues/ci-draw-can-hide-a-compile-break-on-main.md` — the
+  sampling hole. **CIW's.**
+- `work/issues/mate-fault-accessors-wildcard-into-silence.md` — the
+  ten `_ => None` accessors and the `#[non_exhaustive]` rule.
+  **LIB's ground, DOCM's ratification.**
+
+One correction to the sweep above, for whoever reads the new file:
+`crates/viewer/src/app.rs:2880` is cited there as a `MateFault`
+wildcard and **there is no longer any `MateFault` in `app.rs`** — the
+1c split moved that code, which is `stale-file-citations-after-the-split`
+one more time, in this program's own file.

@@ -62,8 +62,8 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
     let (doc, decl) = insert(
         doc,
         Node::declare_rest(vec![(
-            fixture::fname(cube, editor_core::RoleSeg::Cap(editor_core::CapEnd::Top)),
-            fixture::fname(pip, editor_core::RoleSeg::Cap(editor_core::CapEnd::Bottom)),
+            fixture::fname(cube, editor_core::RoleSeg::Cap(editor_core::CapEnd::End)),
+            fixture::fname(pip, editor_core::RoleSeg::Cap(editor_core::CapEnd::Start)),
         )]),
     );
     let (doc, sub) = insert(

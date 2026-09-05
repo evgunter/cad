@@ -561,6 +561,13 @@ BOUND_AS = {
     # `EditError` arms that share the tag namespace, so binding it
     # changed nothing about this entry except who noticed.
     #
+    # `InputFault` (DM5) is the same shape one door further: the rule
+    # is stated once on the node and rendered by three doors, and the
+    # two a Python caller can reach are edit doors, so it crosses as
+    # `EditError.variant` — `duplicate_input` and `too_few_members`.
+    # The third renderer is the load validator's `SnapshotError`, which
+    # this façade does not carry at all.
+    "InputFault": "EditError.variant",
     "NodeMap": "SplitOutcome.node_map",
     "PlacementRuleFault": "EditError.variant",
     "RootFault": "EditError.variant",
@@ -712,6 +719,29 @@ FAMILIES = {
         "caller cannot yet do is WRITE one — the same asymmetry "
         "B-DISTRIBUTIONS records, and without B-DISTRIBUTIONS's sharp "
         "edge, because no existing write door silently drops a measure"
+    ),
+    "B-FACE-FRAME": (
+        "the derived sketch frame's Python surface (DOCM-1, "
+        "DOCM-REFERENCES-DESIGN DM1/DM1a/DM2); closing it binds "
+        "`Datum.face_frame` (a `FaceFrame` constructor taking the body "
+        "node, a face `StableName` and a spin angle), `Pose.sense` (the "
+        "face's orientation sense the read-back now carries beside its "
+        "axis, so a Python caller forms the outward normal as "
+        "`sense * axis` exactly as Rust does), and the carrier-kind read "
+        "`face_carrier_kind` (a face name in, its stored `SurfaceKind` "
+        "tag out — the value \"is this face planar\" is a comparison "
+        "of). Today Python can evaluate and read a document that "
+        "carries a derived frame, and cannot author one or ask a face "
+        "its kind"
+    ),
+    "B-PART": (
+        "the projection node's Python surface (DOCM-2, "
+        "DOCM-REFERENCES-DESIGN DM3); closing it binds `Node.part` (a "
+        "`PartSelect` constructor pair: a split's half by `SplitHalf`, "
+        "a pattern's instance by a Count expression) and the "
+        "`SlotId.Instance` structural slot it carries. Today Python can "
+        "evaluate and read a document that carries a Part — its value "
+        "is a plain body — and cannot author one"
     ),
 }
 
@@ -1408,6 +1438,20 @@ NOT_BOUND = {
     # neighbouring door whose opening would make this disposition stop
     # being honest, in exactly the shape `EvalOutcome`'s entry records.
     "Member": INTERIOR,
+    # DI3's pairing payload: the two document ids behind a refused
+    # pair — a prior the memo dropped (`Evaluation.prior_refused` on
+    # the Rust side), a gather handed the wrong evaluation, a solve
+    # handed the wrong document. Nothing in Python hands one out. The
+    # two ERRORING doors project their arm as a tag word
+    # (`evaluation_of_another_document`,
+    # `mate_poses_of_another_document`), which is what a Python caller
+    # branches on; the memo's arm is not an error at all, and the fact
+    # it records reaches Python where it always did, as
+    # `Evaluation.reused` being 0 with every node recomputed. Not a
+    # `gap:`: the debt, if there is one, is the `evaluate` door's
+    # PROSE about a foreign prior, which `pncad.pyi`'s own paragraph
+    # owns, not a missing binding for this payload.
+    "Mispaired": INTERIOR,
     "NameTable": INTERIOR,
     "Operand": INTERIOR,
     # The evaluation environment, and the entry that had been on the
@@ -1452,6 +1496,41 @@ NOT_BOUND = {
     # The predicate; `Member` above carries the argument for both.
     "member_of": INTERIOR,
     "validated": INTERIOR,
+    # **The gathered-product doors, one family.** `Product` is the
+    # document's product with everything the gather knows about it,
+    # `product_recorded` is the gather that builds one, `Subject` is
+    # what the check registry runs over, and `run_checks_on` /
+    # `assemble_gathered` are the two doors that take a product a
+    # caller already holds. Python binds the WRAPPERS of both —
+    # `run_checks` and `assemble` — and each gathers for itself, so
+    # there is nothing here a Python caller cannot ASK: every question
+    # these five answer is answered by a door already bound, and
+    # `product` / `product_named` are the curated gathers for a caller
+    # who wants the body or the table.
+    #
+    # What Python cannot do through them is ask both questions on ONE
+    # gather, which is a COST rather than an unsayable question — and
+    # it is a cost with a Rust-side reason: `assemble_gathered`
+    # CONSUMES the product, so sharing one is an ownership order, and
+    # an ownership order is exactly what does not cross this boundary.
+    # `resolve_loops` above is the same disposition for the same
+    # reason.
+    "Product": INTERIOR,
+    "Subject": INTERIOR,
+    "assemble_gathered": INTERIOR,
+    "product_recorded": INTERIOR,
+    "run_checks_on": INTERIOR,
+    # The gather's debug-only witness: how many products this thread
+    # has gathered, for a consumer asserting it gathers once per
+    # operation. Not a question about a document at all.
+    #
+    # `cfg(debug_assertions)` gates the counter, the increment and this
+    # reader alike — which is NOT the same as "absent from a release
+    # build" in this workspace, whose `[profile.release]` keeps
+    # `debug-assertions` on until publish. Every binary this repo
+    # produces carries it; cargo's own release defaults are what strip
+    # it. Either way it is not a Python door.
+    "gathers_on_this_thread": INTERIOR,
     # --- gap: the SWEEP half of G2, still banked -------------------
     # The tube half closed at LIB-TUBE; `sweep_body` did not, and the
     # reason is not "no binding was written" — `wire_sweep` refuses
@@ -1476,6 +1555,14 @@ NOT_BOUND = {
     "MinClearanceRefusal": f"{GAP}: B-MEASURES measurement authoring",
     "MeasureUnavailableAt": f"{GAP}: B-MEASURES measurement authoring",
     "Distribution": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
+    # --- gap: the derived sketch frame's read door (census-owned) --
+    # The Rust door is DOCM-1's; its Python twin, with `Datum.face_frame`
+    # and `Pose.sense`, is LIB's and the family charters all three.
+    "face_carrier_kind": f"{GAP}: B-FACE-FRAME the derived frame's surface",
+    # --- gap: the projection node's selector (census-owned) --
+    # The Rust node is DOCM-2's; its Python twin, `Node.part`, is
+    # LIB's and the family charters it.
+    "PartSelect": f"{GAP}: B-PART the projection node's surface",
     "WrittenAngle": f"{GAP}: B-NOTATION authored notation",
     "WrittenLength": f"{GAP}: B-NOTATION authored notation",
     "DistributionFault": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",

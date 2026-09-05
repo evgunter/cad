@@ -57,6 +57,9 @@
 //! edits old; the session that owns the seam compares generations and
 //! drops it. That rule is a pure function of two integers, which is
 //! why it is testable without a thread in sight.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use std::sync::Arc;
 
@@ -192,7 +195,8 @@ fn same_resolver(a: &Option<Arc<dyn PartResolver>>, b: &Option<Arc<dyn PartResol
 /// when the run completes.
 ///
 /// The seam's one call into `evaluate`, shared by both implementations
-/// so the memo discipline has a single home. Two rules, both here:
+/// so the memo discipline the SEAM owns has a single home. Two of the
+/// three rules are that discipline and live here:
 ///
 /// - **prime from the previous COMPLETED run only**;
 /// - **prime only under the SAME RESOLVER** ([`same_resolver`]). A
@@ -204,6 +208,20 @@ fn same_resolver(a: &Option<Arc<dyn PartResolver>>, b: &Option<Arc<dyn PartResol
 ///   resolver replacement therefore costs one full re-evaluation, by
 ///   design: the next run re-resolves every reference against the new
 ///   directory.
+///
+/// The third rule is **prime only from a run of the SAME DOCUMENT**,
+/// and its home is the KERNEL, not here (DI3): `evaluate` drops a
+/// prior whose document id is not the one being evaluated, before it
+/// builds the schedule, and reports the drop as
+/// `Evaluation::prior_refused`. This function does not re-check it —
+/// there would be no point, the kernel's check is the authority — but
+/// it does READ the report, because a `PriorRun` that got refused is
+/// one the seam should not keep offering: the session's document was
+/// replaced under it (a file opened into the same session), so the
+/// held run is about a document nobody is looking at any more and
+/// every later run would pay the same refusal. Dropping it makes the
+/// NEXT run's `prime` honestly `None` instead of a value the kernel
+/// throws away.
 fn run_once(
     request: &EvalRequest,
     prior: &mut Option<PriorRun>,
@@ -223,6 +241,14 @@ fn run_once(
         },
         request.tol,
     ));
+    // The kernel refused what we primed with: the held run is of
+    // another document, so drop it rather than offer it again. Read
+    // before the store below, which overwrites it on a completed run
+    // anyway — the drop is what a CANCELED run needs, since that path
+    // leaves `prior` untouched.
+    if evaluation.prior_refused.is_some() {
+        *prior = None;
+    }
     if evaluation.outcome == EvalOutcome::Completed {
         *prior = Some(PriorRun {
             resolver: request.resolver.clone(),

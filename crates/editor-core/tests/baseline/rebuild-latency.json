@@ -46,9 +46,9 @@
       "cone": 3
     },
     "die_composed_tour": {
-      "about": "the demo tour's die: 21 pips cut in one grouped tool, then 12 box edges and 42 rim arcs blended behind names 20 unions deep",
-      "nodes": 51,
-      "cone": 24
+      "about": "the demo tour's die: 21 pips fused by one n-ary union and cut in one grouped tool, then 12 box edges and 42 rim arcs blended behind member-keyed names",
+      "nodes": 32,
+      "cone": 5
     },
     "die_fillet": {
       "about": "M5 shape (v) stage 1: every edge of a unit cube blended at r = 0.125",
@@ -69,6 +69,16 @@
       "about": "the die's multi-shell cutting tool as one PlacedUnion(Explicit) node",
       "nodes": 9,
       "cone": 2
+    },
+    "face_sketch": {
+      "about": "DOCM-1: a boss sketched ON a box's top face through a derived frame (Datum::FaceFrame)",
+      "nodes": 6,
+      "cone": 4
+    },
+    "part_select": {
+      "about": "DOCM-2: a split's two halves and a pattern's middle instance as bodies (Node::Part)",
+      "nodes": 12,
+      "cone": 5
     },
     "heat_sink": {
       "about": "parametric fin strip: Pattern instances + explicit union chain",

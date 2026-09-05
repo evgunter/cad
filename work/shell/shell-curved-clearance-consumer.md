@@ -69,7 +69,7 @@ either option is chosen:
 
 `crates/topo/src/shell.rs` (the gate site, which cites 1055 by name)
 and `crates/editor-core/src/clearance.rs` (the evaluator). Rides with
-`work/verbs/shell-curved-wall-clearance-window.md`, which is the
+`work/shell/shell-curved-wall-clearance-window.md`, which is the
 issue-1055 record and stays parked until this is answered.
 
 ## The question for Ev (SHELL orchestrator, 2026-09-04)
