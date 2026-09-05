@@ -1,10 +1,10 @@
 ---
 id: face-kind-read-has-two-homes
-kind: issue
+kind: unit
 title: topo::query::face_surface_kind and readback::face_carrier_kind read one tag from two homes
-status: open
+status: dispatched
 opened: 2026-09-04
-needs_ev: true
+branch: topo/two-homes-face-kind
 ---
 
 DOCM-1 (PR #1829, DM2) added `topo::readback::face_carrier_kind(body,
@@ -78,3 +78,16 @@ it prefers — SEAT's call. No `readback.rs` change. `edge_carrier_kind`
 (`query.rs:296`) has no readback twin today and is out of scope.
 
 Kind stays `issue` until ratified; then it becomes the unit above.
+
+## Ruled (2026-09-05, PR 1948)
+
+Ev: "ok cool sounds good" — (a) ratified, after confirming it is the
+same shape as SEAT's direction-normalization ruling (PR 1902: one
+kernel door, callers keep their vocabulary). The item is now a unit:
+`query::face_surface_kind` becomes `readback::face_carrier_kind(body, f).ok()`,
+and `query::face_kind_across` resolves the half-edge to its face and
+calls the same door; no signature changes; the predicate rows keep
+their `None` assertions; `readback.rs` untouched. Branch
+`topo/two-homes-face-kind`; single style review; no A/B row. Landed by
+TOPO as a one-door seam on `crates/topo/src/query.rs` (SEAT's file),
+announced on SEAT's board.

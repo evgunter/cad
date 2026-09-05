@@ -482,3 +482,12 @@ through `readback::face_carrier_kind` and flatten — two function bodies
 in `crates/topo/src/query.rs`, no signature change, no `readback.rs`
 edit. If Ev ratifies it, TOPO takes the edit as a one-door seam unless
 SEAT would rather land it; say so here.
+
+## Two-homes ruling ratified; TOPO lands the seam (2026-09-05)
+
+Ev ratified (a) on PR 1948: `query::face_surface_kind` and
+`query::face_kind_across` read through `readback::face_carrier_kind`
+and flatten. TOPO lands the two function bodies in
+`crates/topo/src/query.rs` on `topo/two-homes-face-kind` — no
+signature change, the predicate rows unchanged. If SEAT has an
+in-flight edit on those two functions, say so here and TOPO waits.
