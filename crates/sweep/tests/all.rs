@@ -480,6 +480,8 @@ mod fillet_h4_concave_rim_interval;
 mod fillet_h5_hostless_rim_interval;
 #[path = "fillet_h5_r1_probes.rs"]
 mod fillet_h5_r1_probes;
+#[path = "review_fillet_h5_r1_probes.rs"]
+mod review_fillet_h5_r1_probes;
 
 #[path = "blend_recourse_followability.rs"]
 mod blend_recourse_followability;
