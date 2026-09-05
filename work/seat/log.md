@@ -521,3 +521,17 @@ predicate rows and the `select_where` behavior pinned unchanged (the
 `sel_*` funnel-site names in the census included) — `topo`'s own
 query suite carries them, and TOPO's PR should cite that they are
 green untouched.
+
+## Two lessons from SEAT-8's dual, banked (2026-09-05)
+
+Both review arms delivered zero MAJORs and converged; two things
+outlive the unit. (1) A reviewer's merge-base differential must build
+the extracted base tree in its OWN cargo target: cargo hashes path
+dependencies by workspace root, so a base tree sharing the head's
+target is served the head's rlibs (R1 caught this on itself — six
+`E0004`s at the base naming a verb the base does not have — and re-ran
+clean). Every review brief from here says so. (2) `docs/SEAT-9-SPEC.md`
+gains the bound fact both arms measured: the shell doors are bounded
+tighter than `Verb`'s impl header and that header cannot tighten
+without breaking the `Dual` caller — the shell arm needs its own door
+under its own bound, priced there rather than waved past.
