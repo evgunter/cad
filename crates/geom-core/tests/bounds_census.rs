@@ -234,6 +234,16 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/profile/src/path/arc_fillet.rs",
+        subject: "anchor_span",
+        why: HandedOff(
+            "Track V's, as `map_refusal` below; the arc-fillet ladder's presentation \
+             sort key, whose own doc states the argument — it is read off the diagnostic \
+             channel, the sort is stable so the order is a function of the inputs (D9), \
+             and the permuted entries carry identical payloads",
+        ),
+    },
+    Site {
+        path: "crates/profile/src/path/arc_fillet.rs",
         subject: "map_refusal",
         why: HandedOff("Track V's; a refusal-payload door S88's handoff names"),
     },
