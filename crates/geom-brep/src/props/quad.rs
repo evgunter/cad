@@ -641,7 +641,7 @@ fn bspline_range_hull(kv: &KnotVector, coeffs: &[RingInterval], lo: f64, hi: f64
     for index in s0.index()..=s1.index() {
         // Emptiness check and span validation are one step.
         let Some(span) = kv.span(index) else { continue };
-        let h = span_hull(kv, coeffs, span);
+        let h = span_hull(coeffs, span);
         acc = if seeded {
             RingInterval::hull(acc, h)
         } else {
@@ -4115,8 +4115,8 @@ mod tests {
                 // basis ladder, S_d by the quotient rule.
                 let at = |u: f64, v: f64| -> ([f64; 3], [f64; 3], [f64; 3]) {
                     let (su, sv) = (kv_u.span_at(u), kv_v.span_at(v));
-                    let bu = ders_basis_funs::<f64>(&kv_u, su, u, 1);
-                    let bv = ders_basis_funs::<f64>(&kv_v, sv, v, 1);
+                    let bu = ders_basis_funs::<f64>(su, u, 1);
+                    let bv = ders_basis_funs::<f64>(sv, v, 1);
                     // The `iu * nv + iv` stride stays written out on
                     // purpose: this oracle shares NO derivation with
                     // the code under test, so it does not borrow the

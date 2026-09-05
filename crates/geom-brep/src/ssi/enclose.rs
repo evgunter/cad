@@ -415,7 +415,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// carry `index ≥ degree` from their construction. What remains is
     /// the length check the window cannot make — `ctl.get`, below,
     /// against the caller's control array.
-    fn cell_point_box(&self, win: SurfaceWindow) -> Box3 {
+    fn cell_point_box(&self, win: SurfaceWindow<'_, T>) -> Box3 {
         let ctl = self.surface.control();
         let mut out: Option<Box3> = None;
         // Same ascending walk as the open-coded `(su − pu)..=su` pair
@@ -449,7 +449,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// the ones a window cannot make.
     fn cell_homogeneous_deriv(
         &self,
-        win: SurfaceWindow,
+        win: SurfaceWindow<'_, T>,
         along_u: bool,
     ) -> (Box3, RingInterval, RingInterval) {
         let s = self.surface;
@@ -635,11 +635,10 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         // `eval_in_span` at the midpoint's own span rather than `eval`:
         // the parameter is a thin `f64` structure value, so its span is
         // unique and no `SpanLocate` hull is needed.
-        let c = self.surface.eval_in_span(
-            self.surface.window_at(um, vm),
-            T::from_f64(um),
-            T::from_f64(vm),
-        );
+        let c = self
+            .surface
+            .window_at(um, vm)
+            .eval_in_span(T::from_f64(um), T::from_f64(vm));
         let du = self.deriv_box(u0, u1, v0, v1, true);
         let dv = self.deriv_box(u0, u1, v0, v1, false);
         let ru = RingInterval::from_bounds(-hu, hu);
