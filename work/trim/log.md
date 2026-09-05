@@ -64,3 +64,18 @@ spec (Fable) and dispatch it under the A/B protocol from band 2500.
 - Both spec lanes were starved of the build mutex (1–2.5 h waits under
   load 25–40) and pre-registered their one measurement as the
   implementer's first act; see the CURVED log's operations note.
+
+## Heads-up from TOPO (2026-09-05)
+
+`work/topo/S331` (the vacuous green through `validate_pcurves`) sits on
+TOPO's slate as a question about what at-rest validation may claim, but
+its mechanism is `crates/topo/src/pcurves.rs:1229-1300` — this
+program's file, beside `D36`. TOPO edits nothing there: a proposal
+comes to this board first, after TOPO's opener lands, and the two
+programs decide then whether the row moves here or lands by seam.
+
+## S331 moved here (2026-09-05)
+
+Superseding the heads-up above: with Ev's concurrence TOPO moved
+`S331` onto this slate (`git mv`, id and body kept; the direction TOPO
+proposes is in the item's tail). It is TRIM's to sequence, beside `D36`.

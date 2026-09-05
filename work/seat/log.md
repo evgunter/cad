@@ -343,3 +343,37 @@ operand's arity (the substrate declares bodies only today) and the
 flow's second source kind (a profile slot, not a verb scalar); an
 Ev-gated shape stops and reports. The block-close record and its draw
 byte publish at this unit's merge.
+
+## BLOCK SEAT-B3 SLATE DRAFTED (2026-09-05, alongside SEAT-7)
+
+While SEAT-7 runs (one build lane at a time — disk and the mutex, not
+the protocol), the next block's paper is cut: `docs/SEAT-8-SPEC.md`
+(split onto Verb — the two-sided out-type is its structural decision),
+`docs/SEAT-FW-SPEC.md` (the flush detector's curved widening SEAT-3
+measured and declined — a content review of the demo pins it moves),
+the direction-normalization decision on its item (`[ev]` PR 1902:
+one door under one name or two; recommendation B), and
+`docs/SEAT-9-NOTE.md` — the shell arm is LIB-G17's ENABLER (the
+`ShellNaming` birth channel G17 was parked on exists since 2026-09-04)
+but waits on a joint `[ev]` with SHELL over the doors' raw fit
+tolerance, SEAT-1's own residue. Difficulties logged pre-draw in the
+orchestrator's private state; the draw happens at SEAT-B2's close.
+
+## ORDINAL 1007 CLAIMED — SEAT-7 dual (2026-09-05)
+
+SEAT-7 (PR 1910, extrude and revolve onto the Verb substrate)
+implementation delivered and green on the full matrix (run
+33941622559 on f635e12c). The profile arity landed as a third operand
+SHAPE with its own door returning the record (the sweeps' records are
+bundles with the body inside); the flow gained its second source kind
+(`FlowSource::ProfileEdge` — a carrier loop's radius reaches the swept
+wall's `CylinderRadius`/`TorusMinorRadius`; a revolved straight edge's
+radius and a chain loop's per-step radii measured and declined, with
+the map they would need pointed at); a third lowering, said plainly;
+the content-key format bumped to v5 at the profile node (memo-only,
+argued); the corpus-wide goldens needed no re-blessing; and the §6
+end-to-end row — one declared `r` reaching the cyl×cyl germ from a
+document — is pinned, closing SEAT-6's residue. No fork, no Ev-gated
+stop. v6 dual dispatches on frozen head f635e12c: parity byte 95 →
+**R1 fable + R2 opus**. Difficulty M was logged pre-draw. Full row
+recorded at merge; block SEAT-B2 closes at that row.

@@ -16,16 +16,19 @@
 
 use crate::common;
 
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use common::asm;
 use pncad::document::{Doc, Frame, Node, ParamName, ProfileProgram, RecipeNodeId, SlotId};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{ContactClass, Ray};
 use viewer::camera::{Camera, CameraOp};
-use viewer::display::DisplayView;
-use viewer::evalseam::Generation;
+use viewer::display::{DisplayFault, DisplayView};
+use viewer::evalseam::{Generation, IndexDone, IndexRequest, IndexService, InlineIndexer};
 use viewer::frame::{self, IdQueryLog, IdStep, StatusUpdate};
 use viewer::input::{self, InputMap, ViewportSize};
-use viewer::pick::{CacheStep, IdMap, PickCache, PickIndex};
+use viewer::pick::{self, CacheStep, IdMap, IndexLanding, PickCache, PickIndex};
 use viewer::props::SlotValue;
 use viewer::scene::{self, DisplayTolerance, PLATE_EXTENT};
 use viewer::session::{DocSession, FaceSelection, Hovered, Refusal, Selection, SessionOp};
@@ -554,7 +557,46 @@ fn the_highlight_narrows_a_twice_drawn_name_to_exactly_one_id() {
     assert!(index.ids_in(RecipeNodeId(9999), 0).is_empty());
 }
 
-// --- the rebuild loop -----------------------------------------------
+// --- the rebuild loop, across the index seam -------------------------
+
+/// An [`InlineIndexer`] that counts what reaches it.
+///
+/// The receipt for *at most one attempt per (generation, δ)*: with the
+/// build behind a seam, a cache that submits on every frame and a
+/// cache that submits once are indistinguishable from the outside —
+/// both end with one index — unless something counts the submits.
+struct CountingIndexer {
+    inner: InlineIndexer,
+    submits: Arc<AtomicUsize>,
+}
+
+impl CountingIndexer {
+    fn new() -> (Box<Self>, Arc<AtomicUsize>) {
+        let submits = Arc::new(AtomicUsize::new(0));
+        (
+            Box::new(Self {
+                inner: InlineIndexer::new(),
+                submits: Arc::clone(&submits),
+            }),
+            submits,
+        )
+    }
+}
+
+impl IndexService for CountingIndexer {
+    fn submit(&mut self, request: IndexRequest) {
+        self.submits.fetch_add(1, Ordering::Relaxed);
+        self.inner.submit(request);
+    }
+
+    fn poll(&mut self) -> Option<IndexDone> {
+        self.inner.poll()
+    }
+
+    fn busy(&self) -> bool {
+        self.inner.busy()
+    }
+}
 
 #[test]
 fn a_refused_index_is_attempted_once_per_generation_and_not_once_per_frame() {
@@ -562,15 +604,22 @@ fn a_refused_index_is_attempted_once_per_generation_and_not_once_per_frame() {
     // state, and the app's guard stayed false forever afterwards — so
     // every repainted frame re-tessellated every healthy root before
     // reaching the failing one, behind a picture already stale.
+    //
+    // The policy now has a seam under it, so the row counts SUBMITS:
+    // the frames a stalled cache would have spent are frames it must
+    // not put work on the worker for either.
     let tol = Tol::witness();
     let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
     let mut session = DocSession::inline(doc, tol);
     session.pump();
-    let mut cache = PickCache::new();
-    assert_eq!(cache.sync(&session, delta()), CacheStep::Rebuilt);
+    let (seam, submits) = CountingIndexer::new();
+    let mut cache = PickCache::new(seam);
+    assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
+    assert_eq!(cache.pump(), vec![IndexLanding::Built]);
     assert_eq!(cache.sync(&session, delta()), CacheStep::Current);
     assert!(cache.index().is_some());
     assert!(cache.error().is_none());
+    assert_eq!(submits.load(Ordering::Relaxed), 1);
 
     // Break the document so the root refuses to evaluate.
     let outcome = session.perform(SessionOp::SetSlot {
@@ -581,12 +630,17 @@ fn a_refused_index_is_attempted_once_per_generation_and_not_once_per_frame() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
 
+    assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
     assert_eq!(
-        cache.sync(&session, delta()),
-        CacheStep::Refused,
+        cache.pump(),
+        vec![IndexLanding::Refused],
         "a failed root refuses the index"
     );
     assert!(cache.error().is_some(), "the refusal is readable");
+    assert!(
+        cache.index().is_none(),
+        "and the index built for the document before the break is gone"
+    );
     // The frame after, and the frame after that: HELD. This is the
     // whole row — before the fix, both of these were another full
     // rebuild attempt.
@@ -596,6 +650,12 @@ fn a_refused_index_is_attempted_once_per_generation_and_not_once_per_frame() {
         "a refused build is not retried on the next frame"
     );
     assert_eq!(cache.sync(&session, delta()), CacheStep::Held);
+    assert!(cache.pump().is_empty(), "and nothing was sent to answer");
+    assert_eq!(
+        submits.load(Ordering::Relaxed),
+        2,
+        "two pictures, two attempts — not one per frame"
+    );
 
     // The same state is what the gather refuses on, and the tree badges
     // the node — two channels, both saying something true.
@@ -616,12 +676,15 @@ fn a_refused_index_is_attempted_once_per_generation_and_not_once_per_frame() {
 fn a_new_generation_or_a_new_delta_earns_one_fresh_attempt() {
     let tol = Tol::witness();
     let (mut session, extrude) = plate_session(tol);
-    let mut cache = PickCache::new();
-    assert_eq!(cache.sync(&session, delta()), CacheStep::Rebuilt);
+    let (seam, submits) = CountingIndexer::new();
+    let mut cache = PickCache::new(seam);
+    assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
+    assert_eq!(cache.pump(), vec![IndexLanding::Built]);
     // δ is part of the key: the parts are the tessellations the picture
     // is drawn from.
     let coarser = delta().scaled(2.0).expect("a positive delta");
-    assert_eq!(cache.sync(&session, coarser), CacheStep::Rebuilt);
+    assert_eq!(cache.sync(&session, coarser), CacheStep::Submitted);
+    assert_eq!(cache.pump(), vec![IndexLanding::Built]);
     assert_eq!(cache.sync(&session, coarser), CacheStep::Current);
 
     session.perform(SessionOp::SetSlot {
@@ -630,7 +693,9 @@ fn a_new_generation_or_a_new_delta_earns_one_fresh_attempt() {
         value: SlotValue::Continuous(PLATE_EXTENT[2] * 1.5),
     });
     session.pump();
-    assert_eq!(cache.sync(&session, coarser), CacheStep::Rebuilt);
+    assert_eq!(cache.sync(&session, coarser), CacheStep::Submitted);
+    assert_eq!(cache.pump(), vec![IndexLanding::Built]);
+    assert_eq!(submits.load(Ordering::Relaxed), 3);
 }
 
 #[test]
@@ -639,9 +704,300 @@ fn a_cache_with_nothing_landed_has_nothing_to_do() {
     let (doc, _) = scene::plate_with_hole(tol).expect("the plate authors");
     // No `pump`, so nothing has landed.
     let session = DocSession::inline(doc, tol);
-    let mut cache = PickCache::new();
+    let mut cache = PickCache::inline();
     assert_eq!(cache.sync(&session, delta()), CacheStep::Nothing);
     assert!(cache.index().is_none());
+    assert!(!cache.indexing());
+}
+
+/// **The window the seam creates, and what is in it.** Between the
+/// submit and the answer the cache holds NO index — not the previous
+/// one — so there is nothing a pick could be answered from, which is
+/// the whole reason the answer is allowed to arrive late.
+#[test]
+fn between_a_submit_and_its_answer_there_is_no_index_to_pick_from() {
+    let tol = Tol::witness();
+    let (mut session, extrude) = plate_session(tol);
+    let mut cache = PickCache::inline();
+    assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
+    assert_eq!(cache.pump(), vec![IndexLanding::Built]);
+    let first = cache.index().expect("the plate indexes").generation();
+
+    session.perform(SessionOp::SetSlot {
+        node: extrude,
+        slot: SlotId::Distance,
+        value: SlotValue::Continuous(PLATE_EXTENT[2] * 1.5),
+    });
+    session.pump();
+    assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
+    assert!(
+        cache.index().is_none(),
+        "the index for the previous document is dropped at the SUBMIT, \
+         not when its replacement lands"
+    );
+    assert!(cache.indexing(), "and the chrome has something to say");
+    // Asked again on the next frame: still waiting, and nothing is
+    // resubmitted.
+    assert_eq!(cache.sync(&session, delta()), CacheStep::Indexing);
+
+    assert_eq!(cache.pump(), vec![IndexLanding::Built]);
+    assert!(!cache.indexing());
+    let second = cache
+        .index()
+        .expect("the edited plate indexes")
+        .generation();
+    assert_ne!(first, second, "and the index that landed is the new one");
+}
+
+/// **The one arm where "current or absent, never behind" could break,
+/// and the only one that can produce a CONFIDENTLY WRONG pick.**
+///
+/// Every other transition swaps one picture's key for another's, so a
+/// late answer meets a key it does not match and is discarded. A
+/// `New document` (or an `Open`) under a build that is still with the
+/// seam leaves NO next key: the session's landed run is gone. Before
+/// `PickCache::forget`, the vanished picture's key stayed on the cache
+/// and the in-flight build matched it on arrival — installing the
+/// index of the document that was just replaced, over the scene of the
+/// one before THAT, with nothing running, nothing on the status line
+/// and no way to self-correct until the newly-opened document landed.
+#[test]
+fn a_build_in_flight_when_the_document_is_replaced_installs_nothing() {
+    let tol = Tol::witness();
+    let (mut session, extrude) = plate_session(tol);
+    let mut cache = PickCache::inline();
+    assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
+    assert_eq!(cache.pump(), vec![IndexLanding::Built]);
+
+    // An edit lands, and its index build is submitted but not answered
+    // — the window this seam creates.
+    session.perform(SessionOp::SetSlot {
+        node: extrude,
+        slot: SlotId::Distance,
+        value: SlotValue::Continuous(PLATE_EXTENT[2] * 1.5),
+    });
+    session.pump();
+    assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
+    assert!(cache.index().is_none());
+
+    // The document is replaced mid-build. The session's landed run
+    // goes with it, so there is no picture for the outstanding build
+    // to be the index OF.
+    session.perform(SessionOp::NewDocument {
+        name: "fresh".to_owned(),
+    });
+    assert!(session.landed_generation().is_none());
+    assert_eq!(cache.sync(&session, delta()), CacheStep::Nothing);
+    assert!(
+        !cache.indexing(),
+        "nothing the chrome should promise an answer for",
+    );
+
+    // The build finishes. It must be discarded, not installed.
+    assert_eq!(
+        cache.pump(),
+        vec![IndexLanding::Stale],
+        "an index of the replaced document is not an index of anything on screen",
+    );
+    assert!(
+        cache.index().is_none(),
+        "and no pick can be answered from it",
+    );
+    assert!(cache.error().is_none());
+
+    // The new document lands: an ordinary fresh attempt, not a state
+    // the cache has to be talked out of.
+    session.pump();
+    assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
+}
+
+/// **The ordinary half of the same replacement**, which the row above
+/// cannot reach: a CURRENT index and no build in flight when the
+/// document is replaced.
+///
+/// The two rows constrain different halves of `PickCache::forget`.
+/// There, `index` and `error` are already `None` — the submit that
+/// opened the window cleared them — so only the attempt's two fields
+/// are doing anything. Here nothing is outstanding and the index is
+/// the live one, so it is the `index` field alone that decides whether
+/// a pick after the replacement is answered from the document that was
+/// just replaced.
+#[test]
+fn replacing_the_document_drops_a_current_index_with_no_build_in_flight() {
+    let tol = Tol::witness();
+    let (session, _extrude) = plate_session(tol);
+    let mut cache = PickCache::inline();
+    assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
+    assert_eq!(cache.pump(), vec![IndexLanding::Built]);
+    assert_eq!(cache.sync(&session, delta()), CacheStep::Current);
+    assert!(cache.index().is_some());
+
+    let mut session = session;
+    session.perform(SessionOp::NewDocument {
+        name: "fresh".to_owned(),
+    });
+    assert!(session.landed_generation().is_none());
+    assert!(!cache.indexing(), "nothing was outstanding to begin with");
+
+    assert_eq!(cache.sync(&session, delta()), CacheStep::Nothing);
+    assert!(
+        cache.index().is_none(),
+        "the picture is the replaced document's, and a pick answered from \
+         it would name entities of a document nobody can see",
+    );
+}
+
+/// **The confidently-wrong answer this seam makes possible**, refused.
+/// A build finishing for a generation the session has moved past is
+/// exactly what restart-without-cancel produces, and installing it
+/// would answer picks against a document that is gone.
+#[test]
+fn an_answer_for_a_superseded_generation_is_discarded_not_installed() {
+    let tol = Tol::witness();
+    let (mut session, extrude) = plate_session(tol);
+    let stale = index_of(&session);
+    assert_eq!(
+        stale.generation(),
+        session.landed_generation().expect("a generation")
+    );
+
+    let mut cache = PickCache::inline();
+    session.perform(SessionOp::SetSlot {
+        node: extrude,
+        slot: SlotId::Distance,
+        value: SlotValue::Continuous(PLATE_EXTENT[2] * 1.5),
+    });
+    session.pump();
+    assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
+
+    let landing = cache.land(IndexDone {
+        generation: stale.generation(),
+        delta: delta(),
+        index: Ok(stale),
+    });
+    assert_eq!(landing, IndexLanding::Stale);
+    assert!(
+        cache.index().is_none(),
+        "a pick answered from that index would name entities of a document \
+         nobody is looking at"
+    );
+    assert!(
+        cache.indexing(),
+        "and the build actually asked for is still owed"
+    );
+}
+
+/// The same refusal on the sharper half of the key: the document is
+/// RIGHT and only the δ is wrong, so a check that compared generations
+/// alone would install this one without complaint.
+#[test]
+fn an_answer_built_at_another_delta_is_discarded_too() {
+    let tol = Tol::witness();
+    let (session, _extrude) = plate_session(tol);
+    let coarse = index_of(&session);
+    let generation = session.landed_generation().expect("a generation");
+
+    let mut cache = PickCache::inline();
+    let finer = delta().scaled(0.5).expect("a positive delta");
+    assert_eq!(cache.sync(&session, finer), CacheStep::Submitted);
+    let landing = cache.land(IndexDone {
+        generation,
+        delta: delta(),
+        index: Ok(coarse),
+    });
+    assert_eq!(
+        landing,
+        IndexLanding::Stale,
+        "same generation, other δ — the picture asked for is not this one"
+    );
+    assert!(cache.index().is_none());
+}
+
+/// **Not indexed yet is not nothing under the cursor.** A click during
+/// the window is news; the hover pushed on every frame the pointer is
+/// inside the pane is not.
+#[test]
+fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
+    let click = [input::PickAction::Select([10.0, 10.0])];
+    assert_eq!(
+        pick::unindexed(&click, true),
+        Some(pick::NotIndexed::Building),
+    );
+    assert_eq!(
+        pick::unindexed(&click, false),
+        Some(pick::NotIndexed::Absent),
+        "a refused build is not a build that is still running, and the \
+         sentence must not promise an answer that is not coming",
+    );
+    for indexing in [true, false] {
+        assert_eq!(
+            pick::unindexed(
+                &[
+                    input::PickAction::Hover([10.0, 10.0]),
+                    input::PickAction::ClearHover,
+                ],
+                indexing,
+            ),
+            None,
+            "an observation asked every frame is not a refusal to report",
+        );
+        assert_eq!(pick::unindexed(&[], indexing), None);
+    }
+    assert_ne!(
+        pick::NotIndexed::Building.to_string(),
+        pick::NotIndexed::Absent.to_string(),
+    );
+    for refusal in [pick::NotIndexed::Building, pick::NotIndexed::Absent] {
+        assert!(
+            refusal.to_string().contains("index"),
+            "and each sentence says which of the two answers it is",
+        );
+    }
+}
+
+/// One indicator for one wait, and the ranking that decides which.
+#[test]
+fn the_chrome_has_one_progress_state_and_evaluation_outranks_indexing() {
+    // busy, running, indexing.
+    assert_eq!(frame::progress(false, false, false), None);
+    assert_eq!(
+        frame::progress(true, true, false),
+        Some(frame::Progress::Evaluating)
+    );
+    assert_eq!(
+        frame::progress(true, false, false),
+        Some(frame::Progress::Canceled { indexing: false }),
+        "a spinner over no running work would be a lie",
+    );
+    assert_eq!(
+        frame::progress(true, false, true),
+        Some(frame::Progress::Canceled { indexing: true }),
+        "a cancel with an index build still running is one state that \
+         carries the work, not a second indicator beside it",
+    );
+    assert_eq!(
+        frame::progress(false, false, true),
+        Some(frame::Progress::Indexing)
+    );
+    assert_eq!(
+        frame::progress(true, true, true),
+        Some(frame::Progress::Evaluating),
+        "an index for a superseded generation is about to be discarded",
+    );
+    // The last two of the eight. `busy` is "the picture is older than
+    // the document" and `running` is "the seam has work", so a seam
+    // with work outstanding always has a generation the picture has
+    // not caught up to: NOT busy while running is unreachable through
+    // `DocSession`. The function is total anyway, and what it answers
+    // there is written down rather than left to be discovered.
+    for indexing in [false, true] {
+        assert_eq!(
+            frame::progress(false, true, indexing),
+            frame::progress(false, false, indexing),
+            "with the picture current, a running evaluation the session \
+             cannot report changes nothing",
+        );
+    }
 }
 
 // --- the pairing sweep ----------------------------------------------
@@ -960,14 +1316,45 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     };
     let outcome = session.perform(mate.clone());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.superseded, vec![bench.post_b]);
+    let [superseded] = &outcome.superseded[..] else {
+        panic!(
+            "exactly one placement is superseded: {:?}",
+            outcome.superseded
+        )
+    };
+    assert_eq!(
+        superseded.instance, bench.post_b,
+        "the mate discards the hand placement"
+    );
+    // The PAYLOAD, not the variant: the variant is what the op this row
+    // just performed already implies.
+    let DisplayFault::MateConstrained { instance, mates } = &superseded.cause else {
+        panic!(
+            "a mate landing supersedes with its own fault: {}",
+            superseded.cause
+        )
+    };
+    assert_eq!(*instance, bench.post_b, "the fault names the same instance");
+    assert!(
+        !mates.is_empty(),
+        "and names the mate that landed, which is what the line then reads"
+    );
 
-    // What the chrome does with it, in `perform_batch`'s order: the
-    // outcome's supersessions join the frame's notices, and the
-    // ranking is asked.
+    // What the chrome does with it, in `perform_batch`'s order. This
+    // is a HAND-WRITTEN MIRROR of app-gated code no row can reach, so
+    // it has to model every producer that feeds the notices there —
+    // both withdrawal channels, not just the one this row provokes. A
+    // half-mirror would pass while the real loop dropped the other.
     let notices: Vec<String> = frame::supersession_notice(&outcome.superseded)
         .into_iter()
+        .chain(frame::dropped_hide_notice(&outcome.dropped_hides))
         .collect();
+    assert_eq!(
+        notices.len(),
+        1,
+        "a mate landing on a probed instance withdraws a placement and no \
+         hide, so the second producer is silent here rather than absent"
+    );
     let update = frame::frame_status(
         &notices,
         core::slice::from_ref(&mate),
