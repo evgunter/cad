@@ -125,3 +125,18 @@ reply yet to the territory notice. PROPS-1's implementer opened
 session is subscribed to #1918 and #1920. Dispatch order for the next
 free slots: ONB-measure → Span sweep (block slot 1) → lily-vec3 →
 M6 sense gate.
+
+**Verdict shapes reviewed (2026-09-05).** Style review on `0dcec746`:
+APPROVE-WITH-FIXES, MAJOR 0 / MINOR 3 / NOTE 3, rubric idiom 4 / tests 4 /
+docs 3; deviations 3 reported, 0 silent. The MINORs are doc honesty
+(the tag-byte sentence asserted an invariant the code does not have;
+two history clauses; "no key moved" given its measured reason where the
+structural one — the driver never cancels and refuses a non-`Ok`
+witness — is the guard). Taken whole, plus the reviewer's structural
+point: `certifying` becomes a free function in `drive` rather than a
+split inherent impl on `vdiff`'s type, and the pin file gains a positive
+control. **Spec correction, recorded here**: the spec's pin (b) ("a sign
+exchange between two predicates cancels in the populations") was wrong
+— populations are per predicate, so it yields two flips; the documented
+blind spot is two instances of ONE predicate trading signs, which is the
+row the lane shipped. Fix pass dispatched implementer-inherited.
