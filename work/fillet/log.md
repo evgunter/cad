@@ -731,3 +731,20 @@ both (MSOLVE's lane filed it in `work/issues/`). One PR: the `Payload`
 row stands (the door's own argument), the `HandedOff` twin goes, and the
 census gains `the_roster_names_each_door_once`. Closes the two fillet
 items and the `work/issues/` item.
+
+**FILLET-SPLIT landed (2026-09-05)** on PR [#1964](https://github.com/evgunter/cad/pull/1964),
+head `d1d22839e`, full matrix green (run 33955215351). Phase 1 mapped
+`surgery.rs`'s 5 033 lines by section and found no open-band read into a
+closed-rim section's private state (the stop clause did not fire); the
+shape taken is `blend/open/{mod,planar,ruled}.rs` — `open/mod.rs` holding
+`chord_site`, the one helper both open bands share and no rim uses —
+with `surgery.rs` at 3 892 lines keeping the seam and the two closed-rim
+walks. `--color-moved` shows the 2 456 changed lines as moves bar 323
+enumerated non-move lines (module docs, `use` blocks, a `//`→`//!` prefix
+promotion, forced path edits, visibility lines, the header tour); nothing
+`pub`; the allowlist line gains `open/planar|open/ruled` and the ledger
+entry one sentence naming the re-scope; the one-`kef`-door census widened
+to the directory; the dump identical over all 14 files at two bases.
+**FILLET-SPLIT dual dispatched** on frozen `d1d22839e`: ordinal **2007**,
+parity byte 203 ⇒ R1 FABLE / R2 OPUS, briefs stored with sha256,
+concurrent, isolated.
