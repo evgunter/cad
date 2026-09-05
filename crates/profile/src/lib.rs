@@ -123,7 +123,7 @@ pub mod structure;
 mod sugar;
 mod validate;
 
-use geom_core::{Affine3, Mat3, Point2, Point3, Real, Vec3};
+use geom_core::{Affine3, Point2, Point3, Real, Vec3};
 
 pub use lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 pub use path::program::{
@@ -459,10 +459,31 @@ impl<T: Real> SketchPlane<T> {
     /// construction when u ⊥ v are unit — which is the caller's
     /// conventional obligation, unchecked).
     pub fn from_frame(origin: Point3<T>, u: Vec3<T>, v: Vec3<T>) -> Self {
-        Self::new(Affine3::from_parts(
-            Mat3::from_cols(u, v, u.cross(v)),
-            origin - Point3::origin(),
-        ))
+        Self::new(Affine3::from_frame(origin, u, v))
+    }
+
+    /// The same plane read at another scalar: the stored placement
+    /// through [`Affine3::map`] — twelve components, no arithmetic, so
+    /// exact whenever `f` is (`Real::from_f64` carries an `f64` frame
+    /// to any evaluation scalar).
+    ///
+    /// **What the lift means.** The stored normal was computed at the
+    /// SOURCE scalar — `u × v` at the scalar [`Self::from_frame`] ran
+    /// at — and is lifted here as a value, which is not the same plane
+    /// as the frame constructed at the target scalar. The two
+    /// spellings, and a caller chooses:
+    ///
+    /// - `plane.map(S::from_f64)` — the `f64` frame lifted whole. At
+    ///   `Interval` every component is a point interval, the normal
+    ///   included: the `f64` rounding of the cross product is carried
+    ///   as if exact.
+    /// - `SketchPlane::from_frame(o.map(S::from_f64), u.map(S::from_f64),
+    ///   v.map(S::from_f64))` — the frame constructed at `S`. At
+    ///   `Interval` the cross product of point intervals rounds outward,
+    ///   so the stored normal carries the width of that arithmetic.
+    #[must_use]
+    pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> SketchPlane<U> {
+        SketchPlane::new(self.placement.map(f))
     }
 
     /// Maps a sketch point to world space: `placement`·(x, y, 0),

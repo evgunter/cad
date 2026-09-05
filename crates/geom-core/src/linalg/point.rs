@@ -22,6 +22,12 @@ pub struct Point2<T: Real> {
 }
 
 /// A point of the 3-D affine space.
+///
+/// There is no `From<Vec3<T>>` (nor `From<Vec2<T>>` for [`Point2`]): a
+/// point is not a vector, and a conversion door would let a displacement
+/// be read as a position at every `.into()`, so the location a
+/// displacement `v` names from the chart's base point is spelled
+/// `Point3::origin() + v`.
 #[derive(Clone, Copy, Debug)]
 pub struct Point3<T: Real> {
     /// The x coordinate (relative to [`Point3::origin`]).
@@ -33,8 +39,9 @@ pub struct Point3<T: Real> {
 }
 
 impl<T: Real> Point2<T> {
-    /// Builds a point from its coordinates.
-    pub fn new(x: T, y: T) -> Self {
+    /// Builds a point from its coordinates. A `const fn` (the doctest
+    /// at [`Point3::new`] reads a constant of each of the four types).
+    pub const fn new(x: T, y: T) -> Self {
         Self { x, y }
     }
 
@@ -111,7 +118,25 @@ impl<T: Real> Point2<T> {
 
 impl<T: Real> Point3<T> {
     /// Builds a point from its coordinates.
-    pub fn new(x: T, y: T, z: T) -> Self {
+    ///
+    /// A `const fn` — the body is a struct literal and calls nothing on
+    /// `T` — so a scene constant is spelled through this door rather
+    /// than as a field literal. The same holds for [`Point2::new`],
+    /// [`Vec2::new`] and [`Vec3::new`]; this one example reads all
+    /// four:
+    ///
+    /// ```
+    /// use geom_core::{Point2, Point3, Vec2, Vec3};
+    /// const P: Point3<f64> = Point3::new(1.0, 2.0, 3.0);
+    /// const Q: Point2<f64> = Point2::new(4.0, 5.0);
+    /// const D: Vec3<f64> = Vec3::new(0.0, 0.0, 1.0);
+    /// const E: Vec2<f64> = Vec2::new(1.0, 0.0);
+    /// assert_eq!((P.x, P.y, P.z), (1.0, 2.0, 3.0));
+    /// assert_eq!((Q.x, Q.y), (4.0, 5.0));
+    /// assert_eq!((D.x, D.y, D.z), (0.0, 0.0, 1.0));
+    /// assert_eq!((E.x, E.y), (1.0, 0.0));
+    /// ```
+    pub const fn new(x: T, y: T, z: T) -> Self {
         Self { x, y, z }
     }
 

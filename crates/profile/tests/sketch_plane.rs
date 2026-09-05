@@ -14,7 +14,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use geom_core::{Point2, Point3, Vec3};
+use geom_core::{Affine3, Mat3, Point2, Point3, Vec3};
 use profile::SketchPlane;
 
 /// Point3/Vec3 carry no `PartialEq` (a geometric type is not an
@@ -139,4 +139,97 @@ fn plane_equality_is_bit_exact_and_the_two_zeros_differ() {
     assert!(frame(0.0).bit_eq(&SketchPlane::xy()));
     assert!(!frame(0.0).bit_eq(&frame(-0.0)));
     assert!(frame(-0.0).bit_eq(&frame(-0.0)));
+}
+
+/// The twelve stored components of a placement, as bits — the
+/// comparison `bit_eq` makes, spelled out so a row can hold an
+/// `Affine3` against a `SketchPlane`.
+fn bits(a: Affine3<f64>) -> [u64; 12] {
+    let (l, t) = (a.linear, a.translation);
+    [
+        l.c0.x, l.c0.y, l.c0.z, l.c1.x, l.c1.y, l.c1.z, l.c2.x, l.c2.y, l.c2.z, t.x, t.y, t.z,
+    ]
+    .map(f64::to_bits)
+}
+
+/// Frames for the bit-identity rows: the canonical planes, a general
+/// (non-orthonormal — unchecked by construction) triple, and every
+/// signed-zero placement of the origin, which is the component the
+/// `origin()` accessor's transcription exists to keep.
+fn frame_corpus() -> Vec<(Point3<f64>, Vec3<f64>, Vec3<f64>)> {
+    let mut corpus = vec![
+        (Point3::origin(), Vec3::unit_x(), Vec3::unit_y()),
+        (Point3::origin(), Vec3::unit_y(), Vec3::unit_z()),
+        (Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        (
+            Point3::new(1.5, -2.25, 3.0e3),
+            Vec3::unit_y(),
+            Vec3::unit_z(),
+        ),
+        (
+            Point3::new(-7.0, 0.5, 2.0),
+            Vec3::new(0.3, -1.2, 2.5),
+            Vec3::new(-4.0, 0.25, 1.0e-3),
+        ),
+    ];
+    for sx in [0.0, -0.0] {
+        for sy in [0.0, -0.0] {
+            for sz in [0.0, -0.0] {
+                corpus.push((
+                    Point3::new(sx, sy, sz),
+                    Vec3::unit_z(),
+                    Vec3::new(-0.0, 1.0, 0.0),
+                ));
+            }
+        }
+    }
+    corpus
+}
+
+#[test]
+fn from_frame_stores_bit_for_bit_what_the_placement_door_builds() {
+    // One home: `SketchPlane::from_frame` IS `Affine3::from_frame`, and
+    // both are the explicit spelling `from_cols(u, v, u × v)` with the
+    // origin's displacement from the chart base — the same operations
+    // in the same order, so the twelve stored components agree by BITS
+    // over the corpus, signed zeros included. This row is also the
+    // measurement for a consumer that wants only the placement: it
+    // reads the door directly rather than a plane's `.placement`, and
+    // gets the same bits.
+    for (o, u, v) in frame_corpus() {
+        let plane = SketchPlane::from_frame(o, u, v);
+        let door = Affine3::from_frame(o, u, v);
+        let explicit = Affine3::from_parts(Mat3::from_cols(u, v, u.cross(v)), o - Point3::origin());
+        assert_eq!(bits(plane.placement), bits(door));
+        assert_eq!(bits(plane.placement), bits(explicit));
+        assert!(plane.bit_eq(&SketchPlane::new(door)));
+    }
+}
+
+#[test]
+fn map_lifts_the_stored_frame_componentwise_without_recomputing_it() {
+    // `map` is `Affine3::map` on the placement: twelve components
+    // through `f`, no arithmetic. Under the identity every bit survives
+    // (the signed zeros too); under negation every component is the
+    // negated bit — and the normal is the SOURCE frame's `u × v`
+    // negated, not the cross product of the negated axes (which would
+    // be `u × v` again). That difference is what the two lift spellings
+    // in the doc are about.
+    for (o, u, v) in frame_corpus() {
+        let plane = SketchPlane::from_frame(o, u, v);
+        assert!(plane.map(|x| x).bit_eq(&plane));
+        let neg = plane.map(|x: f64| -x);
+        let want = bits(plane.placement)
+            .map(f64::from_bits)
+            .map(|x| (-x).to_bits());
+        assert_eq!(bits(neg.placement), want);
+        let rebuilt = SketchPlane::from_frame(
+            Point3::new(-o.x, -o.y, -o.z),
+            Vec3::new(-u.x, -u.y, -u.z),
+            Vec3::new(-v.x, -v.y, -v.z),
+        );
+        let n = u.cross(v);
+        assert_eq!(vc(rebuilt.normal()), (n.x, n.y, n.z));
+        assert_eq!(vc(neg.normal()), (-n.x, -n.y, -n.z));
+    }
 }

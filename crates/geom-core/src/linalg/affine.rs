@@ -51,6 +51,27 @@ impl<T: Real> Affine3<T> {
         Self::from_parts(Mat3::identity(), v)
     }
 
+    /// The placement of a frame: the map sending the coordinate origin
+    /// to `origin`, `x̂` to `u`, `ŷ` to `v` and `ẑ` to `u × v` — linear
+    /// columns `u`, `v`, `u.cross(v)` ([`Mat3::from_cols`]) and
+    /// translation `origin − Point3::origin()`, in exactly that order
+    /// (D9).
+    ///
+    /// The third column is **computed here, never supplied by the
+    /// caller**: a frame is two axes and a base point, and the normal
+    /// is what those two determine — right-handed by construction when
+    /// `u ⊥ v` are unit, which is the caller's conventional obligation,
+    /// **unchecked**. Non-orthonormal axes yield a well-defined skew map,
+    /// not poison; rigidity is a predicate-layer decision.
+    ///
+    /// The translation is the origin's displacement from the chart's
+    /// base point, transcribed component by component (`x − 0` keeps
+    /// `−0.0`), so a frame read back from the stored map — its columns
+    /// and its translation — is bitwise the frame that was written.
+    pub fn from_frame(origin: Point3<T>, u: Vec3<T>, v: Vec3<T>) -> Self {
+        Self::from_parts(Mat3::from_cols(u, v, u.cross(v)), origin - Point3::origin())
+    }
+
     /// The rotation by `angle` radians (right-hand rule) about the axis
     /// through `point` with direction `axis` — revolve's constructor
     /// (the M0 watchlist item, landing with its first consumer).
@@ -561,5 +582,72 @@ mod tests {
             measured[1],
             measured[2],
         );
+    }
+
+    /// The frames the `from_frame` rows sweep: the canonical axes, a
+    /// general (non-orthonormal — the door does not check) triple, and
+    /// every signed-zero placement of the origin, since `−0.0` is the
+    /// component a transcription can quietly launder.
+    fn frame_corpus() -> Vec<(Point3<f64>, Vec3<f64>, Vec3<f64>)> {
+        let mut corpus = vec![
+            (Point3::origin(), Vec3::unit_x(), Vec3::unit_y()),
+            (
+                Point3::new(1.5, -2.25, 3.0e3),
+                Vec3::unit_y(),
+                Vec3::unit_z(),
+            ),
+            (
+                Point3::new(-7.0, 0.5, 2.0),
+                Vec3::new(0.3, -1.2, 2.5),
+                Vec3::new(-4.0, 0.25, 1.0e-3),
+            ),
+        ];
+        for sx in [0.0, -0.0] {
+            for sy in [0.0, -0.0] {
+                for sz in [0.0, -0.0] {
+                    corpus.push((
+                        Point3::new(sx, sy, sz),
+                        Vec3::unit_z(),
+                        Vec3::new(-0.0, 1.0, 0.0),
+                    ));
+                }
+            }
+        }
+        corpus
+    }
+
+    fn bits(a: Affine3<f64>) -> [u64; 12] {
+        let (l, t) = (a.linear, a.translation);
+        [
+            l.c0.x, l.c0.y, l.c0.z, l.c1.x, l.c1.y, l.c1.z, l.c2.x, l.c2.y, l.c2.z, t.x, t.y, t.z,
+        ]
+        .map(f64::to_bits)
+    }
+
+    #[test]
+    fn from_frame_is_the_explicit_spelling_bit_for_bit() {
+        // One home for the frame construction: the door is the same
+        // operations in the same order as the spelling it replaces at
+        // its callers, so every stored component — the signed zeros of
+        // the origin included — is bitwise the same.
+        for (o, u, v) in frame_corpus() {
+            let explicit =
+                Affine3::from_parts(Mat3::from_cols(u, v, u.cross(v)), o - Point3::origin());
+            assert_eq!(bits(Affine3::from_frame(o, u, v)), bits(explicit));
+        }
+    }
+
+    #[test]
+    fn from_frame_stores_the_axes_and_origin_bitwise_and_computes_the_normal() {
+        // The first two columns and the translation are the caller's
+        // values transcribed; the third column is `u × v`, computed —
+        // read back as bits, so `−0.0` in the origin survives.
+        for (o, u, v) in frame_corpus() {
+            let a = Affine3::from_frame(o, u, v);
+            let n = u.cross(v);
+            let want =
+                [u.x, u.y, u.z, v.x, v.y, v.z, n.x, n.y, n.z, o.x, o.y, o.z].map(f64::to_bits);
+            assert_eq!(bits(a), want);
+        }
     }
 }
