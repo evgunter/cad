@@ -156,9 +156,7 @@ where
             wire_profile(program, results, profile_pre, env.lane, tol)?,
             names::empty(),
         )),
-        Node::Extrude { profile, .. } => {
-            wire_extrude(id, *profile, doc, results, vals, env, tol)
-        }
+        Node::Extrude { profile, .. } => wire_extrude(id, *profile, doc, results, vals, env, tol),
         Node::Revolve { profile, axis, .. } => {
             wire_revolve(id, *profile, *axis, doc, results, vals, env, tol)
         }
@@ -1191,6 +1189,11 @@ fn anchored(
 /// record, then program-anchor rewritten — canonical → program indices,
 /// LIB-SWITCH §6), the provenance stamp on everything the sweep minted,
 /// and the per-edge parameter sources the verb's flow declares.
+// The 8th argument is the verb's correspondence — the parameter that
+// REMOVES duplication rather than adding a duty, exactly as
+// `wire_blend`'s is; the 7th is the evaluation environment, read for
+// the descent chain the attached tokens' scope is.
+#[allow(clippy::too_many_arguments)]
 fn wire_swept<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane, A>(
     verb: &crate::verbs::sweep::ProfileVerb<T, A>,
     args: A,

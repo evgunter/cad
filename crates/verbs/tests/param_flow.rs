@@ -37,11 +37,9 @@ use std::collections::BTreeSet;
 use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, ValidatedProfile};
 use sweep::blend::naming::BlendNaming;
-use sweep::{RevolveAxis, Revolution};
+use sweep::{Revolution, RevolveAxis};
 use topo::{Body, BooleanDeclarations, BooleanOp, SweepStrategy};
-use verbs::{
-    EdgeScalar, FlowSource, PairOut, RoleFamily, ScalarParam, Verb, VerbKind, VerbRecord,
-};
+use verbs::{EdgeScalar, FlowSource, PairOut, RoleFamily, ScalarParam, Verb, VerbKind, VerbRecord};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -285,8 +283,7 @@ fn disc(r: f64) -> ValidatedProfile<f64> {
 /// coordinate about `(origin, dir)` is `(p − origin).perp_dot(dir)`,
 /// which for the +x axis is `−y`, so the profile lives at negative y.
 fn offset_disc(r: f64, d: f64) -> ValidatedProfile<f64> {
-    let lp =
-        profile::circle(Point2::new(0.0, -d), r, tol()).expect("a circle of positive radius");
+    let lp = profile::circle(Point2::new(0.0, -d), r, tol()).expect("a circle of positive radius");
     Profile::new(SketchPlane::xy(), vec![lp.into()])
         .validate(tol())
         .expect("a circle is a valid profile")

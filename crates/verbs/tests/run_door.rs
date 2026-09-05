@@ -19,7 +19,7 @@ use std::fmt::Write as _;
 use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, ValidatedProfile};
 use sweep::blend::build::{chamfer_edges, fillet_edges};
-use sweep::{Extrusion, RevolveAxis, Revolution};
+use sweep::{Extrusion, Revolution, RevolveAxis};
 use topo::{Body, BooleanDeclarations, BooleanOp, BooleanResult, SweepStrategy, boolean_op_with};
 use verbs::{Arity, PairOut, Verb, VerbError, VerbKind, VerbRecord};
 

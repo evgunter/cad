@@ -72,7 +72,8 @@ pub(crate) struct SweptOut<T: Decide> {
 
 /// A profile verb's record reader: this node's id and the record the
 /// run door returned, in.
-pub(crate) type RecordReader<T> = fn(RecipeNodeId, VerbRecord<T>) -> Result<SweptOut<T>, NodeErrorKind>;
+pub(crate) type RecordReader<T> =
+    fn(RecipeNodeId, VerbRecord<T>) -> Result<SweptOut<T>, NodeErrorKind>;
 
 /// **One profile-operand verb's correspondence**, as data — everything
 /// the generic lowering needs once the node's own semantics have been
@@ -195,6 +196,7 @@ pub(crate) fn revolve<T: Decide>() -> ProfileVerb<T, (RevolveAxis<T>, Revolution
 pub(crate) const PROFILE_RADIUS: FlowSource = FlowSource::ProfileEdge(EdgeScalar::Radius);
 
 #[cfg(test)]
+#[allow(clippy::panic)]
 mod tests {
     use geom_core::{Point2, Vec2};
     use verbs::VerbKind;

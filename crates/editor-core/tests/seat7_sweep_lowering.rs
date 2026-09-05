@@ -136,7 +136,12 @@ fn cylinder(doc: ProfileDoc, radius: Expr) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// A rigid rotation of `input` about the origin.
-fn spin(doc: ProfileDoc, input: RecipeNodeId, axis: [f64; 3], angle: f64) -> (ProfileDoc, RecipeNodeId) {
+fn spin(
+    doc: ProfileDoc,
+    input: RecipeNodeId,
+    axis: [f64; 3],
+    angle: f64,
+) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Transform {

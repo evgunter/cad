@@ -7,7 +7,7 @@ use geom_core::{Bounds, Decide, Real, Tol};
 use profile::ValidatedProfile;
 use sweep::blend::BlendRefusal;
 use sweep::blend::naming::BlendNaming;
-use sweep::{Extruded, ExtrudeError, Revolved, RevolveError};
+use sweep::{ExtrudeError, Extruded, RevolveError, Revolved};
 use topo::{
     Body, BooleanError, BooleanNaming, BooleanResult, BooleanResultKind, ContactRecords,
     SweepStrategy, boolean_op_with,

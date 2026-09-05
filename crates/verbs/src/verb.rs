@@ -1,7 +1,7 @@
 //! The verb enum itself and its fieldless projection.
 
 use geom_core::Real;
-use sweep::{RevolveAxis, Revolution};
+use sweep::{Revolution, RevolveAxis};
 use topo::{BooleanDeclarations, BooleanOp, EdgeKey};
 
 /// **One kernel operation, with its parameters as data.**
