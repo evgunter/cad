@@ -45,14 +45,6 @@ const ANCHORS: [[f64; 3]; 3] = [
     [100.0, -250.0, 30.0],
     [0.001, 0.002, -0.003],
 ];
-/// Half-widths carried by each anchor coordinate: exact, one part in
-/// 1e15 of a metre, and a subdivision-scale box.
-#[cfg(feature = "interval")]
-const ANCHOR_RADII: [f64; 3] = [0.0, 1.0e-15, 1.0e-9];
-/// Half-widths carried by each normal component: exact, and a normal
-/// that is itself an enclosure.
-#[cfg(feature = "interval")]
-const NORMAL_RADII: [f64; 2] = [0.0, 1.0e-12];
 
 /// Vectors rejected in the `reject_from` rows.
 const SELVES: [[f64; 3]; 3] = [
@@ -357,10 +349,18 @@ fn parallel_rejection_is_exactly_zero_at_f64() {
 #[cfg(feature = "interval")]
 mod enclosure {
     use super::{
-        ANCHOR_RADII, ANCHORS, NORMAL_RADII, NORMALS, ONTOS, PARALLEL_SCALE, SELVES, p3,
-        retired_mirror_translation, retired_rejection, scaled, shipped_mirror_translation, v3,
+        ANCHORS, NORMALS, ONTOS, PARALLEL_SCALE, SELVES, p3, retired_mirror_translation,
+        retired_rejection, scaled, shipped_mirror_translation, v3,
     };
     use geom_core::{Bounds, Interval, Point3, Real, Vec3};
+
+    /// Half-widths carried by each anchor coordinate: exact, one part in
+    /// 1e15 of a metre, and a subdivision-scale box.
+    const ANCHOR_RADII: [f64; 3] = [0.0, 1.0e-15, 1.0e-9];
+
+    /// Half-widths carried by each normal component: exact, and a normal
+    /// that is itself an enclosure.
+    const NORMAL_RADII: [f64; 2] = [0.0, 1.0e-12];
 
     fn iv(x: f64) -> Interval {
         Interval::from_f64(x)
