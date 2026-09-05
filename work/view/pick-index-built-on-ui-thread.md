@@ -2,11 +2,13 @@
 id: pick-index-built-on-ui-thread
 kind: issue
 title: The pick index is built on the UI thread, so a landing that costs seconds is a frame that costs seconds
-status: dispatched
+status: closed
 opened: 2026-08-29
 github: 1259
 refs: [1217, 1247]
 branch: view/pick-index-offthread
+closed: 2026-09-05
+pr: 1888
 ---
 
 ## From GitHub issue 1259
@@ -386,3 +388,47 @@ where it describes something true.
   indicator's own state, which 6b carries.
 
 `needs_ev` cleared. This row stays OPEN as 6b's work.
+
+## CLOSED — 6b is on main (VIEW orchestrator, 2026-09-05)
+
+**#1888, merged at `1575bc51`.** The pick index and the tessellation
+under it are built on their own seam, off the UI thread, keyed by
+`(Generation, DisplayTolerance)` and carrying Ev's #1843 ruling
+exactly: no third shape in the frame-state inventory, a pick with no
+index refused typed and visibly rather than silently, and restart
+without cancel — `mesh` and `bvh` grew no cancel points and no other
+program was blocked.
+
+Three reviews: correctness, a delta round on the fix, and style. The
+correctness lane found a **MAJOR** — an index build in flight across an
+`Open` or `NewDocument` still matched `attempted` when it landed and
+installed over the scene of a different document, with `indexing()`
+false and nothing on the status line — a regression this unit created,
+invisible to the whole 483-row suite. The fix removed the *shape*
+rather than the instance: the two nothing-landed arms collapsed into
+one destructuring behind `PickCache::forget`, because taking the three
+landed reads apart in two places was the latent half of the defect.
+
+**6c collapsed into 6b under the ruling**, as the item said it would:
+with no stale read there is no staleness rule to express as frame data.
+
+Residues, all filed as their own items on the unit's own branch rather
+than disclosed in prose: `ui-thread-work-after-the-index-seam` (three
+further UI-thread costs the sweep found and did **not** measure),
+`indexing-seam-outlives-a-worker-panic`,
+`index-reads-without-the-evaluation-co-guard`,
+`the-two-seams-are-hand-maintained-twins`,
+`index-seam-vocabulary-sits-in-the-wrong-module`,
+`the-picture-key-never-became-a-type` and
+`progress-takes-three-positional-bools`.
+
+Two things this unit established that outlive it:
+
+- **The GQ6 paragraph rode the code**, per CLAUDE.md's rule that prose
+  beside the code states the present. It was deliberately not written
+  when 6a was ruled, because there was no off-thread index to describe.
+- **A doubt closed by the fix, not by the argument.** The style review
+  asked whether `unindexed`'s *Absent* sentence could be shown over a
+  frame that has an index. It cannot — and it is `forget` that makes
+  that true. Before the MAJOR fix that pairing was reachable, which is
+  another way to read the same defect.
