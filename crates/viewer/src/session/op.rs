@@ -23,6 +23,7 @@ use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
 use pncad::select::ContactClass;
 
+use crate::display::Withdrawn;
 use crate::props::SlotValue;
 use crate::session::author::{DatumSpec, PatternRuleSpec};
 use crate::session::probe::BoundsTarget;
@@ -708,6 +709,12 @@ pub struct OpOutcome {
     /// removes its probe here, and the instance is drawn at its
     /// solved placement from the next landed evaluation on.
     ///
+    /// Each entry carries the [`crate::display::DisplayFault`] that
+    /// discarded it, straight from the predicate that decided
+    /// (`display::free_move_check`), so the chrome can say WHY the
+    /// placement went — the mates to delete, the fuse, or the
+    /// instance being gone — instead of naming an id and stopping.
+    ///
     /// **Only COMMITTED probes.** A gesture in flight when the
     /// transition lands dies too and is not named here — recorded as
     /// current behaviour and explicitly not endorsed
@@ -718,7 +725,20 @@ pub struct OpOutcome {
     /// gesture op gives it.
     ///
     /// The chrome renders this through `frame::supersession_notice`.
-    pub superseded: Vec<RecipeNodeId>,
+    pub superseded: Vec<Withdrawn>,
+    /// Instances whose HIDE this operation's document transition
+    /// dropped, each with the `display::display_check` fault that
+    /// dropped it.
+    ///
+    /// **Not a supersession, and a separate field for that reason.**
+    /// A probe is superseded — the document answers the placement
+    /// question better than the hand placement did. A hide is not
+    /// answered better by anything: it stops being expressible, and
+    /// where the cause is a fuse the instance the user took out of the
+    /// picture is back in it. `crate::display::PruneReport` carries
+    /// the argument; the chrome renders this through
+    /// `frame::dropped_hide_notice`.
+    pub dropped_hides: Vec<Withdrawn>,
 }
 
 impl OpOutcome {

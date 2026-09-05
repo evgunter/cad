@@ -2,8 +2,9 @@
 id: scene-gathers-the-landed-product-twice-more
 kind: issue
 title: scene_of_evaluation and fit_delta each gather the landed evaluation's product again after the landing already did
-status: open
+status: dispatched
 opened: 2026-09-04
+branch: view/scene-gathers
 ---
 
 

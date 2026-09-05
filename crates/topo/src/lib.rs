@@ -164,6 +164,8 @@ pub mod geometry;
 #[cfg(test)]
 pub(crate) mod source_walk;
 
+#[cfg(test)]
+mod cert_m3r1_probes;
 pub mod instance;
 #[cfg(test)]
 pub(crate) mod iso;
@@ -175,6 +177,7 @@ mod n2r1_probes;
 pub mod null;
 pub mod offset_axial;
 pub mod offset_together;
+pub mod param_source;
 pub mod pcurves;
 pub mod props;
 pub mod provenance;
@@ -312,7 +315,7 @@ pub use geom::Curve3;
 pub use geom::Surface;
 pub use geom_brep::{
     CertifyError, ChartCurve, ChartWindow, EdgeAuthority, EdgeCurve, EdgeCurveSpec,
-    EdgeDescription, EdgeDescriptionSpec, EdgeNurbsLane, Pcurve, PcurveCache, PcurveCertifyError,
+    EdgeDescription, EdgeDescriptionSpec, Pcurve, PcurveCache, PcurveCertifyError,
     PcurveFittedLane,
 };
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
@@ -333,6 +336,7 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
+pub use param_source::{ParamAttachError, ParamSource, SurfaceField, field_source_evidence};
 pub use query::{
     ALL_SURFACE_KINDS, CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, RimError,
     SEL_DATUM_DISTANCE, SurfaceKindSet, UnitVec3, UnitVec3Error,
@@ -355,9 +359,11 @@ pub use splitting::{
 pub use transform::{TransformError, transform_rigid};
 pub use validate::{
     CensusContact, CensusSubject, ContactMark, RingContact, StaleDeclaration, ValidationError,
-    contact_marks, contact_marks_declared, validate, validate_closed, validate_geometric,
+    contact_marks, contact_marks_certified, contact_marks_declared,
+    contact_marks_declared_certified, validate, validate_closed, validate_geometric,
     validate_geometric_certificate, validate_geometric_certificate_declared,
     validate_geometric_declared, validate_geometric_structural,
     validate_geometric_structural_declared, validate_pseudomanifold,
-    validate_pseudomanifold_certificate,
+    validate_pseudomanifold_certificate, validate_pseudomanifold_certificate_certified,
+    validate_pseudomanifold_certified,
 };

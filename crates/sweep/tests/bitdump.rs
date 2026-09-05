@@ -1,10 +1,12 @@
 //! **Reviewer bit-identity dump (claim C1 of every blend PR).** Builds
 //! the fixtures a PR claims are bit-identical — the die (open chains +
 //! corners), the pipped die's pip rim (the N-link closed LADDER path),
-//! the chamfered cube, and one convex closed rim per coaxial arm family
+//! the chamfered cube, one convex closed rim per coaxial arm family
 //! the annulus door reaches (the dome's plane–sphere equator, the
 //! sphere zone's sphere–sphere rim pair, the lantern's sphere–plane,
-//! sphere–cone and cone–plane rims, the waisted body's cone–plane rims)
+//! sphere–cone and cone–plane rims, the waisted body's cone–plane rims),
+//! and one CONCAVE rim per closed-rim door (the waist annulus, the
+//! `cube ∪ ball` boss's ladder)
 //! — and writes a bit-faithful text dump of every output body to
 //! `$BITDUMP_DIR/<name>.txt`. Run at the merge base and at the head,
 //! then `diff` the files: any moved bit shows as a text change
@@ -15,6 +17,20 @@
 //! immediately — an explicit clean skip, so the suite is neither a red
 //! nor a silent green in the aggregated matrix. See `dump_dir` for why
 //! an environment read is admissible in this file at all.
+//!
+//! **Run the two SHAs in SEPARATE `CARGO_TARGET_DIR`s.** A shared one
+//! can serve the head's run a library built at the base — measured by a
+//! review lane, and the failure is silent: the dump comes out identical
+//! because it was produced by the same code twice, which is exactly the
+//! answer the differential is asked for. A differential taken in one
+//! target directory proves nothing.
+//!
+//! **The corpus covers BOTH material sides.** `bitdump_convex_closed_rims`
+//! is convex by construction and `bitdump_concave_closed_rims` is the
+//! material-ADDING twin — one rim per closed-rim door — because a change
+//! reaching only the concave fold (the ball resting in the void, the
+//! band face's sense, the concave `signed` in the trim derivations)
+//! could not show in any convex row.
 
 #![allow(
     clippy::unwrap_used,
@@ -343,6 +359,68 @@ fn bitdump_shell_open_box_corpus() {
     let sealed = topo::shell(&body, 0.25, 1e-6, tol).unwrap().body;
     text.push_str(&dump(&sealed));
     save(&dir, "shell_open_box_corpus", &text);
+}
+
+/// **The CONCAVE closed rims, the class the C1 constraint names and
+/// this suite used to omit.** Every other rim row here removes
+/// material; a change that moved only the material-ADDING fold — the
+/// arms' ball resting in the void, `Convexity::blend_sense` on the band
+/// face, the concave `signed` in the trim derivations — could not show
+/// in any of them.
+///
+/// Two rims, one per closed-rim door:
+///
+/// - the waisted body's WAIST `(0.5, 0.5)`, a cone–cone rim the chart
+///   seam split — the ANNULUS door, material added;
+/// - a boss `cube ∪ ball`, whose plane–sphere rim is a RING of the
+///   slab's top face — the LADDER door, material added.
+#[test]
+fn bitdump_concave_closed_rims() {
+    let Some(dir) = dump_dir() else {
+        return;
+    };
+    let tol = Tol::witness();
+    let r = 0.05;
+    let mut text = String::new();
+
+    let body = waisted(tol);
+    let waist = rim_arcs_at(&body, 0.5, 0.5);
+    assert_eq!(waist.len(), 2, "the waist rim is seam-split");
+    text.push_str(&dump_rim("waist annulus (concave)", &body, &waist, r));
+
+    // The H4 boss, built through the public boolean door: the ball's
+    // centre sits `R − H` inside the slab, so the cap has height `H` and
+    // the rim radius is `sqrt(R^2 − (R − H)^2)`.
+    let (slab, ball_r, cap_h) = (1.0_f64, 0.3_f64, 0.1_f64);
+    let ball = ball_poled_z(ball_r, Vec3::new(0.5, 0.5, slab - (ball_r - cap_h)), tol);
+    let boss = boolean_op_with(
+        BooleanOp::Union,
+        &cube(slab, tol),
+        &ball,
+        &BooleanDeclarations::none(),
+        SweepStrategy::Realized,
+        tol,
+    )
+    .expect("the boss builds")
+    .body()
+    .expect("a body")
+    .body
+    .clone();
+    let rim: Vec<EdgeKey> = query::all_edges(&boss)
+        .into_iter()
+        .filter(|&k| {
+            query::edge_adjacent_matches(
+                &boss,
+                k,
+                SurfaceKindSet::just(SurfaceKind::Plane),
+                SurfaceKindSet::just(SurfaceKind::Sphere),
+            )
+        })
+        .collect();
+    assert!(!rim.is_empty(), "the boss has a plane-sphere rim");
+    text.push_str(&dump_rim("boss ladder (concave)", &boss, &rim, 0.02));
+
+    save(&dir, "concave_closed_rims", &text);
 }
 
 /// The **extrude/revolve corpus**: every body kind whose construction

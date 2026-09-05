@@ -2,8 +2,9 @@
 id: mate-solve-is-transform-blind
 kind: issue
 title: the mate solve is transform-blind: a Node::Transform between an instance and mated material silently yields a green document with a gap where contact was authored
-status: open
+status: parked
 opened: 2026-09-04
+blocked_on: [MSOLVE-1]
 ---
 
 
