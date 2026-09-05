@@ -15,12 +15,83 @@ use geom_core::Tol;
 use geom_core::{Point2, Real};
 use profile::RawLoop;
 use profile::{
-    ArcSweep, ClosedLoop, Open, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start,
+    ArcSweep, ClosedLoop, CornerReason, CornerRefusal, FilletLeg, FilletLegCarrier, Open,
+    PathError, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start,
 };
 
 /// A point in the profile frame, from its two coordinates.
 pub fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
+}
+
+/// The corner entries of a `NoCornerOfPair` envelope, in the order the
+/// kernel reported them (nearest the bracketing anchors first).
+pub fn corners<T: Real>(err: &PathError<T>) -> &[CornerRefusal<T>] {
+    match err {
+        PathError::NoCornerOfPair { corners, .. } => corners,
+        other => panic!("expected a NoCornerOfPair envelope, got {other:?}"),
+    }
+}
+
+/// The FIRST entry's reason — the corner nearest the anchors, which is
+/// what a caller reads first.
+pub fn first_reason<T: Real>(err: &PathError<T>) -> &CornerReason<T> {
+    &corners(err)
+        .first()
+        .expect("a NoCornerOfPair envelope is never empty")
+        .reason
+}
+
+/// Whether ANY entry of the envelope refused for the named shape.
+pub fn any_reason<T: Real>(err: &PathError<T>, pred: impl Fn(&CornerReason<T>) -> bool) -> bool {
+    matches!(err, PathError::NoCornerOfPair { .. }) && corners(err).iter().any(|c| pred(&c.reason))
+}
+
+/// The entries of an envelope, or the empty slice for any other
+/// refusal — the searching form, for rows that ask whether SOME corner
+/// refused a given way without asserting the whole shape first.
+fn entries<T: Real>(err: &PathError<T>) -> &[CornerRefusal<T>] {
+    match err {
+        PathError::NoCornerOfPair { corners, .. } => corners,
+        _ => &[],
+    }
+}
+
+/// The first entry refusing with the enclosing class, as its payload.
+pub fn enclosing<T: Real>(err: &PathError<T>) -> Option<(Option<FilletLeg>, T, T, Option<T>)> {
+    entries(err).iter().find_map(|c| match &c.reason {
+        CornerReason::EnclosesLegCarrier {
+            side,
+            carrier_radius,
+            offset_radius,
+            largest_tangent_radius,
+        } => Some((
+            *side,
+            *carrier_radius,
+            *offset_radius,
+            *largest_tangent_radius,
+        )),
+        _ => None,
+    })
+}
+
+/// The first entry refusing on the anchor fit, as its payload.
+pub fn anchor_fit<T: Real>(err: &PathError<T>) -> Option<(FilletLeg, FilletLegCarrier, T, T)> {
+    entries(err).iter().find_map(|c| match &c.reason {
+        CornerReason::AnchorOutsideTrimmedExtent {
+            side,
+            carrier,
+            setback,
+            available,
+        } => Some((*side, *carrier, *setback, *available)),
+        _ => None,
+    })
+}
+
+/// Whether some corner of the envelope refused with the enclosing
+/// class.
+pub fn is_enclosing<T: Real>(err: &PathError<T>) -> bool {
+    enclosing(err).is_some()
 }
 
 /// The run's tolerance (env-driven; the multi-ε matrix parameterizes

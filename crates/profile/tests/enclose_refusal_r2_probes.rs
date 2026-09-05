@@ -203,15 +203,15 @@ fn fillet_endpoints(lp: &ProfileLoop<f64>, r: f64) -> Option<(Point2<f64>, Point
 fn label(res: &Result<ProfileLoop<f64>, PathError<f64>>) -> String {
     match res {
         Ok(_) => "BUILDS".to_string(),
-        Err(PathError::FilletEnclosesLegCarrier {
-            carrier_radius,
-            offset_radius,
-            ..
-        }) => format!("ENCLOSING(R={carrier_radius}, rho={offset_radius})"),
-        Err(e) => {
-            let d = format!("{e:?}");
-            d.split('{').next().unwrap_or("?").trim().to_string()
-        }
+        Err(e) => match crate::common::enclosing(e) {
+            Some((_, carrier_radius, offset_radius, _)) => {
+                format!("ENCLOSING(R={carrier_radius}, rho={offset_radius})")
+            }
+            None => {
+                let d = format!("{e:?}");
+                d.split('{').next().unwrap_or("?").trim().to_string()
+            }
+        },
     }
 }
 
@@ -242,7 +242,7 @@ fn p1_the_recourse_bound_against_the_measured_existence_gap() {
     .unwrap_err();
     println!("P1 at r = {big}: {}", label(&Err(refusal.clone())));
     println!("P1 message: {refusal}");
-    let PathError::FilletEnclosesLegCarrier { carrier_radius, .. } = refusal else {
+    let Some((_, carrier_radius, _, _)) = crate::common::enclosing(&refusal) else {
         panic!("expected the enclosing refusal at r = {big}, got {refusal:?}");
     };
     println!("P1 the recourse names: a radius below {carrier_radius}");
@@ -342,10 +342,11 @@ fn p2_the_gate_fires_only_where_a_crossing_of_the_pair_is_enclosing() {
                             let any_enclosing = facts.iter().any(|(_, a, b)| *a < 0.0 || *b < 0.0);
                             let drawn_enclosing =
                                 facts.first().is_some_and(|(_, a, b)| *a < 0.0 || *b < 0.0);
-                            match &res {
-                                Err(PathError::FilletEnclosesLegCarrier {
-                                    offset_radius, ..
-                                }) => {
+                            if let Some((_, _, offset_radius, _)) =
+                                res.as_ref().err().and_then(crate::common::enclosing)
+                            {
+                                {
+                                    let offset_radius = &offset_radius;
                                     enclosing_refusals += 1;
                                     // FALSIFIER: the gate must be
                                     // classifying a real crossing of
@@ -377,22 +378,20 @@ fn p2_the_gate_fires_only_where_a_crossing_of_the_pair_is_enclosing() {
                                         attributed_to_the_other_crossing += 1;
                                     }
                                 }
-                                Ok(lp) => {
-                                    builds += 1;
-                                    if let Some(bad) = emitted_swallows_a_carrier(
-                                        lp,
-                                        fillet,
-                                        &[(o1, r_in), (o2, r_out)],
-                                    ) {
-                                        panic!(
-                                            "RULING VIOLATED: the door emitted an enclosing \
-                                             tangency — {bad} (r_in {r_in}, r_out {r_out}, \
-                                             tau {tau_in}/{tau_out}, a_out {a_out}, r \
-                                             {fillet})"
-                                        );
-                                    }
+                            } else if let Ok(lp) = &res {
+                                builds += 1;
+                                if let Some(bad) = emitted_swallows_a_carrier(
+                                    lp,
+                                    fillet,
+                                    &[(o1, r_in), (o2, r_out)],
+                                ) {
+                                    panic!(
+                                        "RULING VIOLATED: the door emitted an enclosing \
+                                         tangency — {bad} (r_in {r_in}, r_out {r_out}, \
+                                         tau {tau_in}/{tau_out}, a_out {a_out}, r \
+                                         {fillet})"
+                                    );
                                 }
-                                Err(_) => {}
                             }
                         }
                     }
@@ -474,16 +473,17 @@ fn p3_no_emitted_fillet_swallows_a_carrier_off_the_prs_grid() {
                                         );
                                     }
                                 }
-                                Err(PathError::FilletEnclosesLegCarrier {
-                                    offset_radius, ..
-                                }) => {
-                                    enclosing_refusals += 1;
-                                    assert!(
-                                        *offset_radius < 0.0,
-                                        "{name}: the payload rho is not negative"
-                                    );
+                                Err(e) => {
+                                    if let Some((_, _, offset_radius, _)) =
+                                        crate::common::enclosing(e)
+                                    {
+                                        enclosing_refusals += 1;
+                                        assert!(
+                                            offset_radius < 0.0,
+                                            "{name}: the payload rho is not negative"
+                                        );
+                                    }
                                 }
-                                Err(_) => {}
                             }
                         }
                     }
@@ -601,7 +601,7 @@ fn p5_what_the_other_crossing_serves_and_how_far_away_it_is() {
 #[test]
 fn p6_hunt_a_surviving_no_corner_side_candidate_witness() {
     use profile::NoCornerReason;
-    use profile::path::PathNoCornerReason;
+    use profile::path::CornerReason;
     let mut hits = 0_u32;
     let mut tried = 0_u32;
     let mut seen: Vec<String> = Vec::new();
@@ -641,14 +641,16 @@ fn p6_hunt_a_surviving_no_corner_side_candidate_witness() {
                                 .and_then(|b| b.toward(dx, dy, Tol::witness()))
                                 .and_then(|b| b.line(0.3, Tol::witness()))
                                 .and_then(|b| b.line_to(Start, Tol::witness()));
-                            if let Err(PathError::NoCornerForFillet {
-                                reason:
-                                    PathNoCornerReason::NoTangentCircle(
-                                        NoCornerReason::NoCornerSideCandidate,
-                                    ),
-                                ..
-                            }) = res
-                            {
+                            if res.as_ref().err().is_some_and(|e| {
+                                crate::common::any_reason(e, |r| {
+                                    matches!(
+                                        r,
+                                        CornerReason::NoTangentCircle(
+                                            NoCornerReason::NoCornerSideCandidate
+                                        )
+                                    )
+                                })
+                            }) {
                                 hits += 1;
                                 if seen.len() < 3 {
                                     seen.push(format!(
@@ -706,12 +708,7 @@ fn p7_the_named_bound_on_a_corner_whose_carriers_differ() {
     };
     let err = build(2.0).unwrap_err();
     println!("P7 at r = 2: {}", label(&Err(err.clone())));
-    let PathError::FilletEnclosesLegCarrier {
-        side,
-        carrier_radius,
-        ..
-    } = err
-    else {
+    let Some((side, carrier_radius, _, _)) = crate::common::enclosing(&err) else {
         panic!("expected the enclosing refusal, got {err:?}");
     };
     println!("P7 the message names side {side:?}, class bound {carrier_radius}");
@@ -770,7 +767,9 @@ fn e2e_a_rounded_slot_authored_through_the_public_doors() {
             .and_then(|b| b.line_to(Start, Tol::witness()))
             .map(|closed| closed.loop_);
         println!("E2E fillet r = {fillet:<7} -> {}", label(&res));
-        if let Err(e @ PathError::FilletEnclosesLegCarrier { .. }) = &res {
+        if let Err(e) = &res
+            && crate::common::is_enclosing(e)
+        {
             println!("E2E     message: {e}");
         }
     }

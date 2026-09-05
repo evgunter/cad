@@ -23,7 +23,7 @@
 )]
 
 use geom_core::{Point2, Tol};
-use profile::path::PathNoCornerReason;
+use profile::path::CornerReason;
 use profile::{ArcSweep, Center, NoCornerReason, Open, PathError, ProfileLoop, Start};
 
 const PI: f64 = core::f64::consts::PI;
@@ -104,23 +104,35 @@ fn row1_bracketed(r: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 
 fn tag(e: &PathError<f64>) -> String {
     match e {
-        // Adopted into the unit's lane: the payload now names the
-        // TIGHTEST class bound (a `None` side meaning both carriers are
-        // swallowed) and carries the existence bound the message
-        // endorses, so the tag reports both numbers.
-        PathError::FilletEnclosesLegCarrier {
+        // The envelope reports EVERY refusing crossing, so the tag does
+        // too: one entry per derived corner, in the reported order.
+        // The enclosing payload names the TIGHTEST class bound (a `None`
+        // side meaning both carriers are swallowed) and carries the
+        // existence bound the message endorses, so both numbers show.
+        PathError::NoCornerOfPair { radius, corners } => {
+            let entries: Vec<String> = corners.iter().map(|c| entry_tag(&c.reason)).collect();
+            format!("Pair(r={radius},[{}])", entries.join(" "))
+        }
+        PathError::NoCornerForFillet { reason, .. } => format!("NoCorner({reason:?})"),
+        PathError::FilletOffsetLeverTooShort { .. } => "LeverShort".to_string(),
+        other => format!("{other:?}").chars().take(60).collect(),
+    }
+}
+
+/// One envelope entry's reason, tagged.
+fn entry_tag(reason: &CornerReason<f64>) -> String {
+    match reason {
+        CornerReason::EnclosesLegCarrier {
             side,
             carrier_radius,
             offset_radius,
-            radius,
             largest_tangent_radius,
         } => format!(
-            "Encloses({side:?},R={carrier_radius},rho={offset_radius},r={radius},             bound={largest_tangent_radius:?})"
+            "Encloses({side:?},R={carrier_radius},rho={offset_radius},bound={largest_tangent_radius:?})"
         ),
-        PathError::NoCornerForFillet { reason, .. } => format!("NoCorner({reason:?})"),
-        PathError::AnchorOutsideTrimmedExtent { side, .. } => format!("AnchorFit({side:?})"),
-        PathError::FilletOffsetLeverTooShort { .. } => "LeverShort".to_string(),
-        other => format!("{other:?}").chars().take(60).collect(),
+        CornerReason::NoTangentCircle(reason) => format!("NoTangent({reason:?})"),
+        CornerReason::AnchorOutsideTrimmedExtent { side, .. } => format!("AnchorFit({side:?})"),
+        CornerReason::OutsideAnchors(window) => format!("Outside({window:?})"),
     }
 }
 
@@ -170,12 +182,14 @@ fn p1_row1_radius_bands_and_recourse_gap() {
     for (r, out) in &bands {
         println!("P1 r={r:.3} -> {out}");
     }
-    // The enclosing band: every r > 0.2 (off-band) must be the typed
+    // The enclosing band: every r > 0.2 (off-band) must carry the typed
     // enclosing refusal now — no disjoint-offset / corner-side /
-    // anchor-fit costumes left above the bound.
+    // anchor-fit costumes left above the bound. The envelope reports
+    // every crossing, so the claim is about the entry for the corner
+    // that demands the class, not about which entry prints first.
     for (r, out) in &bands {
         if *r >= 0.225 {
-            assert!(out.starts_with("Encloses"), "r={r}: {out}");
+            assert!(out.contains("Encloses"), "r={r}: {out}");
         }
     }
     // The recourse gap: the refusal at r=0.5 names "below 0.2", but
@@ -194,10 +208,7 @@ fn p2a_enclosing_extremes_still_refuse_typed() {
     let c = p2(1.0e4, -3.0e3);
     let err = author_arc_arc(c, 0.3, 0.01, 1.0, 2.9, 1.7, 2.0, 1.0, 0.9, 10.0)
         .expect_err("r=10 vs R=0.01/2.0 demands the enclosing class");
-    assert!(
-        matches!(err, PathError::FilletEnclosesLegCarrier { .. }),
-        "got {err:?}"
-    );
+    assert!(crate::common::is_enclosing(&err), "got {err:?}");
     // Hairline pair: carriers nearly internally tangent (centres
     // 1e-4 apart at matched radii), r far above both.
     let c2 = p2(0.0, 0.0);
@@ -228,10 +239,7 @@ fn p2a_enclosing_extremes_still_refuse_typed() {
     // which is the ε-blindness this suite removes elsewhere.
     let resolvable = 1.0e-6 > 10.0 * Tol::witness().eps();
     if resolvable {
-        assert!(
-            matches!(err3, PathError::FilletEnclosesLegCarrier { .. }),
-            "got {err3:?}"
-        );
+        assert!(crate::common::is_enclosing(&err3), "got {err3:?}");
     } else {
         assert!(
             matches!(err3, PathError::DegenerateArcCenter { .. }),
@@ -413,14 +421,16 @@ fn p4_mine_no_corner_side_candidate_line_arc() {
                                             Tol::witness(),
                                         )
                                     });
-                            if let Err(PathError::NoCornerForFillet {
-                                reason:
-                                    PathNoCornerReason::NoTangentCircle(
-                                        NoCornerReason::NoCornerSideCandidate,
-                                    ),
-                                ..
-                            }) = &got
-                            {
+                            if got.as_ref().err().is_some_and(|e| {
+                                crate::common::any_reason(e, |r| {
+                                    matches!(
+                                        r,
+                                        CornerReason::NoTangentCircle(
+                                            NoCornerReason::NoCornerSideCandidate
+                                        )
+                                    )
+                                })
+                            }) {
                                 hits += 1;
                                 if first.is_none() {
                                     first = Some(format!(
@@ -474,10 +484,20 @@ fn p5_unbracketed_grid_digest() {
                         None => "B(noarc)".to_string(),
                     }
                 }
-                Err(e) => match e {
-                    PathError::FilletEnclosesLegCarrier { .. } => "Enc".to_string(),
+                Err(e) => match &e {
+                    PathError::NoCornerOfPair { corners, .. } => {
+                        let entries: Vec<&str> = corners
+                            .iter()
+                            .map(|c| match &c.reason {
+                                CornerReason::EnclosesLegCarrier { .. } => "Enc",
+                                CornerReason::NoTangentCircle(_) => "NT",
+                                CornerReason::AnchorOutsideTrimmedExtent { .. } => "AF",
+                                CornerReason::OutsideAnchors(_) => "OA",
+                            })
+                            .collect();
+                        format!("P[{}]", entries.join(","))
+                    }
                     PathError::NoCornerForFillet { reason, .. } => format!("NC({reason:?})"),
-                    PathError::AnchorOutsideTrimmedExtent { .. } => "AF".to_string(),
                     PathError::FilletOffsetLeverTooShort { .. } => "LS".to_string(),
                     other => format!("O({other:?})").chars().take(30).collect(),
                 },
@@ -511,12 +531,7 @@ fn p6_unequal_carriers_bound_is_two_step() {
     // between them re-refuses). The bound is now the tightest carrier on
     // both rows, and the endorsed radius is the existence bound rather
     // than either carrier.
-    let PathError::FilletEnclosesLegCarrier {
-        carrier_radius,
-        largest_tangent_radius,
-        ..
-    } = e1
-    else {
+    let Some((_, carrier_radius, _, largest_tangent_radius)) = crate::common::enclosing(&e1) else {
         panic!("r=0.9: {e1:?}")
     };
     assert!(
@@ -532,7 +547,7 @@ fn p6_unequal_carriers_bound_is_two_step() {
         go(0.99 * bound).is_ok(),
         "the endorsed radius must build, or the recourse is dead again"
     );
-    let PathError::FilletEnclosesLegCarrier { carrier_radius, .. } = e2 else {
+    let Some((_, carrier_radius, _, _)) = crate::common::enclosing(&e2) else {
         panic!("r=0.3: {e2:?}")
     };
     assert!((carrier_radius - 0.15).abs() < 1e-12);

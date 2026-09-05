@@ -1096,13 +1096,11 @@ fn the_lattice_door_never_emits_an_enclosing_tangency() {
             // side's R and its offset radius is the row's own negative
             // ρ, re-derived here from the drawn geometry rather than
             // read back from the construction.
-            Err(PathError::FilletEnclosesLegCarrier {
-                side,
-                carrier_radius,
-                offset_radius,
-                radius,
-                largest_tangent_radius,
-            }) => {
+            Err(ref err @ PathError::NoCornerOfPair { radius, .. })
+                if crate::common::enclosing(err).is_some() =>
+            {
+                let (side, carrier_radius, offset_radius, largest_tangent_radius) =
+                    crate::common::enclosing(err).expect("the guard just matched it");
                 assert_eq!(radius, case.r, "{name}: the refusal renamed the radius");
                 // Every table row swallows BOTH carriers, so the refusal
                 // says so rather than picking a side.
@@ -1283,13 +1281,11 @@ fn an_enclosing_leg_forces_an_equally_enclosing_partner() {
             "{name}: the row must contain a rho < 0 leg to be about the enclosing class"
         );
         match build_corner(c, leg_in, leg_out, r) {
-            Err(PathError::FilletEnclosesLegCarrier {
-                side,
-                offset_radius,
-                carrier_radius,
-                largest_tangent_radius,
-                ..
-            }) => {
+            Err(ref err @ PathError::NoCornerOfPair { .. })
+                if crate::common::enclosing(err).is_some() =>
+            {
+                let (side, carrier_radius, offset_radius, largest_tangent_radius) =
+                    crate::common::enclosing(err).expect("the guard just matched it");
                 assert!(
                     offset_radius < 0.0 && carrier_radius < r,
                     "{name}: the refusal must name the swallowed carrier (rho \
@@ -1350,32 +1346,25 @@ fn overrun_attribution_names_the_authored_corners_candidate() {
         0.5,
     )
     .expect_err("short legs must refuse");
-    match err {
-        PathError::AnchorOutsideTrimmedExtent {
-            side,
-            setback,
-            available,
-            ..
-        } => {
-            // The bottom corner's OWN candidate: it overruns the 4-degree
-            // (0.1396 m) leg, but only by a factor of a few — not by the
-            // 4.4 m the top corner's wrap-around reading produced.
-            assert_eq!(side, profile::FilletLeg::Incoming);
-            assert!(
-                (available - 0.139_626_340_159_546_53).abs() < 1e-12,
-                "leg length {available}"
-            );
-            assert!(
-                setback > available && setback < 1.0,
-                "setback {setback}: expected the near candidate's own overrun, not a \
-                 wrap-around distance to the corner the author never named"
-            );
-            // Half the carrier's circumference is the hard ceiling a
-            // signed setback can never exceed (|dtheta| <= pi, R = 2).
-            assert!(setback < core::f64::consts::PI * 2.0, "setback {setback}");
-        }
-        other => panic!("unexpected refusal {other:?}"),
-    }
+    let Some((side, _, setback, available)) = crate::common::anchor_fit(&err) else {
+        panic!("unexpected refusal {err:?}")
+    };
+    // The bottom corner's OWN candidate: it overruns the 4-degree
+    // (0.1396 m) leg, but only by a factor of a few — not by the
+    // 4.4 m the top corner's wrap-around reading produced.
+    assert_eq!(side, profile::FilletLeg::Incoming);
+    assert!(
+        (available - 0.139_626_340_159_546_53).abs() < 1e-12,
+        "leg length {available}"
+    );
+    assert!(
+        setback > available && setback < 1.0,
+        "setback {setback}: expected the near candidate's own overrun, not a \
+         wrap-around distance to the corner the author never named"
+    );
+    // Half the carrier's circumference is the hard ceiling a
+    // signed setback can never exceed (|dtheta| <= pi, R = 2).
+    assert!(setback < core::f64::consts::PI * 2.0, "setback {setback}");
 }
 
 /// **The conditioning gate's mined witness (M8).** The corner
@@ -1598,13 +1587,11 @@ fn enclosing_fillet_swallows_both_leg_carriers() {
         // enclosing-class variant on every shipped band (measured at
         // 1e-6 / 1e-9 / 1e-12), naming a swallowed side whose carrier
         // radius bounds the fillet and whose rho is negative.
-        Err(PathError::FilletEnclosesLegCarrier {
-            side,
-            carrier_radius,
-            offset_radius,
-            radius,
-            largest_tangent_radius,
-        }) => {
+        Err(ref err @ PathError::NoCornerOfPair { radius, .. })
+            if crate::common::enclosing(err).is_some() =>
+        {
+            let (side, carrier_radius, offset_radius, largest_tangent_radius) =
+                crate::common::enclosing(err).expect("the guard just matched it");
             assert_eq!(radius, r, "the refusal renamed the radius");
             assert_eq!(side, None, "this corner swallows BOTH carriers");
             assert!(

@@ -44,7 +44,7 @@ use pncad::profile::path::{HasAng, HasPos, NoAng, NoPos, Plain, WithIncoming};
 use super::quantity::{Angle, Length};
 use super::typed_err;
 use crate::errors::ErrorClass;
-use crate::tags::{path_error_tag, recorded_program_error_tag};
+use crate::tags::{corner_reason_tag, path_error_tag, recorded_program_error_tag};
 use pncad::tolerance::Tol;
 
 /// The lattice's runtime value, at one state.
@@ -52,15 +52,39 @@ type Path<P, A> = pf::PartialPath<f64, P, A>;
 type KPathError = pf::PathError<f64>;
 
 /// The kernel's refusal, raised where the verb was written.
+///
+/// `variant` is the refusal's stable tag; `corners` is the
+/// `no_corner_of_pair` envelope projected as a list of
+/// `(x, y, reason)` rows — one per derived corner that refused, in the
+/// kernel's own order (nearest the bracketing anchors first), with
+/// `reason` the entry's own tag. Every attribute is set on every arm,
+/// `None` where the arm carries no corner list, so handling reads
+/// `err.corners` without first branching on `err.variant`.
 fn path_err(py: Python<'_>, err: &KPathError) -> PyErr {
+    let corners = match err {
+        pf::PathError::NoCornerOfPair { corners, .. } => {
+            let rows: Vec<(f64, f64, &'static str)> = corners
+                .iter()
+                .map(|c| (c.at.x, c.at.y, corner_reason_tag(&c.reason)))
+                .collect();
+            match rows.into_pyobject(py) {
+                Ok(list) => list.unbind().into_any(),
+                Err(failed) => return failed,
+            }
+        }
+        _ => py.None(),
+    };
     typed_err(
         py,
         ErrorClass::Path,
         err.to_string(),
-        &[(
-            "variant",
-            PyString::new(py, path_error_tag(err)).unbind().into_any(),
-        )],
+        &[
+            (
+                "variant",
+                PyString::new(py, path_error_tag(err)).unbind().into_any(),
+            ),
+            ("corners", corners),
+        ],
     )
 }
 
