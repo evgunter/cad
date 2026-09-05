@@ -253,11 +253,15 @@ The counts behind the column, at the nominal, theorem/gated/numeric:
 | R1 bracket | `carrier_on_surface_1` | 72/0/108 | 180/0/0 |
 | R1 bracket | `carrier_on_surface_2` | 0/0/180 | 108/0/72 |
 
-The two R2 rows that LOSE theorems under A0 (`carrier_endpoint_start`
-44 → 42, `carrier_matches_mapped_source` 234 → 225) lose them to
-coefficient freezes at the 256-bit bound — the folded constants'
-products grow past it where the opaque atoms' did not — while the
+The two R2 rows that LOSE theorems under A0 REPLACING the plain form
+(`carrier_endpoint_start` 44 → 42, `carrier_matches_mapped_source`
+234 → 225) lose them to coefficient freezes at the 256-bit bound — the
+folded constants' products grow past it where the opaque atoms' did
+not. That variant does not ship: A0 runs in a second walk ALONGSIDE
+the plain form, so every plain theorem stays and the fold only adds,
+at ~1.8× the cost per leaf where the plain form does not answer; the
 bracket's whole-certifying ceiling moves 10.4× (`3.7e1 · ε` →
-`3.9e2 · ε`); at 4096 bits nothing freezes and nothing is lost, at
-229 s per leaf against 5.9 s. The bound is the measured trade
-(`geom_core::sym::COEFF_BITS`).
+`3.9e2 · ε`) either way. At 4096 bits nothing freezes even replacing,
+at 229 s per leaf against 5.9 s — coefficient growth, not the ring's
+heap traffic, which the `i128`-inline integer removed. The bound is the
+measured trade (`geom_core::sym::COEFF_BITS`).

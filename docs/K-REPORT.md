@@ -1767,17 +1767,19 @@ side by side.
 ### What ships, and what it does to the K population
 
 The constant fold **A0** (`geom_core::SymRules::shipped`): `sqrt(c)`
-and `abs(c)` of a constant form fold to the exact rational, over a
-coefficient ring widened from `i128` to arbitrary precision under a
-256-bit bound (`geom_core::sym::COEFF_BITS`, an `i128` inline and a
-heap integer only past it). It moves R2's filleted bracket's
-whole-certifying box from `3.7e1 · ε` to `3.9e2 · ε` (10.4×) and R1's
-annulus from `2.0e1 · ε` to `7.8e2 · ε` (39×), certifies M10-4's
-stepped shaft's real ±0.1 study whole, and leaves the two-hole plate at
-`7.81e2 · ε` — all at no cost per leaf over M10-7's tier (plate 0.35 →
-0.37 s, bracket 1.47 → 1.46 s). More `symbolic_zero` samples, fewer
-classified ones, no new rule sample: the population moves in the
-direction the tier exists to move it.
+and `abs(c)` of a constant form fold to the exact rational, in a second
+walk ALONGSIDE the plain form (M10-7's, asked first and never
+re-labelled), over a coefficient ring widened from `i128` to arbitrary
+precision under a 256-bit bound (`geom_core::sym::COEFF_BITS`, an
+`i128` inline and a heap integer only past it). It moves R2's filleted
+bracket's whole-certifying box from `3.7e1 · ε` to `3.9e2 · ε` (10.4×)
+and R1's annulus from `2.0e1 · ε` to `7.8e2 · ε` (39×), certifies
+M10-4's stepped shaft's real ±0.1 study whole, and leaves the two-hole
+plate at `7.81e2 · ε` — at about 1.8× M10-7's cost per leaf where the
+plain form does not answer (plate 0.35 → 0.54 s, bracket 1.47 →
+2.75 s). More `symbolic_zero` samples, fewer classified ones, no new
+rule sample: the population moves in the direction the tier exists to
+move it.
 
 ### The driver population, with an arc fixture
 
@@ -1811,11 +1813,19 @@ which called `sign_within` directly. Every one of those samples is a
 `Definite(Zero)` at margin 0 and never a rule sample, so no K claim in
 this report moves; what moves is the per-predicate attribution of
 1,054 rows that used to inflate whichever predicate preceded them. The
-site now goes through the finding lane under its own name,
-`expr_non_finite`, with ledger row **F18**
-(`docs/predicate-dimension-audit.md`: `value · 0` carries `value`'s
-dimension, so no `Margin` door fits), and the guard is green by naming
-— it was never relaxed.
+site now goes through the recorder's named evaluator door
+(`k_stats::check_unlogged`) under its own name, `expr_non_finite`,
+with ledger row **F18** (`docs/predicate-dimension-audit.md`:
+`value · 0` carries `value`'s dimension, so no `Margin` door fits), and
+the guard is green by naming — it was never relaxed. The door is
+UNLOGGED on purpose, and that is a second finding: routed through
+`classify` the check entered the verdict log, whose rows the drive
+compares between the f64 witness and each leaf, and the two lanes do
+not evaluate the same number of expressions — every M10-6
+min-clearance box refused on the vector mismatch with no geometry
+changed. The verdict log is the certification predicates'; an
+evaluator check's refusal reaches the consumer as
+`EvalError::NonFiniteResult` already.
 
 ### The rest of the algebra, measured and filed off
 
