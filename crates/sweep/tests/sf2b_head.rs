@@ -25,8 +25,6 @@ fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
-const FIT_TOL: f64 = 1e-6;
-
 /// A meridian loop revolved a full turn about the `y` axis.
 fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
@@ -291,7 +289,7 @@ fn cavity_report(what: &str, body: &Body<f64>, t: f64) {
             .get_face(m.faces[0])
             .and_then(|f| one.get_surface(f.surface))
             .cloned();
-        match topo::replace_faces_offset(&mut one, &m.faces, m.distance, 1e-6, band(), tol) {
+        match topo::replace_faces_offset(&mut one, &m.faces, m.distance, band(), tol) {
             Ok(()) => {
                 let after = one
                     .get_face(m.faces[0])
@@ -325,7 +323,7 @@ fn sf2b_bellied_pot_sealed_and_opened() {
     let tol = Tol::witness();
     let t = 1.0 / 128.0;
     let body = bellied_pot();
-    match topo::shell(&body, t, FIT_TOL, tol) {
+    match topo::shell(&body, t, tol) {
         Ok(topo::Shelled { body: p, .. }) => println!(
             "[pot] SEALED hollows: {} shells, props {:?}",
             p.shells().count(),
@@ -342,7 +340,7 @@ fn sf2b_bellied_pot_sealed_and_opened() {
         .map(|(k, _)| k)
         .collect();
     println!("[pot] mouth chart: {} face(s)", mouth.len());
-    match topo::shell_open(&body, t, &mouth, FIT_TOL, tol) {
+    match topo::shell_open(&body, t, &mouth, tol) {
         Ok(topo::Shelled { body: p, .. }) => println!(
             "[pot] OPENED: {} shells, props {:?}",
             p.shells().count(),
@@ -367,7 +365,7 @@ fn sf2b_head_measurement() {
         ("the drum", drum()),
     ] {
         println!("=== {what} ===");
-        match topo::shell(&body, t, FIT_TOL, tol) {
+        match topo::shell(&body, t, tol) {
             Ok(_) => println!("  HOLLOWS"),
             Err(e) => {
                 println!("  Display: {e}");

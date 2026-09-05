@@ -3,7 +3,7 @@
 
 use core::fmt;
 
-use geom_core::{Bounds, Decide, Real, Tol};
+use geom_core::{Bounds, CertifiedBounds, Decide, Real, Tol};
 use profile::ValidatedProfile;
 use sweep::blend::BlendRefusal;
 use sweep::blend::naming::BlendNaming;
@@ -11,7 +11,8 @@ use sweep::{ExtrudeError, Extruded, RevolveError, Revolved};
 use topo::splitting::SplitNaming;
 use topo::{
     Body, BooleanError, BooleanNaming, BooleanResult, BooleanResultKind, ContactRecords,
-    SplitError, SplitPart, SplitResult, SweepStrategy, boolean_op_with, split,
+    PropsQuadLane, ShellError, ShellNaming, Shelled, SplitError, SplitPart, SplitResult,
+    SweepStrategy, boolean_op_with, shell_open, split,
 };
 
 use crate::verb::{Arity, Verb, VerbKind};
@@ -95,6 +96,12 @@ pub enum VerbRecord<T: Real> {
     /// taking the door's result apart — unlike a sweep's bundle,
     /// whose emitter reads the whole.
     Split(SplitNaming),
+    /// The shell's mint-time naming facts — the outer wall rows, the
+    /// cavity twins per arena, the rim rows and what the construction
+    /// retired — the kernel's own type moved across by value, beside
+    /// the body for the split's reason: the shell's naming is read
+    /// alongside the operand, not out of a bundle that contains it.
+    Shell(ShellNaming),
 }
 
 /// **What the split produced**: its two sides, each a body or the
@@ -150,8 +157,25 @@ pub enum PairOut<T: Real> {
 /// new one. The blend pair shares a single arm because the two doors
 /// share one refusal vocabulary and the door itself records which verb
 /// refused (`BlendRefusal::verb`).
+///
+/// **`T: Real`, and the scalar is the shell's.** Every other door's
+/// refusal is scalar-free, and this enum was too until the shell's
+/// arrived: `ShellError<T>` carries the thickness it refused, the
+/// measured wall gap and the width two offsets would have needed —
+/// numbers at the operand's own scalar. Carrying the scalar is what
+/// lets this arm hold the door's refusal UNALTERED, which is the one
+/// thing this enum promises. The alternative — a scalar-free
+/// projection minted here — would be a second vocabulary for shell
+/// refusals, hand-kept in a crate that owns neither end and with
+/// nothing to force it to follow `ShellError`; and rendering the
+/// numbers instead would mean reading brackets in this file, which is
+/// exactly the abstention its `Bounds` allowlist entry rests on.
+/// The [`VerbError::Arity`] arm carries no scalar and does not want
+/// one; that it is now written at some `T` costs its one non-door
+/// consumer a turbofish and nothing else, since its sentence is a
+/// function of the two names it holds.
 #[derive(Debug)]
-pub enum VerbError {
+pub enum VerbError<T: Real> {
     /// A blend door refused.
     Blend(BlendRefusal),
     /// The boolean pipeline refused.
@@ -162,6 +186,12 @@ pub enum VerbError {
     Revolve(RevolveError),
     /// The split op refused.
     Split(SplitError),
+    /// The shell door refused, carrying its typed refusal verbatim.
+    /// Boxed: `ShellError` is the widest refusal in the channel (it
+    /// nests the face-replacement door's own, which nests the fit
+    /// door's), and an unboxed arm would make every `VerbError` that
+    /// size.
+    Shell(Box<ShellError<T>>),
     /// A verb was run through a door that is not the one it declares
     /// ([`VerbKind::arity`]) — a caller wiring bug surfaced typed,
     /// never a panic. Unreachable through a lowering that consults
@@ -176,7 +206,7 @@ pub enum VerbError {
     },
 }
 
-impl fmt::Display for VerbError {
+impl<T: Real> fmt::Display for VerbError<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Blend(refusal) => write!(f, "{refusal}"),
@@ -184,6 +214,7 @@ impl fmt::Display for VerbError {
             Self::Extrude(refusal) => write!(f, "{refusal}"),
             Self::Revolve(refusal) => write!(f, "{refusal}"),
             Self::Split(refusal) => write!(f, "{refusal}"),
+            Self::Shell(refusal) => write!(f, "{refusal}"),
             // Written in the doors' own names and nothing else — no
             // reading of what a row MEANS (a count, an operand shape, a
             // signature) enters the sentence, so a door added to the
@@ -200,7 +231,7 @@ impl fmt::Display for VerbError {
     }
 }
 
-impl core::error::Error for VerbError {}
+impl<T: Real> core::error::Error for VerbError<T> {}
 
 impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
     /// **Run this one-operand verb against its operand.**
@@ -217,7 +248,7 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
     /// `sweep::blend::build::chamfer_edges`) enumerate the cases.
     /// [`VerbError::Arity`] if this verb answers another door — its
     /// operand is two bodies or a profile, or it hands back two sides.
-    pub fn run(&self, operand: &Body<T>, tol: Tol) -> Result<VerbOut<T>, VerbError> {
+    pub fn run(&self, operand: &Body<T>, tol: Tol) -> Result<VerbOut<T>, VerbError<T>> {
         let blended = match self {
             Self::Fillet { edges, radius } => {
                 sweep::blend::build::fillet_edges(operand, edges, *radius, tol)
@@ -228,7 +259,8 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
             Self::Boolean { .. }
             | Self::Extrude { .. }
             | Self::Revolve { .. }
-            | Self::Split { .. } => {
+            | Self::Split { .. }
+            | Self::Shell { .. } => {
                 return Err(VerbError::Arity {
                     verb: self.kind(),
                     given: Arity::One,
@@ -262,7 +294,7 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
         b: &Body<T>,
         sweep: SweepStrategy,
         tol: Tol,
-    ) -> Result<PairOut<T>, VerbError> {
+    ) -> Result<PairOut<T>, VerbError<T>> {
         match self {
             Self::Boolean { op, declare } => {
                 match boolean_op_with(*op, a, b, declare, sweep, tol).map_err(VerbError::Boolean)? {
@@ -293,7 +325,8 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
             | Self::Chamfer { .. }
             | Self::Extrude { .. }
             | Self::Revolve { .. }
-            | Self::Split { .. } => Err(VerbError::Arity {
+            | Self::Split { .. }
+            | Self::Shell { .. } => Err(VerbError::Arity {
                 verb: self.kind(),
                 given: Arity::Two,
             }),
@@ -322,7 +355,7 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
         &self,
         operand: &ValidatedProfile<T>,
         tol: Tol,
-    ) -> Result<VerbRecord<T>, VerbError> {
+    ) -> Result<VerbRecord<T>, VerbError<T>> {
         match self {
             Self::Extrude { distance } => {
                 sweep::extrude(operand, sweep::Extrusion::Distance(*distance), tol)
@@ -335,7 +368,8 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
             Self::Fillet { .. }
             | Self::Chamfer { .. }
             | Self::Boolean { .. }
-            | Self::Split { .. } => Err(VerbError::Arity {
+            | Self::Split { .. }
+            | Self::Shell { .. } => Err(VerbError::Arity {
                 verb: self.kind(),
                 given: Arity::Profile,
             }),
@@ -360,7 +394,7 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
     /// verbatim (`topo::split` enumerates the cases — every stage's
     /// typed refusal passed through whole); [`VerbError::Arity`] if
     /// this verb answers another door.
-    pub fn run_split(&self, operand: &Body<T>, tol: Tol) -> Result<SplitOut<T>, VerbError> {
+    pub fn run_split(&self, operand: &Body<T>, tol: Tol) -> Result<SplitOut<T>, VerbError<T>> {
         match self {
             Self::Split { plane } => {
                 // Exhaustive destructure, deliberately: a field grown
@@ -381,9 +415,78 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
             | Self::Chamfer { .. }
             | Self::Extrude { .. }
             | Self::Revolve { .. }
-            | Self::Boolean { .. } => Err(VerbError::Arity {
+            | Self::Boolean { .. }
+            | Self::Shell { .. } => Err(VerbError::Arity {
                 verb: self.kind(),
                 given: Arity::Split,
+            }),
+        }
+    }
+}
+
+/// **The shell door, under its own bound.**
+///
+/// It is a second `impl` block rather than a fifth method on the one
+/// above because the op door it dispatches to asks for more of the
+/// scalar than the rest of the vocabulary does: `topo::shell_open` is
+/// `Decide + PropsQuadLane + CertifiedBounds`, because a shell
+/// validates what it built and the `+V` invariant of that validation is
+/// a certified claim. Tightening the other block's header to match is
+/// not available — `geom-core`'s `Bounds` allowlist entry for this file
+/// records the measurement: `Decide + CertifiedBounds +
+/// PcurveFittedLane` compiles here and breaks
+/// `editor_core::eval::wire`'s blend lowering, which runs beneath a
+/// mixed pass instantiated at `Dual`, and no `Dual` certifies. So the
+/// bounds are split at the impl, each door asking for exactly what its
+/// callee asks for, and the `Dual` caller stays green by construction:
+/// it names [`Verb::run`], which lives in the block that has not moved.
+///
+/// The split is a fact of the SIGNATURE, not a refusal: a verb built at
+/// a non-certifying scalar cannot be handed to this door at all, so
+/// there is no run-time arm for it and nothing for [`Arity`] to speak.
+/// What `Arity` does speak, unchanged, is the mismatch at every other
+/// door: a `Shell` handed to [`Verb::run`], [`Verb::run_pair`],
+/// [`Verb::run_profile`] or [`Verb::run_split`] refuses by name.
+impl<T: Decide + PropsQuadLane + CertifiedBounds> Verb<T> {
+    /// **Run this hollowing verb against its operand body.**
+    ///
+    /// The operand comes in borrowed, never in the payload, exactly as
+    /// at [`Verb::run`]; an EMPTY `open` is the sealed hollow, which is
+    /// the kernel door's own contract and not a case decided here.
+    /// Every check, every refusal and every minted entity is
+    /// `topo::shell_open`'s — this dispatches and re-wraps, and adds no
+    /// decision of its own; the tolerance witness travels down
+    /// unaltered and no number is derived from it here.
+    ///
+    /// # Errors
+    ///
+    /// [`VerbError::Shell`] carrying the door's [`ShellError`] verbatim
+    /// (`topo::shell_open` enumerates the cases — the band derivation,
+    /// the thickness gate, the wall-clearance gate, the per-face offset
+    /// refusals, the designation gates and a result that does not
+    /// validate); [`VerbError::Arity`] if this verb answers another
+    /// door.
+    pub fn run_shell(&self, operand: &Body<T>, tol: Tol) -> Result<VerbOut<T>, VerbError<T>> {
+        match self {
+            Self::Shell { thickness, open } => {
+                // Exhaustive destructure, deliberately: a field grown
+                // onto `Shelled` breaks this door at compile time
+                // instead of silently vanishing in the move.
+                let Shelled { body, naming } = shell_open(operand, *thickness, open, tol)
+                    .map_err(|error| VerbError::Shell(Box::new(error)))?;
+                Ok(VerbOut {
+                    body,
+                    record: VerbRecord::Shell(naming),
+                })
+            }
+            Self::Fillet { .. }
+            | Self::Chamfer { .. }
+            | Self::Extrude { .. }
+            | Self::Revolve { .. }
+            | Self::Boolean { .. }
+            | Self::Split { .. } => Err(VerbError::Arity {
+                verb: self.kind(),
+                given: Arity::Shell,
             }),
         }
     }

@@ -170,7 +170,8 @@ fn blend_record<T: geom_core::Real>(record: VerbRecord<T>) -> Option<Option<Blen
         VerbRecord::Boolean { .. }
         | VerbRecord::Extrude(_)
         | VerbRecord::Revolve(_)
-        | VerbRecord::Split(_) => None,
+        | VerbRecord::Split(_)
+        | VerbRecord::Shell(_) => None,
     }
 }
 

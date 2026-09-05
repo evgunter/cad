@@ -101,7 +101,7 @@ fn main() {
     println!("[M2] sphere chart worn by {} face(s)", group.len());
 
     let mut body = ball.clone();
-    match topo::replace_faces_offset(&mut body, &group, 0.05, 1e-9, band(), Tol::witness()) {
+    match topo::replace_faces_offset(&mut body, &group, 0.05, band(), Tol::witness()) {
         Err(topo::ReplaceFaceError::CarrierLaneUnsupported { what, .. }) => {
             println!("[M2] REFUSED CarrierLaneUnsupported: {what}");
             println!(

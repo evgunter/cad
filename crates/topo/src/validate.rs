@@ -3151,8 +3151,10 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
             // mint's parameter is not that claim; see
             // `PropsQuadLane::recertify_approx` for the argument, and
             // for why ε-tightening turning a loosely-minted surface red
-            // is D4's blessed behaviour rather than a regression.
-            Some(Surface::Approx(approx)) => match T::recertify_approx(approx, tol.eps(), band) {
+            // is D4's blessed behaviour rather than a regression. The
+            // witness travels; the value is read once, inside the
+            // lane, so this site cannot hand it a number of its own.
+            Some(Surface::Approx(approx)) => match T::recertify_approx(approx, tol, band) {
                 Some(Ok(_)) => {}
                 Some(Err(error)) => {
                     errors.push(ValidationError::ApproxCertification {

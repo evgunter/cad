@@ -268,6 +268,14 @@ fn sample(kind: VerbKind) -> Verb<f64> {
         VerbKind::Split => Verb::Split {
             plane: z_plane(0.5),
         },
+        // The thickness is nonpositive so that the sample cannot build
+        // a body at any door it is offered to: the mismatch rows below
+        // must be answered by `Arity` before an op runs, and a sample
+        // that could succeed somewhere would make the refusal ambiguous.
+        VerbKind::Shell => Verb::Shell {
+            thickness: 0.0,
+            open: Vec::new(),
+        },
     }
 }
 
@@ -280,7 +288,7 @@ fn every_door(
     a: &Body<f64>,
     b: &Body<f64>,
     disc: &profile::ValidatedProfile<f64>,
-) -> Vec<(Arity, Option<VerbError>)> {
+) -> Vec<(Arity, Option<VerbError<f64>>)> {
     vec![
         (Arity::One, verb.run(a, tol()).err()),
         (
@@ -289,6 +297,7 @@ fn every_door(
         ),
         (Arity::Profile, verb.run_profile(disc, tol()).err()),
         (Arity::Split, verb.run_split(a, tol()).err()),
+        (Arity::Shell, verb.run_shell(a, tol()).err()),
     ]
 }
 
@@ -348,7 +357,7 @@ fn each_door_refuses_the_undeclared_arity() {
         // Every door but this verb's own, so no shape is left untried:
         // the refusal must come back from each of them, naming the verb
         // and the door that refused.
-        let refusals: Vec<(Arity, VerbError)> = every_door(&verb, &a, &b, &disc)
+        let refusals: Vec<(Arity, VerbError<f64>)> = every_door(&verb, &a, &b, &disc)
             .into_iter()
             .filter(|(door, _)| *door != kind.arity())
             .map(|(door, err)| {
@@ -358,7 +367,7 @@ fn each_door_refuses_the_undeclared_arity() {
                 )
             })
             .collect();
-        assert_eq!(refusals.len(), 3, "there are four doors, not four-plus");
+        assert_eq!(refusals.len(), 4, "there are five doors, not five-plus");
         for (door, err) in refusals {
             let VerbError::Arity { verb: who, given } = err else {
                 panic!("{kind:?} at the {door:?} door refused with {err:?}, not Arity");
@@ -421,6 +430,30 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
     assert_eq!(
         err.to_string(),
         "the Fillet verb was run through the Split door; the door that answers it is One"
+    );
+    // The shell's own mismatch, both ways. Its operand is one body like
+    // a blend's, so the One door is where a wiring bug would hand it —
+    // and the sentence must name the SHELL door as the answer, not an
+    // operand shape the two rows agree on.
+    let err = Verb::Shell {
+        thickness: 0.1_f64,
+        open: Vec::new(),
+    }
+    .run(&cube, tol())
+    .expect_err("a shell's door asks more of the scalar than the one-body door does");
+    assert_eq!(
+        err.to_string(),
+        "the Shell verb was run through the One door; the door that answers it is Shell"
+    );
+    let err = Verb::Fillet {
+        edges: Vec::new(),
+        radius: 0.1_f64,
+    }
+    .run_shell(&cube, tol())
+    .expect_err("a fillet does not hollow");
+    assert_eq!(
+        err.to_string(),
+        "the Fillet verb was run through the Shell door; the door that answers it is One"
     );
 }
 
@@ -662,6 +695,79 @@ fn a_sweep_refusal_crosses_the_dispatch_unaltered() {
     .unwrap_err();
     let VerbError::Revolve(carried) = via else {
         panic!("a revolve refusal crossed as another family's: {via:?}");
+    };
+    assert_eq!(format!("{door:?}"), format!("{carried:?}"));
+    assert_eq!(door.to_string(), carried.to_string());
+}
+
+/// **The shell dispatch is the shell door**, in both of its spellings:
+/// the sealed hollow and the opened one. `Verb::Shell` has one variant
+/// for both, so the row that matters is that an EMPTY designation
+/// reaches `topo::shell` — which is `shell_open`'s own contract — and a
+/// nonempty one reaches the rim surgery, with the body and every field
+/// of the birth record identical either way.
+#[test]
+fn the_shell_dispatch_is_the_shell_door() {
+    let cube = sweep::test_support::cube(1.0, tol());
+    let designated: Vec<topo::FaceKey> = cube.faces().map(|(k, _)| k).take(1).collect();
+
+    for open in [Vec::new(), designated] {
+        let door = if open.is_empty() {
+            topo::shell(&cube, 0.1, tol())
+        } else {
+            topo::shell_open(&cube, 0.1, &open, tol())
+        }
+        .unwrap_or_else(|e| panic!("the fixture is inside the door: {e}"));
+        let via = Verb::Shell {
+            thickness: 0.1,
+            open: open.clone(),
+        }
+        .run_shell(&cube, tol())
+        .unwrap_or_else(|e| panic!("the dispatch refused what the door accepted: {e}"));
+
+        assert_eq!(dump(&door.body), dump(&via.body));
+        let VerbRecord::Shell(carried) = via.record else {
+            panic!("a shell run produced another family's record");
+        };
+        // Field by field, as the revolve's row is: the whole-record
+        // equality below would pass on a record rebuilt from the same
+        // parts, and these say WHICH part moved if one stops.
+        assert_eq!(door.naming.outer, carried.outer);
+        assert_eq!(door.naming.inner, carried.inner);
+        assert_eq!(door.naming.inner_edges, carried.inner_edges);
+        assert_eq!(door.naming.inner_vertices, carried.inner_vertices);
+        assert_eq!(door.naming.rims, carried.rims);
+        assert_eq!(door.naming.dead, carried.dead);
+        assert_eq!(
+            door.naming, carried,
+            "the birth record is carried across, not rebuilt"
+        );
+        assert_eq!(
+            !open.is_empty(),
+            !carried.rims.is_empty(),
+            "an empty designation rims nothing and a nonempty one rims something"
+        );
+    }
+}
+
+/// **A shell refusal crosses unaltered.** The fixture is the door's own
+/// thickness gate — a zero wall, refused before anything is built — and
+/// it is the row that shows the scalar on `VerbError` doing its job: the
+/// thickness the door echoed back into its refusal is what crosses,
+/// unrendered.
+#[test]
+fn a_shell_refusal_crosses_the_dispatch_unaltered() {
+    let cube = sweep::test_support::cube(1.0, tol());
+    let door = topo::shell(&cube, 0.0_f64, tol()).unwrap_err();
+    let via = Verb::Shell {
+        thickness: 0.0,
+        open: Vec::new(),
+    }
+    .run_shell(&cube, tol())
+    .unwrap_err();
+
+    let VerbError::Shell(carried) = via else {
+        panic!("a shell refusal crossed as another family's: {via:?}");
     };
     assert_eq!(format!("{door:?}"), format!("{carried:?}"));
     assert_eq!(door.to_string(), carried.to_string());

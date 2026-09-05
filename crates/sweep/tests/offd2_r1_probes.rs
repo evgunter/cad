@@ -18,8 +18,6 @@ fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
-const FIT_TOL: f64 = 1e-6;
-
 fn boxy(w: f64, d: f64, h: f64) -> Body<f64> {
     let lp = ProfileLoop::new(vec![
         ProfileVertex::new(p2(0.0, 0.0), 0.0),
@@ -111,7 +109,7 @@ fn plane_face_x(body: &Body<f64>, x: f64) -> FaceKey {
 /// face offsets (no margin exists), the cavity is inside-out.
 #[test]
 fn probe_overthick_box_fails_loud() {
-    let r = topo::shell(&boxy(2.0, 3.0, 4.0), 1.9, FIT_TOL, Tol::witness());
+    let r = topo::shell(&boxy(2.0, 3.0, 4.0), 1.9, Tol::witness());
     match r {
         Err(e) => println!("[probe] overthick box: LOUD: {e}"),
         Ok(topo::Shelled { body, .. }) => panic!(
@@ -126,7 +124,7 @@ fn probe_overthick_box_fails_loud() {
 /// PR's own named gap fixture. Every per-face margin is positive.
 #[test]
 fn probe_overhalf_slab_fails_loud() {
-    let r = topo::shell(&boxy(4.0, 4.0, 1.0), 0.6, FIT_TOL, Tol::witness());
+    let r = topo::shell(&boxy(4.0, 4.0, 1.0), 0.6, Tol::witness());
     match r {
         Err(e) => println!("[probe] over-half slab: LOUD: {e}"),
         Ok(topo::Shelled { body, .. }) => panic!(
@@ -140,7 +138,7 @@ fn probe_overhalf_slab_fails_loud() {
 /// Exactly half the thickness: the cavity's top and bottom coincide.
 #[test]
 fn probe_exact_half_slab_fails_loud() {
-    let r = topo::shell(&boxy(4.0, 4.0, 1.0), 0.5, FIT_TOL, Tol::witness());
+    let r = topo::shell(&boxy(4.0, 4.0, 1.0), 0.5, Tol::witness());
     match r {
         Err(e) => println!("[probe] exact-half slab: LOUD: {e}"),
         Ok(topo::Shelled { body, .. }) => panic!(
@@ -167,7 +165,7 @@ fn probe_lshape_colliding_cavity_fails_loud() {
         ],
         2.0,
     );
-    let r = topo::shell(&l, 0.6, FIT_TOL, Tol::witness());
+    let r = topo::shell(&l, 0.6, Tol::witness());
     match r {
         Err(e) => println!("[probe] L-shape: LOUD: {e}"),
         Ok(topo::Shelled { body, .. }) => panic!(
@@ -201,7 +199,7 @@ fn probe_dumbbell_neck_collision_fails_loud() {
         ],
         2.0,
     );
-    let r = topo::shell(&db, 0.3, FIT_TOL, Tol::witness());
+    let r = topo::shell(&db, 0.3, Tol::witness());
     // **MAJ-1, closed (ordinal 82 -> fix pass).** At `259fde04` this
     // returned Ok, tier-3 VALIDATED, and reported volume 11.76 against
     // a true erosion volume of 11.312: the cavity's neck walls
@@ -226,10 +224,10 @@ fn probe_dumbbell_neck_collision_fails_loud() {
 /// something refuses. One solid, so `NotOneSolid` does not gate it.
 #[test]
 fn probe_shell_of_a_hollow_fails_loud() {
-    let hollow = topo::shell(&boxy(2.0, 3.0, 4.0), 0.25, FIT_TOL, Tol::witness())
+    let hollow = topo::shell(&boxy(2.0, 3.0, 4.0), 0.25, Tol::witness())
         .expect("the first shell is the PR's own green row")
         .body;
-    let r = topo::shell(&hollow, 0.05, FIT_TOL, Tol::witness());
+    let r = topo::shell(&hollow, 0.05, Tol::witness());
     // **MAJ-2, closed (ordinal 82 -> fix pass).** At `259fde04` this
     // returned Ok with FOUR shells, tier-3 valid, volume 4.362: the
     // verb offset the operand's VOID shell too and inserted both
@@ -262,7 +260,7 @@ fn probe_opened_box_census() {
     let (w, d, h, t) = (2.0, 3.0, 4.0, 0.25);
     let body = boxy(w, d, h);
     let top = plane_face_at(&body, h);
-    let cup = topo::shell_open(&body, t, &[top], FIT_TOL, Tol::witness())
+    let cup = topo::shell_open(&body, t, &[top], Tol::witness())
         .expect("the PR's own green fixture")
         .body;
     let v = cup.vertices().count() as i64;
@@ -280,7 +278,7 @@ fn probe_opened_box_census() {
 
     // And the tube (two opposite rims): genus 1.
     let bottom = plane_face_at(&body, 0.0);
-    let tube = topo::shell_open(&body, t, &[top, bottom], FIT_TOL, Tol::witness())
+    let tube = topo::shell_open(&body, t, &[top, bottom], Tol::witness())
         .expect("the PR's own green fixture")
         .body;
     let v = tube.vertices().count() as i64;
@@ -302,7 +300,7 @@ fn probe_adjacent_two_face_opening() {
     let body = boxy(w, d, h);
     let top = plane_face_at(&body, h);
     let side = plane_face_x(&body, w);
-    match topo::shell_open(&body, t, &[top, side], FIT_TOL, Tol::witness()) {
+    match topo::shell_open(&body, t, &[top, side], Tol::witness()) {
         Err(e) => println!("[probe] adjacent pair: typed refusal: {e}"),
         Ok(topo::Shelled { body: open, .. }) => {
             assert_eq!(
@@ -372,7 +370,7 @@ fn probe_opened_vessel_cup() {
     // regression that turned the revolved cup into a typed refusal
     // would have read as a green probe. The verb builds this rim, so
     // anything else reds here.
-    match topo::shell_open(&v, t, &top, FIT_TOL, Tol::witness()) {
+    match topo::shell_open(&v, t, &top, Tol::witness()) {
         Err(e) => panic!(
             "the revolved vessel cup must BUILD ({} top faces designated); the verb \
              refused with {e}",
@@ -467,7 +465,7 @@ fn probe_stale_designation_refuses_typed() {
         .last()
         .expect("the prism has more faces than the box");
     assert!(body.get_face(foreign).is_none(), "the key must not resolve");
-    let e = topo::shell_open(&body, 0.25, &[foreign], FIT_TOL, Tol::witness())
+    let e = topo::shell_open(&body, 0.25, &[foreign], Tol::witness())
         .expect_err("a stale designation must refuse");
     assert!(
         matches!(e, topo::ShellError::OpenFaceStale { .. }),
@@ -503,7 +501,7 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
 
     let mut work = v.clone();
     let before = format!("{work:?}");
-    let e = topo::replace_faces_offset(&mut work, &cyl[..1], -0.2, FIT_TOL, band(), Tol::witness())
+    let e = topo::replace_faces_offset(&mut work, &cyl[..1], -0.2, band(), Tol::witness())
         .expect_err("a partial group must refuse");
     assert!(
         matches!(e, topo::ReplaceFaceError::SharedSurfaceKey { .. }),
@@ -522,7 +520,7 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
         .map(|(k, _)| k)
         .unwrap();
     let mixed = vec![cyl[0], cap];
-    let e = topo::replace_faces_offset(&mut work, &mixed, -0.2, FIT_TOL, band(), Tol::witness())
+    let e = topo::replace_faces_offset(&mut work, &mixed, -0.2, band(), Tol::witness())
         .expect_err("a mixed group must refuse");
     assert!(
         matches!(e, topo::ReplaceFaceError::GroupChartsDiffer { .. }),
@@ -535,7 +533,7 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
     );
 
     // The empty group.
-    let e = topo::replace_faces_offset(&mut work, &[], -0.2, FIT_TOL, band(), Tol::witness())
+    let e = topo::replace_faces_offset(&mut work, &[], -0.2, band(), Tol::witness())
         .expect_err("an empty group must refuse");
     assert!(matches!(e, topo::ReplaceFaceError::EmptyGroup), "got {e}");
     assert_eq!(
@@ -584,7 +582,7 @@ fn probe_late_err_leaves_body_untouched() {
         .unwrap();
     let mut work = elbow.clone();
     let before = format!("{work:?}");
-    let e = topo::replace_face_offset(&mut work, cap, -0.05, FIT_TOL, band(), Tol::witness())
+    let e = topo::replace_face_offset(&mut work, cap, -0.05, band(), Tol::witness())
         .expect_err("the per-chart rim corner leaves its carrier");
     // The door AND the magnitude are pinned, not just the variant.
     // This row pinned `NeighborPairUnroutable(Plane, Torus)` until the

@@ -1603,11 +1603,12 @@ fn wire_hollow_tube<T: Decide + geom_brep::PcurveFittedLane>(
 ///
 /// Exhaustive over [`verbs::VerbError`] with no wildcard arm, so a
 /// verb family with a new refusal shape breaks here rather than
-/// arriving as another's. One boolean refusal does NOT come through
+/// arriving as another's — including a family this layer cannot
+/// produce, which is routed rather than skipped (the shell's arm). One boolean refusal does NOT come through
 /// this door: the undeclared-coincidence menu lift needs the operands'
 /// naming context, so [`refusal_menu`] intercepts it and delegates
 /// everything else here.
-fn verb_refused(refusal: verbs::VerbError) -> NodeErrorKind {
+fn verb_refused<T: geom_core::Real>(refusal: verbs::VerbError<T>) -> NodeErrorKind {
     match refusal {
         verbs::VerbError::Blend(sweep::blend::BlendRefusal { verb, error }) => {
             NodeErrorKind::Blend { verb, error }
@@ -1617,6 +1618,22 @@ fn verb_refused(refusal: verbs::VerbError) -> NodeErrorKind {
         verbs::VerbError::Revolve(error) => NodeErrorKind::Revolve(error),
         verbs::VerbError::Split(error) => NodeErrorKind::Split(error),
         verbs::VerbError::Arity { verb, given } => NodeErrorKind::VerbArity { verb, given },
+        // **A kernel-only verb refused, and no lowering can reach this
+        // arm.** The vocabulary carries verbs the document layer has no
+        // `Node` for — the shell is the first — so nothing here ever
+        // calls their doors and nothing here holds their refusals. The
+        // arm exists because the channel is closed with no wildcard
+        // (D3), and it refuses through the same door a foreign-family
+        // RECORD does, being the same class of kernel bug: a result
+        // arriving at a lowering that cannot have produced it. The
+        // scalar payload is dropped rather than rendered, because
+        // `NodeErrorKind` is scalar-free by construction and inventing
+        // a shell arm for it would be document vocabulary for a node
+        // that does not exist. When one does, this arm is where its
+        // refusal gets routed.
+        verbs::VerbError::Shell(_) => NodeErrorKind::Naming(names::NamingError::Emission {
+            what: "a kernel-only verb's refusal reached a document lowering",
+        }),
     }
 }
 
@@ -2689,11 +2706,11 @@ const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-em
 /// a `Node::Boolean` union, which is where the `Declare` input lives.
 /// Whether the n-ary node should carry a declaration channel of its own
 /// is filed as `work/docm/n-ary-union-has-no-declaration-channel`.
-fn union_refusal(
+fn union_refusal<T: geom_core::Real>(
     id: RecipeNodeId,
     a_table: &crate::names::NameTable,
     b_table: &crate::names::NameTable,
-    err: verbs::VerbError,
+    err: verbs::VerbError<T>,
 ) -> NodeErrorKind {
     let refused = refusal_menu(a_table, b_table, err);
     let NodeErrorKind::UndeclaredContact { finding, diag } = refused else {
@@ -2746,10 +2763,10 @@ const UNION_REFUSAL_FOREIGN: &str =
 /// ids: the n-ary union folds the same verb over an ACCUMULATION that
 /// is no node's result, and the menu reads nothing else about an
 /// operand.
-fn refusal_menu(
+fn refusal_menu<T: geom_core::Real>(
     a_table: &crate::names::NameTable,
     b_table: &crate::names::NameTable,
-    err: verbs::VerbError,
+    err: verbs::VerbError<T>,
 ) -> NodeErrorKind {
     let verbs::VerbError::Boolean(topo::BooleanError::UndeclaredCoincidence {
         diag,
