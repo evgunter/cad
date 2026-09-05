@@ -233,6 +233,99 @@ impl InteriorKnot {
 /// at different addresses are two structures a proof does not
 /// transfer between. (`KnotVector` is not [`Eq`] — its knots are
 /// `f64` — so a by-value derive is not available here in any case.)
+///
+/// # The mismatches that no longer typecheck
+///
+/// These are library doctests: they run under
+/// `cargo test -p geom-core --doc`, so the claims below redden if the
+/// borrow is undone rather than merely dating a comment.
+///
+/// **The retired panic path.** A span of a longer vector handed to a
+/// door on a shorter one indexed past that vector's arrays. There is
+/// no spelling for it: the door takes no vector, so the second one has
+/// no parameter to arrive through.
+///
+/// ```compile_fail,E0061
+/// use geom_core::spline::{KnotVector, basis};
+/// let long = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 3.0, 3.0], 2).unwrap();
+/// let short = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+/// let span = long.span(3).unwrap();
+/// let _ = basis::basis_funs(&short, span, 0.5f64);
+/// ```
+///
+/// Its twin, differing in one respect — the second vector is not
+/// passed, because there is nowhere to pass it:
+///
+/// ```
+/// use geom_core::spline::{KnotVector, basis};
+/// let long = geom_core::spline::KnotVector::clamped(
+///     vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 3.0, 3.0], 2).unwrap();
+/// let span = long.span(3).unwrap();
+/// let row = basis::basis_funs(span, 0.5f64);
+/// assert_eq!(row.len(), long.degree() + 1);
+/// ```
+///
+/// **A span cannot outlive its vector**, so it cannot be carried to
+/// where another one is in scope:
+///
+/// ```compile_fail,E0597
+/// use geom_core::spline::{KnotVector, basis};
+/// let span = {
+///     let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+///     kv.span_at(0.5)
+/// };
+/// let _ = basis::basis_funs(span, 0.5f64);
+/// ```
+///
+/// The twin differs in one identifier — the vector is bound outside
+/// the block, so the borrow lives as long as the span:
+///
+/// ```
+/// use geom_core::spline::{KnotVector, basis};
+/// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+/// let span = { kv.span_at(0.5) };
+/// let _ = basis::basis_funs(span, 0.5f64);
+/// ```
+///
+/// **Nor can a span be held across a rebinding of its vector** — the
+/// case that decides whether this shape is affordable at all
+/// (`insert_knot`, `refine_knots`, `elevate_degree` and
+/// `refine_to_union` are all `&self -> Self`, so the refinement is a
+/// new binding and a span of the old one goes on naming the old one):
+///
+/// ```compile_fail,E0506
+/// use geom_core::spline::{KnotVector, basis};
+/// let mut kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+/// let span = kv.span_at(0.5);
+/// kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+/// let _ = basis::basis_funs(span, 0.5f64);
+/// ```
+///
+/// The twin differs in one identifier — the refinement is a *new*
+/// binding, which is what every knot-algebra door in this crate
+/// actually returns:
+///
+/// ```
+/// use geom_core::spline::{KnotVector, basis};
+/// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+/// let span = kv.span_at(0.5);
+/// let refined = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+/// let _ = basis::basis_funs(span, 0.5f64);
+/// let _ = basis::basis_funs(refined.span_at(0.5), 0.5f64);
+/// ```
+///
+/// **What these rows do and do not check.** Stable rustdoc checks only
+/// that a `compile_fail` block fails to build; the `,E0061` /
+/// `,E0597` / `,E0506` annotation beside it is **not** verified there
+/// (that is a nightly rustdoc feature), so a row could be red for a
+/// typo instead of for its subject. That is what each twin above is
+/// for: it differs from its block in exactly one respect and it
+/// compiles, so a typo shared by both would redden the twin. The
+/// codes themselves were read off `rustc` directly on each snippet at
+/// the pinned toolchain — and the first snippet emits `E0277`
+/// (`Span<'_>: Real` unsatisfied, the knot vector landing in `t`'s
+/// position) alongside its `E0061`, so the annotation names one of
+/// two codes there rather than the only one.
 #[derive(Clone, Copy, Debug)]
 pub struct Span<'a> {
     kv: &'a KnotVector,

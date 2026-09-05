@@ -25,16 +25,16 @@
 //!   artifact); control points are the only generically-typed data.
 //! - **Positive weights**: `w > 0`, enforced at construction — the
 //!   convex-hull property every C9 hull bound stands on.
-//! - **The span contract**: evaluation restricted to a caller-supplied
-//!   span is total for every scalar; outside the span's interval it is
-//!   the polynomial extension (documented garbage-out), and a [`Span`]
-//!   this knot vector does not admit ([`KnotVector::admits`] — degree
-//!   agreement, an index within range, and that index naming a
-//!   nonempty span here) is poison. What that check cannot see is
-//!   *which* vector of the right shape the span came from, so a span
-//!   from a different vector of equal degree and equal control count,
-//!   nonempty at that index in both, is a wrong answer rather than a
-//!   refusal; the [`Span`] docs state the residue in full.
+//! - **The span contract**: a [`Span`] borrows the [`KnotVector`] it is
+//!   a proof about, and every door restricted to a span reads its
+//!   knots from that borrow and takes no second vector — so evaluation
+//!   in a span is total for every scalar with no pairing check and no
+//!   refusal, and outside the span's interval it is the polynomial
+//!   extension (documented garbage-out). What a span does **not**
+//!   relate to its vector is the coefficient array beside it: that is
+//!   a relation of length alone, so a same-length array from another
+//!   curve is a wrong answer rather than a refusal. The [`Span`] docs
+//!   state that residue in full.
 
 pub mod algebra;
 pub mod basis;

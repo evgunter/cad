@@ -416,7 +416,11 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// the length check the window cannot make — `ctl.get`, below,
     /// against the caller's control array.
     fn cell_point_box(&self, win: SurfaceWindow<'_, T>) -> Box3 {
-        let ctl = self.surface.control();
+        // The net comes from the window's own surface, not from
+        // `self.surface` beside it: the window is a borrow of the
+        // surface it indexes, so reading through it is what keeps the
+        // two from being two.
+        let ctl = win.surface().control();
         let mut out: Option<Box3> = None;
         // Same ascending walk as the open-coded `(su − pu)..=su` pair
         // (D9): `row(i) + j` IS `iu·nv + iv` over the same indices.
@@ -452,7 +456,9 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         win: SurfaceWindow<'_, T>,
         along_u: bool,
     ) -> (Box3, RingInterval, RingInterval) {
-        let s = self.surface;
+        // As in `cell_point_box`: everything is read through the
+        // window's own borrow.
+        let s = win.surface();
         let (pu, pv) = (win.span_u().degree(), win.span_v().degree());
         let nv = win.stride();
         let ctl = s.control();
