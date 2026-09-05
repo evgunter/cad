@@ -41,6 +41,19 @@
 //! `kef`s and one `kev` fuse them into the corner patch and retire
 //! the struts and the sharp vertex.
 //!
+//! **The ruled band** (a cylinder–plane(∥) or cylinder–cylinder(∥)
+//! link: the flat milled along a rod) is the open band on CURVED
+//! supports, and it terminates where its supports do — at TRANSVERSE
+//! CAPS, plane faces perpendicular to the ruling, never at a corner
+//! patch. Its carve is [`super::ruled`]'s: at each cap the two rim
+//! edges the cap shares with the supports are split at the trimlines'
+//! feet and the cap plane's section of the band — an exact arc of the
+//! band's radius about the spine — is `mef`'d between them, cutting a
+//! sliver off the cap; one trimline `mef` per support carves its strip
+//! along the ruling; the crease's `kef` merges the strips and two
+//! `kef`/`kev` pairs fold the slivers in and retire the old vertices.
+//! No strut is minted: every new vertex sits on an existing edge.
+//!
 //! **Closed chains** (any link whose blend is a TORUS) come in TWO
 //! shapes, which
 //! are different surgeries and not two settings of one — see
@@ -103,7 +116,9 @@
 //! # Out of scope, refused typed
 //!
 //! Multi-link open chains (junction carry-through),
-//! partially-requested corners (run-outs),
+//! partially-requested corners (run-outs), a ruled band ending at an
+//! oblique or curved face (the run-out the mid-curve taxonomy
+//! reserves; the battery's `fillet3_cap_transverse` refuses it),
 //! closed rims that are neither a circle-carried ring of a PLANE
 //! against ring-free caps nor a rim between two revolution walls (of
 //! one edge, or of several arcs a chart seam split), and a LADDER rim
@@ -227,7 +242,7 @@ pub(super) fn unbuilt_geometry(at: EntityId, detail: &'static str) -> BlendError
 /// so `BlendError::Op` cannot be constructed here without naming its
 /// site, and the operator's own typed refusal — `StaleKey`,
 /// `Certification`, the whole vocabulary — travels intact.
-fn op(site: &'static str, source: topo::EulerOpError) -> BlendError {
+pub(super) fn op(site: &'static str, source: topo::EulerOpError) -> BlendError {
     BlendError::Op { site, source }
 }
 
@@ -454,13 +469,18 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     opens.sort_by_key(AdmittedOpen::edge);
     rims.sort_by_key(|r| r.chain.first().edge);
     shared_support_gate(&rims)?;
+    // The two open bands part here: a PLANAR link terminates in corners
+    // and carves its supports whole (below); a RULED link terminates in
+    // transverse caps and carves in `ruled`. Both are admitted opens.
+    let (planar, ruled): (Vec<AdmittedOpen<'_, T>>, Vec<AdmittedOpen<'_, T>>) =
+        opens.iter().copied().partition(|o| !o.link().arm.is_ruled());
 
-    // ---- Corners: every open-link end must be a fully-requested
-    // trivalent vertex. Each end's incidence list is seeded by the link
-    // that discovered it, so it is non-empty by shape rather than by a
-    // check three functions deep. ----
+    // ---- Corners: every planar open-link end must be a
+    // fully-requested trivalent vertex. Each end's incidence list is
+    // seeded by the link that discovered it, so it is non-empty by
+    // shape rather than by a check three functions deep. ----
     let mut ends: Vec<CornerLinks<'_, T>> = Vec::new();
-    for o in &opens {
+    for o in &planar {
         for v in [o.link().start, o.link().end] {
             match ends.iter_mut().find(|c| c.vertex() == v) {
                 Some(c) => c.also(*o)?,
@@ -508,7 +528,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // one's ENTIRE outer cycle must be requested, which is what makes
     // the blank phase's carve well-defined. ----
     let mut support_keys: Vec<FaceKey> = Vec::new();
-    for o in &opens {
+    for o in &planar {
         for f in [o.link().face_a, o.link().face_b] {
             if !support_keys.contains(&f) {
                 support_keys.push(f);
@@ -522,7 +542,15 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
         .collect();
     let mut supports: Vec<RequestedBoundary<T>> = Vec::with_capacity(support_keys.len());
     for f in support_keys {
-        supports.push(RequestedBoundary::admit(source, f, &opens, &corner_rows)?);
+        supports.push(RequestedBoundary::admit(source, f, &planar, &corner_rows)?);
+    }
+
+    // ---- The ruled bands' caps, read off the source before anything
+    // is carved: each end's cap face, the two rim edges it shares with
+    // the supports, and the feet the trimlines put on them. ----
+    let mut ruled_plans: Vec<super::ruled::RuledPlan<'_, T>> = Vec::with_capacity(ruled.len());
+    for o in &ruled {
+        ruled_plans.push(super::ruled::RuledPlan::plan(source, *o, &opens)?);
     }
 
     // ---- The ring carry-through honesty check (the one decision this
@@ -533,8 +561,19 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // operator or a certified setter; refusals map to Op/Certify. ----
     let mut body = source.clone();
     let mut rec = BlendNaming::default();
-    let (blend_faces, corner_faces, mut described) =
-        blank_phase(&mut body, &opens, &corners, &supports, &mut rec, tol, kind)?;
+    let (planar_faces, corner_faces, mut described) =
+        blank_phase(&mut body, &planar, &corners, &supports, &mut rec, tol, kind)?;
+    // One blend face per open link, paired with its link and put back
+    // in the opens' own edge order once both bands have carved.
+    let mut blend_rows: Vec<(AdmittedOpen<'_, T>, FaceKey)> =
+        planar.iter().copied().zip(planar_faces).collect();
+    for plan in &ruled_plans {
+        let (face, mut arcs) = super::ruled::carve(&mut body, plan, &mut rec, tol)?;
+        described.append(&mut arcs);
+        blend_rows.push((plan.link(), face));
+    }
+    blend_rows.sort_by_key(|(o, _)| o.edge());
+    let blend_faces: Vec<FaceKey> = blend_rows.iter().map(|(_, f)| *f).collect();
     let mut band_faces = Vec::with_capacity(rims.len());
     let mut band_surfaces = Vec::with_capacity(rims.len());
     for (i, rim) in rims.iter().enumerate() {
@@ -581,8 +620,8 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
         BlendKind::Fillet => convexity.blend_sense(),
         BlendKind::Chamfer => true,
     };
-    for (i, o) in opens.iter().enumerate() {
-        let fk = blend_faces[i];
+    for (o, fk) in &blend_rows {
+        let fk = *fk;
         body.set_face_surface(fk, FaceSurface::New(o.link().blend.surface.clone()))
             .map_err(|e| op("blend face surface", e))?;
         body.set_face_sense(fk, band_sense(o.convexity()))
@@ -637,7 +676,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 // ------------------------------------------------------------------
 
 /// A vertex's incident edges, sorted (the corner front-door check).
-fn vertex_edges_of<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<EdgeKey>> {
+pub(super) fn vertex_edges_of<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<EdgeKey>> {
     let he = body.get_vertex(vertex)?.emanating?;
     let mut edges: Vec<EdgeKey> = body
         .vertex_orbit(he)?
@@ -1992,7 +2031,7 @@ fn edge_midpoint<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<Point3<T>> 
 // ------------------------------------------------------------------
 
 /// A recorded new edge awaiting its intrinsic description.
-enum ContactCarrier<T: Real> {
+pub(super) enum ContactCarrier<T: Real> {
     /// A straight trimline where the band meets its support
     /// TANGENTIALLY — the rolling ball's contact line (carrier rebuilt
     /// from the edge's vertices).
@@ -2004,6 +2043,12 @@ enum ContactCarrier<T: Real> {
     Chord,
     /// A corner arc about the corner ball's centre (sweep < π).
     CornerArc { center: Point3<T>, radius: T },
+    /// A ruled band's cut-off at a transverse cap: the arc of the cap
+    /// plane's section of the band (a circle of the band's radius about
+    /// the spine's crossing, sweep < π) — where the band meets the cap
+    /// TRANSVERSALLY, so it is described as the plain intersection
+    /// locus, never a tangent one.
+    TransverseArc { center: Point3<T>, radius: T },
     /// An exact stored arc (the rim trim circles — π-safe).
     Exact(Curve3<T>, T, T),
     /// A torus band's SLIT: a double-traversed minor-circle arc
@@ -2012,7 +2057,7 @@ enum ContactCarrier<T: Real> {
     SeamArc { center: Point3<T>, radius: T },
 }
 
-type Described<T> = Vec<(EdgeKey, ContactCarrier<T>)>;
+pub(super) type Described<T> = Vec<(EdgeKey, ContactCarrier<T>)>;
 
 #[allow(clippy::type_complexity)]
 fn blank_phase<T: Decide + Bounds>(
@@ -2486,7 +2531,7 @@ fn scaled<T: Real>(
 /// guard's refuse arm is therefore not reached by any assembly
 /// fixture. It is here because the distance between "measured to be
 /// fine" and "checked" is exactly the comment it replaces.
-fn seam_split_param<T: Decide + Bounds>(
+pub(super) fn seam_split_param<T: Decide + Bounds>(
     body: &Body<T>,
     seam: EdgeKey,
     rim: EdgeKey,
@@ -2494,11 +2539,11 @@ fn seam_split_param<T: Decide + Bounds>(
 ) -> Result<T, BlendError> {
     let sd = body
         .get_edge(seam)
-        .ok_or_else(|| not_intact(EntityId::Edge(seam), "a support's seam meridian"))?;
+        .ok_or_else(|| not_intact(EntityId::Edge(seam), "a support edge the band splits"))?;
     let Some(sc) = body.get_curve_geom(sd.curve).and_then(|g| g.certified()) else {
         return Err(unbuilt_geometry(
             EntityId::Edge(seam),
-            "a meridian carries no certified carrier",
+            "a support edge the band splits carries no certified carrier",
         ));
     };
     let (st0, st1) = sc.params();
@@ -2511,14 +2556,18 @@ fn seam_split_param<T: Decide + Bounds>(
     // whose whole enclosure is not strictly under a period refuses
     // typed rather than cutting blind.
     //
+    // A period is a CIRCLE's: a line carrier (a transverse cap's chord
+    // rim) has no branch to alias by, and its window is a length that
+    // may exceed 2π without meaning anything.
+    //
     // `topo`'s edge split spells the same guard as the
     // `bool_split_span_period` DECIDE row, which is the right posture
     // there and not here: that site is mid-classification with a band
     // in hand, this one is picking a representation and has neither.
-    if (T::tau() - (st1 - st0)).lo() <= 0.0 {
+    if matches!(sc.carrier(), Curve3::Circle { .. }) && (T::tau() - (st1 - st0)).lo() <= 0.0 {
         return Err(unbuilt_geometry(
             EntityId::Edge(seam),
-            "a meridian's stored window is not under one period; the split parameter would \
+            "a split edge's stored window is not under one period; the split parameter would \
              alias by a turn and still land inside the window",
         ));
     }
@@ -2529,8 +2578,8 @@ fn seam_split_param<T: Decide + Bounds>(
     let t = sc.carrier().param_near(target, T::zero()).ok_or_else(|| {
         unbuilt_geometry(
             EntityId::Edge(seam),
-            "a meridian's carrier is neither a circle nor a line; the split reads the \
-                 crossing in the meridian's own frame and no other stored shape is built",
+            "a split edge's carrier is neither a circle nor a line; the split reads the \
+                 crossing in the carrier's own frame and no other stored shape is built",
         )
     })?;
     // The window test is the representation pick's other half, and it
@@ -2538,12 +2587,27 @@ fn seam_split_param<T: Decide + Bounds>(
     // battery's junction-end pick precedent): a parameter whose whole
     // enclosure is not strictly inside the stored span refuses typed
     // rather than cutting blind.
-    if (t - st0).lo() > 0.0 && (st1 - t).lo() > 0.0 {
+    let inside = |t: T| (t - st0).lo() > 0.0 && (st1 - t).lo() > 0.0;
+    if inside(t) {
         return Ok(t);
+    }
+    // The in-window branch may be the principal one's neighbour by a
+    // turn (a cap arc sweeping past π puts its far foot there), and
+    // the period guard above is what makes that neighbour UNIQUE: a
+    // window under one period holds at most one branch, so a shifted
+    // parameter that lands inside is the branch, and the value is still
+    // a function of the point and the carrier alone — the window only
+    // says which turn.
+    if matches!(sc.carrier(), Curve3::Circle { .. }) {
+        for shifted in [t + T::tau(), t - T::tau()] {
+            if inside(shifted) {
+                return Ok(shifted);
+            }
+        }
     }
     Err(unbuilt_chain(
         rim,
-        "a trimline does not cross its support's seam meridian inside its span",
+        "a trimline does not cross the support edge it splits inside that edge's span",
     ))
 }
 
@@ -3461,26 +3525,29 @@ fn edge_touches<T: Decide>(body: &Body<T>, edge: EdgeKey, v: VertexKey) -> bool 
 // Shared small lookups and the description pass.
 // ------------------------------------------------------------------
 
-fn point_of<T: Decide>(body: &Body<T>, v: VertexKey) -> Option<Point3<T>> {
+pub(super) fn point_of<T: Decide>(body: &Body<T>, v: VertexKey) -> Option<Point3<T>> {
     body.get_point(body.get_vertex(v)?.point).copied()
 }
 
-fn halves_of<T: Decide>(body: &Body<T>, e: EdgeKey) -> Option<(HalfEdgeKey, HalfEdgeKey)> {
+pub(super) fn halves_of<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+) -> Option<(HalfEdgeKey, HalfEdgeKey)> {
     let ed = body.get_edge(e)?;
     Some((ed.he_plus, ed.he_minus))
 }
 
-fn loop_of_half<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<LoopKey> {
+pub(super) fn loop_of_half<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<LoopKey> {
     Some(body.get_half_edge(he)?.parent_loop)
 }
 
-fn face_of_half<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<FaceKey> {
+pub(super) fn face_of_half<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<FaceKey> {
     Some(body.get_loop(loop_of_half(body, he)?)?.face)
 }
 
 /// The two faces an edge separates — `he_plus`'s, then `he_minus`'s.
 /// Equal on a co-surface seam of a wall the charts did not split.
-fn edge_faces<T: Decide>(body: &Body<T>, e: EdgeKey) -> Option<(FaceKey, FaceKey)> {
+pub(super) fn edge_faces<T: Decide>(body: &Body<T>, e: EdgeKey) -> Option<(FaceKey, FaceKey)> {
     let ed = body.get_edge(e)?;
     Some((
         face_of_half(body, ed.he_plus)?,
@@ -3489,7 +3556,7 @@ fn edge_faces<T: Decide>(body: &Body<T>, e: EdgeKey) -> Option<(FaceKey, FaceKey
 }
 
 /// A face's outer cycle as `(half-edge, start vertex, edge)` rows.
-fn loop_walk_face<T: Decide>(
+pub(super) fn loop_walk_face<T: Decide>(
     body: &Body<T>,
     f: FaceKey,
 ) -> Option<Vec<(HalfEdgeKey, VertexKey, EdgeKey)>> {
@@ -3545,7 +3612,10 @@ fn attach_contact<T: Decide + Bounds>(
         }
     };
     let is_seam = matches!(carrier, ContactCarrier::SeamArc { .. });
-    let transverse = matches!(carrier, ContactCarrier::Chord);
+    let transverse = matches!(
+        carrier,
+        ContactCarrier::Chord | ContactCarrier::TransverseArc { .. }
+    );
     let (curve, t0, t1) = match carrier {
         ContactCarrier::TrimLine | ContactCarrier::Chord => {
             let len = p0.distance(p1);
@@ -3558,13 +3628,15 @@ fn attach_contact<T: Decide + Bounds>(
                 len,
             )
         }
-        // ONE construction for both arc kinds, deliberately: a corner
-        // arc and a band's slit are the same short arc about a stored
-        // centre (sweep < π, so the `atan2` turn is unambiguous), and
-        // the only thing that differs is the DESCRIPTION they take
-        // below. Two byte-identical copies of the geometry would let
-        // one drift from the other with nothing to say so.
+        // ONE construction for all three arc kinds, deliberately: a
+        // corner arc, a cap's cut-off arc and a band's slit are the
+        // same short arc about a stored centre (sweep < π, so the
+        // `atan2` turn is unambiguous), and the only thing that differs
+        // is the DESCRIPTION they take below. Byte-identical copies of
+        // the geometry would let one drift from another with nothing
+        // to say so.
         ContactCarrier::CornerArc { center, radius }
+        | ContactCarrier::TransverseArc { center, radius }
         | ContactCarrier::SeamArc { center, radius } => {
             let u = (p0 - center).normalize();
             let w = (p1 - center).normalize();
@@ -3592,11 +3664,12 @@ fn attach_contact<T: Decide + Bounds>(
         }
         EdgeDescriptionSpec::seam(s1)
     } else if transverse {
-        // The chamfer's edges: two surfaces crossing at a definite
-        // angle, so the intrinsic description is the plain
-        // intersection locus. Calling it a TANGENT intersection would
-        // claim normal-parallelism along the locus that the geometry
-        // does not have, and certification measures exactly that.
+        // The chamfer's edges and the ruled band's cut-off arcs: two
+        // surfaces crossing at a definite angle, so the intrinsic
+        // description is the plain intersection locus. Calling it a
+        // TANGENT intersection would claim normal-parallelism along
+        // the locus that the geometry does not have, and certification
+        // measures exactly that.
         let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
         EdgeDescriptionSpec::Intersection { s1, s2, witness }
     } else {

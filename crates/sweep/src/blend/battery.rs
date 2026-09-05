@@ -1111,11 +1111,11 @@ fn ruling_arm<T: Real>(sa: &Surface<T>, sb: &Surface<T>) -> Option<BlendArm> {
 /// [`super::arms::plane_sphere_blend`], `surgery::corner_plan`),
 /// `ball_side` for the ones that pick a side, and
 /// [`super::arms::corner_ball`]'s rest depth its one negation. The
-/// `Ruling` row folds it too, for parity — no fixture
-/// reaches a concave ruled band today (a ruled pair meets along an
-/// open edge, which the open-chain door admits for plane–plane
-/// supports only), so that arm of the fold is stated here and pinned
-/// nowhere.
+/// `Ruling` row folds it too — the convex side carves (the rod with a
+/// flat milled along it), and no fixture reaches a CONCAVE ruled band
+/// today: the one shape that has one, two parallel cylinders unioned
+/// at their common ruling, refuses at the boolean's curved-pierce
+/// door, so that arm of the fold is stated here and pinned nowhere.
 #[allow(clippy::too_many_arguments)]
 fn curved_arm<T: Decide + Bounds>(
     sa: &Surface<T>,
@@ -1483,11 +1483,14 @@ pub fn run_battery_for<T: Decide + Bounds>(
         }
     }
 
-    // --- 6. corner configuration at every OPEN chain's two ends.
+    // --- 6. corner configuration at every OPEN chain's two ends. Each
+    // end is judged beside the link that reaches it: a ruled link's
+    // ends are transverse caps, a planar link's are corners.
     for chain in &chains {
         if let ChainClosure::Open { head, tail } = chain.closure {
-            for v in [head, tail] {
-                corner_at(body, v, r, band, kind)?;
+            let last = chain.rest().last().unwrap_or(chain.first());
+            for (v, link) in [(head, chain.first()), (tail, last)] {
+                corner_at(body, v, link, r, band, kind)?;
             }
         }
     }
@@ -1578,11 +1581,94 @@ fn is_seam_vertex<T: Decide>(body: &Body<T>, edges: &[EdgeKey]) -> bool {
     seams.len() == 2 && (p, q) == second && seams.iter().all(|s| *s == p || *s == q)
 }
 
-/// Predicate 6 at one termination vertex: gather valence, per-edge
-/// convexity, and the three support normals, then classify.
+/// The refusal for a ruled link's end that is not a transverse cap —
+/// an oblique cap, or a curved end face. Both are run-outs the
+/// mid-curve taxonomy reserves, not corner configurations, so they
+/// carry the run-out vocabulary and the corner recourse's "general
+/// run-outs" clause.
+pub const RULED_END_NOT_TRANSVERSE: &str = "a ruled band's edge ends at a face that is not a plane perpendicular to its ruling; \
+     the transverse cut-off is the only ruled termination built, and the oblique or \
+     curved-face run-out is not implemented";
+
+/// **`fillet3_cap_transverse`** — does a ruled link's end face lie
+/// perpendicular to the band's ruling, so the band can be cut off in
+/// the cap's own section of it?
+///
+/// Margin: the cap normal's **departure** from the ruling, `|n̂ × τ̂|`
+/// in METERS at the link's own lever arm — the extent
+/// [`super::arms::Ruling::lever`] already meters the shared-ruling
+/// hypothesis at, so the two decisions about one link's ruling are
+/// levered alike. `Sign::Zero` is the cap being transverse; a definite
+/// departure is the oblique cap, refused as the run-out it is; an
+/// in-band reading escalates with the same recourse (two-tolerance,
+/// D4 ¶1 addendum). Nothing here reads a sampled normal: the cap
+/// plane's normal is the stored surface's, the ruling the arm's own
+/// cylinder axis.
+///
+/// # Errors
+///
+/// [`BlendError::UnsupportedRunOut`] on a definite departure;
+/// [`BlendError::Escalated`] on an in-band one.
+pub fn cap_transverse<T: Decide + Bounds>(
+    vertex: VertexKey,
+    cap_normal: Vec3<T>,
+    ruling: Vec3<T>,
+    lever: T,
+    band: Band,
+) -> Result<(), BlendError> {
+    let margin = Margin::levered(cap_normal.cross(ruling).norm(), lever);
+    match decide("fillet3_cap_transverse", margin, band)
+        .map_err(|e| esc(BlendSite::Joint { vertex }, e))?
+    {
+        Sign::Zero => Ok(()),
+        _ => Err(super::surgery::unbuilt_run_out(
+            EntityId::Vertex(vertex),
+            RULED_END_NOT_TRANSVERSE,
+        )),
+    }
+}
+
+/// **The cap face at a ruled link's end**, read structurally: at a
+/// trivalent vertex the two edges other than the link's each separate
+/// one of the link's supports from a third face, and that third face —
+/// one face, shared by both — is the cap. `None` where the incidence
+/// does not have that shape.
+fn cap_face_at<T: Decide>(
+    body: &Body<T>,
+    edges: &[EdgeKey],
+    link: &Link<T>,
+) -> Option<FaceKey> {
+    let faces_of = |e: EdgeKey| -> Option<(FaceKey, FaceKey)> {
+        let ed = body.get_edge(e)?;
+        Some((face_of(body, ed.he_plus)?, face_of(body, ed.he_minus)?))
+    };
+    let mut cap: Option<FaceKey> = None;
+    for e in edges.iter().filter(|e| **e != link.edge) {
+        let (f1, f2) = faces_of(*e)?;
+        let is_support = |f: FaceKey| f == link.face_a || f == link.face_b;
+        let third = match (is_support(f1), is_support(f2)) {
+            (true, false) => f2,
+            (false, true) => f1,
+            _ => return None,
+        };
+        match cap {
+            None => cap = Some(third),
+            Some(c) if c == third => {}
+            Some(_) => return None,
+        }
+    }
+    cap
+}
+
+/// Predicate 6 at one termination vertex, beside the link that reaches
+/// it: a RULED link's end must be a transverse cap
+/// ([`CornerConfig::TransverseCap`], decided by [`cap_transverse`]);
+/// any other link's end is classified as a corner — gather valence,
+/// per-edge convexity, and the three support normals, then classify.
 fn corner_at<T: Decide + Bounds>(
     body: &Body<T>,
     vertex: VertexKey,
+    link: &Link<T>,
     radius: T,
     band: Band,
     kind: BlendKind,
@@ -1600,6 +1686,32 @@ fn corner_at<T: Decide + Bounds>(
             vertex,
             CornerConfig::SeamVertex,
         ));
+    }
+    // A ruled band terminates where its supports do, in a cap, not in
+    // a corner: the classification is the cap's, and it is made before
+    // any neighbour is resolved as a link — the cap's rim edges are
+    // not blended and need no arm.
+    if link.arm.is_ruled() && valence == 3 {
+        let Some(cap) = cap_face_at(body, &edges, link) else {
+            return Err(indeterminate());
+        };
+        let Some(Surface::Plane { normal, .. }) = body
+            .get_face(cap)
+            .and_then(|f| body.get_surface(f.surface))
+        else {
+            return Err(super::surgery::unbuilt_run_out(
+                EntityId::Vertex(vertex),
+                RULED_END_NOT_TRANSVERSE,
+            ));
+        };
+        // The ruling is the arm's own: a ruled arm's band is the
+        // cylinder about it (`Ruling::blend`), so anything else is a
+        // verdict that disagrees with itself, and the end cannot be
+        // classified from it.
+        let Surface::Cylinder { axis, .. } = link.blend.surface else {
+            return Err(indeterminate());
+        };
+        return cap_transverse(vertex, *normal, axis, link.arm_len, band);
     }
     if valence != 3 {
         return corner_config(

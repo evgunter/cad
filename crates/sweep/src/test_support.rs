@@ -589,23 +589,31 @@ pub fn assert_naming_totality(
         .naming
         .as_ref()
         .unwrap_or_else(|| panic!("{what}: the rim phase records its births"));
+    // Every birth row of either band — the rim phase's and the open
+    // bands' — so the walk is total over whatever the request carved.
     let minted_edges: Vec<EdgeKey> = rec
         .rim_trims
         .iter()
         .map(|(e, _, _)| *e)
         .chain(rec.meridian_remnants.iter().map(|(e, _)| *e))
         .chain(rec.slits.iter().map(|(e, _)| *e))
+        .chain(rec.trims.iter().map(|(e, _, _)| *e))
+        .chain(rec.arcs.iter().map(|(e, _, _)| *e))
         .collect();
     let minted_vertices: Vec<topo::VertexKey> = rec
         .rim_feet
         .iter()
         .map(|(v, _)| *v)
         .chain(rec.meridian_splits.iter().map(|(v, _)| *v))
+        .chain(rec.feet.iter().map(|(v, _, _)| *v))
         .collect();
+    // The edges a band replaced: a closed chain's arcs (`bands`) or an
+    // open link's edge (`blends`) — together, exactly the request.
     let mut banded: Vec<EdgeKey> = rec
         .bands
         .iter()
         .flat_map(|(_, edges)| edges.iter().copied())
+        .chain(rec.blends.iter().map(|(_, e)| *e))
         .collect();
     // (a)
     for (k, _) in out.body.edges() {
@@ -792,4 +800,123 @@ pub mod pappus {
 pub fn waist_fill(x_v: f64, r: f64) -> f64 {
     2.0 * PI
         * (x_v * r.powi(2) * (1.0 - PI / 4.0) + 2f64.sqrt() * r.powi(3) * (5.0 / 6.0 - PI / 4.0))
+}
+
+/// The rod's radius, meters.
+pub const ROD_R: f64 = 0.5;
+/// The flat's distance from the rod's axis, meters.
+pub const ROD_FLAT: f64 = 0.3;
+/// The rod's length, meters.
+pub const ROD_L: f64 = 1.0;
+
+/// **The rod with a flat milled along it** — the `CylinderPlaneCylinder`
+/// consumer: a cylinder of radius [`ROD_R`] about `z` over
+/// `z ∈ [0, ROD_L]`, minus a box whose face at `x = ROD_FLAT` planes the
+/// flat. Two straight creases (cylinder–plane, along the ruling), each
+/// ending in the two caps — planes perpendicular to the ruling, the
+/// transverse caps the ruled band is cut off at. Built through the
+/// public boolean door, as a user would mill it.
+///
+/// Generic over the scalar so the interval twin builds the same body
+/// through the same doors at `Interval`.
+pub fn rod_with_flat_at<T: Decide + Bounds + PcurveFittedLane>(tol: Tol) -> Body<T> {
+    let f = T::from_f64;
+    let disc = profile::circle(Point2::new(f(0.0), f(0.0)), f(ROD_R), tol)
+        .expect("the rod's disc is a valid loop");
+    let rod = Profile::new(SketchPlane::<T>::xy(), vec![disc.into()])
+        .validate(tol)
+        .expect("the rod's profile validates");
+    let rod = extrude(&rod, Extrusion::Distance(f(ROD_L)), tol)
+        .expect("the rod extrudes")
+        .body;
+    let square = ProfileLoop::new(
+        [(ROD_FLAT, -1.0), (1.0, -1.0), (1.0, 1.0), (ROD_FLAT, 1.0)]
+            .into_iter()
+            .map(|(x, y)| ProfileVertex::new(Point2::new(f(x), f(y)), f(0.0)))
+            .collect(),
+    );
+    let plane = SketchPlane::new(Affine3::translation(Vec3::new(f(0.0), f(0.0), f(-0.5))));
+    let cutter = Profile::new(plane, vec![square])
+        .validate(tol)
+        .expect("the cutter's profile validates");
+    let cutter = extrude(&cutter, Extrusion::Distance(f(ROD_L + 1.0)), tol)
+        .expect("the cutter extrudes")
+        .body;
+    topo::subtract(&rod, &cutter, tol)
+        .expect("the flat mills")
+        .body()
+        .expect("a body remains")
+        .body
+        .clone()
+}
+
+/// [`rod_with_flat_at`] at `f64`.
+pub fn rod_with_flat(tol: Tol) -> Body<f64> {
+    rod_with_flat_at(tol)
+}
+
+/// **The creases of a rod with a flat**: every straight edge whose two
+/// supports are a cylinder and a plane — the ruling edges the band is
+/// asked for.
+pub fn rod_creases<T: Real>(body: &Body<T>) -> Vec<EdgeKey> {
+    use topo::query::{self, CurveKind, CurveKindSet, SurfaceKindSet};
+    query::all_edges(body)
+        .into_iter()
+        .filter(|&k| {
+            query::edge_carrier_matches(body, k, CurveKindSet::just(CurveKind::Line))
+                && query::edge_adjacent_matches(
+                    body,
+                    k,
+                    SurfaceKindSet::just(geom_brep::SurfaceKind::Cylinder),
+                    SurfaceKindSet::just(geom_brep::SurfaceKind::Plane),
+                )
+        })
+        .collect()
+}
+
+/// **The cross-section area a ruled band removes at one cylinder–plane
+/// crease** — the prism closed form's `A_section`, so a row can derive
+/// `ΔV = A_section · L` by hand and compare it to the measured volume.
+///
+/// In the section normal to the ruling: a circle of radius `R` about
+/// the origin (the rod) cut by the line `x = flat` (the flat), the
+/// crease at `V = (flat, √(R² − flat²))` on the upper side. The rolling
+/// ball of radius `r` rests inside the material at distance `r` from
+/// both, so its centre is `c = (flat − r, h)` with
+/// `h = √((R − r)² − (flat − r)²)` — the crossing of the offset line
+/// and the offset circle, which is the arm's own sheet crossing. Its
+/// feet are `f_b = (flat, h)` on the flat and `f_a = c · R/(R − r)` on
+/// the rod. The region the band removes is the curvilinear triangle
+/// `f_b → V` (along the flat), `V → f_a` (along the rod's circle) and
+/// `f_a → f_b` (along the fillet arc, concave toward `c`):
+///
+/// ```text
+/// A = area(quad c, f_b, V, f_a)     the straight-sided hull
+///   − ½ r² θ                         minus the fillet sector at c
+///   + ½ R² (φ − sin φ)               plus the rod's circular segment
+///                                    between chord V–f_a and its arc
+/// θ = acos((flat − r)/(R − r))       the sector angle at c
+/// φ = θ − acos(flat/R)               the rod arc's sweep V → f_a
+/// ```
+///
+/// (`f_a` lies along `c` from the origin, so `angle(f_a) = θ`.) The
+/// quad is traversed counter-clockwise in `(x, y)`, so its shoelace sum
+/// is positive as written.
+#[must_use]
+pub fn rod_section_cut(big_r: f64, flat: f64, r: f64) -> f64 {
+    let h = ((big_r - r).powi(2) - (flat - r).powi(2)).sqrt();
+    let c = (flat - r, h);
+    let f_b = (flat, h);
+    let v = (flat, (big_r * big_r - flat * flat).sqrt());
+    let scale = big_r / (big_r - r);
+    let f_a = (c.0 * scale, c.1 * scale);
+    let quad = [c, f_b, v, f_a];
+    let mut twice = 0.0;
+    for i in 0..4 {
+        let (p, q) = (quad[i], quad[(i + 1) % 4]);
+        twice += p.0 * q.1 - q.0 * p.1;
+    }
+    let theta = ((flat - r) / (big_r - r)).acos();
+    let phi = theta - (flat / big_r).acos();
+    0.5 * twice - 0.5 * r * r * theta + 0.5 * big_r * big_r * (phi - phi.sin())
 }

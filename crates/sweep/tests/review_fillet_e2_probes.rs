@@ -228,8 +228,9 @@ fn the_geometry_recourse_reaches_the_front_door_at_a_line_ring() {
 /// A half-revolved dome's equator is an open plane–sphere arc ending at
 /// corners whose third face is the sphere — the request that would
 /// reach the "corner support is not a plane" geometry site. It never
-/// does: the chain gate requires plane–plane supports on every open
-/// link, and answers with the assembly recourse. That recourse names
+/// does: the chain gate admits plane–plane and ruled arms on an open
+/// link and nothing else, so a coaxial torus arm on an open arc answers
+/// with the assembly recourse. That recourse names
 /// "circular plane–sphere rims" as the closed chains that carve; a
 /// cylinder's plane–cylinder top rim carves too.
 #[test]
@@ -249,7 +250,7 @@ fn open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves() 
         );
         let shown = err.to_string();
         assert!(
-            shown.contains("an open chain's supports are not plane–plane")
+            shown.contains("an open chain's supports are neither plane–plane nor a ruled cylinder pair")
                 && shown.contains(FILLET3_ASSEMBLY_RECOURSE),
             "{shown}"
         );

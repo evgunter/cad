@@ -488,3 +488,8 @@ mod review_h4_r1_probes;
 
 #[path = "fillet_h4_r2_probes.rs"]
 mod fillet_h4_r2_probes;
+
+#[path = "fillet_h7_transverse_cap.rs"]
+mod fillet_h7_transverse_cap;
+#[path = "fillet_h7_transverse_cap_interval.rs"]
+mod fillet_h7_transverse_cap_interval;

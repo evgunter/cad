@@ -34,7 +34,10 @@
 //! 3. [`battery::spine_regularity`] — `fillet3_spine_regularity`
 //! 4. [`battery::chain_g1`] — `fillet3_chain_g1`
 //! 5. [`battery::convexity_at`] — `fillet3_convexity_sign`
-//! 6. [`battery::corner_config`] — `fillet3_corner_independence`
+//! 6. [`battery::corner_config`] — `fillet3_corner_independence`; and,
+//!    at a RULED link's end, [`battery::cap_transverse`] —
+//!    `fillet3_cap_transverse`, the same predicate's classification of
+//!    the termination a ruled band has (a transverse cap, not a corner)
 //!
 //! **What "the offending margin as payload" means, exactly.** A
 //! definite refusal carries a [`ClassifiedMargin`]: the reading the
@@ -98,10 +101,16 @@
 //!
 //! # Scope (OQ6, decided at #85)
 //!
-//! In: closed smooth chains, and open chains terminating in a UNIFORM
+//! In: closed smooth chains; open chains terminating in a UNIFORM
 //! trihedron — three convex or three concave edges, whose corner
 //! patch is a sphere octant (resting inside the material or in the
-//! void with its ball) or the chamfer's flat one.
+//! void with its ball) or the chamfer's flat one; and the RULED band —
+//! a straight edge between a cylinder and a plane or cylinder sharing
+//! its ruling — terminating in TRANSVERSE CAPS
+//! ([`CornerConfig::TransverseCap`]: plane faces perpendicular to the
+//! ruling, decided by `fillet3_cap_transverse` at the link's own
+//! extent), where the band is cut off in the cap's own section of it
+//! ([`RunOutPolicy::CutOffAtTransverseCap`]).
 //! Out, refused typed with the OQ6 payload vocabulary: every other
 //! corner CONFIGURATION ([`BlendError::UnsupportedCorner`],
 //! carrying a [`CornerConfig`] — the battery's classifier and the
@@ -118,6 +127,7 @@ pub mod arms;
 pub mod battery;
 pub mod build;
 pub mod naming;
+mod ruled;
 pub mod surgery;
 
 use core::fmt;
@@ -354,6 +364,15 @@ pub enum RunOutPolicy {
     /// fades back into the sharp edge. No variable-radius machinery
     /// exists at M5, so this policy is named and never taken.
     RunOutFeather,
+    /// **The band ends in the cap's own section of it** — the policy
+    /// of a [`CornerConfig::TransverseCap`], and the one a ruled band
+    /// CARVES. A cylinder band about a straight spine cut by a plane
+    /// perpendicular to the ruling ends in a circle of the band's
+    /// radius about the spine; the band's end is the arc of it between
+    /// its two feet, exact and stored (`Curve3::Circle`), no new
+    /// surface kind. The cap face gains that arc as a boundary edge and
+    /// the old corner vertex dies with the support strips.
+    CutOffAtTransverseCap,
 }
 
 impl fmt::Display for RunOutPolicy {
@@ -361,14 +380,18 @@ impl fmt::Display for RunOutPolicy {
         match self {
             Self::RunOutStopAtVertex => write!(f, "stop-at-vertex with a corner patch"),
             Self::RunOutFeather => write!(f, "feather the radius out before the vertex"),
+            Self::CutOffAtTransverseCap => {
+                write!(f, "cut the band off in the cap plane's own section of it")
+            }
         }
     }
 }
 
-/// The corner-configuration tags C8's scope box enumerates. Exactly
-/// one — [`CornerConfig::ThreeConvexEdges`] with independent support
-/// normals — is constructible at M5; the rest are the refusal
-/// taxonomy, each pinned by a fixture that reaches it.
+/// The corner-configuration tags C8's scope box enumerates. Two are
+/// constructible — [`CornerConfig::ThreeConvexEdges`] with independent
+/// support normals (the corner patch) and
+/// [`CornerConfig::TransverseCap`] (the ruled band's cut-off); the rest
+/// are the refusal taxonomy, each pinned by a fixture that reaches it.
 ///
 /// **This vocabulary has no name for the uniform CONCAVE trihedron**,
 /// which both verbs now carve — so no refusal needs one, and no site
@@ -425,6 +448,19 @@ pub enum CornerConfig {
     /// asking for the rim whole, which is a door that already exists,
     /// and that is what this tag's recourse says.
     SeamVertex,
+    /// **A straight-spine band's edge ends at a vertex whose other
+    /// incident edges lie in one plane face perpendicular to the
+    /// spine.** Trivalent: the requested edge and the two rim edges
+    /// the cap shares with the band's two supports; the cap plane's
+    /// normal is parallel to the ruling (`fillet3_cap_transverse`,
+    /// metered at the link's own extent), so both supports meet the
+    /// cap transversally.
+    ///
+    /// Not a corner in the trihedral sense — the ball does not turn —
+    /// and not a seam vertex: the surface is not smooth through it.
+    /// IN SCOPE for the ruled arms: the band ends in the cap plane's
+    /// own section of it ([`RunOutPolicy::CutOffAtTransverseCap`]).
+    TransverseCap,
     /// A vertex reached with an in-band or poisoned configuration
     /// margin — the configuration could not be classified at all.
     Indeterminate,
@@ -447,6 +483,9 @@ impl CornerConfig {
             // Not a corner: the surface is smooth through the point, so
             // there is nothing for a run-out to run out INTO.
             Self::SeamVertex => None,
+            // The ruled band's own termination: the cap plane's section
+            // of the band, which the surgery carves.
+            Self::TransverseCap => Some(RunOutPolicy::CutOffAtTransverseCap),
             _ => Some(RunOutPolicy::RunOutStopAtVertex),
         }
     }
@@ -477,6 +516,11 @@ impl fmt::Display for CornerConfig {
             Self::SeamVertex => write!(
                 f,
                 "a chart-seam vertex on a smooth rim, which is not a corner at all"
+            ),
+            Self::TransverseCap => write!(
+                f,
+                "a transverse cap: the two unrequested edges lie in one plane face \
+                 perpendicular to the band's ruling (the built ruled termination)"
             ),
             Self::Indeterminate => write!(f, "a vertex whose configuration did not classify"),
         }
@@ -584,8 +628,12 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// beside the chain row that pins the partly-requested outcome.
 pub const FILLET3_CORNER_RECOURSE: &str = "blend a chain that terminates only in FULLY REQUESTED trivalent vertices whose \
      three edges are all convex or all concave (over plane\u{2013}plane supports) — a \
-     corner left partly requested refuses as a run-out wherever it sits; \
-     mixed-convexity corners and general run-outs are not implemented";
+     corner left partly requested refuses as a run-out wherever it sits — or, for a \
+     straight edge between a cylinder and a plane or cylinder sharing its ruling, in \
+     TRANSVERSE CAPS (plane faces perpendicular to the ruling), where the band is cut \
+     off in the cap's own section of it, on either material side; mixed-convexity \
+     corners and general run-outs (an oblique or curved end face, a mid-curve stop) \
+     are not implemented";
 /// The recourse for a chain that stops at a CHART SEAM on an otherwise
 /// smooth rim.
 ///
@@ -1208,7 +1256,12 @@ impl fmt::Display for BlendError {
                     Some("fillet3_chain_g1" | "fillet3_chain_arm") => FILLET3_CHAIN_RECOURSE,
                     Some("fillet3_convexity_sign") => FILLET3_CONVEXITY_RECOURSE,
                     Some("fillet3_ring_clearance") => FILLET3_RING_RECOURSE,
-                    Some("fillet3_corner_independence") => FILLET3_CORNER_RECOURSE,
+                    // Predicate 6's two classifications share the corner
+                    // recourse: the trihedron's independence and the
+                    // ruled band's transverse cap.
+                    Some("fillet3_corner_independence" | "fillet3_cap_transverse") => {
+                        FILLET3_CORNER_RECOURSE
+                    }
                     // Fix pass F6: an escalation from a predicate this
                     // match does not know is a MISSING recourse, and
                     // saying so is the honest answer — emitting the
