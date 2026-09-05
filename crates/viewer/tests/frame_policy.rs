@@ -811,6 +811,42 @@ fn a_build_in_flight_when_the_document_is_replaced_installs_nothing() {
     assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
 }
 
+/// **The ordinary half of the same replacement**, which the row above
+/// cannot reach: a CURRENT index and no build in flight when the
+/// document is replaced.
+///
+/// The two rows constrain different halves of `PickCache::forget`.
+/// There, `index` and `error` are already `None` — the submit that
+/// opened the window cleared them — so only the attempt's two fields
+/// are doing anything. Here nothing is outstanding and the index is
+/// the live one, so it is the `index` field alone that decides whether
+/// a pick after the replacement is answered from the document that was
+/// just replaced.
+#[test]
+fn replacing_the_document_drops_a_current_index_with_no_build_in_flight() {
+    let tol = Tol::witness();
+    let (session, _extrude) = plate_session(tol);
+    let mut cache = PickCache::inline();
+    assert_eq!(cache.sync(&session, delta()), CacheStep::Submitted);
+    assert_eq!(cache.pump(), vec![IndexLanding::Built]);
+    assert_eq!(cache.sync(&session, delta()), CacheStep::Current);
+    assert!(cache.index().is_some());
+
+    let mut session = session;
+    session.perform(SessionOp::NewDocument {
+        name: "fresh".to_owned(),
+    });
+    assert!(session.landed_generation().is_none());
+    assert!(!cache.indexing(), "nothing was outstanding to begin with");
+
+    assert_eq!(cache.sync(&session, delta()), CacheStep::Nothing);
+    assert!(
+        cache.index().is_none(),
+        "the picture is the replaced document's, and a pick answered from \
+         it would name entities of a document nobody can see",
+    );
+}
+
 /// **The confidently-wrong answer this seam makes possible**, refused.
 /// A build finishing for a generation the session has moved past is
 /// exactly what restart-without-cancel produces, and installing it
