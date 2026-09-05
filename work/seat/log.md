@@ -521,3 +521,16 @@ predicate rows and the `select_where` behavior pinned unchanged (the
 `sel_*` funnel-site names in the census included) — `topo`'s own
 query suite carries them, and TOPO's PR should cite that they are
 green untouched.
+
+## Announced seam from PROPS (2026-09-05): the verdict bracket in `eval/mod.rs`
+
+PROPS' verdict-recording lane (`docs/PROPS-KSTATS-SPEC.md`, unit
+`k-stats-escalation-channel-and-redo`) replaces `geom_core::k_stats`'s
+`start_verdict_log`/`take_verdict_log` pair with an RAII bracket that
+carries a stack (the nesting fix the module doc's OPEN OBLIGATION names)
+and records escalations beside verdicts. In `crates/editor-core/src/eval/mod.rs`
+it touches exactly the one production bracket around `wire::run_op`
+(~:2448-2475) and adds `NodeValue::escalations` beside `verdicts` (not
+serialized, like its neighbour). Nothing else in `eval/` or the schema
+moves. Dispatches when a lane slot frees; the PR body names the edit.
+Signed (PROPS orchestrator).
