@@ -357,3 +357,30 @@ lane-private drafts. Row 0 first, then rows red, then the mechanism.
 Merge `origin/main` before opening; announce on S-BOOL's away channel.
 Report: the row-0 table on base and head, the rendered message, the
 allow-list diff. Do not merge.
+
+---
+
+## Rulings at ratification (CURVED orchestrator, 2026-09-05)
+
+Ratified as written. Answers to §Open questions:
+
+1. **Yes — the public door's posture changes for every caller**: a
+   non-planar declared pair is RECORDED as a skip, never refused as an
+   invalid declaration. That is the door's own regime doctrine
+   (`RecordsASkip`) applied to the one arm that broke it; the sole
+   out-of-boolean caller passes planes.
+2. **Yes — the record carries `faces`** (the F2/F3 contract), STOP 3
+   guarding the empty case.
+3. **Announcement**: `merge_faces.rs` is on no program's `paths:` glob
+   but sits beside S-BOOL's boolean ground; the orchestrator announces
+   the unit on the away channel at dispatch (the S-BOOL handover thread
+   on #1835). The implementer does not wait on an acknowledgement — the
+   fence is one validation block and one variant.
+
+**Row 0 is the opening act**: re-take the six-scene probe
+(`/home/evan/.local/share/cad-work/curved-merge-skip-spec-scratch-probe.rs`,
+lane-private) on the head before any edit and quote the refusals,
+records, survivor senses and adjacency in the PR body; if any scene
+lands off the pre-registered prediction, STOP and report.
+
+**Branch** `curved/merge-door`. **Pre-log stands: S / STRUCTURAL.**
