@@ -415,3 +415,20 @@ shape at `editor-core/src/clearance.rs:1237` and `drive.rs:1707`, and
 `sugar.rs:612` one level down. **ATTR dual dispatched** on frozen
 `e8813f998`: ordinal **2004**, parity byte 43 ⇒ R1 FABLE / R2 OPUS, briefs
 stored with sha256, concurrent, isolated.
+
+**H5 merged; block FILLET-B1 concluded (2026-09-05).** PR
+[#1824](https://github.com/evgunter/cad/pull/1824) merged at `91e6d4309`,
+**sample #132**, ordinal 2002, its fix pass the whole union: the assembly
+recourse conditioned on a ring-free host carrying the rim as its whole
+outer cycle with every `Struts`-routed refusal audited at its site, the
+concave corpus in a bit-identical dump, the curved single host stated and
+filed, `validate_closed` amended to validity-at-rest, `waist_fill` folded
+(measured not bit-identical, ≤ 2.6e-17, both H4 bars hold), and one red
+leg on the way (two intra-doc links — `scripts/doc-gate.sh --pr` joins
+every lane's local scope from here). Filed by the pass:
+`hostless-rim-on-a-ringed-host-refuses`,
+`curved-single-host-rim-refuses-at-the-half-band-gate`. `docs/FILLET-H5-SPEC.md`
+deleted, ledgered at the merge SHA. **Block B1 is concluded** — H4 (FABLE,
+#126), RIM (OPUS, #131), H5 (OPUS, #132) — and its record reaches main
+with this sync. Block B2 runs: H6 in its fix pass, ATTR under review, H7
+implementing.
