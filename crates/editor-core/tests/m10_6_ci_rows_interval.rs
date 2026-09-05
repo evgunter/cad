@@ -54,7 +54,7 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
-use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, drive};
+use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_vector, drive};
 use editor_core::report::{MassBasis, MassBudget};
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, DocParam,
@@ -779,7 +779,7 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
 /// **The witness-vector key of an assertion-carrying document, pinned**
 /// (M10-6 deviation D10; both reviews' MAJOR).
 ///
-/// `VerdictVector::certifying` drops `Assertion` rows from the
+/// `drive::certifying_vector` drops `Assertion` rows from the
 /// certification comparison, and that MOVES the `verdict_vector_key`
 /// every certified leaf carries — for every document with an
 /// assertion, including ones with no `min_clearance` anywhere. The
@@ -816,7 +816,7 @@ fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
             Tol::witness(),
         );
         let full = VerdictVector::of(&ev);
-        let certifying = VerdictVector::certifying(d, &ev);
+        let certifying = certifying_vector(d, &ev);
         assert_ne!(
             full.key().0,
             certifying.key().0,

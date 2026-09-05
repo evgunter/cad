@@ -199,3 +199,15 @@ the computed vector — and make the contract honest with an `ONTO_RADII`
 corpus dimension and a pin of the measured bound. Fix pass
 implementer-inherited, 10 items A–J, all taken; the reviewers' probe
 rows named for adoption. Row and sample number at merge.
+**Verdict shapes MERGED (2026-09-05)** —
+[#1920](https://github.com/evgunter/cad/pull/1920), head `9f52d8df`,
+green on the full matrix (run 33945846151) after the fix pass took all
+eight adjudicated items: the tag-byte invariant stated at the match,
+the structural reason no key moved (`drive` never cancels and refuses a
+non-`Ok` witness) in the tree at `certifying_vector`, which replaces the
+split inherent impl as a free function, one sign ladder, the positive-
+control pin, the history clauses gone. One public path moved
+(`VerdictVector::certifying` → `drive::certifying_vector`), recorded as
+the unit's deviation 3. The item is closed; the spec leaves `docs/` with
+this merge (ledgered). Next in the lane:
+`k-stats-escalation-channel-and-redo` (D→H, L; a dual unit).
