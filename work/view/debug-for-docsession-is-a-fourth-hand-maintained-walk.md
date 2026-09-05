@@ -13,7 +13,7 @@ PR collapsed. Pre-existing.
 
 ## The duplication
 
-`impl Debug for DocSession` (`crates/viewer/src/session.rs:1659-1670`)
+`impl Debug for DocSession` (`crates/viewer/src/session.rs:1663-1674`)
 names its fields by hand — `generation`, `landed_generation`,
 `selection`, `hover`, `states`, `gesture`, `path` — and ends in
 `finish_non_exhaustive()`. So a field added to `Derived` (the value
