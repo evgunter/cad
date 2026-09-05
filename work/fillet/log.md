@@ -399,3 +399,36 @@ on frozen `f9cfceaef`: ordinal **2003**, parity byte 211 ⇒ R1 FABLE / R2
 OPUS, briefs stored with sha256, concurrent, isolated. H7 dispatched into
 block B2 slot 2 (the box was quiet) — three implementer lanes and two
 reviewers live.
+
+**ATTR landed (2026-09-05)** on PR [#1895](https://github.com/evgunter/cad/pull/1895),
+head `e8813f998`, full matrix green (run 33937888422, twelve test jobs,
+five k-lint tiers, python suite). Phase 1 confirmed the premise at the
+merge base (arc×arc: 8.2 % of refusals named a corner other than the
+anchors' nearest, max 0.792 m; 16 % mixed reasons across crossings;
+line×arc 0 % but 50 % mixed). Landed: `NoCornerOfPair { radius, corners }`
+with `CornerReason` arms carrying the three retired variants' payloads
+verbatim, both channels (arc-carrier resolve and the straight pair)
+feeding it, `FilletOffsetLeverTooShort` still aborting alone; Python
+`no_corner_of_pair` + `corner_reason_tag` + `PathError.corners`. Reported
+not filed by the lane (outside its fence): the same first-wins discard
+shape at `editor-core/src/clearance.rs:1237` and `drive.rs:1707`, and
+`sugar.rs:612` one level down. **ATTR dual dispatched** on frozen
+`e8813f998`: ordinal **2004**, parity byte 43 ⇒ R1 FABLE / R2 OPUS, briefs
+stored with sha256, concurrent, isolated.
+
+**H5 merged; block FILLET-B1 concluded (2026-09-05).** PR
+[#1824](https://github.com/evgunter/cad/pull/1824) merged at `91e6d4309`,
+**sample #132**, ordinal 2002, its fix pass the whole union: the assembly
+recourse conditioned on a ring-free host carrying the rim as its whole
+outer cycle with every `Struts`-routed refusal audited at its site, the
+concave corpus in a bit-identical dump, the curved single host stated and
+filed, `validate_closed` amended to validity-at-rest, `waist_fill` folded
+(measured not bit-identical, ≤ 2.6e-17, both H4 bars hold), and one red
+leg on the way (two intra-doc links — `scripts/doc-gate.sh --pr` joins
+every lane's local scope from here). Filed by the pass:
+`hostless-rim-on-a-ringed-host-refuses`,
+`curved-single-host-rim-refuses-at-the-half-band-gate`. `docs/FILLET-H5-SPEC.md`
+deleted, ledgered at the merge SHA. **Block B1 is concluded** — H4 (FABLE,
+#126), RIM (OPUS, #131), H5 (OPUS, #132) — and its record reaches main
+with this sync. Block B2 runs: H6 in its fix pass, ATTR under review, H7
+implementing.
