@@ -528,3 +528,36 @@ ordinal **2005**, parity byte 115 ⇒ R1 FABLE / R2 OPUS, briefs stored with
 sha256, concurrent, isolated. With this every FILLET unit is landed; what
 remains is three fix passes (H6, ATTR, H7 after its dual) and the block
 B2 record.
+
+**H7 dual delivered; union fix pass sent (2026-09-05).** Both
+MERGEABLE-AFTER-FIXES (R1 0/5/5, R2 2/6/8); the carve correct on every
+fixture either lane could build — two of them fixtures the unit said do
+not exist — C1 re-taken at the real merge base by both, `A_section`
+re-derived three ways. **Unilateral MAJOR, executed (R2): the lever
+`corner_at` hands the new predicate is not red-capable** — `arm_len →
+1.0` survives all 1101 rows because every fixture's crease extent is
+exactly 1.0 and every cap margin exactly 0; the trio row calls the
+predicate directly and never observes the call site. Test-gap class on
+the unit's own new decision, dedup single — **tally candidate, +1 this
+pair** (running: H4 +1, RIM +1 with one flagged, H7 +1). Bilateral: the
+governing docs name `blend/ruled.rs`, which does not exist (deviation 1
+folded the carve into `surgery.rs` after the prose landed); the mutant
+row's disjunction; `TransverseCap` has no producer. Unilateral R1: the
+concave ruled band HAS an extrude fixture (a sunk rod, `ΔV = +2AL`) so
+deviation 5's reason is false of that door; the `seam_split_param`
+line-carrier change carves a revolve rim that refused at base —
+undisclosed consequence; a transverse arc described TANGENT passes
+certification and tier 3 (the certifier's `TangentParallel` margin,
+pre-existing). Unilateral R2: `ROD_L = 1` makes the prism factor
+unmeasured; half of the `seam_split_param` change is dead
+generalisation. Orchestrator's calls: the lever pinned at the call site
+with a length-dependent fixture, the docs fixed and re-swept by
+paraphrase, the concave pin adopted, both halves of the `seam_split_param`
+change disclosed, four issues filed (the coaxiality recourse arm, the
+ladder's possibly-new dead key, the certifier gap, the persisted
+`CornerArc` name). Pair FAIR, flagged: R1 glimpsed the other lane's
+branch name and SHA and ~20 lines of the ATTR fix pass's output — no
+review content. Q8 from both: `surgery.rs` at 4395 lines holds four
+surgeries; the split (`blend/open/{planar,ruled}.rs` behind one
+ratification of the compound-bound allowlist) goes to Ev as an `[ev]`
+issue. Row at merge, ordinal 2005.
