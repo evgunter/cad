@@ -5,7 +5,7 @@ title: add_boolean pre-checks a==b, which DocEdit::InsertNode already refuses as
 status: closed
 opened: 2026-09-04
 closed: 2026-09-05
-pr: 1930
+pr: 1932
 refs: [set-param-prechecks-what-the-door-refuses, refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake, 1846]
 ---
 

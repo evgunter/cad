@@ -5,7 +5,7 @@ title: The Save row's argument for being permitted mid-gesture covers save_path 
 status: closed
 opened: 2026-09-04
 closed: 2026-09-05
-pr: 1930
+pr: 1932
 refs: [save-is-not-gesture-guarded]
 ---
 

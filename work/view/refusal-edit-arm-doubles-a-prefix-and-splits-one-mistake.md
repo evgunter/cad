@@ -5,7 +5,7 @@ title: Refusal::Edit's wrapper doubles EditError's prefix, and one mistyped para
 status: closed
 opened: 2026-09-04
 closed: 2026-09-05
-pr: 1930
+pr: 1932
 refs: [refusal-has-no-all-to-walk, set-param-prechecks-what-the-door-refuses, 1846]
 ---
 
