@@ -62,8 +62,8 @@ pub use hit::{HitTestError, body_name, edge_name, entity_name, face_name, vertex
 pub use pick::{MeshPick, MeshPickError, NodePick, NodePickError, PickHit, PickTarget, pick_face};
 pub use vdiff::{
     FlipSet, NodeVerdictDelta, NodeVerdicts, PredicateDivergence, RunStatus, SummaryDelta,
-    SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictFlip, VerdictSummary, diff_summaries,
-    diff_verdicts, verdict_summary,
+    SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictFlip, VerdictRow, VerdictSummary,
+    VerdictVector, VerdictVectorKey, diff_summaries, diff_verdicts, verdict_summary,
 };
 
 use std::collections::{BTreeMap, BTreeSet};

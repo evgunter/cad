@@ -326,6 +326,8 @@ mod mate6r2_probes;
 mod pirad_wire;
 #[path = "placedunion_wire.rs"]
 mod placedunion_wire;
+#[path = "props_verdict_shapes.rs"]
+mod props_verdict_shapes;
 
 #[path = "r1_bool11_ec_probe.rs"]
 mod r1_bool11_ec_probe;

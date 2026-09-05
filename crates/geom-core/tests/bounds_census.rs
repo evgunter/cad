@@ -234,17 +234,28 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/profile/src/path/arc_fillet.rs",
+        subject: "anchor_span",
+        why: HandedOff(
+            "Track V's, as `map_refusal` below; the arc-fillet ladder's presentation \
+             sort key, whose own doc states the argument — it is read off the diagnostic \
+             channel, the sort is stable so the order is a function of the inputs (D9), \
+             and the permuted entries carry identical payloads",
+        ),
+    },
+    Site {
+        path: "crates/profile/src/path/arc_fillet.rs",
         subject: "map_refusal",
         why: HandedOff("Track V's; a refusal-payload door S88's handoff names"),
     },
     Site {
         path: "crates/profile/src/path/arc_fillet.rs",
         subject: "anchor_span",
-        why: HandedOff(
-            "Track V's ground, beside `map_refusal` above: the presentation sort key for \
-             derived fillet corners. Its own doc states the D9 argument (a stable sort, \
-             ties on enumeration order, payloads identical whatever order they land in); \
-             the disposition is the owning track's to sharpen",
+        why: Payload(
+            "the corner-outcome PRESENTATION sort key: the two bracketing anchors' span, read \
+             as an `f64` enclosure lower bound off the diagnostic channel. A sort key and \
+             nothing else — the sort is stable, so the order is a function of the inputs \
+             (D9), and the permuted entries carry identical payloads, so nothing downstream \
+             branches on it",
         ),
     },
     Site {

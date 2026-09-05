@@ -75,6 +75,43 @@ The first changes stored frames on existing documents and therefore
 moves content keys; the second turns a total function into a partial
 one. Both are geom-core decisions with a wide blast radius.
 
+## Sized (PROPS orchestrator, 2026-09-05 — a read-only census)
+
+Corrections to the premise above, at `main` today:
+
+- **The #1157 mechanism is already fixed** (`vec.rs:405-412`): the
+  denominator is `1 + |n.z|`, so nothing is unbounded and `b1` carries
+  `s` only in `b1.z = −(s·n.x)`. For a wall with `n.x = 0` the stored
+  frame is exact; for a wall with `|n.x|` near 1 it is still the whole
+  `[−1, 1]` hull the measurement above shows. The item stands for
+  every wall not aligned with the y-axis.
+- **The hull is pinned as a decision**: `vec.rs`'s
+  `orthonormal_basis_at_a_vertical_plane_is_bounded_and_certified`
+  says a spelling that narrowed it by deciding the sign would red
+  there, and `Interval::copysign`'s doc (`interval.rs:347-360`) argues
+  the two-sided hull is what keeps an f64 replay seeing `−0.0`
+  contained. Changing it is a design fork, not an audit fix.
+- **Blast radius of changing the f64 frame** (option 1 above): content
+  keys never reach `u_ref` (`ContentBits` is a scalar trait; no
+  surface feed); but `Datum::FaceFrame` stores a spin *relative to the
+  carrier's stored `u_ref`*, so a changed constructor rotates every
+  saved sketch on a wall with the file bytes unchanged; STEP export
+  writes `u_ref` verbatim and 18 fixtures are byte-golden; ~19 tests
+  pin frame bits. Option 1 is rejected on the silent-rotation cost.
+- **Option 2** (refuse typed when `n.z` is not sign-definite) refuses
+  every vertical wall at `Interval`. Rejected.
+- **The shape that remains**: an `Interval`-only narrowing with no f64
+  bit moved. Whether a POINT enclosure at zero carries its sign bit
+  through the backend (`from_f64(−0.0)` and the Newell cross-sum at
+  `Interval`) is a measurable fact that decides between (c) transfer
+  the bit at a point zero — zero f64 change — and (c′) canonicalise
+  the zero at f64 (`copysign(1, n.z + 0)`), which moves bits only on
+  walls whose Newell normal has `z = −0.0` today. Both need a corpus
+  census (how many walls carry `−0.0`; which STEP `u_ref` records
+  move under (c′)). That measurement is the next lane on this file;
+  its numbers go to Ev as an `[ev]` ruling with (c)/(c′) argued.
+  M10-5's `in_plane_axis`/`chart_frame` workaround retires after.
+
 ## Home
 
 `crates/geom-core/src/linalg/vec.rs` (`orthonormal_basis`), consumed by

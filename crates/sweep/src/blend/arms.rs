@@ -168,22 +168,34 @@ pub enum BlendArm {
     /// circle's own axis, so the pair is coaxial by construction.
     SphereSphereTorus,
     /// Two parallel cylinders meeting along a common ruling → cylinder
-    /// patch, straight spine. The arm is exact; no surgery carves its
-    /// band yet (the terminations are the run-out taxonomy — #987).
+    /// patch, straight spine. The open-chain surgery carves its band
+    /// between TRANSVERSE CAPS — plane faces perpendicular to the
+    /// ruling, where the band ends in the cap's own section of it.
     CylinderCylinderCylinder,
     /// Cylinder and a plane containing its axis direction, meeting
-    /// along a ruling → cylinder patch, straight spine. Same standing
-    /// as the row above: exact arm, uncarved band (#987).
+    /// along a ruling → cylinder patch, straight spine. Carved between
+    /// transverse caps exactly as the row above.
     CylinderPlaneCylinder,
 }
 
 impl BlendArm {
-    /// Whether this arm blends a plane–plane support pair — the one
-    /// pair the in-place open-chain surgery carves, whichever band
-    /// the request grafts onto it.
+    /// Whether this arm blends a plane–plane support pair — the pair
+    /// the in-place open-chain surgery carves between trivalent
+    /// corners, whichever band the request grafts onto it.
     #[must_use]
     pub fn is_plane_plane(self) -> bool {
         matches!(self, Self::PlanePlaneCylinder | Self::PlanePlaneStrip)
+    }
+
+    /// Whether this arm is a RULED one — a cylinder band about a
+    /// straight spine over curved supports sharing the ruling, whose
+    /// open chain terminates in transverse caps rather than corners.
+    #[must_use]
+    pub fn is_ruled(self) -> bool {
+        matches!(
+            self,
+            Self::CylinderCylinderCylinder | Self::CylinderPlaneCylinder
+        )
     }
 
     /// Whether this arm's blend is the TORUS about a circular spine —
@@ -577,9 +589,8 @@ impl<T: Real> SupportTrace<T> {
 /// [`Ruling::blend`] stores `spine_curvature = 0` unconditionally, so
 /// predicate 3 saturates and cannot see it; there the poisoned centre
 /// reaches the CYLINDER's `origin` and its `u_ref`, and the refusal
-/// arrives one step later — at the open-chain admission door today
-/// (a ruled pair meets along an open edge, which the surgery does not
-/// carve), and at the certification of any band that door ever mints.
+/// arrives one step later — at the certification of the band the
+/// open-chain surgery mints between the link's transverse caps.
 #[must_use]
 pub fn sheet_center<T: Real>(
     rim: Point3<T>,
