@@ -220,8 +220,14 @@ fn the_exit_demo_walk() {
         "the mate's landing discards the probe, in the same outcome"
     );
     assert!(
-        matches!(superseded.cause, DisplayFault::MateConstrained { .. }),
-        "and the outcome carries WHY it went, not only which went: {}",
+        matches!(
+            &superseded.cause,
+            DisplayFault::MateConstrained { instance, mates }
+                if *instance == bench.post_b && !mates.is_empty()
+        ),
+        "and the outcome carries WHY it went, not only which went — the \
+         fault's own PAYLOAD, which is what would go red if the prune paired \
+         the right fault with the wrong instance: {}",
         superseded.cause
     );
     assert!(session.display().free_move_of(bench.post_b).is_none());

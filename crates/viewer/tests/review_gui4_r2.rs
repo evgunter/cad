@@ -515,8 +515,14 @@ fn hide_survives_the_mate_that_discards_the_probe() {
         "the mate discards the probe"
     );
     assert!(
-        matches!(superseded.cause, DisplayFault::MateConstrained { .. }),
-        "and the outcome carries WHY it went, not only which went: {}",
+        matches!(
+            &superseded.cause,
+            DisplayFault::MateConstrained { instance, mates }
+                if *instance == bench.post_b && !mates.is_empty()
+        ),
+        "and the outcome carries WHY it went, not only which went — the \
+         fault's own PAYLOAD, which is what would go red if the prune paired \
+         the right fault with the wrong instance: {}",
         superseded.cause
     );
     assert!(session.display().is_hidden(bench.post_b), "hide stands");

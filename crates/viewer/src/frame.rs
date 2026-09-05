@@ -1102,7 +1102,8 @@ mod tests {
         };
         let notice = dropped_hide_notice(core::slice::from_ref(&fused)).expect("news");
         assert!(
-            notice.starts_with("hide: a hide was dropped and the hidden geometry is drawn again — "),
+            notice
+                .starts_with("hide: a hide was dropped and the hidden geometry is drawn again — "),
             "its own preamble, not the free-move one — and the part being \
              back on screen, which is the whole reason this is not a \
              supersession, reaches the words the user reads: {notice}"

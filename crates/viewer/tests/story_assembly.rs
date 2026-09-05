@@ -499,8 +499,14 @@ fn the_windmill_story() {
         "the mate's landing discards the park, in the same outcome"
     );
     assert!(
-        matches!(superseded.cause, DisplayFault::MateConstrained { .. }),
-        "and the outcome carries WHY it went, not only which went: {}",
+        matches!(
+            &superseded.cause,
+            DisplayFault::MateConstrained { instance, mates }
+                if *instance == hub_i && !mates.is_empty()
+        ),
+        "and the outcome carries WHY it went, not only which went — the \
+         fault's own PAYLOAD, which is what would go red if the prune paired \
+         the right fault with the wrong instance: {}",
         superseded.cause
     );
     assert!(session.display().free_move_of(hub_i).is_none());
@@ -652,8 +658,14 @@ fn the_windmill_story() {
         "the first sail's park goes with its mate"
     );
     assert!(
-        matches!(superseded.cause, DisplayFault::MateConstrained { .. }),
-        "and the outcome carries WHY it went, not only which went: {}",
+        matches!(
+            &superseded.cause,
+            DisplayFault::MateConstrained { instance, mates }
+                if *instance == sail_a && !mates.is_empty()
+        ),
+        "and the outcome carries WHY it went, not only which went — the \
+         fault's own PAYLOAD, which is what would go red if the prune paired \
+         the right fault with the wrong instance: {}",
         superseded.cause
     );
     session.pump();
@@ -722,8 +734,14 @@ fn the_windmill_story() {
     };
     assert_eq!(superseded.instance, sail_b, "and so does the second's");
     assert!(
-        matches!(superseded.cause, DisplayFault::MateConstrained { .. }),
-        "and the outcome carries WHY it went, not only which went: {}",
+        matches!(
+            &superseded.cause,
+            DisplayFault::MateConstrained { instance, mates }
+                if *instance == sail_b && !mates.is_empty()
+        ),
+        "and the outcome carries WHY it went, not only which went — the \
+         fault's own PAYLOAD, which is what would go red if the prune paired \
+         the right fault with the wrong instance: {}",
         superseded.cause
     );
     session.pump();

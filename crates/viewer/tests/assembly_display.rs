@@ -24,6 +24,19 @@ use viewer::scene::SceneMesh;
 use viewer::session::{DocSession, Refusal, SessionOp};
 use viewer::tree::RowStatus;
 
+/// Every `Node::Mate` the session's document holds, document order —
+/// read off the recipe rather than off `display::mates_naming`, so a
+/// row asserting a fault's `mates` payload is not checking that
+/// function against itself.
+fn mate_nodes(session: &DocSession) -> Vec<RecipeNodeId> {
+    let doc = session.doc();
+    doc.order()
+        .iter()
+        .copied()
+        .filter(|&id| matches!(doc.node(id), Some(pncad::document::Node::Mate { .. })))
+        .collect()
+}
+
 /// The mate these rows author directly: a post's top seated under the
 /// shelf's middle, no rider — `asm::seat_alignment`'s one home, at the
 /// place along the shelf this suite wants.
@@ -349,8 +362,11 @@ fn the_at_rest_badge_lands_with_the_evaluation() {
     assert!(note.contains("Tangent"), "{note}");
 }
 
+/// **An id the document does not hold**, which is not the same
+/// refusal as a node of the wrong kind — the row was named for the
+/// wrong one of the two until they were spelled apart.
 #[test]
-fn hide_refuses_a_non_instance_typed() {
+fn hide_refuses_an_id_the_document_does_not_hold() {
     let tol = Tol::witness();
     let bench = asm::bench("hidewrong", tol);
     let mut session = asm::open_bench(&bench, tol);
@@ -415,7 +431,20 @@ fn free_move_accepts_only_completely_unconstrained_instances() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.perform(SessionOp::CancelFreeMove);
-    // A non-instance refuses typed.
+    // A node that EXISTS and is not an instance — the mate authored
+    // above — refuses for being the wrong KIND. That is the arm the
+    // block below was labelled for and never drove.
+    let mate = mate_nodes(&session)[0];
+    let outcome = session.perform(SessionOp::BeginFreeMove { instance: mate });
+    assert!(
+        matches!(
+            outcome.refusal,
+            Some(Refusal::Display(DisplayFault::NotAnInstance { .. }))
+        ),
+        "{:?}",
+        outcome.refusal
+    );
+    // And an id the document does not hold refuses for being ABSENT.
     let outcome = session.perform(SessionOp::BeginFreeMove {
         instance: RecipeNodeId(9_999),
     });
@@ -617,10 +646,20 @@ fn a_landing_mate_discards_the_probe_value() {
         superseded.instance, bench.post_b,
         "the supersession is reported, not inferred"
     );
-    assert!(
-        matches!(superseded.cause, DisplayFault::MateConstrained { .. }),
-        "and the outcome carries WHY it went, not only which went: {}",
-        superseded.cause
+    // The PAYLOAD, not the variant: the variant is what the op this row
+    // just performed already implies, and what would go red if `prune`
+    // paired the right fault with the wrong instance is this.
+    let DisplayFault::MateConstrained { instance, mates } = &superseded.cause else {
+        panic!(
+            "a mate landing supersedes with its own fault: {}",
+            superseded.cause
+        )
+    };
+    assert_eq!(*instance, bench.post_b, "the fault names the same instance");
+    assert_eq!(
+        mates,
+        &mate_nodes(&session),
+        "and names the mate that landed, read off the recipe"
     );
     // DISCARDED, not zeroed: the value is gone, and the map holds no
     // identity entry standing in for it.

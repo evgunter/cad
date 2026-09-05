@@ -970,18 +970,35 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
         superseded.instance, bench.post_b,
         "the mate discards the hand placement"
     );
+    // The PAYLOAD, not the variant: the variant is what the op this row
+    // just performed already implies.
+    let DisplayFault::MateConstrained { instance, mates } = &superseded.cause else {
+        panic!(
+            "a mate landing supersedes with its own fault: {}",
+            superseded.cause
+        )
+    };
+    assert_eq!(*instance, bench.post_b, "the fault names the same instance");
     assert!(
-        matches!(superseded.cause, DisplayFault::MateConstrained { .. }),
-        "and the outcome carries WHY it went, not only which went: {}",
-        superseded.cause
+        !mates.is_empty(),
+        "and names the mate that landed, which is what the line then reads"
     );
 
-    // What the chrome does with it, in `perform_batch`'s order: the
-    // outcome's supersessions join the frame's notices, and the
-    // ranking is asked.
+    // What the chrome does with it, in `perform_batch`'s order. This
+    // is a HAND-WRITTEN MIRROR of app-gated code no row can reach, so
+    // it has to model every producer that feeds the notices there —
+    // both withdrawal channels, not just the one this row provokes. A
+    // half-mirror would pass while the real loop dropped the other.
     let notices: Vec<String> = frame::supersession_notice(&outcome.superseded)
         .into_iter()
+        .chain(frame::dropped_hide_notice(&outcome.dropped_hides))
         .collect();
+    assert_eq!(
+        notices.len(),
+        1,
+        "a mate landing on a probed instance withdraws a placement and no \
+         hide, so the second producer is silent here rather than absent"
+    );
     let update = frame::frame_status(
         &notices,
         core::slice::from_ref(&mate),
