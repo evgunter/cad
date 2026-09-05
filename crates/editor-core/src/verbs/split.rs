@@ -127,6 +127,7 @@ pub(crate) fn split<T: Decide>() -> SplitVerb<T> {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)] // a fixture that will not build is a failure, not a value
 mod tests {
     use geom_core::{Band, Point3};
     use topo::query::UnitVec3;
