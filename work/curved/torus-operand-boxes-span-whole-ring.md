@@ -7,6 +7,7 @@ opened: 2026-09-01
 github: 1488
 refs: [1477, 968]
 branch: curved/torus-box
+pr: 1907
 ---
 
 ## From GitHub issue 1488
