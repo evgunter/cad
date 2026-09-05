@@ -1368,3 +1368,63 @@ each of those is.
 desk for a reason other than difficulty: the rule it falsifies is text
 Ev ratified at #1801 one day earlier, and a gate this program built at
 #1848 is what proved it false.
+
+## `view/prune-report` built and green; one dispatcher correction; the class's third member filed (2026-09-05)
+
+**#1886, CI green** on `eaa41580` — run 33931590377, 37 jobs, 0
+failures, **12 `test (…)` and 5 `k-lint (gate, …)` jobs**, which is
+what a full code-tier run must show since the 2026-09-04 widening. No
+`CI-Config:` trailer, nothing narrowed. Not merged: `view/clearing-walk`
+(#1885) is an open sibling touching `session.rs`, and the lane
+correctly left the sequencing to the orchestrator rather than taking it.
+
+### The design call the lane made, and why I am letting it stand
+
+The item asked, without answering, whether re-showing a **fused**
+instance is a supersession at all. The lane answered **no**, and the
+argument is better than the one I would have given: a supersession is
+a **substitution** — the mate answers the placement question better
+than the hand placement did — whereas a dropped hide is superseded by
+nothing; the user's question stopped being *askable* rather than being
+answered differently. It then found the thing that decides the
+wording, which neither the item nor my brief had: the two arms of
+`display_check` are not symmetric to a person. On a **fuse** the part
+is drawn AGAIN — material the user removed is back on screen — and on
+a **delete** nothing reappears. So one sentence cannot carry both, and
+the shipped preamble says only what is true of either.
+
+It is disclosed, argued in the PR body and in `PruneReport`'s docs,
+and pinned by a row. Sent to the style review as the first claim to
+falsify rather than accepted here.
+
+### The dispatcher correction
+
+My brief carried the item's "**nine** assertion sites across **seven**
+test files, **all** spelled `vec![bench.post_b]`" — flagged in the
+brief as inherited and unverified, which is why the lane checked it.
+It is **11 sites across 8 files in six spellings**, and two of them
+(`superseded.is_empty()`) are type-agnostic and never moved. The
+count came from the closed `opoutcome-superseded-has-no-production-
+reader`'s own correction against a **pre-#1872** tree — so this is the
+citation-staleness class again, one layer up: not a `file:line` that
+stopped resolving but a **census** that stopped being true, carried
+forward by an item that had no reason to re-run it. That is the eighth
+prose-outran-the-tree instance and the second whose subject is a
+count rather than a location.
+
+### The class's third member, filed rather than disclosed
+
+`prune` reconciles three pieces of display state. This unit made two of
+them report. **The third — `gesture_dies` — still spells
+`free_move_check(...).is_err()` and throws the fault away, nine lines
+below the discard this unit was dispatched to fix.** Verified at
+#1886's head.
+
+It was defensible before this unit (a bare `Vec<RecipeNodeId>` had
+nowhere to put a killed gesture) and is less so after it, because
+`PruneReport` now has a field per kind of withdrawal and the third
+clause declines to use it. Filed as
+`prune-kills-a-gesture-and-reports-nothing`, because a residue
+disclosed in a merged PR body warns nobody once this directory is
+deleted — which is the rule `work/README.md` states and the shape this
+program has now caught four times in two days.
