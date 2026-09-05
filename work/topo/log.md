@@ -116,3 +116,11 @@ while reading `live.rs` for the third lane: its header no longer names
 `D50` by row (main reads "a source-level guard can, and is owed"), so
 `D260`'s premise is already false; `D260` closes with `D50`'s guard, as
 one sentence, and is not a unit on its own.
+
+## S331 to TRIM; opening PR merged (2026-09-05)
+
+PR 1915 merged (the spec is on main). `S331` moved to `work/trim/` with
+Ev's in-chat concurrence — its mechanism and its sibling `D36` are
+TRIM's; the direction TOPO would have argued (a refused mint leaves a
+typed trace or refuses; never a silent clear) is recorded on the item.
+Sixteen items remain on this slate.
