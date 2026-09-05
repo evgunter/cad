@@ -6,6 +6,8 @@ status: review
 opened: 2026-08-29
 github: 1255
 refs: [1231]
+pr: 1920
+branch: props/verdict-shapes
 ---
 
 ## From GitHub issue 1255
