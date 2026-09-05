@@ -435,6 +435,16 @@ fn the_assembly_gathers_in_one_place() {
 /// landing's three consumers are ordered so that one gather is enough;
 /// a `Clone` or an `Arc` on `Product` would be the other answer, and
 /// these modules do not take it.
+///
+/// Read through the shared reader's CODE view
+/// ([`test_utils::source::code_only`]), because every needle here is a
+/// code fragment — a type application, an impl header, a derive above
+/// an item — and the claim is about what these modules DO, not about
+/// what their prose says they do not. The view keeps every code byte
+/// at its own offset and blanks comments and literals, so a real
+/// `Arc<Product>` is still seen exactly where it is written while a
+/// sentence naming one stops answering for it. This site's ledger row
+/// is in `crates/test-utils/tests/reader_census.rs`.
 #[test]
 fn nothing_clones_or_shares_the_product() {
     for (path, source) in [
@@ -442,22 +452,36 @@ fn nothing_clones_or_shares_the_product() {
         ("assembly.rs", include_str!("../src/assembly.rs")),
         ("product.rs", include_str!("../src/product.rs")),
     ] {
+        let code = test_utils::source::code_only(source);
         assert!(
-            !source.contains("Arc<Product"),
+            !code.contains("Arc<Product"),
             "{path}: the product is handed on, never shared"
         );
         assert!(
-            !source.contains("Clone for Product"),
+            !code.contains("Clone for Product"),
             "{path}: and never cloned"
         );
     }
     assert!(
-        !include_str!("../src/product.rs").contains("#[derive(Debug, Clone)]\npub struct Product"),
+        !test_utils::source::code_only(include_str!("../src/product.rs"))
+            .contains("#[derive(Debug, Clone)]\npub struct Product"),
         "product.rs: the derive would be the same answer by another spelling"
     );
 }
 
-/// Calls to the gather in one source file, comments excluded.
+/// Calls to the gather in one source file, read through the shared
+/// reader's CODE view.
+///
+/// [`test_utils::source::code_only`] blanks comments and literals and
+/// keeps every code byte at its own offset, so the per-line test below
+/// is a SELECTION over that view rather than a second lexer — and the
+/// hand-rolled `//`-prefix filter this replaces is gone with it. The
+/// view drops two things that filter kept, both in the safe direction:
+/// a gather named after code on a line whose comment trails it, and
+/// one named inside a string literal. Neither appears in the two files
+/// this reads; the lines it matches are byte-identical to the raw
+/// ones. This site's ledger row is in
+/// `crates/test-utils/tests/reader_census.rs`.
 ///
 /// ALL THREE SPELLINGS: `product`, `product_named` and
 /// `product_recorded` are one implementation with fields dropped, so a
@@ -470,9 +494,8 @@ fn nothing_clones_or_shares_the_product() {
 /// this cannot — what an actual run costs — and is blind to what this
 /// sees.
 fn gathers_in(source: &str) -> usize {
-    source
+    test_utils::source::code_only(source)
         .lines()
-        .filter(|line| !line.trim_start().starts_with("//"))
         .filter(|line| {
             line.contains("product_recorded(")
                 || line.contains("product_named(")

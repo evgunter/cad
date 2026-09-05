@@ -432,7 +432,7 @@ What landed on PR 1841 beyond the record: all three guard doc comments
 rewritten so they describe the permanent mechanism with its limits
 named, instead of pointing at a check nobody will build — a sanctioned
 drive-by into LIB's file, announced in the PR, doc comments only. The
-logic half is filed as `work/issues/lb13-guards-are-line-local` for LIB,
+logic half is filed as `work/lib/lb13-guards-are-line-local` for LIB,
 carrying the line-locality hole and the stale `root_declared_pub_names`
 module count.
 
