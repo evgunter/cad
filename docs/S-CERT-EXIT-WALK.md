@@ -140,8 +140,17 @@ sweep. Every open item under `work/cert/` at main `37eaf5b9b` is moved in this
 PR to the home below (Ev, on the PR: "as long as all residuals are filed
 appropriately"); ids are unchanged, so every reference still resolves, and
 the two `work/code-quality/` filings that named CERT-N3 and S235 (D291,
-D292) now cite PR 1879 instead. Re-point any of them by moving the file;
-`work.py lint` is green on this head.
+D292) now cite PR 1879 instead. The PROPS orchestrator's re-points on the PR (2026-09-05),
+grounded in the ratified PROPS charter (`docs/WORK-TRACKS-2026-09.md`
+§PROPS → `work/props/plan.md` §Lanes), are executed: the offset_fit,
+rational-quad and linalg-lane items go to `work/props/`; the K roster and
+TESS-BUDGET items to `work/code-quality/` as Track K; `edge_chord_len` to
+S-BOOL, the loft seam to TRIM, the ssi speed boundary to CURVED. The
+territory `geom-brep/src/props/*`, `offset_fit.rs`, `patch_bound.rs`,
+`geom-core/src/*` and `geom/src/*` joins `work/props/program.md`'s paths in
+this PR, as its header said it would at S-CERT's exit (`crates/bvh/src/*`
+stays M10's). Re-point any of them by moving the file; `work.py lint` is
+green on this head.
 
 | Item (formerly `work/cert/`) | github | Home (moved in this PR) |
 |---|---|---|
@@ -154,20 +163,20 @@ D292) now cite PR 1879 instead. Re-point any of them by moving the file;
 | `props-two-eps-vocabularies-five-sites` | 699 | `work/props/` |
 | `quad-face-extent-trusts-caller-perimeter` | 1368 | `work/props/` |
 | `purchasable-area-tightness-valve` | 1367 | `work/props/` |
-| `k-report-baseline-fold-cert1-roster` | 1251 | `work/props/` (the K roster; Track K's) |
-| `budgetexhausted-conflates-three-terminations` | 1321 | `work/issues/` (offset_fit; no live program owns `geom-brep/src/offset_fit.rs` after this one) |
-| `offset-fit-mignitude-floor-on-norm-e` | 1320 | `work/issues/` (offset_fit) |
-| `patch-bound-offset-fit-recentring-origins` | 1532 | `work/issues/` (patch_bound + offset_fit) |
-| `refine-dir-hairline-knot-insertion` | 1358 | `work/issues/` (offset_fit; refs C3, D30 stay) |
-| `quad2-rational-max-rounds-dial-decision` | 1315 | `work/issues/` (a dial decision; owner Ev at his time) |
-| `loft-seam-carrier-exact-knot-compare` | 1316 | `work/fillet/` (`sweep::loft`, pcurve_cache's seam compare — the program that owns `crates/sweep/src/*`; else `work/issues/`) |
-| `pole-branch-pick-two-integer-shift` | 1305 | `work/bool/` (`chord_join`, topo boolean) |
-| `normalize-overflow-yields-zero-axis` | 1299 | `work/issues/` (`geom-core` vec.rs; PCURVE's keep-out is closed) |
-| `ssi-chart-speed-usability-boundary` | 1238 | `work/trim/` (ssi is Track Q ground; TRIM is its live program — else `work/issues/`) |
-| `orthonormal-basis-poisons-vertical-planes` | 1157 | `work/issues/` (geom-core; refs 1116/1143/1146) |
+| `k-report-baseline-fold-cert1-roster` | 1251 | `work/code-quality/` as Track K (the charter: "Track K's, go there") |
+| `budgetexhausted-conflates-three-terminations` | 1321 | `work/props/` (the charter's *offset_fit* lane) |
+| `offset-fit-mignitude-floor-on-norm-e` | 1320 | `work/props/` (offset_fit lane) |
+| `patch-bound-offset-fit-recentring-origins` | 1532 | `work/props/` (offset_fit lane) |
+| `refine-dir-hairline-knot-insertion` | 1358 | `work/props/` (the *rational quad* lane; refs C3, D30 stay) |
+| `quad2-rational-max-rounds-dial-decision` | 1315 | `work/props/` (rational quad lane; the dial is a D→E argument PROPS carries to Ev) |
+| `loft-seam-carrier-exact-knot-compare` | 1316 | `work/trim/` (TRIM's per the charter) |
+| `pole-branch-pick-two-integer-shift` | 1305 | `work/props/` (linalg lane per the charter; `chord_join.rs` is CURVED's file — Ev may prefer `work/curved/`) |
+| `normalize-overflow-yields-zero-axis` | 1299 | `work/props/` (the *linalg interval honesty* lane) |
+| `ssi-chart-speed-usability-boundary` | 1238 | `work/curved/` (CURVED's per the charter) |
+| `orthonormal-basis-poisons-vertical-planes` | 1157 | `work/props/` (linalg lane, the sign-hull item's sibling) |
 | `symbolic-tier-census` | — | `work/m10/` (the symbolic tier is M10-7's) |
 | `param-box-certification-of-implicit-quantities` | — | `work/m10/` (the frontier M10-7's identity layer does not reach) |
-| `tess-budget-doc-finding-block-stale` | — | `work/tcost/` (TESS-BUDGET.md) |
+| `tess-budget-doc-finding-block-stale` | — | `work/code-quality/` as Track K, with the K roster item |
 | `nurbs-net-point-map-helper` (status review, PR 1742 from `fix/`) | — | `work/fix/` (its PR's program) |
 | `unify-edge-descriptions-on-pcurves` (ruling, closed) and every closed unit/row item (CERT-M3, CERT-N3, C24, D31, D98, D244, S235, …) | 427 | deleted with the directory at the sweep (closed; recoverable at the sweep SHA) |
 
@@ -178,15 +187,14 @@ Dual arms are M10's; `props/quad.rs`'s consolidation (C3, D30) is Track
 R's; `ssi*` and `pcurve_cache` are Track Q's. The territory globs on
 `work/cert/program.md` (`crates/geom-brep/src/props/*`, `offset_fit.rs`,
 `patch_bound.rs`, `crates/geom-core/src/*`, `crates/geom/src/*`,
-`crates/bvh/src/*`) fall back to the tracker's default (no owner; items
-file to `work/issues/`) unless Ev assigns them at ratification — `props/*`
-has an obvious taker in `work/props/`.
+`crates/bvh/src/*`): all but `bvh` are assigned to PROPS in this PR; `bvh`
+is M10's by this program's own keep-out.
 
 Standing pointers outside the tracker: the four-plus tally candidates (the
 blinded tally session; `cert/ab-state` is the source of record); CERT-8's
 `edge_chord_len` 1 m default at two plane-gated sites
-(`edge-chord-len-defaults-to-one-metre.md`, github 1529 — re-home with the
-props items); issue 390 (rational flux route 2) open and annotated; the
+(`edge-chord-len-defaults-to-one-metre.md`, github 1529 — moved to
+`work/bool/`, S-BOOL's ground per the charter); issue 390 (rational flux route 2) open and annotated; the
 `cert/orchestrator` branch (the binding specs `docs/CERT-*-SPEC.md`, never
 on main — recoverable there; DOC-LEDGER's per-merge spec rule applies to
 main only) and the probe branches `cert/*r{1,2}-probes` (kept; private
