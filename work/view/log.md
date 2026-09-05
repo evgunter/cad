@@ -1851,3 +1851,84 @@ Told, as a claim to check hardest, that `scene_of_evaluation`'s
 "no production caller" rests on a grep that cannot see a caller reached
 through a re-export or a trait method; and that DOCM-5's 248 ms/8 ms is
 **inherited, not this unit's measurement**, and must be cited as such.
+
+## 6b round 2: the fix removed the shape rather than patching the instance (2026-09-05)
+
+**#1888 head `e00f3775`, green** — run 33940663246, 37 jobs, twelve
+`test (…)`, five `k-lint (gate, …)`, both render lanes. `origin/main`
+merged in (carrying #1886 and #1885) as a merge commit; one conflict,
+in `frame_policy.rs`'s import block only, resolved by keeping both
+sides.
+
+### The lane improved on the reviewer's fix, and said why
+
+The reviewer's candidate was to clear four fields at the offending
+`return`. The lane instead **collapsed the two nothing-landed arms into
+one** destructuring of the three landed reads — `landed_generation`,
+`landed_pair`, `evaluation_arc`, which `land` sets together — behind a
+new `PickCache::forget`.
+
+Its argument: **taking those three reads apart in two places was the
+latent half of the defect**, so patching one arm would have left the
+shape that produced it. That is the difference between a fix and a
+patch, and it is the second time in this wave a lane has answered a
+finding at the class rather than the instance (#1886's vocabulary rule
+was the first).
+
+It also named four consequences the reviewer had not, which is what
+"own the reasoning rather than paste it" was asking for: clearing
+`attempted` is the load-bearing part because it is what turns the late
+answer into `Stale`; the collapsed arm cannot reintroduce a retry stall
+because it submits nothing and `forget` is idempotent; the refusal it
+drops is about a document that no longer exists; and picks in that
+window become `Absent` rather than `Building`, which is only *true*
+because of the two-arm refusal it added in round 1.
+
+**Sent back for a delta round**, not merged. A fix that departs from the
+one the reviewer verified is not covered by that verification, and the
+questions are specific: does `forget` cover exactly the four fields,
+does folding the already-correct arm into the fixed one change it, and
+would the new row go red under a *different* wrong fix rather than only
+under the one its author tried.
+
+### MINOR 2's answer is a rule, not a variant
+
+`Progress::Canceled` grew an `indexing: bool` rather than a fourth
+variant, on the rule **the spinner follows the work, never the name**:
+the cancel's label and its Re-evaluate button stay put — the recourse
+must not vanish for the seconds a build runs — and a spinner plus a
+weak `indexing…` appear beside them, so the toolbar and the status
+line's `Building` refusal describe one moment one way. A payload
+precisely because the recourse is unchanged. The row now covers all
+eight combinations and **asserts-and-labels the two unreachable ones
+rather than omitting them**, which is the right treatment of a case a
+reader would otherwise wonder about.
+
+### MINOR 1's row, and the difficulty it names
+
+Two builds of one key are indistinguishable by result, so a naive row
+for "the answer was kept, not rebuilt" passes either way. The lane made
+the *waiting* request carry a **broken** document under the key the
+worker is already building the good one for, turning kept-vs-rebuilt
+into `Ok` vs `Err`. Recorded because the technique generalises: where
+two paths agree on the observable, make the discarded one carry
+something the kept one cannot.
+
+### The style review 6b still owed
+
+Dispatched now, deliberately after the correctness lane rather than
+beside it. Its brief points at the thing the correctness lane is blind
+to by construction: **this unit built a second seam modelled on an
+existing one, in the same file** — `IndexService`/`InlineIndexer`/
+`ThreadIndexer` beside `EvalService`/`InlineEvaluator`/`ThreadEvaluator`
+— which is a near-duplicate by design and exactly the shape that
+drifts. `evalseam.rs` roughly doubled, and the open
+`frame-module-has-eight-concerns` item is the warning about what
+happens next.
+
+### The filing collision did not happen
+
+The lane asked whether my orchestrator branch had written the same
+residue file. **It had not** — I recorded at round 1 that its file
+stands and I write none, and I kept to that. The duplicate never
+existed.
