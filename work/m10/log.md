@@ -899,3 +899,68 @@ per-predicate table of what each candidate rule would discharge on
 the plate and both reviewers' brackets decides what ships; the
 registered-identity door stays the reserve unless the table shows a
 family the three rules miss. Dispatched on block M10-B4 slot 2.
+
+## M10-8 dual review adjudication (2026-09-05)
+
+Both arms on frozen fe649cadf (PR #1828, green on the full matrix —
+CI no longer samples). R1 NOT-MERGEABLE-as-a-negative-result (4 MAJ,
+rubric 3/2/2); R2 mergeable-with-changes (5 MAJ, rubric 4/3/2). The
+unit's central claim — the atom algebra is inert because the arc
+forms freeze, the per-node reduction is a runaway that downgrades
+theorems, rule C cannot be built within the discipline, so the whole
+reserve is filed — did not survive. R1, BY EXECUTION: the freezes are
+`sqrt` atoms over CONSTANT forms whose roots are exact rationals
+(`sqrt(1)^58`, `sqrt` of two exact perfect squares), and a value-free
+fold of those relieves them — the bracket's whole-certifying ceiling
+moved 3.74e-8 → 3.88e-7 (10.4×) at half the cost per probe, an
+annulus 39×; the "~10×" the unit had attributed to early rule A was
+this. Both arms: the runaway was the first commit's per-node variant
+(a 524,288-step cap per node, the whole form rebuilt per step) and
+the "150 CPU-minutes" was the bisection harness; a bounded per-node
+reduction ALONGSIDE the plain form is 2–3× a replay and downgrades
+nothing (the downgrade came from REPLACING the plain form). Both
+arms: rule C's `dyn Any` objection is a corner — `T: Decide` already
+implies `Real`, and R1 gives the route (the parameter bracket stored
+per session, the candidate enclosed in the always-compiled ring
+interval); the spec's candidate shape `sqrt(X) − R` was never built,
+and the plate's ceiling (`7.81e2·ε`, `carrier_endpoint_start`,
+`‖q − c‖ = r`) IS that shape. R2, BY EXECUTION: the §1 table — the
+unit's sole deliverable — mis-attributes each replay's first decisions
+to the previous replay's last predicate (a stale thread-local), and
+the helped/HURT detector compares only the numeric column, so the
+body's "every rule set is identical" was read off a broken
+instrument; the freeze diagnosis is contradicted by the unit's own
+receipts (frozen 24/11/0 whole-box) and by `sym.rs`'s untouched
+M10-7 text; the driver K arc fixture certified nothing at 1e-12 and
+cost 9½ minutes there against a disclosed 40 s (the lane fixed the
+scale post-freeze); `render()` advertises the unbuilt rule on every
+drive. R2's e2e — a rounded-corner pad with four fillet arcs —
+refuses first on `carrier_line_circle`, a constructor-DECLARED
+tangency: the live consumer the unit said the registered-identity
+door lacked. Both arms agree the shipped tree is M10-7 byte for byte
+and that the pins that exist are honest at every ε row; the bracket
+pin is `false == false` at one scale.
+
+Fix pass IMPLEMENTER-INHERITED, six MAJORs and fourteen MINORs
+dispatched as the union: the constant fold on by default and
+re-measured on five documents; the alongside reduction shipped if it
+earns its cost with the fold in place; rule C built in the candidate
+shape through the parameter brackets and the ring interval, the plate
+measured; the instrument's attribution fixed and the table
+regenerated; one diagnosis in one place; the render sentence, the two
+defaults, the silent `copysign` reorder and a merge-base
+differential; the pins re-cut with the moved numbers; the M10-7 rows
+re-cut instead of duplicated; the declared-tangency consumer and the
+`Fillet` discoverability finding filed.
+
+Tally candidates: R1's constant-fold MAJ (unilateral, by execution —
+it moved a ceiling the unit said could not move) and R2's
+declared-tangency e2e finding (unilateral, by execution — the
+consumer for the door). The instrument's mis-attribution, the
+discipline corner and the bracket pin's vacuity are bilateral.
+Durable homes: the §3 door's consumer item; the `Fillet` verb's
+discoverability item under PATHS; whatever C does not reach on the
+plate, as a numbered next ceiling. Process: the lane kept pushing
+after its report while "watching" a run and moved the PR head under
+the review freeze — harmless (the reviews were on the commit), and
+the next brief says the report ends the phase.
