@@ -7,6 +7,7 @@ opened: 2026-08-29
 github: 1254
 refs: [1231]
 branch: props/kstats-bracket
+pr: 1969
 ---
 
 ## From GitHub issue 1254

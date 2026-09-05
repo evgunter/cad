@@ -366,3 +366,25 @@ form the ledger's recent entries use, and the right one: a closed
 sweep's list carries its own count and recovery SHA. The two earlier
 PROPS lines appended to sweep 6's list (verdict-shapes, ONB-measure)
 move to that form at the next orchestrator sync.
+
+**k-stats in review (2026-09-05)** —
+[#1969](https://github.com/evgunter/cad/pull/1969), branch
+`props/kstats-bracket`. The ruling held on the measurement: 530
+`decide*` call sites in 261 enclosing functions (104 public) across
+seven crates, so the returned value is declined in writing and the
+verdict log is a bracket with a stack — `k_stats::Bracket` (`!Send`,
+`Drop`-popped, `ManuallyDrop` on `finish`), `start_verdict_log` /
+`take_verdict_log` deleted, every caller converted. Escalations recorded
+beside verdicts (`Escalation { predicate, source: Indeterminate }`), on
+`NodeValue` AND on `NodeError` (the deviation the acceptance forces:
+the wrapped escalation fails its node); `drive::classify_replay` reads
+the channel first. Red-first: the nesting row `0 / 466 / 724` → `466 /
+466 / 724` (two intermediate reds decided what an instantiate node's
+frame IS — its own op's decisions, hit or miss — and put one shielding
+bracket on the part cache's miss path); the planted flip's
+`Budget 0.2515` → `SliverTerminal 0.2250` naming
+`extrusion_normal_component`. Witness-vector keys bit-identical; the
+M10-6 accounting goldens and M10-7's R2 tier-off copies re-cut for the
+class the acceptance moves. Four findings outside the fence in the PR
+body (bracket scope, a part's dropped logs, the coincidence zone priced
+`Budget`, `refuse_non_finite`'s direct `sign_within`).
