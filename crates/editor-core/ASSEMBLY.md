@@ -269,3 +269,13 @@ instance read at different operands are two members.
   its ends into one cluster and `TornCluster` refuses cutting through
   one, so split never populates `InterfaceRecord`. The conversion door
   (crossing mates passed at split and converted) is not implemented.
+  **Only a mate EDGE can cross** (ruled, option (b) SKIP): a mate that
+  is not an A12 edge — a head outside A11's member vocabulary, or a
+  node not in the document — contributes no interface crossing however
+  its names fall across a cut. Such a mate never solved, and a record
+  minted from it would assert a relationship evaluation never
+  established: trusted-at-rest state, which this design forbids. The
+  mate stays in the document and its names rebind like any other (N5);
+  it says nothing about the seam. The split collector gates on
+  `member_of` for both heads — the same predicate A12's reading edges
+  and A11's clusters ask.

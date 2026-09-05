@@ -455,3 +455,41 @@ ordinal **2005**, parity byte 115 ⇒ R1 FABLE / R2 OPUS, briefs stored with
 sha256, concurrent, isolated. With this every FILLET unit is landed; what
 remains is three fix passes (H6, ATTR, H7 after its dual) and the block
 B2 record.
+
+**ATTR merged (2026-09-05)** at `aa5384288` (PR
+[#1895](https://github.com/evgunter/cad/pull/1895)), **sample #134**,
+ordinal 2004; block FILLET-B2 slot 1 concluded (line on `fillet/b2-block`).
+The fix pass took every decision: whole-pair refusals outrank the envelope
+again (the hairline pair answers `CarriersParallel` as at the base), the
+header counts what it counts, the fence justification withdrawn for the
+acceptance row's reason with the spec amended in place, C4 pinned at every
+band (mutant red at all three ε), exact pins restored through one
+`assert_corners`, three no-assert probe rows deleted, the `NoTangentCircle`
+sub-kinds carried by the tag. Filed by the pass:
+`overrun-attribution-picks-the-first-candidate` (the `sugar.rs:612`
+first-candidate discard, 232 discards on grid A with differing payloads).
+`docs/FILLET-ATTR-SPEC.md` deleted, ledgered at the merge SHA.
+
+**H6 fix pass landed (2026-09-05)** on PR [#1891](https://github.com/evgunter/cad/pull/1891),
+head `8abdf250b`, full matrix green (run 33942855470). The arm's argument
+is K-conditional and says so (tight bound `K/√(K²+1)`, crossover
+K ≈ 1.272; shape A at the shipped K = 10); the door now REFUSES typed
+(`ExtrudeError::SmoothCapRim`, naming the run's K and the crossover)
+where it used to hand back a body tier 3 rejects — measured at K = 1.1
+(refuses) and K = 3 (builds, tier 3 green); the stale-sentence class swept
+at thirteen sites; `certify.rs` and `rim_wedge.rs` migrated to the one
+home (bit-identical by the dump, corpus widened to thirteen rows); three
+`describe_at_rest` copies became `topo::Body::describe_at_rest` (a public
+door, so three `topo` meta-gates gained their entries); filed
+`ambiguity-k-below-the-cap-rim-crossover`. One process fact: a push
+produced NO workflow run for twenty minutes — not a filter decision;
+"CI is green" and "CI ran" are different questions, and the state-sync
+verifies the run exists on the head.
+
+**H6 merged (2026-09-05)** at `195460c7a` (PR
+[#1891](https://github.com/evgunter/cad/pull/1891)), **sample #135**,
+ordinal 2003; block FILLET-B2 slot 0 concluded (line on `fillet/b2-block`
+— ATTR, slot 1, reached main first by merge order). `docs/FILLET-H6-SPEC.md`
+deleted, ledgered at the merge SHA. Filed by the pass:
+`ambiguity-k-below-the-cap-rim-crossover`. Block B2 now waits on H7's fix
+pass alone.

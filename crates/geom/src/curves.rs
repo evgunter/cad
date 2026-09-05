@@ -340,6 +340,13 @@ impl<T: SpanLocate> Curve3<T> {
     ///   `|dP/dθ|` varies in `[minor, major]` (θ is the eccentric
     ///   anomaly, not arc length).
     /// - Nurbs: the payload’s derivative (all-poison for the placeholder).
+    ///
+    /// There is no jet door: a caller wanting `deriv` and [`Self::deriv2`]
+    /// at one `t` pays two frames. Measured at release, that is 19 ns
+    /// per pair against a fused jet on the conic arms, and the one
+    /// consumer that asks for both (the splitting orbit's conic arm)
+    /// evaluated it 0 times on the boolean corpus — so no `CurveJet` is
+    /// minted for it.
     pub fn deriv(&self, t: T) -> Vec3<T> {
         match self {
             Curve3::Line { dir, .. } => *dir,

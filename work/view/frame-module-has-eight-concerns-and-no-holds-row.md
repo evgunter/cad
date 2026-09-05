@@ -69,3 +69,23 @@ Two moves, and the second is cheap and independent:
 Not urgent, and deliberately not scheduled against a lane that is
 touching the file: the row comes first, because a split with no rule
 to split on is a rename.
+
+## The file grew again, and the row still does not exist (#1886, 2026-09-05)
+
+`frame.rs` was 984 lines when this item was written. At #1886's head it
+is **1,131** — the unit added `dropped_hide_notice` and `render_causes`
+beside `supersession_notice`, and its PR body does not mention this
+item.
+
+**The reviewer's independent Q8 read, which is the useful part:** this
+extended concern 1 (the status-line vocabulary), it did **not** add a
+ninth. So the file is not more miscellaneous than it was. What it did
+was turn a single function into a three-function sub-family — which is
+precisely the accumulation this item names, arriving in the concern
+that was already the largest, with no `Holds` row to write it against
+and no diff at which it looked unreasonable.
+
+That is the item's own thesis reproducing itself one unit later, and it
+is the argument for taking the cheap half — **the `Holds` row in
+`crates/viewer/README.md`, which has Holds tables at `:319` and
+`:336`** — before another lane touches this file.

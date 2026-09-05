@@ -1283,6 +1283,13 @@ NOT_BOUND = {
     # `DocParam.__repr__` prints.
     "UnitSym": SHAPE,
     "PartialPath": SHAPE,
+    # The fillet refusal envelope's entry types. A Python caller reads
+    # the same content off `PathError.corners` — one `(x, y, reason)`
+    # row per refusing corner, the reason its stable tag — so the Rust
+    # enums have no Python spelling of their own.
+    "CornerReason": SHAPE,
+    "CornerRefusal": SHAPE,
+    "CornerWindow": SHAPE,
     "PathNoCornerReason": SHAPE,
     "Point2": SHAPE,
     "Point3": SHAPE,

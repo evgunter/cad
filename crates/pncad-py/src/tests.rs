@@ -1060,6 +1060,30 @@ fn path_error_tags_are_stable() {
         .tangent_arc_to(Start, Tol::witness())
         .expect_err("no arc spans a chord behind the departure");
     assert_eq!(path_error_tag(&degenerate), "degenerate_arc_chord");
+
+    // The envelope: one tag for the refusal, and one per entry for the
+    // corner's own reason, so a caller branches on the reason without
+    // parsing the sentence. A straight pair derives one corner and the
+    // radius outruns the arrival leg, so the entry is the anchor fit.
+    let overrun = Open
+        .at(p2(0.0, 0.0))
+        .toward(1.0, 0.0, Tol::witness())
+        .expect("the incoming ray runs +x")
+        .fillet(2.5, Tol::witness())
+        .expect("positive radius")
+        .toward(0.0, 1.0, Tol::witness())
+        .expect("the arrival side runs +y")
+        .to(p2(3.0, 2.0), Tol::witness())
+        .expect_err("the setback outruns the arrival leg");
+    assert_eq!(path_error_tag(&overrun), "no_corner_of_pair");
+    let pncad::profile::PathError::NoCornerOfPair { corners, .. } = &overrun else {
+        panic!("expected the envelope, got {overrun:?}")
+    };
+    let entries: Vec<&'static str> = corners
+        .iter()
+        .map(|c| crate::tags::corner_reason_tag(&c.reason))
+        .collect();
+    assert_eq!(entries, ["anchor_outside_trimmed_extent"]);
 }
 
 /// The prose rule's guard, checked against what it actually guards
@@ -1760,7 +1784,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "path_error_tag",
         values: &[
-            "anchor_outside_trimmed_extent",
             "arc_center_not_equidistant",
             "arc_continue_needs_arc_carrier",
             "arc_continue_off_carrier",
@@ -1774,12 +1797,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "degenerate_arc_spec",
             "escalated",
             "far_end_anchor_without_fillet",
-            "fillet_encloses_leg_carrier",
             "fillet_offset_lever_too_short",
             "guided_structure",
             "junction_cusp",
             "junction_tangent",
             "no_corner_for_fillet",
+            "no_corner_of_pair",
             "nonpositive_circle_radius",
             "nonpositive_fillet_radius",
             "nonpositive_leg",
@@ -1790,6 +1813,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "seam_tangent",
             "underdetermined_leg",
             "zero_direction",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "corner_reason_tag",
+        values: &[
+            "anchor_outside_trimmed_extent",
+            "behind_arrival_anchor",
+            "behind_incoming_ray",
+            "encloses_leg_carrier",
+            "no_corner_side_candidate",
+            "offset_carriers_disjoint",
         ],
         delegates: &[],
     },

@@ -535,9 +535,9 @@ with S-CERT) → `tier3-approx-regrid-per-face-cost` stays parked on an
 Every S-CERT issue is residue: its slate is CERT-M3/N3 then exit, and
 none of the 20 is on a unit. Territory is S-CERT's today
 (`geom-brep/props/*`, `offset_fit.rs`, `patch_bound.rs`,
-`geom-core/src/*`) plus `geom-core/k_stats.rs` (Track M) and the R and
-N rows on the same files (`C3`/`D30` takeable since CERT-10; `D244`,
-`D31`, `S235`, `C24`). If S-CERT prefers, this is its own second slate.
+`geom-core/src/*`) plus `geom-core/k_stats.rs` (Track M) and the R
+rows on the same files (`C3`/`D30` takeable since CERT-10). If S-CERT
+prefers, this is its own second slate.
 
 - *offset_fit*: `budgetexhausted-conflates-three-terminations` (E) →
   `offset-fit-mignitude-floor-on-norm-e` (H; the micron row is the
@@ -754,8 +754,10 @@ Two things the cut left open did surface as tracks.
 
 This document recorded that "no program owns … 37 `crates/topo/src`
 files" and then cut eleven tracks without closing that gap. Re-measured
-2026-09-04: **47 files in `crates/topo/src/` are in no open program's
-`paths`**. Two `work/issues/` files name that ground as unowned in
+2026-09-05 against merged main: **55 of the 102 `.rs` files under
+`crates/topo/src/` were in no open program's `paths`**, 35 of them
+still (this section first said 47, off by two subdirectories a
+directory-grouped scan dropped; corrected by re-derivation). Two `work/issues/` files name that ground as unowned in
 their own `## Home` sections
 (`validate-tier3-curved-boundary-containment`,
 `no-public-census-or-genus-query`), and **code-quality Track P — whose
@@ -771,13 +773,14 @@ three-sub-lane partition inherited unchanged. Opener: `S331`
 (`validate_pcurves` answers a clean bill on a body whose pcurve mint
 just failed — a vacuous green through a public door).
 
-The ~25 remaining `topo/src` files (`body.rs`, `entity.rs`,
-`contact.rs`, `separation.rs`, the chart and `review_m1_*` readers) are
-recorded as **unowned and not finished**, in the sense the
+The 35 remaining `topo/src` files (`body.rs`, `entity.rs`,
+`contact.rs`, `separation.rs`, the chart, `sector_*` and `review_m1_*`
+readers, and `param_source.rs`) are recorded as **unowned and not
+finished**, in the sense the
 `geom-brep` seam gives that phrase: a row landing on one draws the
 fence in the PR that mints it.
 
-## META — the tracker and the process instruments (`meta/`) — 5 items (3 items + 2 registers custodied)
+## META — the tracker and the process instruments (`meta/`) — 6 items (4 items + 2 registers custodied)
 
 **GRADUATED (2026-09-04): opened as `work/meta/`, A/B band 2800–2899.**
 
