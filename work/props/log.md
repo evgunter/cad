@@ -211,3 +211,19 @@ control pin, the history clauses gone. One public path moved
 the unit's deviation 3. The item is closed; the spec leaves `docs/` with
 this merge (ledgered). Next in the lane:
 `k-stats-escalation-channel-and-redo` (D→H, L; a dual unit).
+
+**S-CERT's exit walk is PROPOSED (2026-09-05, check-in 05:26).**
+[#1924](https://github.com/evgunter/cad/pull/1924), `[ev]`, ratified by
+merging; the closing sweep then re-homes S-CERT's 24 open items and
+deletes `work/cert/`. Its handoffs ledger diverges from the ratified
+PROPS charter: the offset_fit lane (three items), `refine-dir-hairline`,
+the QUAD2 dial, `normalize-overflow` and `orthonormal-basis-poisons`
+are proposed for `work/issues/`, `k-report-baseline-fold` (Track K's)
+for `work/props/`, `pole-branch-pick` for `work/bool/`, and the
+territory globs PROPS' header claims at the exit for no owner. Re-points
+posted on #1924 per the charter (the taker says it takes them); Ev
+decides at ratification. #1878 (ChartRegionLane) is restated and
+unanswered; the walk lists it among three questions ratification does
+not answer. PROPS-1's fix-pass head `a7aef51d` is green (lane reporting).
+Slots: two lanes live (PROPS-1 fix pass, ONB-measure); the Span sweep
+dispatches when PROPS-1 lands.
