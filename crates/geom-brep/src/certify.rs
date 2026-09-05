@@ -1681,12 +1681,15 @@ fn run_checks<T: Decide>(
                 )?;
                 if i > 0 && i < CERT_SAMPLES - 1 {
                     let tau = spec.carrier.deriv(sample_param(t0, t1, i));
-                    let jet = crate::tangent::tangent_jet(surf1, surf2, p, tau);
-                    let arm = crate::implicit::curvature_lever_arm(surf1, p)
-                        .min(crate::implicit::curvature_lever_arm(surf2, p))
-                        .min(extent);
-                    let so_margin = Margin::sagitta(jet.kappa_rel.abs(), arm);
-                    match decide("tangent_second_order", so_margin, band) {
+                    // The must-carry rule's one spelling
+                    // (`crate::tangent_second_order`): the constructor
+                    // that stores a `TangentIntersection` and this
+                    // certificate that accepts one must read the same
+                    // sagitta under the same predicate name, or the
+                    // stored set and the certified set are two sets.
+                    let so = crate::tangent_second_order(surf1, surf2, p, tau, extent, band);
+                    let (jet, arm) = (so.jet, so.arm);
+                    match so.verdict {
                         Ok(Sign::Positive) => {}
                         // A magnitude margin: Zero is the G2/osculating
                         // zero-side (typed, definite); Negative is

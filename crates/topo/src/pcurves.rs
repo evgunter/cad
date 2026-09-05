@@ -1886,6 +1886,11 @@ pub(crate) mod staleness_posture {
                 Neither,
                 "`set_edge_curve` with the NURBS certifier injected",
             ),
+            (
+                "describe_at_rest",
+                Neither,
+                "`set_edge_curve` with the edge's own carrier and interval put back              verbatim — only the description moves, so not even content staleness              reaches a pcurve",
+            ),
             ("set_face_sense", Neither, "writes one `bool`"),
             ("set_surface_source", Neither, "GeomSource metadata"),
             ("set_curve_source", Neither, "GeomSource metadata"),

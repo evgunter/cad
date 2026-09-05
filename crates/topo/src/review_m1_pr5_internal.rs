@@ -282,6 +282,10 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "set_edge_curve",
         "asserts tier 1 directly (a curve swap can orphan a key)",
     ),
+    (
+        "describe_at_rest",
+        "reads the edge's own certified curve and writes it back through `set_edge_curve`          (asserting) with only the DESCRIPTION changed — carrier, interval and endpoints          verbatim",
+    ),
     // ---- Writes fields tier 1 does not constrain. ----
     ("set_face_sense", "writes one `bool`; sense is tier 3's"),
     ("set_surface_source", "GeomSource metadata, no arena key"),

@@ -359,14 +359,18 @@ fn bitdump_extrude_revolve_corpus() {
     let tol = Tol::witness();
     let p2 = Point2::<f64>::new;
     let b = core::f64::consts::FRAC_PI_8.tan();
-    let extruded = |name: &str, loops: Vec<ProfileLoop<f64>>, h: f64| -> (String, Body<f64>) {
+    let extruded_by = |name: &str,
+                       loops: Vec<ProfileLoop<f64>>,
+                       e: sweep::Extrusion<f64>|
+     -> (String, Body<f64>) {
         let profile = Profile::new(SketchPlane::xy(), loops)
             .validate(tol)
             .unwrap();
-        let body = sweep::extrude(&profile, sweep::Extrusion::Distance(h), tol)
-            .unwrap()
-            .body;
+        let body = sweep::extrude(&profile, e, tol).unwrap().body;
         (name.to_owned(), body)
+    };
+    let extruded = |name: &str, loops: Vec<ProfileLoop<f64>>, h: f64| -> (String, Body<f64>) {
+        extruded_by(name, loops, sweep::Extrusion::Distance(h))
     };
     let circle = |cx: f64, cy: f64, r: f64| {
         <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
@@ -429,6 +433,39 @@ fn bitdump_extrude_revolve_corpus() {
             1.25,
         ),
     ];
+    // `Extrusion::Vector` takes a different door into the same rim
+    // upgrade than `Distance` does (`extrusion_obliquity` /
+    // `extrusion_normal_component` against `n · d`), and a NEGATIVE
+    // distance flips which cap is which — both reach `upgrade_rim`
+    // with the caps' orientations swapped, so both belong in a corpus
+    // whose subject is what that pass stores.
+    rows.push(extruded_by(
+        "square prism by vector (the Vector door)",
+        vec![ProfileLoop::polygon([
+            p2(0.0, 0.0),
+            p2(2.0, 0.0),
+            p2(2.0, 2.0),
+            p2(0.0, 2.0),
+        ])],
+        sweep::Extrusion::Vector(geom_core::Vec3::new(0.0, 0.0, 1.75)),
+    ));
+    rows.push(extruded_by(
+        "rounded-corner prism, reversed (negative distance)",
+        vec![
+            <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+                ProfileVertex::new(p2(0.25, 0.0), 0.0),
+                ProfileVertex::new(p2(0.75, 0.0), b),
+                ProfileVertex::new(p2(1.0, 0.25), 0.0),
+                ProfileVertex::new(p2(1.0, 0.75), b),
+                ProfileVertex::new(p2(0.75, 1.0), 0.0),
+                ProfileVertex::new(p2(0.25, 1.0), b),
+                ProfileVertex::new(p2(0.0, 0.75), 0.0),
+                ProfileVertex::new(p2(0.0, 0.25), b),
+            ])
+            .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]),
+        ],
+        sweep::Extrusion::Distance(-0.5),
+    ));
     rows.push(("dome (plane-sphere equator)".to_owned(), dome(1.0, tol)));
     rows.push(("waisted (cone-plane rims)".to_owned(), waisted(tol)));
     rows.push((
@@ -439,6 +476,15 @@ fn bitdump_extrude_revolve_corpus() {
     rows.push((
         "poled ball (full revolve, meridian seam)".to_owned(),
         ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol),
+    ));
+    // A PARTIAL revolve is the only body kind that mints wedge caps —
+    // and so the only one with the cap–cap AXIS edges
+    // `upgrade_intersection`'s own doc names among the loci that funnel
+    // through it. Without this row the corpus never exercises that
+    // caller at all.
+    rows.push((
+        "sphere zone, quarter turn (partial revolve, cap-cap axis edges)".to_owned(),
+        sphere_zone(0.4, Revolution::Partial(core::f64::consts::FRAC_PI_2), tol),
     ));
 
     let mut text = String::new();

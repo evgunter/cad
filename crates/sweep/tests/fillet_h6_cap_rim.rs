@@ -89,6 +89,23 @@ fn verdict(body: &Body<f64>, cap: FaceKey, edge: EdgeKey) -> Result<DihedralClas
 /// Asserts that every cap rim of `built` reached the transverse arm —
 /// by the stored description, and by the classifier re-run on the
 /// arm's inputs.
+/// Every cap rim's stored description, both caps, outer loop and rings.
+fn cap_rim_descriptions(built: &Extruded<f64>) -> Vec<EdgeDescription<f64>> {
+    let body = &built.body;
+    [built.bottom, built.top]
+        .into_iter()
+        .flat_map(|cap| face_edges(body, cap))
+        .map(|edge| {
+            body.get_curve_geom(body.get_edge(edge).unwrap().curve)
+                .unwrap()
+                .certified()
+                .unwrap()
+                .description()
+                .clone()
+        })
+        .collect()
+}
+
 fn assert_every_cap_rim_transverse(name: &str, built: &Extruded<f64>) {
     let body = &built.body;
     let mut rims = 0usize;
@@ -256,8 +273,15 @@ fn every_extruded_cap_rim_is_transverse() {
             // the coincidence threshold against a normal component at
             // the escalation one, so the WORST tilt any admitted
             // extrusion can give the walls is 1/K — independent of ε.
-            // At that ratio the rim is still definitely transverse.
-            "worst admitted obliquity (in-plane eps, height K*eps)",
+            // This row pairs that worst tilt with a COMFORTABLE lever
+            // arm (a 2 m square), which is not the worst admitted
+            // BODY: the wedge margin is `sin θ · arm`, so the tight
+            // case pairs the worst tilt with the shortest admitted rim
+            // — `review_fillet_h6_r1_probes` and
+            // `review_fillet_h6_r2_probes` carry those, and they do
+            // NOT all land transverse. Kept because it isolates the
+            // tilt from the arm.
+            "worst admitted tilt, comfortable arm (in-plane eps, height K*eps)",
             validated(plane, vec![square()]),
             Extrusion::Vector(Vec3::new(tol.eps(), 0.0, tol.k() * tol.eps())),
         ),
@@ -267,12 +291,15 @@ fn every_extruded_cap_rim_is_transverse() {
             Extrusion::Vector(Vec3::new(tol.eps(), 0.0, 1.0)),
         ),
         (
-            // A wall cylinder whose radius is four decades above ε and
-            // eight below the extrusion: the folded lever arm is the
-            // radius, not the chord, and the wedge margin survives it.
-            // Scaled off the run's ε, or the row is a segment the
-            // profile door refuses at a loose tolerance rather than
-            // the small-arm case it is written for.
+            // A wall cylinder whose radius is four decades above ε —
+            // and, at the tightest ε row, eight below the extrusion;
+            // at ε = 1e-6 the same ratio puts it at 1e-2, two below.
+            // What the row fixes is the distance from the GATE, not
+            // from the extrusion: the folded lever arm is the radius,
+            // not the chord, and the wedge margin survives it. Scaled
+            // off the run's ε, or the row is a segment the profile
+            // door refuses at a loose tolerance rather than the
+            // small-arm case it is written for.
             "tiny-radius arc leg (r = 1e4 eps)",
             validated(plane, vec![circle_loop(0.0, 0.0, 1e4 * tol.eps())]),
             Extrusion::Distance(1.0),
@@ -339,4 +366,161 @@ fn the_direction_gates_refuse_before_the_arm() {
         ),
         "expected the normal-component escalation, got {err:?}",
     );
+}
+
+// ---------------------------------------------------------------------
+// The arm below `K*`: reachable, and refused.
+// ---------------------------------------------------------------------
+
+/// The rectangle whose SHORT rim is the lever arm, extruded by the
+/// worst vector both direction gates admit: in-plane exactly ε against
+/// a height of exactly `K·ε`. Every quantity is at a threshold the
+/// doors call definite — nothing here is degenerate or in band.
+///
+/// Printed rather than asserted, because the caller re-execs this
+/// binary with `CAD_AMBIGUITY_K` set and reads the lines back: K
+/// commits to a process-global `OnceLock` on first read, so a row that
+/// wants a different K wants a different process. (The re-exec keeps
+/// this in the crate's ONE test binary — `tests/all.rs` aggregates
+/// every suite, and an extra target costs codegen and a link. Same
+/// pattern as `geom_core`'s `ambiguity_k_env`.)
+#[test]
+#[ignore]
+fn print_the_arm_at_a_small_k() {
+    let tol = Tol::witness();
+    let (eps, k) = (tol.eps(), tol.k());
+    println!("KPROBE k={k}");
+    let w = Vec3::new(eps, 0.0, k * eps);
+    // The short rim's arm, in units of the smallest the profile door
+    // admits. Which regime a given `f` lands in is K-dependent (the
+    // wedge margin is `f · K · sin θ` against a band of [ε, K·ε]), so
+    // the caller picks it per side of the crossover.
+    let f: f64 = std::env::var("H6_ARM_FACTOR")
+        .expect("H6_ARM_FACTOR")
+        .parse()
+        .expect("a float");
+    let short = f * k * eps;
+    let profile = validated(
+        SketchPlane::xy(),
+        vec![ProfileLoop::polygon([
+            p2(0.0, 0.0),
+            p2(2.0, 0.0),
+            p2(2.0, short),
+            p2(0.0, short),
+        ])],
+    );
+    match extrude(&profile, Extrusion::Vector(w), tol) {
+        Ok(built) => {
+            println!("KPROBE extrude=Ok");
+            let smooth = cap_rim_descriptions(&built)
+                .into_iter()
+                .filter(|d| !matches!(d, EdgeDescription::Intersection { .. }))
+                .count();
+            println!("KPROBE non_intersection_rims={smooth}");
+            match topo::validate_geometric(&built.body, tol) {
+                Ok(()) => println!("KPROBE tier3=Ok"),
+                Err(errs) => {
+                    println!("KPROBE tier3=Err n={}", errs.len());
+                    for e in &errs {
+                        println!("KPROBE tier3_error={e:?}");
+                    }
+                }
+            }
+        }
+        Err(e) => println!("KPROBE extrude=Err {e:?}"),
+    }
+}
+
+/// Runs [`print_the_arm_at_a_small_k`] in a child process at a K on
+/// each side of the crossover and reads the outcome back.
+fn at_k(k: &str, arm_factor: &str) -> String {
+    let exe = std::env::current_exe().expect("this test binary's own path");
+    // Name the probe by MODULE PATH: `tests/all.rs` aggregates every
+    // suite into one binary, so libtest sees it as
+    // `<this_module>::print_the_arm_at_a_small_k`. Stripping the crate
+    // name yields the right filter in the aggregated layout AND in a
+    // standalone one (where `module_path!()` has no `::`).
+    let probe = match module_path!().split_once("::") {
+        Some((_, m)) => format!("{m}::print_the_arm_at_a_small_k"),
+        None => "print_the_arm_at_a_small_k".to_string(),
+    };
+    let out = std::process::Command::new(&exe)
+        .args([probe.as_str(), "--ignored", "--exact", "--nocapture"])
+        .env("CAD_AMBIGUITY_K", k)
+        .env("H6_ARM_FACTOR", arm_factor)
+        .output()
+        .expect("the re-exec runs");
+    let text = String::from_utf8_lossy(&out.stdout).into_owned();
+    assert!(
+        text.contains(&format!("KPROBE k={k}")),
+        "K = {k} did not reach the child process:\n{text}",
+    );
+    text
+}
+
+/// **The unreachability argument is K-conditional, and this is the
+/// measurement that pins both sides of it.**
+///
+/// The arm's bound is `sin θ ≥ K/√(K² + 1)` against a `Smooth` ceiling
+/// of `1/K`; they close at `K⁴ = K² + 1`, `K* ≈ 1.272`. So:
+///
+/// - at the shipped **K = 10** the cap-rim `Smooth` arm is unreachable,
+///   and this same body — the worst admitted tilt on the shortest
+///   admitted arm — builds with every cap rim `Intersection`;
+/// - at **K = 1.1**, below the crossover, the very same construction
+///   reaches the arm, and the verb REFUSES.
+///
+/// The refusal is the point of the second row. Before this unit the
+/// door returned `Ok` and handed back a body `validate_geometric` then
+/// rejected with four `SliverDihedral { material_wedge_side }` — a
+/// door minting what the at-rest gate refuses. It now refuses itself,
+/// naming the condition.
+#[test]
+fn the_cap_rim_arm_is_unreachable_above_the_crossover_and_refuses_below_it() {
+    // K = 3: comfortably above K* ≈ 1.272. (Not the default 10 — this
+    // asserts the CROSSOVER, so the pass row wants to be near it, not
+    // eight times past it.) The arm factor clears the in-band regime:
+    // the margin is `f · K · sin θ` against an escalation threshold of
+    // `K·ε`, so `f > 1/sin θ = √(K² + 1)/K` — 1.054 at K = 3, and 1.5
+    // is comfortably past it. `f = 1.002` at this same K lands IN the
+    // band (2.85ε), which is r2's second finding and not this row's
+    // subject.
+    let above = at_k("3", "1.5");
+    assert!(
+        above.contains("KPROBE extrude=Ok"),
+        "above K* the body must build:\n{above}",
+    );
+    assert!(
+        above.contains("KPROBE non_intersection_rims=0"),
+        "above K* every cap rim must be an Intersection:\n{above}",
+    );
+    assert!(
+        above.contains("KPROBE tier3=Ok"),
+        "above K* the built body must validate at rest:\n{above}",
+    );
+
+    // K = 1.1: below K*. The same construction reaches the arm — here
+    // at the tightest admitted arm, where `f · K · sin θ = 0.814 ≤ 1`
+    // puts the wedge margin under the coincidence threshold.
+    let below = at_k("1.1", "1.002");
+    assert!(
+        below.contains("KPROBE extrude=Err SmoothCapRim"),
+        "below K* the door must refuse with the K-conditional error:\n{below}",
+    );
+}
+
+/// The refusal's message names what a reader needs: the loop and
+/// segment, the run's K, and the crossover it is under.
+#[test]
+fn the_smooth_cap_rim_refusal_names_the_k_condition() {
+    let band = Band::new(1e-9, 1.1e-9).expect("a K = 1.1 band");
+    let msg = ExtrudeError::SmoothCapRim {
+        loop_index: 0,
+        segment_index: 3,
+        band,
+    }
+    .to_string();
+    for fragment in ["loop 0", "segment 3", "1.100", "1.272"] {
+        assert!(msg.contains(fragment), "{fragment:?} missing from {msg:?}");
+    }
 }

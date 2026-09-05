@@ -194,12 +194,16 @@ pub fn classify_dihedral<T: Decide>(
 /// second-order jet margin the tier-3 validator decides.
 ///
 /// "One home" is **aspiration, not fact**, and the gap is filed as
-/// issue 1439: six hand-rolled siblings of this fold remain across
-/// the workspace, and `contact_tangent_opposed` is
+/// issue 1439. Three hand-rolled siblings of this fold remain across
+/// the workspace — `topo::boolean::contact_verify` (the fold's own
+/// stated origin), `crate::ssi` and `topo::boolean::ops` — down from
+/// the six that issue counted: `crate::certify`, `sweep::extrude` and
+/// `sweep::revolve::upgrade` reach the fold through
+/// [`tangent_second_order`] now. `contact_tangent_opposed` is also
 /// [`classify_material_pairing`]'s own twin — the same C1 lemma
-/// between bodies rather than within one. Consolidating them is that
-/// issue's work, deliberately NOT absorbed here; until it lands, a
-/// new site levering against its own fold is a silent
+/// between bodies rather than within one. Consolidating the rest is
+/// that issue's work, deliberately NOT absorbed here; until it lands,
+/// a new site levering against its own fold is a silent
 /// non-comparability, so route new callers through this function.
 pub fn folded_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>, extent: T) -> T {
     curvature_lever_arm(s1, p)
@@ -233,15 +237,18 @@ pub fn folded_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>,
 /// the SAME predicate name, or the demanded set and the stored set are
 /// two sets and every disagreement is a spurious
 /// `DescriptionNotAdjacent`. Every smooth-join arm in the sweep verbs
-/// routes here; the remaining hand-rolled siblings (the boolean
-/// rebuild's and the tier-3 validator's, which fold this margin into
-/// a per-sample walk they already run) are issue 1439's work, and a
-/// new site spelling its own is a silent non-comparability.
+/// routes here, as do `Intersection`-tangency certification and the
+/// boolean rim wedge; the two remaining hand-rolled siblings are the
+/// tier-3 validator's (`topo::validate`) and the boolean rebuild's
+/// (`topo::boolean::ops`), which fold this margin into a per-sample
+/// walk they already run — issue 1439's work. A new site spelling its
+/// own is a silent non-comparability.
 ///
-/// # Errors
-///
-/// [`Indeterminate`] under predicate `"tangent_second_order"`: the
-/// sagitta landed in the sliver band, or was poisoned.
+/// The [`SecondOrder`] return carries the jet and the arm beside the
+/// verdict, because the two callers that fold this into a longer walk
+/// need the same numbers again a line later (the tangency certificate's
+/// parallelism lever arm, the wedge's signed cusp side) and computing
+/// them twice is how two spellings start.
 pub fn tangent_second_order<T: Decide>(
     s1: &Surface<T>,
     s2: &Surface<T>,
@@ -249,14 +256,30 @@ pub fn tangent_second_order<T: Decide>(
     tangent: geom_core::Vec3<T>,
     extent: T,
     band: Band,
-) -> Result<Sign, Indeterminate> {
+) -> SecondOrder<T> {
     let jet = crate::tangent::tangent_jet(s1, s2, p, tangent);
     let arm = folded_lever_arm(s1, s2, p, extent);
-    decide(
+    let verdict = decide(
         "tangent_second_order",
         Margin::sagitta(jet.kappa_rel.abs(), arm),
         band,
-    )
+    );
+    SecondOrder { jet, arm, verdict }
+}
+
+/// [`tangent_second_order`]'s reading: the verdict, and the two
+/// quantities it was read from.
+#[derive(Clone, Copy, Debug)]
+pub struct SecondOrder<T: geom_core::Real> {
+    /// The pair's jet at the sample ([`crate::tangent_jet`]).
+    pub jet: crate::TangentJet<T>,
+    /// The folded lever arm the sagitta was subtended over
+    /// ([`folded_lever_arm`]).
+    pub arm: T,
+    /// The classified sagitta — `Positive` jet-determinate,
+    /// `Zero`/`Negative` under-determined, `Err` in-band (predicate
+    /// `"tangent_second_order"`).
+    pub verdict: Result<Sign, Indeterminate>,
 }
 
 /// **The material wedge** an edge's two faces subtend at a sample —

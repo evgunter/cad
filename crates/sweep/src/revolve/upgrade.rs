@@ -42,27 +42,6 @@ pub(super) fn vertex_point<T: Real>(
     topo::readback::vertex_point_ref(body, vertex).map_err(|what| EulerOpError::from(what).into())
 }
 
-/// This edge restated as a spec — description, carrier and interval
-/// verbatim — for a re-description that moves nothing geometric.
-pub(super) fn restated<T: SpanLocate>(
-    body: &Body<T>,
-    edge: EdgeKey,
-) -> Result<geom_brep::EdgeCurveSpec<T>, RevolveError> {
-    let edge_rec = body.get_edge(edge).ok_or(EulerOpError::StaleKey {
-        key: topo::EntityId::Edge(edge),
-    })?;
-    Ok(body
-        .get_curve_geom(edge_rec.curve)
-        .ok_or(EulerOpError::StaleGeometry {
-            key: topo::GeomRef::Curve(edge_rec.curve),
-        })?
-        .certified()
-        .ok_or(EulerOpError::NullScaffoldCurve {
-            curve: edge_rec.curve,
-        })?
-        .restated_spec())
-}
-
 fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>, RevolveError> {
     let edge_rec = body.get_edge(edge).ok_or(EulerOpError::StaleKey {
         key: topo::EntityId::Edge(edge),
@@ -99,26 +78,6 @@ fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>
         witness,
         extent,
     })
-}
-
-/// Re-states one edge as an image in `chart`, keeping carrier,
-/// interval and (through `at_rest_in_chart`) the pushforward that
-/// scaffolded it as its authority record.
-///
-/// The join lanes call this where they used to `continue`: ONE surface
-/// on both sides is a locus the surfaces under-determine (D2's split),
-/// so the description stays conventional — but the edge is at rest
-/// between two faces now, and the scaffolding door is for edges whose
-/// surfaces do not exist yet (D3's transience fence).
-pub(super) fn describe_at_rest<T: Decide>(
-    body: &mut Body<T>,
-    edge: EdgeKey,
-    chart: SurfaceKey,
-    tol: Tol,
-) -> Result<(), RevolveError> {
-    let spec = restated(body, edge)?.at_rest_in_chart(chart, false);
-    body.set_edge_curve(edge, spec, tol)?;
-    Ok(())
 }
 
 /// Upgrades one edge to `Intersection { s1, s2, witness }` when the
@@ -196,7 +155,7 @@ pub(super) fn upgrade_intersection<T: Decide>(
                 // fence). The pushforward it was scaffolded from stays
                 // beside it as the authority record, which is what
                 // keeps tier 3's prefer-intrinsic reading unchanged.
-                describe_at_rest(body, edge, s1, tol)?;
+                body.describe_at_rest(edge, s1, tol)?;
             }
             Ok(())
         }
@@ -225,13 +184,16 @@ fn jet_determinate<T: Decide>(
     if !tangent_certificate_lane(&data.carrier, s1, s2) {
         return false;
     }
-    let samples = 9u32;
-    for i in 1..samples - 1 {
-        let f = T::from_f64(f64::from(i) / f64::from(samples - 1));
-        let t = data.t0 + (data.t1 - data.t0) * f;
+    // The certification schedule's interior samples, read through the
+    // schedule's own count and its own parameter map: this walk asks
+    // its question at exactly the stations the certificate will re-ask
+    // it at, and a local `9` is how the two drift.
+    for i in 1..geom_brep::CERT_SAMPLES - 1 {
+        let t = geom_brep::sample_param(data.t0, data.t1, i);
         let p = data.carrier.eval(t);
         if !matches!(
-            geom_brep::tangent_second_order(s1, s2, p, data.carrier.deriv(t), data.extent, band),
+            geom_brep::tangent_second_order(s1, s2, p, data.carrier.deriv(t), data.extent, band)
+                .verdict,
             Ok(geom_core::Sign::Positive)
         ) {
             return false;
@@ -241,10 +203,11 @@ fn jet_determinate<T: Decide>(
 }
 
 /// Re-describes a full-revolve meridian as `Seam { surface }` when the
-/// wall surface is periodic; a plane wall's meridian keeps its
-/// conventional `MappedCurve` (module docs — `Seam` is malformed on a
-/// non-periodic chart, and the same-surface split is definitely
-/// smooth). Carrier and interval kept verbatim.
+/// wall surface is periodic; a plane wall's meridian becomes an image
+/// at rest in that wall's chart (module docs — `Seam` is malformed on
+/// a non-periodic chart, and one surface on both sides determines no
+/// locus, so D2's conventional split applies). Carrier and interval
+/// kept verbatim either way.
 pub(super) fn upgrade_meridian_seam<T: Decide>(
     body: &mut Body<T>,
     edge: EdgeKey,
@@ -263,7 +226,7 @@ pub(super) fn upgrade_meridian_seam<T: Decide>(
         // was minted through is for edges whose surfaces do not exist
         // yet (D3's transience fence). So it is described where it
         // rests, as an ordinary chart image owing the one meter.
-        describe_at_rest(body, edge, wall, tol)?;
+        body.describe_at_rest(edge, wall, tol)?;
         return Ok(());
     }
     let data = edge_data(body, edge)?;
