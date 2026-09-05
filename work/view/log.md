@@ -2575,3 +2575,106 @@ program claimed from CHROME for exactly that reason.
 (`{slot:?}` → `PointX`) where `SlotId::label()` gives `point x` and
 `refuse.rs` already uses it. Same class as the nine names, **not in the
 amendment's enumeration**, so the lane left them and I announced them.
+
+## Correction: I was wrong about the self-boolean item, and a reviewer caught it (2026-09-05)
+
+**The entry above says** the item's *"`DuplicateInput` names no recourse"*
+was "a reading of the doubled-prefix rendering, not of the sentence",
+and drew a lesson from it about items that reason from rendered
+strings. **That is wrong.**
+
+#1932's style review checked it: the reading was **of the sentence**,
+and both halves still stand. `a node's inputs are pairwise distinct`
+is a **rule, not a recourse**, and nothing in the rendered sentence
+tells the user to pick a different second body.
+
+The accurate account is that the item was **partly right and the fix
+was smaller than it asked for** — not that it misread the tree. The
+lesson I drew was therefore about a shape that was not present, which
+is worse than no lesson: a plausible generalisation from a false
+instance is the thing this program's review posture exists to catch,
+and I produced one while writing up someone else's.
+
+The lane is told to correct its closure section, which inherited my
+framing.
+
+## #1932's style review: the sentence got worse (2026-09-05)
+
+Fourteen findings. It **agreed with the fence ratification** and swept
+independently to confirm `lib_doors_node_result.rs:160` is the only
+exact-equality prose pin in the workspace.
+
+### The central finding, and it is a regression
+
+A boolean mispick now renders **a phantom node id**:
+
+> the edit was refused: node **N** would be left invalid: node 7 is
+> taken as an input twice — a node's inputs are pairwise distinct
+
+`N` is the id `InsertNode` **would have minted** — a node the user has
+never seen and that will never exist. The sentence it replaced was *"a
+boolean needs two different bodies; node 7 is in both operand seats"*.
+The row asserts two substrings, so the phantom id, the cadence and the
+missing recourse are all **unpinned**.
+
+That is the unit's central user-visible outcome, and it is what the
+item was actually worried about — which is the other half of the
+correction above. Sent back to be fixed and pinned; a refusal naming
+an id that does not exist is worse than the doubled prefix the unit set
+out to remove.
+
+### Two more of my premises wrong
+
+- *"`pncad-py` asserts only on `.variant` tags."* **False** — 19
+  `assertIn` message assertions across the Python suite plus an exact
+  `assert_eq!` on a rendered message in `src/tests.rs`. None break
+  here, every one a surviving substring — but **the sweep's stated
+  shape could not have told us that**, and the same sweep against a
+  future wording change would report clean for the wrong reason.
+- *"The deletion left no hole."* **False** — `SelfBoolean`'s
+  doc-comment was grafted onto `Refusal::Edit`, so a public API type
+  now carries a rustdoc paragraph about booleans with two sentences
+  fused by the deletion. A hole in exactly the arm that replaced it.
+
+### The row that was rewritten is still sampling
+
+`panel_edits.rs`'s five-arm walk is **5 of `Refusal`'s 18 arms**, and
+one of its two asserted properties is **false over the vocabulary its
+title claims**: `!contains('"')` does not hold for `Edit(MetaNotSet)`
+and three siblings whose `key: String` renders `{key:?}`, one of which
+embeds a literal `\"v\"`. The `Edit` arm has ~50 sub-variants and the
+row samples one.
+
+`crates/pncad-py/src/prose_census.rs:16-33` names this failure mode in
+as many words — *"a roster that picks its own samples excludes the
+failing mode by construction… what decides the rendering is the
+variant of the PAYLOAD, one level down."* The unit widened a row from
+one sample to five and met the same wall one order up.
+
+### Ratified: the fence is "wording", not an enumeration
+
+The em-dash→colon change is a **third** wording edit outside the two
+the amendment lists. Ratified: the fence's intent is *`EditError`'s
+user-facing `Display` wording*, and the two items were a description of
+what needed changing rather than an exhaustive licence. Restated that
+way on the announce so DOCM reads it rather than infers it.
+
+### A cross-crate coupling nobody would have looked for
+
+`prose_census.rs:1626` pins `crates/viewer/src/frame.rs`/`Disagreement`
+with an **exact count**, in a gating roster that reds in both
+directions. So a lane adding *or removing* a `{:?}`-in-prose site in
+`frame.rs` reds a row in **LIB's** crate, which it is not touching and
+has no reason to read. Warned `view/news-and-badges` directly, since
+its fix pass makes `Badge`'s and `Message`'s fields private — a
+refactor that can move an interpolation without anyone thinking of it
+as a wording change.
+
+### One item is pointing at nothing
+
+`work/fix/verb-and-dimension-render-through-debug.md:48` cites
+`crates/viewer/src/session.rs:750` for a `{dimension:?}` site the 1c
+split moved; it is now `session/refuse.rs:337`. **FIX's item, VIEW's
+split that broke it** — announced, not edited. This is
+`stale-file-citations-after-the-split`'s general case, still open,
+producing its next instance on schedule.
