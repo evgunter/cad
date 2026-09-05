@@ -527,7 +527,7 @@ impl crate::real::CertifiedEnclosure for Interval {
 /// and lands on the first span deterministically — the poisoned `t`
 /// then propagates through the evaluation arithmetic as a value.
 impl crate::spline::SpanLocate for Interval {
-    fn locate_spans(self, knots: &crate::spline::KnotVector) -> crate::spline::SpanSet {
+    fn locate_spans<'a>(self, knots: &'a crate::spline::KnotVector) -> crate::spline::SpanSet<'a> {
         // `span_range` now answers in validated spans, which is exactly
         // what a `SpanSet` carries — so the locator is the range query
         // again, with no unpacking in between.

@@ -153,15 +153,17 @@ fn nurbs_vector_area<T: SpanLocate>(
     let mut acc = Vec3::zero();
     for index in first..=last {
         // Emptiness check and span validation are one step.
-        let Some(span) = kv.span(index) else { continue };
+        let Some(span) = curve.span(index) else {
+            continue;
+        };
         let lo = t0.max(T::from_f64(kv.knots()[index]));
         let hi = t1.min(T::from_f64(kv.knots()[index + 1]));
         let half_len = ((hi - lo) * half).max(T::zero());
         let mid = (lo + hi) * half;
         for (x, w) in nodes.iter().zip(weights) {
             let t = mid + half_len * T::from_f64(*x);
-            let p = curve.eval_in_span(span, t);
-            let d = curve.deriv_in_span(span, t);
+            let p = span.eval_in_span(t);
+            let d = span.deriv_in_span(t);
             acc = acc + (p - ref_point).cross(d) * (half_len * T::from_f64(*w));
         }
     }

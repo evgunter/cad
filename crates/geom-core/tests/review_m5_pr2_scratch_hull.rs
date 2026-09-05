@@ -55,7 +55,7 @@ fn dyadic_coeffs(rng: &mut fuzz::Rng, n: usize) -> (Vec<f64>, Vec<i64>) {
 /// the hull machinery.
 fn eval_rational(kv: &KnotVector, coeffs: &[f64], weights: &[f64], t: f64) -> f64 {
     let span = kv.span_at(t);
-    let nvals = basis::basis_funs(kv, span, t);
+    let nvals = basis::basis_funs(span, t);
     let first = span.first_control();
     let (mut num, mut den) = (0.0, 0.0);
     for (j, nj) in nvals.iter().enumerate() {
@@ -99,7 +99,7 @@ fn near_collapse_weights_never_escape_the_hull() {
             );
             for index in kv.first_span()..=kv.last_span() {
                 let Some(span) = kv.span(index) else { continue };
-                let b = hull::span_hull_rational(&kv, &coeffs, &weights, span);
+                let b = hull::span_hull_rational(&coeffs, &weights, span);
                 let (u0, u1) = (kv.knots()[index], kv.knots()[index + 1]);
                 // Falsification grid across the span; its density is a
                 // sweep count like any other, so it rides the EFFORT dial.
