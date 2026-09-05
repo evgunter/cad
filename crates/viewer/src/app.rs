@@ -737,9 +737,8 @@ impl ViewerApp {
                 // Nothing to say here: the cache HOLDS the refusal
                 // under its one-attempt-per (generation, δ) policy,
                 // and `frame::index_badge` reads it every frame the
-                // toolbar draws. Announcing it once would have put a
-                // standing fact on a line the next acting batch
-                // sweeps.
+                // toolbar draws. Announcing it once put a read on a
+                // line the next acting batch sweeps.
                 pick::IndexLanding::Refused => {}
                 pick::IndexLanding::Stale => {}
             }
@@ -1268,9 +1267,9 @@ impl eframe::App for ViewerApp {
                     }
                     None => {}
                 }
-                // **The standing facts, one draw each.** Each is a
-                // function of the typed value it reads — including its
-                // silence, which is what lets a row assert the `None`
+                // **The reads, one draw each.** Each is a function of
+                // the typed value it reads — including its silence,
+                // which is what lets a row assert the `None`
                 // — and each states its own tone and affordance, so
                 // nothing about how a badge looks is decided here
                 // (`frame::Badge`).
@@ -1295,11 +1294,11 @@ impl eframe::App for ViewerApp {
                 {
                     self.checks_shown = !self.checks_shown;
                 }
-                // The gather's verdict, for the landed pair. **A
-                // standing fact, so a badge** — the status line beside
-                // it carries one frame's news and is cleared by the
-                // next acting batch, while "the product on screen does
-                // not gather" is true until another pair lands.
+                // The gather's verdict, for the landed pair. **A read
+                // a reader consults, so a badge** — the line beside it
+                // carries what just happened and is cleared by the next
+                // acting batch, while "the product on screen does not
+                // gather" is true until another pair lands.
                 //
                 // Which faults reach it is `frame::product_badge`'s,
                 // and it declines every state another channel carries:
@@ -1539,9 +1538,10 @@ pub(crate) struct ViewerBehavior<'a> {
     pub(crate) profile_form_drawn: &'a mut bool,
     pub(crate) pending_fit: &'a mut bool,
     /// Where the viewport leaves a view matrix it could not form, for
-    /// [`frame::projection_badge`] to read: a standing fact about the
-    /// camera, so the pane holds it rather than writing a sentence the
-    /// next accepted act would sweep.
+    /// [`frame::projection_badge`] to read: a read of the camera, so
+    /// the pane holds it rather than writing a sentence the toolbar
+    /// had already painted past and the next accepted act would
+    /// sweep.
     pub(crate) projection_fault: &'a mut Option<CameraError>,
     pub(crate) status: &'a mut Option<frame::Message>,
     pub(crate) id_answer: &'a Arc<AtomicU64>,

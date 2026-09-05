@@ -415,24 +415,64 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
     );
 }
 
-/// **One event, one channel.**
+/// **What the line could not do with a seam refusal.**
 ///
-/// `fold_status` issues `Expire(Camera)` on every clean fold, and that
-/// is now the difference the two axes buy: it retires the camera's
-/// SENTENCE and cannot touch the camera's badge, which stands until
-/// the projection it reads succeeds. On the line the same fold silenced
-/// a picture the viewer still could not draw.
+/// The defect the three moves close, and it is an ORDERING one: the
+/// status line is painted in the toolbar, earlier in `update` than the
+/// panes that write these sentences, and `perform_batch` runs after
+/// both. So on every frame whose batch acted cleanly the `Clear` took
+/// the sentence before any frame drew it, and the chrome said nothing
+/// about a picture it could not draw for as long as the user kept
+/// acting.
+///
+/// **The badge half of that is a type fact and not an assertion**:
+/// `frame::apply`'s only argument is the line, so no `StatusUpdate`
+/// can reach a badge. What the rows above pin is the badge's subject
+/// and its silence; what this one pins is the sweep it is out of.
 #[test]
-fn a_clean_fold_retires_the_camera_sentence_and_not_the_camera_badge() {
+fn an_acting_frame_sweeps_the_line_a_seam_refusal_would_have_been_on() {
     let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
     let projection = camera
         .view_projection(0.0)
         .expect_err("a zero aspect has no projection");
 
+    // A camera sentence, of the shape the projection refusal used to
+    // have, and the frame's own verdict on a clean acting batch.
     let mut status = Some(frame::Message::new(
         frame::Subject::Camera,
-        "camera: a move it would not make",
+        format!("projection: {projection}"),
     ));
+    let acting = [SessionOp::Undo];
+    assert_eq!(
+        frame::batch_status(&acting, None),
+        StatusUpdate::Clear,
+        "an act the document accepted makes every standing complaint \
+         stale — including one about a picture that is still not drawn"
+    );
+    frame::apply(&mut status, frame::batch_status(&acting, None));
+    assert_eq!(
+        status, None,
+        "which is the sweep the seam refusals are now out of"
+    );
+
+    // And the read is unchanged by any of it: the fault is the same
+    // fault, so the toolbar says the same thing.
+    assert_eq!(
+        frame::projection_badge(Some(&projection)).map(|b| b.subject()),
+        Some(frame::Subject::Camera),
+    );
+}
+
+/// **The expiry-issuer roster names exactly the subjects with one.**
+///
+/// `frame::SUBJECTS_WITH_AN_EXPIRY_ISSUER` had no reader anywhere,
+/// tests included, so the claim it makes about the vocabulary was
+/// prose in a `const`. It is a claim about MESSAGES — a badge asks no
+/// issuer for anything — and the two policies that issue are the only
+/// two there are.
+#[test]
+fn the_two_policies_that_expire_are_the_two_subjects_the_roster_names() {
+    let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
     let clean = viewer::camera::Folded {
         camera,
         applied: vec![CameraOp::Orbit {
@@ -441,16 +481,31 @@ fn a_clean_fold_retires_the_camera_sentence_and_not_the_camera_badge() {
         }],
         refused: None,
     };
-    frame::apply(&mut status, frame::fold_status(&clean));
-    assert_eq!(status, None, "the next camera event retires the sentence");
+    let issued: Vec<frame::Subject> = [
+        frame::fold_status(&clean),
+        frame::cursor_status(IdStep::Void),
+        frame::cursor_status(IdStep::Ask { serial: 7 }),
+        frame::cursor_status(IdStep::Hold),
+    ]
+    .into_iter()
+    .filter_map(|update| match update {
+        StatusUpdate::Expire(subject) => Some(subject),
+        _ => None,
+    })
+    .collect();
 
-    // Nothing was applied to the badge, because nothing can be: it is
-    // a read, and the state it reads has not changed.
-    assert!(
-        frame::projection_badge(Some(&projection)).is_some(),
-        "and the projection is still unformable, so the chrome still \
-         says so"
-    );
+    for subject in frame::SUBJECTS_WITH_AN_EXPIRY_ISSUER {
+        assert!(
+            issued.contains(&subject),
+            "{subject:?} is named as having an issuer and no policy issues it"
+        );
+    }
+    for subject in issued {
+        assert!(
+            frame::SUBJECTS_WITH_AN_EXPIRY_ISSUER.contains(&subject),
+            "{subject:?} is issued by a policy and the roster does not name it"
+        );
+    }
 }
 
 /// **The rank-2 join's subject, including the arm nothing reached.**

@@ -167,3 +167,20 @@ worked example which named it a badge. The unit built the rule and
 disclosed the disagreement as
 `work/view/unindexed-refusal-is-an-outcome-not-a-read.md`, which is
 for Ev.
+
+## What the style review corrected (#1957)
+
+- The rule as first written claimed *"that is the whole test"* for the
+  mechanical restatement. It is not: the held-state form is a property
+  of the FACT and not of a door's signature, it does not sort
+  `Disagreement` without *a reader consults*, and whether a fact is
+  held is a choice the author makes. The header and the README now say
+  so, because the twenty-writer sweep sorts on that paragraph.
+- The defect the move closes is an ORDERING one — the line is painted
+  in the toolbar before the panes write, and `perform_batch` runs after
+  both — and not the clean fold's `Expire`, which never reached the
+  projection sentence at all. Corrected in four places.
+- The `Holds` row this program has skipped three times is taken here;
+  `frame-module-has-eight-concerns-and-no-holds-row` records what
+  deferring it cost.
+- Two residues the unit introduces are `projection-fault-has-no-sweeper`.
