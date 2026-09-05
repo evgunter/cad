@@ -417,3 +417,42 @@ for filing wait on the dual (the pre-bracket decisions of the profile
 pre-pass and the mate solve; a part's per-node logs dropped with its
 nested evaluation; the coincidence zone priced `Budget` at the floor —
 M10's; `refuse_non_finite`'s out-of-funnel `sign_within`).
+
+**k-stats dual adjudicated (2026-09-05).** R1 A-W-F 1/7/7 (idiom 4 /
+tests 3 / docs 3); R2 A-W-F 0/6/8 (4 / 4 / 3). Held under both by
+execution: the bracket-with-a-stack, the nesting fix under memo reuse,
+cancellation, the parallel schedule (×8 and ×12 runs), part-in-part
+(922/922); the 530 / 261 / 104 measurement reproduced to the digit by
+both (the ruling's support is honest); the accounting move is entirely
+`classify`'s (R2: main's `drive.rs` on this head's eval reproduces
+main's bytes); no witness-vector key moved. **Converged, with a
+severity divergence**: the escalation channel misses the family of
+eight shipped sites that mint their own `Indeterminate` after a
+definite sign, while `drive.rs` and the body say "none is known" (R1
+MAJOR, executed on `enters_material`; R2 MINOR) — the same substance,
+calibration data, NOT a tally candidate. Also converged: the
+mis-nesting D2 row is wrong in every profile (R2: the repo's release
+profile keeps debug assertions, so the discard arm is dead and the
+assert leaks the outer frame; R1: with assertions off a stale guard at a
+reused index STEALS — executed); the escalation-first read preempts the
+box-independent terminal classes; territory 30/31 not 23; the spec's
+"file it" not carried out; the m10_7 row's name now false; no
+parallel-schedule row; `seqgen.rs:641` a second raw `sign_within`.
+Unilateral, all MINOR/NOTE: R1's unpinned `!Send` doctest (E0277
+measured by both); R2's missing "not persisted" sentence on
+`NodeError`; R2's mate-solve escalations on no node's log. **No
+unilateral MAJOR — no tally candidate.** Silent deviations: R1 counts 2
+(two tcost test paths; the un-filed sweep), R2 0 silent / 5 body
+inaccuracies. Ruling for the fix pass (items A–K, implementer-inherited):
+frame ids make mis-nesting defined and non-stealing in every profile
+with no assert; the box-independent classes read before the channel;
+the completeness claim restated and guarded by R1's probe as a row, the
+family filed (not routed — the spec's separate unit); `compile_fail,E0277`
+with a twin; six issues filed (the arms sweep, the bracket's scope, the
+part's dropped logs, M10's coincidence zone, the op-minted family, the
+bare `compile_fail` class); the schedule rows adopted with literal
+counts. **Orchestrator error disclosed**: reclaiming the reviewer lanes,
+my copy clobbered R2's editor-core probe file (same basename as its
+geom-core one); the rows are rebuilt from R2's report, R1's schedule
+probe covering three of the six. Reviewer lanes reclaimed; the
+implementer runs the fix pass.
