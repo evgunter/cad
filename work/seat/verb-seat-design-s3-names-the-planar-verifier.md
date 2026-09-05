@@ -4,6 +4,7 @@ kind: issue
 title: VERB-SEAT-DESIGN S3 names the planar verifier the detector no longer runs (Ev-gated)
 status: open
 opened: 2026-09-05
+needs_ev: true
 ---
 
 
@@ -46,3 +47,27 @@ Two lines, whoever takes it:
 One line citation in the same clause has drifted too and was left with
 it: S3 cites `editor-core/src/names/flush.rs:187` for the name-level
 detector, which is `:182` after SEAT-FW's module-doc edit.
+
+## Decision for Ev (2026-09-05; the `[ev]` PR carries it)
+
+**Ratify two factual corrections to the ratified charter's §1 S3** —
+its argument is untouched by SEAT-FW; two of its facts are now false:
+
+1. The parenthetical names `oriented_plane_eq` as the verifier the
+   detector runs. Since SEAT-FW (PR 1974) the detector asks
+   `carrier_pair_relation` — the door verify-at-use itself calls — in
+   candidate-generation posture; `oriented_plane_eq` is that door's
+   `(Plane, Plane)` arm. Proposed text names the door and says the
+   detector's scope is the `Rest` ladder's. (The anti-twin rule the
+   clause states is STRONGER after the change — one function, two
+   postures — which is why this is a correction, not a re-litigation.)
+2. The acceptance bullet says "lily's six declarations". The socket is
+   measurably THREE (one corm bore wall × three foot faces —
+   `demos/tour/src/lily.rs`'s measurement row); the scene's own prose
+   said six and was deleted with the hand assembly it described.
+
+Both edits are made in place on the `[ev]` PR as the proposed
+revision; the stale `flush.rs:187` line citation in the same clause is
+replaced by the door's name. Nothing else in the doc moves. If you
+would rather the charter keep its 2026-08-31 wording with a dated
+note, say so and the edit becomes a footnote instead.
