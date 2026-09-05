@@ -111,6 +111,8 @@ mod review_band_probes;
 mod review_k3_probe;
 #[path = "review_probes.rs"]
 mod review_probes;
+#[path = "onb_wild_normal_census.rs"]
+mod onb_wild_normal_census;
 #[path = "review_probes_m7_3.rs"]
 mod review_probes_m7_3;
 #[path = "review_r1_tier_gate_probes.rs"]
