@@ -445,7 +445,7 @@ items are not swept into `work/issues/` with no owner a second time.
 
 #### CURVED — the curved-operand boolean remainder (`curved/`) — at VERBS' exit — 23 items [H 17, D 5, E 1]
 
-**GRADUATED (2026-09-03): opened as `work/curved/`, A/B band 2200–2299; dispatches at VERBS' exit.**
+**GRADUATED (2026-09-03): opened as `work/curved/`, A/B band 2200–2299. DISPATCHING since 2026-09-04 (VERBS' walk ratified at #1793); `work/curved/plan.md` supersedes this section.**
 
 VERBS' Wave-2 claims that never became units, S-BOOL's ceded ground,
 and S-MATE's kernel residue, as one program. Territory: the
@@ -574,7 +574,7 @@ Not here: `k-report-baseline-fold-cert1-roster` and
 
 #### TRIM — the NURBS trim frontier (`trim/`) — at CURVED's rim arms — 5 items [H 4, D 1]
 
-**GRADUATED (2026-09-03): opened as `work/trim/`, A/B band 2500–2599; dispatches when CURVED lands the rim arms.**
+**GRADUATED (2026-09-03): opened as `work/trim/`, A/B band 2500–2599. DISPATCHING since 2026-09-04 — the "rim arms" gate below was traced to `topo/pcurves.rs`'s own arms (this track's, not CURVED's); `work/trim/plan.md` supersedes this section.**
 
 PCURVE's P-2 residue, the smallest and most blocked candidate.
 Territory: `geom-brep/{pcurve_cache,nurbs_iso,edge_nurbs}.rs` (Track

@@ -706,7 +706,11 @@ fn row6_placement_is_part_of_the_content_key() {
     assert!((min_x(&body) - 3.5).abs() < 1e-12);
 
     // And a re-evaluation with NO edit reuses — and asks the seam
-    // nothing at all (the lazy cache's whole point).
+    // nothing at all. That is the memo's contract and not a shortcut
+    // in it (DI2): the memo is a pure function of the document, and
+    // for an instantiate node the pin IS the content, so the served
+    // value is exactly what this document pins. Store freshness is the
+    // mounting session's question.
     let third = evaluate::<f64>(
         &moved,
         Some(&second),

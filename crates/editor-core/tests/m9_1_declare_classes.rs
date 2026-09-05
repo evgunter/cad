@@ -127,11 +127,11 @@ fn an_authored_class_is_what_the_node_holds() {
     let node: Node<editor_core::ProfileProgram> = Node::Declare {
         pairs: vec![
             (
-                (cap(a, CapEnd::Top), cap(b, CapEnd::Bottom)),
+                (cap(a, CapEnd::End), cap(b, CapEnd::Start)),
                 ContactClass::Rest,
             ),
             (
-                (cap(a, CapEnd::Bottom), cap(b, CapEnd::Top)),
+                (cap(a, CapEnd::Start), cap(b, CapEnd::End)),
                 ContactClass::Tangent,
             ),
         ],
@@ -162,7 +162,7 @@ fn a_wrong_class_declaration_refuses_at_the_op() {
     let (doc, a, b) = stacked();
     let declare = |class| -> Node<editor_core::ProfileProgram> {
         Node::Declare {
-            pairs: vec![((cap(a, CapEnd::Top), cap(b, CapEnd::Bottom)), class)],
+            pairs: vec![((cap(a, CapEnd::End), cap(b, CapEnd::Start)), class)],
         }
     };
     // Returns (ran_ok, debug rendering of the failure if any) — the

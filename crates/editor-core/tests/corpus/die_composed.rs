@@ -81,7 +81,7 @@ const PIP_C: f64 = DIE_L + (PIP_R - PIP_H);
 /// |---|---|---|
 /// | 8 | `FromA(RimEdge(Top\|Bottom, seg))` | the cube's cap–wall rims, surviving the subtraction |
 /// | 4 | `FromA(LateralEdge(vertex))` | the cube's four vertical struts |
-/// | 2 | `Seam { Cap(Top), Band(0) \| BandPi(0) }` | the PIP RIM — the two arcs the zip minted where the cube's top cap crosses the ball's lower band (a full revolve's band is two half-faces, split at the seam meridians, so the rim is two arcs, not one circle) |
+/// | 2 | `Seam { Cap(End), Band(0) \| BandPi(0) }` | the PIP RIM — the two arcs the zip minted where the cube's end cap crosses the ball's lower band (a full revolve's band is two half-faces, split at the seam meridians, so the rim is two arcs, not one circle) |
 /// | *2 excluded* | `FromB(Meridian(Seam\|Pi, 0))` | the cavity's meridian seams |
 ///
 /// **Why the meridians are excluded, and why this document exists.**
@@ -116,7 +116,7 @@ pub fn selection(cube: RecipeNodeId, ball: RecipeNodeId, pipped: RecipeNodeId) -
     let cap_top = StableName {
         kind: EntityKind::Face,
         node: cube,
-        path: vec![RoleSeg::Cap(CapEnd::Top)],
+        path: vec![RoleSeg::Cap(CapEnd::End)],
     };
     let ball_face = |seg: RoleSeg| StableName {
         kind: EntityKind::Face,
@@ -152,8 +152,8 @@ pub fn selection(cube: RecipeNodeId, ball: RecipeNodeId, pipped: RecipeNodeId) -
 ///    four struts). Saying "carried through from A" is exactly the
 ///    intent; enumerating twelve `RimEdge`/`LateralEdge` names was
 ///    the P10 relocation.
-/// 2. `Seam { a: Cap(Top), b: Band | BandPi }` — the pip rim, the two
-///    arcs the zip minted where the cube's top cap crosses the ball's
+/// 2. `Seam { a: Cap(End), b: Band | BandPi }` — the pip rim, the two
+///    arcs the zip minted where the cube's end cap crosses the ball's
 ///    lower band. A full revolve's band is two half-faces split at the
 ///    seam meridians, so the rim is two arcs and the band role has two
 ///    variants; the union says both.
@@ -170,7 +170,7 @@ pub fn selector() -> Selector {
     let edge = || NamePat::of_kind(EntityKind::Edge);
     let face = |tag: SegTag| NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(tag));
     let cap_top =
-        NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::Top));
+        NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End));
     let pip_rim =
         |band: SegTag| edge().seg(SegPat::tag(SegTag::Seam).of([cap_top.clone(), face(band)]));
     Selector::any_of([

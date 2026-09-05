@@ -94,11 +94,12 @@ pub use appearance::{
 };
 pub use assembly::{
     Assembly, AssemblyError, AtRestFinding, Attribution, MintRefusal, MintedDeclaration,
-    RefusedRef, assemble,
+    RefusedRef, assemble, assemble_gathered,
 };
 pub use checks::{
     Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,
-    ChecksError, ChecksReport, Severity, enforce_checks, run_checks, subject_body,
+    ChecksError, ChecksReport, Severity, Subject, enforce_checks, run_checks, run_checks_on,
+    subject_body,
 };
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
@@ -114,14 +115,14 @@ pub use edit::{Applied, DocEdit, EditError, EditRecord, apply, cascade_delete_or
 pub use eval::{
     Arity, BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, Epoch, EvalOptions,
     EvalOutcome, EvalScalar, Evaluation, NamingKey, NodeError, NodeErrorKind, NodeResult,
-    NodeValue, PartFault, ProfileLift, SplitSide, UnitVec3, UnitVec3Error, ValuePayload, VerbKind,
-    evaluate,
+    NodeValue, PartFault, ProfileLift, SectionScalar, SplitSide, UnitVec3, UnitVec3Error,
+    ValuePayload, VerbKind, evaluate,
 };
 pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, UnitSym, eval,
     eval_count, unparse,
 };
-pub use ident::{ContentPin, DocRef, DocumentId};
+pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use mate::{
     Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, ClusterMaintenance, Coset, MateFault,
     MateFrame, MatePrimitive, MateRole, MateSide, Member, SolvedPoses, Subgroup, UNDER_RECOURSE,
@@ -146,12 +147,13 @@ pub use names::{
     ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE,
     SegPat, SegTag, SelectRefusal, Selector, Side, SideVerdict, SplitHalf, StableName,
     SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, declare,
-    declare_all, declare_node, denotation, edge_frame, face_frame, find_flush_candidates, select,
-    select_where, vertex_position,
+    declare_all, declare_node, denotation, edge_frame, face_carrier_kind, face_frame,
+    find_flush_candidates, select, select_where, vertex_position,
 };
 pub use node::{
-    Axis3, BooleanOp, Datum, InterfaceCrossing, InterfaceRecord, MeasureNodeFault, MeasureRef,
-    Node, PatternKind, PlacementRuleFault, RecipeNodeId, SlotId, StepArg, TubeWindow, VectorSlot,
+    Axis3, BooleanOp, Datum, InputFault, InterfaceCrossing, InterfaceRecord, MeasureNodeFault,
+    MeasureRef, Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, SlotId, StepArg,
+    TubeWindow, VectorSlot,
 };
 pub use parse::{ParseError, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
@@ -161,6 +163,8 @@ pub use persist::{
 };
 pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
 pub use placement::Frame;
+#[cfg(debug_assertions)]
+pub use product::gathers_on_this_thread;
 pub use product::{Product, ProductError, product, product_named, product_recorded};
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,

@@ -26,10 +26,8 @@ cycle is the annulus band with hostless crossings.** The shape arises two
 ways: a pole-touching revolve after `merge_coplanar_faces` (each axis-touching
 cap's two half-discs become one face — the body every boolean consumer
 holds; `crates/sweep/tests/blend1_r1_probes.rs::p4_…` measures the lily
-lantern's neck rim refusing), and NATIVELY, whenever a revolve's plane
-annulus does not touch the axis but its curved neighbour does (a
-pole-touching dome or dimple on a wider flat top: the plane is one face
-from the mint, the curved side is two half-caps, the rim is two arcs). On
+lantern's neck rim refusing), (and, as §Re-scope records, only that way: a full revolve splits the whole
+loop at its seam, so no plane-hosted rim is minted natively). On
 such a rim:
 
 - the MATE side is what the annulus already serves — several faces of one
@@ -122,8 +120,9 @@ not the one this spec describes: stop at the report and file it.
    - naming totality via `test_support::assert_naming_totality` on a
      hostless band;
    - the #935 composition row (item 4);
-   - the interval twin (`--features interval`, `CI-Config: lane=interval`
-     on one head, said in the PR);
+   - the interval twin (`--features interval` locally; hosted CI gates the
+     interval lane on every run since 2026-09-04, so nothing needs to be
+     asked for — count twelve `test (…)` jobs and say so in the PR);
    - a mutant: the strut foot at the wrong parameter (e.g. the window's
      far end) reds the hostless rows through tier 3 and nothing else.
 6. **Sentences, present tense only.** H4's exception clause in
@@ -189,3 +188,38 @@ v6 dual on the frozen head, claims to falsify:
   repaired/one-host-face rim as unserved; the sweep's blind spot is stated.
 - **C6** The composition with a second rim on the shared mate wall matches
   the sequential result bit-for-bit (the annulus rows' own claim, extended).
+
+## Re-scope at Phase 1 (2026-09-04, orchestrator)
+
+**Phase 1's findings correct three claims above, and the correction is the
+spec's, not the lane's.** (1) There is NO native instance: a full revolve of
+a pole-touching profile is the wire case (`revolve/full.rs:313`–`:322`) and
+sweeps the REST of the loop in two π-bands too, so every plane annulus of
+such a body is two half-annuli and the rim's crossings are valence 4 — the
+"native boss/dimple" both carve today through the seam-split annulus. The
+plane-hosted rim arises only after `merge_coplanar_faces`. (2) The repaired
+boss and dimple are not this unit's shape either: their merged flat top is an
+annulus whose rim lands in a RING, so they route to the LADDER — and refuse
+on a FALSE ring-clearance (the outer-boundary circle arm of
+`ring_clearance_pass` uses external separation with no containment form,
+`surgery.rs:1946`–`:1951`); that is its own pre-existing numeric defect,
+filed as `work/fillet/ring-clearance-refuses-a-nested-trim-circle.md`, and
+OUT of this unit. (3) With the ladder discriminant relaxed, the seam-split
+resolution refuses at the half-band gate ("a seam-split rim's support does
+not carry exactly its own rim arc"), not at `wall_seam` — the hostless
+crossing must be admitted THERE. The lane's table, six fixtures with the
+defect and both material sides reachable, is the record
+(`work/fillet/plane-hosted-rim-has-no-native-instance.md`).
+
+**Amended fixtures** (all after `merge_coplanar_faces`, all trivalent
+crossings, all routed to the ladder's ring gate today): the lantern's neck
+`(1, 0)` and lip `(0.2, 1.2)`, the hemisphere's equator `(1, 0)`, the
+waisted body's base `(1, 0)` and top `(1, 1)` — convex; the **bowl floor**
+`(1, 1)` of `revolved_about_y` of `(0,0) (1.5,0) (1.5,1.5) (1,1) (0,1)` —
+concave, fill `+3.375275670087774e-4` by the lane's measurement (derive it
+in the row). Phase 2 is as written with §The claim's "natively" sentence
+struck; item 2's plan is built from the half-band gate's site; the
+acceptance reads "the repaired fixtures above carve on both material sides,
+`p4` flipped, the bowl at its closed form". §7's riders `D323`/`D324` are
+already closed (code-quality, PR 1783) and drop out. Difficulty and
+task-class stand (M / STRUCTURAL), re-logged at the redirect.

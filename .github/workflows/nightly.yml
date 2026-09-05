@@ -5,7 +5,8 @@
 #   * PERSISTENCE-DETECTORS THAT DO NOT NEED EVERY RUN. `watertight` is the
 #     first (Ev, 2026-08-22): one solo red in 37 days and it was a rustup
 #     outage. A broken mesh stays broken, so a nightly finds it — the same
-#     argument the ε and lane sampling in ci.yml rest on, taken to a longer
+#     persistence argument ci.yml's remaining k-lint draw rests on (and the
+#     ε and lane draws rested on until 2026-09-04), taken to a longer
 #     period.
 #   * MEASUREMENT LANES. `rebuild latency (reporting)` was never a gate;
 #     its wall-clock table belongs on a cadence rather than on every PR.
@@ -1581,8 +1582,10 @@ jobs:
   # every test the default build does PLUS the interval-only ones, of which
   # the gated set has some (a ring fuzz, an interval surfaces probe) that a
   # default-lane row would re-take with nothing. What this does NOT re-take is
-  # a gated suite that breaks only in the DEFAULT compile mode, which is the
-  # standing residue of lane sampling and not a new one.
+  # a gated suite that breaks only in the DEFAULT compile mode. That was the
+  # standing residue of lane sampling; since 2026-09-04 ci.yml runs both lanes
+  # on every code-tier run, so the PR gate covers it and only this nightly
+  # re-take is one-lane.
   #
   # AN EMPTY SET IS NOT A SILENT ZERO, the same distinction the `demoted` job
   # draws one lane over. `--gated-set` prints `none()` only after proving from

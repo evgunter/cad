@@ -142,6 +142,8 @@ mod r1_mate8_decomp_probe;
 mod r1_mate8_probes;
 #[path = "r2_probes.rs"]
 mod r2_probes;
+#[path = "readback_sense_kind.rs"]
+mod readback_sense_kind;
 #[path = "review_m1_pr5.rs"]
 mod review_m1_pr5;
 #[path = "review_m2_pr3.rs"]

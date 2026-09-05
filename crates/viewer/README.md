@@ -222,7 +222,7 @@ are never overridden here.
 | Feature tree, property panel, open/save, evaluation seam, scene | `src/tree.rs`, `src/props.rs`, `src/docio.rs`, `src/evalseam.rs`, `src/scene.rs` |
 | Colour, themes, preferences | `src/theme.rs`, `src/prefs.rs`, `tests/theme.rs` |
 | GQ7 picking | `src/pick.rs` (`EDGE_PICK_RADIUS_PX`, `PickKinds`), `crates/bvh` (`Bvh::ray`) |
-| GQ6 toolkit, viewport, docking | `src/app.rs` (the frame loop and `ViewerApp`) with `src/pane/*` (the pane bodies) and `src/widgets.rs`, `src/gpu.rs`, `src/frame.rs` behind the `app` feature; `Cargo.toml`. The authoring vocabularies the panels offer are `src/forms.rs` and `src/drafts.rs`, which name no toolkit type |
+| GQ6 toolkit, viewport, docking | `src/app.rs` (the frame loop and `ViewerApp`) with `src/pane/*` (the pane bodies), `src/widgets.rs` and `src/gpu.rs`, all behind the `app` feature; `Cargo.toml`. `src/frame.rs` is a vocabulary and is built unconditionally. The authoring vocabularies the panels offer are `src/forms.rs` and `src/drafts.rs`, which name no toolkit type and are behind the feature only because the panels are |
 
 ## Module boundaries
 
@@ -250,6 +250,70 @@ also what was already true of the good modules here (`camera`,
 `frame`, `input`, `display`) and false of the two that grew: both
 files are one driver plus a pile of vocabulary that never left.
 
+**`scripts/gates/viewer-module-kinds.sh` is the machine that reads
+it**, on both halves of CI, in the job that carries no tier condition —
+its inputs are this file and `Cargo.toml`, and a change set of only
+those is TIER=docs, on which every build-gated job is skipped. Each
+module declares its own kind, once, in its own doc header —
+
+```rust
+//! Module kind: **vocabulary** — …
+//! Module kind: **driver** …
+```
+
+— because the subject of the rule is a module's `use` block and the
+declaration belongs beside it: an author changing a module's role
+meets the contradiction in the file they are editing, and a new module
+cannot land without answering the question.
+
+**The gate's rosters and its needles are read out of the documents
+they enforce, not restated.** The driver roster is the table below;
+the vocabulary roster is the two vocabulary tables; and what a
+vocabulary may not name is `Cargo.toml`'s `app` feature — *every*
+`dep:` in it. That last one is the right population rather than a
+curated list of toolkit crates, and the manifest already says why:
+every entry there is optional and reached only through `app`, so a
+vocabulary — which is compiled in a default-feature build — naming one
+is naming something that is not there. A hand-kept version of that
+list got it wrong in both directions on its first day.
+
+The gate refuses a module that declares neither kind or both, refuses
+a `driver` declaration on a module the driver table does not list, and
+reads every vocabulary's code — not only its `use` lines, since a
+fully-qualified name evades an import check, and not only single
+lines, since `use crate::{app::x, camera::Camera};` hides the driver
+inside a brace group. What it does not decide is a module's ROLE: it
+reads what a module NAMES, so a module that owns state and dispatches
+while importing nothing forbidden still passes as a vocabulary. The
+gate's own header states the rest of its blind spots.
+
+### The drivers
+
+Two, as the rule says, and the second is split for size. **This table
+is the roster**, not a summary of one: `viewer-module-kinds.sh` reads
+it, requires every module in it to declare `driver` in its own header,
+and refuses a `driver` declaration on a module the table does not
+list. A third driver is an amendment here, not a header edit.
+
+| Module | Is |
+|---|---|
+| `session` | the session driver: owns `DocSession`, dispatches `SessionOp` |
+| `app` | the app driver: owns `ViewerApp`, drives the frame |
+| `pane` | the pane bodies' parent |
+| `pane::create` | the create pane |
+| `pane::features` | the feature-tree pane |
+| `pane::properties` | the property pane |
+| `pane::view` | the view pane |
+| `pane::viewport` | the viewport pane |
+| `widgets` | the free helpers over `egui::Ui` the panes share |
+| `gpu` | the wgpu viewport renderer |
+
+`session` is a driver **and** the parent of six vocabularies, so
+`crate::session::SessionOp` in a vocabulary is the rule working, not a
+violation. The gate reads that off the vocabulary tables below rather
+than carving it out by hand: a driver that hosts a tabulated
+vocabulary is not a forbidden import path.
+
 ### The session's vocabularies
 
 | Module | Holds |
@@ -271,25 +335,65 @@ state.
 
 | Module | Holds |
 |---|---|
-| `forms` | The authoring vocabularies the panels offer — `PathVerb`, `ArcMode`, `DatumKind`, `ShapeKind`, `PatternKindChoice`, `BOOLEAN_OPS`, `MATE_PRIMITIVES` — each a hand-maintained mirror of a kernel or sketch enum, and each a product decision rather than a toolkit one |
+| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `PathVerb`, `ArcMode`, `DatumKind`, `ShapeKind`, `PatternKindChoice`, `BOOLEAN_OPS`, `MATE_PRIMITIVES` — are hand-maintained mirrors of a kernel or sketch enum; the field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
 | `drafts` | `Drafts` and `CommitFault`: the in-flight form state, its defaults, and its lowering of typed field values to `Expr` and `LoopProgram` — the same layer as `session::author`, and today the larger half of it |
-| `widgets` | The free helpers over `egui::Ui` that take plain data (`vec3_row`, `unit_field`, `named_field`, the pickers, `delete_button` and the rest) |
 
-and the pane bodies, one module per pane, each holding the `*_ui`
-functions that draw it: `pane::viewport`, `pane::features`,
-`pane::properties`, `pane::create` (the tool and creation forms, the
-largest of them), `pane::view`.
+### The app driver, split for size
 
-`app` itself keeps `ViewerApp`, `ViewerBehavior`, the frame loop,
+`app` is a driver, and a driver too large to read is still a driver.
+`app.rs` keeps `ViewerApp`, `ViewerBehavior`, the frame loop,
 `perform_batch`, `sync_scene`, `apply_status`, `Pane`,
-`initial_layout` and the entry points. Its header's claim — *toolkit
-adaptation, and nothing else* — becomes true of the file for the first
-time, rather than being a claim the file has outgrown.
+`initial_layout` and the entry points; `pane::{viewport, features,
+properties, create, view}` hold the `*_ui` functions that draw each
+pane, one module per pane; `widgets` holds the free helpers over
+`egui::Ui` that those panes share; and `gpu` holds the wgpu viewport
+renderer, which names `eframe::wgpu` and could not be a vocabulary
+under any reading. The table above is where that roster is kept.
+
+**Splitting a driver across modules does not make the pieces
+vocabularies.** The test is a module's ROLE, not its size or its file:
+each of these names `egui`, and `widgets::delete_button` takes a
+`&DocSession` because the wording it draws is the session's own
+answer. That is the driver side of the rule behaving normally. Reading
+the `use` block still decides it — the check says what a module IS,
+not merely whether it is a vocabulary.
+
+`app.rs`'s header claim — *toolkit adaptation, and nothing else* — is
+true of the file rather than a claim it has outgrown.
 
 Three items move out of `app` to modules that already own their
 subject rather than to new ones: `datum_view` to `datums`, and
 `tip_mark` with `heading` to `sketch` — all three are geometry over
 values the receiving module already defines, and none names `egui`.
+
+### Two vocabularies that read the session
+
+`pick` and `parts` each take a `&DocSession` as a read-only argument —
+`PickIndex::sync`, `PartChooser::opened` and `PartChooser::rescan` —
+so the rule as stated above is **already false of the tree at two
+sites**, which is what the first pass of `viewer-module-kinds.sh` found.
+They are named in that gate as its only exceptions, and the exemption
+is **site-granular**: an entry is a file, the name it is exempt from,
+and the number of sites that were argued for. A sixth `&DocSession`
+reds; a `use eframe::egui;` in the same file reds, because the
+exemption covers the reason it was granted and nothing else; and
+fixing a site without lowering the count reds too, so the entry cannot
+outlive its reason. A file-granular entry would have ratified every
+line later added to those two files, which is the class
+`work/code-quality/D103.md` records against the bounds allowlist and
+leaves unruled.
+
+Both headers say so in their own text. A module header reading *"it
+names no driver type"* nine lines above naming one is the defect this
+whole section exists to record, published through rustdoc, so the gate
+requires an exempted module to state its exception and refuses the
+claim from a module it does not cover.
+
+Whether the fix is to hoist what those two read behind a value the
+session hands out, or to widen the rule for a read-only borrow, is not
+settled here; the tracker carries it. What is settled is that the two
+are recorded rather than silent, and that they cannot grow to three
+without a decision.
 
 ### `Refusal`'s delegation discipline
 
@@ -301,15 +405,26 @@ values the receiving module already defines, and none names `egui`.
   owns the failure and its wording. Layer 3 adds nothing but the
   ranking, so it stores the payload and forwards the text.
 - **A flat arm** exists where layer 3 is the only place the fact
-  exists: there is no gesture in flight, this boolean's operands are
-  the same node, this instance is itself, the seat wanted a different
-  node kind.
+  exists: there is no gesture in flight, this instance is itself, this
+  name is already declared and CREATE is not REPLACE, the seat wanted a
+  different node kind.
 
-`rank` stays a separate axis and stays exhaustive, so a new arm is
-compiler-caught. What the ladder cannot catch is a new arm ranked
-*wrongly*, and that is the discipline's real cost; it is accepted
-because the alternative — a rank derived from the arm's shape — would
-make the ordering unstateable, and the ordering is the part users see.
+Each of those examples names a fact `apply` has been read for and does
+not hold — `edit.rs` has no self-instance arm, `write_doc_param` has no
+existence check because `DocEdit::SetDocParam` is create-or-replace,
+and `DocEdit::InsertNode` checks a seat's input for EXISTENCE and not
+for KIND. That reading is what puts an arm in this list; a fact that
+merely feels like layer 3's is how the list acquires a member the door
+already refuses.
+
+`rank` stays a separate axis, and it is exhaustive over `Refusal`'s own
+arms, so a new arm is compiler-caught. It is not exhaustive one level
+down: `Display(_)` is a catch-all beneath its two named cases, so a new
+`DisplayFault` variant is ranked by default rather than by decision.
+Both costs — an arm ranked wrongly, and a delegated fault ranked by
+default — are accepted, because the alternative of deriving a rank from
+the arm's shape would make the ordering unstateable, and the ordering is
+the part users see.
 
 **A flat arm must not restate a refusal a door already gives.** That is
 where the rule bites, and `delete_node` already states it in the code:
@@ -327,35 +442,53 @@ own.
 
 ### Gesture safety is data
 
-The mid-gesture guard is one spelling repeated at 23 doors, and the
-consequence is that **the set of gesture-safe operations cannot be
-read off the code** — answering "is this operation safe mid-gesture"
-means reading every dispatch target. It also lets the question go
-unasked: `open` guards and `save` does not.
+The mid-gesture policy is one exhaustive value,
+`SessionOp::permitted_during_value_gesture`, checked once in `perform`
+before dispatch: 26 operations refuse while a value gesture is open and
+13 are permitted. A fortieth operation cannot be added without
+answering for it, and the whole policy is readable in one place rather
+than inferred from every dispatch target.
 
-So it becomes a value: `SessionOp::gesture_safe`, one exhaustive
-match, checked once in `perform` before dispatch. A fortieth operation
-cannot be added without answering for it, and the answer is in one
-place a reader can see whole.
+It says nothing about the free-move gesture, which is a different value
+with a different owner (`display::DisplayState`) and carries its own
+in-flight refusal. The name carries that limit: a predicate reading as
+a general guarantee would be a table that looks complete and is not.
+The two fields are spelled apart for the same reason — `DocSession`
+holds `gesture` and `DisplayState` holds `free_move` — so a reader who
+greps `self.gesture` gets one concept back. What the table's four
+`*FreeMove` rows permit, and the identity that makes the overlap sound,
+is stated at `permitted_during_value_gesture` itself, scoped to the
+tree DI5 has not yet changed.
 
-Two things this deliberately does not do. It does not change any
-operation's current answer — the table states today's behaviour,
-`save` included, and whether `save`'s answer is right is a separate
-question with its own item. And it is not one flag for two gestures:
-the free-move gesture is a different value with a different owner, so
-the predicate says which gesture it is about rather than reading as a
-guarantee it does not give.
+The table records behaviour rather than deciding it — `save` is
+permitted mid-gesture and `open` is refused, which is what the code did
+before the table existed. Whether that asymmetry is right is a separate
+question with its own item.
 
 ### One open tool, not seven optional ones
 
-`Tools` holds one `Option<…Tool>` field per tool kind, so a state with
-two tools open is representable and excluded only by the code that
-maintains it. It becomes `Option<OpenTool>`, an enum: the invariant
-stops being maintained and starts being unrepresentable, and the two
-surviving hand-lists over the tool set — the fixed-length `ToolKind::ALL`,
-which `Tools::open_kind` scans, and the `seated!` invocation — collapse
-into matches the compiler completes. Today an eighth tool omitted from
-`ALL` compiles clean and is permanently unreachable.
+`Tools` holds one `Option<OpenTool>`, an enum with one variant per tool
+kind carrying that tool's state. Two tools open is not a state the door
+avoids, it is a state with no spelling: the invariant is unrepresentable
+rather than maintained. Each of the four per-tool rules is an arm of a
+match the compiler completes: the pick routing and the survival step
+match over the open value itself, the cursor narrowing
+(`ToolKind::pick_kinds`) and the close-on-commit edit
+(`ToolKind::commits`) over its kind. The read door
+is not one of the four — each typed accessor matches its own variant
+and answers `None` to every other, so a tool that never gets an
+accessor compiles. The `Seated` trait and its `seated!` invocation,
+which named five tool types by hand to erase them again, are gone with
+the erasure they existed for.
+
+`ToolKind::ALL` remains for the test suites that sweep the kinds, which
+are now its only readers: `Tools::open_kind` asks the open value which
+kind it is instead of scanning the list for the first field that is set,
+and the chrome names each kind it offers literally rather than
+iterating. A kind missing from `ALL` therefore narrows those sweeps
+rather than making its tool permanently unreachable. `ALL` is still the
+one list a compiler cannot force, and `ToolKind::ordinal` is still what
+makes its completeness checkable by a row.
 
 ### What the boundary does not decide
 
@@ -551,7 +684,8 @@ gate. The measured figures, and why they carry no guard, are stated at
 that step in `.github/workflows/ci.yml` and only there. What the
 default-feature lane is therefore NOT checking is printed there by
 name, by the `app_lane_skipped_*` rows in `src/lib.rs`,
-`tests/chrome_labels.rs` and `tests/error_display.rs`.
+`tests/chrome_labels.rs`, `tests/error_display.rs` and
+`tests/panel_display.rs`.
 
 **wasm.** The whole kernel plus `editor-core` compiles to
 `wasm32-unknown-unknown`, `--features interval` included, and CI

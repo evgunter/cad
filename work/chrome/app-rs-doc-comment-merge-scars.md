@@ -2,10 +2,9 @@
 id: app-rs-doc-comment-merge-scars
 kind: issue
 title: Three doc-comment merge scars in viewer/src/app.rs leave apply_status undocumented
-status: parked
+status: open
 opened: 2026-09-04
 refs: [1776]
-blocked_on: [viewer-session-god-module-split]
 ---
 
 
@@ -59,3 +58,13 @@ found in one read is not evidence there are only three.
 ## Home
 
 CHROME (`crates/viewer/src/*`).
+
+## Un-parked — the trigger fired (2026-09-04)
+
+`viewer-session-god-module-split` closed on 2026-09-04, so this row's
+only blocker is gone and the row is dispatchable. Un-parked here, from
+VIEW's PR #1857, rather than by CHROME: on Ev's ruling there, `work.py
+lint` now REFUSES a `parked` row whose every blocker is closed, and a
+program cannot un-park another program's rows in the PR that closes
+their trigger — `work/README.md`'s one-file-one-item rule makes that a
+merge conflict by design.

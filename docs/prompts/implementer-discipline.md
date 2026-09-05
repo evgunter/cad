@@ -15,49 +15,56 @@ Final report ≤150 lines.
 **Hosted CI is the verification of record.** Push and let it run. It runs on
 hardware not shared with any other lane and its result is a durable artifact.
 
-**It no longer covers the full matrix, and you are expected to know that**
-(2026-08-22). A run gates ONE point of {default features, `interval`} x
-{default eps, 1e-6, 1e-12}, drawn deterministically from your head SHA. The
-python suite, the gates, the discipline and parity rows and the render lanes
-are unchanged — every one of them still runs on every code-tier run. What is
-sampled is the compile mode and the tolerance row, and three things follow for
-you:
+**It covers the full configuration matrix again, and you are expected to know
+that** (2026-09-04, Ev's two authorisations). A code-tier run gates EVERY point
+of {default features, `interval`} x {default eps, 1e-6, 1e-12} — twelve
+`test (…)` jobs, each naming its lane, its eps row and its shard — and all five
+`k-lint (gate, <row>)` feature unifications. **Nothing is sampled any more.**
+The python suite, the gates, the discipline and parity rows and the render lanes
+are unchanged and still run on every code-tier run. Three things follow for you:
 
-- **A green run means green at the point it drew**, which the job names carry
-  (`test (eps = 1e-6, 1/2)`). It is not a claim about the other five.
-- **A re-run of the same commit draws the same point.** Re-running a red leg
-  will not turn it green, and if you find yourself hoping it might, that is the
-  bug talking. Push a fix.
-- **If the lane matters to your change, ASK for it — do not wait for the
-  draw.** Put `CI-Config: lane=interval` (or `lane=default`) in your HEAD
-  commit's message, or dispatch the workflow with the `lane` input. The
-  request beats the draw for that dimension and leaves the others drawn, and
-  the run records it as `lane:requested` / `lane:commit-trailer` in
-  `CONFIG_SOURCE` so a reader can tell an asked-for point from a sampled one.
-  The trailer is read off the head commit and only that one, so it lasts
-  exactly one push: a later commit — a merge of main included — is sampled
-  again unless it carries the trailer too.
+- **A green run means green at all six lane/eps points and all five k-lint
+  unifications.** That is what the job list shows: if you cannot see twelve
+  test jobs and five `k-lint (gate, …)` jobs on a code-tier run, something
+  narrowed it and you should find out what.
+- **A commit trailer cannot configure a run, and nothing in CI reads one.**
+  Between 2026-08-22 and 2026-09-04 the run drew one point per dimension and a
+  `CI-Config:` trailer on the head commit was how you ASKED for the one your
+  change was about. Nothing is drawn now, so that spelling was deleted on
+  2026-09-04 — the flag, the workflow plumbing and the parser are gone, and a
+  trailer line in a commit message is inert text. Several specs and older
+  briefs still instruct it; the run is the authority, not the spec, and the fix
+  is to delete the line and, if the spec really wanted one configuration
+  proved, dispatch the workflow instead. **To narrow deliberately, dispatch the
+  workflow** with the `lane` / `eps` / `klint` inputs — and say in the PR that
+  you narrowed it, because a reader counting six test jobs where there should
+  be twelve cannot tell a narrowing from a broken matrix.
+- **The k-lint row is not drawn either, since 2026-09-04.** `k-lint (gate)`'s
+  five feature unifications run as five jobs — `k-lint (gate, dev-default)`,
+  `(release-default)`, `(release-budget)`, `(dev-budget)`, `(dev-probe)` — on
+  every code-tier run, so **a green k-lint means green at all five** and a
+  green over a skipped step is no longer the thing to check for there. Until
+  that day one row was drawn from your head SHA and the other four did not
+  execute under a single green `k-lint (gate)`; `#1756` -> `#1775` is what that
+  cost, and any brief telling you to name one row on the head commit predates
+  the change and names a spelling that no longer exists.
 
-  **Then say in the PR which lane gated**, and whether it was drawn or asked
-  for. Nobody else can reconstruct that later, and a PR that does not say it
-  is asking its reviewer to assume the gate saw the axis the change was about.
-
-  A filename does not do this for you (Ev's ruling, 2026-08-29, on #1122).
+  A filename decides nothing (Ev's ruling, 2026-08-29, on #1122).
   `scripts/ci-filter.py` used to pin `LANE=interval` whenever any changed
-  file's basename contained `interval`; that arm is gone, because it could not
-  tell a rename from a semantic edit and gated a whole branch on the wrong
+  file's basename contained `interval`; that arm was removed because it could
+  not tell a rename from a semantic edit and gated a whole branch on the wrong
   axis for its entire life after a type migration touched
-  `extrude_interval.rs`. What survives is exact and narrow: a change under
-  `interval-transcendentals/`, or a changed-file list the filter could not
-  resolve at all, still pins interval and says so. A diff that merely touches
-  `*interval*` files now DRAWS its lane and the run prints an advisory telling
-  you to ask if the semantics moved. **That advisory is a reminder of this
-  paragraph, not a substitute for it** — you are the only party who knows
-  whether your edit changed interval behaviour or just its spelling.
+  `extrude_interval.rs`. The exact pin that survived it — a change under
+  `interval-transcendentals/` — is gone too, with the draw it pre-empted:
+  nothing needs to pin a lane a run already gates. What is left is an advisory
+  on one case, a run YOU narrowed to `lane=default` over a diff of
+  interval-named files.
 
-**When one point of six is not enough**, run `local-scripts/ci-local.sh`: it is
-now the only lane that runs every point on one tree. Reach for it before a
-merge that would be expensive to get wrong, not routinely.
+**When the hosted gate is not enough**, run `local-scripts/ci-local.sh`. It is
+no longer the only lane that runs every lane, eps row and k-lint unification on
+one tree — hosted does all three now — and what it still adds is its opt-in
+`--nightly` row. Reach for it before a merge that would be expensive to get
+wrong, not routinely.
 
 **Draft PRs do not run the gate at all.** Mark the PR ready for review when you
 want it gated; undrafting triggers a full run on the same head.

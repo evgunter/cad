@@ -2,11 +2,10 @@
 id: pick-priority-filter-vocabulary
 kind: issue
 title: Pick-priority has no filter vocabulary - a tool states which entity kinds it takes, and only the mate tool's case is served
-status: parked
+status: deferred
 opened: 2026-08-31
 github: 1379
 refs: [1407]
-blocked_on: [viewer-session-god-module-split]
 ---
 
 ## From GitHub issue 1379
@@ -102,14 +101,38 @@ tree design — so taking it now is not executing VIEW's plan, it is
 overturning ratified design for two tools that are already served
 correctly by the shipped `PickKinds`.
 
-Parked on `viewer-session-god-module-split` rather than on the absent
-tool, because the split answers half of what this item asks. "How a
-tool states what it wants" is `ToolKind::pick_kinds`
-(`crates/viewer/src/tools.rs:60`), one of the hand-maintained lists
-over the tool set that the split's `Option<OpenTool>` step collapses
-into compiler-completed matches. Whatever shape that leaves is the
-shape a per-kind admission set would have to fit, so the question is
-better asked after it than before.
+**Corrected 2026-09-04, after 1d.** This item was parked on
+`viewer-session-god-module-split` on the rationale that
+`ToolKind::pick_kinds` is one of the hand-maintained lists over the
+tool set that the split's `Option<OpenTool>` step collapses into
+compiler-completed matches, so the shape it left would be the shape a
+per-kind admission set has to fit.
+
+**That premise was false and the 1d lane established it.**
+`pick_kinds` was ALREADY an exhaustive match on `ToolKind`; there was
+nothing hand-maintained there to collapse, and 1d leaves it
+byte-identical. `Tools::pick_kinds` still delegates through
+`open_kind`, whose only change is that it no longer scans
+`ToolKind::ALL`. So the split answered none of this item's question,
+and the blocker it named never gated it.
+
+**Status is therefore `open` again, and that is a worse fit than
+`parked` rather than a better one.** This item is NOT dispatchable: its
+own trigger is a third asymmetric tool (a vertex pick), which does not
+exist and is not scheduled, and `crates/viewer/README.md` GQ7 ratifies
+the deferral of the filter vocabulary to sketcher and tree design. But
+`work/README.md` requires a parked item's `blocked_on` to name an item
+or a PR number, and **no item names the trigger** — a tool nobody has
+scheduled, and a deferral that lives in ratified prose rather than on
+the board. Given the choice between a status that overstates
+availability and a `blocked_on` that names a blocker which does not
+gate it, this takes the first: a reader who opens the file learns the
+truth in its first paragraph, whereas a false `blocked_on` would have
+survived unread.
+
+The tracker has no vocabulary for *waits on a trigger no item names*.
+Recorded here rather than proposed as a rule; if a third instance turns
+up it is worth putting to Ev.
 
 The other half — where filters are offered, and what the picture owes
 the user about an active filter, which today is nothing — stays GQ7's
@@ -118,3 +141,23 @@ and stays Ev's.
 ## Home
 
 Viewer/GUI ground: GAUTH's closing entry names this issue as its residue and `crates/viewer/README.md` GQ7 owns the open question, but both GAUTH and GUI are closed programs, so it lands in `work/issues/`.
+
+## Deferred, and now sayable (2026-09-04)
+
+**Status `deferred`.** The section above records this row spending a day
+as `open` for want of a truer status, and says the tracker has no
+vocabulary for *waits on a trigger no item names*. Ev ruled on VIEW's
+PR #1857 that it should have one, distinct from `parked`: *"deferred and
+blocked do seem semantically different"*.
+
+The ratification this row cites is `crates/viewer/README.md` GQ7, which
+defers the filter vocabulary — which filters are offered where, and what
+the picture owes the user about an active filter — to sketcher and tree
+design. The trigger the row's own text names, a third asymmetric tool
+(a vertex pick), exists in no tree and on no program's slate.
+
+Nothing checks that citation and nothing pretends to: `work/README.md`
+says in as many words that a deferred row's ratification is prose,
+enforced by review. What lint does enforce is that the row carries no
+`blocked_on` — a row waiting on a named trigger is `parked`, and the two
+statuses stay distinct.

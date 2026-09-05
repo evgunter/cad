@@ -795,3 +795,53 @@ successor-program seeds. Inbound refs re-pointed
 partial-bands.md`, `work/props/m6-sense-gate-recorded-residuals.md`);
 `scripts/work.py lint` green. The A/B band (100–199) stays claimed
 in `docs/MODEL-AB-LOG.md`'s ordinal-bands section as always.
+
+## Per-merge deletion — DOCM-4's spec (2026-09-04)
+
+Recoverable at `git show c20bac059531ccfa00cded39f65ef53474f84e0d:docs/DOCM-4-SPEC.md`
+(the DOCM-4 unit head, before the state-sync commit that deleted it).
+The rule above; the unit's record is its row in `MODEL-AB-LOG.md`
+and its MERGED entry in `work/docm/log.md`.
+
+- `DOCM-4-SPEC.md` — DOCM-4, an evaluation carries its document's identity (#1808)
+
+## Per-merge deletion — DOCM-3's spec (2026-09-04)
+
+Recoverable at `git show d87d012149dfcbc917713ba8c18cbf505390040e:docs/DOCM-3-SPEC.md`
+(the DOCM-3 unit head, before the state-sync commit that deleted it;
+the file carries the stop-clause amendment as its last section). The
+rule above; the unit's record is its row in `MODEL-AB-LOG.md` and its
+MERGED entry in `work/docm/log.md`.
+
+- `DOCM-3-SPEC.md` — DOCM-3, `Node::Union`, `DocEdit::SetMembers`, pairwise-distinct inputs (#1803)
+
+## Per-merge deletion — DOCM-1's spec (2026-09-04)
+
+Recoverable at `git show 17bb8fb18b994b96202d72472864140396b50199:docs/DOCM-1-SPEC.md`
+(the DOCM-1 unit head, before the state-sync commit that deleted it;
+the file carries the stop-clause amendment as its last section). The
+rule above; the unit's record is its row in `MODEL-AB-LOG.md` and its
+MERGED entry in `work/docm/log.md`.
+
+- `DOCM-1-SPEC.md` — DOCM-1, `Datum::FaceFrame`, the sense beside the pose, the carrier-kind read (#1829)
+
+## Per-merge deletion — DOCM-2's spec (2026-09-04)
+
+Recoverable at `git show 286d9a08bb9f2fd8e549742e7213828005c97b89:docs/DOCM-2-SPEC.md`
+(the DOCM-2 unit head, before the state-sync commit that deleted it;
+the file carries the stop-clause amendment as its last section). The
+rule above; the unit's record is its row in `MODEL-AB-LOG.md` and its
+MERGED entry in `work/docm/log.md`.
+
+- `DOCM-2-SPEC.md` — DOCM-2, `Node::Part`, a split's half or a pattern's instance as one body (#1860)
+
+## Per-merge deletion — DOCM-5's spec (2026-09-04)
+
+Recoverable at `git show 9f34220e3938076557f38722554446867a6ef3a0:docs/DOCM-5-SPEC.md`
+(the DOCM-5 unit head, before the state-sync commit that deleted it;
+unamended — no stop clause fired; its citation of `docs/PERF-PLAN.md`
+and its fence over `product.rs` "Dual arms" are both corrected in the
+unit's record). The rule above; the unit's record is its row in
+`MODEL-AB-LOG.md` and its MERGED entry in `work/docm/log.md`.
+
+- `DOCM-5-SPEC.md` — DOCM-5, the check registry's subject: one gather per landing (#1871)
