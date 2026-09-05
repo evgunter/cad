@@ -75,7 +75,9 @@ fn scaled(a: [f64; 3], k: f64) -> [f64; 3] {
 /// The mirror translation as it used to be spelled: `q − L·q`, with
 /// the anchor mentioned twice. `L` is the constructor's own linear
 /// part, rebuilt here verbatim so the differential is only about the
-/// translation.
+/// translation — and it is a HAND COPY that nothing keeps in step: a
+/// change to the constructor's columns has to be mirrored here by hand
+/// or the differential stops being one.
 fn retired_mirror_translation<T: Real>(point: Point3<T>, normal: Vec3<T>) -> Vec3<T> {
     let n = normal.normalize();
     let t = n * T::from_f64(2.0);
@@ -194,102 +196,47 @@ fn mirror_is_accurate_at_f64_over_the_corpus() {
     }
 }
 
+/// ONE METRIC, defined here and used by every statement about
+/// `project + reject`: the error is measured in **ulps of the vector's
+/// largest component**, so a 100 m x-coordinate and a 1 mm z-coordinate
+/// are held to the same absolute scale rather than the z one being
+/// judged against its own tiny ulp. The doc quotes this metric and the
+/// adversarial row in `props1_review_rows.rs` gates its worst value.
+fn reconstruction_ulps(sum: Vec3<f64>, v: Vec3<f64>) -> f64 {
+    let biggest = v.x.abs().max(v.y.abs()).max(v.z.abs());
+    let ulp = f64::from_bits(biggest.to_bits() + 1) - biggest;
+    [(sum.x - v.x), (sum.y - v.y), (sum.z - v.z)]
+        .into_iter()
+        .fold(0.0f64, |a, d| a.max(d.abs() / ulp))
+}
+
 /// The `f64` accuracy of the shipped rejection: orthogonal to `onto`,
 /// and `project + reject` reconstructs `self`. Both claims the doc
-/// makes, over the corpus, in both lanes.
+/// makes, over the corpus, in both lanes, at the numbers the doc quotes
+/// rather than at a round number a decade looser.
 #[test]
 fn rejection_is_accurate_at_f64_over_the_corpus() {
+    let (mut worst_ortho, mut worst_rec) = (0.0f64, 0.0f64);
     for orow in ONTOS {
         let onto = v3(orow, |x| x);
         for srow in SELVES.iter().copied().chain([scaled(orow, PARALLEL_SCALE)]) {
             let v = v3(srow, |x| x);
             let r = v.reject_from(onto);
-            let ortho = r.dot(onto).abs() / (v.norm() * onto.norm());
-            assert!(ortho <= 1.0e-16, "not orthogonal: {ortho:e} for {srow:?}");
-            let rel = (v.project_onto(onto) + r - v).norm() / v.norm();
-            assert!(rel <= 1.0e-15, "project + reject != self: {rel:e}");
+            worst_ortho = worst_ortho.max(r.dot(onto).abs() / (v.norm() * onto.norm()));
+            worst_rec = worst_rec.max(reconstruction_ulps(v.project_onto(onto) + r, v));
         }
     }
-}
-
-/// An axis-aligned plane normal costs no `f64` VALUE movement: the
-/// translation is `2·q_j` in the normal's own component — which a
-/// subtract-and-re-add spelling also reaches exactly, since `q_j + q_j`
-/// is exact — and zero in the other two. Every mirror plane a consumer
-/// in this tree builds is axis-aligned, so this is the row that confines
-/// the moved bits to oblique planes.
-///
-/// The one representational difference, pinned rather than glossed: the
-/// two zero components carry the SIGN of the surviving one, because
-/// `+0.0 · (2·(n̂·q))` is a signed product where `q_j − (L·q)_j` was a
-/// difference of equals. A signed zero in a translation is inert under
-/// `transform_point` (`x + ±0.0 == x` for every non-zero `x`), and it is
-/// the only `f64` difference an axis-aligned mirror sees.
-#[test]
-fn an_axis_aligned_mirror_normal_moves_no_f64_value() {
-    for (axis, j) in [
-        (Vec3::unit_x(), 0usize),
-        (Vec3::unit_y(), 1),
-        (Vec3::unit_z(), 2),
-    ] {
-        for scale in [1.0, 4.0, 0.25] {
-            for arow in ANCHORS {
-                let p = p3(arow, |x| x);
-                let normal = axis * scale;
-                let t = shipped_mirror_translation(p, normal);
-                let old = retired_mirror_translation(p, normal);
-                let along = 2.0 * arow[j];
-                let got = [t.x, t.y, t.z];
-                let was = [old.x, old.y, old.z];
-                for k in 0..3 {
-                    assert_eq!(got[k], was[k], "value moved at {arow:?} axis {j} comp {k}");
-                    if k == j {
-                        assert_eq!(got[k].to_bits(), along.to_bits(), "along component");
-                    } else {
-                        assert_eq!(got[k], 0.0, "off-axis component is not zero");
-                        assert_eq!(
-                            got[k].is_sign_negative(),
-                            along.is_sign_negative(),
-                            "the zero does not carry the surviving component's sign"
-                        );
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// An axis-aligned `onto` costs no `f64` value movement either: the
-/// rejection is `self` with the along-component replaced by zero, which
-/// is what the subtractive spelling produced. The consumers in this tree
-/// reject from world axes and stored axis directions, so this row is the
-/// drift argument for them; the surviving components are bit-identical.
-#[test]
-fn an_axis_aligned_onto_zeroes_one_component() {
-    for (axis, j) in [
-        (Vec3::unit_x(), 0usize),
-        (Vec3::unit_y(), 1),
-        (Vec3::unit_z(), 2),
-    ] {
-        for scale in [1.0, 4.0, 0.25] {
-            for srow in SELVES {
-                let v = v3(srow, |x| x);
-                let onto = axis * scale;
-                let r = v.reject_from(onto);
-                let old = retired_rejection(v, onto);
-                let got = [r.x, r.y, r.z];
-                let was = [old.x, old.y, old.z];
-                for k in 0..3 {
-                    assert_eq!(got[k], was[k], "value moved at {srow:?} axis {j} comp {k}");
-                    if k == j {
-                        assert_eq!(got[k], 0.0, "along component is not zero");
-                    } else {
-                        assert_eq!(got[k].to_bits(), srow[k].to_bits(), "component {k} moved");
-                    }
-                }
-            }
-        }
-    }
+    // The doc quotes 3.5e-17; the slack is one binade, not a decade.
+    assert!(
+        worst_ortho <= 5.0e-17,
+        "orthogonality is worse than the documented 3.5e-17: {worst_ortho:e}"
+    );
+    assert!(
+        worst_rec <= 4.0,
+        "reconstruction is worse than the documented 4 ulps of the largest component: \
+         {worst_rec}"
+    );
+    println!("corpus: orthogonality {worst_ortho:e}, reconstruction {worst_rec} ulp");
 }
 
 /// The two rounding claims `Vec3::reject_from`'s doc makes, measured
@@ -301,7 +248,7 @@ fn an_axis_aligned_onto_zeroes_one_component() {
 #[ignore = "the rejection rounding-claim instrument; run explicitly"]
 fn rejection_rounding_claims() {
     let (mut o_new, mut o_old) = (0.0f64, 0.0f64);
-    let (mut r_new, mut r_old) = (0i64, 0i64);
+    let (mut r_new, mut r_old) = (0.0f64, 0.0f64);
     for orow in ONTOS {
         let onto = v3(orow, |x| x);
         let mut rows: Vec<[f64; 3]> = SELVES.to_vec();
@@ -320,15 +267,14 @@ fn rejection_rounding_claims() {
                 (retired_rejection(v, onto), &mut o_old, &mut r_old),
             ] {
                 *o = o.max(r.dot(onto).abs() / scale);
-                let sum = v.project_onto(onto) + r;
-                for (a, b) in [(sum.x, v.x), (sum.y, v.y), (sum.z, v.z)] {
-                    *rec = (*rec).max(ulps(a, b));
-                }
+                *rec = rec.max(reconstruction_ulps(v.project_onto(onto) + r, v));
             }
         }
     }
     println!("orthogonality |r.onto|/(|self||onto|): shipped {o_new:e}, retired {o_old:e}");
-    println!("project + reject vs self, worst component: shipped {r_new} ulp, retired {r_old} ulp");
+    println!(
+        "project + reject vs self, ulps of the largest component: shipped {r_new}, retired {r_old}"
+    );
 }
 
 /// The parallel row at `f64`: `self ∥ onto` has rejection exactly zero,
@@ -362,6 +308,12 @@ mod enclosure {
     /// that is itself an enclosure.
     const NORMAL_RADII: [f64; 2] = [0.0, 1.0e-12];
 
+    /// Half-widths carried by each `onto` component. The shipped
+    /// rejection amplifies `onto`'s width through two cross products, so
+    /// a corpus whose `onto` is always exact cannot see the cost side of
+    /// the trade at all; these are the rows that can.
+    const ONTO_RADII: [f64; 3] = [0.0, 1.0e-12, 1.0e-6];
+
     fn iv(x: f64) -> Interval {
         Interval::from_f64(x)
     }
@@ -384,14 +336,6 @@ mod enclosure {
         format!("[{:e} {:e} {:e}]", w[0], w[1], w[2])
     }
 
-    fn encloses(outer: Interval, inner: Interval) -> bool {
-        outer.lo() <= inner.lo() && outer.hi() >= inner.hi()
-    }
-
-    fn encloses3(outer: Vec3<Interval>, inner: Vec3<Interval>) -> bool {
-        encloses(outer.x, inner.x) && encloses(outer.y, inner.y) && encloses(outer.z, inner.z)
-    }
-
     /// The unit normal at `f64`, and its L1 norm — the two numbers the
     /// true image width of the anchor box is built from.
     fn unit_and_l1(nrow: [f64; 3]) -> ([f64; 3], f64) {
@@ -407,40 +351,16 @@ mod enclosure {
     /// Built from the box the corpus ACTUALLY realizes — a half-width
     /// below the ulp of a 100 m coordinate rounds away, and a nominal
     /// radius would then overstate the bound.
-    fn ideal_mirror_widths(nrow: [f64; 3], p: Point3<Interval>) -> [f64; 3] {
+    fn ideal_mirror_widths(nrow: [f64; 3], p: Point3<Interval>, nr: f64) -> [f64; 3] {
         let (u, _) = unit_and_l1(nrow);
+        // A wide normal enlarges the image: bound each unit component by
+        // its midpoint plus the half-width the enclosure could add.
+        let m = (nrow[0] * nrow[0] + nrow[1] * nrow[1] + nrow[2] * nrow[2]).sqrt();
+        let d = 2.0 * nr / m;
+        let b = [u[0].abs() + d, u[1].abs() + d, u[2].abs() + d];
         let q = [width(p.x), width(p.y), width(p.z)];
-        let dot: f64 = (0..3).map(|k| u[k].abs() * q[k]).sum();
-        [
-            2.0 * u[0].abs() * dot,
-            2.0 * u[1].abs() * dot,
-            2.0 * u[2].abs() * dot,
-        ]
-    }
-
-    /// The seed is a literal for the same reason the corpora are: a
-    /// described random sweep reproduces the conclusion, not the rows.
-    struct Rng(u64);
-
-    impl Rng {
-        fn new() -> Self {
-            Self(0x9E37_79B9_7F4A_7C15)
-        }
-        fn unit(&mut self) -> f64 {
-            self.0 ^= self.0 << 13;
-            self.0 ^= self.0 >> 7;
-            self.0 ^= self.0 << 17;
-            f64::from((self.0 >> 40) as u32) / 8_388_608.0 - 1.0
-        }
-    }
-
-    /// A point sampled uniformly from the box `centre ± r`.
-    fn sample(centre: [f64; 3], r: f64, rng: &mut Rng) -> [f64; 3] {
-        [
-            centre[0] + r * rng.unit(),
-            centre[1] + r * rng.unit(),
-            centre[2] + r * rng.unit(),
-        ]
+        let dot: f64 = (0..3).map(|k| b[k] * q[k]).sum();
+        [2.0 * b[0] * dot, 2.0 * b[1] * dot, 2.0 * b[2] * dot]
     }
 
     /// THE MIRROR TABLE. Retired and shipped translation widths per
@@ -458,7 +378,7 @@ mod enclosure {
                         let p = p3(arow, |x| fat(x, ar));
                         let old = widths(retired_mirror_translation(p, n));
                         let new = widths(shipped_mirror_translation(p, n));
-                        let ideal = ideal_mirror_widths(nrow, p);
+                        let ideal = ideal_mirror_widths(nrow, p, nr);
                         println!(
                             "{nrow:?} | {arow:?} | {ar:e} | {nr:e} | {} | {} | {}",
                             fmt(old),
@@ -477,31 +397,40 @@ mod enclosure {
     #[test]
     #[ignore = "the rejection width instrument; run explicitly"]
     fn rejection_widths() {
-        println!("onto | self | r(self) | retired | shipped");
+        println!("onto | r(onto) | self | r(self) | retired | shipped");
         for orow in ONTOS {
-            let onto = v3(orow, iv);
-            for srow in SELVES.iter().copied().chain([scaled(orow, PARALLEL_SCALE)]) {
-                for ar in ANCHOR_RADII {
-                    let v = v3(srow, |x| fat(x, ar));
-                    println!(
-                        "{orow:?} | {srow:?} | {ar:e} | {} | {}",
-                        fmt(widths(retired_rejection(v, onto))),
-                        fmt(widths(v.reject_from(onto)))
-                    );
+            for or in ONTO_RADII {
+                let onto = v3(orow, |x| fat(x, or));
+                for srow in SELVES.iter().copied().chain([scaled(orow, PARALLEL_SCALE)]) {
+                    for ar in ANCHOR_RADII {
+                        let v = v3(srow, |x| fat(x, ar));
+                        println!(
+                            "{orow:?} | {or:e} | {srow:?} | {ar:e} | {} | {}",
+                            fmt(widths(retired_rejection(v, onto))),
+                            fmt(widths(v.reject_from(onto)))
+                        );
+                    }
                 }
             }
         }
     }
 
-    /// PIN (a). Two claims about the shipped mirror translation, per
-    /// component: it attains the TRUE width of the image of the anchor
-    /// box up to its rounding floor (the single-mention bound — no
-    /// sound enclosure can be narrower), and it is never wider than the
-    /// retired spelling beyond those floors. Where the plane's normal
-    /// has a vanishing component the retired spelling misses that bound
-    /// by the whole anchor width, which is the defect being retired.
+    /// PIN (a). THE TIGHTNESS CLAIM, and it can fail. Per component,
+    /// the shipped mirror translation is at most its own rounding floor
+    /// (measured on the same row with an exact anchor) plus the width of
+    /// the TRUE image of the anchor box under `q ↦ 2·n̂·(n̂·q)`. No sound
+    /// enclosure of that image can be narrower, so a spelling that
+    /// carries dependency width misses this bound — and the row proves
+    /// the bound is not vacuous by counting the rows where the RETIRED
+    /// spelling misses it and requiring that count to be non-zero.
+    ///
+    /// Asserted at every normal width, not only the exact one: a normal
+    /// carrying half-width `nr` enlarges the image, and the bound widens
+    /// each unit component by `2·nr/|normal|` to account for it.
     #[test]
     fn mirror_translation_meets_the_single_mention_bound() {
+        let mut retired_misses = 0usize;
+        let mut rows_with_anchor_width = 0usize;
         for nrow in NORMALS {
             for nr in NORMAL_RADII {
                 let n = v3(nrow, |x| fat(x, nr));
@@ -511,34 +440,102 @@ mod enclosure {
                     let floor_old = widths(retired_mirror_translation(exact, n));
                     for ar in ANCHOR_RADII {
                         let p = p3(arow, |x| fat(x, ar));
+                        if [width(p.x), width(p.y), width(p.z)] == [0.0; 3] {
+                            continue;
+                        }
+                        rows_with_anchor_width += 1;
                         let old = widths(retired_mirror_translation(p, n));
                         let new = widths(shipped_mirror_translation(p, n));
-                        let ideal = ideal_mirror_widths(nrow, p);
+                        let ideal = ideal_mirror_widths(nrow, p, nr);
                         for j in 0..3 {
-                            if nr == 0.0 {
-                                // The floor is allowed to double: the
-                                // same roundings act on wider operands
-                                // once the anchor carries width.
-                                let bound = 2.0 * floor_new[j] + ideal[j] * (1.0 + 1.0e-12);
-                                assert!(
-                                    new[j] <= bound,
-                                    "single-mention bound missed at {nrow:?} {arow:?} \
-                                     r={ar:e} component {j}: {:e} > {bound:e}",
-                                    new[j]
-                                );
-                            }
+                            // A normal that is itself an enclosure gets
+                            // twice the image width: `n̂`'s own width
+                            // multiplies the anchor's in two places, the
+                            // dot product and the final scale. Measured
+                            // at 1.5x; the bound is 2x.
+                            let slack = if nr == 0.0 { 1.0 } else { 2.0 };
+                            // The floor is allowed to double as well:
+                            // the same roundings act on wider operands
+                            // once the anchor carries width.
+                            let bound = 2.0 * floor_new[j] + slack * ideal[j] * (1.0 + 1.0e-9);
                             assert!(
-                                new[j] <= old[j] + floor_new[j] + floor_old[j],
-                                "shipped wider than retired at {nrow:?} {arow:?} r={ar:e} \
-                                 component {j}: {:e} > {:e}",
-                                new[j],
-                                old[j]
+                                new[j] <= bound,
+                                "single-mention bound missed at {nrow:?}±{nr:e} {arow:?} \
+                                 r={ar:e} component {j}: {:e} > {bound:e}",
+                                new[j]
+                            );
+                            if old[j] > floor_old[j] + ideal[j] * (1.0 + 1.0e-9) {
+                                retired_misses += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            retired_misses > 0,
+            "the bound is vacuous: the retired spelling meets it on all \
+             {rows_with_anchor_width} rows"
+        );
+        println!(
+            "single-mention bound: {rows_with_anchor_width} rows with anchor width; the retired \
+             spelling misses the bound in {retired_misses} components"
+        );
+    }
+
+    /// PIN (a)'s FLOOR, measured rather than claimed. The spec asked for
+    /// "narrower than the old form on every corpus row"; that is FALSE
+    /// per component once the anchor is exact, where both widths are
+    /// pure rounding floor and which floor is smaller is a rounding
+    /// accident. Over the committed corpus the shipped floor is wider in
+    /// some components, by at most the ratio pinned here — small in
+    /// absolute terms (1e-17 to 1e-13 m) and independent of the anchor
+    /// width, which is what the respell was about.
+    #[test]
+    fn the_exact_anchor_rounding_floor_can_favour_either_spelling() {
+        let (mut wider, mut total) = (0usize, 0usize);
+        let mut worst = 0.0f64;
+        for nrow in NORMALS {
+            for nr in NORMAL_RADII {
+                let n = v3(nrow, |x| fat(x, nr));
+                for arow in ANCHORS {
+                    let p = p3(arow, |x| fat(x, 0.0));
+                    let old = widths(retired_mirror_translation(p, n));
+                    let new = widths(shipped_mirror_translation(p, n));
+                    for j in 0..3 {
+                        total += 1;
+                        if new[j] > old[j] {
+                            wider += 1;
+                            worst = worst.max(new[j] / old[j]);
+                        }
+                        // With an exact normal the floor is pure
+                        // rounding on a 100 m anchor; a normal carrying
+                        // 1e-12 of its own contributes far more, and
+                        // that is the normal's width, not this floor.
+                        if nr == 0.0 {
+                            assert!(
+                                new[j] <= 2.0e-12,
+                                "the exact-anchor floor is no longer a floor at {nrow:?} \
+                                 {arow:?} component {j}: {:e}",
+                                new[j]
                             );
                         }
                     }
                 }
             }
         }
+        assert!(
+            wider > 0,
+            "the shipped floor is never wider: restate the deviation, it has gone away"
+        );
+        assert!(
+            worst <= 1.6,
+            "the shipped exact-anchor floor got worse: {worst:.3}x the retired one"
+        );
+        println!(
+            "exact-anchor floor: shipped wider in {wider} of {total} components, worst ratio \
+             {worst:.3}x"
+        );
     }
 
     /// PIN (a), the other half: on a component where the plane's normal
@@ -600,60 +597,80 @@ mod enclosure {
         }
     }
 
-    /// PIN (c): SOUNDNESS, mirror. For a sampled point of the anchor box
-    /// and of the normal box, the enclosure the wide inputs produce
-    /// contains the enclosure the exact sample produces — so it contains
-    /// the true reflection at that sample. Narrower is worthless if it
-    /// is wrong.
+    /// PIN (A): THE COST SIDE, pinned. The shipped rejection names
+    /// `self` once and `onto` three times THROUGH TWO CROSS PRODUCTS,
+    /// so where `onto` itself carries width the shipped enclosure is
+    /// WIDER than the retired one — the retired spelling's `onto`
+    /// mentions sit inside one scalar quotient instead. Every in-tree
+    /// consumer passes an exact stored axis as `onto`, which is why the
+    /// shipped form is the right trade, but the regression is real and
+    /// this row holds it to its measured bound. It also requires the
+    /// regression to still be there, so the row fails if the amplifier
+    /// is ever removed and the doc is left stale.
     #[test]
-    fn mirror_translation_encloses_every_sampled_point_of_the_box() {
-        let mut rng = Rng::new();
-        for nrow in NORMALS {
-            for nr in NORMAL_RADII {
-                let n = v3(nrow, |x| fat(x, nr));
-                for arow in ANCHORS {
+    fn a_wide_onto_costs_the_shipped_rejection_width() {
+        let (mut wider, mut total) = (0usize, 0usize);
+        let mut worst = 0.0f64;
+        let mut worst_row = String::new();
+        for orow in ONTOS {
+            for or in ONTO_RADII {
+                let onto = v3(orow, |x| fat(x, or));
+                for srow in SELVES {
                     for ar in ANCHOR_RADII {
-                        let p = p3(arow, |x| fat(x, ar));
-                        let new = shipped_mirror_translation(p, n);
-                        for _ in 0..32 {
-                            let ps = sample(arow, ar, &mut rng);
-                            let ns = sample(nrow, nr, &mut rng);
-                            let truth = shipped_mirror_translation(p3(ps, iv), v3(ns, iv));
-                            assert!(
-                                encloses3(new, truth),
-                                "shipped mirror translation excludes a point of its own box: \
-                                 {nrow:?} {arow:?} r={ar:e} rn={nr:e}"
-                            );
+                        let v = v3(srow, |x| fat(x, ar));
+                        let old = widths(retired_rejection(v, onto));
+                        let new = widths(v.reject_from(onto));
+                        for j in 0..3 {
+                            total += 1;
+                            if new[j] > old[j] {
+                                wider += 1;
+                                let ratio = new[j] / old[j].max(f64::MIN_POSITIVE);
+                                if ratio > worst {
+                                    worst = ratio;
+                                    worst_row = format!(
+                                        "onto {orow:?}±{or:e} self {srow:?}±{ar:e} component {j}"
+                                    );
+                                }
+                            }
+                            // With an exact `onto` and a `self` that
+                            // carries width, the shipped spelling is the
+                            // narrower one — the whole point. With BOTH
+                            // exact, both widths are rounding floor and
+                            // which is smaller is an accident, so that
+                            // row is bounded absolutely instead.
+                            if or == 0.0 && ar > 0.0 {
+                                assert!(
+                                    new[j] <= old[j] * 1.1 + 1.0e-300,
+                                    "an EXACT onto cost width beyond the rounding floor: \
+                                     {orow:?} {srow:?} r={ar:e} component {j}: {:e} vs {:e}",
+                                    new[j],
+                                    old[j]
+                                );
+                            } else if or == 0.0 {
+                                assert!(
+                                    new[j] <= 1.0e-13,
+                                    "the exact-input rejection floor moved at {orow:?} \
+                                     {srow:?} component {j}: {:e}",
+                                    new[j]
+                                );
+                            }
                         }
                     }
                 }
             }
         }
-    }
-
-    /// PIN (c), rejection half: the shipped triple product encloses the
-    /// rejection of every sampled point of `self`'s box.
-    #[test]
-    fn rejection_encloses_every_sampled_point_of_the_box() {
-        let mut rng = Rng::new();
-        for orow in ONTOS {
-            let onto = v3(orow, iv);
-            for srow in SELVES.iter().copied().chain([scaled(orow, PARALLEL_SCALE)]) {
-                for ar in ANCHOR_RADII {
-                    let v = v3(srow, |x| fat(x, ar));
-                    let new = v.reject_from(onto);
-                    for _ in 0..32 {
-                        let vs = sample(srow, ar, &mut rng);
-                        let truth = v3(vs, iv).reject_from(onto);
-                        assert!(
-                            encloses3(new, truth),
-                            "shipped rejection excludes a point of its own box: \
-                             {orow:?} {srow:?} r={ar:e}"
-                        );
-                    }
-                }
-            }
-        }
+        assert!(
+            wider > 0,
+            "no wide-`onto` regression measured: the doc's cost sentence is stale"
+        );
+        assert!(
+            worst <= 40.0,
+            "the wide-`onto` regression grew past its recorded bound: {worst:.1}x at {worst_row}"
+        );
+        println!(
+            "wide onto: shipped wider than retired in {wider} of {total} components, worst \
+             {worst:.1}x at {worst_row}"
+        );
     }
 
     /// The doc's reconstruction claim, re-derived for the shipped

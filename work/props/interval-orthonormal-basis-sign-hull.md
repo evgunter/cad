@@ -138,5 +138,16 @@ not make a sign-hulled frame usable — so both belong to whoever takes
 this item, and the respell should ride the same golden pass as the hull
 fix rather than a second one.
 
+**The site already argues against the single-mention spelling, and the
+argument has to be answered rather than ignored.** `vec.rs:409-413` says
+both `s` mentions are kept for `f64` bit identity; the r2 review lane
+measured what a respell costs there — `s * (1 - y²r)` is bit-identical
+to `s - s*(y²r)` everywhere except a signed zero at `n = (0, ±1, −0.0)`,
+where the shipped spelling gives one sign and the respell the other. So
+the respell is not free at `f64`, it is one flipped signed zero, and
+whoever takes this item owes that ledger entry (and a check of whether
+any stored frame's content key reads that bit) alongside the `Interval`
+gain.
+
 Found by PROPS-1's reading sweep over `crates/geom-core/src/linalg/`;
 not fixed there because this item owns the site.

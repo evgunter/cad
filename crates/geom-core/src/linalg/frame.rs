@@ -396,17 +396,38 @@ pub fn path_start_frame<T: Decide>(
 /// first, in [`Vec3::dot`]'s own association, then the factor 2 on that
 /// scalar, then the componentwise scale of `n̂`.
 ///
+/// That last step is a projection onto a UNIT direction written out
+/// here rather than routed through [`Vec3::project_onto`], which is the
+/// one regrouping that method's own contract permits: `project_onto`
+/// divides by `|onto|²` in every case, one code path and one rounding
+/// story, and `n̂` is already unit — so the division would be by a
+/// quantity that is 1 up to rounding and could only add a rounding to
+/// an otherwise exact scale. The doubling and the scale are both exact
+/// in the binary sense; going through the door would not be.
+///
 /// **The anchor is mentioned once.** A Householder reflection has
 /// `I − L = 2·n̂n̂ᵀ`, so the translation that fixes `point` is
-/// `2·n̂(n̂·q)` and not a `q − L·q` round trip. The two agree over the
-/// reals; at `T = Interval` a repeated operand does not cancel, so the
-/// round trip would charge `2·width(point)` to EVERY component —
-/// including the components where the plane's normal vanishes and the
-/// translation is exactly zero. The single-mention spelling attains the
-/// true width of the image of the anchor's enclosure, which is the
-/// narrowest a sound enclosure can be: reflecting an anchor box of
-/// half-width 1e-9 across the `xy` plane gives a translation of width
-/// `[0, 0, 4e-9]` rather than `[4e-9, 4e-9, 4e-9]`.
+/// `2·n̂(n̂·q)`. At `T = Interval` a repeated operand does not cancel, so
+/// a spelling that subtracts the anchor and adds it back charges
+/// `2·width(point)` to EVERY component — including the components where
+/// the plane's normal vanishes and the translation is exactly zero.
+/// This spelling attains the width of the IMAGE of the anchor's
+/// enclosure under the map, up to its own rounding floor; no sound
+/// enclosure of that image is narrower, though the floor itself is a
+/// rounding accident and can fall either way. Reflecting an anchor box
+/// of half-width 1e-9 across the `xy` plane gives a translation of width
+/// `[0, 0, 4e-9]` rather than `[4e-9, 4e-9, 4e-9]`; per component, over
+/// the corpus in `geom-core/tests/props1_evidence.rs`, the exact-normal
+/// rows range from 0.78× (a floor accident) to 5.3× narrower plus ten
+/// components that become exactly zero, and the wide-normal rows from
+/// 1.0× to 3.3e5× narrower.
+///
+/// The `2·n̂n̂ᵀ` operator has no named home the way `I − R` has
+/// [`Mat3::identity_minus_rotation_about`], deliberately: `I − R`'s
+/// vanishing factor lives inside a transcendental (`1 − cos θ`) that a
+/// caller cannot spell correctly on its own, whereas this one is a
+/// scalar times a unit vector, correct at the only site that wants it,
+/// and a `Mat3` operator would materialize nine entries to read three.
 ///
 /// # Errors
 ///
