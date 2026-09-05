@@ -73,3 +73,9 @@ its mechanism is `crates/topo/src/pcurves.rs:1229-1300` — this
 program's file, beside `D36`. TOPO edits nothing there: a proposal
 comes to this board first, after TOPO's opener lands, and the two
 programs decide then whether the row moves here or lands by seam.
+
+## S331 moved here (2026-09-05)
+
+Superseding the heads-up above: with Ev's concurrence TOPO moved
+`S331` onto this slate (`git mv`, id and body kept; the direction TOPO
+proposes is in the item's tail). It is TRIM's to sequence, beside `D36`.
