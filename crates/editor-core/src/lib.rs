@@ -109,8 +109,7 @@ pub use doc::{Doc, DocParam, DocParamValue, ParamName};
 pub use drive::{
     BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig, DriveRefusal,
     FlipEvidence, LeafResults, MeasureAccounting, ParamBoxVerdict, ReasonClass, Receipt,
-    RefusalReason, RefusedLeaf, ReplayOutcome, StructureFlip, VerdictRow, VerdictVector,
-    VerdictVectorKey, drive,
+    RefusalReason, RefusedLeaf, StructureFlip, drive,
 };
 pub use edit::{Applied, DocEdit, EditError, EditRecord, apply, cascade_delete_order};
 pub use eval::{
@@ -185,8 +184,8 @@ pub use resolve::{
     rebind_suggestions, resolve, resolve_with_prior, vertex_name,
 };
 pub use resolve::{
-    NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictSummary,
-    diff_summaries, verdict_summary,
+    NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictRow,
+    VerdictSummary, VerdictVector, VerdictVectorKey, diff_summaries, verdict_summary,
 };
 // GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray
 // vocabulary re-exported from `bvh` so a layer-3 consumer needs no

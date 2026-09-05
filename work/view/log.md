@@ -2678,3 +2678,74 @@ split moved; it is now `session/refuse.rs:337`. **FIX's item, VIEW's
 split that broke it** — announced, not edited. This is
 `stale-file-citations-after-the-split`'s general case, still open,
 producing its next instance on schedule.
+
+## #1933 MERGED; the sweep's last blocker is on Ev's desk (2026-09-05)
+
+Merged at `dd8e91da`, green on `495af188`.
+
+### The fix pass did three things better than asked
+
+**It made the subjects type-pinned rather than tested.** I asked for
+rows pinning the subject at each writer. It built **ten doors in
+`frame`**, each taking one *typed* refusal and answering the subject
+from it, so nine of eleven **cannot be got wrong at all** — calling the
+wrong door does not compile. `Message::new` no longer appears outside
+`frame`. A row that can go red is the standard; a shape that cannot go
+wrong is better, and it is the same move VIEW-1b made with the gesture
+table.
+
+The two it could not type-pin are **stated per site in their own
+docs**, not left silent: `startup_notices` takes notices already
+rendered from three sources with three types, and `tool_news` comes
+through `ToolKind::says` as text — filed as `document-news-has-no-home`
+with the real blocker named (`says` returning a bare `String`).
+
+**It swept the class, not the instance.** I named `draw_badge`
+swallowing `chrome`'s doc; it found `Disagreement::notice` had
+swallowed `disagreement`'s too, and checked the other two insertions
+clean.
+
+**It gave a negative result a mechanism.** On the `prose_census.rs`
+coupling I warned it about, it did not report "clean" — it showed why:
+the surviving positional site is `Disagreement`'s own `Display`,
+untouched, and the `{typed:?}` this pass moved *into* `frame.rs` is
+inlined in a plain function, so it is neither positional nor a raise
+site and lands in no roster. A negative result without a mechanism is
+worth nothing.
+
+### Why I merged over the lane's reservation
+
+The lane held it back twice, correctly, because
+`news-and-standing-facts-are-orthogonal-axes` is a question about the
+classification this diff commits to. What changed is that the question
+is now **filed, argued and on Ev's desk**. Holding a green, ruled,
+twice-reviewed unit for a fork its own item schedules would hold it
+indefinitely; the vocabularies are what was ruled and built, and the
+classification bites at the **sweep**, which is a different unit and is
+where twenty sites get written. Merging puts a recorded inconsistency
+on main — holding does not fix it, because the fix is a rule nobody has
+ratified, and inventing one here would be exactly the self-certification
+this posture exists to prevent.
+
+Told the lane the argument rather than the outcome, and that it is
+reversible in the direction that matters since the sweep has not
+started.
+
+### [#1945](https://github.com/evgunter/cad/pull/1945) — the last blocker
+
+`[ev]`, subscribed for wake-on-comment. **News vs standing fact** asks
+whether a fact outlives its frame; **`Subject`** asks which event
+retires it. A fact whose lifetime is *"until the camera moves"* answers
+yes to the first and `Camera` to the second — they were designed as one
+axis and are two.
+
+The cost is already visible inside one diff: `scene_refusal` and
+`index_refusal` took `Subject::Display`, `projection_refusal` took
+`Camera`, all three are the same class of fact, the sweep item calls
+all three standing facts, and #1883's ruling names the projection one
+as news. Four defensible answers, no rule.
+
+The PR offers Ev an escape hatch that costs him less than the general
+rule: answering only *is `projection: {error}` a badge or a line
+message* unblocks the sweep, and this program takes the general rule as
+whatever that implies.

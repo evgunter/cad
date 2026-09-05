@@ -1295,3 +1295,15 @@ contract, `[ev]` PR 1878; the lane-keeping at-rest doors' default name,
 `work/cert/lane-keeping-at-rest-doors-skip-the-m7-8-class.md`). Next:
 the exit walk (`docs/S-CERT-EXIT-WALK.md`, PROPOSED for Ev) with the
 blinded tally adjudication queued at it.
+
+## TOPO seam widened by one enum (2026-09-05)
+
+S330's dual converged on the same style finding from both arms: the
+three-state read of a NURBS net (placeholder / described / described-
+carrying-poison) should be a type, not a guard pair whose order a
+comment explains. The fix pass replaces the one announced method with
+`NurbsSurface::net_state() -> NetState` in
+`crates/geom/src/surfaces/nurbs.rs`, the enum being the single home of
+the state table, and rewords the two crate-doc sentences the arm made
+false (`crates/geom/src/lib.rs:77-88`, `crates/geom/src/net.rs:145-148`).
+Nothing else in `geom` moves.
