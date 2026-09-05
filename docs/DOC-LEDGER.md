@@ -923,3 +923,15 @@ sweep 6's closed list at the 2026-09-05 sync — that list carries its own
 count and recovery SHA.
 
 - `PROPS-VERDICT-SHAPES-SPEC.md` — PROPS verdict-shapes — the two derived per-node verdict forms in one module (`resolve/vdiff.rs`), `ReplayOutcome` folded into `RunStatus` with `Absent` kept distinct, the strict-vs-population split pinned (last on `main` at 8ba880fda; PR 1920's body and `work/props/three-per-node-verdict-shapes.md` are the record; an E rider outside the A/B experiment, no row)
+
+## Per-merge deletion — SEAT-8's spec (2026-09-05)
+
+Recoverable at `git show 57dc0fe3a8558920c43cf433a61395d43470d337:docs/SEAT-8-SPEC.md`
+(the SEAT-8 fix-pass head, before the state-sync commit that deleted
+it; unamended — no stop clause fired, no ledger answer touched). Every
+clause was met as written except one argued choice the spec left open:
+the two-sided result landed as a per-door out-type (`SplitOut`) rather
+than a record-with-body door, argued in the unit's PR as a choice, not
+a force. The rule above; the unit's record is its item's `## Closed`
+section (`work/seat/SEAT-8.md`) and its MERGED entry in
+`work/seat/log.md`; its A/B row is MODEL-AB-LOG SEAT8.
