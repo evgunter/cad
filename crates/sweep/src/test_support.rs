@@ -978,7 +978,7 @@ pub fn rod_section_cut(big_r: f64, flat: f64, r: f64) -> f64 {
     let h = ((big_r - r).powi(2) - (flat - r).powi(2)).sqrt();
     let c = (flat - r, h);
     let f_b = (flat, h);
-    let v = (flat, (big_r * big_r - flat * flat).sqrt());
+    let v = (flat, (big_r.powi(2) - flat.powi(2)).sqrt());
     let scale = big_r / (big_r - r);
     let f_a = (c.0 * scale, c.1 * scale);
     let quad = [c, f_b, v, f_a];
@@ -989,5 +989,5 @@ pub fn rod_section_cut(big_r: f64, flat: f64, r: f64) -> f64 {
     }
     let theta = ((flat - r) / (big_r - r)).acos();
     let phi = theta - (flat / big_r).acos();
-    0.5 * twice - 0.5 * r * r * theta + 0.5 * big_r * big_r * (phi - phi.sin())
+    0.5 * twice - 0.5 * r.powi(2) * theta + 0.5 * big_r.powi(2) * (phi - phi.sin())
 }
