@@ -549,14 +549,6 @@ pub enum PathNoCornerReason {
     /// there is no corner to cut; PATHS routes the declaration through
     /// `.tangent()`/the seam fillet instead).
     CarriersParallel,
-    /// The carrier intersection lies behind the incoming ray's start
-    /// (or at it, at tolerance): the corner is not ahead of the side
-    /// being authored.
-    BehindIncomingRay,
-    /// The carrier intersection does not lie behind the arrival side's
-    /// anchor: the corner sits on the wrong side of (or at) the
-    /// anchor, so the arrival ray never came from it.
-    BehindArrivalAnchor,
     /// **G2**: the two carriers do not meet at all — a ray that misses
     /// its circle, or circles that are disjoint, concentric, or one
     /// inside the other. Distinct from
@@ -564,13 +556,220 @@ pub enum PathNoCornerReason {
     /// tangency knife edge: there they touch, and there is still no
     /// corner to cut.
     CarriersDoNotMeet,
-    /// **G2**: a derived corner exists, but the ratified S2
-    /// construction finds no tangent circle of the requested radius
-    /// there. The constructor door's own vocabulary is carried through
-    /// rather than flattened, so "the radius is too large for this
-    /// corner" and "every tangent circle touches a leg past the corner"
-    /// stay distinguishable at the algebra door too.
+}
+
+/// Which of the two anchor windows a derived corner falls outside.
+///
+/// The gates are stated on the sides, not on the pair: the incoming
+/// side must ADVANCE to the corner and the arrival side must REACH
+/// back to it, so a corner outside either window is a fact about that
+/// corner and rides [`CornerReason::OutsideAnchors`] with the corner
+/// point beside it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CornerWindow {
+    /// The corner lies behind the incoming ray's start (or at it, at
+    /// tolerance): it is not ahead of the side being authored.
+    BehindIncomingRay,
+    /// The corner does not lie behind the arrival side's anchor: it
+    /// sits on the wrong side of (or at) the anchor, so the arrival
+    /// ray never came from it.
+    BehindArrivalAnchor,
+}
+
+/// Why ONE derived corner of a carrier pair takes no fillet of the
+/// requested radius.
+///
+/// Each arm is a statement about the corner [`CornerRefusal::at`]
+/// names — the deixis is "this corner", and it is true, because the
+/// point rides beside the reason.
+#[derive(Clone, Debug)]
+pub enum CornerReason<T: Real> {
+    /// The corner's own gates: it falls outside one of the two anchor
+    /// windows.
+    OutsideAnchors(CornerWindow),
+    /// A corner exists here, but the ratified S2 construction finds no
+    /// tangent circle of the requested radius at it. The constructor
+    /// door's own vocabulary is carried through rather than flattened,
+    /// so "the radius is too large for this corner" and "every tangent
+    /// circle touches a leg past the corner" stay distinguishable at
+    /// the algebra door too.
     NoTangentCircle(NoCornerReason),
+    /// A fillet trim at this corner would eat a side's anchoring
+    /// on-path point (the authored anchor, the incoming ray's origin,
+    /// or — under a seam fillet — the entry point): the #101
+    /// `TangentJointOutOfRange` fit-gating generalized (PATHS-DESIGN
+    /// §3). This is also where a too-large radius lands: the setback
+    /// exceeds the extent the anchor pins.
+    AnchorOutsideTrimmedExtent {
+        /// Which side's anchor the trim would eat.
+        side: FilletLeg,
+        /// **G2 §3c**: that side's CARRIER KIND, carrying the angular
+        /// margin `(extent − setback)/R` for a circular side. A bare
+        /// linear setback says nothing on a circle, so the payload is
+        /// metered in the carrier's own currency (M5 S2's
+        /// does-not-fit diagnostic shape, at the algebra door).
+        carrier: FilletLegCarrier,
+        /// The tangent setback from the corner, meters (diagnostic; an
+        /// arc length `R·Δθ` on a circular side).
+        setback: T,
+        /// The anchored extent available to the trim, meters (same
+        /// currency as `setback`).
+        available: T,
+    },
+    /// The requested radius demands the **enclosing** tangency at this
+    /// corner: on the named side the signed offset radius ρ = R − σ·τ·r
+    /// is negative (σ·τ = +1 with r > R), so every circle of that radius
+    /// tangent to that side's carrier with this corner's turn sense
+    /// contains the carrier whole — and the corner with it, the corner
+    /// being a point of that carrier. An arc that cannot touch the
+    /// corner is not a fillet OF that corner, so no fillet of this
+    /// corner exists at this radius, and none ever will: the class is
+    /// permanently out of reach by design
+    /// (`crates/profile/README.md`), which is why it stays
+    /// distinguishable from the "no tangent circle" reasons — those
+    /// would send the author looking for a corner that is right there.
+    /// The bound is the named side's carrier radius; the recourse is a
+    /// smaller radius.
+    EnclosesLegCarrier {
+        /// The side whose carrier the radius would swallow, or `None`
+        /// when it swallows both — the ordinary case, since a swallowed
+        /// carrier forces its partner to be swallowed too unless the
+        /// corner is degenerate.
+        side: Option<FilletLeg>,
+        /// The tightest CLASS bound, meters: the smallest swallowed
+        /// carrier radius. Necessary, never sufficient — see
+        /// `largest_tangent_radius`.
+        carrier_radius: T,
+        /// The matching signed offset radius ρ = R − σ·τ·r, meters
+        /// (negative).
+        offset_radius: T,
+        /// The EXISTENCE bound, meters, when the corner's two circular
+        /// carriers define one: the largest radius that can be tangent
+        /// to both of them here, (R₁ + R₂ − d)/2. This is the quantity
+        /// the message endorses, because it is the one below which a
+        /// tangent circle actually exists; the class bound alone would
+        /// send an author to radii that refuse again for a different
+        /// reason. `None` on the degenerate corners where the quantity
+        /// is not defined at the gate (a straight partner, or a partner
+        /// whose own ρ is positive), and there the message endorses no
+        /// number.
+        largest_tangent_radius: Option<T>,
+    },
+}
+
+/// One derived corner of a carrier pair, and why no fillet of the
+/// requested radius rounds it.
+#[derive(Clone, Debug)]
+pub struct CornerRefusal<T: Real> {
+    /// The derived corner itself, in the sketch plane's chart.
+    pub at: Point2<T>,
+    /// Why this corner refused.
+    pub reason: CornerReason<T>,
+}
+
+impl<T: Real> core::fmt::Display for CornerRefusal<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // A derived ordinate that lands on negative zero renders as
+        // "-0" here — "at the corner near (0, -0)" on a corner on the
+        // x axis. That is issue 1282's class (the Display float
+        // rendering, which `num` owns) and not this site's to repair:
+        // the sign is the arithmetic's, the payload keeps it exactly,
+        // and a repair belongs at `num` where every arm gets it.
+        write!(
+            f,
+            "at the corner near ({x}, {y}): {reason}",
+            x = num(&self.at.x),
+            y = num(&self.at.y),
+            reason = self.reason
+        )
+    }
+}
+
+impl<T: Real> core::fmt::Display for CornerReason<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::OutsideAnchors(window) => match window {
+                CornerWindow::BehindIncomingRay => {
+                    write!(f, "this corner lies behind the incoming ray's start")
+                }
+                CornerWindow::BehindArrivalAnchor => write!(
+                    f,
+                    "this corner does not lie behind the arrival side's anchor"
+                ),
+            },
+            Self::NoTangentCircle(reason) => match reason {
+                NoCornerReason::OffsetCarriersDisjoint => write!(
+                    f,
+                    "no circle of that radius is tangent to both carriers here — the radius \
+                     is too large for this corner"
+                ),
+                NoCornerReason::NoCornerSideCandidate => write!(
+                    f,
+                    "every tangent circle of that radius touches a side past this corner"
+                ),
+            },
+            Self::AnchorOutsideTrimmedExtent {
+                side,
+                carrier,
+                setback,
+                available,
+            } => write!(
+                f,
+                "the fillet trim would eat the {side} side's anchoring on-path point on its \
+                 {carrier} carrier: tangent setback {setback} m exceeds the {available} m \
+                 the anchor pins — reduce the radius or move the anchor",
+                setback = num(setback),
+                available = num(available)
+            ),
+            Self::EnclosesLegCarrier {
+                side,
+                carrier_radius,
+                offset_radius,
+                largest_tangent_radius,
+            } => {
+                let whose = match side {
+                    Some(side) => &format!("the {side} side's carrier"),
+                    None => "both sides' carriers",
+                };
+                write!(
+                    f,
+                    "a fillet of that radius cannot round this corner: it would SWALLOW \
+                     {whose} (radius {carrier_radius} m). The offset radius \
+                     rho = R - sigma*tau*r is {offset_radius} m, and a negative rho means \
+                     every circle of that radius tangent \
+                     to that carrier on the corner's turn side contains the carrier \
+                     whole — the corner with it, since the corner sits on that carrier — so \
+                     the arc could never touch the corner it was asked to round. That is not \
+                     a fillet of the corner, and no door builds it",
+                    carrier_radius = num(carrier_radius),
+                    offset_radius = num(offset_radius)
+                )?;
+                match largest_tangent_radius {
+                    // The endorsable number: a circle of this radius IS
+                    // tangent to both carriers at the corner. Anchored
+                    // extents can still require less, and refuse in their
+                    // own words when they do.
+                    Some(bound) => write!(
+                        f,
+                        " — the largest circle tangent to both carriers here has radius \
+                         {bound} m, so try a radius below that (a short anchored leg can \
+                         need less still)",
+                        bound = num(bound)
+                    ),
+                    // Nothing endorsable at this site: the class bound is
+                    // necessary and not sufficient, and naming a radius
+                    // below it would be a promise this gate cannot keep.
+                    None => write!(
+                        f,
+                        " — any fillet of this corner needs a radius below {carrier_radius} m, \
+                         which is a necessary bound and not a sufficient one: these carriers \
+                         may admit no fillet at all at this corner",
+                        carrier_radius = num(carrier_radius)
+                    ),
+                }
+            }
+        }
+    }
 }
 
 /// Typed refusals of the authoring algebra — geometry the lattice
@@ -747,27 +946,51 @@ pub enum PathError<T: Real> {
         /// The requested radius, meters (diagnostic).
         radius: T,
     },
-    /// A fillet trim would eat a side's anchoring on-path point (the
-    /// authored anchor, the incoming ray's origin, or — under a seam
-    /// fillet — the entry point): the #101 `TangentJointOutOfRange`
-    /// fit-gating generalized (PATHS-DESIGN §3). This is also where a
-    /// too-large radius lands: the setback exceeds the extent the
-    /// anchor pins.
-    AnchorOutsideTrimmedExtent {
-        /// Which side's anchor the trim would eat.
-        side: FilletLeg,
-        /// **G2 §3c**: that side's CARRIER KIND, carrying the angular
-        /// margin `(extent − setback)/R` for a circular side. A bare
-        /// linear setback says nothing on a circle, so the payload is
-        /// metered in the carrier's own currency (M5 S2's
-        /// does-not-fit diagnostic shape, at the algebra door).
-        carrier: FilletLegCarrier,
-        /// The tangent setback from the corner, meters (diagnostic; an
-        /// arc length `R·Δθ` on a circular side).
-        setback: T,
-        /// The anchored extent available to the trim, meters (same
-        /// currency as `setback`).
-        available: T,
+    /// **No corner of the carrier pair takes a fillet of the requested
+    /// radius**: every corner that refused at the stage the answer
+    /// comes from, each with its own reason and its own point.
+    ///
+    /// One envelope for the whole pair, because a refusal about a pair
+    /// is about the corners of it. Where the two crossings refuse for
+    /// different reasons — the common case — both sentences reach the
+    /// author, and the deixis of each is "this corner", which is true
+    /// because [`CornerRefusal::at`] is beside it.
+    ///
+    /// **The stage** is one of the arc-carrier resolve's two channels:
+    /// a corner that passed the anchor windows and then failed to admit
+    /// a tangent circle is the real answer and answers alone, so the
+    /// windows' entries appear only when NO corner reached the
+    /// construction. The two lists are never merged because
+    /// `docs/FILLET-ATTR-SPEC.md`'s acceptance row asks for a ONE-entry
+    /// envelope where only one crossing sits in the windows: a corner
+    /// the author did not bracket, listed beside the answer about the
+    /// one they did, is noise rather than attribution. So the entry
+    /// list is NOT every derived corner — a pair derives up to two, and
+    /// on most refusals only one of them is an entry.
+    ///
+    /// The refusals that name no corner at all outrank this envelope
+    /// and are reported instead of it: the pair-level conditions
+    /// ([`PathNoCornerReason`]) as
+    /// [`NoCornerForFillet`](Self::NoCornerForFillet), and the M8
+    /// conditioning gate as
+    /// [`FilletOffsetLeverTooShort`](Self::FilletOffsetLeverTooShort).
+    /// A fact about the pair answers before a fact about one of its
+    /// corners does. The straight carrier pair derives one corner and
+    /// so carries a one-entry envelope of exactly this shape.
+    ///
+    /// **Order is presentation, not truth**: entries are sorted by the
+    /// sum of the distances from the corner to the two bracketing
+    /// anchors, ascending, ties in enumeration order — the first
+    /// sentence is the corner the author most plausibly meant. Nothing
+    /// in the kernel branches on the order, and no entry outranks
+    /// another.
+    NoCornerOfPair {
+        /// The requested radius, meters (diagnostic).
+        radius: T,
+        /// The corners that REFUSED at the answering stage, nearest the
+        /// bracketing anchors first. Never empty, and not necessarily
+        /// every corner the pair derives.
+        corners: Vec<CornerRefusal<T>>,
     },
     /// **M8**: the derived corner and a tangent circle of the requested
     /// radius both exist, but the tangent point on one side cannot be
@@ -790,45 +1013,6 @@ pub enum PathError<T: Real> {
         least_lever: T,
         /// The classified margin |ρ| − `least_lever`, meters.
         margin: T,
-    },
-    /// The requested radius demands the **enclosing** tangency at this
-    /// corner: on the named side the signed offset radius ρ = R − σ·τ·r
-    /// is negative (σ·τ = +1 with r > R), so every circle of that radius
-    /// tangent to that side's carrier with this corner's turn sense
-    /// contains the carrier whole — and the corner with it, the corner
-    /// being a point of that carrier. An arc that cannot touch the corner
-    /// is not a fillet OF that corner, so no fillet of this corner exists
-    /// at this radius, and none ever will: the class is permanently out
-    /// of reach by design (`crates/profile/README.md`), which is
-    /// why it is its own refusal rather than one of the "no corner"
-    /// ones — those would send the author looking for a corner that is
-    /// right there. The bound is the named side's carrier radius; the
-    /// recourse is a smaller radius.
-    FilletEnclosesLegCarrier {
-        /// The side whose carrier the radius would swallow, or `None`
-        /// when it swallows both — the ordinary case, since a swallowed
-        /// carrier forces its partner to be swallowed too unless the
-        /// corner is degenerate.
-        side: Option<FilletLeg>,
-        /// The tightest CLASS bound, meters: the smallest swallowed
-        /// carrier radius. Necessary, never sufficient — see
-        /// `largest_tangent_radius`.
-        carrier_radius: T,
-        /// The matching signed offset radius ρ = R − σ·τ·r, meters
-        /// (negative).
-        offset_radius: T,
-        /// The requested radius, meters.
-        radius: T,
-        /// The EXISTENCE bound, meters, when the corner's two circular
-        /// carriers define one: the largest radius that can be tangent to
-        /// both of them here, (R₁ + R₂ − d)/2. This is the quantity the
-        /// message endorses, because it is the one below which a tangent
-        /// circle actually exists; the class bound alone would send an
-        /// author to radii that refuse again for a different reason.
-        /// `None` on the degenerate corners where the quantity is not
-        /// defined at the gate (a straight partner, or a partner whose
-        /// own ρ is positive), and there the message endorses no number.
-        largest_tangent_radius: Option<T>,
     },
     // Deliberately NOT merged with `FilletOffsetLeverTooShort`, whose
     // payload it nearly parrots (a side, a carrier radius, a signed ρ, a
@@ -1056,12 +1240,10 @@ pub enum PathErrorKind {
     ContinuationTargetOffRay,
     /// [`PathError::NoCornerForFillet`].
     NoCornerForFillet,
-    /// [`PathError::AnchorOutsideTrimmedExtent`].
-    AnchorOutsideTrimmedExtent,
+    /// [`PathError::NoCornerOfPair`].
+    NoCornerOfPair,
     /// [`PathError::FilletOffsetLeverTooShort`].
     FilletOffsetLeverTooShort,
-    /// [`PathError::FilletEnclosesLegCarrier`].
-    FilletEnclosesLegCarrier,
     /// [`PathError::ArcLegOnOpenFillet`].
     ArcLegOnOpenFillet,
     /// [`PathError::SeamRetrimsArcFirstSide`].
@@ -1118,9 +1300,8 @@ impl<T: Real> PathError<T> {
             Self::SeamArrivalLeverTooShort { .. } => PathErrorKind::SeamArrivalLeverTooShort,
             Self::ContinuationTargetOffRay { .. } => PathErrorKind::ContinuationTargetOffRay,
             Self::NoCornerForFillet { .. } => PathErrorKind::NoCornerForFillet,
-            Self::AnchorOutsideTrimmedExtent { .. } => PathErrorKind::AnchorOutsideTrimmedExtent,
+            Self::NoCornerOfPair { .. } => PathErrorKind::NoCornerOfPair,
             Self::FilletOffsetLeverTooShort { .. } => PathErrorKind::FilletOffsetLeverTooShort,
-            Self::FilletEnclosesLegCarrier { .. } => PathErrorKind::FilletEnclosesLegCarrier,
             Self::ArcLegOnOpenFillet { .. } => PathErrorKind::ArcLegOnOpenFillet,
             Self::SeamRetrimsArcFirstSide => PathErrorKind::SeamRetrimsArcFirstSide,
             Self::NonpositiveLeg { .. } => PathErrorKind::NonpositiveLeg,
@@ -1270,26 +1451,10 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                          no corner exists (if they are meant to run tangentially, author the \
                          tangency: .tangent(), or the seam fillet at the seam)"
                     }
-                    PathNoCornerReason::BehindIncomingRay => {
-                        "the carrier intersection lies behind the incoming ray's start"
-                    }
-                    PathNoCornerReason::BehindArrivalAnchor => {
-                        "the carrier intersection does not lie behind the arrival side's anchor"
-                    }
                     PathNoCornerReason::CarriersDoNotMeet => {
                         "the two carriers do not meet: a ray missing its circle, or circles \
                          disjoint, concentric, or one inside the other"
                     }
-                    PathNoCornerReason::NoTangentCircle(reason) => match reason {
-                        NoCornerReason::OffsetCarriersDisjoint => {
-                            "a corner exists, but no circle of that radius is tangent to both \
-                             carriers there — the radius is too large for the corner"
-                        }
-                        NoCornerReason::NoCornerSideCandidate => {
-                            "a corner exists, but every tangent circle of that radius touches a \
-                             side past the corner"
-                        }
-                    },
                 };
                 write!(
                     f,
@@ -1297,19 +1462,32 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     radius = num(radius)
                 )
             }
-            Self::AnchorOutsideTrimmedExtent {
-                side,
-                carrier,
-                setback,
-                available,
-            } => write!(
-                f,
-                "the fillet trim would eat the {side} side's anchoring on-path point on its \
-                 {carrier} carrier: tangent setback {setback} m exceeds the {available} m \
-                 the anchor pins — reduce the radius or move the anchor",
-                setback = num(setback),
-                available = num(available)
-            ),
+            Self::NoCornerOfPair { radius, corners } => {
+                // The count is of ENTRIES — the corners that refused at
+                // the answering stage — and the sentence says so. A
+                // carrier pair derives up to two corners and most
+                // refusals list only one of them, so "n derived
+                // corners" would be false about the pair on the
+                // majority of refusals, and a false fact in a refusal
+                // is worse than no fact.
+                write!(
+                    f,
+                    "no corner of these carriers takes a radius-{radius} m fillet \
+                     ({n} refusing corner{plural}{ordered})",
+                    radius = num(radius),
+                    n = corners.len(),
+                    plural = if corners.len() == 1 { "" } else { "s" },
+                    ordered = if corners.len() == 1 {
+                        ""
+                    } else {
+                        ", nearest the bracketing anchors first"
+                    }
+                )?;
+                for corner in corners {
+                    write!(f, "; {corner}")?;
+                }
+                Ok(())
+            }
             Self::FilletOffsetLeverTooShort {
                 side,
                 carrier_radius,
@@ -1330,60 +1508,6 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 least_lever = num(least_lever),
                 margin = num(margin)
             ),
-            Self::FilletEnclosesLegCarrier {
-                side,
-                carrier_radius,
-                offset_radius,
-                radius,
-                largest_tangent_radius,
-            } => {
-                let whose = match side {
-                    Some(side) => &format!("the {side} side's carrier"),
-                    None => "both sides' carriers",
-                };
-                // The deixis is deliberately "a corner of these carriers"
-                // rather than "this corner": where both crossings of the
-                // pair sit inside the anchors' windows the refusal
-                // reported is the first corner enumerated, which need not
-                // be the one the author bracketed (issue #1281).
-                write!(
-                    f,
-                    "a radius-{radius} m fillet cannot round a corner of these carriers: it \
-                     would SWALLOW {whose} (radius {carrier_radius} m). The offset radius \
-                     rho = R - sigma*tau*r is {offset_radius} m, and a negative rho means \
-                     every circle of that radius tangent \
-                     to that carrier on the corner's turn side contains the carrier \
-                     whole — the corner with it, since the corner sits on that carrier — so \
-                     the arc could never touch the corner it was asked to round. That is not \
-                     a fillet of the corner, and no door builds it",
-                    radius = num(radius),
-                    carrier_radius = num(carrier_radius),
-                    offset_radius = num(offset_radius)
-                )?;
-                match largest_tangent_radius {
-                    // The endorsable number: a circle of this radius IS
-                    // tangent to both carriers at the corner. Anchored
-                    // extents can still require less, and refuse in their
-                    // own words when they do.
-                    Some(bound) => write!(
-                        f,
-                        " — the largest circle tangent to both carriers here has radius \
-                         {bound} m, so try a radius below that (a short anchored leg can \
-                         need less still)",
-                        bound = num(bound)
-                    ),
-                    // Nothing endorsable at this site: the class bound is
-                    // necessary and not sufficient, and naming a radius
-                    // below it would be a promise this gate cannot keep.
-                    None => write!(
-                        f,
-                        " — any fillet of this corner needs a radius below {carrier_radius} m, \
-                         which is a necessary bound and not a sufficient one: these carriers \
-                         may admit no fillet at all at this corner",
-                        carrier_radius = num(carrier_radius)
-                    ),
-                }
-            }
             Self::ArcLegOnOpenFillet { site } => write!(f, "{site}"),
             Self::DegenerateArcSpec { value } => write!(
                 f,
@@ -2188,23 +2312,42 @@ fn emit_straight_leg_at<T: Real>(
 /// vocabulary: a Negative leg fit here IS the anchor-fit refusal (the
 /// helper is fed the two sides' anchoring extents); an escalation
 /// stays an escalation.
-fn map_fillet_err<T: Real>(refusal: TrimRefusal<T>) -> PathError<T> {
+///
+/// A straight carrier pair derives exactly ONE corner, so the anchor-fit
+/// refusal is a one-entry [`PathError::NoCornerOfPair`] — the same
+/// envelope the arc-carrier channel builds, so a consumer matches one
+/// shape whichever pair refused. Nothing is sorted here: one entry is
+/// already nearest.
+fn map_fillet_err<T: Real>(refusal: TrimRefusal<T>, corner: Point2<T>, radius: T) -> PathError<T> {
     match refusal {
         TrimRefusal::DoesNotFit {
             leg,
             setback,
             leg_length,
-        } => PathError::AnchorOutsideTrimmedExtent {
-            side: leg,
-            // The line×line seam has only straight sides by
-            // construction, so its carrier kind is structural, not
-            // measured — no bracket read enters `path.rs`.
-            carrier: FilletLegCarrier::Line,
-            setback,
-            available: leg_length,
-        },
+        } => one_corner(
+            corner,
+            radius,
+            CornerReason::AnchorOutsideTrimmedExtent {
+                side: leg,
+                // The line×line seam has only straight sides by
+                // construction, so its carrier kind is structural, not
+                // measured — no bracket read enters `path.rs`.
+                carrier: FilletLegCarrier::Line,
+                setback,
+                available: leg_length,
+            },
+        ),
         TrimRefusal::Escalated(source) => PathError::Escalated { source },
         TrimRefusal::Band(b) => PathError::Band(b),
+    }
+}
+
+/// The one-entry envelope: a carrier pair with a single derived corner,
+/// refusing about that corner.
+fn one_corner<T: Real>(at: Point2<T>, radius: T, reason: CornerReason<T>) -> PathError<T> {
+    PathError::NoCornerOfPair {
+        radius,
+        corners: vec![CornerRefusal { at, reason }],
     }
 }
 
@@ -2350,23 +2493,28 @@ impl<T: Decide> Core<T> {
         // and behind the arrival side's anchor (ray parameters, meters).
         let t_ray = w.perp_dot(u2) / cross;
         let s_arr = w.perp_dot(u1) / cross;
+        // The corner is derived before the windows are read, because a
+        // window refusal is ABOUT it: the sentence names the point.
+        let corner = pending.origin + u1 * t_ray;
         match decide("path_corner_advance", Margin::of(t_ray), band) {
             Ok(Sign::Positive) => {}
             Ok(_) => {
-                return Err(PathError::NoCornerForFillet {
-                    reason: PathNoCornerReason::BehindIncomingRay,
-                    radius: pending.radius,
-                });
+                return Err(one_corner(
+                    corner,
+                    pending.radius,
+                    CornerReason::OutsideAnchors(CornerWindow::BehindIncomingRay),
+                ));
             }
             Err(source) => return Err(PathError::Escalated { source }),
         }
         match decide("path_corner_advance", Margin::of(-s_arr), band) {
             Ok(Sign::Positive) => {}
             Ok(_) => {
-                return Err(PathError::NoCornerForFillet {
-                    reason: PathNoCornerReason::BehindArrivalAnchor,
-                    radius: pending.radius,
-                });
+                return Err(one_corner(
+                    corner,
+                    pending.radius,
+                    CornerReason::OutsideAnchors(CornerWindow::BehindArrivalAnchor),
+                ));
             }
             Err(source) => return Err(PathError::Escalated { source }),
         }
@@ -2379,11 +2527,10 @@ impl<T: Decide> Core<T> {
         if kind == ArrivalKind::Seam && self.first_seg != FirstSeg::Line {
             return Err(PathError::SeamRetrimsArcFirstSide);
         }
-        let corner = pending.origin + u1 * t_ray;
         // (4) the shared line×line closed form, anchored: head = the
         // ray's origin, next = the arrival's anchor.
         let mut trims = line_line_fillet_trims(pending.origin, corner, arr_pos, pending.radius)
-            .map_err(map_fillet_err)?;
+            .map_err(|e| map_fillet_err(e, corner, pending.radius))?;
         // A straight carrier pair derives ONE corner and its
         // construction admits one candidate, so the fit signs are this
         // resolution's whole discrete content.

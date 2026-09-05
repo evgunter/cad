@@ -7,11 +7,17 @@
 //! seams as the walls' `u ∈ {0, 1}` boundary iso-curves, struts raised
 //! per vertex. The three edge classes:
 //!
-//! - **Cap–wall rims** need NOTHING new (item 6(ii)): the wall's
+//! - **Cap–wall rims** need no new GEOMETRY (item 6(ii)): the wall's
 //!   `v = 0` / `v = 1` iso IS the placed sketch segment (degree
 //!   elevation and knot refinement are exact), so the carrier stays
-//!   `Curve3::Line`/`Circle` under `MappedCurve::PlacedSegment` and
-//!   certifies today.
+//!   the `Curve3::Line`/`Circle` it was minted as, verbatim, and
+//!   certifies today. Its DESCRIPTION still moves: minted through the
+//!   scaffolding door as `MappedCurve::PlacedSegment` (the cap plane
+//!   is fitted through the rim, so it does not exist yet), it is
+//!   re-stated as an image in the cap's own chart once the plane does
+//!   ([`crate::swept::describe_face_rim_at_rest`] — D3's transience
+//!   fence). No cap–wall dihedral is classified here: unlike extrude,
+//!   loft does not upgrade these rims to `Intersection`.
 //! - **Wall–wall seams** are the genuinely new class (item 6(iii)):
 //!   an iso image of over the wall's boundary
 //!   row (`geom_brep::boundary_iso_u` — a control-net copy, no
