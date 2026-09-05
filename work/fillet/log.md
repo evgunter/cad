@@ -338,3 +338,13 @@ Ordinal **2001** claimed; the v6 dual is dispatched concurrently on the
 frozen head. Two other programs' finds routed, not fixed: the tour's
 `blend1_r1_wall6_probes.rs:94` selects a rim at a 5e-4 radius
 tolerance (the reviewers measure whether that is real slack).
+
+**Block FILLET-B2 opened branch-side (2026-09-05)** on `fillet/b2-block`
+with every B1 slot dispatched (H4 merged, RIM in its fix pass, H5 under
+review): pre-draw fields first (slot 0 H6 S/STRUCTURAL, slot 1 ATTR
+M/STRUCTURAL, slot 2 H7 L/NUMERIC), then the v3 draw. **H6 dispatched**
+into slot 0 on `fillet/h6-cap-rim-smooth` under `docs/FILLET-H6-SPEC.md`;
+ATTR follows when an H5 review lane frees the box (four cores, two
+reviewers and the RIM fix pass live), H7 after its brief. The H6 and ATTR
+briefs were re-derived from RIM's and had carried H5's PR title — the
+same template slip that mis-titled PR 1821 — corrected before dispatch.
