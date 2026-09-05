@@ -432,3 +432,26 @@ deleted, ledgered at the merge SHA. **Block B1 is concluded** — H4 (FABLE,
 #126), RIM (OPUS, #131), H5 (OPUS, #132) — and its record reaches main
 with this sync. Block B2 runs: H6 in its fix pass, ATTR under review, H7
 implementing.
+
+**H7 landed (2026-09-05)** on PR [#1897](https://github.com/evgunter/cad/pull/1897),
+head `fc6ca2268`, full matrix green (run 33939777803; the previous head
+red on the discipline gate's interval-square `powi(2)` allowlist, fixed in
+place). Phase 1: the rod ∖ box and the D-profile extrusion build and their
+creases refuse `UnsupportedChain` at `AdmittedOpen::admit`; the
+parallel-cylinder union refuses `CurvedPierceUnsupported` (no concave
+ruled fixture — pinned as the refusal); the box edge refuses
+`UnsupportedRunOut` and stays so (`arm.is_ruled()` gates the cut-off).
+Landed: `CornerConfig::TransverseCap` / `RunOutPolicy::CutOffAtTransverseCap`
+as ratified, `fillet3_cap_transverse` levered by the link extent with its
+trio pin in both lanes, the ruled band as `RuledPlan`/`ruled_phase` in
+`surgery.rs` (deviation 1: the compound-bound allowlist names
+`blend/{battery,surgery,build}` only — a new module would need Ev's
+ratification), the rod row at its prism closed form (`A = 4.6977159e-4`,
+`ΔV = 9.3954318e-4` for two creases, 800k-point shoelace to 2e-15), the
+oblique cap refusing `RULED_END_NOT_TRANSVERSE` through the front door,
+`seam_split_param` generalised to line carriers bit-identically, dump
+identical at two bases. **H7 dual dispatched** on frozen `fc6ca2268`:
+ordinal **2005**, parity byte 115 ⇒ R1 FABLE / R2 OPUS, briefs stored with
+sha256, concurrent, isolated. With this every FILLET unit is landed; what
+remains is three fix passes (H6, ATTR, H7 after its dual) and the block
+B2 record.

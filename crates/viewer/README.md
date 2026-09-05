@@ -331,6 +331,62 @@ and cannot leave it: every door returns a `Refusal` and mutates the
 session, and `perform`'s dispatch is the one place an operation becomes
 state.
 
+### What the session knows because of the document is one value
+
+`DocSession` holds a `Derived`: what is selected, what is hovered,
+what a drag previews over the document, what the last run said about
+it (`LandedRun`), and what a range probe found in it. `Open` and
+`NewDocument` install a different document under a live session, and
+all five of those are statements about the document that was there
+before — left in place they answer about the previous model until the
+first run lands. Both doors therefore reset the whole block by
+construction (`Derived::none`) rather than field by field, and the
+constructor writes that same value, which makes it the one spelling of
+"nothing is known yet". A field added to `Derived` does not become
+correct on its own: `Derived::none` stops compiling until someone
+writes its cleared value, at one site, by hand. That is the whole
+mechanism — one site to update instead of three, and a compiler error
+instead of a silent omission.
+
+`LandedRun` is the same rule one level down. The six things a landing
+produces — the evaluation, the document it answers, its generation,
+the gather's refusal, the A5 badge and the advisory report — are
+statements about one (document, evaluation) pair, computed once in
+`land`. As one value they cannot come from different runs, which is
+the property `landed_pair` needs: it returns two of the six, and the
+two it returns are the pair a single run answered. `bounds` sits in
+`Derived` but is discarded on a stricter rule than the block's: every
+submit drops it (`request_eval`), because a range is a statement about
+one document and a commit or an undo already invalidates it. Both
+doors consequently drop it twice, which is redundant on purpose — the
+walk names every field it invalidates rather than leaving one to a
+route its reader cannot see.
+
+Three neighbours stay outside `Derived`, and the reasons are the
+interesting part. `DisplayState` is `clear`ed rather than rebuilt,
+since its revision counter is the chrome's rebuild key and must not go
+backwards; its own `clear` closes the same hazard inside it. `gesture`
+is cleared by nothing and must not be, and the refusal runs the other
+way round from the sentence one reaches for: while a value drag is in
+flight the DOOR is refused (`permitted_during_value_gesture`, checked
+once in `perform`) and the drag is left untouched, because a gesture
+dissolved under the pointer is the half-acted state that refusal
+exists to prevent. So the precondition is established before either
+door writes anything, and the reset re-checks nothing — a check there
+could only fire with the session already half-replaced. `path` and
+`resolver` are facts about the backing file rather than about the
+document, and are the part of the two doors that genuinely differs:
+`Open` sets both, `NewDocument` clears both.
+
+**That table governs value gestures only.** The free-move drag
+`DisplayState` owns is a different value with a different owner, and
+no door refuses a replacement while one is open: `clear`ing the
+display discards an in-flight free move with no refusal and no report,
+which is the walk applying to one gesture kind the opposite of what it
+says about the other. The behaviour is older than the block above and
+has its own item
+(`work/view/free-move-drag-dissolved-by-open.md`).
+
 ### The app's vocabularies
 
 | Module | Holds |
@@ -669,6 +725,68 @@ deterministic `Bvh::ray` query, authoritative, with the GPU id-buffer
 pass advisory. Docking is `egui_tiles`, a `Tree<Pane>` value the app
 owns. All of it sits behind the non-default `app` feature; without it
 the crate is renderer-free and headless-tested.
+
+**The pick index is built off the UI thread, and it adds no frame
+state.** Tessellating a document's roots and building their triangle
+BVHs is the expensive step behind every picture here — seconds on a
+dense document, and the window did not repaint while it ran, because
+`sync_scene` called `PickIndex::build` inline. It runs on its own
+worker now, across the same submit/poll vocabulary the evaluation
+crosses (`src/evalseam.rs`, two seams and two workers), keyed by the
+`(generation, δ)` pair it was built for.
+
+**What that window looks like, exactly.** `PickCache` drops the index
+it holds at the moment it submits, not when the replacement lands, so
+between the two there is no index at all — the state is **current or
+absent, never behind**. Replacing one picture's key with another's is
+what keeps it that way for every ordinary transition, and the one
+transition with no next key — a document opened or authored while a
+build is still with the seam — is where the invariant has to be
+enforced by hand: `PickCache::sync`'s nothing-landed arm FORGETS the
+outstanding attempt, so the build that finishes afterwards has no key
+to match and is discarded. Leaving it a key was a state in which the
+index of a replaced document installed over the scene of the one
+before it, with nothing running and nothing said.
+
+The viewport goes on drawing the mesh it last
+received, which is the previous document's, and three things say so
+rather than letting it pass for the current one: the toolbar shows one
+progress state and it reads `indexing…` (`frame::progress` — one
+value, so an evaluation and an index build cannot light two spinners
+for one wait), a click is refused typed as `pick::NotIndexed`, which
+is a different answer from *nothing under the cursor*, and a hover is
+left alone because it is an observation pushed on every frame and not
+an act.
+
+**What that does to the frame-state inventory** — the per-field
+justifications on `ViewerApp`'s own non-document fields, in
+`src/app.rs`, which is the live form of what GUI-3's §5 ratification
+rested on. It gains **no entry**, and the claim is exactly that
+narrow. The index itself is current or absent, so it is not derived
+data that can be WRONG about the document — which is the shape GQ6's
+first condition is about, and `Doc` stays authoritative exactly as
+before. What the seam does add is state *about the seam*:
+`PickCache`'s record of what it has asked for and not yet been
+answered, read every frame by the indicator and by the refusal's
+wording. That is a fact about work in flight, not a second opinion
+about the document, and it is the same shape `DocSession::running`
+already has — including the same failure, recorded rather than
+claimed away: a worker that dies leaves either of them describing
+work nobody is doing.
+
+**The index seam's promise is weaker than the evaluation seam's, and
+the asymmetry is deliberate.** It has no cancel — not a cancel that
+does nothing, but no door at all. The shipped `CancelToken` is checked
+BETWEEN NODES and the step behind this seam has no nodes to be checked
+between: neither `mesh::tessellate` nor the BVH build takes a token,
+and giving them one is other crates' territory. So the policy is
+**restart without cancel**: a δ change mid-build lets that build run to
+completion and discards its answer, which costs a second full build —
+on a document whose index takes 13 s, about 27 s before the picture is
+right. An edit made during an index build is not delayed by it, which
+is why the two seams are two workers: one queue would have put an
+uninterruptible build in front of the next evaluation and quietly
+weakened the cancel-and-restart promise made above it.
 
 **Where the `app` feature gates.** The workspace nextest archive builds
 this crate at DEFAULT features, so nothing behind the feature is in it.

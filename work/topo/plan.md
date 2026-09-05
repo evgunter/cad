@@ -11,8 +11,12 @@ experiment number).
 
 `docs/WORK-TRACKS-2026-09.md` (the 2026-09-03 cut) recorded that **no
 program owns 37 `crates/topo/src` files**, and cut eleven tracks around
-that gap without closing it. Measured again on 2026-09-04: **47 files
-in `crates/topo/src/` fall in no open program's `paths`**. It is the
+that gap without closing it. Re-measured on 2026-09-05 against merged
+main: **55 of the 102 `.rs` files under `crates/topo/src/` fell in no
+open program's `paths`** — 35 of them still do, this program having
+taken the other 20. (PR #1899 said "47", a figure read off one line of
+a directory-grouped scan that dropped the `review_m1_pr2/` and
+`seqgen/` subdirectories; corrected here by re-deriving.) It is the
 largest unowned kernel territory in the tree, and it is where the
 Euler surgery, tier-3 validation and the birth-identity channel live —
 the layer every other kernel program builds on.
@@ -49,9 +53,16 @@ What this program does **not** take is written in `program.md`'s
   question about a pair of doors, one of which is SEAT's. The ruling
   can be made here; the edit on SEAT's side is announced on SEAT's
   board before it lands, and never taken silently.
-- **The remaining ~25 `topo/src` files are unowned and NOT finished.**
-  `body.rs`, `entity.rs`, `contact.rs`, `separation.rs`, the chart and
-  `review_m1_*` readers. A row landing on one of them draws the fence
+- **The remaining 35 `topo/src` files are unowned and NOT finished.**
+  `body.rs`, `entity.rs`, `geometry.rs`, `instance.rs`, `null.rs`,
+  `lib.rs`, `contact.rs`, `separation.rs`, `ray_parity.rs`,
+  `offset_axial.rs`, `iso.rs`, the four `sector_*`/`chart*` files, the
+  eleven `review_m1_*`/`review_d21`/`r2_probes` readers,
+  `test_support_impl.rs`, and `param_source.rs` (new on main with
+  SEAT-7). Three of the 35 — `chart_region.rs`, `face_normal.rs`,
+  `props.rs` — sit inside a code-quality letter's fence (Q, Q, M) while
+  no *program* claims them, which is a different kind of unowned and is
+  the letter-holder's to take. A row landing on one of them draws the fence
   in the PR that mints the row — the rule the code-quality plan states
   for the `geom-brep` seam. Extending this program to the whole crate
   is a later decision and not this opening's.
