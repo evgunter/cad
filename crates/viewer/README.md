@@ -670,6 +670,46 @@ pass advisory. Docking is `egui_tiles`, a `Tree<Pane>` value the app
 owns. All of it sits behind the non-default `app` feature; without it
 the crate is renderer-free and headless-tested.
 
+**The pick index is built off the UI thread, and it adds no frame
+state.** Tessellating a document's roots and building their triangle
+BVHs is the expensive step behind every picture here — seconds on a
+dense document, and the window did not repaint while it ran, because
+`sync_scene` called `PickIndex::build` inline. It runs on its own
+worker now, across the same submit/poll vocabulary the evaluation
+crosses (`src/evalseam.rs`, two seams and two workers), keyed by the
+`(generation, δ)` pair it was built for.
+
+**What that window looks like, exactly.** `PickCache` drops the index
+it holds at the moment it submits, not when the replacement lands, so
+between the two there is no index at all — the state is **current or
+absent, never behind**. The viewport goes on drawing the mesh it last
+received, which is the previous document's, and three things say so
+rather than letting it pass for the current one: the toolbar shows one
+progress state and it reads `indexing…` (`frame::progress` — one
+value, so an evaluation and an index build cannot light two spinners
+for one wait), a click is refused typed as `pick::NotIndexed`, which
+is a different answer from *nothing under the cursor*, and a hover is
+left alone because it is an observation pushed on every frame and not
+an act. **No entry joins the frame-state inventory for any of this**:
+an index that is never READ while stale is not derived data that can
+be wrong, so nothing here is the ad-hoc frame-to-frame state GQ6's
+first condition names, and `Doc` stays authoritative exactly as
+before.
+
+**The index seam's promise is weaker than the evaluation seam's, and
+the asymmetry is deliberate.** It has no cancel — not a cancel that
+does nothing, but no door at all. The shipped `CancelToken` is checked
+BETWEEN NODES and the step behind this seam has no nodes to be checked
+between: neither `mesh::tessellate` nor the BVH build takes a token,
+and giving them one is other crates' territory. So the policy is
+**restart without cancel**: a δ change mid-build lets that build run to
+completion and discards its answer, which costs a second full build —
+on a document whose index takes 13 s, about 27 s before the picture is
+right. An edit made during an index build is not delayed by it, which
+is why the two seams are two workers: one queue would have put an
+uninterruptible build in front of the next evaluation and quietly
+weakened the cancel-and-restart promise made above it.
+
 **Where the `app` feature gates.** The workspace nextest archive builds
 this crate at DEFAULT features, so nothing behind the feature is in it.
 The seat is a hosted row that runs
