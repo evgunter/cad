@@ -46,10 +46,18 @@
 //!   waiting on a join: the stolen task runs to completion inside the
 //!   join, so its frames sit strictly above the waiting task's and are
 //!   gone before it resumes. A frame is popped by the bracket that
-//!   pushed it, in the reverse of the order they opened; a bracket
-//!   closed out of that order is a bug, asserted in debug builds, and
-//!   in release it discards the frames above its own rather than ever
-//!   handing one bracket another's decisions.
+//!   pushed it, and only by it: every frame carries a per-thread unique
+//!   id the guard remembers, and a close pops the frame at the guard's
+//!   depth only when the ids agree. Brackets closed out of order are
+//!   therefore DEFINED, identically in every profile (this workspace
+//!   builds every profile with debug assertions on, so an assertion
+//!   would be a panic everywhere and untestable anywhere): an outer
+//!   bracket closed while an inner one is open takes its own frame and
+//!   discards the inner's with it; the inner's guard then finds another
+//!   frame — or none — at its depth and pops nothing, returning an
+//!   empty [`Recorded`]. What is lost is that guard's own recording;
+//!   nothing above or below moves, and a stale guard never returns a
+//!   later bracket's decisions.
 //! - **Thread confinement.** A [`Bracket`] is `!Send` — it carries a
 //!   `PhantomData<*const ()>` — so the value that closes a frame cannot
 //!   leave the thread whose stack holds it; the compiler refuses the
@@ -89,9 +97,18 @@
 //!
 //! Paths that never open a bracket (STL export, step-import, the demos)
 //! still pay the `RefCell` borrow and an empty-stack check per
-//! decision. Gating *that* on a `Cell<bool>` is a live optimization and
-//! is orthogonal to any feature — it behaves identically in every build
-//! configuration.
+//! decision.
+//!
+//! **What the escalation channel carries is the FUNNEL's escalations**:
+//! an [`Indeterminate`] that `classify` itself returned. A predicate
+//! that asks the funnel, receives a DEFINITE sign, and then mints an
+//! `Indeterminate` of its own (a collapsed lever arm decided `Zero`,
+//! say) hands its caller an escalation the log does not hold — the
+//! frame records the definite verdict and nothing else. Such an
+//! escalation reaches a consumer only through the op's error enum, so
+//! a consumer that reads the log must keep reading those arms too. The
+//! sites, and the unit that closes the gap, are
+//! `work/props/escalation-channel-misses-op-minted-indeterminates.md`.
 //!
 //! Recording happens through the [`Probe`] scalar: a transparent `f64`
 //! wrapper whose `Decide` implementation logs `(predicate, margin,
@@ -150,11 +167,22 @@ thread_local! {
     /// The installed sample sink, if any.
     #[cfg(feature = "probe")]
     static SINK: RefCell<Option<Vec<MarginSample>>> = const { RefCell::new(None) };
-    /// The frame stack: one [`Recorded`] per open [`Bracket`] on this
+    /// The frame stack: one [`Frame`] per open [`Bracket`] on this
     /// thread, innermost last (module docs; NAMING-DESIGN N5:
     /// evaluations record their verdict vectors so the verdict-diff
     /// engine can attribute flips). Empty whenever no bracket is open.
-    static FRAMES: RefCell<Vec<Recorded>> = const { RefCell::new(Vec::new()) };
+    static FRAMES: RefCell<Vec<Frame>> = const { RefCell::new(Vec::new()) };
+    /// The id the next opened frame takes: unique per thread for the
+    /// life of the thread, so a guard can tell its own frame from any
+    /// frame that later occupies its depth.
+    static NEXT_FRAME_ID: Cell<u64> = const { Cell::new(0) };
+}
+
+/// One open bracket's frame: what it has recorded, and the id its guard
+/// holds.
+struct Frame {
+    id: u64,
+    recorded: Recorded,
 }
 
 /// Classifies `margin` against `band`, noting `name` for the recorder
@@ -176,14 +204,11 @@ fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign
     FRAMES.with(|f| {
         if let Some(top) = f.borrow_mut().last_mut() {
             match outcome {
-                Ok(sign) => top.verdicts.push(Verdict {
+                Ok(sign) => top.recorded.verdicts.push(Verdict {
                     predicate: name,
                     sign,
                 }),
-                Err(source) => top.escalations.push(Escalation {
-                    predicate: name,
-                    source,
-                }),
+                Err(source) => top.recorded.escalations.push(Escalation { source }),
             }
         }
     });
@@ -319,16 +344,26 @@ pub struct Verdict {
 /// without matching on whichever op error enum carried the escalation
 /// out of the op.
 ///
-/// `predicate` duplicates `source.predicate` deliberately: the funnel
-/// attached the name it was called with, and this field states it as
-/// a plain `&'static str` beside [`Verdict::predicate`], so the two
-/// channels are keyed the same way.
+/// The predicate's name rides `source.predicate`: the funnel attaches
+/// the name it was called with before recording, so on a recorded
+/// escalation it is always present ([`Escalation::predicate`] reads
+/// it), and a second copy beside it would be a second thing to keep
+/// equal.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Escalation {
-    /// The predicate that escalated (the funnel's static name).
-    pub predicate: &'static str,
-    /// The indeterminate outcome, with the name attached.
+    /// The indeterminate outcome, with the funnel's name attached.
     pub source: Indeterminate,
+}
+
+impl Escalation {
+    /// The predicate that escalated (the funnel's static name, the same
+    /// key [`Verdict::predicate`] carries). `classify` attaches it
+    /// before recording, so the fallback is unreachable through the
+    /// funnel and exists only because the field is an `Option`.
+    #[must_use]
+    pub fn predicate(&self) -> &'static str {
+        self.source.predicate.unwrap_or("<unnamed>")
+    }
 }
 
 /// Everything one [`Bracket`] recorded: both channels of its frame, in
@@ -352,18 +387,34 @@ pub struct Recorded {
 ///
 /// `!Send` by construction (the `*const ()` phantom): a bracket closes
 /// the frame on the thread that opened it, and the compiler refuses to
-/// move it anywhere else.
+/// move it anywhere else — E0277, `Bracket` cannot be sent between
+/// threads safely:
 ///
-/// ```compile_fail
+/// ```compile_fail,E0277
 /// let bracket = geom_core::k_stats::Bracket::open();
 /// std::thread::spawn(move || drop(bracket));
+/// ```
+///
+/// The legal twin, differing in one respect — the same value held on
+/// the spawning thread while another thread runs — compiles, which is
+/// what makes the block above a pin on the `Send` bound rather than on
+/// some other error (stable rustdoc does not verify the error code):
+///
+/// ```
+/// let bracket = geom_core::k_stats::Bracket::open();
+/// std::thread::scope(|s| {
+///     s.spawn(|| ());
+/// });
+/// drop(bracket.finish());
 /// ```
 #[must_use = "a bracket records only while it is held; bind it, then `finish` it"]
 #[derive(Debug)]
 pub struct Bracket {
-    /// The index of this bracket's frame on the stack — the invariant
-    /// the close checks, so a bracket only ever pops its own frame.
+    /// The index of this bracket's frame on the stack.
     depth: usize,
+    /// The frame's per-thread unique id — what the close compares, so
+    /// a bracket only ever pops its own frame.
+    id: u64,
     _confined: PhantomData<*const ()>,
 }
 
@@ -373,13 +424,22 @@ impl Bracket {
     /// bracket is finished or dropped (and outside any inner bracket)
     /// lands in it.
     pub fn open() -> Self {
+        let id = NEXT_FRAME_ID.with(|n| {
+            let id = n.get();
+            n.set(id.wrapping_add(1));
+            id
+        });
         let depth = FRAMES.with(|f| {
             let mut frames = f.borrow_mut();
-            frames.push(Recorded::default());
+            frames.push(Frame {
+                id,
+                recorded: Recorded::default(),
+            });
             frames.len() - 1
         });
         Self {
             depth,
+            id,
             _confined: PhantomData,
         }
     }
@@ -390,38 +450,35 @@ impl Bracket {
         // `Drop` would pop the frame a second time; skipping it is the
         // whole reason for the wrapper.
         let this = ManuallyDrop::new(self);
-        pop_frame(this.depth)
+        pop_frame(this.depth, this.id)
     }
 }
 
 impl Drop for Bracket {
     fn drop(&mut self) {
-        pop_frame(self.depth);
+        pop_frame(self.depth, self.id);
     }
 }
 
-/// Pops the frame a bracket opened at `depth`.
+/// Pops the frame a bracket opened at `depth` with id `id`.
 ///
-/// Brackets close in the reverse of the order they opened, so the
-/// frame is the innermost one; a close out of that order is a bug in
-/// the caller. It is asserted in debug builds. In release, frames above
-/// `depth` (inner brackets still open) are discarded with this one, and
-/// a stack already shorter than `depth + 1` (this frame is gone
-/// already) pops nothing — so a bracket never returns another
-/// bracket's decisions, whichever way the nesting was broken.
-fn pop_frame(depth: usize) -> Recorded {
+/// In order — the frame is the innermost one — this is a plain pop.
+/// Out of order it is DEFINED, the same in every profile (module
+/// docs): the frame at `depth` is this bracket's exactly when its id
+/// is `id`, in which case it is returned and every frame above it (an
+/// inner bracket still open) is discarded with it; any other frame
+/// there, or none, means this bracket's frame is already gone, and
+/// nothing is popped — an empty record comes back and the stack is
+/// untouched. A stale guard therefore never returns another bracket's
+/// decisions, and never removes another bracket's frame.
+fn pop_frame(depth: usize, id: u64) -> Recorded {
     FRAMES.with(|f| {
         let mut frames = f.borrow_mut();
-        debug_assert_eq!(
-            frames.len(),
-            depth + 1,
-            "brackets close in the reverse of the order they opened"
-        );
-        if frames.len() <= depth {
+        if frames.get(depth).is_none_or(|frame| frame.id != id) {
             return Recorded::default();
         }
         frames.truncate(depth + 1);
-        frames.pop().unwrap_or_default()
+        frames.pop().map(|frame| frame.recorded).unwrap_or_default()
     })
 }
 
@@ -814,6 +871,10 @@ mod tests {
         Band::linear(Tol::witness()).unwrap()
     }
 
+    fn names(r: &Recorded) -> Vec<&'static str> {
+        r.verdicts.iter().map(|v| v.predicate).collect()
+    }
+
     /// [`SampleOutcome::ALL`] lists every variant, proven by matching on
     /// each one: a variant added without a roster entry stops compiling
     /// here rather than leaving whatever derives from `ALL` silently
@@ -892,13 +953,8 @@ mod tests {
         let log = bracket.finish();
         assert_eq!(log.verdicts.len(), 1);
         assert_eq!(log.verdicts[0].predicate, "vlog_f");
-        assert_eq!(
-            log.escalations,
-            vec![Escalation {
-                predicate: "vlog_e",
-                source: escalated,
-            }]
-        );
+        assert_eq!(log.escalations, vec![Escalation { source: escalated }]);
+        assert_eq!(log.escalations[0].predicate(), "vlog_e");
         assert_eq!(log.escalations[0].source.predicate, Some("vlog_e"));
         assert_eq!(open_frames(), 0);
     }
@@ -917,7 +973,6 @@ mod tests {
         let inner_log = inner.finish();
         decide("vlog_i", Margin::of(-1.0f64), b).unwrap();
         let outer_log = outer.finish();
-        let names = |r: &Recorded| r.verdicts.iter().map(|v| v.predicate).collect::<Vec<_>>();
         assert_eq!(names(&inner_log), ["vlog_h"]);
         assert_eq!(names(&outer_log), ["vlog_g", "vlog_i"]);
         assert_eq!(open_frames(), 0);
@@ -963,6 +1018,123 @@ mod tests {
         let log = after.finish();
         assert_eq!(log.verdicts.len(), 1);
         assert_eq!(log.verdicts[0].predicate, "vlog_m");
+    }
+
+    /// **Out-of-order closes are defined, in every profile.** The outer
+    /// bracket closed first takes its own frame and discards the open
+    /// inner one's; the inner guard, closed later on a stack that no
+    /// longer holds its frame, pops nothing and returns an empty record
+    /// — it never takes the frame beneath.
+    #[test]
+    fn an_outer_bracket_closed_first_discards_the_inner_frame_and_the_inner_pops_nothing() {
+        let b = band();
+        let base = Bracket::open();
+        decide("vlog_base", Margin::of(1.0f64), b).unwrap();
+        let outer = Bracket::open();
+        decide("vlog_p", Margin::of(1.0f64), b).unwrap();
+        let inner = Bracket::open();
+        decide("vlog_q", Margin::of(1.0f64), b).unwrap();
+        let got_outer = outer.finish();
+        assert_eq!(
+            names(&got_outer),
+            ["vlog_p"],
+            "the outer returns its own frame only"
+        );
+        assert_eq!(open_frames(), 1);
+        decide("vlog_after", Margin::of(1.0f64), b).unwrap();
+        let got_inner = inner.finish();
+        assert_eq!(got_inner, Recorded::default(), "the inner stole a frame");
+        assert_eq!(open_frames(), 1);
+        assert_eq!(names(&base.finish()), ["vlog_base", "vlog_after"]);
+        assert_eq!(open_frames(), 0);
+    }
+
+    /// The same rule through `Drop`: dropping the outer guard while the
+    /// inner is open truncates the inner away, and the inner finishes
+    /// empty.
+    #[test]
+    fn dropping_the_outer_first_truncates_the_inner() {
+        let b = band();
+        let outer = Bracket::open();
+        let inner = Bracket::open();
+        decide("vlog_r", Margin::of(1.0f64), b).unwrap();
+        drop(outer);
+        assert_eq!(open_frames(), 0);
+        assert_eq!(inner.finish(), Recorded::default());
+        assert_eq!(open_frames(), 0);
+    }
+
+    /// **A stale guard at a reused depth does not steal.** Close the
+    /// outer first, then open two fresh brackets so the stale guard's
+    /// depth is occupied again: the stale close finds a different frame
+    /// id there, returns empty, and the fresh brackets keep their own
+    /// decisions. The id, not the depth, is what a close compares.
+    #[test]
+    fn a_stale_guard_at_a_reused_depth_pops_nothing_and_the_later_bracket_keeps_its_decision() {
+        let b = band();
+        let a = Bracket::open();
+        let stale = Bracket::open();
+        decide("vlog_stale_own", Margin::of(1.0f64), b).unwrap();
+        let ra = a.finish();
+        assert!(ra.verdicts.is_empty(), "the outer recorded nothing itself");
+        let c = Bracket::open();
+        let d = Bracket::open();
+        decide("vlog_d_own", Margin::of(1.0f64), b).unwrap();
+        assert_eq!(stale.finish(), Recorded::default());
+        assert_eq!(open_frames(), 2, "the stale close moved the stack");
+        assert_eq!(names(&d.finish()), ["vlog_d_own"]);
+        assert!(names(&c.finish()).is_empty());
+        assert_eq!(open_frames(), 0);
+    }
+
+    /// Escalations recorded in an inner frame stay there; the outer
+    /// frame's escalation channel receives only its own.
+    #[test]
+    fn inner_escalations_do_not_leak_to_the_outer_frame() {
+        let b = band();
+        let mid = f64::midpoint(b.zero(), b.escalate());
+        let outer = Bracket::open();
+        decide("vlog_outer_esc", Margin::of(mid), b).unwrap_err();
+        let inner = Bracket::open();
+        decide("vlog_inner_esc", Margin::of(mid), b).unwrap_err();
+        decide("vlog_inner_ok", Margin::of(1.0f64), b).unwrap();
+        let inner_log = inner.finish();
+        decide("vlog_outer_ok", Margin::of(-1.0f64), b).unwrap();
+        let outer_log = outer.finish();
+        let esc = |r: &Recorded| {
+            r.escalations
+                .iter()
+                .map(Escalation::predicate)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(esc(&inner_log), ["vlog_inner_esc"]);
+        assert_eq!(names(&inner_log), ["vlog_inner_ok"]);
+        assert_eq!(esc(&outer_log), ["vlog_outer_esc"]);
+        assert_eq!(names(&outer_log), ["vlog_outer_ok"]);
+    }
+
+    /// The guard cannot cross a thread (the `compile_fail` block on
+    /// [`Bracket`]), but WORK can: a decision made on another thread
+    /// while this thread holds a bracket lands in no frame at all, the
+    /// stack being thread-local. Stated because the type does not
+    /// forbid it; no kernel op spawns today.
+    #[test]
+    fn work_on_another_thread_records_nowhere_while_this_thread_holds_a_bracket() {
+        let b = band();
+        let outer = Bracket::open();
+        decide("vlog_here", Margin::of(1.0f64), b).unwrap();
+        std::thread::scope(|s| {
+            s.spawn(|| {
+                decide("vlog_elsewhere", Margin::of(1.0f64), b).unwrap();
+            });
+        });
+        assert_eq!(names(&outer.finish()), ["vlog_here"]);
+    }
+
+    /// An untouched bracket finishes to the default record.
+    #[test]
+    fn an_untouched_bracket_finishes_default() {
+        assert_eq!(Bracket::open().finish(), Recorded::default());
     }
 
     /// A second bracket opened beside the first is a NESTED one, not a

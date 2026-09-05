@@ -87,19 +87,18 @@ fn the_three_doors_share_one_verdict_stream_in_decision_order() {
     assert_eq!(
         recorded.escalations,
         vec![
-            Escalation {
-                predicate: "door_d",
-                source: d
-            },
-            Escalation {
-                predicate: "door_e",
-                source: e
-            },
-            Escalation {
-                predicate: "door_f",
-                source: f
-            },
+            Escalation { source: d },
+            Escalation { source: e },
+            Escalation { source: f },
         ]
+    );
+    assert_eq!(
+        recorded
+            .escalations
+            .iter()
+            .map(Escalation::predicate)
+            .collect::<Vec<_>>(),
+        ["door_d", "door_e", "door_f"]
     );
 }
 
