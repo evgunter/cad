@@ -461,3 +461,15 @@ are complete; the plan's remaining migrations (split, the shell arm)
 and the side units form block SEAT-B3, whose paper is cut
 (`docs/SEAT-8-SPEC.md`, `docs/SEAT-FW-SPEC.md`, `docs/SEAT-DN-SPEC.md`,
 `docs/SEAT-9-NOTE.md`). Next: the B3 draw and SEAT-8.
+
+## SEAT-8 DISPATCHED — BLOCK SEAT-B3 OPENS (2026-09-05)
+
+SEAT-7 merged at 9d48d4b5 (PR 1910); block SEAT-B2's record and byte
+are on main. Block SEAT-B3's byte was drawn at this dispatch
+(difficulties logged pre-draw: SEAT-8 M · SEAT-FW M · SEAT-DN S ·
+SEAT-9 M) and stays private until the block closes. SEAT-8 — split
+onto the Verb substrate, `docs/SEAT-8-SPEC.md` — dispatches on slot 0.
+Two lessons from B2 ride every B3 brief: merge `origin/main` before
+touching `work/`, and a push that gets no Actions run within minutes
+while the PR is dirty is fixed by merging main, never by an empty
+commit.
