@@ -2,8 +2,9 @@
 id: the-news-vocabulary-has-no-expiry
 kind: issue
 title: Nothing owns when news stops being news, so a stale-but-true complaint sits on the line indefinitely
-status: open
+status: closed
 opened: 2026-09-04
+closed: 2026-09-05
 refs: [camera-fold-clears-status-line, status-line-writers-bypass-the-ranking, opoutcome-superseded-has-no-production-reader]
 ---
 
@@ -154,3 +155,17 @@ being aspirational rather than being deleted.
 
 Rides with `four-badges-five-spellings`, per the same PR's answer to
 question 3.
+
+## Closed by `view/news-and-badges` (PR #1933)
+
+`StatusUpdate::Show(String)` is `Show(Message)`, `Message` carries a
+`frame::Subject`, and `StatusUpdate::Expire(Subject)` retires one
+subject without touching the rest. `fold_status`'s clean arm and
+`cursor_status` are the two issuers; twelve direct writers hand their
+typed refusal to a `frame` door that answers the subject for them, so
+the decision is asserted rather than chosen in an `app`-gated paint.
+
+**Two gaps are carried forward rather than closed**, each with a file:
+`a-supersession-outlives-its-own-frame` (the fourth of the ruling's
+four instances is subsumed by `Clear` and changes nothing) and
+`one-line-one-subject-loses-a-mixed-frames-expiry`.
