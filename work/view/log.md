@@ -2408,3 +2408,83 @@ what goes in it waits for sign-off). Recorded here rather than filed as
 an item, because it is an amendment to a memory rather than work in
 this program's territory — and named in this log so a successor
 orchestrator meets it.
+
+## `view/news-and-badges` green; my weakest claim was right to doubt (2026-09-05)
+
+**#1933, green** on `ce935cf5` — 37 jobs, twelve `test (…)`, five
+`k-lint (gate, …)`, nothing narrowed. Under style review. Not merged,
+and the lane's reason for not merging is the right one: the two shapes
+a reviewer might want different are design calls it made **inside** the
+ruling, and the brief said a shape problem found before nineteen sites
+are written against it is worth more than the sweep.
+
+### The shapes
+
+**News**: `Show(String)` → `Show(Message { subject, text })`, plus a
+fourth arm `Expire(Subject)` — an event about one subject retires the
+line's message iff it is about that subject. `frame::fold_status`'s
+clean arm becomes `Expire(Subject::Camera)`, which **keeps its ratified
+argument exactly** (it decides no sentence it did not write) while
+retiring the refusal it did write. `Subject`'s five variants are each
+named for **the event stream that retires them**, not for the site that
+produces them, which is the right axis.
+
+**Badges**: `frame::Badge { label, Tone, detail, Affordance }`, four
+constructors, one draw. Both ratified constraints survive as values
+rather than as prose: `Tone::{Advisory, Actionable}` states the
+weak/unresolved rule, `Affordance::Opens` keeps the checks badge a
+button with the reason on the variant.
+
+And the second shape the #1886 review found is gone:
+`supersession_notice` + `dropped_hide_notice` are one typed value with
+`Display` (`frame::Withdrawal`), matching `ToolNotice`/`prefs::Notice`.
+Zero `fn … -> Option<String>` left in `frame`.
+
+### My weakest claim, and the lane was right to check it
+
+I flagged as least-sure that **a supersession's subject is the document
+transition**. The answer is *"true as stated, and empty"*: a document
+transition is an accepted op, and such a frame already answers `Clear`,
+which sweeps the whole line. So `Subject::Document` has **no `Expire`
+issuer that `Clear` does not subsume**, and a supersession's behaviour
+is unchanged by this PR.
+
+The interesting fork — subject = the *instance* rather than the
+document — needs a payload on `Subject` and is not ruled. Filed as
+`a-supersession-outlives-its-own-frame` with three forks, and
+`Withdrawal`'s doc now states the lifetime it **has** beside the one
+its argument wants, so nothing in the tree claims the unimplemented
+one.
+
+### Two things this unit surfaced that outrank it
+
+**A limitation the sweep will hit.** The vocabulary cannot express a
+frame whose rank-2 notices are about **different** subjects:
+`joined_subject` falls back to `Document`, so a `Cursor` notice joined
+with a `Document` notice loses its cursor expiry. Unreachable today —
+**reachable the moment the sweep routes the picking disagreement into
+`notices` beside a tool notice**, which is one of the nineteen. The
+lane's read is that the fix is per-subject line state, which changes
+rank 1's ratified *"a refusal wins alone"* and is **not ruled**. If
+that holds, the sweep needs another ruling before it can finish, and
+finding that now rather than at site fourteen is exactly what the fence
+was for.
+
+**A conflict between two texts, resolved by the lane picking one.**
+`status-line-writers-bypass-the-ranking` classifies `viewport.rs`'s
+`projection: {error}` as a **standing fact**; #1883's ruling text names
+a projection refusal among the **news** instances. The lane took the
+ruling and made it `Subject::Camera`. **That may be my error rather
+than the item's** — I wrote the ruling's examples in the PR body, and I
+may have used "projection refusal" loosely for a fact whose lifetime
+happens to be "until the camera moves". Put to the style review for an
+independent read; it decides one of the nineteen either way.
+
+### Inherited red, diagnosed correctly
+
+The first run was red on `geom-core`'s `bounds_census`, and the lane
+**reproduced it at the merge base with none of its own changes** before
+concluding anything — inherited, fix already on main, cleared by
+merging main. That is the procedure `memories/agent-lane-operations.md`
+asks for and it is the first time this session a lane has met a red it
+did not cause.
