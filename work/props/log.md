@@ -473,3 +473,30 @@ backend's `cos` at exact angles) — a present-tense paragraph at
 at its own home, the item closed with the ruling. One lane, two PRs in
 sequence, single style reviews, outside the experiment. Seam posted to
 BOOL for `SketchPlane`.
+
+**k-stats fix pass (2026-09-05)** — on
+[#1969](https://github.com/evgunter/cad/pull/1969), the dual's eleven
+items A–K all taken (one refuted by measurement inside C: 8 bare
+`compile_fail` fences on this head, not 16, all in
+`quantity/src/units.rs`). The mis-nesting rule was wrong in every
+profile the repo builds (`debug-assertions = true` everywhere; the
+assert fired before the truncate and leaked a frame; with assertions
+off a stale guard stole a later bracket's decision) — frames now carry
+per-thread ids and an out-of-order close is defined and pinned in the
+default profile. The channel's completeness claim was false and is
+restated where it was made: the log carries the funnel's escalations;
+eight op-minted `Indeterminate`s, two raw `sign_within` calls and the
+unbracketed mate solve reach a consumer through the error enums, whose
+arms in `classify_replay` are load-bearing; `classify_replay` now reads
+a definite box-independent refusal first, the log second, the arms
+third. Rows adopted: r1's steal probe, escalation-channel probe and
+parts/schedule rows; r2's release and geom-core rows and, rebuilt from
+description, the outside-bracket counts (0 assembly / 75 part) and the
+mate-solve escalation in an outer frame. Six issues filed
+(`escalation-channel-misses-op-minted-indeterminates`,
+`indeterminate-error-arms-sweep`,
+`part-per-node-logs-dropped-with-nested-evaluation` here;
+`bracket-scope-is-run-op-not-the-node`,
+`compile-fail-blocks-without-error-codes` in `work/issues/`;
+`coincidence-zone-priced-budget-at-the-floor` on M10's slate). The
+item is closed; the spec deleted and ledgered.
