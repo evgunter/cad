@@ -2341,12 +2341,13 @@ class TestTwopeg(unittest.TestCase):
         hold are the whole declaration, and the union GLUES at the
         scene's own exactly-additive oracle, 2·6·4·1 = 48.
 
-        The second half is what keeps the first honest: declaring only
-        the PLANAR findings — everything the detector could report
-        while it was plane-only — still refuses, in the reduction's
-        curved-face arm. So the cylindrical declarations are what
-        unlock the arm, not a decoration on a union that would have
-        built anyway."""
+        The differential that keeps this honest is the sibling row
+        below: declaring only the six `SameOriented` wall findings —
+        the pairs a Python author could hold and declare without any
+        curved rung being involved — still refuses, in the
+        reduction's curved-face arm. So the cylindrical declarations
+        are what unlock the arm, not a decoration on a union that
+        would have built anyway."""
         doc = Doc()
         p, q, _, _ = self.parts(doc)
         ev = evaluate(doc)
@@ -2377,7 +2378,14 @@ class TestTwopeg(unittest.TestCase):
         The six `SameOriented` wall findings are declarable and always
         were; on their own they leave the curved contact undeclared,
         and the boolean refuses in the same curved-face arm it refused
-        in before the detector could see that contact at all."""
+        in before the detector could see that contact at all.
+
+        SIX, not the seven the plane-only detector reported: the
+        seventh is the mating plane, and telling it from the eighteen
+        cylindrical `SameOpposite` findings from Python would mean
+        reading the opaque name text, which the binding forbids. The
+        seven-finding variant refuses identically — the declaration
+        that matters is the curved one either way."""
         doc = Doc()
         p, q, _, _ = self.parts(doc)
         ev = evaluate(doc)

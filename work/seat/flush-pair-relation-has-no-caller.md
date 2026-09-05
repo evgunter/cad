@@ -9,13 +9,13 @@ opened: 2026-09-05
 
 Disclosed by SEAT-FW, which is what removed the caller.
 
-`topo::boolean::flush_pair_relation` (`crates/topo/src/boolean/rest.rs:527`)
+`topo::boolean::flush_pair_relation` (`crates/topo/src/boolean/rest.rs:521`)
 is the planar projection of `carrier_pair_relation`: same descriptions,
 same identity record, and its verdict function is the one
 `carrier_eq`'s `(Plane, Plane)` arm delegates to. Verify-at-use stopped
 calling it at M9-1; the flush detector was its last consumer and
 `topo::flush::pair_finding` now asks `carrier_pair_relation` instead
-(`crates/topo/src/flush.rs:223`). So the door is exported from
+(`crates/topo/src/flush.rs:250`). So the door is exported from
 `topo`'s root (`crates/topo/src/lib.rs:284`) and from
 `topo::boolean` (`crates/topo/src/boolean/mod.rs:125`) with **no
 caller anywhere in the tree** — tests, demos and probes included.

@@ -4032,7 +4032,11 @@ mod verbs_gate_r1_probes {
     ///    while the detector was planar — the two arcs' shared disk.
     ///    Their tube walls are tori about DIFFERENT ring centres, so
     ///    the curved rungs have nothing to add to this mate, and its
-    ///    refusal is the operand gate's on KINDS either way.
+    ///    refusal is the operand gate's on KINDS either way. The
+    ///    plant's other two consumers of the shared helper — the
+    ///    flower weld and the leaf sheath — are measured here too, so
+    ///    that every one of this scene's declaration sets is read by
+    ///    KIND rather than inferred from an unchanged render.
     #[test]
     fn the_curved_rungs_declare_the_socket_and_leave_the_stem_glue_alone() {
         let tol = Tol::witness();
@@ -4077,6 +4081,62 @@ mod verbs_gate_r1_probes {
                 Some(SurfaceKind::Plane),
                 "the stem glue is the shared DISK and nothing else — the arcs' tube \
                  walls are distinct torus carriers: {f:?}"
+            );
+        }
+
+        // The plant's other two helper consumers, to complete the
+        // inventory `booleans::consumer_census` starts: the flower
+        // weld (wall 2's probe) and the leaf sheath (wall 8). Both are
+        // planar-only, so the widening reaches neither.
+        let lant = by("lily_lantern");
+        let weld = pncad::topo::flush::find_flush_candidates(lant, arch, tol)
+            .expect("the weld's pairs decide definitely");
+        assert_eq!(
+            weld.len(),
+            2,
+            "the throat disk arrives as two half-faces: {weld:?}"
+        );
+        for f in &weld {
+            assert_eq!(
+                pncad::prelude::query::face_surface_kind(lant, f.pair.0),
+                Some(SurfaceKind::Plane),
+                "the weld's declared contact is plane x plane: {f:?}"
+            );
+        }
+        let sheath = {
+            let base_section = leaf_a_plan().base;
+            lofted_blade::<f64>(
+                LEAF_A_BASE,
+                -LEAF_A_DIR,
+                LEAF_A_UP,
+                0.34,
+                0.85,
+                Plan {
+                    base: base_section,
+                    belly: base_section,
+                    belly_at: 0.5,
+                    tip: base_section,
+                    roll0: 0.0,
+                    twist: 0.0,
+                    twist_ease: 1.0,
+                },
+                9,
+                tol,
+            )
+        };
+        let leaf = by("lily_leaf_a");
+        let graft = pncad::topo::flush::find_flush_candidates(leaf, &sheath, tol)
+            .expect("the sheath's shared rectangle decides definitely");
+        assert!(
+            !graft.is_empty(),
+            "the sheath and the blade share their base cap"
+        );
+        for f in &graft {
+            assert_eq!(
+                pncad::prelude::query::face_surface_kind(leaf, f.pair.0),
+                Some(SurfaceKind::Plane),
+                "the graft's contact is the shared base RECTANGLE, planar on both \
+                 sides — the skinned walls are NURBS and no candidate at all: {f:?}"
             );
         }
     }

@@ -500,26 +500,19 @@ type RestSurfaces = (SecondaryMap<SurfaceKey, ()>, SecondaryMap<SurfaceKey, ()>)
 /// only meters the angular sliver band (exact fixtures decide
 /// definitely either way).
 ///
-/// **Who calls this, and where the shared arm really is.** This door
-/// has NO in-tree consumer: verify-at-use stopped calling it at M9-1,
-/// when [`verify_declared_pairs`] and the op's front door moved to
-/// the kind-generalized [`carrier_pair_relation`], and the flush
-/// detector's candidate-generation mode followed at SEAT-FW, when its
-/// scope became the `Rest` ladder's. What it still IS is that door's
-/// planar projection, published for a caller who holds two faces and
-/// wants the plane question asked as a plane question — and the two
-/// cannot drift, because `carrier_pair_relation` builds the same
-/// sense-folded plane description through [`face_carrier`]'s Plane
-/// arm and the same identity through [`face_plane_source`], and its
-/// `(Plane, Plane)` case delegates to
-/// [`oriented_plane_eq_verdict`](super::plane_eq::oriented_plane_eq_verdict)
-/// — the very function this door's [`super::oriented_plane_eq`] wraps.
-/// One verdict function, one set of `decide` sites, one verification
-/// arm, reached by two spellings of the same three inputs. The #304
-/// review's planted-drift probe showed a hand-mirrored arm passes
-/// every axis-aligned suite, which is why the arm is shared rather
-/// than mirrored — and why the chain above is stated rather than
-/// summarized as "the same door".
+/// **This door has NO in-tree consumer.** Verify-at-use stopped
+/// calling it at M9-1 and the flush detector followed when its scope
+/// became the `Rest` ladder's; what to do about a published door with
+/// no caller is `work/seat/flush-pair-relation-has-no-caller.md`.
+/// What it still IS is [`carrier_pair_relation`]'s planar projection,
+/// and the two cannot drift: that door's `(Plane, Plane)` case
+/// delegates to
+/// [`oriented_plane_eq_verdict`](super::plane_eq::oriented_plane_eq_verdict),
+/// the very function [`super::oriented_plane_eq`] wraps here — one
+/// verdict function, one set of `decide` sites, one verification arm.
+/// (The #304 review's planted-drift probe showed a hand-mirrored arm
+/// passes every axis-aligned suite, which is why the arm is shared
+/// rather than mirrored.)
 ///
 /// `None`: not a planar pair — there is no plane description to
 /// compare (the REST lane treats it as an invariant violation at its

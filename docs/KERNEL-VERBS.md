@@ -492,6 +492,8 @@ the table.
   inventory (cone, NURBS, `Approx`) is honestly no candidate:
   detection and declarability coincide rather than one being a
   subset of the other. What a finding does NOT promise is that the
-  op will build — the row above's #1032 limitation is unmoved by
-  detection, and a `Tangent` finding waits on a locus the verifier
-  can check.
+  op will build — the **declared conformal / REST joins (curved)**
+  row of the verb table above carries #1032's limitation (a purely
+  cylindrical declared `Rest` with no planar `Rest` beside it does
+  not reach the rest lane) and detection does not move it, and a
+  `Tangent` finding waits on a locus the verifier can check.

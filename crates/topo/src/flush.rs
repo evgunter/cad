@@ -32,13 +32,8 @@
 //!
 //! So a pair this detector calls flush cannot be a pair the declared
 //! rung then contradicts — one verdict ladder, one set of `decide`
-//! sites, one verification arm, reached by one call. (Until the
-//! curved widening this module called `flush_pair_relation`, the
-//! planar projection of that door, and the property held one link
-//! down through `carrier_eq`'s `(Plane, Plane)` delegation to
-//! `oriented_plane_eq_verdict`. The convergence argument is now
-//! identity, and the planar numbers are unmoved because that
-//! delegation is where they still come from.)
+//! sites, one verification arm, reached by one call, and both
+//! postures decided out of the same `data_rungs` traversal.
 //!
 //! Consequences, all deliberate:
 //!
@@ -75,6 +70,21 @@
 //! document-seat detector refuses the same way, on the first such
 //! pair its own name-order walk meets, and this door is deliberately
 //! identical to it.)
+//!
+//! **A curved pair can now be that pair, and that is a widened
+//! FAILURE surface, not only a widened answer.** While the door
+//! enumerated over the planar projection, a curved pair had no
+//! description to compare and was `Ok(None)` — no candidate, no
+//! margin, no way to refuse. It reaches the ladder now, so a bore
+//! whose radius misses its peg's by less than the band makes this
+//! whole query refuse `PairInBand` where it used to answer with the
+//! pairs it could decide. That is D4's fail-loud posture applied to a
+//! question that could not previously be asked: the alternative is
+//! reporting a partial answer over an undecidable pair, which is the
+//! one thing a definite-findings door may never do. A caller that
+//! `expect`s the query (the tour's helper does) turns it into a
+//! panic, deliberately — a scene whose own contacts do not decide is
+//! a scene to fix.
 //!
 //! # Scope: `Rest`, every carrier the ladder verifies
 //!
@@ -217,10 +227,8 @@ impl core::error::Error for FlushRefusal {}
 /// resolution, the tie trilean, refusal payloads) upstairs.
 ///
 /// Everything — descriptions, oriented sources, AND the verification
-/// arm — comes from
-/// [`carrier_pair_relation`],
-/// the door verify-at-use itself calls (module docs). ONE call, in
-/// `declared: false` mode: its `Undeclared` refusal with the
+/// arm — comes from [`carrier_pair_relation`] (module docs). ONE
+/// call, in `declared: false` mode: its `Undeclared` refusal with the
 /// verifier's definite-zero encoding ([`MarginDiag::Invalid`]) is
 /// precisely "would verify if declared", and the refusal itself
 /// carries the orientation the ladder decided — the same orientation

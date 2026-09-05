@@ -1132,7 +1132,7 @@ impl Evaluation {
         super::pick::pick_face(py, self, targets, ray)
     }
 
-    /// **The cross-body flush-plane candidates between `a`'s and
+    /// **The cross-body flush candidates between `a`'s and
     /// `b`'s outputs, as of THIS evaluation** — the detect arm of the
     /// detect/declare protocol: the verifier run in
     /// candidate-generation mode, so a

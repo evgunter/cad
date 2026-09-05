@@ -29,8 +29,8 @@ use crate::fixture;
 
 use editor_core::{
     BooleanOp, CancelToken, ContactClass, EvalOptions, Evaluation, FlushRung, LoopProgram, Node,
-    NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, ValuePayload, declare_all,
-    evaluate, find_flush_candidates,
+    NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SelectRefusal,
+    ValuePayload, declare_all, evaluate, find_flush_candidates,
 };
 use geom_brep::SurfaceKind;
 use geom_core::Tol;
@@ -248,4 +248,54 @@ fn a_declared_curved_finding_verifies_and_then_meets_the_lane_frontier() {
         matches!(err, topo::BooleanError::Join(_)),
         "what stops this mate is a lane frontier past verification, at the join: {err:?}"
     );
+}
+
+// ------------------------------------------------------------------
+// 4. The failure surface the widening grew: a curved in-band pair.
+// ------------------------------------------------------------------
+
+/// **An in-band CURVED pair refuses the whole query, where before the
+/// widening it was not a candidate at all** — the fail-loud
+/// consequence of detection reaching the curved rungs, pinned because
+/// it is a change in BEHAVIOUR and not only in answers.
+///
+/// A bore whose radius misses the peg's by half a band cannot be
+/// decided either way. The planar detector answered `None` for such a
+/// pair before it ever reached a margin (no plane description, no
+/// candidate); the carrier ladder measures it, cannot decide, and
+/// [`topo::flush::FlushRefusal::PairInBand`] names the pair with the
+/// VERIFIER's own funnel site — a curved one, `carrier_cyl_radius`,
+/// which is the anti-twin rule showing through: detection mints no
+/// site of its own on any rung.
+///
+/// A finding is only ever definite (SELECT-DESIGN §3a), so the
+/// alternative to this refusal is silently including or dropping an
+/// undecidable pair. That is why the whole query refuses rather than
+/// reporting what it could decide.
+#[test]
+fn a_curved_in_band_pair_refuses_the_query_naming_the_carrier_site() {
+    let tol = Tol::witness();
+    let raw = tol.get();
+    let half_band = 0.5 * (raw.eps + raw.k * raw.eps);
+    let (doc, peg, block) = peg_in_bore(PEG_R + half_band);
+    let ev = eval(&doc);
+    let (a, b) = (body_of(&ev, peg), body_of(&ev, block));
+    match topo::flush::find_flush_candidates(a, b, tol) {
+        Err(topo::flush::FlushRefusal::PairInBand { source, .. }) => {
+            assert_eq!(
+                source.predicate,
+                Some("carrier_cyl_radius"),
+                "the site is the verifier's, on the rung that could not decide: {source:?}"
+            );
+        }
+        other => panic!("an undecidable curved pair must refuse, got {other:?}"),
+    }
+    // The document seat refuses the same pair, in its own vocabulary
+    // and off the same site: one door under both.
+    match find_flush_candidates(&ev, peg, block, tol) {
+        Err(SelectRefusal::PairInBand { predicate, .. }) => {
+            assert_eq!(predicate, "carrier_cyl_radius");
+        }
+        other => panic!("the document seat refuses the same pair: {other:?}"),
+    }
 }

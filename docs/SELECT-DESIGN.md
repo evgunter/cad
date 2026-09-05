@@ -46,15 +46,25 @@ exact-vs-decided reframing signed off.
 **The demand evidence is the fillet-selection alphabet** — the two
 demo filters
 that stayed hand-written against the kernel body because U7 was
-structural-only (`demos/tour/src/diefillet.rs:203-244`), plus the
-flush helper's decision triple (`demos/tour/src/booleans.rs:60-120`):
+structural-only (`demos/tour/src/diefillet.rs:203-244`), plus, in the
+PAST TENSE, the flush helper's own decision triple. This paragraph is
+demand ARCHAEOLOGY: when it was written the tour's helper decided
+coincidence itself, and item 3 below is that hand triple. It has none
+now — `demos/tour/src/booleans.rs`'s helper detects through
+`topo::flush::find_flush_candidates` and declares what it is handed,
+and the deciding is the kernel ladder's (§3(b)) — so the alphabet
+records what the demand WAS, not where the code is:
 
 1. *carrier kind of an edge's curve* ("the straight edges of the
    pipped die" — `matches!(carrier, Curve3::Line{..})`);
 2. *adjacent-surface-kind pair across an edge* ("the plane/sphere
    rims" — face kind on `he_plus`/`he_minus`);
-3. *flush-plane face pairing* (parallel + co/anti-oriented + zero
-   offset — the flush helper's triple, §3's detector);
+3. *cosurface face pairing* (alignment + co/anti-orientation + zero
+   coincidence margin — spelled per carrier kind, and planar in the
+   hand triple this alphabet was read off). It is §3's detector, and
+   it is the one item of the five that BECAME a shipped door rather
+   than staying a demo's decision: `carrier_pair_relation` decides
+   it now, at the seat that verifies declarations;
 4. *convexity* — NOT actually used: the demo's comment says the kind-pair
    test "stands in for concave rim". Demand is inferred, not
    measured.
@@ -256,16 +266,19 @@ an in-band pair is refused into the result honestly
 **(b) Detector = the C4 verifier run in candidate-generation mode
 (the anti-twin rule).** The detector does NOT get
 its own predicate triple. C4's `Rest` verify table already names
-the ladder (the kind-generalized `oriented_plane_eq` — shipped,
-`topo/src/boolean/plane_eq.rs` — plus sense opposition and overlap);
-the detector enumerates candidate pairs and reaches the SAME verdict
-ladder the declared rung will later verify with — not by calling the
-identical entry point (SEAT-3 measured that: detection enters at
-`flush_pair_relation`, verify-at-use at `carrier_pair_relation`), but
-because `carrier_eq`'s `(Plane, Plane)` arm delegates to the very
-`oriented_plane_eq_verdict` the detection door wraps. One verdict
-function, one set of `decide` sites, two spellings of the same three
-inputs. Consequences: detect-then-declare can never disagree with
+the ladder (`carrier_eq`, the kind-generalized `oriented_plane_eq` —
+`topo/src/boolean/carrier_eq.rs` — plus sense opposition and
+overlap); the detector enumerates candidate pairs and asks **the
+identical entry point** the declared rung will later verify with:
+one function, `carrier_pair_relation`, in two postures.
+`declared: false` DETECTS — "no one has declared these; would a
+declaration verify?", whose `Undeclared` refusal on a definite-zero
+coincidence margin IS the affirmative answer — and `declared: true`
+VERIFIES. The postures share a traversal, not merely a verdict
+function: the same `data_rungs` walk decides alignment and
+coincidence before either posture's answer is shaped, so a pair the
+detector reports cannot be a declaration the ladder then refuses.
+Consequences: detect-then-declare can never disagree with
 verify-at-use, and there is no second implementation to keep in step
 by hand; the flagged bare-gate family is retired on the
 public path rather than promoted — and, since SEAT-3 gave the body

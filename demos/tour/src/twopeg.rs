@@ -283,23 +283,16 @@ fn plate_with_holes<S: Scalar>(tol: Tol) -> Body<S> {
 /// and for saying WHICH of the detector's findings the author means.
 ///
 /// **A library finding, recorded at the site it was met** (the demos'
-/// purpose rule), and it is now the SELECTION half alone. The author
-/// knows perfectly well which contacts he means — "each peg against
-/// its own bore, and the two plates' outer walls where they continue
-/// across the joint" — but there is no selector on the plain body API
-/// to say it with, so the intent is re-derived by walking the arena
-/// and filtering. What retired with the flush detector's curved rungs
-/// is the other half: this scene used to MATCH the peg walls to the
-/// bore walls itself, comparing stored axis origins and radii against
-/// a hand-picked `1e-12`, and the kernel's own carrier ladder decides
-/// that now — cross-peg pairs come back `Distinct` from the same door
-/// that verifies the declaration, rather than from a tolerance this
-/// file chose. One contact the author has in mind is still spelled as
-/// NINE `FacePairDeclaration`s (three faces a side, the three-arc
-/// split), because the split is the loop's and no door groups faces
-/// by contact. The document layer has selection (`GeoSelect`); the
-/// kernel-level `Body` does not, and a declared contact is a
-/// kernel-level object — the two-doors gap, #1345.
+/// purpose rule), and it is now the SELECTION half alone: there is no
+/// selector on the plain body API for "each peg against its own
+/// bore", so the intent is re-derived by walking the arena and
+/// filtering, and one contact is still spelled as NINE
+/// `FacePairDeclaration`s because no door groups faces by contact.
+/// The MATCHING half retired with the detector's curved rungs — this
+/// scene used to pair peg walls to bore walls itself against a
+/// hand-picked `1e-12`, and the kernel's carrier ladder decides that
+/// now. The document layer has selection (`GeoSelect`); the
+/// kernel-level `Body` does not — the two-doors gap, #1345.
 fn cylinders<S: Scalar>(body: &Body<S>) -> Vec<pncad::topo::FaceKey> {
     query::all_faces(body)
         .into_iter()
@@ -339,30 +332,32 @@ fn plane_face<S: Scalar>(body: &Body<S>, z: f64, up: bool) -> pncad::topo::FaceK
 /// The mate, in the author's own words: the mating plane, plus every
 /// place the two parts' walls lie on a COMMON cylinder — each a `Rest`.
 ///
-/// **Every declaration here is a finding the kernel vouched for.**
-/// `find_flush_candidates` reports the cross-body pairs its own verify
-/// door would accept — planar AND curved, since the detector's reach
-/// is the `Rest` ladder's reach — and this function DECLARES a subset
-/// of that report: the mating plane, picked positionally because
-/// nothing on the plain-body API says "the mating face", and every
-/// cylindrical finding, which is what "each peg against its own bore"
-/// means here. Nothing is asserted that the detector did not first
-/// report, which is the no-fusion boundary doing its job (the findings
-/// are values, inspected in between).
+/// **Every declaration here is a finding the kernel vouched for**, and
+/// the scene's whole remaining job is choosing WHICH findings it
+/// means: the mating plane, picked positionally because nothing on the
+/// plain-body API says "the mating face", plus every CYLINDRICAL
+/// finding.
 ///
-/// Contacts are matched by CARRIER, and now by the KERNEL'S carrier
-/// ladder rather than by this file's arithmetic: cross-peg pairs are
-/// excluded because peg 1 and bore 2 are `Distinct` at the same door
-/// that verifies the declaration — the scene no longer compares stored
-/// axis origins against a hand-picked tolerance to reach the same
-/// answer. What the scene still chooses is WHICH findings it means.
+/// **What that second filter says, exactly, and why it is a kind
+/// filter rather than a per-peg one.** It declares every cylindrical
+/// cosurface pair the detector reports — which is the same set the
+/// hand matcher this replaced declared, and the same set the scene
+/// means in BOTH of its configurations. Sharp (shipped): the two peg
+/// fits, three faces a side, eighteen findings, and no cross-peg pair,
+/// because peg 1 and bore 2 are `Distinct` at the door that verifies
+/// the declaration rather than at a tolerance this file picks.
+/// Filleted (measured once, [`outline`]): the four corner-wall pairs
+/// as well — 22 rather than 18 — which is the set that made the
+/// corner-fillet wall a kernel fact instead of a missing declaration.
+/// Narrowing to "each peg's own carrier" would declare the right 18
+/// today and silently stop measuring that.
 ///
-/// Matching by carrier rather than by peg centre is what let the
-/// montage-v3 pass MEASURE the corner-fillet wall [`outline`] records:
-/// with the fillets on, the detector reports the four corner-wall
-/// pairs too — 22 cylindrical `Rest`s rather than 18 — and the mate
-/// refuses anyway, which is what makes the wall a kernel fact rather
-/// than a missing declaration.
+/// The filter is therefore deliberately wider than the sentence "each
+/// peg against its own bore", and what keeps it honest is a pin rather
+/// than a comment: `flush_detector_measurements` asserts the split
+/// (6 and 6 cylinder faces, 18 findings, every one of them a peg
+/// against ITS bore), so a third cylindrical contact appearing on this
+/// part reds the suite instead of being declared unnoticed.
 fn declarations<S: Scalar>(p: &Body<S>, q: &Body<S>, tol: Tol) -> BooleanDeclarations {
     let found = pncad::topo::flush::find_flush_candidates(p, q, tol)
         .expect("the plates' pairs are authored exactly, so they decide definitely");
@@ -639,6 +634,14 @@ mod flush_detector_measurements {
              the cross-peg pairs sit on DISTINCT carriers and the ladder says so, \
              which is why nothing here matches carriers by hand: {curved:?}"
         );
+        for &fa in &cp {
+            assert_eq!(
+                curved.iter().filter(|f| f.pair.0 == fa).count(),
+                3,
+                "each peg-wall face meets THREE bore faces — its own bore's three arcs \
+                 and no others; a cross-peg pair would put a fourth here"
+            );
+        }
         for f in &curved {
             assert!(cq.contains(&f.pair.1));
             assert_eq!(f.class, pncad::topo::ContactClass::Rest);

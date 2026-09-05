@@ -147,7 +147,7 @@ pub use topo::{CONTACT_RECOURSE, ContactRefusal, ContactVerdict, DeclaredContact
 /// ([`FlushRung::DecidedCoincident`]) is what this door records.
 pub use topo::flush::{FlushEvidence, FlushRung};
 
-/// One flush-plane finding at the DOCUMENT seat: "this cross-body face
+/// One flush finding at the DOCUMENT seat: "this cross-body face
 /// pair would verify as declared contact" — a VALUE, inspectable,
 /// never itself a declaration (SELECT-DESIGN §3a).
 ///
@@ -163,7 +163,7 @@ pub type FlushFinding = topo::flush::FlushFinding<(StableName, StableName)>;
 // (a) Detect.
 // ---------------------------------------------------------------
 
-/// **The cross-body flush-plane candidates between `a`'s and `b`'s
+/// **The cross-body flush candidates between `a`'s and `b`'s
 /// outputs, as of THIS evaluation** — the C4 verifier run in
 /// candidate-generation mode (module docs; SELECT-DESIGN §3a/b).
 ///
