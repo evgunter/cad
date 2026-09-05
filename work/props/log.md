@@ -160,6 +160,45 @@ dispatched on the frozen head; ordinal 2400 claimed
 (14 GB) — with a ~38 GB allowance this box carries one implementer plus
 one dual at a time, so the queued specs dispatch one at a time.
 
+**Main was red, fixed (2026-09-05).** `bounds_census::every_sole_bracket_bound_door_is_in_the_roster`
+failed in both lanes on `main` after FILLET's `anchor_span` landed
+without its roster line — seen on #1918's merge and on #1920's fix-pass
+head. [#1931](https://github.com/evgunter/cad/pull/1931) carries the
+one-hunk roster line (ported from #1918, `HandedOff` to Track V),
+merged green on the full matrix; the wording stays FILLET's to own
+(`work/fillet/anchor-span-sole-bracket-door-missing-roster-line.md`).
+R2's class finding on the mechanism: a closure-tier run seeded from
+`profile` excludes `geom-core`, so a whole-tree census living in a leaf
+crate's test binary cannot see a door arrive from any other seed — a
+CIW-shaped gap, to be filed.
+
+**PROPS-1 dual adjudicated (2026-09-05).** Both arms on frozen
+`acc0719ad`: R1 A-W-F 2/10/8, R2 A-W-F 0/8/5 (rubric R1 idiom 4 / tests
+2 / docs 2; R2 4 / 3 / 2). **Soundness upheld by both by execution**
+(R1: 21 600 mirror + 3 200 rejection rows against a formula-free
+geometric characterisation; R2: 2 400 × 16 and 3 000 × 16 containment
+sweeps, both lanes) and every headline number reproduced. **The two
+MAJORs are CONVERGED substances with a severity divergence** — R2 found
+both at MINOR: (1) `reject_from`'s new form amplifies a WIDE `onto`
+through two cross products (up to 34×, worst 1022× on a zero-straddling
+component) and the corpus has no `onto`-width dimension, so no pin could
+see it; (2) the new totality clause ("bands unchanged") is false — the
+numerator scales as `|onto|²·|self|`. No unilateral MAJOR; the severity
+split is calibration data. Convergent MINORs: the wide-normal "1.0–1.12×"
+and the oblique factors do not reproduce; the soundness pins compare the
+shipped formula with itself (a sign-flipped rejection passes); "never
+wider" is vacuous on exact-anchor rows and pin (a) does not hold per
+component there (a silent spec deviation); history clauses; "nine pins".
+Unilateral MINORs adopted: R1's `replace_face`→`translate_curve` stored-
+curve path missing from the drift accounting, the `4 ulps` metric
+mismatch and unguarded numbers, the grouping rule broken at the mirror
+site; R2's negative-axis signed-zero row, the x-only geom test, the
+rider's missing counter-argument. **Ruling on the regression**: keep the
+shipped form — every in-tree `onto` is an exact stored axis and `self`
+the computed vector — and make the contract honest with an `ONTO_RADII`
+corpus dimension and a pin of the measured bound. Fix pass
+implementer-inherited, 10 items A–J, all taken; the reviewers' probe
+rows named for adoption. Row and sample number at merge.
 **Verdict shapes MERGED (2026-09-05)** —
 [#1920](https://github.com/evgunter/cad/pull/1920), head `9f52d8df`,
 green on the full matrix (run 33945846151) after the fix pass took all
@@ -172,3 +211,32 @@ control pin, the history clauses gone. One public path moved
 the unit's deviation 3. The item is closed; the spec leaves `docs/` with
 this merge (ledgered). Next in the lane:
 `k-stats-escalation-channel-and-redo` (D→H, L; a dual unit).
+
+**S-CERT's exit walk is PROPOSED (2026-09-05, check-in 05:26).**
+[#1924](https://github.com/evgunter/cad/pull/1924), `[ev]`, ratified by
+merging; the closing sweep then re-homes S-CERT's 24 open items and
+deletes `work/cert/`. Its handoffs ledger diverges from the ratified
+PROPS charter: the offset_fit lane (three items), `refine-dir-hairline`,
+the QUAD2 dial, `normalize-overflow` and `orthonormal-basis-poisons`
+are proposed for `work/issues/`, `k-report-baseline-fold` (Track K's)
+for `work/props/`, `pole-branch-pick` for `work/bool/`, and the
+territory globs PROPS' header claims at the exit for no owner. Re-points
+posted on #1924 per the charter (the taker says it takes them); Ev
+decides at ratification. #1878 (ChartRegionLane) is restated and
+unanswered; the walk lists it among three questions ratification does
+not answer. PROPS-1's fix-pass head `a7aef51d` is green (lane reporting).
+Slots: two lanes live (PROPS-1 fix pass, ONB-measure); the Span sweep
+dispatches when PROPS-1 lands.
+
+**PROPS-1 MERGED (2026-09-05)** —
+[#1918](https://github.com/evgunter/cad/pull/1918) at `93baf9ce0`, fix
+run 33946767666 green on the full matrix. Row recorded at merge: ordinal
+2400, sample **#137** (renumbered at the sync — #136 fell to FILLET-H7 by
+merge order); no tally candidate, the pair FAIR. The two respells stand
+with an honest contract: the wide-`onto` regression disclosed and
+pinned, the totality bands real, the soundness rows formula-free (both
+reviewers' probes adopted). The spec left `docs/` with the merge
+(ledgered); the item is closed; the audit item keeps its remaining
+members. Block PROPS-B1 slot 0 concluded; **slot 1 = the Span sweep**,
+dispatched on `props/span-knot-vector` (L / STRUCTURAL, pre-draw at the
+spec). Lanes live: Span, ONB-measure.
