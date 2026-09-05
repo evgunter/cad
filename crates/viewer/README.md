@@ -407,6 +407,52 @@ has its own item
 | `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `PathVerb`, `ArcMode`, `DatumKind`, `ShapeKind`, `PatternKindChoice`, `BOOLEAN_OPS`, `MATE_PRIMITIVES` — are hand-maintained mirrors of a kernel or sketch enum; the field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
 | `drafts` | `Drafts` and `CommitFault`: the in-flight form state, its defaults, and its lowering of typed field values to `Expr` and `LoopProgram` — the same layer as `session::author`, and today the larger half of it |
 
+### The status line's two lifetimes
+
+The chrome has two channels for something that went wrong, and which
+one a fact belongs in is decided by how long it stays true.
+
+**The status line carries NEWS, for the frame that produced it.** A
+message is a `frame::Message`: what it is ABOUT (`frame::Subject`) and
+its own words. The subject is what retires it — a later EVENT about the
+same subject supersedes the message, whatever that event says — and the
+subjects are named by the event stream that retires them: the camera
+(the next camera event, issued by `frame::fold_status` on every clean
+fold), the cursor (the next cursor move, issued by
+`frame::cursor_status` off the id pass's own bookkeeping), the document
+(the next act the document accepts), the picture drawn from it, and the
+viewer's preferences. `frame::StatusUpdate::Expire` retires one subject;
+`Clear` sweeps the whole line and belongs to the acting batch alone,
+because an act the document accepted makes every standing complaint
+stale. `frame::apply` is the one place a verdict becomes the field.
+
+Eighteen writers still assign that field rather than answering
+`frame::frame_status`'s ranking. Each names its subject — `Message` is
+the only spelling there is — but naming a subject is not asking the
+ranking, and routing them through it is tracked as its own item.
+
+**A fact still true after the frame ends is a STANDING FACT, and its
+home is a toolbar badge.** A `frame::Badge` is a label carrying its own
+subject, a `frame::Tone` (`Advisory` for a report, `Actionable` for a
+verdict a reader may need to act on — the rule `pane::features` argues
+for poisoned rows, stated by a value rather than picked per call site),
+an optional hover detail, and a `frame::Affordance`: `Read` for a
+label, `Opens` for a control, which the advisory-checks badge is
+because a tooltip is the wrong home for text a reader keeps open while
+acting on it. There is one member per standing fact —
+`frame::at_rest_badge`, `checks_badge`, `product_badge`, `delta_badge`
+— each a function of the typed value it reads, so each one's SILENCE is
+a row a test can write. `app::draw_badge` is the single draw; what a
+click on a control means stays at the call site, which is why the draw
+hands the response back and names no window. `tree::RowStatus::badge`
+is the same shape at the row rather than the toolbar.
+
+Notices — a tool's declined pick, a survival drop, a
+`frame::Withdrawal` — are typed values with `Display`, joined into rank
+2 by `frame_status` with one separator. None of them composes prose
+about another value's failure: the failure renders itself, and what the
+chrome adds is its own subject.
+
 ### The app driver, split for size
 
 `app` is a driver, and a driver too large to read is still a driver.

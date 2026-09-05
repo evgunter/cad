@@ -20,7 +20,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use common::asm;
-use pncad::document::{Doc, Frame, Node, ParamName, ProfileProgram, RecipeNodeId, SlotId};
+use pncad::document::{
+    CheckEvidence, CheckFinding, CheckId, ChecksReport, Doc, Frame, Node, ParamName, ProductError,
+    ProfileProgram, RecipeNodeId, SlotId,
+};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{ContactClass, Ray};
 use viewer::camera::{Camera, CameraOp};
@@ -30,8 +33,10 @@ use viewer::frame::{self, IdQueryLog, IdStep, StatusUpdate};
 use viewer::input::{self, InputMap, ViewportSize};
 use viewer::pick::{self, CacheStep, IdMap, IndexLanding, PickCache, PickIndex};
 use viewer::props::SlotValue;
-use viewer::scene::{self, DisplayTolerance, PLATE_EXTENT};
-use viewer::session::{DocSession, FaceSelection, Hovered, Refusal, Selection, SessionOp};
+use viewer::scene::{self, DisplayTolerance, FittedDelta, PLATE_EXTENT};
+use viewer::session::{
+    AtRestBadge, DocSession, FaceSelection, Hovered, Refusal, Selection, SessionOp,
+};
 
 fn delta() -> DisplayTolerance {
     DisplayTolerance::new(2.0e-4).expect("a positive delta")
@@ -187,6 +192,130 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
         "notices that agree on a subject are joined under it, so the \
          joined line still knows what retires it"
     );
+}
+
+/// **Every badge's silence is a row now**, which is the whole reason
+/// the family became a vocabulary: the checks badge's "only when there
+/// are findings" rule used to be an `&&` inside a `ui` closure, where
+/// no test could reach it and nothing but a human eye said whether it
+/// was right.
+#[test]
+fn a_badge_that_has_nothing_to_say_says_nothing() {
+    assert_eq!(frame::at_rest_badge(None), None, "no assembly, no verdict");
+    assert_eq!(frame::checks_badge(None), None, "nothing landed, or the registry refused");
+    assert_eq!(
+        frame::checks_badge(Some(&ChecksReport {
+            findings: Vec::new(),
+            skipped: Vec::new(),
+        })),
+        None,
+        "checked and fine is not a finding — the rule that lived in a \
+         `ui` closure until this type existed"
+    );
+    assert_eq!(
+        frame::checks_badge(Some(&ChecksReport {
+            findings: Vec::new(),
+            skipped: vec![CheckId::Connectedness],
+        })),
+        None,
+        "and a SKIPPED check does not light it either: not checked and \
+         checked-and-found-something are different answers, and the \
+         window is where that distinction is drawn"
+    );
+    assert_eq!(frame::delta_badge(None), None, "the user's own δ");
+    assert_eq!(frame::product_badge(None), None);
+}
+
+/// The tone split is the actionable-or-not rule, stated by a value
+/// rather than picked at four call sites — the rule `pane::features`
+/// argues explicitly for poisoned rows and that nothing used to say.
+#[test]
+fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
+    let certified = frame::at_rest_badge(Some(&AtRestBadge::Certified { minted: 4 }))
+        .expect("a certified assembly badges");
+    assert_eq!(
+        certified.tone,
+        frame::Tone::Advisory,
+        "good news is a report: {}",
+        certified.label
+    );
+    assert!(certified.label.starts_with("at rest: "), "{}", certified.label);
+    assert!(certified.label.contains('4'), "{}", certified.label);
+
+    let refused = frame::at_rest_badge(Some(&AtRestBadge::Refused {
+        message: "the gate declined to certify".to_owned(),
+    }))
+    .expect("a refusal badges");
+    assert_eq!(
+        refused.tone,
+        frame::Tone::Actionable,
+        "and the reader is the only one who can answer a refusal"
+    );
+    assert!(
+        refused.label.ends_with("the gate declined to certify"),
+        "the typed refusal's own words, unaltered: {}",
+        refused.label
+    );
+
+    let fitted =
+        FittedDelta::as_requested(DisplayTolerance::new(1.0e-3).expect("a positive δ"));
+    assert_eq!(
+        frame::delta_badge(Some(&fitted)),
+        None,
+        "a fit with nothing to say is the second half of this badge's \
+         `None`, and it used to be a second condition at the call site"
+    );
+}
+
+/// The checks badge is a BUTTON, and that is ratified rather than
+/// incidental: a tooltip is the wrong home for text a reader needs to
+/// keep open while they act on it, because it is gone the moment the
+/// pointer moves toward the feature it names. A uniformity pass over
+/// the family must not flatten it, so the value says so.
+#[test]
+fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
+    let report = ChecksReport {
+        findings: vec![CheckFinding {
+            check: CheckId::Connectedness,
+            root: RecipeNodeId(3),
+            output_ix: 0,
+            evidence: CheckEvidence::Connectedness {
+                actual: 2,
+                expected: 1,
+            },
+        }],
+        skipped: Vec::new(),
+    };
+    let badge = frame::checks_badge(Some(&report)).expect("a finding badges");
+    assert_eq!(badge.affordance, frame::Affordance::Opens);
+    assert_eq!(badge.tone, frame::Tone::Actionable);
+    assert_eq!(badge.label, "checks: 1 finding(s)");
+    assert!(
+        badge.detail.is_some(),
+        "and it says what opening it does — the hover is the invitation, \
+         never the findings themselves"
+    );
+    assert!(
+        !badge.label.contains("component"),
+        "the findings' own sentences live in the window it opens, so the \
+         badge composes no prose about them: {}",
+        badge.label
+    );
+
+    for label in [
+        frame::at_rest_badge(Some(&AtRestBadge::Certified { minted: 0 })),
+        frame::product_badge(Some(&ProductError::NoBodyRoots)),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        assert_eq!(
+            label.affordance,
+            frame::Affordance::Read,
+            "{}",
+            label.label
+        );
+    }
 }
 
 #[test]
