@@ -69,6 +69,7 @@ fn rule_sets() -> [(&'static str, SymRules); 4] {
     let only = |sqrt_square, pythagoras| SymRules {
         sqrt_square,
         pythagoras,
+        ..SymRules::none()
     };
     [
         ("none", SymRules::none()),
@@ -323,6 +324,7 @@ fn m10_8_ceilings_per_rule_set() {
             SymRules {
                 sqrt_square: true,
                 pythagoras: false,
+                ..SymRules::none()
             },
         ),
         ("all", SymRules::all()),

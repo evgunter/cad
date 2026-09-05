@@ -728,12 +728,54 @@ impl Rat {
         )
     }
 
+    /// R1 PROBE: the EXACT square root of a non-negative rational, or
+    /// `None` where it is not rational. `num/den · 2^e` with `e` made
+    /// even by moving one factor of two into `num`; the root is
+    /// `isqrt(num)/isqrt(den) · 2^(e/2)` when both are exact.
+    fn sqrt_exact(self) -> Option<Self> {
+        if self.num < 0 {
+            return None;
+        }
+        if self.num == 0 {
+            return Some(Self::ZERO);
+        }
+        let (num, exp2) = if self.exp2 % 2 != 0 {
+            (self.num.checked_mul(2)?, self.exp2.checked_sub(1)?)
+        } else {
+            (self.num, self.exp2)
+        };
+        let sn = isqrt_exact(num.unsigned_abs())?;
+        let sd = isqrt_exact(self.den.unsigned_abs())?;
+        Self::new(i128::try_from(sn).ok()?, i128::try_from(sd).ok()?, exp2 / 2)
+    }
+
     /// Feeds the coefficient to a content hash (the atom-keying digest).
     fn feed(self, h: Hash128) -> Hash128 {
         h.wide(self.num as u128)
             .wide(self.den as u128)
             .word(u64::from(self.exp2 as u32))
     }
+}
+
+/// R1 PROBE: `Some(r)` iff `r·r == n` exactly.
+fn isqrt_exact(n: u128) -> Option<u128> {
+    if n < 2 {
+        return Some(n);
+    }
+    let mut x = (n as f64).sqrt() as u128;
+    if x == 0 {
+        x = 1;
+    }
+    for _ in 0..8 {
+        x = (x + n / x) / 2;
+    }
+    while x.checked_mul(x).is_none_or(|s| s > n) {
+        x -= 1;
+    }
+    while (x + 1).checked_mul(x + 1).is_some_and(|s| s <= n) {
+        x += 1;
+    }
+    (x * x == n).then_some(x)
 }
 
 // ----------------------------------------------------------- the form
@@ -787,6 +829,18 @@ impl Poly {
 
     fn is_zero(&self) -> bool {
         self.terms.is_empty()
+    }
+
+    /// R1 PROBE: the value of a CONSTANT polynomial (no indeterminate).
+    fn as_constant(&self) -> Option<Rat> {
+        match self.terms.len() {
+            0 => Some(Rat::ZERO),
+            1 => {
+                let (m, c) = self.terms.iter().next()?;
+                m.is_empty().then_some(*c)
+            }
+            _ => None,
+        }
     }
 
     /// The largest total degree of any term (zero for the zero form).
@@ -1006,6 +1060,16 @@ pub struct SymRules {
     /// that lies in the ideal of the Pythagorean identity reduces to
     /// zero. Unconditional.
     pub pythagoras: bool,
+    /// **R1 PROBE — A0, the exact constant fold**: `sqrt(c)` and
+    /// `abs(c)` of a CONSTANT form whose value is a perfect-square
+    /// rational (`sqrt`) or any rational (`abs`) fold to the exact
+    /// rational. No value is read: the argument is a literal of the
+    /// form itself. Off in every shipped set.
+    pub const_fold: bool,
+    /// **R1 PROBE — the EARLY reduction**: rules A/B applied per DAG
+    /// node in a SECOND memo alongside the plain form (never replacing
+    /// it), with a small per-node step cap. Off in every shipped set.
+    pub early: bool,
     // **Rule C — `sqrt(Q²) = Q` by a certified sign (clause 3) — is NOT
     // a field here, because it is FILED UNBUILT.** It is the one rule
     // that would read a value, and reading a value at the lane scalar
@@ -1030,6 +1094,8 @@ impl SymRules {
         Self {
             sqrt_square: true,
             pythagoras: true,
+            const_fold: false,
+            early: false,
         }
     }
 
@@ -1076,6 +1142,8 @@ impl SymRules {
         Self {
             sqrt_square: false,
             pythagoras: false,
+            const_fold: false,
+            early: false,
         }
     }
 }
@@ -1133,6 +1201,9 @@ struct Session {
     /// The atom algebra is applied afterwards over the top residual
     /// ([`algebra::reduce`]), so no ruled form is memoized here.
     forms: IdMap<Rc<Form>>,
+    /// R1 PROBE: the EARLY-reduced forms (`SymRules::early`), a second
+    /// memo beside the plain one.
+    forms_early: IdMap<Rc<Form>>,
     /// Every opaque atom minted so far, by its indeterminate id.
     atoms: IndetMap<AtomInfo>,
     counts: SymCounts,
@@ -1209,6 +1280,7 @@ pub fn with_session_rules<R>(
             rules,
             nodes: IdMap::default(),
             forms: IdMap::default(),
+            forms_early: IdMap::default(),
             atoms: IndetMap::default(),
             counts: SymCounts::default(),
         });
@@ -1525,9 +1597,12 @@ fn powi_form(base: &Form, n: u32, budget: SymBudget) -> Option<Form> {
 /// cancellation the plain form already reaches. Every atom this mints
 /// is recorded in the session ([`Session::atoms`]) so that reduction
 /// can look its argument form back up.
-fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session) -> Option<Form> {
+fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) -> Option<Form> {
     let (a, b) = (kids[0], kids[1]);
     let budget = sess.budget;
+    // R1 PROBE: where A0 applies — on the plain form when no early pass
+    // runs (REPLACING it), otherwise only in the early memo (ALONGSIDE).
+    let a0 = sess.rules.const_fold && (early || !sess.rules.early);
     let atom1 = |op: SymOp, sess: &mut Session| {
         // A function OF an expression with no value has no value
         // either, and `a.is_zero()` is already false for a poisoned
@@ -1566,6 +1641,26 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session) -> Option<Form>
             match u32::try_from(n) {
                 Ok(n) => powi_form(a, n, budget),
                 Err(_) => powi_form(&a.recip()?, n.unsigned_abs(), budget),
+            }
+        }
+        // R1 PROBE (A0): a sqrt/abs of a CONSTANT form folds exactly.
+        SymOp::Sqrt | SymOp::Abs if a0 && !a.poisoned => {
+            let folded = (|| {
+                let n = a.num.as_constant()?;
+                let d = a.den.as_constant()?;
+                let c = Rat::new(
+                    n.num.checked_mul(d.den)?,
+                    n.den.checked_mul(d.num)?,
+                    n.exp2.checked_sub(d.exp2)?,
+                )?;
+                match node.op {
+                    SymOp::Sqrt => c.sqrt_exact(),
+                    _ => Some(Rat { num: c.num.checked_abs()?, ..c }),
+                }
+            })();
+            match folded {
+                Some(c) => Some(Form::poly(Poly::constant(c))),
+                None => atom1(node.op, sess),
             }
         }
         SymOp::Sqrt
@@ -1644,9 +1739,11 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session) -> Option<Form>
 /// this walk — so this walk stays the O(dag) construction it was before
 /// the algebra, and a ruled reduction cannot cost a cancellation the
 /// plain form reaches.
-fn form_in(sess: &mut Session, memo: &mut IdMap<Rc<Form>>, root: SymId) -> Rc<Form> {
+fn form_in(sess: &mut Session, memo: &mut IdMap<Rc<Form>>, root: SymId, early: bool) -> Rc<Form> {
     let frozen = |sess: &mut Session, id: SymId| -> Rc<Form> {
-        sess.counts.frozen += 1;
+        if !early {
+            sess.counts.frozen += 1;
+        }
         Rc::new(Form::poly(Poly::indet(id.bits())))
     };
     let mut stack = vec![(root, false)];
@@ -1692,7 +1789,19 @@ fn form_in(sess: &mut Session, memo: &mut IdMap<Rc<Form>>, root: SymId) -> Rc<Fo
                 fa.as_deref().unwrap_or(&empty),
                 fb.as_deref().unwrap_or(&empty),
             ];
-            combine(&node, kids, sess).filter(|f| within(budget, f))
+            let combined = combine(&node, kids, sess, early);
+            // R1 PROBE: the early per-node reduction, bounded, falling
+            // back to the un-reduced form when it does not fit.
+            let combined = if early {
+                combined.map(|f| {
+                    algebra::reduce_steps(&f, sess.rules, budget, &sess.atoms, EARLY_STEPS)
+                        .filter(|g| within(budget, g))
+                        .unwrap_or(f)
+                })
+            } else {
+                combined
+            };
+            combined.filter(|f| within(budget, f))
         };
         drop((fa, fb));
         let f = match made {
@@ -1710,8 +1819,21 @@ fn form_in(sess: &mut Session, memo: &mut IdMap<Rc<Form>>, root: SymId) -> Rc<Fo
 /// applied, no value read. Memoized in the session's persistent table.
 fn plain_form(sess: &mut Session, root: SymId) -> Rc<Form> {
     let mut memo = core::mem::take(&mut sess.forms);
-    let out = form_in(sess, &mut memo, root);
+    let out = form_in(sess, &mut memo, root, false);
     sess.forms = memo;
+    out
+}
+
+/// R1 PROBE: the most rule-A/B substitutions the early reduction takes
+/// per node before it gives the un-reduced form back.
+const EARLY_STEPS: usize = 8;
+
+/// R1 PROBE: the early-reduced form of `root`, memoized in its own
+/// table beside the plain one.
+fn early_form(sess: &mut Session, root: SymId) -> Rc<Form> {
+    let mut memo = core::mem::take(&mut sess.forms_early);
+    let out = form_in(sess, &mut memo, root, true);
+    sess.forms_early = memo;
     out
 }
 
@@ -1743,7 +1865,11 @@ fn is_identically_zero(id: SymId) -> bool {
             return true;
         }
         let rules = sess.rules;
-        if rules == SymRules::none() {
+        // R1 PROBE: the early-reduced form, ALONGSIDE the plain one.
+        if rules.early && early_form(sess, id).is_zero() {
+            return true;
+        }
+        if !(rules.sqrt_square || rules.pythagoras) {
             return false;
         }
         // Rules A and B (unconditional) over the residual, once.
