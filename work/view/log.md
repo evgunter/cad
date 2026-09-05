@@ -1234,3 +1234,768 @@ this session changes that**: the focus map door straddles DOCM and
 S-BOOL, `next-id-has-no-layer3-door` is DOCM's, and 6a is an `[ev]` PR
 that gates 6b and 6c. 6a is the one this program can act on alone and
 it is the next orchestrator build, not a lane's.
+
+## Third orchestrator; six merges nobody logged; the glob widened (2026-09-04, evening)
+
+Picked the program up from `work/view/plan.md` and this log's tail, and
+**the tail was false**. It described three lanes as running. All three
+had merged, along with three more:
+
+| PR | what | logged? |
+|---|---|---|
+| #1846 | `set-param-prechecks-what-the-door-refuses` | no |
+| #1848 | the module-kind gate + the loud-skip marker | no |
+| #1849 | `camera-fold-clears-status-line` | no |
+| #1857 | Ev's `deferred` ruling + the fired-trigger lint check | no |
+| #1872 | `opoutcome-superseded-has-no-production-reader` | no |
+| #1873 | `two-gestures-can-be-in-flight-together` | no |
+
+Every item file was closed correctly and `lint` was green, so the board
+was true and only the narrative was not. **That is the eighth instance
+of this program's standing hazard and the first where the stale prose
+is the log itself** — the file whose whole job is to be the thing a
+successor reads. The item files saved it: reconstructing what happened
+took one `git log` over `work/view/` and five minutes, because the
+per-item record is where `work/README.md` puts the state and the log is
+only the story. Worth stating as the reason that split exists.
+
+No countermeasure filed. A gate cannot tell a session that merged six
+PRs to write about them, and the honest instrument is a successor who
+reads `git log` before believing the tail — which is now written into
+`plan.md` where the next one will meet it.
+
+### CHROME is dormant, and the wait clause is spent
+
+`work/view/program.md` has said since 2026-09-03 that this program
+waits on CHROME's slate. Measured rather than assumed:
+
+- CHROME's last self-authored commit is `e59f43dc`, **06:53**. The two
+  later touches of `work/chrome/` are DOCM's fix pass and VIEW's own
+  #1857.
+- Its one open PR, **#1813** (tracker-only, 26 lines), has
+  `updated_at == created_at` at 07:09 — untouched for sixteen hours
+  while VIEW, DOCM, CIW, CURVED and CERT all committed.
+- Its own closing log entry says the slate is complete: *"All nine
+  units are answered. CHROME does NOT close with them"* — what holds
+  the directory open is residue parked on **this** program's split,
+  which is the dependency pointing the other way.
+
+Put to Ev with that evidence; **the glob is widened**
+(`crates/viewer/tests/*` into `paths`) and three CHROME rows are
+claimed by `git mv`, which is what `work/README.md` requires of a
+claim. Not all of them — the ones claimed are the ones where VIEW holds
+the ground or the dependency:
+
+- `session-gesture-guard-spelled-thirteen-times`, **claimed and closed
+  as dissolved**. Its own text asked for exactly this re-home, and
+  VIEW-1b answered both questions it said a fix had to answer: the
+  table exists (`session/op.rs:650`), it is exhaustive, and it is
+  checked once (`session.rs:675`). Two `gesture.is_some()` reads
+  survive in the crate and neither is a guard.
+- `viewer-const-all-tables-have-no-exhaustiveness-guard` — three of
+  its five citations were pre-split and are corrected in the claim
+  note. Held, to be taken with
+  `tool-kind-all-and-ordinal-have-no-production-reader`: "delete two of
+  them" and "guard five of them" are one question.
+- `no-persistent-setplacement-session-op` — DI5's build, which
+  `two-hand-written-copies-of-the-g1-gesture-machine` waits on. Both
+  halves now sit on one slate.
+
+Left with CHROME: the forms rows, the GPU and pixel rows, the mate and
+badge attribution rows, and the coverage rows. Those are that
+program's word, not this one's, and a dormant orchestrator is not a
+departed one.
+
+### Ev's four rulings, taken in chat
+
+1. **Wave shape** — the small units *and* 6b together, 6b being the
+   long pole worth starting early.
+2. **Test glob** — take `crates/viewer/tests/*`, and re-home the CHROME
+   rows worth re-homing, "which may not be all of them".
+3. **The editor-core halves** — reach in narrowly rather than
+   announcing and waiting. `EditError`'s user-facing `Display` wording
+   only: the `edit: ` prefix and the `{:?}`-quoted payloads. The
+   precedent is CHROME's `mate.rs` amendment (#1748). Recorded in
+   `program.md`'s `keep_out` so it is a fence with an exception rather
+   than a fence that was ignored.
+4. **The three design forks** — one `[ev]` PR carrying all three,
+   opened while the build lanes run so the answers arrive without
+   blocking anything.
+
+### Out on the wire (2026-09-04, evening)
+
+Three implementer lanes, each in **its own git worktree** under
+`/home/user/lanes/` with its own `CARGO_TARGET_DIR` and its own scratch
+directory. The shared-checkout hazard is why: this program watched it
+fail three ways during unit 1, and two concurrent lanes in one working
+tree is not a variant of those failures but the guaranteed form of
+them.
+
+- **`view/prune-report`** — the two `prune` discards as one unit, since
+  they are one change to one signature and would be one merge conflict
+  taken twice. Style review. The brief hands over three claims to
+  falsify, of which the weakest is the item's "nine assertion sites
+  across seven test files" — asserted against an older tree and not
+  re-counted by me.
+- **`view/clearing-walk`** — the four hand-maintained copies of one
+  reset. Style review. Told explicitly that `bounds` and `gesture`
+  already sit outside the walk and must be answered rather than
+  absorbed, and that my reading of the shape (*the value `land` writes
+  is the value the constructor clears*, not one `reset()` called four
+  times) is a reading and may be wrong.
+- **`view/pick-index-offthread`** — 6b. **Style AND correctness**, the
+  only unit in this program's history to carry a second reviewer. The
+  posture's test is met exactly: the failure mode is a pick answered
+  against an index built for another generation, which is a confident
+  wrong answer, not a refusal. The brief carries all three parts of
+  Ev's #1843 ruling, both withdrawn positions marked as withdrawn, and
+  the instruction that the GQ6 paragraph rides THIS PR because there is
+  no off-thread index to describe until the lane lands one.
+
+### The three forks are on #1883
+
+`[ev]` PR from `view/ev-three-forks`, subscribed for wake-on-comment
+per `work/README.md` — a question nobody is listening to has not been
+asked. Written as a decision document: three questions, each with the
+options, my reading, and what I would do with no answer. The one fact
+worth carrying out of writing it is that **all three are inputs to the
+same nineteen-site sweep**, which is why they are one PR and not three:
+`status-line-writers-bypass-the-ranking` sorts nineteen writers into
+news and standing facts, and cannot be dispatched until it knows what
+each of those is.
+
+`pick-and-parts-name-the-session-driver` is the one that is on Ev's
+desk for a reason other than difficulty: the rule it falsifies is text
+Ev ratified at #1801 one day earlier, and a gate this program built at
+#1848 is what proved it false.
+
+## `view/prune-report` built and green; one dispatcher correction; the class's third member filed (2026-09-05)
+
+**#1886, CI green** on `eaa41580` — run 33931590377, 37 jobs, 0
+failures, **12 `test (…)` and 5 `k-lint (gate, …)` jobs**, which is
+what a full code-tier run must show since the 2026-09-04 widening. No
+`CI-Config:` trailer, nothing narrowed. Not merged: `view/clearing-walk`
+(#1885) is an open sibling touching `session.rs`, and the lane
+correctly left the sequencing to the orchestrator rather than taking it.
+
+### The design call the lane made, and why I am letting it stand
+
+The item asked, without answering, whether re-showing a **fused**
+instance is a supersession at all. The lane answered **no**, and the
+argument is better than the one I would have given: a supersession is
+a **substitution** — the mate answers the placement question better
+than the hand placement did — whereas a dropped hide is superseded by
+nothing; the user's question stopped being *askable* rather than being
+answered differently. It then found the thing that decides the
+wording, which neither the item nor my brief had: the two arms of
+`display_check` are not symmetric to a person. On a **fuse** the part
+is drawn AGAIN — material the user removed is back on screen — and on
+a **delete** nothing reappears. So one sentence cannot carry both, and
+the shipped preamble says only what is true of either.
+
+It is disclosed, argued in the PR body and in `PruneReport`'s docs,
+and pinned by a row. Sent to the style review as the first claim to
+falsify rather than accepted here.
+
+### The dispatcher correction
+
+My brief carried the item's "**nine** assertion sites across **seven**
+test files, **all** spelled `vec![bench.post_b]`" — flagged in the
+brief as inherited and unverified, which is why the lane checked it.
+It is **11 sites across 8 files in six spellings**, and two of them
+(`superseded.is_empty()`) are type-agnostic and never moved. The
+count came from the closed `opoutcome-superseded-has-no-production-
+reader`'s own correction against a **pre-#1872** tree — so this is the
+citation-staleness class again, one layer up: not a `file:line` that
+stopped resolving but a **census** that stopped being true, carried
+forward by an item that had no reason to re-run it. That is the eighth
+prose-outran-the-tree instance and the second whose subject is a
+count rather than a location.
+
+### The class's third member, filed rather than disclosed
+
+`prune` reconciles three pieces of display state. This unit made two of
+them report. **The third — `gesture_dies` — still spells
+`free_move_check(...).is_err()` and throws the fault away, nine lines
+below the discard this unit was dispatched to fix.** Verified at
+#1886's head.
+
+It was defensible before this unit (a bare `Vec<RecipeNodeId>` had
+nowhere to put a killed gesture) and is less so after it, because
+`PruneReport` now has a field per kind of withdrawal and the third
+clause declines to use it. Filed as
+`prune-kills-a-gesture-and-reports-nothing`, because a residue
+disclosed in a merged PR body warns nobody once this directory is
+deleted — which is the rule `work/README.md` states and the shape this
+program has now caught four times in two days.
+
+## `view/clearing-walk` built and green; the walk was half-defensive (2026-09-05)
+
+**#1885, CI green** on `00275985` — run 33932029198, 37 jobs, 31
+success / 6 skipped, twelve `test (…)` and all five
+`k-lint (gate, …)` rows. First run was red on `rustfmt + rustdoc
+(gate) + wasm32` (a renamed accessor needed reflowing) and the lane
+fixed it rather than reporting green over it. Not merged; sequencing
+is mine.
+
+The shape is the one my brief predicted and said might be wrong:
+`land` writes the same value the constructor clears, rather than one
+`reset()` called four times. Two values — `Derived` (selection, hover,
+scratch, landed, bounds) and `LandedRun` (the six `landed_*` fields as
+one, so `landed_pair` can no longer hand out half of it). Under style
+review.
+
+### Three findings from the lane worth carrying whatever the review says
+
+**`display` cannot join a reset-by-construction value, and the reason
+is a counter.** `DisplayState::clear` deliberately preserves and
+**bumps** its `revision` — the chrome's "does the drawn scene need
+rebuilding" key — while `DisplayState::new()` starts at 0. Rebuilding
+the field would send that counter **backwards**, and a scene built
+under the old count would then read as current. So the walk is one
+assignment plus one `clear()`, with the reason written where the walk
+is. That is a real constraint on the *idea* of reset-by-construction
+and not an exception to it: a field added inside `DisplayState` is
+still cleared by that type's own `clear`.
+
+**The old walk was HALF-defensive, which the item did not know.**
+`scratch` is `Some` only while `gesture` is `Some` — set only in
+`preview_gesture` under a live gesture, taken at both gesture ends — so
+`self.scratch = None` in the two doors was as unreachable as a
+`gesture = None` would have been. The doors were clearing the preview
+while leaving the drag that owns it. The item filed `bounds` and
+`gesture` as "two fields already sit outside the walk"; the truer
+statement is that a third field was inside it for no reason.
+
+**The one behavioural addition, disclosed rather than smuggled.**
+`clear_for_new_document` asserts `gesture.is_none() && scratch.is_none()`,
+over state the policy table makes unreachable, so that relaxing
+`permitted_during_value_gesture` reds a test instead of silently
+leaving a drag pointed at a document that is gone. Disclosed and
+argued, which is the procedure `docs/prompts/implementer-discipline.md`
+§3 asks for. **Sent to the review as the first claim to falsify** —
+whether "unreachable" holds on every path, and whether an `assert!`
+(a panic, in a GUI, compiled differently in release) is the right
+instrument or whether the honest one is a refusal. I have not
+adjudicated it here.
+
+### Reclaimed
+
+`review-prune-target` (1.7 GB) deleted the moment its report was in
+hand, per `memories/agent-lane-operations.md`. The box was at 12 GB
+free with the 6b lane's target at 9.4 GB and still growing, which is
+the one lane that must not meet a full disk.
+
+## 6b is built and green; the dispatcher was wrong about the worker (2026-09-05)
+
+**#1888, CI green** on `d1fca1a8` — run 33932680543, 37 jobs, all
+twelve `test (…)` points, all five `k-lint (gate, …)` unifications,
+both render lanes. Four commits. Under **correctness review**, which is
+the review this unit was singled out for at dispatch; the style review
+follows it rather than running beside it, to keep this session's
+concurrency down after the rate limit below.
+
+### The dispatcher correction, and it is the design
+
+My brief claimed the `EvalService` seam "can carry a second payload
+kind without being redesigned". **Half wrong, and the wrong half is the
+worker.** The submit-cancels-and-restarts half holds. But an index
+build is **uninterruptible and takes seconds**, so a shared queue would
+put it in front of the next evaluation — and an edit made during an
+index build would then wait for that build to finish. That silently
+weakens the cancel-and-restart promise GUI-3 ratified *above* it:
+**a seam cannot keep a promise from behind a queue it does not
+control.** So the unit reuses the vocabulary and duplicates the
+worker, and says so in the module docs rather than only in the PR.
+
+That is the ninth dispatcher correction this program has taken and the
+third against a decision rather than a detail. It is also the argument
+for the posture that produces them: the brief said the claim was a
+claim.
+
+### The three shape decisions
+
+- **No `cancel` on the index trait at all** — not a cancel that
+  quietly does nothing, but no door. Ev's Q3 answer made structural, so
+  a later lane cannot wire a token through without meeting the
+  argument first.
+- **The key is the pair `(generation, δ)`, carried on the ANSWER.** The
+  refusal arm has no index to read a generation off, and δ is an input
+  to the tessellation but not to the evaluation — so an index for the
+  document on screen at a δ nobody asked for any more is the same class
+  of wrong as one for the wrong document, and only the pair separates
+  them.
+- **The cache drops its index at the SUBMIT, not when the replacement
+  lands**, which is what makes Ev's Q1 answer true rather than
+  aspirational: current or absent, never behind. That is the
+  correctness review's first claim to falsify.
+
+### What the window looks like, which is the ruling in the tree
+
+The viewport keeps drawing the previous document's mesh (an older
+picture, which the ruling permits), a **click** is refused typed and
+visible as `pick::NotIndexed`, the toolbar says `indexing…` with the
+refusal's own sentence as hover text and **no Cancel button** — the
+weaker promise showing through the chrome. The fourth chrome condition
+went into the existing block as `frame::progress(busy, running,
+indexing)`, a total function of three booleans, so two spinners cannot
+be lit for one wait.
+
+**A hover is deliberately left unrefused**, because it is pushed on
+every frame the pointer is in the pane and refusing it would rewrite
+the status line sixty times a second. The lane flagged that as its own
+judgement for a reviewer to check, which is the right thing to have
+done with it; it is named in the correctness brief as the likeliest
+place a confident wrong answer hides.
+
+### The claim I doubted, and was wrong to
+
+I told the lane that `Send` on the index and its BVH was "the likeliest
+place my brief is wrong". It was not — they are `Send`, and the lane
+did not leave it to a grep: a `const _: fn()` in `evalseam` asserts it
+for both payload types on **every** target, including wasm, where the
+threaded implementation that would otherwise force it is compiled out.
+A doubt that turns out to be misplaced and gets closed by a
+compile-time assertion instead of a sentence is the cheapest possible
+outcome.
+
+### A filing collision, resolved in the lane's favour
+
+The lane filed `work/view/ui-thread-work-after-the-index-seam.md` on
+its own branch (commit `2622d14f`) before my message telling it not to
+arrived — reading `docs/prompts/implementer-discipline.md` §6's *inside
+your own program's fence a disclosed residue owes a file in the same
+PR*, which is correct and is the rule. **Its file stands and I write
+none.** The collision is my doing: I told it to report rather than file
+in order to keep `work/view/` clear for my orchestrator branch, which
+is a convenience of mine set against a rule of the project's. The rule
+wins; the lesson is that the orchestrator's own branch is not a reason
+to suspend §6, and future briefs should say "file it, I will merge
+around you" instead.
+
+That file covers three further UI-thread costs the sweep found and
+**does not measure**: `scene::fit_delta`'s probe tessellation (~1/8 of
+a full one, once per document that arrives), `scene_focused`'s walk
+over every drawn triangle including on hide/focus changes, and
+`DocSession::land`'s gather plus check registry plus A5 certification.
+It overlaps `scene-gathers-the-landed-product-twice-more` on the second
+and asks a different question of it — where the cost runs, not that the
+product is gathered twice.
+
+### Territory, clean
+
+Nothing from `crates/mesh/` or `crates/bvh/` was needed or nearly
+needed — Q3's answer is precisely what removed the need and the
+no-cancel-door shape is what keeps it removed. **No `session.rs` line
+was touched**, so both live sibling lanes are untouched; the request is
+built from `landed_pair()` and `evaluation_arc()`, which already
+existed. The one cost is cloning the `Doc` into each request rather
+than sharing the session's `Arc` — once per attempt, and it needs no
+new door on the driver.
+
+## The session hit a rate limit and killed three agents at once (2026-09-05)
+
+At 00:38 UTC all three running agents died mid-flight on a session
+limit (reset 02:00). **Nothing was lost, and the recovery is worth
+recording because the tracker's own rules are what made it cheap:**
+
+- the 6b lane had already pushed four commits and had a green run, so
+  its state was entirely on the remote and only its *report* was
+  missing;
+- the clearing-walk review had done nothing yet and restarted clean;
+- **the prune-report fix pass had an uncommitted working tree**, which
+  is the only real exposure. Committed by the orchestrator as
+  `0350f832` with a message naming exactly what it is and what it is
+  not, and pushed, then the lane resumed and told to read that diff
+  rather than trust its memory of where it got to.
+
+The rule that made the first two free is `implementers commit AND push
+after every coherent unit` (`memories/agent-lane-operations.md`). The
+third is the case it exists for. Five concurrent agents is what
+exhausted the budget; the correctness review runs alone rather than
+beside a style review as a result.
+
+## #1885's style review: the ratified prose asserts a policy the walk violates (2026-09-05)
+
+The strongest review this program has taken. It verified the lane's
+claims 2 and 3 independently — `DisplayState::clear` really does bump a
+counter `new()` would reset, and there really is no path to
+`scratch.is_some() && gesture.is_none()` — and then declined claim 1
+for a reason neither the lane nor I had.
+
+### The assert is not a precondition
+
+`open` writes `resolver`, `history` and `path` **before** calling
+`clear_for_new_document`. So if the assert ever fires it fires with the
+session **already half-replaced** — which is precisely the half-acted
+state the same function's doc-comment says refusal exists to prevent.
+The precondition belongs in `perform`, where a `Refusal` is free and
+one is already returned two lines away.
+
+That is the sharpest form of the dispatcher's own exposure: I sent the
+assert to review as "the first claim to falsify", and the reviewer
+falsified something better than the question I asked. I asked whether
+*unreachable* held; the answer is that it does, and that the
+instrument is in the wrong place regardless.
+
+**And the "reds a test" half is half true.** Flipping the table row
+alone reds `gesture_table.rs`'s hand-restated `expected()`, not the
+assert. Flip both and `NewDocument` panics — but **`Open` does not**:
+every mid-gesture `Open` sample in the whole suite uses a nonexistent
+path and dies in `docio::open` before the assert is reached. The
+guarantee rests on one fixture for one door and on nothing for the
+other.
+
+### The README ratified four sentences that are not true
+
+This is the eighth-and-ninth instance of this program's standing
+hazard, and the first where the prose was **written and ratified in
+the same PR that made it false**:
+
+- *"`gesture` is cleared by nothing and must not be"* — one line above
+  `display.clear()`, which sets `free_move = None`. That is the
+  **other** drag, documented as independently open, and **nothing
+  refuses `Open` or `NewDocument` while a free-move is in flight** —
+  `permitted_during_value_gesture` governs value gestures only. So the
+  ratified sentence states a policy the walk applies to one gesture
+  kind and silently violates for the other, and the lane's own argument
+  for the assert indicts the line beneath it.
+- *"a value drag is refused while either door is asked for"* —
+  backwards. `perform` refuses **the door**; the drag is untouched.
+  Written twice, once in ratified prose.
+- *"cleared by being declared"* — overstates. The struct literal
+  refuses to compile until an author writes the cleared value **at one
+  site, by hand**. That is one site instead of three, which is the
+  win; it is not automatic.
+- *"`landed_pair` cannot hand out half of it"* — it returns two of six
+  fields, so it does hand out part. The true claim is that the two can
+  no longer come from **different runs**.
+
+Plus three different counts of one thing across three artifacts: the
+README says three call sites, the item's title says four, its body says
+twelve statements.
+
+### A dispatcher correction, of me and not the lane
+
+`land` never wrote `selection`, `hover`, `scratch` or `bounds` — only
+the six `landed_*`. It is **three** sites for `Derived`'s walk and one
+for `LandedRun`'s. The item's *filename* ("three times") was right and
+its *title* was not, and my brief carried the title forward. Tenth
+correction.
+
+### Four residues, and the lane files them itself
+
+Reversing my earlier instruction, which was wrong: `implementer-
+discipline.md` §6 puts a residue inside a program's own fence in the
+PR that discloses it, and my reason for overriding that was to keep
+`work/view/` clear for this branch — a convenience against a rule.
+
+1. the free-move drag dissolved silently by `Open`/`NewDocument`;
+2. **a fourth hand-maintained walk survives one screen below the fix** —
+   `Debug for DocSession` lists fields by hand and is
+   `finish_non_exhaustive()`, so a field added to `Derived` is silently
+   absent from it. The class the unit exists to close, reproducing
+   itself in the same file;
+3. `app.rs`'s `matches!(op, SessionOp::Open(_))` re-frame, which
+   `NewDocument` never gets though it replaces the document too — the
+   lane's **own declared blind spot**, found in a second module;
+4. `DisplayState::clear` dropping free-move placements silently while
+   `prune` reports them — and #1886 is at this moment making `prune`
+   report *more*, which widens the gap rather than closing it.
+
+## #1886 MERGED; 6b's correctness review earned its own existence (2026-09-05)
+
+### #1886 is on main
+
+Merged at `85742e08` after the fix pass came back green on `a87d9984`
+— run 33939685666, 37 jobs, twelve `test (…)` and five
+`k-lint (gate, …)`, `mergeable_state: clean`, nothing in flight, and
+the six skips confirmed habitual against the branch's earlier run
+(TIER=closure scoping; none in `viewer`'s dependent closure). Both
+prune items closed on main.
+
+The fix pass took every finding on the take-list and **fixed S7 as a
+class rather than one member**: the instance/node vocabulary is now a
+rule stated on the `DisplayFault` enum — an arm whose subject *is* a
+part instance says "instance N", an arm whose whole content is that the
+id does *not* denote one says "node N", three arms name no id — so the
+pre-existing `NotAnInstance` tension is covered by the same rule
+instead of surviving as a second case. It also went past a rename on
+S11: rather than renaming a misleading row, it made the row drive
+**both** arms, so the case the stale comment claimed exists is covered
+rather than papered over.
+
+One correction of mine to record: I told the lane its WIP commit had
+landed roughly half the take-list. It had landed eight of eleven. My
+read of a diff I had committed on its behalf undercounted it, which is
+the same class of error as the census claims this program keeps
+finding — a count asserted from a quick read and not re-run.
+
+### The correctness reviewer found a MAJOR, and it is exactly the shape the posture predicts
+
+**#1888 is HELD.** This program's review posture adds a second reviewer
+only where the failure mode is *a confident wrong answer rather than a
+refusal*. The finding is that failure mode, reproduced by an executed
+test:
+
+> `PickCache::sync`'s **`Nothing`** arm returns before touching
+> `attempted`. So an index build in flight across an `Open` or
+> `NewDocument` still matches `attempted` when it lands, installs into
+> the cache, and — because `sync_scene` returns on `Nothing` before the
+> scene rebuild — leaves `scene` holding the mesh of one document and
+> `index` holding the index of another, with `indexing()` false, no
+> status line, and every pick path taking the `Some(index)` arm.
+
+It cannot self-heal: `sync` returns `Nothing` every frame until the
+newly-opened document lands, which is seconds precisely because it is
+the big document the user chose to open.
+
+**Three things make this the review paying for itself.**
+
+1. It is a **regression 6b creates**. On main the build is synchronous,
+   so index and scene install in one `sync_scene` call and there is no
+   in-flight build to survive an `Open`.
+2. **The whole 483-row viewer suite is green with the hole present**,
+   and the reviewer's candidate fix (clear the four fields in that arm)
+   leaves 482/482 passing — so no lane test encoded the bug and the fix
+   costs nothing. A green suite was evidence about the suite.
+3. **The lane's own reasoning was right everywhere it looked.** δ
+   changing mid-build, δ going A→B→A, two generations during one build,
+   the refusal arm, `Held`, a landing after its request is gone — the
+   reviewer attacked all of them and broke none. The hole is the one
+   arm that returns *early*, which is exactly what a reasoning-from-the-
+   happy-path sweep does not visit.
+
+**And the lane's own flagged judgement was vindicated.** It asked a
+reviewer to check whether leaving `hover` unrefused was safe. It is,
+and for four independent reasons the reviewer traced: no `Hover` op is
+queued without an index, nothing is drawn from a stale hover,
+`Leave` is re-synthesised every frame so a clear cannot be lost, and
+`IdQueryLog::step` keys on the generation so a landing forces a re-ask
+under a motionless cursor. A lane naming its own uncertainty and being
+told it was right is the posture working in the cheap direction.
+
+Two MINORs go with the fix: `ThreadIndexer::poll` discards an answer
+the cache is *currently waiting for* when the key round-trips
+(δ A→B→A costs a gratuitous second full build, up to 13.4 s), and
+`(busy, running, indexing) = (true, false, true)` is reachable via
+Cancel-during-index and makes the toolbar and the status line describe
+one moment two ways.
+
+### What the review could not reach, recorded so it is not read as covered
+
+No `wasm32-unknown-unknown` build was run — the `Send` assertion's
+evidence is structural plus a native compile failure at the assertion
+line, which is strong but is not the wasm target. And the 2.3 s / 13.4 s
+timings were **not re-measured**; they remain the item's numbers.
+
+## #1885 MERGED; the assert was deleted, not relocated (2026-09-05)
+
+Merged at `a7799628`, green on `51f9b2d6` after merging main (which
+carried #1886) — 37 jobs, twelve `test (…)`, five `k-lint (gate, …)`,
+no conflict markers anywhere in the tree, and CI confirmed to have
+fired on the merged head rather than left in a CONFLICTING no-run
+state.
+
+### The lane's call on the assert is better than my instruction
+
+I told it to move the check into `perform`, where a `Refusal` is free.
+It **deleted the check instead**, on the ground that `perform` already
+holds the precondition: it refuses `Open`/`NewDocument` mid-value-
+gesture before any door writes anything, so the invariant is enforced,
+correctly placed and typed, and a restatement in the arm would have
+**broken a stated invariant in order to enforce one** — `perform`'s own
+docs say no arm carries a guard against the value gesture, "the table
+and only the table".
+
+Accepted, and its offer of a gesture-table row declined for the reason
+the style review already supplied: M2 established that flipping the
+table row reds `gesture_table.rs`'s hand-restated `expected()`, so a
+relaxation **is** machine-caught, one layer up, where the rule lives. A
+second check in the walk would be a copy of a rule, which is the class
+this program exists to close. Nothing further owed.
+
+It also declined the one thing I offered as an alternative and gave the
+right reason: a mid-gesture `Open` row over a real document would
+assert the *refusal*, not the reset, because the value gesture makes
+`Open` refuse before the door — so the "fails loudly" claim was
+**withdrawn** in both `session.rs` and the README rather than
+propped up by a row that tests something else. Withdrawing a claim you
+cannot support is the outcome this program wants and rarely gets.
+
+Four residues filed on its own branch under the corrected §6 rule, one
+of them rewritten against the merged tree rather than its branch point:
+`DisplayState::clear` still returns `()` while `prune` now returns a
+report with **two** kinds of withdrawal, so #1886 widened that gap
+rather than narrowing it, and the file says so.
+
+One correction of the reviewer, from the lane, worth keeping:
+`Debug for DocSession` is the **only** hand-written `Debug` in the
+crate, so the class to sweep is *hand-listed field census*, not the
+trait. A sweep aimed at `impl Debug` would have found one instance and
+called it done.
+
+### Next out
+
+`scene-gathers-the-landed-product-twice-more`, dispatched to the same
+lane on `view/scene-gathers`. It was sequenced behind the clearing walk
+on purpose and the reason is now sharper than when the plan said it:
+storing the scene's two derived facts "beside `landed_checks`" means
+**joining `LandedRun`**, the value that lane just built — so this unit
+is the first real test of the property it shipped, that a new
+derived-from-the-landing field joins by being declared. If that fights,
+it is a finding about `LandedRun` and the brief says to report it
+rather than work around it.
+
+Told, as a claim to check hardest, that `scene_of_evaluation`'s
+"no production caller" rests on a grep that cannot see a caller reached
+through a re-export or a trait method; and that DOCM-5's 248 ms/8 ms is
+**inherited, not this unit's measurement**, and must be cited as such.
+
+## 6b round 2: the fix removed the shape rather than patching the instance (2026-09-05)
+
+**#1888 head `e00f3775`, green** — run 33940663246, 37 jobs, twelve
+`test (…)`, five `k-lint (gate, …)`, both render lanes. `origin/main`
+merged in (carrying #1886 and #1885) as a merge commit; one conflict,
+in `frame_policy.rs`'s import block only, resolved by keeping both
+sides.
+
+### The lane improved on the reviewer's fix, and said why
+
+The reviewer's candidate was to clear four fields at the offending
+`return`. The lane instead **collapsed the two nothing-landed arms into
+one** destructuring of the three landed reads — `landed_generation`,
+`landed_pair`, `evaluation_arc`, which `land` sets together — behind a
+new `PickCache::forget`.
+
+Its argument: **taking those three reads apart in two places was the
+latent half of the defect**, so patching one arm would have left the
+shape that produced it. That is the difference between a fix and a
+patch, and it is the second time in this wave a lane has answered a
+finding at the class rather than the instance (#1886's vocabulary rule
+was the first).
+
+It also named four consequences the reviewer had not, which is what
+"own the reasoning rather than paste it" was asking for: clearing
+`attempted` is the load-bearing part because it is what turns the late
+answer into `Stale`; the collapsed arm cannot reintroduce a retry stall
+because it submits nothing and `forget` is idempotent; the refusal it
+drops is about a document that no longer exists; and picks in that
+window become `Absent` rather than `Building`, which is only *true*
+because of the two-arm refusal it added in round 1.
+
+**Sent back for a delta round**, not merged. A fix that departs from the
+one the reviewer verified is not covered by that verification, and the
+questions are specific: does `forget` cover exactly the four fields,
+does folding the already-correct arm into the fixed one change it, and
+would the new row go red under a *different* wrong fix rather than only
+under the one its author tried.
+
+### MINOR 2's answer is a rule, not a variant
+
+`Progress::Canceled` grew an `indexing: bool` rather than a fourth
+variant, on the rule **the spinner follows the work, never the name**:
+the cancel's label and its Re-evaluate button stay put — the recourse
+must not vanish for the seconds a build runs — and a spinner plus a
+weak `indexing…` appear beside them, so the toolbar and the status
+line's `Building` refusal describe one moment one way. A payload
+precisely because the recourse is unchanged. The row now covers all
+eight combinations and **asserts-and-labels the two unreachable ones
+rather than omitting them**, which is the right treatment of a case a
+reader would otherwise wonder about.
+
+### MINOR 1's row, and the difficulty it names
+
+Two builds of one key are indistinguishable by result, so a naive row
+for "the answer was kept, not rebuilt" passes either way. The lane made
+the *waiting* request carry a **broken** document under the key the
+worker is already building the good one for, turning kept-vs-rebuilt
+into `Ok` vs `Err`. Recorded because the technique generalises: where
+two paths agree on the observable, make the discarded one carry
+something the kept one cannot.
+
+### The style review 6b still owed
+
+Dispatched now, deliberately after the correctness lane rather than
+beside it. Its brief points at the thing the correctness lane is blind
+to by construction: **this unit built a second seam modelled on an
+existing one, in the same file** — `IndexService`/`InlineIndexer`/
+`ThreadIndexer` beside `EvalService`/`InlineEvaluator`/`ThreadEvaluator`
+— which is a near-duplicate by design and exactly the shape that
+drifts. `evalseam.rs` roughly doubled, and the open
+`frame-module-has-eight-concerns` item is the warning about what
+happens next.
+
+### The filing collision did not happen
+
+The lane asked whether my orchestrator branch had written the same
+residue file. **It had not** — I recorded at round 1 that its file
+stands and I write none, and I kept to that. The duplicate never
+existed.
+
+## 6b's delta round: the MAJOR stays fixed, and the reviewer corrected itself (2026-09-05)
+
+**Merge recommended.** The reviewer verified the collapse rather than
+accepting it, and its verification is stronger than the lane's own
+argument: `landed_generation`, `landed` and `landed_doc` have exactly
+three writers, all three move them together with no early return
+between, so the destructuring cannot pick up a generation without its
+pair — **the old second arm was unreachable rather than merely
+redundant.** The retry receipt holds by construction too: `open` and
+`new_document` both call `request_eval`, which mints a new generation,
+so the same key cannot return after a `forget`. MINOR 1 and MINOR 2
+both sound, including that the two progress rows labelled unreachable
+genuinely are, since `running()` implies `busy()`.
+
+### The row constrained half of the fix, and the missing half is the ordinary case
+
+The question I sent — *would the new row go red under a different wrong
+fix, or only under the one its author tried* — paid for itself. The row
+reds under the no-op stub, under `forget` omitting `attempted`, and
+under `forget` omitting `outstanding`. It does **not** red under
+`forget` omitting `self.index = None`: that mutation leaves the whole
+481-row suite green.
+
+The reason is structural. On the path the row drives, `index` and
+`error` are **already** `None` when `forget` runs, because the
+preceding `sync` submitted and cleared them — so the row only ever
+exercises the two fields that are non-`None` there. **The arm it never
+reaches is the ordinary one**: a *current* index at the moment the
+document is replaced, i.e. an `Open` with no build in flight.
+
+This is the shape `docs/prompts/reviewer-style-lane.md` Q3 exists for —
+a row that passes and cannot fail in the direction that matters — found
+by asking a reviewer to mutate against a fix rather than to read it.
+
+### The live harm channel, which is neither the lane's nor the reviewer's first story
+
+`frame::disagreement` (`pane/viewport.rs:366`) reads `self.index` with
+**no `session.evaluation()` co-guard**, unlike the pick path at `:161`.
+The GPU id pass renders the previous document's mesh and the id is
+resolved through the replaced document's id map, so a mismatch writes
+*"the two picking paths disagree"* — which issue #1097 §4 instructs an
+operator to read as an `R32Uint` clear fault. **A false sentence
+pointing at the wrong subsystem is worse than silence.**
+`blend::mark_segments` (`:215`) is ungated the same way. Filed as a
+class by the lane, with the sweep as the fix's obligation; pre-existing,
+but 6b is what makes the window it needs common.
+
+### The reviewer corrected its own severity argument
+
+Its first report said the defect produced a wrong **pick answer**. It
+did not: `viewport.rs:161` gates the pick path on `(Some(index),
+Some(eval))`, and after an `Open` the evaluation is `None`, so clicks
+were refused rather than misanswered — and no frame has both `Some`,
+because `sync_scene` runs at the top of `ui` and clears the stale index
+before the viewport draws.
+
+**The defect and the fix are both real; the mechanism the severity
+rested on was already blocked by a second guard.** A reviewer applying
+"the dispatch is a hypothesis" to its own previous report, unprompted,
+is the discipline reaching the place it is hardest to apply. Recorded
+so the wrong framing does not survive into the PR body — the lane is
+told to write the invariant breach and the `disagreement` channel,
+not the wrong-answer story.
+
+That makes eleven corrections in this program's history, and the first
+a reviewer made against itself.

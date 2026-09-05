@@ -14,9 +14,12 @@ use crate::common;
 
 use pncad::document::SlotId;
 use pncad::geom_core::Tol;
+use pncad::prelude::{EntityKind, StableName};
 use viewer::docio::{self, DocIoError};
 use viewer::props::SlotValue;
-use viewer::session::{DocSession, Refusal, SessionOp};
+use viewer::session::{
+    BoundsTarget, DocSession, FaceSelection, Hovered, Refusal, Selection, SessionOp,
+};
 
 fn distance(
     doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
@@ -78,6 +81,78 @@ fn a_document_round_trips_through_save_and_open() {
         distance(reopened.committed_doc(), extrude),
         SlotValue::Continuous(0.004)
     );
+
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// **Opening drops everything the previous document answered.** The
+/// two doors that replace the document share one reset, and
+/// `NewDocument` is the row that has always asserted it
+/// (`creation_ops.rs`); this is the same assertion for `Open`, over a
+/// real file rather than the nonexistent path the mid-gesture rows
+/// use, so the fields that reset owns are covered at both doors and
+/// not at one. `frame_policy.rs` already holds the landed half for
+/// this door; what is new here is the selection, the hover and the
+/// range probe, which nothing asserted `Open` drops.
+#[test]
+fn opening_a_document_drops_what_the_previous_one_answered() {
+    let tol = Tol::witness();
+    let (doc, profile, _extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+
+    let dir = common::tempdir("gui3-open-clears");
+    let file = dir.join("plate.pncad");
+    assert!(
+        session
+            .perform(SessionOp::Save(file.clone()))
+            .refusal
+            .is_none()
+    );
+    session.pump();
+
+    session.perform(SessionOp::Select(Selection::Node(profile)));
+    session.perform(SessionOp::Hover(Some(Hovered::Face(FaceSelection {
+        name: StableName {
+            kind: EntityKind::Face,
+            node: profile,
+            path: vec![],
+        },
+        node: profile,
+        body: 0,
+    }))));
+    let probed = session.perform(SessionOp::ProbeBounds {
+        target: BoundsTarget::Param {
+            name: common::thickness_param(),
+        },
+    });
+    assert!(probed.refusal.is_none(), "{:?}", probed.refusal);
+    assert!(session.bounds().is_some(), "a probe landed");
+    assert!(session.landed_pair().is_some(), "a run landed");
+
+    assert!(
+        session
+            .perform(SessionOp::Open(file.clone()))
+            .refusal
+            .is_none()
+    );
+    assert_eq!(
+        session.selection(),
+        &Selection::None,
+        "a selection names entities of the document that is gone"
+    );
+    assert!(session.hover().is_none(), "so does a hover");
+    assert!(
+        session.bounds().is_none(),
+        "a range is a statement about one document"
+    );
+    assert!(
+        session.landed_pair().is_none(),
+        "the landed run answered the previous document"
+    );
+    assert!(session.product_fault().is_none());
+    assert!(session.at_rest().is_none());
+    assert!(session.checks().is_none());
+    assert!(session.landed_generation().is_none());
 
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
 }
@@ -278,10 +353,11 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
 
     // It draws. The scene is the thing the modeller needs in order to
     // see what is wrong with it.
-    let (landed_doc, landed_ev) = session.landed_pair().expect("an evaluation landed");
-    let scene = viewer::scene::scene_of_evaluation(
-        landed_doc,
-        landed_ev,
+    let body = session
+        .landed_body()
+        .expect("an evaluation landed and gathered");
+    let scene = viewer::scene::scene_of_body(
+        body,
         viewer::DisplayTolerance::new(5e-3).expect("a display delta"),
         tol,
     )
