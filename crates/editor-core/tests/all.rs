@@ -171,6 +171,8 @@ mod m10_4_r1_probes_interval;
 mod m10_4_seed;
 #[path = "msolve1_transform_aware.rs"]
 mod msolve1_transform_aware;
+#[path = "msolve4_mate_memo.rs"]
+mod msolve4_mate_memo;
 #[path = "onb_wall_normal_census.rs"]
 mod onb_wall_normal_census;
 
