@@ -220,6 +220,17 @@ impl<'a, T: Real> CornerLinks<'a, T> {
     /// non-emptiness that makes [`CornerLinks::first`] total therefore
     /// survives the ordering, and a consumer that walks the links in
     /// order still holds one of them by the type.
+    ///
+    /// **The seed is the MINIMUM, not [`CornerLinks::first`]**, and the
+    /// two are not interchangeable at a consumer even though today's
+    /// one builder makes them equal: it seeds each corner from the
+    /// first link that reaches it while walking the open links in
+    /// ascending edge order, so the swap below never fires. Not
+    /// depending on that walk is the whole reason this function
+    /// exists — a consumer that needs the ordered walk's first element
+    /// reads it HERE, and one that needs any single incident link (a
+    /// convexity, a chart candidate) reads `first`, where order does
+    /// not enter.
     pub(super) fn sorted(&self) -> (AdmittedOpen<'a, T>, Vec<AdmittedOpen<'a, T>>) {
         // The minimum is carried in a slot as the walk runs, never
         // searched for in a built `Vec` — so there is no empty case to

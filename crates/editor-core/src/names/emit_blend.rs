@@ -260,10 +260,10 @@ pub(super) fn name_blend<T: geom_core::Real>(
                 let dead = match key {
                     EntityKey::Edge(k) => retired_e.contains(&k),
                     EntityKey::Vertex(k) => retired_v.contains(&k),
-                    // The surgery's `kef` door refuses a source face,
-                    // so `Retired` carries no face channel and a
-                    // surviving face key is a real survivor. Asserted
-                    // in both directions by
+                    // `Retired` carries no face channel (the surgery's
+                    // one `kef` door refuses a source face, and states
+                    // why), so a face key here is a real survivor.
+                    // Asserted in both directions by
                     // `sweep/tests/m6_5_fillet_naming.rs`.
                     EntityKey::Face(_) | EntityKey::Body => false,
                 };

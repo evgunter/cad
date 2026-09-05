@@ -127,9 +127,8 @@ pub fn second_support_is_host(first_planar: bool, second_planar: bool) -> bool {
 /// NAMED arenas in which a source key can die here.
 ///
 /// **There is no face channel because the surgery cannot retire a
-/// source face**: [`topo::Body::kev`] kills none, and every
-/// [`topo::Body::kef`] it runs goes through `surgery`'s one `kef` door,
-/// which refuses a half whose face is a source. So for faces the
+/// source face** — enforced at `surgery`'s one face-destroying door,
+/// `SourceFaces::kef_minted`, which states the rule. So for faces the
 /// identity above holds in its stronger form, `source ⊆ output`, there
 /// being no set to subtract.
 #[derive(Clone, Debug, Default)]
