@@ -3918,31 +3918,6 @@ names no model.
 
 
 
-<<<<<<< HEAD
-Block FILLET-B3 pre-draw fields (2026-09-05, logged before the draw;
-opened with every FILLET-B2 slot concluded): slot 0 = FILLET-T
-(`docs/FILLET-T-SPEC.md`; Track T's `D325` + `D326` as one unit — the
-corner fusion's `first_arc` made a value by a seeded `sorted`, and the
-`kef`-argument invariant carried at every call site as `shell.rs`'s
-picker does) — difficulty **S**, task-class **STRUCTURAL**. Slots 1–2
-BANK for Ev's two open rulings: the `surgery.rs` split behind a re-scoped
-compound-bound allowlist (`[ev]` PR 1916; S / STRUCTURAL if approved) and
-the `ThreeConcaveEdges` mint (`[ev]` PR 1935; S / STRUCTURAL if "mint").
-If either is declined its slot stays empty and the block closes short,
-recorded here.
-
-Block FILLET-B3 draw (2026-09-05, after the pre-draw fields above; v3
-triple {opus, opus, fable}, one /dev/urandom byte, reject ≥252): byte
-**199**, 199 mod 3 = 1 = fable's position ⇒ **fable at slot 1**.
-So: slot 0 FILLET-T = OPUS, slot 1 (the split, if approved) = FABLE,
-slot 2 (the mint, if "mint") = OPUS. Recorded branch-side
-(`fillet/b3-block`); this record reaches main when the block concludes —
-or closes short with the program's exit — and each ordinal claim at
-review dispatch goes to main on its own.
-
-Block FILLET-B3 slot record (branch-side, appended as each slot concludes):
-slot 0 = FILLET-T (OPUS) — concluded 2026-09-05 at merge b1cc95604, ordinal 2006, sample #139 (no tally candidate; pair FAIR). Slot 1 = FILLET-SPLIT (FABLE) opens on Ev's ruling (PR 1916); slot 2 waits on PR 1935. (The draw commit's session trailer carries a typo in its URL; the record is unaffected.)
-=======
 Block FILLET-B2 pre-draw fields (2026-09-05, logged before the draw;
 opened with every FILLET-B1 slot dispatched — slot 0 merged, slot 1 in
 its fix pass, slot 2 under review): slot 0 = FILLET-H6
@@ -3971,7 +3946,30 @@ slot 0 = FILLET-H6 (OPUS) — concluded 2026-09-05 at merge 195460c7a, ordinal 2
 slot 1 = FILLET-ATTR (OPUS) — concluded 2026-09-05 at merge aa5384288, ordinal 2004, sample #134 (no tally candidate; pair FAIR).
 slot 2 = FILLET-H7 (FABLE) — concluded 2026-09-05 at merge 235d05241, ordinal 2005, sample #136 (one tally candidate, R2/OPUS, recorded in the row; pair FAIR, flagged for two benign glimpses).
 **Block FILLET-B2 CONCLUDED (2026-09-05)** — three slots, three duals (ordinals 2003–2005, samples #135, #134, #136); the block record reaches main with this sync. Block FILLET-B3 (Track T's riders; slots banked for Ev's two open rulings) opens branch-side on `fillet/b3-block`.
->>>>>>> origin/main
+
+Block FILLET-B3 pre-draw fields (2026-09-05, logged before the draw;
+opened with every FILLET-B2 slot concluded): slot 0 = FILLET-T
+(`docs/FILLET-T-SPEC.md`; Track T's `D325` + `D326` as one unit — the
+corner fusion's `first_arc` made a value by a seeded `sorted`, and the
+`kef`-argument invariant carried at every call site as `shell.rs`'s
+picker does) — difficulty **S**, task-class **STRUCTURAL**. Slots 1–2
+BANK for Ev's two open rulings: the `surgery.rs` split behind a re-scoped
+compound-bound allowlist (`[ev]` PR 1916; S / STRUCTURAL if approved) and
+the `ThreeConcaveEdges` mint (`[ev]` PR 1935; S / STRUCTURAL if "mint").
+If either is declined its slot stays empty and the block closes short,
+recorded here.
+
+Block FILLET-B3 draw (2026-09-05, after the pre-draw fields above; v3
+triple {opus, opus, fable}, one /dev/urandom byte, reject ≥252): byte
+**199**, 199 mod 3 = 1 = fable's position ⇒ **fable at slot 1**.
+So: slot 0 FILLET-T = OPUS, slot 1 (the split, if approved) = FABLE,
+slot 2 (the mint, if "mint") = OPUS. Recorded branch-side
+(`fillet/b3-block`); this record reaches main when the block concludes —
+or closes short with the program's exit — and each ordinal claim at
+review dispatch goes to main on its own.
+
+Block FILLET-B3 slot record (branch-side, appended as each slot concludes):
+slot 0 = FILLET-T (OPUS) — concluded 2026-09-05 at merge b1cc95604, ordinal 2006, sample #139 (no tally candidate; pair FAIR). Slot 1 = FILLET-SPLIT (FABLE) opens on Ev's ruling (PR 1916); slot 2 waits on PR 1935. (The draw commit's session trailer carries a typo in its URL; the record is unaffected.)
 
 ## FILLET-RIM review ordinal fixed at dispatch (2026-09-04)
 
