@@ -726,6 +726,68 @@ pass advisory. Docking is `egui_tiles`, a `Tree<Pane>` value the app
 owns. All of it sits behind the non-default `app` feature; without it
 the crate is renderer-free and headless-tested.
 
+**The pick index is built off the UI thread, and it adds no frame
+state.** Tessellating a document's roots and building their triangle
+BVHs is the expensive step behind every picture here — seconds on a
+dense document, and the window did not repaint while it ran, because
+`sync_scene` called `PickIndex::build` inline. It runs on its own
+worker now, across the same submit/poll vocabulary the evaluation
+crosses (`src/evalseam.rs`, two seams and two workers), keyed by the
+`(generation, δ)` pair it was built for.
+
+**What that window looks like, exactly.** `PickCache` drops the index
+it holds at the moment it submits, not when the replacement lands, so
+between the two there is no index at all — the state is **current or
+absent, never behind**. Replacing one picture's key with another's is
+what keeps it that way for every ordinary transition, and the one
+transition with no next key — a document opened or authored while a
+build is still with the seam — is where the invariant has to be
+enforced by hand: `PickCache::sync`'s nothing-landed arm FORGETS the
+outstanding attempt, so the build that finishes afterwards has no key
+to match and is discarded. Leaving it a key was a state in which the
+index of a replaced document installed over the scene of the one
+before it, with nothing running and nothing said.
+
+The viewport goes on drawing the mesh it last
+received, which is the previous document's, and three things say so
+rather than letting it pass for the current one: the toolbar shows one
+progress state and it reads `indexing…` (`frame::progress` — one
+value, so an evaluation and an index build cannot light two spinners
+for one wait), a click is refused typed as `pick::NotIndexed`, which
+is a different answer from *nothing under the cursor*, and a hover is
+left alone because it is an observation pushed on every frame and not
+an act.
+
+**What that does to the frame-state inventory** — the per-field
+justifications on `ViewerApp`'s own non-document fields, in
+`src/app.rs`, which is the live form of what GUI-3's §5 ratification
+rested on. It gains **no entry**, and the claim is exactly that
+narrow. The index itself is current or absent, so it is not derived
+data that can be WRONG about the document — which is the shape GQ6's
+first condition is about, and `Doc` stays authoritative exactly as
+before. What the seam does add is state *about the seam*:
+`PickCache`'s record of what it has asked for and not yet been
+answered, read every frame by the indicator and by the refusal's
+wording. That is a fact about work in flight, not a second opinion
+about the document, and it is the same shape `DocSession::running`
+already has — including the same failure, recorded rather than
+claimed away: a worker that dies leaves either of them describing
+work nobody is doing.
+
+**The index seam's promise is weaker than the evaluation seam's, and
+the asymmetry is deliberate.** It has no cancel — not a cancel that
+does nothing, but no door at all. The shipped `CancelToken` is checked
+BETWEEN NODES and the step behind this seam has no nodes to be checked
+between: neither `mesh::tessellate` nor the BVH build takes a token,
+and giving them one is other crates' territory. So the policy is
+**restart without cancel**: a δ change mid-build lets that build run to
+completion and discards its answer, which costs a second full build —
+on a document whose index takes 13 s, about 27 s before the picture is
+right. An edit made during an index build is not delayed by it, which
+is why the two seams are two workers: one queue would have put an
+uninterruptible build in front of the next evaluation and quietly
+weakened the cancel-and-restart promise made above it.
+
 **Where the `app` feature gates.** The workspace nextest archive builds
 this crate at DEFAULT features, so nothing behind the feature is in it.
 The seat is a hosted row that runs

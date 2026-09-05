@@ -1075,6 +1075,126 @@ narrative. Items created at migration: CERT-M3 (dispatched), CERT-N3
 (dispatched). PR 883 (lane H-g) stays parked as lane H-f and is recorded in
 the program header's keep-outs, not as an item of this program.
 
+### CERT-M3 — Track M's lane-trait lane (H5's three-trait census executed: EdgeNurbsLane deleted, PcurveFittedLane argued-and-left, ChartRegionLane's absence arms fixed and its contract put to Ev) — MERGED
+
+PR 1877; spec `docs/CERT-M3-SPEC.md` (cert/orchestrator 1267e32c0),
+NARROWED at dispatch by the orchestrator's ruling to CERT-M2's census;
+block CERT-B4 slot 2 (byte 123, fable at 3 → OPUS); ordinal 713 claimed
+at dispatch (main 00a8ed601); sample number at merge.
+
+**Dispatch ruling.** The spec's title says delete all three lane traits;
+the census CERT-M2 wrote into H5 (upheld by both its reviewers by
+execution) says one splits free, one does not split, one splits only
+with a contract that is a completeness claim about the census's own
+coverage. Ruled: take `EdgeNurbsLane`; argue and leave `PcurveFittedLane`
+with the census's reason; for `ChartRegionLane` land the independently
+landable absence row and put the contract to Ev; H5 rewritten (rule 3's
+partly-closed clause), not deleted. Acceptance re-read accordingly.
+
+Delivered head 636745f39 (then the lane's merge of main 096efa3bd — six
+conflicts, main's M10-7 branch having added a `Sym<T>` impl of the very
+trait this unit deletes, resolved by letting the bound serve the tier and
+pinned by a doctest at `Sym<f64>`; and the tracker migration, which
+deleted `docs/SMELL-SCAN-2026-08.md` under the branch, the row landings
+re-homed into `work/cert/H5.md` and `work/code-quality/S90-impl.md`):
+`EdgeNurbsLane`, its impls, `lane_name` and `PlaneNurbsRefusal::
+LaneUnsupported` gone; the certified body public as
+`geom_brep::plane_nurbs_limbs` at the SAME bound, byte for byte; the two
+doors that name it re-bounded `Decide + CertifiedBounds` (bounds
+allowlist +2 files, one ledger amendment); check 2's lane made an
+argument — `EdgeCurve::recertify_via(…, Option<NurbsLane>)`,
+`needs_nurbs_lane` asking before the claim is made; the census's
+scalar-level absence split from its geometric refusal as
+`ValidationError::CensusLaneUnsupported`. **Two process reds before
+review, neither the unit's**: main's change filter (changed 2026-09-04)
+refused the head's `eps=1e-12` trailer as narrowing — re-spelt
+`lane=both eps=all` on the orchestrator's state-sync commit 19a775c0e
+(the frozen head); and `test (eps = 1e-6, 2/2)` red on profile's fuzzed
+fillet radius under seed 0x063fda568e08fb0f, reproduced byte-identical on
+bare main — inherited, filed main-direct as
+`work/bool/profile-fillet-radius-off-at-eps-1e-6.md`, annotated on the PR
+per the inherited-red rule. Method note at cert/ab-state 7f1305f74.
+
+**The dual (ordinal 713, sample at the row)**: byte 115 parity 1 ⇒ R1
+FABLE + R2 OPUS, sequential on 19a775c0e. R1 NMAI (4 MAJ / 5 MIN); R2
+NMAI (2 MAJ / 5 MIN / 6 NOTE). Both UPHELD by execution: the deletion
+lossless (body byte-identical; `Sym<T>` served under exactly the deleted
+impl's where-clause; `RingInterval` not admitted); the door table at
+`Dual64`; the forced-caller set; identical three-ε cells. **BILATERAL
+MAJOR, both executed — the coverage narrowing at its true width**: the
+check-2 skip is whole-edge (a drifted endpoint on an M7-8 edge reported
+at the base and nothing through the lane-free doors — R2's probe), three
+doors skip not two (`validate_geometric_structural` returns `Ok(())` on a
+corrupt M7-8 wall — R1's probe), and two production consumers reach a
+body ONLY through a skipping door (`editor-core` `gate_at_rest_declared`;
+`step-import`'s aggregate `gate3` — the importer being the caller that
+ATTACHES this class, and the deleted `validate.rs:3141` sentence having
+said so). R1's unilateral sharpening: the certified-twin fix (H-R16's own
+mechanism) unmeasured by the lane. **BILATERAL MAJOR, both executed**:
+`euler.rs`'s `compile_fail,E0277` row emits E0599 — S216's own defect
+inside the row advertising the fix; stable rustdoc does not compare the
+code. **R1's UNILATERAL MAJORs**: the census absence row a half-fix
+(`ChartRegionLane` has TWO methods; `declared_overlap`'s None still
+collapsed at the confirm pass and folded to `false` at the crossing
+backing) — executed on the fixed arm, inspected on the missed ones; and
+the contract question for Ev on a FALSE premise (three consumers, not
+one) — inspected, R2 having read the opposite; both orchestrator-verified
+at the sites. Tally candidates: R1's two unilateral MAJORs and its twin
+sharpening; R2's whole-edge scope (executed) and its re-derivation of
+every count in S3's text (five impls per trait, 15 total; the stale
+"~90 lines apiece"; the 2026-08-18 saving estimate).
+
+**Fix pass IMPLEMENTER-INHERITED** (two merges of main; the session died
+on the Opus session limit at 00:40Z 2026-09-05 mid-pass and was resumed
+after the 02:00Z reset), head 2a2c7166a: **certified twins** —
+`validate_pseudomanifold_certified`, `_certificate_certified`,
+`contact_marks_certified`, `_declared_certified` at
+`PropsQuadLane + CertifiedBounds` supplying the lane — taken by
+`AtRestPolicy`'s four certifying arms and `step-import`'s gate3, measured
+FREE (zero E0277, one identifier per site; the Dual arm names no door so
+H-R3 is untouched); both reviewer probes adopted as tests (the six-door
+table on one corrupt body; the drifted-endpoint whole-edge row); the
+invariant sentence restored at check 2; the residual (lane-keeping doors
+called BY NAME at a certifying scalar) ROWED as
+`work/cert/lane-keeping-at-rest-doors-skip-the-m7-8-class.md` with the
+ruling it needs named; `census.rs:2777` split like the sweep arm and the
+`:511` fold argued (the confirm pass reports the same pair typed); the
+contract question rewritten on two methods / three arms — a structural
+half's error set GAINS findings because unbacked crossings stay loud —
+and restated on the `[ev]` PR 1878; the `euler.rs` row annotated E0599
+with stable rustdoc's limit stated (R1's out-of-workspace compile-probe
+crate declined: an eighth cargo root for four rows while S216's ~39 stay
+unchecked); every number in S3's text re-derived (15 impls, 801 lines,
+`lane_name` on one trait with four of five impls unreachable, the saving
+estimate withdrawn); the sweep gains `ValueChannel` and two live
+run-time lane refusals in its blind-spot list; the vacuous "Before at
+Dual" column, the false "structurally not run at a dual", the weak E0004
+receipt and four stale lines all restated.
+
+Gates: fix head 2a2c7166a run 33941134337 green (lane=both eps=all, the
+trailer now a no-op — main's filter is additive-only over every
+dimension); MERGED #1877 with this docs-only log entry and the item's
+closing state-sync riding (the merge commit is recorded in the A/B row,
+written main-direct at merge).
+
+Filed: `work/bool/profile-fillet-radius-off-at-eps-1e-6.md` (main-direct,
+the inherited gate red); `work/cert/lane-keeping-at-rest-doors-skip-the-
+m7-8-class.md` (the fix pass's residue, kind issue, refs H5);
+`work/cert/chart-region-lane-contract.md` (ruling, needs_ev, on `[ev]`
+PR 1878 — restated on the corrected premise). H5 carries the two
+remaining traits' questions and the bound's honest end state. Track M is
+now empty of dispatchable rows: H5 is a schedule of two questions for Ev.
+Slate: CERT-N3's close-out in flight (its dual returned no MAJOR); then
+the exit walk and the blinded tally adjudication.
+
+## Seam announced by TOPO (2026-09-05)
+
+TOPO enters `crates/geom/src/surfaces/nurbs.rs` for ONE public method:
+the complement of `NurbsSurface::is_placeholder`, delegating to
+`net::any_poison` (spec `docs/TOPO-S330-SPEC.md` §Phase 2 (a)). Tier-3
+check 1 gains its described-NURBS arm on it. Nothing else in `geom`
+moves; the channel walk stays spelled once, in `net.rs`.
+
 ### CERT-N3 — Track N's remainder (D244, D31, D98, S235's exact conic box adopted, C24's analytic member measured) — MERGED
 
 PR 1879; spec `docs/CERT-N3-SPEC.md` (cert/orchestrator 1267e32c0); block
