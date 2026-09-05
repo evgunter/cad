@@ -2,12 +2,13 @@
 id: extrude-cap-rim-smooth-arm-noop
 kind: unit
 title: extrude's cap-rim smooth arm is a literal no-op resting on a falsified premise sentence (prefer-intrinsic does not cover it)
-status: dispatched
+status: closed
 opened: 2026-08-31
 github: 1390
 refs: [1152, 1378, 1382]
 branch: fillet/h6-cap-rim-smooth
 pr: 1891
+closed: 2026-09-05
 ---
 
 ## From GitHub issue 1390
