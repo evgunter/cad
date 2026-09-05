@@ -28,7 +28,7 @@ use crate::common;
 use std::sync::Arc;
 
 use pncad::document::{
-    Dimension, Doc, Expr, Node, ProductError, ProfileProgram, gathers_on_this_thread,
+    Dimension, Doc, Expr, Node, ProductError, ProfileProgram, SitedRef, gathers_on_this_thread,
 };
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
@@ -171,8 +171,8 @@ fn a_refused_a5_gate_eats_the_body_and_says_so_by_its_absence() {
     let bench = common::asm::bench("landed-body-refused-gate", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     session.perform(SessionOp::AddMate {
-        a: common::asm::in_part(bench.post_b, &bench.post_top),
-        b: common::asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        a: SitedRef::at_mint(common::asm::in_part(bench.post_b, &bench.post_top)),
+        b: SitedRef::at_mint(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Tangent,
         alignment: common::asm::seat_alignment(common::asm::SHELF_LENGTH / 2.0, None),
     });

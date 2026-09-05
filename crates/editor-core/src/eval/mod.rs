@@ -25,7 +25,10 @@ mod schedule;
 mod slots;
 mod wire;
 
-pub(crate) use wire::{SteppedOperands, stepped_rule_map, unit as unit_direction};
+pub(crate) use wire::{
+    DATUM_AXIS_ROLE, PATTERN_DIRECTION_ROLE, SteppedOperands, TRANSFORM_AXIS_ROLE,
+    stepped_rule_map, transform_map, unit as unit_direction,
+};
 
 pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue, embed_profile};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
@@ -2931,15 +2934,20 @@ where
             }
         }
         // A mate's own key is its references, its class and its
-        // alignment: the recipe payload that decides what it says.
+        // alignment: the recipe payload that decides what it says. A
+        // reference is a NAME AND AN OPERAND, and both are fed —
+        // two mates differing only in the node they are read at say
+        // different things about different geometry.
         Node::Mate {
             a,
             b,
             class,
             alignment,
         } => {
-            feed_stable_name(&mut h, a);
-            feed_stable_name(&mut h, b);
+            h.write_u64(a.at.0);
+            feed_stable_name(&mut h, &a.name);
+            h.write_u64(b.at.0);
+            feed_stable_name(&mut h, &b.name);
             h.write_tag(contact_class_tag(*class));
             feed_alignment(&mut h, alignment);
         }
