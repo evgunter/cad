@@ -1696,6 +1696,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_finite_direction",
             "non_positive_count",
             "param_box",
+            "param_source_attach",
             "payload_expr",
             "placements_uncertified",
             "profile",
