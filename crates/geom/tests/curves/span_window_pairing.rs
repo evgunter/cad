@@ -166,7 +166,7 @@ fn a_curves_channels_mint_against_its_own_vector() {
         let coords = c.ring_coords();
         for (ch, coeffs) in coords.iter().enumerate() {
             let pair = k
-                .coeffs(coeffs)
+                .with_coeffs(coeffs)
                 .expect("a curve's channel is its own vector's length");
             assert_eq!(pair.knots() as *const _, k as *const _);
             for index in 0..k.knots().len() + 2 {
@@ -206,8 +206,8 @@ fn a_curves_channels_mint_against_its_own_vector() {
         3,
     );
     let theirs = longer.ring_coords();
-    assert!(mine.knots().coeffs(&theirs[0]).is_none());
-    assert!(longer.knots().coeffs(&theirs[0]).is_some());
+    assert!(mine.knots().with_coeffs(&theirs[0]).is_none());
+    assert!(longer.knots().with_coeffs(&theirs[0]).is_some());
 }
 
 /// The other direction, which is how a guard fails when it cannot
@@ -254,9 +254,6 @@ fn every_window_a_curve_mints_evaluates_that_curve() {
     );
 }
 
-/// **The shapes the retired guard refused, at the doors that still
-/// have loose coefficients** — adopted from the review lane's probe.
-///
 /// The knot vectors the two sweeps above range over: several degrees,
 /// several lengths, clamped and interior-knotted.
 ///

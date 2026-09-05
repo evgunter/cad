@@ -223,13 +223,13 @@ impl InteriorKnot {
 /// too.
 ///
 /// **One level down, coefficients against knots take the same shape**:
-/// a [`super::hull::SplineCoeffs`] borrows the vector its array was
-/// fitted against and is minted only by [`KnotVector::coeffs`] and
-/// [`KnotVector::coeffs_rational`] (the count relation, checked once
-/// there), and every hull door reads through a
-/// [`super::hull::CoeffWindow`] the pair minted — a `Span` of ITS
-/// vector beside the pair. `InteriorKnot` is the third member of the
-/// family and stays crate-private for it.
+/// a [`super::hull::SplineCoeffs`] (or a [`super::hull::RationalCoeffs`]
+/// with the weights beside) borrows the vector its array was fitted
+/// against and is minted only by [`KnotVector::with_coeffs`] and
+/// [`KnotVector::with_rational_coeffs`] (the count relation, checked
+/// once there), and every hull door reads through a window the pair
+/// minted — a `Span` of ITS vector beside the pair. `InteriorKnot` is
+/// the third member of the family and stays crate-private for it.
 ///
 /// **Equality is address equality on the vector**, plus the indices:
 /// a `Span` is a proof about *that* vector, and two bit-equal vectors

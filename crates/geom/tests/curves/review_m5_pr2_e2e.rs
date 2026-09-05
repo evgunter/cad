@@ -125,11 +125,11 @@ fn the_clean_fit_is_certified_and_the_plant_is_refused() {
     // --- the clean curve certifies -----------------------------------
     let clean = residual_coeffs(&curve);
     let clean_pair = kv
-        .coeffs(&clean)
+        .with_coeffs(&clean)
         .expect("the residual is the curve's length");
     let bound = clean_pair.sup_norm_bound();
     let bound_rat = kv
-        .coeffs_rational(&clean, weights)
+        .with_rational_coeffs(&clean, weights)
         .expect("the residual is the curve's length")
         .sup_norm_bound_rational();
     assert!(bound.is_finite() && bound_rat.is_finite(), "poisoned bound");
@@ -163,7 +163,7 @@ fn the_clean_fit_is_certified_and_the_plant_is_refused() {
         NurbsCurve3::new(kv.clone(), control, weights.to_vec()).expect("still a valid curve");
     let dirty = residual_coeffs(&corrupted);
     let dirty_pair = kv
-        .coeffs(&dirty)
+        .with_coeffs(&dirty)
         .expect("the residual is the curve's length");
     let dirty_bound = dirty_pair.sup_norm_bound();
     assert!(
@@ -250,7 +250,7 @@ fn a_sub_eps_perturbation_still_certifies() {
     control[1] = Point3::new(control[1].x, control[1].y, control[1].z + 1e-10);
     let nudged = NurbsCurve3::new(kv.clone(), control, curve.weights().to_vec()).unwrap();
     let bound = kv
-        .coeffs(&residual_coeffs(&nudged))
+        .with_coeffs(&residual_coeffs(&nudged))
         .unwrap()
         .sup_norm_bound();
     assert!(

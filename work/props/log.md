@@ -694,3 +694,21 @@ the residue filed as `coefficient-vector-pairing-survivors`; the
 reviewers' rows adopted. Seams posted to SHELL and MESH for the doc-link
 edits. A/B row recorded: ordinal 2403, **sample #144**, no tally
 candidate; block PROPS-B2 slot 0 concluded (fix-pass usage at its merge).
+
+**coeffs-window fix pass (2026-09-05)** — PR
+[#1992](https://github.com/evgunter/cad/pull/1992), branch `props/coeffs-fixpass`,
+the dual's APPROVE-WITH-FIXES (0/4/4 and 1/5/4) on the merged head
+`4521bd658`. Taken in full: the pair split into `SplineCoeffs` /
+`RationalCoeffs` with the rational and nonrational doors partitioned by
+type (both directions D2 row 0, `compile_fail` rows (d)/(e)); the
+triplicated differencing helper folded to `KnotVector::difference_coeffs`
+and `quad.rs`'s two range-hull spellings to one; the mints renamed
+`with_coeffs` / `with_rational_coeffs`, the pair accessor `pair()`, four
+silent accessors deleted; doc rot at `spline/mod.rs`, `hull.rs`,
+`spline_hull.rs`, `span_window_pairing.rs` fixed; the three dead
+refusal arms annotated; the sweep residue filed
+(`coefficient-vector-pairing-survivors`, with the reviewers' additions
+and the blind spot); the dual's 3,403-row corpus and type rows adopted.
+All four digests unchanged. The territory tool's full 40-path output is
+in the PR body (the unit's body listed three). Item stays closed; no
+ledger line.
