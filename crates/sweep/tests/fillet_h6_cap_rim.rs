@@ -267,11 +267,14 @@ fn every_extruded_cap_rim_is_transverse() {
             Extrusion::Vector(Vec3::new(tol.eps(), 0.0, 1.0)),
         ),
         (
-            // A wall cylinder whose radius is far below the caps'
-            // extent: the folded lever arm is the radius, not the
-            // chord, and the wedge margin survives it.
-            "tiny-radius arc leg (r = 1e-7)",
-            validated(plane, vec![circle_loop(0.0, 0.0, 1e-7)]),
+            // A wall cylinder whose radius is four decades above ε and
+            // eight below the extrusion: the folded lever arm is the
+            // radius, not the chord, and the wedge margin survives it.
+            // Scaled off the run's ε, or the row is a segment the
+            // profile door refuses at a loose tolerance rather than
+            // the small-arm case it is written for.
+            "tiny-radius arc leg (r = 1e4 eps)",
+            validated(plane, vec![circle_loop(0.0, 0.0, 1e4 * tol.eps())]),
             Extrusion::Distance(1.0),
         ),
         (
@@ -281,8 +284,8 @@ fn every_extruded_cap_rim_is_transverse() {
             validated(
                 plane,
                 vec![ProfileLoop::new(vec![
-                    ProfileVertex::new(p2(-0.01, 0.0), 100.0),
-                    ProfileVertex::new(p2(0.01, 0.0), 0.0),
+                    ProfileVertex::new(p2(-1e4 * tol.eps(), 0.0), 100.0),
+                    ProfileVertex::new(p2(1e4 * tol.eps(), 0.0), 0.0),
                 ])],
             ),
             Extrusion::Distance(1.0),
