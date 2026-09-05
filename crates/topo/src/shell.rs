@@ -149,7 +149,8 @@
 //! manifold-first stance is untouched. Genus does not necessarily rise:
 //! one opening gives a cup, which is genus 0 (the cavity shell fuses
 //! into the boundary and the two Euler contributions cancel); a second
-//! opening gives a tube, genus 1. The invariant is closure, not genus. The surgery is the ring-topology
+//! opening gives a tube, genus 1. The invariant is closure, not genus.
+//! The surgery is the ring-topology
 //! band precedent verbatim; no new machinery, and in particular no
 //! ladder of quads (which would chamfer the opening rather than rim
 //! it — the geometry that made step 2 necessary).
@@ -689,6 +690,14 @@ pub struct ShellRetired {
 /// reversed face offsets against its chart normal without the caller
 /// knowing which faces those are.
 ///
+/// **`tol` is the only tolerance this verb takes**, and it is a
+/// witness rather than a value. Where a face's inward offset has no
+/// closed form the cavity is a fitted approximation, and what that fit
+/// must reach is ε_precision — the same ε tier 3 will re-derive the
+/// certificate against — so there is nothing for a caller to choose:
+/// the witness travels down the offset chain and the number is read
+/// once, at the site that classifies the residual.
+///
 /// # Errors
 ///
 /// [`ShellError`] — [`ShellError::Band`] when the committed tolerance
@@ -704,10 +713,9 @@ pub struct ShellRetired {
 pub fn shell<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
     body: &Body<T>,
     thickness: T,
-    tolerance: f64,
     tol: Tol,
 ) -> Result<Shelled<T>, ShellError<T>> {
-    shell_open(body, thickness, &[], tolerance, tol)
+    shell_open(body, thickness, &[], tol)
 }
 
 /// The opened hollow: [`shell`], then the designated faces re-authored
@@ -729,7 +737,6 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
     body: &Body<T>,
     thickness: T,
     open_faces: &[FaceKey],
-    tolerance: f64,
     tol: Tol,
 ) -> Result<Shelled<T>, ShellError<T>> {
     let mut naming = ShellNaming::default();
@@ -880,12 +887,12 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
         for group in &charts {
             let face = group[0];
             let d = inward(&cavity, face, thickness)?;
-            crate::replace_faces_offset(&mut cavity, group, d, tolerance, band, tol).map_err(
-                |error| ShellError::Face {
+            crate::replace_faces_offset(&mut cavity, group, d, band, tol).map_err(|error| {
+                ShellError::Face {
                     face,
                     error: Box::new(error),
-                },
-            )?;
+                }
+            })?;
         }
     }
 
@@ -1064,7 +1071,7 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
             }
             crate::offset_charts_together(&mut out, &moves, band, tol)
         } else {
-            crate::replace_faces_offset(&mut out, &lift_group, back, tolerance, band, tol)
+            crate::replace_faces_offset(&mut out, &lift_group, back, band, tol)
         };
         outcome.map_err(|error| ShellError::Lift {
             face: designated,

@@ -32,8 +32,6 @@ fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
-const FIT_TOL: f64 = 1e-6;
-
 fn revolved_by(points: &[(f64, f64)], rev: Revolution<f64>) -> Body<f64> {
     let lp = ProfileLoop::new(
         points
@@ -119,7 +117,7 @@ fn opening_nappe_small_d_passes_the_apex_predicate() {
     for d in [-0.05_f64, 0.05] {
         let mut body = cone_up_tube();
         let face = cone_face(&body);
-        let e = topo::replace_face_offset(&mut body, face, d, FIT_TOL, band(), Tol::witness())
+        let e = topo::replace_face_offset(&mut body, face, d, band(), Tol::witness())
             .expect_err("the untouched cylinders cannot hold the cone's moved rims");
         assert!(
             !matches!(e, ReplaceFaceError::ApexWindow { .. }),
@@ -157,7 +155,7 @@ fn opening_nappe_small_d_passes_the_apex_predicate() {
 fn opening_nappe_apex_crossing_refuses_typed() {
     let mut body = cone_up_tube();
     let face = cone_face(&body);
-    let e = topo::replace_face_offset(&mut body, face, -1.0, FIT_TOL, band(), Tol::witness())
+    let e = topo::replace_face_offset(&mut body, face, -1.0, band(), Tol::witness())
         .expect_err("the shifted window crosses the apex");
     assert!(
         matches!(e, ReplaceFaceError::ApexWindow { face: f, .. } if f == face),
@@ -174,7 +172,7 @@ fn opening_nappe_apex_crossing_refuses_typed() {
 fn a_large_d_away_from_the_apex_is_not_an_apex_crossing() {
     let mut body = cone_up_tube();
     let face = cone_face(&body);
-    let e = topo::replace_face_offset(&mut body, face, 5.0, FIT_TOL, band(), Tol::witness())
+    let e = topo::replace_face_offset(&mut body, face, 5.0, band(), Tol::witness())
         .expect_err("a shift this large leaves the body undescribable somewhere");
     assert!(
         !matches!(e, ReplaceFaceError::ApexWindow { .. }),
@@ -207,7 +205,7 @@ fn the_routed_opening_cone_reaches_past_c5_and_refuses_at_the_caps() {
     let mut body = frustum_opening();
     let face = cone_face(&body);
     let before = dump(&body);
-    let e = topo::replace_face_offset(&mut body, face, 0.01, FIT_TOL, band(), Tol::witness())
+    let e = topo::replace_face_offset(&mut body, face, 0.01, band(), Tol::witness())
         .expect_err("the caps cannot follow the cone's moved rims");
     assert!(
         !matches!(e, ReplaceFaceError::NeighborPairUnroutable { .. }),
@@ -232,7 +230,7 @@ fn the_routed_mirror_cone_reaches_past_c5_and_refuses_at_the_caps() {
     let mut body = frustum_mirror();
     let face = cone_face(&body);
     let before = dump(&body);
-    let e = topo::replace_face_offset(&mut body, face, 0.01, FIT_TOL, band(), Tol::witness())
+    let e = topo::replace_face_offset(&mut body, face, 0.01, band(), Tol::witness())
         .expect_err("the caps cannot follow the cone's moved rims");
     assert!(
         !matches!(e, ReplaceFaceError::NeighborPairUnroutable { .. }),
@@ -272,7 +270,7 @@ fn every_err_path_leaves_the_body_bit_untouched() {
     ];
     for (mut body, face, d) in cases {
         let before = dump(&body);
-        let e = topo::replace_face_offset(&mut body, face, d, FIT_TOL, band(), Tol::witness())
+        let e = topo::replace_face_offset(&mut body, face, d, band(), Tol::witness())
             .expect_err("a planted red");
         assert_eq!(
             dump(&body),
@@ -295,7 +293,7 @@ fn every_err_path_leaves_the_body_bit_untouched() {
             .map(|(k, _)| k)
             .unwrap();
         let before = dump(&body);
-        let e = topo::replace_face_offset(&mut body, wall, d, FIT_TOL, band(), Tol::witness())
+        let e = topo::replace_face_offset(&mut body, wall, d, band(), Tol::witness())
             .expect_err("the fitted boundary refuses");
         assert!(
             matches!(e, ReplaceFaceError::FittedBoundaryUnsupported { .. }),
@@ -336,7 +334,7 @@ fn a_side_wall_replacement_refuses_typed_at_the_rim_arcs() {
         .map(|(k, _)| k)
         .expect("a partial revolve has planar side walls");
     let before = dump(&body);
-    let e = topo::replace_face_offset(&mut body, side, 0.05, FIT_TOL, band(), Tol::witness())
+    let e = topo::replace_face_offset(&mut body, side, 0.05, band(), Tol::witness())
         .expect_err("the rim arcs cannot follow a tangential wall move");
     assert!(
         matches!(
@@ -372,22 +370,46 @@ fn a_side_wall_replacement_refuses_typed_at_the_rim_arcs() {
 /// per fixture: membership in a list of five could never distinguish
 /// a door that fired for the wrong reason from one that fired for the
 /// right one, which is the whole thing this row exists to check.
+///
+/// **And the row is ε-DEPENDENT on the curved fixture, which is the
+/// point of it.** The offset door's fit target is the run's
+/// ε_precision — the door takes the tolerance WITNESS and derives no
+/// number of its own — and a genuinely curved base cannot always reach
+/// it: at ε = 1e-12 the twisted loft's saddle wall stalls at a sup
+/// bound of ~2.5e-9, so the door refuses at the FIT and the boundary
+/// re-description is never attempted. That is D4's blessed
+/// ε-tightening consequence, not a defect, so this row pins BOTH arms
+/// instead of one. What it does NOT allow is the fit refusing on the
+/// PLANAR fixture: a planar spline's offset is a planar spline, which
+/// the interpolation reproduces exactly at any ε, so a fit refusal
+/// there would be a real defect and reds.
+/// The tightest ε at which the twisted loft's saddle wall still
+/// certifies its offset fit, measured on this fixture: it reaches at
+/// ε = 1e-9 (3 refinement rounds) and at 1e-6, and exhausts its round
+/// budget at 1e-12 with an achieved sup bound of ~2.5e-9. The constant
+/// is what turns the `Fit` arm below from an or-pin into a claim — at
+/// any ε this loose, a fit refusal is a regression rather than
+/// ε-tightening, and reds.
+const CURVED_FIT_REACH: f64 = 1e-11;
+
 #[test]
 fn the_fitted_obstruction_holds_on_a_curved_fit() {
     // Both fixtures' spline walls are bounded by rims described in a
     // NEIGHBOUR's chart (the cap plane they lie in), so both land on
     // the same leg — and the row says so by name rather than by
     // membership.
-    for (name, mut body, leg) in [
+    for (name, mut body, leg, curved) in [
         (
             "planar prism",
             prism(),
             "a chart image of a neighbour's chart",
+            false,
         ),
         (
             "twisted loft",
             twisted_loft(0.3),
             "a chart image of a neighbour's chart",
+            true,
         ),
     ] {
         let wall = body
@@ -400,11 +422,33 @@ fn the_fitted_obstruction_holds_on_a_curved_fit() {
             })
             .map(|(k, _)| k)
             .unwrap_or_else(|| panic!("{name}: no spline wall"));
-        let e = topo::replace_face_offset(&mut body, wall, 5e-10, FIT_TOL, band(), Tol::witness())
+        let e = topo::replace_face_offset(&mut body, wall, 5e-10, band(), Tol::witness())
             .expect_err("the fitted boundary refuses");
-        let ReplaceFaceError::FittedBoundaryUnsupported { what, .. } = e else {
-            panic!("{name}: expected the structural refusal, got {e}");
-        };
-        assert_eq!(what, leg, "{name}: the wrong leg of the fitted door");
+        match e {
+            ReplaceFaceError::FittedBoundaryUnsupported { what, .. } => {
+                assert_eq!(what, leg, "{name}: the wrong leg of the fitted door");
+            }
+            // The fit could not reach this run's ε, so the structural
+            // door was never reached. Legitimate only where the base is
+            // genuinely curved AND the run's ε is tighter than what the
+            // engine reaches on it — both, so this arm cannot absorb a
+            // fit-engine regression at the epsilons where the fit does
+            // reach today.
+            ReplaceFaceError::Fit { error, .. } => {
+                assert!(
+                    curved,
+                    "{name}: a PLANAR spline's offset is exactly fittable at every ε, so a fit \
+                     refusal here is a defect rather than ε-tightening: {error}"
+                );
+                assert!(
+                    Tol::witness().eps() < CURVED_FIT_REACH,
+                    "{name}: the curved fit refused at ε = {:e}, where it reaches today \
+                     (measured: it certifies at ε ≥ {CURVED_FIT_REACH:e} and stalls at 1e-12). \
+                     That is a fit-engine regression, not ε-tightening: {error}",
+                    Tol::witness().eps()
+                );
+            }
+            other => panic!("{name}: expected the structural refusal or the fit's, got {other}"),
+        }
     }
 }

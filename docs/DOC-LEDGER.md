@@ -1078,3 +1078,17 @@ The rule above; the unit's record is its item's `## Closed` section
 its A/B row is MODEL-AB-LOG SEATDN.
 
 - `SEAT-DN-SPEC.md` — SEAT-DN, one direction-normalization body under two ratified funnel names; `Dir::from_unit` measured (#1987)
+
+## Per-merge deletion — SEAT-9's spec (2026-09-05)
+
+Recoverable at `git show ac167558386cc6acf7d5efd1b593a08bc8996ef2:docs/SEAT-9-SPEC.md`
+(the SEAT-9 fix-pass head, before the state-sync commit that deleted
+it; unamended). S9-1 met with one disclosed deviation (`Arity::Shell`
+for "arity One", argued and accepted); S9-2 met as written after the
+fix pass carried the witness into `geom-brep`'s production doors —
+the frozen head had stopped one door higher and the dual weighed it.
+The rule above; the unit's record is its item's `## Closed` section
+(`work/seat/SEAT-9.md`) and its MERGED entry in `work/seat/log.md`;
+its A/B row is MODEL-AB-LOG SEAT9.
+
+- `SEAT-9-SPEC.md` — SEAT-9, the shell arm on `Verb` and ε travelling only as `Tol` down the offset-fit chain (#1995)
