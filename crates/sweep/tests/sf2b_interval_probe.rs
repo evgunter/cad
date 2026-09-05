@@ -49,8 +49,6 @@ fn p2(x: f64, y: f64) -> Point2<Interval> {
     Point2::new(iv(x), iv(y))
 }
 
-const FIT_TOL: f64 = 1e-6;
-
 fn revolved(lp: ProfileLoop<Interval>, turn: Revolution<Interval>) -> Body<Interval> {
     let profile = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())
@@ -90,7 +88,7 @@ fn interval_offset_charts_together_sphere_zone() {
         ]),
         Revolution::Full,
     );
-    let hollow = topo::shell(&body, iv(t), FIT_TOL, tol)
+    let hollow = topo::shell(&body, iv(t), tol)
         .expect("the sphere-zone vase hollows at the certified scalar")
         .body;
     assert_eq!(hollow.shells().count(), 2, "outer + cavity");
@@ -147,7 +145,7 @@ fn interval_offset_charts_together_partial_wedge() {
         ]),
         Revolution::Partial(iv(core::f64::consts::FRAC_PI_2)),
     );
-    let hollow = topo::shell(&body, iv(t), FIT_TOL, tol)
+    let hollow = topo::shell(&body, iv(t), tol)
         .expect("the quarter-revolve wedge hollows at the certified scalar")
         .body;
     assert_eq!(hollow.shells().count(), 2, "outer + cavity");
@@ -184,7 +182,7 @@ fn interval_offset_charts_together_cone_frustum() {
         ]),
         Revolution::Full,
     );
-    let hollow = topo::shell(&body, iv(t), FIT_TOL, tol)
+    let hollow = topo::shell(&body, iv(t), tol)
         .expect("the cone frustum hollows at the certified scalar")
         .body;
     assert_eq!(hollow.shells().count(), 2, "outer + cavity");
@@ -222,7 +220,7 @@ fn interval_offset_charts_together_drum() {
         ]),
         Revolution::Full,
     );
-    let hollow = topo::shell(&body, iv(t), FIT_TOL, tol)
+    let hollow = topo::shell(&body, iv(t), tol)
         .expect("the drum hollows at the certified scalar")
         .body;
     assert_eq!(hollow.shells().count(), 2, "outer + cavity");

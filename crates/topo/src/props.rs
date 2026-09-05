@@ -795,13 +795,19 @@ pub trait PropsQuadLane:
     /// The fit door's typed refusal, when the re-derivation fails.
     fn recertify_approx(
         approx: &geom::ApproxSurface<Self>,
-        tolerance: f64,
+        tol: Tol,
         band: Band,
     ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>>;
 
     /// Mints the certified approximating surface for a NURBS operand's
     /// offset — the fit door, reached through the lane so the doors
     /// above it stay scalar-generic.
+    ///
+    /// The fit target is the run's ε and arrives as the witness, for
+    /// [`PropsQuadLane::recertify_approx`]'s reason: the mint and the
+    /// re-derivation that must later re-establish its claim classify
+    /// against the same number by construction, not because two
+    /// callers passed the same one ([`fit_precision`]).
     ///
     /// `None` = this scalar has no fit lane. That is not a pass: a
     /// caller that cannot mint the offset refuses, exactly as tier 3
@@ -817,7 +823,7 @@ pub trait PropsQuadLane:
     fn approx_offset_surface(
         base: std::sync::Arc<geom::NurbsSurface<Self>>,
         d: Self,
-        tolerance: f64,
+        tol: Tol,
         band: Band,
     ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>>;
 
@@ -835,6 +841,28 @@ pub trait PropsQuadLane:
     ) -> Result<Option<FaceCutBounds>, PropsError>;
 }
 
+/// **The offset fit's target, and the ONE place the run's ε is read on
+/// the chain that reaches it** (D4 ¶2's ε_precision; the residual O3
+/// ratifies).
+///
+/// From the shell door down to here the tolerance travels as the [`Tol`]
+/// witness and nothing else — the verb doors, the face-replacement
+/// doors and this lane all name the witness in their signatures — so no
+/// caller on the way can name a second epsilon, and none can do
+/// arithmetic on the one the run committed. This is where the witness
+/// becomes a number, once, for the two doors below it.
+///
+/// **`geom-brep`'s fit engine takes a target as a number, and that is
+/// not a second ε.** The engine is a general approximation routine
+/// whose own suite measures the refinement, budget, stall and limb
+/// ladder at deliberately chosen targets — 1e-2 through 1e-18, and
+/// bounds derived from a measured residual — which one committed ε
+/// cannot express. What the kernel does not do is CHOOSE: every path
+/// from a verb into that engine passes through this function.
+fn fit_precision(tol: Tol) -> f64 {
+    tol.eps()
+}
+
 impl PropsQuadLane for f64 {
     fn datum_lo(self) -> f64 {
         geom_core::Bounds::lo(self)
@@ -842,19 +870,28 @@ impl PropsQuadLane for f64 {
 
     fn recertify_approx(
         approx: &geom::ApproxSurface<Self>,
-        tolerance: f64,
+        tol: Tol,
         band: Band,
     ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
-        Some(geom_brep::recertify_approx(approx, tolerance, band))
+        Some(geom_brep::recertify_approx(
+            approx,
+            fit_precision(tol),
+            band,
+        ))
     }
 
     fn approx_offset_surface(
         base: std::sync::Arc<geom::NurbsSurface<Self>>,
         d: Self,
-        tolerance: f64,
+        tol: Tol,
         band: Band,
     ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
-        Some(geom_brep::approx_offset_surface(base, d, tolerance, band))
+        Some(geom_brep::approx_offset_surface(
+            base,
+            d,
+            fit_precision(tol),
+            band,
+        ))
     }
 
     fn quad_cut_face(
@@ -879,7 +916,7 @@ impl PropsQuadLane for geom_core::Probe {
     // tier 3 reports `ApproxLaneUnsupported` rather than passing.
     fn recertify_approx(
         _approx: &geom::ApproxSurface<Self>,
-        _tolerance: f64,
+        _tol: Tol,
         _band: Band,
     ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
         None
@@ -888,7 +925,7 @@ impl PropsQuadLane for geom_core::Probe {
     fn approx_offset_surface(
         _base: std::sync::Arc<geom::NurbsSurface<Self>>,
         _d: Self,
-        _tolerance: f64,
+        _tol: Tol,
         _band: Band,
     ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
         None
@@ -917,7 +954,7 @@ impl PropsQuadLane for geom_core::interval::Interval {
     // DERIVATION rather than about which values can arrive.
     fn recertify_approx(
         _approx: &geom::ApproxSurface<Self>,
-        _tolerance: f64,
+        _tol: Tol,
         _band: Band,
     ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
         None
@@ -926,7 +963,7 @@ impl PropsQuadLane for geom_core::interval::Interval {
     fn approx_offset_surface(
         _base: std::sync::Arc<geom::NurbsSurface<Self>>,
         _d: Self,
-        _tolerance: f64,
+        _tol: Tol,
         _band: Band,
     ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
         None
@@ -967,7 +1004,7 @@ where
     // about which values can arrive.
     fn recertify_approx(
         _approx: &geom::ApproxSurface<Self>,
-        _tolerance: f64,
+        _tol: Tol,
         _band: Band,
     ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
         None
@@ -976,7 +1013,7 @@ where
     fn approx_offset_surface(
         _base: std::sync::Arc<geom::NurbsSurface<Self>>,
         _d: Self,
-        _tolerance: f64,
+        _tol: Tol,
         _band: Band,
     ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
         None
@@ -1009,7 +1046,7 @@ where
     // DERIVATION rather than about which values can arrive.
     fn recertify_approx(
         _approx: &geom::ApproxSurface<Self>,
-        _tolerance: f64,
+        _tol: Tol,
         _band: Band,
     ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
         None
@@ -1018,7 +1055,7 @@ where
     fn approx_offset_surface(
         _base: std::sync::Arc<geom::NurbsSurface<Self>>,
         _d: Self,
-        _tolerance: f64,
+        _tol: Tol,
         _band: Band,
     ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
         None

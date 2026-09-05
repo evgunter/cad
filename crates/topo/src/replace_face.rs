@@ -953,9 +953,11 @@ struct EdgePlan<T: Real> {
 /// distance `d` and re-describes the face's boundary against the moved
 /// chart (module docs).
 ///
-/// `tolerance` is the fit door's parameter and is consulted only on the
-/// NURBS lane, where the offset is not closed-form; the analytic kinds
-/// mint exactly and ignore it.
+/// The fit target is the run's ε_precision and reaches the fit door as
+/// the [`Tol`] witness (`geom_brep::approx_offset_surface`); it is
+/// consulted only on the NURBS lane, where the offset is not
+/// closed-form, and the analytic kinds mint exactly without reading a
+/// tolerance at all.
 ///
 /// The body is **untouched on every `Err`**: the mint, the refusals and
 /// the whole boundary plan are decided read-only, the mutation runs on
@@ -971,11 +973,10 @@ pub fn replace_face_offset<T: Decide + PropsQuadLane>(
     body: &mut Body<T>,
     face: FaceKey,
     d: T,
-    tolerance: f64,
     band: Band,
     tol: Tol,
 ) -> Result<(), ReplaceFaceError<T>> {
-    replace_faces_offset(body, &[face], d, tolerance, band, tol)
+    replace_faces_offset(body, &[face], d, band, tol)
 }
 
 /// [`replace_face_offset`] for a CHART: every face carrying one surface
@@ -1004,7 +1005,6 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
     body: &mut Body<T>,
     faces: &[FaceKey],
     d: T,
-    tolerance: f64,
     band: Band,
     tol: Tol,
 ) -> Result<(), ReplaceFaceError<T>> {
@@ -1039,7 +1039,7 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
         .get_surface(old_key)
         .ok_or(ReplaceFaceError::Corrupt)?
         .clone();
-    let new_surface = mint_offset(face, &old_surface, d, tolerance, band)?;
+    let new_surface = mint_offset(face, &old_surface, d, band, tol)?;
 
     // ---- Decide: the apex window (cones only). ----
     let shift = apex_shift(&old_surface, d);
@@ -1204,14 +1204,14 @@ fn mint_offset<T: Decide + PropsQuadLane>(
     face: FaceKey,
     old: &Surface<T>,
     d: T,
-    tolerance: f64,
     band: Band,
+    tol: Tol,
 ) -> Result<Surface<T>, ReplaceFaceError<T>> {
     if let Surface::Nurbs(base) = old {
         if base.is_placeholder() {
             return Err(ReplaceFaceError::PlaceholderSurface { face });
         }
-        return match T::approx_offset_surface(Arc::clone(base), d, tolerance, band) {
+        return match T::approx_offset_surface(Arc::clone(base), d, tol, band) {
             None => Err(ReplaceFaceError::ApproxLaneUnsupported { face }),
             Some(Ok(s)) => Ok(s),
             Some(Err(error)) => Err(ReplaceFaceError::Fit { face, error }),

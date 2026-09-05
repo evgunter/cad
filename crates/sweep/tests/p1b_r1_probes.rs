@@ -445,7 +445,7 @@ fn offsets_preserve_the_authority_census() {
         "the tube must carry declared edges for this row to mean anything"
     );
     let cap = plane_face_at(&body, 0.6);
-    topo::replace_face_offset(&mut body, cap, 0.05, 1e-6, band(), Tol::witness())
+    topo::replace_face_offset(&mut body, cap, 0.05, band(), Tol::witness())
         .expect("the cap offsets");
     assert_eq!(
         authority_census(&body),
@@ -462,7 +462,7 @@ fn offsets_preserve_the_authority_census() {
     let mut body = tube();
     let before = authority_census(&body);
     let wall = cylinder_face_at(&body, 0.4);
-    topo::replace_face_offset(&mut body, wall, 0.05, 1e-6, band(), Tol::witness())
+    topo::replace_face_offset(&mut body, wall, 0.05, band(), Tol::witness())
         .expect("the underived inner wall offsets");
     assert_eq!(
         authority_census(&body),
