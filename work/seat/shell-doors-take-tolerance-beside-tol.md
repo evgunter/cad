@@ -5,7 +5,7 @@ title: shell / shell_open take a raw tolerance: f64 beside tol: Tol, and the acc
 status: open
 opened: 2026-08-31
 github: 1409
-refs: [1399]
+refs: [1399, LIB-G17, shell-needs-shellnaming-birth-channel]
 ---
 
 ## From GitHub issue 1409
