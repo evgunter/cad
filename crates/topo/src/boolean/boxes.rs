@@ -73,10 +73,21 @@
 //! against [`Span`] so a lane on the [`Bounds`] allowlist and a lane
 //! off it can both enter it — the first with `[lo(), hi()]`
 //! brackets at `f64`, the second with degenerate spans at its own
-//! `T`. What the census still owns is its arena WALK and its answer
-//! for a description with no claim in it (`None`, versus the poison
-//! box here); neither is arithmetic, and the census comment states
-//! both.
+//! `T`. The one place the two lanes read two arithmetics of one rule
+//! is the conic EDGE box, and the reason is the scalar: [`edge_box`]
+//! reads `geom`'s exact arc door, which needs an ordering, and the
+//! census reads [`arc_extent`], which needs none ([`EdgeBoxRule`]'s
+//! conic bullet carries the argument, and
+//! `the_two_box_lanes_agree_face_for_face` pins the gap at the
+//! census construction's own charge). **One hand derivation remains,
+//! and both lanes read it**: [`edge_axial_span`]'s conic arm
+//! projects an arc onto an arbitrary axis by its own amplitude and
+//! subdivision, because the directional form of the exact extremum
+//! has no door yet — that is Track Q's `D292`, and it is the one
+//! place this module still spells an amplitude. What the census still owns is
+//! its arena WALK and its answer for a description with no claim in
+//! it (`None`, versus the poison box here); neither is arithmetic,
+//! and the census comment states both.
 //!
 //! An allowlisted [`geom_core::Bounds`] seam (ratified 2026-07-29 —
 //! see geom-core `real.rs`, Bounds scope rule; the C10 tree is the
@@ -277,17 +288,6 @@ fn bracket_point<T: Bounds>(p: Point3<T>) -> SpanBox<f64> {
 }
 
 /// [`bracket_point`] for a direction.
-/// A scalar's own enclosure as an `f64` span — the bracket lane's
-/// entry for a LENGTH (a radius, a semi-axis). Poison surfaces as NaN
-/// ends rather than narrowing away, exactly as the point and vector
-/// entries do.
-fn bracket_span<T: Bounds>(v: T) -> Span<f64> {
-    Span {
-        lo: v.lo(),
-        hi: v.hi(),
-    }
-}
-
 fn bracket_vector<T: Bounds>(v: Vec3<T>) -> SpanBox<f64> {
     bracket_point(Point3::new(v.x, v.y, v.z))
 }
@@ -413,7 +413,7 @@ pub(crate) fn edge_axial_span<T: Real>(
                     .add(cv.mul(Span::exact(*semi_v * sin)));
                 acc = Some(acc.map_or(one, |a: Span<T>| a.hull(one)));
             }
-            let sag = amp * step.powi(2) * T::from_f64(0.125);
+            let sag = subdivision_charge(amp, step);
             acc.unwrap_or(c.widen(amp)).widen(sag).hull(chord)
         }
     }
@@ -1075,41 +1075,74 @@ fn boundary_hull<T: Decide + Bounds>(
 ///   the endpoints, up to the certification residual the pad covers.
 /// - [`ConicAmplitude`](Self::ConicAmplitude) — **Circle, Ellipse.**
 ///   The conic's centre-±-amplitude datum (per coordinate
-///   `√((û_i·a)² + (v̂_i·b)²)`, with `v̂ = axis × û`), which
-///   [`edge_box`] restricts to the certified ARC through
-///   [`arc_extent`] and hulls with the chord. The full turn is the
-///   fallback for a carrier whose parameters do not resolve, and it
-///   remains a superset of any arc — an arc's belly bulges past its
-///   chord, so the chord alone is not a bound. The arc form is what
-///   #347 needed: a corner round's rim is a quarter turn, and boxing
-///   it as the whole circle put a pocket wall 2 mm clear of the ARC in
-///   front of the round as a sweep candidate.
+///   `A_i = √((û_i·a)² + (v̂_i·b)²)`, with `v̂ = axis × û`), restricted
+///   to the certified ARC and hulled with the chord. [`edge_box`]
+///   reads the arc's box from **`geom::curves::boxes::conic_arc_aabb`,
+///   the one home of the exact construction**: the coordinate
+///   extremum `c_i ± A_i` enters exactly when its angle
+///   `atan2(b·v̂_i, a·û_i)` (or that plus π) possibly lies in the
+///   span, and the endpoint hull bounds the monotone pieces between.
+///   The arc form is what #347 needed: a corner round's rim is a
+///   quarter turn, and boxing it as the whole circle put a pocket
+///   wall 2 mm clear of the ARC in front of the round as a sweep
+///   candidate.
 ///
 ///   **The half-extent is a function of the LOCUS**, which is a
 ///   sharper requirement than being sound: `a·û_i·cos t + b·v̂_i·sin t`
-///   tops out at exactly `√((û_i·a)² + (v̂_i·b)²)` over a full turn,
-///   so two `Curve3::Circle` values describing the SAME circle — same
+///   tops out at exactly `A_i` over a full turn, so two
+///   `Curve3::Circle` values describing the SAME circle — same
 ///   centre, axis and radius, `u_ref` rotated within the plane — get
-///   the same box. The triangle-inequality bound `|û_i|·a + |v̂_i|·b`
-///   does not: it returns `r` at an axis-aligned `u_ref` and `r√2` at
-///   45°, and three of the four doors pay that difference in
-///   refusals rather than in work. In-tree bodies take the rotated
-///   branch routinely — the plane×cylinder rim inherits the cylinder
+///   the same box. A triangle-inequality bound `|û_i|·a + |v̂_i|·b`
+///   would not: `r` at an axis-aligned `u_ref` and `r√2` at 45°, and
+///   three of the four doors would pay that difference in refusals
+///   rather than in work. In-tree bodies take the rotated branch
+///   routinely — the plane×cylinder rim inherits the cylinder
 ///   surface's own `u_ref`, the plane×sphere circle derives one from
 ///   the seam or polar candidate, and an extruded arc profile mints
-///   rotated ones directly — so this is exercised, not latent.
-///   [`conic_extent`] is the one derivation, and the
+///   rotated ones directly — so the
 ///   `the_planar_arms_box_is_exactly_…` row sweeps `u_ref` in the
 ///   plane and pins the box's invariance under it.
 ///
-///   **`S235` is discharged**: the span restriction it asked for is
-///   taken, by [`arc_extent`] rather than by
-///   `geom::curves::boxes::circle_arc_aabb`. The exact form one crate
-///   down is still unused, and [`arc_extent`]'s header carries the
-///   honest reason — it is not the `atan2` (which that helper handles
-///   correctly); it is that both box lanes share ONE extent
-///   construction and the census lane has no ordering to run the exact
-///   form with.
+///   **Why a second construction of the same arc exists, and why it
+///   is not a second home.** The census lane (`census::reach_box`)
+///   boxes the same edges at the arena's own scalar, which carries
+///   no ordering — no [`Bounds`] — so it cannot ask whether an
+///   extremal angle lies in a span. It reads [`arc_extent`]:
+///   subdivision plus a sagitta charge, which needs no comparison at
+///   all and is wider than the exact box by at most that charge. The
+///   two are one rule with two arithmetics, chosen by what the
+///   scalar can answer, and `the_two_box_lanes_agree_face_for_face`
+///   pins the boolean box inside the census box by no more than the
+///   charge. **A third construction is a defect**: a lane with
+///   `Bounds` reads `geom`'s exact door, a lane without reads
+///   [`arc_extent`], and neither hand-derives an amplitude — with one
+///   named exception, [`edge_axial_span`]'s conic arm, which both
+///   lanes read and which projects along an arbitrary axis by its own
+///   amplitude and subdivision until the directional exact form has a
+///   door (Track Q's `D292`).
+///
+///   **Why `geom`'s door went unread for so long.** This arm was
+///   written (M5 PR 9) as the triangle bound `|û_i|·a + |v̂_i|·b`,
+///   hand-derived in the same diff that added the cylinder arm, and
+///   `geom`'s exact door — already shipped — was never wired; issue
+///   #862 measured the over-width (`r√2` at a 45° `u_ref`) and
+///   replaced the bound by [`arc_extent`] shared with the census, still
+///   without reading the door, because sharing one body between the
+///   two lanes was the design goal. The door is read now; the census
+///   keeps the shared body for the reason above.
+///
+///   **Tightening is a separate obligation from soundness.** A
+///   tighter box prunes pairs a wider one examined, and pruning is
+///   only sound for kinds the operand gate admits and the crossing
+///   lanes handle — `Line`, `Circle` and `Ellipse` all are
+///   (`reduce::gate_operand_edges`), which is what licensed the exact
+///   form here; the NURBS arm below is where that obligation is
+///   still owed. A correctness fix and a structural one are two
+///   halves that separate (the rule S235 stated against #862): a
+///   deletion of over-width retires with its defect — #862's half —
+///   while a duplicated construction outlives every fix to either
+///   copy, so the structural half is answered by naming the one home,
+///   and the answer is what stops a further copy.
 /// - [`NoSoundBox`](Self::NoSoundBox) — **NURBS carriers**, and an
 ///   edge whose carrier is null scaffolding. Nothing is certified
 ///   about the locus, so nothing is claimed; the chord is NOT a bound
@@ -1129,7 +1162,9 @@ pub(crate) enum EdgeBoxRule<T: Real> {
     /// The chord between the endpoints — see the type docs.
     Chord,
     /// The full conic's amplitude box, hulled with the chord — see the
-    /// type docs.
+    /// type docs. The payload is read by the census lane and by the
+    /// axial projection ([`AxialCarrier::Conic`]); [`edge_box`] matches
+    /// the arm and re-reads the certified carrier for `geom`'s door.
     ConicAmplitude {
         /// The conic's centre.
         center: Point3<T>,
@@ -1208,65 +1243,56 @@ pub(crate) fn edge_box<T: Decide + Bounds>(
     let certified = body
         .get_curve_geom(e.curve)
         .and_then(crate::null::CurveGeom::certified);
-    let params = certified.map(geom_brep::EdgeCurve::params);
     let carrier = certified.map(geom_brep::EdgeCurve::carrier);
     let boxed = match edge_box_rule(carrier) {
         EdgeBoxRule::NoSoundBox => return Ok(Aabb::poison()),
         EdgeBoxRule::Chord => chord,
-        EdgeBoxRule::ConicAmplitude {
-            center,
-            axis,
-            semi_u,
-            semi_v,
-            u_ref,
-        } => {
-            let v_ref = axis.cross(u_ref);
-            let full = aabb_of(conic_extent(
-                &bracket_point(center),
-                &bracket_vector(u_ref),
-                &bracket_vector(v_ref),
-                semi_u.hi(),
-                semi_v.hi(),
-            ));
-            // The ARC's own box when the certified parameters say which
-            // arc it is; the full turn otherwise. `Aabb::hull`, not a
-            // raw min/max fold: a poisoned centre or semi-axis must
-            // survive the hull, and `f64::min` RETURNS the non-NaN
-            // operand.
+        EdgeBoxRule::ConicAmplitude { .. } => {
+            // The exact arc box, read from its one home one crate down:
+            // per coordinate the extremum `c_i ± √((a·û_i)² + (b·v̂_i)²)`
+            // enters exactly when its angle lies in the certified span,
+            // and the endpoint hull bounds the monotone pieces between.
+            // A bracketed radius or frame (the `Interval` scalar) enters
+            // that door as its whole bracket, so the box dominates every
+            // realization; poison flows to the poison box.
             //
-            // **The semi-axes enter as SPANS, not as `.hi()`.** Under
-            // an `Interval` scalar a radius is a bracket, and the whole
-            // family of arcs it describes has to be covered: the
-            // `r.lo` arc is not inside the `r.hi` arc's box — it sits
-            // up to a bracket width INSIDE it — and the sagitta charge
-            // bounds departure from a chord, not from a different
-            // radius, so it does not cover that gap. Under-coverage is
-            // the pruning direction, which is the direction that loses
-            // events silently. Entering both ends makes the box
-            // dominate every radius in the bracket by construction; on
-            // the `f64` lane a bracket is a point and this costs
-            // nothing.
-            let scoped = params.map_or(full, |(t0, t1)| {
-                aabb_of(arc_extent(
-                    &bracket_point(center),
-                    &bracket_vector(u_ref),
-                    &bracket_vector(v_ref),
-                    bracket_span(semi_u),
-                    bracket_span(semi_v),
-                    t0.lo(),
-                    t1.hi(),
-                ))
-            });
-            scoped.hull(&chord)
+            // `certified` is `Some` here — the rule names this arm only
+            // for a certified conic carrier — and the door answers for
+            // every conic kind, so the remaining arm is a kernel bug
+            // that says so (D2 addendum row 4). Not `corrupt(..)`: that
+            // refusal names an arena lookup a malformed BODY can fail,
+            // and this state is not a property of any body — it is the
+            // rule↔door pairing inside this file.
+            certified
+                .and_then(|curve| {
+                    let (t0, t1) = curve.params();
+                    geom::curves::boxes::conic_arc_aabb(curve.carrier(), t0, t1, a, b)
+                })
+                .unwrap_or_else(|| {
+                    unreachable!(
+                        "edge box: the conic rule is minted only from a certified Circle \
+                         or Ellipse carrier, and the exact arc door answers for both"
+                    )
+                })
         }
     };
     Ok(boxed.padded(pad))
 }
 
-/// The subdivision count [`arc_extent`] uses. Named because BOTH box
-/// lanes read it and the construction row restates the charge it
-/// implies; a bare 16 in three places is three places to drift.
+/// The subdivision count [`arc_extent`] and [`edge_axial_span`] use.
+/// Named because both read it and the construction rows restate the
+/// charge it implies; a bare 16 in three places is three places to
+/// drift.
 pub(crate) const ARC_SAMPLES: usize = 16;
+
+/// The subdivision charge: how far a C² curve of second-derivative
+/// amplitude `amplitude` can leave the chord of a sub-interval of
+/// width `step` — `amplitude · step² / 8`. The one spelling
+/// [`arc_extent`], [`edge_axial_span`] and the construction rows
+/// read, for the same reason [`ARC_SAMPLES`] is named.
+pub(crate) fn subdivision_charge<X: Real>(amplitude: X, step: X) -> X {
+    amplitude * step.powi(2) * X::from_f64(0.125)
+}
 
 /// **A conic ARC's box, by certified subdivision.**
 ///
@@ -1278,25 +1304,16 @@ pub(crate) const ARC_SAMPLES: usize = 16;
 /// what put a pocket wall 2 mm clear of the ARC in front of the round
 /// as a sweep candidate.
 ///
-/// **Why subdivision rather than the exact extremes — and what that is
-/// NOT a claim about.** An exact arc box already exists and is
-/// ratified: `geom::curves::boxes::circle_arc_aabb` and its ellipse
-/// sibling solve for the extremal parameter and handle the branch cut
-/// with their own angle slop. They would serve the `f64`-bracket lane
-/// perfectly well; the `atan2` objection is NOT the reason they are
-/// unused here, and stating it as one would be false.
-///
-/// The reason is that **both box lanes share one extent
-/// construction**, by design — `the_two_box_lanes_agree_face_for_face`
-/// says in its own words that the extents are shared so the row can
-/// guard the two arena WALKS instead. The census lane runs at its own
-/// scalar, with no [`Bounds`] and therefore no ordering to test
-/// `atan2`'s answer for containment with, so the exact form cannot
-/// serve it. Consuming the exact form in the boolean lane alone would
-/// fork the arithmetic the design deliberately shares and retire that
-/// row's premise. Subdivision needs no ordering at all, which is what
-/// lets one body serve both: sample the arc, hull the samples, and
-/// widen by a bound on what the curve can do between them.
+/// **Why subdivision and not the exact extremes.** The exact arc box
+/// exists one crate down (`geom::curves::boxes::conic_arc_aabb`) and
+/// the boolean lane's [`edge_box`] reads it. This construction serves
+/// the lane that cannot: the census boxes at the arena's own scalar,
+/// with no [`Bounds`] and therefore no ordering to test an extremal
+/// angle for span membership with. Subdivision needs no ordering at
+/// all — sample the arc, hull the samples, widen by a bound on what
+/// the curve can do between them — which is what lets one body serve
+/// a generic scalar. It is wider than the exact form by at most its
+/// charge, and `the_two_box_lanes_agree_face_for_face` pins that gap.
 ///
 /// **The widening is a proof, not a fudge.** `P″(t) = −(û·a·cos t +
 /// v̂·b·sin t)` is the conic's own radius vector, and a C² curve leaves
@@ -1311,9 +1328,8 @@ pub(crate) const ARC_SAMPLES: usize = 16;
 /// **No case analysis, on purpose.** A full turn needs no special arm:
 /// its subdivision still encloses (the samples reach every axis
 /// crossing and the charge covers the rest), so there is no span
-/// comparison to make — which is what lets one body serve both lanes,
-/// the `f64`-bracket one and the census's generic scalar. Poison flows
-/// through as NaN ends, per the module contract.
+/// comparison to make — which is what lets one body serve a generic
+/// scalar. Poison flows through as NaN ends, per the module contract.
 pub(crate) fn arc_extent<X: Real>(
     center: &SpanBox<X>,
     u_ref: &SpanBox<X>,
@@ -1354,10 +1370,9 @@ pub(crate) fn arc_extent<X: Real>(
     // 0`, so its z charge is exactly zero and a planar sector's box
     // stays flat in z; charging `max(a, b)` on every axis would have
     // given every such face a spurious thickness.
-    let eighth = step.powi(2) * X::from_f64(0.125);
     let sag = |u: Span<X>, v: Span<X>| {
         let (au, bv) = (u.mul(semi_u).abs_max(), v.mul(semi_v).abs_max());
-        (au.powi(2) + bv.powi(2)).sqrt() * eighth
+        subdivision_charge((au.powi(2) + bv.powi(2)).sqrt(), step)
     };
     SpanBox {
         x: widened.x.widen(sag(u_ref.x, v_ref.x)),
@@ -1467,29 +1482,97 @@ mod tests {
     /// different reference direction, with the parameter range shifted
     /// so the endpoints are unchanged. That is not a contrivance — the
     /// split lane mints rims this way, and `cyl_wall`'s descending rim
-    /// below is one — and [`EdgeBoxRule::ConicAmplitude`]'s
-    /// per-coordinate `|û_i|·a + |v̂_i|·b` is not invariant under it.
+    /// below is one — and a per-coordinate triangle bound
+    /// `|û_i|·a + |v̂_i|·b` is not invariant under it; the amplitude
+    /// [`EdgeBoxRule::ConicAmplitude`] states is.
     fn arc_sector_from(r: f64, span: f64, phi: f64) -> (Body<f64>, FaceKey) {
+        circle_sector(r, 0.0, span, phi)
+    }
+
+    /// [`arc_sector_from`] with the arc's world run `[start, start +
+    /// span]` rather than `[0, span]`: the extrema a run crosses are
+    /// chosen by where it starts, and the adopted-arm rows below need
+    /// runs that cross one strictly inside.
+    fn circle_sector(r: f64, start: f64, span: f64, phi: f64) -> (Body<f64>, FaceKey) {
         let on = |t: f64| Point3::new(r * t.cos(), r * t.sin(), 0.0);
-        let (a, b, c) = (on(0.0), on(span), Point3::origin());
+        let (a, b, c) = (on(start), on(start + span), Point3::origin());
+        let plane_surface = plane_z0();
+        let cyl_surface = cyl_r(r);
+        let carrier = Curve3::Circle {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: r,
+            u_ref: Vec3::new(phi.cos(), phi.sin(), 0.0),
+        };
+        conic_sector(
+            plane_surface,
+            cyl_surface,
+            carrier,
+            (start - phi, start + span - phi),
+            on(start + span * 0.5),
+            (a, b, c),
+        )
+    }
+
+    /// A planar face whose rim is an ELLIPSE arc: the radius-`r`
+    /// cylinder about `z` cut by the plane through the origin whose
+    /// normal is tilted by `alpha` from `z` towards `x`. The section is
+    /// the ellipse with semi-major `r / cos α` along the plane's line
+    /// of steepest descent and semi-minor `r` along `y`, so the axis
+    /// ratio grows without bound as `alpha → π/2` — the adversarial
+    /// case for a per-coordinate amplitude. Parameters `[t0, t1]` are
+    /// the eccentric anomaly; the face is closed by two chords to the
+    /// origin, which lies on the plane.
+    fn ellipse_sector(r: f64, alpha: f64, t0: f64, t1: f64) -> (Body<f64>, FaceKey) {
+        let normal = Vec3::new(alpha.sin(), 0.0, alpha.cos());
+        let u_ref = Vec3::new(alpha.cos(), 0.0, -alpha.sin());
+        let carrier = Curve3::Ellipse {
+            center: Point3::origin(),
+            axis: normal,
+            major: r / alpha.cos(),
+            minor: r,
+            u_ref,
+        };
+        let plane_surface = Surface::Plane {
+            origin: Point3::origin(),
+            normal,
+            u_ref,
+        };
+        conic_sector(
+            plane_surface,
+            cyl_r(r),
+            carrier.clone(),
+            (t0, t1),
+            carrier.eval(0.5 * (t0 + t1)),
+            (carrier.eval(t0), carrier.eval(t1), Point3::origin()),
+        )
+    }
+
+    /// The sector body under [`circle_sector`] and [`ellipse_sector`]:
+    /// one conic edge `a → b` described as the plane×cylinder
+    /// intersection with the given carrier and parameter run, closed
+    /// by the chords `b → c → a` on the plane.
+    fn conic_sector(
+        plane_surface: Surface<f64>,
+        cyl_surface: Surface<f64>,
+        carrier: Curve3<f64>,
+        (param_start, param_end): (f64, f64),
+        witness: Point3<f64>,
+        (a, b, c): (Point3<f64>, Point3<f64>, Point3<f64>),
+    ) -> (Body<f64>, FaceKey) {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(a).unwrap();
-        let plane = body.add_surface(plane_z0());
-        let cyl = body.add_surface(cyl_r(r));
+        let plane = body.add_surface(plane_surface);
+        let cyl = body.add_surface(cyl_surface);
         let arc = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 s1: plane,
                 s2: cyl,
-                witness: on(span * 0.5),
+                witness,
             },
-            carrier: Curve3::Circle {
-                center: Point3::origin(),
-                axis: Vec3::unit_z(),
-                radius: r,
-                u_ref: Vec3::new(phi.cos(), phi.sin(), 0.0),
-            },
-            param_start: -phi,
-            param_end: span - phi,
+            carrier,
+            param_start,
+            param_end,
         };
         let e_ab = body
             .mev(
@@ -1786,7 +1869,7 @@ mod tests {
     fn nurbs_bulge_face() -> (Body<f64>, FaceKey, (Point3<f64>, Point3<f64>)) {
         use geom::surfaces::nurbs::NurbsSurface;
         use geom_core::spline::KnotVector;
-        let kv = KnotVector::unit_segment(2);
+        let kv = KnotVector::unit_segment(core::num::NonZeroUsize::new(2).unwrap());
         let p = |x: f64, y: f64, z: f64| Point3::new(x, y, z);
         let control = vec![
             p(0.0, 0.0, 0.0),
@@ -1879,9 +1962,8 @@ mod tests {
 
     /// **`BoundaryHull`, conic-fed** — the sector's box is the hull of
     /// its rim ARC's own box and its two radius chords, which run from
-    /// the centre out to the arc's ends. So it is the arc's extremes
-    /// hulled with the ORIGIN, plus the subdivision charge, and it is
-    /// flat in z.
+    /// the centre out to the arc's ends. So it is the arc's exact
+    /// extremes hulled with the ORIGIN, and it is flat in z.
     ///
     /// The arc's extremes, not the full turn's: a 10° sector no longer
     /// claims `±r` on both axes. That is the same trim-scoping the
@@ -1918,18 +2000,12 @@ mod tests {
                             3.0 * core::f64::consts::FRAC_PI_2,
                         ],
                     );
-                    let step = span / ARC_SAMPLES as f64;
-                    let sag = r * step * step * 0.125;
                     // The EXACT construction: the arc's own extremes,
                     // hulled with the centre the two radius chords end
                     // at. The box must contain it — that is soundness —
                     // and must not exceed it by more than the pad and
-                    // the subdivision charge — that is the trim
-                    // scoping. Stated as two inequalities rather than
-                    // one equality because WHICH face carries the
-                    // charge is bookkeeping inside the subdivision,
-                    // and pinning that would pin the implementation
-                    // rather than the rule.
+                    // outward rounding — that is the trim scoping, and
+                    // the exact arm's whole claim.
                     let exact = Aabb {
                         min_x: (r * cos_lo).min(0.0),
                         min_y: (r * sin_lo).min(0.0),
@@ -1938,7 +2014,7 @@ mod tests {
                         max_y: (r * sin_hi).max(0.0),
                         max_z: 0.0,
                     };
-                    let slack = sag + pad + 1e-9 * r;
+                    let slack = pad + 1e-9 * r;
                     let who = format!(
                         "the planar arm (r = {r}, span = {span_deg}°, u_ref at {phi_deg}°)"
                     );
@@ -2006,21 +2082,16 @@ mod tests {
                         3.0 * core::f64::consts::FRAC_PI_2,
                     ],
                 );
-                // The subdivision charge the rim arcs' own boxes carry,
-                // restated: the coordinate's own amplitude — `r` for a
-                // circle about `z`, in both x and y — times (Δt/N)²
-                // over 8. The clip to the ring caps it wherever the
-                // arc already reaches the full radius.
-                let step = span / ARC_SAMPLES as f64;
-                let sag = r * step * step * 0.125;
+                // The rim arcs' own boxes are the exact extremes, so
+                // the clipped ring is exactly the arc's footprint.
                 agrees_with_the_rule(
                     &b,
                     &Aabb {
-                        min_x: (r * cos_lo - sag).max(-r) - pad,
-                        min_y: (r * sin_lo - sag).max(-r) - pad,
+                        min_x: r * cos_lo - pad,
+                        min_y: r * sin_lo - pad,
                         min_z: z0 - pad,
-                        max_x: (r * cos_hi + sag).min(r) + pad,
-                        max_y: (r * sin_hi + sag).min(r) + pad,
+                        max_x: r * cos_hi + pad,
+                        max_y: r * sin_hi + pad,
                         max_z: z1 + pad,
                     },
                     r,
@@ -2516,17 +2587,36 @@ mod tests {
     /// **The two box lanes, side by side on one body** — what #700
     /// asked for and nothing did.
     ///
-    /// The extents are shared now, so this row is not guarding
-    /// arithmetic: it guards what is NOT shared, the census's own
-    /// arena walk of a face's boundary against this module's. Those
-    /// two walks can drift — a loop order, an isolated-vertex loop, a
-    /// half-edge's edge — and a divergence between the census's boxes
-    /// and the boolean sweep's is exactly the shape that produces a
-    /// wrong census verdict with both halves looking correct on their
-    /// own.
+    /// The face extents are shared, so on every arm but one this row
+    /// is not guarding arithmetic: it guards what is NOT shared, the
+    /// census's own arena walk of a face's boundary against this
+    /// module's. Those two walks can drift — a loop order, an
+    /// isolated-vertex loop, a half-edge's edge — and a divergence
+    /// between the census's boxes and the boolean sweep's is exactly
+    /// the shape that produces a wrong census verdict with both
+    /// halves looking correct on their own.
     ///
-    /// Compared at `pad = 0`, where the only difference the module
-    /// admits is [`Aabb::padded`]'s outward ulp.
+    /// The one arm where the two lanes read two arithmetics is the
+    /// conic EDGE box ([`EdgeBoxRule`]'s conic bullet): this lane
+    /// reads the exact arc box, the census reads [`arc_extent`]'s
+    /// subdivision plus its sagitta charge. So on a face whose
+    /// boundary carries arcs the row pins the gap rather than
+    /// equality — the boolean box inside the census box, and the
+    /// census box inside the boolean box widened by that charge, per
+    /// side. What that catches, measured by mutation: a conic edge
+    /// dropped from either lane's walk, and any widening of the
+    /// boolean box at or above the charge on an axis whose charge is
+    /// zero (`z` here — the very first pad reds it). What it does
+    /// NOT catch: a dropped chord that the hull already covers (the
+    /// sector's two radii both end at the origin, which the arc's
+    /// box carries), so a walk drift is loud only where the edge it
+    /// loses is load-bearing for the hull — as before, when the
+    /// row asserted equality. The charge is the fixture's rim
+    /// amplitude times `(span / ARC_SAMPLES)² / 8`, and it is zero on
+    /// the faces whose box reads no edge box.
+    ///
+    /// Compared at `pad = 0`, where the only other difference the
+    /// module admits is [`Aabb::padded`]'s outward ulp.
     #[test]
     fn the_two_box_lanes_agree_face_for_face() {
         let sphere = Surface::Sphere {
@@ -2549,29 +2639,50 @@ mod tests {
             (body, face)
         };
         let (nurbs_body, nurbs_face, _) = nurbs_bulge_face();
-        let cases: Vec<(&str, (Body<f64>, FaceKey))> = vec![
-            ("plane", arc_sector(2.0, 2.3)),
-            ("cylinder", cyl_wall(1.5, 0.0, 2.4, -0.5, 1.25)),
-            ("cone", cone_wall(0.5, 0.0, 2.4, 0.4, 1.0)),
-            ("sphere", relabelled(sphere)),
-            ("torus", relabelled(torus)),
-            ("nurbs", (nurbs_body, nurbs_face)),
+        // The census construction's charge on each fixture's rim arcs:
+        // amplitude `r` times `(span / N)² / 8`. The cone's box is the
+        // frustum over an axial window both lanes project identically;
+        // the ball, the tube and the control net read no edge box.
+        let charge = |r: f64, span: f64| subdivision_charge(r, span / ARC_SAMPLES as f64);
+        /// One fixture: its name, the face, and the census charge on it.
+        type Case = (&'static str, (Body<f64>, FaceKey), f64);
+        let cases: Vec<Case> = vec![
+            ("plane", arc_sector(2.0, 2.3), charge(2.0, 2.3)),
+            (
+                "cylinder",
+                cyl_wall(1.5, 0.0, 2.4, -0.5, 1.25),
+                charge(1.5, 2.4),
+            ),
+            ("cone", cone_wall(0.5, 0.0, 2.4, 0.4, 1.0), 0.0),
+            ("sphere", relabelled(sphere), 0.0),
+            ("torus", relabelled(torus), 0.0),
+            ("nurbs", (nurbs_body, nurbs_face), 0.0),
         ];
-        for (what, (body, face)) in cases {
+        for (what, (body, face), charge) in cases {
             let boxed = face_box(&body, face, 0.0).unwrap();
             let (lo, hi) = crate::census::face_reach(&body, face)
                 .unwrap_or_else(|| panic!("{what}: the census lane claims nothing"));
-            for (name, g, w) in [
-                ("min_x", boxed.min_x, lo.x),
-                ("min_y", boxed.min_y, lo.y),
-                ("min_z", boxed.min_z, lo.z),
-                ("max_x", boxed.max_x, hi.x),
-                ("max_y", boxed.max_y, hi.y),
-                ("max_z", boxed.max_z, hi.z),
+            // `outer − inner` per side: the census box must contain the
+            // boolean box, by no more than the charge.
+            for (name, gap, scale) in [
+                ("min_x", boxed.min_x - lo.x, lo.x),
+                ("min_y", boxed.min_y - lo.y, lo.y),
+                ("min_z", boxed.min_z - lo.z, lo.z),
+                ("max_x", hi.x - boxed.max_x, hi.x),
+                ("max_y", hi.y - boxed.max_y, hi.y),
+                ("max_z", hi.z - boxed.max_z, hi.z),
             ] {
+                let tol = 4.0 * f64::EPSILON * (1.0 + scale.abs());
                 assert!(
-                    (g - w).abs() <= 4.0 * f64::EPSILON * (1.0 + w.abs()),
-                    "{what}: the two lanes disagree at {name}: boolean {g}, census {w}"
+                    gap >= -tol,
+                    "{what}: the census box does not contain the boolean box at {name} \
+                     (boolean is outside by {})",
+                    -gap
+                );
+                assert!(
+                    gap <= charge + tol,
+                    "{what}: the census box exceeds the boolean box at {name} by {gap}, \
+                     more than the subdivision charge {charge}"
                 );
             }
         }
@@ -2672,8 +2783,10 @@ mod tests {
     /// **The bracket defects, planted at the arithmetic.** Both of
     /// #862's under-enclosures are properties of a DESCRIPTION whose
     /// coordinates are brackets — invisible at `f64`, where a bracket
-    /// is a point — so they are planted here, on the shared extents,
-    /// rather than through a body at a scalar the row cannot pick.
+    /// is a point — so they are planted here, on the extents the
+    /// census lane reads (the boolean lane's conic edge box is `geom`'s
+    /// exact door, pinned in that crate), rather than through a body
+    /// at a scalar the row cannot pick.
     ///
     /// 1. The axial projection: an axis whose bracket spans two
     ///    directions must give an axial range that ENCLOSES what
@@ -2737,6 +2850,168 @@ mod tests {
             "a bracket straddling zero must contribute its largest magnitude, \
              got {conic:?}"
         );
+    }
+
+    // ------------------------------------------------------------------
+    // The adopted conic arm: `edge_box` reads the exact arc box.
+    // ------------------------------------------------------------------
+
+    /// The one conic edge of a sector body, with its certified curve.
+    fn conic_edge(body: &Body<f64>) -> (EdgeKey, &geom_brep::EdgeCurve<f64>) {
+        body.edges()
+            .find_map(|(k, e)| {
+                let c = body
+                    .get_curve_geom(e.curve)
+                    .and_then(crate::null::CurveGeom::certified)?;
+                matches!(c.carrier(), Curve3::Circle { .. } | Curve3::Ellipse { .. })
+                    .then_some((k, c))
+            })
+            .unwrap()
+    }
+
+    /// The conic's frame as `(centre, a·û, b·v̂)`: coordinate `i` of a
+    /// point at parameter `t` is `centre_i + (a·û)_i·cos t + (b·v̂)_i·sin t`.
+    fn conic_frame(carrier: &Curve3<f64>) -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
+        match carrier {
+            Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } => (*center, *u_ref * *radius, axis.cross(*u_ref) * *radius),
+            Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } => (*center, *u_ref * *major, axis.cross(*u_ref) * *minor),
+            other => panic!("a conic sector's rim is a conic, got {other:?}"),
+        }
+    }
+
+    /// The exact range of `c + p·cos t + q·sin t` over `[t0, t1]`: the
+    /// endpoints plus the extremal angle `atan2(q, p)` and its
+    /// antipode wherever a `2π`-shift of one lands in the run.
+    fn conic_coordinate_extremes(c: f64, p: f64, q: f64, t0: f64, t1: f64) -> (f64, f64) {
+        let phi = q.atan2(p);
+        arc_extremes_from(
+            t0,
+            t1 - t0,
+            &|t: f64| c + p * t.cos() + q * t.sin(),
+            &[phi, phi + core::f64::consts::PI],
+        )
+    }
+
+    /// **The adversarial conic edges**: circles whose run crosses one
+    /// extremal angle strictly mid-run, a near-full turn at an odd
+    /// phase, a degenerate run, every one at a swept `u_ref`; and
+    /// ellipses of axis ratio up to `1 / cos 89° ≈ 57` in a tilted
+    /// plane, with runs crossing one, two and all four extrema. Each
+    /// with the scale its tolerance is read at.
+    fn adversarial_conic_sectors() -> Vec<(String, Body<f64>, f64)> {
+        let tau = core::f64::consts::TAU;
+        let deg = f64::to_radians;
+        let mut out = Vec::new();
+        for &r in &[0.001, 1.0, 250.0] {
+            for &(what, start, span) in &[
+                ("short", 0.0, deg(10.0)),
+                // Short of a full turn by 0.02 rad: the span-winding
+                // certificate's margin is `r` times the shortfall, and at
+                // r = 0.001 that must clear the widest escalate band the
+                // suite runs (1e-5 at ε = 1e-6) — 2e-5 does. The fixture
+                // refuses from ε ≈ 3e-6 (escalate 3e-5), the decade in
+                // which three of this module's older rows refuse too.
+                ("near-full turn", 0.1, tau - 0.02),
+                ("crosses +y mid-run", 1.4, 0.35),
+                ("crosses -x mid-run", 2.9, 0.5),
+                ("crosses -y mid-run", 4.5, 0.4),
+                ("reflex", 0.7, deg(300.0)),
+            ] {
+                for phi_deg in [0.0_f64, 45.0, 137.0, 200.0] {
+                    let (body, _) = circle_sector(r, start, span, deg(phi_deg));
+                    out.push((format!("circle r={r} {what} u_ref at {phi_deg}°"), body, r));
+                }
+            }
+        }
+        // A degenerate run: a chord well above the band at every ε row
+        // the suite runs, and an arc that moves by its sagitta only.
+        for &r in &[1.0, 250.0] {
+            let (body, _) = circle_sector(r, 0.3, 1e-4, deg(45.0));
+            out.push((format!("circle r={r} degenerate run"), body, r));
+        }
+        for alpha_deg in [20.0_f64, 60.0, 80.0, 89.0] {
+            let alpha = deg(alpha_deg);
+            let scale = 1.0 / alpha.cos();
+            for &(what, t0, t1) in &[
+                ("no extremum", 0.2, 1.4),
+                ("crosses +y and -x", 1.0, 4.0),
+                ("crosses all four", 0.1, 6.2),
+                ("degenerate run", 3.0, 3.0002),
+            ] {
+                let (body, _) = ellipse_sector(1.0, alpha, t0, t1);
+                out.push((format!("ellipse alpha={alpha_deg}° {what}"), body, scale));
+            }
+        }
+        out
+    }
+
+    /// **The adopted arm, soundness.** Every one of 20 000 samples of
+    /// each adversarial arc lies inside its `edge_box` at zero pad, to
+    /// a slack that is rounding and nothing else. This is the row a
+    /// too-tight box fails, and a too-tight edge box is a soundness
+    /// hole in every door that prunes on one.
+    #[test]
+    fn the_conic_edge_box_contains_a_dense_sample_of_adversarial_arcs() {
+        for (what, body, scale) in adversarial_conic_sectors() {
+            let (edge, curve) = conic_edge(&body);
+            let b = edge_box(&body, edge, 0.0).unwrap();
+            let (t0, t1) = curve.params();
+            let slack = 1e-12 * (1.0 + scale);
+            for i in 0..=20_000 {
+                let t = t0 + (t1 - t0) * f64::from(i) / 20_000.0;
+                let p = curve.carrier().eval(t);
+                assert!(
+                    p.x >= b.min_x - slack
+                        && p.x <= b.max_x + slack
+                        && p.y >= b.min_y - slack
+                        && p.y <= b.max_y + slack
+                        && p.z >= b.min_z - slack
+                        && p.z <= b.max_z + slack,
+                    "{what}: the arc point at t = {t} ({p:?}) left the edge box {b:?}"
+                );
+            }
+        }
+    }
+
+    /// **The adopted arm, ceiling.** The edge box at zero pad IS the
+    /// exact extremal construction, per coordinate and per side: the
+    /// endpoints, plus the coordinate's own extremum `c_i ± A_i`
+    /// exactly when its angle lies in the run. No subdivision charge,
+    /// no full-turn amplitude, no triangle bound — a box wider than
+    /// this by more than rounding is a refusal at three of the four
+    /// doors that read it.
+    #[test]
+    fn the_conic_edge_box_is_the_exact_extremal_construction() {
+        for (what, body, scale) in adversarial_conic_sectors() {
+            let (edge, curve) = conic_edge(&body);
+            let b = edge_box(&body, edge, 0.0).unwrap();
+            let (t0, t1) = curve.params();
+            let (c, p, q) = conic_frame(curve.carrier());
+            let tol = 1e-12 * (1.0 + scale);
+            for (name, got_lo, got_hi, ci, pi, qi) in [
+                ("x", b.min_x, b.max_x, c.x, p.x, q.x),
+                ("y", b.min_y, b.max_y, c.y, p.y, q.y),
+                ("z", b.min_z, b.max_z, c.z, p.z, q.z),
+            ] {
+                let (lo, hi) = conic_coordinate_extremes(ci, pi, qi, t0, t1);
+                assert!(
+                    (got_lo - lo).abs() <= tol && (got_hi - hi).abs() <= tol,
+                    "{what}: {name} is [{got_lo}, {got_hi}], the exact construction gives \
+                     [{lo}, {hi}] (tolerance {tol})"
+                );
+            }
+        }
     }
 
     // ------------------------------------------------------------------
@@ -2889,28 +3164,32 @@ mod tests {
         }
         // Tightness: the window never reaches −x (cos min there is
         // cos(5.9) ≈ 0.927), so a clip that silently kept the slab
-        // (min_x = −r) fails here.
-        let step = (u1 - u0) / ARC_SAMPLES as f64;
-        let sag = r * step * step * 0.125;
+        // (min_x = −r) fails here — and the rims' boxes are exact, so
+        // the clipped face is the arc's own footprint to rounding.
         assert!(
-            b.min_x >= r * (u0.cos().min(u1.cos())) - sag - pad - 1e-9,
+            b.min_x >= r * (u0.cos().min(u1.cos())) - pad - 1e-9,
             "min_x {} is looser than the clipped construction",
             b.min_x
         );
-        // The census mirror at the same wrap window.
+        // The census mirror at the same wrap window: its rims are
+        // subdivided, so it contains this lane's box by at most the
+        // subdivision charge (the two-lanes row's contract).
+        let charge = subdivision_charge(r, (u1 - u0) / ARC_SAMPLES as f64);
         let (lo, hi) = crate::census::face_reach(&body, face).expect("census claims the wall");
         let b0 = face_box(&body, face, 0.0).unwrap();
-        for (name, g, w) in [
-            ("min_x", b0.min_x, lo.x),
-            ("min_y", b0.min_y, lo.y),
-            ("min_z", b0.min_z, lo.z),
-            ("max_x", b0.max_x, hi.x),
-            ("max_y", b0.max_y, hi.y),
-            ("max_z", b0.max_z, hi.z),
+        for (name, gap, scale) in [
+            ("min_x", b0.min_x - lo.x, lo.x),
+            ("min_y", b0.min_y - lo.y, lo.y),
+            ("min_z", b0.min_z - lo.z, lo.z),
+            ("max_x", hi.x - b0.max_x, hi.x),
+            ("max_y", hi.y - b0.max_y, hi.y),
+            ("max_z", hi.z - b0.max_z, hi.z),
         ] {
+            let tol = 4.0 * f64::EPSILON * (1.0 + scale.abs());
             assert!(
-                (g - w).abs() <= 4.0 * f64::EPSILON * (1.0 + w.abs()),
-                "wrap window: the two lanes disagree at {name}: boolean {g}, census {w}"
+                gap >= -tol && gap <= charge + tol,
+                "wrap window: the census box must contain this lane's box by no more than \
+                 the charge {charge} at {name}, gap {gap}"
             );
         }
     }

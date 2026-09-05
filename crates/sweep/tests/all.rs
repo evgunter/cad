@@ -513,5 +513,11 @@ mod rim_of_r1_probes_interval;
 #[path = "r2_rim_interval_probes.rs"]
 mod r2_rim_interval_probes;
 
+#[path = "n3r1_d31.rs"]
+mod n3r1_d31;
+#[path = "n3r1_prune.rs"]
+mod n3r1_prune;
+#[path = "n3r2_d31_bitid.rs"]
+mod n3r2_d31_bitid;
 #[path = "r2_rim_corpus_probes.rs"]
 mod r2_rim_corpus_probes;

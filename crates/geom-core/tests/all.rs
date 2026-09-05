@@ -155,5 +155,8 @@ mod cert3_evidence;
 #[path = "m10_7_r2_sym_probes.rs"]
 mod m10_7_r2_sym_probes;
 
+#[path = "unit_segment.rs"]
+mod unit_segment;
+
 #[path = "props1_evidence.rs"]
 mod props1_evidence;
