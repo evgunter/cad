@@ -7,6 +7,7 @@ opened: 2026-09-05
 closed: 2026-09-05
 branch: props/coeffs-window
 refs: [span-carries-its-knot-vector]
+pr: 1985
 ---
 
 

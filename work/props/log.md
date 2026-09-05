@@ -632,3 +632,19 @@ one finding for CIW filed
 (`no-ci-run-on-a-conflicting-pr`); `teapot.rs`'s three struct-literal
 constants (const-convertible, the tour's) stay with the tour-wide
 sweep's carrier.
+
+**coeffs-window landed** — PR
+[#1985](https://github.com/evgunter/cad/pull/1985), branch
+`props/coeffs-window`. `SplineCoeffs<'a, E>` borrows the `KnotVector`
+its array was fitted against (weights optional), minted only by
+`KnotVector::{coeffs, coeffs_rational}` with the count checked once;
+`CoeffWindow<'a, E>` is the pair beside a `Span` of its own vector;
+every `hull` door is a method on one of the two and no free function
+in `hull.rs` takes a coefficient array. The three residue shapes are
+`compile_fail` rows with twins; the 960/480-row coefficient digest and
+`geom`'s 1001/11,151-row span digests are unchanged across both lanes.
+Consumers in `ssi.rs`, `ssi/certify.rs`, `props/quad.rs`,
+`spline/net.rs`, `curves/nurbs.rs` and `mesh/chords.rs` on the pair,
+none mis-paired. Sweep residue (the `quad.rs` evaluators, `TensorNet`
+and `to_bezier_spans` carrying the same shape) reported in the PR body
+for placing. Item closed; spec deleted and ledgered.
