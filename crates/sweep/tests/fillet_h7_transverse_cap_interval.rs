@@ -17,9 +17,7 @@ use geom_core::{Band, Bounds, Interval, Real, Tol, Vec3};
 use sweep::blend::BlendError;
 use sweep::blend::battery::cap_transverse;
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::{
-    ROD_FLAT, ROD_L, ROD_R, rod_creases, rod_section_cut, rod_with_flat_at,
-};
+use sweep::test_support::{ROD_FLAT, ROD_L, ROD_R, rod_creases, rod_section_cut, rod_with_flat_at};
 use topo::{VertexKey, mass_properties, validate_geometric};
 
 fn iv(x: f64) -> Interval {
@@ -52,7 +50,10 @@ fn the_rod_carves_at_the_certified_scalar_and_brackets_the_prism_closed_form() {
     let out = fillet_edges(&source, &creases, iv(r), tol)
         .unwrap_or_else(|e| panic!("the ruled band carves at Interval, got {e:?}"));
     assert_eq!(out.blend_faces.len(), 2, "one band per crease");
-    assert!(out.corner_faces.is_empty(), "a transverse cap is not a corner");
+    assert!(
+        out.corner_faces.is_empty(),
+        "a transverse cap is not a corner"
+    );
     validate_geometric(&out.body, tol).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
     let p1 = mass_properties(&out.body, tol).expect("interval props");
     assert_eq!(
@@ -63,7 +64,11 @@ fn the_rod_carves_at_the_certified_scalar_and_brackets_the_prism_closed_form() {
     // The source's own enclosure is a point up to the lane's rounding;
     // the carved enclosure must bracket it less the prism.
     let v0 = 0.5 * (p0.volume.lo() + p0.volume.hi());
-    assert_brackets(p1.volume, v0 - cut, "the carved body against the prism closed form");
+    assert_brackets(
+        p1.volume,
+        v0 - cut,
+        "the carved body against the prism closed form",
+    );
     assert!(
         p1.volume.hi() < p0.volume.lo(),
         "a convex band removes material, definitely: {:?} below {:?}",

@@ -136,7 +136,10 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
     for (band, crease) in &rec.blends {
         // The band is the arm's exact cylinder: radius R about a spine
         // along z at the sheet crossing (x = flat − R, |y| = h).
-        let s = out.body.get_surface(out.body.get_face(*band).unwrap().surface).unwrap();
+        let s = out
+            .body
+            .get_surface(out.body.get_face(*band).unwrap().surface)
+            .unwrap();
         let geom::Surface::Cylinder {
             origin,
             axis,
@@ -147,7 +150,10 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
             panic!("{what}: the band is a cylinder, got {s:?}");
         };
         assert_eq!(radius, R, "{what}: the band's radius is the ball's");
-        assert!(axis.cross(Vec3::new(0.0, 0.0, 1.0)).norm() < 1e-15, "{what}: spine along z");
+        assert!(
+            axis.cross(Vec3::new(0.0, 0.0, 1.0)).norm() < 1e-15,
+            "{what}: spine along z"
+        );
         let h = ((ROD_R - R).powi(2) - (ROD_FLAT - R).powi(2)).sqrt();
         assert!(
             (origin.x - (ROD_FLAT - R)).abs() < 1e-12 && (origin.y.abs() - h).abs() < 1e-12,
@@ -185,11 +191,17 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
                     && (center.z.min(ROD_L - center.z)).abs() < 1e-12,
                 "{what}: the section is centred on the spine in a cap plane, got {center:?}"
             );
-            assert!(ax.cross(axis).norm() < 1e-12, "{what}: the section's axis is the spine's");
+            assert!(
+                ax.cross(axis).norm() < 1e-12,
+                "{what}: the section's axis is the spine's"
+            );
             let (t0, t1) = c.params();
             assert!(t1 - t0 < core::f64::consts::PI, "{what}: the arc is short");
             let EdgeDescription::Intersection { s1, s2, .. } = c.description() else {
-                panic!("{what}: the arc is a transverse intersection, got {:?}", c.description());
+                panic!(
+                    "{what}: the arc is a transverse intersection, got {:?}",
+                    c.description()
+                );
             };
             let (fa, fb) = edge_surfaces(&out.body, a);
             assert!(
@@ -219,9 +231,15 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
             let Curve3::Line { dir, .. } = *c.carrier() else {
                 panic!("{what}: a trimline is a line");
             };
-            assert!(dir.cross(axis).norm() < 1e-15, "{what}: the trimline runs along the ruling");
+            assert!(
+                dir.cross(axis).norm() < 1e-15,
+                "{what}: the trimline runs along the ruling"
+            );
             let EdgeDescription::TangentIntersection { s1, s2, .. } = c.description() else {
-                panic!("{what}: a trimline is a tangent contact, got {:?}", c.description());
+                panic!(
+                    "{what}: a trimline is a tangent contact, got {:?}",
+                    c.description()
+                );
             };
             let support_surface = out.body.get_face(support).unwrap().surface;
             assert!(
@@ -242,7 +260,11 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
 #[test]
 fn the_rod_with_a_flat_fillets_both_creases_at_the_prism_closed_form() {
     let source = rod_with_flat(tol());
-    assert_eq!(census(&source), (6, 8, 4), "the boolean's rod: seam-split cap arcs");
+    assert_eq!(
+        census(&source),
+        (6, 8, 4),
+        "the boolean's rod: seam-split cap arcs"
+    );
     start_verdict_log();
     let _ = carve_and_check(&source, "rod ∖ box");
     let log = take_verdict_log();
@@ -269,9 +291,15 @@ fn one_crease_alone_carves_at_half_the_prism() {
         assert_eq!(census(&out.body), (8, 11, 5));
         validate_geometric(&out.body, tol()).expect("tier 3");
         let cut = rod_section_cut(ROD_R, ROD_FLAT, R) * ROD_L;
-        assert!((vol0 - volume(&out.body) - cut).abs() < 1e-12, "ΔV = A_section · L");
+        assert!(
+            (vol0 - volume(&out.body) - cut).abs() < 1e-12,
+            "ΔV = A_section · L"
+        );
         let other = creases.iter().find(|k| **k != e).unwrap();
-        assert!(out.body.get_edge(*other).is_some(), "the other crease survives");
+        assert!(
+            out.body.get_edge(*other).is_some(),
+            "the other crease survives"
+        );
         assert_naming_totality(&source, &out, &[e], "one crease");
     }
 }
@@ -380,7 +408,10 @@ fn the_transverse_cap_names_its_policy() {
         CornerConfig::TransverseCap,
         RunOutPolicy::CutOffAtTransverseCap
     );
-    assert!(shown.contains("transverse cap") && shown.contains("cut the band off"), "{shown}");
+    assert!(
+        shown.contains("transverse cap") && shown.contains("cut the band off"),
+        "{shown}"
+    );
 }
 
 /// **A mutant cut-off arc is red through tier 3.** Re-describing a
@@ -465,7 +496,9 @@ fn the_parallel_cylinder_union_still_refuses_and_a_box_edge_is_still_a_run_out()
         let profile = Profile::new(SketchPlane::xy(), vec![lp.into()])
             .validate(tol())
             .unwrap();
-        extrude(&profile, Extrusion::Distance(1.0), tol()).unwrap().body
+        extrude(&profile, Extrusion::Distance(1.0), tol())
+            .unwrap()
+            .body
     };
     let err = topo::union(&cyl(0.0), &cyl(0.6), tol()).expect_err("the parallel pair refuses");
     assert!(
