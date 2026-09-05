@@ -3,6 +3,7 @@ id: unindexed-refusal-is-an-outcome-not-a-read
 kind: issue
 title: The ruling's worked example puts unindexed_refusal on the badge channel and the ruling's own rule puts it on the line
 status: open
+refs: [1945, 1957, news-and-standing-facts-are-orthogonal-axes, status-line-writers-bypass-the-ranking]
 opened: 2026-09-05
 ---
 

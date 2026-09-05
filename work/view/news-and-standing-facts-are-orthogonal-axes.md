@@ -3,6 +3,7 @@ id: news-and-standing-facts-are-orthogonal-axes
 kind: issue
 title: News and standing fact are orthogonal to subject, and three facts of one class got two answers
 status: review
+pr: 1957
 opened: 2026-09-05
 branch: view/axes-and-badges
 ---
