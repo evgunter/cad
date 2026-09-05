@@ -267,3 +267,24 @@ consumer, `crates/topo/src/face_normal.rs:460`, to
 the file; `face_normal.rs`'s raw-text reads stay `D287`'s. `D261` and
 `D287` both lower `reader_census.rs`'s `UNCONVERTED_TODAY`; the second
 to land re-derives it from the table rather than subtracting.
+
+## Findings relayed by TOPO (2026-09-05, from D261's lane)
+
+Reported by the `topo/d261-reader-collapse` lane, Track Q's ground, not
+filed by TOPO: `crates/topo/src/boolean/boxes.rs:2167` says `CodeOnly`
+is "the more competent of this crate's two readers" — after D261 there
+is one reader (the shared `test_utils::source`) and `CodeOnly` is a
+one-line adapter over it; and the two surviving raw-text guards,
+`crates/topo/src/face_normal.rs:335-346` and
+`crates/topo/src/sector_shape.rs:506-533`, carry S117's shape. All three
+sit with `D287`.
+
+## Two more from D261's review (2026-09-05, TOPO relaying)
+
+`work/bool/D287.md:14` ("`boolean/boxes.rs` already reads
+`source_walk::CodeOnly`, so it converts with that collapse") and `:46`
+("`topo::fixtures::code_only` is the in-crate one") are false after
+PR 1919: `fixtures::code_only` is deleted, and `CodeOnly` survives only
+as a one-line newtype over the shared view because `boxes.rs:2265`
+constructs it — so D287's `boxes.rs` re-point is also the newtype's
+deletion, and D261 records that schedule by pointing here.
