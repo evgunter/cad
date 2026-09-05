@@ -14,9 +14,9 @@ one verb-neutral refusal vocabulary. Nothing is sampled or approximated.
 The fillet design proper (the battery's six predicates in binding
 order, the arm table, the corner-configuration scope) is in
 `crates/geom-brep/README.md` under CURVED-DESIGN C8. What is not yet
-built (run-outs, the canal-surface blend, curved-support chamfers, the
-ruled-spine carve) is registered in `docs/KERNEL-VERBS.md`; the canal
-blend is `docs/DESIGN.md` frontier (f).
+built (mid-curve run-outs, the canal-surface blend, curved-support
+chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
+`docs/DESIGN.md` frontier (f).
 
 ## Where in the code
 
@@ -130,5 +130,34 @@ vertex, has two honest shapes: a ball-cap stop (the ball at rest at the
 final spine station caps the band with a sphere patch; new surgery, no
 new surface kinds) and a feather-out (the radius tapers to zero toward
 the station; variable-radius machinery). Neither has a constructor
-(`RunOutPolicy` is refusal-payload vocabulary only); the ball-cap is
-the presumptive first pick when a consumer arrives.
+(`RunOutStopAtVertex` and `RunOutFeather` are refusal-payload
+vocabulary only); the ball-cap is the presumptive first pick when a
+consumer arrives.
+
+**What IS built beside it is a different termination — the ruled
+band's TRANSVERSE CUT-OFF (FILLET-H7, Ev's ruling on PR 1736).** A
+ruled link (`CylinderPlaneCylinder`, `CylinderCylinderCylinder`: a
+cylinder band about a straight spine, both trimlines lines along the
+ruling) ends where its supports do, at a vertex whose two unrequested
+edges lie in one plane face perpendicular to the ruling —
+`CornerConfig::TransverseCap`, decided by `fillet3_cap_transverse`
+(the cap normal's departure from the ruling, in meters at the link's
+own extent, the lever the shared-ruling hypothesis is metered at). The
+band ends in that plane's section of it, an exact stored arc of the
+band's radius about the spine's crossing
+(`RunOutPolicy::CutOffAtTransverseCap`; `CornerConfig::policy` maps
+the tag). The carve (`blend/ruled.rs`) mints no strut: the cap's two
+rim edges are split at the trimlines' feet, the arc is `mef`'d across
+the cap, one trimline `mef` per support carves its strip along the
+ruling, and the crease's `kef` with two `kef`/`kev` pairs folds the
+slivers in and retires the old vertices — the trimlines described as
+the band's tangent contact with a curved support, the arcs as its
+transverse intersection with the cap, on either material side. An
+oblique or curved end face refuses typed as the run-out A3-3 reserves.
+Consumer: the rod with a flat milled along it (`cylinder ∖ box`), both
+creases in one call, at the prism closed form `ΔV = A_section · L`
+(`crates/sweep/tests/fillet_h7_transverse_cap.rs`). The
+`CylinderCylinderCylinder` consumer — two parallel cylinders unioned at
+a common ruling — has no body yet: the union refuses at the boolean's
+curved-pierce door, so the concave ruled band is stated and pinned
+nowhere.

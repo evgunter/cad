@@ -338,12 +338,16 @@ pub enum BlendSite {
     Chain,
 }
 
-/// The **run-out policy vocabulary** (OQ6, decided by Ev at #85) —
-/// refusal-payload names ONLY. Neither variant has a constructor
-/// surface anywhere in the kernel: they exist so a refusal can name
-/// the front door that does not exist yet (the standing frontier
-/// error-text pattern), and so the post-M5 unit that implements run-outs
-/// inherits a vocabulary Ev already owns rather than inventing one.
+/// The **run-out policy vocabulary** (OQ6, decided by Ev at #85; the
+/// transverse cut-off ratified on PR 1736's thread). Two variants are
+/// refusal-payload names ONLY, with no constructor surface anywhere in
+/// the kernel: they exist so a refusal can name the front door that does
+/// not exist yet (the standing frontier error-text pattern), and so the
+/// unit that implements the mid-curve run-outs inherits a vocabulary Ev
+/// already owns rather than inventing one. The third,
+/// [`RunOutPolicy::CutOffAtTransverseCap`], names the one termination a
+/// band OTHER than the corner patch carves — the ruled band's end in its
+/// cap's own section.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RunOutPolicy {
     /// The blend runs at full radius all the way to the vertex and a

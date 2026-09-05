@@ -59,7 +59,7 @@ shape in the corpus asks for it yet.
 
 ## Home
 
-Fillet band and surgery were S-BLEND's, which is closed and may hold only closed items; VERBS ceded that ground explicitly, so this open residue lands under `work/issues/`.
+Fillet band and surgery were S-BLEND's, which is closed and may hold only closed items; VERBS ceded that ground explicitly, so this residue was filed under `work/issues/` and is now a unit of the FILLET program (this file, `work/fillet/`).
 
 ## For Ev — what terminates a ruled band (the OQ6 question this unit waits on)
 
