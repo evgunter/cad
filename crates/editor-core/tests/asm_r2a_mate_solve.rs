@@ -1380,7 +1380,7 @@ fn row6i_the_load_check_refuses_a_mate_head_past_the_mint_counter() {
     let split = text.find('{').expect("the JSON body follows the header");
     let (header, body) = text.split_at(split);
     let mut wire: serde_json::Value = serde_json::from_str(body).expect("the body parses");
-    let head = &mut wire["snapshot"]["nodes"][mate_id.0.to_string()]["Mate"]["b"];
+    let head = &mut wire["snapshot"]["nodes"][mate_id.0.to_string()]["Mate"]["b"]["name"];
     assert_eq!(
         head["node"],
         serde_json::json!(ids[2].0),

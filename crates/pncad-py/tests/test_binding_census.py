@@ -1544,8 +1544,12 @@ NOT_BOUND = {
     # is listed here is the authoring vocabulary alone.
     "AssertionDir": f"{GAP}: B-MEASURES measurement authoring",
     "MeasureExpr": f"{GAP}: B-MEASURES measurement authoring",
-    "MeasureRef": f"{GAP}: B-MEASURES measurement authoring",
     "MeasureNodeFault": f"{GAP}: B-MEASURES measurement authoring",
+    # `SitedRef` is bound where a MATE reference is authored
+    # (`Node.mate` takes each side as a node and a name), so the type
+    # itself is never handed across; the measure half that would hand
+    # one over is the gap above.
+    "SitedRef": f"{GAP}: B-MEASURES measurement authoring",
     "MeasurePrimitive": f"{GAP}: B-MEASURES measurement authoring",
     # The two M10-6 added with the fourth verb. They are READING
     # names — a caller dispatches on them after an evaluation, not

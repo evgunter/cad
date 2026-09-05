@@ -132,12 +132,21 @@ document order (their **gauge**); every other member's pose is
 frame, and why zero-anchor and multi-anchor states are
 unrepresentable here rather than merely refused.
 
-`Node.mate(a, b, class_, alignment)` is one node carrying both halves
-of "these two parts meet here": the placement constraint the solve
-folds, and the contact declaration the gate mints. `a` and `b` are
-instance-qualified entity names — the text `Evaluation.select` answers
-with when you query it on an instantiate node, so no name is ever
-composed by hand.
+`Node.mate(a_at, a, b_at, b, class_, alignment)` is one node carrying
+both halves of "these two parts meet here": the placement constraint
+the solve folds, and the contact declaration the gate mints.
+
+Each side is TWO things. `a` and `b` are instance-qualified entity
+names — the text `Evaluation.select` answers with when you query it on
+an instantiate node, so no name is ever composed by hand. `a_at` and
+`b_at` are the **operands**: the nodes those names are read at, which
+is to say the geometry the mate is talking about. They are the
+instances themselves in the plain case. They diverge the moment
+something PLACES an instance — a `Node.transform` moves a body and
+mints no name of its own, so the name alone cannot tell a mate on the
+instance from a mate on the transformed instance, and the operand is
+what does. The solve walks from the operand down to the minting
+instance and composes the map of everything it passes.
 
 ```python
 import tempfile
@@ -223,10 +232,16 @@ def seat(a, b):
 
 
 mate_a = stand.insert(
-    Node.mate(a_top, shelf_underside, ContactClass.Rest, seat(post_seat, seat_a))
+    Node.mate(
+        post_a, a_top, shelf_i, shelf_underside, ContactClass.Rest,
+        seat(post_seat, seat_a),
+    )
 )
 mate_b = stand.insert(
-    Node.mate(shelf_underside, b_top, ContactClass.Rest, seat(seat_b, post_seat))
+    Node.mate(
+        shelf_i, shelf_underside, post_b, b_top, ContactClass.Rest,
+        seat(seat_b, post_seat),
+    )
 )
 
 # The two mates couple all three instances into ONE cluster, gauged
@@ -550,11 +565,13 @@ def bench(primitive=None, class_=ContactClass.Rest):
         return Alignment(x, y, fold, AxisSense.Aligned)
 
     m_a = doc.insert(
-        Node.mate(instance_cap(ev, a, CapEnd.End), instance_cap(ev, s, CapEnd.Start),
+        Node.mate(a, instance_cap(ev, a, CapEnd.End),
+                  s, instance_cap(ev, s, CapEnd.Start),
                   class_, align(post_seat, seat_a))
     )
     m_b = doc.insert(
-        Node.mate(instance_cap(ev, s, CapEnd.Start), instance_cap(ev, b, CapEnd.End),
+        Node.mate(s, instance_cap(ev, s, CapEnd.Start),
+                  b, instance_cap(ev, b, CapEnd.End),
                   class_, align(seat_b, post_seat))
     )
     return doc, (a, s, b), (m_a, m_b)
@@ -673,8 +690,8 @@ doc, post_i, shelf_i = two_instances()
 ev = evaluate(doc, resolver=store)
 mate = doc.insert(
     Node.mate(
-        instance_cap(ev, post_i, CapEnd.End),
-        instance_cap(ev, shelf_i, CapEnd.Start),
+        post_i, instance_cap(ev, post_i, CapEnd.End),
+        shelf_i, instance_cap(ev, shelf_i, CapEnd.Start),
         ContactClass.Rest,
         Alignment(post_seat, seat_a, MatePrimitive.planar_rest(0 * m),
                   AxisSense.Aligned),
@@ -696,8 +713,8 @@ doc, post_i, shelf_i = two_instances()
 ev = evaluate(doc, resolver=store)
 mate = doc.insert(
     Node.mate(
-        instance_cap(ev, post_i, CapEnd.End),
-        instance_cap(ev, shelf_i, CapEnd.Start),
+        post_i, instance_cap(ev, post_i, CapEnd.End),
+        shelf_i, instance_cap(ev, shelf_i, CapEnd.Start),
         ContactClass.Tangent,
         Alignment(post_seat, seat_a, MatePrimitive.frame_coincidence(),
                   AxisSense.Aligned),
@@ -719,8 +736,8 @@ ev = evaluate(doc, resolver=store)
 edge = sorted(ev.all_edges(post_i))[0]
 mate = doc.insert(
     Node.mate(
-        edge,
-        instance_cap(ev, shelf_i, CapEnd.Start),
+        post_i, edge,
+        shelf_i, instance_cap(ev, shelf_i, CapEnd.Start),
         ContactClass.Rest,
         Alignment(post_seat, seat_a, MatePrimitive.frame_coincidence(),
                   AxisSense.Aligned),

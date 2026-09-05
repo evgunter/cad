@@ -673,13 +673,14 @@ fn r1_which_branch_does_the_consistent_loop_row_take() {
 // suite does not build: a NESTED pattern and a pattern of a TRANSFORM.
 // ---------------------------------------------------------------
 
-/// The PR body discloses that "nested patterns and pattern-of-transform
-/// refuse `DanglingHead`". The committed fence row builds neither — it
-/// builds an out-of-range copy index and a pattern of an EXTRUDE. These
-/// two rows build the disclosed shapes, so the disclosure is checked
-/// rather than taken on trust.
+/// The two shapes the member vocabulary is asked about by name, built
+/// rather than taken on trust: a pattern of a PATTERN, which is
+/// outside the vocabulary and refuses `DanglingHead`, and a pattern of
+/// a TRANSFORM, which is inside it and places. The fence row beside
+/// this one builds neither — it builds an out-of-range copy index and
+/// a pattern of an EXTRUDE.
 #[test]
-fn r1_nested_pattern_and_pattern_of_transform_refuse_dangling() {
+fn r1_a_nested_pattern_refuses_and_a_pattern_of_transform_places() {
     // (a) a pattern OF A PATTERN of an instance.
     let mut store = StubStore::default();
     let leg_ref = store.insert(leg_part("r1-nested-leg"), Tol::witness());
@@ -772,17 +773,23 @@ fn r1_nested_pattern_and_pattern_of_transform_refuse_dangling() {
     );
     let m2 = m2.expect("the mate mints");
     let poses2 = solve_document(&doc2, Tol::witness());
-    let fault2 = poses2
-        .fault(m2)
-        .expect("a pattern-of-transform head refuses");
+    // A pattern OF A TRANSFORM resolves: the walk goes from the
+    // operand through the pattern's `Instance(i)` and on through the
+    // transform to the minting instance, and the offset composes
+    // `M(i) ∘ T`. Both nodes place a body; only the pattern renames
+    // one, and admission is decided on POSE transparency, not on
+    // naming transparency.
     assert!(
-        matches!(
-            fault2,
-            editor_core::MateFault::DanglingHead { head, .. } if *head == pat
-        ),
-        "a pattern of a transform refuses DanglingHead at the pattern: {fault2:?}"
+        poses2.fault(m2).is_none(),
+        "a pattern of a transform resolves: {:?}",
+        poses2.fault(m2)
     );
-    let _ = store2;
+    assert_eq!(
+        poses2.role(m2),
+        Some(editor_core::MateRole::Determining),
+        "and it places its pair"
+    );
+    let _ = (store2, pat);
 }
 
 // ---------------------------------------------------------------

@@ -80,7 +80,8 @@ That gap is tracked at
 **A3 — The node vocabulary; mates are declarations.**
 `Node::InstantiatePart { doc_ref, interface }` has no placement field
 (A11 puts it on the cluster). `Node::Mate { a, b, class, alignment }`:
-`a`/`b` are instance-qualified stable names; `class` is the kernel
+`a`/`b` are `SitedRef`s — an instance-qualified stable name plus the
+operand node it is read at; `class` is the kernel
 `topo::ContactClass`; `Alignment` is two `MateFrame`s in each side's
 part coordinates, a `MatePrimitive` (`FrameCoincidence`, `Coaxial`,
 `PlanarRest { offset }`; `Clocking` exists only to be refused as a bare
@@ -95,13 +96,17 @@ mint door (`AssemblyError::NoAtRestRecord`, no witness edge at rest);
 anything else, including the reserved and unbuilt `Fit { gap }`,
 refuses at the solve door.
 
-**A12 — Mate edges and roots.** A mate is a DAG leaf (`inputs()` is
-empty) contributing *reading edges* to the member each reference's head
-resolves through, recomputed by `reading_edges`, never stored. A9's
-partition and A11's clusters run over consuming ∪ reading edges; A10's
-invariants, maintenance and gather run over consuming edges only, so a
-mate is an ordinary non-body root: an isolated sink, listed, ignored by
-the gather. A dangling head contributes no edge until `Rebind`.
+**A12 — Mate edges and roots.** A mate's two references are `SitedRef`s
+— a name, and the OPERAND node it is read at — and each contributes a
+*reading edge* to the member that operand resolves to, recomputed by
+`reading_edges`, never stored. `inputs()` stays empty because a reading
+edge is not consuming: making an operand consuming would take the mated
+bodies out of A10's root set. A9's partition and A11's clusters run over
+consuming ∪ reading edges; A10's invariants, maintenance and gather run
+over consuming edges only, so a mate is an ordinary non-body root: an
+isolated sink, listed, ignored by the gather. A dangling reference —
+name or operand — contributes no edge; `Rebind` repairs a name and
+carries an at-mint operand with it, and a stranded operand is re-authored.
 
 ## Identity, pins, split and inline
 
@@ -238,10 +243,14 @@ per-node: a refusing cluster faults its own mate and instances
 composes the cluster frame onto the solved relative pose; a singleton
 cluster returns its recorded frame bit for bit. It is one of A2a's
 pairing doors: the document it is handed must be the one solved, else
-`MateFault::PosesOfAnotherDocument` before any frame is read. A reference head is a
-live `InstantiatePart` or a pattern's `Instance(i)`; a pattern member's
-frame is its static pattern-derived offset on its input's pose, so
-mates never solve pattern parameters or give one copy its own pose.
+`MateFault::PosesOfAnotherDocument` before any frame is read. A
+reference resolves by walking from its OPERAND down to a live
+`InstantiatePart`, through any number of `Transform`s and at most one
+`Pattern` level (which the name qualifies `Instance(i)`); the member's
+frame is the composed static offset of every node that walk passed, on
+that instance's pose, so mates never solve pattern or transform
+parameters or give one placed body its own pose. Two references to one
+instance read at different operands are two members.
 
 ## Open questions
 

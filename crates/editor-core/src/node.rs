@@ -2463,9 +2463,24 @@ impl<P> Node<P> {
                     selection.dedup();
                 }
             }
+            // A mate's two references: the NAME rewrites like any
+            // other, and a reference that was read AT ITS OWN MINT
+            // stays read at its own mint — the operand follows the
+            // name it was authored to coincide with, so a rebind
+            // repairs exactly the references it repaired before it
+            // carried an operand. A reference read somewhere ELSE
+            // keeps its operand: that node is an authored fact this
+            // edit knows nothing about, and re-targeting it is
+            // re-authoring the mate.
             Node::Mate { a, b, .. } => {
-                hits += rewrite(&mut a.name, from, to);
-                hits += rewrite(&mut b.name, from, to);
+                for r in [a, b] {
+                    let at_mint = r.at == r.name.node;
+                    let moved = rewrite(&mut r.name, from, to);
+                    if moved > 0 && at_mint {
+                        r.at = r.name.node;
+                    }
+                    hits += moved;
+                }
             }
             // One name, no set to re-canonicalize.
             Node::Datum(Datum::FaceFrame { face, .. }) => {

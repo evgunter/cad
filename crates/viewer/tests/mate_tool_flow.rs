@@ -357,11 +357,13 @@ fn a_pattern_placed_pick_mates_through_an_instance_headed_reference() {
     }
 }
 
-/// **What is still outside the vocabulary is still refused.** A
-/// pattern over something that is not a live instance carries no
-/// member, however `Instance(i)`-qualified its faces are.
+/// **A9 — a pick on a pattern copy OVER A TRANSFORM is admitted**,
+/// and authors its reference at the node the ray met. The pattern is
+/// what the ray hits and what the reference is read at; the walk goes
+/// on through the transform to the minting instance, and the composed
+/// offset is the solve's to apply.
 #[test]
-fn a_pattern_over_a_non_instance_is_still_not_an_instance_pick() {
+fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
     let tol = Tol::witness();
     let bench = asm::bench("matepatternnon", tol);
     let mut session = asm::open_bench(&bench, tol);
@@ -404,16 +406,131 @@ fn a_pattern_over_a_non_instance_is_still_not_an_instance_pick() {
     tool.pick(copy_one);
     tool.pick(shelf_bottom);
     let (doc, eval) = session.landed_pair().expect("landed");
+    let proposal = tool
+        .proposal(doc, eval, tol, asm::seat())
+        .expect("a pattern copy over a transform carries a member");
+    assert_eq!(
+        proposal.a.at, pattern,
+        "the reference is read at the node the ray met"
+    );
+    assert_eq!(proposal.a.name.node, pattern, "and names that copy");
+    assert!(
+        matches!(
+            proposal.a.name.path.first(),
+            Some(RoleSeg::Instance { i: 1, .. })
+        ),
+        "the copy the ray hit: {:?}",
+        proposal.a.name.path.first()
+    );
+    assert_eq!(
+        proposal.b.at, bench.shelf_i,
+        "an untransformed pick is read at its own instance"
+    );
+    let _ = moved;
+}
+
+/// **A9 — a pick on a FUSED body is still refused.** A boolean is not
+/// a pass-through: it mints its own geometry and its own names, and
+/// no member of A11's vocabulary stands on it, so no frame read there
+/// is in any member's part coordinates. The walk refuses for the
+/// reason the tool's own hand-written guard used to — reaching the
+/// operand's node and finding neither a transform to continue
+/// through nor a live instance to stop on.
+#[test]
+fn a_pick_on_a_fused_body_is_not_an_instance_pick() {
+    let tol = Tol::witness();
+    let bench = asm::bench("matefused", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let fused = common::insert(
+        &mut session,
+        SessionOp::AddBoolean {
+            op: pncad::document::BooleanOp::Union,
+            a: bench.post_b,
+            b: bench.post_a,
+        },
+    );
+    session.pump();
+    let post_top = pick_at(
+        &session,
+        &asm::down_at(
+            asm::POST_B_AT[0] + asm::POST_SECTION / 2.0,
+            asm::POST_B_AT[1] + asm::POST_SECTION / 2.0,
+        ),
+    );
+    assert_eq!(post_top.node, fused, "the ray met the fusion's body");
+    let _ = bench.post_a;
+    let shelf_bottom = pick_at(
+        &session,
+        &asm::up_at(
+            asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
+            asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
+        ),
+    );
+    let mut tool = MateTool::new();
+    tool.pick(post_top);
+    tool.pick(shelf_bottom);
+    let (doc, eval) = session.landed_pair().expect("landed");
     assert!(
         matches!(
             tool.proposal(doc, eval, tol, asm::seat()),
             Err(MateToolError::NotAnInstancePick {
                 side: MateSide::A,
                 node
-            }) if node == pattern
+            }) if node == fused
         ),
-        "a pattern over a transform carries no member"
+        "a boolean is not a pass-through"
     );
+}
+
+/// **A9 — a pick on a TRANSFORMED instance is admitted**, and the
+/// reference it authors is read at the transform rather than at the
+/// instance. Before the operand existed the two were the same
+/// reference and the mate seated the un-transformed body.
+#[test]
+fn a_pick_on_a_transformed_instance_authors_the_transform_as_its_operand() {
+    let tol = Tol::witness();
+    let bench = asm::bench("matexformpick", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let moved = common::insert(
+        &mut session,
+        SessionOp::AddTransform {
+            input: bench.post_b,
+            translation: [len(0.0), len(0.0), len(0.0)],
+            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+            rotation_angle: ang(0.0),
+        },
+    );
+    session.pump();
+    // The ray now meets the TRANSFORM's body where it used to meet the
+    // instance's (a zero transform, so the geometry is where it was).
+    let post_top = pick_at(
+        &session,
+        &asm::down_at(
+            asm::POST_B_AT[0] + asm::POST_SECTION / 2.0,
+            asm::POST_B_AT[1] + asm::POST_SECTION / 2.0,
+        ),
+    );
+    assert_eq!(post_top.node, moved, "the ray met the transform's body");
+    assert_eq!(
+        post_top.name.node, bench.post_b,
+        "and the name still points at the minting instance (N1)"
+    );
+    let shelf_bottom = pick_at(
+        &session,
+        &asm::up_at(
+            asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
+            asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
+        ),
+    );
+    let mut tool = MateTool::new();
+    tool.pick(post_top);
+    tool.pick(shelf_bottom);
+    let (doc, eval) = session.landed_pair().expect("landed");
+    let proposal = tool
+        .proposal(doc, eval, tol, asm::seat())
+        .expect("a transformed instance carries a member");
+    assert_eq!(proposal.a.at, moved, "authored at the node the ray met");
+    assert_eq!(proposal.a.name.node, bench.post_b, "naming the instance");
 }
 
 /// The quarter turn the circular row spins post_b by.

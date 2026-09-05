@@ -506,16 +506,15 @@ fn derived_offset<P>(
 }
 
 /// **A12's reading edges**, recomputed from the recipe:
-/// `(mate, instance)` for every mate reference whose head resolves to
-/// a member of the A11 vocabulary. The edge lands on the MEMBER's
-/// instance — the head instance itself, or the pattern's INPUT
-/// instance for a pattern-placed head — which is the vertex the
-/// A9/A11 partitions see.
+/// `(mate, instance)` for every mate reference that resolves to a
+/// member of the A11 vocabulary. The edge lands on the MEMBER's
+/// instance — the one the walk from the operand ends on — which is the
+/// vertex the A9/A11 partitions see.
 ///
-/// Never stored — the DAG stays the single structure, and a head that
-/// resolves to no member simply contributes no edge until `Rebind`
-/// repairs it (N5). Deterministic order: document order of the mate,
-/// then `a` before `b`.
+/// Never stored — the DAG stays the single structure, and a reference
+/// that resolves to no member simply contributes no edge (N5).
+/// Deterministic order: document order of the mate, then `a` before
+/// `b`.
 pub fn reading_edges<P>(doc: &Doc<P>) -> Vec<(RecipeNodeId, RecipeNodeId)> {
     let mut out = Vec::new();
     for &id in doc.order() {

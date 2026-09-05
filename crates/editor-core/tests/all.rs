@@ -118,6 +118,7 @@ mod e4_dual_door;
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
 mod fix_pattern_mate_crossing;
+
 #[path = "gui1_pick.rs"]
 mod gui1_pick;
 #[path = "gui1_pick_r2.rs"]
@@ -168,6 +169,8 @@ mod m10_3_r2_probes_interval;
 mod m10_4_r1_probes_interval;
 #[path = "m10_4_seed.rs"]
 mod m10_4_seed;
+#[path = "msolve1_transform_aware.rs"]
+mod msolve1_transform_aware;
 
 #[path = "m10_4_r2_probes_interval.rs"]
 mod m10_4_r2_probes_interval;
