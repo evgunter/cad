@@ -124,14 +124,25 @@
 //! the scene is COMPOSED at `f64` — in `Vec3<f64>` and
 //! `Point3<f64>`, through the kernel's own doors (`normalize`,
 //! `dot`, `cross`, `reject_from`, `Mat3::rotation_about`, the
-//! operators) — and each value is LIFTED to `S` exactly once, at the
-//! door it is handed to, through `map(S::from_f64)`. That is the
-//! layer rule of this file, both halves of it: `Real` carries no
-//! mixed-scalar arithmetic, so composing at `S` would put an
-//! `S::from_f64` on every literal, and composing in tuples would put
-//! a second vector algebra beside the kernel's own. Readback runs the
-//! other way and is the same rule: a stored `Point3<S>` is read at
-//! `f64` by `map(Scalar::f)`, once, where narration begins.
+//! operators) — and each value is LIFTED to `S` at the door it is
+//! handed to. `Real` carries no mixed-scalar arithmetic, so composing
+//! at `S` would put an `S::from_f64` on every literal, and composing
+//! in tuples would put a second vector algebra beside the kernel's
+//! own.
+//!
+//! **The lift has two spellings and they divide on one line.** Where
+//! the components are written at the door, it is the kernel's own
+//! constructor — [`p2`]/`v2`/`p3`/`v3` from `pncad::authoring`. Where
+//! an already-composed `f64` value crosses — a frame this file built,
+//! a turtle's point, a stored carrier — it is `map(S::from_f64)`,
+//! once, on the value. Readback runs the other way by the same rule:
+//! a stored `Point3<S>` becomes `f64` through `map(S::f)`, once,
+//! where narration begins.
+//!
+//! **Two doors are `f64` themselves and take no lift at all**:
+//! `sweep_body` and `loft_body` place their sections with an
+//! `Affine3<f64>`, so the blade frames cross as authored. That is the
+//! skinning lane's signature, not an exception this file makes.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -150,7 +161,7 @@ use pncad::topo::{Body, BooleanError, Operand, TransformError};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-use pncad::authoring::{p2, validated};
+use pncad::authoring::{p2, p3, v2, v3, validated};
 use pncad::geom_core::Tol;
 
 // ---------------------------------------------------------------
@@ -182,10 +193,10 @@ struct ArcSpec {
 
 /// The turtle's own rotation: the walk's positive sense is
 /// counterclockwise in the xz-plane drawn with +x right and +z up,
-/// which is the right-handed rotation about **−ŷ** — the same axis
-/// [`tube_arc`] hands the kernel for a left turn. Said about +ŷ with
-/// the angle negated, so the matrix is the kernel's own and the
-/// plane's normal is named once.
+/// which is the right-handed rotation about **−ŷ** — the axis
+/// [`ArcSpec`] states as the walk's convention and [`tube_arc`] hands
+/// the kernel for a left turn. Said about +ŷ with the angle negated,
+/// so the matrix is the kernel's own.
 fn spin(turn: f64) -> Mat3<f64> {
     Mat3::rotation_about(Vec3::unit_y(), -turn)
 }
@@ -233,7 +244,7 @@ impl Turtle {
 fn sketch_axis<S: Scalar>() -> RevolveAxis<S> {
     RevolveAxis {
         origin: p2(0.0, 0.0),
-        dir: Vec2::unit_y().map(S::from_f64),
+        dir: v2(0.0, 1.0),
     }
 }
 
@@ -254,7 +265,7 @@ fn tube_arc<S: Scalar>(spec: ArcSpec, tube: f64, tol: Tol) -> (Body<S>, WedgeFra
     let sense = if spec.turn >= 0.0 { -1.0 } else { 1.0 };
     let revolved = tube_along_arc(
         spec.center.map(S::from_f64),
-        Vec3::new(0.0, sense, 0.0).map(S::from_f64),
+        v3(0.0, sense, 0.0),
         spec.radial.map(S::from_f64),
         S::from_f64(spec.ring),
         TubeWindow::Arc {
@@ -468,11 +479,7 @@ fn corm<S: Scalar>(
         .line_to(Start, tol)
         .expect("corm bore wall")
         .into();
-    let plane = SketchPlane::from_frame(
-        Point3::new(0.0, 0.0, top_z).map(S::from_f64),
-        Vec3::new(1.0, 0.0, 0.0).map(S::from_f64),
-        Vec3::new(0.0, 0.0, -1.0).map(S::from_f64),
-    );
+    let plane = SketchPlane::from_frame(p3(0.0, 0.0, top_z), v3(1.0, 0.0, 0.0), v3(0.0, 0.0, -1.0));
     revolve(
         &validated(plane, vec![lp], tol).expect("corm profile validates"),
         sketch_axis(),
@@ -491,17 +498,9 @@ fn corm<S: Scalar>(
 /// circle: a boolean operand's curved wall must be maximal-faced, and
 /// the split count is part of what the seam looks like.
 fn foot<S: Scalar>(z0: f64, z1: f64, r: f64, tol: Tol) -> Body<S> {
-    let rim = pncad::profile::circle_split(
-        Point2::origin().map(S::from_f64),
-        S::from_f64(r),
-        3,
-        S::from_f64(0.0),
-        tol,
-    )
-    .expect("the foot's three-arc rim authors");
-    let plane = SketchPlane::new(Affine3::translation(
-        Vec3::new(0.0, 0.0, z0).map(S::from_f64),
-    ));
+    let rim = pncad::profile::circle_split(p2(0.0, 0.0), S::from_f64(r), 3, S::from_f64(0.0), tol)
+        .expect("the foot's three-arc rim authors");
+    let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, z0)));
     let profile = validated(plane, vec![rim.into()], tol).expect("foot profile validates");
     extrude(&profile, Extrusion::Distance(S::from_f64(z1 - z0)), tol)
         .expect("the foot extrudes")
@@ -789,7 +788,7 @@ const SEPAL_STATIONS: usize = 13;
 /// is exactly a kite.
 ///
 /// The spine leaves `base` along `dir` and turns through `curl`
-/// radians toward `up` (Gram–Schmidt'd against `dir`; negative `curl`
+/// radians toward `up` (rejected from `dir`; negative `curl`
 /// arches the blade over, which is what a basal leaf does), staying a
 /// circular arc of length `len` sampled at [`LEAF_STATIONS`] exact
 /// points that a cubic `NurbsCurve3::interpolate` runs through. The
@@ -1892,11 +1891,7 @@ fn weld_circle<S: Scalar>(
 /// y = 0), as a revolve of a half-disc whose diameter lies on the
 /// axis — the shape a tepal seam would be carved with.
 fn ball<S: Scalar>(c: Point3<f64>, r: f64, tol: Tol) -> Body<S> {
-    let plane = SketchPlane::from_frame(
-        c.map(S::from_f64),
-        Vec3::new(1.0, 0.0, 0.0).map(S::from_f64),
-        Vec3::new(0.0, 0.0, 1.0).map(S::from_f64),
-    );
+    let plane = SketchPlane::from_frame(c.map(S::from_f64), v3(1.0, 0.0, 0.0), v3(0.0, 0.0, 1.0));
     // Algebra-authored (LIB-G1): centre-first, with the sphere's own
     // centre authored and the bulge derived at lowering.
     let lp = Open
@@ -2103,11 +2098,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    extrusion is deferred past M2. The probe pins that door, not
     //    the out-of-plane blade, which the scene above builds live.
     let leafp = {
-        let plane = SketchPlane::from_frame(
-            Point3::origin().map(S::from_f64),
-            Vec3::unit_x().map(S::from_f64),
-            Vec3::unit_y().map(S::from_f64),
-        );
+        let plane =
+            SketchPlane::from_frame(p3(0.0, 0.0, 0.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
         // Algebra-authored (LIB-G1): via-point arcs (see `leaf`).
         let lp = Open
             .at(p2(0.0, 0.0))
@@ -2133,11 +2125,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     wall(
         3,
         "tilt a leaf out of its own plane the cheap way (oblique extrusion)",
-        extrude(
-            &leafp,
-            Extrusion::Vector(Vec3::new(0.0, 0.3, 0.04).map(S::from_f64)),
-            tol,
-        ),
+        extrude(&leafp, Extrusion::Vector(v3::<S>(0.0, 0.3, 0.04)), tol),
         |e| matches!(e, ExtrudeError::ObliqueExtrusion),
         "let a sketch profile lean out of its plane in one step",
     );
@@ -2147,10 +2135,9 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    `transform_rigid` is the only body map, and it decides
     //    rigidity rather than trusting it.
     let stretch = Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::new(0.0, 0.0, 1.6)),
-        Vec3::zero(),
-    )
-    .map(S::from_f64);
+        Mat3::from_cols(v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), v3(0.0, 0.0, 1.6)),
+        v3(0.0, 0.0, 0.0),
+    );
     wall(
         4,
         "stretch a lantern into an ovoid bud (non-uniform scale)",
@@ -2165,10 +2152,9 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    a reflection is improper, and the rigidity predicate decides
     //    the determinant, not just the column norms.
     let mirror = Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::new(0.0, -1.0, 0.0), Vec3::unit_z()),
-        Vec3::zero(),
-    )
-    .map(S::from_f64);
+        Mat3::from_cols(v3(1.0, 0.0, 0.0), v3(0.0, -1.0, 0.0), v3(0.0, 0.0, 1.0)),
+        v3(0.0, 0.0, 0.0),
+    );
     wall(
         5,
         "mirror a leaf across the plant's plane (improper isometry)",
@@ -2632,10 +2618,7 @@ mod review_probes {
     fn assert_two_cap_planes(caps: &WedgeFrames<f64>, what: &str) {
         let (a, b) = (caps.start, caps.end);
         let angle = a.axis.cross(b.axis).norm();
-        let offset = ((b.origin.x - a.origin.x) * a.axis.x
-            + (b.origin.y - a.origin.y) * a.axis.y
-            + (b.origin.z - a.origin.z) * a.axis.z)
-            .abs();
+        let offset = (b.origin - a.origin).dot(a.axis).abs();
         assert!(
             angle > CAP_DISTINCT || offset > CAP_DISTINCT,
             "{what}: the two joint frames are ONE plane (normal angle {angle:.3e}, \
@@ -3351,7 +3334,7 @@ mod review_probes {
             let s = body(&ps, name);
             for (_, v) in s.vertices() {
                 let p = s.get_point(v.point).expect("vertex point");
-                let d = ((p.x - g.x).powi(2) + (p.y - g.y).powi(2) + (p.z - g.z).powi(2)).sqrt();
+                let d = p.distance(g);
                 // 1e-12, not 0: the base keel vertex is placed AT the
                 // sphere by construction, and it gets there through a
                 // rotation composed into the section placement, so it
@@ -3406,8 +3389,7 @@ mod review_probes {
                 let sb = body(&ps, name);
                 for (_, v) in sb.vertices() {
                     let p = sb.get_point(v.point).expect("vertex point");
-                    let d =
-                        ((p.x - bc.x).powi(2) + (p.y - bc.y).powi(2) + (p.z - bc.z).powi(2)).sqrt();
+                    let d = p.distance(bc);
                     assert!(
                         d > br,
                         "{name}: a vertex is {d} inside {seg}'s globe R = {br}"
@@ -3681,7 +3663,7 @@ mod review_probes {
             assert_eq!(on.len(), 8, "a blade section has eight vertices");
             // Farthest pair -> the width and its axis.
             let mut width = 0.0;
-            let mut axis = Vec3::new(0.0, 0.0, 0.0);
+            let mut axis = Vec3::zero();
             for (i, a) in on.iter().enumerate() {
                 for bp in &on[i + 1..] {
                     let d = (*bp - *a).norm();
@@ -3694,10 +3676,11 @@ mod review_probes {
             // v completes the frame; its SIGN is fixed by asking which
             // side the deeper rise (the ridge) is on.
             let mut v = normal.cross(axis);
-            let c = on.iter().fold(Vec3::new(0.0, 0.0, 0.0), |acc, p| {
-                acc + (*p - Point3::new(0.0, 0.0, 0.0))
-            }) / 8.0;
-            let centroid = Point3::new(c.x, c.y, c.z);
+            let c = on
+                .iter()
+                .fold(Vec3::zero(), |acc, p| acc + (*p - Point3::origin()))
+                / 8.0;
+            let centroid = Point3::origin() + c;
             let hi = on
                 .iter()
                 .map(|p| (*p - centroid).dot(v))
@@ -4040,7 +4023,7 @@ mod verbs_gate_r1_probes {
                 Some(&Surface::Plane { origin, .. }) => Some((k, origin)),
                 _ => None,
             })
-            .find(|&(_, o)| (o - pncad::geom_core::Point3::new(0.0, 0.0, 0.0)).norm() > 2.0)
+            .find(|&(_, o)| (o - pncad::geom_core::Point3::origin()).norm() > 2.0)
             .expect("the arch carries a cap plane clear of the weld");
         // Unconditional on both halves. Under an `if let` this row
         // SELF-DISABLES the moment the refusal's shape changes — which
