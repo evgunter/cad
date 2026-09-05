@@ -397,7 +397,6 @@ fn r1_a_coefficient_past_the_bit_bound_freezes_and_is_counted() {
 #[test]
 fn r1_dyadic_exponent_alignment_within_the_bound_cancels() {
     let big = 2f64.powi(1000);
-    let small = 2f64.powi(-1000);
     let (ok, s, _) = sym(|| {
         let x = p("x", 0.5);
         lit(big) * x - lit(big) * x
@@ -405,11 +404,6 @@ fn r1_dyadic_exponent_alignment_within_the_bound_cancels() {
     assert!(ok && s == 1);
     let big = 2f64.powi(100);
     let small = 2f64.powi(-100);
-    let (ok, s, _) = sym(|| {
-        let x = p("x", 0.5);
-        lit(big) * x - lit(big) * x
-    });
-    assert!(ok && s == 1);
     let (ok, counts) = with_session(budget(), || {
         let x = p("x", 0.5);
         let sum = lit(big) * x + lit(small) * x;

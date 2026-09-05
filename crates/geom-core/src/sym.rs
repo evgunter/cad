@@ -300,7 +300,7 @@ use std::rc::Rc;
 
 use num_bigint::BigInt;
 use num_integer::Integer;
-use num_traits::{One, Signed, ToPrimitive, Zero};
+use num_traits::{Signed, ToPrimitive};
 
 use crate::predicate::{Band, Decide, Indeterminate, MarginDiag, Sign};
 use crate::real::{Bounds, CertifiedEnclosure, Real};
@@ -560,6 +560,230 @@ impl SymNode {
 
 // ---------------------------------------------------------- rationals
 
+/// **The coefficient integer: an `i128` inline, a `BigInt` only past
+/// it.** The ring is arbitrary-precision under [`COEFF_BITS`], but the
+/// overwhelming majority of a document's coefficients fit a machine
+/// word — the round constants, the small integers, the products that
+/// used to fit an `i128` — and measured, a `BigInt` for every one of
+/// them cost 4× per leaf on R2's bracket and 100× on a nominal replay
+/// (heap traffic, not arithmetic). So every operation runs the checked
+/// `i128` path first and promotes to a heap integer only on overflow,
+/// and every result that fits demotes back, which keeps the
+/// representation canonical (one value, one variant) so equality and
+/// the digest read it directly.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Int {
+    Small(i128),
+    Big(Box<BigInt>),
+}
+
+impl Int {
+    fn zero() -> Self {
+        Self::Small(0)
+    }
+
+    fn one() -> Self {
+        Self::Small(1)
+    }
+
+    /// Canonical: a big integer that fits an `i128` is `Small`.
+    fn from_big(b: BigInt) -> Self {
+        match i128::try_from(&b) {
+            Ok(v) => Self::Small(v),
+            Err(_) => Self::Big(Box::new(b)),
+        }
+    }
+
+    fn big(&self) -> BigInt {
+        match self {
+            Self::Small(v) => BigInt::from(*v),
+            Self::Big(b) => (**b).clone(),
+        }
+    }
+
+    fn is_zero(&self) -> bool {
+        matches!(self, Self::Small(0))
+    }
+
+    fn is_one(&self) -> bool {
+        matches!(self, Self::Small(1))
+    }
+
+    fn is_negative(&self) -> bool {
+        match self {
+            Self::Small(v) => *v < 0,
+            Self::Big(b) => b.is_negative(),
+        }
+    }
+
+    fn bits(&self) -> u64 {
+        match self {
+            Self::Small(v) => u64::from(128 - v.unsigned_abs().leading_zeros()),
+            Self::Big(b) => b.bits(),
+        }
+    }
+
+    fn neg(&self) -> Self {
+        match self {
+            Self::Small(v) => match v.checked_neg() {
+                Some(n) => Self::Small(n),
+                None => Self::from_big(-BigInt::from(*v)),
+            },
+            Self::Big(b) => Self::from_big(-(**b).clone()),
+        }
+    }
+
+    fn abs(&self) -> Self {
+        if self.is_negative() {
+            self.neg()
+        } else {
+            self.clone()
+        }
+    }
+
+    fn add(&self, o: &Self) -> Self {
+        if let (Self::Small(a), Self::Small(b)) = (self, o)
+            && let Some(v) = a.checked_add(*b)
+        {
+            return Self::Small(v);
+        }
+        Self::from_big(self.big() + o.big())
+    }
+
+    fn mul(&self, o: &Self) -> Self {
+        if let (Self::Small(a), Self::Small(b)) = (self, o)
+            && let Some(v) = a.checked_mul(*b)
+        {
+            return Self::Small(v);
+        }
+        Self::from_big(self.big() * o.big())
+    }
+
+    fn shl(&self, k: usize) -> Self {
+        if let Self::Small(a) = self
+            && k < 127
+            && let Some(v) = a.checked_mul(1i128 << k)
+        {
+            return Self::Small(v);
+        }
+        Self::from_big(self.big() << k)
+    }
+
+    /// The greatest common divisor of the magnitudes (positive).
+    fn gcd(&self, o: &Self) -> Self {
+        if let (Self::Small(a), Self::Small(b)) = (self, o) {
+            let g = gcd_u128(a.unsigned_abs(), b.unsigned_abs());
+            return match i128::try_from(g) {
+                Ok(v) => Self::Small(v),
+                Err(_) => Self::from_big(BigInt::from(g)),
+            };
+        }
+        Self::from_big(self.big().gcd(&o.big()))
+    }
+
+    /// Exact division by a divisor known to divide.
+    fn div_exact(&self, d: &Self) -> Self {
+        if let (Self::Small(a), Self::Small(b)) = (self, d)
+            && let Some(v) = a.checked_div(*b)
+        {
+            return Self::Small(v);
+        }
+        Self::from_big(self.big() / d.big())
+    }
+
+    /// The odd part and the number of twos stripped (`0` keeps zero).
+    fn strip_twos(&self) -> (Self, u64) {
+        match self {
+            Self::Small(0) => (Self::Small(0), 0),
+            Self::Small(v) => {
+                let k = v.trailing_zeros();
+                (Self::Small(v >> k), u64::from(k))
+            }
+            Self::Big(b) => {
+                let k = b.trailing_zeros().unwrap_or(0);
+                (Self::from_big((**b).clone() >> k), k)
+            }
+        }
+    }
+
+    /// `Some(r)` iff `r·r == self` exactly, for `self >= 0`.
+    fn isqrt_exact(&self) -> Option<Self> {
+        if self.is_negative() {
+            return None;
+        }
+        if let Self::Small(v) = self {
+            let r = isqrt_u128(v.unsigned_abs())?;
+            return i128::try_from(r).ok().map(Self::Small);
+        }
+        let b = self.big();
+        let r = b.sqrt();
+        (&r * &r == b).then(|| Self::from_big(r))
+    }
+
+    /// A rounded `f64` (at most an ulp off), or `None` past the range.
+    fn to_f64(&self) -> Option<f64> {
+        match self {
+            Self::Small(v) => Some(*v as f64),
+            Self::Big(b) => b.to_f64(),
+        }
+    }
+
+    /// Feeds the integer to a content hash: the sign and the digits.
+    fn feed(&self, h: Hash128) -> Hash128 {
+        match self {
+            Self::Small(v) => h.word(0).wide(*v as u128),
+            Self::Big(b) => {
+                let (_, digits) = b.to_u32_digits();
+                let mut h = h.word(u64::from(b.is_negative())).word(digits.len() as u64);
+                for d in digits {
+                    h = h.word(u64::from(d));
+                }
+                h
+            }
+        }
+    }
+}
+
+impl core::fmt::Display for Int {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Small(v) => write!(f, "{v}"),
+            Self::Big(b) => write!(f, "{b}"),
+        }
+    }
+}
+
+/// The greatest common divisor of two magnitudes.
+fn gcd_u128(mut a: u128, mut b: u128) -> u128 {
+    while b != 0 {
+        let t = a % b;
+        a = b;
+        b = t;
+    }
+    a
+}
+
+/// `Some(r)` iff `r·r == n` exactly.
+fn isqrt_u128(n: u128) -> Option<u128> {
+    if n < 2 {
+        return Some(n);
+    }
+    let mut x = (n as f64).sqrt() as u128;
+    if x == 0 {
+        x = 1;
+    }
+    for _ in 0..8 {
+        x = (x + n / x) / 2;
+    }
+    while x.checked_mul(x).is_none_or(|s| s > n) {
+        x -= 1;
+    }
+    while (x + 1).checked_mul(x + 1).is_some_and(|s| s <= n) {
+        x += 1;
+    }
+    (x * x == n).then_some(x)
+}
+
 /// An exact rational `num / den · 2^exp2`, with `num`/`den` odd and
 /// coprime and `den > 0` — the normal form's coefficient.
 ///
@@ -581,8 +805,8 @@ impl SymNode {
 /// bound (module docs).
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Rat {
-    num: BigInt,
-    den: BigInt,
+    num: Int,
+    den: Int,
     exp2: i32,
 }
 
@@ -602,29 +826,19 @@ struct Rat {
 /// `work/m10/plate-rim-residual-needs-the-wide-coefficient-ring`.
 const COEFF_BITS: u64 = 256;
 
-/// Strips factors of two out of `v`, answering the odd part and how many
-/// were removed. `v == 0` keeps zero and removes none.
-fn strip_twos(v: BigInt) -> (BigInt, u64) {
-    if v.is_zero() {
-        return (v, 0);
-    }
-    let k = v.trailing_zeros().unwrap_or(0);
-    (v >> k, k)
-}
-
 impl Rat {
     fn zero() -> Self {
         Self {
-            num: BigInt::zero(),
-            den: BigInt::one(),
+            num: Int::zero(),
+            den: Int::one(),
             exp2: 0,
         }
     }
 
     fn one() -> Self {
         Self {
-            num: BigInt::one(),
-            den: BigInt::one(),
+            num: Int::one(),
+            den: Int::one(),
             exp2: 0,
         }
     }
@@ -632,12 +846,12 @@ impl Rat {
     /// `num / den · 2^exp2` from machine integers — the door literals
     /// and small constants come through.
     fn new(num: i128, den: i128, exp2: i32) -> Option<Self> {
-        Self::from_parts(BigInt::from(num), BigInt::from(den), exp2)
+        Self::from_parts(Int::Small(num), Int::Small(den), exp2)
     }
 
     /// Reduces `num / den · 2^exp2` to the canonical shape, refusing a
     /// zero denominator and an integer past [`COEFF_BITS`].
-    fn from_parts(num: BigInt, den: BigInt, exp2: i32) -> Option<Self> {
+    fn from_parts(num: Int, den: Int, exp2: i32) -> Option<Self> {
         if den.is_zero() {
             return None;
         }
@@ -645,14 +859,18 @@ impl Rat {
             return Some(Self::zero());
         }
         let (num, den) = if den.is_negative() {
-            (-num, -den)
+            (num.neg(), den.neg())
         } else {
             (num, den)
         };
         let g = num.gcd(&den);
-        let (num, den) = (num / &g, den / &g);
-        let (num, nz) = strip_twos(num);
-        let (den, dz) = strip_twos(den);
+        let (num, den) = if g.is_one() {
+            (num, den)
+        } else {
+            (num.div_exact(&g), den.div_exact(&g))
+        };
+        let (num, nz) = num.strip_twos();
+        let (den, dz) = den.strip_twos();
         let exp2 = exp2
             .checked_add(i32::try_from(nz).ok()?)?
             .checked_sub(i32::try_from(dz).ok()?)?;
@@ -702,21 +920,21 @@ impl Rat {
         }
         // Align on the smaller exponent, shifting the other numerator up.
         let lo = self.exp2.min(other.exp2);
-        let shift = |r: &Self| -> Option<BigInt> {
+        let shift = |r: &Self| -> Option<Int> {
             let k = usize::try_from(r.exp2.checked_sub(lo)?).ok()?;
             if k as u64 > COEFF_BITS {
                 return None;
             }
-            Some(&r.num << k)
+            Some(r.num.shl(k))
         };
         let (a, b) = (shift(self)?, shift(other)?);
-        let num = a * &other.den + b * &self.den;
-        Self::from_parts(num, &self.den * &other.den, lo)
+        let num = a.mul(&other.den).add(&b.mul(&self.den));
+        Self::from_parts(num, self.den.mul(&other.den), lo)
     }
 
     fn neg(&self) -> Option<Self> {
         Some(Self {
-            num: -&self.num,
+            num: self.num.neg(),
             den: self.den.clone(),
             exp2: self.exp2,
         })
@@ -735,8 +953,8 @@ impl Rat {
             return Some(Self::zero());
         }
         Self::from_parts(
-            &self.num * &other.num,
-            &self.den * &other.den,
+            self.num.mul(&other.num),
+            self.den.mul(&other.den),
             self.exp2.checked_add(other.exp2)?,
         )
     }
@@ -759,12 +977,12 @@ impl Rat {
             return Some(Self::zero());
         }
         let (num, exp2) = if self.exp2 % 2 != 0 {
-            (&self.num << 1usize, self.exp2.checked_sub(1)?)
+            (self.num.shl(1), self.exp2.checked_sub(1)?)
         } else {
             (self.num.clone(), self.exp2)
         };
-        let sn = isqrt_exact(&num)?;
-        let sd = isqrt_exact(&self.den)?;
+        let sn = num.isqrt_exact()?;
+        let sd = self.den.isqrt_exact()?;
         Self::from_parts(sn, sd, exp2 / 2)
     }
 
@@ -790,27 +1008,12 @@ impl Rat {
     }
 
     /// Feeds the coefficient to a content hash (the atom-keying digest):
-    /// the sign, every 32-bit digit of both integers, and the exponent.
-    fn feed(&self, mut h: Hash128) -> Hash128 {
-        h = h.word(u64::from(self.num.is_negative()));
-        for part in [&self.num, &self.den] {
-            let (_, digits) = part.to_u32_digits();
-            h = h.word(digits.len() as u64);
-            for d in digits {
-                h = h.word(u64::from(d));
-            }
-        }
-        h.word(u64::from(self.exp2 as u32))
+    /// both integers and the exponent.
+    fn feed(&self, h: Hash128) -> Hash128 {
+        self.den
+            .feed(self.num.feed(h))
+            .word(u64::from(self.exp2 as u32))
     }
-}
-
-/// `Some(r)` iff `r·r == n` exactly, for `n >= 0`.
-fn isqrt_exact(n: &BigInt) -> Option<BigInt> {
-    if n.is_negative() {
-        return None;
-    }
-    let r = n.sqrt();
-    (&r * &r == *n).then_some(r)
 }
 
 // ----------------------------------------------------------- the form
@@ -1142,9 +1345,9 @@ impl SymRules {
             sqrt_square: false,
             pythagoras: false,
             const_fold: true,
-            early: true,
+            early: false,
             early_ab: false,
-            signed_root: true,
+            signed_root: false,
         }
     }
 

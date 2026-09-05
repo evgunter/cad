@@ -218,7 +218,8 @@ fn r1_a0_constant_fold_is_exact() {
         (
             sign_of(lit(4.0).sqrt() * x - lit(2.0) * x),
             sign_of(plate_edge.sqrt() * x - lit(8.0e-3) * x),
-            sign_of(lit(2.0).sqrt() * x - lit(1.4142) * x),
+            // 1.41 is not the root of 2 (clippy would read 1.4142 as one).
+            sign_of(lit(2.0).sqrt() * x - lit(1.41) * x),
             sign_of(lit(-3.0).abs() - lit(3.0)),
             sign_of(lit(-4.0).sqrt() - lit(2.0)),
         )

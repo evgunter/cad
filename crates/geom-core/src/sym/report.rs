@@ -21,8 +21,6 @@ use super::{
     Discharge, Form, INDET_PI, ParamSymbol, Poly, Rat, SESSION, Session, SymId, SymOp, indet_param,
     plain_form,
 };
-use num_traits::One;
-
 use crate::predicate::{Indeterminate, MarginDiag, Sign};
 
 /// How one decision at the symbolic scalar came out.
@@ -166,7 +164,7 @@ fn render_poly(sess: &Session, p: &Poly, depth: usize) -> String {
 
 fn render_rat(c: &Rat) -> String {
     if c.den.is_one() && (0..=40).contains(&c.exp2) {
-        return format!("{}", &c.num << (c.exp2 as usize));
+        return format!("{}", c.num.shl(c.exp2 as usize));
     }
     if c.den.is_one() {
         return format!("{}·2^{}", c.num, c.exp2);
