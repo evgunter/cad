@@ -22,7 +22,7 @@ use std::path::{Path, PathBuf};
 use common::asm;
 use pncad::document::{
     Alignment, AxisSense, Doc, DocumentId, MateFrame, MatePrimitive, Node, NodeResult,
-    RecipeNodeId, SlotId,
+    RecipeNodeId, SitedRef, SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
@@ -168,8 +168,8 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
 
     // The shipped mate tool's op takes them from here.
     let outcome = session.perform(SessionOp::AddMate {
-        a: asm::in_part(post_i, &bench.post_top),
-        b: asm::in_part(shelf_i, &bench.shelf_bottom),
+        a: SitedRef::at_mint(asm::in_part(post_i, &bench.post_top)),
+        b: SitedRef::at_mint(asm::in_part(shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Rest,
         alignment: seat_alignment(),
     });
