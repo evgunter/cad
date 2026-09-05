@@ -175,8 +175,7 @@ pub(crate) fn nearest_candidate(setbacks: &[[f64; 2]]) -> usize {
 ///
 /// `joints` is never empty at the call site (the caller refuses with
 /// the `NoCornerOfPair` envelope first); an empty slice returns 0,
-/// matching
-/// [`nearest_candidate`]'s own total shape.
+/// matching [`nearest_candidate`]'s own total shape.
 pub(crate) fn nearest_joint<T: Bounds>(joints: &[ArcFilletCandidate<T>]) -> usize {
     let setbacks: Vec<[f64; 2]> = joints
         .iter()

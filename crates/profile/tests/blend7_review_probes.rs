@@ -1,20 +1,20 @@
-//! BLEND-7 r1 review probes (lane-local; NOT for merge).
+//! The enclosing-tangency class, exercised through the PUBLIC API only,
+//! as an outside consumer would author it.
 //!
-//! Exercises PR #1267's claims through the PUBLIC API only, as an
-//! outside consumer would author:
+//! Written as BLEND-7's r1 review probes and KEPT as pins: each row
+//! below asserts a property of the shipped refusal, and the two that
+//! only printed a measurement for a merge-base differential (a
+//! `NoCornerSideCandidate` mining sweep, an outcome digest over an
+//! unbracketed anchor grid) were deleted with the comparison they were
+//! taken for — a row that asserts nothing cannot gate.
 //!
 //! - P1: the post-gate radius bands on the pinned row-1 geometry, and
 //!   the recourse gap ("use a radius below R" vs what actually builds);
-//! - P2: enclosing-demanding geometry OUTSIDE the PR's grid
+//! - P2: enclosing-demanding geometry OUTSIDE the ratifying grid's
 //!   distribution (scale ratios past 15x, corners far from the origin,
 //!   hairline carrier pairs, line x arc) — hunting a false negative;
-//! - P3: the unbracketed other-crossing build (the PR's 0.83 m
-//!   example), decoded and measured;
-//! - P4: a mining sweep for a surviving `NoCornerSideCandidate`
-//!   witness on line x arc corners (the variant lost its arc x arc
-//!   one);
-//! - P5: an outcome digest over an unbracketed anchor grid, printed,
-//!   for a merge-base differential run.
+//! - P3: the unbracketed other-crossing build, decoded and measured;
+//! - P6: unequal carriers, where the endorsed bound is a chain.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -24,7 +24,7 @@
 
 use geom_core::{Point2, Tol};
 use profile::path::CornerReason;
-use profile::{ArcSweep, Center, NoCornerReason, Open, PathError, ProfileLoop, Start};
+use profile::{ArcSweep, Center, Open, PathError, ProfileLoop, Start};
 
 const PI: f64 = core::f64::consts::PI;
 const FRAC_PI_2: f64 = core::f64::consts::FRAC_PI_2;
@@ -170,26 +170,38 @@ fn fillet_arc(lp: &ProfileLoop<f64>, r: f64) -> Option<(Point2<f64>, Point2<f64>
 /// corner only BUILDS below (R1+R2-d)/2 = 0.0586.
 #[test]
 fn p1_row1_radius_bands_and_recourse_gap() {
-    let mut bands: Vec<(f64, String)> = Vec::new();
+    let mut bands: Vec<(f64, String, Vec<String>)> = Vec::new();
     for i in 1..=24 {
         let r = 0.025 * f64::from(i);
-        let out = match row1_bracketed(r) {
-            Ok(_) => "BUILDS".to_string(),
-            Err(e) => tag(&e),
+        let (out, entries) = match row1_bracketed(r) {
+            Ok(_) => ("BUILDS".to_string(), Vec::new()),
+            Err(ref e) => (
+                tag(e),
+                crate::common::corners(e)
+                    .iter()
+                    .map(|c| entry_tag(&c.reason))
+                    .collect(),
+            ),
         };
-        bands.push((r, out));
+        bands.push((r, out, entries));
     }
-    for (r, out) in &bands {
+    for (r, out, _) in &bands {
         println!("P1 r={r:.3} -> {out}");
     }
-    // The enclosing band: every r > 0.2 (off-band) must carry the typed
+    // The enclosing band: every r > 0.2 (off-band) must be the typed
     // enclosing refusal now — no disjoint-offset / corner-side /
-    // anchor-fit costumes left above the bound. The envelope reports
-    // every crossing, so the claim is about the entry for the corner
-    // that demands the class, not about which entry prints first.
-    for (r, out) in &bands {
+    // anchor-fit costumes left above the bound. EXACTLY, not by
+    // substring: one entry, and it is the enclosing class. The
+    // window-discarded crossing is not listed beside it, so a second
+    // entry here would be a change in what the refusal claims.
+    for (r, out, entries) in &bands {
         if *r >= 0.225 {
-            assert!(out.contains("Encloses"), "r={r}: {out}");
+            assert_eq!(entries.len(), 1, "r={r}: {out}");
+            assert!(
+                entries[0].starts_with("Encloses("),
+                "r={r}: the one entry is {}, not the enclosing class",
+                entries[0]
+            );
         }
     }
     // The recourse gap: the refusal at r=0.5 names "below 0.2", but
@@ -208,6 +220,9 @@ fn p2a_enclosing_extremes_still_refuse_typed() {
     let c = p2(1.0e4, -3.0e3);
     let err = author_arc_arc(c, 0.3, 0.01, 1.0, 2.9, 1.7, 2.0, 1.0, 0.9, 10.0)
         .expect_err("r=10 vs R=0.01/2.0 demands the enclosing class");
+    // The drawn corner, alone: the envelope is about the crossing the
+    // anchors bracket and does not add the other one beside it.
+    crate::common::assert_corners(&err, &[(c.x, c.y)], "the drawn corner");
     assert!(crate::common::is_enclosing(&err), "got {err:?}");
     // Hairline pair: carriers nearly internally tangent (centres
     // 1e-4 apart at matched radii), r far above both.
@@ -381,137 +396,6 @@ fn p3_unbracketed_other_crossing_build_decoded() {
     assert!(d_centre > 0.8, "centre distance {d_centre}");
 }
 
-/// P4: mine line x arc corners for a surviving `NoCornerSideCandidate`
-/// witness (the arc x arc one was re-pointed by the PR).
-#[test]
-fn p4_mine_no_corner_side_candidate_line_arc() {
-    let mut hits = 0_u32;
-    let mut total = 0_u32;
-    let mut first: Option<String> = None;
-    for ir in 1..=12 {
-        let rc = 0.1 * f64::from(ir); // carrier radius
-        for it in 0..2 {
-            let tau = if it == 0 { 1.0 } else { -1.0 };
-            for ia in 0..8 {
-                let a = 0.7 * f64::from(ia); // corner angle about centre
-                for irr in 1..=10 {
-                    let r = 0.08 * f64::from(irr) * rc; // fillet radius
-                    for &dl in &[0.4, 1.5] {
-                        for &da in &[0.6, 2.5] {
-                            total += 1;
-                            let c = p2(0.1, -0.3);
-                            let ca = p2(c.x - rc * a.cos(), c.y - rc * a.sin());
-                            let head = p2(c.x - dl, c.y);
-                            let next = on_circle(ca, rc, a + tau * da);
-                            let got =
-                                Open.at(head)
-                                    .toward(1.0, 0.0, Tol::witness())
-                                    .and_then(|bld| {
-                                        bld.fillet_arc(
-                                            r,
-                                            Center {
-                                                c: ca,
-                                                winding: if tau > 0.0 {
-                                                    ArcSweep::Ccw
-                                                } else {
-                                                    ArcSweep::Cw
-                                                },
-                                                p: next,
-                                            },
-                                            Tol::witness(),
-                                        )
-                                    });
-                            if got.as_ref().err().is_some_and(|e| {
-                                crate::common::any_reason(e, |r| {
-                                    matches!(
-                                        r,
-                                        CornerReason::NoTangentCircle(
-                                            NoCornerReason::NoCornerSideCandidate
-                                        )
-                                    )
-                                })
-                            }) {
-                                hits += 1;
-                                if first.is_none() {
-                                    first = Some(format!(
-                                        "rc={rc} tau={tau} a={a} r={r} dl={dl} da={da}"
-                                    ));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    println!("P4 NoCornerSideCandidate hits={hits}/{total} first={first:?}");
-}
-
-/// P5: outcome digest over an unbracketed anchor grid on row-1
-/// carriers at r = 0.5 — run identically at the merge base to check
-/// the "unbracketed builds unchanged" claim. 20x20 leg extents.
-#[test]
-fn p5_unbracketed_grid_digest() {
-    let mut digest = String::new();
-    let mut n_build = 0_u32;
-    for i in 1..=20 {
-        for j in 1..=20 {
-            let din = 0.3 * f64::from(i);
-            let dout = 0.3 * f64::from(j);
-            let out = match author_arc_arc(
-                p2(0.0, 0.0),
-                0.0,
-                0.2,
-                1.0,
-                din,
-                FRAC_PI_2,
-                0.2,
-                1.0,
-                dout,
-                0.5,
-            ) {
-                Ok(lp) => {
-                    n_build += 1;
-                    // Digest the emitted fillet arc so a CHANGED build
-                    // (not merely a same-count build) is visible.
-                    match fillet_arc(&lp, 0.5) {
-                        Some((t1, t2, b)) => {
-                            format!(
-                                "B({:.6},{:.6},{:.6},{:.6},{:.6})",
-                                t1.x, t1.y, t2.x, t2.y, b
-                            )
-                        }
-                        None => "B(noarc)".to_string(),
-                    }
-                }
-                Err(e) => match &e {
-                    PathError::NoCornerOfPair { corners, .. } => {
-                        let entries: Vec<&str> = corners
-                            .iter()
-                            .map(|c| match &c.reason {
-                                CornerReason::EnclosesLegCarrier { .. } => "Enc",
-                                CornerReason::NoTangentCircle(_) => "NT",
-                                CornerReason::AnchorOutsideTrimmedExtent { .. } => "AF",
-                                CornerReason::OutsideAnchors(_) => "OA",
-                            })
-                            .collect();
-                        format!("P[{}]", entries.join(","))
-                    }
-                    PathError::NoCornerForFillet { reason, .. } => format!("NC({reason:?})"),
-                    PathError::FilletOffsetLeverTooShort { .. } => "LS".to_string(),
-                    other => format!("O({other:?})").chars().take(30).collect(),
-                },
-            };
-            digest.push_str(&format!("{i},{j}:{out};"));
-        }
-    }
-    let hash: u64 = digest.bytes().fold(1469598103934665603_u64, |h, b| {
-        (h ^ u64::from(b)).wrapping_mul(1099511628211)
-    });
-    println!("P5 builds={n_build} fnv={hash:x}");
-    println!("P5DIGEST {digest}");
-}
-
 /// P6: unequal carriers (row-c4 shape, R_in 0.4 / R_out 0.15, sigma =
 /// tau = -1): the refusal names the FIRST swallowed side's bound
 /// (0.4), and following it to r = 0.3 lands on a second enclosing
@@ -531,6 +415,7 @@ fn p6_unequal_carriers_bound_is_two_step() {
     // between them re-refuses). The bound is now the tightest carrier on
     // both rows, and the endorsed radius is the existence bound rather
     // than either carrier.
+    crate::common::assert_corners(&e1, &[(c.x, c.y)], "r=0.9: the drawn corner");
     let Some((_, carrier_radius, _, largest_tangent_radius)) = crate::common::enclosing(&e1) else {
         panic!("r=0.9: {e1:?}")
     };
@@ -547,6 +432,7 @@ fn p6_unequal_carriers_bound_is_two_step() {
         go(0.99 * bound).is_ok(),
         "the endorsed radius must build, or the recourse is dead again"
     );
+    crate::common::assert_corners(&e2, &[(c.x, c.y)], "r=0.3: the drawn corner");
     let Some((_, carrier_radius, _, _)) = crate::common::enclosing(&e2) else {
         panic!("r=0.3: {e2:?}")
     };

@@ -230,8 +230,15 @@ fn the_six_sentences_render_off_the_one_display_arm_that_has_no_producer() {
 #[test]
 fn the_no_corner_recourse_reduces_to_a_radius_that_builds() {
     let err = line_arc_internal(1.5).expect_err("no tangent circle exists at r = 1.5");
+    // One corner, and the row says which: the reachable crossing.
+    let listed = crate::common::corners(&err);
+    assert_eq!(
+        listed.len(),
+        1,
+        "one corner reached the construction: {err:?}"
+    );
     assert!(
-        crate::common::any_reason(&err, |r| matches!(r, CornerReason::NoTangentCircle(_))),
+        matches!(listed[0].reason, CornerReason::NoTangentCircle(_)),
         "the corner-existence gate is what refuses, got {err:?}"
     );
     carries_no_fillet_recourse(&err, "no corner for a fillet");
@@ -273,6 +280,12 @@ fn the_fit_recourse_is_followed_by_a_smaller_radius_and_by_longer_legs() {
 #[test]
 fn the_enclosing_recourse_endorses_a_bound_that_builds() {
     let err = two_lobes(1.0 + 50.0 * tol().eps()).expect_err("a radius above the lobe radius");
+    let listed = crate::common::corners(&err);
+    assert_eq!(
+        listed.len(),
+        1,
+        "the lens's bracketed crossing answers alone: {err:?}"
+    );
     let Some((_, _, _, largest_tangent_radius)) = crate::common::enclosing(&err) else {
         panic!("the enclosing class is what refuses, got {err:?}")
     };
@@ -372,11 +385,14 @@ fn the_turn_in_band_recourse_is_followed_by_moving_the_geometry() {
 #[test]
 fn the_leg_extent_recourse_is_followed_by_giving_the_leg_an_extent() {
     let err = bend(4.0, 1.0, 0.2).expect_err("an incoming leg with no extent");
+    // A straight pair derives one corner, and it is the ray's own
+    // origin — which is exactly why the ray-order gate answers.
+    crate::common::assert_corners(&err, &[(4.0, 0.0)], "the collapsed corner");
     assert!(
-        crate::common::any_reason(&err, |r| matches!(
-            r,
+        matches!(
+            crate::common::corners(&err)[0].reason,
             CornerReason::OutsideAnchors(CornerWindow::BehindIncomingRay)
-        )),
+        ),
         "the ray-order gate answers before the collapsed-arm one, got {err:?}"
     );
     carries_no_fillet_recourse(&err, "a leg with no extent");

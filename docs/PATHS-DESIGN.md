@@ -915,8 +915,9 @@ geometry — the lattice guarantees the authoring, never the
 geometry: the junction check (§4 item 1); `NoCornerForFillet`
 (the pair-level conditions that name no corner at all: carriers
 parallel, carriers never meeting); `NoCornerOfPair`, the envelope
-naming EVERY derived corner that refused with that corner's own
-reason and point (r too large, corner behind the ray or before the
+naming every corner that REFUSED at the answering stage with that
+corner's own reason and point (not every corner the pair derives —
+a pair derives up to two and most refusals list one) (r too large, corner behind the ray or before the
 arrival anchor, no tangent circle, a trim that would eat an anchor
 — the #101 `TangentJointOutOfRange` fit-gating generalized,
 carrying the side's carrier kind, also checked for the entry point

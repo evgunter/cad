@@ -155,6 +155,14 @@ impl<T: Real> FilletSide<T> {
     /// argument orders — which is exactly why [`signed_swept`], and not
     /// the forward-only `swept`, is the angular spelling: past-the-end
     /// must come out NEGATIVE rather than wrapping to nearly 2π.
+    ///
+    /// So a STRAIGHT side reports `path_corner_advance` for both
+    /// windows while [`super::CornerWindow`] distinguishes them, and
+    /// that is right: the predicate names the MARGIN being classified,
+    /// which is one margin computed one way, whereas the window names
+    /// which side's anchor the corner fell outside. The two circular
+    /// spellings differ only because the arc gates were new margins,
+    /// not because the windows are different questions.
     fn travel(&self, from: Point2<T>, to: Point2<T>, arc_name: &'static str) -> (&'static str, T) {
         match self.carrier {
             SideCarrier::Ray(u) => ("path_corner_advance", (to - from).dot(u)),
@@ -378,28 +386,25 @@ fn derive<T: Decide>(
     }
 }
 
-/// An [`ArcTrimRefusal`] in the algebra's error vocabulary. The door
-/// owns the bracket reads, exactly as `fillet_corner` does: the leg
-/// diagnostics are `f64` enclosure lower bounds, for messages and never
-/// for re-deciding.
+/// What the ratified construction's refusal at one derived corner
+/// turns out to be ABOUT — which decides where it goes.
 ///
-/// Three reads on three lines, none of them a re-decision: `arm.lo()`
-/// is a value-channel BRANCH between two message sites, `r.lo()` is an
-/// `f64` payload field, and `(margin / r).lo()` brackets a quotient
-/// computed at `T` into a second one. Nothing read here re-enters the
-/// computation, so the sole `T: Bounds` is the whole obligation: this
-/// door decides nothing, which is why it does not carry the module's
-/// `Decide` half. At a dual scalar the three are the value channel's
-/// A construction refusal at ONE derived corner, sorted into the two
-/// things a refusal can be about.
+/// The construction runs per corner, but not everything it can refuse
+/// is a fact about that corner: the carriers being tangent where they
+/// cross, a leg with no length scale, a band that cannot classify and
+/// the M8 lever gate are all facts about the pair or about the run.
+/// Those become the resolve's whole-pair refusal, which outranks the
+/// envelope. What is left is a statement about this corner and becomes
+/// an entry beside its point.
 enum CornerOutcome<T: Real> {
     /// A statement about this corner: it becomes an envelope entry,
     /// beside the corner point.
     Reason(CornerReason<T>),
     /// A refusal that names no corner — the pair is parallel at the
     /// derived corner, a leg has no length scale, the band failed, or
-    /// the conditioning gate aborted. First one wins, as before, and it
-    /// surfaces only when the envelope has no entry to carry.
+    /// the conditioning gate aborted. First one wins, and it OUTRANKS
+    /// the envelope: a fact about the pair answers before any fact
+    /// about one of its corners does.
     Whole(PathError<T>),
 }
 
@@ -534,11 +539,17 @@ fn anchor_span<T: Bounds>(
 ///
 /// # Errors
 ///
-/// [`PathError`] — a carrier pair with no corner, a corner every gate
-/// rejects, an anchor the trim would eat (now carrying the arc side's
-/// angular margin), or an escalation. An escalation ANYWHERE aborts
-/// immediately: a joint space one of whose members cannot be classified
-/// cannot be honestly ranked.
+/// [`PathError`], in the order the answers outrank one another. A
+/// refusal that names NO corner comes first — a pair with no crossing
+/// or a tangency at one ([`PathError::NoCornerForFillet`]), a leg with
+/// no length scale, the M8 lever gate, a band failure — because it is
+/// a fact about the pair. Otherwise
+/// [`PathError::NoCornerOfPair`]: the corners that refused at the
+/// answering stage, each with its own reason and point, the
+/// construction's stage answering when any corner reached it and the
+/// anchor windows' when none did. An escalation ANYWHERE aborts
+/// immediately: a joint space one of whose members cannot be
+/// classified cannot be honestly ranked.
 pub(crate) fn resolve<T: Decide + Bounds>(
     guide: &mut Guide<T>,
     incoming: FilletSide<T>,
@@ -548,21 +559,24 @@ pub(crate) fn resolve<T: Decide + Bounds>(
 ) -> Result<ArcFilletTrims<T>, PathError<T>> {
     let consumed = guide.consume().map_err(structure)?;
     let band = linear_band(tol)?;
-    // Two refusal channels, deliberately, and each is now a LIST rather
-    // than a first-one-wins pick. A corner the GATES discard is the
-    // weaker story — the author's anchors simply do not bracket it, and
-    // the other root is usually the one they meant. A corner that
-    // PASSED the gates and then failed to admit a tangent circle is the
-    // real answer, so the construction's list outranks the gates' when
-    // both are non-empty; adding the unbracketed corner's "you did not
-    // bracket me" beside the answer is noise, not attribution. Within
-    // the answering channel nothing is picked: every corner that
-    // refused there is an entry, with its own reason and its own point.
+    // Two ENTRY channels and one whole-pair slot; each entry channel is
+    // a LIST rather than a first-one-wins pick.
+    //
+    // A corner the GATES discard is the weaker story — the author's
+    // anchors simply do not bracket it, and the other root is usually
+    // the one they meant. A corner that PASSED the gates and then
+    // failed to admit a tangent circle is the real answer, so the
+    // construction's list answers when it is non-empty. The two lists
+    // are never merged, because the spec's acceptance row asks for a
+    // ONE-entry envelope where only one crossing sits in the windows:
+    // the unbracketed corner's "you did not bracket me" beside the
+    // answer is noise, not attribution. Within the answering channel
+    // nothing is picked: every corner that refused there is an entry,
+    // with its own reason and its own point.
     let mut build_entries: Vec<CornerRefusal<T>> = Vec::new();
     let mut gate_entries: Vec<CornerRefusal<T>> = Vec::new();
-    // The refusals that name NO corner — the pair tangent at a derived
-    // corner, a leg with no length scale, a band failure. First one
-    // wins, and one surfaces only when no entry does.
+    // The refusals that name NO corner. First one wins, and one
+    // OUTRANKS both entry lists — see the terminal choice below.
     let mut whole_refused: Option<PathError<T>> = None;
     // (1/2) derive, then gate — advance on the incoming side, reach on
     // the arrival side. A rejected corner is remembered, not returned:
@@ -731,6 +745,19 @@ pub(crate) fn resolve<T: Decide + Bounds>(
     }
     // (4) the lifted ladder over the flattened joint space.
     if joints.is_empty() {
+        // A whole-pair refusal OUTRANKS the envelope, as it did before
+        // the envelope existed. It is a fact about the pair — these
+        // carriers are tangent at a derived corner, a leg has no length
+        // scale, the band could not classify — so a per-corner sentence
+        // beside it, or instead of it, would be a smaller and weaker
+        // claim about a situation the whole pair is in. Nothing is
+        // discarded silently: the refusal reported is the strongest
+        // true statement available, and the entries it outranks are
+        // statements about corners of a pair that has already been
+        // refused as a pair.
+        if let Some(whole) = whole_refused {
+            return Err(whole);
+        }
         let mut entries = if build_entries.is_empty() {
             gate_entries
         } else {
@@ -753,8 +780,7 @@ pub(crate) fn resolve<T: Decide + Bounds>(
                 corners: entries,
             });
         }
-        return Err(whole_refused
-            .unwrap_or_else(|| no_corner(PathNoCornerReason::CarriersDoNotMeet, radius)));
+        return Err(no_corner(PathNoCornerReason::CarriersDoNotMeet, radius));
     }
     //
     // A guided pass does not run the ladder AT ALL. That is not

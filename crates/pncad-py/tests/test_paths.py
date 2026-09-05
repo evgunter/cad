@@ -339,9 +339,10 @@ class TestRefusalsFireAtTheCallSite(unittest.TestCase):
 
     def test_a_fillet_refusal_names_every_corner_it_tried(self):
         # The envelope: a refusal about a carrier PAIR reports every
-        # derived corner that refused, each with its own reason and its
-        # own point. A straight pair derives one corner, so the list is
-        # one row; the reason is reachable without parsing the sentence.
+        # corner that refused at the answering stage, each with its own
+        # reason and its own point. A straight pair derives one corner,
+        # so the list is one row; the reason is reachable without
+        # parsing the sentence.
         with self.assertRaises(pncad.PathError) as caught:
             (
                 Open.at(ORIGIN)

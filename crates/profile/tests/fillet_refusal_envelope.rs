@@ -14,8 +14,12 @@
 //! - every refusing crossing is reported, with ITS reason — not the
 //!   first one enumerated (the defect);
 //! - a crossing the windows discarded is NOT listed beside a crossing
-//!   that reached the construction: the two channels' precedence is
-//!   BLEND-7's fence and stands, so the envelope adds no noise;
+//!   that reached the construction — the spec's acceptance row asks for
+//!   a one-entry envelope where only one crossing sits in the windows,
+//!   so the envelope adds no noise;
+//! - a refusal that names NO corner — the pair-level conditions, the
+//!   M8 conditioning gate — outranks the envelope and reaches the
+//!   caller as itself;
 //! - the ORDER is presentation. The rows pin that it is a function of
 //!   the anchors and that it is stable across repeats; nothing pins
 //!   that a caller may read meaning into which entry came first.
@@ -164,8 +168,11 @@ fn both_refusing_crossings_are_reported_each_with_its_own_reason() {
 /// Where only ONE crossing reaches the construction — the other having
 /// been discarded by the anchor windows — the envelope carries that one
 /// entry. Reporting the discarded crossing beside it would answer a
-/// question the author did not ask, and the two-channel precedence that
-/// keeps it out is BLEND-7's fence, untouched here.
+/// question the author did not ask; what keeps it out is the spec's own
+/// acceptance row ("only one crossing sits in the windows → one
+/// entry"), not the fence — merging the two channels would re-rank no
+/// gate, since nothing branches on entry order and both channels yield
+/// the same variant.
 #[test]
 fn a_crossing_the_windows_discarded_is_not_listed_beside_the_answer() {
     // A straight incoming ray whose origin sits between the two
@@ -357,6 +364,69 @@ fn the_envelope_replays_and_its_order_follows_the_anchors() {
     assert!(
         span(f[0].at, in_anchor, out_far) <= span(f[1].at, in_anchor, out_far),
         "the far-anchor run reports the nearer crossing first"
+    );
+}
+
+/// **C4 at EVERY band: the M8 conditioning gate ABORTS the resolve, and
+/// the twin corner's build never masks it.**
+///
+/// `review_s2`'s pin of the same gate is ε-keyed to 1e-12 — at the
+/// other two bands its mined geometry refuses one gate earlier — so a
+/// mutant that demotes the abort to the whole-pair slot stays green
+/// there at the default band and at 1e-6. This row closes that: it
+/// authors a rung where the gate fires AND the pair's other crossing
+/// would build, so what the abort buys is exactly what the row sees.
+///
+/// **Why the far carrier is scaled by ε.** The least lever the band
+/// supports goes as 1/ε, while whether the twin crossing builds moves
+/// with the scene's own scale; the rung where both hold at once
+/// therefore MOVES with the band, and a fixed one would pin the abort
+/// at one ε and nothing at the others — the defect this row exists to
+/// remove. Scaling the far carrier with ε keeps the same rung at every
+/// band: measured, the gate fires at 1e-6, 1e-9 and 1e-12 alike, and
+/// demoting the `return` to the whole-pair slot silently BUILDS at all
+/// three.
+///
+/// The assertion is the bare variant — not an envelope, not an entry —
+/// because a corner whose tangent point the band cannot certify is a
+/// fact about the run's conditioning, not about one crossing of a
+/// pair.
+#[test]
+fn the_offset_lever_gate_aborts_the_resolve_at_every_band() {
+    let far = 1.0e4 * (Tol::witness().eps() / 1.0e-9);
+    let err = arc_arc(0.0, far, 1.0, 1.0, 3.0, 1.0, -1.0, 1.0, 0.5)
+        .expect_err("a collapsed offset lever must refuse at every band");
+    let PathError::FilletOffsetLeverTooShort {
+        side,
+        carrier_radius,
+        offset_radius,
+        least_lever,
+        margin,
+    } = err
+    else {
+        panic!(
+            "the conditioning gate must reach the caller as itself, never as an envelope \
+             entry and never behind the twin corner's build: {err:?}"
+        )
+    };
+    assert_eq!(
+        side,
+        profile::FilletLeg::Outgoing,
+        "the gate measures the outgoing leg's offset lever"
+    );
+    assert!(
+        (carrier_radius - 1.0).abs() < 0.1,
+        "the exposed carrier is the unit one, got {carrier_radius}"
+    );
+    assert!(
+        offset_radius > 0.0,
+        "rho is positive here — this is the conditioning gate, not the enclosing class \
+         (rho {offset_radius})"
+    );
+    assert!(
+        least_lever > offset_radius && margin < 0.0,
+        "the gate fires because the lever is under the least the band supports \
+         (rho {offset_radius}, least {least_lever}, margin {margin})"
     );
 }
 

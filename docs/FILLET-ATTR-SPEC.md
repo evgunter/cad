@@ -35,8 +35,8 @@ The unit replaces the pick with the list:
 
 ```rust
 /// No corner of the carrier pair takes a fillet of the requested radius:
-/// every derived corner that was tried, with its own reason, nearest the
-/// bracketing anchors first.
+/// every corner that refused at the answering stage, with its own reason,
+/// nearest the bracketing anchors first.
 NoCornerOfPair { radius: T, corners: Vec<CornerRefusal<T>> },
 
 pub struct CornerRefusal<T> { pub at: Point2<T>, pub reason: CornerReason<T> }
@@ -57,6 +57,21 @@ pub enum CornerReason<T> {
     EnclosesLegCarrier { side, carrier_radius, offset_radius, largest_tangent_radius },
 }
 ```
+
+**Amended at the fix pass (the implementation's deviation, recorded here
+rather than left in a PR body).** "Every derived corner that was tried" is
+not what the unit builds, and cannot be: this document's own acceptance row
+asks for a ONE-entry envelope "where only one crossing sits in the windows",
+and a corner the windows discarded IS one that was tried. The envelope
+therefore carries every corner that refused AT THE ANSWERING STAGE — the
+construction's refusals when any corner reached the construction, the
+windows' when none did. The reason is the acceptance row, not the fence:
+merging the two channels would re-rank no gate, since nothing branches on
+entry order and both channels yield the same variant; what it would add is a
+sentence about a corner the author did not ask about. A refusal that names no
+corner at all — the pair-level reasons below, and `FilletOffsetLeverTooShort`
+— outranks the envelope rather than riding it, as it did before the envelope
+existed.
 
 What stays where it is: the PAIR-level reasons that have no corner to name —
 `CarriersParallel` and `CarriersDoNotMeet` — remain `NoCornerForFillet`
@@ -146,9 +161,10 @@ The refusal taxonomy's shape beyond this (the note); the lattice ladder; any
 
 v6 dual on the frozen head, claims to falsify:
 
-- **C1** No corner is ever reported alone when another refused: construct
-  pairs where both crossings refuse for DIFFERENT reasons and check both
-  entries carry their own reason and point.
+- **C1** No corner is ever reported alone when another refused AT THE SAME
+  STAGE: construct pairs where both crossings reach the construction and
+  refuse there for DIFFERENT reasons, and check both entries carry their own
+  reason and point.
 - **C2** The first entry is the anchors' nearest corner on BLEND-7's sweep
   (re-run it on the head; the before-cell is Phase 1's).
 - **C3** Every payload number of the three retired variants survives under

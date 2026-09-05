@@ -61,7 +61,7 @@ use pncad::document::{
 use pncad::geom_core::{FrameError, FrameInput};
 use pncad::mesh::TessellateError;
 use pncad::prelude::BlendKind;
-use pncad::profile::{CornerReason, CornerWindow, PathError, PathErrorKind};
+use pncad::profile::{CornerReason, CornerWindow, NoCornerReason, PathError, PathErrorKind};
 use pncad::quantity::FmtQuantityError;
 use pncad::select::{
     DanglingRef, HitTestError, InterrogateError, NodePickError, ReadbackError, Resolution,
@@ -134,7 +134,15 @@ pub fn corner_reason_tag(reason: &CornerReason<f64>) -> &'static str {
             CornerWindow::BehindIncomingRay => "behind_incoming_ray",
             CornerWindow::BehindArrivalAnchor => "behind_arrival_anchor",
         },
-        CornerReason::NoTangentCircle(_) => "no_tangent_circle",
+        // The constructor door's own vocabulary rides through rather
+        // than being flattened: "the radius is too large for this
+        // corner" and "every tangent circle touches a leg past this
+        // corner" are different situations with different recourses,
+        // and the entry carries its own kind.
+        CornerReason::NoTangentCircle(reason) => match reason {
+            NoCornerReason::OffsetCarriersDisjoint => "offset_carriers_disjoint",
+            NoCornerReason::NoCornerSideCandidate => "no_corner_side_candidate",
+        },
         CornerReason::AnchorOutsideTrimmedExtent { .. } => "anchor_outside_trimmed_extent",
         CornerReason::EnclosesLegCarrier { .. } => "encloses_leg_carrier",
     }

@@ -5,8 +5,12 @@
 //! never through `sugar`'s internals or `review_s2`'s bracketing
 //! harness. The point is to see what an author actually gets.
 //!
-//! These are probes, not pins: most of them PRINT a measurement and
-//! assert only the property under examination.
+//! Written as BLEND-7's r2 review probes and KEPT as pins: each row
+//! prints its measurement AND asserts the property under examination.
+//! The one row that only printed — how far the other crossing's fillet
+//! sits from the bracketed corner, taken to judge the non-abort design
+//! — was deleted with the judgement it was taken for, since a row that
+//! asserts nothing cannot gate.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 // Adopted into the unit's lane: the probes' geometry helpers take a
 // corner and two carriers as loose scalars, which is one argument past
@@ -242,6 +246,7 @@ fn p1_the_recourse_bound_against_the_measured_existence_gap() {
     .unwrap_err();
     println!("P1 at r = {big}: {}", label(&Err(refusal.clone())));
     println!("P1 message: {refusal}");
+    crate::common::assert_corners(&refusal, &[(corner.x, corner.y)], "the drawn corner");
     let Some((_, carrier_radius, _, _)) = crate::common::enclosing(&refusal) else {
         panic!("expected the enclosing refusal at r = {big}, got {refusal:?}");
     };
@@ -345,38 +350,32 @@ fn p2_the_gate_fires_only_where_a_crossing_of_the_pair_is_enclosing() {
                             if let Some((_, _, offset_radius, _)) =
                                 res.as_ref().err().and_then(crate::common::enclosing)
                             {
-                                {
-                                    let offset_radius = &offset_radius;
-                                    enclosing_refusals += 1;
-                                    // FALSIFIER: the gate must be
-                                    // classifying a real crossing of
-                                    // this pair, and a negative rho.
-                                    assert!(
-                                        *offset_radius < 0.0,
-                                        "the payload rho is not negative"
+                                enclosing_refusals += 1;
+                                // FALSIFIER: the gate must be
+                                // classifying a real crossing of this
+                                // pair, and a negative rho.
+                                assert!(offset_radius < 0.0, "the payload rho is not negative");
+                                let matches_a_crossing = facts.iter().any(|(_, a, b)| {
+                                    (a - offset_radius).abs() < 1e-9
+                                        || (b - offset_radius).abs() < 1e-9
+                                });
+                                if !matches_a_crossing {
+                                    mismatched += 1;
+                                    println!(
+                                        "P2 UNMATCHED rho {offset_radius}: crossings say \
+                                         {facts:?} (r_in {r_in}, r_out {r_out}, tau \
+                                         {tau_in}/{tau_out}, a_out {a_out}, r {fillet})"
                                     );
-                                    let matches_a_crossing = facts.iter().any(|(_, a, b)| {
-                                        (a - offset_radius).abs() < 1e-9
-                                            || (b - offset_radius).abs() < 1e-9
-                                    });
-                                    if !matches_a_crossing {
-                                        mismatched += 1;
-                                        println!(
-                                            "P2 UNMATCHED rho {offset_radius}: crossings say \
-                                             {facts:?} (r_in {r_in}, r_out {r_out}, tau \
-                                             {tau_in}/{tau_out}, a_out {a_out}, r {fillet})"
-                                        );
-                                    }
-                                    assert!(
-                                        any_enclosing,
-                                        "FALSE POSITIVE: enclosing refusal where NEITHER \
-                                         crossing of the pair is enclosing ({facts:?}; r_in \
-                                         {r_in}, r_out {r_out}, tau {tau_in}/{tau_out}, \
-                                         a_out {a_out}, r {fillet})"
-                                    );
-                                    if !drawn_enclosing {
-                                        attributed_to_the_other_crossing += 1;
-                                    }
+                                }
+                                assert!(
+                                    any_enclosing,
+                                    "FALSE POSITIVE: enclosing refusal where NEITHER \
+                                     crossing of the pair is enclosing ({facts:?}; r_in \
+                                     {r_in}, r_out {r_out}, tau {tau_in}/{tau_out}, \
+                                     a_out {a_out}, r {fillet})"
+                                );
+                                if !drawn_enclosing {
+                                    attributed_to_the_other_crossing += 1;
                                 }
                             } else if let Ok(lp) = &res {
                                 builds += 1;
@@ -544,53 +543,6 @@ fn p4_a_line_partner_corner_with_a_negative_rho_arc_leg() {
     }
 }
 
-/// **P5 — the non-abort design, judged as geometry.**
-///
-/// With long (unbracketed) legs the pair's OTHER crossing is inside the
-/// windows, and the PR reports four of six rows building an ordinary
-/// fillet there. This probe measures HOW FAR the emitted fillet sits
-/// from the corner the author's two anchors bracket, so the answer's
-/// honesty can be judged rather than assumed.
-#[test]
-fn p5_what_the_other_crossing_serves_and_how_far_away_it_is() {
-    let corner = p2(0.0, 0.0);
-    for &delta in &[0.6_f64, 2.0, 4.0] {
-        let res = arc_arc_corner(
-            corner,
-            0.0,
-            0.2,
-            1.0,
-            core::f64::consts::FRAC_PI_2,
-            0.2,
-            1.0,
-            delta,
-            0.5,
-        );
-        match &res {
-            Ok(lp) => {
-                // Where did the emitted fillet actually land relative to
-                // the corner the author's two anchors bracket?
-                match fillet_endpoints(lp, 0.5) {
-                    Some((t1, t2)) => {
-                        let d1 = (t1.x - corner.x).hypot(t1.y - corner.y);
-                        let d2 = (t2.x - corner.x).hypot(t2.y - corner.y);
-                        println!(
-                            "P5 delta = {delta}: BUILDS; the emitted fillet's tangent points \
-                             are {d1:.4} m and {d2:.4} m from the DRAWN corner"
-                        );
-                    }
-                    None => println!(
-                        "P5 delta = {delta}: BUILDS, but no segment recovers r = 0.5 \
-                         (vertices {})",
-                        lp.vertices().len()
-                    ),
-                }
-            }
-            Err(e) => println!("P5 delta = {delta}: {}", label(&Err(e.clone()))),
-        }
-    }
-}
-
 /// **P6 — is `NoCornerSideCandidate` still reachable at all?**
 ///
 /// This PR re-points the ONLY test in the workspace that asserted the
@@ -708,6 +660,7 @@ fn p7_the_named_bound_on_a_corner_whose_carriers_differ() {
     };
     let err = build(2.0).unwrap_err();
     println!("P7 at r = 2: {}", label(&Err(err.clone())));
+    crate::common::assert_corners(&err, &[(0.0, 0.0)], "the drawn corner");
     let Some((side, carrier_radius, _, _)) = crate::common::enclosing(&err) else {
         panic!("expected the enclosing refusal, got {err:?}");
     };

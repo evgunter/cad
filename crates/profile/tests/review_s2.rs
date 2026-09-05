@@ -1096,11 +1096,23 @@ fn the_lattice_door_never_emits_an_enclosing_tangency() {
             // side's R and its offset radius is the row's own negative
             // ρ, re-derived here from the drawn geometry rather than
             // read back from the construction.
-            Err(ref err @ PathError::NoCornerOfPair { radius, .. })
-                if crate::common::enclosing(err).is_some() =>
-            {
-                let (side, carrier_radius, offset_radius, largest_tangent_radius) =
-                    crate::common::enclosing(err).expect("the guard just matched it");
+            Err(ref err @ PathError::NoCornerOfPair { radius, .. }) => {
+                // WHICH corner: the drawn one, alone — the envelope
+                // names the corner the table authored and nothing else.
+                crate::common::assert_corners(
+                    err,
+                    &[(case.corner.x, case.corner.y)],
+                    "the table's drawn corner",
+                );
+                let Some((side, carrier_radius, offset_radius, largest_tangent_radius)) =
+                    crate::common::enclosing(err)
+                else {
+                    panic!(
+                        "{name}: a radius demanding the enclosing class must refuse with \
+                         the enclosing-class entry (crates/profile/README.md); the \
+                         envelope carries none: {err:?}"
+                    )
+                };
                 assert_eq!(radius, case.r, "{name}: the refusal renamed the radius");
                 // Every table row swallows BOTH carriers, so the refusal
                 // says so rather than picking a side.
@@ -1281,11 +1293,17 @@ fn an_enclosing_leg_forces_an_equally_enclosing_partner() {
             "{name}: the row must contain a rho < 0 leg to be about the enclosing class"
         );
         match build_corner(c, leg_in, leg_out, r) {
-            Err(ref err @ PathError::NoCornerOfPair { .. })
-                if crate::common::enclosing(err).is_some() =>
-            {
-                let (side, carrier_radius, offset_radius, largest_tangent_radius) =
-                    crate::common::enclosing(err).expect("the guard just matched it");
+            Err(ref err @ PathError::NoCornerOfPair { .. }) => {
+                crate::common::assert_corners(err, &[(c.x, c.y)], "the drawn corner");
+                let Some((side, carrier_radius, offset_radius, largest_tangent_radius)) =
+                    crate::common::enclosing(err)
+                else {
+                    panic!(
+                        "{name}: a swallowed carrier next to this partner is geometrically \
+                         impossible, and the swallowing itself is refused typed, so the \
+                         envelope must carry the enclosing-class entry; got {err:?}"
+                    )
+                };
                 assert!(
                     offset_radius < 0.0 && carrier_radius < r,
                     "{name}: the refusal must name the swallowed carrier (rho \
@@ -1346,6 +1364,11 @@ fn overrun_attribution_names_the_authored_corners_candidate() {
         0.5,
     )
     .expect_err("short legs must refuse");
+    // This row's SUBJECT is attribution, so it says which corner the
+    // refusal is about and that the corner the author never named is
+    // not in the list at all: the bottom corner (0, -sqrt 3), alone.
+    let s3 = 3.0f64.sqrt();
+    crate::common::assert_corners(&err, &[(0.0, -s3)], "the corner the anchors bracket");
     let Some((side, _, setback, available)) = crate::common::anchor_fit(&err) else {
         panic!("unexpected refusal {err:?}")
     };
@@ -1587,11 +1610,16 @@ fn enclosing_fillet_swallows_both_leg_carriers() {
         // enclosing-class variant on every shipped band (measured at
         // 1e-6 / 1e-9 / 1e-12), naming a swallowed side whose carrier
         // radius bounds the fillet and whose rho is negative.
-        Err(ref err @ PathError::NoCornerOfPair { radius, .. })
-            if crate::common::enclosing(err).is_some() =>
-        {
-            let (side, carrier_radius, offset_radius, largest_tangent_radius) =
-                crate::common::enclosing(err).expect("the guard just matched it");
+        Err(ref err @ PathError::NoCornerOfPair { radius, .. }) => {
+            crate::common::assert_corners(err, &[(corner.x, corner.y)], "the mined corner");
+            let Some((side, carrier_radius, offset_radius, largest_tangent_radius)) =
+                crate::common::enclosing(err)
+            else {
+                panic!(
+                    "the mined enclosing corner must refuse with the enclosing-class entry \
+                     (crates/profile/README.md); the envelope carries none: {err:?}"
+                )
+            };
             assert_eq!(radius, r, "the refusal renamed the radius");
             assert_eq!(side, None, "this corner swallows BOTH carriers");
             assert!(

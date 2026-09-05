@@ -669,6 +669,12 @@ pub struct CornerRefusal<T: Real> {
 
 impl<T: Real> core::fmt::Display for CornerRefusal<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // A derived ordinate that lands on negative zero renders as
+        // "-0" here — "at the corner near (0, -0)" on a corner on the
+        // x axis. That is issue 1282's class (the Display float
+        // rendering, which `num` owns) and not this site's to repair:
+        // the sign is the arithmetic's, the payload keeps it exactly,
+        // and a repair belongs at `num` where every arm gets it.
         write!(
             f,
             "at the corner near ({x}, {y}): {reason}",
@@ -941,30 +947,36 @@ pub enum PathError<T: Real> {
         radius: T,
     },
     /// **No corner of the carrier pair takes a fillet of the requested
-    /// radius**: every derived corner that was tried, with its own
-    /// reason and its own point.
+    /// radius**: every corner that refused at the stage the answer
+    /// comes from, each with its own reason and its own point.
     ///
     /// One envelope for the whole pair, because a refusal about a pair
-    /// is about every corner of it: every corner that refused AT THE
-    /// STAGE THE ANSWER COMES FROM is an entry, with the reason THAT
-    /// corner refused for. Where the two crossings refuse for different
-    /// reasons — the common case — both sentences reach the author, and
-    /// the deixis of each is "this corner", which is true because
-    /// [`CornerRefusal::at`] is beside it.
+    /// is about the corners of it. Where the two crossings refuse for
+    /// different reasons — the common case — both sentences reach the
+    /// author, and the deixis of each is "this corner", which is true
+    /// because [`CornerRefusal::at`] is beside it.
     ///
-    /// The stage is the arc-carrier resolve's two channels, unchanged:
+    /// **The stage** is one of the arc-carrier resolve's two channels:
     /// a corner that passed the anchor windows and then failed to admit
-    /// a tangent circle is the real answer and outranks a corner the
-    /// windows discarded, so the windows' entries appear only when NO
-    /// corner reached the construction. A corner the author did not
-    /// bracket, listed beside the answer about the one they did, would
-    /// be noise rather than attribution.
+    /// a tangent circle is the real answer and answers alone, so the
+    /// windows' entries appear only when NO corner reached the
+    /// construction. The two lists are never merged because
+    /// `docs/FILLET-ATTR-SPEC.md`'s acceptance row asks for a ONE-entry
+    /// envelope where only one crossing sits in the windows: a corner
+    /// the author did not bracket, listed beside the answer about the
+    /// one they did, is noise rather than attribution. So the entry
+    /// list is NOT every derived corner — a pair derives up to two, and
+    /// on most refusals only one of them is an entry.
     ///
-    /// The pair-level conditions that name no corner at all
-    /// ([`PathNoCornerReason`]) stay
-    /// [`NoCornerForFillet`](Self::NoCornerForFillet); the straight
-    /// carrier pair derives one corner and so carries a one-entry
-    /// envelope of exactly this shape.
+    /// The refusals that name no corner at all outrank this envelope
+    /// and are reported instead of it: the pair-level conditions
+    /// ([`PathNoCornerReason`]) as
+    /// [`NoCornerForFillet`](Self::NoCornerForFillet), and the M8
+    /// conditioning gate as
+    /// [`FilletOffsetLeverTooShort`](Self::FilletOffsetLeverTooShort).
+    /// A fact about the pair answers before a fact about one of its
+    /// corners does. The straight carrier pair derives one corner and
+    /// so carries a one-entry envelope of exactly this shape.
     ///
     /// **Order is presentation, not truth**: entries are sorted by the
     /// sum of the distances from the corner to the two bracketing
@@ -975,8 +987,9 @@ pub enum PathError<T: Real> {
     NoCornerOfPair {
         /// The requested radius, meters (diagnostic).
         radius: T,
-        /// Every derived corner that refused, nearest the bracketing
-        /// anchors first. Never empty.
+        /// The corners that REFUSED at the answering stage, nearest the
+        /// bracketing anchors first. Never empty, and not necessarily
+        /// every corner the pair derives.
         corners: Vec<CornerRefusal<T>>,
     },
     /// **M8**: the derived corner and a tangent circle of the requested
@@ -1450,13 +1463,25 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 )
             }
             Self::NoCornerOfPair { radius, corners } => {
+                // The count is of ENTRIES — the corners that refused at
+                // the answering stage — and the sentence says so. A
+                // carrier pair derives up to two corners and most
+                // refusals list only one of them, so "n derived
+                // corners" would be false about the pair on the
+                // majority of refusals, and a false fact in a refusal
+                // is worse than no fact.
                 write!(
                     f,
                     "no corner of these carriers takes a radius-{radius} m fillet \
-                     ({n} derived corner{plural}, nearest the bracketing anchors first)",
+                     ({n} refusing corner{plural}{ordered})",
                     radius = num(radius),
                     n = corners.len(),
-                    plural = if corners.len() == 1 { "" } else { "s" }
+                    plural = if corners.len() == 1 { "" } else { "s" },
+                    ordered = if corners.len() == 1 {
+                        ""
+                    } else {
+                        ", nearest the bracketing anchors first"
+                    }
                 )?;
                 for corner in corners {
                     write!(f, "; {corner}")?;

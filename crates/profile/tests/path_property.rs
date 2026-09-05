@@ -426,11 +426,14 @@ fn corner_behind_ray_refuses_no_corner() {
     let refused = arrival
         .angle(0.0, Tol::witness())
         .expect_err("a corner behind the ray start must refuse");
+    // A straight pair derives ONE corner, and the row names it: the
+    // arrival carrier y = -1 crosses the northbound ray at (2, -1).
+    crate::common::assert_corners(&refused, &[(2.0, -1.0)], "the derived corner");
     assert!(
-        crate::common::any_reason(&refused, |r| matches!(
-            r,
+        matches!(
+            crate::common::corners(&refused)[0].reason,
             CornerReason::OutsideAnchors(CornerWindow::BehindIncomingRay)
-        )),
+        ),
         "expected the incoming window, got {refused:?}"
     );
 }
@@ -1359,13 +1362,31 @@ fn the_new_arc_carrier_gates_decide_outside_the_band() {
             Tol::witness(),
         );
     let refused = refused.expect_err("a decided-behind arrival anchor must refuse");
+    // Both crossings of the ray with the R = 1 carrier about `centre`
+    // are window-discarded, and the row reads WHICH window each got.
+    let listed: Vec<(f64, f64, bool)> = crate::common::corners(&refused)
+        .iter()
+        .map(|c| {
+            (
+                c.at.x,
+                c.at.y,
+                matches!(
+                    c.reason,
+                    CornerReason::OutsideAnchors(CornerWindow::BehindArrivalAnchor)
+                ),
+            )
+        })
+        .collect();
     assert!(
-        crate::common::any_reason(&refused, |r| matches!(
-            r,
-            CornerReason::OutsideAnchors(CornerWindow::BehindArrivalAnchor)
-        )),
+        listed.iter().any(|&(_, _, behind_anchor)| behind_anchor),
         "a decided-behind arrival anchor must refuse typed, got {refused:?}"
     );
+    for &(x, y, _) in &listed {
+        assert!(
+            ((x - centre.x).hypot(y - centre.y) - r).abs() < 1e-9,
+            "every entry names a point on the arrival carrier, got {listed:?}"
+        );
+    }
 }
 
 /// **MINOR-2 (review)**: the third new gate's escalation path.

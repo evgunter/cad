@@ -245,7 +245,24 @@ the anchor windows discarded, and corners that passed them and then
 failed to admit a tangent circle — and the construction's channel
 answers when it is non-empty. So a corner the author did not bracket is
 never listed beside the answer about the corner they did; the entries
-are the whole of the answering channel, never a pick from it.
+are the whole of the answering channel, never a pick from it, and the
+list is therefore NOT every corner the pair derives.
+
+The reason the two channels are not merged is that the unit's spec asks
+for a one-entry envelope where only one crossing sits in the windows.
+It is not that merging them would re-rank a gate: nothing branches on
+entry order, and both channels yield the same variant, so a merged list
+would rank nothing. What a merged list would add is a sentence about a
+corner the author did not ask about, next to the answer about the one
+they did.
+
+**A refusal that names no corner outranks the envelope.** The pair-level
+conditions (`NoCornerForFillet`) and the M8 conditioning gate
+(`FilletOffsetLeverTooShort`) are facts about the pair and about the
+run; a per-corner sentence instead of one of them would be a smaller
+and weaker claim about a situation the whole pair is in. Nothing is
+discarded silently — the entries such a refusal outranks are statements
+about corners of a pair that has already been refused as a pair.
 
 **Order is presentation, not truth.** Entries are sorted by the sum of
 the distances from the corner to the two bracketing anchors, ascending,

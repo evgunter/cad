@@ -55,7 +55,8 @@ type KPathError = pf::PathError<f64>;
 ///
 /// `variant` is the refusal's stable tag; `corners` is the
 /// `no_corner_of_pair` envelope projected as a list of
-/// `(x, y, reason)` rows — one per derived corner that refused, in the
+/// `(x, y, reason)` rows — one per REFUSING corner, which is not the
+/// same as one per derived corner (a pair derives up to two) — in the
 /// kernel's own order (nearest the bracketing anchors first), with
 /// `reason` the entry's own tag. Every attribute is set on every arm,
 /// `None` where the arm carries no corner list, so handling reads

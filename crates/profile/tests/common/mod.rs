@@ -24,42 +24,57 @@ pub fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
 
-/// The corner entries of a `NoCornerOfPair` envelope, in the order the
-/// kernel reported them (nearest the bracketing anchors first).
+/// **The one accessor**: a refusal's corner entries, in the order the
+/// kernel reported them (nearest the bracketing anchors first), or the
+/// EMPTY SLICE for a refusal that is not the envelope.
+///
+/// Total on purpose, so the searching helpers below and the sweep rows
+/// that ask "did some corner refuse this way" can call it on an
+/// arbitrary refusal. A row that needs the SHAPE asserts it — the
+/// length, and which corner each entry names — and every such
+/// assertion carries the refusal in its message, so an empty slice
+/// reads as the wrong refusal rather than as a silent zero.
 pub fn corners<T: Real>(err: &PathError<T>) -> &[CornerRefusal<T>] {
-    match err {
-        PathError::NoCornerOfPair { corners, .. } => corners,
-        other => panic!("expected a NoCornerOfPair envelope, got {other:?}"),
-    }
-}
-
-/// The FIRST entry's reason — the corner nearest the anchors, which is
-/// what a caller reads first.
-pub fn first_reason<T: Real>(err: &PathError<T>) -> &CornerReason<T> {
-    &corners(err)
-        .first()
-        .expect("a NoCornerOfPair envelope is never empty")
-        .reason
-}
-
-/// Whether ANY entry of the envelope refused for the named shape.
-pub fn any_reason<T: Real>(err: &PathError<T>, pred: impl Fn(&CornerReason<T>) -> bool) -> bool {
-    matches!(err, PathError::NoCornerOfPair { .. }) && corners(err).iter().any(|c| pred(&c.reason))
-}
-
-/// The entries of an envelope, or the empty slice for any other
-/// refusal — the searching form, for rows that ask whether SOME corner
-/// refused a given way without asserting the whole shape first.
-fn entries<T: Real>(err: &PathError<T>) -> &[CornerRefusal<T>] {
     match err {
         PathError::NoCornerOfPair { corners, .. } => corners,
         _ => &[],
     }
 }
 
+/// **Which corners the refusal is about, exactly.**
+///
+/// Asserts the envelope's LENGTH and each entry's point, in the order
+/// reported. A row whose subject is attribution — which corner refused,
+/// and whether the other one is listed beside it — has to say both: an
+/// existential "some entry refused this way" passes on an envelope that
+/// names the wrong corner, which is the defect the envelope exists to
+/// remove.
+#[track_caller]
+pub fn assert_corners(err: &PathError<f64>, want: &[(f64, f64)], what: &str) {
+    let got: Vec<(f64, f64)> = corners(err).iter().map(|c| (c.at.x, c.at.y)).collect();
+    assert_eq!(
+        got.len(),
+        want.len(),
+        "{what}: the envelope lists {got:?}, not {want:?} — refusal {err:?}"
+    );
+    for (i, (g, w)) in got.iter().zip(want).enumerate() {
+        let off = (g.0 - w.0).hypot(g.1 - w.1);
+        let scale = w.0.hypot(w.1).max(1.0);
+        assert!(
+            off <= 1e-9 * scale,
+            "{what}: entry {i} names {g:?}, not {w:?} (off by {off}) — refusal {err:?}"
+        );
+    }
+}
+
+/// Whether ANY entry of the envelope refused for the named shape.
+pub fn any_reason<T: Real>(err: &PathError<T>, pred: impl Fn(&CornerReason<T>) -> bool) -> bool {
+    corners(err).iter().any(|c| pred(&c.reason))
+}
+
 /// The first entry refusing with the enclosing class, as its payload.
 pub fn enclosing<T: Real>(err: &PathError<T>) -> Option<(Option<FilletLeg>, T, T, Option<T>)> {
-    entries(err).iter().find_map(|c| match &c.reason {
+    corners(err).iter().find_map(|c| match &c.reason {
         CornerReason::EnclosesLegCarrier {
             side,
             carrier_radius,
@@ -77,7 +92,7 @@ pub fn enclosing<T: Real>(err: &PathError<T>) -> Option<(Option<FilletLeg>, T, T
 
 /// The first entry refusing on the anchor fit, as its payload.
 pub fn anchor_fit<T: Real>(err: &PathError<T>) -> Option<(FilletLeg, FilletLegCarrier, T, T)> {
-    entries(err).iter().find_map(|c| match &c.reason {
+    corners(err).iter().find_map(|c| match &c.reason {
         CornerReason::AnchorOutsideTrimmedExtent {
             side,
             carrier,
