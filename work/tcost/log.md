@@ -1371,3 +1371,12 @@ derivation keeps it; authorship is not a reason), and sweep's
 "fixture drift" argument for a compensating row was retracted as a
 nuisance change detector: the unit suites' pinned volumes and oracles
 already red on a changed body. Issue closed; nothing else moves.
+
+## Seam announced by TOPO (2026-09-05)
+
+TOPO's `D261` (`topo/d261-reader-collapse`) converts four
+`crates/topo/src` readers onto `test_utils::source` and edits
+`crates/test-utils/tests/reader_census.rs` for exactly those entries,
+re-deriving `UNCONVERTED_TODAY` from the table at its landing (S-BOOL's
+`D287` lowers the same constant; whichever lands second re-counts).
+Nothing else under `crates/test-utils/` moves.
