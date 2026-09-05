@@ -468,6 +468,70 @@ pub fn is_finite_length<T: Real>(x: T) -> bool {
     !residual.is_poison()
 }
 
+/// **The direction-length decision, and the workspace's only spelling
+/// of it**: is the length a finite number, which side of zero is it
+/// on, and — only then — the normalized ray or a typed refusal.
+///
+/// Two questions in this order, and the order is the point.
+///
+/// 1. **Is the length a finite number?** Asked through the value
+///    channel every scalar has ([`is_finite_length`]): a finite value
+///    less itself is exactly zero, while `∞ − ∞` and `NaN − NaN` are
+///    the scalar's poison. No bracket is read and no threshold is
+///    invented, so an enclosure of any width passes — the arm bites at
+///    the point scalars, which is where the failure is (an interval
+///    whose norm overflowed still ENCLOSES the truth, so it stays
+///    sound and simply refuses later, where a `f64` would answer a
+///    definite wrong sign).
+/// 2. **Which side of zero is it on?** Through the scalar's own
+///    decision machinery ([`Margin::norm3`] on the caller's band) —
+///    [`Real`] deliberately has no comparison surface, and a
+///    hand-rolled `> 0` would be wrong at the interval scalar. Only a
+///    DEFINITELY zero length refuses, so a wide enclosure that
+///    contains a real direction never refuses spuriously; one that
+///    straddles zero escalates instead of guessing.
+///
+/// **`site` is the funnel name, and it is a parameter because the NAME
+/// belongs to the layer that owns the value while the DECISION belongs
+/// here.** A datum's normal or axis direction is decided under
+/// [`DATUM_UNIT_NORM`], through [`UnitVec3::new`] — the type that
+/// holds it has no unnormalized spelling, so the invariant is the
+/// type's. A transform's rotation axis and a pattern's direction are
+/// decided under `eval_direction_norm`, at `editor-core`'s own
+/// direction door, because the evaluation layer owns those values and
+/// its K telemetry is read per layer. Two names, one body: the
+/// alternative — one name — would erase which layer a length decision
+/// came from, and the alternative to one body was the six lines living
+/// twice, which is how the two copies came to differ in the first
+/// place.
+///
+/// The site is a `&'static str` and never a stored field or an enum:
+/// nothing here dispatches on it, and a kernel that had to name its
+/// callers would grow a variant per caller.
+///
+/// # Errors
+///
+/// [`UnitVec3Error::NonFiniteLength`] on an overflowed or poisoned
+/// length, [`UnitVec3Error::Degenerate`] on a decided-zero one,
+/// [`UnitVec3Error::Escalated`] on an in-band one.
+pub fn unit_direction<T: Decide>(
+    v: Vec3<T>,
+    site: &'static str,
+    band: Band,
+) -> Result<Vec3<T>, UnitVec3Error> {
+    // `norm3` below recomputes this same value (`Vec3::norm` is
+    // deterministic), so the gate and the margin are the one length;
+    // it is spelled twice rather than reached into.
+    if !is_finite_length(v.norm()) {
+        return Err(UnitVec3Error::NonFiniteLength);
+    }
+    match decide(site, Margin::norm3(v), band) {
+        Ok(Sign::Positive) => Ok(v.normalize()),
+        Ok(_) => Err(UnitVec3Error::Degenerate),
+        Err(source) => Err(UnitVec3Error::Escalated(source)),
+    }
+}
+
 impl<T: Real> UnitVec3<T> {
     /// The direction itself, unit.
     #[must_use]
@@ -479,26 +543,15 @@ impl<T: Real> UnitVec3<T> {
 impl<T: Decide> UnitVec3<T> {
     /// **The only constructor**: `v` normalized, or a typed refusal.
     ///
-    /// Two questions in this order, and the order is the point.
-    ///
-    /// 1. **Is the length a finite number?** Asked through the value
-    ///    channel every scalar has, as "does the length minus itself
-    ///    stay a number": a finite value less itself is exactly zero,
-    ///    while `∞ − ∞` and `NaN − NaN` are the scalar's poison. No
-    ///    bracket is read and no threshold is invented, so an
-    ///    enclosure of any width passes — the arm bites at the point
-    ///    scalars, which is where the failure is (an interval whose
-    ///    norm overflowed still ENCLOSES the truth, so it stays sound
-    ///    and simply refuses later, where a `f64` would answer a
-    ///    definite wrong sign).
-    /// 2. **Which side of zero is it on?** Through the scalar's own
-    ///    decision machinery ([`Margin::norm3`] at the
-    ///    [`DATUM_UNIT_NORM`] funnel site) — `Real` deliberately has no
-    ///    comparison surface, and a hand-rolled `> 0` would be wrong at
-    ///    the interval scalar. Only a DEFINITELY zero length refuses,
-    ///    so a wide enclosure that contains a real direction never
-    ///    refuses spuriously; one that straddles zero escalates instead
-    ///    of guessing.
+    /// The decision itself — finiteness first, then which side of zero
+    /// the length lies on, then normalize or refuse — is
+    /// [`unit_direction`], which the evaluation layer's own direction
+    /// door calls too; the two questions and the reason for their
+    /// order are documented there. What this constructor adds is the
+    /// TYPE: a direction that reaches it comes out unit as a property
+    /// of the type rather than of the caller's diligence, and the
+    /// funnel name it decides under is [`DATUM_UNIT_NORM`], because a
+    /// datum's normal or axis direction is a value this layer owns.
     ///
     /// # Errors
     ///
@@ -506,17 +559,7 @@ impl<T: Decide> UnitVec3<T> {
     /// length, [`UnitVec3Error::Degenerate`] on a decided-zero one,
     /// [`UnitVec3Error::Escalated`] on an in-band one.
     pub fn new(v: Vec3<T>, band: Band) -> Result<Self, UnitVec3Error> {
-        // `norm3` below recomputes this same value (`Vec3::norm` is
-        // deterministic), so the gate and the margin are the one
-        // length; it is spelled twice rather than reached into.
-        if !is_finite_length(v.norm()) {
-            return Err(UnitVec3Error::NonFiniteLength);
-        }
-        match decide(DATUM_UNIT_NORM, Margin::norm3(v), band) {
-            Ok(Sign::Positive) => Ok(Self(v.normalize())),
-            Ok(_) => Err(UnitVec3Error::Degenerate),
-            Err(source) => Err(UnitVec3Error::Escalated(source)),
-        }
+        unit_direction(v, DATUM_UNIT_NORM, band).map(Self)
     }
 }
 
