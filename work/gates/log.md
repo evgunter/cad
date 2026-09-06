@@ -38,3 +38,21 @@ Posture: one style review per PR against
 each), no A/B row. Standing rule to every lane: a fix that reds live
 code stops and reports — no allowlist entry buys green. Log entries are
 the orchestrator's; lanes edit only their own item headers.
+
+## Second wave dispatched (2026-09-06)
+
+Two more lanes on files the first wave does not hold:
+
+- `gates/d109-reader-blind-spots` — `D109`'s four members in order,
+  on `lib.sh`, `probe-suite-census.sh` and `gate-roster.sh` (the two
+  roster gates are this program's now); every gate re-run after each
+  member since all of them source the reader.
+- `gates/panic-free-macro-bodies` — `clippy-panic-gate-blind-in-macros`,
+  direction decided by the orchestrator: the row's option (2), a
+  token-grep gate over `macro_rules!` bodies with a `#[cfg(test)]`
+  allow, the one-time audit in the PR body, option (4) not taken as a
+  convention. The one wiring line in `ci.yml` and `ci-local.sh` is the
+  announced CIW line the charter allows.
+
+`S49` waits for the first wave's reviews; `S13`, `D211`, `D103` and
+`D102` queue behind `gates/bounds-small` on the same file.
