@@ -2,11 +2,14 @@
 id: clippy-panic-gate-blind-in-macros
 kind: issue
 title: clippy's panic-family gate is blind inside every macro_rules! body
-status: open
+status: closed
 opened: 2026-08-13
 github: 454
 refs: [447]
 track: K
+branch: gates/panic-free-macro-bodies
+pr: 2032
+closed: 2026-09-06
 ---
 
 ## From GitHub issue 454
@@ -97,3 +100,70 @@ parked there.
 ## Claimed by GATES (2026-09-06)
 
 Moved from `work/code-quality/` to `work/gates/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, `track:` letter and body unchanged. Track K; the gate is GATES' to build, the ten macro bodies it audits are their owners' and are read only.
+
+## Direction taken (2026-09-06)
+
+Option (2), the token-grep gate, composed with option (1)'s audit:
+`scripts/gates/panic-free-macro-bodies.sh` reads `crates/*/src` through
+`lib.sh`'s code-only view, tracks each `macro_rules!` body by balanced
+`{}`/`()`/`[]` nesting, and reports the stanza's six macro-blind lints
+inside one: `.unwrap`, `.expect`, `panic!`, `todo!`, `unimplemented!`
+and `dbg!`. Option (3) (`cargo expand`) and option (4) (thin macro
+bodies as a convention) are not taken.
+
+`dbg_macro` is not panic-family, but it is denied by the same stanza and
+invisible in the same place, so the sixth token replaces a measured "no
+macro body carries a `dbg!`" with a check that re-derives it. The live
+tree is green with it.
+
+`unreachable!` is NOT matched. It was in the family this row named on
+2026-08-13, and D9's D2 addendum removed it from
+`[workspace.lints.clippy]` on 2026-08-19: matching it here would make a
+macro body stricter than the `fn` beside it and would red `nurbs_fit!`
+today. The gate is the stanza, reaching where clippy cannot.
+
+The allow is `#[cfg(test)]` — the attribute on the item or an enclosing
+module, and a file whose `mod` line is `#[cfg(test)] mod x;` in either
+spelling (attribute alone on its line, or the whole declaration on one;
+both planted). No path allowlist: nothing in the live tree needs
+grandfathering.
+
+## The audit
+
+Re-derived 2026-09-06: the surface has moved from this row's ten bodies
+in nine files to **24 bodies in 15 files** (`geom-curves` is now
+`geom/src/curves`; `editor-core/src/expr.rs`, `names/role.rs`,
+`node.rs`, `profile/src/path/program.rs`, `test-utils/src/lib.rs` and
+`topo/src/validate.rs` carry bodies this row did not list). Two bodies
+carry a panic-family token; the other 22 carry none:
+
+- `crates/geom/src/curves/fit.rs:376` `nurbs_fit!` (spans 376-804) —
+  one `unreachable!` at 714, on a `let-else` that observes a kernel-bug
+  state. Production, sanctioned, and out of the gate's family.
+- `crates/topo/src/review_m1_pr5_internal.rs:113` `leak_probe!` — one
+  `.unwrap()` at 116. **Test-only**: the file is reached only through
+  `#[cfg(test)] pub(crate) mod review_m1_pr5_internal;`
+  (`crates/topo/src/lib.rs:206`) and the macro sits inside a `#[test]
+  fn`. This row's file-level count of 16 for that file resolves to 1
+  inside the macro body and 15 in `#[test]` functions clippy already
+  sees.
+
+**No production instance.** The gate is green on the live tree at the
+merge base, so it lands without an allowlist and without a
+grandfathered population.
+
+## Residue
+
+The `#[cfg(test)] mod x;` resolution the gate needs is
+`witness-not-ambient.sh`'s textual, declaring-directory one; it is not
+rustc's for a declaration outside a crate root, and it is kept
+identical so the class has one shape. The repair belongs to
+`test-module-resolution-has-three-homes`, whose population this gate
+joins as a third member.
+
+A blind spot the gate shares with clippy rather than opening: the UFCS
+form `Option::unwrap(v)` / `Option::expect(v, …)`. Measured on clippy
+0.1.94 with the stanza at `warn` — no diagnostic on the UFCS pair, one
+on the `.expect(…)` beside it — so `unwrap_used`/`expect_used` are
+method-call lints and the hole is the stanza's everywhere, not this
+gate's inside macros.

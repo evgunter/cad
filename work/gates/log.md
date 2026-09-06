@@ -75,6 +75,7 @@ hand-copied three times — filed as
 `interval-square-allowlist.sh:203` note was withdrawn as vacuous; the
 real defect there is PR 2033's.
 
+<<<<<<< HEAD
 ## Third wave dispatched (2026-09-06)
 
 With PR 2029 merged and `bounds-allowlist.sh` free: `gates/d103-pinned-counts`
@@ -88,3 +89,42 @@ unregistered live discard and a registered site that is gone — with
 the audited/unaudited counts in the OK line; the audit of the
 unaudited sites is the owners' riders). `D211` waits on PRs 2033 and
 2038, which hold two of its three files.
+=======
+## bit-identity-debug-only-gate-ends-an-item-at-a-semicolon + debug-only-counters-have-no-gate landed (2026-09-06)
+
+PR 2030, `gates/debug-only-subjects`, one style review
+(MERGEABLE-WITH-FIXES, fix pass landed). The awk ends an attribute's
+item at a `;` only at round/square bracket depth zero, and a lost
+bracket depth is now a loud red (a `DESYNC` record, the
+`GATE_MATCHER_FAILED` marker) rather than every later use reading as
+gated — the review found that silent direction through the reader's
+nested-comment gap. The gate scans a (subject, symbol) list with the
+enclosure analysis written once; `product.rs`'s gather counter is the
+second subject (1 → 5 uses scanned, 0 ungated). Symbol matches are
+anchored on identifier boundaries; 15 cases per subject. The lane
+declined one arm of the fix pass correctly (a `;` at open bracket
+depth is exactly the signature shape row 1 exists to allow). Filed from
+it: `debug-only-helpers-outside-the-subject-list` (five more
+candidates), and on their owners' slates the `bits_witness` slice
+workaround (TOPO), the `ci.yml` step title (CIW) and the
+`landing_gathers.rs` source-text row (S-TCOST).
+
+## clippy-panic-gate-blind-in-macros landed (2026-09-06)
+
+PR 2032, `gates/panic-free-macro-bodies`, one style review
+(MERGEABLE-WITH-FIXES, fix pass landed). A new gate,
+`panic-free-macro-bodies.sh`: the stanza's six macro-blind lints
+(`.unwrap`, `.expect`, `panic!`, `todo!`, `unimplemented!`, `dbg!`)
+inside every `macro_rules!` body in the three delimiter forms, through
+the code-only view, matched on the body field only; `unreachable!`
+excluded because the D2 addendum removed it from the stanza — the
+lane's deviation, an improvement. Allow: `#[cfg(test)]` on the item,
+an enclosing module, or a file declared by `#[cfg(test)] mod x;` in
+either spelling. The one-time audit: 24 bodies in 15 files, two carry a
+token (`fit.rs:714`'s sanctioned `unreachable!`,
+`review_m1_pr5_internal.rs:116` under test). UFCS `Option::unwrap(v)`
+measured as parity with clippy, not a hole. One wiring step in
+`ci.yml`, announced to CIW; `ci-local.sh` globs the directory. 18
+cases. Its textual `mod` resolver is the third in the directory —
+`test-module-resolution-has-three-homes`.
+>>>>>>> origin/main
