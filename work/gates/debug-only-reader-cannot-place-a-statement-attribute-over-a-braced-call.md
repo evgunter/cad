@@ -2,11 +2,12 @@
 id: debug-only-reader-cannot-place-a-statement-attribute-over-a-braced-call
 kind: issue
 title: The debug-only gate's reader cannot place a statement-position cfg(debug_assertions) attribute over a braced call
-status: review
+status: closed
 opened: 2026-09-06
 refs: [debug-only-helpers-outside-the-subject-list, 2049]
 branch: gates/statement-attribute-items
 pr: 2059
+closed: 2026-09-06
 ---
 
 

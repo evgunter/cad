@@ -365,3 +365,50 @@ exists; the moved guard's comment states its constraint (above check
 described as preventing a wrong-file red, not a vacuous pass, at the
 guard and its planter; one ordering-dependent sentence in the
 self-test prose replaced by the planters' names.
+
+
+## PR 2058 re-based (2026-09-06)
+
+`gates/reader-homes` merged main and retired
+`loop-boundary-discards.sh`'s line-view anchor filter in-PR (four-cell
+measurement: the filter was doing exactly what the window fix does and
+nothing else; 80 sites green with it gone; the anchor test stays to
+name the enclosing `fn`). Two corrections the re-verification forced,
+both recorded in the PR: the statement views are not byte-identical
+across the window fix — every record's text is unchanged but 12,266 of
+113,112 move their reported line from a doc comment to the code line
+under it (the same defect in a third view; `lib.sh`'s header now says
+what LINE means); and the `bit-identity-debug-only.sh` rider the first
+report named does not exist since PR 2049 rewrote that gate. Reviewer
+dispatched on head `d1af6dece`.
+## Landed: PR 2059 (2026-09-06)
+
+`debug-only-reader-cannot-place-a-statement-attribute-over-a-braced-call`
+closed. The rule in `bit-identity-debug-only.sh`'s reader: an item
+under a statement-position attribute has no body brace, so whichever
+delimiter arrives first at bracket depth zero says what the item is
+(`{` there is the item entering, `;` there ends an item never entered,
+`{` above depth zero is argument text and moves brace depth only). The
+body-brace desync arm is deleted; a still-open bracket reports only at
+end of file, and both re-planted desync fixtures red through that arm.
+Seven `ArenaDelta` rows added with measured pins (euler 10, euler_ring
+10, euler_kill 9, null 3, split 3, boolean/voids 1, movefac 4): no live
+use ungated; subjects 6 → 13, uses scanned 28 → 68, the eight-file
+probe 3 placed / 12 desync → 8 placed / 0 desync. Three fixtures, four
+mutations each caught by the fixture named (the one-shot brace skip
+only by the nested-braces one). Self-test 15 s → 72 s, stated. Residue
+filed on this slate: `assert_euler_postcondition` is a second spelling
+of the mechanism on no row, and one use (`boolean/voids.rs:314`,
+passing a binding) is invisible to the voids row —
+`debug-only-assert-euler-postcondition-is-on-no-row`.
+Fix pass from the review: the residue row rewritten as its class
+(fifteen gated `topo` statements naming no pinned spelling, the
+fourteen `let before = self.arena_counts();` sites beside the one
+`assert_euler_postcondition` binding; candidate fix stated for the
+class, self-test cost stated as quadratic); the dead file-change
+desync arm deleted so the end-of-file arm is the one place the
+question is asked; two counts copied into prose removed; the rule
+spelled once in the header with the awk comment a pointer to it; the
+PR body's mutation-D attribution corrected (caught first by
+`plant_desync_open_bracket`, then the nested fixture, then the live
+tree through the pin self-test).
