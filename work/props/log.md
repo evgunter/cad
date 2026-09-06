@@ -761,3 +761,18 @@ eight STEP records re-derived with reasons (EXCH's fixtures — seam);
 the `FaceFrame` doc line (DOCM/SEAT — seam); the M10 workaround's
 retirement filed, not done. M / NUMERIC, block PROPS-B2 slot 1 (opus),
 dual review; §Landing says `status: review`, do not merge.
+
+**Sign-hull ruling RETRACTED (2026-09-06).** Ev's follow-ups on #1944
+("c′ does not seem good then"; "isn't option 1 the only one that's
+actually correct?") arrived after the orchestrator had merged the
+ruling PR and dispatched the (c′) unit — an orchestrator error: a
+ruling PR is merged on an unambiguous answer, not on "seems fine" with
+a question attached. Undone: the lane stopped before any push and
+reclaimed, `docs/PROPS-SIGN-HULL-SPEC.md` withdrawn, the item's RULED
+section replaced by the retraction with `needs_ev` restored, the M10 /
+EXCH / DOCM seam notes withdrawn, block PROPS-B2 slot 1 freed. The
+orchestrator's answer to Ev is on the PR: option 1 is the principled
+fix (the seam moves from the equator to the diagonals; M10-5's
+workaround is its existing measurement), with two costs named — the
+tie rule at `Interval` and the one-time re-bless of every stored
+`u_ref`. Awaiting confirmation.
