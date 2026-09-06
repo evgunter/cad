@@ -487,14 +487,11 @@ fn r2_link_end_to_end_with_and_without_the_door() {
 
 // ------------------------------------------------- the evidence rows
 
-/// One predicate's worst decision in a replay: the enclosure whose
-/// extrapolated refusal scale is smallest, with that scale.
+/// One predicate's enclosure envelope in a replay: the lowest `lo` and
+/// the highest `hi` over its numeric decisions, with the outcome of
+/// the decision that set each, and the counts.
 #[derive(Clone, Copy, Debug)]
-struct Worst {
-    /// The multiple of the PROBED scale at which this predicate would
-    /// refuse under the linear model (half-width ∝ scale, midpoint
-    /// fixed). `+inf` when the enclosure is a point.
-    k: f64,
+struct Envelope {
     lo: f64,
     hi: f64,
     outcome: ShapeOutcome,
@@ -502,86 +499,85 @@ struct Worst {
     numeric: usize,
 }
 
-fn refusal_scale(lo: f64, hi: f64, outcome: ShapeOutcome, zero: f64, escalate: f64) -> f64 {
-    let half = 0.5 * (hi - lo);
-    let mid = 0.5 * (hi + lo);
-    if half <= 0.0 {
-        return f64::INFINITY;
-    }
-    match outcome {
-        // Decided Zero numerically: refuses when either end leaves the
-        // zero band.
-        ShapeOutcome::NumericZero => {
-            let up = if mid + half > 0.0 { (zero - mid) / half } else { f64::INFINITY };
-            let dn = if mid - half < 0.0 { (mid + zero) / half } else { f64::INFINITY };
-            up.min(dn).max(0.0)
-        }
-        ShapeOutcome::Definite(geom_core::Sign::Positive) => ((mid - escalate) / half).max(0.0),
-        ShapeOutcome::Definite(geom_core::Sign::Negative) => ((-mid - escalate) / half).max(0.0),
-        // Already refusing, or decided symbolically (no enclosure
-        // matters).
-        ShapeOutcome::Indeterminate | ShapeOutcome::Invalid => 1.0,
-        _ => f64::INFINITY,
-    }
-}
-
-/// The per-predicate worst decision of one replay.
-fn worst_by_predicate(
-    shapes: &[geom_core::sym::report::DecisionShape],
-    tol: Tol,
-) -> BTreeMap<&'static str, Worst> {
-    let band = geom_core::Band::linear(tol).unwrap();
-    let (zero, escalate) = (band.zero(), band.escalate());
-    let mut out: BTreeMap<&'static str, Worst> = BTreeMap::new();
+/// The per-predicate envelopes of one replay (symbolic decisions carry
+/// no enclosure and are only counted).
+fn envelopes(shapes: &[geom_core::sym::report::DecisionShape]) -> BTreeMap<&'static str, Envelope> {
+    let mut out: BTreeMap<&'static str, Envelope> = BTreeMap::new();
     for s in shapes {
-        let e = out.entry(s.predicate).or_insert(Worst {
-            k: f64::INFINITY,
-            lo: 0.0,
-            hi: 0.0,
+        let e = out.entry(s.predicate).or_insert(Envelope {
+            lo: f64::INFINITY,
+            hi: f64::NEG_INFINITY,
             outcome: s.outcome,
             n: 0,
             numeric: 0,
         });
         e.n += 1;
-        let symbolic = matches!(
+        if matches!(
             s.outcome,
             ShapeOutcome::Theorem | ShapeOutcome::SignGated | ShapeOutcome::Registered
-        );
-        if !symbolic {
-            e.numeric += 1;
-        }
-        if symbolic {
+        ) {
             continue;
         }
+        e.numeric += 1;
         let Some((lo, hi)) = s.enclosure else { continue };
-        let k = refusal_scale(lo, hi, s.outcome, zero, escalate);
-        if k < e.k {
-            *e = Worst {
-                k,
-                lo,
-                hi,
-                outcome: s.outcome,
-                n: e.n,
-                numeric: e.numeric,
-            };
+        if lo < e.lo {
+            e.lo = lo;
+        }
+        if hi > e.hi {
+            e.hi = hi;
+            e.outcome = s.outcome;
         }
     }
+    out.retain(|_, e| e.numeric > 0 && e.lo.is_finite());
     out
 }
 
-/// **The refusal tail behind each ceiling.** For each document, door
-/// OFF and ON, at 0.25× and 0.5× of the measured ceiling (both certify
-/// whole), every predicate's worst enclosure and the scale at which it
-/// would refuse under the linear model — sorted, so the reader sees what
-/// stands behind the first refusal: identity residuals all at ~1×, or a
-/// real margin. The two scales together check the model (a linear
-/// enclosure doubles between them).
-#[test]
-#[ignore = "evidence-only: prints the extrapolated refusal tail behind each ceiling"]
-fn r2_evidence_the_refusal_tail() {
-    let tol = Tol::witness();
+/// **The two-point affine model**: with the envelope measured at two
+/// scales `s1 < s2`, `lo(s)` and `hi(s)` are taken affine in `s` and
+/// the smallest `s > s2` at which the band classification changes is
+/// answered — as a multiple of the CEILING scale. A residual decided
+/// `Zero` refuses when `hi(s) > zero` or `lo(s) < −zero`; a definite
+/// positive one when `lo(s) < escalate`; a definite negative when
+/// `hi(s) > −escalate`. `+inf` when the envelope does not grow.
+fn refusal_at(
+    (s1, e1): (f64, Envelope),
+    (s2, e2): (f64, Envelope),
+    zero: f64,
+    escalate: f64,
+    ceiling: f64,
+) -> f64 {
+    let slope = |a: f64, b: f64| (b - a) / (s2 - s1);
+    let (dlo, dhi) = (slope(e1.lo, e2.lo), slope(e1.hi, e2.hi));
+    let hit = |value_at_s2: f64, rate: f64, target: f64| -> f64 {
+        // value(s) = value_at_s2 + rate·(s − s2) reaches `target`.
+        if rate == 0.0 {
+            return f64::INFINITY;
+        }
+        let s = s2 + (target - value_at_s2) / rate;
+        if s > s2 { s } else { f64::INFINITY }
+    };
+    let s = match e2.outcome {
+        ShapeOutcome::NumericZero => {
+            let up = if dhi > 0.0 { hit(e2.hi, dhi, zero) } else { f64::INFINITY };
+            let dn = if dlo < 0.0 { hit(e2.lo, dlo, -zero) } else { f64::INFINITY };
+            up.min(dn)
+        }
+        ShapeOutcome::Definite(geom_core::Sign::Positive) => {
+            if dlo < 0.0 { hit(e2.lo, dlo, escalate) } else { f64::INFINITY }
+        }
+        ShapeOutcome::Definite(geom_core::Sign::Negative) => {
+            if dhi > 0.0 { hit(e2.hi, dhi, -escalate) } else { f64::INFINITY }
+        }
+        ShapeOutcome::Indeterminate | ShapeOutcome::Invalid => s2,
+        _ => f64::INFINITY,
+    };
+    s / ceiling
+}
+
+/// The four documents plus the link, each with its measured ceiling.
+fn tail_documents(tol: Tol) -> Vec<(&'static str, f64, Box<dyn Fn(f64) -> ProfileDoc>)> {
     let eps = tol.eps();
-    let docs: Vec<(&str, f64, Box<dyn Fn(f64) -> ProfileDoc>)> = vec![
+    vec![
         (
             "two_hole_plate",
             7.787e2 * eps,
@@ -603,8 +599,34 @@ fn r2_evidence_the_refusal_tail() {
             Box::new(move |s| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         ),
         ("r2_link", 1.0e3 * eps, Box::new(move |s| link(s, tol).0)),
-    ];
-    for (name, ceil, at) in &docs {
+    ]
+}
+
+/// **The refusal tail behind each ceiling.** For each document, door
+/// OFF and ON, the envelope of every predicate at 0.25× and 0.5× of
+/// the measured ceiling (both certify whole), fitted affinely, and the
+/// multiple of the ceiling at which each predicate would refuse —
+/// sorted, so the reader sees what stands behind the first refusal:
+/// identity residuals close behind it, or a real margin far away.
+///
+/// Set `CAD_R2_TAIL_DOCS` to a comma-separated subset of the names to
+/// run fewer (the bracket and the pad cost minutes each under the
+/// shape report).
+#[test]
+#[ignore = "evidence-only: prints the extrapolated refusal tail behind each ceiling"]
+fn r2_evidence_the_refusal_tail() {
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let (zero, escalate) = (band.zero(), band.escalate());
+    let only = std::env::var("CAD_R2_TAIL_DOCS").ok();
+    for (name, ceil, at) in &tail_documents(tol) {
+        if only
+            .as_deref()
+            .is_some_and(|l| !l.split(',').any(|n| n.trim() == *name))
+        {
+            continue;
+        }
         for (label, rules) in [("door OFF", shut()), ("door ON ", SymRules::shipped())] {
             let mut tables = Vec::new();
             for frac in [0.25_f64, 0.5] {
@@ -616,38 +638,110 @@ fn r2_evidence_the_refusal_tail() {
                     "== {name} {label} at {frac}x ceiling ({:.3e}·eps): refusal {refusal:?}; {counts:?}",
                     frac * ceil / eps
                 );
-                tables.push((frac, worst_by_predicate(&shapes, tol)));
+                tables.push((frac * ceil, envelopes(&shapes)));
             }
-            // Sort the 0.5x table by k and print the top 14, with the
-            // 0.25x enclosure beside it for the linearity check.
-            let (_, half) = &tables[1];
-            let (_, quarter) = &tables[0];
-            let mut rows: Vec<(&&str, &Worst)> = half.iter().collect();
-            rows.sort_by(|a, b| a.1.k.partial_cmp(&b.1.k).unwrap());
+            let (s1, q) = &tables[0];
+            let (s2, h) = &tables[1];
+            let mut rows: Vec<(&&str, f64, &Envelope)> = h
+                .iter()
+                .map(|(p, e)| {
+                    let at = q
+                        .get(p)
+                        .map_or(f64::NAN, |e1| refusal_at((*s1, *e1), (*s2, *e), zero, escalate, *ceil));
+                    (p, at, e)
+                })
+                .collect();
+            rows.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(core::cmp::Ordering::Equal));
             println!(
-                "   {:<34} {:>9} {:>9} {:>24} {:>24} {:>10} {:>9}",
-                "predicate", "k@0.5x", "k@0.25x", "encl@0.5x", "encl@0.25x", "width ratio", "num/all"
+                "   {:<34} {:>12} {:>26} {:>9} {:<10}",
+                "predicate", "refuses at", "envelope @0.5x", "num/all", "outcome"
             );
-            for (pred, w) in rows.iter().take(14) {
-                let q = quarter.get(*pred);
-                let (qk, qlo, qhi) = q.map_or((f64::NAN, f64::NAN, f64::NAN), |q| (q.k, q.lo, q.hi));
-                let ratio = if q.is_some() && (qhi - qlo) > 0.0 {
-                    (w.hi - w.lo) / (qhi - qlo)
-                } else {
-                    f64::NAN
-                };
+            for (pred, at, e) in rows.iter().take(16) {
                 println!(
-                    "   {:<34} {:>9.3} {:>9.3} [{:>10.3e},{:>10.3e}] [{:>10.3e},{:>10.3e}] {:>10.3} {:>4}/{:<4} {:?}",
-                    pred, w.k, qk, w.lo, w.hi, qlo, qhi, ratio, w.numeric, w.n, w.outcome
+                    "   {:<34} {:>10.3}x [{:>10.3e},{:>10.3e}] {:>4}/{:<4} {:?}",
+                    pred, at, e.lo, e.hi, e.numeric, e.n, e.outcome
                 );
             }
         }
     }
 }
 
+/// A document's ceiling with named predicates' indeterminate answers
+/// PASSED, stage by stage — the branch's funnel dial
+/// (`CAD_R2_PASS_INDETERMINATE`), so a ceiling can be measured AS IF
+/// those identities were discharged: what bounds the document next, at
+/// what multiple, and whether a real margin is ever reached.
+fn staged_ceilings(name: &str, at: &dyn Fn(f64) -> ProfileDoc, stages: &[&str], hi_scale: f64) {
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    for pass in stages {
+        // Single-threaded evidence run (`--test-threads 1`).
+        geom_core::k_stats::r2_pass_indeterminate_set(pass);
+        let (lo, hi, per) = ceiling(at, SymRules::shipped(), tol, 1.0e-1 * eps, hi_scale, 16);
+        println!(
+            "== {name}, passing [{pass}]: certifies x{lo:e}, refuses x{hi:e} ({per:.2}s/probe) [= {:.3e}·eps .. {:.3e}·eps] = {:.3e} of the real study",
+            lo / eps,
+            hi / eps,
+            lo
+        );
+        if lo.is_finite() && hi.is_finite() {
+            let doc = at(hi);
+            let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+            let (shapes, refusal, counts) =
+                replay(&doc, &ParamBox::of(&analyzed), SymRules::shipped(), tol);
+            println!("   beyond it: {refusal:?}\n   {counts:?}");
+            for s in shapes.iter().filter(|s| {
+                matches!(s.outcome, ShapeOutcome::Indeterminate | ShapeOutcome::Invalid)
+            }) {
+                println!("   [{:?}] {} enclosure {:?}", s.outcome, s.predicate, s.enclosure);
+            }
+        }
+    }
+    geom_core::k_stats::r2_pass_indeterminate_set("");
+}
+
+/// **The plate's ceiling with its identity residuals passed, one at a
+/// time** — evidence for review claim 3 and the "what is owed" of
+/// `plate-ceiling-is-now-the-scaffold-pushforward`.
+#[test]
+#[ignore = "evidence-only: the plate's ceiling with identity residuals passed in turn"]
+fn r2_evidence_plate_ceiling_with_identities_passed() {
+    let tol = Tol::witness();
+    let at = |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0;
+    staged_ceilings(
+        "plate",
+        &at,
+        &[
+            "",
+            "carrier_matches_mapped_source",
+            "carrier_matches_mapped_source,carrier_on_surface_2",
+            "carrier_matches_mapped_source,carrier_on_surface_2,pcurve_map_residual",
+            "carrier_matches_mapped_source,carrier_on_surface_2,pcurve_map_residual,witness_on_surface_2",
+            "carrier_matches_mapped_source,carrier_on_surface_2,pcurve_map_residual,witness_on_surface_2,carrier_on_surface_1,witness_on_surface_1,carrier_endpoint_start,carrier_endpoint_end,witness_at_mid_parameter",
+        ],
+        2.0,
+    );
+}
+
+/// **The pad's ceiling with `carrier_line_circle` passed** — claim 5:
+/// whether discharging the fillet's declared tangency would move the
+/// pad, and what stands behind `line_span`.
+#[test]
+#[ignore = "evidence-only: the pad's ceiling with the fillet tangency passed"]
+fn r2_evidence_pad_ceiling_with_the_tangency_passed() {
+    let tol = Tol::witness();
+    let at = |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0;
+    staged_ceilings(
+        "pad",
+        &at,
+        &["", "carrier_line_circle", "line_span", "line_span,carrier_line_circle"],
+        2.0,
+    );
+}
+
 /// **The enclosure of the plate's first refusal against the box scale**
 /// — is it linear in the box (pure dependency widening) or does it carry
-/// a constant? Printed at five scales, door on and off.
+/// a constant? Printed at six scales, door on and off.
 #[test]
 #[ignore = "evidence-only: prints the plate's bounding enclosure against scale"]
 fn r2_evidence_plate_enclosure_vs_scale() {
@@ -659,11 +753,11 @@ fn r2_evidence_plate_enclosure_vs_scale() {
             let doc = crate::m10_7_plate::plate(5.0e-5 * frac * ceil, 1.0e-5 * frac * ceil, tol).0;
             let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
             let (shapes, refusal, _) = replay(&doc, &ParamBox::of(&analyzed), rules, tol);
-            let table = worst_by_predicate(&shapes, tol);
+            let table = envelopes(&shapes);
             let pick = |p: &str| {
                 table
                     .get(p)
-                    .map_or("-".to_owned(), |w| format!("[{:.4e},{:.4e}] k={:.3}", w.lo, w.hi, w.k))
+                    .map_or("-".to_owned(), |w| format!("[{:.4e},{:.4e}]", w.lo, w.hi))
             };
             println!(
                 "   plate {label} {frac:>5}x: endpoint_start {} | endpoint_end {} | mapped_source {} | refusal {}",
@@ -675,6 +769,7 @@ fn r2_evidence_plate_enclosure_vs_scale() {
         }
     }
 }
+
 
 /// **Evidence** — why `frozen` moved with the door on R1's bracket at
 /// 0.5 mm (a refusing drive): one whole-box replay each way, the first
