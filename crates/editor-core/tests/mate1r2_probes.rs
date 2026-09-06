@@ -580,14 +580,17 @@ fn r2_patterned_member_as_tree_child_uses_the_inverse_offset() {
 
 // ---- P4: an out-of-range copy on a DECLARING mate ----
 
-/// PROBE (claims 5+7+8): copy 5 of a count-2 pattern, but as the
-/// SECOND (non-tree) mate of the pair graph — the solve never derives
-/// its offset (only tree edges reach `derived_offset`), so the
-/// committed fence row does not cover this shape. The document must
-/// still refuse somewhere typed, or the nonsense declaration would
-/// verify silently.
+/// PROBE (claims 5+7+8): copy 5 of a count-2 pattern, as the SECOND
+/// (non-tree) mate of the pair graph.
+///
+/// It refuses at the SOLVE, naming the pattern — not "somewhere" and
+/// not at the gate. The index-against-the-count check is a fact about
+/// a REFERENCE, so it runs where the solve reads each reference,
+/// once per side of every live mate; a check sited in the offset
+/// would have run on this mate only if the spanning tree had happened
+/// to take its pair as an edge.
 #[test]
-fn r2_out_of_range_copy_on_a_declaring_mate_still_refuses_somewhere() {
+fn r2_an_out_of_range_copy_on_a_declaring_mate_refuses_at_the_solve() {
     let mut store = StubStore::default();
     let leg_ref = store.insert(leg_part("r2-oor-leg"), Tol::witness());
     let top_ref = store.insert(leg_part("r2-oor-top"), Tol::witness());
@@ -630,26 +633,27 @@ fn r2_out_of_range_copy_on_a_declaring_mate_still_refuses_somewhere() {
     let (m0, m1) = (m0.expect("mate 0 mints"), m1.expect("mate 1 mints"));
 
     let poses = solve_document(&doc, Tol::witness());
-    let solve_fault = poses.fault(m1).cloned();
-    let role = poses.role(m1);
-
-    let ev = run(&doc, &opts(store));
-    let result = assemble(&doc, &ev, Tol::witness());
-    // The probe's assertion: SOMETHING typed refuses this document —
-    // either the solve faults the mate, or the gate refuses.
-    let gate_refused = result.is_err();
+    let fault = poses
+        .fault(m1)
+        .cloned()
+        .expect("an out-of-range copy refuses at the solve, tree edge or not");
     assert!(
-        solve_fault.is_some() || gate_refused,
-        "an out-of-range DECLARING copy must refuse somewhere: solve fault {solve_fault:?}, \
-         role {role:?}, gate {result:?}"
+        matches!(
+            fault,
+            editor_core::MateFault::DanglingHead { head, .. } if head == pattern
+        ),
+        "the refusal names the pattern whose count the index is past: {fault:?}"
     );
-    // Record the shape for the report (printed on failure of the next
-    // assertion if the refusal is somewhere surprising).
-    eprintln!(
-        "P4 shape: solve fault = {solve_fault:?}, role = {role:?}, gate = {:?}",
-        result.as_ref().err()
+    assert_eq!(
+        poses.role(m1),
+        Some(editor_core::MateRole::Refused),
+        "and the mate is refused, not carried as a live declaration"
     );
-    let _ = m0;
+    // The well-formed sibling is unaffected: one mate's refusal is
+    // not the pair's, and not the document's.
+    assert_eq!(poses.role(m0), Some(editor_core::MateRole::Determining));
+    assert!(poses.fault(m0).is_none());
+    let _ = (store, m0);
 }
 
 // ---- P5: a nested pattern head ----

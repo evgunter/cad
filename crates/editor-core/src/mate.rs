@@ -652,6 +652,9 @@ pub enum MateFault {
     /// disagree would be PLACED by the name and GATHERED by the
     /// `Part` — two different bodies for one declaration — so the
     /// solve refuses rather than choosing, and reports both indices.
+    ///
+    /// Raised per REFERENCE, where the solve reads each one, so it
+    /// reaches a declaring mate as surely as a tree edge's.
     PartSelectsAnotherCopy {
         /// The mate.
         mate: RecipeNodeId,
@@ -663,6 +666,11 @@ pub enum MateFault {
         named: u32,
         /// What the `Part`'s index expression evaluates to at the
         /// document's parameter bindings.
+        ///
+        /// `i64`, where `named` is the `u32` a name's structural
+        /// index is: an evaluated Count can be negative or past the
+        /// pattern's count, and narrowing it to compare would be
+        /// deciding the disagreement this fault exists to report.
         selected: i64,
     },
     /// A mate names ONE instance on both sides. A pair is two
@@ -813,9 +821,9 @@ impl core::fmt::Display for MateFault {
                 selected,
             } => write!(
                 f,
-                "mate {}'s {} reference names copy {named}, but the part node {} above it \
-                 selects instance {selected} — the name says which copy a mate is about, and a \
-                 document that gathers another one is placed and gathered differently",
+                "mate {}'s {} reference names copy {named}; the part node {} above it selects \
+                 copy {selected} — the name says which copy a mate is about, and a document \
+                 that gathers another one is placed and gathered differently",
                 mate.0,
                 side.name(),
                 part.0

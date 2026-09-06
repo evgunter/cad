@@ -275,27 +275,22 @@ pub fn member_of<P>(doc: &Doc<P>, r: &crate::node::SitedRef) -> Option<Member> {
     walk(doc, r).ok().map(|w| w.member)
 }
 
-/// The member a mate reference resolves to, or the typed
-/// dangling-head refusal (N5) — [`member_of`] with the mate and side
-/// that attribute the refusal.
+/// **[`member_of`] for a MATE's reference**: the walk, with the mate
+/// and side that attribute its refusal (N5).
 ///
-/// The `head` it names is the node the WALK STOPPED AT, which is
-/// where the reference stopped resolving: a stranded operand, or the
-/// first node the chain met that no member stands on. Naming the
-/// reference's own head instead would attribute the refusal to a node
-/// that is often perfectly live and perfectly fine.
-pub(super) fn head_of<P>(
-    doc: &Doc<P>,
-    mate: RecipeNodeId,
-    side: MateSide,
-    r: &crate::node::SitedRef,
-) -> Result<Member, MateFault> {
-    walk_of(doc, mate, side, r).map(|w| w.member)
-}
-
-/// [`head_of`] keeping the CHAIN as well as the member — the door a
-/// caller uses when it will also want the reference's derived offset,
-/// so the reference is walked once for both.
+/// The one door the solve reads a reference through — the member for
+/// the pair keying and the partitions, the chain for the offset. A
+/// second door answering only the member would be a second name for
+/// one walk, and the caller that wanted both would take whichever it
+/// remembered.
+///
+/// # Errors
+///
+/// [`MateFault::DanglingHead`] naming the node the WALK STOPPED AT,
+/// which is where the reference stopped resolving: a stranded
+/// operand, or the first node the chain met that no member stands on.
+/// Naming the reference's own head instead would attribute the
+/// refusal to a node that is often perfectly live and perfectly fine.
 pub(super) fn walk_of<P>(
     doc: &Doc<P>,
     mate: RecipeNodeId,
@@ -303,6 +298,85 @@ pub(super) fn walk_of<P>(
     r: &crate::node::SitedRef,
 ) -> Result<Walk, MateFault> {
     walk(doc, r).map_err(|head| MateFault::DanglingHead { mate, side, head })
+}
+
+/// **The per-reference checks that need a number** — run once per
+/// reference of every live mate, at the site the solve walks it.
+///
+/// The walk is structural and evaluates nothing, so the cluster
+/// partition never depends on a slot value. Two questions about a
+/// reference are not structural, and both compare the NAME against an
+/// evaluated count:
+///
+/// - the copy the name says must exist — its structural index against
+///   the pattern's evaluated count;
+/// - a `Part` standing directly above a pattern says which copy the
+///   body below it IS, and the name says which copy the mate is
+///   about. A document where they disagree would be PLACED by the
+///   name and GATHERED by the `Part`, so the solve refuses rather
+///   than choosing.
+///
+/// **They live here, per reference, and not in the offset.** The
+/// offset is derived only for a pair the spanning tree takes as an
+/// edge, and only for that pair's first mate — so a check sited there
+/// runs on some references and not others, and a DECLARING mate whose
+/// `Part` names another copy would be silently green with its body
+/// somewhere else. Every mate the solve reads gets both checks, and a
+/// reference that fails either refuses typed at that reading, exactly
+/// as a dangling head does.
+///
+/// # Errors
+///
+/// [`MateFault::PartSelectsAnotherCopy`] for the disagreement, naming
+/// both indices; [`MateFault::DanglingHead`] at the pattern for a copy
+/// index at or beyond the count, and for a count or a `Part` index
+/// whose expression does not evaluate at the document's own parameter
+/// bindings.
+pub(super) fn check_reference<P>(
+    doc: &Doc<P>,
+    mate: RecipeNodeId,
+    side: MateSide,
+    w: &Walk,
+) -> Result<(), MateFault> {
+    let env = doc.param_env::<f64>();
+    for placer in &w.chain {
+        let Placer::Pattern { node, i, part } = *placer else {
+            continue;
+        };
+        let dangling = || MateFault::DanglingHead {
+            mate,
+            side,
+            head: node,
+        };
+        let Some(Node::Pattern { count, .. }) = doc.node(node) else {
+            return Err(dangling());
+        };
+        let n = crate::expr::eval_count(count, &env).map_err(|_| dangling())?;
+        if i64::from(i) >= n {
+            return Err(dangling());
+        }
+        let Some(part) = part else {
+            continue;
+        };
+        let Some(Node::Part {
+            select: PartSelect::Instance(index),
+            ..
+        }) = doc.node(part)
+        else {
+            return Err(dangling());
+        };
+        let selected = crate::expr::eval_count(index, &env).map_err(|_| dangling())?;
+        if selected != i64::from(i) {
+            return Err(MateFault::PartSelectsAnotherCopy {
+                mate,
+                side,
+                part,
+                named: i,
+                selected,
+            });
+        }
+    }
+    Ok(())
 }
 
 /// **The reference's derived offset**: the rigid map every
@@ -321,15 +395,12 @@ pub(super) fn walk_of<P>(
 ///   same construction `wire_transform` places the body by, fed the
 ///   node's own expressions at those same bindings.
 ///
-/// A `Part` contributes no map — it selects a body, it does not move
-/// one — but it is CHECKED here, because here is where this door
-/// already evaluates a structural slot at the document's bindings.
-/// The name is the authority on which copy a reference means; a
-/// `Part` standing directly above a pattern says which copy the body
-/// below it IS, and the two must agree. Where they do not, the
-/// reference would be placed by one and gathered by the other, so the
-/// offset refuses [`MateFault::PartSelectsAnotherCopy`] naming both
-/// indices rather than picking a winner.
+/// A `Part` contributes nothing at all — it selects a body, it does
+/// not move one. Whether it agrees with the name, and whether the
+/// named copy exists, are [`check_reference`]'s: they are facts about
+/// a REFERENCE, and this door sees only the references of the pairs
+/// the spanning tree took. Arithmetic here, admission and agreement
+/// there.
 ///
 /// Both are document-coordinate maps and both are LEFT-composed, for
 /// the reason `wire_transform` and `wire_pattern` compose them
@@ -348,16 +419,33 @@ pub(super) fn walk_of<P>(
 ///
 /// # Errors
 ///
-/// A chain whose derived pose does not exist resolves to no member of
-/// the vocabulary and refuses [`MateFault::DanglingHead`] — an index
-/// at or beyond the count, a rule or a transform whose slots do not
-/// evaluate, a degenerate or non-finite direction, an explicit-rule
-/// pattern (whose count spelling the pattern node itself refuses).
-/// This door's job is to refuse rather than guess a pose. An in-band
-/// direction-norm decision escalates [`MateFault::Indeterminate`], as
-/// every decided predicate here does, and a `Part` that selects a
-/// copy other than the one the name says refuses
-/// [`MateFault::PartSelectsAnotherCopy`].
+/// A chain whose derived pose does not exist refuses
+/// [`MateFault::DanglingHead`] — a rule or a transform whose slots do
+/// not evaluate, a degenerate or non-finite direction, an
+/// explicit-rule pattern (whose count spelling the pattern node
+/// itself refuses). This door's job is to refuse rather than guess a
+/// pose. An in-band direction-norm decision escalates
+/// [`MateFault::Indeterminate`], as every decided predicate here
+/// does.
+///
+/// The copy index is NOT re-checked against the count here.
+/// [`check_reference`] has already compared them for every reference
+/// of every live mate, so by the time a pose is composed the index is
+/// in range by construction — and a second guard would be a branch no
+/// document can reach, which is a claim about the code rather than
+/// about the kernel.
+///
+/// **One length decision, two funnel names, ratified.** A circular
+/// rule's direction is a DATUM's axis direction, and this derivation
+/// re-derives it from the recipe expressions rather than reading the
+/// evaluated `DatumValue` whose `UnitVec3` normalized the same
+/// triple. So one datum direction is decided under two predicate
+/// names depending on which road reaches it — same body, same
+/// refusal shape, different name in the K census. That split is
+/// RATIFIED, not tolerated, and the argument is SEAT-DN's, not this
+/// module's: `docs/DOC-LEDGER.md`'s `work/seat/
+/// direction-normalization-two-doors-one-home` entry and the
+/// `decide_unit_direction` seat it closed on.
 ///
 /// **The direction refusals say less than they know, and the
 /// difference is not recoverable elsewhere.** A rule whose direction
@@ -385,39 +473,9 @@ pub(super) fn derived_offset<P>(
         let triple = |es: &[crate::expr::Expr; 3]| -> Result<Vec3<f64>, Box<MateFault>> {
             Ok(Vec3::new(scalar(&es[0])?, scalar(&es[1])?, scalar(&es[2])?))
         };
-        // The evaluation's own direction normalization (the
-        // `eval_direction_norm` door), decided — never a raw
-        // comparison, never a silent zero direction.
-        //
-        // It normalizes every rule's direction here, and for the
-        // circular rule that means a DATUM's axis direction: this
-        // derivation reads the recipe node and re-derives from the
-        // expressions, rather than taking the evaluated `DatumValue`
-        // whose `UnitVec3` already normalized the same triple under
-        // `datum_unit_norm`. So one datum direction is decided under
-        // two predicate names depending on which road reaches it —
-        // same arithmetic, same refusal shape, different name in the
-        // K census.
-        //
-        // THAT SPLIT IS RATIFIED, not tolerated: the layer that OWNS
-        // the value is the layer whose telemetry names its length
-        // decision, and on this road the value is a direction the
-        // evaluation layer derived from the recipe, not a
-        // `DatumValue` the kernel type holds. The two names are read
-        // per layer and stay put; what was collapsed instead is the
-        // BODY behind them — both doors are one call to
-        // `topo::query::unit_direction`, so the "same arithmetic,
-        // same refusal shape" above is a fact about one function
-        // rather than a claim about two copies. The ROLE word is what
-        // the two roads share INSIDE the evaluation layer's error:
-        // each rule names the vector it actually normalized, so the
-        // node error a circular rule builds says "datum axis
-        // direction" on either road. It does not survive the closure
-        // below — a degenerate or non-finite direction becomes
-        // `MateFault::DanglingHead`, which carries the head and no
-        // role at all, and that loss is the residue this door's own
-        // docs name (`mate-dangling-head-is-a-catch-all-that-reports-
-        // a-false-cause`).
+        // Every direction here is normalized through the evaluation
+        // layer's own decided door — never a raw comparison, never a
+        // silent zero direction.
         let unit = |v: Vec3<f64>, role: &'static str| -> Result<Vec3<f64>, Box<MateFault>> {
             crate::eval::unit_direction(v, role, band).map_err(|e| match e {
                 crate::eval::NodeErrorKind::Escalated { source, .. } => {
@@ -430,37 +488,10 @@ pub(super) fn derived_offset<P>(
             })
         };
         let map = match *placer {
-            Placer::Pattern { node, i, part } => {
-                let Some(Node::Pattern { count, kind, .. }) = doc.node(node) else {
+            Placer::Pattern { node, i, .. } => {
+                let Some(Node::Pattern { kind, .. }) = doc.node(node) else {
                     return Err(dangling());
                 };
-                let n = crate::expr::eval_count(count, &env).map_err(|_| dangling())?;
-                if i64::from(i) >= n {
-                    return Err(dangling());
-                }
-                // The `Part` directly above this pattern, checked
-                // against the copy the name says — the pattern's own
-                // slots are evaluated at these same bindings three
-                // lines up, and this index is one more of them.
-                if let Some(part) = part {
-                    let Some(Node::Part {
-                        select: PartSelect::Instance(index),
-                        ..
-                    }) = doc.node(part)
-                    else {
-                        return Err(dangling());
-                    };
-                    let selected = crate::expr::eval_count(index, &env).map_err(|_| dangling())?;
-                    if selected != i64::from(i) {
-                        return Err(Box::new(MateFault::PartSelectsAnotherCopy {
-                            mate,
-                            side,
-                            part,
-                            named: i,
-                            selected,
-                        }));
-                    }
-                }
                 if i == 0 {
                     // Copy 0's map is the identity by the stepped
                     // rule's own construction; composing it would be

@@ -33,7 +33,7 @@ use geom_core::linalg::{Affine3, Mat3, Point3, Vec3};
 use geom_core::predicate::Band;
 
 use super::coset::{Coset, FoldStop, Subgroup};
-use super::member::{Member, Walk, derived_offset, head_of, walk_of};
+use super::member::{Member, Walk, check_reference, derived_offset, walk_of};
 use super::{Alignment, AxisSense, MateFault, MatePrimitive, MateSide};
 use crate::doc::Doc;
 use crate::node::{Node, RecipeNodeId};
@@ -177,8 +177,8 @@ pub fn reading_edges<P>(doc: &Doc<P>) -> Vec<(RecipeNodeId, RecipeNodeId)> {
             continue;
         };
         for (side, name) in [(MateSide::A, a), (MateSide::B, b)] {
-            if let Ok(member) = head_of(doc, id, side, name) {
-                out.push((id, member.instance));
+            if let Ok(w) = walk_of(doc, id, side, name) {
+                out.push((id, w.member.instance));
             }
         }
     }
@@ -266,27 +266,54 @@ fn has_mates<P>(doc: &Doc<P>) -> bool {
 /// why a mate-less document's registry is bit-identical to the
 /// per-instance keying this generalizes.
 pub fn clusters<P>(doc: &Doc<P>) -> Vec<Vec<RecipeNodeId>> {
-    let mut welds: Vec<(RecipeNodeId, RecipeNodeId)> = Vec::new();
-    for &id in doc.order() {
-        if let Some(Node::Mate { a, b, .. }) = doc.node(id)
-            && let (Ok(ha), Ok(hb)) = (
-                head_of(doc, id, MateSide::A, a),
-                head_of(doc, id, MateSide::B, b),
-            )
-        {
-            welds.push((ha.instance, hb.instance));
-        }
-    }
-    clusters_welded_by(doc, &welds)
+    clusters_welded_by(doc, &welds(&read_mates(doc)))
 }
 
-/// The clusters a given set of WELDS produces — the shared body of
-/// [`clusters`] and of the solve's own partition.
+/// One mate's two references as [`read_mates`] read them: both walks,
+/// or the first refusal that stops the mate being an edge at all.
+type ReadMate = Result<(Walk, Walk), MateFault>;
+
+/// **Which mates WELD, read once**: each live mate in document order
+/// with both its references walked, or the first refusal that stops
+/// it being an edge at all.
 ///
-/// The solve has already walked every reference to build its pair
-/// map, and a second call to [`clusters`] would walk them all again
-/// for the same answer. The welds it passes are that map's keys; the
-/// two are the same graph read from the same walks.
+/// The one reading [`clusters`] and [`solve_document`] share. They
+/// used to ask the same question through two loops written out
+/// separately — the same predicate spelled twice, where a change to
+/// either could leave the partition the registry is keyed by
+/// disagreeing with the partition the solve folds over.
+///
+/// STRUCTURAL, and that is the point: it walks and nothing more, so
+/// the partition never depends on a slot value. The solve's own
+/// further checks ([`check_reference`]) can refuse a mate this admits
+/// — such a mate welds its cluster and contributes no PAIR, so its
+/// instances keep the cluster's frame and no pose is invented for
+/// them.
+fn read_mates<P>(doc: &Doc<P>) -> Vec<(RecipeNodeId, ReadMate)> {
+    let mut out = Vec::new();
+    for &id in doc.order() {
+        let Some(Node::Mate { a, b, .. }) = doc.node(id) else {
+            continue;
+        };
+        out.push((
+            id,
+            walk_of(doc, id, MateSide::A, a)
+                .and_then(|wa| Ok((wa, walk_of(doc, id, MateSide::B, b)?))),
+        ));
+    }
+    out
+}
+
+/// The instance pairs [`read_mates`] welds — its resolving mates,
+/// projected onto the vertices A9/A11's partitions see.
+fn welds(read: &[(RecipeNodeId, ReadMate)]) -> Vec<(RecipeNodeId, RecipeNodeId)> {
+    read.iter()
+        .filter_map(|(_, r)| r.as_ref().ok())
+        .map(|(wa, wb)| (wa.member.instance, wb.member.instance))
+        .collect()
+}
+
+/// The clusters a given set of WELDS produces.
 ///
 /// A weld standing on ONE instance (two copies of a pattern mated to
 /// each other) joins nothing and is dropped here rather than at each
@@ -668,55 +695,74 @@ pub fn solve_document<P>(doc: &Doc<P>, tol: Tol) -> SolvedPoses {
     // of one pattern are a pair like any other (their edge just joins
     // no clusters, both ends standing on the same instance).
     let mut by_pair: BTreeMap<(Member, Member), Vec<PairMate>> = BTreeMap::new();
-    let mut welds: Vec<(RecipeNodeId, RecipeNodeId)> = Vec::new();
     let mut broken: Vec<(RecipeNodeId, MateFault)> = Vec::new();
-    for &id in doc.order() {
-        let Some(Node::Mate { a, b, .. }) = doc.node(id) else {
-            continue;
-        };
+    // ONE walk per reference, here: the members below, the pair
+    // keying, the cluster welds and every derived offset the fold
+    // needs are all read off these two walks.
+    let read = read_mates(doc);
+    for (id, walked) in &read {
+        let id = *id;
         out.roles.insert(id, MateRole::Declaring);
-        // ONE walk per reference, here: the members below, the pair
-        // keying, the cluster welds and every derived offset the fold
-        // needs are all read off these two walks.
-        match (
-            walk_of(doc, id, MateSide::A, a),
-            walk_of(doc, id, MateSide::B, b),
-        ) {
-            (Ok(wa), Ok(wb)) if wa.member != wb.member => {
-                welds.push((wa.member.instance, wb.member.instance));
-                let (ha, hb) = (wa.member.clone(), wb.member.clone());
-                by_pair
-                    .entry(unordered(ha, hb))
-                    .or_default()
-                    .push(PairMate {
-                        mate: id,
-                        a: wa,
-                        b: wb,
-                    });
+        let (wa, wb) = match walked {
+            Ok(pair) => pair,
+            Err(fault) => {
+                broken.push((id, fault.clone()));
+                continue;
             }
-            (Ok(wa), Ok(_)) => broken.push((
+        };
+        // **The checks that need a number, at the site the solve
+        // reads the reference** — for EVERY reference of EVERY live
+        // mate, not only the ones a tree edge's offset happens to
+        // derive. The walk itself evaluated nothing, so this is where
+        // the name meets a count.
+        let checked = check_reference(doc, id, MateSide::A, wa)
+            .and_then(|()| check_reference(doc, id, MateSide::B, wb));
+        if let Err(fault) = checked {
+            broken.push((id, fault));
+            continue;
+        }
+        if wa.member == wb.member {
+            broken.push((
                 id,
                 MateFault::SelfMate {
                     mate: id,
                     instance: wa.member.instance,
                 },
-            )),
-            (Err(fault), _) | (_, Err(fault)) => broken.push((id, fault)),
+            ));
+            continue;
         }
+        let (ha, hb) = (wa.member.clone(), wb.member.clone());
+        by_pair
+            .entry(unordered(ha, hb))
+            .or_default()
+            .push(PairMate {
+                mate: id,
+                a: wa.clone(),
+                b: wb.clone(),
+            });
     }
     for (mate, fault) in broken {
         out.roles.insert(mate, MateRole::Refused);
         out.faults.insert(mate, fault);
     }
-    for cluster in clusters_welded_by(doc, &welds) {
+    for cluster in clusters_welded_by(doc, &welds(&read)) {
         let Some(&gauge) = cluster.first() else {
             continue;
         };
         match solve_cluster(doc, &cluster, gauge, &by_pair, band, tol) {
             Ok(solved) => {
+                // The GAUGE is the cluster's, and every instance in it
+                // is keyed by that gauge whether or not a pair placed
+                // it. A mate this solve refused still WELDS its
+                // cluster (the partition is structural), so an
+                // instance the spanning tree could not reach keeps the
+                // cluster's recorded frame instead of falling back to
+                // an identity that would move it.
+                for &instance in &cluster {
+                    out.gauge.insert(instance, gauge);
+                }
                 for (instance, frame) in solved.relative {
                     out.relative.insert(instance, frame);
-                    out.gauge.insert(instance, gauge);
                 }
                 for (mate, role) in solved.roles {
                     out.roles.insert(mate, role);

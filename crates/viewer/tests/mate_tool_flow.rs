@@ -333,25 +333,14 @@ fn a_pattern_placed_pick_mates_through_an_instance_headed_reference() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
     session.pump();
-    let (doc, eval) = session.landed_pair().expect("landed");
+    let mate = committed_mate(&session);
+    let (doc, _) = session.landed_pair().expect("landed");
     assert!(
-        solve_document(doc, tol).fault(pattern).is_none(),
-        "the pattern member solves"
+        solve_document(doc, tol).fault(mate).is_none(),
+        "the pattern member solves: {:?}",
+        solve_document(doc, tol).fault(mate)
     );
-    let a = face_frame(eval, copy_one.node, &copy_one.name).expect("copy 1's cap");
-    let b = face_frame(eval, shelf_bottom.node, &shelf_bottom.name).expect("the shelf's underside");
-    for (got, want) in [
-        (a.origin.x, b.origin.x),
-        (a.origin.y, b.origin.y),
-        (a.origin.z, b.origin.z),
-    ] {
-        assert!(
-            (got - want).abs() < 1e-9,
-            "the mated faces meet in the world: {:?} vs {:?}",
-            a.origin,
-            b.origin
-        );
-    }
+    assert_faces_meet(&session, &copy_one, &shelf_bottom, "the pattern member");
     for row in session.tree_rows() {
         assert_eq!(row.status, viewer::tree::RowStatus::Ok, "{row:?}");
     }
@@ -719,25 +708,14 @@ fn a_circular_pattern_copy_authors_the_masters_unrotated_frame() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
     session.pump();
-    let (doc, eval) = session.landed_pair().expect("landed");
+    let mate = committed_mate(&session);
+    let (doc, _) = session.landed_pair().expect("landed");
     assert!(
-        solve_document(doc, tol).fault(pattern).is_none(),
-        "the spun member solves"
+        solve_document(doc, tol).fault(mate).is_none(),
+        "the spun member solves: {:?}",
+        solve_document(doc, tol).fault(mate)
     );
-    let a = face_frame(eval, copy_one.node, &copy_one.name).expect("copy 1's cap");
-    let b = face_frame(eval, shelf_bottom.node, &shelf_bottom.name).expect("the shelf's underside");
-    for (got, want) in [
-        (a.origin.x, b.origin.x),
-        (a.origin.y, b.origin.y),
-        (a.origin.z, b.origin.z),
-    ] {
-        assert!(
-            (got - want).abs() < 1e-9,
-            "the mated faces meet in the world: {:?} vs {:?}",
-            a.origin,
-            b.origin
-        );
-    }
+    assert_faces_meet(&session, &copy_one, &shelf_bottom, "the spun member");
 }
 
 // ---- the member chain: a nested copy, and a `Part`-selected one ----
@@ -836,6 +814,26 @@ fn shelf_underside(session: &DocSession) -> FaceSelection {
     )
 }
 
+/// **The mate the tool just committed** — the document's last
+/// `Node::Mate`, which is the node the solve keys a fault by.
+///
+/// A pattern node, a `Part` node or an instance is NOT such a key:
+/// `SolvedPoses::fault` maps refusing MATES and the instances of a
+/// cluster that consequently has no pose, so `fault(pattern)` answers
+/// `None` for every document ever written and asserts nothing.
+///
+/// # Panics
+///
+/// If the document holds no mate.
+fn committed_mate(session: &DocSession) -> RecipeNodeId {
+    let (doc, _) = session.landed_pair().expect("landed");
+    *doc.order()
+        .iter()
+        .rev()
+        .find(|&&id| matches!(doc.node(id), Some(pncad::document::Node::Mate { .. })))
+        .expect("the tool committed a mate")
+}
+
 /// The two picked faces meet in the world the evaluation draws.
 fn assert_faces_meet(session: &DocSession, a: &FaceSelection, b: &FaceSelection, what: &str) {
     let (_, eval) = session.landed_pair().expect("landed");
@@ -909,10 +907,12 @@ fn a_nested_copy_pick_reads_the_master_and_seats() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
     session.pump();
+    let mate = committed_mate(&session);
     let (doc, _) = session.landed_pair().expect("landed");
     assert!(
-        solve_document(doc, tol).fault(outer).is_none(),
-        "the nested member solves"
+        solve_document(doc, tol).fault(mate).is_none(),
+        "the nested member solves: {:?}",
+        solve_document(doc, tol).fault(mate)
     );
     assert_faces_meet(&session, &nested, &shelf_bottom, "a nested copy");
     for row in session.tree_rows() {
@@ -970,10 +970,12 @@ fn a_part_over_a_pattern_pick_is_a_member_and_seats() {
     let outcome = session.perform(proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
+    let mate = committed_mate(&session);
     let (doc, _) = session.landed_pair().expect("landed");
     assert!(
-        solve_document(doc, tol).fault(loose).is_none(),
-        "the Part-selected member solves"
+        solve_document(doc, tol).fault(mate).is_none(),
+        "the Part-selected member solves: {:?}",
+        solve_document(doc, tol).fault(mate)
     );
     assert_faces_meet(&session, &picked, &shelf_bottom, "a Part-selected copy");
     for row in session.tree_rows() {

@@ -261,10 +261,15 @@ placed body its own pose. A member's identity is its instance, the
 CHAIN of copies the walk consumed (outermost first) and the operand it
 was read at: two references to one instance read at different operands
 are two members, and so are two references to sibling copies at any
-level. Nothing in the walk is evaluated — a `Part`'s index is an
-expression, and the NAME is the authority on which copy; the offset,
-which evaluates already, checks the two agree and refuses
-`MateFault::PartSelectsAnotherCopy` when they do not.
+level. Nothing in the walk is evaluated, so the partitions never
+depend on a slot value. The two questions that DO need a number are
+asked once per reference, where the solve reads it — for every
+reference of every live mate, not only the ones a tree edge's offset
+derives: the named copy must exist (its index against the pattern's
+evaluated count, else `MateFault::DanglingHead` at the pattern), and a
+`Part` directly above a pattern must select the copy the NAME names
+(else `MateFault::PartSelectsAnotherCopy`, which reports both). The
+name is the authority; the `Part` is checked against it.
 
 ## Open questions
 

@@ -21,14 +21,14 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::{
-    Alignment, AssemblyError, Attribution, AxisSense, CancelToken, CapEnd, ContactClass, Dimension,
-    DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions, Evaluation, Expr, MateFault,
-    MateFrame, MatePrimitive, MateRole, MateSide, Node, PartResolver, PatternKind, ProfileDoc,
-    RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName, assemble,
-    content_pin, evaluate, load, product, save, solve_document,
+    Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, DocEdit, DocRef,
+    DocumentId, EditError, EntityKind, EvalOptions, Evaluation, Expr, MateFault, MateFrame,
+    MatePrimitive, MateRole, MateSide, Node, PartResolver, PatternKind, ProfileDoc, RecipeNodeId,
+    ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName, content_pin, load, product, save,
+    solve_document,
 };
 use fixture::seat::{assert_seated, map_gap, seat_map};
-use fixture::{insert, len, on_frame, scl, step};
+use fixture::{gate, in_copy, insert, len, on_frame, run, scl, step, xform};
 use geom_core::Tol;
 use geom_core::linalg::Affine3;
 
@@ -64,10 +64,6 @@ impl PartResolver for StubStore {
         }
         Ok(doc.clone())
     }
-}
-
-fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
 }
 
 /// The extrude in a one-block part document (frame, profile, extrude).
@@ -128,18 +124,6 @@ fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
     }
 }
 
-/// That same face as copy `i` of `pattern`.
-fn in_copy(pattern: RecipeNodeId, i: u32, of: StableName) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: pattern,
-        path: vec![RoleSeg::Instance {
-            i,
-            of: Box::new(of),
-        }],
-    }
-}
-
 /// The `a` frame: a point ON the base's top cap, axis along that
 /// cap's OUTWARD normal.
 fn a_frame() -> MateFrame {
@@ -192,33 +176,6 @@ fn seat_with(
             clocking,
         },
     }
-}
-
-/// A `Transform` over `input`: translation, and `angle` about `axis`.
-fn xform(
-    input: RecipeNodeId,
-    translation: [f64; 3],
-    axis: [f64; 3],
-    angle: f64,
-) -> Node<editor_core::ProfileProgram> {
-    Node::Transform {
-        input,
-        translation: translation.map(len),
-        rotation_axis: axis.map(scl),
-        rotation_angle: Expr::literal(angle, Dimension::Angle).unwrap(),
-    }
-}
-
-// ---- the PRODUCT oracle ----
-//
-// `fixture::seat` owns it: the face frames read out of the gathered
-// body, the seat map between two of them, and the three-way seated
-// assertion against a control. MSOLVE-2's rows measure with the same
-// oracle, so it lives beside the fixture rather than in either suite.
-
-/// The at-rest gate's verdict, as the row wants to read it.
-fn gate(doc: &ProfileDoc, ev: &Evaluation<f64>) -> Result<(), AssemblyError> {
-    assemble(doc, ev, Tol::witness()).map(|_| ())
 }
 
 // ---- the scene ----
