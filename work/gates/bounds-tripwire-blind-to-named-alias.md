@@ -7,6 +7,7 @@ opened: 2026-08-09
 github: 279
 refs: [273]
 branch: gates/d102-parameter-grouped-bounds
+pr: 2056
 ---
 
 ## From GitHub issue 279
