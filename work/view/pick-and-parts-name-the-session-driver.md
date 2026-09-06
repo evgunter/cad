@@ -6,7 +6,7 @@ status: closed
 opened: 2026-09-04
 closed: 2026-09-05
 pr: 1953
-refs: [1848, 1883, inserting-an-item-above-another-steals-its-docs]
+refs: [1848, 1883, inserting-an-item-above-another-steals-its-docs, index-request-and-index-inputs-are-one-concept-twice]
 ---
 
 
