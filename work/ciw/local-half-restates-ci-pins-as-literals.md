@@ -2,10 +2,11 @@
 id: local-half-restates-ci-pins-as-literals
 kind: issue
 title: the local half restates ci.yml's tool pins as literals in five places and nothing reconciles them
-status: dispatched
+status: review
 opened: 2026-09-04
 refs: [nightly-pin-reading-idiom-four-copies, ruff-pin-read-shares-the-first-match-shape]
 branch: ciw/pin-reconciler
+pr: 2070
 ---
 
 `ci.yml`'s workflow-level `env:` block is this repo's single source of
@@ -82,3 +83,25 @@ That unit's own `MIRROR_EXEMPT` sentence then asserted the local half
 about a pinned version restated where nothing checks it shipped a
 sentence restating an unchecked claim about exactly those pins. The
 sentence is corrected; this item is the residue it was hiding.
+
+## Disposition (PR 2070)
+
+Closed by a RECONCILER, not by substitution, which is the shape this item
+argued for. `scripts/check-ci-mirror-parity.py` gained claim 11: it derives
+`ci.yml`'s pins through `scripts/ci-pin.py`'s new `read_pins` (the whole
+workflow-level `env:` block, sharing `read_pin`'s anchoring), derives every
+`x.y.z` under `local-scripts/` by walking the tree, and reds when a literal
+names no pin the block sets — with a second, name-anchored arm for the case a
+literal drifts onto a DIFFERENT pin's value. `nextest_check()`'s text stays a
+literal a human can paste, as this item asked.
+
+The roster the item warned against is not written: what IS hand-written is
+`PIN_FREE`, the declared NON-pins, so a new version literal in that tree is an
+error until someone says what it is. Its first entry is the trap this item
+named — `0.98.4+` on `ci-local.sh:38` is an admesh floor, declared as one.
+
+The three `.claude/hooks/session-start.sh` lines this item carried are NOT
+closed here: hosted CI deletes `.claude/` at checkout, so a claim about them
+would pass hosted and red only locally. They are filed on their own, with the
+argument a fix there has to settle, as
+`work/ciw/session-start-hook-restates-ci-pins`.

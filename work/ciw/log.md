@@ -927,3 +927,56 @@ say why a roster is the thing this repo keeps learning not to write),
 and whether `ci-local.sh:588-589`'s human-facing literal stays a literal
 (the item argues it should, and that the check reconciles it rather than
 the text reading the pin).
+
+## 2026-09-06 — unit 1 in review: the pin has one reader and its copies have a check
+
+PR #2070, branch `ciw/pin-reconciler`, code-tier run green (37 jobs, 12
+`test (…)`, all five `k-lint (gate, …)`; the three skips are the two cache
+primers and the nightly interval oracle).
+
+**Both judgements the brief left open went the way the items argued, and both
+cost something worth writing down.**
+
+*Derive, do not enumerate.* Claim 11 in `check-ci-mirror-parity.py` walks
+`local-scripts/` for every `x.y.z` and reads `ci.yml`'s block through a new
+`ci_pin.read_pins`, which shares `read_pin`'s anchoring rather than
+reimplementing it. What is still written by hand is the inverse table:
+`PIN_FREE` declares the three literals that are NOT pins, so a version literal
+added to that tree is an error until someone says what it is. That direction is
+the whole difference — a roster of pin COPIES falls behind the tree silently,
+a roster of exceptions fails closed and expires like `MIRROR_EXEMPT`. The
+admesh floor the item warned about is its first entry.
+
+*One arm was not enough.* A value-only reconciler is blind to a literal that
+drifts onto some OTHER pin's value, and this tree has five pins to drift
+between. So there is a second, name-anchored arm: a line naming a pinned tool
+and carrying a version must carry that tool's current pin, with the tool token
+derived from the pin's key. It has its own hole — `ci-local.sh:620`'s "against
+the pinned 0.9.140" names no tool — which is exactly what arm A covers. Neither
+arm subsumes the other and both are needed; that is written at `PIN_FREE` with
+the other four disclosed holes.
+
+*The human-facing literal stayed a literal*, as the item asked, and the reason
+is now written where a bumper meets it: `ci-local.sh`'s prereq note says the
+versions are checked and by what.
+
+**The ruff reader** now loads `ci-pin.py` by path and calls `read_pin`. The
+fixtures did not have to move — the planted ci.yml was already a column-0
+`env:` block — and two cases were added at that caller for the shapes the
+shared reader exists for.
+
+**Residues, both filed rather than mentioned.**
+`session-start-hook-restates-ci-pins` (the `.claude/` copies, which no hosted
+claim can reach, and whose fix has to decide what the hook does when the read
+refuses) and `seal-oracle-toolchain-read-first-match` (turned up by the
+third-idiom arm of the sweep: `sed … | head -1` against `Cargo.toml`'s
+`rust-version`, a different source of truth with the same shape).
+
+**What the sweep could not match** is in the PR body and, for the part the next
+author needs, in the two item files: a paraphrased pin, a version written in
+another form, and every source of truth that is not `ci.yml`'s `env:` block —
+`rust-toolchain.toml`, `Cargo.toml`'s MSRV, the FreeCAD AppImage pin. The
+provenance prose in `scripts/` and the workflows ("verified against the pinned
+0.9.140") was found and deliberately left alone: those sentences record what
+was measured, and making them track a bump would falsify the record. That is
+why claim 11's tree is `local-scripts/` and not `scripts/`.
