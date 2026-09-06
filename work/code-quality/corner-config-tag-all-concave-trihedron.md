@@ -2,11 +2,11 @@
 id: corner-config-tag-all-concave-trihedron
 kind: ruling
 title: Design conversation - an honest CornerConfig tag for the all-concave trihedron (currently MixedConvexity convex 0)
-status: open
+status: closed
 opened: 2026-08-31
 github: 1355
 refs: [644, 919, 1306, 1347, 1360]
-needs_ev: true
+closed: 2026-09-06
 ---
 
 ## From GitHub issue 1355
@@ -75,3 +75,12 @@ appears). A 👍 on this PR's `[ev]` thread closes the ruling with NO tag; a
 comment "mint" makes the mint a small execution unit (S / STRUCTURAL, the
 reviewed shape exists). Either way FILLET's walk records the answer;
 unruled at the walk, the ruling stays code-quality's and is CARRIED.
+
+## Ruled (Ev, comment on PR 1935, 2026-09-06): closed with NO tag
+
+"ok cool that plan sounds good" — the ruling closes with no
+`ThreeConcaveEdges` mint. Nothing was ever blocked on the tag (it was a
+misleading-name finding; BLEND-4 made both verbs carve the corner, so the
+false label is minted nowhere); it is minted when a consumer appears.
+FILLET's exit walk (`docs/DOC-LEDGER.md`, sweep 7) carries this row as
+CARRIED-then-closed; block FILLET-B3's banked slot 2 closes empty.
