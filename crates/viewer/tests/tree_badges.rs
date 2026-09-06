@@ -327,15 +327,17 @@ fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
         !failing.contains(&bench.post_a) && !failing.contains(&bench.shelf_i),
         "the mated instances are not causes: {rows:?}"
     );
-    // Both mates are blamed, so the instances point at the first the
-    // fault names — a row this same tree badges FAILED, never one the
-    // evaluation calls `Ok`.
+    // Both mates are blamed, and WHICH one the instances point at is
+    // decided, not a coin flip: `blamed_mates` yields the fault's own
+    // `held` then `added`, and the tree takes the first — with no
+    // corroboration step left to skip it, because the kernel now
+    // reports both as failing. So the pointer is `held`, every run.
     for instance in [bench.post_a, bench.shelf_i] {
         match status_of(instance) {
             RowStatus::Poisoned { through, message } => {
-                assert!(
-                    [held, added].contains(&through),
-                    "the instance points at one of the two blamed mates, got {through:?}"
+                assert_eq!(
+                    through, held,
+                    "the instance points at the first mate the fault names"
                 );
                 assert!(
                     matches!(status_of(through), RowStatus::Failed { .. }),

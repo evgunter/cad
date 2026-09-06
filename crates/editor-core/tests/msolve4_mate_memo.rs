@@ -17,57 +17,22 @@
 
 use crate::fixture;
 
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::{
-    Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocRef, DocumentId,
-    EntityKind, EvalOptions, Evaluation, MateFault, MateFrame, MatePrimitive, MateRole, Node,
-    NodeErrorKind, NodeResult, PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure,
-    ResolveFault, RoleSeg, SitedRef, StableName, ValuePayload, content_pin, evaluate,
-    solve_document,
+    Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions,
+    Evaluation, MateFault, MateFrame, MatePrimitive, MateRole, Node, NodeErrorKind, NodeResult,
+    ProfileDoc, RecipeNodeId, SitedRef, ValuePayload, evaluate, solve_document,
 };
 use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
 
 // ---- substrate ----
 
-/// The part documents this suite instantiates, behind the ordinary
-/// resolver door.
-#[derive(Debug, Default)]
-struct StubStore {
-    docs: BTreeMap<DocumentId, ProfileDoc>,
-}
-
-impl StubStore {
-    fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
-        let pin = content_pin(&doc, tol).expect("the pin computes");
-        let id = doc.id();
-        self.docs.insert(id, doc);
-        DocRef { id, pin }
-    }
-}
-
-impl PartResolver for StubStore {
-    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        let fail = |fault, message: &str| ResolveFailure {
-            fault,
-            message: message.to_string(),
-        };
-        let doc = self
-            .docs
-            .get(&doc_ref.id)
-            .ok_or_else(|| fail(ResolveFault::Unresolved, "no such document"))?;
-        let found = content_pin(doc, Tol::witness()).expect("the pin computes");
-        if found != doc_ref.pin {
-            return Err(fail(ResolveFault::PinMismatch, "the pin does not hold"));
-        }
-        Ok(doc.clone())
-    }
-}
-
-/// The extrude in a one-block part document (frame, profile, extrude).
-const PART_BODY: RecipeNodeId = RecipeNodeId(2);
+/// The extrude in a one-block part document, and the wrapped name of
+/// one of its cap faces — the shared assembly substrate
+/// (`fixture::resolver`), not a stub authored here.
+use fixture::resolver::{PartStore, in_part};
 
 /// A `wxwxh` block, as a whole part document.
 fn slab(label: &str, w: f64, h: f64) -> ProfileDoc {
@@ -87,21 +52,6 @@ fn slab(label: &str, w: f64, h: f64) -> ProfileDoc {
         },
     );
     doc
-}
-
-/// A face of `instance`'s part product — the plain member spelling.
-fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: Box::new(StableName {
-                kind: EntityKind::Face,
-                node: PART_BODY,
-                path: vec![RoleSeg::Cap(cap)],
-            }),
-        }],
-    }
 }
 
 // ---- the scene ----
@@ -165,19 +115,25 @@ fn seat(
     }
 }
 
-/// A wide base slab and two blocks, each instantiated through the
+/// A wide base slab and three blocks, each instantiated through the
 /// resolver — the document every row below edits, and the ids it
 /// edits by.
+///
+/// Three blocks, because the per-mate row needs TWO clusters that do
+/// not touch: `base` and one block on one side, two blocks on the
+/// other. A block no mate reaches is a singleton cluster and changes
+/// no other row's answer.
 struct Scene {
     doc: ProfileDoc,
     opts: EvalOptions,
     base: RecipeNodeId,
     top_a: RecipeNodeId,
     top_b: RecipeNodeId,
+    top_c: RecipeNodeId,
 }
 
 fn scene(label: &str) -> Scene {
-    let mut store = StubStore::default();
+    let mut store = PartStore::new();
     let base_ref = store.insert(
         slab(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
         Tol::witness(),
@@ -194,12 +150,14 @@ fn scene(label: &str) -> Scene {
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top_a) = insert(doc, Node::instantiate_part(block_ref));
     let (doc, top_b) = insert(doc, Node::instantiate_part(block_ref));
+    let (doc, top_c) = insert(doc, Node::instantiate_part(block_ref));
     Scene {
         doc,
         opts,
         base,
         top_a,
         top_b,
+        top_c,
     }
 }
 
@@ -280,6 +238,21 @@ fn row_role(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str) -> MateRole {
             other => panic!("{what}: expected a mate payload, got {other:?}"),
         },
         other => panic!("{what}: expected an Ok row, got {other:?}"),
+    }
+}
+
+/// **Whether `later` SERVED `id` from `earlier`** rather than running
+/// its op again — the memo's own witness, per node.
+///
+/// A memo hit returns the prior `NodeValue` cloned, so its name table
+/// is the same allocation; every op that runs mints a fresh one (the
+/// empty table a mate carries is `Arc::new`'d per call, so even it is
+/// a new pointer). The document-wide `reused` counter cannot say
+/// WHICH node, which is the whole question here.
+fn reused_value(earlier: &Evaluation<f64>, later: &Evaluation<f64>, id: RecipeNodeId) -> bool {
+    match (earlier.value(id), later.value(id)) {
+        (Some(a), Some(b)) => Arc::ptr_eq(&a.name_table, &b.name_table),
+        _ => false,
     }
 }
 
@@ -497,4 +470,70 @@ fn an_unchanged_mate_is_reused() {
         second.order.len(),
         "every node came off the memo"
     );
+}
+
+/// **A mate's key is per mate, not per document**: when one mate's
+/// answer changes, a mate in ANOTHER cluster — untouched, and with
+/// the same answer as before — is still served from the memo.
+///
+/// The two clusters are disjoint on purpose. A refusal reaches every
+/// node of ITS cluster and stops there (GQ2), so `far`'s answer is
+/// genuinely unchanged while `near`'s is not; a key that carried
+/// anything document-global would re-run `far` too, and no row that
+/// only counts recomputations would notice.
+#[test]
+fn a_mate_in_another_cluster_is_untouched_by_a_refusal() {
+    let mut s = scene("msolve4-per-mate");
+    // Cluster one: two blocks stacked, nowhere near the base.
+    let far = s.stack(s.top_b, s.top_c);
+    // Cluster two: a block seated on the base.
+    let near = s.seat_on_base(s.top_a, 1.0, 1.0, MatePrimitive::FrameCoincidence);
+    let first = s.eval(None);
+    for (mate, what) in [(far, "the far mate"), (near, "the near mate")] {
+        assert_eq!(row_role(&first, mate, what), MateRole::Determining);
+    }
+
+    // A contradiction around `near` only.
+    s.seat_on_base(s.top_a, 2.0, 1.0, MatePrimitive::FrameCoincidence);
+    let second = s.eval(Some(&first));
+    assert!(
+        matches!(second.result(near), Some(NodeResult::Failed(_))),
+        "the premise: the near pair refuses"
+    );
+
+    // The far mate: same answer, same key, and SERVED — its value is
+    // the prior's value, not an equal one built again.
+    assert_eq!(
+        row_role(&second, far, "the far mate after the break"),
+        MateRole::Determining,
+        "a refusal in another cluster does not reach this mate"
+    );
+    assert_eq!(
+        key(&first, far, "before"),
+        key(&second, far, "after"),
+        "an unchanged answer keys identically"
+    );
+    assert!(
+        reused_value(&first, &second, far),
+        "the far mate was rebuilt rather than served from the memo"
+    );
+    // The far cluster's instances are served too: nothing about them
+    // moved either.
+    for (id, what) in [(s.top_b, "the lower block"), (s.top_c, "the upper block")] {
+        assert!(
+            reused_value(&first, &second, id),
+            "{what} of the untouched cluster must come off the memo"
+        );
+    }
+    // And the near cluster's nodes did NOT: the mate whose answer
+    // changed, and the instance the refusal left without a pose.
+    for (id, what) in [
+        (near, "the mate whose answer changed"),
+        (s.top_a, "the instance the refusal left unplaced"),
+    ] {
+        assert!(
+            !reused_value(&first, &second, id),
+            "{what} must not be served from the memo"
+        );
+    }
 }

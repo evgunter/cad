@@ -1686,15 +1686,11 @@ pub enum Node<P> {
     /// until the mate is re-authored, and the solve refuses typed
     /// naming the head.
     ///
-    /// **A mate's VALUE is the solve's answer for it**: its role when
-    /// the solve placed it, a typed refusal when the solve faulted it.
-    /// So the answer is one of the node's inputs and its content key
-    /// feeds BOTH halves — this recipe payload, and the role and
-    /// faultedness the solve assigned (`eval`'s `content_key`). It has
-    /// to: a mate is a leaf, its payload does not change when an edit
-    /// elsewhere joins or splits its pair, and the solve runs afresh
-    /// every evaluation — so a key of the payload alone would serve
-    /// last evaluation's answer into this one's.
+    /// **A mate's VALUE is the solve's answer for it** — its role when
+    /// the solve placed it, a typed refusal when the solve faulted it
+    /// — so that answer is one of the node's inputs and its content
+    /// key feeds it beside this payload (`eval`'s `SolveAnswer` is the
+    /// one home for why).
     Mate {
         /// The `a` reference: an entity of one instance's product,
         /// read at the operand the mate is authored against.
