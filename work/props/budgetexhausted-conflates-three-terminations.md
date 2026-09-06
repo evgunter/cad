@@ -2,10 +2,12 @@
 id: budgetexhausted-conflates-three-terminations
 kind: issue
 title: BudgetExhausted conflates three terminations (rounds out, sample cap reached, unmarked) — a cap-named refusal would name the knob
-status: open
+status: review
 opened: 2026-08-31
 github: 1321
 refs: [1319]
+pr: 2008
+branch: props/budget-faces
 ---
 
 ## From GitHub issue 1321

@@ -787,3 +787,25 @@ did not apply it to its own adjudication; at Ev's direction CLAUDE.md's
 reading list now names both `docs/prompts/` files as orchestrator
 reading. The item records the ruling with `needs_ev` cleared; the
 unit is `docs/PROPS-SIGN-HULL-SPEC.md` (block PROPS-B2 slot 1, dual).
+
+**budget-faces in review (2026-09-06)** — PR
+[#2008](https://github.com/evgunter/cad/pull/2008), branch
+`props/budget-faces`, head `484be661b`, item
+`budgetexhausted-conflates-three-terminations` at `status: review`
+per the spec's §Landing (NOT merged; the orchestrator lands after the
+style review). `OffsetFitError::BudgetExhausted` is four faces:
+`BudgetExhausted` (rounds out, finite; lever `OFFSET_FIT_BUDGET`),
+`SampleCapReached` (the cap stopped the next round; lever
+`OFFSET_FIT_SAMPLE_CAP`, `rounds` says how many ran), `RefinementStalled`
+(untouched — measured as the only unmarked termination: 71 loop exits
+across the geom-brep suite, 0 stall verdicts, 0 schedule-exhaustion
+stops, every cap stop from a marking that grew), `BoundNeverFinite`
+(no `achieved` field; the lever is the limb's floors, not a knob).
+D2 row 1 at the enum. Two measured deviations argued in the body: the
+spec's `d = 1e-7` face-2 instance reads `achieved: inf` and is face 4
+(the face-2 red row is the bumpy patch at 1e-15, the item's own
+`budget: 6` after five rounds); `rounds` counts refinement rounds as
+the certificate does. Sweep: one hit of the shape outside the fence,
+`WitnessOutcome::BudgetExhausted`'s two caps, filed as
+`work/issues/witness-budget-exhausted-two-caps-one-name.md`. Territory:
+`crates/geom-brep/tests/offset_fit.rs` (tcost) only.
