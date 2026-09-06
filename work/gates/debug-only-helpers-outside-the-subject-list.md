@@ -2,10 +2,11 @@
 id: debug-only-helpers-outside-the-subject-list
 kind: issue
 title: Five debug-only helpers under cfg(debug_assertions) in mesh and topo are on no gate's subject list
-status: review
+status: closed
 opened: 2026-09-06
 branch: gates/debug-only-subjects-2
 pr: 2049
+closed: 2026-09-06
 ---
 
 
