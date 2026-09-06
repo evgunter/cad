@@ -531,6 +531,86 @@ pointer's home. What opens with this sweep: `crates/editor-core/src/mate.rs`,
 header; `crates/topo/src/census.rs`, `boolean/rest.rs` and
 `boolean/carrier_eq.rs` are unowned until a program claims them.
 
+## Sweep 7 — 2026-09-06: S-CERT leaves the tracker
+
+Sweep SHA: `b33ca36ac` (`main`'s tip immediately before the deletion),
+so every path below is recoverable at
+`git show b33ca36ac:work/cert/<FILE>` and
+`git show b33ca36ac:docs/S-CERT-EXIT-WALK.md`.
+
+Sweep 5's rule. The walk rode `[ev]` PR #1924 as PROPOSED and Ev merged
+it on 2026-09-06 (`c7b0014de`), which is the ratification by the S-MATE
+convention (2026-09-04). It merged without comment, so the five points
+the walk left "Open with Ev" stand as walked: row 5 on the digits (146×
+tighter, 1.84× above target; the dial decision is PROPS'), row 3 as the
+fold live under M10-3's driver, row 10 with Track N empty and Track M
+reduced to H5's schedule (two questions still open on it after #1878's
+DEFER: PcurveFittedLane's representation, and whether the certified
+at-rest doors become the default name), and the residue homes as
+executed. Eleven files, one program:
+
+| program | title | closed | done-state of record |
+| --- | --- | --- | --- |
+| `cert` | S-CERT — certified-enclosure soundness | 2026-09-06 | this entry (the walk: the plan's eleven exit-shape clauses walked verbatim against main `37eaf5b9b` — five MET, six MET-WITH-RECORDED-HONESTY, none CARRIED; the A/B record for ordinals 700–714 in `docs/MODEL-AB-LOG.md`, rows CERT1 … CERT10 and CERTM1 … CERTN3; the v6 tally candidates queued for the blinded coding with `cert/ab-state` as the source of record) |
+
+- `work/cert/program.md`, `plan.md`, `log.md` — the charter (territory
+  `geom-brep/src/props/*`, `offset_fit.rs`, `patch_bound.rs`,
+  `geom-core/src/*`, `geom/src/*`, `bvh/src/*`; band 700–799), the
+  ratified ground with its four rulings and the unit list, and the
+  narrative: the defect cluster CERT-1 … CERT-10, then SMELL tracks M
+  and N absorbed whole (CERT-M1 … M3, CERT-N1 … N3), fifteen dual
+  reviews. The log's last entry ("Residue re-homed", 2026-09-05)
+  predates the PROPS-charter re-points on PR #1924; the walk's
+  handoffs ledger, not that entry, names the homes that were executed.
+- `work/cert/CERT-M3.md`, `CERT-N3.md` — the last two units, closed
+  (#1877, #1879).
+- `work/cert/C24.md`, `D31.md`, `D98.md`, `D244.md` — the Track M/N rows
+  and `work/cert/S235.md` — the exact conic box issue — closed on
+  CERT-N3.
+- `work/cert/unify-edge-descriptions-on-pcurves.md` — the ruling on
+  PCURVE's edge-description question (issue #427), closed.
+
+Residue was re-homed before the sweep, on the walk's own PR (#1924, per
+Ev's "as long as all residuals are filed appropriately" and the PROPS
+orchestrator's re-points from the ratified PROPS charter) — twenty-four
+items, ids unchanged: fourteen to `work/props/` (`rimless-polar-cap…`,
+`two-face-sphere-split…`, `props-refusal-cannot-carry…`,
+`props-two-eps-vocabularies…`, `quad-face-extent…`,
+`purchasable-area-tightness-valve`, `budgetexhausted…`,
+`offset-fit-mignitude…`, `patch-bound-offset-fit…`, `refine-dir…`,
+`quad2-rational…`, `normalize-overflow…`, `orthonormal-basis…`,
+`pole-branch…`); H5 (`parent` cleared), its lane-keeping companion, the
+K roster and the TESS-BUDGET finding to `work/code-quality/`;
+`symbolic-tier-census` and `param-box-certification…` to `work/m10/`;
+`nurbs-net-point-map-helper` to `work/fix/`; `edge-chord-len…` to
+`work/bool/`; `loft-seam…` to `work/trim/`; `ssi-chart-speed…` to
+`work/curved/`. Nothing to `work/issues/`. The ChartRegionLane ruling
+closed (RULED defer, #1878) in `work/code-quality/`. What opens with
+this sweep: nothing — the territory passed to PROPS on the same PR
+(`geom-brep/src/props/*`, `offset_fit.rs`, `patch_bound.rs`,
+`geom-core/src/*` and `geom/src/*` are in `work/props/program.md`'s
+`paths`), and `crates/bvh/src/*` was M10's by S-CERT's own keep-out.
+The A/B band 700–799 stays claimed in `docs/MODEL-AB-LOG.md`'s
+ordinal-bands section as always.
+
+### Inbound references
+
+Append-only logs (`docs/MODEL-AB-LOG.md`, `work/props/log.md`,
+`work/topo/log.md`, `work/exch/log.md`) and the dated
+`docs/WORK-TRACKS-2026-09.md` keep their `work/cert/` and
+`docs/S-CERT-LOG.md` citations; they resolve here as before. Live
+pointers were re-pointed in this sweep rather than left: nine to the
+moved items at their new paths (`crates/geom-core/src/sym.rs`,
+`crates/editor-core/tests/m10_7_r1_census_probe.rs`,
+`docs/ERROR-DESIGN.md`, `docs/K-REPORT.md`, `work/m10/M10-7.md` ×3,
+`work/code-quality/chart-region-lane-contract.md`,
+`work/fix/transform-rigid-refuses-described-nurbs.md`); the thirteen
+moved items whose `## Home` section still argued `work/cert/` each gain
+a `## Re-homed` section superseding it, in the form the 2026-09-04
+re-home sweep used; and the CERT half of
+`work/meta/stale-track-t-citations-in-fillet-and-cert.md` is discharged
+by `plan.md`'s deletion.
+
 ## Per-merge deletion — M10's merged-unit specs (2026-09-03)
 
 Recoverable at `git show 08931277cf23c29d35daa41a15a4cecc6495022e:docs/<NAME>`
@@ -545,6 +625,15 @@ whose unit had merged; each unit's record is its row in
 - `M10-2-SPEC.md` — M10-2, Measure nodes and Assertions (#1213)
 - `M10-3-SPEC.md` — M10-3, the E6 subdivision driver (#1231)
 - `M10-4-SPEC.md` — M10-4, sensitivities and the stackup (#1627)
+
+## Per-merge deletion — M10-8's spec (2026-09-05)
+
+Recoverable at `git show f5fb7fe92:docs/M10-8-SPEC.md` (the M10-8 unit
+head, before the state-sync commit that deleted it). The rule above;
+the unit's record is its row in `MODEL-AB-LOG.md` and its MERGED entry
+in `work/m10/log.md`.
+
+- `M10-8-SPEC.md` — M10-8, the arc family: the atom algebra measured per mechanism, the constant fold shipped alongside, rule C built and dial-off (#1828)
 
 ## Per-merge deletion — M10-7's spec (2026-09-04)
 
@@ -595,7 +684,7 @@ source comments, CI workflows, tracker items — were re-pointed at the
 new pages or dropped; append-only logs keep their citations, which
 resolve here as before.
 
-### Exit walks of closed programs (10 files)
+### Exit walks of closed programs (12 files)
 
 Every one was ratified by Ev before it went; the program's directory
 had already left `work/` (sweeps 3 and 5). Closing facts, so a pointer
@@ -614,6 +703,8 @@ that lands here resolves without opening the walk:
 | `S-BLEND-EXIT-WALK.md` | 2026-08-31 | PR #1370 | this row; vocabulary at `crates/sweep/README.md`, enclosing tangency at `crates/profile/README.md` |
 | `S-QA-EXIT-WALK.md` | 2026-08-31 | PR #1341 | this row |
 | `S-MATE-EXIT-WALK.md` | 2026-09-04 | PR #1528, merged by Ev 2026-09-01; ratification confirmed in-chat 2026-09-04 | this row; design at `crates/editor-core/ASSEMBLY.md`; sweep 6 below |
+| `FILLET-EXIT-WALK.md` | 2026-09-06 | PR #1973, ratified in-chat 2026-09-06 | this row; sweep 7 below; vocabulary and bands at `crates/sweep/README.md` |
+| `S-CERT-EXIT-WALK.md` | 2026-09-06 | PR #1924, merged by Ev 2026-09-06 (the merge is the ratification, per the S-MATE convention) | this row; A/B record ordinals 700–714 in `docs/MODEL-AB-LOG.md`; sweep 7 above |
 
 
 - `M5-EXIT-WALK.md` — M5 exit walk (PR 14) — criteria vs evidence
@@ -627,6 +718,8 @@ that lands here resolves without opening the walk:
 - `S-BLEND-EXIT-WALK.md` — S-BLEND exit walk — criteria vs evidence
 - `S-QA-EXIT-WALK.md` — S-QA exit walk — criteria vs evidence
 - `S-MATE-EXIT-WALK.md` — S-MATE exit walk — criteria vs evidence
+- `FILLET-EXIT-WALK.md` — FILLET exit walk — criteria vs evidence
+- `S-CERT-EXIT-WALK.md` — S-CERT exit walk — criteria vs evidence
 
 ### Per-unit specs, unit merged (46 files)
 
@@ -916,6 +1009,13 @@ the A/B experiment — no `MODEL-AB-LOG.md` row).
 
 - `PROPS-LILY-VEC3-SPEC.md` — PROPS lily-vec3, the lily authored in `Vec3<f64>` through the kernel's own doors, lifted at the boundary (#1954)
 
+## Per-merge deletion — PROPS ONB-measure's spec (2026-09-05)
+
+Recoverable at `git show 8dd230c1c2964da6f5cefe27dac0836b74312bba:docs/PROPS-ONB-MEASURE-SPEC.md`
+(the unit's last head; merged as PR 1939 at 48383a44c).
+
+- `PROPS-ONB-MEASURE-SPEC.md` — PROPS ONB-measure — the four evidence-only measurements deciding the orthonormal-basis sign hull (PR 1939's body carries the tables; `work/props/interval-orthonormal-basis-sign-hull.md` is the record; no A/B row)
+
 ## Per-merge deletion — PROPS verdict-shapes' spec (2026-09-05)
 
 Recoverable at `git show 9f52d8df89ba4d45197ee0654c2837f67ebeae21:docs/PROPS-VERDICT-SHAPES-SPEC.md`
@@ -955,6 +1055,19 @@ is PR 1952's body, `work/props/span-carries-its-knot-vector.md` and the
 residue item `work/props/coefficients-carry-their-knot-vector.md`.
 
 - `PROPS-SPAN-SPEC.md` — PROPS span, `Span<'a>` carries its `KnotVector` (#1952)
+
+## Per-merge deletion — PROPS coeffs' spec (2026-09-05)
+
+Recoverable at `git show ea11576b4342fe00fc00639950119df5eb4e95a7:docs/PROPS-COEFFS-SPEC.md`
+(the merge base the unit was cut against; the spec is on every `main`
+commit from #1982's merge to the unit's). Met as written except the one
+decision it left open, taken and argued at the module doc: weight
+positivity stays a per-window check at the rational doors rather than
+a mint-time refusal. The rule the unit lands is `crates/geom-core/README.md`
+SPLINE-DESIGN S1 (coefficients against knots); the unit's record is PR
+1985's body and `work/props/coefficients-carry-their-knot-vector.md`.
+
+- `PROPS-COEFFS-SPEC.md` — PROPS coeffs, coefficients carry their knot vector (#1985)
 
 ## Per-merge deletion — PROPS vec3-doors' spec (2026-09-05)
 
@@ -1027,3 +1140,89 @@ the stem-glue pin stays because the refusal was never the detector's
 blindness. The rule above; the unit's record is its item's `## Closed`
 section (`work/seat/SEAT-FW.md`) and its MERGED entry in
 `work/seat/log.md`; its A/B row is MODEL-AB-LOG SEATFW.
+
+## Per-merge deletion — VERBS-C5ARMS's spec (2026-09-05)
+
+Recoverable at `git show ae69dfeb2:docs/VERBS-C5ARMS-SPEC.md` (PR #1864's
+merge commit, the last head carrying it). Both halves delivered: PR-1
+plane×torus (#1577, VERBS) and PR-2 coaxial cone×cylinder (#1864,
+CURVED — the first CURVED unit). One acceptance clause was measured a
+category error rather than met: "`coned_tube`'s offset validates tier-3
+with a closed-form volume pin" — the direct per-chart door is right to
+refuse, and `shell(coned_tube)` succeeds flag-independently (a TORAX
+row); recorded in the PR body and the A/B row (C5A2), not by amending
+the spec. The rows 3/4/8 hold note points at
+`docs/CURVED-SPIRIC-DESIGN.md` (ratified 2026-09-04), which supersedes
+`docs/VERBS-RIMCAP-SPEC.md` §PR-2 as the klein elbow's binding text.
+The unit's record is `work/curved/VERBS-C5ARMS.md`'s `## Closed` and
+the MERGED entry in `work/curved/log.md`.
+
+## Per-merge deletion — SEAT-DN's spec (2026-09-05)
+
+Recoverable at `git show 625f3e0b91c7133c3952bcdaa97a45d52ba3d49c:docs/SEAT-DN-SPEC.md`
+(the SEAT-DN fix-pass head, before the state-sync commit that deleted
+it; unamended). DN-1 and DN-2 met as written; DN-3 resolved the way
+the spec allowed for — measured, neither branch applied, the residue
+found one level up filed and then re-scoped to its class at the fix.
+The rule above; the unit's record is its item's `## Closed` section
+(`work/seat/SEAT-DN.md`) and its MERGED entry in `work/seat/log.md`;
+its A/B row is MODEL-AB-LOG SEATDN.
+
+- `SEAT-DN-SPEC.md` — SEAT-DN, one direction-normalization body under two ratified funnel names; `Dir::from_unit` measured (#1987)
+
+## Per-merge deletion — SEAT-9's spec (2026-09-05)
+
+Recoverable at `git show ac167558386cc6acf7d5efd1b593a08bc8996ef2:docs/SEAT-9-SPEC.md`
+(the SEAT-9 fix-pass head, before the state-sync commit that deleted
+it; unamended). S9-1 met with one disclosed deviation (`Arity::Shell`
+for "arity One", argued and accepted); S9-2 met as written after the
+fix pass carried the witness into `geom-brep`'s production doors —
+the frozen head had stopped one door higher and the dual weighed it.
+The rule above; the unit's record is its item's `## Closed` section
+(`work/seat/SEAT-9.md`) and its MERGED entry in `work/seat/log.md`;
+its A/B row is MODEL-AB-LOG SEAT9.
+
+- `SEAT-9-SPEC.md` — SEAT-9, the shell arm on `Verb` and ε travelling only as `Tol` down the offset-fit chain (#1995)
+
+## Sweep 7 — 2026-09-06: FILLET leaves the tracker
+
+Sweep SHA: `efe21acb8f599dd146fbaadc0251dc3981ebbf9a` — `main`'s tip immediately before the deletion,
+so every path below is recoverable at
+`git show efe21acb8f599dd146fbaadc0251dc3981ebbf9a:work/fillet/<FILE>` and
+`git show efe21acb8f599dd146fbaadc0251dc3981ebbf9a:docs/FILLET-EXIT-WALK.md`.
+
+FILLET — the blend-completion second pass — closed 2026-09-06 on Ev's
+ratification of `docs/FILLET-EXIT-WALK.md` (PR #1973, "1973 is good", in
+chat). Per the sweep-5 rule the program's directory leaves whole:
+`program.md`, `plan.md`, `log.md`, and every item file, every one of them
+`status: closed` or `parked`-then-closed except the residue moved below.
+Eight dualled units (samples #126, #131, #132, #134, #135, #136, #139,
+#141; ordinals 2000–2007), three E openers under single style reviews,
+five `[ev]` rulings (PRs 1733, 1734, 1735, 1736, 1916) and the H7
+vocabulary ratified on PR 1819.
+
+| program | title | closed | done-state of record |
+| --- | --- | --- | --- |
+| `fillet` | FILLET — blend completion, second pass | 2026-09-06 | this row and the exit-walk row below; the A/B rows in `docs/MODEL-AB-LOG.md`; design at `crates/sweep/README.md` (A3 as amended by H4/H5/H7), `crates/profile/README.md` (the `NoCornerOfPair` envelope), `crates/topo/README.md` (`rim_of`) |
+
+### Residue re-homed before the deletion
+
+Moved by `git mv` with ids kept (ownership is the directory):
+
+| item | to |
+| --- | --- |
+| `rim-door-admits-a-double-cover` | `work/seat/` |
+| `cut-off-arc-persists-as-a-corner-arc` | `work/docm/` |
+| `debug-in-prose-at-blend-and-step-import` | `work/fix/` |
+| `blend-size-gate-unmetered-under-epsilon`, `blend-payloads-outside-the-margin-family` | `work/props/` |
+| `ambiguity-k-below-the-cap-rim-crossover`, `blend-recourses-under-describe-their-doors`, `curved-single-host-rim-refuses-at-the-half-band-gate`, `escalated-recourse-dispatch-has-no-coaxiality-arm`, `fillet-escalation-site-has-no-producer`, `hostless-rim-on-a-ringed-host-refuses`, `ladder-rim-phase-may-retire-a-new-split-key`, `overrun-attribution-picks-the-first-candidate`, `path-fillet-door-validator-tangency-disagree`, `rim-seed-finders-disagree-on-at-this-radius`, `ring-clearance-refuses-a-nested-trim-circle`, `smooth-arm-siblings-disagree-on-the-in-band-case`, `sweep-top-field-docs-make-the-spatial-claim-capend-shed`, `tangent-parallel-certifier-passes-a-transverse-arc` | `work/issues/` — the blend kernel and the profile fillet door have no live program, and S-CERT (the certifier's owner) has already left the tracker; the next blend program's opening slate |
+
+Closed at the sweep as records, not work: `plane-hosted-rim-has-no-native-instance`
+(Phase 1's census, cited by the walk). The `corner-config-tag-all-concave-trihedron`
+ruling stays code-quality's (re-asked on PR 1935).
+
+### The exit walk's row
+
+| walk | program closed | ratified on | done-state now |
+| --- | --- | --- | --- |
+| `FILLET-EXIT-WALK.md` | 2026-09-06 | PR #1973, in chat | this row; the residue table above; vocabulary and bands at `crates/sweep/README.md` |

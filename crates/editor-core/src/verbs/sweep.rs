@@ -132,7 +132,8 @@ fn extrude_record<T: Decide>(record: VerbRecord<T>) -> Option<Extruded<T>> {
         VerbRecord::Blend(_)
         | VerbRecord::Boolean { .. }
         | VerbRecord::Revolve(_)
-        | VerbRecord::Split(_) => None,
+        | VerbRecord::Split(_)
+        | VerbRecord::Shell(_) => None,
     }
 }
 
@@ -143,7 +144,8 @@ fn revolve_record<T: Decide>(record: VerbRecord<T>) -> Option<Revolved<T>> {
         VerbRecord::Blend(_)
         | VerbRecord::Boolean { .. }
         | VerbRecord::Extrude(_)
-        | VerbRecord::Split(_) => None,
+        | VerbRecord::Split(_)
+        | VerbRecord::Shell(_) => None,
     }
 }
 

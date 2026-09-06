@@ -658,3 +658,220 @@ SEATFW (ordinal 1009, sample #143 at merge); `docs/SEAT-FW-SPEC.md`
 deleted at this merge per `docs/DOC-LEDGER.md`.
 
 Next: the S3 `[ev]`; then SEAT-DN on block SEAT-B3's third slot.
+
+## SEAT-DN DISPATCHED (2026-09-05)
+
+SEAT-FW merged at fe6fff4a (PR 1974); the S3 corrections it stopped on
+are out as an `[ev]` PR. SEAT-DN — direction normalization as one
+kernel body under two ratified names, `docs/SEAT-DN-SPEC.md` —
+dispatches on block SEAT-B3's third slot. Its prime directive is the
+ruling itself: any shape that would move a funnel-site name is
+Ev-gated.
+
+## ORDINAL 1010 CLAIMED — SEAT-DN dual (2026-09-05)
+
+SEAT-DN (PR 1987, direction normalization as one kernel body under two
+ratified names) implementation delivered and green on the full matrix
+(run 33969761493 on 2b366fde). One body (`topo::query::unit_direction`,
+site-parameterized); `UnitVec3::new` and `editor-core`'s `unit()` are
+one-line calls under their existing names, the refusal mapping pinned
+arm by arm; the K-REPORT census untouched (`m4_pr2_wire`,
+`m10_3_driver_interval` green unedited); the red-first receipt that is
+the unit's value — deleting the finiteness gate from the one body reds
+SEAT-DV's overflow rows AND the FIX program's `unit()` rows together.
+DN-3 measured before acting: every 2-D director is built from a ray
+already decided at its own door, so neither branch of the spec applied
+and no K-REPORT carrier row is owed — but those doors admit `1e200`
+and yield a zero director from a public path constructor: SEAT-DV's
+overflow class in 2-D, filed as
+`work/seat/two-d-director-doors-skip-the-finiteness-question.md`
+(`profile` cannot reach `topo::query::is_finite_length`; FIX's
+`is-finite-length-homed-in-the-query-seat` is its enabler). v6 dual
+dispatches on frozen head 2b366fde: parity byte 189 → **R1 fable + R2
+opus**. Difficulty S was logged pre-draw. Full row recorded at merge.
+
+## SEAT-DN MERGED (2026-09-05, PR 1987)
+
+Ev's ruling (B) executed: one decide/normalize/refuse body in
+`topo::query` (`decide_unit_direction`, the funnel-site name a
+parameter), and both ratified names — `datum_unit_norm` through
+`UnitVec3::new`, `eval_direction_norm` through `editor-core`'s
+`unit()` — emitted from it exactly where they were: no K-REPORT row
+moved, the census suites untouched and green at both graphs,
+`wire.rs` left with no `decide` of its own, the mate re-read's
+two-name split restated as ratified. DN-3 was measured, not applied:
+every `Dir::from_unit` caller holds a ray decided at its own door and
+none holds an angle, so no re-spelling and no carrier row; the
+measurement found the overflow class one level up
+(`unit_from_components(1e200, 0)` admits a zero director out of a
+decided path, public `PartialPath::toward`) and filed it. The dual
+(R1 fable + R2 opus) converged APPROVE-WITH-FIXES with zero code
+defects in the unit; its substantive finding is a CLASS the unit's
+completeness claim did not know — each arm found a different live
+decide-then-normalize sibling that asks no finiteness question:
+`geom-core`'s `definitely_positive` (3-D, four sites;
+`mirror_across_plane` with a 1e200 normal returns the identity,
+reachable from the Python `Frame.mirror_across_plane`) and `sweep`'s
+revolve `AxisFrame::build` (2-D; a 1e200 axis builds a zero axis, in
+`pncad::prelude`); the fix pass's own re-sweep added
+`topo::sector_shape`. None is this unit's to patch; the fix pass
+re-worded the claim to its literal scope (the `Margin::norm3`
+spelling), re-scoped the filed residue to the five-member class with
+reproductions (FIX's `is-finite-length-homed-in-the-query-seat` is
+the ruling that unlocks four of five), and closed the rest of the
+union: the twin `UnitVec3Error` maps in `wire.rs` collapsed to one
+`refusal(e, role, predicate)` with the all-arms pin walking both
+roads; the kernel body renamed off the `editor-core` alias's name;
+the escalated arm's pin now reads the predicate the funnel recorded,
+so a site-ignoring kernel mutant reds in the default lane too; the
+`solve.rs` role sentence corrected (the role travels inside the node
+error, not through `DanglingHead`); K-REPORT's route 4 says it
+accepts unregistered names and nothing mechanical catches a third,
+with `DatumValue::AxisInPlane` recorded as the third
+one-length-two-names-by-road instance. Both arms corrected the
+receipts (the red-first mutant reds five rows, not three; the 33-row
+count is the interval graph's, the default is 10). The brief's
+"status flip-flop" premise was the implementer's own disclosed
+set-then-revert inside the branch, not a fact of the item — its
+history on main is monotone. Class notes: a scope-claim sweep for
+"decide then normalize" must include the `Margin::of`/`norm2`
+spellings, not only `norm3`; a `pub` decide door taking a bare
+`&'static str` site lets any crate mint an unregistered K name
+(escape route 4 — a disclosed hole in K-REPORT's hand-maintained
+roster, now wider). Full row: MODEL-AB-LOG SEATDN (ordinal 1010,
+sample #146 — #144 at the merge commit, renumbered after two
+concurrent recorders landed first); `docs/SEAT-DN-SPEC.md` deleted at this merge
+per `docs/DOC-LEDGER.md`.
+
+Next: SEAT-9 on block SEAT-B3's last slot; its merge closes the
+block and publishes the draw.
+
+## SEAT-9 DISPATCHED (2026-09-05)
+
+SEAT-DN merged at 5121a4ad0 (PR 1987). SEAT-9 — the shell arm on
+`Verb` and ε travelling only as the `Tol` ZST down the offset-fit
+chain, `docs/SEAT-9-SPEC.md` — dispatches on block SEAT-B3's fourth
+and last slot; its merge closes the block and publishes the draw.
+Territory: the unit crosses SHELL (`topo/src/shell.rs`,
+`replace_face.rs`) and PROPS/S-CERT (the offset fit in
+`geom-brep/src/offset_fit.rs`, `recertify_approx`) under Ev's ruling
+(i) on `[ev]` PR 1904 — the receipt rides the PR, and this entry is
+the cross-program courtesy: every file another program owns that the
+unit touches is listed in the PR body. Sample bookkeeping: SEATDN's
+row was written as #144 and renumbered to #146 here — PROPS coeffs
+(#144) and M10-8 (#145) reached main first.
+
+## ORDINAL 1011 CLAIMED — SEAT-9 dual (2026-09-05)
+
+SEAT-9's implementation phase delivered: PR 1995, frozen head
+`2ede596574939056173c0d89a5448c6fcbd52f45`, hosted CI green on the
+full matrix (run 33987318935). Two blinded reviewers dispatch
+concurrently on that head (v6 instrument; arms by the parity byte,
+recorded privately until the block closes at this unit's merge —
+SEAT-B3's last slot). The implementation reports ONE central fork for
+the dual to weigh: the `Tol` witness stops at `topo::props::
+fit_precision` and `geom-brep`'s fit-engine doors keep a numeric
+target, against the spec's letter, on a measurement (the engine's own
+suite drives those doors at ~116 targets from 1e-2 to 1e-18, and the
+`bowed()` fixture refuses at 1e-12); plus `Arity::Shell` in place of
+"arity One", and one shell consumer test re-expressed because at
+eps = 1e-12 the curved fit now refuses before the structural door.
+Whether the fork is an elaboration or a deviation from Ev's ruling
+(i) on PR 1904 is adjudicated after the dual.
+
+## SEAT-9 MERGED (2026-09-05, PR 1995)
+
+Two rulings executed as one unit. The shell arm: `Verb::Shell {
+thickness, open }` (an empty designation IS `shell`), `VerbRecord::
+Shell(ShellNaming)` by value, `VerbError` now generic in the scalar so
+the shell's typed refusal crosses the door unaltered, and a fifth door
+`run_shell` in a SECOND impl block under the shell's own bound
+(`Decide + PropsQuadLane + CertifiedBounds`) — `run`'s header cannot
+tighten without breaking the `Dual` caller beneath `evaluate<T>`, so
+`Arity` gains a fifth row (a disclosed deviation from the spec's
+"arity One": the row is what the mismatch refusal speaks, and under
+`One` the sentence contradicts itself; `Arity` is now, by its own
+doc, a door enum with three axes under a historical name); the tag
+censuses learn a KERNEL-ONLY verb as closed data (`verb_content_tag`
+→ `Option<u8>`, `Shell => None`, three censuses re-derived; an
+undeclared verb fails to compile — planted and confirmed by both
+arms); one explicit EMPTY flow row for the thickness. No `Node::
+Shell`, no tag, no lowering: LIB-G17's row, parked on a trigger that
+has fired (filed for LIB). The tolerance: the shell doors drop
+`tolerance: f64` and the `Tol` witness travels the whole chain —
+`replace_face(s)_offset`, `mint_offset`, `offset_axial`, the
+`PropsQuadLane` doors, and `geom-brep`'s five PRODUCTION fit doors,
+which now take `Tol` and delegate to doc-hidden numeric-target
+routines (`_at`) the engine's own suite keeps driving at targets
+from 1e-2 to 1e-18 (83 call sites renamed) — with the one `eps()`
+read at `offset_fit::precision_target`, beside the classification;
+22 of 24 `FIT_TOL` constants retired with the parameter, the two
+survivors renamed to say they are engine targets; `SurfaceSpec.
+tolerance` kept because the transform lane re-certifies a mapped
+face against the value its claim was made at — that lane is the one
+production caller of a numeric routine, named in the guard's census
+and filed for its owner (the stored value now always equals the
+run's ε). The frozen head had stopped the witness one door higher,
+at a `topo::props::fit_precision` (since retired), on a measurement
+(the engine's suite drives those doors ~85 times at chosen targets;
+the `bowed()` fixture refuses at 1e-12 — `BudgetExhausted`, round
+budget 6) and claimed nothing Ev-gated; the dual (R1 opus + R2
+fable) converged on every executed fact — no arithmetic on the `f64`
+below the read, so the ruling's "different epsilons" harm could not
+occur; the letter deliverable at zero engine-behaviour change — and
+split only on gating, so the fix pass DELIVERED the letter instead of
+asking, and the PR body says the stop clause had fired. Ev's
+original suspicion, answered on the base by both arms: no geometry
+more than ε off was ever handed back — tier-3 validation already
+re-certified every Approx face at the run's ε (O5), and the in-tree
+curved rows refused at the structural door first; what the ruling
+removes is a caller's freedom to choose a second epsilon, and it
+moves the refusal earlier (at the fit, not at validation). One
+consumer row re-expressed for that reason and, after the dual, gated
+on the run's ε (`CURVED_FIT_REACH = 1e-11`, measured) rather than
+left as an or-pin. Fit cost at ε ≈ 1e-9 measured and reported, not
+gated: 3 refinement rounds, 64 cells, ~170 ms vs 12 ms at 1e-6 on
+`bowed()`; at 1e-12 the engine refuses on any genuinely curved NURBS
+chart — filed for the offset-fit owner with the unmeasured mint-path
+cost. Class notes: the chain guard's blind spots were wider than its
+header said (a one-line signature's non-first parameter; a spelling
+count standing in for a read count) — both closed at the fix, the
+guard now reads every pair on a line and counts `.eps()` reads
+against a roster, with the honest list restated and the
+compile-checked receipt named as the primary guard; a source-grep
+guard is the weaker spelling of a signature receipt. The
+orchestrator's brief premise that the tour's shell scenes fit NURBS
+faces was wrong (every wall is analytic; R1 built the tour on both
+trees anyway — 145 output files byte-identical). Cross-program
+courtesy — files another program owns, every one an argument drop, a
+signature change, a rename or prose: SHELL `topo/src/shell.rs`,
+`topo/src/replace_face.rs`, `sweep/tests/verbs_shell{,_r2_probes,
+_r2b}.rs`; TOPO `topo/src/validate.rs`; CERT `geom-core/src/real.rs`
+(allowlist prose) and `geom-brep/src/offset_fit.rs` (the production
+doors' signatures and the delegation — the engine's computation
+untouched); TRIM `geom-brep/src/pcurve_cache.rs`; TCOST 32 test
+files under `topo/tests`, `sweep/tests`, `geom-brep/tests` and
+`test-utils/tests/reader_census.rs`; EXCH `step-import/tests/
+cert_n2r2_consumer_probes.rs`; PROPS/S-CERT `topo/src/props.rs`. A
+container restart interrupted the fix pass mid-run; the worktree
+survived and the same lane resumed with its context. Full row:
+MODEL-AB-LOG SEAT9 (ordinal 1011, sample #147 at merge);
+`docs/SEAT-9-SPEC.md` deleted at this merge per `docs/DOC-LEDGER.md`.
+**Block SEAT-B3 closes at this merge**; the draw is published in the
+ledger.
+
+Next: the program's exit walk — every wave item delivered, the open
+residues re-homed.
+
+## EXIT WALK OPENED (2026-09-05)
+
+SEAT-9 merged at 8ad3170ab (PR 1995); block SEAT-B3 closed and its
+draw published; the plan's wave cut is complete. The exit walk is
+out as an `[ev]` PR (`docs/SEAT-EXIT-WALK.md`): the done-state per
+unit, the design contract clause by clause, the A/B instrument's
+state of record (twelve fair pairs, five candidates, three blocks
+published), and the open list's disposition for the closing sweep.
+The same PR folds VERB-SEAT-DESIGN §5's post-publish stable-tag
+discipline into DESIGN.md's "Before publishing" list, which the
+ratification at #1388 said would happen and did not. Ratification is
+Ev's merge; the closing sweep follows it.

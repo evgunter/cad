@@ -30,8 +30,8 @@
 use geom::NurbsSurface;
 use geom::curves::fit::interpolate_columns;
 use geom_brep::offset_fit::{
-    OFFSET_FIT_BUDGET, OFFSET_FIT_SAMPLE_CAP, OffsetFitError, OffsetLimb, certify_offset,
-    fit_offset,
+    OFFSET_FIT_BUDGET, OFFSET_FIT_SAMPLE_CAP, OffsetFitError, OffsetLimb, certify_offset_at,
+    fit_offset_at,
 };
 use geom_brep::offset_meters::{MeterError, OFFSET_METER_LADDER, patch_collapse, patch_regularity};
 use geom_brep::patch_bound::patch_cells_refined;
@@ -128,7 +128,7 @@ fn cylinder_fit_matches_the_closed_form_both_signs() {
     {
         let tol = 1e-4;
         let d = 0.3;
-        let (_, cert) = fit_offset(&base, d, tol, band()).unwrap_or_else(|e| {
+        let (_, cert) = fit_offset_at(&base, d, tol, band()).unwrap_or_else(|e| {
             panic!("LIVENESS: fit_offset refused this cylinder at d = {d}, tol = {tol}: {e}")
         });
         assert!(
@@ -140,7 +140,7 @@ fn cylinder_fit_matches_the_closed_form_both_signs() {
     }
     let tol = 3e-4;
     for d in [0.3_f64, -0.4] {
-        let (fit, cert) = fit_offset(&base, d, tol, band())
+        let (fit, cert) = fit_offset_at(&base, d, tol, band())
             .unwrap_or_else(|e| panic!("fit_offset refused at d = {d}: {e}"));
         assert!(
             cert.hull_sup <= tol,
@@ -205,7 +205,7 @@ fn sphere_band_fit_matches_the_closed_form_both_signs() {
     let base = sphere_band(r, 0.25, 1.25);
     let tol = 3e-4;
     for d in [0.35_f64, -0.5] {
-        let (fit, cert) = fit_offset(&base, d, tol, band())
+        let (fit, cert) = fit_offset_at(&base, d, tol, band())
             .unwrap_or_else(|e| panic!("fit_offset refused at d = {d}: {e}"));
         assert!(cert.hull_sup <= tol, "certified sup {}", cert.hull_sup);
         let mut worst = 0.0f64;
@@ -253,7 +253,7 @@ fn non_analytic_base_fits_and_the_bound_contains_the_sample() {
     let base = bumpy_patch();
     let tol = 1e-4;
     let d = 0.05;
-    let (fit, cert) = fit_offset(&base, d, tol, band())
+    let (fit, cert) = fit_offset_at(&base, d, tol, band())
         .unwrap_or_else(|e| panic!("fit_offset refused on the non-analytic base: {e}"));
     assert!(cert.hull_sup <= tol);
     let worst = worst_offset_residual(&base, &fit, d, &grid(23, 19)).unwrap();
@@ -418,8 +418,8 @@ fn the_collapse_meter_brackets_the_sphere_s_known_curvature() {
 fn a_degraded_fit_fails_the_certificate_and_names_the_limb() {
     let base = quarter_cylinder(1.0, 1.0);
     let d = 0.3;
-    let (fit, cert) = fit_offset(&base, d, 1e-3, band()).unwrap();
-    assert!(certify_offset(&base, &fit, d, 1e-3, band()).is_ok());
+    let (fit, cert) = fit_offset_at(&base, d, 1e-3, band()).unwrap();
+    assert!(certify_offset_at(&base, &fit, d, 1e-3, band()).is_ok());
     // Coarsen: a bilinear surface through the fit's corner control
     // points is a fit no longer — the same door must refuse it.
     let (cu, cv) = fit.control_counts();
@@ -430,7 +430,7 @@ fn a_degraded_fit_fails_the_certificate_and_names_the_limb() {
         fit.control()[(cu - 1) * cv + cv - 1],
     ];
     let degraded = NurbsSurface::new(kv1(), kv1(), corners, vec![1.0; 4]).unwrap();
-    match certify_offset(&base, &degraded, d, 1e-3, band()) {
+    match certify_offset_at(&base, &degraded, d, 1e-3, band()) {
         Err(OffsetFitError::Limb { limb, bound, .. }) => {
             assert_eq!(limb, OffsetLimb::OnLocus);
             assert!(bound > 1e-3, "the degraded fit measured only {bound}");
@@ -457,7 +457,7 @@ fn a_collapsed_control_row_refuses_at_the_regularity_floor() {
         Point3::new(0.0, r, -0.5),
     ];
     let base = NurbsSurface::new(kv2(), kv2(), control, vec![1.0; 9]).unwrap();
-    match fit_offset(&base, 0.1, 1e-4, band()) {
+    match fit_offset_at(&base, 0.1, 1e-4, band()) {
         Err(OffsetFitError::Meter(MeterError::NormalFloor { floor, .. })) => {
             assert_eq!(floor, 0.0, "a collapsed row left a positive floor");
         }
@@ -472,7 +472,7 @@ fn an_offset_past_the_curvature_reach_refuses_at_the_collapse_meter() {
     let cells = patch_cells_refined(&base, OFFSET_METER_LADDER[1]).unwrap();
     // Inward past the sphere's own radius: the offset folds through
     // the centre.
-    match fit_offset(&base, -1.2 * r, 1e-4, band()) {
+    match fit_offset_at(&base, -1.2 * r, 1e-4, band()) {
         Err(OffsetFitError::Meter(MeterError::CurvatureHeadroom {
             reach, headroom, ..
         })) => {
@@ -488,7 +488,7 @@ fn an_offset_past_the_curvature_reach_refuses_at_the_collapse_meter() {
     // that number rather than against the true fold radius `r`.
     let coll = patch_collapse(&cells, -1.0);
     let inside = -0.5 * coll.reach;
-    if let Err(e) = fit_offset(&base, inside, 1e-3, band()) {
+    if let Err(e) = fit_offset_at(&base, inside, 1e-3, band()) {
         panic!("an inward offset at half the certified reach ({inside} m) refused: {e}");
     }
 }
@@ -496,7 +496,7 @@ fn an_offset_past_the_curvature_reach_refuses_at_the_collapse_meter() {
 #[test]
 fn an_unreachable_tolerance_refuses_typed_at_the_budget() {
     let base = bumpy_patch();
-    match fit_offset(&base, 0.05, 1e-15, band()) {
+    match fit_offset_at(&base, 0.05, 1e-15, band()) {
         Err(OffsetFitError::BudgetExhausted {
             budget,
             grid,
@@ -539,7 +539,7 @@ fn an_unreachable_tolerance_refuses_typed_at_the_budget() {
 fn a_micron_scale_offset_certifies_and_names_its_limit() {
     let base = quarter_cylinder(1.0, 1.0);
     let d = 1e-6;
-    let (fit, cert) = fit_offset(&base, d, 1e-3, band())
+    let (fit, cert) = fit_offset_at(&base, d, 1e-3, band())
         .unwrap_or_else(|e| panic!("a micron-scale offset refused at 1e-3: {e}"));
     let worst = worst_offset_residual(&base, &fit, d, &grid(23, 19)).unwrap();
     assert!(
@@ -563,7 +563,7 @@ fn a_micron_scale_offset_certifies_and_names_its_limit() {
     // The honest other half: a tolerance below what the fit's own
     // absolute accuracy can reach refuses typed, carrying the bound
     // it did reach — never a number it cannot support.
-    match fit_offset(&base, d, 1e-9, band()) {
+    match fit_offset_at(&base, d, 1e-9, band()) {
         Err(OffsetFitError::BudgetExhausted { achieved, .. }) => {
             eprintln!("small-d: 1e-9 refused typed, achieved = {achieved:.3e}");
         }
@@ -583,12 +583,12 @@ fn a_micron_scale_offset_certifies_and_names_its_limit() {
 #[test]
 fn a_fit_for_the_wrong_distance_is_refused_by_the_certifying_limb() {
     let base = quarter_cylinder(1.0, 1.0);
-    let (fit, _) = fit_offset(&base, 0.3, 1e-3, band()).unwrap();
+    let (fit, _) = fit_offset_at(&base, 0.3, 1e-3, band()).unwrap();
     // Certified against the OPPOSITE sign: `E·n` carries the wrong
     // sign everywhere, so `D`'s witness cannot pass and limb 2 is the
     // limb that must speak. A tolerance far above the true residual
     // keeps limb 1 quiet, so the refusal can only come from limb 2.
-    match certify_offset(&base, &fit, -0.3, 1e3, band()) {
+    match certify_offset_at(&base, &fit, -0.3, 1e3, band()) {
         Err(OffsetFitError::Limb { limb, bound, .. }) => {
             assert_eq!(limb, OffsetLimb::HullSup);
             assert!(
@@ -606,7 +606,7 @@ fn a_zero_or_non_finite_request_refuses_at_the_door() {
     for (d, tol) in [(0.0, 1e-6), (f64::NAN, 1e-6), (0.2, 0.0), (0.2, -1.0)] {
         assert!(
             matches!(
-                fit_offset(&base, d, tol, band()),
+                fit_offset_at(&base, d, tol, band()),
                 Err(OffsetFitError::InvalidRequest { .. })
             ),
             "d = {d}, tol = {tol} was accepted"
@@ -694,7 +694,7 @@ fn a_patch_far_from_the_origin_certifies_as_well_as_one_at_it() {
     for e in [0i32, 3, 5, 6, 7, 8] {
         let shift = if e == 0 { 0.0 } else { 10f64.powi(e) };
         let base = shifted(shift);
-        let (fit, cert) = fit_offset(&base, d, 1e-2, band())
+        let (fit, cert) = fit_offset_at(&base, d, 1e-2, band())
             .unwrap_or_else(|err| panic!("shift 1e{e}: a micron offset refused: {err}"));
         let worst = worst_offset_residual(&base, &fit, d, &grid(23, 19)).unwrap();
         // True at EVERY station, and the assertion the whole row
@@ -723,7 +723,7 @@ fn a_patch_far_from_the_origin_certifies_as_well_as_one_at_it() {
     }
     // The honest end of the ladder: a shift the recentring cannot
     // rescue refuses typed and returns nothing uncertified.
-    match fit_offset(&shifted(1.0e10), d, 1e-2, band()) {
+    match fit_offset_at(&shifted(1.0e10), d, 1e-2, band()) {
         Err(OffsetFitError::BudgetExhausted { achieved, .. }) => {
             eprintln!("recentred shift=1e10: refused typed, achieved={achieved}");
         }
@@ -747,7 +747,7 @@ fn refinement_follows_the_anisotropy_on_a_thin_patch() {
     let base = quarter_cylinder(1.0, 1.0e-3);
     let d = 0.1;
     let tol = 1e-5;
-    let (fit, cert) = fit_offset(&base, d, tol, band())
+    let (fit, cert) = fit_offset_at(&base, d, tol, band())
         .unwrap_or_else(|e| panic!("the thin patch refused at {tol}: {e}"));
     let worst = worst_offset_residual(&base, &fit, d, &grid(23, 19)).unwrap();
     assert!(

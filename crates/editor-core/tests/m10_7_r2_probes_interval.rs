@@ -65,7 +65,7 @@ const BORE_B_X: f64 = 2.2e-3;
 ///
 /// `scale` multiplies every tolerance together, so `1.0` is the study a
 /// user would actually ask for and a smaller number is a narrower one.
-fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
         r.push(DocEdit::SetDocParam {
@@ -286,20 +286,7 @@ fn r2_end_to_end_bracket_study() {
 fn r2_the_ceiling_on_an_arc_bearing_bracket() {
     let tol = Tol::witness();
     let certifies_whole = |scale: f64, dials: SymbolicDials| {
-        let (doc, _, _) = bracket(scale, tol);
-        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-        drive(
-            &doc,
-            &analyzed,
-            &DriveConfig {
-                max_depth: 0,
-                max_leaves: 1,
-                symbolic: dials,
-                ..DriveConfig::default()
-            },
-            tol,
-        )
-        .is_ok_and(|v| v.receipt().certified == 1)
+        crate::m10_8_harness::certifies_whole_with(&bracket(scale, tol).0, dials, tol)
     };
     let ceiling = |dials: SymbolicDials| -> f64 {
         let (mut lo, mut hi) = (1.0e-14, 1.0e3);
@@ -337,20 +324,7 @@ fn r2_re_derives_the_slab_ceiling() {
     use crate::m10_3_driver_interval::slab;
     let tol = Tol::witness();
     let whole = |half: f64, dials: SymbolicDials| {
-        let doc = slab(1.0, half);
-        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-        drive(
-            &doc,
-            &analyzed,
-            &DriveConfig {
-                max_depth: 0,
-                max_leaves: 1,
-                symbolic: dials,
-                ..DriveConfig::default()
-            },
-            tol,
-        )
-        .is_ok_and(|v| v.receipt().certified == 1)
+        crate::m10_8_harness::certifies_whole_with(&slab(1.0, half), dials, tol)
     };
     for (name, dials) in [
         ("TIER ON ", SymbolicDials::default()),
@@ -463,6 +437,7 @@ fn r2_a_zero_term_budget_reproduces_the_tier_off_verdict() {
             enabled: true,
             max_terms: 0,
             max_degree: 0,
+            ..SymbolicDials::default()
         },
         tol,
     )

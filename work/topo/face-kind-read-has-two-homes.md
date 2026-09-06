@@ -2,9 +2,11 @@
 id: face-kind-read-has-two-homes
 kind: unit
 title: topo::query::face_surface_kind and readback::face_carrier_kind read one tag from two homes
-status: dispatched
+status: closed
 opened: 2026-09-04
 branch: topo/two-homes-face-kind
+pr: 1959
+closed: 2026-09-05
 ---
 
 DOCM-1 (PR #1829, DM2) added `topo::readback::face_carrier_kind(body,
@@ -91,3 +93,24 @@ their `None` assertions; `readback.rs` untouched. Branch
 `topo/two-homes-face-kind`; single style review; no A/B row. Landed by
 TOPO as a one-door seam on `crates/topo/src/query.rs` (SEAT's file),
 announced on SEAT's board.
+
+## Closed (2026-09-05, PR 1959)
+
+Option (a) landed, on `crates/topo/src/query.rs` alone.
+`face_surface_kind` is `crate::readback::face_carrier_kind(body, f).ok()`
+and its doc names itself the flattening of that typed door;
+`face_kind_across` keeps the two lookups that are its own (half-edge →
+loop → face) and reads the face through the same flattening. No
+signature changes, `readback.rs` untouched, and `None` keeps its
+meaning — the predicate rows asserting it on a dangling key and on an
+empty set are green unedited. One tag, one reading.
+
+The PR body carries the receipt: with `face_carrier_kind` temporarily
+made to refuse on every live face, `query::tests::the_adjacent_pair_is_unordered`
+(through `face_kind_across`) and sweep's
+`verbs_cylsph_opening::the_coaxial_union_refuses_at_the_curved_pierce_door`
+(through `face_surface_kind`) both go red, which is what proves the
+delegation rather than a coincidence of identical bodies. It also
+carries two questions this unit does not settle and TOPO holds: the
+word "twin" in `readback.rs:328-331`, and the absence of a positive
+`face_surface_kind` row inside `topo` itself.

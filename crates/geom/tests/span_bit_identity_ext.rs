@@ -18,7 +18,7 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use geom::{NurbsCurve3, NurbsSurface};
-use geom_core::spline::{KnotVector, Span, basis, hull};
+use geom_core::spline::{CoeffWindow, KnotVector, RationalWindow, Span, basis};
 use geom_core::{Bounds, Dual64, Interval, Point3, Real, Vec3};
 
 // The doors, one name each. The review lane's build put its
@@ -31,17 +31,17 @@ fn bf<T: Real>(s: Span<'_>, t: T) -> Vec<T> {
 fn dbf<T: Real>(s: Span<'_>, t: T, n: usize) -> Vec<Vec<T>> {
     basis::ders_basis_funs(s, t, n)
 }
-fn sh(c: &[f64], s: Span<'_>) -> geom_core::RingInterval {
-    hull::span_hull(c, s)
+fn sh(w: CoeffWindow<'_, f64>) -> geom_core::RingInterval {
+    w.hull()
 }
-fn shr(c: &[f64], w: &[f64], s: Span<'_>) -> geom_core::RingInterval {
-    hull::span_hull_rational(c, w, s)
+fn shr(w: RationalWindow<'_, f64>) -> geom_core::RingInterval {
+    w.hull_rational()
 }
-fn dsh(c: &[f64], s: Span<'_>) -> geom_core::RingInterval {
-    hull::derivative_span_hull(c, s)
+fn dsh(w: CoeffWindow<'_, f64>) -> geom_core::RingInterval {
+    w.derivative_hull()
 }
-fn snb(c: &[f64], s: Span<'_>) -> f64 {
-    hull::sup_norm_bound_span(c, s)
+fn snb(w: CoeffWindow<'_, f64>) -> f64 {
+    w.sup_norm_bound()
 }
 
 type Rows = Vec<(String, u64)>;
@@ -164,6 +164,12 @@ fn rows() -> Rows {
         let n = k.control_count();
         let coeffs: Vec<f64> = (0..n).map(|i| ((i * 3) % 7) as f64 * 0.5 - 1.25).collect();
         let w: Vec<f64> = c.weights().to_vec();
+        let pair = k
+            .with_coeffs(&coeffs)
+            .expect("minted against its own vector");
+        let rpair = k
+            .with_rational_coeffs(&coeffs, &w)
+            .expect("minted against its own vector");
         // parameters: every knot value, every span midpoint, both domain ends
         let mut ts: Vec<f64> = k.knots().to_vec();
         for i in k.first_span()..=k.last_span() {
@@ -255,44 +261,31 @@ fn rows() -> Rows {
                 }
             }
             let tag = format!("{name}.s{index}");
-            ri(&mut o, &format!("{tag}.span_hull"), sh(&coeffs, span));
-            ri(
-                &mut o,
-                &format!("{tag}.span_hull_rational"),
-                shr(&coeffs, &w, span),
-            );
-            ri(
-                &mut o,
-                &format!("{tag}.derivative_span_hull"),
-                dsh(&coeffs, span),
-            );
-            o.push((
-                format!("{tag}.sup_norm_bound_span"),
-                snb(&coeffs, span).to_bits(),
-            ));
+            let cw = pair.span(index).expect("the curve's span is the vector's");
+            let rw = rpair.span(index).expect("the same span");
+            ri(&mut o, &format!("{tag}.span_hull"), sh(cw));
+            ri(&mut o, &format!("{tag}.span_hull_rational"), shr(rw));
+            ri(&mut o, &format!("{tag}.derivative_span_hull"), dsh(cw));
+            o.push((format!("{tag}.sup_norm_bound_span"), snb(cw).to_bits()));
         }
-        ri(
-            &mut o,
-            &format!("{name}.domain_hull"),
-            hull::domain_hull(&k, &coeffs),
-        );
+        ri(&mut o, &format!("{name}.domain_hull"), pair.domain_hull());
         ri(
             &mut o,
             &format!("{name}.domain_hull_rational"),
-            hull::domain_hull_rational(&k, &coeffs, &w),
+            rpair.domain_hull_rational(),
         );
         ri(
             &mut o,
             &format!("{name}.derivative_domain_hull"),
-            hull::derivative_domain_hull(&k, &coeffs),
+            pair.derivative_domain_hull(),
         );
         o.push((
             format!("{name}.sup_norm_bound"),
-            hull::sup_norm_bound(&k, &coeffs).to_bits(),
+            pair.sup_norm_bound().to_bits(),
         ));
         o.push((
             format!("{name}.sup_norm_bound_rational"),
-            hull::sup_norm_bound_rational(&k, &coeffs, &w).to_bits(),
+            rpair.sup_norm_bound_rational().to_bits(),
         ));
     }
     // ---- surfaces ----

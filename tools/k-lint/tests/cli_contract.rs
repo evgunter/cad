@@ -80,7 +80,7 @@ fn findings_fail_with_the_discipline_message() {
     // The flags themselves still print, in full, on stdout.
     let so = stdout(&out);
     assert!(
-        so.contains("2 samples (0 symbolic_zero, 2 classified), 2 flagged"),
+        so.contains("2 samples (0 symbolic_zero, 0 sign_gated, 2 classified), 2 flagged"),
         "summary line: {so}"
     );
     assert!(so.contains("FLAG demo/bracket:carrier_line_circle"), "{so}");
@@ -170,6 +170,7 @@ fn a_symbolic_population_lints_clean_and_says_how_much_of_it_was_symbolic() {
             "{HEADER}\n\
              driver/slab_narrow,witness_at_mid_parameter,0e0,1e-100,1e-50,symbolic_zero\n\
              driver/slab_narrow,carrier_endpoint_start,0e0,1e-100,1e-50,symbolic_zero\n\
+             driver/plate,carrier_endpoint_start,0e0,1e-100,1e-50,sign_gated\n\
              driver/slab_narrow,volume_backstop,2.0,1e-9,1e-8,positive\n"
         ),
     );
@@ -182,11 +183,13 @@ fn a_symbolic_population_lints_clean_and_says_how_much_of_it_was_symbolic() {
     );
     let so = stdout(&out);
     assert!(
-        so.contains("3 samples (2 symbolic_zero, 1 classified), 0 flagged"),
-        "the per-file line separates the two populations: {so}"
+        so.contains("4 samples (2 symbolic_zero, 1 sign_gated, 1 classified), 0 flagged"),
+        "the per-file line separates the three populations: {so}"
     );
     assert!(
-        so.contains("TOTAL over 1 file(s): 3 samples (2 symbolic_zero, 1 classified)"),
+        so.contains(
+            "TOTAL over 1 file(s): 4 samples (2 symbolic_zero, 1 sign_gated, 1 classified)"
+        ),
         "and so does the TOTAL: {so}"
     );
 }
@@ -209,7 +212,7 @@ fn findings_in_any_file_fail_the_run() {
     assert_eq!(out.status.code(), Some(2));
     let so = stdout(&out);
     assert_eq!(
-        so.matches("1 samples (0 symbolic_zero, 1 classified), 0 flagged")
+        so.matches("1 samples (0 symbolic_zero, 0 sign_gated, 1 classified), 0 flagged")
             .count(),
         2,
         "both clean files were scanned and reported: {so}"

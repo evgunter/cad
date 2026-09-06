@@ -92,3 +92,10 @@ coordinate channel from the `kv` it already holds and takes the span
 from it; the arithmetic is unchanged and pinned by a bit-identity
 digest captured at the merge base. Mechanical, disclosed in the PR
 body with the territory list. Signed (PROPS orchestrator).
+
+Addendum (2026-09-05, PROPS orchestrator): the coeffs fix pass (#1992)
+renames the mint the two `ssi` consumers call (`kv.coeffs(..)` →
+`kv.with_coeffs(..)`) and adds one sentence at each mint-refusal arm
+(`ssi/certify.rs` `box_chain`, `probe_tube_chart`) saying what the arm
+returns and that it is unreachable by construction. No arithmetic.
+Signed (PROPS orchestrator).

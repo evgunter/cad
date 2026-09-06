@@ -27,7 +27,7 @@ use std::sync::Arc;
 
 use geom::{NurbsSurface, Surface};
 use geom_brep::offset_fit::{
-    OffsetFitError, approx_offset_surface, certify_offset, offset_point, recertify_approx,
+    OffsetFitError, approx_offset_surface_at, certify_offset_at, offset_point, recertify_approx_at,
 };
 use geom_core::{Affine3, Point3, Vec3};
 
@@ -66,7 +66,7 @@ fn approx_of(s: &Surface<f64>) -> &geom::ApproxSurface<f64> {
 fn the_door_stores_what_it_was_asked_for() {
     for d in [0.05_f64, -0.05] {
         let base = Arc::new(bowed());
-        let s = approx_offset_surface(Arc::clone(&base), d, 1e-6, band())
+        let s = approx_offset_surface_at(Arc::clone(&base), d, 1e-6, band())
             .unwrap_or_else(|e| panic!("d = {d}: {e}"));
         let a = approx_of(&s);
         let geom::SurfaceDescription::Offset {
@@ -89,7 +89,7 @@ fn the_door_stores_what_it_was_asked_for() {
         // flattened to the re-derivation's zero.
         assert_eq!(
             a.certificate().rounds,
-            geom_brep::offset_fit::fit_offset(&base, d, 1e-6, band())
+            geom_brep::offset_fit::fit_offset_at(&base, d, 1e-6, band())
                 .unwrap()
                 .1
                 .rounds,
@@ -103,9 +103,9 @@ fn the_door_stores_what_it_was_asked_for() {
 /// the identical two limbs.
 #[test]
 fn the_stored_certificate_is_a_certificate_of_the_stored_pair() {
-    let s = approx_offset_surface(Arc::new(bowed()), 0.05, 1e-6, band()).unwrap();
+    let s = approx_offset_surface_at(Arc::new(bowed()), 0.05, 1e-6, band()).unwrap();
     let a = approx_of(&s);
-    let re = recertify_approx(a, 1e-6, band()).expect("the surface re-certifies at rest");
+    let re = recertify_approx_at(a, 1e-6, band()).expect("the surface re-certifies at rest");
     assert_eq!(re.hull_sup, a.certificate().hull_sup);
     assert_eq!(re.on_locus_max, a.certificate().on_locus_max);
     assert_eq!(re.cells, a.certificate().cells);
@@ -115,7 +115,7 @@ fn the_stored_certificate_is_a_certificate_of_the_stored_pair() {
 /// uncertified is minted, and the refusal is the fit door's own.
 #[test]
 fn an_unreachable_tolerance_refuses_typed() {
-    let e = approx_offset_surface(Arc::new(bowed()), 0.3, 1e-18, band())
+    let e = approx_offset_surface_at(Arc::new(bowed()), 0.3, 1e-18, band())
         .expect_err("1e-18 m on a bowed patch is not reachable");
     assert!(
         matches!(e, OffsetFitError::BudgetExhausted { .. }),
@@ -128,7 +128,7 @@ fn an_unreachable_tolerance_refuses_typed() {
 #[test]
 fn a_degenerate_request_refuses_typed() {
     for d in [0.0_f64, f64::NAN, f64::INFINITY] {
-        let e = approx_offset_surface(Arc::new(bowed()), d, 1e-6, band())
+        let e = approx_offset_surface_at(Arc::new(bowed()), d, 1e-6, band())
             .expect_err("a degenerate d has no offset");
         assert!(
             matches!(e, OffsetFitError::InvalidRequest { .. }),
@@ -152,7 +152,7 @@ fn a_degenerate_request_refuses_typed() {
 fn a_rational_fit_is_certified_as_the_surface_it_is() {
     let base = quarter_cylinder(1.0, 1.0);
     let exact_offset = quarter_cylinder(1.2, 1.0);
-    let cert = certify_offset(&base, &exact_offset, 0.2, 1e-3, band())
+    let cert = certify_offset_at(&base, &exact_offset, 0.2, 1e-3, band())
         .expect("the exact rational offset is a fit the hull limb can bound");
     let mut worst = 0.0f64;
     for i in 0..=20 {
@@ -184,7 +184,7 @@ fn a_rational_fit_is_certified_as_the_surface_it_is() {
         cert.hull_sup, cert.cells
     );
     // And the storage door's own fits are non-rational, so it mints.
-    let s = approx_offset_surface(Arc::new(base), 0.2, 1e-4, band()).unwrap();
+    let s = approx_offset_surface_at(Arc::new(base), 0.2, 1e-4, band()).unwrap();
     assert!(
         approx_of(&s).fit().weights().iter().all(|w| *w == 1.0),
         "the door's fit is non-rational"
@@ -199,7 +199,7 @@ fn a_rational_fit_is_certified_as_the_surface_it_is() {
 /// bit for bit — the variant's stated invariant, at the enum's doors.
 #[test]
 fn the_evaluators_delegate_to_the_fit_bitwise() {
-    let s = approx_offset_surface(Arc::new(bowed()), 0.05, 1e-6, band()).unwrap();
+    let s = approx_offset_surface_at(Arc::new(bowed()), 0.05, 1e-6, band()).unwrap();
     let fit = approx_of(&s).fit().clone();
     for i in 0..=4 {
         for j in 0..=4 {
@@ -225,7 +225,7 @@ fn the_evaluators_delegate_to_the_fit_bitwise() {
 fn the_fit_is_within_the_certified_bound_of_the_description() {
     for d in [0.05_f64, -0.05] {
         let base = Arc::new(bowed());
-        let s = approx_offset_surface(Arc::clone(&base), d, 1e-6, band()).unwrap();
+        let s = approx_offset_surface_at(Arc::clone(&base), d, 1e-6, band()).unwrap();
         let bound = approx_of(&s).certificate().hull_sup;
         let mut worst = 0.0_f64;
         for i in 0..=11 {
@@ -247,7 +247,7 @@ fn the_fit_is_within_the_certified_bound_of_the_description() {
 /// the delegation is stated once for all of them.
 #[test]
 fn the_spline_chart_accessor_answers_the_fit() {
-    let s = approx_offset_surface(Arc::new(bowed()), 0.05, 1e-6, band()).unwrap();
+    let s = approx_offset_surface_at(Arc::new(bowed()), 0.05, 1e-6, band()).unwrap();
     let chart = s
         .spline_chart()
         .expect("an approximating surface has a spline chart");
@@ -277,7 +277,7 @@ fn the_spline_chart_accessor_answers_the_fit() {
 #[test]
 fn a_planted_degraded_fit_goes_red_at_re_derivation() {
     let base = Arc::new(bowed());
-    let honest = approx_offset_surface(Arc::clone(&base), 0.05, 1e-6, band()).unwrap();
+    let honest = approx_offset_surface_at(Arc::clone(&base), 0.05, 1e-6, band()).unwrap();
     let good = approx_of(&honest);
 
     // Coarsen: push one interior control point of the fit a millimetre
@@ -315,7 +315,7 @@ fn a_planted_degraded_fit_goes_red_at_re_derivation() {
         good.certificate().hull_sup,
         "the stored certificate still claims the honest bound"
     );
-    let e = recertify_approx(&planted, good.tolerance(), band())
+    let e = recertify_approx_at(&planted, good.tolerance(), band())
         .expect_err("the re-derivation must refuse the coarsened fit");
     assert!(
         matches!(e, OffsetFitError::Limb { .. }),
@@ -334,13 +334,13 @@ fn a_planted_degraded_fit_goes_red_at_re_derivation() {
 fn the_re_derivation_classifies_against_the_callers_tolerance() {
     let base = Arc::new(bowed());
     // Minted loose: the fit stops as soon as it is inside 1e-3.
-    let s = approx_offset_surface(Arc::clone(&base), 0.05, 1e-3, band()).unwrap();
+    let s = approx_offset_surface_at(Arc::clone(&base), 0.05, 1e-3, band()).unwrap();
     let a = approx_of(&s);
     assert_eq!(a.tolerance(), 1e-3, "the stored tolerance is the MINT's");
-    let loose = recertify_approx(a, 1e-3, band()).expect("green at the bound it was minted at");
+    let loose = recertify_approx_at(a, 1e-3, band()).expect("green at the bound it was minted at");
     assert!(loose.hull_sup <= 1e-3);
     // The same surface, unchanged, at a tighter run epsilon.
-    let e = recertify_approx(a, 1e-12, band())
+    let e = recertify_approx_at(a, 1e-12, band())
         .expect_err("a loose mint must refuse at a tighter epsilon");
     assert!(
         matches!(e, OffsetFitError::Limb { .. }),
@@ -354,7 +354,7 @@ fn the_re_derivation_classifies_against_the_callers_tolerance() {
 #[test]
 fn a_window_the_certifier_cannot_honour_refuses_typed() {
     let base = Arc::new(bowed());
-    let (fit, _) = geom_brep::offset_fit::fit_offset(&base, 0.05, 1e-6, band()).unwrap();
+    let (fit, _) = geom_brep::offset_fit::fit_offset_at(&base, 0.05, 1e-6, band()).unwrap();
     let narrow = geom::ApproxWindow {
         u: (0.25, 0.75),
         v: (0.25, 0.75),
@@ -374,7 +374,7 @@ fn a_window_the_certifier_cannot_honour_refuses_typed() {
             if window != geom::ApproxWindow::of(base) {
                 return Err(OffsetFitError::WindowUnsupported { window });
             }
-            certify_offset(base, fit, *d, tolerance, band())
+            certify_offset_at(base, fit, *d, tolerance, band())
         },
     )
     .expect_err("a sub-window is not a bound this certificate proved");
@@ -401,16 +401,17 @@ fn a_rigid_map_of_an_offset_is_the_offset_of_the_rigid_map() {
     map.translation = map.translation + Vec3::new(0.3, -0.2, 1.1);
     for d in [0.05_f64, -0.05] {
         let base = Arc::new(bowed());
-        let s = approx_offset_surface(Arc::clone(&base), d, 1e-6, band()).unwrap();
+        let s = approx_offset_surface_at(Arc::clone(&base), d, 1e-6, band()).unwrap();
         let fit = approx_of(&s).fit();
 
         let mapped_base = base.map_points(|p| map.transform_point(p));
         let mapped_fit = fit.map_points(|p| map.transform_point(p));
         // The map of the fit is a certified fit of the offset of the
         // map of the base — same d, same tolerance.
-        let cert = certify_offset(&mapped_base, &mapped_fit, d, 1e-6, band()).unwrap_or_else(|e| {
-            panic!("d = {d}: the composition law must hold under certification: {e}")
-        });
+        let cert =
+            certify_offset_at(&mapped_base, &mapped_fit, d, 1e-6, band()).unwrap_or_else(|e| {
+                panic!("d = {d}: the composition law must hold under certification: {e}")
+            });
         // What a rigid map preserves is the SAMPLED residual: a
         // distance between two points, computed the same way in either
         // frame.
@@ -446,7 +447,7 @@ fn a_rigid_map_of_an_offset_is_the_offset_of_the_rigid_map() {
 #[test]
 fn approx_is_its_own_kind_and_every_pair_refuses() {
     use geom_brep::intersect::{SurfaceKind, route};
-    let s = approx_offset_surface(Arc::new(bowed()), 0.05, 1e-6, band()).unwrap();
+    let s = approx_offset_surface_at(Arc::new(bowed()), 0.05, 1e-6, band()).unwrap();
     assert_eq!(SurfaceKind::of(&s), SurfaceKind::Approx);
     assert_ne!(SurfaceKind::of(&s), SurfaceKind::Nurbs);
     for other in [
@@ -472,7 +473,7 @@ fn approx_is_its_own_kind_and_every_pair_refuses() {
 /// inside another — refused typed, not silently fitted again.
 #[test]
 fn offsetting_an_approximating_surface_refuses_typed() {
-    let s = approx_offset_surface(Arc::new(bowed()), 0.05, 1e-6, band()).unwrap();
+    let s = approx_offset_surface_at(Arc::new(bowed()), 0.05, 1e-6, band()).unwrap();
     let e = geom_brep::offset_surface(&s, 0.05, band()).expect_err("nesting refuses");
     assert!(
         matches!(e, geom_brep::OffsetError::ApproxNesting),
@@ -485,7 +486,7 @@ fn offsetting_an_approximating_surface_refuses_typed() {
 /// none to lend.
 #[test]
 fn the_implicit_layer_is_poison_for_an_approximating_surface() {
-    let s = approx_offset_surface(Arc::new(bowed()), 0.05, 1e-6, band()).unwrap();
+    let s = approx_offset_surface_at(Arc::new(bowed()), 0.05, 1e-6, band()).unwrap();
     let p = Point3::new(0.5, 0.5, 0.2);
     assert!(geom_brep::implicit_residual(&s, p).is_nan());
     assert!(geom_brep::implicit_gradient(&s, p).x.is_nan());

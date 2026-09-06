@@ -23,8 +23,6 @@ fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
-const FIT_TOL: f64 = 1e-6;
-
 /// The validated profile of a polygon, or the door's typed refusal —
 /// the fallible half of [`prism`], so a row whose fixture is only
 /// constructible at some ε rows can *state* what the door said there
@@ -157,7 +155,7 @@ fn r1a_hexagon_cavity_corners_sit_at_minus_t_on_all_three_planes() {
     let outer = planes(&body);
     let Some(hollow) = report(
         "hexagonal prism t=0.02",
-        topo::shell(&body, t, FIT_TOL, Tol::witness()).map(|shelled| shelled.body),
+        topo::shell(&body, t, Tol::witness()).map(|shelled| shelled.body),
     ) else {
         return;
     };
@@ -219,7 +217,7 @@ fn r1b_the_unpinned_oblique_fixtures_against_their_closed_forms() {
     ] {
         let want = wall_volume(&pts, h, t);
         let body = prism(&pts, h);
-        match topo::shell(&body, t, FIT_TOL, Tol::witness()) {
+        match topo::shell(&body, t, Tol::witness()) {
             Ok(topo::Shelled { body: b, .. }) => {
                 let got = topo::mass_properties(&b, Tol::witness())
                     .expect("props")
@@ -299,7 +297,7 @@ fn r1c_chamfered_cube_is_a_valence_four_planar_corner() {
     println!("[r1c] distinct-plane valence histogram: {hist:?}");
     report(
         "chamfered cube t=0.05",
-        topo::shell(&chamfered, 0.05, FIT_TOL, Tol::witness()).map(|shelled| shelled.body),
+        topo::shell(&chamfered, 0.05, Tol::witness()).map(|shelled| shelled.body),
     );
 }
 
@@ -321,7 +319,7 @@ fn r1d_the_straight_footprint_vertex_through_shell() {
     let body = prism(&pts, h);
     if let Some(b) = report(
         "straight-footprint prism t=0.05",
-        topo::shell(&body, t, FIT_TOL, Tol::witness()).map(|shelled| shelled.body),
+        topo::shell(&body, t, Tol::witness()).map(|shelled| shelled.body),
     ) {
         let got = topo::mass_properties(&b, Tol::witness())
             .expect("props")
@@ -467,7 +465,7 @@ fn r1e_conditioning_verdict_moves_with_the_offset_alone() {
         for t in [0.05, 1e-3, 1e-5, 1e-7] {
             let body = prism(&pts, h);
             let want = wall_volume(&pts, h, t);
-            match topo::shell(&body, t, FIT_TOL, Tol::witness()) {
+            match topo::shell(&body, t, Tol::witness()) {
                 Ok(topo::Shelled { body: b, .. }) => {
                     let got = topo::mass_properties(&b, Tol::witness())
                         .expect("props")
@@ -521,7 +519,7 @@ fn r1f_one_curved_face_among_planars() {
     );
     report(
         "hexagon with ONE arc side t=0.02",
-        topo::shell(&body, 0.02, FIT_TOL, Tol::witness()).map(|shelled| shelled.body),
+        topo::shell(&body, 0.02, Tol::witness()).map(|shelled| shelled.body),
     );
 }
 
@@ -537,7 +535,7 @@ fn r1g_box_control() {
     let body = prism(&pts, 4.0);
     if let Some(b) = report(
         "box 2x3x4 t=0.25",
-        topo::shell(&body, 0.25, FIT_TOL, Tol::witness()).map(|shelled| shelled.body),
+        topo::shell(&body, 0.25, Tol::witness()).map(|shelled| shelled.body),
     ) {
         let got = topo::mass_properties(&b, Tol::witness())
             .expect("props")
@@ -664,19 +662,14 @@ fn r1h_widened_bit_identity_dump() {
     let top = plane_face_at_z(&body, h);
     let bottom = plane_face_at_z(&body, 0.0);
     for (name, b) in [
-        (
-            "sealed_box",
-            topo::shell(&body, t, FIT_TOL, tol).unwrap().body,
-        ),
+        ("sealed_box", topo::shell(&body, t, tol).unwrap().body),
         (
             "box_cup",
-            topo::shell_open(&body, t, &[top], FIT_TOL, tol)
-                .unwrap()
-                .body,
+            topo::shell_open(&body, t, &[top], tol).unwrap().body,
         ),
         (
             "box_tube",
-            topo::shell_open(&body, t, &[top, bottom], FIT_TOL, tol)
+            topo::shell_open(&body, t, &[top, bottom], tol)
                 .unwrap()
                 .body,
         ),
