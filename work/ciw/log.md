@@ -805,3 +805,97 @@ a real `--document-private-items` question.
 **Review posture is unchanged** (Ev, 2026-09-06, restating 2026-09-04):
 no A/B protocol, one subagent style review per unit, and a correctness
 reviewer only where a unit earns one — named in its PR with the reason.
+
+## 2026-09-06 — the second slate, re-read against the tree
+
+The 2026-09-04 re-read moved six rows by auditing them against the tree
+rather than inheriting them. The same pass over the 21 rows the first
+slate's own lanes filed moves four, and the reason is the same one every
+time: the units landed **after** most of these were written, and an item
+does not notice when its premise is fixed.
+
+**Two are already discharged.**
+
+- `closure-tier-scope-hides-whole-tree-census-tests` asked for exactly
+  what PR 1909 built (its option (c)). Measured, not inferred: a
+  `crates/profile/src/path/arc_fillet.rs` change now scopes in
+  `geom-core` and `test-utils`, so `bounds_census.rs` builds and runs;
+  the smallest closure in the tree (`crates/viewer/src/tree.rs` alone)
+  still pins `bvh, editor-core, geom-core, pncad-py, test-utils`.
+- `probe-interval-lane-has-no-clippy-row` asked for a clippy row over
+  `--features probe,interval`. `clippy-all-features` (`ci.yml:2109`) is
+  a superset of that point, `geom-brep` declares both features
+  (`Cargo.toml:15,22`), and PR 1795 trimmed the same four imports this
+  item names. **It and `geom-brep-test-unused-edgedescription-import`
+  are one finding filed twice**, by two lanes that could not see each
+  other — the duplicate shape `implementer-discipline.md` §6 describes,
+  landing inside a single program's own slate. Unit 6 was dispatched
+  from one of them and nobody noticed the other was discharged too. It
+  cost two days of a phantom row; it could as easily have cost a second
+  implementation.
+
+**Two lost half their premise to the un-sampling**, which is the
+un-sampling working. `ci-draw-can-hide-a-compile-break-on-main` is named
+for a draw that no longer exists — PR 1823 and PR 1850 made both lanes,
+all three eps rows and all five k-lint unifications unconditional, so
+the instance it was filed on cannot recur on a PR run. What survives is
+that a `main` push still compiles nothing, which is F3 and is Ev's.
+`detached-demo-workspaces-are-gated-only-by-a-sampled-row` keeps half 1
+(a detached root is invisible to the `--workspace` check a lane runs
+locally) and loses half 2 (the demos step rides `dev-default`, which now
+runs on every code-tier run). Both parked or re-scoped rather than
+closed: a stale title is not a discharged finding.
+
+**The nightly reading is taken, and nothing is red.** Ev's direction on
+2026-09-04 was to read the scheduled run rather than force a dispatch.
+Run `33957138686` (2026-09-05 09:07Z, `success`) executed all three
+demoted rows, read at the STEP level because a green job over a skipped
+step is this class's whole failure mode: `corrupt input (release
+profile)` 09:08:40→09:09:38, `rustdoc (gate, every root)`
+09:08:42→09:12:53, `python suite (ungated re-take)` 09:09:55→09:10:21.
+No repair jumps the queue. What the item is actually for — a demotion
+verified AT the demotion — is untouched and is now better evidenced:
+three rows ran unattended two nights late and happened to be correct,
+and nothing in the tree would have said so if they had not been.
+
+**One live defect confirmed by measurement rather than by reading.** A
+`crates/geom-core/src/lib.rs` change classifies `RUN_PNCAD_PY=false`
+while `pncad-py` is in `PKGS` — the crate is built as a cargo target and
+the suite that exercises it is skipped. This is not something 1909
+changed: `JOB_ROOTS` is keyed on the dependent closure with the reach
+subtracted again, deliberately, so the reach never switches a named job
+row on. `implementer-discipline.md` §2 tells implementers the python
+suite runs on every code-tier run. One of the two is wrong.
+
+The second slate and its order are in `plan.md`. Seven units, the
+posture unchanged, and units 2 and 4 are the two that look likely to
+earn a correctness reviewer beside the style one.
+
+**Addendum, same day.** `main` moved 74 commits under this re-read: Ev's
+tracker-wide cut of 2026-09-06 routed `work/issues/` and opened BLEND,
+EVAL, GATES and METER. Two of those touch CIW.
+
+- **GATES takes `scripts/gates/*`**, and its `keep_out` leaves
+  `.github/workflows/*` and `local-scripts/*` here, with a new gate's
+  wiring row as one announced line. That changes unit 3's shape:
+  `opt-level-selftest-runs-nowhere`'s fix is a widening of
+  `gate-roster.sh`'s scope, which is now GATES' file and an announced
+  seam rather than a CIW edit.
+- **METER takes `tools/*` and the two instrument documents**, leaving
+  `tess_budget_cut.sh`, `tess_budget_sweep.sh` and `k_probe_sweep.sh`
+  here — all three are already in CIW's `paths`.
+
+The cut also delivered **a third instance of today's duplicate class,
+and this one crossed programs**: `dirty-pr-gets-no-actions-run` (SEAT,
+from PR 1910) and `no-ci-run-on-a-conflicting-pr` (PROPS, from the
+riders lane) are one finding, filed on 2026-09-05 by two orchestrators
+who could not see each other, and routed onto one slate a day later.
+Merged: SEAT's survives because it carries the measurement, PROPS' two
+instances fold into it, and the population is now three occurrences in
+one day — none of them a code conflict. All three were tail-append
+conflicts in a `log.md` or `DOC-LEDGER.md`, which is the shape this
+repository generates by construction, which is why the class recurs.
+
+Three duplicate pairs in one day (two within CIW's own slate, one
+across three programs) is not three accidents. The board is the only
+instrument that can see them and only an orchestrator reads it whole.
