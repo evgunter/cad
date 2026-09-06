@@ -1,7 +1,7 @@
 # FILLET exit walk — criteria vs evidence
 
-**STATUS: PROPOSED — awaiting Ev's ratification (a 👍 on this PR's `[ev]`
-thread ratifies it AS WRITTEN; a comment amends it in place).** FILLET =
+**STATUS: RATIFIED — FILLET CLOSED** (Ev's approval, in chat, 2026-09-06:
+"1973 is good"; ratified AS WRITTEN). FILLET =
 the blend-completion second pass (`work/fillet/plan.md`, opened 2026-09-03
 from `docs/WORK-TRACKS-2026-09.md`; orchestrated 2026-09-04/05 on a remote
 box). Every unit on the slate is merged: the plan's seven, the two its
