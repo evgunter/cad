@@ -124,7 +124,7 @@ fn app_lane_skipped_no_app_feature_coverage_here() {
 }
 
 pub use blend::{BlendError, BlendEvent, BlendKindChoice, BlendTarget, BlendTool, FREEZE_NOTE};
-pub use camera::{Camera, CameraError, CameraOp, CameraOpError};
+pub use camera::{Camera, CameraError, CameraOp, CameraOpError, cursor_projection};
 pub use datums::{DatumDraw, DatumKind};
 pub use docio::DocIoError;
 pub use evalseam::{
@@ -141,10 +141,7 @@ pub use evalseam::{SpawnError, ThreadEvaluator, ThreadIndexer, Worker};
 pub use generation::Generation;
 pub use history::{History, HistoryId};
 pub use input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
-pub use marks::{
-    EdgeOverlay, Highlight, cursor_projection, edge_id_segments, edge_overlay, edge_segments,
-    highlight,
-};
+pub use marks::{EdgeOverlay, Highlight, edge_id_segments, edge_overlay, edge_segments, highlight};
 pub use matetool::{
     MateAdmission, MateChoice, MateProposal, MateTool, MateToolError, MateToolEvent, MateToolState,
     admitted_classes,

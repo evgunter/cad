@@ -181,6 +181,8 @@ mod msolve2_member_chain;
 mod msolve3_placer_refused;
 #[path = "msolve4_mate_memo.rs"]
 mod msolve4_mate_memo;
+#[path = "msolve5_read_below_a_root.rs"]
+mod msolve5_read_below_a_root;
 #[path = "onb_wall_normal_census.rs"]
 mod onb_wall_normal_census;
 

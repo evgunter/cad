@@ -77,7 +77,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use eframe::wgpu;
 
-use crate::marks::{EdgeOverlay, Highlight, cursor_projection};
+use crate::camera::cursor_projection;
+use crate::marks::{EdgeOverlay, Highlight};
 use crate::pickindex::IdMap;
 use crate::scene::SceneMesh;
 use crate::theme::{Mark, Theme};

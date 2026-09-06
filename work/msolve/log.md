@@ -339,3 +339,11 @@ substrings copied four times. Probes adopted: P1, P4, P6, P9b. Filed
 (`work/issues/`): the split root whose tie spans both halves refuses
 the gather (`carry_names` `DuplicateName`), and the assembly door's
 "only the head is raised" follow-up that lived in a comment.
+
+## MSOLVE-5 MERGED (2026-09-06, PR 2090)
+
+Fix pass green on the full matrix at `ae78e6e` (one run, no cancelled
+twin). Item closed, spec deleted into the ledger, the gate issue
+closed. Filed on the way: the tie-before-kind asymmetry between the
+product's own rows and the operand's (`work/issues/`). The slate that
+remains: the lever's extent, asked on `[ev]` PR 2086.
