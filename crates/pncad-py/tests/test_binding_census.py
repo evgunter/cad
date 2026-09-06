@@ -1458,6 +1458,13 @@ NOT_BOUND = {
     # neighbouring door whose opening would make this disposition stop
     # being honest, in exactly the shape `EvalOutcome`'s entry records.
     "Member": INTERIOR,
+    # The one thing `Frame::rotate_then_translate` refuses, and the
+    # only thing `EditError::PlacementAxis` converts from — a type so
+    # that no other node refusal can reach a caller wearing the axis's
+    # words. Python never holds one: the constructor raises EditError
+    # with variant `placement_axis` and the axis's own prose, which is
+    # the whole of what the type carries.
+    "AxisRefusal": INTERIOR,
     # The wrapper `MateFault::PlacerRefused` and
     # `EditError::PlacementAxis` carry an evaluation refusal in, so the
     # document layer's two error enums can hold one unaltered. Python

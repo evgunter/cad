@@ -163,13 +163,19 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         "the mate's row is the failure: {:?}",
         row.status
     );
-    assert!(
-        message.contains("pattern direction"),
-        "the row names the vector that refused: {message}"
-    );
-    assert!(
-        !message.contains("does not resolve to a live member"),
-        "and never calls a resolving head dangling: {message}"
+    // The WHOLE rendered cause, not a substring of it: a wrong role
+    // word, a wrong refusal kind (a zero length instead of an
+    // unmeasurable one), or a wrong node all fail here.
+    assert_eq!(
+        message,
+        format!(
+            "node {} failed: the mate solve refused: mate {}'s a reference has no derived pose: \
+             node {} refuses — the pattern direction has no finite length — its components \
+             overflow the norm, or one of them is not a number; scale the geometry into the \
+             session's range",
+            mate.0, mate.0, pattern.0
+        ),
+        "the row states the cause the evaluation typed"
     );
 
     // The compensation the old design rested on, measured: the

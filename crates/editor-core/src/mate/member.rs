@@ -14,16 +14,16 @@
 //! which is arithmetic, not admission — does evaluate, at the
 //! document's own parameter bindings.
 
-use geom_core::linalg::{Affine3, Point3, Vec3};
+use geom_core::linalg::{Affine3, Point3};
 use geom_core::predicate::Band;
 
 use super::{MateFault, MateSide};
 use crate::doc::Doc;
-use crate::eval::slots::{self, SlotValues, eval_slots};
-use crate::eval::{NodeErrorKind, NodeRefusal, SteppedOperands};
+use crate::eval::slots::{SlotValues, eval_slots};
+use crate::eval::{NodeErrorKind, NodeRefusal, SteppedOperands, need_scalar, need_vec3};
 use crate::expr::ParamEnv;
 use crate::names::RoleSeg;
-use crate::node::{Axis3, Datum, Node, PartSelect, PatternKind, RecipeNodeId, SlotId};
+use crate::node::{Datum, Node, PartSelect, PatternKind, RecipeNodeId, SlotId};
 
 /// **The member a mate reference resolves to** (A11's member
 /// vocabulary): a live `InstantiatePart`, reached from the
@@ -339,14 +339,11 @@ pub(super) fn walk_of<P>(
 /// bindings, `MissingInput` for a node the walk recorded and the
 /// document no longer holds.
 ///
-/// **The two numbers are read one at a time**, with the evaluator's
-/// own `eval_count` — the very call [`eval_slots`] makes for a
-/// structural slot, so the refusal is the one that node's evaluation
-/// raises for it. The whole-node door is not used HERE, where
-/// [`derived_offset`] uses it, because this check runs for every
-/// reference of every live mate and needs one number: evaluating a
-/// pattern's direction to answer "does copy 0 exist" would refuse a
-/// member whose pose does exist.
+/// The two numbers are read one at a time with `eval_count` — the
+/// call [`eval_slots`] itself makes for a structural slot — rather
+/// than through the whole-node door [`derived_offset`] uses, because
+/// asking a pattern's direction to answer "does copy 0 exist" would
+/// refuse a member whose pose does exist.
 pub(super) fn check_reference<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     mate: RecipeNodeId,
@@ -444,29 +441,26 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
 /// # Errors
 ///
 /// [`MateFault::PlacerRefused`], carrying the evaluation layer's own
-/// typed refusal for the placer UNALTERED — a slot that does not
-/// evaluate ([`NodeErrorKind::Expr`]), a direction of zero or
-/// non-finite length (the direction door's own
-/// `DegenerateDirection`/`NonFiniteDirection`, whose `role` word names
-/// the vector), an explicit-rule pattern (whose count spelling the
-/// pattern node itself refuses), a circular rule whose `axis` operand
-/// is not an axis datum, a node the chain recorded and the document no
-/// longer holds. This door's job is to refuse rather than guess a
-/// pose, and to refuse in the words of whatever actually said no: it
-/// relabels nothing, so a refusal the evaluation layer grows arrives
-/// here carried rather than renamed.
+/// typed refusal UNALTERED — a slot that does not evaluate
+/// ([`NodeErrorKind::Expr`]), a direction of zero or non-finite
+/// length (the direction door's own
+/// `DegenerateDirection`/`NonFiniteDirection`, whose `role` word
+/// names the vector), an explicit-rule pattern, a circular rule whose
+/// `axis` operand is not an axis datum, a node the chain recorded and
+/// the document no longer holds. This door refuses rather than
+/// guessing a pose, and it relabels nothing: a refusal the evaluation
+/// layer grows arrives here carried rather than renamed, under the id
+/// of the node that raised it ([`MateFault::PlacerRefused::placer`]).
 ///
 /// An in-band direction-norm decision escalates
 /// [`MateFault::Indeterminate`], as every decided predicate here
 /// does — an escalation is this solve's own indeterminacy, not a fact
 /// about the placer.
 ///
-/// [`MateFault::DanglingHead`] is NOT among them: a chain this door
-/// walks reached a live member, and the copy the name says exists
-/// ([`check_reference`] compared it against the count for every
-/// reference of every live mate, so by the time a pose is composed the
-/// index is in range by construction — a second guard would be a
-/// branch no document can reach).
+/// [`MateFault::DanglingHead`] is NOT among them: [`check_reference`]
+/// has already compared the named index against the count for every
+/// reference of every live mate, so the index is in range here by
+/// construction.
 ///
 /// **One length decision, two funnel names, ratified.** A circular
 /// rule's direction is a DATUM's axis direction, and this derivation
@@ -490,88 +484,15 @@ pub(super) fn derived_offset<P: crate::ProfilePayload>(
     let mut composed: Option<Affine3<f64>> = None;
     for placer in &w.chain {
         let node = placer.node();
-        // The evaluation's refusal, in the mate vocabulary. Two arms
-        // and no relabelling: an escalation is the SOLVE's own
-        // indeterminacy and says so, and everything else is carried
-        // exactly as the layer that raised it typed it.
-        let refused = |kind: NodeErrorKind| -> Box<MateFault> {
-            match kind {
-                NodeErrorKind::Escalated { source, .. } => Box::new(MateFault::Indeterminate {
-                    mate,
-                    diag: Box::new(source),
-                }),
-                carried => Box::new(MateFault::PlacerRefused {
-                    mate,
-                    side,
-                    placer: node,
-                    error: NodeRefusal::from(carried),
-                }),
-            }
+        let derived = match *placer {
+            Placer::Pattern { i, .. } => pattern_map(doc, node, i, &env, band),
+            Placer::Transform(_) => transform_map(doc, node, &env, band).map(Some),
         };
-        let map = match *placer {
-            Placer::Pattern { i, .. } => {
-                let Some(pattern @ Node::Pattern { kind, .. }) = doc.node(node) else {
-                    return Err(refused(NodeErrorKind::MissingInput { input: node }));
-                };
-                if i == 0 {
-                    // Copy 0's map is the identity by the stepped
-                    // rule's own construction; composing it would be
-                    // a no-op that costs bits.
-                    continue;
-                }
-                let vals = node_slots(pattern, &env).map_err(&refused)?;
-                let ops = match kind {
-                    PatternKind::Linear { .. } => SteppedOperands::Linear {
-                        direction: crate::eval::unit_direction(
-                            need_vec3(&vals, SlotId::Direction).map_err(&refused)?,
-                            crate::eval::PATTERN_DIRECTION_ROLE,
-                            band,
-                        )
-                        .map_err(&refused)?,
-                        spacing: need_scalar(&vals, SlotId::Spacing).map_err(&refused)?,
-                    },
-                    PatternKind::Circular { axis, .. } => {
-                        let datum = axis_datum(doc, *axis).map_err(&refused)?;
-                        let dvals = node_slots(datum, &env).map_err(&refused)?;
-                        SteppedOperands::Circular {
-                            origin: Point3::origin()
-                                + need_vec3(&dvals, SlotId::Origin).map_err(&refused)?,
-                            dir: crate::eval::unit_direction(
-                                need_vec3(&dvals, SlotId::Direction).map_err(&refused)?,
-                                crate::eval::DATUM_AXIS_ROLE,
-                                band,
-                            )
-                            .map_err(&refused)?,
-                            step: need_scalar(&vals, SlotId::Step).map_err(&refused)?,
-                        }
-                    }
-                    // The list-rule pattern's count has two spellings,
-                    // which the pattern node itself refuses; no copy
-                    // of it has a derived pose to stand a member on.
-                    PatternKind::Explicit(_) => {
-                        return Err(refused(NodeErrorKind::PlacementRule(
-                            crate::node::PlacementRuleFault::CountSpelling,
-                        )));
-                    }
-                };
-                crate::eval::stepped_rule_map(&ops, i64::from(i))
-            }
-            Placer::Transform(_) => {
-                let Some(transform @ Node::Transform { .. }) = doc.node(node) else {
-                    return Err(refused(NodeErrorKind::MissingInput { input: node }));
-                };
-                let vals = node_slots(transform, &env).map_err(&refused)?;
-                crate::eval::transform_map(
-                    need_vec3(&vals, SlotId::Translation).map_err(&refused)?,
-                    crate::eval::unit_direction(
-                        need_vec3(&vals, SlotId::RotationAxis).map_err(&refused)?,
-                        crate::eval::TRANSFORM_AXIS_ROLE,
-                        band,
-                    )
-                    .map_err(&refused)?,
-                    need_scalar(&vals, SlotId::RotationAngle).map_err(&refused)?,
-                )
-            }
+        // ONE wrapping, at the arm's edge: the derivation answers with
+        // the node that raised and the kind it raised, and this is
+        // where those become the mate vocabulary.
+        let Some(map) = derived.map_err(|refused| refuse(mate, side, *refused))? else {
+            continue;
         };
         composed = Some(match composed {
             None => map,
@@ -581,15 +502,143 @@ pub(super) fn derived_offset<P: crate::ProfilePayload>(
     Ok(composed)
 }
 
+/// **A derivation's refusal**: the node that raised, and the kind it
+/// raised. Boxed because a [`NodeErrorKind`] is wide and this is the
+/// cold half of every derivation's result.
+type Refused = Box<(RecipeNodeId, NodeErrorKind)>;
+
+/// **A derivation's refusal, in the mate vocabulary.** Two arms and
+/// no relabelling: an escalation is the SOLVE's own indeterminacy and
+/// says so, and everything else is carried exactly as the layer that
+/// raised it typed it, under the id of the node that raised it.
+fn refuse(
+    mate: RecipeNodeId,
+    side: MateSide,
+    (at, kind): (RecipeNodeId, NodeErrorKind),
+) -> Box<MateFault> {
+    match kind {
+        NodeErrorKind::Escalated { source, .. } => Box::new(MateFault::Indeterminate {
+            mate,
+            diag: Box::new(source),
+        }),
+        carried => Box::new(MateFault::PlacerRefused {
+            mate,
+            side,
+            placer: at,
+            error: NodeRefusal::from(carried),
+        }),
+    }
+}
+
+/// **The map a pattern copy contributes**, or `None` for copy 0 —
+/// whose map is the identity by the stepped rule's own construction,
+/// so composing it would be a no-op that costs bits.
+///
+/// # Errors
+///
+/// The node that raised and the kind it raised. A circular rule reads
+/// its axis DATUM's slots, and a refusal from that read is the
+/// datum's: it is reported under the datum's id, which is the node an
+/// author would go and fix.
+fn pattern_map<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    node: RecipeNodeId,
+    i: u32,
+    env: &ParamEnv<f64>,
+    band: Band,
+) -> Result<Option<Affine3<f64>>, Refused> {
+    let here = |kind| Box::new((node, kind));
+    let Some(pattern @ Node::Pattern { kind, .. }) = doc.node(node) else {
+        return Err(here(NodeErrorKind::MissingInput { input: node }));
+    };
+    if i == 0 {
+        return Ok(None);
+    }
+    let vals = node_slots(pattern, env).map_err(here)?;
+    let ops = match kind {
+        PatternKind::Linear { .. } => SteppedOperands::Linear {
+            direction: crate::eval::unit_direction(
+                need_vec3(&vals, SlotId::Direction).map_err(here)?,
+                crate::eval::PATTERN_DIRECTION_ROLE,
+                band,
+            )
+            .map_err(here)?,
+            spacing: need_scalar(&vals, SlotId::Spacing).map_err(here)?,
+        },
+        PatternKind::Circular { axis, .. } => {
+            // The operand-KIND question is the pattern's wiring, and
+            // its refusal is the pattern's; everything read out of the
+            // datum below is the datum's.
+            let datum = axis_datum(doc, *axis).map_err(here)?;
+            let at_datum = |kind| Box::new((*axis, kind));
+            let dvals = node_slots(datum, env).map_err(at_datum)?;
+            SteppedOperands::Circular {
+                origin: Point3::origin() + need_vec3(&dvals, SlotId::Origin).map_err(at_datum)?,
+                dir: crate::eval::unit_direction(
+                    need_vec3(&dvals, SlotId::Direction).map_err(at_datum)?,
+                    crate::eval::DATUM_AXIS_ROLE,
+                    band,
+                )
+                .map_err(at_datum)?,
+                step: need_scalar(&vals, SlotId::Step).map_err(here)?,
+            }
+        }
+        // The list-rule pattern's count has two spellings, which the
+        // pattern node itself refuses; no copy of it has a derived
+        // pose to stand a member on.
+        //
+        // **No document reaching this door carries one**: `Node::Pattern`
+        // holds its count in a slot, so an explicit list is that second
+        // spelling and `apply` refuses the insert
+        // (`EditError::PlacementRuleMismatch`, pinned by
+        // `msolve3_placer_refused`'s
+        // `an_explicit_pattern_rule_never_reaches_the_solve`). This arm
+        // is the backstop for a hand-built one, refusing by name rather
+        // than composing a pose out of a rule it cannot step.
+        PatternKind::Explicit(_) => {
+            return Err(here(NodeErrorKind::PlacementRule(
+                crate::node::PlacementRuleFault::CountSpelling,
+            )));
+        }
+    };
+    Ok(Some(crate::eval::stepped_rule_map(&ops, i64::from(i))))
+}
+
+/// **The map a transform contributes** — the same construction
+/// `wire_transform` places the body by, fed the node's own
+/// expressions at the document's bindings.
+///
+/// # Errors
+///
+/// The node that raised and the kind it raised; for a transform that
+/// is always the transform itself.
+fn transform_map<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    node: RecipeNodeId,
+    env: &ParamEnv<f64>,
+    band: Band,
+) -> Result<Affine3<f64>, Refused> {
+    let here = |kind| Box::new((node, kind));
+    let Some(transform @ Node::Transform { .. }) = doc.node(node) else {
+        return Err(here(NodeErrorKind::MissingInput { input: node }));
+    };
+    let vals = node_slots(transform, env).map_err(here)?;
+    Ok(crate::eval::transform_map(
+        need_vec3(&vals, SlotId::Translation).map_err(here)?,
+        crate::eval::unit_direction(
+            need_vec3(&vals, SlotId::RotationAxis).map_err(here)?,
+            crate::eval::TRANSFORM_AXIS_ROLE,
+            band,
+        )
+        .map_err(here)?,
+        need_scalar(&vals, SlotId::RotationAngle).map_err(here)?,
+    ))
+}
+
 /// **The placer's slots, at the document's own parameter bindings** —
-/// [`eval_slots`], the evaluation's own door for "this node's slots at
-/// these bindings", so a slot that does not evaluate on the solve road
-/// refuses with the very [`NodeErrorKind::Expr`] the node's own
-/// evaluation raises for it. Nothing in this module reads an
-/// expression any other way: [`check_reference`]'s two counts go
-/// through `eval_count`, which is the call this door makes for a
-/// structural slot, and its doc says why they are read one at a time
-/// rather than through here.
+/// [`eval_slots`], the evaluation's own door, so a slot that does not
+/// evaluate on this road refuses with the very
+/// [`NodeErrorKind::Expr`] the node's own evaluation raises for it.
 fn node_slots<P: crate::ProfilePayload>(
     node: &Node<P>,
     env: &ParamEnv<f64>,
@@ -597,40 +646,22 @@ fn node_slots<P: crate::ProfilePayload>(
     eval_slots(node, env).map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })
 }
 
-/// A named scalar slot of an evaluated node, with the wiring layer's
-/// own backstop for a slot the node does not carry — unreachable
-/// while [`Node::slots`] and the arms above agree on which node kind
-/// carries what, and typed rather than panicking if they ever do not.
-fn need_scalar(vals: &SlotValues<f64>, slot: SlotId) -> Result<f64, NodeErrorKind> {
-    slots::scalar(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })
-}
-
-/// A named `[Expr; 3]` slot family of an evaluated node, as a vector
-/// ([`need_scalar`]'s backstop, on the family's x component).
-fn need_vec3(vals: &SlotValues<f64>, f: fn(Axis3) -> SlotId) -> Result<Vec3<f64>, NodeErrorKind> {
-    slots::vec3(vals, f).ok_or(NodeErrorKind::MissingSlot { slot: f(Axis3::X) })
-}
-
 /// **A circular rule's axis operand, as the recipe holds it.**
 ///
 /// The evaluation reads the operand's VALUE and refuses
 /// [`NodeErrorKind::WrongOperand`] naming the family it found; this
-/// road re-derives the axis from the datum's own expressions and never
-/// holds a value, so it refuses the same kind with the word the RECIPE
-/// can say truthfully — `"datum"` for a datum that is not an axis,
-/// which is the miss a circular rule is actually authored into, and
-/// `"not a datum"` for a node of any other kind, rather than
-/// re-spelling the evaluation's value-family map here.
+/// road never holds a value, so the word comes from
+/// [`crate::eval::node_value_kind`] — the recipe-side reading of the
+/// same question, written next to the payload one so the two cannot
+/// be moved apart unnoticed.
 fn axis_datum<P>(doc: &Doc<P>, axis: RecipeNodeId) -> Result<&Node<P>, NodeErrorKind> {
-    let wrong = |found| NodeErrorKind::WrongOperand {
-        input: axis,
-        expected: "datum axis",
-        found,
-    };
     match doc.node(axis) {
         Some(node @ Node::Datum(Datum::Axis { .. })) => Ok(node),
-        Some(Node::Datum(_)) => Err(wrong("datum")),
-        Some(_) => Err(wrong("not a datum")),
+        Some(other) => Err(NodeErrorKind::WrongOperand {
+            input: axis,
+            expected: "datum axis",
+            found: crate::eval::node_value_kind(other),
+        }),
         None => Err(NodeErrorKind::MissingInput { input: axis }),
     }
 }

@@ -92,9 +92,12 @@ impl Frame {
         angle: &Angle,
         v: (Length, Length, Length),
     ) -> PyResult<Self> {
-        let refuse = |err: d::NodeErrorKind| super::doc::edit_err(py, &d::EditError::from(err));
+        // The BAND is the run's tolerance configuration, not the
+        // axis: it crosses as the band refusal it is (`ChecksError`'s
+        // arm, the one door in this crate whose subject is a whole
+        // document's tolerance), never wearing the axis's words.
         let band = pncad::geom_core::Band::linear(Tol::witness())
-            .map_err(|err| refuse(d::NodeErrorKind::Band(err)))?;
+            .map_err(|error| super::checks::checks_err(py, &d::ChecksError::Band { error }))?;
         d::Frame::rotate_then_translate(
             [axis.0, axis.1, axis.2],
             angle.0.radians(),
@@ -102,7 +105,7 @@ impl Frame {
             band,
         )
         .map(Self)
-        .map_err(refuse)
+        .map_err(|err| super::doc::edit_err(py, &d::EditError::from(err)))
     }
 
     /// The frame at `eye` whose local **+Z aims at** `target`, with

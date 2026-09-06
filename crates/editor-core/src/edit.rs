@@ -751,7 +751,7 @@ pub enum EditError {
         node: RecipeNodeId,
     },
     /// **A placement frame's ROTATION AXIS has no definite
-    /// direction** — the refusal
+    /// direction** — the [`crate::AxisRefusal`]
     /// [`crate::Frame::rotate_then_translate`] raises where the axis
     /// is decided, carried into this vocabulary unaltered so an
     /// author building a frame and setting it speaks ONE error type
@@ -828,13 +828,19 @@ pub enum EditError {
 // ({slot:?}), which has a prose spelling (`SlotId::label`) it does not
 // use — that is a separate question, outside the amendment that
 // removed the other two, and it is filed rather than taken here.
-/// The direction door's refusal, in the authoring vocabulary — what
-/// makes `Frame::rotate_then_translate(..)?` compose with
+/// The AXIS's refusal, in the authoring vocabulary — what makes
+/// `Frame::rotate_then_translate(..)?` compose with
 /// `apply(.., DocEdit::SetPlacement { .. })?` in one function.
-impl From<crate::eval::NodeErrorKind> for EditError {
-    fn from(error: crate::eval::NodeErrorKind) -> Self {
+///
+/// It converts from [`crate::AxisRefusal`] and from nothing else. A
+/// blanket `From<NodeErrorKind>` would make every node refusal in the
+/// crate convert into this arm through a bare `?`, which is a
+/// catch-all in the authoring vocabulary — the shape this arm was
+/// added to close.
+impl From<crate::AxisRefusal> for EditError {
+    fn from(error: crate::AxisRefusal) -> Self {
         Self::PlacementAxis {
-            error: error.into(),
+            error: error.carried(),
         }
     }
 }

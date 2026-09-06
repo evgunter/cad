@@ -643,8 +643,12 @@ pub enum MateFault {
     ///
     /// A placer that exists and whose pose merely could not be
     /// DERIVED is [`MateFault::PlacerRefused`], which carries the
-    /// evaluation's own refusal: a head that resolves is never
-    /// reported as dangling.
+    /// evaluation's own refusal. So this arm is about a node the
+    /// vocabulary does not reach or a copy that is not there — never
+    /// about arithmetic. It is still reported at a node that may be
+    /// perfectly live: a pattern the reference's name does not
+    /// qualify `Instance(i)` stops the walk, and the walk stops AT
+    /// that pattern.
     DanglingHead {
         /// The mate.
         mate: RecipeNodeId,
@@ -678,8 +682,13 @@ pub enum MateFault {
         mate: RecipeNodeId,
         /// Which side's reference the placer is on.
         side: MateSide,
-        /// The placer whose pose could not be derived — a pattern or
-        /// a transform on the reference's chain.
+        /// **The node whose evaluation raised the refusal.** It lies
+        /// on the reference's derivation: a pattern or a transform on
+        /// the chain, or a node one of those reads to derive its map
+        /// — a circular rule's axis DATUM is the one such node today,
+        /// and a slot of it that does not evaluate is reported here
+        /// under the datum's id, because that is the node an author
+        /// goes and fixes.
         placer: RecipeNodeId,
         /// The evaluation layer's own typed refusal for it, unchanged.
         error: NodeRefusal,
@@ -859,7 +868,7 @@ impl core::fmt::Display for MateFault {
                 error,
             } => write!(
                 f,
-                "mate {}'s {} reference is placed by node {}, whose pose does not exist: {error}",
+                "mate {}'s {} reference has no derived pose: node {} refuses — {error}",
                 mate.0,
                 side.name(),
                 placer.0

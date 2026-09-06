@@ -163,7 +163,7 @@ pub use persist::{
     load, save,
 };
 pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
-pub use placement::Frame;
+pub use placement::{AxisRefusal, Frame};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
 pub use product::{Product, ProductError, product, product_named, product_recorded};

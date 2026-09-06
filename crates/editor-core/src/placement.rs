@@ -15,7 +15,40 @@
 use geom_core::predicate::Band;
 use geom_core::{Affine3, Mat3, Real, Vec3};
 
-use crate::eval::NodeErrorKind;
+use crate::eval::{NodeErrorKind, NodeRefusal};
+
+/// **A placement axis with no definite direction** — the ONE thing
+/// [`Frame::rotate_then_translate`] refuses, and the only thing
+/// [`crate::EditError::PlacementAxis`] can be built from.
+///
+/// It is a type rather than a bare [`NodeErrorKind`] so that the
+/// conversion into the authoring vocabulary is narrow: a blanket
+/// `From<NodeErrorKind>` would let ANY node refusal reach a user
+/// wearing the axis's words, which is the shape a refusal naming its
+/// cause exists to avoid.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AxisRefusal(NodeRefusal);
+
+impl AxisRefusal {
+    /// The direction door's refusal, as the evaluation layer typed it.
+    #[must_use]
+    pub fn kind(&self) -> &NodeErrorKind {
+        self.0.kind()
+    }
+
+    /// The refusal, in the shape the document layer's error enums
+    /// carry an evaluation refusal.
+    #[must_use]
+    pub fn carried(&self) -> NodeRefusal {
+        self.0.clone()
+    }
+}
+
+impl core::fmt::Display for AxisRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 /// The role word a PLACEMENT frame's rotation axis is normalized
 /// under — the fourth of the direction roles, beside a transform's
@@ -95,8 +128,8 @@ impl Frame {
     ///
     /// # Errors
     ///
-    /// The direction door's own refusal, unaltered
-    /// ([`NodeErrorKind::DegenerateDirection`],
+    /// [`AxisRefusal`], carrying the direction door's own refusal
+    /// unaltered ([`NodeErrorKind::DegenerateDirection`],
     /// [`NodeErrorKind::NonFiniteDirection`],
     /// [`NodeErrorKind::Escalated`]). [`crate::EditError::PlacementAxis`]
     /// is what carries it through the `SetPlacement` door.
@@ -105,12 +138,13 @@ impl Frame {
         angle: f64,
         v: [f64; 3],
         band: Band,
-    ) -> Result<Self, NodeErrorKind> {
+    ) -> Result<Self, AxisRefusal> {
         let dir = crate::eval::unit_direction(
             Vec3::new(axis[0], axis[1], axis[2]),
             PLACEMENT_AXIS_ROLE,
             band,
-        )?;
+        )
+        .map_err(|e| AxisRefusal(NodeRefusal::from(e)))?;
         let m = Mat3::rotation_about(dir, angle);
         Ok(Self {
             columns: [

@@ -208,7 +208,7 @@ pub use editor_core::gathers_on_this_thread;
 // carries the product's stable names — what an instance's own names
 // are minted from.
 pub use editor_core::{
-    Frame, PartFault, PartResolver, ResolveFailure, ResolveFault, product_named,
+    AxisRefusal, Frame, PartFault, PartResolver, ResolveFailure, ResolveFault, product_named,
 };
 
 // Mates: the declaration node's

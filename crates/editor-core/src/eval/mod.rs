@@ -26,8 +26,8 @@ pub(crate) mod slots;
 mod wire;
 
 pub(crate) use wire::{
-    DATUM_AXIS_ROLE, PATTERN_DIRECTION_ROLE, SteppedOperands, TRANSFORM_AXIS_ROLE,
-    stepped_rule_map, transform_map, unit as unit_direction,
+    DATUM_AXIS_ROLE, PATTERN_DIRECTION_ROLE, SteppedOperands, TRANSFORM_AXIS_ROLE, need_scalar,
+    need_vec3, stepped_rule_map, transform_map, unit as unit_direction,
 };
 
 pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue, embed_profile};
@@ -413,6 +413,48 @@ impl<T: Decide> ValuePayload<T> {
     }
 }
 
+/// **The value family a node's evaluation lands in**, in
+/// [`ValuePayload::kind_name`]'s own words — the RECIPE-side reading
+/// of the same question, for the one road that re-derives a node from
+/// its expressions and never holds its value (the mate solve's
+/// derived offset, refusing a circular rule's `axis` operand).
+///
+/// It is that match written a second time, over node kinds rather
+/// than over payloads, which is a correspondence a reader has to
+/// believe. What checks it is behavioural and partial: the mate
+/// suite's `msolve3_placer_refused` compares the refusal this word
+/// lands in against the one the operand's own evaluation raises, for
+/// the two families a circular rule's axis is actually authored as —
+/// a datum and a body. The other families are by inspection, and this
+/// sentence is where that is said.
+pub(crate) fn node_value_kind<P>(node: &crate::node::Node<P>) -> &'static str {
+    use crate::node::Node;
+    match node {
+        Node::Datum(_) => "datum",
+        Node::Profile(_) => "profile",
+        Node::Boolean { .. } => "boolean",
+        Node::Split { .. } => "split",
+        Node::Pattern { .. } => "instances",
+        Node::Declare { .. } => "declarations",
+        Node::Mate { .. } => "mate",
+        Node::Measure { .. } => "measure",
+        Node::Assertion { .. } => "assertion",
+        Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Tube { .. }
+        | Node::HollowTube { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
+        | Node::Fillet { .. }
+        | Node::Chamfer { .. }
+        | Node::Transform { .. }
+        | Node::Union { .. }
+        | Node::PlacedUnion { .. }
+        | Node::Part { .. }
+        | Node::InstantiatePart { .. } => "body",
+    }
+}
+
 /// A boolean node's typed result (F8: ∅ is a value, not an error).
 #[derive(Debug, Clone)]
 pub enum BooleanValue<T: Decide> {
@@ -756,9 +798,10 @@ pub enum NodeErrorKind {
         /// How many instances the value holds.
         count: usize,
     },
-    /// A direction-valued vector decided to zero length (datum
-    /// normal/direction, transform rotation axis, pattern direction,
-    /// placement rotation axis).
+    /// A direction-valued vector decided to zero length. Which
+    /// vectors those are is the ROLE constants' to say, not this
+    /// doc's: `wire`'s `DATUM_AXIS_ROLE`, `PATTERN_DIRECTION_ROLE` and
+    /// `TRANSFORM_AXIS_ROLE`, and `placement`'s `PLACEMENT_AXIS_ROLE`.
     DegenerateDirection {
         /// Which vector, by role.
         role: &'static str,
@@ -1365,9 +1408,10 @@ impl core::fmt::Display for NodeErrorKind {
                 input.0,
                 count.saturating_sub(1)
             ),
-            // Every role word is already a complete noun phrase for the
-            // vector ("pattern direction", "transform rotation axis"),
-            // so the sentence names the role and nothing after it.
+            // Every role word is already a complete noun phrase for
+            // the vector (the `*_ROLE` constants are where they are
+            // written), so the sentence names the role and nothing
+            // after it.
             Self::DegenerateDirection { role } => {
                 write!(f, "the {role} has zero length")
             }

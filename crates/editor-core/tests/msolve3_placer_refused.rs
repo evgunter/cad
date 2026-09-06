@@ -26,9 +26,10 @@ use crate::fixture;
 use std::sync::Arc;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EditError, EvalOptions,
-    Expr, Frame, MateFault, MateFrame, MatePrimitive, Node, NodeErrorKind, NodeResult, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, SlotId, StableName, solve_document,
+    Alignment, Axis3, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EditError,
+    EvalOptions, Expr, Frame, MateFault, MateFrame, MatePrimitive, Node, NodeErrorKind, NodeResult,
+    PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, SlotId, StableName,
+    solve_document,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::{ang, in_copy, insert, len, on_frame, run, scl, step, xform};
@@ -108,16 +109,21 @@ impl Scene {
             .expect("the placer refuses")
     }
 
-    /// **What the placer's OWN evaluation raises**, on the twin —
-    /// the comparison A1 is about, rendered through `Debug`, which is
-    /// the structural reading of a [`NodeErrorKind`]: the kernel
-    /// refusals it carries unaltered have no equality of their own.
-    fn own_refusal(&self) -> String {
+    /// **What a node's OWN evaluation raises**, on the twin — the
+    /// comparison A1 is about, rendered through `Debug`, which is the
+    /// structural reading of a [`NodeErrorKind`]: the kernel refusals
+    /// it carries unaltered have no equality of their own.
+    fn own_refusal_of(&self, node: RecipeNodeId) -> String {
         let ev = run(&self.twin, &self.opts());
-        match ev.result(self.placer) {
+        match ev.result(node) {
             Some(NodeResult::Failed(err)) => format!("{:?}", err.kind),
-            other => panic!("the twin's placer must fail on its own: {other:?}"),
+            other => panic!("node {node:?} must fail on its own on the twin: {other:?}"),
         }
+    }
+
+    /// The refusal the placer itself raises on the twin.
+    fn own_refusal(&self) -> String {
+        self.own_refusal_of(self.placer)
     }
 
     /// The mated document's own row for the placer — `Poisoned`, by
@@ -142,23 +148,34 @@ fn patterned(label: &str, kind: PatternKind, count: i64, i: u32) -> Scene {
             },
         );
         let name = in_copy(pattern, i, in_part(legs, CapEnd::End));
-        (doc, pattern, name)
+        (doc, pattern, name, Vec::new())
     })
+    .0
+}
+
+/// A slot the edit door admits and the evaluator refuses: a count
+/// promoted out of the exactly-representable range. (An unbound
+/// parameter cannot be used — `InsertNode` refuses it.)
+fn unevaluable() -> Expr {
+    Expr::count_to_scalar(Expr::count(1 << 40)).expect("a count promotes to a scalar")
 }
 
 /// The scene builder both shapes share: two part documents, the
 /// placed instance, the placer with the name the mate reads it by,
 /// the capping instance, and the mate.
-fn build<F>(label: &str, place: F) -> Scene
+fn build<F>(label: &str, place: F) -> (Scene, Vec<RecipeNodeId>)
 where
-    F: FnOnce(ProfileDoc, RecipeNodeId) -> (ProfileDoc, RecipeNodeId, StableName),
+    F: FnOnce(
+        ProfileDoc,
+        RecipeNodeId,
+    ) -> (ProfileDoc, RecipeNodeId, StableName, Vec<RecipeNodeId>),
 {
     let mut store = PartStore::new();
     let leg = store.insert(block(&format!("{label}-leg")), Tol::witness());
     let top = store.insert(block(&format!("{label}-top")), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, legs) = insert(doc, Node::instantiate_part(leg));
-    let (doc, placer, name) = place(doc, legs);
+    let (doc, placer, name, extra) = place(doc, legs);
     let (doc, cap) = insert(doc, Node::instantiate_part(top));
     let twin = doc.clone();
     let mut node = seat(name, in_part(cap, CapEnd::Start));
@@ -168,13 +185,16 @@ where
         *a = SitedRef::new(placer, a.name.clone());
     }
     let (doc, mate) = step(doc, DocEdit::InsertNode { node });
-    Scene {
-        doc,
-        twin,
-        placer,
-        mate: mate.expect("the mate mints"),
-        store: Arc::new(store),
-    }
+    (
+        Scene {
+            doc,
+            twin,
+            placer,
+            mate: mate.expect("the mate mints"),
+            store: Arc::new(store),
+        },
+        extra,
+    )
 }
 
 /// The refusal a `PlacerRefused` carries, and the node it names.
@@ -278,11 +298,11 @@ fn a1_a_slot_that_does_not_evaluate_names_the_slot() {
 /// door, a different vector.
 #[test]
 fn a1_a_transform_with_a_non_finite_axis_names_its_axis() {
-    let scene = build("msolve3-transform", |doc, legs| {
+    let (scene, _) = build("msolve3-transform", |doc, legs| {
         let (doc, moved) = insert(doc, xform(legs, [0.0, 0.0, 0.0], [1e200, 0.0, 0.0], 0.5));
         // A transform mints no name segment: the reference is the
         // part's own face, read AT the transform.
-        (doc, moved, in_part(legs, CapEnd::End))
+        (doc, moved, in_part(legs, CapEnd::End), Vec::new())
     });
     let f = scene.fault();
     let (placer, kind) = carried(&f);
@@ -294,57 +314,195 @@ fn a1_a_transform_with_a_non_finite_axis_names_its_axis() {
     );
 }
 
-/// A circular rule whose `axis` operand is a PLANE datum is not an
-/// axis to turn about. The solve re-derives the rule from the recipe
-/// and refuses the evaluation's own `WrongOperand`, naming the
-/// operand it wanted.
+/// **Two faults on one node, and the same winner on both roads.** A
+/// transform whose axis is degenerate AND whose angle does not
+/// evaluate: the node's slot order decides which refusal is reported,
+/// and the mate road must not report a different one from the node's
+/// own evaluation.
+#[test]
+fn a1_two_faults_on_one_placer_pick_the_same_winner() {
+    let (scene, _) = build("msolve3-two-faults", |doc, legs| {
+        let mut t = xform(legs, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], 0.5);
+        if let Node::Transform { rotation_angle, .. } = &mut t {
+            *rotation_angle = Expr::mul(ang(1e200), scl(1e200)).expect("angle times scalar");
+        }
+        let (doc, moved) = insert(doc, t);
+        (doc, moved, in_part(legs, CapEnd::End), Vec::new())
+    });
+    let f = scene.fault();
+    let (_, kind) = carried(&f);
+    assert_eq!(
+        kind,
+        scene.own_refusal(),
+        "the two roads read the node's slots in one order"
+    );
+}
+
+/// **A circular rule whose `axis` operand is a PLANE datum.** The
+/// operand-kind question belongs to the pattern's own wiring, so the
+/// refusal is the pattern's and its `found` word is the value family
+/// the evaluation would report — compared against the twin, so the
+/// recipe-side reading of that family cannot drift from the payload
+/// one.
 #[test]
 fn a1_a_circular_rule_over_a_plane_datum_refuses_the_operand() {
-    let mut store = PartStore::new();
-    let leg = store.insert(block("msolve3-circular-leg"), Tol::witness());
-    let top = store.insert(block("msolve3-circular-top"), Tol::witness());
-    let doc = ProfileDoc::empty(DocumentId::derive("msolve3-circular"), Tol::witness());
-    let (doc, legs) = insert(doc, Node::instantiate_part(leg));
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: legs,
-            count: Expr::count(4),
-            kind: PatternKind::Circular {
-                axis: plane,
-                step: ang(0.5),
+    let (scene, _) = build("msolve3-circular-plane", |doc, legs| {
+        let (doc, plane) = insert(
+            doc,
+            Node::Datum(Datum::Plane {
+                origin: [len(0.0), len(0.0), len(0.0)],
+                normal: [scl(0.0), scl(0.0), scl(1.0)],
+            }),
+        );
+        let (doc, pattern) = insert(
+            doc,
+            Node::Pattern {
+                input: legs,
+                count: Expr::count(4),
+                kind: PatternKind::Circular {
+                    axis: plane,
+                    step: ang(0.5),
+                },
             },
-        },
-    );
-    let (doc, cap) = insert(doc, Node::instantiate_part(top));
-    let (doc, mate) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: seat(
-                in_copy(pattern, 1, in_part(legs, CapEnd::End)),
-                in_part(cap, CapEnd::Start),
-            ),
-        },
-    );
-    let mate = mate.expect("the mate mints");
-    let f = solve_document(&doc, Tol::witness())
-        .fault(mate)
-        .cloned()
-        .expect("the placer refuses");
+        );
+        let name = in_copy(pattern, 1, in_part(legs, CapEnd::End));
+        (doc, pattern, name, vec![plane])
+    });
+    let f = scene.fault();
     let (placer, kind) = carried(&f);
-    assert_eq!(placer, pattern, "{f:?}");
+    assert_eq!(placer, scene.placer, "the pattern's wiring refuses: {f:?}");
+    assert_eq!(kind, scene.own_refusal(), "word for word with the twin's");
     assert!(
-        kind.contains("WrongOperand") && kind.contains("datum axis"),
-        "the refusal names the operand the rule wanted: {kind}"
+        kind.contains("WrongOperand") && kind.contains("datum axis") && kind.contains("\"datum\""),
+        "{kind}"
     );
-    let _ = store;
+}
+
+/// The same operand question over a BODY — the second value family a
+/// circular rule's axis is authored as by mistake. It is here so the
+/// recipe-side family word is pinned against the evaluation's for
+/// more than one answer.
+#[test]
+fn a1_a_circular_rule_over_a_body_refuses_the_operand() {
+    let (scene, _) = build("msolve3-circular-body", |doc, legs| {
+        // A body where an axis datum belongs — a second node, because
+        // one input may not be the same node twice.
+        let (doc, body) = insert(doc, xform(legs, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
+        let (doc, pattern) = insert(
+            doc,
+            Node::Pattern {
+                input: legs,
+                count: Expr::count(4),
+                kind: PatternKind::Circular {
+                    axis: body,
+                    step: ang(0.5),
+                },
+            },
+        );
+        let name = in_copy(pattern, 1, in_part(legs, CapEnd::End));
+        (doc, pattern, name, Vec::new())
+    });
+    let f = scene.fault();
+    let (_, kind) = carried(&f);
+    assert_eq!(kind, scene.own_refusal(), "word for word with the twin's");
+    assert!(
+        kind.contains("WrongOperand") && kind.contains("\"body\""),
+        "{kind}"
+    );
+}
+
+/// **A slot of the axis DATUM is reported at the datum.** The pattern
+/// has no `Direction(X)` slot, so naming the pattern here would blame
+/// a node for a slot it does not carry: the refusal names the node
+/// whose evaluation raised it, which is the node an author goes and
+/// fixes. On the twin the pattern is merely `Poisoned` through that
+/// datum, which is why the mate's fault is the only place the cause
+/// is legible.
+#[test]
+fn a1_an_axis_datums_slot_refusal_is_reported_at_the_datum() {
+    let (scene, extra) = build("msolve3-circular-datum-slot", |doc, legs| {
+        let (doc, axis) = insert(
+            doc,
+            Node::Datum(Datum::Axis {
+                origin: [len(0.0), len(0.0), len(0.0)],
+                direction: [unevaluable(), scl(0.0), scl(1.0)],
+            }),
+        );
+        let (doc, pattern) = insert(
+            doc,
+            Node::Pattern {
+                input: legs,
+                count: Expr::count(4),
+                kind: PatternKind::Circular {
+                    axis,
+                    step: ang(0.5),
+                },
+            },
+        );
+        let name = in_copy(pattern, 1, in_part(legs, CapEnd::End));
+        (doc, pattern, name, vec![axis])
+    });
+    let datum = extra[0];
+    let f = scene.fault();
+    let (placer, kind) = carried(&f);
+    assert_eq!(
+        placer, datum,
+        "the datum raised it, so the datum is named: {f:?}"
+    );
+    assert_eq!(
+        kind,
+        scene.own_refusal_of(datum),
+        "word for word with the datum's own"
+    );
+    assert!(
+        kind.contains(&format!("{:?}", SlotId::Direction(Axis3::X))),
+        "{kind}"
+    );
+    assert!(
+        f.to_string().contains(&format!("node {}", datum.0)),
+        "and the message names that node: {f}"
+    );
+}
+
+/// The datum's DIRECTION, decided: the vector is the datum's, so the
+/// refusal is reported at the datum and carries the datum's role word.
+#[test]
+fn a1_an_axis_datums_degenerate_direction_is_reported_at_the_datum() {
+    let (scene, extra) = build("msolve3-circular-datum-zero", |doc, legs| {
+        let (doc, axis) = insert(
+            doc,
+            Node::Datum(Datum::Axis {
+                origin: [len(0.0), len(0.0), len(0.0)],
+                direction: [scl(0.0), scl(0.0), scl(0.0)],
+            }),
+        );
+        let (doc, pattern) = insert(
+            doc,
+            Node::Pattern {
+                input: legs,
+                count: Expr::count(4),
+                kind: PatternKind::Circular {
+                    axis,
+                    step: ang(0.5),
+                },
+            },
+        );
+        let name = in_copy(pattern, 1, in_part(legs, CapEnd::End));
+        (doc, pattern, name, vec![axis])
+    });
+    let datum = extra[0];
+    let f = scene.fault();
+    let (placer, kind) = carried(&f);
+    assert_eq!(placer, datum, "{f:?}");
+    assert_eq!(
+        kind,
+        scene.own_refusal_of(datum),
+        "word for word with the datum's own"
+    );
+    assert!(
+        kind.contains("DegenerateDirection") && kind.contains("datum axis direction"),
+        "{kind}"
+    );
 }
 
 /// **The explicit rule, measured where it can be reached.** A
@@ -480,6 +638,29 @@ fn the_placement_axis_refuses_in_its_own_voice() {
         ),
         "{overflowed:?}"
     );
+    let poisoned = set([f64::NAN, 0.0, 0.0]).expect_err("a NaN axis has no direction");
+    assert!(
+        matches!(
+            &poisoned,
+            EditError::PlacementAxis { error }
+                if matches!(error.kind(), NodeErrorKind::NonFiniteDirection { .. })
+        ),
+        "a NaN component is a non-finite LENGTH, not a zero one: {poisoned:?}"
+    );
+
+    // The band is the door's, not the caller's judgement: a length
+    // under it is decided zero, one over it is a direction. Both
+    // answers come from the same door every other direction takes.
+    let under = set([1e-12, 0.0, 0.0]).expect_err("a length inside the band is decided zero");
+    assert!(
+        matches!(
+            &under,
+            EditError::PlacementAxis { error }
+                if matches!(error.kind(), NodeErrorKind::DegenerateDirection { .. })
+        ),
+        "{under:?}"
+    );
+    set([1e-7, 0.0, 0.0]).expect("a length clear of the band is a direction");
 
     set([0.0, 0.0, 1.0]).expect("a definite axis still goes through");
     let _ = store;
