@@ -745,6 +745,119 @@ does not touch the file, measured, so the move is sequenced after
 #1725 merges and SHELL asks the M10 orchestrator to co-review. The
 gate itself is SHELL-4.
 
+## M10-7 opened: the program does not close at ε (2026-09-03)
+
+Ev, reading the exit walk's honesty row 1: "we need to make this
+parameter-aware so it's usable; that's the whole point of this
+machinery so I don't think we can close the program until then." The
+walk (#1700) went back to draft. The design conversation ran in
+chat the same afternoon — per-site re-association (Ev's first
+instinct, for its simplicity) ruled out because the funnel sites
+receive VALUES and the dependence is lost upstream when one parameter
+becomes two intervals; an affine-form lane ruled out at √ε; the
+symbolic identity tier chosen because it tracks the parameters fully
+for every explicit quantity and touches no site — and was written
+down as ERROR-DESIGN revision E12 with E3's two amendments (the extent
+lever with no floor, replacing M10-2's `max(separation, 1 m)`; the
+binary `min_clearance`), ratified on #1712 ("lgtm"). The frontier —
+iterated quantities — filed at S-CERT on Ev's word (#1711). Block
+M10-B4 drawn (byte 103), M10-7 dispatched on slot 1 with the spec
+to main. Ev's second question of the day, "what concretely would go
+wrong at zero separation if we ignore tilt", is answered in the E3
+clause: the VALUE is fine, the VERDICT is what is consumed.
+
+## Orchestrator-direct hotfix: main's TAG_INVENTORY red (2026-09-04)
+
+Ev: another orchestrator had routed the red to LIB (correct on
+territory — `pncad-py` is LIB's fence) but LIB is not active and the
+two tags are M10-6's. A hotfix lane answered the question the item
+said only M10 could — the absence of `measure_clearance_refused` and
+`measure_selection_kind` from every `.pyi` and Python test is CORRECT
+surface: the six sibling `measure_*` tags occur in exactly the same two
+files and nowhere else, because Python cannot author a measure node and
+so cannot observe a refusal (M10-6's own census note) — added the two
+inventory lines (byte-identical to M10-7's D11 in-passing fix), re-homed
+the item to `work/m10/` closed, and merged on a run whose shard-2/2 step
+conclusions show the failing test executed and passed on both lanes.
+Found in passing and filed: eight `eval_err` call sites mint tag words
+as string literals the inventory cannot see, one of them
+(`measure_unavailable`) named nowhere else in the tree
+(`work/m10/pncad-py-eval-err-variants-outside-the-tag-inventory.md`).
+The F3 residue stands: main's push runs never execute this test; the
+composition of two green PRs into a red main was first seen days later
+on an unrelated branch (CIW is re-costing F3).
+
+## M10-7 dual review adjudication (2026-09-04)
+
+Both arms on frozen 292273f5a (PR #1725, green run 33828394312 at
+the pinned point). R1 NOT-MERGEABLE-then-mergeable (2 MAJ, rubric
+3/3/2); R2 BLOCK (2 MAJ, rubric 4/4/2). One MAJOR is bilateral and
+identically diagnosed with independent red probes: `Sym::opaque`
+gives every untracked value the reserved id 0, so two different
+reals freeze to one indeterminate and `opaque(1) − opaque(2)`
+decides a symbolic `Zero` — a latent false-theorem door (`pub`, and
+`AxisScalar::axis for Sym`), off `drive`'s path today only because
+`param_env_over` takes the named door. The other two are UNILATERAL
+BY EXECUTION, one each way — the program's second symmetric pair.
+R2: the driver K row's gate is DISARMED by the unit — the new
+`symbolic_zero` token is unknown to `tools/k-lint`'s parser, which
+rejects the driver CSV at its first sample row as harness breakage,
+so ZERO samples were linted at any ε on the green run; the step
+stayed green because `ci.yml`'s status capture reads `PIPESTATUS`
+after `$?` has reset it, so the gate's red arms were unreachable —
+a pre-existing hole the unit's token turned live, meaning E6's
+rule-1 gate has been off since this head and the K-REPORT
+addendum's "rule 1 fires zero times" was never measured by CI
+(M10-6's row must be re-examined for the same vacuity). R1: claim
+6's mechanism is misattributed — the slab's certifying half-width
+is ε-DEPENDENT (0.488 at 1e-9, 0.439 at 1e-6) and the first refusal
+beyond it is not the zero-extrusion flip but dependency widening in
+NON-identity margins (`dihedral_wedge` indeterminate, then the
+Newell normal's enclosure reaching zero and poisoning
+`newell_plane_residual`), refined through by bisection; the re-cut
+row asserts only `lo ≥ 1e-3` and cannot see it; the tier-off
+baseline is ε/8 not ε/16 (R2), so the factor is 3.9·10⁹. The MINORs
+converge: the K re-tag rewriting whatever sample sits last in the
+sink (an `Indeterminate` included); the dial docs arguing 16 while
+128 ships; the "documented limits" and "never partially on"
+sentences false after D1; two spliced doc blocks; the runtime cost
+unreported (a leaf replay 40×, a drive 50×, `Poly::mul` building
+the whole product before the budget refuses it); i128 freezes on
+curved geometry at 7% of decisions; the mate lever discontinuous at
+zero extent; the census naming 18 of 66. Both e2e walks agree on
+the thing that matters most: on CURVED geometry a real study gets
+the pre-E12 answer — R2's filleted L-bracket certifies nothing at
+any scale with the tier on or off, and the arc family collapses
+wider than D4's rim endpoint (`carrier_on_surface`,
+`witness_on_surface` at 0 symbolic); R1's parametric chain refuses
+at the guided lift before the tier is even asked (pre-existing).
+Everything both arms could execute held otherwise: the tier-off
+differential byte-identical against the merge base at two ε rows,
+identities by five routes at every width, coincidences never
+symbolic, clause 1 catching every non-real path tried, D9 across
+repeats and the rayon schedule, the K split reproduced exactly, the
+lever's counts reproduced, `reach` an upper bound by the triangle
+inequality.
+
+Fix pass IMPLEMENTER-INHERITED, three MAJORs and fifteen MINORs
+dispatched as the union: k-lint taught the token with the outcome
+vocabulary given one home and the CI status capture fixed so the
+gate can red (the final run must show the CSVs linted, quoted from
+the log); opaque values each their own indeterminate; the ceiling
+row asserting its mechanism at each ε row with the first refusal's
+predicate named and the pins tightened; the cost measured and
+disclosed; the full census table; the arc family's width appended
+to M10-8.
+
+Tally candidates: R2's disarmed-gate MAJ and R1's ceiling-mechanism
+MAJ — one unilateral execution finding each way. Durable homes:
+the real-margin dependency-widening class (the Newell normal,
+`arc_diameter_clearance`) gets a tracker item as the ceiling after
+M10-8; the `PIPESTATUS` pattern across `ci.yml` goes to CIW by
+issue; M10-8's scope widens to the whole arc family with R2's
+per-predicate numbers; the guided lift refusing a parametric
+profile chain is filed if no item exists.
+
 ## M10-7 MERGED (2026-09-04)
 
 PR #1725 merged, sample #124 (ordinal 508). Certification is
@@ -775,6 +888,82 @@ plate's miss among them stated in the tour's own caption. The spec
 leaves `docs/` with this merge; M10-8 is next, and the exit walk
 stays a draft until it lands.
 
+## M10-8 dispatched: the arc family (2026-09-04)
+
+M10-7's tier certifies the slab and misses every arc: the algebra
+says why (an arc's `u_ref` is a normalized vector, so `sqrt(v·v)`
+atoms appear squared and un-reduced in every point the circle
+evaluates, and the endpoint pin needs `sqrt(r²) = r`, a sign fact).
+Spec written measurement-first at Ev's item's own caution — a
+per-predicate table of what each candidate rule would discharge on
+the plate and both reviewers' brackets decides what ships; the
+registered-identity door stays the reserve unless the table shows a
+family the three rules miss. Dispatched on block M10-B4 slot 2.
+
+## M10-8 dual review adjudication (2026-09-05)
+
+Both arms on frozen fe649cadf (PR #1828, green on the full matrix —
+CI no longer samples). R1 NOT-MERGEABLE-as-a-negative-result (4 MAJ,
+rubric 3/2/2); R2 mergeable-with-changes (5 MAJ, rubric 4/3/2). The
+unit's central claim — the atom algebra is inert because the arc
+forms freeze, the per-node reduction is a runaway that downgrades
+theorems, rule C cannot be built within the discipline, so the whole
+reserve is filed — did not survive. R1, BY EXECUTION: the freezes are
+`sqrt` atoms over CONSTANT forms whose roots are exact rationals
+(`sqrt(1)^58`, `sqrt` of two exact perfect squares), and a value-free
+fold of those relieves them — the bracket's whole-certifying ceiling
+moved 3.74e-8 → 3.88e-7 (10.4×) at half the cost per probe, an
+annulus 39×; the "~10×" the unit had attributed to early rule A was
+this. Both arms: the runaway was the first commit's per-node variant
+(a 524,288-step cap per node, the whole form rebuilt per step) and
+the "150 CPU-minutes" was the bisection harness; a bounded per-node
+reduction ALONGSIDE the plain form is 2–3× a replay and downgrades
+nothing (the downgrade came from REPLACING the plain form). Both
+arms: rule C's `dyn Any` objection is a corner — `T: Decide` already
+implies `Real`, and R1 gives the route (the parameter bracket stored
+per session, the candidate enclosed in the always-compiled ring
+interval); the spec's candidate shape `sqrt(X) − R` was never built,
+and the plate's ceiling (`7.81e2·ε`, `carrier_endpoint_start`,
+`‖q − c‖ = r`) IS that shape. R2, BY EXECUTION: the §1 table — the
+unit's sole deliverable — mis-attributes each replay's first decisions
+to the previous replay's last predicate (a stale thread-local), and
+the helped/HURT detector compares only the numeric column, so the
+body's "every rule set is identical" was read off a broken
+instrument; the freeze diagnosis is contradicted by the unit's own
+receipts (frozen 24/11/0 whole-box) and by `sym.rs`'s untouched
+M10-7 text; the driver K arc fixture certified nothing at 1e-12 and
+cost 9½ minutes there against a disclosed 40 s (the lane fixed the
+scale post-freeze); `render()` advertises the unbuilt rule on every
+drive. R2's e2e — a rounded-corner pad with four fillet arcs —
+refuses first on `carrier_line_circle`, a constructor-DECLARED
+tangency: the live consumer the unit said the registered-identity
+door lacked. Both arms agree the shipped tree is M10-7 byte for byte
+and that the pins that exist are honest at every ε row; the bracket
+pin is `false == false` at one scale.
+
+Fix pass IMPLEMENTER-INHERITED, six MAJORs and fourteen MINORs
+dispatched as the union: the constant fold on by default and
+re-measured on five documents; the alongside reduction shipped if it
+earns its cost with the fold in place; rule C built in the candidate
+shape through the parameter brackets and the ring interval, the plate
+measured; the instrument's attribution fixed and the table
+regenerated; one diagnosis in one place; the render sentence, the two
+defaults, the silent `copysign` reorder and a merge-base
+differential; the pins re-cut with the moved numbers; the M10-7 rows
+re-cut instead of duplicated; the declared-tangency consumer and the
+`Fillet` discoverability finding filed.
+
+Tally candidates: R1's constant-fold MAJ (unilateral, by execution —
+it moved a ceiling the unit said could not move) and R2's
+declared-tangency e2e finding (unilateral, by execution — the
+consumer for the door). The instrument's mis-attribution, the
+discipline corner and the bracket pin's vacuity are bilateral.
+Durable homes: the §3 door's consumer item; the `Fillet` verb's
+discoverability item under PATHS; whatever C does not reach on the
+plate, as a numbered next ceiling. Process: the lane kept pushing
+after its report while "watching" a run and moved the PR head under
+the review freeze — harmless (the reviews were on the commit), and
+the next brief says the report ends the phase.
 ## Announced seam from DOCM (2026-09-04)
 
 PROFILE-LIFT-DESIGN PP6 (`crates/editor-core/README.md`) is amended on
@@ -878,6 +1067,179 @@ was resumed in place both times. Sixteen deviations. The spec leaves
 `docs/` with this merge; the exit walk stays a draft — whether a
 further unit for the plate is owed goes to Ev.
 
+## M10-8 merged; the block's third slot waits on Ev (2026-09-05)
+
+#1828 merged at 1a081655d (sample #145, ordinal 509 — #144 was
+claimed on main while the row was being written; the row says so).
+The state-sync rode the unit PR; the branch-side records (the B4
+draw, the dispatch, the dual draw, the adjudication) stay here until
+the block concludes. Worktrees and targets reclaimed. The measured
+state at merge: the plate's real study UNMOVED at `7.81e2·ε` under
+A0, C and the early walk — the acceptance Ev set for the program
+("parameter-aware so it's usable") is met on the slab, the stepped
+shaft, R2's bracket (10.4×) and R1's annulus (39×), and NOT on the
+plate, whose rim residual the lane filed with its rendered form
+(`plate-rim-residual-needs-the-wide-coefficient-ring`). Put to Ev:
+whether block B4's third slot (OPUS by the draw) goes to the plate's
+ceiling — the wide-ring residual and the registered-identity door
+with `carrier_line_circle` as its declared-tangency consumer — or
+whether the exit walk (#1700, draft) is re-cut with the plate stated
+as the frontier item S-CERT already holds.
+
+## M10-9 dispatched: the registered-identity door (2026-09-06)
+
+Ev ruled option 1 in chat ("proceeding with 1, as you recommended"):
+block M10-B4's third slot goes to the plate's ceiling rather than
+re-cutting the exit walk with the plate as S-CERT's frontier. The
+mechanism is E12's own reserve, taken now that two units have shown
+the family: the rim's `‖q − c‖ = r` is a theorem of the sagitta
+closed forms that the tier can state but not afford to expand, so
+the constructor that guarantees it registers it — verified at the
+witness, refused typed when it lies, counted apart from both theorem
+kinds, the numeric channel's bits untouched. Two registrants (the
+arc, the fillet's tangency for R2's pad); the wide-ring alternative
+measured in one table and expected not to ship. Spec
+`docs/M10-9-SPEC.md`, BINDING at dispatch; the exit walk (#1700)
+stays a draft until this unit merges and is re-cut against what it
+measures.
+
+
+## M10-9 amended before the freeze: the span identity (2026-09-06)
+
+The implementer's report (PR #2048, green on the full matrix, ~550k
+tokens, ~4 h): the door built and sound (value channel byte-identical
+door on/off; a planted lie refused typed; invalidation on
+registration pinned both ways; D9), the arc's rim identity registered
+at the site that guarantees it, `registered` counted apart and linted
+in the driver row (48 per ε row, all on the plate fixture), the ring
+table closing the wide-ring item (1024 bits: 38× the bracket's leaf
+for no ceiling), the fillet's tangency NOT registrable — the
+constructor's `|h|` node is not the joint's (`center − t2` against
+`center − line.a`; rendered forms identical, node ids not; filed with
+both). And no ceiling moved: `carrier_endpoint_start` is discharged
+16/16 at the plate's nominal, and the plate is bounded at the same
+width by `carrier_endpoint_end` — the arc's SPAN identity, E12's own
+"built as `carrier.eval(t0)`" example — which the spec's "any
+registrant outside these two" forbade. The count was wrong in the
+spec, not in the lane: amendment A1 (#2052, on main) makes the
+CONSTRUCTOR the unit of scope — the arc carrier's builder registers
+every same-object identity it guarantees whose consumer node it can
+build identically, stopping at the first bound that is the
+dependency-widening class. The lane resumed on it before the review
+freeze; the reviews will see the unit at the amended scope.
+
+## M10-9 frozen and under dual review (2026-09-06)
+
+The second report under A1: both of the arc carrier's same-object
+identities registered — the span identity through a structural
+same-node door (`Curve3::eval`'s circle arm delegating to
+`Curve3::circle_at`, D13) — each discharging its predicate wholly at
+every nominal, `registered` linted at 80 per driver CSV, and the
+plate's bound walking one predicate further to
+`carrier_matches_mapped_source`, the scaffolding residual between the
+carrier and the `MappedCurve` pushforward: two independently built
+objects, the exact line E12's reserve draws, so A1's stop rule fired
+and the lane filed it (`plate-ceiling-is-now-the-scaffold-pushforward`)
+with the two options owed — a form-level equation the spec forbids, or
+retiring the scaffolding residual for arc carriers, a D3/PCURVE
+question. No ceiling moved on any document at any ε, and every
+ceiling still scales exactly with ε. Frozen at ac34ceec3; ordinal 510
+drawn (branch-side record). What the reviews are pointed at beyond the
+door's soundness: whether the trail of identity-shaped bounds (rim →
+span → mapped-source) is a long tail that per-identity registrants
+cannot finish, and what the FULL refusal set just past the ceiling
+says about where the exit condition actually lives.
+
+
+## M10-9 dual review adjudication (2026-09-06)
+
+Both arms on frozen ac34ceec3 (PR #2048, green on the full matrix).
+R1 mergeable (2 MAJ / 6 MIN / 2 NOTE, rubric 4/4/3); R2 mergeable
+(2 MAJ / 5 MIN / 6 NOTE, rubric 4/4/3). Both reproduced every headline
+number (the four ceilings identical door on/off to the digit, the
+counts, the hosted K lines); both say the door is sound WITHIN ITS
+STATED LIMITS and that the limits are overstated. Where they diverge
+is what each attacked hardest.
+
+R1, BY EXECUTION, on the door's CONTRACT: at `Sym<Interval>` — the
+lane the driver replays in — the witness is "the enclosures meet",
+which any coincidence satisfies: `x² ≡ x` over `[0.9, 1.1]` is
+Recorded and then decides `Zero` for the whole box on a residual that
+changes sign inside it; a 0.1 %-wrong radius that f64 refuses is
+Recorded at Interval. The f64 witness catches only lies false at the
+nominal, so the door cannot tell an identity from a coincidence — the
+one thing E12 says the tier does — and the sentence "refused typed
+when it lies" is false in the PR, at `sym.rs:1608`, `real.rs:145`
+and in the E12 "TAKEN" clause the unit wrote. And the cross-check
+that would catch a false axiom was silently disabled: the
+debug-assert at `sym.rs:3023` exempts `Discharge::Registered`, the
+only way a zero form under a definite numeric sign can now arise,
+while its doc fifteen lines up still calls that a soundness bug;
+refusals leave no trace (the typed answer discarded by both
+registrants, `register_equal` not `#[must_use]`, no count). Verified
+at the site. R1's tail measurement: past the ceiling every identity
+residual scales exactly with the box (ratio 512.0 over ×2 → ×1024,
+door on and off), so removing one identity moves the ceiling by at
+most the ratio of coefficients (~4 %) — per-identity registrants can
+never finish.
+
+R2, BY EXECUTION, on the DIAGNOSIS: the bracket, pad and annulus are
+NOT bounded by `line_span`; the PR read the first refusal at 2× the
+ceiling, where evaluation order (validation before certify) picks
+`line_span`, and at ceiling + δ all five documents (R2's own link
+included) are bounded by `carrier_matches_mapped_source`. And
+`line_span` there is itself an IDENTITY of the fillet construction —
+the tangent contact's foot is the leg's end, so `min(t, L − t)` is
+identically zero and its enclosure is centred on zero — not the
+real-margin class; "E12's what-opens class reached" is false in four
+documents. Then the finding that matters for the program: with an
+evidence-only dial passing each indeterminate identity in turn, the
+plate walks mapped-source (7.8e2·ε) → `carrier_on_surface_2`
+(1.04e3·ε) → `pcurve_map_residual` (1.25e3·ε) → `witness_on_surface_2`
+(1.56e3·ε) → **2.63e8·ε = 0.263 of the real study, bounded by
+`assert_bound`** — the real flip E12 predicts. The plate is FOUR
+identity residuals from a macroscopic box; the three past the
+scaffold residual are FORM identities (`v·v = r²` under
+`sin² + cos²`, the chart residual, the witness residual) that no node
+alias reaches — the mechanism is form-level or ring, which this
+unit's spec forbade. R2 also shows the fillet obstacle is an
+implementation choice (the step holds `origin`, `t1`, `t2`, `bulge`;
+the consumer re-derives its nodes through `build_seg`; a
+`Real`-bounded door in `profile::seg` of D13's shape would make them
+the same node — R1 found the complementary half: the CENTRE is what
+is re-derived, `line.a` IS `t2`), with no ceiling impact either way.
+
+Correspondence: R1's coincidence MAJOR ≡ R2's MINOR-1 (bilateral,
+severity divergence — calibration data); R1's assert MAJOR ≡ R2's
+NOTE-6 (bilateral, severity divergence); the `Real` oracle (R1 m5 ≡
+R2 MINOR-3), the fillet cause (R1 m4 ∪ R2 MINOR-2), the attribution
+order (R1 m1 ∪ R2 MINOR-4) and the evaluation-order artefact (R1 m6 ⊂
+R2 MAJOR-1) bilateral. TALLY CANDIDATES: R2's MAJOR-2 (unilateral, by
+execution — the four-identity walk to the real flip) and R2's MAJOR-1
+(the bound mis-named in four documents and `line_span` shown an
+identity — R1 saw the order artefact on the pad without overturning
+the class claim; overlap disclosed for the blinded adjudication).
+Unilateral MINORs: R1's gate-carry silent deviation; R2's unregistered
+revolve constructors; R1's WITNESS_REL ε-story against R2's "never
+consulted in a drive" (one of them is wrong — the fix pass measures).
+
+Fix pass IMPLEMENTER-INHERITED: the contract re-stated everywhere with
+both coincidence probes adopted as pins of the LIMIT; a registered
+zero against a definite numeric sign made a typed contradiction at
+decide time (never a debug-only assert), refusals counted and shown,
+`register_equal` `#[must_use]`; the bound re-measured at ceiling + δ
+with the full over-band set on every document and every "real-margin
+class reached" sentence corrected, `line_span` recorded as an
+identity; the scaffold finding re-cut with R2's four-step walk and
+R1's tail ratio as the next unit's starting numbers; the fillet
+finding re-cut with the true cause; the `Real` door's discipline
+gated to registrant sites and the substrate→consumer import removed;
+the door asked last and `gated` carried; WITNESS_REL resolved; the
+revolve constructors registered; the pins tightened to the bisection
+bracket; the silent deviations disclosed. Durable homes: the
+form-identity tail (an M10 item naming the three residuals and the
+form-level mechanism, for the exit conversation); `line_span` as an
+identity (census); the five spellings of `Registered` (class).
 ## Announced seam from PROPS (2026-09-06): M10-5's planar re-chart retires with the sign-hull unit (`clearance.rs`)
 
 The sign-hull unit (`docs/PROPS-SIGN-HULL-SPEC.md`, branch
@@ -925,3 +1287,24 @@ Two review fixes were built, measured and reverted with the argument
 filed. Thirty-one deviations. The spec leaves `docs/` with this merge;
 the exit walk (#1700) is re-cut against these numbers, and whether
 the form-level unit is owed before M10 closes goes to Ev.
+
+## Block M10-B4 concludes; the exit question to Ev (2026-09-06)
+
+#2048 merged at 4d47f6679 (sample #150, ordinal 510). Three units,
+three dual reviews, one implementer death per two units on Fable
+limits and none on Opus; the block's records (the draw, three
+dispatches, three dual draws, three adjudications, A1) go to main as
+one docs PR now that the block is done. The orchestrator's own
+record for the block: the M10-9 spec counted identities where it
+should have counted constructors (A1), and its §2 named `line_span`
+as the dependency-widening class on a reading taken at twice the
+ceiling — the same instrument artefact every "what bounds this"
+sentence since M10-7 rested on, found only when a review disputed
+the diagnosis and the fix pass measured the over-band set instead of
+the first name. Put to Ev with the numbers: the plate is four form
+identities from certifying 0.263 of its real study; the mechanism
+that reaches them is the early A/B walk M10-8 built and dialled off
+(at whatever ring it needs), or the ring itself; no unit in this
+block was allowed to ship it. Either a form-level unit (a new block,
+M10-B5) before the exit walk is re-cut, or the walk re-cut now with
+the plate's four-identity distance stated as the frontier.
