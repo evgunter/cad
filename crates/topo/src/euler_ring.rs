@@ -708,11 +708,20 @@ impl<T: Decide> Body<T> {
     /// be `Empty` or `Cycle` — both legal. No half-edge, vertex, or
     /// edge is touched.
     ///
-    /// Euler vector: `(v 0, e 0, f −1, h +1, r +1, s 0)` — arena delta
-    /// −1 face (the "+1 ring" is the surviving loop's reclassification,
-    /// not a mint; genus is derived, not stored); the cross-shell form
-    /// is additionally `s −1` at the *shell* arena (the solid count is
-    /// unchanged — GWB's §9.2.4 "KFSMR" reading).
+    /// Euler vector, same-shell form: `(v 0, e 0, f −1, h +1, r +1,
+    /// s 0)` — arena delta −1 face (the "+1 ring" is the surviving
+    /// loop's reclassification, not a mint; genus is derived, not
+    /// stored).
+    ///
+    /// The fusion form's is `(v 0, e 0, f −1, h 0, r +1, s −1)`, `s`
+    /// being the SHELL count (the solid count is unchanged — GWB's
+    /// §9.2.4 "KFSMR" reading), and its arena delta is −1 face and
+    /// −1 shell. **The shell term carries this form's surgery instead
+    /// of the genus term**: eq. 9.2 with `Δf = −1`, `Δr = +1` and
+    /// `Δs = −1` forces `Δh = 0`, which is the connected sum reading
+    /// above — two components' genera add, so no handle is made. A
+    /// caller that expects the same-shell `h +1` here is off by a
+    /// handle.
     ///
     /// **Minting order**: nothing is minted (the loop survives with its
     /// D5 birth record — no provenance changes for survivors; re-homed
@@ -756,6 +765,27 @@ impl<T: Decide> Body<T> {
         }
         let f2_shell = f2_data.shell;
         let cross_shell = f2_shell != f1_shell;
+        // The op's declared arena shift, fixed HERE — by the plan
+        // phase's own form decision, before any mutation. Reading it
+        // back off the mutation (`killed_shell.is_some()`) would make
+        // the postcondition follow the code down whichever branch it
+        // took, so a fusion that ran when it should not have could not
+        // fail it. `ArenaDelta` is one operator's signed shift
+        // (`crate::euler`), and a shift a site computes from its own
+        // effect is not one.
+        #[cfg(debug_assertions)]
+        let declared = if cross_shell {
+            ArenaDelta {
+                shells: -1,
+                faces: -1,
+                ..ArenaDelta::ZERO
+            }
+        } else {
+            ArenaDelta {
+                faces: -1,
+                ..ArenaDelta::ZERO
+            }
+        };
         let s1_solid = self
             .get_shell(f1_shell)
             .ok_or(EulerOpError::StaleKey {
@@ -839,22 +869,7 @@ impl<T: Decide> Body<T> {
             .then_some(f2_data.surface);
 
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(
-            before,
-            if killed_shell.is_some() {
-                ArenaDelta {
-                    shells: -1,
-                    faces: -1,
-                    ..ArenaDelta::ZERO
-                }
-            } else {
-                ArenaDelta {
-                    faces: -1,
-                    ..ArenaDelta::ZERO
-                }
-            },
-            "kfmrh",
-        );
+        self.assert_euler_postcondition(before, declared, "kfmrh");
         Ok(KfmrhResult {
             ring,
             killed_face: f2,

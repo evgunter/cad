@@ -15,13 +15,26 @@
 //!   Euler operators plus the structural non-operator mutators that
 //!   mint or kill through the same postcondition: `ring_move` (the
 //!   demotion claim's least obvious tier-1 preserver — separating-curve
-//!   argument, `crate::euler_ring`) and `split_edge` (whose Euler
+//!   argument, `crate::euler_ring`), `split_edge` (whose Euler
 //!   vector IS `mev`'s, so nothing but a catalog row distinguishes the
 //!   randomised sites it reaches — struts, self-loop digons — from the
 //!   ones `mev` already covers; `crate::split` calls exactly those
-//!   coincidence cases delicate). The catalog is not an inventory of
-//!   the public mutation surface and does not claim to be: it is the
-//!   ops whose sites this walk can enumerate.
+//!   coincidence cases delicate) and `movefac` (the shell partition).
+//!   `kfmrh` carries TWO rows for the same reason `split_edge` needs
+//!   one of its own: its shell-fusion form's Euler vector is not its
+//!   same-shell form's — the shell term carries the surgery instead of
+//!   the genus term — so only a catalog row separates the two, and
+//!   with the two forms behind one row the fusion had no witness at
+//!   all (the site filter asked for one shell). The catalog is not an
+//!   inventory of the public mutation surface and does not claim to
+//!   be: it is the ops whose sites this walk can enumerate.
+//!
+//!   **`movefac` earns its row as the enabler, not only for itself.**
+//!   It is the only door that mints a shell into an existing solid —
+//!   `mvfs` mints one shell per solid, and `mfkrh`'s component split
+//!   leaves the single shell ENTITY in place — so without it no walk
+//!   ever builds the multi-shell solid the fusion form needs, and the
+//!   fusion row would be asked on every step and drawn on none.
 //! - [`apply`] — execute a choice (coordinates for the vertex-minting
 //!   ops come from a caller-owned counter, so every vertex gets distinct
 //!   coordinates and canonical forms are sharp).
@@ -31,16 +44,40 @@
 //! - [`teardown`] — drive a body all the way back to empty arenas
 //!   through kill-direction ops only (plus the ring-resolving
 //!   `mfkrh`/`mekr` moves), the completeness-in-reverse check.
-//! - [`Ledger`] — the running Euler–Poincaré tuple `(v, e, f, h, r, s)`,
-//!   checked against derived arena counts and eq. 9.2 after every op.
+//! - [`Ledger`] — the running Euler–Poincaré tuple `(v, e, f, h, r, s)`
+//!   — `s` the SHELL count, eq. 9.2's own term, with the solid arena
+//!   length carried beside it — checked against derived arena counts
+//!   and eq. 9.2 after every op.
 //!
 //! # The irreversible-by-one-op kill subcases (skipped in roundtrips)
 //!
 //! [`roundtrip`] skips (returns [`RoundtripOutcome::SkippedIrreversible`])
-//! exactly the kill configurations that are valid kills but have **no
-//! single-op re-make** (the taxonomy was sharpened by the PR 4 review —
-//! the mate-alone `kef` kill is re-makeable more often than first
-//! claimed):
+//! exactly the configurations that are valid ops but have **no
+//! re-make from the site** (the taxonomy was sharpened by the PR 4
+//! review — the mate-alone `kef` kill is re-makeable more often than
+//! first claimed). [`OpChoice::may_skip_roundtrip`] is the list of
+//! arms this section covers, and the fuzz row asserts a skip lands in
+//! one of them.
+//!
+//! Two are shell bookkeeping rather than kill sites:
+//!
+//! - `movefac`, always: no single op merges two shells. `kfmrh`'s
+//!   fusion form is the only operator that kills a shell at all and it
+//!   kills a face with it, so the partition has no inverse to pair
+//!   with — the pairing is exercised from the fusion's side instead
+//!   (below), which is why this is a skip rather than a gap.
+//! - `kfmrh`'s fusion form, where the three-op re-make
+//!   (`mfkrh` re-promotes the demoted ring, `movefac` re-partitions
+//!   the complex that promotion disconnects again) does not land back
+//!   on the same body: when either side was already more than one
+//!   component, `movefac` re-splits into every component it finds
+//!   rather than the one shell it was; and when `f2`'s shell is not
+//!   its solid's last, the fusion `retain`s it out and the re-make
+//!   appends the replacement at the end, moving a shell order the
+//!   canonical form compares positionally (`crate::iso`'s honest
+//!   limits). Both are read before the kill by [`fusion_remake_sites`].
+//!
+//! The kill sites proper:
 //!
 //! - `kev(he)` where `start(he)` has valence 1 and `end(he)` carries a
 //!   fan (the "mirror" adjacency `next(mate(he)) == he`): restoring it
@@ -80,7 +117,7 @@ use geom_brep::EdgeCurveSpec;
 use geom_core::{Band, Decide, Point3, Sign, Tol};
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, SolidKey};
+use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey};
 use crate::euler::{MefSite, MevSite};
 use crate::euler_ring::MekrSite;
 use crate::iso::canonical_form;
@@ -97,6 +134,14 @@ pub(crate) enum OpChoice {
     Kemr(HalfEdgeKey, HalfEdgeKey),
     Mekr(MekrSite),
     Kfmrh(FaceKey, FaceKey),
+    /// `kfmrh`'s **shell-fusion** form: `f1` and `f2` lie in DIFFERENT
+    /// shells of ONE solid, so the operator re-homes `f2`'s shell's
+    /// surviving faces into `f1`'s shell and kills `f2`'s shell
+    /// (`crate::euler_ring`'s `kfmrh`). Its own row because its Euler
+    /// vector is not the same-shell form's: the shell term carries the
+    /// surgery instead of the genus term (`s −1, h 0` against
+    /// `s 0, h +1`), so nothing but a catalog row separates the two.
+    KfmrhFuse(FaceKey, FaceKey),
     Mfkrh(LoopKey),
     Kev(HalfEdgeKey),
     Kef(HalfEdgeKey),
@@ -110,6 +155,16 @@ pub(crate) enum OpChoice {
     /// own certified interval by [`split_site`], not carried here, so
     /// the choice stays `Copy`/`Eq` and the site stays deterministic.
     SplitEdge(EdgeKey),
+    /// The other non-Euler public mutator (`movefac(shell)`): the
+    /// shell whose incidence complex has fallen into two components is
+    /// partitioned into one shell per component (`crate::movefac`).
+    ///
+    /// **It is in the catalog because it is the only door that mints a
+    /// shell into an existing solid**, and therefore the only way a
+    /// walk reaches the multi-shell solids [`OpChoice::KfmrhFuse`]
+    /// needs: `mvfs` mints one shell per solid, and `mfkrh`'s
+    /// component split leaves the single shell ENTITY in place.
+    Movefac(ShellKey),
 }
 
 impl OpChoice {
@@ -120,6 +175,7 @@ impl OpChoice {
                 v: 1,
                 f: 1,
                 s: 1,
+                solids: 1,
                 ..Default::default()
             },
             // `split_edge` shares this arm because it shares the
@@ -150,6 +206,19 @@ impl OpChoice {
                 r: 1,
                 ..Default::default()
             },
+            // The fusion form pays for the demoted face out of the
+            // SHELL term, not the genus term: eq. 9.2 with Δf = −1,
+            // Δr = +1 and Δs = −1 forces Δh = 0 (the connected sum of
+            // two components' genera is their sum, so no handle is
+            // made). Reading this row's `s` as the solid count — which
+            // the fusion leaves alone — is what hid the whole form
+            // from property (b).
+            Self::KfmrhFuse(..) => EulerVector {
+                f: -1,
+                r: 1,
+                s: -1,
+                ..Default::default()
+            },
             Self::Mfkrh(_) => EulerVector {
                 f: 1,
                 h: -1,
@@ -170,20 +239,53 @@ impl OpChoice {
                 v: -1,
                 f: -1,
                 s: -1,
+                solids: -1,
                 ..Default::default()
             },
             // NOT an Euler operator: pure reparenting, zero vector.
             Self::RingMove(..) => EulerVector::default(),
+            // NOT an Euler operator either, but not zero: the
+            // partition mints a shell, and the ledger's `s` is the
+            // shell count. Eq. 9.2 then moves `h` with it — the
+            // promotion that disconnected the shell drove the derived
+            // genus one BELOW the honest per-component sum (see
+            // [`Ledger::check`]), and distributing the components into
+            // real shells is what pays it back.
+            Self::Movefac(_) => EulerVector {
+                h: 1,
+                s: 1,
+                ..Default::default()
+            },
         }
+    }
+
+    /// Whether [`roundtrip`] is DOCUMENTED as possibly skipping this
+    /// choice — the four arms that hold an irreversible-by-one-op
+    /// subcase (module docs). A skip on any other choice is property
+    /// (c) quietly ceasing to run, so the fuzz row asserts against
+    /// this list rather than against a measured constant.
+    pub(crate) fn may_skip_roundtrip(&self) -> bool {
+        matches!(
+            self,
+            Self::Kev(_) | Self::Kef(_) | Self::KfmrhFuse(..) | Self::Movefac(_)
+        )
     }
 }
 
-/// One operator's signed Euler–Poincaré shift `(Δv, Δe, Δf, Δh, Δr, Δs)`.
+/// One operator's signed Euler–Poincaré shift `(Δv, Δe, Δf, Δh, Δr, Δs)`,
+/// plus the solid count the identity does not read.
 ///
-/// The same six components as the running [`Ledger`], carried as a
-/// shift rather than a count. Call sites name only the nonzero
-/// components and take the rest from the derived zero, so a site reads
-/// as the op's actual shift.
+/// The same components as the running [`Ledger`], carried as a shift
+/// rather than a count. Call sites name only the nonzero components
+/// and take the rest from the derived zero, so a site reads as the
+/// op's actual shift.
+///
+/// **`s` is the SHELL count** — eq. 9.2's `S`, per Mäntylä ch. 9 — and
+/// `solids` is the arena length beside it, which no term of the
+/// identity reads. They move together for `mvfs` and `kvfs` and
+/// nowhere else, which is exactly why one cannot stand in for the
+/// other: `movefac` mints a shell inside a solid and `kfmrh`'s fusion
+/// form kills one, both leaving the solid count alone.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct EulerVector {
     pub v: i64,
@@ -192,9 +294,11 @@ pub(crate) struct EulerVector {
     pub h: i64,
     pub r: i64,
     pub s: i64,
+    pub solids: i64,
 }
 
-/// The running Euler–Poincaré ledger `(v, e, f, h, r, s)`.
+/// The running Euler–Poincaré ledger `(v, e, f, h, r, s)` — `s` the
+/// shell count — with the solid arena length carried beside it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Ledger {
     pub v: i64,
@@ -203,6 +307,7 @@ pub(crate) struct Ledger {
     pub h: i64,
     pub r: i64,
     pub s: i64,
+    pub solids: i64,
 }
 
 impl Ledger {
@@ -214,12 +319,24 @@ impl Ledger {
         self.h += delta.h;
         self.r += delta.r;
         self.s += delta.s;
+        self.solids += delta.solids;
     }
 
-    /// Checks the ledger against the body: v/e/f/s are arena counts, r
-    /// is the summed ring count, and h must satisfy eq. 9.2
+    /// Checks the ledger against the body: v/e/f/s/solids are arena
+    /// counts — **`s` the SHELL count**, eq. 9.2's `S` — r is the
+    /// summed ring count, and h must satisfy eq. 9.2
     /// (`v − e + f = 2(s − h) + r`) with the derived genus matching the
     /// ledger's.
+    ///
+    /// **Why the shell count and not the solid count.** They agree on
+    /// every body a `mvfs`-only walk can build, so reading eq. 9.2's
+    /// `S` off the solid arena passes for as long as no operator
+    /// separates them — and then property (b) is silent about exactly
+    /// the two ops that do: `movefac`'s partition and `kfmrh`'s
+    /// shell-fusion form both leave the solid count alone. The solid
+    /// count is checked too, on its own term, because `mvfs`/`kvfs`
+    /// are the only ops that may move it and a ledger that stopped
+    /// saying so would stop noticing.
     ///
     /// Derived h is NOT required to be non-negative: `mfkrh` applied to
     /// a ring that never plugged a handle (a kemr-planted floating ring)
@@ -227,7 +344,11 @@ impl Ledger {
     /// shell's surface into two components while keeping one shell
     /// entity, so eq. 9.2's h stops meaning "genus of a connected
     /// closed surface" and starts double-counting components. A legal
-    /// tier-1 intermediate (like empty loops and struts). The
+    /// tier-1 intermediate (like empty loops and struts), and one
+    /// `movefac` pays back: distributing the components into real
+    /// shells raises `s`, and eq. 9.2 raises the derived `h` with it
+    /// ([`OpChoice::Movefac`]'s vector is `h +1, s +1` for that
+    /// reason). The
     /// component-aware per-shell form (per component
     /// v − e + f − r = 2(1 − g), g ∈ ℤ≥0; per shell the sum is
     /// 2(c − Σgᵢ)) was ratified at M1 PR 5, corrected by PR 4, and
@@ -238,11 +359,13 @@ impl Ledger {
         let v = body.vertices().count() as i64;
         let e = body.edges().count() as i64;
         let f = body.faces().count() as i64;
-        let s = body.solids().count() as i64;
+        let s = body.shells().count() as i64;
+        let solids = body.solids().count() as i64;
         let r: i64 = body.faces().map(|(_, face)| face.rings.len() as i64).sum();
-        if (v, e, f, s, r) != (self.v, self.e, self.f, self.s, self.r) {
+        if (v, e, f, s, solids, r) != (self.v, self.e, self.f, self.s, self.solids, self.r) {
             return Err(format!(
-                "ledger mismatch: body (v{v} e{e} f{f} s{s} r{r}) vs ledger {self:?}"
+                "ledger mismatch: body (v{v} e{e} f{f} s{s} solids{solids} r{r}) \
+                 vs ledger {self:?}"
             ));
         }
         // Eq. 9.2 rearranged: 2h = 2s − (v − e + f − r).
@@ -293,7 +416,7 @@ pub(crate) fn choose_op(body: &Body<f64>, d1: u32, d2: u32, tol: Tol) -> Option<
     // written here: it is a function of the weights below and of the
     // body, and a constant beside a table that determines it is a
     // constant nothing keeps true.
-    let kinds: [(u32, Enumerate, Option<Probe>); 14] = [
+    let kinds: [(u32, Enumerate, Option<Probe>); 16] = [
         (
             if body.solids().count() < 2 {
                 w(1, 0)
@@ -310,7 +433,18 @@ pub(crate) fn choose_op(body: &Body<f64>, d1: u32, d2: u32, tol: Tol) -> Option<
         (3, kemr_candidates, None),
         (w(3, 1), mekr_candidates, None),
         (2, kfmrh_candidates, None),
+        // The fusion form, whose candidates need a multi-shell solid
+        // and so exist only after `movefac` has run. Real weight for
+        // the same reason `kvfs` has it: the window is narrow and a
+        // modest weight would leave the row asked but almost never
+        // drawn.
+        (4, kfmrh_fuse_candidates, None),
         (w(2, 1), mfkrh_candidates, None),
+        // The shell partition — the only door to a multi-shell solid,
+        // and make-direction in the shell arena, so it is weighted out
+        // once the body stops growing. Its candidates are the
+        // two-component shells `mfkrh` leaves behind.
+        (w(4, 0), movefac_candidates, None),
         // The non-Euler public mutator rides along at modest weight:
         // candidates exist whenever any face carries a ring, which kemr
         // (always-on weight) produces steadily.
@@ -505,6 +639,93 @@ fn kfmrh_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
         }
     }
     out
+}
+
+/// Every site of `kfmrh`'s shell-fusion form: two faces in DIFFERENT
+/// shells of ONE solid, with `f2` ring-free.
+///
+/// The three conditions are the operator's own plan phase, in its
+/// order (`crate::euler_ring`'s `kfmrh`): distinct faces, one solid
+/// (`CrossSolid` is the refusal for the other case — combining bodies
+/// is the boolean pipeline's combine step, not an Euler surgery), and
+/// `f2` ring-free (`FaceHasRings`). Both argument orders are
+/// generated: the pair is ordered, `f2` being the face that dies.
+fn kfmrh_fuse_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
+    let mut out = Vec::new();
+    for (f1, face1) in body.faces() {
+        let Some(s1) = body.get_shell(face1.shell) else {
+            continue;
+        };
+        for (f2, face2) in body.faces() {
+            if f1 == f2 || face1.shell == face2.shell || !face2.rings.is_empty() {
+                continue;
+            }
+            if body.get_shell(face2.shell).map(|s2| s2.solid) == Some(s1.solid) {
+                out.push(OpChoice::KfmrhFuse(f1, f2));
+            }
+        }
+    }
+    out
+}
+
+/// Every shell whose incidence complex has fallen into EXACTLY two
+/// connected components — the post-`mfkrh` transient `movefac` exists
+/// to distribute.
+///
+/// **Why exactly two and not two-or-more.** A row's Euler vector is a
+/// per-variant constant, and `movefac` on a `c`-component shell mints
+/// `c − 1` shells; offering only `c == 2` keeps `s +1` constant
+/// without carrying a derived count in the choice (the shape
+/// [`OpChoice::SplitEdge`] avoids for the same reason). The coverage
+/// this costs is stated rather than hidden: **a shell that reaches
+/// three components is never partitioned by this walk.** It is a
+/// smaller loss than it reads, because the row fires on the
+/// two-component shells that a third component would have grown from.
+fn movefac_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
+    body.shells()
+        .filter(|&(shell, _)| shell_components(body, shell) == 2)
+        .map(|(shell, _)| OpChoice::Movefac(shell))
+        .collect()
+}
+
+/// The number of connected components of `shell`'s incidence complex,
+/// under the relation `movefac` partitions on and the validator's
+/// pass 11 enumerates: a face glues all its loops, a cycle loop glues
+/// across each edge via `mate`, and an empty-loop face is its own
+/// dartless component.
+fn shell_components(body: &Body<f64>, shell: ShellKey) -> usize {
+    let faces = &body.get_shell(shell).expect("shell resolves").faces;
+    let mut seen: slotmap::SecondaryMap<FaceKey, ()> = slotmap::SecondaryMap::new();
+    let mut components = 0;
+    for &seed in faces {
+        if seen.insert(seed, ()).is_some() {
+            continue;
+        }
+        components += 1;
+        let mut pending = vec![seed];
+        while let Some(face_key) = pending.pop() {
+            let face = body.get_face(face_key).expect("face resolves");
+            let loops: Vec<LoopKey> = core::iter::once(face.outer)
+                .chain(face.rings.iter().copied())
+                .collect();
+            for loop_key in loops {
+                let LoopBoundary::Cycle { first } =
+                    body.get_loop(loop_key).expect("loop resolves").boundary
+                else {
+                    continue; // empty loop: glues only its vertex
+                };
+                for member in body.loop_cycle(first).expect("valid body: cycle closes") {
+                    let mate = body.mate(member).expect("valid body: mate resolves");
+                    let mate_loop = body.get_half_edge(mate).expect("half resolves").parent_loop;
+                    let neighbor = body.get_loop(mate_loop).expect("loop resolves").face;
+                    if seen.insert(neighbor, ()).is_none() {
+                        pending.push(neighbor);
+                    }
+                }
+            }
+        }
+    }
+    components
 }
 
 fn mfkrh_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
@@ -750,11 +971,14 @@ pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32, t
         OpChoice::Mekr(site) => {
             body.mekr_chord(site, tol).unwrap();
         }
-        OpChoice::Kfmrh(f1, f2) => {
+        OpChoice::Kfmrh(f1, f2) | OpChoice::KfmrhFuse(f1, f2) => {
             body.kfmrh(f1, f2).unwrap();
         }
         OpChoice::Mfkrh(ring) => {
             body.mfkrh_plug(ring).unwrap();
+        }
+        OpChoice::Movefac(shell) => {
+            body.movefac(shell).unwrap();
         }
         OpChoice::Kev(he) => {
             body.kev(he).unwrap();
@@ -774,6 +998,31 @@ pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32, t
             body.split_edge(e, t, tol).unwrap();
         }
     }
+}
+
+/// The shell [`roundtrip`] must re-partition to invert a shell fusion
+/// of `f1` and `f2` — `f1`'s shell — or `None` when the site is one of
+/// the fusion's irreversible-by-three-ops shapes (module docs).
+///
+/// Both conditions are read BEFORE the kill, from the same arena the
+/// operator's plan phase reads:
+///
+/// - **Each side is one component.** `movefac` re-splits into every
+///   component it finds, so a multi-component side would come back as
+///   several shells rather than the one it was.
+/// - **`f2`'s shell is its solid's LAST.** The fusion `retain`s it out
+///   of the solid's shell list and the re-make appends the replacement
+///   at the end, so anywhere else the shell ORDER changes — which the
+///   canonical form compares positionally (`crate::iso`'s honest
+///   limits).
+fn fusion_remake_sites(body: &Body<f64>, f1: FaceKey, f2: FaceKey) -> Option<ShellKey> {
+    let shell1 = body.get_face(f1)?.shell;
+    let shell2 = body.get_face(f2)?.shell;
+    if shell_components(body, shell1) != 1 || shell_components(body, shell2) != 1 {
+        return None;
+    }
+    let solid = body.get_shell(shell2)?.solid;
+    (body.get_solid(solid)?.shells.last() == Some(&shell2)).then_some(shell1)
 }
 
 /// What [`roundtrip`] did.
@@ -880,6 +1129,29 @@ pub(crate) fn roundtrip(
         OpChoice::Kfmrh(f1, f2) => {
             let result = body.kfmrh(f1, f2).unwrap();
             body.mfkrh_plug(result.ring).unwrap();
+        }
+        OpChoice::KfmrhFuse(f1, f2) => {
+            // The fusion is two surgeries at once, so its re-make is
+            // three ops: `mfkrh` re-promotes the demoted ring, and
+            // `movefac` re-mints the shell the fusion killed by
+            // re-partitioning the complex that promotion just
+            // disconnected again. Exact on the sites the module docs
+            // name; the rest report the skip.
+            let Some(sites) = fusion_remake_sites(body, f1, f2) else {
+                return RoundtripOutcome::SkippedIrreversible;
+            };
+            let result = body.kfmrh(f1, f2).unwrap();
+            body.mfkrh_plug(result.ring).unwrap();
+            body.movefac(sites).unwrap();
+        }
+        OpChoice::Movefac(_) => {
+            // No single op merges two shells: `kfmrh`'s fusion form is
+            // the only one that kills a shell at all and it kills a
+            // face with it, so the partition has no inverse to pair
+            // with here. The pairing is exercised from the fusion's
+            // side instead (the arm above re-makes through `movefac`),
+            // which is why this is a skip rather than a gap.
+            return RoundtripOutcome::SkippedIrreversible;
         }
         OpChoice::Kvfs(solid) => {
             // Record the lone vertex's coordinates for the re-make.
@@ -1088,8 +1360,19 @@ fn first_empty_ring_site(body: &Body<f64>) -> Option<MekrSite> {
     None
 }
 
-/// An `(f1, f2)` pair where `f2` is a ring-free empty-outer face in a
-/// shell with at least one other face — `kfmrh` folds it away.
+/// An `(f1, f2)` pair where `f2` is a ring-free empty-outer face and
+/// `f1` is another face of the same SOLID — `kfmrh` folds it away,
+/// through the same-shell form when the sibling shares `f2`'s shell
+/// and through the shell-fusion form when it does not.
+///
+/// **The cross-shell reach is what lets teardown finish.** `kvfs`
+/// retires a solid only when it is exactly skeletal — one shell, one
+/// face — so a solid that `movefac` partitioned reaches the end of
+/// the kill direction as several single-face shells with no same-shell
+/// sibling between them, and a same-shell-only search sticks there.
+/// Fusion is the step that folds one shell into the next; the demoted
+/// ring is then an empty ring, which the `mekr` + `kev` compound above
+/// absorbs.
 fn first_empty_outer_extra_face(body: &Body<f64>) -> Option<(FaceKey, FaceKey)> {
     for (f2, face2) in body.faces() {
         if !face2.rings.is_empty() {
@@ -1101,9 +1384,17 @@ fn first_empty_outer_extra_face(body: &Body<f64>) -> Option<(FaceKey, FaceKey)> 
         ) {
             continue;
         }
+        let solid2 = body.get_shell(face2.shell).expect("shell resolves").solid;
+        // Same shell first, so a body with one shell per solid takes
+        // exactly the step it always took.
         let sibling = body
             .faces()
-            .find(|&(f1, face1)| f1 != f2 && face1.shell == face2.shell);
+            .find(|&(f1, face1)| f1 != f2 && face1.shell == face2.shell)
+            .or_else(|| {
+                body.faces().find(|&(f1, face1)| {
+                    f1 != f2 && body.get_shell(face1.shell).expect("shell resolves").solid == solid2
+                })
+            });
         if let Some((f1, _)) = sibling {
             return Some((f1, f2));
         }
@@ -1138,11 +1429,11 @@ mod tests {
         pub(super) selected: usize,
         pub(super) executed: usize,
         pub(super) skipped: usize,
-        /// Selections on `Kev`/`Kef`. The two documented irreversible
-        /// subcases both live in those two arms of [`roundtrip`], so a
-        /// selection on any other choice MUST execute — which is what
-        /// bounds the skip count against the run rather than against a
-        /// measured constant.
+        /// Selections on a choice [`OpChoice::may_skip_roundtrip`]
+        /// names. Every documented irreversible subcase lives in one
+        /// of those arms of [`roundtrip`], so a selection on any other
+        /// choice MUST execute — which is what bounds the skip count
+        /// against the run rather than against a measured constant.
         pub(super) skippable: usize,
     }
 
@@ -1169,7 +1460,7 @@ mod tests {
             if d3 % 4 == 0 {
                 // Property (c): op ∘ exact inverse nets nothing.
                 tally.selected += 1;
-                if matches!(choice, OpChoice::Kev(_) | OpChoice::Kef(_)) {
+                if choice.may_skip_roundtrip() {
                     tally.skippable += 1;
                 }
                 if roundtrip(&mut body, choice, &mut counter, Tol::witness())
@@ -1177,12 +1468,12 @@ mod tests {
                 {
                     tally.executed += 1;
                 } else {
-                    // Both documented irreversible subcases sit in
-                    // `roundtrip`'s `Kev`/`Kef` arms. A skip anywhere
-                    // else is property (c) quietly ceasing to run, not
-                    // a case the design excuses.
+                    // Every documented irreversible subcase sits in an
+                    // arm [`OpChoice::may_skip_roundtrip`] names. A
+                    // skip anywhere else is property (c) quietly
+                    // ceasing to run, not a case the design excuses.
                     prop_assert!(
-                        matches!(choice, OpChoice::Kev(_) | OpChoice::Kef(_)),
+                        choice.may_skip_roundtrip(),
                         "roundtrip skipped {:?}, which has no documented \
                          irreversible-by-one-op subcase",
                         choice
@@ -1312,7 +1603,7 @@ mod tests {
     /// never adjust a filter to bring the old number back.
     #[test]
     fn selection_is_pinned_over_a_fixed_stream_set() {
-        const FINGERPRINT: u64 = 8_352_206_392_020_392_659;
+        const FINGERPRINT: u64 = 1_017_092_501_598_614_451;
         let mut hash = 0xcbf2_9ce4_8422_2325_u64;
         let mut fold = |bytes: &[u8]| {
             for b in bytes {
