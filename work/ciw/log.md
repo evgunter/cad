@@ -935,3 +935,40 @@ both sentences** — those crates seed the axis now. That is not a
 follow-up item; it is reviewer question Q4 (did this change invalidate a
 premise something else cites) landing on the diff that caused it, and it
 goes back to the lane with the reviews.
+
+## 2026-09-06 — unit 1 reported; both units under review, and one routing debt recorded
+
+Unit 1 (PR 2070) took the reconciler shape the item argued for rather
+than a substitution, and inverted the hand-written part: `PIN_FREE`
+declares the three literals that are NOT pins (the admesh floor, a
+rustfmt version in a hook, `0.0.0` crate versions), so an undeclared
+literal is an error and a declaration whose literal disappears is also
+an error. The population is an `os.walk`, not a roster. `ci-local.sh`'s
+human-facing install line stays a literal, checked rather than
+rewritten, which is what the item asked for.
+
+**Both units are getting a correctness reviewer beside the style one,
+and unit 1's is a departure from this program's default worth stating.**
+The posture is style-only unless a unit earns more (Ev, 2026-09-06).
+Unit 1 earns it not for complexity of logic but for **blast radius**: it
+adds a gating claim whose population is derived by walking a directory,
+so a false positive reds every PR in the repository and the surface is
+every file anyone adds under `local-scripts/` in future. A checker that
+is wrong in that direction is worse than the drift it detects.
+
+**A routing debt, recorded now and payable at unit 2's merge.** Two OPEN
+items on LIB's slate cite the python suite's three-name seed set as
+current:
+
+- `work/lib/pncad-py-python-feature-clippy-lane-is-red.md:104`
+- `work/lib/the-python-feature-half-of-pncad-py-is-linted-by-no-ci-row.md:109`
+
+Unit 2 moves that premise under them. One-file-one-item means CIW does
+not edit them (META's `keep_out` states the rule: a stale citation in
+another program's slate is routed to its owner, never fixed across the
+fence). **This orchestrator runs on a remote box with no away-channel
+monitor and no `gh`**, as PROPS, SHELL and TOPO record for themselves, so
+the route available is the PR body plus this line — and neither is a
+slate. Stated as a debt rather than as a discharge: if unit 2 merges and
+nobody has told LIB, the citations are stale and the only record is
+here.
