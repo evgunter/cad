@@ -28,12 +28,50 @@ use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, drive};
 use geom_core::{SymRules, Tol};
 
-use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{certifies_whole, dials};
 
 /// A named study, as a function of the SCALE of its real study, with the
 /// ceiling last measured for it.
 type StudyAtCeiling<'a> = (&'static str, f64, &'a dyn Fn(f64) -> ProfileDoc);
+
+/// One whole-box replay at `Sym<Interval>`: the session's counts and the
+/// first node that refused.
+///
+/// **Deliberately NOT `m10_8_arc_family_interval::replay`**, and the
+/// difference is cost, not taste: that one installs the SHAPE REPORT,
+/// which renders the plain normal form of every residual the numeric
+/// channel could not decide — hundreds of them per replay, each a
+/// page-long rational function. That is what an evidence probe wants
+/// and what a gate cannot afford; these rows read the refusal's own
+/// message instead, which already names the predicate.
+fn replay_counts(
+    doc: &ProfileDoc,
+    box_: &ParamBox,
+    rules: SymRules,
+    tol: Tol,
+) -> (Option<String>, geom_core::SymCounts) {
+    use std::sync::Arc;
+
+    use editor_core::{CancelToken, EvalOptions, NodeResult, ProfileLift, evaluate};
+
+    let opts = EvalOptions {
+        param_box: Some(Arc::new(box_.clone())),
+        profile_lift: ProfileLift::Guided,
+        ..EvalOptions::default()
+    };
+    let budget = geom_core::SymBudget {
+        max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
+        max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+    };
+    geom_core::sym::with_session_rules(budget, rules, || {
+        let ev: editor_core::Evaluation<geom_core::Sym<geom_core::Interval>> =
+            evaluate(doc, None, &CancelToken::new(), &opts, tol);
+        ev.order.iter().find_map(|id| match ev.result(*id) {
+            Some(NodeResult::Failed(e)) => Some(format!("node {} — {}", id.0, e.kind)),
+            _ => None,
+        })
+    })
+}
 
 /// M10-8's tier exactly — the shipped set with the door shut, and the
 /// differential every row here is taken against.
@@ -114,8 +152,8 @@ fn m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity() {
     let doc = crate::m10_7_plate::plate(5.0e-5 * 1.6e3 * eps, 1.0e-5 * 1.6e3 * eps, tol).0;
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let box_ = ParamBox::of(&analyzed);
-    let (_, shut_refusal, shut) = replay(&doc, &box_, closed(), tol);
-    let (_, open_refusal, open) = replay(&doc, &box_, SymRules::shipped(), tol);
+    let (shut_refusal, shut) = replay_counts(&doc, &box_, closed(), tol);
+    let (open_refusal, open) = replay_counts(&doc, &box_, SymRules::shipped(), tol);
     println!(
         "   door shut {shut:?} -> {shut_refusal:?}\n   door open {open:?} -> {open_refusal:?}"
     );
@@ -129,9 +167,17 @@ fn m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity() {
         (shut.symbolic_zero, shut.sign_gated),
         "the door moves decisions out of `numeric` and out of nothing else: {open:?} vs {shut:?}"
     );
+    // NOT "and `numeric` shrank": a REFUSING replay stops at its first
+    // refusal, so the two runs do not decide the same population — the
+    // door lets this one get further, and the decisions past the old
+    // refusal are decisions the shut run never reached. The
+    // out-of-`numeric`-and-nothing-else claim is pinned where every
+    // site decides: at the scalar
+    // (`geom_core::sym`'s `a_registered_identity_decides_zero_and_is_counted_apart`)
+    // and at each document's nominal (the census's table).
     assert!(
-        open.numeric < shut.numeric,
-        "and the numeric column is what shrank"
+        open.decisions() >= shut.decisions(),
+        "the door can only carry a replay further, never less far: {open:?} vs {shut:?}"
     );
     let shut_refusal = shut_refusal.expect("past its ceiling the plate refuses with the door shut");
     let open_refusal = open_refusal.expect("and with the door open");
@@ -193,10 +239,20 @@ fn m10_9_the_value_channel_is_untouched_on_a_certifying_box() {
 /// Each document is probed at half its measured ceiling (must certify)
 /// and at twice it (must refuse), with the door open and shut — four
 /// drives per document, and no bisection, because the claim is that the
-/// ceiling is where it was and not what its tenth digit is. The
-/// measured brackets, identical at ε = 1e-6, 1e-9 and 1e-12 (so every
-/// ceiling scales exactly with ε; none of them stopped, which is the
-/// E12 claim this unit does NOT get to make):
+/// ceiling is where it was and not what its tenth digit is.
+///
+/// **Sixteen drives, and they were profiled before they were written**
+/// ([[test-suite-cost]]: cost concentrates savagely). The whole file
+/// runs in 46 s in a debug build and in 10 s without the pad's four —
+/// one whole-box leaf of the pad costs 1.2 s in release — so the pad is
+/// 80% of this file's cost, and it is bought deliberately: it is the
+/// document whose ceiling R2 measured and whose expectation this unit
+/// was cut against, and a table that measured it and a gate that
+/// skipped it would be the shape this repository calls a silent skip.
+///
+/// The measured brackets, identical at ε = 1e-6, 1e-9 and 1e-12 (so
+/// every ceiling scales exactly with ε; none of them stopped, which is
+/// the E12 claim this unit does NOT get to make):
 ///
 /// | document | ceiling | first refusal beyond it, door shut → open | enclosure |
 /// | --- | --- | --- | --- |

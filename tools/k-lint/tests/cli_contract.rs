@@ -80,7 +80,9 @@ fn findings_fail_with_the_discipline_message() {
     // The flags themselves still print, in full, on stdout.
     let so = stdout(&out);
     assert!(
-        so.contains("2 samples (0 symbolic_zero, 0 sign_gated, 0 registered, 2 classified), 2 flagged"),
+        so.contains(
+            "2 samples (0 symbolic_zero, 0 sign_gated, 0 registered, 2 classified), 2 flagged"
+        ),
         "summary line: {so}"
     );
     assert!(so.contains("FLAG demo/bracket:carrier_line_circle"), "{so}");
@@ -215,8 +217,10 @@ fn findings_in_any_file_fail_the_run() {
     assert_eq!(out.status.code(), Some(2));
     let so = stdout(&out);
     assert_eq!(
-        so.matches("1 samples (0 symbolic_zero, 0 sign_gated, 0 registered, 1 classified), 0 flagged")
-            .count(),
+        so.matches(
+            "1 samples (0 symbolic_zero, 0 sign_gated, 0 registered, 1 classified), 0 flagged"
+        )
+        .count(),
         2,
         "both clean files were scanned and reported: {so}"
     );
