@@ -36,15 +36,18 @@ TWO THINGS THIS FILE CANNOT SAY, AND THEY ARE NOT DEFECTS OF IT
 WHICH `RefusedRef` ARMS THIS FILE REACHES, AND WHY NOT THE OTHERS
 ----------------------------------------------------------------
 `ref_not_a_face` is reached below, by authoring a mate against an
-edge. The other three are MEASURED as unreachable from Python
-authoring today, which is a finding about the doors and not a gap in
-this file:
+edge. `ref_read_below_a_root` is reached below too: `Node.mate` takes
+an operand, so a mate read at a transform that a `placed_union`
+consumes is authorable — the operand spells the name, the product
+lists only the union and spells that face as an instance row, and
+the gate names the operand. (`Node.Pattern` is the document the
+kernel's own row uses; it stays unbound, and `placed_union` wraps its
+rows the same way.) The other two are MEASURED as unreachable from
+Python authoring today, which is a finding about the doors and not a
+gap in this file:
 
-* `ref_node_gone` — the reference's minting node is not in the
-  document. Deleting the instance a mate names does get there in
-  principle, but the mate then fails to solve and the GATHER refuses
-  first (`root_failed`), so the gate never resolves the reference.
-* `ref_vanished` — no product entity answers to the name. Reaching it
+* `ref_vanished` — no product entity answers to the name, and the
+  operand the mate reads at does not spell it either. Reaching it
   wants the referenced part to change shape under a name the assembly
   still holds, and that is exactly what the pin gate refuses
   (`part_pin_mismatch`) one door earlier.
@@ -725,6 +728,63 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertTrue(tangent.solves)
         self.assertFalse(tangent.mints)
         self.assertIn("at rest", tangent.why)
+
+    def test_a_mate_read_below_a_root_refuses_naming_the_operand(self):
+        """The shelf is lifted by a transform and the transform is
+        consumed by a `placed_union`; the mate is read AT the
+        transform. The solve places it, the product gathers, and the
+        gate refuses in the operand's voice: the name is spelled at
+        the transform, which is not a root of the product — the union
+        is, and it spells the face as an instance row."""
+        doc = Doc("pncad-read-below-a-root")
+        post_a = doc.insert(Node.instantiate_part(self.post_ref))
+        shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
+        lifted = doc.insert(
+            Node.transform(
+                shelf_i,
+                (0 * m, 0 * m, 0.25 * m),
+                (0.0, 0.0, 1.0),
+                0.0 * pncad.rad,
+            )
+        )
+        # Two copies, the second clear of the post and of the first:
+        # the row is about the copy the mate names.
+        family = doc.insert(
+            Node.placed_union(
+                lifted, 2, PatternKind.linear((1.0, 0.0, 0.0), 2.0 * SHELF_LENGTH * m)
+            )
+        )
+        a_top = self.instance_face(doc, post_a, CapEnd.End)
+        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
+        mate = doc.insert(
+            Node.mate(
+                post_a,
+                a_top,
+                lifted,
+                s_bottom,
+                ContactClass.Rest,
+                seat(POST_SEAT, SEAT_A),
+            )
+        )
+        self.assertIsNone(solve_document(doc).fault(mate))
+        self.assertEqual(solve_document(doc).role(mate), MateRole.Determining)
+        ev = evaluate(doc, resolver=self.ws)
+        product(doc, ev)
+        self.assertEqual(doc.roots(), [post_a, family])
+        with self.assertRaises(pncad.AssemblyError) as caught:
+            assemble(doc, ev)
+        err = caught.exception
+        self.assertEqual(err.variant, "mate_reference_refused")
+        self.assertEqual(err.mate, mate)
+        self.assertEqual(err.side, pncad.MateSide.B)
+        self.assertEqual(err.why.variant, "ref_read_below_a_root")
+        self.assertEqual(err.why.at, lifted)
+        self.assertIsNone(err.why.width)
+        self.assertIsNone(err.why.kind)
+        # A node id crosses as an opaque `NodeId(n)`; the message spells
+        # the same `n`.
+        self.assertIn(f"read at node {repr(lifted)[len('NodeId('):-1]}", str(err.why))
+        self.assertIn("not a root", str(err.why))
 
     def test_a_mate_reference_that_is_not_a_face_refuses_at_the_gate(self):
         doc, post_i, shelf_i = self.two_instances()
