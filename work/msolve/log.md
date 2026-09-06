@@ -184,3 +184,13 @@ cluster (the partition is structural), so an instance no pair reaches
 rides its cluster's recorded frame with the mate's row red, as a
 dangling head already does. Next: MSOLVE-3 on
 `msolve/3-placer-refused`.
+
+## MSOLVE-3 MERGED (2026-09-06, PR 2081)
+
+Fix pass green on the full matrix at `8a72887` (one red on the way:
+the rider row's axis-length probes assumed the default band; they come
+from the run's own band now). Item closed, spec deleted into the
+ledger, the catch-all finding and the placement rider closed. The
+slate that remains: the gate's `Vanished` on a mate read below a
+pattern, the lever's extent (`[ev]`), the remap-inference record
+correction.
