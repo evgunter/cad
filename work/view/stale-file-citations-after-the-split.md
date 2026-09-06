@@ -145,3 +145,55 @@ stale. That is this item's closing argument arriving a second time from
 a different direction: resolving a reference is not checking a claim,
 and here the reference resolved perfectly.
 
+
+## A third member: the `pick.rs` split (2026-09-06)
+
+`pick.rs` split at its layer boundary — the index and every query over
+it into `pickindex.rs`, the policy staying — and `Generation` left
+`evalseam.rs` for `generation.rs`. Every `crates/viewer/src/pick.rs:NNNN`
+citation in the tracker is therefore either in the wrong file or at the
+wrong line, on the same mechanics as the 1c split above: the numbers
+below `:2212` moved to another file entirely and everything above it
+shifted by 2,167.
+
+**VIEW's half, paid in the same PR**, corrected against the tree at the
+split's own commit:
+
+| File | Was | Now |
+|---|---|---|
+| `adjacent-same-typed-arguments-are-the-same-swap.md:55` | `pick.rs:408`/`445` | `pickindex.rs:405`/`442` |
+| `ui-thread-work-after-the-index-seam.md:31` | `pick.rs:932` | `pickindex.rs:928` |
+| `outstanding-and-progress-are-two-three-state-enums-one-hop-apart.md:49` | `pick.rs:2525` | `pick.rs:359` (same file — `PickCache` stayed) |
+| `new-document-owes-the-reframe-open-gets.md:54` | `pick.rs:2270-2288` | `pick.rs:103-121` (same file) |
+| `pick-priority-filter-vocabulary.md:17` | `viewer::pick::EDGE_PICK_RADIUS_PX` | `viewer::pickindex::EDGE_PICK_RADIUS_PX` |
+
+Closed VIEW rows citing the old paths — `pick-and-parts-name-the-session
+-driver`, `pick-index-built-on-ui-thread`, `unindexed-refusal-is-an-
+outcome-not-a-read` — are **left as written**, under the rule this item
+already states: a closed row is a record of what was believed at a
+moment.
+
+### Announced, not edited
+
+Other programs' (`docs/prompts/implementer-discipline.md` §6):
+`work/chrome/mispaired-ids-exempts-the-empty-window.md:32` (the unit
+tests it names moved with the structure, into `pickindex.rs`),
+`work/chrome/pickindex-per-part-window-twins.md:18,40` (`pick.rs` named
+twice as the file the seven twins live in — they are `pickindex.rs`'s
+now, and the item's own id already reads as if it knew),
+`work/chrome/edge-cost-claims-name-a-search-that-is-gone.md:13,19`
+(`pick.rs:1979-1983` and `pick.rs:600-607`, both now `pickindex.rs`),
+`work/chrome/viewer-first-light-on-real-hardware.md:110`
+(`pick::PickIndex`), and
+`work/code-quality/run-on-whitespace-in-message-literals.md:9,23`
+(`crates/viewer/src/pick.rs:1771`, now `pickindex.rs:1774`).
+
+### What this member adds to the item's argument
+
+Nothing new about the general case, and that is itself the finding: the
+1c entry above is remembered for the row where the CLAIM went stale
+while the number was fixable, and this split produced none of those —
+every hit was a pure re-point, because a move that changes no behaviour
+cannot falsify a sentence about behaviour. **The two halves of this
+item come apart cleanly here**: a `<file>.rs:<line>` gate would have
+caught the whole of this member and none of the second one.

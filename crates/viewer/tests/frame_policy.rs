@@ -29,10 +29,12 @@ use pncad::prelude::{EntityKind, StableName};
 use pncad::select::{ContactClass, Ray};
 use viewer::camera::{Camera, CameraOp};
 use viewer::display::{DisplayFault, DisplayView};
-use viewer::evalseam::{Generation, IndexDone, IndexRequest, IndexService, InlineIndexer};
+use viewer::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer};
 use viewer::frame::{self, IdQueryLog, IdStep, StatusUpdate};
+use viewer::generation::Generation;
 use viewer::input::{self, InputMap, ViewportSize};
-use viewer::pick::{self, CacheStep, IdMap, IndexLanding, PickCache, PickIndex};
+use viewer::pick::{self, CacheStep, IndexLanding, PickCache};
+use viewer::pickindex::{self, IdMap, PickIndex};
 use viewer::props::SlotValue;
 use viewer::scene::{self, DisplayTolerance, FittedDelta, PLATE_EXTENT};
 use viewer::session::{
@@ -261,7 +263,7 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
 
     for (message, what) in [
         (
-            frame::pick_refusal(&pick::PickError::Camera(projection)),
+            frame::pick_refusal(&pickindex::PickError::Camera(projection)),
             "a cursor action the pick index refused",
         ),
         (
@@ -294,7 +296,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
         .view_projection(0.0)
         .expect_err("a zero aspect has no projection");
     let delta = DisplayTolerance::new(0.0).expect_err("zero is not a δ");
-    let build = pick::PickIndexError::DrawnTwice {
+    let build = pickindex::PickIndexError::DrawnTwice {
         node: RecipeNodeId(3),
         body: 0,
     };
@@ -1093,7 +1095,7 @@ fn the_highlight_narrows_a_twice_drawn_name_to_exactly_one_id() {
         index.ids_of(&face.name).len() > 1,
         "the name is drawn twice"
     );
-    let marked = viewer::pick::highlight(&index, &Selection::Face(face.clone()), None);
+    let marked = viewer::pickindex::highlight(&index, &Selection::Face(face.clone()), None);
     let key = index
         .ids()
         .key_of(marked.selected)

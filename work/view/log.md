@@ -4745,3 +4745,60 @@ The first pass's "no residue at all" over three disclosed blind spots
 is what produced most of that list. `work/README.md` is explicit that
 disclosing a residue is not scheduling it, and this is the clearest
 instance of that rule paying for itself.
+
+## The `evalseam`/`pick` cycle, broken by two moves (2026-09-06)
+
+Ev ruled (d) on #2076 and the lane landed it: `Generation` to a leaf,
+`pick.rs` split at its layer boundary. Both, because neither breaks the
+cycle alone — `Generation` alone leaves `PickIndex` beside `PickCache`,
+the split alone leaves `pickindex` reaching into `evalseam` for the
+counter. The chain is `generation ← pickindex ← evalseam ← pick`, and
+`evalseam` keeps both seams and therefore both sets of threads, which
+is the property that made this shape beat a third seam module.
+
+### The siting call, and why `scene` lost it
+
+The ruling offered `Generation` its own module or a seat beside
+`DisplayTolerance` in `scene`. The lane took its own module. The
+argument that decided it is that the two candidates pass DIFFERENT
+tests: `scene` imports nothing from this crate, which is what the
+analysis measured, but `generation.rs` imports nothing at all — its
+`use crate::` count is zero and its kernel count is zero — and that is
+the property a leaf is supposed to have. `scene`'s written charter
+covers what the viewport draws at a δ, so a request counter would have
+been a second concept in a module this program is already trying to
+keep to one.
+
+### The boundary was verified, not trusted
+
+The dispatch said to check the split the analysis proposed rather than
+take it. It held exactly: over the policy half the only names reaching
+into the index half are `PickIndex` and `PickIndexError`, and over the
+index half the only name reaching forward is a doc mention of
+`IndexInputs` in the header sentence that belongs to the policy. The
+in-file `mod tests` belongs to `PartWindows`/`IdMap` and travelled with
+them, unedited.
+
+### The move discipline held, and the count says so
+
+501 passed / 1 ignored on `--test all` and 24 passed / 1 failed on
+`--lib` (the Vulkan-less `gpu::every_pass_builds_on_a_real_device`,
+expected off hardware), before and after, identical. No assertion was
+touched; every test-side change is an import or a path. No `pub use`
+shim was left, so `session-shims-and-test-imports` is no larger.
+
+### The tracker pass was the expensive half of the sweep
+
+A tree-grep re-points source; it does not see the twelve tracker rows
+citing `crates/viewer/src/pick.rs:NNNN`. Those went onto
+`stale-file-citations-after-the-split`, which already owns the class
+from the 1c split — VIEW's five live rows corrected in the same PR, six
+rows under `work/chrome/` and `work/code-quality/` announced rather
+than edited, and the closed VIEW rows left as written. **The new
+member's contribution to that item is a negative result worth having**:
+the 1c entry is remembered for the row where the claim, not the number,
+went stale, and this split produced none of those — a move that changes
+no behaviour cannot falsify a sentence about behaviour. So the item's
+two halves, "resolve the number" and "check the claim", come apart
+cleanly here, and a `<file>.rs:<line>` gate would have caught all of
+this member and none of the previous one.

@@ -219,9 +219,9 @@ are never overridden here.
 | G1 layer 3 values and operations | `src/camera.rs` (`Camera`, `CameraOp`, `camera::apply`), `src/session.rs` (`DocSession`, `DocSession::perform`, the operation doors) and its vocabularies `session::{select, refuse, op, author, delete, probe}` (Module boundaries, below), `src/history.rs` (tree-shaped undo), `src/input.rs` (`ViewportEvent`), `src/tools.rs` and the per-tool modules |
 | G3 free-move and hiding as display state | `src/display.rs` |
 | G3 mate definition | `src/matetool.rs` |
-| Feature tree, property panel, open/save, evaluation seam, scene | `src/tree.rs`, `src/props.rs`, `src/docio.rs`, `src/evalseam.rs`, `src/scene.rs` |
+| Feature tree, property panel, open/save, evaluation seam, scene | `src/tree.rs`, `src/props.rs`, `src/docio.rs`, `src/evalseam.rs` (both seams and both workers) with `src/generation.rs` (`Generation`, the counter both seams key their answers by), `src/scene.rs` |
 | Colour, themes, preferences | `src/theme.rs`, `src/prefs.rs`, `tests/theme.rs` |
-| GQ7 picking | `src/pick.rs` (`EDGE_PICK_RADIUS_PX`, `PickKinds`), `crates/bvh` (`Bvh::ray`) |
+| GQ7 picking | `src/pickindex.rs` (the index and every query over it — `PickIndex`, `IdMap`, `EDGE_PICK_RADIUS_PX`, `PickKinds`, `highlight`, `edge_overlay`, `focus`) and `src/pick.rs` (the policy over it — `IndexInputs`, `PickCache`, `NotIndexed`), `crates/bvh` (`Bvh::ray`) |
 | GQ6 toolkit, viewport, docking | `src/app.rs` (the frame loop and `ViewerApp`) with `src/pane/*` (the pane bodies), `src/widgets.rs` and `src/gpu.rs`, all behind the `app` feature; `Cargo.toml`. `src/frame.rs` is a vocabulary and is built unconditionally. The authoring vocabularies the panels offer are `src/forms.rs` and `src/drafts.rs`, which name no toolkit type and are behind the feature only because the panels are |
 
 ## Module boundaries
@@ -616,6 +616,38 @@ withdrawal of the offer: a per-seam entry ended when its seam did, in
 the same change, which a file-granular one would not have. That
 argument is made where the entries were deleted, in
 `scripts/gates/viewer-module-kinds.sh`.
+
+### The seams' modules are a chain, not a ring
+
+The rule above is about what a module NAMES and says nothing about
+cycles between vocabularies, so a cycle here breaks no clause — and
+`evalseam` and `pick` held one anyway, because the index seam's payload
+and the policy that drives the seam were the same file. **Neither of
+the obvious repairs reaches it**: a third module for the index seam
+relocates the cycle (`IndexDone` carries a `PickIndex`), and hoisting
+the seam's request and answer types does the same. What the cycle is a
+symptom of is that one file held two layers with the seam running
+between them.
+
+So the modules are a chain, each naming only what is below it:
+
+    generation  ←  pickindex  ←  evalseam  ←  pick
+
+- `generation` is `Generation` and nothing else, depending on
+  nothing. It is a request counter, not part of either seam's
+  machinery, and six modules compare one;
+- `pickindex` is the index and every query over it — the structure a
+  build produces;
+- `evalseam` keeps BOTH seams and therefore **both sets of threads**,
+  which is the property that made this shape win: *the one place in
+  this crate that owns a thread* stays one sentence;
+- `pick` is the policy over the seam — what a build is handed, when one
+  is asked for, and what a pick means while there is none.
+
+The two moves only work together. `Generation` alone leaves
+`PickIndex` beside `PickCache`, so `evalseam → pick → evalseam`
+survives on the seam types; the split alone leaves `pickindex` needing
+`Generation` from `evalseam`, which needs `pickindex`. (Ev, 2026-09-06.)
 
 ### `Refusal`'s delegation discipline
 

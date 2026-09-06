@@ -2,9 +2,11 @@
 id: index-seam-vocabulary-sits-in-the-wrong-module
 kind: issue
 title: evalseam and pick import each other because the index seam's trait lives beside the evaluation seam rather than beside its payload
-status: open
+status: closed
 opened: 2026-09-05
 refs: [index-request-and-index-inputs-are-one-concept-twice, viewer-session-god-module-split]
+closed: 2026-09-06
+branch: view/index-seam
 ---
 
 
@@ -203,3 +205,66 @@ path.
 `crates/viewer/tests/*` is VIEW's territory now (Ev, in-chat,
 2026-09-04), so the test-side re-pointing is this unit's to do rather
 than announce.
+
+## Closed
+
+Both moves landed together, as (d) requires.
+
+**`Generation` went to its own module, `crates/viewer/src/generation.rs`,
+not into `scene`.** The ruling offered either. `scene` qualifies on the
+one property the analysis tested — it imports nothing from this crate —
+but that is not the property `Generation` has: `generation.rs` imports
+nothing AT ALL, kernel included, and `scene` names `bvh`,
+`pncad::mesh` and six kernel types. A leaf whose whole argument is
+that it sits below everything states that in its own file rather than
+inside a module with a manifest of dependencies. `scene`'s charter is
+also written down and does not cover it — *"what the viewport draws,
+tessellated at a display tolerance"* — so the README's own map row for
+`src/scene.rs` would have had to gain a request counter, and each of
+the six readers (`pick`, `pickindex`, `app`, `lib`, `frame`,
+`evalseam`, `session`) would import a display module to name one.
+`DisplayTolerance` earns its place in `scene` because δ is what a
+tessellation is drawn at; a generation is not about drawing.
+
+**The boundary fell exactly where the analysis put it**, and it was
+verified rather than trusted: over `pick.rs:2213-2618` (the policy
+half) the only names reaching back into the other half are `PickIndex`
+and `PickIndexError`, and over `pick.rs:1-2211` (the index half) the
+only name reaching forward is one doc-comment mention of
+`IndexInputs`, in the module header sentence that belongs to the policy
+anyway. The in-file `mod tests` is `PartWindows`/`IdMap`'s and moved
+with the structure it checks, unedited.
+
+So `crates/viewer/src/pickindex.rs` holds the index and every query
+over it (`PatchId`, `EdgeId`, `PickKinds`, `EDGE_PICK_RADIUS_PX`,
+`IdMap`, `IdMapError`, `PickIndexError`, `DrawnKind`, `PartWindows`,
+`PickIndex`, `EdgePick`, `PickError`, `EdgeNameFault`, `Highlight`,
+`highlight`, `EdgeOverlay`, `edge_overlay`, `edge_segments`,
+`edge_id_segments`, `focus`, `cursor_projection`) and `pick.rs` keeps
+the policy (`IndexInputs`, `PickCache`, `CacheStep`, `IndexLanding`,
+`NotIndexed`, `unindexed`). The chain is
+`generation ← pickindex ← evalseam ← pick`, and `generation.rs` has no
+`use crate::` line at all.
+
+**It is a move.** No test file changed except its import and path
+lines; no assertion was touched. Callers were re-pointed rather than
+shimmed — there is no `pub use` bridging the old spellings, so
+`session-shims-and-test-imports` gains nothing from this.
+
+The README's *Module boundaries* gained **The seams' modules are a
+chain, not a ring**, which is now the one home for why neither move
+works alone; its *Where in the code* rows for GQ7 picking and for the
+evaluation seam were false about where these types live and are
+corrected.
+
+Residue, filed rather than described: every tracker citation of
+`crates/viewer/src/pick.rs:NNNN` moved. VIEW's own live rows are
+re-pointed and the other programs' are announced, on the existing
+`stale-file-citations-after-the-split`, which is where this program
+keeps that class.
+
+Not taken, deliberately:
+`index-request-and-index-inputs-are-one-concept-twice`. The split does
+put the two types in different modules, which makes its cheap answer —
+state the relationship at each type — a one-line reach from either
+file; it is still that item's to take.
