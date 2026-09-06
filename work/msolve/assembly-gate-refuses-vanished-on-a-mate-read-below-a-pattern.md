@@ -2,8 +2,9 @@
 id: assembly-gate-refuses-vanished-on-a-mate-read-below-a-pattern
 kind: issue
 title: The assembly gate refuses Reference Vanished for a mate read at the transform below a pattern, though the solve placed it correctly
-status: open
+status: parked
 opened: 2026-09-05
+blocked_on: [MSOLVE-5]
 ---
 
 

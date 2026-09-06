@@ -61,13 +61,21 @@ and a transform moves one. The alternatives weighed and rejected are in
 5. **`mate-lever-needs-the-parts-extent`** — the mated parts' extent
    reaching `Alignment::lever_arm`; a schema question (authored beside
    the datum, or resolved through the part store) before it is a unit.
-   `[ev]` when it is next in line.
-6. **`aq8-skip-half-is-cited-as-ratified-and-is-not`** — a ratification
-   for Ev: the SKIP half joins the weld half in `ASSEMBLY.md`'s AQ8
-   clause with its condition stated. A short `[ev]` PR, not gated on
-   the units.
-7. **`mate1-sweep-inferred-a-remap-from-a-refuted-reachability`** — a
-   record correction; lands with the first state-sync.
+   Asked on `[ev]` PR 2086 (2026-09-06), resolved-from-the-part
+   recommended; `needs_ev: true` on the item; the unit, if one, is
+   MSOLVE-6.
+6. **`aq8-skip-half-is-cited-as-ratified-and-is-not`** — closed
+   (PR 1914): the SKIP half was ratified on PR 592's addendum and now
+   sits in `ASSEMBLY.md`'s AQ8 clause; no `[ev]` was needed.
+7. **`mate1-sweep-inferred-a-remap-from-a-refuted-reachability`** —
+   closed as a record correction (2026-09-06); the finding is the
+   record.
+8. **`MSOLVE-5`** — the at-rest gate asks the operand's own table
+   before it says a name vanished, and refuses a mate read below a
+   product root in the operand's voice (`ReadBelowARoot { at }`);
+   `NodeGone` deleted. Spec `docs/MSOLVE-5-SPEC.md`. Answers
+   `assembly-gate-refuses-vanished-on-a-mate-read-below-a-pattern`
+   (MSOLVE-1's review, NOTE-4). Dispatches from main after MSOLVE-3.
 
 ## Territory
 
