@@ -2,9 +2,10 @@
 id: MSOLVE-5
 kind: unit
 title: The at-rest gate refuses a mate read below a product root in the operand's voice, not as a vanished name
-status: spec
+status: dispatched
 opened: 2026-09-06
 refs: [assembly-gate-refuses-vanished-on-a-mate-read-below-a-pattern]
+branch: msolve/5-read-below-a-root
 ---
 
 

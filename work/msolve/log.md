@@ -286,3 +286,10 @@ first, so `Vanished` means vanished and a name spelled at a non-root
 refuses `ReadBelowARoot { at }`. No consumer walk. The dead `NodeGone`
 arm goes with it. Minting on copy 0 instead would reopen the pin and
 is not asked. Dispatches from main once PR 2081 is in.
+
+## MSOLVE-3 merged; MSOLVE-5 dispatched (2026-09-06)
+
+PR 2081 merged at `4568d7d` on a full green matrix. The lane clone
+cut `msolve/5-read-below-a-root` from main against `docs/MSOLVE-5-
+SPEC.md` (read from this branch until it lands; the lane merges main
+before its first push). The lever's extent is up on `[ev]` PR 2086.
