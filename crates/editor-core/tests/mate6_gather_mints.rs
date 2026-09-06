@@ -370,18 +370,20 @@ fn the_carry_survives_a_second_nesting_level() {
 /// document; a row that demanded the weaker one would be asserting the
 /// fixture, not the invariant.
 ///
-/// The finding is unattributed at this gate, and the row says so rather
-/// than pretending otherwise: attribution is by arena key against what
-/// THIS document minted ([`Attribution`]'s contract), and a carried
-/// declaration was minted by another document, whose bookkeeping does
-/// not cross the seam. The kernel record does; the mate's name does not.
+/// The finding NAMES the mate that authored the declaration, and the
+/// document and instance it reached this gate through: attribution is
+/// by arena key against every declaration of the tree, this document's
+/// own and its parts' alike, and a part's rows cross the seam keyed by
+/// the graft exactly as its records do. Naming a mate is not trusting
+/// it — the verdict above is still the kernel's, taken here, once.
 #[test]
 fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
     let mut store = StubStore::default();
     let part = store.insert(cube_part("mate6-gap-cube"), Tol::witness());
-    let (inner, _, _) = stand("mate6-gap-stand", part, 1.5);
+    let (inner, _, inner_mate) = stand("mate6-gap-stand", part, 1.5);
+    let inner_id = inner.id();
     let inner_ref = store.insert(inner, Tol::witness());
-    let (outer, _) = row_of("mate6-gap-row", inner_ref, 1, 4.0);
+    let (outer, instances) = row_of("mate6-gap-row", inner_ref, 1, 4.0);
 
     let ev = run(&outer, &opts(store));
     let result = assemble(&outer, &ev, Tol::witness());
@@ -409,10 +411,25 @@ fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
         panic!("a refuted declaration is a finding against the document: {result:?}");
     };
     assert!(
+        findings.iter().any(|f| matches!(
+            &f.attribution,
+            Attribution::Carried {
+                route,
+                declaration,
+                relation: editor_core::Relation::Refuted,
+            } if route.through == instances[0]
+                && route.of == inner_id
+                && route.via.is_empty()
+                && declaration.mate == inner_mate
+        )),
+        "the refuted carried declaration names its mate, its document and \
+         the instance it arrived through: {findings:?}"
+    );
+    assert!(
         findings
             .iter()
-            .all(|f| matches!(f.attribution, Attribution::Unattributed)),
-        "a carried declaration names no mate of THIS document"
+            .all(|f| !matches!(f.attribution, Attribution::Unattributed)),
+        "and nothing here is anonymous any more: {findings:?}"
     );
 }
 

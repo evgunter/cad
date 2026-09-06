@@ -790,7 +790,7 @@ fn connectedness<P, T: Decide + PropsQuadLane>(
         let Some(sources) = product::sources_of(value) else {
             continue;
         };
-        for (output_ix, body, _contacts) in sources {
+        for (output_ix, body, _contacts, _rows) in sources {
             unconsumed.remove(&(root, output_ix));
             match classify_shells(body.as_ref(), tol) {
                 Ok(classes) => {
@@ -1063,8 +1063,8 @@ pub fn subject_body<T: Decide>(
     let sources = product::sources_of(ev.value(root)?)?;
     sources
         .into_iter()
-        .find(|(ix, _, _)| *ix == output_ix)
-        .map(|(_, body, contacts)| (body, contacts))
+        .find(|(ix, _, _, _)| *ix == output_ix)
+        .map(|(_, body, contacts, _)| (body, contacts))
 }
 
 /// The ONE refusing path of the registry: refuses iff `report` carries
