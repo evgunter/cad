@@ -409,3 +409,23 @@ dispatch; parity byte 76 ⇒ R1 = OPUS, R2 = FABLE; briefs hashed and
 diff-identical modulo lane names; private build and scratch
 directories per lane. Both lanes running. Block DOCM-B2's last slot:
 its record reaches main when this dual concludes.
+
+## 2026-09-06 — DOCM-7 dual adjudicated; fix pass dispatched
+
+Both reports in (R1 FABLE, R2 OPUS), both APPROVE-WITH-FIXES, no
+bilateral MAJOR, two unilateral-MAJOR candidates (one per slot). The
+finding that matters: R1 measured that a member-space declaration set
+across a CHAIN of members fuses or refuses by list order — a face
+merged away at an earlier step must be declared by its accumulation
+row, which is order-shaped — while the routing doc, the node doc and
+`names/role.rs` claim order-independence. The fix pass states the
+measured limit, pins it as a measurement, files it under `work/docm/`
+and discloses it; the semantics (constituent look-through, flattening
+nested `Merged`, or a narrowed contract) is a ruling for Ev, not this
+pass. Also ruled: the content-key member-count feed's "necessary" claim
+is false (memo keyed by node id; kept as key hygiene, claim corrected);
+in-space names that are no step's operands refuse `UnionDeclareStep`,
+never `Vanished`; the two A2 rows the spec owed are added; deviation 8's
+arm is reachable and rowed; the three unfiled findings are filed; the
+style union (three hand-kept segment lists → one predicate, dead
+`arrival` arm, copied payload door, twice-written predicate).
