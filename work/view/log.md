@@ -4984,3 +4984,95 @@ honest blind-spot statement is worse than "a pattern gap": the first
 pass's grep over `work/view/*.md` was **malformed** — an unescaped `|`
 printing `command not found` above output that was read as a result.
 The pattern was right and the reading of it was not.
+
+## The marks come off `pickindex`, and the naming question answers itself (2026-09-06)
+
+Two rows, taken together because the naming one was parked behind the
+split: `pickindex-holds-the-frames-marks-as-well-as-the-index` and
+`pick-and-pickindex-are-named-against-their-contents`. Both closed. Two
+commits, deliberately separate — a rename is not a move, which is
+argument 1 of #2079's decline and the one that does not expire.
+
+**Commit 1, the move.** All eleven named members —  `Highlight`,
+`highlight`, `EdgeOverlay`, `edge_overlay`, `edge_segments`,
+`edge_id_segments`, `segments_of`, `focus`, `marked_for`, `drives`,
+`cursor_projection` — into `crates/viewer/src/marks.rs`. Nothing failed
+the three properties and nothing outside the range passed them; the one
+judgement call was `cursor_projection`, which takes no index at all and
+went because its consumers are the marks' and its subject is the id
+pass. Certified the way #2079 was: merge base `pickindex.rs` against
+head `pickindex.rs + marks.rs`, sorted and whitespace-sensitive, is **34
+removed and 75 added with no code line among them** — every removed line
+is a header line, a doc line the `Camera::project` link-fix reflowed, or
+a `use` whose name list shrank — and the 144 declarations are identical.
+`#[test]` 533 → 533 against this lane's own merge base; `--test all` 503
+passed / 1 ignored on both sides, `--lib` 24 / 1 on both.
+
+**Commit 2, the naming, and the answer is not the one the parking
+predicted.** #2079 parked the rename on the split with the expectation
+that *"what is left is genuinely the index and the cursor questions over
+it, at which point `pickindex` may be the right name after all"*. Half
+right. The marks coming off did NOT narrow `pickindex` to the index —
+`op_for`, `op_under`, the miss rule and the priority rule are untouched
+by the move, so the original finding survives word for word. What the
+split makes visible is that **the complaint was a complaint about a type
+having methods**: after it, every item left is `PickIndex`, one of its
+keys, its construction machinery, its errors, its answers, the two
+constants its queries take, or a private helper for one of its methods,
+and the policy is inherent `impl` on the type the module is named for.
+Before the move six items were none of those. So `pickindex` is right,
+and this is the first point at which that could be said on evidence.
+
+`pick` is not, and nothing above changes that half. It is a squatter on
+a name whose subject belongs to a module that already has a better one,
+so the answer is a straight rename with no successor rather than the
+swap the contents superficially argue for — a swap would put
+`PickIndex::scene_focused`, the drawable-scene builder, in a module
+called `pick`, which is the same false sentence pointed the other way.
+`pick.rs` → `pickcache.rs`.
+
+**The `NotIndexed` objection dissolves on the contents**, which is why
+the brief was right to hold it as a real constraint and why it does not
+bind. Argument 3 read `refusal` and `cache` as different subjects.
+`NotIndexed::Building` is defined as `PickCache::indexing` and
+`::Absent` as *"the last attempt refused (its reason is
+`PickCache::error`)"*; `unindexed`'s doc names `PickCache::indexing` as
+*"the one value that knows"*. The refusal exists because the cache can
+be empty and is computed from nothing but the cache's state.
+
+The rule the three now follow, stated once: each module is named for the
+type it is built around (`pickindex`/`PickIndex`,
+`pickcache`/`PickCache`), and `marks` — which has no spine type — for
+what it produces.
+
+### The sweep, and what it could not match
+
+Three patterns over `work/**/*.md`, `docs/` and the tree: the bare paths
+`pick.rs`/`pickindex.rs`, the module spellings `pick::`/`pickindex::`
+(as a Rust path segment, so `pickindex`, `pick_face` and `PickCache` do
+not false-positive), and each moved symbol name. **The greps' exit
+status was checked**, which is the #2079 lesson. What they cannot match:
+a multi-line `fn` header, since `rg` reads one line; and a citation that
+names a subject without naming the file, which no pattern reaches.
+
+The move's own header rewrite shifted every line in `pickindex.rs` by
+−18 and the rename's by −2 in `pickcache.rs`, so four open VIEW rows
+whose numbers moved were refreshed (`adjacent-same-typed-arguments`,
+`ui-thread-work-after-the-index-seam`, `the-picture-key-never-became-a-
+type`, `focus-marking-is-per-node-not-per-segment`, whose whole subject
+moved to `marks::focus`) and six more re-pointed for the rename. **Three
+of those numbers were already wrong at this lane's merge base** —
+`:405`/`:442`, `:756` and `:928` against real values of `:440`/`:477`,
+`:791` and `:912` — invalidated by #2079's own fix-pass header rewrites
+in the same commit that published them, which is the failure that pass
+recorded and then committed. Every number in this member was re-read
+after the last edit.
+
+### Residue
+
+One item filed, outside VIEW's fence and therefore disclosed rather than
+fixed: `renamed-module-leaves-citations-in-three-other-programs` — four
+open rows on CHROME's and code-quality's slates cite
+`crates/viewer/src/pick.rs`, and three of the four were already citing
+the wrong file before this rename. `generation-get-has-no-reader` stays
+untouched, for the same reason as last time.

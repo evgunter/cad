@@ -75,7 +75,7 @@ use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator};
 use crate::generation::Generation;
 use crate::history::History;
 use crate::parts;
-use crate::pick;
+use crate::pickcache;
 use crate::props::{self, SlotDriver, SlotValue};
 use crate::tree::{self, TreeRow};
 
@@ -1090,7 +1090,7 @@ impl DocSession {
         )
     }
 
-    /// **What a pick index is built from** ([`pick::IndexInputs`]):
+    /// **What a pick index is built from** ([`pickcache::IndexInputs`]):
     /// the landed pair, the generation it answered and the ε to
     /// tessellate at — or `None` when nothing has landed, which is the
     /// cache's own "forget everything" case.
@@ -1106,9 +1106,9 @@ impl DocSession {
     /// (`crates/viewer/README.md`, *What a vocabulary reads, it is
     /// handed*, carries the argument).
     #[must_use]
-    pub fn index_inputs(&self) -> Option<pick::IndexInputs<'_>> {
+    pub fn index_inputs(&self) -> Option<pickcache::IndexInputs<'_>> {
         let run = self.derived.landed.as_ref()?;
-        Some(pick::IndexInputs::of(
+        Some(pickcache::IndexInputs::of(
             run.generation,
             run.doc.as_ref(),
             &run.evaluation,

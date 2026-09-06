@@ -221,7 +221,7 @@ are never overridden here.
 | G3 mate definition | `src/matetool.rs` |
 | Feature tree, property panel, open/save, evaluation seam, scene | `src/tree.rs`, `src/props.rs`, `src/docio.rs`, `src/evalseam.rs` (both seams and both workers) with `src/generation.rs` (`Generation`, the counter both seams key their answers by), `src/scene.rs` |
 | Colour, themes, preferences | `src/theme.rs`, `src/prefs.rs`, `tests/theme.rs` |
-| GQ7 picking | `src/pickindex.rs` (the index and every query over it, up to what a pick MEANS — `PickIndex`, `IdMap`, `EDGE_PICK_RADIUS_PX`, `PickKinds`, `op_for`, `hovered_for`), `src/marks.rs` (what a frame marks over a built index — `highlight`, `edge_overlay`, `focus`, `cursor_projection`) and `src/pick.rs` (the index's lifecycle — `IndexInputs`, `PickCache`, `NotIndexed`), `crates/bvh` (`Bvh::ray`) |
+| GQ7 picking | `src/pickindex.rs` (the index and every query over it, up to what a pick MEANS — `PickIndex`, `IdMap`, `EDGE_PICK_RADIUS_PX`, `PickKinds`, `op_for`, `hovered_for`), `src/marks.rs` (what a frame marks over a built index — `highlight`, `edge_overlay`, `focus`, `cursor_projection`) and `src/pickcache.rs` (the index's lifecycle — `IndexInputs`, `PickCache`, `NotIndexed`), `crates/bvh` (`Bvh::ray`) |
 | GQ6 toolkit, viewport, docking | `src/app.rs` (the frame loop and `ViewerApp`) with `src/pane/*` (the pane bodies), `src/widgets.rs` and `src/gpu.rs`, all behind the `app` feature; `Cargo.toml`. `src/frame.rs` is a vocabulary and is built unconditionally. The authoring vocabularies the panels offer are `src/forms.rs` and `src/drafts.rs`, which name no toolkit type and are behind the feature only because the panels are |
 
 ## Module boundaries
@@ -457,7 +457,7 @@ the sentence exists on a frame where nobody acted.
 not a decision procedure**, and the sweep that sorted eighteen writers
 on this rule needed the three ways it falls short. It is a property of the FACT and not of a
 signature — `frame::unindexed_refusal` takes a `&NotIndexed`, and what
-makes it an outcome is that `pick::unindexed` raises it for a `Select`
+makes it an outcome is that `pickcache::unindexed` raises it for a `Select`
 and nothing else. Tracing to the raiser does not settle it either:
 `frame::Disagreement` reads only held state and is recomputed every
 frame the cursor holds still, and what sorts it onto the line is *a
@@ -577,12 +577,12 @@ values the receiving module already defines, and none names `egui`.
 
 ### What a vocabulary reads, it is handed
 
-`pick` and `parts` each took a `&DocSession` as a read-only argument —
+`pickcache` and `parts` each took a `&DocSession` as a read-only argument —
 `PickCache::sync`, `PartChooser::opened` and `PartChooser::rescan` —
 which made the rule above false of the tree at five sites, and false
 before `viewer-module-kinds.sh` existed to find them. Ev ruled
 (`#1883`) to **hoist the read**, not to widen the rule: the session
-mints `pick::IndexInputs` (the landed pair, its generation, ε) and
+mints `pickcache::IndexInputs` (the landed pair, its generation, ε) and
 `parts::PartCensus` (the directory scanned and what the scan answered),
 and the two vocabularies take those. *No vocabulary may name a driver*
 stays unqualified.
@@ -621,7 +621,7 @@ argument is made where the entries were deleted, in
 
 The rule above is about what a module NAMES and says nothing about
 cycles between vocabularies, so a cycle here breaks no clause — and
-`evalseam` and `pick` held one anyway, because the index seam's payload
+`evalseam` and `pickcache` held one anyway, because the index seam's payload
 and the policy that drives the seam were the same file. **Neither of
 the obvious repairs reaches it**: a third module for the index seam
 relocates the cycle (`IndexDone` carries a `PickIndex`), and hoisting
@@ -631,7 +631,7 @@ between them.
 
 So the modules are a chain, each naming only what is below it:
 
-    generation  ←  pickindex  ←  evalseam  ←  pick
+    generation  ←  pickindex  ←  evalseam  ←  pickcache
 
 - `generation` is `Generation` and nothing else, depending on
   nothing. It is a request counter, not part of either seam's
@@ -641,11 +641,12 @@ So the modules are a chain, each naming only what is below it:
 - `evalseam` keeps BOTH seams and therefore **both sets of threads**,
   which is the property that made this shape win: *the one place in
   this crate that owns a thread* stays one sentence;
-- `pick` is the policy over the seam — what a build is handed, when one
-  is asked for, and what a pick means while there is none.
+- `pickcache` is the index's LIFECYCLE over the seam — what a build is
+  handed, when one is asked for, and what a pick means while there is
+  none.
 
 The two moves only work together. `Generation` alone leaves
-`PickIndex` beside `PickCache`, so `evalseam → pick → evalseam`
+`PickIndex` beside `PickCache`, so `evalseam → pickcache → evalseam`
 survives on the seam types; the split alone leaves `pickindex` needing
 `Generation` from `evalseam`, which needs `pickindex`. (Ev, 2026-09-06.)
 
@@ -653,20 +654,20 @@ survives on the seam types; the split alone leaves `pickindex` needing
 holds a ring** — said here because a picture of a chain is exactly the
 sentence that stops the next reader looking:
 
-    pick.rs:60        use crate::pickindex::{PickIndex, PickIndexError}
+    pickcache.rs:58   use crate::pickindex::{PickIndex, PickIndexError}
     pickindex.rs:81   use crate::session::{…, SessionOp}
-    session.rs:78     use crate::pick            (for `pick::IndexInputs`)
+    session.rs:78     use crate::pickcache       (for `IndexInputs`)
 
-`pick → pickindex → session → pick` is live, it predates this split —
-at the merge base the same ring was two modules long, `pick` naming
-`session` and `session` naming `pick` — and it is held open **on
-purpose**, by the hoist argued for in *What a vocabulary reads, it is
-handed* below: the session mints `pick::IndexInputs` so that the
+`pickcache → pickindex → session → pickcache` is live, it predates the
+seam split — at that split's merge base the same ring was two modules
+long, this file naming `session` and `session` naming it — and it is
+held open **on purpose**, by the hoist argued for in *What a vocabulary reads, it is
+handed* below: the session mints `pickcache::IndexInputs` so that the
 vocabulary names no driver, and the price of not widening the rule is
 that the driver's own module names the vocabulary back.
 
 So the two rings are different diagnoses and only the first is fixed
-here. `evalseam ↔ pick` was **one file holding two layers** with a seam
+here. `evalseam ↔ pickcache` was **one file holding two layers** with a seam
 running between them, which no placement of the seam could repair —
 that is what this section is about. `pick ↔ session` is **a vocabulary
 and its driver trading a minted value**, which is the boundary rule
@@ -1066,7 +1067,7 @@ received, which is the previous document's, and three things say so
 rather than letting it pass for the current one: the toolbar shows one
 progress state and it reads `indexing…` (`frame::progress` — one
 value, so an evaluation and an index build cannot light two spinners
-for one wait), a click is refused typed as `pick::NotIndexed`, which
+for one wait), a click is refused typed as `pickcache::NotIndexed`, which
 is a different answer from *nothing under the cursor*, and a hover is
 left alone because it is an observation pushed on every frame and not
 an act.

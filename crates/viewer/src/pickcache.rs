@@ -24,13 +24,11 @@
 //! # The boundary is stateful against pure
 //!
 //! Everything here owns mutable state and drives the seam; everything
-//! in [`crate::pickindex`] is a value or a pure function over one. That
-//! is the line the split was cut on, and it is sharper than the
-//! subject line the two module NAMES suggest — a reader asking how a
-//! pick works wants `pickindex`, not this file.
-//! `work/view/pick-and-pickindex-are-named-against-their-contents`
-//! holds the question of whether the names should move to match, which
-//! is a rename and therefore not a move.
+//! in [`crate::pickindex`] is a value or a pure function over one.
+//! That is the line the split was cut on, and each module is named
+//! for the type it is built around — [`PickCache`] here,
+//! `PickIndex` there — so a reader asking how a pick WORKS opens
+//! `pickindex` and one asking when an index EXISTS opens this file.
 //!
 //! # Why the index is not here
 //!
@@ -39,8 +37,8 @@
 //! in one module, an import of either half was an import of both, and
 //! `evalseam` — which names [`PickIndex`] as its payload — imported the
 //! module that names `evalseam`'s own seam. The seam modules now run
-//! one way, `generation ← pickindex ← evalseam ← pick`; the crate
-//! around them is not acyclic, and `crates/viewer/README.md`'s *The
+//! one way, `generation ← pickindex ← evalseam ← pickcache`; the
+//! crate around them is not acyclic, and `crates/viewer/README.md`'s *The
 //! seam modules are a chain; the crate is not acyclic* says which ring
 //! survives and why.
 //!

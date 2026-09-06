@@ -65,7 +65,7 @@ pub mod input;
 pub mod marks;
 pub mod matetool;
 pub mod parts;
-pub mod pick;
+pub mod pickcache;
 pub mod pickindex;
 pub mod prefs;
 pub mod props;
@@ -150,7 +150,7 @@ pub use matetool::{
     admitted_classes,
 };
 pub use parts::{PartChooser, PartEntry};
-pub use pick::{NotIndexed, unindexed};
+pub use pickcache::{NotIndexed, unindexed};
 pub use pickindex::{
     EDGE_PICK_RADIUS_PX, EdgeId, EdgeNameFault, EdgePick, IdMap, IdMapError, PatchId, PickError,
     PickIndex, PickIndexError, PickKinds,

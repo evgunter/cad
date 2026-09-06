@@ -15,7 +15,7 @@ use crate::frame::{self, IdStep};
 use crate::gpu::{IdQuery, ViewportCallback};
 use crate::input::{self, PointerButton, ViewportEvent, ViewportSize};
 use crate::marks;
-use crate::pick;
+use crate::pickcache;
 use crate::pickindex::PickIndex;
 use crate::session::SessionOp;
 use crate::sketch::{heading, tip_mark};
@@ -209,7 +209,7 @@ impl ViewerBehavior<'_> {
                     Err(error) => self.notices.push(frame::pick_refusal(&error)),
                 }
             }
-        } else if let Some(refusal) = pick::unindexed(&actions, self.indexing) {
+        } else if let Some(refusal) = pickcache::unindexed(&actions, self.indexing) {
             // **Not indexed yet is not a miss.** There is no index to
             // ask, because one is being built on its own seam, and a
             // click that quietly did nothing here is the fail-quiet

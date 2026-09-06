@@ -2,9 +2,10 @@
 id: pickindex-holds-the-frames-marks-as-well-as-the-index
 kind: issue
 title: pickindex wants a second split: the marks a frame draws are 400 lines that only use PickIndex's public doors
-status: open
+status: closed
 opened: 2026-09-06
 refs: [2079]
+closed: 2026-09-06
 ---
 
 
@@ -55,3 +56,67 @@ where the seam is.
 
 `likely` that this is the right second boundary; `sure` on the public-
 doors-only property that makes it available.
+
+## Closed — the split is taken, as a pure move (2026-09-06)
+
+`crates/viewer/src/marks.rs` is the module. All eleven named members
+moved, and nothing outside the range came with them.
+
+**The three properties, member by member.** Two of the eleven are value
+types and three take no index at all, so the first property is checked
+where it applies and the other two carry the members that have no
+`&PickIndex` argument:
+
+| member | takes `&PickIndex`, public doors only | consumers |
+|---|---|---|
+| `Highlight` | value type — `highlight`'s answer | `gpu`, `lib` |
+| `highlight` | yes — `ids_of_target` | `pane::viewport`, four suites |
+| `EdgeOverlay` (+ `is_empty`, `segments`) | value type — `edge_overlay`'s answer | `gpu`, `pane::viewport`, `datums`, `edge_pick` |
+| `edge_overlay` | yes — via `edge_segments` | `pane::viewport`, `datums`, `edge_pick` |
+| `edge_segments` | yes — `edges_of_target` | `blend` (by name, in prose) |
+| `edge_id_segments` | yes — `edge_polyline_for` | `blend`, `blend_authoring` |
+| `segments_of` | private helper of the two above | — |
+| `focus` | yes — `ids()`, `name_of` | `app`, `scene`, `focus_highlight` |
+| `marked_for` | yes — `ids_of_node` | private to `focus` |
+| `drives` | none — reads the `Doc` | private to `focus` |
+| `cursor_projection` | none — a matrix | `gpu`, `lib`, three suites |
+
+Every door reached is `pub` on `PickIndex` (`ids`, `name_of`,
+`ids_of_node`, `ids_of_target`, `edges_of_target`,
+`edge_polyline_for`); `PickIndex`'s five fields and `IdMap`'s two are
+private, and the compiler is the check that none was touched. The
+consumer set is the different one the item named — `gpu`, `blend`,
+`datums`, `app` reach only for these, and the ray and screen paths are
+`pane::viewport`'s alone. `focus` is not a picking concept: it walks
+`doc.order()` and inspects parameter drivers, and reaches for an index
+only because that is where the ids live.
+
+**Nothing failed the properties, and nothing outside the range passed
+them.** The one judgement call was `cursor_projection`, which takes no
+index at all and could have stayed: it went because its consumer set is
+the marks' one and its subject is the id pass, not the index.
+
+**The receipt.** Merge base `pickindex.rs` against head `pickindex.rs +
+marks.rs`, sorted, whitespace-sensitive: **34 lines removed, 75 added,
+and not one of them is code** — every removed line is a `//!` header
+line, a `///` doc line the doc-link fix reflowed, or a `use` line whose
+name list shrank. The 144 declarations (`fn`, `struct`, `enum`, `const`,
+`type`, `impl`, `mod`, `trait`, `#[derive]`) are byte-identical between
+the two sides. `#[test]` over `crates/viewer/{src,tests}` is 533 on the
+merge base and 533 on head; `--test all` is 503 passed / 1 ignored on
+both, and `--lib` 24 passed / 1 failed on both (the Vulkan-less
+`gpu::every_pass_builds_on_a_real_device`).
+
+Two lines could not be carried verbatim and both are doc links the move
+broke: `[`Camera::project`]` became `[`crate::camera::Camera::project`]`
+(the type is not imported in `marks`, and an import used only by a doc
+link is an `unused_imports` error under `-D warnings`), reflowing its
+four-line paragraph; and `pickindex.rs`'s `(see [`focus`])` at `:889`
+became `(see [`crate::marks::focus`])`. Both headers were written from
+scratch rather than carried.
+
+**No `pub use` shims.** `viewer::{Highlight, EdgeOverlay, highlight,
+edge_overlay, edge_segments, edge_id_segments, cursor_projection}` still
+resolve at the crate root, re-exported from `marks` instead of
+`pickindex`; `pickindex::highlight` and its siblings do not resolve at
+all. Every call site in `src`, `tests` and `examples` was re-pointed.

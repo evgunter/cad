@@ -61,7 +61,7 @@
 //! stale one is dropped and rebuilt whole. Re-pairing by hand is the
 //! failure #1098 exists to name. WHEN a rebuild is asked for, and what
 //! is done with the answer, is not this module's: that is
-//! [`crate::pick::PickCache`] over the index seam.
+//! [`crate::pickcache::PickCache`] over the index seam.
 //!
 //! Module kind: **vocabulary** (`crates/viewer/README.md`, Module
 //! boundaries). It names no driver type and no `app`-only crate.
