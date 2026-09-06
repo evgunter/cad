@@ -2,9 +2,12 @@
 id: anchored-exact-text-skip-has-three-homes
 kind: issue
 title: The anchored exact-text skip with an abstaining subject check is hand-spelled in three gates and lib.sh has no home for it
-status: open
+status: closed
 opened: 2026-09-06
 refs: [unanchored-definition-skip, D211]
+branch: gates/anchored-skip
+pr: 2064
+closed: 2026-09-06
 ---
 
 
@@ -41,3 +44,67 @@ Sequenced after PR 2029 lands.
 stronger subject check is the rule all three want (a missing home as a
 red rather than an abstention), which is decided when the helper is
 written.
+
+## Landed
+
+`lib.sh` grows the mechanism — `gate_exact_skip` (declare),
+`gate_exact_skip_subject`, `gate_exact_skip_filter`, `gate_ere_escape`,
+`gate_record_anchor`, four planters and `gate_exact_skip_selftest` —
+and the pattern is DERIVED from the plain text: the record shape comes
+from `gate_rust_code` itself (the text is handed to the reader as a
+file of its own, in the view the gate declares), and the escaping from
+`gate_ere_escape`, so there is no hand-escaped `_RE` twin left in the
+directory to drift. `bounds-allowlist.sh` and `no-extra-real-bounds.sh`
+declare their skip and call the three; their `*_HOME_RE`/`*_DECL_RE`
+twins, `gate_definition_skip`, `gate_definition_skip_subject` and
+`gate_sealed_skip_subject` are gone.
+
+**The subject-check rule, as landed: a missing home is a RED.** A skip
+whose home is gone exempts nothing today and is a ratification the next
+file written at that path inherits without argument — the D103 class
+this directory already reds on twice (`viewer-module-kinds.sh` on an
+exception count with nothing behind it, `bounds-allowlist.sh`'s own
+census on a roster entry whose file is not in the tree) — and `lib.sh`
+already answers the same question for a gate's subject at
+`gate_require_file`. The abstention's own defence covered one case of
+three: it is argued from the anchor making a MOVED home loud, and says
+nothing about a home DELETED with its text or a home that was never at
+that path. The rule is not a parameter and no gate differs; it costs
+each caller one line in its clean fixture (`gate_plant_clean` now
+plants the skip's home), which makes the skip live in every fixture.
+
+Not an [ev] question: the two rules were not both load-bearing.
+
+`viewer-module-kinds.sh` is NOT converted, and the row's premise is
+narrowed by measurement: its exception is `(file, needle, count)` where
+the needle is a PATTERN matched anywhere in the record and the
+exemption is granted only at an exact site count (both directions red).
+That is a different mechanism from an exact-text skip, and calling
+`gate_exact_skip_filter` would drop the site-granularity the gate
+argues for at `README`'s cited section. What it shares is the anchor,
+and it takes that: `gate_record_anchor` replaces its three hand-spelled
+`^$SRC/$exfile:[0-9]+:` interpolations and escapes the path. The
+escaping is exactness and not a hole closed — every module this gate
+scans is a `.rs` file it found by name, so the `formsXrs` an unescaped
+`forms.rs` also matches is unreachable by construction; the reachable
+half of the escaping is the TEXT, where a ratified line carries `+`,
+`.` and brackets. Its subject check already reds on a missing home, so
+the divergence this row names is resolved in its favour.
+
+The style review's fix pass, in one commit on the same branch: the
+one-record refusal is made TERMINAL (nested inside
+`$(gate_ere_escape "$(…)")` its `exit` was the inner substitution's and
+the builder returned a pattern matching nothing), with a subprocess
+fixture that fails if the line after the refusal runs; the pattern
+builder and record reader take (view, home, texts) as ARGUMENTS, so the
+mechanism's own cases stop saving and restoring globals; the generic
+record prefix gets one name, `GATE_RECORD_PREFIX_RE`, read at the five
+sites that spelled it (two through `awk`'s ENVIRON) and
+`gate_record_anchor` at `bounds-allowlist.sh`'s per-file count;
+reachability claims about the PATH half of the escaping are stated as
+construction rather than as live holes; the header's argument, which
+the PR body carries, is trimmed to the invariant; comments go present
+tense; and `viewer-module-kinds.sh`'s `work/code-quality/D103.md`
+citation is corrected to `work/gates/D103.md`.
+
+What did NOT land: nothing else was deferred inside the fence.

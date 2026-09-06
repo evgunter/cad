@@ -82,7 +82,7 @@
 # left behind as a ratification for whatever the files gained next.
 #
 # THE EVIDENCE THIS OFFERED TO D103 STANDS, AND IS NOT WITHDRAWN BY THE
-# ENTRIES GOING. `work/code-quality/D103.md` (unruled, track K, fenced
+# ENTRIES GOING. `work/gates/D103.md` (unruled, track K, fenced
 # to this directory) asks whether an allowlist should be file-granular
 # or per-seam: *"the allowlist is file-granular while its
 # justifications are per-seam, so later bounds inherit ratification"*.
@@ -469,11 +469,24 @@ gate() {
     awk -F: '{ k = $1 ":" $2 } !(k in seen) { seen[k] = 1; print }' | sort)
 
   # --- 8. THE EXCEPTIONS, SITE BY SITE -------------------------------
-  local found kept
+  local found kept exre
   for spec in "${VOCAB_EXCEPTIONS[@]}"; do
     exfile=${spec%%|*}
     excount=${spec##*|}
     exneedle=${spec#*|}; exneedle=${exneedle%|*}
+    # THE ANCHOR IS `lib.sh`'s, and it is the ONE property this gate
+    # shares with the skips built on `gate_exact_skip`: the exemption
+    # applies to sites in the entry's own file and nowhere else. Built
+    # once and read three times below, so the three cannot disagree, and
+    # ESCAPED there — exactly, not because `formsXrs` is reachable,
+    # since every module scanned here is a `.rs` file this gate found
+    # by name.
+    # THE NEEDLE IS NOT EXACT TEXT and is not escaped: an entry's needle
+    # is a pattern by design (see the entry format above), which is why
+    # this gate keeps its own exemption rather than calling
+    # `gate_exact_skip_filter` — that mechanism drops a whole record it
+    # can name in full, and this one counts SITES a pattern names.
+    exre="$(gate_record_anchor "$SRC/$exfile").*$exneedle"
     if [ ! -f "$SRC/$exfile" ]; then
       gate_error "$(gate_name): the exception list names $SRC/$exfile, which is not a file under $PWD — drop the entry"
       rc=1
@@ -489,10 +502,10 @@ gate() {
     # needle is a grep that cannot search. Under `|| true` that read as
     # a count of zero and the gate went green over an exemption whose
     # own pattern was broken.
-    found=$(printf '%s\n' "$hits" | gate_grep -c -E "^$SRC/$exfile:[0-9]+:.*$exneedle")
+    found=$(printf '%s\n' "$hits" | gate_grep -c -E "$exre")
     if [ "$found" -gt "$excount" ]; then
-      printf '%s\n' "$hits" | grep -E "^$SRC/$exfile:[0-9]+:.*$exneedle" | cut -c1-160
-      gate_error "$SRC/$exfile names $exneedle at $found sites and its recorded exception covers $excount. The exception is SITE-granular on purpose ($README, ${CITED_SECTION#\#\#\# }): the sites that were argued for are exempt and a new one is not, so a later unit cannot inherit the ratification by adding a line to an allowlisted file (work/code-quality/D103.md's class). Take the driver's answer as a value, or argue the new site and raise the count with it"
+      printf '%s\n' "$hits" | grep -E "$exre" | cut -c1-160
+      gate_error "$SRC/$exfile names $exneedle at $found sites and its recorded exception covers $excount. The exception is SITE-granular on purpose ($README, ${CITED_SECTION#\#\#\# }): the sites that were argued for are exempt and a new one is not, so a later unit cannot inherit the ratification by adding a line to an allowlisted file (work/gates/D103.md's class). Take the driver's answer as a value, or argue the new site and raise the count with it"
       rc=1
       continue
     fi
@@ -501,7 +514,7 @@ gate() {
       rc=1
       continue
     fi
-    hits=$(printf '%s\n' "$hits" | gate_grep -v -E "^$SRC/$exfile:[0-9]+:.*$exneedle")
+    hits=$(printf '%s\n' "$hits" | gate_grep -v -E "$exre")
   done
   [ "$rc" -eq 0 ] || exit 1
 
