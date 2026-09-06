@@ -2724,3 +2724,64 @@ and multi-unit surfaces. The next LIB unit is a substantive one.
 viewer's mate tool already derives its frames that way, and what is
 left is the headless door — a `Pose` into a `MateFrame` from the façade
 — which is LIB's surface. Signed (DOCM orchestrator).
+
+## LIB reactivated again (2026-09-06) — new orchestrator, remote host
+
+**Session opening (Ev, in-chat).** Ev asked for a read of the LIB
+track and whether it was worth orchestrating; the read said yes and
+Ev said go. Host is the same shape as 08-29's: a remote container,
+4 CPUs / 15G / ~29G free, full clones via `new-lane.sh`, heavy cargo
+behind the build-slot mutex, hosted CI the verification of record,
+no monitor scripts, GitHub through MCP. **Orchestrator branch is the
+session's designated `claude/lib-work-track-review-06m46w`**, not
+`lib/orchestrator` — the host pins the branch it may push, so the
+`lib/` prefix convention holds for unit branches only this session
+(the LIB-MECH1 precedent, `claude/lib-mechanical-clippy-ci-tadd42`).
+
+**State as found, measured on main at 2de5a1f6.** No LIB PR open, no
+`lib/orchestrator` on origin, main green, lint green. 25 open rows:
+two queued mechanical census families (B-FACE-FRAME, B-PART, DOCM's
+09-04 filings), LIB-G17 `parked` on a trigger that fired 09-04 (SEAT's
+courtesy issue of 09-05; the int in `blocked_on` is why lint did not
+red — filed on META's slate as
+`parked-on-an-int-is-invisible-to-the-fired-trigger-rule`), and 22
+issues. Three more census families are chartered in
+`test_binding_census.py`'s `FAMILIES` with no row anywhere
+(B-NOTATION, B-DISTRIBUTIONS, B-MEASURES; B-FACE-FRAME's file called
+them "unscheduled alongside") — filed today as `LIB-B-NOTATION`,
+`LIB-B-DISTRIBUTIONS`, `LIB-B-MEASURES`.
+
+**Protocol standing.** v6 duals continue (Ev, 2026-09-06, recorded on
+`work/meta/ab-log-v6-stream-is-past-its-stopping-rule-unadjudicated`);
+the 08-29 mechanical ruling stands; the next full-protocol unit needs
+a LIB-13 block draw (LIB-12 closed 09-03).
+
+**Orchestrator decisions (continuing the LB numbering):**
+
+- **LB14 — the slate is worked in four lanes, in this order.**
+  (1) Mechanical, under the 08-29 ruling: B-FACE-FRAME and B-PART
+  staggered (census contention), then a LIB-MECH2 bundle of
+  `lb13-guards-are-line-local` (fix fully specified by CIW, same-file
+  scanner exists) and `pncad-py-doc-has-no-node-kind-read-door`
+  (shape specified in the issue). (2) LIB-G17 on the full protocol
+  after the LIB-13 draw — the design is ratified (D5), the kernel and
+  seat enablers exist, nothing is Ev-paced. (3) A LIB-CUR5 curation
+  unit over the five payload rows that share one question
+  (`escalation-payload…`, `loop-key…`, `next-payload-rung…`,
+  `mesh-pick-error…`, `resolution-failure-arms…`), the carriage
+  decided and logged by the orchestrator first. (4) The four real
+  design forks go to Ev as FOUR `[ev]` PRs, one per item, each
+  self-contained (Ev's ask: separate PRs when unrelated, full
+  context in the description): `save-a-copy-duplicate-id-bricks-store`
+  (identity fork on save), `facade-polygon-door-demoted-without-replacement`
+  (build the lattice door or say no at the site),
+  `bench-corpus-staleness-hole` (a mechanism or a ratified narrower
+  claim), `python-check-and-assembly-doors-gather-twice` (what a
+  Python `Product` is). None gates (1)–(3).
+- **LB15 — two rows are hand-offs, not dispatches.**
+  `load-path-stringifies-structured-refusals` is a fix in
+  `crates/editor-core/src/persist/` and `two-refusals-carry-no-recourse-sentence`
+  is prose in `crates/editor-core/src/mate.rs`; neither path is in
+  LIB's `paths:`. Both stay on LIB's slate as the party that wants
+  them and get routed to DOCM at the next natural seam rather than
+  dispatched across the fence.

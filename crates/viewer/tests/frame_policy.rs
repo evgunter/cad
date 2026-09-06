@@ -212,13 +212,6 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
     let projection = camera
         .view_projection(0.0)
         .expect_err("a zero aspect has no projection");
-    assert_eq!(
-        frame::projection_refusal(&projection).subject(),
-        frame::Subject::Camera,
-        "a projection that could not be formed is about where the view \
-         is pointed"
-    );
-
     let disagreement = frame::Disagreement {
         from_gpu: None,
         from_ray: None,
@@ -232,17 +225,6 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
     let delta = DisplayTolerance::new(0.0).expect_err("zero is not a δ");
     for (message, what) in [
         (frame::delta_refusal(&delta), "a δ the display refused"),
-        (
-            frame::scene_refusal(&delta),
-            "a scene that could not be built",
-        ),
-        (
-            frame::index_refusal(&pick::PickIndexError::DrawnTwice {
-                node: RecipeNodeId(3),
-                body: 0,
-            }),
-            "a pick-index build that refused",
-        ),
         (
             frame::unindexed_refusal(&pick::NotIndexed::Building),
             "a pick against an index still building",
@@ -291,6 +273,237 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
             message.subject(),
             frame::Subject::Document,
             "{what} answers an act aimed at the document"
+        );
+    }
+}
+
+/// **Both axes, stated independently.**
+///
+/// The ruling this row exists for: whether a fact is a badge or a line
+/// message is decided by whether it is a read of held state or the
+/// outcome of something that happened, and its subject is decided by
+/// which event retires it. Two questions, two answers, no forced
+/// pairing — so the table below has a badge and a message under one
+/// subject, and one channel carrying several subjects.
+///
+/// Unfalsifiable before: a badge had no subject to get wrong.
+#[test]
+fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
+    let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
+    let projection = camera
+        .view_projection(0.0)
+        .expect_err("a zero aspect has no projection");
+    let delta = DisplayTolerance::new(0.0).expect_err("zero is not a δ");
+    let build = pick::PickIndexError::DrawnTwice {
+        node: RecipeNodeId(3),
+        body: 0,
+    };
+    let collision = ProductError::Naming {
+        node: RecipeNodeId(2),
+        name: Box::new(StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(2),
+            path: Vec::new(),
+        }),
+    };
+    let budget = FittedDelta {
+        delta: DisplayTolerance::new(1.0e-3).expect("a positive δ"),
+        requested: DisplayTolerance::new(1.0e-6).expect("a positive δ"),
+        predicted: 1_000,
+        requested_cost: Some(9_000_000),
+    };
+
+    // Every badge, and what ends it. The three seam reads first —
+    // these are the facts this ruling moved off the line.
+    for (badge, subject, what) in [
+        (
+            frame::scene_badge(Some(&delta)),
+            frame::Subject::Display,
+            "a scene the rebuild refused ends when a rebuild lands",
+        ),
+        (
+            frame::index_badge(Some(&build)),
+            frame::Subject::Display,
+            "a held pick-index refusal ends when a build lands",
+        ),
+        (
+            frame::projection_badge(Some(&projection)),
+            frame::Subject::Camera,
+            "a view matrix that will not form ends when the camera moves \
+             somewhere one does",
+        ),
+        (
+            frame::at_rest_badge(Some(&AtRestBadge::Certified { minted: 0 })),
+            frame::Subject::Document,
+            "the at-rest verdict ends when the document accepts another act",
+        ),
+        (
+            frame::checks_badge(Some(&ChecksReport {
+                findings: vec![CheckFinding {
+                    check: CheckId::Connectedness,
+                    root: RecipeNodeId(3),
+                    output_ix: 0,
+                    evidence: CheckEvidence::Connectedness {
+                        actual: 2,
+                        expected: 1,
+                    },
+                }],
+                skipped: Vec::new(),
+            })),
+            frame::Subject::Document,
+            "so do the advisory checks",
+        ),
+        (
+            frame::product_badge(Some(&collision)),
+            frame::Subject::Document,
+            "and the gather's verdict on the landed pair",
+        ),
+        (
+            frame::delta_badge(Some(&budget)),
+            frame::Subject::Display,
+            "the budget's δ ends when the picture is drawn at another",
+        ),
+    ] {
+        assert_eq!(
+            badge.expect("this state badges").subject(),
+            subject,
+            "{what}"
+        );
+    }
+
+    // **The two axes are independent, and here is each of the four
+    // corners that this crate populates.** A subject never decided a
+    // channel: `Camera` and `Display` each carry a badge AND a line
+    // message, so neither answer can be read off the other.
+    let refused_fold = frame::fold_status(&viewer::camera::Folded {
+        camera,
+        applied: Vec::new(),
+        refused: Some((
+            CameraOp::Dolly { factor: 0.0 },
+            viewer::camera::CameraOpError::NonPositiveDolly { factor: 0.0 },
+        )),
+    });
+    let StatusUpdate::Show(camera_news) = refused_fold else {
+        panic!("a refused fold is news");
+    };
+    assert_eq!(
+        camera_news.subject(),
+        frame::projection_badge(Some(&projection))
+            .expect("a projection that will not form badges")
+            .subject(),
+        "a move the camera refused is an OUTCOME and a projection that \
+         will not form is a READ, and both are about the camera"
+    );
+    assert_eq!(
+        frame::unindexed_refusal(&pick::NotIndexed::Building).subject(),
+        frame::index_badge(Some(&build))
+            .expect("a held refusal badges")
+            .subject(),
+        "and one seam does not speak with two voices: the click it \
+         refused is the line's, the build it refused is the toolbar's, \
+         and the subject is the seam's"
+    );
+
+    // The silence of each new member, so the `None` is a row like the
+    // rest of the family's.
+    assert_eq!(frame::scene_badge(None), None, "a scene that built");
+    assert_eq!(frame::index_badge(None), None, "a cache holding no refusal");
+    assert_eq!(
+        frame::projection_badge(None),
+        None,
+        "a camera that projects"
+    );
+}
+
+/// **What the line could not do with a seam refusal.**
+///
+/// The defect the three moves close, and it is an ORDERING one: the
+/// status line is painted in the toolbar, earlier in `update` than the
+/// panes that write these sentences, and `perform_batch` runs after
+/// both. So on every frame whose batch acted cleanly the `Clear` took
+/// the sentence before any frame drew it, and the chrome said nothing
+/// about a picture it could not draw for as long as the user kept
+/// acting.
+///
+/// **The badge half of that is a type fact and not an assertion**:
+/// `frame::apply`'s only argument is the line, so no `StatusUpdate`
+/// can reach a badge. What the rows above pin is the badge's subject
+/// and its silence; what this one pins is the sweep it is out of.
+#[test]
+fn an_acting_frame_sweeps_the_line_a_seam_refusal_would_have_been_on() {
+    let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
+    let projection = camera
+        .view_projection(0.0)
+        .expect_err("a zero aspect has no projection");
+
+    // A camera sentence, of the shape the projection refusal used to
+    // have, and the frame's own verdict on a clean acting batch.
+    let mut status = Some(frame::Message::new(
+        frame::Subject::Camera,
+        format!("projection: {projection}"),
+    ));
+    let acting = [SessionOp::Undo];
+    assert_eq!(
+        frame::batch_status(&acting, None),
+        StatusUpdate::Clear,
+        "an act the document accepted makes every standing complaint \
+         stale — including one about a picture that is still not drawn"
+    );
+    frame::apply(&mut status, frame::batch_status(&acting, None));
+    assert_eq!(
+        status, None,
+        "which is the sweep the seam refusals are now out of"
+    );
+
+    // And the read is unchanged by any of it: the fault is the same
+    // fault, so the toolbar says the same thing.
+    assert_eq!(
+        frame::projection_badge(Some(&projection)).map(|b| b.subject()),
+        Some(frame::Subject::Camera),
+    );
+}
+
+/// **The expiry-issuer roster names exactly the subjects with one.**
+///
+/// `frame::SUBJECTS_WITH_AN_EXPIRY_ISSUER` had no reader anywhere,
+/// tests included, so the claim it makes about the vocabulary was
+/// prose in a `const`. It is a claim about MESSAGES — a badge asks no
+/// issuer for anything — and the two policies that issue are the only
+/// two there are.
+#[test]
+fn the_two_policies_that_expire_are_the_two_subjects_the_roster_names() {
+    let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
+    let clean = viewer::camera::Folded {
+        camera,
+        applied: vec![CameraOp::Orbit {
+            yaw: 0.2,
+            pitch: 0.1,
+        }],
+        refused: None,
+    };
+    let issued: Vec<frame::Subject> = [
+        frame::fold_status(&clean),
+        frame::cursor_status(IdStep::Void),
+        frame::cursor_status(IdStep::Ask { serial: 7 }),
+        frame::cursor_status(IdStep::Hold),
+    ]
+    .into_iter()
+    .filter_map(|update| match update {
+        StatusUpdate::Expire(subject) => Some(subject),
+        _ => None,
+    })
+    .collect();
+
+    for subject in frame::SUBJECTS_WITH_AN_EXPIRY_ISSUER {
+        assert!(
+            issued.contains(&subject),
+            "{subject:?} is named as having an issuer and no policy issues it"
+        );
+    }
+    for subject in issued {
+        assert!(
+            frame::SUBJECTS_WITH_AN_EXPIRY_ISSUER.contains(&subject),
+            "{subject:?} is issued by a policy and the roster does not name it"
         );
     }
 }

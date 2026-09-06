@@ -2,8 +2,10 @@
 id: news-and-standing-facts-are-orthogonal-axes
 kind: issue
 title: News and standing fact are orthogonal to subject, and three facts of one class got two answers
-status: open
+status: review
+pr: 1957
 opened: 2026-09-05
+branch: view/axes-and-badges
 ---
 
 
@@ -146,3 +148,39 @@ them true, not this ruling.
 `status-line-writers-bypass-the-ranking` — the twenty-writer sweep,
 the largest item on this board — which has been waiting for a rule to
 sort on since #1849 filed it.
+
+
+## What landed
+
+`Badge` carries a `Subject`; `frame::SeamSubject` states a seam's
+subject once, at the type of its refusal, so a seam speaking on both
+channels cannot answer twice; `scene_refusal`, `index_refusal` and
+`projection_refusal` became `scene_badge`, `index_badge` and
+`projection_badge`, held by `ViewerApp` and read at the toolbar; and
+the rule is written in `crates/viewer/src/frame.rs`'s header and in
+`crates/viewer/README.md`.
+
+**One of the four doors did not move.** `unindexed_refusal` is raised
+by a click and takes the frame's own pick stream, so the ruled rule
+makes it an outcome and leaves it on the line, against the ruling's
+worked example which named it a badge. The unit built the rule and
+disclosed the disagreement as
+`work/view/unindexed-refusal-is-an-outcome-not-a-read.md`, which is
+for Ev.
+
+## What the style review corrected (#1957)
+
+- The rule as first written claimed *"that is the whole test"* for the
+  mechanical restatement. It is not: the held-state form is a property
+  of the FACT and not of a door's signature, it does not sort
+  `Disagreement` without *a reader consults*, and whether a fact is
+  held is a choice the author makes. The header and the README now say
+  so, because the twenty-writer sweep sorts on that paragraph.
+- The defect the move closes is an ORDERING one — the line is painted
+  in the toolbar before the panes write, and `perform_batch` runs after
+  both — and not the clean fold's `Expire`, which never reached the
+  projection sentence at all. Corrected in four places.
+- The `Holds` row this program has skipped three times is taken here;
+  `frame-module-has-eight-concerns-and-no-holds-row` records what
+  deferring it cost.
+- Two residues the unit introduces are `projection-fault-has-no-sweeper`.
