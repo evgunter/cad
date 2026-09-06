@@ -188,12 +188,22 @@ debug_only_report() {
         #
         # WHERE ONE COMES FROM, now that the shared lexer nests block
         # comments: not from a nested `/* /* */ */`, which it reads
-        # whole. What is left is source that is genuinely unbalanced —
-        # which does not compile, so it should not reach a gate — and a
-        # lexer blind spot yet to be found. The guard is defensive
-        # either way: it does not diagnose the cause, only that this
-        # gate cannot place a use, and its fixtures plant the bracket as
-        # code rather than depending on a particular gap.
+        # whole. Three sources are left.
+        #
+        #   * Source that is genuinely unbalanced, which does not
+        #     compile and so should not reach a gate. The fixtures plant
+        #     this shape, because it is the one that needs no gap.
+        #   * A lexer blind spot yet to be found.
+        #   * BALANCED, COMPILING SOURCE THIS READING CANNOT PLACE: a
+        #     STATEMENT-POSITION `#[cfg(debug_assertions)]` over a
+        #     multi-line call whose arguments carry a brace — twelve
+        #     live sites in `topo`, all of the shape
+        #     `self.assert_euler_postcondition(before, if … { ArenaDelta
+        #     { … } }, "kfmrh");`. The row is
+        #     `debug-only-reader-cannot-place-a-statement-attribute-over-a-braced-call`.
+        #
+        # The guard is defensive across all three: it does not diagnose
+        # the cause, only that this gate cannot place a use.
         t = piece; bdepth += gsub(/[[(]/, "", t)
         t = piece; bdepth -= gsub(/[])]/, "", t)
         if (cut == 0) break
