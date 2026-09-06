@@ -120,7 +120,6 @@ green, and ratifies whatever lands at that path next — the second half
 of the same defect, and the half that has an actual live route (a
 rename is ordinary; a colon in a path is not). A conversion that pins
 the anchor and leaves the subject unchecked closes the smaller half.
-
 ## Landed
 
 **Every whole-file skip in `scripts/gates/*.sh` goes through
