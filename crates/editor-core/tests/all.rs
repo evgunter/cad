@@ -112,6 +112,8 @@ mod docm4_evaluation_identity;
 mod docm5_subject;
 #[path = "docm6_seam_declarations.rs"]
 mod docm6_seam_declarations;
+#[path = "docm6_r1_probes.rs"]
+mod docm6_r1_probes;
 #[path = "dsc_checks.rs"]
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
