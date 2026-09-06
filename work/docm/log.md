@@ -448,3 +448,28 @@ multi-solid operand) — narrative corrected, class filed; precedence
 between own and carried rows pinned; one `Route` type and one relation
 vocabulary; the Python doors carry `of`/`via` wherever a foreign mate
 appears (API-first); the success arm returns `carried`.
+
+## DOCM-7 MERGED (2026-09-06, PR 2028, ordinal 1805, sample #148)
+
+Block DOCM-B3 slot 0 (OPUS), concluded; slots 1 (FABLE) and 2 (OPUS)
+remain. No stop; the v6 dual (R1 fable APPROVE-WITH-FIXES 1/5/4, R2
+opus APPROVE-WITH-FIXES 1/5/3) and its union fix pass. Adjudicated: no
+bilateral MAJOR and two unilateral MAJORs, one per slot — R1's
+chained-order gap (member-space pairs across a chain fuse or refuse by
+member order, because a declared merge consumes the middle face before
+its later partner arrives; a contract gap DM4's amended bullet does
+not bound) and R2's content-key feed claim (the guard row cannot go
+red; the memo is keyed by node id). Ruled: the gap disclosed, pinned
+as a measurement, its three prose sites rewritten to the limit and
+filed for Ev with three options costed; the feed kept as key hygiene
+with its claim corrected; in-space names that are no step's operands
+refuse `UnionDeclareStep`; the two A2 rows the spec owed; one home
+each for the bucket rule, the segment lists and the payload door.
+Both enter the tally as candidates. Closed at merge:
+`n-ary-union-has-no-declaration-channel` (already, pointing here);
+`no-docedit-splices-a-deleted-node` unparked — it is DM6's design
+conversation, not a unit's. Filed by the fix pass: the chain gap, the
+stranded payload name, the pair verb's operand asymmetry (DOCM), the
+one-pass authoring hole (CHROME). The spec is deleted into the ledger;
+DM4 carries the measured limit pending the ruling. Next: DOCM-6's dual
+concludes block B2; the certified range query waits on M10.
