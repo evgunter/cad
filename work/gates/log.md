@@ -367,6 +367,46 @@ guard and its planter; one ordering-dependent sentence in the
 self-test prose replaced by the planters' names.
 
 
+## PR 2059 reviewed (2026-09-06)
+
+Style review of
+`debug-only-reader-cannot-place-a-statement-attribute-over-a-braced-call`:
+mergeable. The rule held on every probe (a `{ N }` const-generic default
+still cry-wolf, KNOWN GAP 5, as stated), the seven pins re-derived, the
+residue reproduced (the gate stays green with `voids.rs:313`'s
+attribute dropped), all three fixtures bite. Self-test 15 s → 72 s
+confirmed and shown quadratic in the subject count. Sent back as a fix
+pass: the residue row records one instance of a fifteen-site class
+(fourteen gated `let before = self.arena_counts();` sites are invisible
+on the same terms), the PR body's mutation-D attribution, one dead
+file-change desync arm, counts copied into prose, and the rule spelled
+in five places.
+
+## Landed: PR 2056 (2026-09-06)
+
+`D102` and `bounds-tripwire-blind-to-named-alias` closed.
+`bounds-allowlist.sh` matches a compound bound by bound target across a
+whole statement (`lib.sh`'s statement view), not by a plus sign:
+`T: A + B`, `where T: A, T: B` and a generic list plus a `where` clause
+are one hit; a sole bracket bound is none; a lifetime and a relaxed
+`?Trait` bound are not bound terms. The trait-declaration test stays a
+separate reason to fire, and the pinned occurrence count is the same
+reader's count mode, so it cannot drift from the matcher. Measured
+before wiring: the old and new hit sets are a bijection (163 records,
+26 files, 183 occurrences, per-file pins identical). The alias census
+found `EvalScalar` (ten supertraits under one name, declared as a
+multi-line list the line reader could not see) and rostered it against
+the ratification its doc cites; the census now consumes the scan's own
+records. `real.rs`'s Bounds scope rule gained one paragraph (PROPS'
+file, announced): a named compound bound is the same obligation as the
+literal spelling, ratified at whichever home the ruling has. KNOWN GAP
+7 registers the shapes the old regex caught that the target-keyed reader
+is blind to (`dyn A + B`, `-> impl A + B`, type aliases, `;` inside a
+generic list — zero population, with the ERE that shows it), and GAP 3
+narrows the S63 argument to `ArcCarrierScalar` now that
+`evalscalar-allowlist.sh` is the counterexample for the other name.
+Review: mergeable with fixes; thirteen items taken in a fix pass, the
+two behaviour ones mutation-proved in both directions.
 ## PR 2058 re-based (2026-09-06)
 
 `gates/reader-homes` merged main and retired
