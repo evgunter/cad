@@ -229,7 +229,10 @@ fn r1_c2_member_space_declarations_across_three_chained_members_by_order() {
                 table(&ev, union)
                     .iter()
                     .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Merged(_))))
-                    .map(|(n, _)| format!("{n:?}").len())
+                    .map(|(n, _)| {
+                        let d = format!("{n:?}");
+                        format!("len={} nested_merged={}", d.len(), d.matches("Merged(").count())
+                    })
                     .collect::<Vec<_>>()
             ),
             Some(e) => {
@@ -793,3 +796,73 @@ fn r1_delete_doors_around_a_declared_union() {
     }
 }
 
+
+/// RED BY DESIGN on 723c0f9f: DM4's "records no fold position" and
+/// `route_declarations`'s "reordering the list re-derives the routing
+/// instead of invalidating the declaration", asserted literally on the
+/// three-member chain. Two of the four orders refuse.
+#[test]
+fn r1_red_member_space_declarations_survive_every_order() {
+    let doc = ProfileDoc::empty_derived("r1_red_order", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, d) = block(doc, (1.2, 2.2), (0.0, 1.0), 0.0, 1.0);
+    let pairs = |u: RecipeNodeId| {
+        let mut v = pairs_in_member_space(u, (a, a), (c, c), box_flush_segs());
+        v.extend(pairs_in_member_space(u, (c, c), (d, d), box_flush_segs()));
+        v
+    };
+    for order in [vec![a, d, c], vec![a, c, d], vec![c, d, a], vec![d, a, c]] {
+        let (docx, union, _) = declared_union(doc.clone(), &order, pairs);
+        let ev = run(&docx);
+        assert!(
+            failure(&ev, union).is_none(),
+            "order {order:?} refused the same member-space declaration: {:?}",
+            failure(&ev, union)
+        );
+    }
+}
+
+/// The arrival clamp (`DeclSite::Accumulated(d).arrival() == d.max(1)`):
+/// a fold row that mentions only member 0, paired with member 1, has no
+/// step — member 1 joined at the step that could first mint the row.
+/// Refused as unroutable, not as vanished.
+#[test]
+fn r1_c2_a_fold_row_of_the_first_member_paired_with_the_second_is_unroutable() {
+    let doc = ProfileDoc::empty_derived("r1_c2_clamp", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, far) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc3, union3, _) = declared_union(doc.clone(), &[a, far, c], |u| {
+        pairs_in_member_space(u, (a, a), (c, c), box_flush_segs())
+    });
+    let ev3 = run(&doc3);
+    let frag = table(&ev3, union3)
+        .iter()
+        .find(|(n, _)| {
+            member_of(n) == Some(a)
+                && n.kind == EntityKind::Edge
+                && n.path.iter().any(|s| matches!(s, RoleSeg::Fragment(_)))
+        })
+        .map(|(n, _)| n.clone())
+        .expect("a fragment row of a");
+    let (docx, unionx, _) = declared_union(doc, &[a, far, c], |u| {
+        let mut v = pairs_in_member_space(u, (a, a), (c, c), box_flush_segs());
+        v.push((
+            StableName {
+                kind: frag.kind,
+                node: u,
+                path: frag.path.clone(),
+            },
+            member_name(u, far, fname(far, wall(0))),
+        ));
+        v
+    });
+    let ev = run(&docx);
+    eprintln!("MEASURE r1_c2_clamp: (frag of member 0, member 1) -> {:?}", failure(&ev, unionx).map(|e| format!("{e:?}").chars().take(60).collect::<String>()));
+    assert!(
+        matches!(failure(&ev, unionx), Some(NodeErrorKind::UnionDeclareStep { .. })),
+        "{:?}",
+        failure(&ev, unionx)
+    );
+}
