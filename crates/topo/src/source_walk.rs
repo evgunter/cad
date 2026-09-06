@@ -97,8 +97,10 @@ pub(crate) fn crate_sources() -> Vec<std::path::PathBuf> {
 /// **Two gaps the view does not close, both real and both dormant.**
 /// Blanking does not expand macros, so a `fn` inside a `macro_rules!`
 /// body is counted as an item and one inside an `include!`d file is
-/// not seen at all. In `topo/src` today there are two `macro_rules!`,
-/// neither containing a `pub fn`, and no `include!`.
+/// not seen at all. In `topo/src` today no `macro_rules!` body contains
+/// a `fn`, and there is no `include!`. **No count of them is written
+/// here**: a number in prose beside a set that grows is a copy that
+/// goes stale in the silent direction, and this one had.
 pub(crate) struct CodeOnly(String);
 
 impl CodeOnly {
@@ -223,7 +225,9 @@ pub(crate) struct FnItem<'a> {
     pub(crate) kw: usize,
 }
 
-/// A public `fn` head this scan recognised and then could not read.
+/// A named `fn` head this scan recognised and then could not read —
+/// public or not, because [`CodeOnly::fns`] returns both and a guard
+/// asserting an item is NOT public is as blind to a dropped one.
 ///
 /// **Loud on purpose.** Every guard built on this walk asserts about
 /// *all* doors, so an item the scan drops is a door with no
@@ -237,7 +241,7 @@ pub(crate) struct FnItem<'a> {
 /// deliberate: for a reader whose failure mode is *silence*,
 /// loud-and-wrong beats quiet-and-wrong, because quiet-and-wrong is
 /// the defect — a `;` inside `[T; N]` in return position once dropped
-/// every such `pub fn`, and the guards stayed green with no count
+/// every such `fn`, and the guards stayed green with no count
 /// moving at all. **The depth counting in [`body_start`] handles the
 /// constructs someone thought of; this panic is what makes the next
 /// one visible.** If you are here because a legitimate signature does
@@ -248,7 +252,7 @@ fn gave_up(code: &str, kw: usize) -> ! {
     let line = code[..kw].bytes().filter(|c| *c == b'\n').count() + 1;
     let snippet: String = code[kw..].chars().take(80).collect();
     panic!(
-        "the item scan recognised a public `fn` at line {line} and could not read it: \
+        "the item scan recognised a named `fn` at line {line} and could not read it: \
          {snippet:?}. It is not allowed to skip one — a dropped item is a door nothing \
          classifies and no count moves for.",
     );
@@ -347,13 +351,19 @@ impl MutationDoor {
     }
 }
 
-/// The number of mutation doors in `topo/src`, measured on `main` at
-/// `4f959cb4` and unchanged since. Not asserted exactly — a new door
-/// is normal and this walk is not the place to notice one. It is here
-/// so [`mutation_doors`]' floor is derived from a number rather than
+/// The number of mutation doors [`mutation_doors`] finds in `topo/src`
+/// on the tree this constant is committed with. Not asserted exactly —
+/// a new door is normal and this walk is not the place to notice one.
+/// It is here so that walk's floor is derived from a number rather than
 /// chosen, and so a reader can tell a floor with two doors of slack
 /// from a floor with twenty-seven.
-const DOORS_MEASURED: usize = 37;
+///
+/// **It is re-measured, never left behind.** The floor is this number
+/// less two, so every door added without a re-measurement is another
+/// door the walk may silently lose before anything reds; left far
+/// enough behind, the floor stops being evidence about the walk at all.
+/// Lowering it is only ever correct when doors were deleted.
+const DOORS_MEASURED: usize = 44;
 
 /// Every public mutation door into a [`crate::Body`] declared in this
 /// crate's `src/`: a public `fn` whose parameter list takes
@@ -515,12 +525,19 @@ pub fn not_a_door(&self) {}
     /// one.
     ///
     /// A function-POINTER type spells `fn` and declares no item. It has
-    /// no name, which is the tell, and reading one as an item would put
-    /// a nameless entry in every table built on this walk.
+    /// no name, which is the tell, and reading one as an item is worse
+    /// than a nameless table entry: the carve then runs past the
+    /// pointer's own `-> V` looking for a terminator, finds the NEXT
+    /// item's `{`, and takes that body for its own — so the item after
+    /// a function-pointer type disappears with no count moving. The
+    /// pointer below therefore stands in a struct field, where nothing
+    /// terminates it, with `ctor` behind it: a `;`-terminated pointer
+    /// is read as a bodiless declaration and skipped either way, which
+    /// is the shape that cannot fail.
     #[test]
     fn the_item_scan_reads_named_items_only_and_carries_their_visibility() {
         let src = "
-type Namer = fn(K) -> EntityId;
+struct S { namer: fn(K) -> EntityId }
 const fn ctor(he: K) -> Self { Self(he) }
 pub(crate) fn require<K: Key, V>(a: &S<K, V>, id: fn(K) -> EntityId) -> Result<(), E> { a.c(k) }
 pub async unsafe fn open(&mut self) -> Option<Live> { self.get(he) }

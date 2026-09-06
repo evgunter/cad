@@ -30,9 +30,10 @@
 //! checked as source instead, by this module's
 //! `every_door_that_hands_out_a_live_looks_up_first`: the field and
 //! `Live::new` carry no visibility, every door whose return type hands
-//! a `Live` out reaches a lookup before it builds one, the doors and
-//! the construction sites are exactly the ones named here, and no other
-//! file in `topo/src` builds a `Live` at all.
+//! a `Live` out looks the key up before it builds one and wraps the key
+//! it looked up, that row's own tables enumerate the doors and the
+//! construction sites so a new one of either reds, and no other file in
+//! `topo/src` builds a `Live` at all.
 //!
 //! # The other arenas
 //!
@@ -143,7 +144,8 @@ impl<T: Real> Body<T> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
+// Test-support code: panicking is a test's failure mechanism (L5).
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::Live;
     use crate::body::Body;
@@ -151,7 +153,7 @@ mod tests {
     use crate::fixtures::pillow;
     use crate::source_walk::{CodeOnly, crate_sources, src_root};
     use geom_core::Tol;
-    use test_utils::source::balanced_end;
+    use test_utils::source::{ItemBody, balanced_end, item_body};
 
     fn scaffold() -> HalfEdge {
         HalfEdge {
@@ -200,22 +202,27 @@ mod tests {
         assert!(body.require_live(dead).is_err());
     }
 
-    /// The spellings that count as *this door resolved the key*: a
-    /// read of the arena, or a call to a door this row itself pins to
-    /// have performed one.
+    /// The spellings that count as *this door resolved the key*: a read
+    /// of the half-edge arena, or a call to a door this row itself pins
+    /// to have performed one.
     ///
-    /// **Closed on purpose.** A door whose lookup is spelled some other
-    /// way matches nothing here and reds; it does not pass. Treating an
-    /// unrecognised spelling as a lookup would pass a door that looks
-    /// nothing up, which is the one thing this row exists to catch, so
-    /// a new spelling is added here by somebody who has read the door.
-    const LOOKUPS: [&str; 6] = [
-        "contains_key(", // the arena's membership test
-        ".get(",         // the slotmap read whose `Some` arm carries the fields
-        "get_half_edge", // the named accessor over that read
-        "loop_cycle(",   // the bounded walk, which resolves every member it yields
-        "require_key(",  // the shared refusal
-        "Live::of(",     // delegation to a door this same row pins
+    /// **Closed, and it is this file's list rather than a sketch of
+    /// one.** Every entry is a spelling a door below actually uses; a
+    /// door whose lookup is spelled any other way matches nothing here
+    /// and reds. Treating an unrecognised spelling as a lookup would
+    /// pass a door that looks nothing up, which is the one thing this
+    /// row exists to catch — so a spelling joins the list with the door
+    /// that made it necessary, and never ahead of one.
+    ///
+    /// **Each is anchored on the arena it reads, not on the bare
+    /// method.** A bare `.get(` is answered by a read of any map at
+    /// all, so `self.faces.get(f)` would stand as the lookup for a
+    /// half-edge nothing resolved.
+    const LOOKUPS: [&str; 4] = [
+        "half_edges.contains_key(", // the membership test, and nothing else
+        "half_edges.get(",          // the read whose `Some` arm carries the fields
+        "loop_cycle(",              // the bounded walk, which resolves every member
+        "Live::of(",                // delegation to a door this same row pins
     ];
 
     /// Every spelling that builds a `Live` from a bare key. `Live` and
@@ -223,8 +230,9 @@ mod tests {
     /// to either name.
     const CONSTRUCTIONS: [&str; 4] = ["Live::new(", "Self::new(", "Live(", "Self("];
 
-    /// The doors that hand a `Live` out, in source order — the list the
-    /// module header states.
+    /// The doors that hand a `Live` out, in source order. **This is the
+    /// list** — the module header points at this row rather than
+    /// restating it, so there is one copy of it to keep true.
     const DOORS: [&str; 4] = [
         "of",
         "require_live",
@@ -253,36 +261,39 @@ mod tests {
         })
     }
 
-    /// **The guard the module header names.**
+    /// The text inside the parentheses that the call `needle` opens.
+    /// Every needle in [`LOOKUPS`] and [`CONSTRUCTIONS`] ends with its
+    /// own `(`, so the carve starts at the last byte of the match.
+    fn argument<'a>(body: &'a str, needle: &str) -> Option<&'a str> {
+        let at = body.find(needle)?;
+        let open = at + needle.len() - 1;
+        Some(body[open + 1..balanced_end(body, open)?].trim())
+    }
+
+    /// **The guard the module header names.** The claim is stated
+    /// there; this is how it is checked, and what a red says.
     ///
-    /// The compiler already carries half the claim: the field is
-    /// private, so the tuple constructor and `Live::new` are unnameable
-    /// outside this module and no other file could compile a
-    /// construction. The other half — that every door HERE looks the
-    /// key up before it builds — is a fact about four function bodies,
-    /// and the crate's usual instrument cannot reach it, a
-    /// `compile_fail` doctest being unable to name a `pub(crate)` type.
-    /// So it is checked as source, over the shared lexer's code-only
-    /// view, in which every comment and every literal is spaces and a
-    /// match is therefore code.
+    /// The reader is the shared lexer's code-only view of this file, in
+    /// which every comment and every literal is spaces — so a match is
+    /// code, and the needles above, being literals, cannot answer for
+    /// the row that spells them. The items come from `source_walk`'s
+    /// item scan; `balanced_end` carves the field list and each call's
+    /// arguments; `item_body` carves the `impl Live` block, which is
+    /// what separates a `-> Self` that means a `Live` from one that
+    /// means a `Body`.
     ///
-    /// Three parts over this file, and the compiler's half restated
-    /// over the rest of the crate:
+    /// Every violation is collected before any is reported and each
+    /// names the item it is about, so a red says which door and what it
+    /// did rather than which assertion happened to fire first.
     ///
-    /// 1. The declaration stays private in both halves: no visibility
-    ///    on the field, none on `Live::new`.
-    /// 2. Every item whose return type hands a `Live` out reaches a
-    ///    lookup before it builds one. `Live::new` is the exception,
-    ///    and part 1 is why it is allowed to be.
-    /// 3. The doors and the construction sites are exactly the ones the
-    ///    header lists, so a fifth door reds here rather than arriving
-    ///    unread.
-    /// 4. No other file in `topo/src` builds a `Live` at all — which is
-    ///    what makes the four doors the ONLY way to obtain one.
-    ///
-    /// **What it cannot see**, inherited from a walk that reads text:
+    /// **What it cannot see**, all of it inherited from reading text:
     /// a lookup reached one hop away through a helper reads as no
-    /// lookup (a red, which is the safe direction); a construction
+    /// lookup (a red, which is the safe direction); an item declared
+    /// INSIDE a door's body is not scanned as a door of its own, and
+    /// reds through the construction census under its host's name; the
+    /// argument check compares SPELLINGS, so a rebinding between the
+    /// lookup and the construction defeats it, as does a lookup in a
+    /// half-edge arena belonging to some other body; a construction
     /// inside a `macro_rules!` body is text like any other; and `cfg`
     /// is not evaluated.
     #[test]
@@ -317,34 +328,58 @@ mod tests {
             ));
         }
 
-        // 2. Every door looks up before it builds.
+        // 2. Every door looks up before it builds, and wraps what it
+        //    looked up. `Self` in a return type names whichever impl the
+        //    item sits in, so only inside `impl Live` does it mean a
+        //    `Live`; `Live` itself means one anywhere.
+        let impl_live = match item_body(src, src.find("impl Live").expect("the `impl Live` block"))
+        {
+            ItemBody::Body(body) => body,
+            other => panic!("the `impl Live` block has no body: {other:?}"),
+        };
         let mut doors: Vec<&str> = Vec::new();
         for item in &items {
             let name = item.name;
-            if name == "new" || !(mentions(item.returns, "Live") || mentions(item.returns, "Self"))
-            {
+            let hands_out = mentions(item.returns, "Live")
+                || (mentions(item.returns, "Self") && impl_live.contains(&item.span.start));
+            if name == "new" || !hands_out {
                 continue;
             }
             doors.push(name);
-            let built = CONSTRUCTIONS
-                .iter()
-                .filter_map(|n| item.body.find(*n))
-                .min();
-            let looked = LOOKUPS.iter().filter_map(|n| item.body.find(*n)).min();
-            match (looked, built) {
+            let first = |needles: &[&'static str]| {
+                needles
+                    .iter()
+                    .filter_map(|n| item.body.find(*n).map(|at| (at, *n)))
+                    .min()
+            };
+            match (first(&LOOKUPS), first(&CONSTRUCTIONS)) {
                 (None, _) => violations.push(format!(
                     "`{name}` hands out a `Live` and reaches no lookup this guard knows. \
                      The vocabulary is {LOOKUPS:?} — a door that resolves its key some \
                      other way is a spelling to add there deliberately, never one to pass \
                      unread."
                 )),
-                (Some(lookup), Some(build)) if build < lookup => violations.push(format!(
-                    "`{name}` builds a `Live` at line {} before it looks the key up at \
-                     line {}",
-                    line_of(src, item.span.start + build),
-                    line_of(src, item.span.start + lookup),
-                )),
-                _ => {}
+                (Some((lookup, _)), Some((build, _))) if build < lookup => {
+                    violations.push(format!(
+                        "`{name}` builds a `Live` at line {} before it looks the key up \
+                         at line {}",
+                        line_of(src, item.span.start + build),
+                        line_of(src, item.span.start + lookup),
+                    ));
+                }
+                (Some((_, looked)), Some((_, built))) => {
+                    let (resolved, wrapped) =
+                        (argument(item.body, looked), argument(item.body, built));
+                    if resolved != wrapped {
+                        violations.push(format!(
+                            "`{name}` looks up `{}` and wraps `{}`: the proof it hands \
+                             out is about a key it never resolved",
+                            resolved.unwrap_or("<unreadable>"),
+                            wrapped.unwrap_or("<unreadable>"),
+                        ));
+                    }
+                }
+                (Some(_), None) => {}
             }
         }
 
