@@ -54,15 +54,15 @@ fn the_tangent_graze_resolves_past_first_order() {
     // those predicates. What remains is the documented one-sided
     // graze residue, refused DOWNSTREAM (the degenerate section /
     // finish net) — a tangent plane cannot two-side a convex body.
-    use geom_core::k_stats::{start_verdict_log, take_verdict_log};
+    use geom_core::k_stats::Bracket;
     let body = cylinder_body();
     let plane = SplitPlane {
         origin: Point3::new(0.5, 0.0, 0.0),
         normal: Vec3::new(1.0, 0.0, 0.0),
     };
-    start_verdict_log();
+    let bracket = Bracket::open();
     let out = split(&body, &plane, Tol::witness());
-    let v = take_verdict_log();
+    let v = bracket.finish().verdicts;
     // The second-order lane ran, by name (telemetry from birth).
     for name in [
         "tangent_sector_order2",

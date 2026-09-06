@@ -43,7 +43,7 @@ pub use predicate::{
 pub use real::{Bounds, CertifiedBounds, CertifiedEnclosure, Enclosure, Real};
 pub use ring_interval::RingInterval;
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};
-pub use sym::{ParamSymbol, Sym, SymBudget, SymCounts, SymId};
+pub use sym::{ParamSymbol, Sym, SymBudget, SymCounts, SymId, SymRules};
 pub use tolerance::{
     EpsilonSource, Tol, Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError,
     ToleranceReport,

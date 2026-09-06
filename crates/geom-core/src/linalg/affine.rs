@@ -23,8 +23,10 @@ pub struct Affine3<T: Real> {
 }
 
 impl<T: Real> Affine3<T> {
-    /// Builds an affine map from its linear part and translation.
-    pub fn from_parts(linear: Mat3<T>, translation: Vec3<T>) -> Self {
+    /// Builds an affine map from its linear part and translation. A
+    /// `const fn` (the doctest at [`Point3::new`] reads a constant
+    /// placement built through it).
+    pub const fn from_parts(linear: Mat3<T>, translation: Vec3<T>) -> Self {
         Self {
             linear,
             translation,
@@ -49,6 +51,29 @@ impl<T: Real> Affine3<T> {
     /// The pure translation by `v` (identity linear part).
     pub fn translation(v: Vec3<T>) -> Self {
         Self::from_parts(Mat3::identity(), v)
+    }
+
+    /// The placement of a frame: the map sending the coordinate origin
+    /// to `origin`, `x̂` to `u`, `ŷ` to `v` and `ẑ` to `u × v` — linear
+    /// columns `u`, `v`, `u.cross(v)` ([`Mat3::from_cols`]) and
+    /// translation `origin − Point3::origin()`, in exactly that order
+    /// (D9).
+    ///
+    /// The third column is **computed here, never supplied by the
+    /// caller**: a frame is two axes and a base point, and the normal
+    /// is what those two determine — right-handed by construction when
+    /// `u ⊥ v` are unit, which is the caller's conventional obligation,
+    /// **unchecked**. Non-orthonormal axes yield a well-defined skew map,
+    /// not poison; rigidity is a predicate-layer decision.
+    ///
+    /// The translation is the subtraction `origin − Point3::origin()`:
+    /// componentwise `x − (+0.0)`, which IEEE 754 leaves at `x` for
+    /// every bit pattern — `−0.0`, `±inf` and NaN payloads included
+    /// (the corpus row below measures it) — so a frame read back from
+    /// the stored map, columns and translation, is bitwise the frame
+    /// that was written.
+    pub fn from_frame(origin: Point3<T>, u: Vec3<T>, v: Vec3<T>) -> Self {
+        Self::from_parts(Mat3::from_cols(u, v, u.cross(v)), origin - Point3::origin())
     }
 
     /// The rotation by `angle` radians (right-hand rule) about the axis
@@ -561,5 +586,123 @@ mod tests {
             measured[1],
             measured[2],
         );
+    }
+
+    /// A deterministic generator for the frame sweep (no dev-dependency,
+    /// reproducible to the bit): log-uniform magnitudes in
+    /// `[1e-6, 1e6]`, random sign, one coordinate in sixteen a signed
+    /// zero.
+    struct Lcg(u64);
+
+    impl Lcg {
+        fn next(&mut self) -> u64 {
+            self.0 = self
+                .0
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            self.0 >> 11
+        }
+
+        #[allow(clippy::cast_precision_loss)]
+        fn coord(&mut self) -> f64 {
+            let r = self.next();
+            if r.is_multiple_of(16) {
+                return if r & 16 == 0 { 0.0 } else { -0.0 };
+            }
+            let m = 10f64.powf(-6.0 + 12.0 * (self.next() as f64) / ((1u64 << 53) as f64));
+            if r & 32 == 0 { m } else { -m }
+        }
+
+        fn point(&mut self) -> Point3<f64> {
+            Point3::new(self.coord(), self.coord(), self.coord())
+        }
+
+        fn vec(&mut self) -> Vec3<f64> {
+            Vec3::new(self.coord(), self.coord(), self.coord())
+        }
+    }
+
+    /// The frames the `from_frame` rows sweep — THE corpus for the
+    /// door's bit identity (`profile`'s `sketch_plane.rs` keeps only
+    /// its delegation row and points here): every sign pattern of
+    /// zeros over all nine components; a general non-orthonormal frame
+    /// with each single component replaced by `+0.0` and by `−0.0` in
+    /// turn; a subnormal, a huge value, `±inf` and NaN in a slot of
+    /// each of origin, `u` and `v`; and a 2000-frame generated sweep of
+    /// non-unit, non-orthogonal axes.
+    pub(super) fn frame_corpus() -> Vec<(Point3<f64>, Vec3<f64>, Vec3<f64>)> {
+        let mut corpus = Vec::new();
+        for m in 0..512u32 {
+            let z = |k: u32| if m & (1 << k) == 0 { 0.0 } else { -0.0 };
+            corpus.push((
+                Point3::new(z(0), z(1), z(2)),
+                Vec3::new(z(3), z(4), z(5)),
+                Vec3::new(z(6), z(7), z(8)),
+            ));
+        }
+        let general = [0.3, -1.2, 2.5, -4.0, 0.25, 1.0e-3, 7.0, -0.5, 2.0];
+        for k in 0..9 {
+            for z in [0.0, -0.0] {
+                let mut w = general;
+                w[k] = z;
+                corpus.push((
+                    Point3::new(w[6], w[7], w[8]),
+                    Vec3::new(w[0], w[1], w[2]),
+                    Vec3::new(w[3], w[4], w[5]),
+                ));
+            }
+        }
+        for s in [5e-324, 1.0e308, f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            corpus.push((
+                Point3::new(s, 1.0, -0.0),
+                Vec3::new(s, 0.5, -2.0),
+                Vec3::new(-1.0, s, 3.0),
+            ));
+        }
+        let mut r = Lcg(0x9e37_79b9_7f4a_7c15);
+        for _ in 0..2000 {
+            corpus.push((r.point(), r.vec(), r.vec()));
+        }
+        corpus
+    }
+
+    fn bits(a: Affine3<f64>) -> [u64; 12] {
+        let (l, t) = (a.linear, a.translation);
+        [
+            l.c0.x, l.c0.y, l.c0.z, l.c1.x, l.c1.y, l.c1.z, l.c2.x, l.c2.y, l.c2.z, t.x, t.y, t.z,
+        ]
+        .map(f64::to_bits)
+    }
+
+    #[test]
+    fn from_frame_is_the_explicit_spelling_bit_for_bit() {
+        // One home for the frame construction: the door is the same
+        // operations in the same order as the spelling it replaces at
+        // its callers, so every stored component — the signed zeros of
+        // the origin included — is bitwise the same.
+        for (o, u, v) in frame_corpus() {
+            let explicit =
+                Affine3::from_parts(Mat3::from_cols(u, v, u.cross(v)), o - Point3::origin());
+            assert_eq!(
+                bits(Affine3::from_frame(o, u, v)),
+                bits(explicit),
+                "at {o:?} {u:?} {v:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn from_frame_stores_the_axes_and_origin_bitwise_and_computes_the_normal() {
+        // The first two columns are the caller's values stored; the
+        // translation is `x − (+0.0)`, which is `x` to the bit (signed
+        // zeros, infinities and NaN payloads included); the third
+        // column is `u × v`, computed.
+        for (o, u, v) in frame_corpus() {
+            let a = Affine3::from_frame(o, u, v);
+            let n = u.cross(v);
+            let want =
+                [u.x, u.y, u.z, v.x, v.y, v.z, n.x, n.y, n.z, o.x, o.y, o.z].map(f64::to_bits);
+            assert_eq!(bits(a), want);
+        }
     }
 }
