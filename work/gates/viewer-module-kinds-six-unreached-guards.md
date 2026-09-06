@@ -2,9 +2,10 @@
 id: viewer-module-kinds-six-unreached-guards
 kind: issue
 title: six of viewer-module-kinds.sh's gate_error guards are reached by no selftest case
-status: open
+status: review
 opened: 2026-09-06
 refs: [D109]
+branch: gates/viewer-module-kinds-guards
 ---
 
 ## Finding
