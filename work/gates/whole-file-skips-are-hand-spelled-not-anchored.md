@@ -72,6 +72,34 @@ nobody. Some of these gates skip four homes; that is four planted
 files, not one. The conversion is therefore per-gate work with a
 fixture each, not a sed.
 
+## Reachability, read against each gate's scanned set
+
+The same reading `home-anchored-file-skip-is-unescaped` ended up
+needing, applied to every hit above, because "the pattern over-matches"
+and "the scan can hand it a record that over-matches" are different
+claims:
+
+  * The fifteen literal skips all end in `:` and all escape their
+    dots, and every one of them scans `*.rs` files. So the only record
+    they can over-drop is one whose FILE carries a `:` inside it
+    (`…/bit_identity.rs:x/inner.rs`), the same narrow-but-not-empty
+    set. None of them can over-drop by an unescaped dot and none by a
+    longer path.
+  * `witness-not-ambient.sh:91-93` are prefix skips on purpose; there
+    is no over-match to reach.
+  * `bounds-allowlist.sh:554` selects rather than skips, so its
+    over-match over-COUNTS an allowlisted file's occurrences instead of
+    exempting anything — a cry-wolf direction, reachable by the same
+    colon-carrying path.
+  * `gate-roster.sh:238`'s under-escape is reachable only by adding a
+    path carrying `+`, `(`, `[` or `{` to `OUTLIER_GATES`, which is a
+    hand-maintained list; the reachable set is "the next entry", not
+    "the next file".
+
+The unit's value is therefore construction rather than a live hole,
+and it should be written up that way: the escaping and the boundary
+stop being a reviewer's job on fifteen lines.
+
 ## Not measured
 
 Whether each of the six gates' subject checks already reds when its

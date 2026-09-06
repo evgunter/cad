@@ -265,6 +265,17 @@ plant_nested_path_ending_in_the_home() {
     > "$1/crates/step-import/src/crates/step-import/src/signed_zero.rs"
 }
 
+# THE ANCHOR'S THIRD PART, the trailing `:`. Without it the skip is a
+# PREFIX match and exempts every longer path the home opens — a backup,
+# a generated `<home>.<something>.rs`, anything the tree grows beside
+# the file it names. `gate_record_anchor` spells the boundary as
+# `:[0-9]+:`, the shape every view's records carry, so the skip stops at
+# the end of the path rather than wherever the path happens to stop.
+plant_longer_path_beginning_with_the_home() {
+  printf 'fn flush(x: f64) -> f64 { x + 0.0 }\n' \
+    > "$1/crates/step-import/src/signed_zero.rs.generated.rs"
+}
+
 # A suite is where a copy gets written to avoid touching `src`.
 plant_in_tests() {
   printf 'fn flush(x: f64) -> f64 { x + 0.0 }\n' \
@@ -331,10 +342,11 @@ gate_selftest() {
   gate_selftest_case "$want" plant_in_tests
   gate_selftest_case "$want" plant_sibling_the_raw_anchor_exempted
   gate_selftest_case "$want" plant_nested_path_ending_in_the_home
+  gate_selftest_case "$want" plant_longer_path_beginning_with_the_home
   gate_selftest_case "no .rs files under" plant_home_symlinked_out_of_the_scan
   gate_selftest_passes "innocent literals" plant_innocent_literals
   gate_selftest_passes "a comment-only mention" plant_comment_only
-  printf '%s selftest OK: 9 planted spellings fire (rustfmt-wrapped, one-line, add, deref-add, reversed, in tests/, after a string literal containing `//`, at a sibling path an unescaped home skip exempts, and at a nested path an unanchored one exempts); clean fixture, innocent literals and comment-only mentions stay green; fires on the empty scan a home file symlinked out of SCAN_DIRS produces, which `[ -f ]` clears and `find -type f` does not; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' \
+  printf '%s selftest OK: 10 planted spellings fire (rustfmt-wrapped, one-line, add, deref-add, reversed, in tests/, after a string literal containing `//`, and at the three paths a home skip exempts when its escaping, its `^` or its `FILE:LINE:` boundary is dropped); clean fixture, innocent literals and comment-only mentions stay green; fires on the empty scan a home file symlinked out of SCAN_DIRS produces, which `[ -f ]` clears and `find -type f` does not; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' \
     "$(gate_name)"
 }
 

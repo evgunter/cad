@@ -21,17 +21,29 @@ sanctioned home with
 
 where `HOME_FILE=crates/step-import/src/signed_zero.rs` (`:66`) is
 interpolated into an ERE **unescaped**. The `.` is a metacharacter, so
-the skip also exempts `crates/step-import/src/signed_zeroXrs`, and
-any other path this tree could hold that differs from the home only
-where a metacharacter sits. The trailing `:` is the only thing keeping
-it from exempting a longer path as well, so the anchor is doing half
-its job by accident rather than by construction.
+the pattern reads `signed_zero?rs:` and names more than one path.
 
-Population today: zero. The defect is a widening, so it is the
-direction that never cries wolf — a file added at such a path is
-exempt from the negative-zero-flush rule with nothing red anywhere,
-which is what `bounds-allowlist.sh`'s and `viewer-module-kinds.sh`'s
-own anchors were changed away from in that unit.
+WHAT IT ACTUALLY EXEMPTS, corrected against the scan (this paragraph
+replaces the first reading of it, and #2064's review found the same
+thing from the other side). The flat `crates/step-import/src/
+signed_zeroXrs` is NOT exempted, because it is never read:
+`find … -name '*.rs'` at `:102` does not return it, so the gate passes
+on it whether the skip is escaped or not. Every record's FILE
+therefore ends in `.rs`, and the pattern's trailing `:` must land on a
+real character, so a path this scan reaches and this skip exempts has
+to carry a `:` INSIDE it — `crates/step-import/src/
+signed_zero_rs:9:x.rs` is one, planted and confirmed exempt under the
+unescaped spelling and firing under the escaped one. That is a narrow
+set, not an empty one: a colon is legal in a path here and in git.
+
+Population today: zero, and held there by the SCAN'S GLOB and by the
+trailing `:` rather than by the skip. Both are one edit away from a
+gate that exempts a file nobody ratified, which is the direction that
+never cries wolf — a file at such a path is exempt from the
+negative-zero-flush rule with nothing red anywhere. `gate_record_anchor`
+makes the skip name one path by construction instead of by two
+coincidences, which is what `bounds-allowlist.sh`'s and
+`viewer-module-kinds.sh`' own anchors were changed toward in that unit.
 
 Not fixed there because it is a different mechanism: this skip exempts
 a WHOLE FILE, not one ratified text, so it takes neither
@@ -43,9 +55,11 @@ reds when the home is gone.
 
 `| gate_grep -vE "$(gate_record_anchor "$HOME_FILE")"` — `lib.sh`'s
 anchor builder, which escapes the path and pins the `FILE:LINE:` shape
-— plus the fixture that holds it: a flush planted at a sibling path
-that differs from the home only where the metacharacter sits must FIRE
-(`gate_selftest_case`), and the home itself must still pass.
+— plus the fixtures that hold it. The anchor has three parts and each
+one needs a planted path that FIRES only while that part is there: the
+escaping (a path carrying a `:`, above), the `^` (a path ENDING in the
+home), and the `:[0-9]+:` boundary (a path BEGINNING with the home).
+The home itself must still pass, which is `gate_plant_clean`'s job.
 
 ## What was not measured
 
@@ -61,28 +75,31 @@ skip built by a helper or spelled with the anchor in a variable.
 the `FILE:LINE:` shape pinned. Live output byte-identical, stdout and
 stderr.
 
-Two planted cases hold it, and the first one is not the file this row
-named. `crates/step-import/src/signed_zeroXrs` is not a fixture at all
-— `find … -name '*.rs'` never returns it, so the gate passes on it
-under the old spelling too, which proves the scan's glob and nothing
-about the anchor. A record is `FILE:LINE:TEXT` and the pattern ended
-in `:`, so the exempted sibling must also carry a `:` inside the path;
-`plant_sibling_the_raw_anchor_exempted` plants
-`crates/step-import/src/signed_zero_rs:9:x.rs`, which the raw
-interpolation exempted and the escaped anchor does not. The population
-was held at zero by the glob and by the trailing `:`, not by the skip.
+THREE planted cases hold it, one per part of the anchor, and none of
+them is the file this row first named. `crates/step-import/src/
+signed_zeroXrs` is not a fixture at all — `find … -name '*.rs'` never
+returns it, so the gate passes on it under the old spelling too, which
+proves the scan's glob and nothing about the anchor.
 
-`plant_nested_path_ending_in_the_home` is the second, and it closes
-something this row did not ask about: `gate_record_anchor`'s `^` had NO
-witness anywhere in `scripts/gates/` — dropping it left all nineteen
-selftests green, the shared `gate_exact_skip_escaping_case` included,
-whose records all begin at the path. A flush at
-`crates/step-import/src/crates/step-import/src/signed_zero.rs` is
-exempt from an unanchored skip and fires under this one.
+  * `plant_sibling_the_raw_anchor_exempted` — the ESCAPING.
+    `crates/step-import/src/signed_zero_rs:9:x.rs`, the reachable
+    sibling: it ends in `.rs` so the scan reads it, and it puts a `:`
+    where the anchor's `:` sits so the raw interpolation exempted it.
+    `:9:` rather than `:x` so the case reds for the escaping alone and
+    not for the `FILE:LINE:` shape.
+  * `plant_nested_path_ending_in_the_home` — the `^`, which had NO
+    witness anywhere in `scripts/gates/`: dropping it left all nineteen
+    selftests green, the shared `gate_exact_skip_escaping_case`
+    included, whose four records all begin at the path. A flush at
+    `crates/step-import/src/crates/step-import/src/signed_zero.rs` is
+    exempt from an unanchored skip and fires under this one.
+  * `plant_longer_path_beginning_with_the_home` — the `:[0-9]+:`
+    boundary, without which the skip is a prefix match over every
+    longer path the home opens. `signed_zero.rs.generated.rs`.
 
 The home's own exemption needed nothing: `gate_plant_clean` already
 writes the home in the wrapped flush form, so the skip is live in every
-fixture.
+fixture and an over-narrow anchor reds the clean case.
 
 ## What the sweep found
 
