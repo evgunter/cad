@@ -116,8 +116,10 @@ own gate's self-test green.
 
 **The three delimiter walkers: a stated cost, not a fourth walker.**
 `lib.sh`'s `--skip-cfg-test` counts `{`/`}` by `gsub` per record and
-holds `depth`/`skipping` as a state; `bit-identity-debug-only.sh` walks
-`{`, `}` and `;` per character to end an item at depth zero;
+holds `depth`/`skipping` as a state; `bit-identity-debug-only.sh` cuts
+a record at `{`, `}` and `;` and carries `()`/`[]` depth by `gsub`
+beside it, to end an item at depth zero (re-measured at PR 2049's
+merge; it was a per-character walk before);
 `panic-free-macro-bodies.sh` walks `{}()[]` per character to cut the
 SPAN of a `macro_rules!` body out of a line. A shared record shape
 would be a depth column — `FILE:LINE:DEPTH:TEXT` — and it serves the
@@ -141,10 +143,12 @@ the same, at this branch's merge base. Hits and disposition:
 resolver's), `probe-suite-census.sh` (`-vF` over a SUITE list, not a
 path exclusion — not this class), `test-aggregation.sh` and
 `gated-suite-paths.sh` (`cfg(test)` named in prose only).
-`bit-identity-debug-only.sh` spells the attribute a third way —
-`/#\[cfg\(test\)\]/` in its own awk, for its debug-only item skip — and
-is held by another lane, so it is not in this diff; it wants
-`GATE_CFG_TEST_RE` as a rider. **What the pattern cannot match**: a
+`bit-identity-debug-only.sh` held a third spelling of the attribute at
+this branch's first merge base and **no longer does**: PR 2049 rewrote
+it, and at `origin/main` today it spells no `cfg(test)` at all — only
+`cfg(debug_assertions)`, a different attribute with no share in this
+row. Re-swept at the merge, per discipline §5; there is no rider.
+**What the pattern cannot match**: a
 gate excluding test code through a spelling that names neither `cfg`
 nor `-vF` — a hard-coded path list, or a `find` that prunes a
 directory by name. Neither exists under `scripts/gates/` today, and
