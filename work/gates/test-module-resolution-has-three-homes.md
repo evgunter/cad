@@ -48,3 +48,13 @@ filter into `lib.sh`, have the three gates call them, and keep PR
 `#[cfg(test)]` declaration through a pattern the two greps above did
 not match (the sweep was `cfg\(test\)` and `-vF` over
 `scripts/gates/*.sh`).
+
+**A third mechanism, same shape** (PR 2032's review, Q1): three
+hand-rolled balanced-delimiter walkers over the code-only view —
+`lib.sh`'s `--skip-cfg-test` counting `{}` by `gsub`,
+`bit-identity-debug-only.sh`'s per-character `{};` walk, and
+`panic-free-macro-bodies.sh`'s per-character `{}()[]` walk. `lib.sh`'s
+own header argues that two hand-rolled readers is how the `//` strip
+got copied everywhere; a record shape beside `--statements` and
+`--window` is where a shared walker would live. Same row, because the
+same helper file owns the answer.
