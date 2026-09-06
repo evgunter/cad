@@ -311,3 +311,67 @@ the edge side's absent readback door on this one
 (`edge-carrier-kind-has-no-readback-door`). The lane's one-word
 question in `readback.rs` ("twin" → "flattening") taken
 orchestrator-direct on the branch; merges on green.
+
+## Two-homes merged (2026-09-06)
+
+PR 1959 merged at `332bc981` (green run 34014916153 on `bf42c02a`,
+full matrix). `face-kind-read-has-two-homes` closed: the predicate
+seat reads the face kind through the typed readback door and flattens;
+`readback.rs`'s doc names the query seat as its flattening. SEAT's
+`query.rs` edited by announced seam, two function bodies. Fifteen
+items remain on the slate; six closed since opening (`S330`, `S94`,
+`D261`, `D264`, this one, and `D50`/`D260` in fix pass).
+
+## D50 merged (2026-09-06)
+
+PR 1949 merged at `368089da` (green run 34015295339 on `57244699`,
+full matrix). `D50` and `D260` closed; the residue
+`live-guard-proves-ordering-not-identity` narrowed at the fix pass to
+the two gaps that survive the argument check. The ten-item fix pass
+landed whole, the cheap argument-spelling partial included; the
+reviewer's `-> Self`-in-`impl Body` mutant is now correctly green
+because the `Self` check is scoped to the `impl Live` block. One
+census line noted on S-TCOST's board. Two notes for the next briefs:
+a reviewer's probe script that ends in `git checkout --` against a
+hard-coded worktree path discarded a lane's uncommitted fix edits
+when re-run there (lanes commit before running foreign probes;
+reviewer probes must not reset files); and the lane found a stale
+count in prose ("two `macro_rules!`", it was three) — the prose now
+carries the claim without the number. Slate: thirteen open items.
+The liveness-and-generator sub-lane is empty except `D20` (queues on
+the lane budget); the reader sub-lane is `D107` only; the Euler
+sub-lane holds `S93`, `D265`, `D262`, `D263`, `S69`, the H item, the
+census door, and two residues.
+
+## Wave 3 out: D265 and S69 (2026-09-06)
+
+`D265` dispatched on `topo/d265-door-corruption-class`, spec
+`docs/TOPO-D265-SPEC.md`: the merge door's arena-fault class asks the
+enum a question ("torn?") that is not the door's ("contradicts a fact
+I established?"); two homes, the door enumerates its own. Moves a
+kernel answer (an inventory skip becomes an escape for the (C)
+variants) → block TOPO-B1 slot 1, dual at review. `S69` dispatched on
+`topo/s69-kfmrh-fusion-form`, brief in the item: the fusion branch
+generated, the ledger counting shells, the postcondition handed the
+plan's constant. Outside the experiment (generator, ledger, debug
+postcondition). Both briefs pre-log difficulty M; the D265 arm was
+known when its guess was written (block drawn 2026-09-05), disclosed
+in the spec.
+
+## The census door goes to Ev (2026-09-06)
+
+`no-public-census-or-genus-query`: recommendation (A) — a typed
+whole-body read in `readback` (`euler_counts` + `genus() -> Result`),
+shells as the shell term, parity refusing typed. Three viable shapes
+on paper; the API shape is a design question by the item's own words,
+so it goes out as an `[ev]` PR. Re-measured at 26 sites in 22 files,
+and the ledger's solids-for-shells slip (`S69`'s lane) is the row's
+cost already realised.
+
+## Census door ruled (2026-09-06)
+
+PR 2010: Ev ratified (A). `no-public-census-or-genus-query` is a unit
+in `spec`, branch `topo/census-door`, queued behind the two running
+lanes; it draws block TOPO-B1 slot 2 (a new public answer). Seams
+announced: S-TCOST for the fourteen test files; the demos' owner at
+dispatch once `paths` say who that is.

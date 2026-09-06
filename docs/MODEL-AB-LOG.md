@@ -280,6 +280,13 @@ amended:
   (after). Other programs' fable rows in the window carry the same
   caveat.
 
+- **v6 stopping rule, Ev in-chat 2026-09-06 (on
+  `work/issues/ab-log-v6-stream-is-past-its-stopping-rule-unadjudicated`):
+  the duals CONTINUE for the moment.** The pre-registered stop (item 2
+  below) is acknowledged as passed and not taken; orchestrators keep
+  dispatching v6 duals and keep recording per-row tally candidates
+  per the H4 precedent, and the blinded readout (item 4) stays owed
+  rather than scheduled. No protocol version changes.
 - **Protocol v6 (Ev, in-chat, 2026-08-26, from the fourth
   readout's confound review). DUAL REVIEW REINSTATED,
   SLOT-RANDOMIZED, with a pre-registered stopping rule and a
