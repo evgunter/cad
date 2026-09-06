@@ -72,17 +72,22 @@ three times against three edited values of
 
 | `COEFF_BITS` | plate, one leaf | plate ceiling | R2 bracket, one leaf | bracket ceiling |
 | --- | --- | --- | --- | --- |
-| **256 (shipped)** | 0.21 s | `[7.787e2, 7.817e2] · ε` | 0.65 s | `[3.865e2, 3.880e2] · ε` |
-| 1024 | 0.20 s | unmoved | 24.74 s (**38×**) | unmoved |
-| 4096 | 0.22 s | unmoved | 34.01 s (**52×**) | unmoved |
+| **256 (shipped)** | 0.18 s | `[7.787e2, 7.817e2] · ε` | 0.61 s | `[3.865e2, 3.880e2] · ε` |
+| 1024 | 0.20 s | unmoved | 24.80 s (**41×**) | unmoved |
+| 4096 | 0.20 s | unmoved | 34.16 s (**56×**) | unmoved |
+
+(Re-taken after spec amendment A1, with BOTH of the arc carrier's
+same-object identities registered; the first cut, with the rim
+registrant alone, read 0.21 / 0.65 / 24.74 / 34.01 s and gave the same
+answer.)
 
 ("unmoved" is both ends asserted: half the 256-bit ceiling still
 certifies whole and twice it still refuses, at every bound.)
 
 **No bound change ships.** M10-9's rule was that one ships only if it
 MOVES a ceiling at no more than 2× the bracket's leaf cost; neither
-1024 nor 4096 moves a ceiling at all, and both cost the bracket 38×
-and 52×. The wide ring was the alternative to the door, and it was
+1024 nor 4096 moves a ceiling at all, and both cost the bracket 41×
+and 56×. The wide ring was the alternative to the door, and it was
 never affordable: what the ~640-bit expansion would have bought on the
 plate's rim residual, the door buys for nothing — and, as it turns
 out, the plate's ceiling does not move either way, because what bounds
