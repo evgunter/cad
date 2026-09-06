@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-06
 refs: [debug-only-helpers-outside-the-subject-list, 2049]
 branch: gates/statement-attribute-items
+pr: 2059
 ---
 
 
