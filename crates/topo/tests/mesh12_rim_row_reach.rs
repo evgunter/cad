@@ -7,10 +7,11 @@
 //! The shape is a sphere whose one rim row is stated as TWO arcs at
 //! latitudes `v` and `v + Δv`, both circles exactly on the sphere, the
 //! two junction vertices at the mean latitude. Certification pins each
-//! junction to each carrier within ε, so the row constructs whenever
-//! `R·Δv/2 ≤ ε`, and the condition measures the gap `R·Δv`: the window
-//! `ε ≤ R·Δv ≤ 2ε` is where a certifying door hands the examination a
-//! finding. MESH-8's argument that a rim through two points is unique
+//! junction to each carrier within ε, so the row constructs while
+//! `R·Δv/2` is definitely inside the endpoint band (at `R·Δv = 2ε`
+//! the pin already escalates), and the condition measures the gap
+//! `R·Δv`: the window `[ε, 2ε)` is where a certifying door hands the
+//! examination a finding. MESH-8's argument that a rim through two points is unique
 //! holds for exact incidence; the endpoint band is what opens this
 //! window.
 //!
@@ -43,10 +44,11 @@
 
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
+use geom_brep::certify::{CertCheck, CertifyError};
 use geom_brep::props::{PropsError, curved_face, require_iso_rectangle, require_one_chart_branch};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
-use topo::{Body, CoherenceCondition, FaceSurface, MefSite, MevSite};
+use topo::{Body, CoherenceCondition, EulerOpError, FaceSurface, MefSite, MevSite};
 
 fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
     Point3::new(x, y, z)
@@ -63,9 +65,9 @@ const V1: f64 = 0.5;
 /// The cap above a rim row stated as two on-sphere arcs at latitudes
 /// `V1` and `V1 + dv`, and its complement, through the Euler doors;
 /// the two junctions sit at the mean latitude. `Err` is the door's own
-/// certification refusal, which is the row's answer when the junctions
-/// leave the endpoint band.
-fn two_level_rim_cap(dv: f64) -> Result<Body<f64>, String> {
+/// typed answer, which is the row's when the junctions leave the
+/// endpoint band.
+fn two_level_rim_cap(dv: f64) -> Result<Body<f64>, EulerOpError> {
     let tol = Tol::witness();
     let vm = V1 + 0.5 * dv;
     let a = p3(RS * vm.cos(), 0.0, RS * vm.sin());
@@ -88,16 +90,14 @@ fn two_level_rim_cap(dv: f64) -> Result<Body<f64>, String> {
         }),
     )
     .unwrap();
-    let e1 = body
-        .mev(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            b,
-            EdgeCurveSpec::arc_of_circle(rim(V1), 0.0, core::f64::consts::PI).unwrap(),
-            tol,
-        )
-        .map_err(|e| format!("{e:?}"))?;
+    let e1 = body.mev(
+        MevSite::Lone {
+            r#loop: seed.r#loop,
+        },
+        b,
+        EdgeCurveSpec::arc_of_circle(rim(V1), 0.0, core::f64::consts::PI).unwrap(),
+        tol,
+    )?;
     body.mef(
         MefSite::Chords {
             he1: e1.he_minus,
@@ -107,8 +107,7 @@ fn two_level_rim_cap(dv: f64) -> Result<Body<f64>, String> {
             .unwrap(),
         FaceSurface::Inherit,
         tol,
-    )
-    .map_err(|e| format!("{e:?}"))?;
+    )?;
     Ok(body)
 }
 
@@ -116,8 +115,11 @@ fn two_level_rim_cap(dv: f64) -> Result<Body<f64>, String> {
 /// finding**: at `R·Δv = 1.5ε` and `1.9ε` the body constructs and the
 /// report carries one `RimContinuation` per face, `gap = Δv`,
 /// `lever = R`, `metres = R·Δv`. Below the band (`0.5ε`) the same
-/// construction is quiet; past the endpoint band (`3ε`, each junction
-/// `1.5ε` off its carriers) the door refuses before any body exists.
+/// construction is quiet; from `2ε` (each junction `ε` off its
+/// carriers, the endpoint pin's own ambiguity band) the door
+/// ESCALATES at `EndpointStart` before any body exists — a typed
+/// `Escalated`, not a refusal, and the reason the window is
+/// half-open.
 #[test]
 fn a_two_level_rim_row_from_the_certifying_doors_reports_its_gap() {
     let tol = Tol::witness();
@@ -150,11 +152,88 @@ fn a_two_level_rim_row_from_the_certifying_doors_reports_its_gap() {
     }
     let quiet = topo::examine_chart_coherence(&two_level_rim_cap(0.5 * eps / RS).unwrap(), tol);
     assert!(quiet.findings.is_empty(), "{:?}", quiet.findings);
-    let refused = two_level_rim_cap(3.0 * eps / RS);
+    for f in [2.0, 3.0] {
+        let escalated = two_level_rim_cap(f * eps / RS);
+        assert!(
+            matches!(
+                &escalated,
+                Err(EulerOpError::Certification {
+                    error: CertifyError::Escalated {
+                        check: CertCheck::EndpointStart,
+                        ..
+                    }
+                })
+            ),
+            "a junction {}ε off both carriers is the endpoint pin's to escalate: {escalated:?}",
+            f / 2.0
+        );
+    }
+}
+
+/// **The re-mint admits no gap the examination reports — the record,
+/// pinned on one body with no file.** `topo::mint_pcurves` is the gate
+/// `import_step` refuses at (`pcurve_loop_continuity`, the junction's
+/// chart-v jump at the linear band), and the examination reports the
+/// same gap at the same band. Bisected on `R·Δv` over the same
+/// construction: the largest gap the re-mint admits and the smallest
+/// the examination reports are adjacent at `ε`, the examination is
+/// quiet at the former and the re-mint refuses the latter, so the
+/// intersection an import fixture would need is empty at this ε.
+#[test]
+fn the_remint_admits_no_gap_the_examination_reports() {
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    let mint_ok = |f: f64| {
+        two_level_rim_cap(f * eps / RS)
+            .ok()
+            .is_some_and(|mut body| topo::mint_pcurves(&mut body, tol).is_ok())
+    };
+    let reports = |f: f64| {
+        two_level_rim_cap(f * eps / RS).ok().is_some_and(|body| {
+            topo::examine_chart_coherence(&body, tol)
+                .findings
+                .iter()
+                .any(|c| matches!(c.condition, CoherenceCondition::RimContinuation { .. }))
+        })
+    };
     assert!(
-        matches!(&refused, Err(e) if e.contains("carrier_endpoint")),
-        "a junction 1.5ε off both carriers is the endpoint pin's to refuse: {refused:?}"
+        mint_ok(0.5) && !reports(0.5),
+        "below the band: minted, quiet"
     );
+    assert!(
+        !mint_ok(1.9) && reports(1.9),
+        "inside the window: refused, reported"
+    );
+    let (mut lo, mut hi) = (0.5_f64, 1.9_f64);
+    for _ in 0..80 {
+        let m = 0.5 * (lo + hi);
+        if mint_ok(m) { lo = m } else { hi = m }
+    }
+    let admits_up_to = lo;
+    let (mut quiet, mut loud) = (0.5_f64, 1.9_f64);
+    for _ in 0..80 {
+        let m = 0.5 * (quiet + loud);
+        if reports(m) { loud = m } else { quiet = m }
+    }
+    let reports_from = loud;
+    assert!(
+        admits_up_to < reports_from,
+        "the re-mint admits up to {admits_up_to:.17}ε, the examination reports from {reports_from:.17}ε"
+    );
+    assert!(
+        !reports(admits_up_to),
+        "quiet at the last admitted gap {admits_up_to:.17}ε"
+    );
+    assert!(
+        !mint_ok(reports_from),
+        "refused at the first reported gap {reports_from:.17}ε"
+    );
+    for (what, f) in [("admission", admits_up_to), ("report", reports_from)] {
+        assert!(
+            (f - 1.0).abs() < 1e-6,
+            "the {what} threshold sits at ε: {f:.17}"
+        );
+    }
 }
 
 /// **Nothing that meshes or measures consumes the discarded

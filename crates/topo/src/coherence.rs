@@ -44,8 +44,12 @@
 //!   the endpoint band, which is a rim-only cap: the shape door
 //!   admits it, the flux lane refuses it and the walk cannot mesh it
 //!   (issue 1615). `topo/tests/mesh12_rim_row_reach.rs` pins both
-//!   halves; the synthetic off-surface circle of
-//!   `topo/tests/mesh8_coherence.rs` remains the band-scaled witness.
+//!   halves, and pins the record itself without a file: the re-mint's
+//!   admission threshold and this condition's reporting threshold,
+//!   bisected on one body at the run's ε, do not overlap
+//!   (`the_remint_admits_no_gap_the_examination_reports`); the
+//!   synthetic off-surface circle of `topo/tests/mesh8_coherence.rs`
+//!   remains the band-scaled witness.
 //! - [`CoherenceCondition::MeridianContinuation`] — the same, one axis
 //!   over: two edges carrying one meridian column disagree in u. Lever:
 //!   [`Chart::radial`] at the junction between them.
@@ -178,9 +182,12 @@ pub enum CoherenceCondition {
     ///
     /// **No imported body reports this, by construction** (the module
     /// docs): the import door's pcurve re-mint refuses the v jump at
-    /// the band this condition reports it at. Its live reach is a
-    /// rim-only cap through the Euler doors, which no meshing or
-    /// measuring lane consumes.
+    /// the band this condition reports it at — pinned by
+    /// `topo/tests/mesh12_rim_row_reach.rs`, which bisects both
+    /// thresholds on one body and finds no gap the re-mint admits and
+    /// this condition reports. Its live reach is a rim-only cap
+    /// through the Euler doors, which no meshing or measuring lane
+    /// consumes.
     RimContinuation {
         /// The edge that opens the shared iso side.
         opens: EdgeKey,

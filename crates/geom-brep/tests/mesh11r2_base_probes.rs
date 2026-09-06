@@ -1,10 +1,8 @@
 //! **R2 review probe for MESH-11, re-aimed by MESH-12** (issue 1601):
-//! the extent fold on a saturated meridian span, `2π + 2δ`, whose
-//! north pole sits `δ` inside the span. Written to compile on
-//! MESH-11's merge base (it uses only `curved_face`), where it pinned
-//! the fold measuring SHORT on 36 of 400 spans as a limitation; the
-//! parse now refuses every such span by certification's own bound,
-//! and the row pins that instead.
+//! a saturated meridian span, `2π + 2δ`, whose north pole sits `δ`
+//! inside the span, through `curved_face` alone: the parse refuses
+//! every such span by certification's own bound, at every δ of the
+//! review's sweep.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,

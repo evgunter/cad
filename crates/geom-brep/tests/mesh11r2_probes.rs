@@ -194,18 +194,15 @@ fn r2_the_cone_floor_is_the_escalation_threshold_from_both_sides() {
 }
 
 /// **A SATURATED span (`dt > 2π`) refuses at the parse, at every δ,
-/// under one name** (issue 1601). The helper used to clamp its
-/// membership edge at a half-turn, which left `f = ⟨P, M⟩ + 1` — a
-/// sign whose zero set is the one direction antipodal to the span's
-/// midpoint, an INTERIOR point `δ` past `t0` for a span `2π + 2δ` —
-/// so a rounding residual decided between a definite `Positive` (door
-/// refuses, fold folds) and a definite `Negative` (door ADMITS a
-/// pole-crossing arc, fold SKIPS the pole, area short). Both consumers
-/// now refuse the span before the pole arithmetic runs:
-/// `props_meridian_span_winding`, certification's own bound
-/// re-decided at the parse and at the branch door. One arc per `δ`;
-/// the rimless pair closes with the complementary `2π − 2δ` arc so
-/// `curved_face` can be asked.
+/// under one name** (issue 1601). A `2π + 2δ` span whose north pole
+/// sits `δ` inside it contains that pole twice, and the direction
+/// antipodal to the span's midpoint is an INTERIOR point of the span:
+/// no membership sign formed on such a span is a datum the fold or
+/// the branch door may read. Both consumers refuse the span before
+/// the pole arithmetic runs — `props_meridian_span_winding`,
+/// certification's own bound re-decided inside the pole helper. One
+/// arc per `δ`; the rimless pair closes with the complementary
+/// `2π − 2δ` arc so `curved_face` can be asked.
 #[test]
 fn r2_a_saturated_span_with_the_pole_antipodal_to_its_midpoint() {
     let bd = band();
@@ -304,13 +301,13 @@ fn r2_a_full_meridian_circle_is_refused_and_a_full_rim_is_not() {
     assert_eq!(r, Ok(()));
 }
 
-/// **The mechanism that made the short spans, replicated in f64 — and
-/// shown to reach no consumer any more.** The retired clamp's sign was
-/// `f = ⟨P, M⟩ − cos(min(dt/2, π)) = ⟨P, M⟩ + 1` with `P = −M`
-/// mathematically, a one-ulp residual copied onto a chord `≈ δ`. The
-/// residual is still computable here; what the row pins is that its
-/// sign no longer selects anything: every span of the sweep refuses
-/// at the parse whichever way the residual falls.
+/// **A rounding residual on a saturated span selects nothing.** With
+/// the north pole `δ` inside a `2π + 2δ` span, the pole's direction is
+/// antipodal to the span's midpoint (`⟨P, M⟩ = −1` mathematically), so
+/// any membership sign formed against a half-turn edge is a one-ulp
+/// residual copied onto a chord `≈ δ`. The residual is computed here
+/// in `f64` and counted by sign; the row pins that every span of the
+/// sweep refuses at the parse whichever way it falls.
 #[test]
 fn r2_the_saturated_span_sign_is_a_rounding_residual() {
     let bd = band();

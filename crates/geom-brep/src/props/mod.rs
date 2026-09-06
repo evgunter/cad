@@ -317,8 +317,13 @@ pub enum PropsError {
     /// A carrier or surface is the unimplemented `Nurbs` placeholder.
     Unimplemented,
     /// The boundary shape is outside the M2 iso-rectangle inventory,
-    /// or a stored-data consistency residual is definitely nonzero.
-    /// The payload names the structural expectation that failed.
+    /// a stored-data consistency residual is definitely nonzero, or a
+    /// stored span is outside certification's per-edge bounds
+    /// `0 < Δt ≤ τ` (`props_meridian_span_forward` /
+    /// `props_meridian_span_winding` on a sphere meridian arc, the
+    /// `props_meridian_pieces_*` names on a reconstructed torus
+    /// meridian) — an arc no closed form here may fold. The payload
+    /// names the structural expectation that failed.
     NotIsoRectangle {
         /// Which structural expectation failed (static description).
         what: &'static str,
