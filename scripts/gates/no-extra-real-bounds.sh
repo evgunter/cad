@@ -280,11 +280,8 @@ plant_sealed_decl_changed() {
   printf 'pub trait SpanLocate: PartialOrd + Real {\n}\n' > "$1/$SEALED_HOME"
 }
 
-# THE CLEAN TREE CARRIES THE SKIP'S OWN SUBJECT, because a home that is
-# not there is a red (`lib.sh`, gate_exact_skip): the ratified
-# declaration is planted in every fixture, so the skip is LIVE in all of
-# them and an anchor that over-narrowed would red the clean case rather
-# than wait for the one fixture written to notice.
+# The clean tree carries the skip's own subject, for the reason
+# `lib.sh` gives at `gate_exact_skip`.
 gate_plant_clean() {
   gate_plant_clean_sources "$1"
   gate_exact_skip_plant_home "$1"
