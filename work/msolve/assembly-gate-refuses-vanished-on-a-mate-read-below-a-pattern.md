@@ -2,9 +2,10 @@
 id: assembly-gate-refuses-vanished-on-a-mate-read-below-a-pattern
 kind: issue
 title: The assembly gate refuses Reference Vanished for a mate read at the transform below a pattern, though the solve placed it correctly
-status: parked
+status: closed
 opened: 2026-09-05
 blocked_on: [MSOLVE-5]
+closed: 2026-09-06
 ---
 
 
@@ -25,3 +26,11 @@ What the gate should read for a mate whose operand is consumed by a
 pattern (copy 0's row? the member's row through the walk?) is the
 question; the honest interim is a refusal that says the operand is
 not a product root rather than that the name vanished.
+
+## Closed (2026-09-06, PR 2090)
+
+Fixed by MSOLVE-5: the gate asks the operand's own table before it
+says a name vanished, and a mate read below a product root refuses
+`ReadBelowARoot { at }` in the operand's voice. The refusal stands (the
+canonical spelling is the `Instance(i)` head, a ratified pin); the
+word is now the true one.

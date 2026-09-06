@@ -1398,3 +1398,19 @@ the unit's record is its item's `## Closed` section and its MERGED
 entry in `work/msolve/log.md` (no A/B row: the program runs none).
 
 - `MSOLVE-3-SPEC.md` — MSOLVE-3, the mate solve reports the evaluation's own refusal: `PlacerRefused`, and the placement axis decided (#2081)
+
+## Per-merge deletion — MSOLVE-5's spec (2026-09-06)
+
+Recoverable at `git show ae78e6e8d22005ca276bb16aac6cf49c42ae2da3:docs/MSOLVE-5-SPEC.md`
+(the MSOLVE-5 unit head, before the state-sync commit that deleted it;
+unamended). Its stop clause FIRED: the "operand answers, `at` a root,
+product silent" bullet is reachable through a root instance's BODY
+row, which `carry_names` drops. The orchestrator ruled on the PR's
+draft that the operand's entry decides its kind before the root
+question, so the spec's "`ReadBelowARoot` for ANY entry" narrowed to
+face entries and a non-face entry answers `NotAFace { kind }`
+wherever it is read; the unit's PR carries the ruling. The rule above;
+the unit's record is its item's `## Closed` section and its MERGED
+entry in `work/msolve/log.md` (no A/B row: the program runs none).
+
+- `MSOLVE-5-SPEC.md` — MSOLVE-5, the at-rest gate refuses a mate read below a product root in the operand's voice (#2090)
