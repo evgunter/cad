@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-06
 refs: [D109, S49]
 branch: gates/reader-homes
+pr: 2058
 ---
 
 
