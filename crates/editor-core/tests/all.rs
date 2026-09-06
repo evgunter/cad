@@ -112,6 +112,8 @@ mod docm4_evaluation_identity;
 mod docm5_subject;
 #[path = "docm7_union_declare.rs"]
 mod docm7_union_declare;
+#[path = "review_r1_docm7.rs"]
+mod review_r1_docm7;
 #[path = "dsc_checks.rs"]
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
