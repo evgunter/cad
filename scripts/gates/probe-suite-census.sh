@@ -825,6 +825,19 @@ plant_gates_commented_out() {
   done
 }
 
+# THE SAME THING ONE NESTING DEEPER, which is a fixture for the READER
+# rather than for this predicate: the block that hides the gate line
+# contains a block of its own, so a reader that ends a comment at the
+# FIRST `*/` puts the attribute back into the code view and censuses a
+# suite that is commented out. Rust nests block comments; so does the
+# shared reader, and this is what holds it there.
+plant_gates_in_a_nested_block_comment() {
+  local f
+  for f in "$1"/crates/geom-brep/tests/*.rs; do
+    printf '/* outer /* inner */\n#![cfg(feature = "probe")]\n*/\n' > "$f"
+  done
+}
+
 # THE PRICE THE ANCHORS USED TO CHARGE, now a passing case: a gate line
 # with a TRAILING COMMENT is a gate. The whole-line anchor could not see
 # one, so every suite in this crate would have gone uncounted and its
@@ -1167,6 +1180,8 @@ gate_selftest() {
   gate_selftest_case 'topo carries 0 probe-gated test suite(s), below the 5' plant_crate_misgated
   gate_selftest_case 'geom-brep carries 0 probe-gated test suite(s), below the 4' \
     plant_gates_commented_out
+  gate_selftest_case 'geom-brep carries 0 probe-gated test suite(s), below the 4' \
+    plant_gates_in_a_nested_block_comment
   gate_selftest_passes 'a gate line carrying a trailing comment' \
     plant_gates_with_trailing_comments
   gate_selftest_case 'no workspace `cargo clippy' plant_clippy_undenied
@@ -1205,7 +1220,7 @@ gate_selftest() {
 exec "$GATE_REAL_TOOL" "$@"'
   GATE_SELFTEST_ARGS=()
 
-  printf '%s selftest OK: passes a clean fixture, one with a ci.yml long enough to race, one whose census is long enough to race the roster-listing check, a compound gate, a complete listing, a tally meeting every rostered execution, and every gate line in the tree carrying a TRAILING COMMENT (which the whole-line anchor this predicate used to need could not see); fires on a listing missing a counted suite, on an empty one, and on an absent tests/ tree, a renamed gate spelling, every gate in one crate re-spelt onto a misspelt feature, every gate line in another COMMENTED OUT inside a `/* */` block (which that anchor counted), a clippy row that stopped denying warnings, the cfg lint silenced at the site, a suite with no declared disposition, the disposition sentence written as an ordinary comment rather than a doc comment, the blanket sentence over a partly-gated file and the partial one over a wholly-gated file, a rostered suite claiming it is not run, a roster row naming no censused file, and a sweep that stopped feeding --check-executed or commented the call out, and — matcher-death, both ends — on grep vanishing out from under the gate, on awk vanishing with it (the shared reader is this census'"'"'s first matcher now) and on the real grep rejecting a live matcher'"'"'s pattern (an invalid backreference riding the -rlE scan), each ending in a diagnosis rather than a green — and in --check-executed mode, on a suite SELECTED that executed nothing, a dropped invocation, an empty tally, an unrostered execution, a malformed row, an `#[ignore]`d test no selection runs, and a suite rostered under `--ignored` alone; and in --citations mode, on a dropped citation, a deleted citing file, a renamed CI step, and an undeclared new citation, on its completeness scan dying inside its process substitution (the marker path through gate_ok), while PASSING the same citation in a declared-history file\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, one with a ci.yml long enough to race, one whose census is long enough to race the roster-listing check, a compound gate, a complete listing, a tally meeting every rostered execution, and every gate line in the tree carrying a TRAILING COMMENT (which the whole-line anchor this predicate used to need could not see); fires on a listing missing a counted suite, on an empty one, and on an absent tests/ tree, a renamed gate spelling, every gate in one crate re-spelt onto a misspelt feature, every gate line in another COMMENTED OUT inside a `/* */` block (which that anchor counted) and again inside a NESTED one (which a reader ending a comment at the first `*/` counts), a clippy row that stopped denying warnings, the cfg lint silenced at the site, a suite with no declared disposition, the disposition sentence written as an ordinary comment rather than a doc comment, the blanket sentence over a partly-gated file and the partial one over a wholly-gated file, a rostered suite claiming it is not run, a roster row naming no censused file, and a sweep that stopped feeding --check-executed or commented the call out, and — matcher-death, both ends — on grep vanishing out from under the gate, on awk vanishing with it (the shared reader is this census'"'"'s first matcher now) and on the real grep rejecting a live matcher'"'"'s pattern (an invalid backreference riding the -rlE scan), each ending in a diagnosis rather than a green — and in --check-executed mode, on a suite SELECTED that executed nothing, a dropped invocation, an empty tally, an unrostered execution, a malformed row, an `#[ignore]`d test no selection runs, and a suite rostered under `--ignored` alone; and in --citations mode, on a dropped citation, a deleted citing file, a renamed CI step, and an undeclared new citation, on its completeness scan dying inside its process substitution (the marker path through gate_ok), while PASSING the same citation in a declared-history file\n' "$(gate_name)"
 }
 
 # The negative control for the completeness check: the same planted

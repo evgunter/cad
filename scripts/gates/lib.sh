@@ -288,12 +288,51 @@ gate_ok() {
 # gate's downstream pipeline (its allowlist filters, its message) is
 # unchanged by the swap. LINE is the real line the record starts at.
 #
-# WHAT IT CANNOT DO. It is a lexer, not a parser: it knows `//`, `/* */`
-# (nesting NOT handled -- Rust allows nested block comments and the
-# first `*/` closes here), `"..."`, `r#"..."#`, `b"..."`, and char
-# literals as distinct from lifetimes. It does not know `macro_rules!`
-# bodies, `include!`d text, or code behind `#[cfg]` other than the
-# `test` skip below.
+# WHAT IT KNOWS. `//`, `/* */` INCLUDING NESTING (Rust allows nested
+# block comments; the `*/` that BALANCES the opener closes here, as it
+# does in rustc and in `test_utils::source`), `"..."`, `r#"..."#`,
+# `b"..."`, and char literals as distinct from lifetimes.
+#
+# WHAT IT CANNOT DO, ONE BLIND SPOT AT A TIME, because a list of names
+# is not a statement of what each one is blind to. It is a lexer, not a
+# parser, and each of these is left rather than fixed:
+#
+#   * `macro_rules!` BODIES ARE ORDINARY CODE. A body is lexed and
+#     emitted like any other text, so every matcher reads what a macro
+#     is WRITTEN as and never what it EXPANDS to. Both directions are
+#     live: a forbidden spelling assembled from token fragments is
+#     invisible, and one written literally inside a body nothing
+#     invokes reds a gate. ACCEPTED because the fix is expanding Rust,
+#     which is a compiler and not a reader — and the one gate whose
+#     subject this actually is has its own row
+#     (`clippy-panic-gate-blind-in-macros`) rather than a flag here.
+#
+#   * `include!`d TEXT IS NOT FOLLOWED, and the reason is that this
+#     reader's unit is a file path its CALLER hands it. An included
+#     file inside the caller's scan set is read in its own right; one
+#     outside it is read by nothing. ACCEPTED because which files are
+#     the subject is the caller's decision — `gate_require_crate_sources`
+#     is where that set is fixed and proved non-empty — and a reader
+#     that followed `include!` would scan files its caller never
+#     counted, so the count a gate prints would stop naming what it
+#     read.
+#
+#   * `#[cfg]` OTHER THAN THE `test` SKIP IS SCANNED AS LIVE CODE, and
+#     that is the deliberate half: an item behind `feature = "x"` or
+#     `target_os = "…"` compiles under some configuration, so reading
+#     it is right and skipping it would be blind exactly where a gate
+#     is load-bearing. Even the `test` skip is opt-in per caller
+#     (`--skip-cfg-test`) and refuses `any(…)`/`not(…)` for the reason
+#     the SKIPTEST block below gives. The residue is one-directional:
+#     an item behind a cfg that is false everywhere is still scanned,
+#     which cries wolf and cannot go blind.
+#
+# AND WHAT IS NOT THIS READER'S BLIND SPOT. A needle that cannot match
+# a shape the view faithfully carries is the MATCHER's blind spot, not
+# the lexer's: `v[i] * v[i]` reaches the code view exactly as written,
+# and a square matcher that only pairs bare identifiers is where that
+# gap is stated. Keeping the two apart is what stops a fix landing in
+# the wrong file.
 gate_rust_code() {
   local skip_cfg_test=0 mode=lines window=0 keep_literals=0 status=0
   while [ $# -gt 0 ]; do
@@ -311,7 +350,7 @@ gate_rust_code() {
     # A single quote cannot be written inside this program, which is
     # itself single-quoted; CODEBRK is built rather than spelled.
     BEGIN { Q = sprintf("%c", 39); CODEBRK = "[\"" Q "/]" }
-    FNR == 1 { state = 0; depth = 0; skipping = 0; seen_open = 0 }
+    FNR == 1 { state = 0; cdepth = 0; depth = 0; skipping = 0; seen_open = 0 }
     {
       s = $0; out = ""; i = 1; n = length(s)
       # THE FAST PATH, and it is worth its four lines: a line carrying no
@@ -339,9 +378,21 @@ gate_rust_code() {
       # run of the discipline row), not on either number staying true.
       while (i <= n) {
         rest = substr(s, i)
-        if (state == 1) {                      # inside /* ... */
-          p = index(rest, "*/")
-          if (p == 0) { i = n + 1 } else { state = 0; i += p + 1 }
+        if (state == 1) {                      # inside /* ... */, nested
+          # NESTING, the way rustc reads it and the way
+          # `test_utils::source` models it: a `/*` inside a block
+          # comment opens another, and the comment ends at the `*/` that
+          # balances them. The EARLIER of the two tokens decides, so
+          # `/*/` opens (its `/*` starts before its `*/`) and `*/*`
+          # closes. Reading the first `*/` as the end instead put the
+          # rest of an outer comment back into the code view — text a
+          # matcher then reads as live source.
+          o = index(rest, "/*"); p = index(rest, "*/")
+          if (p == 0) { i = n + 1; continue }
+          if (o > 0 && o < p) { cdepth++; i += o + 1; continue }
+          cdepth--
+          if (cdepth <= 0) { cdepth = 0; state = 0 }
+          i += p + 1
           continue
         }
         if (state == 2) {                      # inside "..." (or b"...")
@@ -369,7 +420,7 @@ gate_rust_code() {
         if (c == "/") {
           two = substr(s, i, 2)
           if (two == "//") { i = n + 1; continue }
-          if (two == "/*") { state = 1; i += 2; continue }
+          if (two == "/*") { state = 1; cdepth = 1; i += 2; continue }
           out = out "/"; i++
           continue
         }
