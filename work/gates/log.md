@@ -686,3 +686,52 @@ the generic record prefix named once (`GATE_RECORD_PREFIX_RE`) and
 read at its five sites; the pattern builders take their inputs as
 arguments; six comments to present tense; a stale D103 path in
 `viewer-module-kinds.sh` fixed. Five gates byte-identical live.
+
+
+## PR 2066 reviewed (2026-09-06)
+
+Style review of `debug-only-assert-euler-postcondition-is-on-no-row`:
+mergeable. Every pin re-derived, the three dropped attributes green
+before and red after, the near-miss mutations reproduced (and the old
+one-line fixture shown to hold nothing under all three), the residue
+shown to be a real consumer build break (`cargo check -p topo
+--release` with debug assertions off fails on `plane_bits_witness`).
+One finding changes the row's reasoning, sent back as a fix pass: the
+reader already has `--skip-cfg-test` and this gate reads without it,
+so `ArenaCounts` "cannot be served" was a choice, not a limit — the
+gate switches to the skip (test code is what a consumer never
+compiles), `ArenaCounts` joins `euler.rs`'s row, two pins re-baseline
+(`curved.rs`, `tessellate.rs`). Also: header history, one fact in
+three homes, the near-miss case planted per spelling rather than per
+row, the pin harness's message when a gate reds with a different
+count.
+## Landed: PR 2066 (2026-09-06)
+
+`debug-only-assert-euler-postcondition-is-on-no-row` closed. The seven
+`topo` arena-delta rows in `bit-identity-debug-only.sh` pin
+`assert_euler_postcondition` and `arena_counts` beside `ArenaDelta`,
+pins re-taken with the gate's own matcher over its code view (the pin
+is one use per delimiter-cut piece, so a one-line head naming two
+spellings counts once); dropping the attribute at `voids.rs:313` or at
+a `let before = self.arena_counts()` site was green before and is red
+now. `source.rs`'s row gained `plane_bits_witness|vec3_bits_witness|
+bits_witness` on the same reading. The near-miss fixture plants each
+identifier anchor alone plus the CamelCase and SCREAMING_SNAKE forms,
+each proved by mutation. Self-test 68 s → 87 s, linear in spellings.
+Left open with a reason: three attributes over `debug_assert_eq!`
+that compile out anyway. Residue on this slate:
+`debug-only-bit-witness-callers-are-on-no-row` (`plane_eq.rs:173`,
+`merge_faces.rs:1006`).
+Fix pass from the review: the gate reads with `--skip-cfg-test` (the
+reader has had it since PR 2058; a `cfg(test)` module is exactly what
+a consumer's release build never compiles), so `ArenaCounts` joins
+`euler.rs`'s row (pin 18 → 21; dropping the attribute at `euler.rs:246`
+was green and is red) and two pins re-baseline because their test
+modules carried gated uses — `mesh/curved.rs` 13 → 5,
+`mesh/tessellate.rs` 8 → 2; live uses 105 → 94. `source.rs` named as
+the third row whose pin is not the column sum. Header to present
+tense; the near-miss case planted per spelling with derived forms
+that are themselves a spelling dropped; the pin harness's message now
+separates "did not red" from "red with a stale number"; the residue
+row carries the consumer-build reproduction (`cargo check -p topo
+--release` with debug assertions off fails on `plane_bits_witness`).

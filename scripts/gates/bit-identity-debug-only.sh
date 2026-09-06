@@ -15,7 +15,12 @@
 #     `debug_assert!` (which is itself compiled out of release). THIS
 #     GATE IS THAT FILE'S ONLY CONTROL — `bit-identity-consumer.sh`
 #     excludes it wholesale — so what it can and cannot see is the whole
-#     guarantee.
+#     guarantee. The row pins the channel call (`bit_identity::`,
+#     `eq_bits`) AND the three debug-only witnesses built on it —
+#     `plane_bits_witness`, `vec3_bits_witness`, `bits_witness` — whose
+#     own gated `fn` heads name the channel nowhere. A ROW HOLDS THE
+#     ATTRIBUTES ON THE STATEMENTS THAT NAME ITS SPELLINGS AND NO
+#     OTHERS, so a mechanism's every spelling belongs on its row.
 #   * `crates/editor-core/src/product.rs` — the gather counter: the
 #     `GATHERS` cell, the increment in `product_recorded`, and
 #     `gathers_on_this_thread`. A fourth site without the attribute, or
@@ -38,14 +43,47 @@
 #     and nothing about the call sites (KNOWN GAP 7 for what that
 #     design still cannot see).
 #   * `crates/topo/src/{euler,euler_ring,euler_kill,null,split,movefac}.rs`
-#     and `crates/topo/src/boolean/voids.rs` — `ArenaDelta`, the arena
-#     shift each euler operator declares and `assert_euler_postcondition`
-#     checks against the counts it took before the mutation. One row per
-#     `topo` file whose CODE names it, per the rule above; a `topo` file
-#     that names it in a doc comment only has no uses to pin and so has
-#     no row. Most of the sites put the attribute in STATEMENT position
-#     over the multi-line call that reads the delta, which is what the
-#     third enclosure clause below places.
+#     and `crates/topo/src/boolean/voids.rs` — the arena-delta
+#     mechanism, in EVERY spelling its statements name: `ArenaDelta`,
+#     the arena shift each euler operator declares;
+#     `assert_euler_postcondition`, which checks it against the counts
+#     taken before the mutation; `arena_counts`, which takes those
+#     counts; and `ArenaCounts`, their type, on the one row whose file
+#     names it. One row per `topo` file whose CODE names any of them,
+#     per the rule above; a `topo` file that names one in a doc comment
+#     only has no uses to pin and so has no row. Most of the sites put
+#     the attribute in STATEMENT position over the multi-line call that
+#     reads the delta, which is what the third enclosure clause below
+#     places.
+#
+#     WHY EVERY SPELLING AND NOT THE HEADLINE ONE. A row holds the
+#     attributes on the statements that NAME its spellings, so a
+#     statement of the same mechanism naming none of them is invisible
+#     here however debug-only it is: `let before = self.arena_counts();`
+#     names no delta and no assert, and `voids.rs`'s postcondition call
+#     passes a binding and so names no struct literal. All four
+#     spellings are debug-only in their own right — `arena_counts` and
+#     `ArenaCounts` live in `test_support_impl`, mounted under
+#     `#[cfg(any(debug_assertions, test, feature = "test-support"))]`,
+#     so an ungated user of either stops a consumer's release build
+#     compiling.
+#
+# `#[cfg(test)]` CODE IS NOT SCANNED (`gate_rust_code --skip-cfg-test`),
+# and that is the same question this gate asks everywhere else: what a
+# CONSUMER'S RELEASE BUILD compiles. A test module is compiled by
+# `cargo test` and by nothing a consumer runs, so a debug-only symbol
+# used inside one can never break their build, and reading it can only
+# report a violation that is not one — which is the direction that
+# pushes a gate toward an allowlist. It also decides which spellings a
+# row can carry: a type named freely in a crate's own test modules, as
+# `ArenaCounts` is, is a spelling this reader could not serve while it
+# read them.
+#
+# SO THE PINS COUNT PRODUCTION USES, and a row whose file carries the
+# mechanism in its tests too pins fewer than the file names — the mesh
+# rows most of all, where the census helpers are read by test rows
+# beside their live callers. A pin is a reading, not a target: when the
+# reading gets righter the pin is re-taken.
 #
 # WHAT IS PINNED IS THE SOURCE SHAPE. This workspace's
 # `[profile.release]` sets `debug-assertions = true` until publish, so a
@@ -124,7 +162,10 @@
 # name that merely contains it is not a use. What the reader cannot tell
 # apart is a WHOLE-identifier collision — the same spelling naming
 # something that is not the mechanism. No row has one; a row that
-# would is one this reader cannot serve.
+# would is one this reader cannot serve. The match is also
+# CASE-SENSITIVE, so `arena_counts` and `ArenaCounts` are two spellings
+# and not one; `euler.rs`'s row pins both, and its pin is what says the
+# reader keeps them apart.
 #
 # KNOWN GAP 4: a rustfmt-wrapped attribute — `#[cfg(` and
 # `debug_assertions` and `)]` on three lines — is not read as a gate,
@@ -189,19 +230,19 @@ set -euo pipefail
 # to a file with no row — reds with the row named rather than lowering
 # the total in silence.
 SUBJECTS=(
-  'crates/topo/src/source.rs bit_identity::|eq_bits 1 the bit channel'
+  'crates/topo/src/source.rs bit_identity::|eq_bits|plane_bits_witness|vec3_bits_witness|bits_witness 6 the bit channel'
   'crates/editor-core/src/product.rs GATHERS|gathers_on_this_thread 4 the debug-only gather counter'
-  'crates/mesh/src/curved.rs identified_ids|overused_identified_edge|overused_identified_edge_in 13 the identified-vertex census the sphere/torus emit pass re-derives'
-  'crates/mesh/src/tessellate.rs unpaired_chord_segment 8 the chord-segment pairing census'
+  'crates/mesh/src/curved.rs identified_ids|overused_identified_edge|overused_identified_edge_in 5 the identified-vertex census the sphere/torus emit pass re-derives'
+  'crates/mesh/src/tessellate.rs unpaired_chord_segment 2 the chord-segment pairing census'
   'crates/mesh/src/walk.rs overused_identified_edge_in 1 the shared identified-vertex fan census'
   'crates/mesh/src/trimmed.rs overused_identified_edge_in 1 the trimmed lane call of the identified-vertex fan census'
-  'crates/topo/src/euler.rs ArenaDelta 10 the arena delta the euler operators declare'
-  'crates/topo/src/euler_ring.rs ArenaDelta 10 the arena delta the ring operators declare'
-  'crates/topo/src/euler_kill.rs ArenaDelta 9 the arena delta the kill-direction operators declare'
-  'crates/topo/src/null.rs ArenaDelta 3 the arena delta the null-entity operators declare'
-  'crates/topo/src/split.rs ArenaDelta 3 the arena delta the split operators declare'
-  'crates/topo/src/boolean/voids.rs ArenaDelta 1 the arena delta the void transplant declares'
-  'crates/topo/src/movefac.rs ArenaDelta 4 the arena delta the face-move operator declares'
+  'crates/topo/src/euler.rs ArenaDelta|assert_euler_postcondition|arena_counts|ArenaCounts 21 the arena delta the euler operators declare'
+  'crates/topo/src/euler_ring.rs ArenaDelta|assert_euler_postcondition|arena_counts 17 the arena delta the ring operators declare'
+  'crates/topo/src/euler_kill.rs ArenaDelta|assert_euler_postcondition|arena_counts 17 the arena delta the kill-direction operators declare'
+  'crates/topo/src/null.rs ArenaDelta|assert_euler_postcondition|arena_counts 5 the arena delta the null-entity operators declare'
+  'crates/topo/src/split.rs ArenaDelta|assert_euler_postcondition|arena_counts 5 the arena delta the split operators declare'
+  'crates/topo/src/boolean/voids.rs ArenaDelta|assert_euler_postcondition|arena_counts 4 the arena delta the void transplant declares'
+  'crates/topo/src/movefac.rs ArenaDelta|assert_euler_postcondition|arena_counts 6 the arena delta the face-move operator declares'
 )
 GATE_SCAN_NOUN='debug-only symbol use'
 
@@ -221,6 +262,18 @@ spelling_use() {
     *) printf '%s(a)' "$1" ;;
   esac
 }
+# THE SAME NAME IN ANOTHER CASE, in the two shapes Rust spells one in,
+# derived from a symbol so the near-miss fixture can plant them. Both
+# have the same home for the same reason the two above do: what a
+# fixture plants is derived from the row, never written beside it.
+spelling_camel() {
+  printf '%s' "$1" | awk '{
+    n = split($0, p, "_"); s = ""
+    for (i = 1; i <= n; i++) s = s toupper(substr(p[i], 1, 1)) substr(p[i], 2)
+    printf "%s", s
+  }'
+}
+spelling_upper() { printf '%s' "$1" | tr 'a-z' 'A-Z'; }
 
 # Emits `USE` for every use of PATTERN and `UNGATED` for every one of
 # them not enclosed by a `cfg(debug_assertions)` item. Enclosure is
@@ -364,7 +417,7 @@ gate() {
   done
   for row in "${SUBJECTS[@]}"; do
     read -r path pat count noun <<< "$row"
-    report=$(gate_rust_code "$path" | debug_only_report "$pat")
+    report=$(gate_rust_code --skip-cfg-test "$path" | debug_only_report "$pat")
     desynced=$(printf '%s\n' "$report" | gate_grep '^DESYNC ' | sed 's/^DESYNC //')
     if [ -n "$desynced" ]; then
       printf '%s\n' "$desynced"
@@ -700,12 +753,59 @@ plant_nested_block_comment_closing_the_file() {
     '/* outer /* inner */ ( */'
 }
 
-# THE NEAR MISS AT THE IDENTIFIER BOUNDARY: a longer name that merely
-# CONTAINS the symbol is not a use of it.
+# THE NEAR MISSES AT THE IDENTIFIER BOUNDARY: a longer name that merely
+# CONTAINS the symbol is not a use of it, and neither is the same name
+# in another case. Four shapes, because they are four claims.
+#
+#   * `pre<sym>_post` needs BOTH anchors gone to match, so on its own it
+#     says nothing about either one.
+#   * `<sym>_before` — the shape a field takes — needs the TAIL anchor.
+#   * `saved_<sym>` needs the LEAD anchor.
+#   * `<SYM>` in SCREAMING_SNAKE needs the match to fold case; the
+#     CamelCase form does not, because a fold does not remove the
+#     underscore that keeps `ArenaCounts` from containing `arena_counts`
+#     — for a single-word lowercase spelling it would, and this line is
+#     load-bearing for one. No spelling here is that shape today.
+#
+# PER SPELLING, NOT PER ROW, because an anchor is a property of the
+# SPELLING: the reader derives each end's anchor from whether that end
+# of the spelling is an identifier character, so a row's second and
+# later spellings are held by a case run on its first only where their
+# ends happen to agree. `bit_identity::` ends in a `:` and carries no
+# tail anchor at all, and the `<sym>_before` line is that spelling's
+# CONTROL rather than its test — which is the reading the per-row form
+# gave every spelling silently.
+#
+# A DERIVED FORM THAT IS ITSELF A SPELLING OF THE ROW IS DROPPED, and
+# so is one that equals the symbol (`GATHERS` is its own upper form):
+# either would plant a real, ungated use and fire a case whose whole
+# claim is that it does not. The row's spelling list is the third
+# argument for that reason, where the other planters take a use.
 plant_near_miss_identifier() {
-  local path=$1 sym=$2 root=$4
-  plant_source "$path" "$root" \
+  local path=$1 sym=$2 pat=$3 root=$4 form lines
+  lines=(
     "pub fn near(a: f64, b: f64) -> bool { pre${sym}_post(a, b) }"
+    "pub struct Near {"
+    "    pub ${sym}_before: usize,"
+    "    pub saved_${sym}: usize,"
+    '}'
+  )
+  form=$(spelling_camel "$sym")
+  near_miss_is_new "$form" "$sym" "$pat" &&
+    lines+=("pub struct $form { pub n: usize }")
+  form=$(spelling_upper "$sym")
+  near_miss_is_new "$form" "$sym" "$pat" &&
+    lines+=("pub const $form: usize = 0;")
+  plant_source "$path" "$root" "${lines[@]}"
+}
+
+# A derived form is plantable when it is neither the symbol it came from
+# nor any other spelling on the row.
+near_miss_is_new() {
+  [ "$1" != "$2" ] || return 1
+  case "|$3|" in *"|$1|"*) return 1 ;; esac
+  case "|$3|" in *"|$1::|"*) return 1 ;; esac
+  return 0
 }
 
 # The subject removed out from under the gate — one row of the list, so
@@ -727,9 +827,19 @@ gate_selftest_pin() {
   fi
   for row in "${SUBJECTS[@]}"; do
     read -r path pat count noun <<< "$row"
+    # TWO WAYS TO MISS, AND THEY WANT DIFFERENT WORDS. A row that did
+    # not red at all is pinned by nothing. A row that red with a count
+    # OTHER than its own is pinned, and what is stale is the number in
+    # the list — the reading the tree carries has moved. Saying the
+    # first of the second sends a reader looking for a matcher bug in a
+    # gate that is working.
     case "$out" in
       *"$path carries $count uses"*) ;;
-      *) printf 'SELFTEST FAILED: a pin shifted by %s did not red for %s, so that row is pinned by nothing:\n%s\n' \
+      *"$path carries "*)
+        printf 'SELFTEST FAILED: a pin shifted by %s red for %s, but with a use count that is not the %s its row pins — the row is compared and the NUMBER is stale, so re-take the pin against this tree:\n%s\n' \
+          "$shift_by" "$path" "$count" "$out" >&2
+        exit 1 ;;
+      *) printf 'SELFTEST FAILED: a pin shifted by %s did not red for %s at all, so that row is pinned by nothing:\n%s\n' \
            "$shift_by" "$path" "$out" >&2
          exit 1 ;;
     esac
@@ -747,15 +857,18 @@ gate_selftest() {
   local row path pat count noun alt spelling sym expr spellings=0
   for row in "${SUBJECTS[@]}"; do
     read -r path pat count noun <<< "$row"
-    # THE BASIC MUST-FIRE CASE RUNS ONCE PER SPELLING. A row's second
-    # and later spellings are exactly what the old fixtures held
-    # nothing against, so each of them plants its own leak and each has
-    # to be caught on its own.
+    # THE TWO CASES THAT ARE ABOUT THE SPELLING RUN ONCE PER SPELLING:
+    # the basic must-fire leak, because a row's second and later
+    # spellings are exactly what the old fixtures held nothing against,
+    # and the near misses, because the reader derives each end's anchor
+    # from that end of the SPELLING.
     IFS='|' read -r -a alt <<< "$pat"
     for spelling in "${alt[@]}"; do
       spellings=$((spellings + 1))
       gate_selftest_case "$want" plant \
         "$path" "$(spelling_sym "$spelling")" "$(spelling_use "$spelling")"
+      gate_selftest_passes "longer identifiers that merely contain $spelling, at each end alone, and the same name in another case" \
+        plant_near_miss_identifier "$path" "$(spelling_sym "$spelling")" "$pat"
     done
     # The rest of the shapes are about ENCLOSURE, which is a property of
     # the reader and not of the spelling, so they run once per row on
@@ -790,12 +903,10 @@ gate_selftest() {
       plant_statement_attribute_over_a_braced_call "$path" "$sym" "$expr"
     gate_selftest_passes 'the same with nested braces in two of the call arguments' \
       plant_statement_attribute_with_nested_braces "$path" "$sym" "$expr"
-    gate_selftest_passes "a longer identifier that merely contains the symbol" \
-      plant_near_miss_identifier "$path" "$sym" "$expr"
   done
   gate_selftest_pin 1
   gate_selftest_pin -1
-  printf '%s selftest OK, over %s subjects and the %s spellings they carry, each proved on its own: every spelling plants its own leak, so a spelling the reader cannot match fails here; enclosure by brace depth and by `debug_assert!` statement (rustfmt-wrapped or not); `all(…)` gates in either operand order while `any(…)` and `not(…)` do not; prose, string literals and a longer identifier that merely contains the symbol are not uses; an item ends at a `;` only at bracket depth zero, and only a `{` at bracket depth zero is the item ENTERING — so a statement-position attribute over a multi-line call whose arguments carry braces (nested, in more than one argument) covers that call and stops at its `;`, with a use below it firing as the ungated use it is; a NESTED block comment is comment to its balancing `*/`, so the stray bracket in one is not code — pinned both ways, the leak after one firing as the ordinary leak it is and the same comment closing a file passing; each row carries the use count it pins, proved against this tree in both directions; and a lost bracket depth (planted as code, both with braced items below the stray bracket and with nothing below it), a missing subject and a `grep` that cannot run are each a loud failure\n' \
+  printf '%s selftest OK, over %s subjects and the %s spellings they carry, each proved on its own: every spelling plants its own leak, so a spelling the reader cannot match fails here; enclosure by brace depth and by `debug_assert!` statement (rustfmt-wrapped or not); `all(…)` gates in either operand order while `any(…)` and `not(…)` do not; prose, string literals, `cfg(test)` code, a longer identifier that merely contains a spelling (prefixed, suffixed, or both at once) and the same name in another case are not uses — the near misses run per SPELLING, because the reader takes the anchor at each end from that end of the spelling; an item ends at a `;` only at bracket depth zero, and only a `{` at bracket depth zero is the item ENTERING — so a statement-position attribute over a multi-line call whose arguments carry braces (nested, in more than one argument) covers that call and stops at its `;`, with a use below it firing as the ungated use it is; a NESTED block comment is comment to its balancing `*/`, so the stray bracket in one is not code — pinned both ways, the leak after one firing as the ordinary leak it is and the same comment closing a file passing; each row carries the use count it pins, proved against this tree in both directions; and a lost bracket depth (planted as code, both with braced items below the stray bracket and with nothing below it), a missing subject and a `grep` that cannot run are each a loud failure\n' \
     "$(gate_name)" "${#SUBJECTS[@]}" "$spellings"
 }
 
