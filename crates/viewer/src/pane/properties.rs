@@ -66,7 +66,10 @@ impl ViewerBehavior<'_> {
                     .into_iter()
                     .find(|row| row.name == name)
                 {
-                    ui.label(format!("parameter {} ({:?})", row.name.0, row.dimension));
+                    // The dimension in the common noun editor-core's
+                    // `Display` spells, never the variant identifier:
+                    // a label a person reads is prose.
+                    ui.label(format!("parameter {} ({})", row.name.0, row.dimension));
                     // Shown, scrubbed and authored in the unit the
                     // parameter was DECLARED in, through the same
                     // value a slot field is written by — a parameter
@@ -430,7 +433,7 @@ impl ViewerBehavior<'_> {
                     ui.label(row.slot.label());
                     self.slot_value_ui(ui, node, row);
                     self.slot_unit_ui(ui, node, core::slice::from_ref(row));
-                    ui.weak(format!("{:?}", row.dimension));
+                    ui.weak(row.dimension.to_string());
                     if row.structural {
                         ui.weak("structural");
                     }
@@ -453,7 +456,7 @@ impl ViewerBehavior<'_> {
                     // The picker reports a disagreement rather than
                     // hiding it (`slot_unit_ui`'s mixed arm).
                     self.slot_unit_ui(ui, node, rows.as_slice());
-                    ui.weak(format!("{:?}", family.dimension()));
+                    ui.weak(family.dimension().to_string());
                 });
                 // The notes stay PER COMPONENT: an affordance names the
                 // parameters driving one component, and a range is one

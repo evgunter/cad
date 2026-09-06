@@ -23,7 +23,10 @@
 # WHAT IS NOT SCANNED, and why each is sound:
 #  - `#[cfg(test)]` blocks (via --skip-cfg-test) and whole modules
 #    declared `#[cfg(test)] mod x;` — a test IS an entry point, and
-#    the suite's discipline is already one process per eps.
+#    the suite's discipline is already one process per eps. WHERE such
+#    a module lives is not decided here: `gate_test_only_mounts` places
+#    it and `gate_filter_test_only_paths` takes it out of the scan,
+#    under `lib.sh`'s §"WHERE A TEST-ONLY MODULE LIVES".
 #  - crates/geom-core/src/tolerance.rs — it DEFINES `witness`.
 #  - crates/pncad/src — the curated document/authoring door, whose
 #    whole job is to be the place a program starts.
@@ -75,47 +78,19 @@ set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-# Files whose whole content is test code because their `mod` line is
-# `#[cfg(test)]`. Resolved from the DECLARING file's directory, both
-# spellings (`x.rs` and `x/mod.rs`), so a renamed module cannot
-# quietly re-enter the scan as shipped code.
-cfg_test_modules() {
-  # A `#[cfg(test)]` may be followed by further attributes before the
-  # `mod` line, and `#[path = "..."]` renames the file outright — both
-  # appear in this tree, so neither may be assumed away.
-  awk '
-    FNR == 1 { armed = 0; path = "" }
-    /^[[:space:]]*#\[cfg\(test\)\][[:space:]]*$/ { armed = 1; path = ""; next }
-    armed && /^[[:space:]]*#\[path[[:space:]]*=/ {
-      if (match($0, /"[^"]+"/)) path = substr($0, RSTART + 1, RLENGTH - 2)
-      next
-    }
-    armed && /^[[:space:]]*#\[/ { next }
-    armed && /^[[:space:]]*(pub(\([a-z]+\))?[[:space:]]+)?mod[[:space:]]+[a-z_0-9]+[[:space:]]*;/ {
-      name = $0
-      sub(/^[[:space:]]*(pub(\([a-z]+\))?[[:space:]]+)?mod[[:space:]]+/, "", name)
-      sub(/[[:space:]]*;.*$/, "", name)
-      dir = FILENAME
-      sub(/\/[^\/]*$/, "", dir)
-      if (path != "") print dir "/" path
-      else { print dir "/" name ".rs"; print dir "/" name "/" }
-      armed = 0; next
-    }
-    { armed = 0 }
-  ' "${GATE_SOURCE_FILES[@]}"
-}
-
 gate() {
   gate_require_crate_sources
-  local excluded hits
-  excluded=$(cfg_test_modules | sort -u)
-  hits=$(gate_rust_code --skip-cfg-test "${GATE_SOURCE_FILES[@]}" \
+  local hits
+  # A FILE the scan never reads, rather than a record filtered after it:
+  # the test-only modules leave the file set, so the count this gate
+  # prints names what it actually read.
+  gate_production_sources
+  hits=$(gate_rust_code --skip-cfg-test "${GATE_PRODUCTION_FILES[@]}" \
     | gate_grep -E 'Tol::witness|tolerance::witness' \
     | gate_grep -vE '^crates/geom-core/src/tolerance\.rs:' \
     | gate_grep -vE '^crates/pncad/src/' \
     | gate_grep -vE '^crates/pncad-py/src/py/' \
-    | gate_grep -vE '^crates/[^/]+/src/bin/' \
-    | { if [ -n "$excluded" ]; then gate_grep -vF -f <(printf '%s\n' "$excluded" | sed 's#/$#/#; s#\.rs$#.rs:#'); else cat; fi })
+    | gate_grep -vE '^crates/[^/]+/src/bin/')
   if [ -n "$hits" ]; then
     echo "$hits"
     gate_error "kernel library code minted a tolerance witness instead of receiving one. Tol::witness() — and its façade spelling pncad::tolerance::witness() — commits the run's eps: it is an entry-point act (a main under src/bin, a test, the pncad door). Take \`tol: Tol\` as a parameter and pass it down — a witness minted mid-library is the ambient read the parameter exists to replace."
@@ -182,6 +157,13 @@ plant_main_outside_bin() {
     > "$1/crates/planted/src/lib.rs"
 }
 
+# THE BREACH `lib.sh`'s test-module cases plant, and the only thing this
+# gate supplies to them: a minted witness, appended to a file whose
+# directory they have already made.
+plant_witness_at() {
+  printf 'pub fn eps() -> f64 { geom_core::Tol::witness().eps() }\n' >> "$1"
+}
+
 gate_selftest() {
   local want="kernel library code minted a tolerance witness"
   gate_selftest_clean
@@ -196,6 +178,7 @@ gate_selftest() {
   gate_selftest_passes "the call named in prose, a block comment and a string literal" plant_prose_only
   gate_selftest_passes "the same call inside a #[cfg(test)] module" plant_in_cfg_test
   gate_selftest_passes "a bin target's main under src/bin" plant_in_bin
+  gate_selftest_test_module_homes "$want" plant_witness_at
   printf '%s selftest OK: passes a clean fixture, prose/block-comment/string-literal mentions of the call, the same call inside a #[cfg(test)] module, and a bin target under src/bin; fires on a witness minted in library code, on the pncad::tolerance::witness facade spelling, and on a main written outside src/bin; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 

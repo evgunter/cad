@@ -3182,6 +3182,15 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   ANSWERED, and they get that whole — `AssemblyError::Reference`
 ///   and `AssemblyError::NoAtRestRecord` are exactly these two
 ///   refusals, raised by the door that is carried.
+///   **`CarriedRefusal` is out for the same reason and reads the
+///   same way**: it is the gather's row for a mate a document BELOW
+///   this one could not mint, and `AssemblyError::CarriedMintRefusal`
+///   is that fact raised whole by the gate. `CarriedDeclaration`,
+///   `CarriedDeclarations`, `Route` and `Relation` ARE carried,
+///   because nothing else states them: the first is what
+///   `Product::carried` and `Assembly::carried` hold, and the last two
+///   are fields of `Attribution::Carried`, which a consumer matching
+///   the gate's answer must name.
 ///   **The hit-test service's NAMED half left this list at GUI-2**
 ///   (`NodePick`, `NodePickError`, `PickHit`, `PickTarget`,
 ///   `pick_face`, `HitTestError`, and `Ray` — a `bvh` re-export riding
@@ -3229,7 +3238,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   answer `stackup` already carries. `VerdictVector`, `VerdictRow`
 ///   and `VerdictVectorKey` are the STRICT form of the verdict diff and
 ///   are argued with the instrumentation family above.
-const NOT_CARRIED: [&str; 90] = [
+const NOT_CARRIED: [&str; 91] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -3242,6 +3251,7 @@ const NOT_CARRIED: [&str; 90] = [
     "BifurcationKind",
     "BranchCertification",
     "BranchMarginEvidence",
+    "CarriedRefusal",
     "ContentKey",
     "Coset",
     "Diagnosis",

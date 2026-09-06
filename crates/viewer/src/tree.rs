@@ -262,7 +262,7 @@ fn status_of(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> RowStatu
         None => RowStatus::Unevaluated,
         Some(NodeResult::Ok(_)) => RowStatus::Ok,
         Some(NodeResult::Failed(error)) => {
-            downstream_of_mate(id, error, ev).unwrap_or_else(|| RowStatus::Failed {
+            downstream_of_mate(id, error).unwrap_or_else(|| RowStatus::Failed {
                 message: error.to_string(),
             })
         }
@@ -304,7 +304,7 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> RowStatus {
             message: None,
         };
     };
-    downstream_of_mate(through, error, ev).unwrap_or(RowStatus::Poisoned {
+    downstream_of_mate(through, error).unwrap_or(RowStatus::Poisoned {
         through,
         message: Some(downstream_wording(through)),
     })
@@ -350,23 +350,18 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
 /// The downstream reading of a node's own `Failed`, when a mate
 /// refusal reached it without naming it.
 ///
-/// `None` — the row keeps its own `Failed` — on every guard below,
-/// of which the last is the load-bearing one: no mate the fault names
-/// is failing in THIS evaluation.
+/// `None` — the row keeps its own `Failed` — when the failure is not
+/// a mate refusal, when the fault names this very node, and when it
+/// names no mate at all.
 ///
-/// That guard keeps [`RowStatus::Poisoned`]'s walkable-in-one-hop
-/// invariant true here rather than assumed. What it catches is a named
-/// mate reading `Ok` — the only other reading available, since mates
-/// are DAG leaves and so are never `Poisoned` — which happens in the
-/// very evaluation carrying the fault, because a mate's memo key does
-/// not carry the solve and a cluster that breaks around an unedited
-/// mate does not re-run it. Pointing at a green row would send the
-/// user nowhere and drop the message they can act on.
-fn downstream_of_mate(
-    id: RecipeNodeId,
-    error: &NodeError,
-    ev: &Evaluation<f64>,
-) -> Option<RowStatus> {
+/// **The blame is read directly**, and [`RowStatus::Poisoned`]'s
+/// walkable-in-one-hop invariant holds because the kernel's answer is
+/// consistent: a mate's content key carries the solve's answer, so a
+/// mate the fault names is `Failed` in the evaluation carrying that
+/// fault — never `Ok` off a stale memo, and never `Poisoned`, since
+/// mates are DAG leaves. A row here that pointed at a green row would
+/// be that inconsistency surfacing, not a case to absorb.
+fn downstream_of_mate(id: RecipeNodeId, error: &NodeError) -> Option<RowStatus> {
     let NodeErrorKind::Mate(fault) = &error.kind else {
         return None;
     };
@@ -374,11 +369,8 @@ fn downstream_of_mate(
     if blamed.contains(&id) {
         return None;
     }
-    // The first named mate the run agrees is failing, in the fault's
-    // own order.
-    let through = blamed
-        .into_iter()
-        .find(|mate| ev.result(*mate).and_then(NodeResult::error).is_some())?;
+    // The first mate the fault names, in the fault's own order.
+    let through = blamed.into_iter().next()?;
     Some(RowStatus::Poisoned {
         through,
         message: Some(downstream_wording(through)),

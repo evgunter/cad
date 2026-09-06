@@ -250,6 +250,14 @@ pub struct NodeValue<T: Decide> {
     /// reconcile. Rides the value, so memo reuse transfers
     /// declarations with the geometry they are keyed into.
     pub contacts: Arc<topo::ContactRecords>,
+    /// The MATE BOOKKEEPING those records travel with (`ASSEMBLY.md`
+    /// A5): which mate of which document below authored each of them,
+    /// and which mates of those documents could not be minted at all.
+    /// Keyed in the same arena as `contacts` and filled at the same
+    /// one op, so the gather re-keys both through the graft's own
+    /// descendant map. Rides the value, so memo reuse transfers mate
+    /// identity with the geometry it is keyed into.
+    pub carried: Arc<crate::assembly::CarriedDeclarations>,
     /// The node's verdict log (M4 PR 4, N5): every definite predicate
     /// decision the node's op made, in decision order, recorded
     /// through the one `k_stats` funnel. Scalar-independent data —
@@ -826,6 +834,27 @@ pub enum NodeErrorKind {
         /// The ambiguous name.
         name: Box<crate::names::StableName>,
     },
+    /// A `Declare` pair wired to a [`crate::Node::Union`] names two
+    /// entities that are never the two sides of ONE fold step: an
+    /// entity of the accumulation paired with a member the fold had
+    /// already joined when that entity was minted, two accumulation
+    /// entities with no step left after them, a row this node publishes
+    /// that is the output of a step rather than an input to one (its
+    /// own body), or a face a step consumed — a declared merge
+    /// publishes a `Merged` row in place of the two faces it joins, so
+    /// a later pair naming one of them has no step.
+    ///
+    /// The step a pair is fed at is DERIVED from the member ids its two
+    /// names carry (no fold position is recorded anywhere), so when
+    /// that derivation has no answer the declaration is refused — never
+    /// fed to a step where one of its names does not denote, and never
+    /// dropped. This is the refusal for a name this node DOES denote:
+    /// one it does not denote at all is
+    /// [`Self::DeclareResolve`]'s vanished rung.
+    UnionDeclareStep {
+        /// The pair, as the recipe carries it.
+        pair: Box<(crate::names::StableName, crate::names::StableName)>,
+    },
     /// A `Declare` pair outside the v1 threading vocabulary
     /// (supported: cross-operand Face–Face; same-operand
     /// Vertex–Vertex and Vertex–Face).
@@ -1374,6 +1403,13 @@ impl core::fmt::Display for NodeErrorKind {
                 f,
                 "the declared {name} resolves in BOTH operands — the declaration cannot \
                  pick a side"
+            ),
+            Self::UnionDeclareStep { pair } => write!(
+                f,
+                "the declared pair ({}, {}) names two entities of this union that no single \
+                 fold step has as its two operands — declare the pair at a step that does: \
+                 one member against the accumulation of the members before it in the list",
+                pair.0, pair.1
             ),
             Self::DeclareUnsupportedPair { kinds, .. } => write!(
                 f,
@@ -2467,7 +2503,7 @@ where
         lane_program.as_deref(),
         &upstream_keys,
         doc.witness(id),
-        op_env.poses.placement(doc, id).ok(),
+        SolveAnswer::of(op_env.poses, doc, id),
         tol,
     );
     let naming_key = naming_key(content_key, &upstream_naming);
@@ -2526,6 +2562,7 @@ where
                 payload: out.payload,
                 name_table: out.names,
                 contacts: out.contacts,
+                carried: out.carried,
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
                 witness: WitnessSlot {},
@@ -2623,6 +2660,92 @@ fn document_verb_tag(kind: verbs::VerbKind) -> u8 {
     verb_content_tag(kind).expect("a verb a Node builds declares a content tag")
 }
 
+/// **The solve's answer for one node**, as the content key reads it.
+///
+/// **Why the key reads it at all** — the one home for this argument,
+/// which the mate arm and [`crate::node::Node::Mate`] point at rather
+/// than restate. The solve runs once per evaluation, BEFORE the
+/// schedule, and two node kinds denote what it decided: an instance
+/// evaluates at its solved `placement`, and a mate evaluates to its
+/// `role` or to a typed refusal. So the answer is one of those nodes'
+/// inputs and belongs in their keys, exactly as a slot value does.
+/// A mate is additionally a DAG leaf whose payload does not move when
+/// an edit elsewhere joins or splits its pair, so a key without the
+/// answer would serve last evaluation's `Ok` into the run that
+/// refuses it.
+///
+/// It travels as ONE argument read off [`crate::mate::SolvedPoses`] at
+/// the single `content_key` call site, so the key stays a pure
+/// function of what it is handed and each node's arm feeds the half
+/// that is its own input.
+///
+/// **The fault's CONTENT is deliberately absent, and both bits are
+/// kept.** The answer for a mate IS the pair (role, fault presence),
+/// and the key states it as that pair rather than reading `Refused`
+/// as a proxy for "faulted": that the solve writes `Refused` against
+/// every mate it faults is the SOLVE's invariant, and a key that
+/// depended on it would go quietly wrong the day it changed. What the
+/// key does not need is WHICH fault: a faulted mate evaluates to
+/// `Err` and the memo serves only `NodeResult::Ok` priors, so two
+/// different faults on one mate can never be confused through reuse.
+#[derive(Debug, Clone, Copy)]
+struct SolveAnswer {
+    /// The instance's solved world placement, `None` when the node is
+    /// not a placed instance — which includes an instance whose
+    /// cluster refused.
+    placement: Option<crate::placement::Frame>,
+    /// The role the solve assigned. `None` covers BOTH "not a live
+    /// mate" and a live mate the solve never reached — a `Band`
+    /// refusal faults every mate in the document without writing a
+    /// role for any of them.
+    role: Option<crate::mate::MateRole>,
+    /// Whether the solve recorded a fault against the node.
+    faulted: bool,
+}
+
+impl SolveAnswer {
+    /// What `poses` answers for `id`.
+    fn of<P>(poses: &crate::mate::SolvedPoses, doc: &crate::doc::Doc<P>, id: RecipeNodeId) -> Self {
+        Self {
+            placement: poses.placement(doc, id).ok(),
+            role: poses.role(id),
+            faulted: poses.fault(id).is_some(),
+        }
+    }
+
+    /// The placement's tags: one for "no pose" so a refusing cluster
+    /// keys distinctly from any pose, else the frame's bits.
+    fn feed_placement(self, h: &mut KeyHasher) {
+        match self.placement {
+            Some(frame) => {
+                h.write_tag(1);
+                for x in frame
+                    .columns
+                    .iter()
+                    .flatten()
+                    .chain(frame.translation.iter())
+                {
+                    h.write_f64_bits(*x);
+                }
+            }
+            None => h.write_tag(0),
+        }
+    }
+
+    /// The mate's tags: one per `MateRole` variant plus one for "no
+    /// role", and the fault flag.
+    fn feed_mate(self, h: &mut KeyHasher) {
+        use crate::mate::MateRole;
+        h.write_tag(match self.role {
+            None => 0,
+            Some(MateRole::Determining) => 1,
+            Some(MateRole::Declaring) => 2,
+            Some(MateRole::Refused) => 3,
+        });
+        h.write_tag(u8::from(self.faulted));
+    }
+}
+
 /// The content key (spec D4): op kind, structural params, evaluated
 /// expression values AS BITS, upstream keys — plus the ambient
 /// tolerance (ε, k), which parameterizes every decision the kernel
@@ -2647,7 +2770,7 @@ fn content_key<T>(
     lane_program: Option<&[Vec<profile::Step<T>>]>,
     upstream_keys: &[ContentKey],
     witness: Option<&crate::witness::WitnessDatum>,
-    placement: Option<crate::placement::Frame>,
+    solve_answer: SolveAnswer,
     tol: Tol,
 ) -> ContentKey
 where
@@ -2717,7 +2840,13 @@ where
     // needs, since a body minted before the profile's spelling was part
     // of the key could carry a token the current document does not
     // hold.
-    h.write_tag(5);
+    //
+    // Key format v6 (MSOLVE-4): the mate's answer joins the key — the
+    // role the solve assigned and whether it faulted the mate. An
+    // existing node kind writes into the channel, so by the rule above
+    // this is the bump: every key moves, and no pre-bump memo entry is
+    // reused.
+    h.write_tag(6);
     let tol = tol.get();
     h.write_f64_bits(tol.eps);
     h.write_f64_bits(tol.k);
@@ -3001,20 +3130,7 @@ where
             // that refuses to solve keys DISTINCTLY from any pose —
             // otherwise a repaired document could hit the memo on a
             // stale success.
-            match placement {
-                Some(frame) => {
-                    h.write_tag(1);
-                    for x in frame
-                        .columns
-                        .iter()
-                        .flatten()
-                        .chain(frame.translation.iter())
-                    {
-                        h.write_f64_bits(*x);
-                    }
-                }
-                None => h.write_tag(0),
-            }
+            solve_answer.feed_placement(&mut h);
             h.write_u64(interface.crossings.len() as u64);
             for crossing in &interface.crossings {
                 let crate::node::InterfaceCrossing::Mate {
@@ -3029,10 +3145,12 @@ where
                 feed_stable_name(&mut h, inner);
             }
         }
-        // A mate's own key is its references, its class and its
-        // alignment: the recipe payload that decides what it says. A
-        // reference is a NAME AND AN OPERAND, and both are fed —
-        // two mates differing only in the node they are read at say
+        // A mate's key is its RECIPE PAYLOAD — its references, its
+        // class and its alignment, which is what the mate SAYS — and
+        // the solve's answer for it, which is what the mate's value
+        // IS (`SolveAnswer` carries why the key reads that). A
+        // reference is a NAME AND AN OPERAND, and both are fed: two
+        // mates differing only in the node they are read at say
         // different things about different geometry.
         Node::Mate {
             a,
@@ -3046,6 +3164,7 @@ where
             feed_stable_name(&mut h, &b.name);
             h.write_tag(contact_class_tag(*class));
             feed_alignment(&mut h, alignment);
+            solve_answer.feed_mate(&mut h);
         }
         Node::Declare { pairs } => {
             h.write_u64(pairs.len() as u64);
@@ -3180,11 +3299,33 @@ where
         | Node::Sweep { .. }
         | Node::Split { .. }
         | Node::Boolean { .. }
-        // The member list is edges, so the upstream keys carry it — in
-        // list order, and prefixed by its length, so neither a
-        // reordering nor a dropped member can alias another list.
-        | Node::Union { .. }
         | Node::Transform { .. } => {}
+        // The member list is edges, so the upstream keys carry it — in
+        // list order, and prefixed by their total length, so neither a
+        // reordering nor a dropped member can alias another list. What
+        // that total cannot say is where the list ENDS, because the
+        // optional `declare` edge follows it: members `[m, n]` with a
+        // declaration `d` and members `[m, n, d]` with none present the
+        // same three upstream keys in the same order. The two are
+        // different nodes — one fuses two bodies, the other refuses a
+        // declaration at a body seat — so the member count is fed, and
+        // it is the ONLY thing fed: the declaration's identity rides
+        // its own upstream key like every other input's.
+        //
+        // This is D8 key hygiene — two different nodes must not share
+        // a content key — and NOT a guard against a reachable
+        // collision. No door can produce one. A memo is looked up by
+        // node ID first and only then compared by key, a prior from
+        // another document is dropped (DI3), and the one edit that
+        // could turn `Union{[m, n], declare: d}` into
+        // `Union{[m, n, d], declare: None}` under one id does not
+        // exist: no edit rewires a live node's inputs (DM6), and the
+        // shape itself is refused at both doors (DM5's
+        // `DuplicateInput`, since `d` would be reached twice). So the
+        // feed is unguardable BY CONSTRUCTION — there is no document a
+        // row could build to go red without it — which is why it is
+        // written here rather than pinned by one.
+        Node::Union { members, .. } => h.write_u64(members.len() as u64),
     }
     // Evaluated slot values, in the node's deterministic slot order.
     for (i, (_slot, val)) in slot_values.iter().enumerate() {

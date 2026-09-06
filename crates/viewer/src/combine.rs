@@ -25,6 +25,7 @@ use pncad::document::{BooleanOp, Doc, Expr, Node, PatternKind, ProfileProgram, R
 
 use crate::seats::{Seat, SeatError, SeatEvent, Seats};
 use crate::session::{PatternRuleSpec, SessionOp};
+use crate::vocab::vocabulary;
 
 /// **The boolean tool**: two sequential body picks and one operation
 /// choice, committing one [`SessionOp::AddBoolean`].
@@ -219,36 +220,35 @@ impl TransformTool {
     }
 }
 
-/// **What a pattern's placements come out as** — the pattern form's
-/// output choice, and the only difference between its two nodes.
-///
-/// [`Node::Pattern`] and [`Node::PlacedUnion`] share one rule
-/// vocabulary and one per-instance naming, and differ in their RESULT:
-/// N bodies that stay separate, or ONE body that is their union. That
-/// is a node-kind fork rather than a flag on one node (spec D3 forbids
-/// a variant forking a node's result type), so the choice picks the
-/// door — the shape `BlendKindChoice` takes for fillet and chamfer.
-///
-/// **Fusing is not free.** A [`Node::PlacedUnion`] certifies its
-/// placements disjoint and refuses typed on its own badge when it
-/// cannot, where a [`Node::Pattern`] over the same rule builds
-/// regardless: the choice is between two honest answers, not between
-/// a strict door and a lax one.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum PatternOutputChoice {
-    /// N separate bodies ([`Node::Pattern`]).
-    #[default]
-    Instances,
-    /// ONE body, the union of the prototype at every placement
-    /// ([`Node::PlacedUnion`]).
-    Fused,
-}
+vocabulary! {
+    /// **What a pattern's placements come out as** — the pattern form's
+    /// output choice, and the only difference between its two nodes.
+    ///
+    /// [`Node::Pattern`] and [`Node::PlacedUnion`] share one rule
+    /// vocabulary and one per-instance naming, and differ in their RESULT:
+    /// N bodies that stay separate, or ONE body that is their union. That
+    /// is a node-kind fork rather than a flag on one node (spec D3 forbids
+    /// a variant forking a node's result type), so the choice picks the
+    /// door — the shape `BlendKindChoice` takes for fillet and chamfer.
+    ///
+    /// **Fusing is not free.** A [`Node::PlacedUnion`] certifies its
+    /// placements disjoint and refuses typed on its own badge when it
+    /// cannot, where a [`Node::Pattern`] over the same rule builds
+    /// regardless: the choice is between two honest answers, not between
+    /// a strict door and a lax one.
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub enum PatternOutputChoice {
+        /// N separate bodies ([`Node::Pattern`]).
+        #[default]
+        Instances = "instances",
+        /// ONE body, the union of the prototype at every placement
+        /// ([`Node::PlacedUnion`]).
+        Fused = "fused",
+    }
 
-impl PatternOutputChoice {
     /// Both choices with their button labels — the chrome's radio row
     /// and a test that sweeps them.
-    pub const ALL: [(Self, &'static str); 2] =
-        [(Self::Instances, "instances"), (Self::Fused, "fused")];
+    pub const ALL;
 }
 
 /// **The pattern tool**: a body pick, and — for the circular rule

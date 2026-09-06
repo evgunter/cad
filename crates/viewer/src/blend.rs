@@ -69,6 +69,7 @@ use pncad::document::{Doc, Evaluation, Expr, ProfileProgram, RecipeNodeId};
 use pncad::prelude::StableName;
 
 use crate::session::{EdgeSelection, Selection, SessionOp};
+use crate::vocab::vocabulary;
 
 /// **What the tool's panel says about the freeze**, so the ratified
 /// #217 semantics reach the user at the moment they are committing to
@@ -130,29 +131,30 @@ impl core::fmt::Display for BlendTarget {
     }
 }
 
-/// Which blend is being authored — the tool's kind choice, and the
-/// discrimination that picks which commit door the panel calls.
-///
-/// Two variants rather than a flag on one op, because the two nodes
-/// are two nodes: a fillet's size is a rolling-ball RADIUS and a
-/// chamfer's is a SETBACK, they live in different slots, and
-/// `Node::Chamfer`'s docs give the argument for why a recipe must not
-/// have a boolean deciding which one a number means.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum BlendKindChoice {
-    /// A constant-radius rolling-ball fillet (`Node::Fillet`).
-    #[default]
-    Fillet,
-    /// An equal-setback flat chamfer (`Node::Chamfer`).
-    Chamfer,
+vocabulary! {
+    /// Which blend is being authored — the tool's kind choice, and the
+    /// discrimination that picks which commit door the panel calls.
+    ///
+    /// Two variants rather than a flag on one op, because the two nodes
+    /// are two nodes: a fillet's size is a rolling-ball RADIUS and a
+    /// chamfer's is a SETBACK, they live in different slots, and
+    /// `Node::Chamfer`'s docs give the argument for why a recipe must not
+    /// have a boolean deciding which one a number means.
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub enum BlendKindChoice {
+        /// A constant-radius rolling-ball fillet (`Node::Fillet`).
+        #[default]
+        Fillet = "fillet",
+        /// An equal-setback flat chamfer (`Node::Chamfer`).
+        Chamfer = "chamfer",
+    }
+
+    /// Both kinds with their button labels — the chrome's radio row
+    /// and a test that sweeps them.
+    pub const ALL;
 }
 
 impl BlendKindChoice {
-    /// Both kinds with their button labels — the chrome's radio row
-    /// and a test that sweeps them.
-    pub const ALL: [(Self, &'static str); 2] =
-        [(Self::Fillet, "fillet"), (Self::Chamfer, "chamfer")];
-
     /// What the one Length field means for this kind, for the field's
     /// own label.
     ///
