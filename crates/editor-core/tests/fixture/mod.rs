@@ -548,3 +548,33 @@ pub fn declare_x_offset_flush(
     ];
     insert(doc, Node::declare_rest(pairs))
 }
+
+/// **What every at-rest finding says about a declaration, in one
+/// vocabulary** — the mate it names and the relation it bears, for a
+/// row that wants to compare a whole finding list at once.
+///
+/// One definition for every suite that asks the question. A CARRIED
+/// row's mate is a node of ANOTHER document, so it reports under its
+/// own words rather than joining the own-minted ones and reading as
+/// this document's.
+pub fn relations(findings: &[editor_core::AtRestFinding]) -> Vec<(RecipeNodeId, &'static str)> {
+    findings
+        .iter()
+        .map(|f| match &f.attribution {
+            editor_core::Attribution::Refuted(m) => (m.mate, "refuted"),
+            editor_core::Attribution::Declined(m) => (m.mate, "declined"),
+            editor_core::Attribution::Carried {
+                declaration,
+                relation,
+                ..
+            } => (
+                declaration.mate,
+                match relation {
+                    editor_core::Relation::Refuted => "carried_refuted",
+                    editor_core::Relation::Declined => "carried_declined",
+                },
+            ),
+            editor_core::Attribution::Unattributed => (RecipeNodeId(u64::MAX), "unattributed"),
+        })
+        .collect()
+}
