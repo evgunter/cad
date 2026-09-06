@@ -532,3 +532,17 @@ space crossing — every constituent stays a face name of the table the
 chain descends into): spec item 1 and A2 amended, the stop clause
 resolved; the lane resumes on the same arm (the DOCM-2 precedent).
 Draft PR #2073.
+
+## 2026-09-06 — DOCM-8 dual review dispatched
+
+DOCM-8's lane reported after the amendment: PR #2073 non-draft, full
+code-tier CI green at head `6d433b6f`; five deviations disclosed (the
+stop clause and its resolution; DOCM-7's flipped measurement row
+deleted and its probe re-homed; the `lib_g16` pin-ledger sentence
+adjusted; `role.rs`'s asymmetry paragraph left; the same-row pair
+refusal pinned at the function because routing cannot reach it);
+seven `corner_table` names and two pins moved, the die corpus
+unchanged. v6 dual dispatched: ordinal 1807 claimed on main at
+dispatch; parity byte 14 ⇒ R1 = OPUS, R2 = FABLE; briefs hashed and
+diff-identical modulo lane names; private build and scratch
+directories per lane. Both lanes running.
