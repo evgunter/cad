@@ -674,13 +674,22 @@ fn r1_which_branch_does_the_consistent_loop_row_take() {
 // ---------------------------------------------------------------
 
 /// The two shapes the member vocabulary is asked about by name, built
-/// rather than taken on trust: a pattern of a PATTERN, which is
-/// outside the vocabulary and refuses `DanglingHead`, and a pattern of
-/// a TRANSFORM, which is inside it and places. The fence row beside
-/// this one builds neither — it builds an out-of-range copy index and
-/// a pattern of an EXTRUDE.
+/// rather than taken on trust: a pattern of a PATTERN under a name
+/// that carries ONE `Instance(i)` qualifier, which refuses
+/// `DanglingHead`, and a pattern of a TRANSFORM, which places. The
+/// fence row beside this one builds neither — it builds an
+/// out-of-range copy index and a pattern of an EXTRUDE.
+///
+/// **The first half is a NAME row, not a nesting row.** A nested copy
+/// is a member: the walk consumes one `Instance(i)` qualifier per
+/// pattern level and a two-level nest wears two. This name wears one,
+/// which is the name a nested pattern's table never mints, so the
+/// walk consumes the outer level and then meets the inner pattern
+/// where the name has already said its head is the instance. The
+/// nested copy under its OWN name is `mate1r2_probes`' P5 and
+/// `msolve2_member_chain`'s ground.
 #[test]
-fn r1_a_nested_pattern_refuses_and_a_pattern_of_transform_places() {
+fn r1_a_one_level_name_over_a_nested_pattern_refuses() {
     // (a) a pattern OF A PATTERN of an instance.
     let mut store = StubStore::default();
     let leg_ref = store.insert(leg_part("r1-nested-leg"), Tol::witness());
@@ -723,17 +732,20 @@ fn r1_a_nested_pattern_refuses_and_a_pattern_of_transform_places() {
     );
     let m = m.expect("the mate mints");
     let poses = solve_document(&doc, Tol::witness());
-    let fault = poses.fault(m).expect("a nested pattern head refuses");
+    let fault = poses
+        .fault(m)
+        .expect("a one-level name over a nest refuses");
     assert!(
         matches!(
             fault,
-            // The walk gets through the OUTER pattern — one copy
-            // level is in the vocabulary — and stops at the inner
-            // one, which is where the reference resolves to no
-            // member.
+            // The walk consumes the outer pattern's qualifier, which
+            // leaves it at the inner pattern under a name whose head
+            // is the INSTANCE — so the inner pattern is a node the
+            // name does not say a copy of, and no member stands there.
             editor_core::MateFault::DanglingHead { head, .. } if *head == inner
         ),
-        "a nested pattern refuses DanglingHead at the OUTER pattern: {fault:?}"
+        "a one-level name over a nested pattern refuses at the inner \
+         pattern: {fault:?}"
     );
     let _ = store;
 

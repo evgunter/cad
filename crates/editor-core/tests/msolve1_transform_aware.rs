@@ -25,11 +25,12 @@ use editor_core::{
     DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions, Evaluation, Expr, MateFault,
     MateFrame, MatePrimitive, MateRole, MateSide, Node, PartResolver, PatternKind, ProfileDoc,
     RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName, assemble,
-    content_pin, evaluate, load, product, product_named, save, solve_document,
+    content_pin, evaluate, load, product, save, solve_document,
 };
+use fixture::seat::{assert_seated, map_gap, seat_map};
 use fixture::{insert, len, on_frame, scl, step};
 use geom_core::Tol;
-use geom_core::linalg::{Affine3, Mat3, Point3};
+use geom_core::linalg::Affine3;
 
 // ---- substrate ----
 
@@ -209,118 +210,11 @@ fn xform(
 }
 
 // ---- the PRODUCT oracle ----
-
-/// **A named planar face's own frame, read out of the body the
-/// product GATHERS and its own name table**: a point on it, its
-/// OUTWARD normal (the surface's chart normal times the face's
-/// orientation sense — the direction material is not), and the
-/// in-plane reference the surface carries.
-///
-/// This is what a consumer sees: the gathered body and its table, no
-/// solved frame read by eye.
-fn product_face_frame(doc: &ProfileDoc, ev: &Evaluation<f64>, name: &StableName) -> Affine3<f64> {
-    let (body, names) = product_named(doc, ev, Tol::witness()).expect("the product gathers");
-    let entry = names
-        .lookup(name)
-        .unwrap_or_else(|| panic!("{name:?} is absent from the product's table"));
-    let editor_core::Entry::Unique(ent) = entry else {
-        panic!("expected a unique entry, got {entry:?}")
-    };
-    let editor_core::EntityKey::Face(f) = ent.key else {
-        panic!("expected a face, got {:?}", ent.key)
-    };
-    let face = body.get_face(f).expect("the face");
-    match body.get_surface(face.surface).expect("the surface") {
-        topo::Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => {
-            let n = if face.sense { *normal } else { -*normal };
-            // A right-handed frame on the face: u, n x u, n.
-            Affine3::from_parts(
-                Mat3::from_cols(*u_ref, n.cross(*u_ref), n),
-                *origin - Point3::origin(),
-            )
-        }
-        other => panic!("expected a plane, got {other:?}"),
-    }
-}
-
-/// **The SEAT, as one rigid map**: the `b` face's product frame
-/// expressed in the `a` face's — `F_a⁻¹ ∘ F_b`.
-///
-/// This is the whole of what `FrameCoincidence` pins, and it is a
-/// CONSTANT of the alignment. Each mate frame sits at a fixed offset
-/// from its own face's frame in part coordinates, so the relative map
-/// between the two faces is that pair of offsets composed with the
-/// coset the primitive admits — and no transform anywhere in either
-/// chain can move it. A row that measures only the normal gap and the
-/// normal dot leaves a spin about the seat normal and a slide along
-/// it unmeasured; this leaves nothing.
-fn seat_map(
-    doc: &ProfileDoc,
-    ev: &Evaluation<f64>,
-    a: &StableName,
-    b: &StableName,
-) -> Affine3<f64> {
-    product_face_frame(doc, ev, a).inverse() * product_face_frame(doc, ev, b)
-}
-
-/// The largest absolute difference between two rigid maps, over all
-/// twelve numbers.
-fn map_gap(x: &Affine3<f64>, y: &Affine3<f64>) -> f64 {
-    let cols = |m: &Affine3<f64>| [m.linear.c0, m.linear.c1, m.linear.c2, m.translation];
-    let (cx, cy) = (cols(x), cols(y));
-    (0..4)
-        .flat_map(|i| {
-            let (u, v) = (cx[i], cy[i]);
-            [(u.x - v.x).abs(), (u.y - v.y).abs(), (u.z - v.z).abs()]
-        })
-        .fold(0.0_f64, f64::max)
-}
-
-/// The seat, measured in the product and checked three ways: the two
-/// named faces are COPLANAR, their outward normals are OPPOSED (the
-/// top block stands ON the base, not through it), and the whole
-/// relative frame is the one the CONTROL — the same document with no
-/// transform and no pattern anywhere — puts them in.
-///
-/// The third check is the one a rotation or a lateral slide cannot
-/// pass: it pins the spin about the seat normal and the in-plane
-/// offset as well as the standoff.
-fn assert_seated(
-    doc: &ProfileDoc,
-    ev: &Evaluation<f64>,
-    a: &StableName,
-    b: &StableName,
-    control: &Affine3<f64>,
-    what: &str,
-) {
-    let (fa, fb) = (
-        product_face_frame(doc, ev, a),
-        product_face_frame(doc, ev, b),
-    );
-    let (na, nb) = (fa.linear.c2, fb.linear.c2);
-    let gap = (fb.translation - fa.translation).dot(na).abs();
-    assert!(
-        gap <= Tol::witness().eps(),
-        "{what}: the mated faces are {gap} apart in the product"
-    );
-    assert!(
-        (na.dot(nb) + 1.0).abs() <= 1e-9,
-        "{what}: the outward normals are not opposed (dot {}) — the blocks \
-         interpenetrate rather than seat",
-        na.dot(nb)
-    );
-    let moved = map_gap(&(fa.inverse() * fb), control);
-    assert!(
-        moved <= 1e-9,
-        "{what}: the seat's whole relative frame moved by {moved} from the \
-         control's — a spin about the seat normal or a slide in it is a \
-         transform the solve did not absorb"
-    );
-}
+//
+// `fixture::seat` owns it: the face frames read out of the gathered
+// body, the seat map between two of them, and the three-way seated
+// assertion against a control. MSOLVE-2's rows measure with the same
+// oracle, so it lives beside the fixture rather than in either suite.
 
 /// The at-rest gate's verdict, as the row wants to read it.
 fn gate(doc: &ProfileDoc, ev: &Evaluation<f64>) -> Result<(), AssemblyError> {
@@ -1212,15 +1106,20 @@ fn a8d_a_transform_operand_round_trips_through_persistence() {
     );
 }
 
-// ---- A10: the vocabulary's fence ----
+// ---- A10: a nested copy is a member ----
 
-/// **A10.** A nested pattern's copy is still outside the vocabulary:
-/// it refuses `DanglingHead`. `Member::copy` carries one level, and a
-/// nested member's identity needs the whole chain — MSOLVE-2's
-/// change to the pair keying and the spanning tree, stated at
-/// `member_of`.
+/// **A10.** A nested pattern's copy is a MEMBER: the walk consumes
+/// both `Instance(i)` qualifiers and the solve places the mate.
+///
+/// The document itself does not gather, and the reason is not the
+/// mate's: `Node::Pattern` takes ONE BODY, and a pattern's value is
+/// `Instances`, so the outer pattern refuses `WrongOperand` at the
+/// evaluation. (`Node::Part { Instance(i) }` between them is the
+/// shape that builds — MSOLVE-2's own suite.) So the row pins both
+/// halves: the reference resolves and its pair is determined, and the
+/// document refuses where a pattern meets a multi-body value.
 #[test]
-fn a10_a_nested_pattern_head_still_refuses() {
+fn a10_a_nested_pattern_head_is_a_member() {
     let mut store = StubStore::default();
     let base_ref = store.insert(block("msolve1-a10-base", 1.0), Tol::witness());
     let top_ref = store.insert(block("msolve1-a10-top", 3.0), Tol::witness());
@@ -1259,17 +1158,18 @@ fn a10_a_nested_pattern_head_still_refuses() {
         },
     );
     let mate = mate.unwrap();
-    let fault = solve_document(&doc, Tol::witness())
-        .fault(mate)
-        .cloned()
-        .expect("a nested-pattern head refuses");
-    // The walk gets through the OUTER pattern — one copy level is in
-    // the vocabulary — and stops at the inner one, which is where the
-    // reference resolves to no member.
+    let poses = solve_document(&doc, Tol::witness());
     assert!(
-        matches!(fault, MateFault::DanglingHead { head, .. } if head == inner),
-        "expected a dangling head at the inner pattern ({inner:?}), got {fault:?}"
+        poses.fault(mate).is_none(),
+        "a nested-pattern head resolves through both levels: {:?}",
+        poses.fault(mate)
     );
+    assert_eq!(
+        poses.role(mate),
+        Some(MateRole::Determining),
+        "the nested copy's reference places its pair"
+    );
+    let _ = inner;
 }
 
 /// **A8(e).** A cut that would sever a mate from its operand is

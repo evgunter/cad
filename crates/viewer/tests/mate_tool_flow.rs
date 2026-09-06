@@ -739,3 +739,244 @@ fn a_circular_pattern_copy_authors_the_masters_unrotated_frame() {
         );
     }
 }
+
+// ---- the member chain: a nested copy, and a `Part`-selected one ----
+
+/// The step the nested assembly's two rules take, metres.
+const NEST_STEP: f64 = 0.04;
+
+/// **A nested-copy assembly, authored into the bench's workspace and
+/// opened through the ordinary `Open` door** — which is what wires
+/// the resolver, so the picks below are real rays onto real bodies.
+///
+/// `Pattern` over `Part { Instance(1) }` over `Pattern` over the
+/// post: the shape a nested copy is reachable through, since a
+/// pattern's value is many bodies and a pattern's input is one. A
+/// second `Part` selecting inner copy 0 is left as a ROOT beside it,
+/// so the same document offers both picks this pair of rows wants:
+/// one on a nested copy, one on a `Part` over a pattern.
+///
+/// Returns the session and `(post instance, shelf instance, inner,
+/// part, outer, loose part)`.
+fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [RecipeNodeId; 6]) {
+    use pncad::document::{
+        Doc, DocEdit, DocumentId, Expr, Node, PartSelect, PatternKind, ProfileProgram, apply,
+    };
+    let mut doc: Doc<ProfileProgram> = Doc::empty(DocumentId::derive(tag), tol);
+    let insert = |doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>| {
+        let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the insert applies");
+        *doc = applied.doc;
+        applied.record.minted.expect("an insert mints an id")
+    };
+    let shelf_i = insert(&mut doc, Node::instantiate_part(bench.shelf));
+    let post_i = insert(&mut doc, Node::instantiate_part(bench.post));
+    for (node, at) in [(shelf_i, asm::SHELF_AT), (post_i, asm::POST_B_AT)] {
+        let applied = apply(
+            &doc,
+            &DocEdit::SetPlacement {
+                node,
+                frame: pncad::document::Frame::translation(at),
+            },
+            tol,
+        )
+        .expect("the placement applies");
+        doc = applied.doc;
+    }
+    let rule = |dir: [f64; 3]| PatternKind::Linear {
+        direction: dir.map(scl),
+        spacing: len(NEST_STEP),
+    };
+    let inner = insert(
+        &mut doc,
+        Node::Pattern {
+            input: post_i,
+            count: Expr::count(2),
+            kind: rule([1.0, 0.0, 0.0]),
+        },
+    );
+    let part = insert(
+        &mut doc,
+        Node::Part {
+            of: inner,
+            select: PartSelect::Instance(Expr::count(1)),
+        },
+    );
+    let outer = insert(
+        &mut doc,
+        Node::Pattern {
+            input: part,
+            count: Expr::count(2),
+            kind: rule([0.0, 1.0, 0.0]),
+        },
+    );
+    let loose = insert(
+        &mut doc,
+        Node::Part {
+            of: inner,
+            select: PartSelect::Instance(Expr::count(0)),
+        },
+    );
+    let mut ws = pncad::workspace::Workspace::open(&bench.dir).expect("the workspace opens");
+    let path = ws.create(&doc, tol).expect("the nested assembly stores");
+    let mut session = DocSession::inline(Doc::empty_derived("nested-boot", tol), tol);
+    let outcome = session.perform(SessionOp::Open(path));
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    (session, [post_i, shelf_i, inner, part, outer, loose])
+}
+
+/// The shelf's underside, picked.
+fn shelf_underside(session: &DocSession) -> FaceSelection {
+    pick_at(
+        session,
+        &asm::up_at(
+            asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
+            asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
+        ),
+    )
+}
+
+/// The two picked faces meet in the world the evaluation draws.
+fn assert_faces_meet(session: &DocSession, a: &FaceSelection, b: &FaceSelection, what: &str) {
+    let (_, eval) = session.landed_pair().expect("landed");
+    let fa = face_frame(eval, a.node, &a.name).expect("the picked cap");
+    let fb = face_frame(eval, b.node, &b.name).expect("the shelf's underside");
+    for (got, want) in [
+        (fa.origin.x, fb.origin.x),
+        (fa.origin.y, fb.origin.y),
+        (fa.origin.z, fb.origin.z),
+    ] {
+        assert!(
+            (got - want).abs() < 1e-9,
+            "{what}: the mated faces meet in the world: {:?} vs {:?}",
+            fa.origin,
+            fb.origin
+        );
+    }
+}
+
+/// **A pick on a NESTED copy is a member, and it seats.** The tool
+/// reads the master through BOTH `Instance(i)` levels — the frame it
+/// authors is the one copy `(0, 0)` would author — and the composed
+/// offset `M₂(1) ∘ M₁(1)` is the solve's to apply.
+#[test]
+fn a_nested_copy_pick_reads_the_master_and_seats() {
+    let tol = Tol::witness();
+    let bench = asm::bench("matenest", tol);
+    let (mut session, [_post, _shelf, inner, _part, outer, _loose]) =
+        nested_session(&bench, "gui4-nested-copy", tol);
+
+    let nested = pick_at(
+        &session,
+        &asm::down_at(
+            asm::POST_B_AT[0] + NEST_STEP + asm::POST_SECTION / 2.0,
+            asm::POST_B_AT[1] + NEST_STEP + asm::POST_SECTION / 2.0,
+        ),
+    );
+    assert_eq!(nested.node, outer, "the ray met the outer pattern's body");
+    let shelf_bottom = shelf_underside(&session);
+    let mut tool = MateTool::new();
+    tool.pick(nested.clone());
+    tool.pick(shelf_bottom.clone());
+    let (doc, eval) = session.landed_pair().expect("landed");
+    let proposal = tool
+        .proposal(doc, eval, tol, asm::seat())
+        .expect("a nested copy is a member");
+
+    // The reference wears one `Instance(i)` per level, outermost
+    // first, and is read at the node the ray met.
+    assert_eq!(proposal.a.at, outer);
+    assert_eq!(proposal.a.name.node, outer);
+    let Some(RoleSeg::Instance { i: 1, of }) = proposal.a.name.path.first() else {
+        panic!("the outer copy rides in the head: {:?}", proposal.a.name);
+    };
+    assert_eq!(of.node, inner, "and the inner name under it");
+    assert!(
+        matches!(of.path.first(), Some(RoleSeg::Instance { i: 1, .. })),
+        "the inner copy rides in the inner head: {of:?}"
+    );
+
+    // The alignment is in the MASTER's part coordinates, read through
+    // both levels — the same numbers a mate on the unpatterned post
+    // authors.
+    assert!(
+        (proposal.alignment.a.origin[2] - asm::POST_HEIGHT).abs() < 1e-12,
+        "part coordinates: {:?}",
+        proposal.alignment.a.origin
+    );
+
+    let outcome = session.perform(proposal.op());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(outcome.committed.len(), 1);
+    session.pump();
+    let (doc, _) = session.landed_pair().expect("landed");
+    assert!(
+        solve_document(doc, tol).fault(outer).is_none(),
+        "the nested member solves"
+    );
+    assert_faces_meet(&session, &nested, &shelf_bottom, "a nested copy");
+    for row in session.tree_rows() {
+        assert_eq!(row.status, viewer::tree::RowStatus::Ok, "{row:?}");
+    }
+}
+
+/// **A pick on a `Part` over a pattern is a member, and it seats.**
+/// The `Part` is pose-neutral and renames nothing, so the member is
+/// the pattern's copy and the frame is read at the master; what the
+/// `Part` changes is the OPERAND the reference is read at.
+#[test]
+fn a_part_over_a_pattern_pick_is_a_member_and_seats() {
+    let tol = Tol::witness();
+    let bench = asm::bench("matepart", tol);
+    let (mut session, [_post, _shelf, inner, _part, _outer, loose]) =
+        nested_session(&bench, "gui4-part-pick", tol);
+
+    let picked = pick_at(
+        &session,
+        &asm::down_at(
+            asm::POST_B_AT[0] + asm::POST_SECTION / 2.0,
+            asm::POST_B_AT[1] + asm::POST_SECTION / 2.0,
+        ),
+    );
+    assert_eq!(picked.node, loose, "the ray met the Part's body");
+    let shelf_bottom = shelf_underside(&session);
+    let mut tool = MateTool::new();
+    tool.pick(picked.clone());
+    tool.pick(shelf_bottom.clone());
+    let (doc, eval) = session.landed_pair().expect("landed");
+    let proposal = tool
+        .proposal(doc, eval, tol, asm::seat())
+        .expect("a Part-selected copy is a member");
+
+    // Read AT the `Part`, under the PATTERN's own name: the Part
+    // carries every name verbatim, so the reference's head is the
+    // pattern node the copy was minted by.
+    assert_eq!(proposal.a.at, loose, "the operand is the node the ray met");
+    assert_eq!(proposal.a.name.node, inner);
+    assert!(
+        matches!(
+            proposal.a.name.path.first(),
+            Some(RoleSeg::Instance { i: 0, .. })
+        ),
+        "the copy rides in the head: {:?}",
+        proposal.a.name
+    );
+    assert!(
+        (proposal.alignment.a.origin[2] - asm::POST_HEIGHT).abs() < 1e-12,
+        "part coordinates: {:?}",
+        proposal.alignment.a.origin
+    );
+
+    let outcome = session.perform(proposal.op());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    let (doc, _) = session.landed_pair().expect("landed");
+    assert!(
+        solve_document(doc, tol).fault(loose).is_none(),
+        "the Part-selected member solves"
+    );
+    assert_faces_meet(&session, &picked, &shelf_bottom, "a Part-selected copy");
+    for row in session.tree_rows() {
+        assert_eq!(row.status, viewer::tree::RowStatus::Ok, "{row:?}");
+    }
+}

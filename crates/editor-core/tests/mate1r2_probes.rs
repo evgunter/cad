@@ -13,8 +13,8 @@
 //!   tree CHILD (the `oc.inverse()` arm);
 //! - P4: an out-of-range copy index on a DECLARING (non-tree) mate —
 //!   the solve never derives its offset, so what refuses, and where?
-//! - P5: a nested pattern head (pattern of a pattern) refuses
-//!   `DanglingHead`, as the PR discloses.
+//! - P5: a nested pattern head (pattern of a pattern) is a member,
+//!   its copy chain carrying both levels.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -655,11 +655,19 @@ fn r2_out_of_range_copy_on_a_declaring_mate_still_refuses_somewhere() {
 // ---- P5: a nested pattern head ----
 
 /// PROBE (claim 7): a pattern of a pattern — the head resolves through
-/// the OUTER pattern whose input is the inner pattern, not a live
-/// instance. The PR discloses this refuses `DanglingHead`; hold it to
-/// that.
+/// the OUTER pattern whose input is the inner pattern, and on down
+/// through the inner one to the instance that mints the name. Both
+/// `Instance(i)` qualifiers are in the name and the walk consumes
+/// both, so the reference is a MEMBER and the solve places it.
+///
+/// (The document does not GATHER: `Node::Pattern` takes one body and
+/// a pattern's value is many, so the outer pattern refuses
+/// `WrongOperand` at the evaluation. That fence is the node
+/// vocabulary's, not the member vocabulary's, and the shape a user
+/// builds a nested copy through is `Part { Instance(i) }` between the
+/// two patterns — `msolve2_member_chain`'s ground.)
 #[test]
-fn r2_nested_pattern_head_refuses_dangling() {
+fn r2_nested_pattern_head_is_a_member() {
     let mut store = StubStore::default();
     let leg_ref = store.insert(leg_part("r2-nest-leg"), Tol::witness());
     let top_ref = store.insert(leg_part("r2-nest-top"), Tol::witness());
@@ -701,17 +709,17 @@ fn r2_nested_pattern_head_refuses_dangling() {
     );
     let mate = mate.expect("the mate mints");
     let poses = solve_document(&doc, Tol::witness());
-    let fault = poses.fault(mate).expect("a nested pattern head refuses");
     assert!(
-        matches!(
-            fault,
-            // The walk stops at the INNER pattern: one copy level is
-            // in the vocabulary, a second is not.
-            editor_core::MateFault::DanglingHead { head, .. } if *head == inner
-        ),
-        "a nested pattern head is outside the vocabulary: {fault:?}"
+        poses.fault(mate).is_none(),
+        "a nested pattern head resolves through both levels: {:?}",
+        poses.fault(mate)
     );
-    let _ = store;
+    assert_eq!(
+        poses.role(mate),
+        Some(editor_core::MateRole::Determining),
+        "the nested copy's reference places its pair"
+    );
+    let _ = (store, inner);
 }
 
 // ---- P6: plain-document pose bits (cross-revision instrument) ----

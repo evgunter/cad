@@ -33,6 +33,9 @@ pub mod digest;
 /// names an instantiated part's faces are spelled with.
 pub mod resolver;
 
+/// The whole-frame product oracle a mate suite measures a seat with.
+pub mod seat;
+
 use editor_core::{
     CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKind, Expr, LoopProgram, Node, ParamName,
     ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg,
