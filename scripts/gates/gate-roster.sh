@@ -156,7 +156,7 @@ gate() {
   cmds=$(non_comment "$HOSTED_HALF")
 
   for name in "${roster[@]}"; do
-    esc=${name//./\\.}
+    esc=$(gate_ere_escape "$name")
     if ! grep -qE "(^|[[:space:]])scripts/gates/$esc[[:space:]]*\$" <<<"$cmds"; then
       gate_error "$HOSTED_HALF never RUNS scripts/gates/$name — a gate the hosted half does not invoke is the drift this directory exists to prevent (naming it in a comment, or only self-testing it, does not run it); give it a named step that runs the gate"
       rc=1
