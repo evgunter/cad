@@ -470,14 +470,16 @@ impl<T: Real> Vec3<T> {
     /// treats the two factors as independent, so an enclosure
     /// straddling zero acquires a spurious negative lower bound.
     ///
-    /// **Precondition (conventional, unchecked):** `self` is unit. A
-    /// non-unit input yields a well-defined but non-orthonormal pair
-    /// (no poison, no check — same posture as unit-`dir` curve data;
-    /// tier-3 certification owns the invariant). A poisoned input
-    /// propagates poison. The `≥ 2/3` conditioning bound and the
-    /// never-selected-poison argument above are both statements about
-    /// unit inputs; at a non-unit one the construction is still total,
-    /// but the candidate it picks is only the best of the three.
+    /// **Precondition (conventional, unchecked):** `self` is unit —
+    /// same posture as unit-`dir` curve data; tier-3 certification owns
+    /// the invariant. A non-unit input is still total and still says
+    /// something exact: `b1` is unit and orthogonal to `n` whatever
+    /// `‖n‖` is, `b2 = n × b1` carries `‖n‖`, and `b1 × b2 = n` holds —
+    /// an ORTHOGONAL pair that is not orthonormal. What the precondition
+    /// buys is the `≥ 2/3` conditioning bound and the argument that a
+    /// poisoned candidate is never the one selected; both are
+    /// statements about unit inputs. A poisoned input propagates
+    /// poison.
     pub fn orthonormal_basis(self) -> (Self, Self) {
         let zero = T::zero();
         let cx = Self::new(zero, -self.z, self.y).normalize();

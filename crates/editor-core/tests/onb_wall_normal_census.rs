@@ -95,11 +95,11 @@ fn axis_tie_census_over_the_band4_corpus() {
         "| document | bodies | planes | on an exact tie | separated | k = x | k = y | k = z |"
     );
     println!("| --- | --- | --- | --- | --- | --- | --- | --- |");
-    let mut total = ZClasses::default();
+    let mut total = TieClasses::default();
     let (mut docs, mut bodies_total) = (0usize, 0usize);
     for doc in corpus::documents() {
         let ev = eval(&doc.doc);
-        let mut c = ZClasses::default();
+        let mut c = TieClasses::default();
         let mut bodies = 0usize;
         for result in ev.nodes.values() {
             let NodeResult::Ok(v) = result else { continue };
@@ -162,7 +162,7 @@ fn face_frames_and_the_faces_they_could_sit_on() {
                 continue;
             };
             frames += 1;
-            let mut c = ZClasses::default();
+            let mut c = TieClasses::default();
             let named = ev.value(*at).map_or(0, |_| all_faces(&ev, *at).len());
             if let Some(ValuePayload::Body(b)) = ev.value(*at).map(|v| &v.payload) {
                 for (_, surface) in b.surfaces() {

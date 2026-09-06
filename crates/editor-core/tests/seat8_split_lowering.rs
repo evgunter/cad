@@ -155,12 +155,21 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// itself. They are goldens in the ordinary sense — when one moves the
 /// question is whether the new behaviour is right, never how to restore
 /// the old number.
+///
+/// RE-BLESSED for the axis-order orthonormal basis: the digest feeds
+/// each surface's `Debug`, and every planar carrier's stored `u_ref`
+/// is now `normalize(e_k × n)` for the smallest-magnitude component's
+/// axis. The plane's LOCUS did not move — origin and normal are
+/// bit-identical, which the STEP fixtures' record-level diff shows
+/// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
+/// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
+/// green across the change untouched.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     for (name, want) in [
-        ("cut_cylinder", 0xeaea_81fa_b3df_29e3_u64),
-        ("part_select", 0xd31a_b4c8_da48_2cd5),
-        ("kitchen_sink", 0x8826_0b67_1ded_0c08),
+        ("cut_cylinder", 0x513a_c855_23ba_d6bf_u64),
+        ("part_select", 0x7624_5577_c399_8379),
+        ("kitchen_sink", 0xff9f_0282_007e_7c16),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -233,6 +242,15 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// empty side into a phantom body — moves this number. The constant
 /// reproduces on the extracted merge base (the empty path predates the
 /// migration), so it is a differential pin, not a self-agreement.
+///
+/// RE-BLESSED for the axis-order orthonormal basis: the digest feeds
+/// each surface's `Debug`, and every planar carrier's stored `u_ref`
+/// is now `normalize(e_k × n)` for the smallest-magnitude component's
+/// axis. The plane's LOCUS did not move — origin and normal are
+/// bit-identical, which the STEP fixtures' record-level diff shows
+/// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
+/// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
+/// green across the change untouched.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -253,7 +271,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0xb826_1654_e18b_d14a,
+        got, 0xb123_e00b_0279_0fea,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }
