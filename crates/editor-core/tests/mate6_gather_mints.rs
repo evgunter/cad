@@ -414,14 +414,12 @@ fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
         findings.iter().any(|f| matches!(
             &f.attribution,
             Attribution::Carried {
-                through,
-                of,
-                via,
+                route,
                 declaration,
-                relation: editor_core::CarriedRelation::Refuted,
-            } if *through == instances[0]
-                && *of == inner_id
-                && via.is_empty()
+                relation: editor_core::Relation::Refuted,
+            } if route.through == instances[0]
+                && route.of == inner_id
+                && route.via.is_empty()
                 && declaration.mate == inner_mate
         )),
         "the refuted carried declaration names its mate, its document and \

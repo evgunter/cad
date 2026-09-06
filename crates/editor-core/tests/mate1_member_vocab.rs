@@ -26,7 +26,7 @@ use editor_core::{
     ResolveFault, RoleSeg, SitedRef, StableName, assemble, clusters, content_pin, evaluate,
     solve_document,
 };
-use fixture::{insert, len, on_frame, scl, step};
+use fixture::{insert, len, on_frame, relations, scl, step};
 use geom_core::Tol;
 
 // ---- Substrate (the stub resolver, as in the sibling suites) ----
@@ -214,31 +214,6 @@ fn four_legs(
         },
     );
     (doc, leg, pattern, top, mate.expect("the mate mints"), store)
-}
-
-/// Every declaration the findings name, and in what relation.
-fn relations(findings: &[editor_core::AtRestFinding]) -> Vec<(RecipeNodeId, &'static str)> {
-    findings
-        .iter()
-        .map(|f| match &f.attribution {
-            editor_core::Attribution::Refuted(m) => (m.mate, "refuted"),
-            editor_core::Attribution::Declined(m) => (m.mate, "declined"),
-            // A carried row's mate is a node of ANOTHER document, so
-            // it reports under its own words.
-            editor_core::Attribution::Carried {
-                declaration,
-                relation,
-                ..
-            } => (
-                declaration.mate,
-                match relation {
-                    editor_core::CarriedRelation::Refuted => "carried_refuted",
-                    editor_core::CarriedRelation::Declined => "carried_declined",
-                },
-            ),
-            editor_core::Attribution::Unattributed => (RecipeNodeId(u64::MAX), "unattributed"),
-        })
-        .collect()
 }
 
 // ---- The red-first row: four legs, one top ----

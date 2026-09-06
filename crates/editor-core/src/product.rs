@@ -757,18 +757,11 @@ fn carry_contacts(
 }
 
 /// Re-keys one grafted body's carried DECLARATION rows onto the
-/// aggregate, through the graft's descendant map — [`carry_contacts`]'s
-/// twin for the bookkeeping that says whose mate authored each record.
-///
-/// INVARIANT: the same lineage rule, for the same reason. A row's new
-/// faces are `keys.face(old)` and nothing else; nothing is looked up
-/// by position, by name, or by re-measuring the aggregate, because a
-/// re-derived pair would be a second opinion about which faces the
-/// inner mate declared.
-///
-/// A missing image refuses, exactly as a record's does: dropping the
-/// row would leave its RECORD in the set with nothing to attribute it
-/// to, which is the anonymity this channel exists to end.
+/// aggregate — [`carry_contacts`]'s twin, under its lineage rule and
+/// its refusal, for the bookkeeping that says whose mate authored each
+/// record. Dropping a row here would leave its RECORD in the set with
+/// nothing to attribute it to, which is the anonymity this channel
+/// exists to end.
 fn carry_declarations(
     into: &mut Vec<crate::assembly::CarriedDeclaration>,
     from: &[crate::assembly::CarriedDeclaration],

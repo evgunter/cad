@@ -385,56 +385,30 @@ where
     // identity fast path clones keys verbatim. Re-deriving them from
     // the placed geometry is exactly the scan-to-bless move F1 bans;
     // the declaration is inherited, never rediscovered.
-    // The bookkeeping half of the same channel, tagged with the route
-    // it arrived by: THIS node is `through`, the pinned document is
-    // `of` for its own rows, and a row that already came up from
-    // deeper keeps its own `of` with this instance prepended to its
-    // route. The face keys ride the placement unchanged for the same
-    // reason the records do, so the gather re-keys both alike.
-    let route = |inner: RecipeNodeId, via: &[RecipeNodeId]| {
-        core::iter::once(inner).chain(via.iter().copied()).collect()
-    };
+    // The bookkeeping half of the same channel. The face keys ride the
+    // placement unchanged for the same reason the records do, so the
+    // gather re-keys both alike; what is added here is the ROUTE, and
+    // one rule builds every one of them: a row the pinned document
+    // minted itself arrives through THIS node, and a row that already
+    // came up from deeper keeps its own `of` with this node prepended
+    // ([`Route::through_instance`]).
     let carried = crate::assembly::CarriedDeclarations {
-        minted: part
-            .minted
-            .iter()
-            .map(|declaration| crate::assembly::CarriedDeclaration {
-                through: id,
-                of: doc_ref.id,
-                via: Vec::new(),
-                declaration: declaration.clone(),
-            })
-            .chain(
-                part.carried
-                    .iter()
-                    .map(|row| crate::assembly::CarriedDeclaration {
-                        through: id,
-                        of: row.of,
-                        via: route(row.through, &row.via),
-                        declaration: row.declaration.clone(),
-                    }),
-            )
-            .collect(),
-        unminted: part
-            .unminted
-            .iter()
-            .map(|refusal| crate::assembly::CarriedRefusal {
-                through: id,
-                of: doc_ref.id,
-                via: Vec::new(),
-                refusal: refusal.clone(),
-            })
-            .chain(
-                part.carried_unminted
-                    .iter()
-                    .map(|row| crate::assembly::CarriedRefusal {
-                        through: id,
-                        of: row.of,
-                        via: route(row.through, &row.via),
-                        refusal: row.refusal.clone(),
-                    }),
-            )
-            .collect(),
+        minted: carry_up(
+            &part.minted,
+            part.carried.iter().map(|r| (&r.route, &r.declaration)),
+            id,
+            doc_ref.id,
+        )
+        .map(|(route, declaration)| crate::assembly::CarriedDeclaration { route, declaration })
+        .collect(),
+        unminted: carry_up(
+            &part.unminted,
+            part.carried_unminted.iter().map(|r| (&r.route, &r.refusal)),
+            id,
+            doc_ref.id,
+        )
+        .map(|(route, refusal)| crate::assembly::CarriedRefusal { route, refusal })
+        .collect(),
     };
     Ok(OpOut {
         payload: ValuePayload::Body(Arc::new(placed)),
@@ -442,6 +416,35 @@ where
         contacts: Arc::clone(&part.contacts),
         carried: Arc::new(carried),
     })
+}
+
+/// One instantiation's worth of routed rows, over one payload kind:
+/// the pinned document's OWN rows first — reached through `node`, `of`
+/// that document, nothing in between — then the rows it carried up
+/// itself, each re-routed through `node`
+/// ([`crate::assembly::Route::through_instance`]).
+///
+/// Generic over the payload because a declaration and a mint refusal
+/// are the same act here — a row of another document reaching this one
+/// — and one route rule written twice is one place for it to drift.
+fn carry_up<'a, P: Clone + 'a>(
+    own: &'a [P],
+    below: impl Iterator<Item = (&'a crate::assembly::Route, &'a P)> + 'a,
+    node: RecipeNodeId,
+    of: crate::ident::DocumentId,
+) -> impl Iterator<Item = (crate::assembly::Route, P)> + 'a {
+    own.iter()
+        .map(move |payload| {
+            (
+                crate::assembly::Route {
+                    through: node,
+                    of,
+                    via: Vec::new(),
+                },
+                payload.clone(),
+            )
+        })
+        .chain(below.map(move |(route, payload)| (route.through_instance(node), payload.clone())))
 }
 
 /// Stamps every UNSOURCED description of `body` with this node's

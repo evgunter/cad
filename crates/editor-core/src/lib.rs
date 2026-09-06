@@ -95,7 +95,7 @@ pub use appearance::{
 };
 pub use assembly::{
     Assembly, AssemblyError, AtRestFinding, Attribution, CarriedDeclaration, CarriedDeclarations,
-    CarriedRefusal, CarriedRelation, MintRefusal, MintedDeclaration, RefusedRef, assemble,
+    CarriedRefusal, MintRefusal, MintedDeclaration, RefusedRef, Relation, Route, assemble,
     assemble_gathered,
 };
 pub use checks::{

@@ -97,6 +97,64 @@ pub struct MintedDeclaration {
     pub faces: (FaceKey, FaceKey),
 }
 
+/// How a row of another document's reached THIS document: the
+/// instantiating node here, the document the row is of, and the
+/// instantiating nodes in between.
+///
+/// One type for every carrier of that fact — [`CarriedDeclaration`],
+/// [`CarriedRefusal`], [`Attribution::Carried`] and
+/// [`AssemblyError::CarriedMintRefusal`] — so a reader who has learned
+/// to read a route once reads every one of them, and a route can only
+/// be built one way.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Route {
+    /// The instantiating node OF THIS DOCUMENT the row came through.
+    pub through: RecipeNodeId,
+    /// The document the row is of — whose mate authored the
+    /// declaration, or could not be minted. The file an author opens
+    /// to act on it.
+    pub of: crate::ident::DocumentId,
+    /// The further instantiating nodes between `through` and `of`,
+    /// nearest first, each in its own document's id space. Empty when
+    /// `through` instantiates `of` directly; one entry per intervening
+    /// sub-assembly, so a row three documents down names its whole
+    /// route.
+    pub via: Vec<RecipeNodeId>,
+}
+
+impl Route {
+    /// This route with `node` prepended — the route as seen from the
+    /// document that instantiates the one holding it. The row's `of`
+    /// does not move: which document authored it is not a function of
+    /// who is looking.
+    #[must_use]
+    pub fn through_instance(&self, node: RecipeNodeId) -> Self {
+        Self {
+            through: node,
+            of: self.of,
+            via: core::iter::once(self.through)
+                .chain(self.via.iter().copied())
+                .collect(),
+        }
+    }
+}
+
+// The route as an author reads it: the instance in this document, then
+// each instance below it.
+impl core::fmt::Display for Route {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "document {} through instance {}",
+            self.of, self.through.0
+        )?;
+        for node in &self.via {
+            write!(f, " → instance {}", node.0)?;
+        }
+        Ok(())
+    }
+}
+
 /// One declaration minted by a document BELOW this one, arriving
 /// across the instantiation seam.
 ///
@@ -108,18 +166,9 @@ pub struct MintedDeclaration {
 /// descendant map, exactly as the records are.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CarriedDeclaration {
-    /// The instantiating node OF THIS DOCUMENT the row came through.
-    pub through: RecipeNodeId,
-    /// The document whose mate authored the declaration — the file an
-    /// author opens to act on it.
-    pub of: crate::ident::DocumentId,
-    /// The further instantiating nodes between `through` and `of`,
-    /// nearest first, each in its own document's id space. Empty when
-    /// `through` instantiates `of` directly; one entry per intervening
-    /// sub-assembly, so a row three documents down names its whole
-    /// route.
-    pub via: Vec<RecipeNodeId>,
-    /// The declaration itself, its `mate` in `of`'s id space.
+    /// How it reached this document.
+    pub route: Route,
+    /// The declaration itself, its `mate` in `route.of`'s id space.
     pub declaration: MintedDeclaration,
 }
 
@@ -131,14 +180,10 @@ pub struct CarriedDeclaration {
 /// no reference is re-resolved here and no class is re-read.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CarriedRefusal {
-    /// The instantiating node OF THIS DOCUMENT the row came through.
-    pub through: RecipeNodeId,
-    /// The document whose mate could not be minted.
-    pub of: crate::ident::DocumentId,
-    /// The route below `through`, nearest first
-    /// ([`CarriedDeclaration::via`]).
-    pub via: Vec<RecipeNodeId>,
-    /// The inner document's own refusal, its ids in `of`'s id space.
+    /// How it reached this document.
+    pub route: Route,
+    /// The inner document's own refusal, its ids in `route.of`'s id
+    /// space.
     pub refusal: MintRefusal,
 }
 
@@ -156,25 +201,30 @@ pub struct CarriedDeclarations {
     pub unminted: Vec<CarriedRefusal>,
 }
 
-/// The two relations a finding can bear to a declaration — what
-/// [`Attribution`]'s own-minted arms spell as two variants, named once
-/// so the carried arm carries it as a FIELD instead of doubling the
-/// enum.
+/// What a kernel finding says about a declaration it names: the
+/// kernel REFUTED it, or the census DECLINED to certify it.
+///
+/// One vocabulary for both homes of a declaration — this document's
+/// own mates and its parts' — so [`Attribution`]'s arms cannot drift
+/// into two words for one relation. These two words are the ones every
+/// rendering uses: the kernel's `Display`, the Python tag, the rows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CarriedRelation {
-    /// The kernel REFUTED the declaration.
+pub enum Relation {
+    /// The kernel REFUTED the declaration — the faces do not meet as
+    /// it says.
     Refuted,
-    /// The census DECLINED to certify it.
+    /// The census DECLINED to certify it: no certifier lane for the
+    /// pair it names, so nothing was decided either way.
     Declined,
 }
 
-impl CarriedRelation {
-    /// The relation in the words [`Attribution`]'s rendering uses.
+impl Relation {
+    /// The relation's one word.
     #[must_use]
     pub fn name(self) -> &'static str {
         match self {
             Self::Refuted => "refuted",
-            Self::Declined => "uncertified",
+            Self::Declined => "declined",
         }
     }
 }
@@ -192,6 +242,14 @@ pub struct Assembly<T: Decide> {
     pub contacts: ContactRecords,
     /// One row per mate, in document order.
     pub minted: Vec<MintedDeclaration>,
+    /// One row per declaration a document BELOW this one authored,
+    /// re-keyed onto this product and tagged with its route.
+    ///
+    /// The success arm keeps what the gate certified OVER, not just
+    /// what this document said: the record set above holds a part's
+    /// declarations too, and without these rows a certified assembly
+    /// could not say which inner mates its verdict answered for.
+    pub carried: Vec<CarriedDeclaration>,
 }
 
 /// Why a mate reference did not resolve to a product face.
@@ -248,17 +306,12 @@ pub enum Attribution {
     /// changes who the author must go and edit, not what the kernel
     /// said about it.
     Carried {
-        /// The instantiating node of THIS document the row came
-        /// through.
-        through: RecipeNodeId,
-        /// The document whose mate authored it.
-        of: crate::ident::DocumentId,
-        /// The route below `through`, nearest first.
-        via: Vec<RecipeNodeId>,
-        /// The declaration, its `mate` in `of`'s id space.
+        /// How the declaration reached this document.
+        route: Route,
+        /// The declaration, its `mate` in `route.of`'s id space.
         declaration: MintedDeclaration,
         /// Refuted, or merely declined.
-        relation: CarriedRelation,
+        relation: Relation,
     },
     /// The finding names no declaration — of THIS document or of any
     /// document in its tree. An UNDECLARED contact is exactly this: by
@@ -269,9 +322,36 @@ pub enum Attribution {
 
 impl Attribution {
     /// The declaration named, for a finding that names one.
+    ///
+    /// It may be ANOTHER document's: a [`Attribution::Carried`]
+    /// finding's `declaration.mate` is a node of that document, and
+    /// [`Attribution::route`] is what says which.
     pub fn declaration(&self) -> Option<&MintedDeclaration> {
         match self {
             Self::Refuted(m) | Self::Declined(m) | Self::Carried { declaration: m, .. } => Some(m),
+            Self::Unattributed => None,
+        }
+    }
+
+    /// How the named declaration reached this document, for a finding
+    /// that names another document's. `None` where the declaration is
+    /// this document's own, or where none is named.
+    #[must_use]
+    pub fn route(&self) -> Option<&Route> {
+        match self {
+            Self::Carried { route, .. } => Some(route),
+            Self::Refuted(_) | Self::Declined(_) | Self::Unattributed => None,
+        }
+    }
+
+    /// The relation the finding bears to the declaration it names.
+    /// `None` for [`Attribution::Unattributed`], which names none.
+    #[must_use]
+    pub fn relation(&self) -> Option<Relation> {
+        match self {
+            Self::Refuted(_) => Some(Relation::Refuted),
+            Self::Declined(_) => Some(Relation::Declined),
+            Self::Carried { relation, .. } => Some(*relation),
             Self::Unattributed => None,
         }
     }
@@ -284,42 +364,32 @@ impl Attribution {
 // ([`AtRestFinding`]'s `Display`).
 impl core::fmt::Display for Attribution {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // One sentence shape, and ONE word per relation
+        // ([`Relation::name`]), whichever document authored the
+        // declaration.
+        let subject =
+            |f: &mut core::fmt::Formatter<'_>, m: &MintedDeclaration, relation: Relation| {
+                write!(
+                    f,
+                    "mate {}'s declared {} contact, {}",
+                    m.mate.0,
+                    m.class.name(),
+                    relation.name()
+                )
+            };
         match self {
-            Self::Refuted(m) => write!(
-                f,
-                "mate {}'s declared {} contact, refuted",
-                m.mate.0,
-                m.class.name()
-            ),
-            Self::Declined(m) => write!(
-                f,
-                "mate {}'s declared {} contact, uncertified",
-                m.mate.0,
-                m.class.name()
-            ),
-            // The subject is the mate an author can act on, which for
-            // a carried row is a mate of ANOTHER file: the route says
-            // which file and how this document reached it.
+            Self::Refuted(m) => subject(f, m, Relation::Refuted),
+            Self::Declined(m) => subject(f, m, Relation::Declined),
+            // The mate an author can act on is a mate of ANOTHER file
+            // here, so the route rides with it: which file, and how
+            // this document reached it.
             Self::Carried {
-                through,
-                of,
-                via,
+                route,
                 declaration,
                 relation,
             } => {
-                write!(
-                    f,
-                    "document {of}'s mate {}'s declared {} contact, {} (carried \
-                     through instance {}",
-                    declaration.mate.0,
-                    declaration.class.name(),
-                    relation.name(),
-                    through.0
-                )?;
-                for node in via {
-                    write!(f, " → instance {}", node.0)?;
-                }
-                f.write_str(")")
+                subject(f, declaration, *relation)?;
+                write!(f, " (carried from {route})")
             }
             Self::Unattributed => f.write_str("no declaration answers for this finding"),
         }
@@ -532,13 +602,9 @@ pub enum AssemblyError {
     /// itself, and the row is that refusal carried up with the route
     /// it arrived by.
     CarriedMintRefusal {
-        /// The instantiating node of THIS document.
-        through: RecipeNodeId,
-        /// The document whose mate could not be minted.
-        of: crate::ident::DocumentId,
-        /// The route below `through`, nearest first.
-        via: Vec<RecipeNodeId>,
-        /// The inner document's own refusal, in its id space.
+        /// How the refusal reached this document.
+        route: Route,
+        /// The inner document's own refusal, in `route.of`'s id space.
         refusal: MintRefusal,
     },
     /// The kernel's tier-3′ door refused the assembled product with
@@ -560,10 +626,19 @@ pub enum AssemblyError {
     ///
     /// Nothing was refuted and nothing was undeclared: every finding
     /// is the census DECLINING to certify a PAIR that a declaration
-    /// names ([`Attribution::Declined`]) — which is what
-    /// [`attribute`] establishes, exactly — so the assembly is
-    /// unrefuted and uncertified, and NOTHING was decided about this
-    /// geometry.
+    /// names ([`Relation::Declined`]) — which is what [`attribute`]
+    /// establishes, exactly — so the assembly is unrefuted and
+    /// uncertified, and NOTHING was decided about this geometry.
+    ///
+    /// **Which document authored the declaration does not enter.**
+    /// The arm's claim is about what the kernel decided, so a pair
+    /// declared by a PART and merely declined here lands on this arm
+    /// under its own name ([`Attribution::Carried`] with
+    /// [`Relation::Declined`]) exactly as one of this document's own
+    /// does. Before the seam carried the rows such a finding was
+    /// `Unattributed` and the whole refusal fell through to
+    /// [`AssemblyError::AtRest`] — a verdict against the document over
+    /// geometry nothing had decided anything about.
     ///
     /// Today that is the whole declared direction. The census's patch
     /// certifier gates on STRUCTURAL chart identity — a shared
@@ -581,7 +656,8 @@ pub enum AssemblyError {
         /// payloads, so one arm does not set every caller's `Result`
         /// width.
         contacts: Box<ContactRecords>,
-        /// Every finding, each a [`Attribution::Declined`].
+        /// Every finding, each bearing [`Relation::Declined`] to the
+        /// declaration it names — this document's own, or a part's.
         findings: Vec<AtRestFinding>,
     },
 }
@@ -640,27 +716,12 @@ impl core::fmt::Display for AssemblyError {
                 f.write_str("assembly: ")?;
                 render_no_record(f, *mate, *class, why)
             }
-            Self::CarriedMintRefusal {
-                through,
-                of,
-                via,
-                refusal,
-            } => {
-                write!(
-                    f,
-                    "assembly: document {of}, instantiated through instance {}",
-                    through.0
-                )?;
-                for node in via {
-                    write!(f, " → instance {}", node.0)?;
-                }
-                write!(
-                    f,
-                    ", did not mint one of its own mates, so this assembly is not at \
-                     rest over it: {refusal} — open that document and repair the mate \
-                     there"
-                )
-            }
+            Self::CarriedMintRefusal { route, refusal } => write!(
+                f,
+                "assembly: {route} did not mint one of its own mates, so this \
+                 assembly is not at rest over it: {refusal} — open that document \
+                 and repair the mate there"
+            ),
             Self::AtRest { findings } => {
                 write!(
                     f,
@@ -794,13 +855,18 @@ pub fn assemble_gathered<T: Decide + AtRestPolicy>(
     // is unusable while an inner part is broken, and the file the
     // author must open is the inner one. Verification still runs once
     // — nothing is re-decided here, the row IS the inner document's
-    // own refusal — and the head is raised for the same reason the own
-    // `unminted` head is (below).
+    // own refusal.
+    //
+    // The HEAD in GATHER ORDER, and only the head, exactly as the own
+    // `unminted` head below: `into_iter().next()` moves it out of an
+    // owned vector nothing reads afterwards, and the rest are dropped.
+    // Widening this to every carried refusal is the same follow-up as
+    // widening the sibling — one second refusal channel on
+    // `AssemblyError`, carried through the pncad-py façade, would serve
+    // both — so the two heads stay one rule rather than diverging.
     if let Some(row) = carried_unminted.into_iter().next() {
         return Err(AssemblyError::CarriedMintRefusal {
-            through: row.through,
-            of: row.of,
-            via: row.via,
+            route: row.route,
             refusal: row.refusal,
         });
     }
@@ -829,6 +895,7 @@ pub fn assemble_gathered<T: Decide + AtRestPolicy>(
             names,
             contacts,
             minted,
+            carried,
         }),
         Err(errors) => {
             let findings: Vec<AtRestFinding> = errors
@@ -842,20 +909,16 @@ pub fn assemble_gathered<T: Decide + AtRestPolicy>(
             // finding against the document makes this a refusal of the
             // document, however many declines ride with it. Only a
             // refusal that is declines and nothing else is the
-            // frontier.
+            // frontier — and WHICH document authored the declined
+            // declaration does not enter, because the arm's claim is
+            // about what was decided, not about who to send the
+            // author to.
             // (Non-empty because `Uncertified` promises at least one
             // declined pair; the kernel never refuses with no finding.)
             if !findings.is_empty()
-                && findings.iter().all(|f| {
-                    matches!(
-                        f.attribution,
-                        Attribution::Declined(_)
-                            | Attribution::Carried {
-                                relation: CarriedRelation::Declined,
-                                ..
-                            }
-                    )
-                })
+                && findings
+                    .iter()
+                    .all(|f| f.attribution.relation() == Some(Relation::Declined))
             {
                 Err(AssemblyError::Uncertified {
                     contacts: Box::new(contacts),
@@ -1009,10 +1072,11 @@ fn resolve_face(
 /// [`ValidationError`]'s own rule for a site that CLASSIFIES — one
 /// that maps the enum onto a smaller vocabulary, as against one that
 /// extracts a variant and answers `None` to the rest — and it is
-/// load-bearing here rather than tidy: [`Attribution::Declined`] is the only relation
-/// that can reach [`AssemblyError::Uncertified`], so this
-/// classification decides whether the kernel refused THIS DOCUMENT or
-/// merely could not certify it. A wildcard hands that decision to
+/// load-bearing here rather than tidy: [`Relation::Declined`] is the
+/// only relation that can reach [`AssemblyError::Uncertified`], so
+/// this classification decides whether the kernel refused THIS
+/// DOCUMENT or merely could not certify it. A wildcard hands that
+/// decision to
 /// whoever adds the next variant, and nothing goes red when they get
 /// it wrong — every acceptance row here exercises a variant one of
 /// the classified arms already names.
@@ -1039,10 +1103,16 @@ fn attribute(
 ) -> Attribution {
     // ONE definition of the pair lookup, over both homes of a
     // declaration: what this document minted, and what its parts
-    // carried up. Own rows answer first — a document's own mate is the
-    // one its author edits, and the two sets cannot name one pair
-    // twice unless this document declared a contact a part already
-    // declared, which is that author's own duplicate.
+    // carried up.
+    //
+    // PRECEDENCE, stated as a rule rather than as an impossibility:
+    // OWN ROWS ANSWER FIRST. Both sets can name one pair — an outer
+    // mate can be authored on the very face pair a part's own mate
+    // declared, through the instance-qualified names — and where they
+    // do, the mate this document's author can edit is the one to
+    // report. The carried row is still in `carried`, and the record
+    // set holds both declarations; what precedence decides is only
+    // which one the FINDING names.
     let by_pair = |a: FaceKey, b: FaceKey| {
         let hits = |faces: (FaceKey, FaceKey)| faces == (a, b) || faces == (b, a);
         minted
@@ -1060,16 +1130,14 @@ fn attribute(
     // document in this tree minted. The relation is the CALLER's — one
     // dispatch decides it — and it is the same relation whichever home
     // answered.
-    let named = |found: Option<Found<'_>>, relation: CarriedRelation| match found {
+    let named = |found: Option<Found<'_>>, relation: Relation| match found {
         None => Attribution::Unattributed,
         Some(Found::Own(m)) => match relation {
-            CarriedRelation::Refuted => Attribution::Refuted(m.clone()),
-            CarriedRelation::Declined => Attribution::Declined(m.clone()),
+            Relation::Refuted => Attribution::Refuted(m.clone()),
+            Relation::Declined => Attribution::Declined(m.clone()),
         },
         Some(Found::Carried(c)) => Attribution::Carried {
-            through: c.through,
-            of: c.of,
-            via: c.via.clone(),
+            route: c.route.clone(),
             declaration: c.declaration.clone(),
             relation,
         },
@@ -1079,7 +1147,7 @@ fn attribute(
         // in the error, so the pair names its mate exactly.
         ValidationError::ContactContradicted { declaration, .. } => named(
             by_pair(declaration.a, declaration.b),
-            CarriedRelation::Refuted,
+            Relation::Refuted,
         ),
         // A declared FACE-PAIR record the kernel could not confirm —
         // the other direction of the certification diff. The record's
@@ -1105,7 +1173,7 @@ fn attribute(
             declaration:
                 topo::StaleDeclaration::Patch { face_a, face_b }
                 | topo::StaleDeclaration::CurveLocus { face_a, face_b, .. },
-        } => named(by_pair(*face_a, *face_b), CarriedRelation::Refuted),
+        } => named(by_pair(*face_a, *face_b), Relation::Refuted),
         // A carrier kind the census inventory cannot certify: it
         // neither certified nor contradicted the pair, which is the
         // decline relation exactly.
@@ -1118,7 +1186,7 @@ fn attribute(
         // which face got to answer would be the arena's ordering.
         ValidationError::CensusUnsupported {
             subject: topo::CensusSubject::FacePair(a, b),
-        } => named(by_pair(*a, *b), CarriedRelation::Declined),
+        } => named(by_pair(*a, *b), Relation::Declined),
         // A single FACE outside the inventory is a finding about that
         // face's own geometry, not about a candidate contact: the arm
         // that raises it is the census's face-bounding pass, which has
@@ -1461,7 +1529,9 @@ mod attribution {
     /// The declared direction: a PAIR the census inventory cannot
     /// certify is a DECLINE, which is the only relation that can reach
     /// [`AssemblyError::Uncertified`] — and the declaration it names
-    /// is the one that declared THAT pair, in either order.
+    /// is the one that declared THAT pair, in either order. (Which
+    /// DOCUMENT declared it does not enter; this module's subject is
+    /// the classification, over one document's own rows.)
     #[test]
     fn an_unsupported_declared_pair_declines_in_either_order() {
         let (minted, a, b, ..) = fixture();

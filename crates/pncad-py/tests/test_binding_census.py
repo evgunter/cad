@@ -1409,20 +1409,19 @@ NOT_BOUND = {
     # .md`), so inventing a second vocabulary at the boundary would
     # fork a diagnosis the kernel already words.
     "CensusContact": INTERIOR,
-    # The instantiation seam's declaration bookkeeping. `Product` and
-    # `NodeValue::carried` are where these rows live, and `Product` is
-    # itself `INTERIOR` (below) — what a Python caller asks is what
-    # the A5 GATE answered, and they get that whole:
-    # `Attribution.relation` reads `carried_refuted` /
-    # `carried_declined` for a declaration a document below authored,
-    # `Attribution.declaration` is the declaration, and
-    # `AssemblyError` with `variant == "carried_mint_refusal"` is an
-    # inner mate that could not be minted. The route to it is in the
-    # message; no row of these types has to be held to answer any of
-    # that.
-    "CarriedDeclaration": INTERIOR,
+    # The instantiation seam's declaration bookkeeping. `Relation` and
+    # `Route` are the two halves of what a carried finding says, and
+    # Python reads both without holding either type:
+    # `Attribution.relation` is `carried_refuted` / `carried_declined`
+    # for a declaration a document below authored, and
+    # `Attribution.of` / `.via` are its route. The same pair rides
+    # `AssemblyError` with `variant == "carried_mint_refusal"` and
+    # `Assembly.carried`'s rows. `CarriedDeclarations` is the
+    # evaluation VALUE channel's bundle, behind `Product` and
+    # `NodeValue`, both interior.
     "CarriedDeclarations": INTERIOR,
-    "CarriedRelation": INTERIOR,
+    "Relation": INTERIOR,
+    "Route": INTERIOR,
     "Chamfered": INTERIOR,
     "ContactRecords": INTERIOR,
     "ContactRefusal": INTERIOR,
