@@ -42,8 +42,8 @@ use std::f64::consts::FRAC_PI_2;
 use common::asm;
 use pncad::document::{
     AxisSense, ClassAdmission, DocEdit, DocumentId, Frame, MatePrimitive, Node, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, apply, assemble, class_admission, parse_expr,
-    solve_document,
+    ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, apply, assemble, class_admission,
+    parse_expr, solve_document,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{ContactClass, Ray, face_frame};
@@ -436,8 +436,8 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
 
     // Mate it: the probe is discarded and reported in the same outcome.
     let first = session.perform(SessionOp::AddMate {
-        a: asm::in_part(bench.post_b, &bench.post_top),
-        b: asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        a: SitedRef::at_mint(asm::in_part(bench.post_b, &bench.post_top)),
+        b: SitedRef::at_mint(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Rest,
         alignment: seat(),
     });
@@ -469,8 +469,8 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     // a refusal. Both outcomes are acceptable; a green tree over a
     // second unresolved constraint is not.
     let second = session.perform(SessionOp::AddMate {
-        a: asm::in_part(bench.post_b, &bench.post_top),
-        b: asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        a: SitedRef::at_mint(asm::in_part(bench.post_b, &bench.post_top)),
+        b: SitedRef::at_mint(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Rest,
         alignment: seat(),
     });
@@ -718,8 +718,8 @@ fn r1_every_offered_class_is_executable_and_a_tangent_commit_is_unassemblable() 
     let bench = asm::bench("r1tangent", tol);
     let mut session = asm::open_bench(&bench, tol);
     let outcome = session.perform(SessionOp::AddMate {
-        a: asm::in_part(bench.post_b, &bench.post_top),
-        b: asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        a: SitedRef::at_mint(asm::in_part(bench.post_b, &bench.post_top)),
+        b: SitedRef::at_mint(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Tangent,
         alignment: seat(),
     });
@@ -823,8 +823,8 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
         frame: Frame::translation([0.03, 0.0, 0.0]),
     });
     let outcome = session.perform(SessionOp::AddMate {
-        a: asm::in_part(bench.post_b, &bench.post_top),
-        b: asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        a: SitedRef::at_mint(asm::in_part(bench.post_b, &bench.post_top)),
+        b: SitedRef::at_mint(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Rest,
         alignment: seat(),
     });

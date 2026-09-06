@@ -46,11 +46,10 @@
 //! one is dropped and rebuilt whole. Re-pairing by hand is the
 //! failure #1098 exists to name.
 //!
-//! Module kind: **vocabulary**, with a recorded exception — it
-//! takes a `&DocSession` as a read-only argument at the sites
-//! `scripts/gates/viewer-module-kinds.sh` records, and names no
-//! other driver type and no `app`-only crate
-//! (`crates/viewer/README.md`, Two vocabularies that read the session).
+//! Module kind: **vocabulary** (`crates/viewer/README.md`, Module
+//! boundaries). It names no driver type and no `app`-only crate: what
+//! the pick cache needs from a session arrives as [`IndexInputs`],
+//! which the session mints.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -65,7 +64,7 @@ use crate::display::DisplayView;
 use crate::evalseam::{Generation, IndexDone, IndexRequest, IndexService, InlineIndexer};
 use crate::input::{PickAction, ViewportSize};
 use crate::scene::{DisplayTolerance, SceneError, SceneMesh, ScenePart};
-use crate::session::{DocSession, EdgeSelection, FaceSelection, Hovered, Selection, SessionOp};
+use crate::session::{EdgeSelection, FaceSelection, Hovered, Selection, SessionOp};
 
 /// One drawn face patch, addressed the way selection speaks: the node
 /// whose body carries it, which output body, and the patch's position
@@ -2211,14 +2210,62 @@ pub fn cursor_projection(
     out
 }
 
+/// **What a pick index is built from**: a landed run, its generation
+/// and the ε to tessellate at.
+///
+/// **Three of the four move together, and that is the point of the
+/// value.** The generation, the document and the evaluation are
+/// written by one landing and describe one run, so a caller cannot
+/// pick up a generation without the pair it answers — the property
+/// [`PickCache::sync`] used to spell out by hand across three
+/// accessors. `tol` is not one of them: it is the session's ε, fixed
+/// at construction and never rewritten by a landing. It rides here
+/// because the build needs it and this is what the build is handed.
+///
+/// The session mints it ([`crate::session::DocSession::index_inputs`])
+/// so that this module names no driver; the argument for hoisting
+/// rather than widening the rule has one home, in
+/// `crates/viewer/README.md`'s *What a vocabulary reads, it is
+/// handed*.
+pub struct IndexInputs<'a> {
+    generation: Generation,
+    doc: &'a Doc<ProfileProgram>,
+    evaluation: &'a Arc<Evaluation<f64>>,
+    tol: Tol,
+}
+
+impl<'a> IndexInputs<'a> {
+    /// One landing's inputs, minted together.
+    ///
+    /// The fields are private and this is the only door, so the
+    /// pairing the doc above claims is held BY THE TYPE and not by
+    /// every caller remembering: nothing in this crate can write a
+    /// generation beside another run's document.
+    #[must_use]
+    pub fn of(
+        generation: Generation,
+        doc: &'a Doc<ProfileProgram>,
+        evaluation: &'a Arc<Evaluation<f64>>,
+        tol: Tol,
+    ) -> Self {
+        Self {
+            generation,
+            doc,
+            evaluation,
+            tol,
+        }
+    }
+}
+
 /// A [`PickIndex`] kept current with a session — **the rebuild-on-stale
 /// loop, owned once**.
 ///
 /// Two things made this a type rather than a habit. Ergonomics: a
 /// consumer that only wanted to pick had to notice `current_for` said
 /// stale, then rebuild with four arguments (document, evaluation,
-/// generation, δ) it had to keep in step by hand, three of which come
-/// from one `DocSession`. And correctness: the application's own
+/// generation, δ) it had to keep in step by hand, three of which are
+/// one landing's and arrive together as [`IndexInputs`]. And
+/// correctness: the application's own
 /// rebuild loop retried on **every repainted frame** whenever a build
 /// refused — a failed or poisoned root is an ordinary editing state,
 /// and each frame then re-tessellated every healthy root before
@@ -2328,8 +2375,8 @@ impl PickCache {
         Self::new(Box::new(InlineIndexer::new()))
     }
 
-    /// Ask the seam for an index of the session's landed evaluation at
-    /// `delta`, at most one attempt per (generation, δ).
+    /// Ask the seam for an index of a landed evaluation at `delta`, at
+    /// most one attempt per (generation, δ).
     ///
     /// **δ is built at, verbatim.** `scene::TRIANGLE_BUDGET` chooses
     /// the δ a document OPENS at (`app`'s `fit_delta_on_scene`), and
@@ -2340,18 +2387,17 @@ impl PickCache {
     ///
     /// The document is CLONED into the request and the evaluation is
     /// shared, so the worker owns everything it reads and the session
-    /// goes on being edited. Both come from the landed pair, which is
-    /// set in one place and read together.
-    pub fn sync(&mut self, session: &DocSession, delta: DisplayTolerance) -> CacheStep {
+    /// goes on being edited. Both arrive on [`IndexInputs`], already
+    /// paired: this cache is HANDED a landing and never reads one.
+    pub fn sync(&mut self, landed: Option<IndexInputs<'_>>, delta: DisplayTolerance) -> CacheStep {
         // **The one way out on "nothing landed", and it FORGETS.**
-        // The three reads are taken together because they are set
-        // together, so the destructuring cannot pick up a generation
-        // without the pair it describes.
-        let (Some(generation), Some((doc, _)), Some(evaluation)) = (
-            session.landed_generation(),
-            session.landed_pair(),
-            session.evaluation_arc(),
-        ) else {
+        let Some(IndexInputs {
+            generation,
+            doc,
+            evaluation,
+            tol,
+        }) = landed
+        else {
             self.forget();
             return CacheStep::Nothing;
         };
@@ -2400,7 +2446,7 @@ impl PickCache {
             delta,
             doc: doc.clone(),
             evaluation: Arc::clone(evaluation),
-            tol: session.tol(),
+            tol,
         });
         CacheStep::Submitted
     }

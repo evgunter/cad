@@ -47,7 +47,7 @@ test_utils::gated_to![
 
 use crate::common::{arc_section, stacked};
 use geom_core::Tol;
-use geom_core::k_stats::{start_verdict_log, take_verdict_log};
+use geom_core::k_stats::Bracket;
 use step_import::{ImportOptions, StepImport, import_step};
 use topo::MassProperties;
 
@@ -71,9 +71,11 @@ fn arc_prism(s: f64) -> topo::Body<f64> {
 /// executed — the certificate COUNTER (the `sweep` half's, verbatim,
 /// because it is the same measurement).
 fn quad_verdicts(run: impl FnOnce()) -> usize {
-    start_verdict_log();
+    let bracket = Bracket::open();
     run();
-    take_verdict_log()
+    bracket
+        .finish()
+        .verdicts
         .iter()
         .filter(|v| v.predicate.starts_with("props_quad"))
         .count()

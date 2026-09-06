@@ -16,7 +16,7 @@
 use crate::common;
 
 use common::asm;
-use pncad::document::{Alignment, Frame, RecipeNodeId, product};
+use pncad::document::{Alignment, Frame, RecipeNodeId, SitedRef, product};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use viewer::display::DisplayFault;
@@ -48,8 +48,8 @@ fn seat_alignment() -> Alignment {
 /// the session's one committed-edit door.
 fn add_seat_mate(session: &mut DocSession, bench: &asm::Bench, a_instance: RecipeNodeId) {
     let outcome = session.perform(SessionOp::AddMate {
-        a: asm::in_part(a_instance, &bench.post_top),
-        b: asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        a: SitedRef::at_mint(asm::in_part(a_instance, &bench.post_top)),
+        b: SitedRef::at_mint(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Rest,
         alignment: seat_alignment(),
     });
@@ -338,8 +338,8 @@ fn the_at_rest_badge_lands_with_the_evaluation() {
         "disjoint instances certify outright (A5's disjoint half)"
     );
     session.perform(SessionOp::AddMate {
-        a: asm::in_part(bench.post_b, &bench.post_top),
-        b: asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        a: SitedRef::at_mint(asm::in_part(bench.post_b, &bench.post_top)),
+        b: SitedRef::at_mint(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Tangent,
         alignment: seat_alignment(),
     });
@@ -629,8 +629,8 @@ fn a_landing_mate_discards_the_probe_value() {
     // The mate lands on post_b: ONE committed edit, and the probe is
     // superseded IN THE SAME OUTCOME.
     let outcome = session.perform(SessionOp::AddMate {
-        a: asm::in_part(bench.post_b, &bench.post_top),
-        b: asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        a: SitedRef::at_mint(asm::in_part(bench.post_b, &bench.post_top)),
+        b: SitedRef::at_mint(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Rest,
         alignment: seat_alignment(),
     });

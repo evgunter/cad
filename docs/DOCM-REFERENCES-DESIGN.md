@@ -30,7 +30,7 @@ from them:
   liveness check, and a later delete may strand it (N5).
 - **An `Expr` literal** in a slot, bit-pinned (D7).
 
-Two precedents this doc extends. `MeasureRef { at, name }`
+Two precedents this doc extends. `SitedRef { at, name }`
 (`node.rs:871`) pairs a DAG edge with a frozen name: `at` says which
 evaluated value to read, `name` says which entity. `Datum::AxisInPlane
 { plane, .. }` (`node.rs:611`) is the one datum with a DAG input: its
@@ -51,7 +51,7 @@ is a `Datum::Frame` whose pose is computed at evaluation from a
 named face: `at` is a DAG edge to the body node whose value the face
 is read out of, `face` is a frozen face name resolved through that
 value's name table under the N5 ladder, and `spin` is the authored
-rotation of sketch +x about the normal. It is the `MeasureRef` shape
+rotation of sketch +x about the normal. It is the `SitedRef` shape
 applied to a datum. The frame it yields: origin at the carrier's
 origin projected to the face's plane (the carrier's own distinguished
 point, `readback.rs` rule 2), normal the face's OUTWARD normal (DM1a),
@@ -198,6 +198,27 @@ So the chain goes, not the link:
   is a list.
 - The viewer's combining doors gain a union seat that takes N body
   picks; that build is CHROME's.
+- **A declaration channel, in member space** (amended 2026-09-06,
+  Ev's ruling on `n-ary-union-has-no-declaration-channel`). Two
+  members that touch refuse `UndeclaredContact` exactly as a pair
+  boolean's operands do, and the union carries the same recourse:
+  `Node::Union { members, declare: Option<RecipeNodeId> }`, the
+  `Declare` node's pairs naming entities in the UNION's own name space
+  — `FromMember { member, of }` names, which the fold already presents
+  to every step through `member_view` — so a declaration says "this
+  face of member `m` meets that face of member `n`" and records no
+  fold position anywhere. Each pair is fed to the fold step at which
+  both its members are in the accumulation: the later member's step
+  in list order, the earlier side as the accumulator's operand, the
+  later as the joining member's; a pair whose two names lie in ONE
+  member is that member's carried contact at its own step. A name in
+  neither table, or in both, refuses typed through the pair boolean's
+  own resolver, which the union reuses (one definition of "resolve a
+  declared name against two tables"). `SetMembers` leaves `declare`
+  as it was; a pair whose member left the list refuses at the next
+  evaluation as a vanished name does (N5), never silently. The
+  "disjoint-only" reading is not taken: the common modelling case (a
+  boss on a plate) would keep the pairwise chain alive.
 
 ## DM5 — A node's inputs are pairwise distinct
 

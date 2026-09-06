@@ -20,8 +20,8 @@ use editor_core::{
     Alignment, AxisSense, CancelToken, ClusterMaintenance, ContactClass, DocEdit, DocRef,
     DocumentId, EditError, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive,
     MateRole, Node, NodeErrorKind, NodeResult, PartResolver, ProfileDoc, RecipeNodeId,
-    ResolveFailure, ResolveFault, RoleSeg, StableName, apply, clusters, content_pin, evaluate,
-    load, product, relative_freedom_components, save, solve_document,
+    ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName, apply, clusters, content_pin,
+    evaluate, load, product, relative_freedom_components, save, solve_document,
 };
 use fixture::{insert, len, on_frame, square, step};
 use geom_core::Tol;
@@ -142,8 +142,8 @@ fn mate(
     clocking: Option<f64>,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: in_part(a, PART_BODY),
-        b: in_part(b, PART_BODY),
+        a: SitedRef::at_mint(in_part(a, PART_BODY)),
+        b: SitedRef::at_mint(in_part(b, PART_BODY)),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: fa,
@@ -1380,7 +1380,7 @@ fn row6i_the_load_check_refuses_a_mate_head_past_the_mint_counter() {
     let split = text.find('{').expect("the JSON body follows the header");
     let (header, body) = text.split_at(split);
     let mut wire: serde_json::Value = serde_json::from_str(body).expect("the body parses");
-    let head = &mut wire["snapshot"]["nodes"][mate_id.0.to_string()]["Mate"]["b"];
+    let head = &mut wire["snapshot"]["nodes"][mate_id.0.to_string()]["Mate"]["b"]["name"];
     assert_eq!(
         head["node"],
         serde_json::json!(ids[2].0),
@@ -1464,7 +1464,7 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
         &DocEdit::InsertNode {
             node: Node::Mate {
                 a,
-                b: bogus.clone(),
+                b: SitedRef::at_mint(bogus.clone()),
                 class,
                 alignment,
             },
@@ -1619,6 +1619,70 @@ fn row7d_an_in_band_case_split_escalates_typed() {
     assert!(
         fault.to_string().contains("could not be decided"),
         "{fault}"
+    );
+}
+
+/// **The mate solve's escalations are on no node's log.** The solve is
+/// a whole-document computation that runs BEFORE any node's verdict
+/// bracket opens, so the funnel's escalation on the in-band case split
+/// lands in whatever frame encloses the evaluation — visible to an
+/// outer bracket a caller holds, on no `NodeValue` and no `NodeError`
+/// — and reaches a consumer only as `NodeErrorKind::Mate` carrying
+/// `MateFault::Indeterminate`. Pinned so the gap is guarded: the item
+/// `work/props/escalation-channel-misses-op-minted-indeterminates.md`
+/// records it, and this row goes red when the solve is bracketed.
+#[test]
+fn row7e_a_mate_solve_escalation_is_on_no_nodes_log_but_visible_in_an_outer_frame() {
+    let eps = geom_core::Tol::witness().get().eps;
+    let tilt = 3.0 * eps;
+    let (doc, ids, store) = assembly("asm-r2a-row7e", 2);
+    let mut doc = doc;
+    let mut mates = Vec::new();
+    for axis in [[0.0, 0.0, 1.0], [tilt, 0.0, 1.0]] {
+        let (next, id) = mint(
+            doc,
+            DocEdit::InsertNode {
+                node: mate(
+                    ids[0],
+                    ids[1],
+                    MatePrimitive::PlanarRest { offset: 0.0 },
+                    AxisSense::Opposed,
+                    frame([0.0, 0.0, 0.0], axis, [0.0, 1.0, 0.0]),
+                    frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]),
+                    None,
+                ),
+            },
+        );
+        doc = next;
+        mates.push(id);
+    }
+    let outer = geom_core::k_stats::Bracket::open();
+    let ev = run(&doc, &opts(store));
+    let outside = outer.finish();
+    let named = |escalations: &[geom_core::k_stats::Escalation]| {
+        escalations
+            .iter()
+            .any(|e| e.predicate() == "mate_axes_parallel")
+    };
+    for (id, result) in &ev.nodes {
+        let on_node = match result {
+            NodeResult::Ok(v) => named(&v.escalations),
+            NodeResult::Failed(e) => named(&e.escalations),
+            NodeResult::Poisoned { .. } => false,
+        };
+        assert!(!on_node, "node {} carries the solve's escalation", id.0);
+    }
+    assert!(
+        matches!(
+            mate_fault(&ev, mates[1]),
+            editor_core::MateFault::Indeterminate { .. }
+        ),
+        "the mate node fails typed through the error enum"
+    );
+    assert!(
+        named(&outside.escalations),
+        "the outer frame saw the solve's escalation: {:?}",
+        outside.escalations
     );
 }
 

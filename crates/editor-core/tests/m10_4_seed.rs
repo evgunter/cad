@@ -32,9 +32,9 @@ use crate::fixture;
 use editor_core::UnitSym;
 use editor_core::{
     CancelToken, Dimension, DocEdit, DocParam, EvalOptions, Evaluation, Expr, LoopProgram,
-    MeasureExpr, MeasurePrimitive, MeasureRef, Node, NodeErrorKind, NodeResult, ParamName,
-    ParamValue, ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId,
-    SeedError, ValuePayload, evaluate, seed_env,
+    MeasureExpr, MeasurePrimitive, Node, NodeErrorKind, NodeResult, ParamName, ParamValue,
+    ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SeedError,
+    SitedRef, ValuePayload, evaluate, seed_env,
 };
 use geom_core::{Dual64, Tol};
 
@@ -188,8 +188,8 @@ fn width_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
     // Segment 3 is the x = 0 wall, segment 1 the x = w wall (chain
     // order: bottom, right, top, left).
     let refs = vec![
-        MeasureRef::new(slab, fname(slab, wall(3))),
-        MeasureRef::new(slab, fname(slab, wall(1))),
+        SitedRef::new(slab, fname(slab, wall(3))),
+        SitedRef::new(slab, fname(slab, wall(1))),
     ];
     let width = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
     let m = r.insert(Node::measure(width, refs).expect("both indices address a reference"));

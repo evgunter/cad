@@ -1596,12 +1596,19 @@ impl Node {
     /// placement constraint and the contact declaration, so there is
     /// no second vocabulary to keep synced.
     ///
-    /// `a` and `b` are instance-qualified stable references — an
-    /// entity of one instance's product and an entity of the other's.
-    /// They are name REFERENCES, not recipe edges: inserting a mate
-    /// transfers no root, and under consuming edges a mate is an
-    /// ordinary non-body root, denoting no body and ignored by the
-    /// gather.
+    /// Each side is TWO things, mirroring the kernel type: `a_at` /
+    /// `b_at` is the node the reference is read at — the OPERAND, the
+    /// node whose geometry the mate speaks about — and `a` / `b` is
+    /// the instance-qualified name text of an entity of that node's
+    /// product. They coincide for a mate authored directly on an
+    /// instance; they diverge the moment a `Transform` places it, and
+    /// the operand is the only thing that says which, because a
+    /// transform mints no name of its own. There is no default: pass
+    /// the instance's own node when that is what you mean.
+    ///
+    /// Neither half is a recipe edge: inserting a mate transfers no
+    /// root, and under consuming edges a mate is an ordinary non-body
+    /// root, denoting no body and ignored by the gather.
     ///
     /// `class_` is the declared contact class (trailing underscore:
     /// `class` is a Python keyword). How far each class gets is
@@ -1614,21 +1621,23 @@ impl Node {
     /// and `b` name (issue #944), so a mate can solve cleanly and
     /// still be refuted at the gate.
     ///
-    /// A dangling reference head is not refused here: the solve
-    /// refuses typed naming it (`MateFault`, `mate_dangling_head`),
+    /// A dangling reference is not refused here: the solve refuses
+    /// typed naming its head (`MateFault`, `mate_dangling_head`),
     /// which is the ratified dangling-reference semantics.
     #[staticmethod]
     fn mate(
         py: Python<'_>,
+        a_at: &NodeId,
         a: &str,
+        b_at: &NodeId,
         b: &str,
         class_: super::flush::ContactClass,
         alignment: &super::mate::Alignment,
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Mate {
-                a: name_from_text(a)?,
-                b: name_from_text(b)?,
+                a: d::SitedRef::new(a_at.0, name_from_text(a)?),
+                b: d::SitedRef::new(b_at.0, name_from_text(b)?),
                 class: class_.to_kernel(py)?,
                 alignment: alignment.0,
             },

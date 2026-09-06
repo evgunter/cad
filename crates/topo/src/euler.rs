@@ -2182,14 +2182,16 @@ impl<T: Decide> Body<T> {
     /// Writes the mutual `next`/`prev` link `a → b`.
     ///
     /// **The precondition is the argument type.** Every door that hands
-    /// out a [`Live`] performs the lookup — [`Live::of`],
-    /// [`Body::require_live`], [`Body::resolve_half_edge_live`],
-    /// [`Body::loop_cycle_live`] — so a key nothing has resolved cannot
-    /// arrive here. What the token does and does not claim — in
-    /// particular that it is a statement about the moment it was made,
-    /// and that half-edge removal is therefore the last thing a
-    /// mutation phase may do — is the [`live`](crate::live) module
-    /// docs.
+    /// out a [`Live`] performs the lookup, so a key nothing has
+    /// resolved cannot arrive here. **Which doors those are is not
+    /// restated here**: the [`live`](crate::live) module owns the list
+    /// and a source-level row there enumerates it, so a fifth door reds
+    /// against that row — while a copy of the names in this file would
+    /// go stale against it silently, which is the direction a
+    /// cross-reference fails in. What the token does and does not claim
+    /// — in particular that it is a statement about the moment it was
+    /// made, and that half-edge removal is therefore the last thing a
+    /// mutation phase may do — is those same module docs.
     ///
     /// **A bounded walk proves its members, not their `prev` fields.**
     /// [`Body::loop_cycle_live`] hands out a token per member and

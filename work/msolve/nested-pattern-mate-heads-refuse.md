@@ -163,3 +163,9 @@ S-MATE closed while this ruling was open, and DOCM inherited the FILES
 at that exit rather than this class of question. Ev's steer
 (2026-09-04): open a successor. This item and its gate move to
 **MSOLVE**. Not a FIX one-PR item under any reading.
+
+## Half landed (2026-09-05, PR 1929)
+
+The pattern-of-transform half places since MSOLVE-1 (the row's
+expectation moved with the ruling). The nested-pattern half still
+refuses and waits on MSOLVE-2.

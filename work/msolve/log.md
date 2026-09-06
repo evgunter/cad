@@ -104,3 +104,26 @@ commit; doc rot from the rename swept. Carried to MSOLVE-2: the
 pattern (here); an instance under two placing roots refusing `Naming`
 at the gather, and `Transform` refusing a pattern's `Instances`
 (`work/issues/`, no obvious owner).
+
+## MSOLVE-1 MERGED (2026-09-05, PR 1929)
+
+Fix pass green on the full matrix at `550a9f2`; merged without a
+fresh run on the state-sync commit (docs and tracker only). What the
+fix pass added beyond the reviews' letter: `SplitError::
+OperandSeveredFromMate` runs after the cluster precondition and exempts
+the interface crossing (a kept at-mint mate whose name lies wholly in
+the cut re-anchors through the minted instance); a non-exhaustive
+Python `split_err` match the new variant exposed. Item closed, spec
+deleted into the ledger, `mate-solve-is-transform-blind` closed;
+MSOLVE-2 and MSOLVE-4 un-parked. Next: dispatch MSOLVE-4 (spec on
+main), write MSOLVE-2's spec against the walk as landed.
+
+## MSOLVE-4 landed, in review (2026-09-05)
+
+PR 1960 green on the full matrix at `b4764ea`. The spec's premise
+verified on the tree: the memo has one reuse site and it matches only
+`NodeResult::Ok`, so the fault's content does not feed the key. One
+CHROME row's PREMISE was rewritten (it asserted the memo hazard as
+its precondition and said so); the guard in `tree.rs` is gone with no
+row needing it. Style review and correctness arm dispatched on that
+head.

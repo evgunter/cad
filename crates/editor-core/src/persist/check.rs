@@ -676,6 +676,13 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
                 check_id(n)?;
             }
         }
+        // And every node a reference is READ AT that is not also an
+        // input (`Node::payload_read_sites` — a mate's two operands):
+        // an id past the counter inside an operand is as corrupt as
+        // one inside the name beside it, and as unrepairable.
+        for at in node.payload_read_sites() {
+            check_id(at)?;
+        }
         // A blend's selection carries one check of its own (M6-5): the
         // canonical form. `Node::fillet`/`Node::chamfer` are the only
         // construction doors and they canonicalize, so a non-canonical

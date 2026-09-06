@@ -65,10 +65,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Affine3, Point2, Tol, Vec3};
+use pncad::prelude::{SurfaceKindSet, query};
 use pncad::profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, circle_split};
 use pncad::sweep::{Extrusion, extrude};
-use pncad::topo::{Body, BooleanBody, BooleanDeclarations, ContactClass, FacePairDeclaration};
+use pncad::topo::{Body, BooleanBody, BooleanDeclarations};
 
 use crate::booleans::{check, expect_seamed, try_union};
 use crate::scalar::Scalar;
@@ -80,14 +82,6 @@ use crate::{SceneBody, Stop, View};
 /// number.
 const PLATE: (f64, f64, f64) = (6.0, 4.0, 1.0);
 const PEG_R: f64 = 0.5;
-/// How near two stored cylinder carriers must agree to be read as ONE.
-/// A SELECTION tolerance, not a geometric decision: it picks which face
-/// pairs the author means to declare, and the kernel then verifies
-/// every declaration it is handed. The neighbouring `plane_face` reads
-/// its stations the same way. Both are the plain-body door's missing
-/// selector showing through (#1345); a document would say this with a
-/// `GeoSelect`.
-const SAME_CARRIER: f64 = 1e-12;
 /// How far along +x the apart framing sits from the mated body. The
 /// plate is 6 wide, so 8 leaves 2 of clear air between the two
 /// framings at the shared camera.
@@ -142,7 +136,7 @@ const V_MATED: f64 = 2.0 * PLATE_VOL;
 /// the curved arm refuses the same configuration:
 /// `CurvedPierceUnsupported`, with the identical payload the UNDECLARED
 /// mate gets — and declaring them does not help, because
-/// [`ContactClass::Rest`] means *opposed* senses and these two walls
+/// `ContactClass::Rest` means *opposed* senses and these two walls
 /// face the same way. There is no class in the vocabulary for a
 /// cosurface CONTINUATION, and the curved arm has no arm for one.
 ///
@@ -284,52 +278,26 @@ fn plate_with_holes<S: Scalar>(tol: Tol) -> Body<S> {
     .body
 }
 
-/// Every cylindrical face of `body`, with its carrier's stored axis
-/// origin in `x`/`y` and its radius — enough to tell two coaxial walls
-/// from two parallel ones, since every cylinder in this scene is
-/// vertical.
+/// Every cylindrical face of `body` — the kernel's own kind read
+/// (`query::face_surface_matches`), for the narration's face counts
+/// and for saying WHICH of the detector's findings the author means.
 ///
 /// **A library finding, recorded at the site it was met** (the demos'
-/// purpose rule): the author knows perfectly well WHICH contacts he
-/// means — "each peg against its own bore, and the two plates' outer
-/// walls where they continue across the joint" — but there is no
-/// selector on the plain body API to say it with. The intent has to be
-/// re-derived from stored surface parameters by walking every face in
-/// the arena, and it comes back as THREE faces per peg side (the
-/// three-arc split), so ONE contact the author has in mind is spelled
-/// as NINE `FacePairDeclaration`s. The document layer has selection
-/// (`GeoSelect`); the kernel-level `Body` does not, and a declared
-/// contact is a kernel-level object — the two-doors gap, #1345.
-///
-/// **What the library door changed for the mating plane, stated
-/// narrowly**: `topo::flush::find_flush_candidates` now PRODUCES the
-/// verified candidate set, so the declaration below is a finding the
-/// kernel vouched for rather than a pair this file asserted. It did
-/// NOT retire the arena walk: the report holds seven planar findings
-/// and the scene means one of them, so [`plane_face`] still walks the
-/// arena positionally to say WHICH — and that pick is exactly the
-/// selection gap this note records, moved from "assemble the
-/// declaration by hand" to "choose among findings by hand".
-///
-/// What keeps THESE pairs hand-assembled is a different thing again:
-/// the detector's SCOPE, not a missing producer and not a missing
-/// verification — the `Rest` ladder verifies a cylindrical cosurface
-/// pair today, and asked in its detector posture it already reports
-/// this very pair as would-verify-if-declared (`seat3_measurements`
-/// below runs both). The detector is planar because the door it
-/// enumerates over is `flush_pair_relation`; widening it to
-/// `carrier_pair_relation` is a one-identifier door swap that also
-/// widens `crate::booleans::flush_declarations`, which scenes whose
-/// curved contacts must keep REFUSING call (the lily's stem glue), so
-/// it is a decision about those scenes rather than a free
-/// generalization. Filed as #1537 with the re-baselining it forces.
-fn cylinders<S: Scalar>(body: &Body<S>) -> Vec<(pncad::topo::FaceKey, f64, f64, f64)> {
-    body.faces()
-        .filter_map(|(k, f)| match body.get_surface(f.surface) {
-            Some(&pncad::geom::Surface::Cylinder { origin, radius, .. }) => {
-                Some((k, origin.x.f(), origin.y.f(), radius.f()))
-            }
-            _ => None,
+/// purpose rule), and it is now the SELECTION half alone: there is no
+/// selector on the plain body API for "each peg against its own
+/// bore", so the intent is re-derived by walking the arena and
+/// filtering, and one contact is still spelled as NINE
+/// `FacePairDeclaration`s because no door groups faces by contact.
+/// The MATCHING half retired with the detector's curved rungs — this
+/// scene used to pair peg walls to bore walls itself against a
+/// hand-picked `1e-12`, and the kernel's carrier ladder decides that
+/// now. The document layer has selection (`GeoSelect`); the
+/// kernel-level `Body` does not — the two-doors gap, #1345.
+fn cylinders<S: Scalar>(body: &Body<S>) -> Vec<pncad::topo::FaceKey> {
+    query::all_faces(body)
+        .into_iter()
+        .filter(|&k| {
+            query::face_surface_matches(body, k, SurfaceKindSet::just(SurfaceKind::Cylinder))
         })
         .collect()
 }
@@ -364,56 +332,52 @@ fn plane_face<S: Scalar>(body: &Body<S>, z: f64, up: bool) -> pncad::topo::FaceK
 /// The mate, in the author's own words: the mating plane, plus every
 /// place the two parts' walls lie on a COMMON cylinder — each a `Rest`.
 ///
-/// Contacts are matched by CARRIER, not by name, which is both the
-/// honest statement and the one that stays right as the part changes.
-/// Cross-peg pairs are excluded for free: peg 1 and bore 2 sit on
-/// DISTINCT carriers, and declaring them would be a false statement the
-/// kernel would contradict — correctly.
+/// **Every declaration here is a finding the kernel vouched for**, and
+/// the scene's whole remaining job is choosing WHICH findings it
+/// means: the mating plane, picked positionally because nothing on the
+/// plain-body API says "the mating face", plus every CYLINDRICAL
+/// finding.
 ///
-/// Matching by carrier rather than by peg centre is what let the
-/// montage-v3 pass MEASURE the corner-fillet wall [`outline`] records:
-/// with the fillets on, this function declares the four corner-wall
-/// pairs too — 22 cylindrical `Rest`s rather than 18 — and the mate
-/// refuses anyway, which is what makes the wall a kernel fact rather
-/// than a missing declaration.
+/// **What that second filter says, exactly, and why it is a kind
+/// filter rather than a per-peg one.** It declares every cylindrical
+/// cosurface pair the detector reports — which is the same set the
+/// hand matcher this replaced declared, and the same set the scene
+/// means in BOTH of its configurations. Sharp (shipped): the two peg
+/// fits, three faces a side, eighteen findings, and no cross-peg pair,
+/// because peg 1 and bore 2 are `Distinct` at the door that verifies
+/// the declaration rather than at a tolerance this file picks.
+/// Filleted (measured once, [`outline`]): the four corner-wall pairs
+/// as well — 22 rather than 18 — which is the set that made the
+/// corner-fillet wall a kernel fact instead of a missing declaration.
+/// Narrowing to "each peg's own carrier" would declare the right 18
+/// today and silently stop measuring that.
+///
+/// The filter is therefore deliberately wider than the sentence "each
+/// peg against its own bore", and what keeps it honest is a pin rather
+/// than a comment: `flush_detector_measurements` asserts the split
+/// (6 and 6 cylinder faces, 18 findings, every one of them a peg
+/// against ITS bore), so a third cylindrical contact appearing on this
+/// part reds the suite instead of being declared unnoticed.
 fn declarations<S: Scalar>(p: &Body<S>, q: &Body<S>, tol: Tol) -> BooleanDeclarations {
-    // 1. The mating plane: P's top face against Q's bottom face.
-    //    The library door DETECTS — it reports every planar `Rest`
-    //    candidate between the two parts, seven of them here — and
-    //    `plane_face` PICKS, positionally, the one contact the author
-    //    means; the picked FINDING is what becomes the declaration.
-    //    Detection and selection are two different missing doors and
-    //    only the first one shipped: the six findings not picked are
-    //    real contacts (the plates' flush side walls, the peg tops
-    //    flush with Q's top face) that this part does not mate on, and
-    //    nothing but the author knows that. Passing the finding — not
-    //    the key pair — to `declare` is the no-fusion boundary doing
-    //    its job: what is declared is what the kernel vouched for.
-    let mating = (plane_face(p, PLATE.2, true), plane_face(q, PLATE.2, false));
     let found = pncad::topo::flush::find_flush_candidates(p, q, tol)
-        .expect("the plates' planar pairs are authored exactly, so they decide definitely");
-    let mating = found
-        .iter()
-        .find(|f| f.pair == mating)
-        .expect("the mating plane must be a finding: P's top face rests on Q's bottom face");
-    let mut decls = pncad::topo::flush::declare(mating);
-    // 2. Every shared-carrier cylinder pair: the two peg fits (three
-    // faces a side, so nine declarations each) and the four corner
-    // walls the profile fillets mint.
-    let (cp, cq) = (cylinders(p), cylinders(q));
-    for &(fa, ax, ay, ar) in &cp {
-        for &(fb, bx, by, br) in &cq {
-            let same = (ax - bx).abs() < SAME_CARRIER
-                && (ay - by).abs() < SAME_CARRIER
-                && (ar - br).abs() < SAME_CARRIER;
-            if same {
-                decls
-                    .coincident_faces
-                    .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
-            }
-        }
-    }
-    decls
+        .expect("the plates' pairs are authored exactly, so they decide definitely");
+    // The mating plane: P's top face against Q's bottom face. The
+    // report holds the plates' other real contacts too — the flush
+    // side walls, the peg tops flush with Q's top face — which this
+    // part does not mate on, and nothing but the author knows that.
+    // Detection and selection are two different missing doors and only
+    // the first one shipped.
+    let mating = (plane_face(p, PLATE.2, true), plane_face(q, PLATE.2, false));
+    let cyl = cylinders(p);
+    let picked: Vec<_> = found
+        .into_iter()
+        .filter(|f| f.pair == mating || cyl.contains(&f.pair.0))
+        .collect();
+    assert!(
+        picked.iter().any(|f| f.pair == mating),
+        "the mating plane must be a finding: P's top face rests on Q's bottom face"
+    );
+    pncad::topo::flush::declare_all(&picked)
 }
 
 /// The cell's boolean work, generic (the K-probe sweep runs the same
@@ -568,10 +532,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 contacts are visible before the union makes them interior",
         ops: "extrude plate + 2 x extrude three-arc peg -> 2 transverse unions (P); \
               extrude one profile whose two inner loops are the bores (Q); \
-              find_flush_candidates -> pick the mating plane's finding -> declare, \
-              plus every shared-carrier cylinder pair declared Rest by hand (the \
-              detector is planar) -> union_with; transform_rigid for the apart \
-              framing",
+              find_flush_candidates -> pick the mating plane and the two peg fits \
+              out of the report -> declare_all -> union_with; transform_rigid for \
+              the apart framing",
         delta: 1e-2,
         note: Some(note),
         view: View {
@@ -593,33 +556,35 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 }
 
 /// **What the flush detector reaches on this mate, measured** — the
-/// evidence behind [`cylinders`]' finding note, kept as a test so the
+/// evidence behind [`declarations`]' note, kept as a test so the
 /// sentence is re-derived rather than believed.
 ///
-/// Two claims, and the second is the load-bearing one:
+/// Two claims, and the second is the one the scene's declaration
+/// assembly rests on:
 ///
-/// 1. The PLANAR detector produces the mating plane, and it also
-///    produces contacts this part does not mate on — so the scene
-///    picks its finding out of the report rather than declaring the
-///    report.
-/// 2. The cylindrical peg/bore pairs are outside the DETECTOR, not
-///    outside the verifier: the same carrier ladder that verifies
-///    them under a declaration reports them, asked in its detector
-///    posture, as would-verify-if-declared, with the definite-zero
-///    encoding the planar detector reads as a finding.
+/// 1. The detector produces the mating plane, and it also produces
+///    contacts this part does not mate on — so the scene picks its
+///    findings out of the report rather than declaring the report.
+/// 2. The cylindrical peg/bore pairs are IN the report: three faces a
+///    side per fit, eighteen findings, and not one cross-peg pair —
+///    the carrier ladder decides sameness, so the scene's old
+///    hand-match on stored axis origins is not doing that work any
+///    more. This is the measurement that replaced the one recorded
+///    here while the detector was planar (then: the pairs verify
+///    under a declaration and report as would-verify-if-declared,
+///    but the detector's own door did not carry them).
 #[cfg(test)]
-mod seat3_measurements {
+mod flush_detector_measurements {
     use super::*;
-    use pncad::geom_core::{Band, Tol};
-    use pncad::topo::boolean::carrier_pair_relation;
+    use pncad::geom_core::Tol;
 
     #[test]
-    fn the_planar_detector_finds_the_mating_plane_among_other_real_contacts() {
+    fn the_detector_finds_the_mating_plane_among_other_real_contacts() {
         let tol = Tol::witness();
         let p = plate_with_pegs::<f64>(tol);
         let q = plate_with_holes::<f64>(tol);
         let found = pncad::topo::flush::find_flush_candidates(&p, &q, tol)
-            .expect("the plates' planar pairs decide definitely");
+            .expect("the plates' pairs decide definitely");
         let mating = (
             plane_face(&p, PLATE.2, true),
             plane_face(&q, PLATE.2, false),
@@ -628,10 +593,14 @@ mod seat3_measurements {
             found.iter().any(|f| f.pair == mating),
             "the mate's own plane must be a finding: {found:?}"
         );
+        let planar: Vec<_> = found
+            .iter()
+            .filter(|f| !cylinders(&p).contains(&f.pair.0))
+            .collect();
         assert!(
-            found.len() > 1,
+            planar.len() > 1,
             "the parts share more planar contacts than they mate on (flush side walls, \
-             peg tops flush with Q's top face), which is why the scene picks: {found:?}"
+             peg tops flush with Q's top face), which is why the scene picks: {planar:?}"
         );
         assert_eq!(
             declarations(&p, &q, tol)
@@ -645,48 +614,48 @@ mod seat3_measurements {
     }
 
     #[test]
-    fn the_cylindrical_pairs_are_outside_the_detector_not_outside_the_verifier() {
+    fn the_cylindrical_fits_are_findings_and_no_cross_peg_pair_is() {
         let tol = Tol::witness();
-        let band = Band::linear(tol).unwrap();
         let p = plate_with_pegs::<f64>(tol);
         let q = plate_with_holes::<f64>(tol);
-        let (fa, fb) = (
-            cylinders(&p)[0],
-            *cylinders(&q)
-                .iter()
-                .find(|c| (c.1 - cylinders(&p)[0].1).abs() < SAME_CARRIER)
-                .expect("a bore on the first peg's carrier"),
-        );
-        // Declared posture: the ladder VERIFIES the pair, which is
-        // what the scene's nine-per-peg declarations rest on.
-        assert!(
-            matches!(
-                carrier_pair_relation(&p, fa.0, &q, fb.0, true, band),
-                Some(Ok(pncad::topo::CarrierRelation::SameOpposite))
-            ),
-            "the Rest ladder verifies a cylindrical cosurface pair today"
-        );
-        // Detector posture: the same door already says "would verify
-        // if declared" — the definite-zero encoding, on a curved rung.
-        // So the scope step is this detector's door, not a verify
-        // table.
-        assert!(
-            matches!(
-                carrier_pair_relation(&p, fa.0, &q, fb.0, false, band),
-                Some(Err(pncad::topo::CarrierEqError::Undeclared {
-                    relation: pncad::topo::CarrierRelation::SameOpposite,
-                    ..
-                }))
-            ),
-            "the detector posture reports the same pair as would-verify-if-declared"
-        );
-        // And the planar detector does not report it, which is the
-        // scope sentence stated as a test rather than as prose.
+        let (cp, cq) = (cylinders(&p), cylinders(&q));
+        assert_eq!((cp.len(), cq.len()), (6, 6), "three faces a side, two fits");
         let found = pncad::topo::flush::find_flush_candidates(&p, &q, tol)
-            .expect("the planar pairs decide definitely");
-        assert!(
-            !found.iter().any(|f| f.pair == (fa.0, fb.0)),
-            "the planar detector reports planar pairs only"
+            .expect("the plates' pairs decide definitely");
+        let curved: Vec<_> = found
+            .iter()
+            .filter(|f| cp.contains(&f.pair.0))
+            .cloned()
+            .collect();
+        assert_eq!(
+            curved.len(),
+            18,
+            "each peg against its own bore is 3 x 3, and the two fits are all of it — \
+             the cross-peg pairs sit on DISTINCT carriers and the ladder says so, \
+             which is why nothing here matches carriers by hand: {curved:?}"
+        );
+        for &fa in &cp {
+            assert_eq!(
+                curved.iter().filter(|f| f.pair.0 == fa).count(),
+                3,
+                "each peg-wall face meets THREE bore faces — its own bore's three arcs \
+                 and no others; a cross-peg pair would put a fourth here"
+            );
+        }
+        for f in &curved {
+            assert!(cq.contains(&f.pair.1));
+            assert_eq!(f.class, pncad::topo::ContactClass::Rest);
+            assert_eq!(
+                f.evidence.relation,
+                pncad::topo::CarrierRelation::SameOpposite,
+                "a peg's convex wall against its bore's concave wall is Rest: {f:?}"
+            );
+        }
+        // And the scene declares exactly these, plus the mating plane.
+        assert_eq!(
+            declarations(&p, &q, tol).coincident_faces.len(),
+            19,
+            "one planar Rest and eighteen cylindrical ones"
         );
     }
 }

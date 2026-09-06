@@ -41,8 +41,8 @@ geom-core = { path = "../geom-core" }
 profile = { path = "../profile" }
 # The ops this crate's run doors dispatch to. `Verb` names the
 # kernel's verbs, so it depends on every crate that hosts one; today
-# that is the blend pair in `sweep` and the boolean in `topo` (the
-# split joins at its own migration).
+# that is the blend pair and the two sweeps in `sweep`, and the
+# boolean and the split in `topo`.
 sweep = { path = "../sweep" }
 topo = { path = "../topo" }
 

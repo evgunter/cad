@@ -1584,7 +1584,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
             // node, spelled explicitly rather than assumed.
             walls
                 .into_iter()
-                .map(|name| pncad::document::MeasureRef::new(plate, name))
+                .map(|name| pncad::document::SitedRef::new(plate, name))
                 .collect(),
         )
         .expect("both indices address a reference"),
@@ -2200,8 +2200,8 @@ fn asm_r2a_mated_assembly(
     let (doc, _) = doors_insert(
         doc,
         Node::Mate {
-            a: name(ids[0]),
-            b: name(ids[1]),
+            a: pncad::document::SitedRef::at_mint(name(ids[0])),
+            b: pncad::document::SitedRef::at_mint(name(ids[1])),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: axis([30.0, 0.0, 0.0]),

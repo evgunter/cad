@@ -27,6 +27,7 @@ is the board and `work/README.md` its contract.
 | `crates/editor-core/README.md` | Ratified (#496, option A′) | Group boolean in the recipe layer, GROUP-BOOLEAN-DESIGN: `PlacedUnion`, a Pattern that fuses — one prototype, one body out |
 | `crates/editor-core/ASSEMBLY.md` | Ratified (#333); v1 shipped | Assemblies, ASSEMBLY-DESIGN A1–A13 + AQ1–AQ8: assembly-evaluates-to-a-body, mates as declarations, pins/split-inline, validity, mirror, relative freedom, product roots, the constructive-solve boundary |
 | `crates/topo/README.md` | Ratified (#178, #965) | Contact census & declared contact, CONTACT-DESIGN C1–C8 (the C7 join lane is shipped); at-rest census structural identity, the CENSUS-REST-CLOSURE-DESIGN clauses |
+| `crates/geom-core/README.md` | Ratified (Ev, 2026-09-05) | The spline layer's pairing rule, SPLINE-DESIGN S1: a `Span` borrows the `KnotVector` it indexes, a `CurveWindow` its curve and a `SurfaceWindow` its surface, so every span-restricted door takes one structure and reads everything from it and the mismatch is unrepresentable; one level down a `SplineCoeffs` borrows the `KnotVector` its coefficients were fitted against and `hull`'s doors read through it, `InteriorKnot` the deliberate crate-private exception |
 | `crates/sweep/README.md` | Ratified (#992) | ARMS-3, ARMS3-DESIGN A3-1…A3-3: the sphere×sphere fillet arm, the valence-4 seam vertex that is not a corner, what a run-out IS; the blend-vocabulary clauses V1–V4 |
 | `crates/profile/README.md` | Ratified (V1–V8; enclosing tangency #1210) | Profiles as programs (PROFILES-V2-DESIGN V1–V8); the enclosing (ρ < 0) fillet tangency is permanently unreachable and a radius demanding it refuses typed (ENCLOSING-TANGENCY-DESIGN) |
 | `crates/viewer/README.md` | Ratified; GUI v1 shipped | GUI architecture G1–G5, GQ1–GQ7: the three-layer split, egui as toolkit, what v1 ships |
@@ -40,7 +41,7 @@ is the board and `work/README.md` its contract.
 | `docs/MIRROR-DESIGN.md` | Ratified (#909); unbuilt | Patterns & mirror P1–P6: the chart-handedness convention (u ↦ −u), mirror's own door beside rigid transform, the boundary of A6's equivariance audit |
 | `docs/DRAFT-DESIGN.md` | Ratified (#908); unbuilt | Draft DR1–DR6: plane walls only at v1, a certified re-geom pass, the pull-direction selector as a SELECT-DESIGN amendment, survivor naming |
 | `docs/SELECT-DESIGN.md` | Ratified | Selection: filters, heterogeneous sets, vanishing entities; the contact-site recourse (§3d) |
-| `docs/VERB-SEAT-DESIGN.md` | Ratified (#1388); running as SEAT | The kernel query seat, one verb vocabulary, lowered parameter identity: §1 query doors at `topo`; §2 the per-verb kernel `Verb` declaration; §3 the opaque per-field `ParamSource` channel |
+| `crates/verbs/README.md` | Ratified (#1388; S3 corrected #1983, VS-Q4 revised #1870); SEAT closed, walk ratified #1997 | The kernel query seat, one verb vocabulary, lowered parameter identity, VERB-SEAT-DESIGN S1–S4, V1–V4, P1–P3: §1 query doors at `topo`; §2 the per-verb kernel `Verb` declaration; §3 the opaque per-field `ParamSource` channel |
 | `docs/MATE-7-TANGENCY-DESIGN.md` | Ratified | Torus×torus rim tangency; the kissing arm banks on it |
 | `docs/DOCM-REFERENCES-DESIGN.md` | Ratified; running as DOCM | What a recipe reference may be, DM1–DM6: `Datum::FaceFrame`, the carrier-kind read, `Node::Part`, the n-ary `Node::Union` with `DocEdit::SetMembers` (DM4 shipped; DM1–DM3 in spec) |
 | `docs/DOCM-IDENTITY-DESIGN.md` | Ratified; running as DOCM | A held value names the world it came from, DI1–DI5: history-branch validity of node ids, the memo as a pure function of the document, `Evaluation` carries its document's identity, forking is its own act |
@@ -1036,8 +1037,9 @@ Open work is the tracker's (`work/STATUS.md`); the programs it lists
 that execute ratified design here are M10 (error propagation,
 `docs/ERROR-DESIGN.md`; the sketch solver is NOT in its slate and
 re-opens as its own design pass when constraint-driven sketches have a
-consumer), LIB (`docs/LIBRARY-DESIGN.md`), SEAT
-(`docs/VERB-SEAT-DESIGN.md`) and DOCM (the two DOCM designs). The
+consumer), LIB (`docs/LIBRARY-DESIGN.md`) and DOCM (the two DOCM
+designs); SEAT closed on 2026-09-06 with its design beside the code
+(`crates/verbs/README.md`). The
 missing modeling verbs are registered in `docs/KERNEL-VERBS.md` and
 worked as tracker issues and by the kernel programs that own their
 territory.
@@ -1365,6 +1367,15 @@ the project publishes with one still in the shipped state.
   publish rather than a chore (**S65**, `work/code-quality/S65.md`, is
   the worked example).
 - **The name (Q9).**
+- **Post-publish schema discipline for the verb tags** (VERB-SEAT-DESIGN
+  §2 V2, folded here at the SEAT program's close). The document
+  content tags `verb_content_tag` commits to (`editor-core/src/eval/
+  mod.rs`) and the `Node` tag space are stable identifiers a
+  published document format would freeze: after publication a tag
+  number is never reused or renumbered, a kernel-only verb keeps
+  `None` until a node arm exists, and the three tag censuses are the
+  guard. Before publication they are pinned but movable by a
+  deliberate re-baseline.
 
 ## Crate landscape
 

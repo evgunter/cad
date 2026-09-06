@@ -211,7 +211,7 @@ impl ViewerBehavior<'_> {
                 // emits its op from a button — so it neither closes a
                 // pick tool nor is closed by one, and a pick made while
                 // it is open lands exactly where it would have.
-                *self.part_chooser = Some(PartChooser::opened(self.session));
+                *self.part_chooser = Some(PartChooser::opened(self.session.part_census()));
             }
             return;
         }
@@ -292,7 +292,7 @@ impl ViewerBehavior<'_> {
             close = true;
         }
         if rescan && let Some(chooser) = self.part_chooser.as_mut() {
-            chooser.rescan(self.session);
+            chooser.rescan(self.session.part_census());
         }
         if close {
             *self.part_chooser = None;
