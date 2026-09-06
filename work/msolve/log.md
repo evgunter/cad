@@ -117,3 +117,11 @@ Python `split_err` match the new variant exposed. Item closed, spec
 deleted into the ledger, `mate-solve-is-transform-blind` closed;
 MSOLVE-2 and MSOLVE-4 un-parked. Next: dispatch MSOLVE-4 (spec on
 main), write MSOLVE-2's spec against the walk as landed.
+
+## MSOLVE-4 MERGED (2026-09-06, PR 1960)
+
+Fix pass green on the full matrix at `e1ede48`; merged on the
+state-sync commit without a fresh run (docs and tracker only). Item
+closed, spec deleted into the ledger, `mate-memo-key-does-not-carry-
+the-solve` closed. Next: MSOLVE-2 dispatched on `msolve/2-member-chain`
+against the spec on main; MSOLVE-3 after it.
