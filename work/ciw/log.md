@@ -932,3 +932,37 @@ The unit may also conclude that the *doc* is what is wrong —
 runs on every code-tier run — but only with a cost number attached, and
 not on the strength of the filter being harder to change than the
 sentence.
+
+## 2026-09-06 — unit 2 delivered: the python suite on a closure run (PR 2071)
+
+The defect re-measured at merge base `e6e27e27b`: a
+`crates/geom-core/src/lib.rs` change gives `TIER=closure`,
+`PKGS` holding `pncad-py`, `RUN_PNCAD_PY=false`.
+
+**The filter was the wrong half**, and the doc was stale beside it. The
+axis keeps the seed shape Ev ruled on and its seed SET is widened from
+`{pncad-py, pncad, editor-core}` by every workspace member the façade
+names at the top of `crates/pncad/src/lib.rs` — derived there, `pub mod`
+read as well as `pub use` so the narrowed `pncad::profile` is not lost.
+Fails closed: a façade naming no member Bails and the suite runs.
+
+**What decided it was the cost number the doc answer needed.** The
+`python suite` job takes 115–125 s, needs only `filter`, and finishes
+692–917 s before the run ends — 35 code-tier runs, jobs API, 2026-09-06;
+run wall clock 856–1302 s, set by the serial build → test chain. It is
+off the critical path, so turning it on adds zero wall clock, and wall
+clock is the currency on a public repository. The C3 argument that a
+compile break reds the ordinary rows survives — `clippy
+(--all-features)` lints `-p pncad-py` at the `python` feature every
+code-tier run — but the `crates/pncad-py/tests/*.py` assertions run in
+no other job, and those are the suite's subject.
+
+The reach was not widened, as the dispatch required: `_read_reach` and
+`JOB_ROOTS` are untouched and the fix sits on the signal.
+
+Two findings outside the fence went into the PR body, not into another
+program's slate: ci.yml's `python-suite` clippy step still claims that
+half was "linted by NO row" (`clippy (--all-features)` lints it), and
+`work.py territory` reports zero cross-fence paths for a branch editing
+a file named in its own program's `keep_out`, because it reads `paths`
+only and `keep_out` is prose.
