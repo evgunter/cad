@@ -990,6 +990,26 @@ mod tests {
         );
     }
 
+    /// The decision door at the recording scalar delegates to `f64`
+    /// exactly — `Probe` IS an `f64` with a recorder attached, and a
+    /// door that answered differently under `--features probe` would be
+    /// precisely the divergence the delegation exists to prevent. The
+    /// door records nothing: it is a value operation, not a predicate.
+    #[cfg(feature = "probe")]
+    #[test]
+    fn select_le_zero_delegates_to_f64_and_records_nothing() {
+        let bracket = Bracket::open();
+        for d in [-1.0f64, -0.0, 0.0, 1.0, f64::NAN] {
+            let got = Real::select_le_zero(Probe(d), Probe(7.0), Probe(9.0));
+            let want = <f64 as Real>::select_le_zero(d, 7.0, 9.0);
+            assert_eq!(got.0.to_bits(), want.to_bits(), "at d = {d}");
+        }
+        assert!(
+            bracket.finish().verdicts.is_empty(),
+            "the door is not a predicate"
+        );
+    }
+
     #[test]
     fn verdict_log_records_definite_signs_in_decision_order() {
         let b = band();

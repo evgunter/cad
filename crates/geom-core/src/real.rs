@@ -1560,6 +1560,36 @@ mod tests {
         assert_eq!(f64::copysign(3.0, f64::NAN).abs(), 3.0);
     }
 
+    /// The door at `f64`: a total order, sign-blind at the tie, and
+    /// poisoned only by the decision.
+    #[test]
+    fn select_le_zero_is_a_total_order_with_a_sign_blind_tie() {
+        let sel = <f64 as Real>::select_le_zero;
+        assert_eq!(sel(-1.0, 7.0, 9.0), 7.0);
+        assert_eq!(sel(1.0, 7.0, 9.0), 9.0);
+        // The tie takes `when_le`, and BOTH zeros are the same tie —
+        // this is the whole difference from `copysign`, which reads the
+        // zero's sign bit.
+        assert_eq!(sel(0.0, 7.0, 9.0), 7.0);
+        assert_eq!(sel(-0.0, 7.0, 9.0), 7.0);
+        assert_eq!(<f64 as Real>::copysign(1.0, -0.0), -1.0);
+        // Totality on the extremes; ±∞ is not poison.
+        assert_eq!(sel(f64::NEG_INFINITY, 7.0, 9.0), 7.0);
+        assert_eq!(sel(f64::INFINITY, 7.0, 9.0), 9.0);
+        assert_eq!(sel(f64::MIN_POSITIVE, 7.0, 9.0), 9.0);
+        assert_eq!(sel(-5.0e-324, 7.0, 9.0), 7.0);
+        // The chosen arm is returned BITWISE — a selection, not an
+        // arithmetic combination.
+        assert_eq!(sel(-1.0, -0.0, 9.0).to_bits(), (-0.0f64).to_bits());
+        // A poisoned decision cannot choose. An UNREAD candidate's
+        // poison does not propagate: that is what lets a construction
+        // select away from a degenerate branch.
+        assert!(sel(f64::NAN, 7.0, 9.0).is_nan());
+        assert_eq!(sel(-1.0, 7.0, f64::NAN), 7.0);
+        assert_eq!(sel(1.0, f64::NAN, 9.0), 9.0);
+        assert!(sel(-1.0, f64::NAN, 9.0).is_nan());
+    }
+
     #[test]
     fn reduce_periodic_basics_and_poison() {
         use core::f64::consts::TAU;

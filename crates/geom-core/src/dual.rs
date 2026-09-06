@@ -1357,6 +1357,30 @@ mod tests {
         assert!(d.deriv.is_nan());
     }
 
+    /// The decision door at `Dual<f64>`: the value channel is `f64`'s
+    /// verbatim and the tangent is the read arm's. The decision's own
+    /// tangent is discarded (it is locally constant in it), and an
+    /// unread candidate's tangent — poisoned or not — never appears.
+    #[test]
+    fn select_le_zero_tangent_follows_the_read_arm_at_f64() {
+        let (a, b) = (Dual::new(2.0, 7.0), Dual::new(-9.0, -1.0));
+        let le = Real::select_le_zero(Dual::new(-2.0, 100.0), a, b);
+        assert_eq!((le.value, le.deriv), (2.0, 7.0));
+        let gt = Real::select_le_zero(Dual::new(2.0, 100.0), a, b);
+        assert_eq!((gt.value, gt.deriv), (-9.0, -1.0));
+        // Both zeros are the same tie, on the `when_le` side.
+        for tie in [0.0f64, -0.0] {
+            let t = Real::select_le_zero(Dual::new(tie, f64::NAN), a, b);
+            assert_eq!((t.value, t.deriv), (2.0, 7.0));
+        }
+        // An unread candidate's poison stays unread, in both channels.
+        let unread = Real::select_le_zero(Dual::new(-2.0, 0.0), a, Dual::new(f64::NAN, f64::NAN));
+        assert_eq!((unread.value, unread.deriv), (2.0, 7.0));
+        // A poisoned DECISION poisons both channels.
+        let dead = Real::select_le_zero(Dual::new(f64::NAN, 0.0), a, b);
+        assert!(dead.value.is_nan() && dead.deriv.is_nan());
+    }
+
     /// reduce_periodic differentiates through its compositional body:
     /// away from period boundaries the derivative w.r.t. the input is
     /// exactly the seed (slope 1 — floor contributes 0), and the
@@ -1939,6 +1963,35 @@ mod tests {
             let x_straddle = Real::copysign(di(-1.0, 2.0, 7.0, 7.0), di(1.0, 1.0, 0.0, 0.0));
             assert_eq!(bounds_of(x_straddle.value), (0.0, 2.0));
             assert_eq!(bounds_of(x_straddle.deriv), (-7.0, 7.0));
+        }
+
+        /// The decision door's tangent at `Dual<Interval>`: the read
+        /// arm's tangent when the decision is decided, the HULL of both
+        /// when it is not — the tie-region subgradient convention, not
+        /// `copysign_deriv`'s entire line.
+        #[test]
+        fn select_le_zero_tangent_decides_or_hulls() {
+            let (a, b) = (di(2.0, 3.0, 7.0, 7.0), di(-9.0, -8.0, -1.0, -1.0));
+            let le = Real::select_le_zero(di(-2.0, -1.0, 0.0, 0.0), a, b);
+            assert_eq!(bounds_of(le.value), (2.0, 3.0));
+            assert_eq!(bounds_of(le.deriv), (7.0, 7.0));
+            let gt = Real::select_le_zero(di(1.0, 2.0, 0.0, 0.0), a, b);
+            assert_eq!(bounds_of(gt.value), (-9.0, -8.0));
+            assert_eq!(bounds_of(gt.deriv), (-1.0, -1.0));
+            // The point tie decides, on the `when_le` side.
+            let tie = Real::select_le_zero(di(0.0, 0.0, 0.0, 0.0), a, b);
+            assert_eq!(bounds_of(tie.value), (2.0, 3.0));
+            assert_eq!(bounds_of(tie.deriv), (7.0, 7.0));
+            // Undecided: both channels hull, and the tangent stays
+            // FINITE — the door's jump is in its candidates, whose
+            // difference is enclosed, not in a factor of unbounded
+            // slope the way `copysign`'s sign flip is.
+            let hull = Real::select_le_zero(di(-1.0, 1.0, 0.0, 0.0), a, b);
+            assert_eq!(bounds_of(hull.value), (-9.0, 3.0));
+            assert_eq!(bounds_of(hull.deriv), (-1.0, 7.0));
+            // The DECISION's own tangent is discarded, poisoned or not.
+            let noisy = Real::select_le_zero(di(-2.0, -1.0, f64::NAN, f64::NAN), a, b);
+            assert_eq!(bounds_of(noisy.deriv), (7.0, 7.0));
         }
 
         /// Poison propagates through BOTH channels: a fully-out-of-domain

@@ -2823,6 +2823,47 @@ mod tests {
         assert_eq!(counts.numeric, 1);
     }
 
+    /// **The decision door's node**: the value channel is `T`'s door
+    /// verbatim; the DAG carries the tier's only THREE-child op, hash-
+    /// consed like every other node and reaching the form as an atom
+    /// keyed by its three arguments' normal forms. Two selects over
+    /// equal forms are one unknown, over different ones two, and which
+    /// arm the value read is never claimed as a theorem.
+    #[test]
+    fn select_is_a_three_child_atom_over_its_arguments_forms() {
+        let (out, _) = with_session(budget(), || {
+            let x = p("w", 3.0);
+            let y = p("h", 0.25);
+            let d = x - y;
+            // The value channel is the plain `f64` door: 3 − 0.25 > 0.
+            let picked = d.select_le_zero(x, y);
+            let same = d.select_le_zero(x, y);
+            let swapped = d.select_le_zero(y, x);
+            (
+                picked.value,
+                picked.node == same.node,
+                picked.node == swapped.node,
+            )
+        });
+        assert_eq!(out.0, 0.25, "the value channel is f64's door");
+        assert!(out.1, "the same three children are one node");
+        assert!(!out.2, "swapping the arms is a different node");
+        // The atom is keyed by FORMS, so a decision written differently
+        // but equal as a form gives the same unknown — and a select
+        // against either arm is not a theorem, however it falls.
+        let (out, counts) = with_session(budget(), || {
+            let x = p("w", 3.0);
+            let y = p("h", 0.25);
+            let s = (x - y).select_le_zero(x, y);
+            let alias = ((x + x) - (y + x)).select_le_zero(x, y);
+            (decides_zero(s - alias), decides_zero(s - y))
+        });
+        assert!(out.0, "equal argument forms are one unknown");
+        assert!(out.1, "and it is numerically y here");
+        assert_eq!(counts.symbolic_zero, 1);
+        assert_eq!(counts.numeric, 1, "no arm is claimed symbolically");
+    }
+
     /// **Rule B**: the Pythagorean pair of ONE argument form is the zero
     /// form, whatever the argument; of two different arguments it is
     /// not.

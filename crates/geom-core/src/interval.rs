@@ -1544,6 +1544,62 @@ mod tests {
         assert!(iv(1.0, 2.0).copysign(iv(-4.0, -1.0).sqrt()).0.is_empty());
     }
 
+    /// The door at `Interval`: decided on both sides INCLUDING the
+    /// point tie, hulled with `Def` when undecided, and the enclosure
+    /// property that buys.
+    #[test]
+    fn select_le_zero_decides_or_hulls() {
+        let (a, b) = (iv(2.0, 3.0), iv(-9.0, -8.0));
+        // Certainly ≤ 0 and certainly > 0: the arm, verbatim, with the
+        // decoration capped by the DECISION's.
+        let le = iv(-2.0, -1.0).select_le_zero(a, b);
+        assert_eq!((le.lo(), le.hi()), (2.0, 3.0));
+        assert_eq!(le.0.decoration(), Decoration::Com);
+        let gt = iv(1.0, 2.0).select_le_zero(a, b);
+        assert_eq!((gt.lo(), gt.hi()), (-9.0, -8.0));
+        // The POINT TIE decides — the case `copysign` cannot take,
+        // because its answer would depend on a zero's sign bit and this
+        // one does not. Both spellings of the zero are one enclosure
+        // and one arm.
+        for tie in [Interval::zero(), Interval::from_f64(-0.0), iv(-0.0, 0.0)] {
+            let t = tie.select_le_zero(a, b);
+            assert_eq!((t.lo(), t.hi()), (2.0, 3.0));
+            assert_eq!(t.0.decoration(), Decoration::Com);
+        }
+        // A one-sided enclosure with zero at its TOP is still decided…
+        let top = iv(-1.0, 0.0).select_le_zero(a, b);
+        assert_eq!((top.lo(), top.hi()), (2.0, 3.0));
+        // …and one with zero at its BOTTOM is not: positive width
+        // across the tie is undecided, and the answer is the hull of
+        // both arms, capped at Def. Never Trv, never empty (DL6).
+        for d in [iv(0.0, 1.0), iv(-1.0, 1.0), iv(-1.0, 5.0)] {
+            let h = d.select_le_zero(a, b);
+            assert_eq!((h.lo(), h.hi()), (-9.0, 3.0));
+            assert_eq!(h.0.decoration(), Decoration::Def);
+            assert!(h.is_certified());
+        }
+        // The enclosure property: an `f64` decision inside the box
+        // lands on an arm, and both arms are inside the answer.
+        let d = iv(-1.0, 1.0);
+        let h = d.select_le_zero(a, b);
+        for x in [-1.0f64, -0.5, -0.0, 0.0, 0.25, 1.0] {
+            let f = <f64 as Real>::select_le_zero(x, 2.5, -8.5);
+            assert!(
+                h.lo() <= f && f <= h.hi(),
+                "f64 at {x} gives {f}, outside the hull"
+            );
+        }
+        // Poison in the DECISION propagates; in an unread candidate it
+        // does not; in a read one — the hull reads both — it does.
+        assert!(Interval::from_f64(f64::NAN).select_le_zero(a, b).0.is_nai());
+        assert!(iv(-4.0, -1.0).sqrt().select_le_zero(a, b).0.is_empty());
+        let poison = Interval::from_f64(f64::NAN);
+        let unread = iv(-1.0, -0.5).select_le_zero(a, poison);
+        assert_eq!((unread.lo(), unread.hi()), (2.0, 3.0));
+        assert!(iv(-1.0, -0.5).select_le_zero(poison, a).0.is_nai());
+        assert!(iv(-1.0, 1.0).select_le_zero(a, poison).0.is_nai());
+    }
+
     /// reduce_periodic at interval type: containment of the true reduced
     /// value by composition (the compositional body is the definition),
     /// and honest widening across a seam-straddling box.
