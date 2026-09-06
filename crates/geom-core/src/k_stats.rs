@@ -211,10 +211,12 @@ fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign
 /// it is the one thing this funnel must never do in a run that decides
 /// anything: it lets a document be driven AS IF a named identity
 /// residual were discharged, so "what would bound this document next"
-/// is a measurement instead of a guess. M10-9's reviews used it to walk
-/// the two-hole plate from `7.787e2 · ε` to `2.630e8 · ε` — four
-/// identity residuals, then a real assertion margin — which is the
-/// finding that says what the next unit is
+/// is a measurement instead of a guess. It walks the two-hole plate
+/// from `7.812e2 · ε` to `2.630e8 · ε` — four identity residuals, of
+/// which the first three are worth 2× between them and the fourth is
+/// worth 1.68·10⁵×, and then a REAL assertion margin. That shape is
+/// the finding that says what the next unit is: a per-identity door
+/// can only ever be on the 2× side of that cliff
 /// (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`).
 ///
 /// Process-global and empty by default. An evidence row sets it, reads
