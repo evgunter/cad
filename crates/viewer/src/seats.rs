@@ -82,72 +82,49 @@
 use pncad::document::{Doc, ProfileProgram, RecipeNodeId};
 
 use crate::session::{NodeKindWanted, admits};
+use crate::vocab::vocabulary;
 
-/// Which seat of a tool a pick (or a drop) is about — one vocabulary of
-/// roles for every seated tool, so a sentence about a held pick is
-/// composed the same way wherever it appears.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Seat {
-    /// The profile a revolve sweeps.
-    RevolveProfile,
-    /// The axis a revolve sweeps about.
-    RevolveAxis,
-    /// The boolean's first operand — the body `A ∖ B` KEEPS.
-    OperandA,
-    /// The boolean's second operand — the body `A ∖ B` REMOVES.
-    OperandB,
-    /// The body a split cuts.
-    SplitTarget,
-    /// The datum plane a split cuts with.
-    SplitPlane,
-    /// The body a transform places.
-    TransformBody,
-    /// The body a pattern replicates.
-    PatternBody,
-    /// The datum axis a circular pattern steps around.
-    PatternAxis,
+vocabulary! {
+    /// Which seat of a tool a pick (or a drop) is about — one vocabulary of
+    /// roles for every seated tool, so a sentence about a held pick is
+    /// composed the same way wherever it appears.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum Seat {
+        /// The profile a revolve sweeps.
+        RevolveProfile,
+        /// The axis a revolve sweeps about.
+        RevolveAxis,
+        /// The boolean's first operand — the body `A ∖ B` KEEPS.
+        OperandA,
+        /// The boolean's second operand — the body `A ∖ B` REMOVES.
+        OperandB,
+        /// The body a split cuts.
+        SplitTarget,
+        /// The datum plane a split cuts with.
+        SplitPlane,
+        /// The body a transform places.
+        TransformBody,
+        /// The body a pattern replicates.
+        PatternBody,
+        /// The datum axis a circular pattern steps around.
+        PatternAxis,
+    }
+
+    /// Every seat, so a sweep over the vocabulary cannot silently
+    /// miss one — the shape `crate::tools::ToolKind::ALL` uses, for
+    /// its reason, and its readers are the same: the test suites, and
+    /// nothing under `src/`.
+    ///
+    /// `combine_ops::every_seats_wanted_kind_is_the_one_its_door_refuses_by`
+    /// is the row that sweeps it. That row used to have a second job —
+    /// reading this list against a hand-written `Seat::ordinal` for
+    /// holes and duplicates — and no longer needs one: there is a
+    /// single declaration now, so a seat this array misses is a seat
+    /// the enum does not have.
+    pub const ALL;
 }
 
 impl Seat {
-    /// Every seat, so a sweep over the vocabulary cannot silently
-    /// miss one — the shape `crate::tools::ToolKind::ALL` uses, for
-    /// its reason.
-    ///
-    /// [`Seat::ordinal`] is the compiler-forced half of this list's
-    /// completeness and `combine_ops::
-    /// every_seats_wanted_kind_is_the_one_its_door_refuses_by` is the
-    /// other, checking that the ordinals this list covers are
-    /// distinct and leave no hole. The residual is `ToolKind`'s too:
-    /// a seat given an ordinal past the end of this list is not
-    /// reached by the sweep, so a variant added to `ordinal` and
-    /// forgotten HERE goes unchecked.
-    pub const ALL: [Self; 9] = [
-        Self::RevolveProfile,
-        Self::RevolveAxis,
-        Self::OperandA,
-        Self::OperandB,
-        Self::SplitTarget,
-        Self::SplitPlane,
-        Self::TransformBody,
-        Self::PatternBody,
-        Self::PatternAxis,
-    ];
-
-    /// A place in [`Seat::ALL`], as an exhaustive match.
-    pub fn ordinal(self) -> usize {
-        match self {
-            Self::RevolveProfile => 0,
-            Self::RevolveAxis => 1,
-            Self::OperandA => 2,
-            Self::OperandB => 3,
-            Self::SplitTarget => 4,
-            Self::SplitPlane => 5,
-            Self::TransformBody => 6,
-            Self::PatternBody => 7,
-            Self::PatternAxis => 8,
-        }
-    }
-
     /// **What kind of node this seat is for.**
     ///
     /// The same vocabulary the commit door refuses by
