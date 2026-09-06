@@ -392,3 +392,29 @@ sharper witness (the whole placeholder cube grouped as one curved
 group), recorded on its file. Dual dispatched on the frozen head:
 ordinal 2701, parity byte 229 ⇒ R1 FABLE, R2 OPUS; briefs stored with
 sha256 privately.
+
+## D265 adjudicated (2026-09-06)
+
+Both blinded reviews on frozen `4dc616d0`. R1: MERGEABLE-AFTER-FIXES,
+0/5/5, rubric 4/3/3 — re-derived all 27 variants across nine sites
+and executed six of the seven contradicted cases under both regimes.
+R2: NOT-MERGEABLE-AS-IS, 1/6/4, rubric 3/2/2 — **one unilateral
+executed MAJOR**: `kef → SameFace` is reachable on a valid body
+because the door's OWN ring drain re-homes the dying loop between the
+establishing scan and the `kef` call, so the head turns a legal
+recorded skip into a refused call (built by legal Euler operators,
+run through the public door, `Ok` on the base and `Err` at the head).
+Code class, executed, R1 never mentioned it: a tally candidate, and
+the strongest this program has produced. The lesson generalises and
+the fix pass applies it to every arm: a fact the door established is
+a fact only until the door's next mutation, so each surviving
+contradiction arm gets a re-check immediately before the operator
+call, and the classification rests on execution rather than a
+hand-derived reachability table. Convergent findings taken: the
+torn/not-raised split collapsed (void, unpinnable), the fact string
+becomes an enum, the ninth raising site, the regime asserted on a
+regime-independent fixture, the stale "no test can do this"
+sentences, the copied sample array shared from `euler.rs`, an RAII
+guard on the tear flag, the six statements of one rule reduced to a
+home. Twelve-item fix pass to the same lane; both reviewers' probes
+handed over. CURVED's spec cite relayed to its board.
