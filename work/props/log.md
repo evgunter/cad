@@ -856,3 +856,24 @@ merge-forward lane pushed an EMPTY commit to carry it (R1 MINOR 4 /
 N3). Corrected by message to the sign-hull lane; no spec on main asks
 for it after the sign-hull spec's deletion at landing; no empty commit
 is ever pushed for it again.
+
+**Budget-faces style review adjudicated (2026-09-06).** PR #2008,
+frozen `a1abdea5f`, single review (E rider, outside the experiment):
+NOT-MERGEABLE-AS-IS, 3 MAJOR / 6 MINOR / 7 NOTE, rubric 4/3/2. The
+dispatch of the four faces held over 70 fits outside the module (the
+reviewer's probe: no cap stop at `rounds == budget`, no budget or cap
+face non-finite, zero stalls); what failed is what two faces PROMISE:
+face 1 says "still converging" but the budget exit precedes the stall
+guard, so a bound that stops improving on the last round is reported
+as a budget refusal; face 4 says "never finite" but `expiry` reads the
+last round only, and the loop deliberately continues after a finite
+bound is followed by `inf`. Third MAJOR: the sweep's pattern missed
+`*Budget` VARIANTS — `PropsError::QuadratureBudget` (six raise sites in
+`props/quad.rs`, three round budgets, told apart by a `rounds` payload
+convention: the same shape) and `SsiError::{StepBudget, FitSampleBudget}`.
+Rulings: the stall verdict runs before the budget exit; face 4 becomes
+`BoundNotFinite { .., last_finite: Option<f64> }` saying what is
+tested; `QuadratureBudget` is FILED for the rational quad lane (its
+budgets are `quad2-rational-max-rounds-dial-decision`'s subject), not
+fixed in the rider. Fix pass on the branch (the same lane resumed);
+the reviewer's two probe rows are adopted.
