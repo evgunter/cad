@@ -155,7 +155,7 @@ pub fn interior_iso_u<T: SpanLocate>(
         let Some(span) = ku.span(index) else {
             continue;
         };
-        let n = basis_funs(ku, span, u);
+        let n = basis_funs(span, u);
         let base = span.first_control();
         let row: Vec<Point3<T>> = (0..nv)
             .map(|j| {
@@ -411,7 +411,7 @@ mod tests {
     #[test]
     fn interior_iso_rational_cases() {
         let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
-        let kv = KnotVector::unit_segment(1);
+        let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let h = core::f64::consts::FRAC_1_SQRT_2;
         let mut control = Vec::new();
         let mut weights = Vec::new();

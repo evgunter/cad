@@ -33,7 +33,7 @@ use std::sync::Arc;
 fn polynomial_chart() -> NurbsSurface<f64> {
     let ku =
         KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0, 1.0, 1.0], 2).unwrap();
-    let kv = KnotVector::unit_segment(1);
+    let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
     let bow = [0.0, 0.7e-3, 1.1e-3, 0.4e-3, 0.0];
     let mut control = Vec::new();
     for (i, y) in bow.iter().enumerate() {
