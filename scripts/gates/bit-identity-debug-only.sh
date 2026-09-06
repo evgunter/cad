@@ -40,12 +40,12 @@
 #   * `crates/topo/src/{euler,euler_ring,euler_kill,null,split,movefac}.rs`
 #     and `crates/topo/src/boolean/voids.rs` — `ArenaDelta`, the arena
 #     shift each euler operator declares and `assert_euler_postcondition`
-#     checks against the counts it took before the mutation. Seven rows,
-#     one per file whose CODE names it, per the rule above; an eighth
-#     `topo` file, `fixtures.rs`, names it in a doc comment only and
-#     therefore has no uses to pin. Most of the sites put the attribute
-#     in STATEMENT position over the multi-line call that reads the
-#     delta, which is what the third enclosure clause below places.
+#     checks against the counts it took before the mutation. One row per
+#     `topo` file whose CODE names it, per the rule above; a `topo` file
+#     that names it in a doc comment only has no uses to pin and so has
+#     no row. Most of the sites put the attribute in STATEMENT position
+#     over the multi-line call that reads the delta, which is what the
+#     third enclosure clause below places.
 #
 # WHAT IS PINNED IS THE SOURCE SHAPE. This workspace's
 # `[profile.release]` sets `debug-assertions = true` until publish, so a
@@ -94,10 +94,11 @@
 #     was never entered. A `{` met at bracket depth ABOVE zero is
 #     neither — it is argument text, a struct literal or a block
 #     expression inside a call's still-open `(` — so it moves brace
-#     depth and nothing else. `topo`'s twelve
+#     depth and nothing else. `topo`'s
 #     `self.assert_euler_postcondition(before, ArenaDelta { … }, "op");`
 #     sites are the live population: the item is the CALL, and it ends
-#     at the call's `;`.
+#     at the call's `;`. How many there are is what the rows' pins say,
+#     and re-derive on every run.
 #   * A `debug_assert!` encloses by STATEMENT, and the statement ends at
 #     `;`, `{` or `}`. A per-line substring test gets this wrong in both
 #     directions and the first version of this rewrite did:
@@ -132,15 +133,18 @@
 #
 # KNOWN GAP 5: a `{ … }` const-generic default in a gated signature
 # marks the item entered at that brace, so the item reads as closed at
-# the matching `}` and a use in the real body fires. Cry-wolf again, in
-# the same direction.
+# the matching `}`. Both what follows that `}` inside the SIGNATURE — a
+# parameter typed `[ArenaDelta; N]`, say — and the real body then fire.
+# Angle brackets are not counted, so the default's brace sits at bracket
+# depth zero and the statement-position rule does not reach it.
+# Cry-wolf again, in the same direction.
 #
 # THE GAP NUMBERS ARE STABLE IDS, not a sequence, so a gap that is
 # closed leaves a hole rather than renumbering its neighbours. There is
 # no KNOWN GAP 6: an attribute in STATEMENT position over a multi-line
-# call whose arguments carry a brace is a shape the reader now places,
-# and the rule it places it by is the third enclosure clause above
-# rather than an entry here. Nothing is missing from the register.
+# call whose arguments carry a brace is a shape the reader places, and
+# the rule it places it by is the third enclosure clause above rather
+# than an entry here. Nothing is missing from the register.
 #
 # KNOWN GAP 7: A SUBJECT IS A FILE, so a symbol whose uses cross files
 # owes a row per file that uses it, and a NEW file that calls one is
@@ -250,9 +254,11 @@ debug_only_report() {
       if (p1 == 0 || p2 == 0) next
       f = substr($0, 1, p1 - 1); ln = substr(r, 1, p2 - 1)
       code = substr(r, p2 + 1)
+      # The per-file reset. It carries no end-of-file check of its own:
+      # `gate` invokes this reader once per subject, over the records of
+      # that one subject, so the only file boundary a run ever meets is
+      # at the first record, where no previous file is open to close.
       if (f != FNAME) {
-        if (FNAME != "" && gated == 1 && seen == 0 && bdepth > 0 && dsync == 0)
-          report_desync(FNAME ":" gln, "the file ended with brackets still open after this cfg(debug_assertions) attribute")
         FNAME = f; depth = 0; gated = 0; seen = 0; stmt = ""; bdepth = 0
         dsync = 0
       }
@@ -287,10 +293,10 @@ debug_only_report() {
         # tolerated: an attribute whose brackets are STILL OPEN when the
         # file ends is reported as a reader desync and reds the gate.
         #
-        # THE END OF THE FILE IS WHERE THAT IS ASKED, and it is the only
-        # place it can be asked, because a `{` inside an open bracket is
-        # ordinary argument text (the arm below) rather than evidence of
-        # anything. Depth that never returns to zero is what is left.
+        # THE END OF THE FILE IS WHERE THAT IS ASKED, because a `{`
+        # inside an open bracket is ordinary argument text (the arm
+        # below) rather than evidence of anything. Depth that never
+        # returns to zero is what is left.
         #
         # WHERE ONE COMES FROM, now that the shared lexer nests block
         # comments: not from a nested `/* /* */ */`, which it reads
@@ -307,13 +313,10 @@ debug_only_report() {
         t = piece; bdepth -= gsub(/[])]/, "", t)
         if (cut == 0) break
         d = substr(code, cut, 1)
-        # ONLY A `{` AT BRACKET DEPTH ZERO IS THE ITEM ENTERING. A `{`
-        # met inside a still-open `(` or `[` is argument text — a struct
-        # literal or a block expression handed to a call — so the item
-        # has not been entered and `seen` does not move. What that item
-        # is, is decided by which delimiter arrives at depth zero first:
-        # a `{` enters a braced item, and a `;` (below) ends a
-        # statement-position one, which has no body brace at all.
+        # The three arms below execute the THIRD ENCLOSURE CLAUSE in the
+        # header: only a `{` at bracket depth zero enters an item, and
+        # only a `;` at bracket depth zero ends one that was never
+        # entered.
         if (d == "{") {
           depth++
           if (gated == 1 && seen == 0 && bdepth <= 0) seen = 1
@@ -326,6 +329,12 @@ debug_only_report() {
         code = substr(code, cut + 1)
       }
     }
+    # THE ONE PLACE A LOST BRACKET DEPTH IS ASKED ABOUT, and it is one
+    # place because the reader is invoked once per subject: the end of
+    # the input IS the end of the file, so no earlier boundary can carry
+    # this check and no later one exists. An attribute whose brackets
+    # never closed leaves `gated` set with `seen` clear and depth above
+    # zero, and that is a reader that cannot say where its item ended.
     END {
       if (FNAME != "" && gated == 1 && seen == 0 && bdepth > 0 && dsync == 0)
         report_desync(FNAME ":" gln, "the file ended with brackets still open after this cfg(debug_assertions) attribute")
@@ -492,18 +501,14 @@ plant_after_the_gated_use() {
     "pub fn later(a: f64, b: f64) -> bool { $expr }"
 }
 
-# THE STATEMENT-POSITION ATTRIBUTE, WHICH IS `topo`'s LIVE SHAPE: the
-# attribute gates ONE call, the call is wrapped over several lines, and
-# its arguments carry a struct literal. Every `{` here sits inside the
-# call's still-open `(`, so none of them is the item entering, and the
-# item ends at the `;` that ends the call. Both uses are inside it and
-# are gated, so this must PASS.
+# `topo`'s LIVE SHAPE: a statement-position attribute over one call,
+# wrapped over several lines, with a struct literal in an argument. Both
+# uses are inside the gated call, so this must PASS.
 #
 # THE SECOND USE SITS AFTER THE ARGUMENT BRACE CLOSES, and that is what
-# makes this case load-bearing rather than decorative. A reader that
-# took the argument `{` for the item's body brace would end the item at
-# the matching `}` — still inside the call — and report that second use
-# as a production leak.
+# this case holds: a reader that took that brace for the item's body
+# would end the item at the matching `}` — still inside the call — and
+# report the second use as a production leak.
 plant_statement_attribute_over_a_braced_call() {
   local path=$1 expr=$3 root=$4
   plant_source "$path" "$root" \
@@ -519,11 +524,9 @@ plant_statement_attribute_over_a_braced_call() {
 }
 
 # AND THE SAME SHAPE WITH A USE BELOW IT, so that placing the statement
-# stays a PLACEMENT and not a licence: the attribute covers its own call
-# and stops at the call's `;`, so the next use is outside it and fires.
-# A reader that took the argument brace for the item's body would read
-# this leak as gated, which is exactly what the shape above must not
-# buy.
+# stays a PLACEMENT and not a licence. This case holds the `;`: a reader
+# that never ended the item there would carry the gate on down the
+# function and read this leak as gated.
 plant_leak_after_a_statement_attribute() {
   local path=$1 expr=$3 root=$4
   plant_source "$path" "$root" \
@@ -539,12 +542,10 @@ plant_leak_after_a_statement_attribute() {
     '}'
 }
 
-# THE SAME RULE WITH THE BRACES NESTED AND IN MORE THAN ONE ARGUMENT,
-# because one struct literal in one argument would be served by a reader
-# that merely skipped the FIRST brace. Bracket depth is a count, so two
-# arguments carrying braces — one of them a brace inside a brace — are
-# argument text on the same terms, and the trailing use after all of
-# them closes is still inside the gated statement.
+# BRACES NESTED AND IN MORE THAN ONE ARGUMENT. This case holds that the
+# depth is a COUNT: a reader that merely skipped the first brace it met
+# inside the call would serve the shape above and enter the item at the
+# second, ending the gate before the trailing use.
 plant_statement_attribute_with_nested_braces() {
   local path=$1 expr=$3 root=$4
   plant_source "$path" "$root" \
