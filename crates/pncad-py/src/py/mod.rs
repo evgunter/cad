@@ -2,7 +2,7 @@
 
 mod assembly;
 mod checks;
-mod doc;
+pub(crate) mod doc;
 mod expr;
 mod flush;
 mod mate;

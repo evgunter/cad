@@ -81,20 +81,28 @@ impl Frame {
     /// is normalized here, exactly once more than a caller expects,
     /// for the same reason: same input, same expression, same bits.
     ///
-    /// A zero (or non-finite) axis normalizes to NaN and yields a
-    /// non-finite frame, refused typed at the edit door
-    /// (`non_finite_placement`) rather than read as "no rotation".
+    /// A zero (or non-finite) axis has no definite direction and is
+    /// refused HERE, naming the axis and its role
+    /// (`EditError`, `placement_axis`) — never read as "no rotation",
+    /// and never reported as a frame that is not finite.
     #[staticmethod]
     fn rotate_then_translate(
+        py: Python<'_>,
         axis: (f64, f64, f64),
         angle: &Angle,
         v: (Length, Length, Length),
-    ) -> Self {
-        Self(d::Frame::rotate_then_translate(
+    ) -> PyResult<Self> {
+        let refuse = |err: d::NodeErrorKind| super::doc::edit_err(py, &d::EditError::from(err));
+        let band = pncad::geom_core::Band::linear(Tol::witness())
+            .map_err(|err| refuse(d::NodeErrorKind::Band(err)))?;
+        d::Frame::rotate_then_translate(
             [axis.0, axis.1, axis.2],
             angle.0.radians(),
             meters(v),
-        ))
+            band,
+        )
+        .map(Self)
+        .map_err(refuse)
     }
 
     /// The frame at `eye` whose local **+Z aims at** `target`, with

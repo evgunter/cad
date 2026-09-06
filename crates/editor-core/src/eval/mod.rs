@@ -22,7 +22,7 @@ pub(crate) mod parts;
 
 pub use parts::PartFault;
 mod schedule;
-mod slots;
+pub(crate) mod slots;
 mod wire;
 
 pub(crate) use wire::{
@@ -487,6 +487,58 @@ pub struct NodeError {
     /// channels are two `Arc`s at this seam rather than one record:
     /// the value carries both, the error only this one.
     pub escalations: Arc<EscalationLog>,
+}
+
+/// **An evaluation refusal, carried into a document-layer
+/// vocabulary** — [`MateFault::PlacerRefused`](crate::MateFault) and
+/// [`EditError::PlacementAxis`](crate::EditError) hold one.
+///
+/// It exists because [`NodeErrorKind`] carries kernel refusals
+/// UNALTERED (D2) and those kernel types have neither `Clone` nor
+/// equality of their own, while the two document-layer error enums
+/// have both. Sharing the refusal rather than copying it is what makes
+/// the carriage possible without stringifying anything: the payload
+/// reaching a reader is the very value the evaluation raised.
+#[derive(Debug, Clone)]
+pub struct NodeRefusal(std::sync::Arc<NodeErrorKind>);
+
+impl NodeRefusal {
+    /// The refusal, as the evaluation layer typed it.
+    #[must_use]
+    pub fn kind(&self) -> &NodeErrorKind {
+        &self.0
+    }
+}
+
+impl From<NodeErrorKind> for NodeRefusal {
+    fn from(kind: NodeErrorKind) -> Self {
+        Self(std::sync::Arc::new(kind))
+    }
+}
+
+/// **Equality is over the refusal's `Debug` structure**, which is the
+/// derived one on [`NodeErrorKind`] and on every payload it carries,
+/// so two refusals compare equal exactly when they are the same
+/// variant carrying the same fields.
+///
+/// It is written rather than derived because the kernel error types
+/// [`NodeErrorKind`] carries unaltered do not implement `PartialEq`,
+/// and inventing equality for them here would be this layer deciding
+/// something the kernel owns. Two float differences follow from
+/// comparing renderings rather than values, and both are the ones a
+/// diagnostic wants: `NaN` payloads compare EQUAL to themselves, and
+/// `0.0` and `-0.0` compare DIFFERENT.
+impl PartialEq for NodeRefusal {
+    fn eq(&self, other: &Self) -> bool {
+        std::sync::Arc::ptr_eq(&self.0, &other.0)
+            || format!("{:?}", self.0) == format!("{:?}", other.0)
+    }
+}
+
+impl core::fmt::Display for NodeRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.0.fmt(f)
+    }
 }
 
 /// The closed set of node-evaluation failures. Kernel errors are

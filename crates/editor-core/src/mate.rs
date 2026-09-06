@@ -58,6 +58,7 @@
 //! solve door, because a declared clearance changes what "coincide"
 //! means and this unit solves coincidence only.
 
+use crate::eval::NodeRefusal;
 use crate::node::RecipeNodeId;
 use geom_core::Tol;
 use geom_core::linalg::frame::FrameError;
@@ -627,12 +628,23 @@ pub enum MateFault {
         /// What survived the fold.
         residual: Subgroup,
     },
-    /// A mate's reference does not resolve to a live MEMBER — the
-    /// walk from its operand down to its name's head found no live
-    /// instantiate node, reached through transforms, `Part` instance
-    /// selections and any number of pattern levels at a derivable
-    /// pose (A11's member vocabulary) — N5's dangling reference. It contributes no reading edge; the
+    /// **A mate's reference names no member of A11's vocabulary** —
+    /// N5's dangling reference. It contributes no reading edge; the
     /// solve refuses typed rather than pretending the mate is absent.
+    ///
+    /// Exactly two causes, and both are about a copy or a node that
+    /// does not exist:
+    ///
+    /// - the WALK from the reference's operand down to its name's
+    ///   head stopped — a stranded operand, or a node that places no
+    ///   body of its own ([`crate::member_of`]);
+    /// - the copy the name says is at or beyond the pattern's
+    ///   evaluated count, so the named copy is not there.
+    ///
+    /// A placer that exists and whose pose merely could not be
+    /// DERIVED is [`MateFault::PlacerRefused`], which carries the
+    /// evaluation's own refusal: a head that resolves is never
+    /// reported as dangling.
     DanglingHead {
         /// The mate.
         mate: RecipeNodeId,
@@ -641,9 +653,36 @@ pub enum MateFault {
         /// **The node at which the reference resolves to no member**:
         /// where the walk stopped, which is a stranded operand when
         /// the operand is the broken half and the first node outside
-        /// the vocabulary otherwise. Not in general the reference's
-        /// own head, which is often live and fine.
+        /// the vocabulary otherwise; or the pattern whose count the
+        /// named copy is past. Not in general the reference's own
+        /// head, which is often live and fine.
         head: RecipeNodeId,
+    },
+    /// **A placer on the reference's chain refused to derive its
+    /// pose**, in the evaluation layer's own words.
+    ///
+    /// The member exists and the walk reached it; what did not exist
+    /// is the static offset a pattern copy or a transform on the way
+    /// contributes. Every such refusal is one the evaluation layer
+    /// already types — a slot that does not evaluate, a direction of
+    /// no definite length, an explicit-rule pattern, an axis operand
+    /// that is not an axis datum — so it is carried here UNALTERED
+    /// rather than relabelled as a dangling head.
+    ///
+    /// Carrying it is what makes the refusal readable at all. A mate
+    /// fault POISONS the document, so the placer node never evaluates
+    /// and never gets to state its own cause: this fault is the only
+    /// place that cause appears.
+    PlacerRefused {
+        /// The mate.
+        mate: RecipeNodeId,
+        /// Which side's reference the placer is on.
+        side: MateSide,
+        /// The placer whose pose could not be derived — a pattern or
+        /// a transform on the reference's chain.
+        placer: RecipeNodeId,
+        /// The evaluation layer's own typed refusal for it, unchanged.
+        error: NodeRefusal,
     },
     /// **A `Node::Part` selects a copy the reference's NAME does not
     /// name.** The name is the authority on which copy a mate speaks
@@ -812,6 +851,18 @@ impl core::fmt::Display for MateFault {
                 mate.0,
                 side.name(),
                 head.0
+            ),
+            Self::PlacerRefused {
+                mate,
+                side,
+                placer,
+                error,
+            } => write!(
+                f,
+                "mate {}'s {} reference is placed by node {}, whose pose does not exist: {error}",
+                mate.0,
+                side.name(),
+                placer.0
             ),
             Self::PartSelectsAnotherCopy {
                 mate,

@@ -12,7 +12,17 @@
 //! a hole. Zero-anchor and multi-anchor states are unrepresentable
 //! because the registry holds at most one frame per cluster.
 
+use geom_core::predicate::Band;
 use geom_core::{Affine3, Mat3, Real, Vec3};
+
+use crate::eval::NodeErrorKind;
+
+/// The role word a PLACEMENT frame's rotation axis is normalized
+/// under — the fourth of the direction roles, beside a transform's
+/// rotation axis, a pattern's direction and a datum axis's. One
+/// spelling, so the refusal a user reads names the vector they
+/// authored rather than the frame it was going to build.
+pub(crate) const PLACEMENT_AXIS_ROLE: &str = "placement rotation axis";
 
 /// A placement frame: an affine map of world space, stored as the
 /// linear part's COLUMNS (the images of the basis vectors, matching
@@ -68,25 +78,48 @@ impl Frame {
     /// this door than through that one. Same input, same expression,
     /// same bits — for any axis, not just unit ones.
     ///
-    /// A zero (or non-finite) axis normalizes to NaN and yields a
-    /// non-finite frame, which `SetPlacement` refuses typed
-    /// ([`Frame::is_finite`]) — the transform node's own
-    /// `DegenerateDirection`/`NonFiniteDirection` refusals, arriving at
-    /// this layer's door. The bit-identity above is between the two
-    /// MAPS, not between the two refusals: the transform node asks
-    /// whether the axis has a finite length before it normalizes, and
-    /// this constructor asks nothing and is refused downstream on the
-    /// frame it built.
-    pub fn rotate_then_translate(axis: [f64; 3], angle: f64, v: [f64; 3]) -> Self {
-        let m = Mat3::rotation_about(Vec3::new(axis[0], axis[1], axis[2]).normalize(), angle);
-        Self {
+    /// **The axis is DECIDED here**, through the evaluation layer's
+    /// own direction door ([`crate::eval::unit_direction`]) under
+    /// [`PLACEMENT_AXIS_ROLE`] — the same door and the same three
+    /// answers the transform node's axis takes: a zero axis refuses
+    /// `DegenerateDirection`, a non-finite one `NonFiniteDirection`,
+    /// an in-band length escalates. So the two constructions agree on
+    /// their REFUSALS as well as on their bits, and a caller reads
+    /// which vector of theirs was refused instead of being told the
+    /// frame this door built is not finite.
+    ///
+    /// The decided direction is normalized by the very expression the
+    /// bare normalization used ([`topo::query::decide_unit_direction`]
+    /// answers `v.normalize()`), so the bit-identity above is
+    /// untouched for every axis that has a definite direction.
+    ///
+    /// # Errors
+    ///
+    /// The direction door's own refusal, unaltered
+    /// ([`NodeErrorKind::DegenerateDirection`],
+    /// [`NodeErrorKind::NonFiniteDirection`],
+    /// [`NodeErrorKind::Escalated`]). [`crate::EditError::PlacementAxis`]
+    /// is what carries it through the `SetPlacement` door.
+    pub fn rotate_then_translate(
+        axis: [f64; 3],
+        angle: f64,
+        v: [f64; 3],
+        band: Band,
+    ) -> Result<Self, NodeErrorKind> {
+        let dir = crate::eval::unit_direction(
+            Vec3::new(axis[0], axis[1], axis[2]),
+            PLACEMENT_AXIS_ROLE,
+            band,
+        )?;
+        let m = Mat3::rotation_about(dir, angle);
+        Ok(Self {
             columns: [
                 [m.c0.x, m.c0.y, m.c0.z],
                 [m.c1.x, m.c1.y, m.c1.z],
                 [m.c2.x, m.c2.y, m.c2.z],
             ],
             translation: v,
-        }
+        })
     }
 
     /// The frame denoting an affine map — the inverse of

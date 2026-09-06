@@ -140,6 +140,10 @@ pub use editor_core::{Distribution, DistributionFault, DistributionField};
 // they are `VerbArity`'s payload, so a consumer can match the variant
 // but not name what it caught without them (the prelude's `BlendKind`
 // rule — the discriminant crosses with the refusal).
+// `NodeRefusal` rides with `NodeErrorKind` by the same rule: it is
+// what `MateFault::PlacerRefused` and `EditError::PlacementAxis` carry
+// an evaluation refusal in, so a consumer can match either variant but
+// not read the cause out of it without naming the wrapper.
 // `Mispaired` rides with `Evaluation` by the same rule: it is
 // `Evaluation::prior_refused`'s payload, so a consumer cannot read why
 // a memo was refused without naming it. The name is not the memo's —
@@ -147,7 +151,7 @@ pub use editor_core::{Distribution, DistributionFault, DistributionField};
 // why it is spelled for the QUESTION rather than for any one door.
 pub use editor_core::{
     Arity, BooleanValue, CancelToken, DatumValue, EvalOptions, EvalOutcome, Evaluation, Mispaired,
-    NodeError, NodeErrorKind, NodeResult, NodeValue, ProfileLift, SplitSide, UnitVec3,
+    NodeError, NodeErrorKind, NodeRefusal, NodeResult, NodeValue, ProfileLift, SplitSide, UnitVec3,
     UnitVec3Error, ValuePayload, VerbKind, evaluate,
 };
 

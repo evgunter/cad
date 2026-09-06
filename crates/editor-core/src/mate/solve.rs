@@ -528,7 +528,7 @@ fn invert(c: Coset) -> Coset {
 /// The first refusal: a malformed alignment, a table gap, an
 /// Indeterminate case split, or the CONTRADICTORY empty intersection —
 /// which names both mates, the predicate, and the measured clash.
-fn fold_pair<P>(
+fn fold_pair<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     parent: &Member,
     child: &Member,
@@ -624,7 +624,7 @@ fn fold_pair<P>(
 ///
 /// The faults a reference's offset can raise are attributed through
 /// `mate` — the pair's first mate, whose sides name these members.
-fn pair_left_factor<P>(
+fn pair_left_factor<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     gauge: RecipeNodeId,
     parent: &Member,
@@ -666,7 +666,7 @@ fn pair_left_factor<P>(
 ///
 /// Total by construction — a refusing cluster records its fault against
 /// its own mates and instances and leaves every other cluster solved.
-pub fn solve_document<P>(doc: &Doc<P>, tol: Tol) -> SolvedPoses {
+pub fn solve_document<P: crate::ProfilePayload>(doc: &Doc<P>, tol: Tol) -> SolvedPoses {
     let mut out = SolvedPoses::empty(doc.id());
     let band = match Band::linear(tol) {
         Ok(band) => band,
@@ -830,7 +830,7 @@ fn unordered<T: Ord>(x: T, y: T) -> (T, T) {
 /// twice (two copies of the same pattern mated to each other) can
 /// never be a tree edge at all — the pattern already determined both
 /// ends — so it stays declaring the same way.
-fn solve_cluster<P>(
+fn solve_cluster<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     cluster: &[RecipeNodeId],
     gauge: RecipeNodeId,
@@ -986,7 +986,7 @@ pub enum ClusterMaintenance {
 /// prior document had it.* When the gauge did not change, that is the
 /// prior row VERBATIM — bit-identical, which is what makes a mate-less
 /// document's registry unchanged by this machinery existing.
-pub(crate) fn reconcile<P>(
+pub(crate) fn reconcile<P: crate::ProfilePayload>(
     before: &Doc<P>,
     after: &mut Doc<P>,
     tol: Tol,

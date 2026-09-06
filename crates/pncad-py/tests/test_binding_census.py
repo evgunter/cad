@@ -1458,6 +1458,15 @@ NOT_BOUND = {
     # neighbouring door whose opening would make this disposition stop
     # being honest, in exactly the shape `EvalOutcome`'s entry records.
     "Member": INTERIOR,
+    # The wrapper `MateFault::PlacerRefused` and
+    # `EditError::PlacementAxis` carry an evaluation refusal in, so the
+    # document layer's two error enums can hold one unaltered. Python
+    # never holds the wrapper: both doors project the refusal as the
+    # SAME tag word a node failure crosses with — `MateFault.error`
+    # and `EvaluationError.kind` are one vocabulary — and the prose is
+    # the fault's own `str()`. Nothing in Python hands one out and no
+    # bound door takes one.
+    "NodeRefusal": INTERIOR,
     # DI3's pairing payload: the two document ids behind a refused
     # pair — a prior the memo dropped (`Evaluation.prior_refused` on
     # the Rust side), a gather handed the wrong evaluation, a solve

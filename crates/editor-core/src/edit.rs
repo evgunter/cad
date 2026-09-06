@@ -294,6 +294,17 @@ pub enum DocEdit<P> {
     },
 }
 
+/// The direction door's refusal, in the authoring vocabulary — what
+/// makes `Frame::rotate_then_translate(..)?` compose with
+/// `apply(.., DocEdit::SetPlacement { .. })?` in one function.
+impl From<crate::eval::NodeErrorKind> for EditError {
+    fn from(error: crate::eval::NodeErrorKind) -> Self {
+        Self::PlacementAxis {
+            error: error.into(),
+        }
+    }
+}
+
 /// Typed, specific edit refusal (spec D6: no stringly errors).
 #[derive(Debug, Clone, PartialEq)]
 pub enum EditError {
@@ -750,6 +761,23 @@ pub enum EditError {
         /// The offending target.
         node: RecipeNodeId,
     },
+    /// **A placement frame's ROTATION AXIS has no definite
+    /// direction** — the refusal
+    /// [`crate::Frame::rotate_then_translate`] raises where the axis
+    /// is decided, carried into this vocabulary unaltered so an
+    /// author building a frame and setting it speaks ONE error type
+    /// from the constructor through the door.
+    ///
+    /// Its own arm rather than [`EditError::NonFinitePlacement`]:
+    /// that one's subject is the frame's coordinates, and a reader
+    /// told their frame is not finite goes looking at the frame,
+    /// which is exactly the mistaken subject this arm exists to stop
+    /// reporting. The cause is the axis, in the evaluation layer's
+    /// own words, with the role word naming the vector.
+    PlacementAxis {
+        /// The direction door's refusal, unaltered.
+        error: crate::eval::NodeRefusal,
+    },
     /// A mate's alignment datum carries a non-finite coordinate. The
     /// placement registry's own rule, one level out: an authored frame
     /// nothing can decide about never enters the document.
@@ -1092,6 +1120,12 @@ impl core::fmt::Display for EditError {
                  mirrored placements are admitted only behind the equivariance audit",
                 node.0
             ),
+            Self::PlacementAxis { error } => {
+                write!(
+                    f,
+                    "the placement frame's rotation axis is unusable: {error}"
+                )
+            }
             Self::NonFinitePlacement { node } => write!(
                 f,
                 "the placement frame for node {} carries a non-finite coordinate",

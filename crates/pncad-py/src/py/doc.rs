@@ -17,7 +17,7 @@ use pncad::document as d;
 use pncad::tolerance::Tol;
 
 /// Raise `EditError` carrying the refusal's stable tag.
-fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
+pub(crate) fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
     let tag = edit_error_tag(err);
     typed_err(
         py,
