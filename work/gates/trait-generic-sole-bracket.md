@@ -2,10 +2,11 @@
 id: trait-generic-sole-bracket
 kind: issue
 title: bounds-allowlist.sh's trait-declaration alternative fires on a trait generic over a SOLE bracket bound
-status: open
+status: review
 opened: 2026-09-03
 track: K
 refs: [D102, D68]
+branch: gates/bounds-small
 ---
 
 
@@ -81,6 +82,28 @@ plants that narrowing on the census side only.
 in the alternative itself, the way the census reader does, and plant the
 `trait` form into `plant_sole_bracket_bounds`. Whoever takes it owes the
 before/after hit-set diff `D102` asks for.
+
+## Repair (branch `gates/bounds-small`)
+
+The third alternative is now `gate_trait_declarations`, an awk reader
+that skips a balanced `<…>` after the trait name and then applies the
+same test the regex applied (`^[^;{]*:[^;{]*…(Bounds|Enclosure)` on what
+follows). It is one function in two modes: `records` feeds the scan
+through the new `gate_matcher`, `names` feeds the alias census, so the
+skip cannot be carried by one reader and not the other again — which is
+how the false positive arose. An ERE cannot express the skip, which is
+why the alternative left the regex.
+
+`plant_sole_bracket_bounds` gains the `trait` form and a depth-2 nested
+one (`trait Carrier<T: CertifiedBounds, P: ControlPoint<T>>`), the depth
+a regex approximation of the balanced scan gets wrong. Both fixtures were
+shown to red against the shipped matcher before the fix landed.
+
+Hit-set diff on the live tree, matcher records surviving the definition
+skip and before the per-file filters: 163 records over 26 files, byte
+identical before and after; the one live alt-3 hit
+(`profile/src/path/arc_fillet.rs:924`) has no generic list. The census's
+declaration set is unchanged at one entry.
 
 ## Claimed by GATES (2026-09-06)
 
