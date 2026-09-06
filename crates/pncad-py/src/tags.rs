@@ -815,8 +815,9 @@ pub fn assembly_error_tag(err: &AssemblyError) -> &'static str {
 /// frontier) AND a declaration this document authored from one a part
 /// did (`declaration.mate` is then a node of another document, and
 /// `of`/`via` are what make that id usable). It lives here, with the
-/// refusal tags, so [`TAG_INVENTORY`](crate::tests) guards it: these
-/// words are as much a public Python contract as any tag below.
+/// refusal tags, so this crate's `TAG_INVENTORY` guards it — that
+/// roster reads THIS file — because these words are as much a public
+/// Python contract as any tag below.
 ///
 /// Exhaustive over both enums, so a relation or an attribution arm
 /// added in the kernel stops this build.
