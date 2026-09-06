@@ -2,8 +2,9 @@
 id: plane-hosted-rim-has-no-native-instance
 kind: issue
 title: fillet: the one-plane-face closed rim has no native instance — a pole-touching revolve splits every wall, so the shape arises only after a coplanar-merge repair
-status: open
+status: closed
 opened: 2026-09-04
+closed: 2026-09-06
 ---
 
 
@@ -105,3 +106,9 @@ claim, and replace the native boss/dimple pair in §Phase 1 and §Rows
 with a repaired convex fixture and the bowl. The Phase 2 design is
 untouched by this — the routing arm, the `Strut` host foot and the
 per-arc host trimlines are the same change either way.
+
+## Closed (FILLET exit, 2026-09-06)
+
+A record, not work: Phase 1's census of the plane-hosted rim, cited by
+`docs/FILLET-EXIT-WALK.md` (row 5). Nothing is owed; the walk's ledger row
+is where it survives.
