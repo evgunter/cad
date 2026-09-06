@@ -57,6 +57,9 @@ pub struct DecisionShape {
     /// numeric without a definite sign — `None` otherwise, and `None`
     /// outside a session.
     pub form: Option<String>,
+    /// R2 PROBE INSTRUMENT: the certified enclosure the numeric
+    /// channel classified (Interval lane only).
+    pub enclosure: Option<(f64, f64)>,
 }
 
 thread_local! {
@@ -97,6 +100,7 @@ pub(super) fn record(
     numeric: &Result<Sign, Indeterminate>,
     symbolic: Option<Discharge>,
     form: Option<String>,
+    enclosure: Option<(f64, f64)>,
 ) {
     if !active() {
         return;
@@ -115,6 +119,7 @@ pub(super) fn record(
             predicate: crate::k_stats::current_predicate(),
             outcome,
             form,
+            enclosure,
         });
     });
 }
