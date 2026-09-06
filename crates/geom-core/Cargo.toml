@@ -52,10 +52,12 @@ probe = []
 #
 # So it is a CARGO FEATURE, not an env var and not a runtime flag: with
 # the feature off — every build that is not an evidence run — the code
-# path does not exist, and `test-features-dev-only.sh` proves no
-# non-dev dependency edge can turn it on. Same shape and same reason as
-# `topo`'s `sweep-testing` failure-injection doors.
-identity-pass-probe = []
+# path does not exist. The NAME ends in `-testing` deliberately: that is
+# the spelling `scripts/gates/test-features-dev-only.sh` recognises, so
+# the gate proves no non-dev dependency edge and no ordinary feature can
+# turn it on. Same shape, same name shape and same reason as `topo`'s
+# `sweep-testing` failure-injection doors.
+identity-pass-testing = []
 
 [dependencies]
 libm = { workspace = true }

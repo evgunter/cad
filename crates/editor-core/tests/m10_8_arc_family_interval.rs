@@ -295,6 +295,22 @@ fn m10_8_table_per_predicate_under_each_rule_set() {
 /// The widest scale of a document's real study that certifies WHOLE
 /// (`max_depth = 0`), by bisection of the log of the scale
 /// (`m10_8_harness::ceiling`), and the first refusal beyond it.
+///
+/// **THE SECOND HALF IS NOT A BOUND, and must not be read as one.** It
+/// replays at `2 · lo` — a scale the bisection has already shown to be
+/// far past the boundary — and reports the ONE predicate the drive
+/// stops on. At that scale several predicates are over the band at
+/// once, so the name is a fact about EVALUATION ORDER (validation
+/// before certification) and not about the document: on R2's filleted
+/// bracket at `2 · lo` the profile fails validation and the
+/// certification predicates are never asked at all. What bounds a
+/// document is the SET of predicates over the band at the refusing end
+/// of the bracket, with their enclosures —
+/// `m10_9_evidence_interval::over_band_set` reads it that way, and
+/// `work/m10/first-refusal-at-twice-the-ceiling-is-an-order-artefact`
+/// carries the measurement and the list of statements that need
+/// re-reading. This helper is left as it is so M10-8's published
+/// tables keep meaning what they said; do not build on its answer.
 pub(crate) fn ceiling(
     doc_at: &dyn Fn(f64) -> ProfileDoc,
     dials: SymbolicDials,

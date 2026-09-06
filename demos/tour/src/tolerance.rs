@@ -27,16 +27,17 @@
 //! arc carrier's builder registers both of the ones it guarantees: the
 //! rim `‖q − c‖ = r` and the span `carrier.eval(param_end) = q_to`.
 //! BOTH endpoint pinnings are discharged on this plate (16 of 16
-//! numeric decisions each, at the nominal). The ceiling did not move:
-//! the next refusal is `carrier_matches_mapped_source`, the carrier
-//! against the scaffold pushforward — two independently built objects,
-//! which is not something a node alias reaches. MEASURED: the widest
-//! box of this plate that certifies whole is `7.81e2 · ε` of the real
-//! study (`7.81e-7` at the default ε) under M10-7's tier, M10-8's
-//! shipped tier and M10-9's door alike, and the first refusal beyond it
-//! is `carrier_endpoint_start` without the door, enclosure
-//! `[0, 1.25e-9]`, and `carrier_matches_mapped_source` with it,
-//! enclosure `[0, 1.30e-9]`, against a band of `zero = 1e-9`. On a
+//! numeric decisions each, at the nominal). The ceiling did not move —
+//! and neither did what BOUNDS it. MEASURED: the widest box of this
+//! plate that certifies whole is `7.81e2 · ε` of the real study
+//! (`7.81e-7` at the default ε) under M10-7's tier, M10-8's shipped
+//! tier and M10-9's door alike; and just past it exactly one predicate
+//! is over the band, door open and door SHUT alike —
+//! `carrier_matches_mapped_source`, the carrier against the scaffold
+//! pushforward, enclosure `[0, 1.0001e-9]` against a band of
+//! `zero = 1e-9`. Two independently built objects, which is not
+//! something a node alias reaches. So the identities the door
+//! discharges were never what bounded this plate. On a
 //! straight-walled
 //! extrude, where no normalization stands between a carrier and its
 //! endpoint, the same measurement moves by a factor of about 3.9·10^9
@@ -452,10 +453,12 @@ fn real_study(tol: Tol) {
                  registers the rim ‖q − c‖ = r and the span carrier.eval(4·atan|b|) = \
                  q_to, and carrier_endpoint_start and _end each go 16-of-16 from \
                  numeric to registered at the nominal — and the ceiling still did not \
-                 move: the bound is now carrier_matches_mapped_source, the carrier \
-                 against the scaffold pushforward, enclosure [0, 1.30e-9] against a \
-                 band of zero = 1e-9. An identity between two INDEPENDENTLY BUILT \
-                 objects, which a node-aliasing door does not reach; filed as \
+                 move. Nor did the bound: just past the ceiling exactly one predicate \
+                 is over the band with the door open and with it SHUT, \
+                 carrier_matches_mapped_source, the carrier against the scaffold \
+                 pushforward, enclosure [0, 1.0001e-9] against a band of zero = 1e-9. \
+                 An identity between two INDEPENDENTLY BUILT objects, which a \
+                 node-aliasing door does not reach; filed as \
                  work/m10/plate-ceiling-is-now-the-scaffold-pushforward."
             );
         }

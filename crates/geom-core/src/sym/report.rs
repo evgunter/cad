@@ -57,8 +57,10 @@ pub struct DecisionShape {
     /// numeric without a definite sign — `None` otherwise, and `None`
     /// outside a session.
     pub form: Option<String>,
-    /// R2 PROBE INSTRUMENT: the certified enclosure the numeric
-    /// channel classified (Interval lane only).
+    /// The certified enclosure the numeric channel classified
+    /// (`Interval` lane only; `None` at every other scalar). This is
+    /// what makes a blocked decision READABLE as a distance from the
+    /// band rather than as a name — see [`crate::Decide::enclosure_probe`].
     pub enclosure: Option<(f64, f64)>,
 }
 

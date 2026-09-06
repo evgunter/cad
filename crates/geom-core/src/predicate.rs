@@ -823,10 +823,22 @@ pub trait Decide: SpanLocate {
     /// [`Indeterminate::with_predicate`].
     fn sign_within(self, band: Band) -> Result<Sign, Indeterminate>;
 
-    /// R2 PROBE INSTRUMENT (branch m10/m10-9-r2-probes only, never for
-    /// merge): the certified enclosure this value would be classified
-    /// on, for the shape report's tail table. `None` at every scalar
-    /// that has no enclosure.
+    /// **The certified enclosure this value would be classified on**,
+    /// for the shape report's use only ([`crate::sym::report`]'s
+    /// `DecisionShape::enclosure`). `None` at every scalar that has no
+    /// enclosure, which is the default and the only implementation
+    /// outside [`crate::Interval`].
+    ///
+    /// It exists because "what bounds this document" is not answerable
+    /// from predicate NAMES: several predicates can be over the band at
+    /// once, and which one a drive reports is evaluation order. Reading
+    /// the SET with its enclosures is what makes the bound a
+    /// measurement (M10-9's fix pass; adopted from a review probe).
+    ///
+    /// It is an instrument, not a decision channel: nothing in the
+    /// funnel may branch on it, and it is read at the report's call
+    /// sites only. The read itself is two `f64` copies at `Interval`,
+    /// so it is not guarded — a guard would cost what it saves.
     fn enclosure_probe(self) -> Option<(f64, f64)> {
         None
     }

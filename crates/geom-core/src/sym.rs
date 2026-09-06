@@ -189,23 +189,30 @@
 //! these, and the three are different nodes.
 //!
 //! **What they do NOT move, and this is the unit's finding.** No
-//! ceiling on any of the five measured documents changes by a digit.
-//! The predicate that bounds the plate walks one further with each
-//! registrant — `carrier_endpoint_start` → `carrier_endpoint_end` →
-//! `carrier_matches_mapped_source` — and stops on the scaffolding
-//! residual, the carrier against the `MappedCurve` pushforward: an
+//! ceiling on any of the five measured documents changes by a digit —
+//! and the predicate that BOUNDS each of them does not move either.
+//! Read as the over-band SET at the refusing end of the bisection
+//! (`m10_9_evidence_interval`), exactly one predicate is over the band
+//! on all five documents, at all three ε rows, door open and door
+//! shut: `carrier_matches_mapped_source`, the carrier against the
+//! `MappedCurve` pushforward at the certifier's own samples. An
 //! identity between two INDEPENDENTLY BUILT objects, which is the line
-//! E12's reserve draws, and which no node alias reaches without
-//! carrying the certifier's sampling schedule into a construction site
+//! E12's reserve draws and which no node alias reaches without carrying
+//! the certifier's sampling schedule into a construction site
 //! (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`).
 //!
-//! And that same residual is where EVERY one of them stops. Read as the
-//! over-band SET at the refusing end of the bisection — not as one
-//! drive's first refusal at a scale well past the ceiling, which
-//! evaluation order picks — `carrier_matches_mapped_source` is the only
-//! predicate over the band on all five documents, at all three ε rows,
-//! door open and door shut. The door works, and the family it
-//! discharges is not the family that bounds a document.
+//! **The bound is a SET at ceiling + δ, never one drive's first
+//! refusal**, and this unit learned it the hard way. A drive stops at
+//! the first predicate that refuses, and at a scale well past the
+//! ceiling several are over the band at once, so which name comes back
+//! is evaluation ORDER — validation before certification. Read at twice
+//! the plate's ceiling, the reported refusal walks with each registrant
+//! (`carrier_endpoint_start` → `carrier_endpoint_end` →
+//! `carrier_matches_mapped_source`), and M10-9's first cut reported
+//! that walk as the bound moving. It is not: at ceiling + δ the plate
+//! is bounded by `carrier_matches_mapped_source` with the door SHUT
+//! too. The door discharges 40–60 decisions per document, and the
+//! identities it discharges were never what bounded one.
 //!
 //! # Node ids are CONTENT HASHES (D9)
 //!

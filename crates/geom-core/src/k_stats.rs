@@ -202,7 +202,7 @@ fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign
     classify_in(name, margin, band, true)
 }
 
-/// **THE STAGED-CEILING DIAL** (`identity-pass-probe`, a test-only
+/// **THE STAGED-CEILING DIAL** (`identity-pass-testing`, a test-only
 /// cargo feature — see this crate's manifest for why it is a feature
 /// and not a flag): the comma-separated predicate names whose
 /// INDETERMINATE answers pass as `Zero`.
@@ -220,17 +220,17 @@ fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign
 /// Process-global and empty by default. An evidence row sets it, reads
 /// its ceiling, and clears it; it is never set in a gating run, and
 /// with the feature off none of this compiles.
-#[cfg(feature = "identity-pass-probe")]
+#[cfg(feature = "identity-pass-testing")]
 static IDENTITY_PASS: std::sync::RwLock<String> = std::sync::RwLock::new(String::new());
 
 /// Sets [`IDENTITY_PASS`] (empty clears it). Test-only.
-#[cfg(feature = "identity-pass-probe")]
+#[cfg(feature = "identity-pass-testing")]
 pub fn identity_pass_set(list: &str) {
     *IDENTITY_PASS.write().expect("the identity-pass list") = list.to_owned();
 }
 
 /// Whether the pass list names this predicate. Test-only.
-#[cfg(feature = "identity-pass-probe")]
+#[cfg(feature = "identity-pass-testing")]
 fn identity_pass(name: &str) -> bool {
     let list = IDENTITY_PASS.read().expect("the identity-pass list");
     !list.is_empty() && list.split(',').any(|n| n.trim() == name)
@@ -259,10 +259,10 @@ fn classify_in<T: Decide>(
     let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
     CURRENT.with(|c| c.set(prev));
     // THE STAGED-CEILING DIAL, and it exists only under the test-only
-    // `identity-pass-probe` feature ([`IDENTITY_PASS`]): with the
+    // `identity-pass-testing` feature ([`IDENTITY_PASS`]): with the
     // feature off there is no branch here at all, which is the whole
     // reason it is a cargo feature rather than a runtime flag.
-    #[cfg(feature = "identity-pass-probe")]
+    #[cfg(feature = "identity-pass-testing")]
     let outcome = match outcome {
         Err(_) if identity_pass(name) => Ok(Sign::Zero),
         o => o,

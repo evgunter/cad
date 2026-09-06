@@ -402,14 +402,23 @@ fn r1_the_door_moves_no_bit_on_r1s_document() {
     }
 }
 
-/// **Claim 5, re-taken**: does the pad's ceiling move when the
-/// CONSUMER's node is the one registered? The door accepts the
-/// consumer's node (the finding says so), but no constructor holds it;
-/// this row measures what the pad's ceiling is either way, so the
-/// "`line_span` is behind it" claim is a number here too.
+/// **THE ORDER ARTEFACT, in one table** — R1's row, re-cut on what it
+/// measured rather than on what it set out to check.
+///
+/// It prints the pad's blocked-predicate SET at 1×, 2× and 8× its
+/// ceiling, door open and shut, beside the single predicate the drive
+/// reports as its first refusal. The two disagree, and that is the
+/// finding: at 1× exactly one predicate is over the band
+/// (`carrier_matches_mapped_source`); at 2× a second joins it, and
+/// which of them a drive names is evaluation ORDER — validation runs
+/// before certification — not which one bounds the document. M10-9's
+/// first cut read the refusal at 2× and reported `line_span` as the
+/// pad's bound; it is not, and neither is `carrier_line_circle`
+/// (`work/m10/fillet-tangency-is-not-the-constructors-node` measures
+/// that one directly, by passing it).
 #[test]
-#[ignore = "evidence-only: the pad's ceiling and what bounds it"]
-fn r1_the_pads_bound_is_line_span_either_way() {
+#[ignore = "evidence-only: the pad's over-band set at multiples of its ceiling"]
+fn r1_the_pads_over_band_set_at_multiples_of_its_ceiling() {
     let tol = Tol::witness();
     let eps = tol.eps();
     for mult in [1.0_f64, 2.0, 8.0] {

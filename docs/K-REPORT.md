@@ -1955,34 +1955,60 @@ They reach `carrier_on_surface_*` not at all (those rest on
 `u_ref·u_ref = 1`, which needs the SQUARED identity `v·v = r²`, a
 different node again).
 
-### And no ceiling moved
+The `carrier_matches_mapped_source` share is 8, 8, 8 and 12 out of 72,
+72, 99 and 144 — **one per curve**, and it is the `i = 0` sample of the
+nine-sample certification schedule, where the mapped source evaluates
+to its own start vertex verbatim and the span identity supplies the
+other side. The other eight samples per curve are not reached: the
+mapped source spells the arc through `atan(bulge)` and `sin`/`cos`
+atoms (`geom-brep`'s `SketchSegment::eval`, anchored on `a` rather than
+on the centre) while the carrier spells it through the sagitta closed
+form, and the two normal forms meet only where the trig collapses.
+
+### And no ceiling moved — and neither did the BOUND
 
 Measured at ε = 1e-6, 1e-9 and 1e-12, door open and shut, both ends of
 every bracket asserted
 (`editor-core/tests/m10_9_pins_interval`, evidence in
-`m10_9_evidence_interval`):
+`m10_9_evidence_interval`). **A bound here is the SET of predicates
+over the band at the refusing end of a 16-step bisection**, not the one
+name a drive reports when it stops: a drive stops at its FIRST refusal,
+and at a scale well past the ceiling several predicates are over the
+band at once, so which name comes back is evaluation ORDER (validation
+before certification). M10-9's first cut read the refusal at twice the
+ceiling and reported a bound that moved with each registrant; it does
+not.
 
-| document | whole-certifying ceiling | first refusal beyond it (shut → open) | enclosure |
+| document | whole-certifying ceiling (bracket, all three ε rows) | over-band set at ceiling + δ, door open AND shut | enclosure |
 | --- | --- | --- | --- |
-| two-hole plate | `[7.787e2, 7.817e2] · ε` | `carrier_endpoint_start` → `carrier_matches_mapped_source` | `[0, 1.246 · ε]` → `[0, 1.299 · ε]` |
-| R2 filleted bracket | `[3.865e2, 3.880e2] · ε` | `line_span` (both) | `[-1.095 · ε, 1.095 · ε]` |
-| R1 annulus | `[7.787e2, 7.817e2] · ε` | `carrier_matches_mapped_source` (both) | `[0, 1.050 · ε]` |
-| R2 rounded pad | `[2.083e3, 2.091e3] · ε` | `line_span` (both) | `[-1.666 · ε, 1.666 · ε]` |
+| two-hole plate | `[7.811e2, 7.814e2] · ε` | `{carrier_matches_mapped_source}` | `[0, 1.0001 · ε]` |
+| R1 annulus | `[7.805e2, 7.810e2] · ε` | `{carrier_matches_mapped_source}` | `[0, 1.0001 · ε]` |
+| R2 link | `[4.930e2, 4.934e2] · ε` | `{carrier_matches_mapped_source}` | `[0, 1.0002 · ε]` |
+| R2 filleted bracket | `[3.871e2, 3.873e2] · ε` | `{carrier_matches_mapped_source}` | `[0, 1.0001 · ε]` |
+| R2 rounded pad | `[2.083e3, 2.084e3] · ε` | `{carrier_matches_mapped_source}` | `[0, 1.0001 · ε]` |
 
-Every ceiling scales EXACTLY with ε at all three rows — none of them
-stopped scaling, which is the E12 claim this unit does not get to make.
-The plate's bounding PREDICATE walked two predicates and its width did
-not: `carrier_endpoint_start` → `carrier_endpoint_end` →
-`carrier_matches_mapped_source`, stopping on the fenced scaffolding
-residual — the carrier against the `MappedCurve` pushforward, an
+Every ceiling scales with ε to within one bisection step at all three
+rows — none of them stopped scaling, which is the E12 claim this unit
+does not get to make. And **one predicate bounds all five, door open
+and door SHUT**: the fenced scaffolding residual, the carrier against
+the `MappedCurve` pushforward at the certifier's own samples, an
 identity between two independently built objects and therefore outside
 a node-aliasing door
 (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`; the span
 identity's own row closed with the amendment,
-`plate-ceiling-is-now-the-arc-span-identity`). Two of the four are now
-bounded by `line_span`, the real-margin dependency-widening class
-(`work/m10/real-margin-dependency-widening`), which is the class E12's
-own "what opens" paragraph predicted would be next.
+`plate-ceiling-is-now-the-arc-span-identity`). The door discharges
+40–60 decisions per document, and the identities it discharges were
+never what bounded one — which is a sharper result than "the ceiling
+did not move", and the one the unit reports.
+
+What DOES move with the registrants is the name a drive reports at
+twice the ceiling: `carrier_endpoint_start` → `carrier_endpoint_end` →
+`carrier_matches_mapped_source` on the plate. That is the mechanism
+working, pinned as such
+(`m10_9_pins_interval::m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity`),
+and it is not a bound. `line_span`, which the first cut named as the
+bracket's and the pad's bound, is itself an identity residual of the
+fillet construction and is recorded as one in the census.
 
 ### The driver row
 

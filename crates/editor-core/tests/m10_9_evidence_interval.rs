@@ -1,7 +1,12 @@
 //! **M10-9's measurement bench** — the registered-identity door, on the
-//! four documents whose ceilings it is supposed to move: the tour's
-//! two-hole plate, R2's filleted bracket, R1's eccentric annulus and
-//! R2's rounded-corner pad.
+//! five documents whose ceilings it is supposed to move: the tour's
+//! two-hole plate, R2's filleted bracket, R1's eccentric annulus,
+//! R2's rounded-corner pad and R2's link.
+//!
+//! **What a bound IS, here**: the SET of predicates over the band at
+//! the refusing end of a bisection, not the one name a drive reports
+//! when it stops. The two differ, and M10-9's first cut was wrong
+//! because of it — see [`over_band_set`].
 //!
 //! Every row here is an `#[ignore]`d evidence probe that prints and
 //! asserts nothing a gate could read ([[test-suite-cost]]); the
@@ -169,19 +174,26 @@ fn m10_9_ceilings_with_and_without_the_door() {
             if !(lo.is_finite() && hi.is_finite()) {
                 continue;
             }
-            // AT CEILING + DELTA, not at a round multiple past it.
-            let doc = at(hi);
-            let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-            let (shapes, refusal, counts) = replay(&doc, &ParamBox::of(&analyzed), rules, tol);
-            println!(
-                "      at ceiling+delta ({:.4e}·eps): the drive stops at {refusal:?}",
-                hi / eps
-            );
-            println!("      {counts:?}");
-            for (pred, (blo, bhi), over, all) in over_band_set(&shapes) {
+            // AT CEILING + DELTA, and again at a round multiple past
+            // it. The second scale is what M10-9's first cut read, and
+            // the two columns side by side are the order artefact: at
+            // ceiling + delta ONE predicate is over the band, at 2x
+            // several are, and the drive names whichever its evaluation
+            // order reaches first.
+            for (what, scale) in [("ceiling+delta", hi), ("2x the ceiling", 2.0 * lo)] {
+                let doc = at(scale);
+                let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+                let (shapes, refusal, counts) = replay(&doc, &ParamBox::of(&analyzed), rules, tol);
                 println!(
-                    "      OVER BAND {pred:<34} [{blo:>11.4e},{bhi:>11.4e}] {over:>3}/{all:<4}"
+                    "      at {what} ({:.4e}·eps): the drive stops at {refusal:?}",
+                    scale / eps
                 );
+                println!("      {counts:?}");
+                for (pred, (blo, bhi), over, all) in over_band_set(&shapes) {
+                    println!(
+                        "      OVER BAND {pred:<34} [{blo:>11.4e},{bhi:>11.4e}] {over:>3}/{all:<4}"
+                    );
+                }
             }
         }
     }
