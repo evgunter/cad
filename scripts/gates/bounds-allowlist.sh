@@ -550,7 +550,7 @@ gate_allowlist_counts() {
   BOUNDS_OCCURRENCE_TOTAL=0
   for entry in "${BOUNDS_ALLOWLIST[@]}"; do
     path=${entry%% *}; rest=${entry#* }; pinned=${rest%% *}; label=${rest#* }
-    path_re=${path//./\\.}
+    path_re=$(gate_ere_escape "$path")
     recs=$(printf '%s\n' "$records" | gate_grep -E "^$path_re:")
     if [ -z "$recs" ]; then
       have=0
