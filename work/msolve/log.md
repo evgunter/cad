@@ -308,3 +308,13 @@ non-root refuses `ReadBelowARoot { at }`, and a face entry at a root
 with the product silent is unreachable by construction and says so
 at the arm. Inside the fence; `NotAFace`'s meaning unchanged. The
 lane un-drafts and drives CI.
+
+## MSOLVE-5 landed, in review (2026-09-06)
+
+PR 2090 green at job level on `bc8a1ab` (the first run on that head
+was cancelled by the un-draft's concurrency rule; its `gate ok` reads
+failure for that reason only). What the build measured: the operand's
+table is read through the same door the interrogation functions use;
+`NodeGone` had no constructing site; the arm is authorable from
+Python through `placed_union(transform(...))`, so the Python row is
+real. Style review and correctness arm dispatched on that head.
