@@ -44,8 +44,8 @@ item head more than three lines below its attribute, and anything under
 Four of the five want a pin and have one; the fifth wants one and
 cannot have one from this reader.
 
-- `curved.rs:868` `identified_ids` — **yes.** A re-derivation five test
-  rows read directly.
+- `curved.rs:868` `identified_ids` — **yes.** A re-derivation four test
+  rows read directly (`curved.rs:2274, 2291, 2301, 2315`).
 - `curved.rs:889` `overused_identified_edge` — **yes.** The emitted-form
   re-derivation, read by four test rows beside its one live caller.
 - `tessellate.rs:298` `unpaired_chord_segment` — **yes.** A census over
@@ -64,9 +64,10 @@ cannot have one from this reader.
   depth. Recorded as the gate's KNOWN GAP 6.
 
 Subjects 2 → 6; uses scanned 5 → 28. No ungated live use was found for
-any of the five, `ArenaDelta` included: the three `topo` files whose
-sites the reader could place (`boolean/voids.rs`, `movefac.rs`,
-`fixtures.rs`) are clean and the other five could not be decided.
+any of the five, `ArenaDelta` included: the two `topo` files whose sites
+the reader could place (`boolean/voids.rs`, `movefac.rs`) are clean, and
+the other five could not be decided. `fixtures.rs` names `ArenaDelta`
+only in a doc comment, so the reader placed nothing there at all.
 
 **Residue**: KNOWN GAP 6 is a reader limitation with a live population,
 and it wants a row of its own on this program's slate — a statement-
