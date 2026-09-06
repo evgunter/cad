@@ -151,3 +151,15 @@ input, planted with a 1.5 MB view. Reported from it, `lib.sh`'s ground:
 `gate_selftest_with_broken_tool` plants only the clean tree (a reader
 failure path is unreachable from any selftest), and a stubbed `awk`
 exits the gate with status 9 and no output — D109's class.
+
+## Fourth wave dispatched (2026-09-06)
+
+With PR 2030 merged and `bit-identity-debug-only.sh` free:
+`gates/debug-only-subjects-2` (`debug-only-helpers-outside-the-subject-list`
+— a per-helper decision on the five mesh and topo candidates, rows for
+the ones that want a source-shape pin). Behind PR 2038 (`lib.sh`):
+`D211`, `test-module-resolution-has-three-homes`,
+`window-view-emits-a-record-for-a-comment-only-line`,
+`viewer-module-kinds-six-unreached-guards`. Behind PR 2042
+(`bounds-allowlist.sh`): `D102`, `S13`,
+`anchored-exact-text-skip-has-three-homes`.
