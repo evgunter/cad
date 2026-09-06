@@ -127,7 +127,7 @@ reason.
 
 Three implementers ran concurrently in isolated worktrees, on
 non-overlapping territory: `ciw/render-lane-merge-ref`,
-`ciw/one-pin-reader`, `ciw/perf-host-identity`. One style review each,
+`ciw/pin-reconciler`, `ciw/perf-host-identity`. One style review each,
 per the posture Ev set; no A/B row and no dual on any of them. PRs 1724,
 1723, 1722.
 
@@ -899,3 +899,31 @@ repository generates by construction, which is why the class recurs.
 Three duplicate pairs in one day (two within CIW's own slate, one
 across three programs) is not three accidents. The board is the only
 instrument that can see them and only an orchestrator reads it whole.
+
+## 2026-09-06 — unit 1 dispatched: one answer to what `ci.yml` pins
+
+`local-half-restates-ci-pins-as-literals` and
+`ruff-pin-read-shares-the-first-match-shape`, together on
+`ciw/pin-reconciler`. (`ciw/one-pin-reader` is PR 1723's branch and is not reused.) They are
+the two populations
+`nightly-pin-reading-idiom-four-copies` did not reach — a value retyped
+where nothing reconciles it, and a second first-match-at-any-indentation
+reader — and both end at `scripts/ci-pin.py`, which that unit built.
+
+They ride one branch because they are one question asked twice and
+because the ruff item's own text hands the `.claude/hooks/session-start.sh`
+sites to the other. Splitting them would make each PR argue half a
+population.
+
+**Style review only** (the posture Ev restated on 2026-09-06). Neither
+moves kernel logic; the risk is in what a reconciler's population
+derivation misses, and that is a reviewer question rather than a
+correctness-dual one.
+
+Two things the brief carries that the items do not settle, because they
+are the judgements the unit exists to make: whether the reconciler
+derives its population or writes a roster (the items argue derive, and
+say why a roster is the thing this repo keeps learning not to write),
+and whether `ci-local.sh:588-589`'s human-facing literal stays a literal
+(the item argues it should, and that the check reconciles it rather than
+the text reading the pin).

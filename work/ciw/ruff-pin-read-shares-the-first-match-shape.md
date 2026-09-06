@@ -2,9 +2,10 @@
 id: ruff-pin-read-shares-the-first-match-shape
 kind: issue
 title: check-python-lint.py reads ci.yml's ruff pin with the same first-match-at-any-indentation shape ci-pin.py replaced
-status: open
+status: dispatched
 opened: 2026-09-04
 refs: [nightly-pin-reading-idiom-four-copies]
+branch: ciw/pin-reconciler
 ---
 
 Found by the sweep for `nightly-pin-reading-idiom-four-copies`, which

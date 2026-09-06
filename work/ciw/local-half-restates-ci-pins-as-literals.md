@@ -2,9 +2,10 @@
 id: local-half-restates-ci-pins-as-literals
 kind: issue
 title: the local half restates ci.yml's tool pins as literals in five places and nothing reconciles them
-status: open
+status: dispatched
 opened: 2026-09-04
 refs: [nightly-pin-reading-idiom-four-copies, ruff-pin-read-shares-the-first-match-shape]
+branch: ciw/pin-reconciler
 ---
 
 `ci.yml`'s workflow-level `env:` block is this repo's single source of
