@@ -4308,6 +4308,123 @@ Ev**, and no large item left: small units, two waiting on DOCM's
 `next_id` door, and the focus-map siting question no single program can
 answer.
 
+## `Refusal` has no `ALL`, and does not need one — 2026-09-06
+
+`refusal-has-no-all-to-walk` closed answered-and-fixed. The item asked
+for an instrument that cannot exist in the shape it named, and the
+question underneath it turned out to have a live defect in it.
+
+**No `ALL` can exist, and none is needed.** A `Refusal` value needs a
+payload and a payload needs a document, so an `ALL` would mint fixtures
+rather than state a fact about the type; `vocabulary!` (#2046) projects
+one for fieldless variants only, and this vocabulary is nearly all
+payload arms. What an `ALL` was wanted for — *a new arm must answer for
+itself* — the type already has: `Display for Refusal` and
+`Refusal::rank` are exhaustive matches with no wildcard, so nothing can
+join this vocabulary and reach a user unrendered. That reasoning is in
+the item's `## Closed`, because the next reader's first question is why
+there is no `Refusal::ALL`.
+
+**The property left over was prose, and one arm was failing it.**
+`Refusal::exists_wording` rendered `({dimension:?})`, so the status
+line and the add-parameter form's pre-click notice both said
+"parameter width already exists (**Length**)" — the variant identifier,
+against `Dimension`'s `Display` in editor-core, which declares itself
+the one home of the dimension-in-prose rule and says it holds
+*wherever a dimension reaches a user*. Three siblings stood in the
+properties panel. All four fixed; the refusal one is pinned by
+`refusals_render_as_sentences`, which now walks `ParamExists` through
+`CreateParam`.
+
+**It got past both instruments for two independent reasons**, and this
+is the part worth keeping. `prose_census` scans `impl Display` bodies
+and nothing else — but this vocabulary composes three sentences in an
+inherent `impl` on purpose, so a pre-click surface and the status line
+cannot drift, and `Display` delegates to them through a bare `{}`. The
+census cannot see a delegated wording. And had it seen this one, the
+verdict would still have been `Prose`: a fieldless enum carries no
+`" { "`, so a census that asks about BRACES never asks whether a
+`Debug` here spells an identifier a person then reads. Both gaps are
+LIB's ground (`crates/pncad-py/*`) and are handed over in the PR rather
+than filed onto another program's slate.
+
+**The item's own ask is answered no.** It wanted the census extended so
+a `{binding:?}` over a `String` reds, because the row asserted
+`!contains('"')`. That would enforce an unratified rule against
+deliberate prose — F6 (`display_contract.rs`) lists the `Debug`
+fingerprints and a quotation mark is not among them; `EditError` quotes
+a user's key on purpose and `MetaUnversioned` names the D7 `"v"` field
+by writing it. The clause was a tripwire on correct prose, and the row
+now asserts F6's shape instead, with a doc comment naming which half is
+the compiler's and which is the census's so it stops reading as a claim
+over the vocabulary.
+
+One near-duplicate avoided: the add-parameter form's hand-written
+`Dimension` table was filed hours earlier by #2046's style review as
+`dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum`, whose
+last section reads its labels against the same clause. It stays open
+and is not what this unit touched.
+
+## PR 2053's style review, and what a sweep that reads only the tree misses — 2026-09-06
+
+The substance of `refusal-has-no-all-to-walk` held under review: both
+matches name all eighteen `Refusal` arms with no bare `_ =>`, every
+number in the PR body reproduced, and the closure stands. Six findings
+came back. Three are fixed here, two the reviewer filed and left, one
+is a coordination miss worth the program's attention.
+
+**The miss is the entry that matters.**
+`work/fix/verb-and-dimension-render-through-debug` — open, on FIX's
+slate since 2026-09-04 — already enumerated all four `Dimension` sites
+this unit "found", at their pre-split paths, and holds a fifth of the
+same class the sweep did not reach: `profile::path::Verb` rendered
+`{verb:?}` at `crates/viewer/src/sketch.rs:663`, on screen through
+`pane/create.rs`. So a unit half-completed another program's open item
+without knowing, and the reason is stateable: **the sweep grepped the
+tree and did not read the board.** Every sweep this program has run has
+scoped itself by shape; none has asked whether the shape was already
+filed. The `Verb` half stays untouched — its fix is `impl Display for
+Verb` in `crates/profile`, not ours, and forwarding it from the viewer
+would mint a fourth spelling of the word list — and
+`viewer-preview-names-a-verb-by-its-variant-identifier` now records
+where both halves of the FIX item stand.
+
+**Two rows had been left weaker than they looked.** The refusal row
+traded `!contains('"')` for F6's `node:`/`name:` clauses, and the
+dropped clause is the only one that catches its founding case: a `{:?}`
+over a `String` or a `ParamName` renders `"width"`, which carries no
+brace, no field punctuation, and leaks the PAYLOAD's identifier rather
+than the arm's. The PR's argument for dropping it was about
+`EditError`'s metadata arms, which that row does not walk. Restored.
+The distinction it turns on is worth keeping: **a tripwire over named
+samples may be stricter than the ratified contract; a claim over a
+vocabulary may not.** Separately the new `ParamExists` row asked for
+the dimension it had declared, so it could not tell the arm reporting
+what already stands there from the arm forwarding the request — the
+roster-excludes-its-own-failing-mode shape, inside the row pinning this
+unit's fix. It now asks for an angle over a length.
+
+**And the closure overstated its reach by one level.** `Refusal::rank`
+carried `Self::Display(_) => 1` beside two `DisplayFault` arms
+hand-listed at rank 2, so an eighth display fault took a rank nobody
+chose. Fixed rather than caveated — that arm matches its payload
+exhaustively now — because a closure that has to be qualified is worse
+than one made true. `Edit` and `SlotUnit` keep one rank per vocabulary
+and the code now says why that is a default and not an oversight.
+
+**One correction to the record.** The PR claimed `prose_census` did not
+run hosted because the `python suite` job was skipped. It did:
+`prose_census` is a Rust `#[cfg(test)]` module in
+`crates/pncad-py/src/`, `scripts/ci-filter.py` puts `pncad-py` in
+`PKGS` via the read reach (verified on this diff: `CARGO_SCOPE` carries
+`-p pncad-py`, `RUN_PNCAD_PY=false`), and the skipped job is the
+maturin suite over `crates/pncad-py/tests`. A false gap recorded in a
+merged PR body is the same defect as false prose in a doc comment.
+
+The two census findings are now
+`work/issues/prose-census-cannot-see-a-bypassed-prose-renderer` — one
+row, not two, because neither half alone catches the defect that
+motivated them.
 ## `frame::progress`'s two swappable bools became one session value (2026-09-06)
 
 `progress(busy, running, indexing)` is closed by

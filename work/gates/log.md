@@ -341,3 +341,27 @@ the seven `ArenaDelta` rows PR 2049 could not add; uses scanned 28 →
 `assert_euler_postcondition` on no row. Reviewer dispatched. Note for
 the record: the row it closes was created in this PR — PR 2049
 disclosed it in prose and the file never reached `main`.
+## Landed: PR 2057 (2026-09-06)
+
+`viewer-module-kinds-six-unreached-guards` closed. The six `gate_error`
+sites in `viewer-module-kinds.sh` that D109's reading found no
+self-test fires (`:251 :263 :383 :427 :459 :464`) each have a `--root`
+fixture now, mutation-proven one at a time (backing out a guard reds
+exactly its case); directory-wide unreached count 6 → 0 over a
+population of 113 sites in 19 files. The empty-vocabulary guard moved
+from below check 4 (unreachable there: check 4 exits on empty tables)
+to directly under check 1, with the position stated as load-bearing;
+one message that named check 6 for check 7's path arm corrected; the
+self-test's stale closing summary rewritten. Live run byte-identical.
+Out of fence: `scripts/doc-gate.sh` sources `lib.sh` and carries 14
+`gate_error` sites the population never reads — filed on CIW's slate
+as `doc-gate-error-sites-outside-the-gate-population`.
+Fix pass from the review: the header's check numbering (never in step
+with the banners since the gate was written) corrected and every check
+citation swept; check 3's message reads the driver count from the
+roster it built instead of quoting a README sentence that no longer
+exists; the moved guard's comment states its constraint (above check
+4's exit) rather than "the only place"; the forbidden-path guard is
+described as preventing a wrong-file red, not a vacuous pass, at the
+guard and its planter; one ordering-dependent sentence in the
+self-test prose replaced by the planters' names.
