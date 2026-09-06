@@ -1311,6 +1311,24 @@ pub struct SymCounts {
     /// decisions out of `numeric` — never out of `symbolic_zero` or
     /// `sign_gated`, whose counts are M10-8's on every document.
     pub registered: u64,
+    /// **Registrations the door REFUSED** — `Contradicted` (the lane
+    /// scalar's witness separated the two values) or `Cyclic`. Counted
+    /// because a refusal that leaves no trace is a defect nobody sees:
+    /// a constructor registering a lie in a real document must show up
+    /// in the receipt (R1 m4, R2 MINOR-2).
+    pub registrations_refused: u64,
+    /// **Decisions where a REGISTERED zero met a DEFINITE numeric
+    /// sign** — the two channels in contradiction, which for a
+    /// registered form means the axiom is wrong over this box. The
+    /// numeric answer is returned (never the fold), and this column is
+    /// how the run says so.
+    ///
+    /// It is not a K token: the sample the funnel records is the
+    /// numeric channel's own `Definite(sign)`, a classified margin
+    /// like any other, so the K vocabulary needs nothing new. What is
+    /// new is the RECEIPT's statement that a stated identity was
+    /// contradicted.
+    pub registrations_contradicted: u64,
     /// Decisions handed to the numeric channel.
     pub numeric: u64,
     /// Nodes frozen into indeterminates (a budget or an overflow).
@@ -1329,6 +1347,8 @@ impl SymCounts {
         self.symbolic_zero += other.symbolic_zero;
         self.sign_gated += other.sign_gated;
         self.registered += other.registered;
+        self.registrations_refused += other.registrations_refused;
+        self.registrations_contradicted += other.registrations_contradicted;
         self.numeric += other.numeric;
         self.frozen += other.frozen;
     }
@@ -1632,74 +1652,18 @@ impl Session {
     }
 }
 
-/// **The `f64` witness tolerance**: two values a constructor calls one
-/// real may differ by at most this, RELATIVE to the larger magnitude
-/// (floored at 1, so a claim about two near-zero values is judged
-/// absolutely).
-///
-/// `1e-9` is loose in ulps and tight in geometry, and that is the
-/// intent. A registration that IS a theorem of the construction differs
-/// only by the rounding of two closed forms — tens of ulps at worst for
-/// the sagitta's — which is a dozen orders below this. A constructor
-/// that fails to build what it claims is wrong by a GEOMETRIC amount,
-/// not by rounding. Pricing the gap tighter would turn the door into a
-/// second tolerance to calibrate, which is exactly what this repository
-/// does not want another of; the door is not the certifying instrument,
-/// the funnel is, and the `f64` witness pass still evaluates every
-/// residual against its own band at the point.
-pub const WITNESS_REL: f64 = 1.0e-9;
-
 /// How far [`Session::alias`] follows the registry before it gives up.
 /// A registration chain is at most as long as the registrations one
 /// leaf makes, which is a handful per arc.
 const ALIAS_DEPTH: usize = 64;
 
-/// **What the registered-identity door did with one registration**
-/// ([`Sym::register_equal`], ERROR-DESIGN E12's provenance reserve).
-///
-/// Every arm is a REFUSAL or a record, and none of them is silent:
-/// the door answers what it did, so a registrant that wanted to be
-/// loud can be and a pin can read it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SymRegistration {
-    /// Recorded: from here on the two nodes denote one function of the
-    /// parameters in this session's EARLY normal form, and a decision
-    /// that rests on the record is counted [`SymCounts::registered`].
-    Recorded,
-    /// Already recorded — the same two nodes, or two nodes the registry
-    /// already resolves to one. Idempotent, and cheap: nothing is
-    /// invalidated.
-    Already,
-    /// **REFUSED, typed: the two values are not one real.** The lane
-    /// scalar's own witness said so — certified enclosures that do not
-    /// MEET at [`crate::Interval`], `f64` values apart by more than
-    /// the point tolerance [`WITNESS_REL`] — so the constructor did not
-    /// build what it claims. Nothing is recorded, the registry is
-    /// unchanged, and every decision that would have rested on the
-    /// record stays numeric.
-    Contradicted,
-    /// **REFUSED, typed: the registration would close a cycle** — the
-    /// right node's expression already contains the left one, so
-    /// aliasing them would make the normal form's walk non-terminating.
-    /// (`form_in`'s termination argument is structural: a node's id is
-    /// a hash of its children's, so a cycle needs a hash preimage. The
-    /// registry is the one thing that could introduce one by hand, and
-    /// this arm is what keeps that argument true.)
-    Cyclic,
-    /// **The claim was witnessed and nothing was recorded.** Either the
-    /// scalar tracks no expressions (`f64`, `Interval`, `Probe`: there
-    /// is nothing at a bare scalar to record an identity ABOUT), or
-    /// there is one and nowhere to put it — no session installed, the
-    /// tier off at a zero-term budget, or [`SymRules::registered`]
-    /// off.
-    Witnessed,
-    /// **This scalar's value channel cannot witness the claim**, so
-    /// nothing is claimed and nothing is recorded — the default arm of
-    /// [`Real::register_equal`] and what every scalar that tracks no
-    /// expressions answers. A poisoned value answers this too: an
-    /// expression with no value witnesses nothing.
-    Unwitnessed,
-}
+/// The door's typed answer lives with the trait method that returns it
+/// ([`Real::register_equal`]) rather than here: `real` is `sym`'s
+/// SUBSTRATE, and a substrate that imports a type from its consumer to
+/// name its own return value is a layering inversion (R1 m5 /
+/// R2 MINOR-3). Re-exported so `geom_core::sym::SymRegistration` keeps
+/// naming the same type.
+pub use crate::real::SymRegistration;
 
 thread_local! {
     /// The installed session, if any (module docs: no session, no tier).
@@ -2479,28 +2443,96 @@ fn discharge(id: SymId) -> Option<Discharge> {
                 });
             }
         }
+        // Rules A and B (unconditional) over the residual, once —
+        // BEFORE the door, because a zero they reach is a THEOREM and
+        // labelling one an axiom would understate what the tier proved.
+        // (An earlier cut asked the door here and said in its own
+        // comment that it asked last; under `SymRules::all()` that
+        // attributed A/B theorems to `registered`. R1 m1 / R2 MINOR-4.)
+        if (rules.sqrt_square || rules.pythagoras)
+            && algebra::reduce(&plain, rules, sess.budget, &sess.atoms)
+                .as_ref()
+                .is_some_and(|f| f.is_zero())
+        {
+            return Some(Discharge::Theorem);
+        }
         // THE DOOR, asked LAST and only where there is a registration
-        // to ask about ([`Sym::register_equal`]). Last because a zero
-        // either walk above already found is a THEOREM, and labelling
-        // one an axiom would understate what the tier proved; only
-        // where both declined is the registration what answered, and
+        // to ask about ([`Sym::register_equal`]): only where every walk
+        // above has declined is the registration what answered, and
         // that is exactly the claim `SymCounts::registered` makes.
+        //
+        // **A GATED door form does not discharge.** A zero that rests
+        // BOTH on a constructor's axiom and on rule C's box-wise sign
+        // read is two weakenings at once, and the receipt has one
+        // column for each and none for the pair; reporting it as either
+        // alone would overstate one of them. So it falls to the numeric
+        // channel — the conservative direction, and unreachable in a
+        // shipped run because `signed_root` is dial-off
+        // (`SymRules::shipped`). Pinned rather than assumed.
         if rules.registered
             && rules.early
             && !sess.registry.is_empty()
-            && door_form(sess, id).is_zero()
         {
-            return Some(Discharge::Registered);
+            let d = door_form(sess, id);
+            if d.is_zero() && !d.gated {
+                return Some(Discharge::Registered);
+            }
         }
-        if !(rules.sqrt_square || rules.pythagoras) {
-            return None;
-        }
-        // Rules A and B (unconditional) over the residual, once.
-        algebra::reduce(&plain, rules, sess.budget, &sess.atoms)
-            .as_ref()
-            .is_some_and(|f| f.is_zero())
-            .then_some(Discharge::Theorem)
+        None
     })
+}
+
+/// **Is this node's DOOR form the zero form** — the registry applied,
+/// and nothing else asked?
+///
+/// The one question a decision the numeric channel has already proved
+/// NON-ZERO still has to ask (`Decide for Sym<T>`). A plain or early
+/// zero under a definite numeric sign is a contradiction between two
+/// channels that read no axioms, and stays what it was: a debug
+/// assertion, because it can only be a bug in the tier itself. A
+/// REGISTERED zero under a definite sign is a different animal — it
+/// means the axiom a constructor stated is false over this box — and it
+/// is the one M10-9 makes possible, so it is checked in release,
+/// counted, and never folded.
+///
+/// Answers `false` immediately when the registry is empty, which is
+/// every document with no arc in it and therefore most of the corpus:
+/// the cost of the check is paid only where a registration exists to be
+/// wrong.
+fn door_zero(id: SymId) -> bool {
+    SESSION.with(|s| {
+        let mut slot = s.borrow_mut();
+        let Some(sess) = slot.as_mut() else {
+            return false;
+        };
+        if sess.budget.max_terms == 0
+            || !(sess.rules.registered && sess.rules.early)
+            || sess.registry.is_empty()
+        {
+            return false;
+        }
+        let d = door_form(sess, id);
+        d.is_zero() && !d.gated
+    })
+}
+
+/// Records a registration the door refused, for the session's receipt.
+fn count_registration_refused() {
+    SESSION.with(|s| {
+        if let Some(sess) = s.borrow_mut().as_mut() {
+            sess.counts.registrations_refused += 1;
+        }
+    });
+}
+
+/// Records a decision whose REGISTERED zero contradicted a definite
+/// numeric sign.
+fn count_registration_contradicted() {
+    SESSION.with(|s| {
+        if let Some(sess) = s.borrow_mut().as_mut() {
+            sess.counts.registrations_contradicted += 1;
+        }
+    });
 }
 
 /// Records how one decision was answered, for the session's receipt.
@@ -2694,7 +2726,8 @@ impl<T: Real> Sym<T> {
     ///
     /// The lane scalar is asked first ([`Real::register_equal`]): at
     /// [`crate::Interval`] the two certified enclosures must MEET, at
-    /// `f64` the two values must agree to [`WITNESS_REL`]. Where they
+    /// `f64` the two values must agree to the funnel's own coincidence
+    /// threshold ([`Real::register_equal`]). Where they
     /// do not, the door records nothing and answers
     /// [`SymRegistration::Contradicted`], typed, so a constructor that
     /// does not build what it claims cannot state it. A registration
@@ -2734,11 +2767,18 @@ impl<T: Real> Sym<T> {
     /// that mints its nodes, so the record is identical across repeats
     /// and across the rayon schedule, exactly as [`OPAQUE_SEQ`]'s
     /// argument runs.
+    #[must_use = "a registration can be REFUSED, and a refusal a caller \
+                  drops is a lie nobody sees"]
     pub fn register_equal(self, other: Self) -> SymRegistration {
         // The witness first: an unwitnessed or contradicted claim never
-        // reaches the registry at all.
+        // reaches the registry at all. A refusal is COUNTED — the
+        // receipt is where a constructor that states a lie becomes
+        // visible.
         match self.value.register_equal(other.value) {
-            SymRegistration::Contradicted => return SymRegistration::Contradicted,
+            SymRegistration::Contradicted => {
+                count_registration_refused();
+                return SymRegistration::Contradicted;
+            }
             SymRegistration::Unwitnessed => return SymRegistration::Unwitnessed,
             _ => {}
         }
@@ -2755,6 +2795,7 @@ impl<T: Real> Sym<T> {
                 return SymRegistration::Already;
             }
             if sess.reaches(b, a) {
+                sess.counts.registrations_refused += 1;
                 return SymRegistration::Cyclic;
             }
             sess.registry.insert(a, b);
@@ -3020,6 +3061,19 @@ impl<T: Decide> Decide for Sym<T> {
             matches!(&numeric, Err(e) if matches!(e.margin, MarginDiag::Invalid));
         let definitely_nonzero = matches!(&numeric, Ok(Sign::Positive | Sign::Negative));
         if definitely_nonzero {
+            // **A REGISTERED zero here is a CONTRADICTED AXIOM**, and it
+            // is checked in release rather than asserted in debug: a
+            // constructor stated an identity that is false over this
+            // box, the enclosure proves it, and the numeric answer wins
+            // — but the run has to SAY so. Never a fold; counted; the
+            // receipt reports it (`SymCounts::registrations_contradicted`).
+            //
+            // Ordering matters: this asks the DOOR memo only, and only
+            // where a registration exists, so a document with no arc
+            // pays one `is_empty()`.
+            if door_zero(self.node) {
+                count_registration_contradicted();
+            }
             debug_assert!(
                 !matches!(
                     discharge(self.node),

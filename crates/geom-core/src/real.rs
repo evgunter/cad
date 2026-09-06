@@ -66,6 +66,74 @@
 use core::fmt::Debug;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
+/// **What the registered-identity door did with one registration**
+/// ([`crate::Sym::register_equal`], ERROR-DESIGN E12's provenance reserve).
+///
+/// Every arm is a REFUSAL or a record, and none of them is silent:
+/// the door answers what it did, so a registrant that wanted to be
+/// loud can be and a pin can read it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SymRegistration {
+    /// Recorded: from here on the two nodes denote one function of the
+    /// parameters in this session's EARLY normal form, and a decision
+    /// that rests on the record is counted [`crate::SymCounts::registered`].
+    Recorded,
+    /// Already recorded — the same two nodes, or two nodes the registry
+    /// already resolves to one. Idempotent, and cheap: nothing is
+    /// invalidated.
+    Already,
+    /// **REFUSED, typed: the two values are not one real.** The lane
+    /// scalar's own witness said so — certified enclosures that do not
+    /// MEET at [`crate::Interval`], `f64` values apart by more than
+    /// the funnel's own coincidence threshold ([`Real::register_equal`]) — so the constructor did not
+    /// build what it claims. Nothing is recorded, the registry is
+    /// unchanged, and every decision that would have rested on the
+    /// record stays numeric.
+    Contradicted,
+    /// **REFUSED, typed: the registration would close a cycle** — the
+    /// right node's expression already contains the left one, so
+    /// aliasing them would make the normal form's walk non-terminating.
+    /// (`form_in`'s termination argument is structural: a node's id is
+    /// a hash of its children's, so a cycle needs a hash preimage. The
+    /// registry is the one thing that could introduce one by hand, and
+    /// this arm is what keeps that argument true.)
+    Cyclic,
+    /// **The claim was witnessed and nothing was recorded.** Either the
+    /// scalar tracks no expressions (`f64`, `Interval`, `Probe`: there
+    /// is nothing at a bare scalar to record an identity ABOUT), or
+    /// there is one and nowhere to put it — no session installed, the
+    /// tier off at a zero-term budget, or [`crate::SymRules::registered`]
+    /// off.
+    Witnessed,
+    /// **This scalar's value channel cannot witness the claim**, so
+    /// nothing is claimed and nothing is recorded — the default arm of
+    /// [`Real::register_equal`] and what every scalar that tracks no
+    /// expressions answers. A poisoned value answers this too: an
+    /// expression with no value witnesses nothing.
+    Unwitnessed,
+}
+
+/// **The `f64` witness's slack, and it is the FUNNEL's own.**
+///
+/// Two values a constructor calls one real must agree to the
+/// coincidence threshold the predicate layer would use to call a margin
+/// zero — `Tol`'s ε at the witness tolerance, in the same units
+/// (metres) the shipped registrants compare. That is the two-tolerance
+/// principle applied where it belongs: the door declares two lengths
+/// one length by the same rule the funnel declares a length zero, so
+/// the witness tightens with `CAD_TOLERANCE_EPS` instead of standing at
+/// a constant a tight ε row would make a thousand band-widths loose
+/// (R1 m2, against the first cut's ε-independent `1e-9`).
+///
+/// **The limit, stated**: it is an ABSOLUTE length comparison, so a
+/// registrant of quantities that are not lengths — a dimensionless
+/// ratio, an angle — must not use this door without saying what its
+/// units are. Both shipped registrants compare metres.
+#[must_use]
+pub fn witness_slack() -> f64 {
+    crate::tolerance::Tol::witness().eps()
+}
+
 /// The scalar type the geometry evaluation layer is generic over.
 ///
 /// See the [module docs](self) for the design rationale: the deliberately
@@ -161,7 +229,7 @@ pub trait Real:
     ///   values are not the same real,
     ///   [`crate::sym::SymRegistration::Contradicted`] — `f64` and
     ///   [`crate::Probe`] by a point tolerance
-    ///   ([`crate::sym::WITNESS_REL`]), [`crate::Interval`] by whether
+    ///   ([`witness_slack`]), [`crate::Interval`] by whether
     ///   the two certified enclosures MEET. Neither records anything:
     ///   there is no expression at a bare scalar to record it about;
     /// - [`crate::Sym`] asks its own lane scalar that question first
@@ -169,14 +237,41 @@ pub trait Real:
     ///   session, where the symbolic tier's early normal form consults
     ///   it (`crate::sym`'s module docs).
     ///
-    /// Deliberately not `#[must_use]`. A registrant's business is to
-    /// state what it built; a refusal is typed and readable — the
-    /// door's own pins read it — but the loud channel for a constructor
-    /// that fails to build what it claims is the `f64` witness pass at
-    /// the funnel, which evaluates the residual at the point and
-    /// refuses there, where no widening can hide it.
-    fn register_equal(self, _other: Self) -> crate::sym::SymRegistration {
-        crate::sym::SymRegistration::Unwitnessed
+    /// **WHAT THE WITNESS IS WORTH, exactly** — the contract this
+    /// method's first cut overstated, corrected by two reviews taken by
+    /// execution. A registration is an AXIOM; its soundness rests on
+    /// the REGISTRANT'S PROOF and on nothing here. The witness refuses
+    /// only a lie visible AT THE POINT (`f64`, `Probe`) or one whose
+    /// two certified enclosures are DISJOINT over the box
+    /// (`Interval`) — and "the enclosures meet" is satisfied by every
+    /// coincidence, so `x² ≡ x` over `[0.9, 1.1]` is recorded, and a
+    /// registration false by a geometric amount is recorded as soon as
+    /// the box is wide enough for the two enclosures to overlap. **The
+    /// door cannot tell an identity from a coincidence.** That is why
+    /// the spec requires each registrant to carry a theorem in its doc
+    /// comment (claim 9), and why the witness is loosest exactly where
+    /// the numeric-first shield is weakest — a residual whose two sides
+    /// are dependency-widened straddles zero for the same reason its
+    /// two enclosures meet. The rows that establish this are
+    /// `geom-core/tests/m10_9_witness_limits_interval.rs`.
+    ///
+    /// **WHERE IT MAY BE CALLED.** This method hands every generic
+    /// `T: Real` body a value COMPARISON — the capability
+    /// evaluation-code discipline exists to keep out of that position,
+    /// and one that adds no bound for `no-extra-real-bounds` to see. It
+    /// is therefore allowlisted by SITE:
+    /// `scripts/gates/register-equal-allowlist.sh` names the
+    /// constructors that may call it, and a new call site fails that
+    /// gate until it is ratified there with its theorem. It is not a
+    /// general-purpose equality and must never stand in for one.
+    ///
+    /// `#[must_use]`: a refusal a caller drops is a lie nobody sees.
+    /// The registrant handles the typed answer; a refusal is also
+    /// counted in the session's receipt
+    /// ([`crate::SymCounts::registrations_refused`]).
+    #[must_use]
+    fn register_equal(self, _other: Self) -> SymRegistration {
+        SymRegistration::Unwitnessed
     }
 
     /// Raises `self` to an integer power by exponentiation by squaring;
@@ -1240,17 +1335,19 @@ impl Real for f64 {
     /// the half of the door's contract that keeps a constructor from
     /// stating something it did not build.
     ///
-    /// The comparison is relative to the larger magnitude, floored at
-    /// one, at [`crate::sym::WITNESS_REL`] (whose docs argue the
-    /// number). A poisoned value witnesses nothing: NaN is not a real,
-    /// so no claim about it is checkable.
-    fn register_equal(self, other: Self) -> crate::sym::SymRegistration {
-        use crate::sym::SymRegistration;
+    /// The comparison is the funnel's own coincidence threshold
+    /// ([`witness_slack`]), absolute and in metres. A poisoned value
+    /// witnesses nothing: NaN is not a real, so no claim about it is
+    /// checkable.
+    ///
+    /// It catches a lie AT THE POINT and nothing else — a claim true at
+    /// the nominal and false elsewhere passes here as it passes at
+    /// every scalar ([`Real::register_equal`]'s contract).
+    fn register_equal(self, other: Self) -> SymRegistration {
         if self.is_nan() || other.is_nan() {
             return SymRegistration::Unwitnessed;
         }
-        let scale = self.abs().max(other.abs()).max(1.0);
-        if (self - other).abs() <= crate::sym::WITNESS_REL * scale {
+        if (self - other).abs() <= witness_slack() {
             SymRegistration::Witnessed
         } else {
             SymRegistration::Contradicted

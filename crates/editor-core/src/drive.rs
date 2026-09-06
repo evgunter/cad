@@ -791,6 +791,25 @@ impl ParamBoxVerdict {
             if self.decisions.registered != 0 {
                 let _ = write!(s, " registered={}", self.decisions.registered);
             }
+            // The door's two REFUSAL columns, by the same
+            // present-only-when-nonzero rule: a registration the witness
+            // separated, and a registered zero the enclosure
+            // contradicted. Zero on every document that behaves, so a
+            // clean drive serializes what it serialized before.
+            if self.decisions.registrations_refused != 0 {
+                let _ = write!(
+                    s,
+                    " registrations_refused={}",
+                    self.decisions.registrations_refused
+                );
+            }
+            if self.decisions.registrations_contradicted != 0 {
+                let _ = write!(
+                    s,
+                    " registrations_contradicted={}",
+                    self.decisions.registrations_contradicted
+                );
+            }
             let _ = writeln!(s);
         }
         let _ = write!(s, "{}", self.accounting.serialize());
@@ -854,6 +873,22 @@ impl ParamBoxVerdict {
                     s,
                     ", {} more by a constructor's registered identity",
                     d.registered
+                );
+            }
+            // A refusal is louder than a count: it says a constructor
+            // stated something this box contradicts.
+            if d.registrations_refused != 0 {
+                let _ = write!(
+                    s,
+                    "; {} registration(s) REFUSED by the witness",
+                    d.registrations_refused
+                );
+            }
+            if d.registrations_contradicted != 0 {
+                let _ = write!(
+                    s,
+                    "; {} registered identity/identities CONTRADICTED by a definite enclosure",
+                    d.registrations_contradicted
                 );
             }
             let _ = writeln!(s, "; {} form(s) frozen", d.frozen);

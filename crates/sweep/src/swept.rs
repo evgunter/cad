@@ -369,7 +369,21 @@ pub(crate) fn turn_axis<T: Real>(turn: Sign, normal: Vec3<T>) -> Vec3<T> {
 /// `v / radius`, which would buy the same cancellation by changing the
 /// `f64` lane's bits.
 pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T) {
-    rim.norm().register_equal(radius);
+    // The typed answer is HANDLED, not dropped: a `Contradicted` here
+    // means the lane scalar separated `‖q − c‖` from `r` over this box,
+    // which for a construction that satisfies the proof above cannot
+    // happen — so it is a defect, loud in debug and counted in the
+    // session's receipt either way
+    // (`SymCounts::registrations_refused`). `Unwitnessed` is ordinary:
+    // a leaf too wide to certify the norm's enclosure records nothing,
+    // which is the safe direction.
+    let stated = rim.norm().register_equal(radius);
+    debug_assert!(
+        stated != geom_core::sym::SymRegistration::Contradicted,
+        "the arc rim identity is a theorem of the sagitta construction, and this box \
+         separates its two sides: the placement is not rigid, or the carrier is not the \
+         one the profile built"
+    );
 }
 
 /// **The swept arc's SPAN identity, registered** (M10-9 amendment A1;
@@ -420,9 +434,18 @@ pub(crate) fn register_span_identity<T: Real>(carrier: &Curve3<T>, param_end: T,
         return;
     };
     let p = Curve3::circle_at(center, axis, radius, u_ref, param_end);
-    p.x.register_equal(q_to.x);
-    p.y.register_equal(q_to.y);
-    p.z.register_equal(q_to.z);
+    // Per component, and each answer handled (see
+    // `register_rim_identity` for why a `Contradicted` is a defect and
+    // an `Unwitnessed` is not).
+    for (built, held) in [(p.x, q_to.x), (p.y, q_to.y), (p.z, q_to.z)] {
+        let stated = built.register_equal(held);
+        debug_assert!(
+            stated != geom_core::sym::SymRegistration::Contradicted,
+            "the arc span identity is a theorem of the sagitta construction, and this box \
+             separates the carrier's far endpoint from the segment's: the stored bulge is \
+             not tan(theta/4) for this carrier"
+        );
+    }
 }
 
 /// The edge spec of a profile segment carried into 3-space by one

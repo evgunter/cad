@@ -1385,6 +1385,18 @@ jobs:
         run: |
           scripts/gates/bit-identity-punning.sh --selftest
           scripts/gates/bit-identity-punning.sh
+      # `Real::register_equal` (M10-9, ERROR-DESIGN E12's provenance
+      # reserve) hands every generic `T: Real` body a value COMPARISON,
+      # which is what evaluation-code discipline exists to keep out of
+      # that position — and it adds no bound, so `no extra bounds on
+      # Real` structurally cannot see it. The capability stays and the
+      # SITES are a list a reviewer can read; the gate's own header says
+      # what a ratified site owes (a theorem in its doc comment, a
+      # planted lie, the typed answer handled).
+      - name: register_equal call-site allowlist
+        run: |
+          scripts/gates/register-equal-allowlist.sh --selftest
+          scripts/gates/register-equal-allowlist.sh
       # The importer's negative-zero flush has one home and says so in
       # its own module doc. Four copies of it landed green in one crate
       # (S18) because nothing checked the claim.
