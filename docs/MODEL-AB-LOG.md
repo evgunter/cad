@@ -3961,6 +3961,26 @@ twice by the account's usage limit and resumed from transcript
 protocol reads it that way at the blinded coding); the pair's own
 interruptions, if any, are recorded at merge.
 
+## TRIM-1 review ordinal fixed at dispatch (2026-09-06)
+
+TRIM-1 (`work/trim/interior-iso-curve-de-boor-extractor.md`, PR #2095
+open — frozen head `60476186`): **ordinal 2501** (TRIM band). Pre-draw
+fields at the spec (`docs/TRIM-1-SPEC.md` §PR shape, §Rulings):
+difficulty **L** (high end), task-class **NUMERIC**; implementer arm
+per block TRIM-B1 slot 1 (record branch-side on `trim/b1-block`).
+Protocol v6 dual: draw = `/dev/urandom` byte **95**, parity 1 ⇒
+**R1 = FABLE, R2 = OPUS**. Method, recorded before either review runs:
+CONCURRENT same-head on frozen `60476186`, both briefs authored and
+STORED with sha256 before either dispatches (fdb18386bbbaf1b2… r1 /
+0b04a62640ab58ba… r2 — identical text modulo lane names, verified by
+diff), neither reviewer sees the other's report, v6 item 5 isolation in
+both briefs, PRIVATE `CARGO_TARGET_DIR` per reviewer (fresh for both);
+the implementer's unit log entry is not written until the dual
+concludes. Method note applying to BOTH arms equally: a shared 8-core
+box; the implementer lane was paused three times by the account's
+usage limit and resumed from transcript (recorded for 3(e)); the
+reviewers may be paused likewise, recorded at merge.
+
 ## DOCM program rows (work/docm/; band 1800–1899; blocks named DOCM-B<n>)
 
 Block DOCM-B1 pre-draw fields (2026-09-04, logged before the draw):
