@@ -69,11 +69,25 @@ reach one code line further. **No gate's output moves**: every gate in
 `scripts/gates/`, self-test and real pass, prints byte-identically
 before and after, under both awks.
 
-**The gate that filtered the duplicate.** `loop-boundary-discards.sh`
-is PR 2044 and not on `main`, so its confirming filter could not be
-retired in this diff. Measured out of tree at that PR's head: the fixed
-reader leaves its 80 sites unmoved with the filter present AND with it
-deleted, while the old reader plus a deleted filter reds with the
-duplicates — so the filter did exactly this and nothing else. The
-retirement is
-`loop-boundary-line-view-filter-is-dead-after-the-window-fix`.
+**The gate that filtered the duplicate is retired with it.** PR 2044
+merged while this branch was open, so `loop-boundary-discards.sh`'s
+line-view confirming filter — `if (!((file ":" line) in anch)) next` —
+comes out here. Four cells over the live tree say it was doing this and
+nothing else: old reader + filter, 80 sites green; fixed reader +
+filter, 80 green; fixed reader, filter deleted, 80 green; old reader,
+filter deleted, RED with the duplicates (`UNREG … splitting/join.rs:318`,
+the site at 319 read one line early). The pinned counts are what make
+that a proof.
+
+The anchor test stays, because what it now does is name the enclosing
+`fn` at each site line; the `anch` array and the confirming test go.
+A window record whose start line the line view does not place is no
+longer dropped — it matches no entry and is REPORTED, which is the
+direction a gate should err in.
+
+**The gate's clean fixture is the reader fix's second witness.** Every
+planted site there sits under a comment-only line, so with the filter
+gone a regressed reader makes every entry MISCOUNT: proved by reverting
+the reader guard and removing `gate_selftest_clean`'s own window
+assertion, which reds the fixture with one duplicate per site, each
+carrying an empty `<fn>`.
