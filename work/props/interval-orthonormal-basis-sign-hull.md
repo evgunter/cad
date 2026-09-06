@@ -5,7 +5,7 @@ title: Vec3::orthonormal_basis returns a sign-hulled frame at Interval when n.z 
 status: open
 opened: 2026-09-03
 refs: [1191, 1939]
-needs_ev: true
+needs_ev: false
 pr: 1939
 ---
 
@@ -168,6 +168,22 @@ naming the class, and closes this item; M10-5's `chart_frame`
 workaround retires for the point-zero class only (the two
 `[−2.2e-16, 2.2e-16]` walls keep needing it). If refused: the item
 records the hull as a decision and the workaround stays.
+
+## RULED (Ev, 2026-09-06, on PR 1944): (c′)
+
+Canonicalise the zero at f64 — `s = copysign(1, n.z + 0)` inside
+`orthonormal_basis` — and let the `Interval` point-zero arm answer
+`[+1, +1]`, which encloses the f64 program by construction once the
+f64 side no longer depends on the zero's sign. Ev's question, answered
+on the PR: the hulled quantity is the unit sign `s`, not `n.z`, so
+`[0, 0]` is not the sound alternative; `[−1, 1]` is the honest hull
+while f64 can answer either sign, and (c′) is what removes the "either".
+The cost accepted: the twelve boolean-reversed corpus walls' stored
+`u_ref` move (four by a half-turn), eight STEP `DIRECTION` records
+re-derive with the reason recorded, a doc line at `Datum::FaceFrame`
+names the class; M10-5's `chart_frame` workaround retires for the
+point-zero class only. The unit's spec follows
+(`docs/PROPS-SIGN-HULL-SPEC.md`).
 
 ## Home
 
