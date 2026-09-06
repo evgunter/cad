@@ -97,6 +97,8 @@ mod instance_authoring;
 mod landing_gathers;
 #[path = "mate_tool_flow.rs"]
 mod mate_tool_flow;
+#[path = "msolve4_blame_rows.rs"]
+mod msolve4_blame_rows;
 #[path = "panel_display.rs"]
 mod panel_display;
 #[path = "panel_edits.rs"]

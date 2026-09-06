@@ -1,4 +1,4 @@
-//! **The kernel query seat** (`docs/VERB-SEAT-DESIGN.md` §1) — the
+//! **The kernel query seat** (VERB-SEAT-DESIGN §1, `crates/verbs/README.md`) — the
 //! geometric half of the selection vocabulary as pure functions of a
 //! [`Body`], at the layer whose types they serve.
 //!

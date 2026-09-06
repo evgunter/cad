@@ -127,3 +127,10 @@ CHROME row's PREMISE was rewritten (it asserted the memo hazard as
 its precondition and said so); the guard in `tree.rs` is gone with no
 row needing it. Style review and correctness arm dispatched on that
 head.
+## MSOLVE-4 MERGED (2026-09-06, PR 1960)
+
+Fix pass green on the full matrix at `e1ede48`; merged on the
+state-sync commit without a fresh run (docs and tracker only). Item
+closed, spec deleted into the ledger, `mate-memo-key-does-not-carry-
+the-solve` closed. Next: MSOLVE-2 dispatched on `msolve/2-member-chain`
+against the spec on main; MSOLVE-3 after it.

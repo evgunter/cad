@@ -457,3 +457,14 @@ folds `chords.rs`'s local `differenced` helper into
 `KnotVector::difference_coeffs` (one home for the mint-or-poison-vector
 step, its never-empty contract stated once); six call sites re-spelled,
 no arithmetic. Signed (PROPS orchestrator).
+
+## MESH-12 taken over by PROPS (2026-09-06)
+
+Ev, in chat to the PROPS orchestrator: "you can take over 1617". PR
+1617 (`mesh/12-saturated-span`, frozen 0e053a727, dispatched by this
+program and never reviewed) is finished by PROPS: merge-forward, CI,
+the dual under the ordinal this program claimed for it (1210, parity
+byte 40 ⇒ R1 opus / R2 fable), fix pass, landing, all recorded in
+`work/props/log.md` and in the A/B log's S-MESH band with a takeover
+note. `work/mesh/MESH-12.md` closes with the landing. Signed (PROPS
+orchestrator).
