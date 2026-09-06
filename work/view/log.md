@@ -4185,3 +4185,125 @@ siblings the reviewer filed, plus the rustfmt cost, the gate and the
 second-copy question. That is a lot for one style unit, and it is the
 right shape: a mechanism that changes nine types at once should leave
 its costs on the board rather than in a PR body.
+
+## #2046 MERGED; the census was wrong a THIRD time, and the anchor was the bug (2026-09-06)
+
+**#2046 merged at `7b63c345`.** Twelve units on main this session. CI:
+37 jobs, twelve `test (…)`, five `k-lint (gate, …)`, `gate ok` success,
+zero non-green.
+
+### The dispatcher's hypothesis was tested and refuted, which is why it was stated as one
+
+The fix brief handed the lane an idea for the rustfmt loss — that
+rustfmt bails because `pub const ALL;` does not parse as an item, so
+moving the `ALL` declaration onto the enum as an attribute would leave
+the body one well-formed item — **explicitly as an idea to test rather
+than a shape to build**, after this session's earlier episode where a
+dispatcher's "eager gather in `land`" was premised on a fit that never
+asks.
+
+The lane ran three experiments and refuted it: the attribute form, the
+body rewritten as a single well-formed item, and the invocation
+delimited `()` instead of `{}`. All three still let a variant
+re-indented to column 21 pass `cargo fmt --check`, while the identical
+mis-indent on an ordinary enum ten lines below is caught. **It is the
+invocation rustfmt declines, not the body**, so no rearrangement inside
+the delimiters helps.
+
+That is the right outcome from a stated hypothesis, and it is worth
+naming as a practice: a dispatcher who states a shape gets it built; a
+dispatcher who states a hypothesis gets it tested. The cost is now
+disclosed in `vocab.rs`'s module doc WITH the demonstration, in the
+README, and filed as `vocabulary-macro-bodies-are-outside-rustfmt` —
+which also records that `arc_modes!` and `transition_table!` have been
+paying the same price longer, so this is a repo-wide fact rather than a
+debt this unit invented.
+
+### The third census failure, and the first where the TEST was right
+
+`viewer-const-all-tables-have-no-exhaustiveness-guard` said five;
+the tree had ten; the class is nine. That was the second wrong count in
+a day, and the log recorded the lesson as *the membership test was
+wrong, not the counting*.
+
+**This time the test was right and the SCAN did not implement it.** The
+review found a live instance the census missed
+(`pane/properties.rs:156`, a complete inline mirror of `editor-core`'s
+four-variant `Dimension`, driving what a user can pick) and inferred
+that `pane/` had not been scanned. It had. The regex required the
+opening `[` to follow `=`, `[`, `(` or `,`, so an array literal
+introduced by a KEYWORD — `for (dimension, label) in [ … ]` — could
+never be a hit. Re-run unanchored it returns five more, two of them
+members.
+
+So the class of census failure has three members now and they are three
+different mistakes: a stale count inherited from another program, a
+membership test that admitted the wrong things, and a scan narrower
+than the test it claimed to implement. **A census owes both halves in
+writing** — the test AND the method — and the closed item now says so.
+That is the sentence a fourth failure would have to get past.
+
+### What the review confirmed, which was most of it
+
+No behaviour change anywhere; all nine converted tables byte-order-
+identical to the arrays they replaced; no lost order, no visibility
+change. The three claims the orchestrator checked before dispatching
+the review — the `DatumKind` reorder being inert, the `arc_modes!`
+precedent being real, the deleted test being vacuous — were each
+confirmed against the tree, one upgraded from `likely` to `sure`. The
+brief asked the reviewer to refute rather than repeat them and it did
+the work either way, which is what that instruction is for.
+
+### The two judgement calls came back with better arguments than the dispatch had
+
+**The gate (F11).** The orchestrator leaned "file it, the gate is small
+enough for a later lane" and said the call was the lane's provided it
+came with an argument. The lane filed it and gave a different reason,
+which is the right one: the cost is not the grep, it is that the
+allowlist would live in a README section, so the gate needs a `ci.yml`
+step, a `gate-roster.sh` registration, a `ci-local.sh` line and a
+`check-ci-mirror-parity.py` tier decision — none of which are questions
+about `const ALL`. `a-new-hand-written-all-table-meets-no-gate` carries
+that, plus `lib.sh:113-141`'s `|| true` hazard and the
+read-the-allowlist-don't-restate-it contract. The README no longer
+offers prose as the answer; it says a gate is owed.
+
+**The arm rule (F12).** Asked to write down what decides which
+`vocabulary!` arm a type takes, the lane read the rule off the tree
+rather than inventing one: *a word goes in the table when the row that
+iterates it is its only reader, and in a method when anything asks a
+single value for its word* — because a method can be called on one
+value and a table can only be iterated. Verified at all four `label`/
+`name` sites and against the five labelled tables, whose words appear
+nowhere but their radio rows. The second-copy question is filed with
+the trap named: a labelled vocabulary can still carry `label()`, so if
+that ever holds, the two-shape rule collapses and should be DELETED
+rather than amended.
+
+### The slow interval shard, resolved
+
+`test (interval, eps = 1e-12, 1/2)` ran ~9 minutes here against ~530s
+baseline and ~35 minutes on #2026. Same job, same branch family, three
+runs. That retroactively confirms #2026's reading — a degraded runner
+on one occasion, not a systematic change the diff caused — and it
+confirms the decision not to re-run it. A job stepping through its
+phases is not a flake, and this program now has the measurement to say
+so next time rather than the argument.
+
+### The wave's output beyond its diff
+
+**Nine new items**, every one a file. `hand-maintained-mirrors-of-a-
+kernel-enum-are-unforced`, `vocabulary-macro-bodies-are-outside-
+rustfmt`, `a-new-hand-written-all-table-meets-no-gate`, `bare-
+vocabularies-declare-their-words-a-second-time`, and the reviewer's
+four (`dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum`,
+`viewer-suites-hold-hand-written-complete-variant-lists`, `two-
+datumkind-enums-name-the-same-four-datum-kinds`, and `work/issues/
+boolean-op-has-a-third-hand-written-complete-list.md`, which is in
+`issues/` because its site is `editor-core` and no program obviously
+owns it).
+
+The board is now **48 open, 27 closed, nothing dispatched, nothing on
+Ev**, and no large item left: small units, two waiting on DOCM's
+`next_id` door, and the focus-map siting question no single program can
+answer.

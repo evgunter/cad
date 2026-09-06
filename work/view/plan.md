@@ -122,7 +122,19 @@ should be visible on its own.
 | `view/module-kind-gate` (the gate's own clean-tree bug) | #1953 | style |
 | `view/axes-and-badges` (Ev's provenance rule, made structural) | #1957 | style |
 | `view/status-line-sweep` (seventeen of eighteen writers) | #2026 | style + fix pass |
-| `view/const-all` (the `vocabulary!` declaration) | #2046 | style — **in review** |
+| `view/const-all` (the `vocabulary!` declaration) | #2046 | style + fix pass |
+
+**Twelve units on main. The wave produced nineteen new items** — ten
+from the sweep and its review, nine from `const-all` and its review —
+every one a file rather than a sentence in a merged PR body.
+
+**The census failure has three distinct members now**, and they are
+three different mistakes: a count inherited stale from another program,
+a membership test that admitted the wrong things (#2026), and a scan
+narrower than the test it claimed to implement (#2046, where the regex
+required `[` to follow `=[(,` and so could never see an array literal
+introduced by a keyword). A census owes BOTH halves in writing — the
+test and the method — and the closed items say so.
 
 Plus the `[ev]` PR carrying the three design forks, and this session's
 orchestrator state-sync — which had again gone 32 commits behind main
