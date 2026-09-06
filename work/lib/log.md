@@ -2854,3 +2854,12 @@ the 08-29 ruling (the shape is fully specified by the ruling and the
 store's own `DuplicateId`); the viewer `SessionOp` spelling is a rider
 handed to the GUI programs after it lands. Queued behind Wave 1 for the
 box, not for any decision.
+
+**RULED — the façade polygon door gets built (Ev, PR 2017, 2026-09-06:
+"A is good here too!").** A LIB unit, mechanical under the 08-29 ruling:
+the fallible lattice-backed `pncad::authoring::polygon`, one `PathError`
+arm for the sub-three-vertex case (with its Python tag and inventory
+row), the tour's `path_polygon` helper deleted and its thirteen call
+sites moved onto the door (`demos/tour` is a render-lane touch; frames
+should not move since the spelling is the same lattice — a moved frame
+is a finding, not a re-baseline). Queued behind Wave 1 for the box.
