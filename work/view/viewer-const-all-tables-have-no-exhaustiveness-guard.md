@@ -6,6 +6,7 @@ status: closed
 opened: 2026-09-04
 refs: [1762]
 closed: 2026-09-06
+pr: 2046
 ---
 
 Found by CHROME's style lane on PR 1762, as a class rather than an

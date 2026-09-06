@@ -4,6 +4,7 @@ kind: issue
 title: forms::BOOLEAN_OPS mirrors a kernel enum declared in another crate, and no compiler forces the mirror
 status: open
 opened: 2026-09-06
+refs: [2046]
 ---
 
 
