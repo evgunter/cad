@@ -507,6 +507,138 @@ the reason the shape differs from its sibling. Gate loop green under
 both awks on the merged head; scanned sets unmoved.
 
 
+## Eighth wave dispatched (2026-09-06)
+
+With PR 2056 merged and PR 2058 verified and closing, the last two
+code lanes on the slate, both branched from `gates/reader-homes`'s
+head so they build on `lib.sh` as PR 2058 leaves it:
+`gates/anchored-skip` (`anchored-exact-text-skip-has-three-homes` —
+one `lib.sh` helper for the anchored exact-text skip, the three gates
+calling it, the subject-check rule decided) and
+`gates/readings-re-derived` (`D211` — the interval-square gate's
+five-shape scan and its 24 dispositions re-derived each run; `S13` —
+each named grep defect probed against today's tree and the
+greps-vs-lints evaluation written into `scripts/gates/README.md`,
+with any lint-replaces-gate conclusion routed to Ev rather than
+ruled). After these, `D212` remains, parked on `G4`.
+
+## PR 2063 opened (2026-09-06)
+
+`gates/readings-re-derived` reported: PR 2063 (`D211` + `S13`). The
+interval-square gate's five-shape scan is a census re-derived each run
+against a register of dispositioned sites; the header's one-shot 21
+never reproduced because its pattern was unrecorded (today's tree
+reads 0 + 0 + 4 + 3 over 84,513 statements, every candidate in one of
+the three disposition classes the prose named). The backend witness
+stays disclosed prose with the re-run written out as a test and a
+pointer to the floor's home (no cargo in the discipline job). S13's
+three named grep defects all closed by PR 849, each shown by probe.
+`scripts/gates/README.md` written: the greps stay with their gaps
+registered; `dylint` is the one candidate that closes anything real and
+is not worth a nightly pin, a compile step in a cargo-free job and a
+hole in roster parity — no lint replaces a gate, nothing for Ev.
+Outside fence, noted for the exit walk: the new README is not yet in
+`docs/DESIGN.md`'s companion table. Reviewer dispatched.
+
+## PR 2064 opened (2026-09-06)
+
+`gates/anchored-skip` reported: PR 2064
+(`anchored-exact-text-skip-has-three-homes`). One `lib.sh` helper
+family builds the anchored exact-text skip from the plain text — the
+record shape read out of `gate_rust_code` in the caller's view, the
+escaping out of `gate_ere_escape` — and `bounds-allowlist.sh` and
+`no-extra-real-bounds.sh` call it; `viewer-module-kinds.sh` turned out
+not to be a third home (its exemption is a pattern at a site count)
+and takes only the anchor builder, which also escapes three
+interpolations that were not. Subject-check rule decided: a missing
+home is a red in every caller (D103's class — a skip whose home is
+gone is a ratification the next file at that path inherits), each
+clean fixture planting the home. Four gates byte-identical live.
+Residue filed on this slate: `signed-zero-one-home.sh`'s
+home-anchored whole-file skip is unescaped. Reviewer dispatched.
+
+## Ninth wave dispatched (2026-09-06)
+
+The two residue rows this week's lanes filed on their own slate, both
+on files no open PR touches: `gates/file-skip-anchor`
+(`home-anchored-file-skip-is-unescaped` — `signed-zero-one-home.sh`'s
+whole-file skip through `gate_record_anchor`, branched from PR 2064's
+head for the helper, plus the sweep for any other interpolated-path
+skip) and `gates/debug-only-topo-class`
+(`debug-only-assert-euler-postcondition-is-on-no-row` — both spellings
+on the seven `topo` rows, pins re-taken, the self-test's quadratic cost
+measured). In review: PR 2063 (`D211` + `S13`), PR 2064 (the anchored
+skip).
+
+## PR 2063 reviewed (2026-09-06)
+
+Style review of `D211` + `S13`: mergeable, fix pass owed. The census
+re-derived to the same sites and the S13 probes reproduced. Findings
+sent back: the three-factor shape counts adjacent repeats the live
+matcher already sees (three of the four candidates), so the OK line's
+"cannot see" is false for them and the census quietly re-granulates
+KNOWN GAP 4 for one spelling; two self-test `want`s satisfied by any
+census red (the umbrella diagnosis carries both fragments), so
+removing the ABSENT check stays green; the two-statement entry's
+MISCOUNT/ABSENT paths under no fixture; the header's written-out
+witness test names geom-core's API in a crate that cannot depend on
+it; a bare `--register` dies silently; a count copied into the row.
+On the README: two passages answer Ev's commissioned question as
+settled — the dylint cost judgement becomes a recommendation, the
+policy sentence comes out, and ratification rides a separate `[ev]`
+PR that also lists the page in DESIGN.md's companion table.
+
+## PR 2064 reviewed (2026-09-06)
+
+Style review of `anchored-exact-text-skip-has-three-homes`: mergeable.
+The helper's record derivation, the escaping (every ERE metacharacter
+round-tripped), the missing-home rule held by `gate_selftest_clean`
+rather than convention, the dead-grep distinction and all eight
+mutations reproduced; four gates byte-identical. Fix pass sent: the
+two-record refusal's `exit` is lost inside a nested substitution so
+the gate continues past its own diagnosis (and no fixture reaches it);
+the path-escaping half is unreachable by construction for every gate
+scanning `*.rs` (only the extension dot is a metacharacter), which the
+comments, the residue row and the PR body overstate as a live
+widening — the `gates/file-skip-anchor` lane told the same, its
+fixture re-aimed at the anchor's `^` and `:` shape; history in six
+comments; the generic record prefix hand-spelled in five places beside
+the new anchor builder; a stale D103 path in `viewer-module-kinds.sh`.
+## Landed: PR 2063 (2026-09-06)
+
+`D211` and `S13` closed. `interval-square-allowlist.sh` re-derives on
+every run the census its header used to transcribe: the five square
+shapes the matcher structurally cannot see are counted over the
+statement view (the two-statement form by following one binding hop
+within a file), each candidate must match a register entry pinning its
+count, and an unregistered candidate, a moved count, a vanished site
+or a malformed pin reds — the `S49` shape. The header's 21 was never
+reproducible (pattern unrecorded); today's reading is 0 + 0 + 1 + 3
+over 84,513 production statements in 396 files, the counts re-derived
+and the prose pointing. The backend witness (`2^-481*1.5`) stays
+disclosed prose with its re-run written out as a test and a pointer to
+`TWO_PROD_VALID_MIN`'s home, because a cargo-free discipline job cannot
+compile it. S13's three grep defects (the `x*x` lookahead, `Real +`
+not stripping comments, `self.x * self.x`) were all closed by PR 849,
+each re-established by probe. `scripts/gates/README.md` carries the
+greps-vs-lints evaluation: `clippy::disallowed_*`, a proc-macro and a
+`syn` binary close nothing the statement view does not; `dylint` closes
+the alias/`include!`/macro-body cases at the cost of a nightly
+`rustc_private` pin, a compile step in the discipline job and a hole
+in roster parity — the greps stay, gaps registered, no ruling needed.
+Fix pass from the review: the three-factor shape now requires the
+wedged factor to differ from the operand, so the three adjacent
+repeats the live matcher already sees left the census (4 register
+entries, not 7) and an adjacent square in an allowlisted file cannot
+arrive as unregistered; every self-test `want` is built from the
+register entry itself, and the three register mutations run for a
+binding-hop entry as well as a three-factor one; both halves of the
+(file, shape) key have a fixture; the witness test rewritten in
+`interval-transcendentals`' own API and compiled once; a bare
+`--register` diagnosed; the README's dylint cost judgement made an
+explicit recommendation and its unratified standing rule removed —
+ratification rides PR 2067 (`[ev]`, one line: the DESIGN.md
+companion-table row for `scripts/gates/README.md`), which waits for Ev.
 ## PR 2066 opened (2026-09-06)
 
 `gates/debug-only-topo-class` reported: PR 2066
