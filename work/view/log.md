@@ -4875,3 +4875,112 @@ to reach names that are not knowable until
 `pickindex-holds-the-frames-marks-as-well-as-the-index` is decided —
 and `pick` → `pickcache` would strand `NotIndexed`/`unindexed` in a
 module named for a cache anyway.
+
+## #2079 MERGED; Ev's (d) landed, and my merge criterion was the wrong shape (2026-09-06)
+
+**#2079 merged at `116757bd3`.** Sixteen units on main this session.
+CI: 37 jobs, twelve `test (…)`, five `k-lint (gate, …)`, `gate ok`
+success, zero non-green.
+
+The cycle Ev ruled on is gone, verified from the imports rather than
+the receipt:
+
+    generation.rs   → (nothing at all)
+    pickindex.rs    → camera, display, generation, input, scene, session
+    evalseam.rs     → generation, pickindex, scene
+    pick.rs         → evalseam, generation, input, pickindex, scene
+
+`evalseam` keeps BOTH seams and both sets of threads, which is the
+property that made (d) win over a third seam module.
+
+### The lane went against the dispatch twice, and was right both times
+
+**On `Generation`'s siting.** The brief offered its own module or
+beside `DisplayTolerance` in `scene`. The lane took its own module on
+the observation that the two candidates pass DIFFERENT tests: `scene`
+imports nothing *from this crate* — which is the property the
+orchestrator's costing measured — but `generation.rs` imports nothing
+*at all*, and `scene` names `bvh`, `pncad::mesh` and ~20 kernel types.
+Add that none of `Generation`'s readers is `scene`, so siting it there
+makes each of them import a display module to name a counter. **The
+costing had measured the wrong property**, and the lane found the right
+one.
+
+**On the rename (F6).** The style review established that `pick.rs`
+claimed to be "the policy half of picking" and is not — the policy is
+in `pickindex`, `pick.rs` is a cache, and the real boundary landed is
+stateful-against-pure, which is *better* than the one claimed. The
+false sentence was owed and is fixed. The rename was declined, and the
+first of its three arguments is the one to keep: **a rename is not a
+move, and this PR's entire warrant is that it is one** — it would
+rewrite call sites across twenty-nine files and destroy the
+sorted-line diff that let the reviewer certify it, replacing a diff a
+reviewer can check mechanically with one they cannot. Also: the right
+names are not knowable until
+`pickindex-holds-the-frames-marks-as-well-as-the-index`'s ~405 lines
+come off, and even the easy half is unclean (`pick` → `pickcache`
+strands `NotIndexed`/`unindexed`, a refusal vocabulary, in a module
+named for a cache). The item stays open as the schedule, parked behind
+the second split.
+
+### My merge criterion was an absolute where the invariant is relative
+
+The fix brief said the test counts "must still be 24/1 and 501/0/1".
+They came back **24/1 and 503/0/1**, and the +2 was not the lane's:
+merging `origin/main` brought two new rows into
+`crates/viewer/tests/mate_tool_flow.rs`. **The invariant that matters
+is against the branch's own base**, and `#[test]` over
+`crates/viewer/{src,tests}` is 533 on `origin/main` and 533 on the
+branch — checked here, not taken on report.
+
+Pinning an absolute count in a brief is a defect of the same family
+this program has been fixing all day: a number that goes stale the
+moment anything else lands, where a stated TEST would not. A brief that
+says "the count must not move against your own merge base" survives a
+concurrent merge; one that names 501 does not.
+
+### The class bit inside the fix pass that was correcting it
+
+Rewriting the two module headers moved every import below them, so two
+of the three line numbers the reviewer cited for the surviving ring
+went stale **in the same commit that acted on them** — and had already
+been published in the PR body. The lane caught it by re-running the
+receipt instead of trusting it. Fourth unchecked citation this program
+has paid for today, and the first caught by its own author before a
+reader found it.
+
+### The review's own best finding
+
+The lane's negative result — that a move producing no behaviour change
+produces no stale claims — had a true premise and a false conclusion.
+The corrected statement is worth more than the original and is now the
+parent item's: **a behaviour-preserving move cannot falsify a sentence
+about behaviour and reliably falsifies one about STRUCTURE — the half
+such a unit is least primed to look for, because its whole discipline
+is aimed at the other one.** Three sentences had gone stale that way,
+including `crates/viewer/README.md`'s `session::op` row still naming
+`pick` as a `SessionOp` reader with zero hits there and seven in
+`pickindex`.
+
+That also re-cut `stale-file-citations-after-the-split`'s two halves
+onto **what a machine can reach** rather than numbers-versus-claims: a
+`file:line` gate resolves every numeric citation in this member and
+catches none of the three.
+
+### Residue
+
+Nine items filed by the review, six closed in the fix pass, three left
+open: `seam-split-leaves-a-cycle-through-the-session` (the ring through
+the driver's vocabulary, pre-existing and deliberately held open by the
+`IndexInputs` hoist), `pickindex-holds-the-frames-marks-as-well-as-the-
+index` (the named ~405-line second boundary), and
+`generation-get-has-no-reader` — the last untouched on purpose, because
+deleting a public item inside a move is exactly what
+`implementer-discipline` §3 forbids.
+
+The tracker re-sweep turned up a third out-of-fence row the first pass
+missed (`work/fix/error-types-with-no-display-class.md:73,87`), and the
+honest blind-spot statement is worse than "a pattern gap": the first
+pass's grep over `work/view/*.md` was **malformed** — an unescaped `|`
+printing `command not found` above output that was read as a result.
+The pattern was right and the reading of it was not.

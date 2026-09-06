@@ -125,6 +125,7 @@ should be visible on its own.
 | `view/const-all` (the `vocabulary!` declaration) | #2046 | style + fix pass |
 | `view/refusal-all` (`Refusal` has no `ALL`) | #2053 | style + fix pass |
 | `view/progress` (the swappable bool pair) | #2055 | style + fix pass |
+| `view/index-seam` (Ev's (d): the seam cycle broken) | #2079 | style + fix pass |
 
 **Fifteen units on main. Two rules this wave earned**, both about
 evidence rather than code:
@@ -136,6 +137,13 @@ evidence rather than code:
   same file. Parse the parameter list. A receipt offered as evidence and
   wrong about its own file is worse than no receipt, because a reader
   stops looking.
+
+**A merge criterion is a TEST, never an absolute.** #2079's fix brief
+said the test counts "must still be 24/1 and 501/0/1"; they came back
+503 because a concurrent merge of `main` brought two new rows in. The
+invariant that survives is *the count must not move against your own
+merge base* — checked here as `#[test]` at 533 on both sides. A number
+in a brief goes stale the moment anything else lands.
 
 **Operational, for whoever reads the log's CI notes**: the slow interval
 shard is not a FIXED shard. `1/2` was slow on #2026/#2046 and `2/2` on
