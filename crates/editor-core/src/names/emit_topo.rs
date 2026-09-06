@@ -463,6 +463,28 @@ enum Descent {
     B(FaceKey),
 }
 
+/// The constituents of a merged face read through its descent
+/// wrappers, each re-wrapped by that same chain — or `None` when the
+/// name, peeled to its foot, is not a merged face.
+///
+/// Only a bare `FromA`/`FromB` chain is peeled: a foot that carries a
+/// tail (`[Merged(cs), Fragment(q)]`) is a FRAGMENT of a merged face,
+/// a legitimate constituent in its own right, and is left whole.
+fn merged_foot(name: &StableName) -> Option<Vec<StableName>> {
+    let rewrap = |inner: Vec<StableName>, side: fn(Box<StableName>) -> RoleSeg| {
+        inner
+            .into_iter()
+            .map(|c| name1(EntityKind::Face, name.node, side(Box::new(c))))
+            .collect()
+    };
+    match name.path.as_slice() {
+        [RoleSeg::Merged(cs)] => Some(cs.clone()),
+        [RoleSeg::FromA(inner)] => merged_foot(inner).map(|cs| rewrap(cs, RoleSeg::FromA)),
+        [RoleSeg::FromB(inner)] => merged_foot(inner).map(|cs| rewrap(cs, RoleSeg::FromB)),
+        _ => None,
+    }
+}
+
 /// Names a boolean result (spec D2's boolean vocabulary; N2/N3).
 pub(crate) fn name_boolean<T: Decide>(
     node: RecipeNodeId,
@@ -543,20 +565,21 @@ pub(crate) fn name_boolean<T: Decide>(
             from_tie |= up.tied;
             // A merged face's name is a FLAT constituent set (N3), and
             // this loop is the one site that decides it. An operand
-            // face that is itself a merged face contributes its
-            // constituents — each wrapped by this constituent's
-            // descent side, exactly as a single name is — and never
-            // its `Merged` name, so no published constituent set
-            // contains a merged face and no consumer has to flatten
-            // one. The operand's constituents are names of the
-            // operand's own space, as its `Merged` name is, so the
-            // wrap puts them in this node's space by the same rule.
-            match up.name.path.as_slice() {
-                [RoleSeg::Merged(cs)] => constituents.extend(
-                    cs.iter()
-                        .map(|inner| wrap(d, inner.clone(), EntityKind::Face)),
-                ),
-                _ => constituents.push(wrap(d, up.name, EntityKind::Face)),
+            // face that is a merged face — read THROUGH its descent
+            // wrappers, since a face carried through untouched
+            // booleans is still that face — contributes its
+            // constituents, each re-wrapped by the chain the whole
+            // name carried and then by this constituent's descent
+            // side, exactly as a single name is; never its `Merged`
+            // name. So no published constituent set contains a merged
+            // face at any depth of wrapping, and no consumer has to
+            // flatten one. Re-wrapping crosses no space: each
+            // constituent stays a face name of the table its chain
+            // descends into, exactly as the wrapped `Merged` was.
+            match merged_foot(&up.name) {
+                Some(cs) => constituents
+                    .extend(cs.into_iter().map(|inner| wrap(d, inner, EntityKind::Face))),
+                None => constituents.push(wrap(d, up.name, EntityKind::Face)),
             }
         }
         merged_descents.insert(*kept, descents);

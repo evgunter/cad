@@ -589,7 +589,10 @@ pub fn relations(findings: &[editor_core::AtRestFinding]) -> Vec<(RecipeNodeId, 
 /// only in the rows written to look for it. The walk is over every
 /// name a segment embeds ([`embedded_names`]), so a merged face that
 /// reaches a table inside a blend's or a pattern's name is held to
-/// the same rule as one at a row's head.
+/// the same rule as one at a row's head; and a constituent is read
+/// through its descent wrappers ([`is_merged_face`]), so a merged
+/// face carried through untouched booleans before being merged again
+/// is nesting exactly as a bare one is.
 pub fn assert_no_nested_merged<T: geom_core::Decide>(ev: &editor_core::Evaluation<T>) {
     for (id, result) in &ev.nodes {
         let editor_core::NodeResult::Ok(value) = result else {
@@ -599,13 +602,26 @@ pub fn assert_no_nested_merged<T: geom_core::Decide>(ev: &editor_core::Evaluatio
             let nested = merged_sets(name)
                 .into_iter()
                 .flat_map(|set| set.iter())
-                .find(|c| matches!(c.path.first(), Some(RoleSeg::Merged(_))));
+                .find(|c| is_merged_face(c));
             assert!(
                 nested.is_none(),
                 "node {id:?} published a merged face with a merged constituent {}: {name}",
                 nested.map(|c| c.to_string()).unwrap_or_default()
             );
         }
+    }
+}
+
+/// True iff `name`, read through its `FromA`/`FromB` descent chain,
+/// is a bare merged face — the shape a flat constituent set never
+/// holds. A FRAGMENT of a merged face (`Merged` head with a
+/// `Fragment` tail at the foot) is a fragment, not a merge, and is a
+/// legitimate constituent.
+fn is_merged_face(name: &StableName) -> bool {
+    match name.path.as_slice() {
+        [RoleSeg::Merged(_)] => true,
+        [RoleSeg::FromA(inner) | RoleSeg::FromB(inner)] => is_merged_face(inner),
+        _ => false,
     }
 }
 

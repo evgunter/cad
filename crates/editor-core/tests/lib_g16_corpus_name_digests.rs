@@ -114,7 +114,7 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// must be disjoint.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0xfdf3_d13d_4782_a4e5),
-    ("corner_table", 0x9592_0b18_b821_88f4),
+    ("corner_table", 0xae66_1ffa_e1aa_f5dd),
     ("heat_sink", 0xa29d_1f9f_979d_097e),
     ("crossing_slots", 0xcdd4_d506_fa1a_ab9b),
     ("nested_islands_105", 0xb7d4_5b86_990b_53a8),

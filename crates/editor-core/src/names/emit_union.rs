@@ -206,13 +206,16 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
         // The constituent set is FLAT (N3): a constituent is never
         // itself a merged face. The pair emitter's merge-group loop
         // is the one site that decides that — an operand face that is
-        // a merged face contributes its constituents, not its name —
-        // so a constituent whose collapsed head is `Merged` is a name
+        // a merged face, at any depth of descent wrapping,
+        // contributes its constituents, not its name — so a
+        // constituent that collapses to a bare merged face is a name
         // that site never mints, and this rewrite REFUSES it as the
         // emission bug it is rather than flattening it. Flattening
         // here would make the accumulation's rows carry the fold
         // tree in the one name the pair emitter is defined to keep
-        // free of it.
+        // free of it. A FRAGMENT of a merged face (`Merged` head, a
+        // `Fragment` tail) is a fragment, not a merge: a legitimate
+        // constituent, collapsed like any other.
         //
         // The sort-and-dedup makes the constituent SET the name, the
         // same choice the pair emitter's twin makes (`emit_topo.rs`,
@@ -224,7 +227,7 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
             let mut set = Vec::with_capacity(constituents.len());
             for c in constituents {
                 let c = collapse(node, c)?;
-                if matches!(c.path.first(), Some(RoleSeg::Merged(_))) {
+                if matches!(c.path.as_slice(), [RoleSeg::Merged(_)]) {
                     return Err(bug(NESTED_MERGED));
                 }
                 set.push(c);
