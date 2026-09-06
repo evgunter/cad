@@ -2863,3 +2863,22 @@ row), the tour's `path_polygon` helper deleted and its thirteen call
 sites moved onto the door (`demos/tour` is a render-lane touch; frames
 should not move since the spelling is the same lattice — a moved frame
 is a finding, not a re-baseline). Queued behind Wave 1 for the box.
+
+**RULED — a Python `Product` is a plain value the doors clone (Ev, PR
+2020, 2026-09-06: "plain value doors clone sounds good"), with the
+combined door as the measured fallback.** Tradeoffs stated on the
+thread. A LIB unit, mechanical under the 08-29 ruling, whose first act
+is the clone-cost measurement. Queued behind Wave 1 for the box.
+
+**Correction owed on the bench-corpus question (PR 2019).** Ev asked
+why the corpus bytes are committed, and the honest answer exposed a
+stale premise in my own `[ev]` PR: the corpus exists because Python
+could not author assembly nodes at LIB-G18a, and G18B closed that the
+same day — `test_assembly_author.py` already authors the whole scene
+from nothing into a temp store. The header of `test_assembly_eval.py`
+still says "Python cannot AUTHOR an instantiate node", a false live
+claim. Recommendation revised on the thread to (E): delete the
+committed bytes and build the eval test's store from the authored
+scene, which closes the hole rather than narrowing it. Lesson for the
+orchestrator: an `[ev]` question is a claim about the tree and owes
+the same re-measurement as any other before it is asked.
