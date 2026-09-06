@@ -124,6 +124,10 @@ mod e4_dual_door;
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
 mod fix_pattern_mate_crossing;
+#[path = "r1_docm8_dump.rs"]
+mod r1_docm8_dump;
+#[path = "r1_docm8_probes.rs"]
+mod r1_docm8_probes;
 
 #[path = "gui1_pick.rs"]
 mod gui1_pick;
