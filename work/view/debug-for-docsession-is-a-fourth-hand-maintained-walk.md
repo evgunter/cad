@@ -7,6 +7,7 @@ status: closed
 opened: 2026-09-05
 closed: 2026-09-06
 branch: view/debug-walk
+pr: 2093
 ---
 
 
