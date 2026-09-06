@@ -2805,3 +2805,42 @@ document-door spelling of the same mouth. Sequencing deviation stated
 rather than hidden: the draw byte was read in the same tool call as
 the last spec read, minutes before the difficulty sentence was written
 down; the difficulty is the G16 precedent's and was not moved.
+
+**LB17 — the CUR5 carriage, decided (2026-09-06).** One rule settles
+all five rows, and it is the one the CUR3/CUR4 pair already wrote at
+the census's `BlendError` entry: **a payload's category follows what
+its carrier does at the crossing.** Applied:
+- `MeshPickError` under `NodePickError` (carrier projects tags): CARRY
+  `MeshPickError` alone into `crates/pncad/src/select.rs`, `MeshPick`
+  stays interior, `mesh_pick_error_tag` with `position_out_of_range`.
+  CUR3's construction argument is untouched.
+- `ResolveError` / `ResolutionFailure` / `ResolveIndeterminate` under
+  `Resolution` (carrier projects `resolution_status_tag`): CARRY the
+  three beside `Resolution`, WITHOUT `Diagnosis`, `Tombstone`,
+  `TieWitness`, `RecipeEditRef`, `Resolved` (the key-bearing and
+  telemetry half the stanza is really about); `resolve_error_tag`,
+  `resolve_indeterminate_tag`, and `variant` on `Resolution`'s arms.
+  The stanza's own argument — "a door carried for a consumer that does
+  not exist" — no longer holds: the consumer is Python, which holds a
+  string and nothing else. A strictly smaller carriage than GUI-2's.
+- `Indeterminate` (thirteen prelude carriers): CARRY on the prelude
+  (contract clause 1 is met already at `pncad::geom_core::Indeterminate`;
+  the curated-list half is what is owed). `MarginDiag`: MEASURE first —
+  carry iff some curated refusal's Python projection exposes its
+  discriminant or the unit adds one; else INTERIOR with the reason
+  written at the entry, the `BandField` precedent.
+- `LoopKey`: CARRY beside `VertexKey`/`EdgeKey`/`FaceKey` in the
+  prelude's group 4 (the same `topo` re-export); record blind spot (e)
+  — macro-minted types are invisible to a declaration-level index —
+  where CUR3's (a)–(d) are recorded.
+- `EntityId` / `GeomRef` / `ContactFinding`: CARRY through the groups
+  their siblings already sit in (`topo` root beside the keys; the
+  contact vocabulary's missing quarter through `crate::select`). The
+  LB13 guard names `EntityRef`/`EntityKey`/`Entry` — editor-core's
+  document-layer keys — and the unit READS the guard before touching
+  anything: if `EntityId` is a document-layer key rather than `topo`
+  vocabulary, that row STOPS and reports.
+Mechanical under the 08-29 ruling (the CUR/CUR2/CUR3/CUR4 precedent).
+**Held until Wave 1 lands**: CUR5 edits the census, `tags.rs`,
+`pncad.pyi` and `all.rs`, the exact files B-FACE-FRAME and MECH2 are
+in, and a fourth build target on this box is past the disk budget.
