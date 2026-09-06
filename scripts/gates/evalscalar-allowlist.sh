@@ -13,9 +13,11 @@
 # crate::analysis::AxisScalar + crate::analysis::SeedScalar +
 # crate::measure::MinClearanceLane + SectionScalar` — declared once at
 # the seam the rule above already ratifies, so `eval/parts.rs` names
-# the requirement instead of restating `+ Bounds`. The list is read
-# from that declaration and is not checked here: what this gate checks
-# is where the NAME may be bound, not what it gathers. That is a naming, and it must
+# the requirement instead of restating `+ Bounds`. THE LIST IS READ FROM
+# THAT DECLARATION AND IS NOT CHECKED HERE: what this gate checks is
+# where the NAME may be bound, never what the name gathers.
+#
+# The name is a NAMING, and it must
 # stay one: the trait is `pub` (the integration suites need it),
 # so without this step any file in any crate could acquire a
 # compound Bounds bound invisibly to the grep above. Allowlist =
