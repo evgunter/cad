@@ -1259,8 +1259,8 @@ plant_where_clause_near_misses() {
 # did not, on the same reading of the same rule.
 plant_lifetime_bound_sole() {
   mkdir -p "$1/crates/planted/src"
-  printf 'pub fn a<%sa, T: %sa + Bounds>(_t: &%sa T) {}\n' "'" "'" "'" \
-    > "$1/crates/planted/src/lib.rs"
+  # Double-quoted, so the lifetime tick is a literal character.
+  printf "pub fn a<'a, T: 'a + Bounds>(_t: &'a T) {}\n" > "$1/crates/planted/src/lib.rs"
 }
 
 plant_relaxed_bound_sole() {
@@ -1273,8 +1273,8 @@ plant_relaxed_bound_sole() {
 # not stop one either.
 plant_lifetime_beside_compound() {
   mkdir -p "$1/crates/planted/src"
-  printf 'pub fn a<%sa, T: %sa + Decide + Bounds>(_t: &%sa T) {}\n' "'" "'" "'" \
-    > "$1/crates/planted/src/lib.rs"
+  # Double-quoted for the tick, as the sole-bound case above is.
+  printf "pub fn a<'a, T: 'a + Decide + Bounds>(_t: &'a T) {}\n" > "$1/crates/planted/src/lib.rs"
 }
 
 plant_relaxed_beside_compound() {
