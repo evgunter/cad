@@ -899,3 +899,39 @@ repository generates by construction, which is why the class recurs.
 Three duplicate pairs in one day (two within CIW's own slate, one
 across three programs) is not three accidents. The board is the only
 instrument that can see them and only an orchestrator reads it whole.
+
+## 2026-09-06 — unit 2 reported; two findings placed, one held for the fix pass
+
+Unit 2's lane took the filter answer, not the doc-only one, and the cost
+number is what decided it: the `python suite` job is `needs: filter`
+only, runs 115–125 s, and finishes 692–917 s before a code-tier run ends
+(run wall clock 856–1302 s, set by the serial build → test chain), so
+the wall clock it adds is **zero** and wall clock is the currency. The
+doc moved too, because §2's sentence had stopped being true on
+2026-09-03 either way.
+
+Both reviews are out: the style lane, and the correctness lane this unit
+earned — named in the PR with its reason, which is that the unit changes
+what a hosted run executes, on S-TCOST's file, and a wrong answer here
+fails silently in exactly the way the defect did.
+
+**Filed on META's slate**: `work/meta/territory-is-blind-to-keep-out`.
+`work.py territory` reported 0 cross-fence paths for a branch whose
+subject is an edit to a file CIW's own `keep_out` gives to S-TCOST,
+because `territory` reads `paths` globs and `keep_out` is prose. Every
+implementer brief tells a lane to run that check and address what it
+names; on a declared-fence crossing it names nothing. Filed straight
+onto META's slate rather than routed — the owner is unambiguous
+(`scripts/work.py` is in META's `paths`) and `work/README.md`'s
+2026-09-04 rule says a finding goes where it belongs without the owner's
+permission.
+
+**Held for unit 2's own fix pass, not filed**: `ci.yml`'s comment block
+above `clippy (pncad-py, python feature)` (`:3749-3757`) says *"on a PR
+whose seeds miss {pncad-py, pncad, editor-core} the row does not run"*
+and that a change reaching `src/py/` through `quantity` or the
+re-exported kernel *"seeds nothing"*. **The lane's own diff falsifies
+both sentences** — those crates seed the axis now. That is not a
+follow-up item; it is reviewer question Q4 (did this change invalidate a
+premise something else cites) landing on the diff that caused it, and it
+goes back to the lane with the reviews.
