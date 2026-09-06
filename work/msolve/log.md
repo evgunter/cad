@@ -318,3 +318,24 @@ table is read through the same door the interrogation functions use;
 `NodeGone` had no constructing site; the arm is authorable from
 Python through `placed_union(transform(...))`, so the Python row is
 real. Style review and correctness arm dispatched on that head.
+
+## MSOLVE-5 reviews adjudicated, fix pass dispatched (2026-09-06)
+
+Correctness arm APPROVE-WITH-FIXES: C1, C3, C4 confirmed (the solve
+and the product bit-identical to main on the issue's document — the
+one differing line is the unminted row's `why`); C2 PARTIAL, one
+MAJOR: a TIED non-face entry at the operand skips the kind question
+and answers `ReadBelowARoot` where the ruling says `NotAFace`
+(reachable through a split part's `TieRows`). Ruled: the kind comes
+from `name.kind`, which the table enforces for every candidate. Style:
+no MAJOR; the operand's table read by a hand match instead of
+`interrogate::value_of`; `Vanished`'s sentence not moved with its
+meaning; `ReadBelowARoot`'s sentence claiming a spelling the code
+never computed (the correctness arm's empty-boolean and discarded-half
+probes show the product may hold no trace at all); arm 4 and the
+not-live arm held by sentence, the latter with the wrong reason (the
+gather's Pass 1 refuses a poisoned root, not the solve); message
+substrings copied four times. Probes adopted: P1, P4, P6, P9b. Filed
+(`work/issues/`): the split root whose tie spans both halves refuses
+the gather (`carry_names` `DuplicateName`), and the assembly door's
+"only the head is raised" follow-up that lived in a comment.
