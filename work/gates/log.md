@@ -269,3 +269,15 @@ field was the only one proved), and every row pins its use count, the
 program's shape since PR 2042, proved by perturbing the pin in both
 directions; two miscounted sentences in the row corrected. 98 gate
 invocations in the selftest.
+
+## Seventh wave dispatched (2026-09-06)
+
+With PR 2049 merged and `bit-identity-debug-only.sh` free:
+`gates/statement-attribute-items`
+(`debug-only-reader-cannot-place-a-statement-attribute-over-a-braced-call`
+— the rule that an item under a statement-position attribute has no
+body brace, then the `ArenaDelta` rows the previous lane could not
+add). In flight: PR 2056 (`D102`) under review; `gates/reader-homes`
+and `gates/viewer-module-kinds-guards` building. Landed today so far:
+ten rows over eight PRs (2029, 2030, 2032, 2033, 2038, 2042, 2044,
+2049).
