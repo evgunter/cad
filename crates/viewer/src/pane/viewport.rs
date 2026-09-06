@@ -513,20 +513,45 @@ mod tests {
         );
     }
 
+    /// **A refused fold is NEWS, so it joins the frame rather than
+    /// writing the line.**
+    ///
+    /// It used to assign the field here, which is what this sweep
+    /// removed: `perform_batch` runs after the panes have drawn, so a
+    /// sentence written straight to the field was erased by the same
+    /// frame's accepted batch before the toolbar painted it. Going
+    /// through `notices` puts it in `frame::frame_status`'s rank 2,
+    /// where the batch's verdict can no longer outrank it.
+    ///
+    /// The older sentence on the line is left ALONE — a notice adds to
+    /// what the frame has to say and takes nothing away — and the
+    /// ranking is what decides between them.
     #[test]
-    fn landing_a_refused_fold_shows_the_refusal() {
+    fn landing_a_refused_fold_is_news_and_joins_the_frames_notices() {
         let mut camera = framed();
         let refuses = CameraOp::Dolly { factor: 0.0 };
         let folded = fold_recorded(&camera, std::slice::from_ref(&refuses));
-        let mut status = Some(frame::Message::new(frame::Subject::Document, "older news"));
+        let older = frame::Message::new(frame::Subject::Document, "older news");
+        let mut status = Some(older.clone());
         let mut notices = Vec::new();
         land(&mut camera, &mut notices, &mut status, &folded);
-        let shown = status.expect("a refused fold is news");
-        assert!(
-            shown.text().contains("camera:") && shown.text().contains("dolly by a factor"),
-            "{shown}"
+
+        assert_eq!(
+            notices.len(),
+            1,
+            "a refused fold is one notice: {notices:?}"
         );
-        assert_eq!(shown.subject(), frame::Subject::Camera);
+        let raised = notices.first().expect("the notice just asserted");
+        assert!(
+            raised.text().contains("camera:") && raised.text().contains("dolly by a factor"),
+            "{raised}"
+        );
+        assert_eq!(raised.subject(), frame::Subject::Camera);
+        assert_eq!(
+            status,
+            Some(older),
+            "and it writes nothing: the ranking decides, not the writer"
+        );
     }
 
     #[test]
@@ -541,7 +566,10 @@ mod tests {
         let folded = fold_recorded(&camera, std::slice::from_ref(&refuses));
         let mut notices = Vec::new();
         land(&mut camera, &mut notices, &mut status, &folded);
-        assert!(status.is_some(), "the refusal reaches the line");
+        assert_eq!(notices.len(), 1, "the refusal is news the frame carries");
+        // The line as the ranking would have left it, so the retiring
+        // half below is asked the question it is actually about.
+        status = notices.pop();
 
         let orbit = CameraOp::Orbit {
             yaw: 0.2,
