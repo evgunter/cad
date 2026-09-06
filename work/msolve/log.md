@@ -293,3 +293,18 @@ PR 2081 merged at `4568d7d` on a full green matrix. The lane clone
 cut `msolve/5-read-below-a-root` from main against `docs/MSOLVE-5-
 SPEC.md` (read from this branch until it lands; the lane merges main
 before its first push). The lever's extent is up on `[ev]` PR 2086.
+
+## MSOLVE-5 stop clause hit and ruled (2026-09-06)
+
+The lane (PR 2090, draft) reached the spec's third bullet with a real
+document: a mate reference naming a root instance's BODY is admitted
+at the door, placed by the walk, and at the gate the operand's table
+answers, `at` is a root, and the product is silent — because
+`carry_names` drops body rows. Ruled: the operand's entry decides its
+kind before the root question is asked — a non-face entry refuses
+`NotAFace { kind }` wherever it is read (the product's own answer for
+a non-face row it holds; a body never mints), a face entry at a
+non-root refuses `ReadBelowARoot { at }`, and a face entry at a root
+with the product silent is unreachable by construction and says so
+at the arm. Inside the fence; `NotAFace`'s meaning unchanged. The
+lane un-drafts and drives CI.

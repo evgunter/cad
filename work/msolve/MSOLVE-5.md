@@ -6,6 +6,7 @@ status: dispatched
 opened: 2026-09-06
 refs: [assembly-gate-refuses-vanished-on-a-mate-read-below-a-pattern]
 branch: msolve/5-read-below-a-root
+pr: 2090
 ---
 
 
