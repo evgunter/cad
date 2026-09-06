@@ -342,3 +342,18 @@ The liveness-and-generator sub-lane is empty except `D20` (queues on
 the lane budget); the reader sub-lane is `D107` only; the Euler
 sub-lane holds `S93`, `D265`, `D262`, `D263`, `S69`, the H item, the
 census door, and two residues.
+
+## Wave 3 out: D265 and S69 (2026-09-06)
+
+`D265` dispatched on `topo/d265-door-corruption-class`, spec
+`docs/TOPO-D265-SPEC.md`: the merge door's arena-fault class asks the
+enum a question ("torn?") that is not the door's ("contradicts a fact
+I established?"); two homes, the door enumerates its own. Moves a
+kernel answer (an inventory skip becomes an escape for the (C)
+variants) → block TOPO-B1 slot 1, dual at review. `S69` dispatched on
+`topo/s69-kfmrh-fusion-form`, brief in the item: the fusion branch
+generated, the ledger counting shells, the postcondition handed the
+plan's constant. Outside the experiment (generator, ledger, debug
+postcondition). Both briefs pre-log difficulty M; the D265 arm was
+known when its guess was written (block drawn 2026-09-05), disclosed
+in the spec.
