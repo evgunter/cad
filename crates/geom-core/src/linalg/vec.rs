@@ -451,6 +451,20 @@ impl<T: Real> Vec3<T> {
     /// poison only from the arm it reads. A poisoned INPUT still
     /// poisons everything, through the decision.
     ///
+    /// **The measured limit, stated rather than left to be
+    /// discovered.** `normalize` reads each candidate's OWN norm, so an
+    /// enclosure wide enough to leave a tie undecided AND to contain a
+    /// direction parallel to a candidate's axis hulls in that
+    /// candidate's zero vector and comes back unbounded. Every such
+    /// point is NON-UNIT — a unit direction parallel to `e_k` has
+    /// `|n_k| = 1`, which no enclosure that leaves the smallest
+    /// magnitude undecided contains — so the precondition excludes it,
+    /// and a tight enclosure of a real normal never reaches it. The
+    /// alternative that would close it, `(e_k × n)/sqrt(1 − n_k²)`,
+    /// buys the bound by LEANING on the precondition instead of merely
+    /// assuming it, and answers a non-unit input with a scaled frame
+    /// rather than a unit one.
+    ///
     /// Both squares inside `normalize` are the tight square
     /// (`powi(2)`), not the product `n·n`: at `Interval` the product
     /// treats the two factors as independent, so an enclosure

@@ -19,12 +19,12 @@
 //! geometry to measure. That is the driver's own measured limit, and
 //! issue 1191's class.
 //!
-//! Separately, every planar face whose normal has a zero z-component —
-//! every vertical wall of an extruded prism — carries a SIGN-HULLED
-//! `u_ref` at the interval scalar, because the branchless orthonormal
-//! basis starts at `copysign(1, n.z)`. The engine re-charts planes at
-//! its own door rather than reading that frame; the defect itself is
-//! filed as `work/issues/interval-orthonormal-basis-sign-hull.md`.
+//! Every carrier is measured in its STORED chart. A planar face's
+//! `u_ref` is the axis-order orthonormal basis's, which decides at the
+//! equator — a vertical wall's `|n.z|` is the strict smallest magnitude
+//! — so a wall stores an exact in-plane horizontal and the engine has
+//! nothing to re-chart around. The `refines` door stays: it refuses a
+//! chart that halving cannot narrow, whatever made it wide.
 //!
 //! A rigid translation keeps the rest clean: its rotation is the
 //! identity, so every stored direction passes through exactly. It does

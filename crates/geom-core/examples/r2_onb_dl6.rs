@@ -1,10 +1,16 @@
-//! R2 consumer probe for PCURVE P-2 (PR #1177), item 1 / #1157.
+//! DL6 consumer probe for `Vec3::orthonormal_basis`.
 //!
-//! Audits `Vec3::orthonormal_basis` against DUAL-DESIGN DL6 — "a
-//! certified lane may return Invalid/NaI only when the inputs pose no
-//! real question, and must take a widening path over an absorbing one
-//! where both exist" — rather than merely against "does it still
-//! poison at n.z = `[0,0]`".
+//! Audits the constructor against DUAL-DESIGN DL6 — "a certified lane
+//! may return Invalid/NaI only when the inputs pose no real question,
+//! and must take a widening path over an absorbing one where both
+//! exist" — rather than merely against "is it bounded on the equator".
+//!
+//! The construction crosses the normal with the world axis of its
+//! smallest-magnitude component and normalizes. Two places could
+//! absorb, and both are audited here: the axis choice at an enclosure
+//! that cannot decide it (which must HULL, not refuse), and the
+//! normalization of a candidate (which is well conditioned at the
+//! chosen axis and degenerate at the largest one — never the chosen).
 //!
 //! Run:  cargo run -p geom-core --features interval --example r2_onb_dl6
 #![allow(clippy::print_stdout)]
@@ -23,121 +29,132 @@ fn main() {
 
     let iv = |lo: f64, hi: f64| Interval::from_bounds(lo, hi);
     let pt = |x: f64| Interval::from_f64(x);
+    let show = |e: Interval| format!("[{:.6}, {:.6}]", e.lo(), e.hi());
+    let bounded = |e: Interval| e.lo().is_finite() && e.hi().is_finite();
 
-    // The TRUE range of the denominator magnitude 1 + |n.z| over any
-    // enclosure of n.z is [1, 1 + max|n.z|] — bounded away from zero
-    // for every input, unit or not. So `r = 1/(1+|n.z|)` is bounded
-    // in (0, 1] at EVERY input; a real question is always posed.
-    println!("== A. the shipped spelling vs. the spec's own `1 + |n.z|` ==");
+    // The equator is not a seam: |n.z| is the strict smallest magnitude
+    // at a wall, so the axis choice decides and the frame is exact.
+    println!("== A. the equator, where the sign-transfer spelling hulled ==");
     println!(
-        "{:<26} {:>34} {:>34} {:>8}",
-        "n.z enclosure", "shipped b1.x", "abs-spelled b1.x", "unbdd?"
+        "{:<26} {:>24} {:>10} {:>10}",
+        "n.z enclosure", "b1", "bounded", "cert"
     );
     let mut absorbing = 0usize;
     for (lo, hi, label) in [
-        (0.0, 0.0, "[0, 0]  (#1157's case)"),
+        (0.0, 0.0, "[0, 0]"),
         (-0.0, -0.0, "[-0, -0]"),
         (-1e-9, 1e-9, "[-1e-9, 1e-9]"),
         (-0.25, 0.25, "[-0.25, 0.25]"),
         (-0.5, 0.5, "[-0.5, 0.5]"),
-        (-0.9, 0.9, "[-0.9, 0.9]"),
         (-1.0, 1.0, "[-1, 1] (z unknown)"),
         (-1.0, 0.0, "[-1, 0]"),
         (0.0, 1.0, "[0, 1]"),
     ] {
         let n = Vec3::new(pt(0.6), pt(0.8), iv(lo, hi));
         let (b1, _) = n.orthonormal_basis();
-        // The same construction with the correlation FULLY restored,
-        // exactly as `docs/PCURVE-P2-SPEC.md` item 1 spells it:
-        // "compute the magnitude `1 + |n.z|` and apply the sign".
-        let s = Interval::one().copysign(n.z);
-        let r_abs = Interval::one() / (Interval::one() + n.z.abs());
-        let b1x_abs = Interval::one() - n.x.powi(2) * r_abs;
-        let _ = s;
-        let unb = !(b1.x.lo().is_finite() && b1.x.hi().is_finite());
+        let unb = !(bounded(b1.x) && bounded(b1.y) && bounded(b1.z));
         if unb {
             absorbing += 1;
         }
         println!(
-            "{label:<26} {:>34} {:>34} {:>8}",
-            format!("[{:.6}, {:.6}]", b1.x.lo(), b1.x.hi()),
-            format!("[{:.6}, {:.6}]", b1x_abs.lo(), b1x_abs.hi()),
-            if unb { "YES" } else { "" }
+            "{label:<26} {:>24} {:>10} {:>10}",
+            show(b1.x),
+            if unb { "NO" } else { "yes" },
+            b1.x.is_certified()
         );
     }
-    println!("\nabsorbing (unbounded) rows under the shipped spelling: {absorbing}");
+    println!("\nabsorbing (unbounded) rows: {absorbing}");
 
-    println!("\n== B. decoration at #1157's own input ==");
-    let n = Vec3::new(pt(0.0), pt(-1.0), pt(0.0));
+    // The undecided axis choice: the door hulls two UNIT candidates.
+    // Normalizing after the selection instead would divide a hull that
+    // contains the zero vector by its own norm — the absorbing path
+    // DL6 forbids where a widening one exists.
+    println!("\n== B. a straddled tie: hulled, not absorbed ==");
+    let n = Vec3::new(pt(0.8), iv(0.42, 0.43), iv(0.42, 0.43));
     let (b1, b2) = n.orthonormal_basis();
-    let r_abs = Interval::one() / (Interval::one() + n.z.abs());
-    let b1x_abs = Interval::one() - n.x.powi(2) * r_abs;
     println!(
-        "shipped  b1.x certified={} b1.y certified={} b2.y certified={}",
+        "shipped   b1 = ({}, {}, {})  certified={} poison={}",
+        show(b1.x),
+        show(b1.y),
+        show(b1.z),
         b1.x.is_certified(),
-        b1.y.is_certified(),
-        b2.y.is_certified()
-    );
-    println!("abs-spelled b1.x certified={}", b1x_abs.is_certified());
-
-    println!("\n== C. is a straddling n.z reachable from a UNIT normal? ==");
-    // A unit normal whose z is known only to lie in [-1, 1] is a
-    // perfectly ordinary enclosure: it is what any interval-lane
-    // normal computation returns for a direction that is not pinned
-    // down. Every such n has a bounded frame in reality.
-    let n = Vec3::new(iv(-1.0, 1.0), iv(-1.0, 1.0), iv(-1.0, 1.0));
-    let (b1, b2) = n.orthonormal_basis();
-    println!(
-        "n = ([-1,1],[-1,1],[-1,1]):  b1 = ([{}, {}], [{}, {}], [{}, {}])",
-        b1.x.lo(),
-        b1.x.hi(),
-        b1.y.lo(),
-        b1.y.hi(),
-        b1.z.lo(),
-        b1.z.hi()
+        b1.x.is_poison()
     );
     println!(
-        "                             b2 = ([{}, {}], [{}, {}], [{}, {}])",
-        b2.x.lo(),
-        b2.x.hi(),
-        b2.y.lo(),
-        b2.y.hi(),
-        b2.z.lo(),
-        b2.z.hi()
+        "          b2 = ({}, {}, {})",
+        show(b2.x),
+        show(b2.y),
+        show(b2.z)
     );
+    let d1 = n.z.abs() - n.y.abs();
+    let (cz, cy) = (
+        Vec3::new(-n.y, n.x, Interval::zero()),
+        Vec3::new(n.z, Interval::zero(), -n.x),
+    );
+    let late = Vec3::new(
+        d1.select_le_zero(cz.x, cy.x),
+        d1.select_le_zero(cz.y, cy.y),
+        d1.select_le_zero(cz.z, cy.z),
+    )
+    .normalize();
     println!(
-        "b1.x poison(NaI/empty)? {}   certified? {}",
-        b1.x.is_poison(),
-        b1.x.is_certified()
+        "late-norm b1.x = {}  bounded={} certified={}   <- the rejected ordering",
+        show(late.x),
+        bounded(late.x),
+        late.x.is_certified()
     );
 
-    println!("\n== D. the constructor doc's own sentence, tested ==");
-    println!("doc: \"`r` is bounded in `(0, 1]` at every input, so no component can be");
-    println!("      unbounded and none is decorated below `Def` by this construction.\"");
-    for (lo, hi, label) in [
-        (0.0, 1.0, "n.z = [0, 1]"),
-        (-1.0, 1.0, "n.z = [-1, 1]"),
-        (-0.9, 0.9, "n.z = [-0.9, 0.9]"),
+    // The construction's measured limit, stated rather than left to be
+    // discovered. `normalize` reads each candidate's OWN norm, so a box
+    // wide enough to leave a tie undecided AND to contain a NON-UNIT
+    // direction parallel to a candidate's axis hulls in that
+    // candidate's zero vector and comes back unbounded. Restricted to
+    // unit inputs — the constructor's precondition — no such point is
+    // in the box and `|e_k x n|` is at least sqrt(2/3), so a tight
+    // enclosure of a real normal never reaches this. The rows below are
+    // the two wide boxes: both are uninformative about the direction,
+    // and both say so rather than claiming a frame.
+    println!("\n== C. wide direction boxes ==");
+    for (n, label) in [
+        (
+            Vec3::new(iv(0.5, 0.6), iv(-1.0, 1.0), iv(-1.0, 1.0)),
+            "wide in y and z",
+        ),
+        (
+            Vec3::new(iv(-1.0, 1.0), iv(-1.0, 1.0), iv(-1.0, 1.0)),
+            "[-1,1]^3 (contains 0)",
+        ),
+        (
+            Vec3::new(iv(0.59, 0.61), iv(0.79, 0.81), iv(-0.01, 0.01)),
+            "a tight wall enclosure",
+        ),
     ] {
-        let z = iv(lo, hi);
-        let s = Interval::one().copysign(z);
-        let r = Interval::one() / (Interval::one() + s * z);
-        let n = Vec3::new(pt(0.6), pt(0.8), z);
         let (b1, _) = n.orthonormal_basis();
         println!(
-            "{label:<20} r = [{}, {}]  in (0,1]? {}   b1.x certified(>=Def)? {}",
-            r.lo(),
-            r.hi(),
-            r.lo() > 0.0 && r.hi() <= 1.0,
+            "{label:<26} b1 = ({}, {}, {})  poison={} certified={}",
+            show(b1.x),
+            show(b1.y),
+            show(b1.z),
+            b1.x.is_poison(),
+            b1.x.is_certified()
+        );
+    }
+
+    // The only inputs that pose no question: the ones that name no
+    // direction. Poison there is the honest answer, not an absorption.
+    println!("\n== D. inputs that pose no question ==");
+    for (n, label) in [
+        (Vec3::new(pt(0.0), pt(0.0), pt(0.0)), "the zero vector"),
+        (
+            Vec3::new(Interval::from_f64(f64::NAN), pt(0.0), pt(1.0)),
+            "a NaI component",
+        ),
+    ] {
+        let (b1, _) = n.orthonormal_basis();
+        println!(
+            "{label:<20} b1.x poison={} certified={}",
+            b1.x.is_poison(),
             b1.x.is_certified()
         );
     }
 }
-
-/// The constructor's shipped doc says, verbatim: "`r` is bounded in
-/// `(0, 1]` at every input, so no component can be unbounded and none
-/// is decorated below `Def` by this construction." This is the direct
-/// test of that sentence.
-#[cfg(feature = "interval")]
-#[allow(dead_code)]
-fn r_claim() {}

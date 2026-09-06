@@ -1,11 +1,13 @@
-//! **Wall-normal `z` census over the wild corpus** — the third-party
-//! STEP bodies, the one input in the project nobody here authored.
+//! **The axis-order tie census over the wild corpus** — the
+//! third-party STEP bodies, the one input in the project nobody here
+//! authored.
 //!
 //! These planes are minted by `step_import`'s recogniser
 //! (`recognize.rs`, which takes the frame from
 //! `Vec3::orthonormal_basis` like `newell_plane` does) over normals the
-//! FILE supplies, so this is the row where a `-0.0` can arrive from
-//! outside rather than from the kernel's own arithmetic.
+//! FILE supplies, so this is the row where a normal sitting on the
+//! construction's tie set arrives from outside rather than from the
+//! kernel's own arithmetic.
 //!
 //! `#[ignore]`d: asserts nothing, gates nothing, prints. The corpus is
 //! written down as literals below — the nine imports-class fixtures.
@@ -18,7 +20,7 @@
 use std::path::PathBuf;
 
 use geom::Surface;
-use geom_core::Tol;
+use geom_core::{Tol, Vec3};
 use step_import::{ImportOptions, StepImport, import_step};
 
 /// THE CORPUS, written down: `wild.rs`'s nine imports-class fixtures
@@ -51,56 +53,102 @@ fn text(name: &str) -> Option<String> {
     std::fs::read_to_string(&path).ok()
 }
 
-/// **Table 2 (wild row)** — planar faces per fixture, by the class of
-/// the stored normal's `z`.
+/// The axis order's decision, at `f64`: which world axis the normal is
+/// crossed with, and whether the two smallest magnitudes TIE exactly.
+///
+/// The tie set is the construction's discontinuity, so an exact tie is
+/// the class that matters: at `f64` and at a point enclosure it DECIDES
+/// (the tie-break keys on the value, not on a zero's sign bit), and it
+/// is the only class an enclosure of positive width can fail to decide.
+/// Every axis-aligned normal is on it — two components exactly zero.
+#[derive(Default, Clone, Copy)]
+struct TieClasses {
+    exact_tie: usize,
+    separated: usize,
+    by_axis: [usize; 3],
+}
+
+impl TieClasses {
+    fn add(&mut self, n: Vec3<f64>) {
+        let (ax, ay, az) = (n.x.abs(), n.y.abs(), n.z.abs());
+        let k = if az <= ay && az <= ax {
+            2
+        } else if ay <= ax {
+            1
+        } else {
+            0
+        };
+        self.by_axis[k] += 1;
+        let mut m = [ax, ay, az];
+        m.sort_by(f64::total_cmp);
+        if m[0] == m[1] {
+            self.exact_tie += 1;
+        } else {
+            self.separated += 1;
+        }
+    }
+
+    fn merge(&mut self, o: TieClasses) {
+        self.exact_tie += o.exact_tie;
+        self.separated += o.separated;
+        for k in 0..3 {
+            self.by_axis[k] += o.by_axis[k];
+        }
+    }
+
+    fn planes(&self) -> usize {
+        self.exact_tie + self.separated
+    }
+}
+
+/// Planar faces per wild fixture, by whether the normal sits on the
+/// axis order's tie set and by which axis wins.
 #[test]
-#[ignore = "wall-normal census instrument; run explicitly"]
-fn wall_normal_z_census_over_the_wild_corpus() {
-    println!("| fixture | planes | z = +0.0 | z = -0.0 | 0 < |z| < 1e-12 | other |");
-    println!("| --- | --- | --- | --- | --- | --- |");
-    let (mut tp, mut tn, mut tt, mut to) = (0usize, 0usize, 0usize, 0usize);
+#[ignore = "tie census instrument; run explicitly"]
+fn axis_tie_census_over_the_wild_corpus() {
+    println!("| fixture | planes | on an exact tie | separated | k = x | k = y | k = z |");
+    println!("| --- | --- | --- | --- | --- | --- | --- |");
+    let mut total = TieClasses::default();
     for name in WILD {
         let Some(src) = text(name) else {
-            println!("| {name} | (not committed) | | | | |");
+            println!("| {name} | (not committed) | | | | | |");
             continue;
         };
         let body = match import_step(&src, &ImportOptions::default(), Tol::witness()) {
             Ok(StepImport::Solid { body, .. }) => body,
             Ok(StepImport::Wireframe { .. }) => {
-                println!("| {name} | (wireframe, no faces) | | | | |");
+                println!("| {name} | (wireframe, no faces) | | | | | |");
                 continue;
             }
             Err(e) => {
-                println!("| {name} | (refused: {e}) | | | | |");
+                println!("| {name} | (refused: {e}) | | | | | |");
                 continue;
             }
         };
-        let (mut p, mut n, mut t, mut o) = (0usize, 0usize, 0usize, 0usize);
+        let mut c = TieClasses::default();
         for (_, surface) in body.surfaces() {
-            let Surface::Plane { normal, .. } = surface else {
-                continue;
-            };
-            let z = normal.z;
-            if z == 0.0 {
-                if z.is_sign_negative() {
-                    n += 1;
-                } else {
-                    p += 1;
-                }
-            } else if z.abs() < 1e-12 {
-                t += 1;
-            } else {
-                o += 1;
+            if let Surface::Plane { normal, .. } = surface {
+                c.add(*normal);
             }
         }
-        println!("| {name} | {} | {p} | {n} | {t} | {o} |", p + n + t + o);
-        tp += p;
-        tn += n;
-        tt += t;
-        to += o;
+        total.merge(c);
+        println!(
+            "| {name} | {} | {} | {} | {} | {} | {} |",
+            c.planes(),
+            c.exact_tie,
+            c.separated,
+            c.by_axis[0],
+            c.by_axis[1],
+            c.by_axis[2]
+        );
     }
     println!(
-        "| **wild corpus** | {} | {tp} | {tn} | {tt} | {to} |",
-        tp + tn + tt + to
+        "| **wild corpus** | {} | {} | {} | {} | {} | {} |",
+        total.planes(),
+        total.exact_tie,
+        total.separated,
+        total.by_axis[0],
+        total.by_axis[1],
+        total.by_axis[2]
     );
 }
