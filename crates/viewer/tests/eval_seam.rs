@@ -28,7 +28,7 @@ use viewer::evalseam::{
 };
 use viewer::props::SlotValue;
 use viewer::scene::DisplayTolerance;
-use viewer::session::{DocSession, Landing, SessionOp};
+use viewer::session::{DocSession, Landing, Outstanding, SessionOp};
 
 #[test]
 fn busy_is_a_value_the_chrome_reads_and_it_clears_when_the_result_lands() {
@@ -95,6 +95,9 @@ fn a_stale_result_is_discarded_by_generation() {
 /// evaluation, and `busy()` goes on saying the picture is older than
 /// the document — with `running()` false, which is the state
 /// `Reevaluate` exists to leave.
+///
+/// That pair is `Outstanding::Canceled`, and this row is where the fold
+/// from the two reads to the one value is covered.
 #[test]
 fn a_cancel_keeps_the_last_good_picture_and_reevaluate_recovers_it() {
     let tol = Tol::witness();
@@ -107,11 +110,22 @@ fn a_cancel_keeps_the_last_good_picture_and_reevaluate_recovers_it() {
         name: common::thickness_param(),
         value: SlotValue::Continuous(0.010),
     });
+    assert_eq!(
+        session.outstanding(),
+        Outstanding::Evaluating,
+        "the edit is submitted and the seam has it",
+    );
     session.perform(SessionOp::CancelEvaluation);
     assert_eq!(session.pump(), vec![Landing::Canceled]);
 
     assert!(session.busy(), "the picture is older than the document");
     assert!(!session.running(), "and nothing is working on it");
+    assert_eq!(
+        session.outstanding(),
+        Outstanding::Canceled,
+        "and the one value the chrome reads says so without being told \
+         which of the two answers came first",
+    );
     assert!(
         Arc::ptr_eq(
             session.evaluation_arc().expect("a picture is still shown"),
@@ -127,9 +141,66 @@ fn a_cancel_keeps_the_last_good_picture_and_reevaluate_recovers_it() {
     // The recovery op: ask again, and the picture comes back.
     session.perform(SessionOp::Reevaluate);
     assert!(session.running());
+    assert_eq!(session.outstanding(), Outstanding::Evaluating);
     assert_eq!(session.pump(), vec![Landing::Landed]);
     assert!(!session.busy());
     assert!(!session.running());
+    assert_eq!(session.outstanding(), Outstanding::Current);
+}
+
+/// An [`InlineEvaluator`] that never reports itself idle.
+///
+/// `DocSession` holds a `Box<dyn EvalService>`, so a seam is free to
+/// say it has work when the session's own generations say the picture
+/// is current. Both shipped seams cannot reach that combination, which
+/// is exactly why the answer for it needs a seam written to.
+struct NeverIdle(InlineEvaluator);
+
+impl EvalService for NeverIdle {
+    fn submit(&mut self, request: EvalRequest) {
+        self.0.submit(request);
+    }
+
+    fn cancel(&mut self) {
+        self.0.cancel();
+    }
+
+    fn poll(&mut self) -> Option<EvalDone> {
+        self.0.poll()
+    }
+
+    fn busy(&self) -> bool {
+        true
+    }
+}
+
+/// **The eighth combination is answered, not merely commented.**
+///
+/// `!busy() && running()` — the picture current while the seam claims
+/// work — is unreachable through both shipped seams, so it is the one
+/// point of `outstanding()`'s domain no ordinary session reaches. The
+/// mapping is total regardless; what this row buys is that the answer
+/// is executed rather than asserted only by a doc comment, which is
+/// where the tree's statement about this case used to live before the
+/// case moved down here.
+#[test]
+fn a_current_picture_reads_current_even_when_the_seam_claims_work() {
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::new(doc, tol, Box::new(NeverIdle(InlineEvaluator::new())));
+    session.pump();
+
+    assert!(!session.busy(), "the first result landed");
+    assert!(
+        session.running(),
+        "and this seam reports work outstanding anyway",
+    );
+    assert_eq!(
+        session.outstanding(),
+        Outstanding::Current,
+        "the picture is what the chrome describes, so a current picture \
+         is Current whatever the seam says about itself",
+    );
 }
 
 #[test]
