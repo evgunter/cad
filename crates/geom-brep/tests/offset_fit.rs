@@ -502,26 +502,35 @@ fn an_offset_past_the_curvature_reach_refuses_at_the_collapse_meter() {
 #[test]
 fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
     let base = bumpy_patch();
-    let e = fit_offset_at(&base, 0.05, 1e-15, band())
-        .err()
-        .unwrap_or_else(|| panic!("1e-15 m on the bumpy patch was certified"));
-    let dbg = format!("{e:?}");
-    assert!(
-        dbg.starts_with("SampleCapReached"),
-        "the cap stop does not name the cap: {dbg}"
-    );
-    assert!(
-        dbg.contains("rounds: 5"),
-        "the cap stop does not say how many rounds ran: {dbg}"
-    );
-    assert!(
-        dbg.contains(&format!("cap: {OFFSET_FIT_SAMPLE_CAP}")),
-        "the cap stop does not carry the cap: {dbg}"
-    );
-    assert!(
-        !dbg.contains(&format!("budget: {OFFSET_FIT_BUDGET}")),
-        "the cap stop names the round budget: {dbg}"
-    );
+    match fit_offset_at(&base, 0.05, 1e-15, band()) {
+        Err(OffsetFitError::SampleCapReached {
+            cap,
+            rounds,
+            grid,
+            achieved,
+            tolerance,
+        }) => {
+            assert_eq!(cap, OFFSET_FIT_SAMPLE_CAP);
+            assert_eq!(rounds, 5, "five of the six rounds ran before the cap");
+            assert!(grid.0 <= OFFSET_FIT_SAMPLE_CAP && grid.1 <= OFFSET_FIT_SAMPLE_CAP);
+            assert!(achieved.is_finite() && achieved > tolerance);
+            let e = OffsetFitError::SampleCapReached {
+                cap,
+                rounds,
+                grid,
+                achieved,
+                tolerance,
+            };
+            let msg = e.to_string();
+            assert!(msg.contains("OFFSET_FIT_SAMPLE_CAP"), "{msg}");
+            assert!(
+                msg.contains(&format!("{rounds} of {OFFSET_FIT_BUDGET} rounds")),
+                "the rounds that ran are not in the message: {msg}"
+            );
+            assert!(msg.contains("nothing uncertified is returned"), "{msg}");
+        }
+        other => panic!("a cap stop with a finite bound did not name the cap: {other:?}"),
+    }
 }
 
 /// **The never-finite face.** At `d = 1e-7` and `1e-8` on the quarter
@@ -535,23 +544,32 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
 fn a_bound_that_never_became_finite_refuses_with_no_number() {
     let base = quarter_cylinder(1.0, 1.0);
     for d in [1e-7_f64, 1e-8] {
-        let e = fit_offset_at(&base, d, 1e-3, band())
-            .err()
-            .unwrap_or_else(|| panic!("d = {d}: a never-finite bound certified"));
-        let dbg = format!("{e:?}");
-        assert!(
-            dbg.starts_with("BoundNeverFinite"),
-            "d = {d}: the never-finite stop does not say so: {dbg}"
-        );
-        assert!(
-            !dbg.contains("achieved"),
-            "d = {d}: the never-finite stop carries an achieved bound: {dbg}"
-        );
-        let msg = e.to_string();
-        assert!(
-            !msg.contains("inf"),
-            "d = {d}: the message prints a number where there is none: {msg}"
-        );
+        match fit_offset_at(&base, d, 1e-3, band()) {
+            Err(OffsetFitError::BoundNeverFinite {
+                rounds,
+                grid,
+                tolerance,
+            }) => {
+                assert_eq!(rounds, 4, "d = {d}: four rounds ran before the cap");
+                assert!(grid.0 <= OFFSET_FIT_SAMPLE_CAP && grid.1 <= OFFSET_FIT_SAMPLE_CAP);
+                let msg = OffsetFitError::BoundNeverFinite {
+                    rounds,
+                    grid,
+                    tolerance,
+                }
+                .to_string();
+                assert!(
+                    !msg.contains("inf"),
+                    "d = {d}: the message prints a number where there is none: {msg}"
+                );
+                assert!(
+                    msg.contains("neither the round budget nor the sample cap"),
+                    "d = {d}: the message does not disown both knobs: {msg}"
+                );
+                assert!(msg.contains("nothing uncertified is returned"), "{msg}");
+            }
+            other => panic!("d = {d}: a never-finite bound did not refuse as one: {other:?}"),
+        }
     }
 }
 
@@ -606,10 +624,16 @@ fn a_micron_scale_offset_certifies_and_names_its_limit() {
     );
     // The honest other half: a tolerance below what the fit's own
     // absolute accuracy can reach refuses typed, carrying the bound
-    // it did reach — never a number it cannot support.
+    // it did reach — never a number it cannot support. The stop is
+    // the sample cap's: the grid the bound wants exceeds it before
+    // the rounds run out.
     match fit_offset_at(&base, d, 1e-9, band()) {
-        Err(OffsetFitError::BudgetExhausted { achieved, .. }) => {
-            eprintln!("small-d: 1e-9 refused typed, achieved = {achieved:.3e}");
+        Err(OffsetFitError::SampleCapReached {
+            achieved, rounds, ..
+        }) => {
+            eprintln!(
+                "small-d: 1e-9 refused typed at the cap after {rounds} rounds, achieved = {achieved:.3e}"
+            );
         }
         other => {
             panic!("a tolerance below the fit's absolute accuracy did not refuse typed: {other:?}")
@@ -681,7 +705,7 @@ fn a_zero_or_non_finite_request_refuses_at_the_door() {
 /// 1e7        4.1422e-4               1.286x
 /// 1e8        4.4346e-7               0.0014x — TIGHTER
 /// 1e9        5.1654e-6
-/// 1e10       refused: BudgetExhausted, achieved inf
+/// 1e10       refused: BoundNeverFinite — no grid reached a finite bound
 /// ```
 ///
 /// So the band is asserted where the claim is meaningful — out to
@@ -766,12 +790,16 @@ fn a_patch_far_from_the_origin_certifies_as_well_as_one_at_it() {
         );
     }
     // The honest end of the ladder: a shift the recentring cannot
-    // rescue refuses typed and returns nothing uncertified.
+    // rescue refuses typed and returns nothing uncertified — and no
+    // grid it reaches produces a finite bound, so the refusal carries
+    // none rather than an `inf`.
     match fit_offset_at(&shifted(1.0e10), d, 1e-2, band()) {
-        Err(OffsetFitError::BudgetExhausted { achieved, .. }) => {
-            eprintln!("recentred shift=1e10: refused typed, achieved={achieved}");
+        Err(OffsetFitError::BoundNeverFinite { rounds, grid, .. }) => {
+            eprintln!(
+                "recentred shift=1e10: refused typed, never finite after {rounds} rounds on {grid:?}"
+            );
         }
-        other => panic!("shift 1e10 did not refuse typed at the budget: {other:?}"),
+        other => panic!("shift 1e10 did not refuse as a never-finite bound: {other:?}"),
     }
 }
 
