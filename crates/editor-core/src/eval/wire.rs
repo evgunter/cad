@@ -1701,9 +1701,9 @@ fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeError
         // or a drop. This is the one arm of the door that needs a
         // bracket, and it reads one only to REPORT: nothing here
         // decides on it.
-        verbs::VerbError::Shell(error) => NodeErrorKind::Shell(Box::new(
-            crate::verbs::shell::fold_shell_error(*error),
-        )),
+        verbs::VerbError::Shell(error) => {
+            NodeErrorKind::Shell(Box::new(crate::verbs::shell::fold_shell_error(*error)))
+        }
     }
 }
 
@@ -1947,8 +1947,8 @@ fn resolve_open_faces(
 
     let mut keys = Vec::with_capacity(open.len());
     for name in open {
-        let ent = ladder::resolve_in(name, doc, target, |error| {
-            NodeErrorKind::ShellOpenResolve { error }
+        let ent = ladder::resolve_in(name, doc, target, |error| NodeErrorKind::ShellOpenResolve {
+            error,
         })?;
         let EntityKey::Face(k) = ent.key else {
             return Err(NodeErrorKind::ShellOpenKind {

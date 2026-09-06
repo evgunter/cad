@@ -731,10 +731,7 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         // (a repair would change the node's content key behind the
         // caller's back).
         if let Node::Shell { open, .. } = node
-            && open
-                .iter()
-                .enumerate()
-                .any(|(i, n)| open[..i].contains(n))
+            && open.iter().enumerate().any(|(i, n)| open[..i].contains(n))
         {
             return Err(SnapshotError::ShellOpenRepeated { node: id });
         }

@@ -165,13 +165,21 @@ pub trait ShellLane: geom_core::Real {
 
     /// Run the hollowing verb against its operand, or `None` at a
     /// scalar that cannot certify.
-    fn run_shell(verb: &Verb<Self>, operand: &Body<Self>, tol: Tol) -> Option<Result<VerbOut<Self>, VerbError<Self>>>;
+    fn run_shell(
+        verb: &Verb<Self>,
+        operand: &Body<Self>,
+        tol: Tol,
+    ) -> Option<Result<VerbOut<Self>, VerbError<Self>>>;
 }
 
 impl ShellLane for f64 {
     const LANE: &'static str = "f64";
 
-    fn run_shell(verb: &Verb<Self>, operand: &Body<Self>, tol: Tol) -> Option<Result<VerbOut<Self>, VerbError<Self>>> {
+    fn run_shell(
+        verb: &Verb<Self>,
+        operand: &Body<Self>,
+        tol: Tol,
+    ) -> Option<Result<VerbOut<Self>, VerbError<Self>>> {
         Some(verb.run_shell(operand, tol))
     }
 }
@@ -182,7 +190,11 @@ impl ShellLane for f64 {
 impl ShellLane for geom_core::Probe {
     const LANE: &'static str = "Probe";
 
-    fn run_shell(verb: &Verb<Self>, operand: &Body<Self>, tol: Tol) -> Option<Result<VerbOut<Self>, VerbError<Self>>> {
+    fn run_shell(
+        verb: &Verb<Self>,
+        operand: &Body<Self>,
+        tol: Tol,
+    ) -> Option<Result<VerbOut<Self>, VerbError<Self>>> {
         Some(verb.run_shell(operand, tol))
     }
 }
@@ -193,7 +205,11 @@ impl ShellLane for geom_core::Probe {
 impl ShellLane for geom_core::Interval {
     const LANE: &'static str = "Interval";
 
-    fn run_shell(verb: &Verb<Self>, operand: &Body<Self>, tol: Tol) -> Option<Result<VerbOut<Self>, VerbError<Self>>> {
+    fn run_shell(
+        verb: &Verb<Self>,
+        operand: &Body<Self>,
+        tol: Tol,
+    ) -> Option<Result<VerbOut<Self>, VerbError<Self>>> {
         Some(verb.run_shell(operand, tol))
     }
 }
@@ -211,7 +227,11 @@ where
 {
     const LANE: &'static str = "Sym";
 
-    fn run_shell(verb: &Verb<Self>, operand: &Body<Self>, tol: Tol) -> Option<Result<VerbOut<Self>, VerbError<Self>>> {
+    fn run_shell(
+        verb: &Verb<Self>,
+        operand: &Body<Self>,
+        tol: Tol,
+    ) -> Option<Result<VerbOut<Self>, VerbError<Self>>> {
         Some(verb.run_shell(operand, tol))
     }
 }
@@ -228,7 +248,11 @@ where
 {
     const LANE: &'static str = "Dual";
 
-    fn run_shell(_verb: &Verb<Self>, _operand: &Body<Self>, _tol: Tol) -> Option<Result<VerbOut<Self>, VerbError<Self>>> {
+    fn run_shell(
+        _verb: &Verb<Self>,
+        _operand: &Body<Self>,
+        _tol: Tol,
+    ) -> Option<Result<VerbOut<Self>, VerbError<Self>>> {
         None
     }
 }
@@ -268,7 +292,9 @@ pub(crate) fn fold_shell_error<T: Bounds>(error: ShellError<T>) -> ShellError<f6
         E::OpenFaceStale { face } => E::OpenFaceStale { face },
         E::OpenFaceRepeated { face } => E::OpenFaceRepeated { face },
         E::OpenFacesExhaustShell { shell } => E::OpenFacesExhaustShell { shell },
-        E::OpenFacesDisconnect { shell, components } => E::OpenFacesDisconnect { shell, components },
+        E::OpenFacesDisconnect { shell, components } => {
+            E::OpenFacesDisconnect { shell, components }
+        }
         E::OpenFaceRingUnsupported { face, kind } => E::OpenFaceRingUnsupported { face, kind },
         E::OpenFaceChartPartial { face, other } => E::OpenFaceChartPartial { face, other },
         E::Lift { face, error } => E::Lift {

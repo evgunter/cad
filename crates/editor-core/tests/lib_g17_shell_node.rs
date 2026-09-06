@@ -88,7 +88,10 @@ fn blank_of(doc: &ProfileDoc) -> RecipeNodeId {
 /// Exact mass equality against a dyadic oracle.
 fn assert_exact(body: &topo::Body<f64>, pin: corpus::MassPin, what: &str) {
     let m = topo::mass_properties(body, Tol::witness()).expect("mass properties");
-    assert_eq!(m.volume, pin.volume, "{what}: volume is not the closed form");
+    assert_eq!(
+        m.volume, pin.volume,
+        "{what}: volume is not the closed form"
+    );
     assert_eq!(
         Some(m.surface_area),
         pin.area,
@@ -118,7 +121,11 @@ fn the_cup_evaluates_green_and_is_exactly_its_closed_form() {
     // walls: the opened top is a face that became a rim, not a hole.
     assert_eq!(body.faces().count(), 11, "5 outer + 1 rim + 5 cavity");
     assert_eq!(body.solids().count(), 1);
-    assert_eq!(body.shells().count(), 1, "the rim fused the cavity into the outer shell");
+    assert_eq!(
+        body.shells().count(),
+        1,
+        "the rim fused the cavity into the outer shell"
+    );
     assert_exact(body, d.pin.expect("the cup pins"), "cup");
 }
 
@@ -155,7 +162,11 @@ fn an_empty_open_list_is_the_sealed_hollow() {
     assert_eq!(topo::validate(body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(body), Ok(()), "closed");
     assert_eq!(body.solids().count(), 1, "one solid");
-    assert_eq!(body.shells().count(), 2, "an outer shell and a cavity shell");
+    assert_eq!(
+        body.shells().count(),
+        2,
+        "an outer shell and a cavity shell"
+    );
     assert_eq!(body.faces().count(), 12, "two complete boxes");
     // Euler on the two boxes: genus 0 each, so V − E + F = 2 per shell.
     let (v, e, f) = (
@@ -164,13 +175,18 @@ fn an_empty_open_list_is_the_sealed_hollow() {
         body.faces().count() as i64,
     );
     assert_eq!(v - e + f, 4, "two genus-0 shells");
-    assert_exact(body, cup::sealed_forms(cup::L, cup::H, cup::T), "sealed cup");
+    assert_exact(
+        body,
+        cup::sealed_forms(cup::L, cup::H, cup::T),
+        "sealed cup",
+    );
     // Every face is a survivor or a cavity twin: no rim was minted.
     let table = &ev.value(sealed).expect("a value").name_table;
     assert!(
-        table
-            .iter()
-            .all(|(n, _)| !matches!(n.path.first(), Some(RoleSeg::Rim(_) | RoleSeg::HoleRim { .. }))),
+        table.iter().all(|(n, _)| !matches!(
+            n.path.first(),
+            Some(RoleSeg::Rim(_) | RoleSeg::HoleRim { .. })
+        )),
         "a sealed hollow mints no rim"
     );
 }
@@ -230,9 +246,16 @@ fn the_rim_inner_and_outer_names_resolve() {
                 )
         })
         .count();
-    assert_eq!(ring, 4, "the rim's ring is the top's four boundary edges, twinned");
+    assert_eq!(
+        ring, 4,
+        "the rim's ring is the top's four boundary edges, twinned"
+    );
     let body = body_of(&ev, shell);
-    assert_eq!(table.iter().count(), 1 + 11 + 24 + 16, "body + faces + edges + vertices");
+    assert_eq!(
+        table.iter().count(),
+        1 + 11 + 24 + 16,
+        "body + faces + edges + vertices"
+    );
     assert_eq!(body.edges().count(), 24);
     assert_eq!(body.vertices().count(), 16);
 }
@@ -273,14 +296,20 @@ fn a_rebuild_moves_the_forms_and_keeps_the_names() {
         cup::closed_forms(cup::L, cup::H_BUMPED, cup::T_BUMPED),
         "bumped cup",
     );
-    let table = &after.value(shell).expect("the bumped cup evaluated").name_table;
+    let table = &after
+        .value(shell)
+        .expect("the bumped cup evaluated")
+        .name_table;
     for (name, was) in names.iter().zip(&resolved_before) {
         let now = table.lookup(name).cloned();
         assert!(
             matches!(now, Some(editor_core::Entry::Unique(_))),
             "{name:?} must still resolve after the bump"
         );
-        assert_eq!(&now, was, "{name:?} must resolve to the same entity after the bump");
+        assert_eq!(
+            &now, was,
+            "{name:?} must resolve to the same entity after the bump"
+        );
     }
     // The bump moved the key: a different body must not memo-hit.
     assert_ne!(
@@ -390,7 +419,9 @@ fn refusal(doc: &ProfileDoc, node: RecipeNodeId) -> NodeErrorKind {
 }
 
 /// A cup document whose shell node is replaced by `shell`.
-fn cup_with(shell: impl FnOnce(RecipeNodeId) -> Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+fn cup_with(
+    shell: impl FnOnce(RecipeNodeId) -> Node<ProfileProgram>,
+) -> (ProfileDoc, RecipeNodeId) {
     let d = cup::document();
     let blank = blank_of(&d.doc);
     fixture::insert(d.doc, shell(blank))
@@ -425,7 +456,13 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     });
     let e = refusal(&doc, n);
     assert!(
-        matches!(&e, NodeErrorKind::ShellOpenKind { found: EntityKind::Edge, .. }),
+        matches!(
+            &e,
+            NodeErrorKind::ShellOpenKind {
+                found: EntityKind::Edge,
+                ..
+            }
+        ),
         "{e:?}"
     );
     assert_eq!(
@@ -436,7 +473,8 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     // (c) a non-positive thickness: the kernel's gate, carried WITH its
     // number — at f64 the fold is the identity, so the value comes
     // back bit for bit.
-    let (doc, n) = cup_with(|blank| Node::shell(blank, fixture::len(-0.125), vec![cup::top(blank)]));
+    let (doc, n) =
+        cup_with(|blank| Node::shell(blank, fixture::len(-0.125), vec![cup::top(blank)]));
     let e = refusal(&doc, n);
     match &e {
         NodeErrorKind::Shell(inner) => match **inner {
@@ -455,11 +493,18 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     // `OpenFaceChartPartial`, carried verbatim — the document layer
     // completes no chart on the author's behalf.
     let v = vessel::document_with_mouth(|pot| {
-        [vessel::band(pot, vessel::SEG_MOUTH), vessel::band(pot, vessel::SEG_BELLY)]
+        [
+            vessel::band(pot, vessel::SEG_MOUTH),
+            vessel::band(pot, vessel::SEG_BELLY),
+        ]
     });
     // Replace the two-name designation by the single half: the door
     // above needs two names, so re-author with one.
-    let pot = v.doc.node(v.result.unwrap()).map(|n| n.inputs()[0]).unwrap();
+    let pot = v
+        .doc
+        .node(v.result.unwrap())
+        .map(|n| n.inputs()[0])
+        .unwrap();
     let (doc, n) = fixture::insert(
         v.doc.clone(),
         Node::shell(
@@ -481,7 +526,8 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     // The op row's tail quotes arena keys, so it is prefix-pinned.
     let text = e.to_string();
     assert!(
-        text.starts_with("the shell op refused: shell: ") && text.contains("shares its chart and was not"),
+        text.starts_with("the shell op refused: shell: ")
+            && text.contains("shares its chart and was not"),
         "the partial-chart refusal text moved: {text}"
     );
     // (e) a CURVED designated face: the belly is a sphere zone, and a
@@ -517,10 +563,17 @@ fn the_shell_door_keeps_designation_order_and_drops_repeats() {
     let Node::Shell { open, .. } = &node else {
         panic!("the door builds a shell");
     };
-    assert_eq!(open, &vec![b.clone(), a.clone()], "order kept, first occurrence kept");
+    assert_eq!(
+        open,
+        &vec![b.clone(), a.clone()],
+        "order kept, first occurrence kept"
+    );
     assert_eq!(node.payload_names(), vec![&b, &a]);
     assert_eq!(node.slots(), vec![SlotId::ShellThickness]);
-    assert_eq!(SlotId::ShellThickness.dimension(), editor_core::Dimension::Length);
+    assert_eq!(
+        SlotId::ShellThickness.dimension(),
+        editor_core::Dimension::Length
+    );
     assert_eq!(SlotId::ShellThickness.label(), "shell thickness");
     assert!(!SlotId::ShellThickness.is_structural());
 }
@@ -534,7 +587,9 @@ fn a_repeated_open_entry_is_refused_at_load() {
     let text = save(&d.doc, &[], Tol::witness()).expect("the cup saves");
     // The wire form of `open` is the name's own serde encoding, inside
     // an `"open"` list; the one entry names the end cap.
-    let open = text.find("\"open\"").expect("the open list reaches the wire");
+    let open = text
+        .find("\"open\"")
+        .expect("the open list reaches the wire");
     let cap = text[open..].find("\"End\"").expect("the end cap is named");
     let _ = (blank, cap);
     // Doubling the list's one entry: `[x]` → `[x, x]`.
@@ -583,7 +638,10 @@ fn a_dual_evaluation_refuses_the_shell_typed() {
                     e.kind
                 );
             }
-            other => panic!("{}: expected a typed refusal at Dual64, got {other:?}", d.name),
+            other => panic!(
+                "{}: expected a typed refusal at Dual64, got {other:?}",
+                d.name
+            ),
         }
         // Everything upstream of the shell built: the refusal is the
         // shell's alone.

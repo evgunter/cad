@@ -117,7 +117,11 @@ pub(crate) fn name_shell<T: geom_core::Real>(
             });
         };
         let f = up_f(*first)?;
-        put(EntityKey::Face(rim.rim), RoleSeg::Rim(b(f.name.clone())), f.tied)?;
+        put(
+            EntityKey::Face(rim.rim),
+            RoleSeg::Rim(b(f.name.clone())),
+            f.tied,
+        )?;
         for (j, hole) in rim.holes.iter().enumerate() {
             put(
                 EntityKey::Face(hole.face),

@@ -140,7 +140,6 @@ pub use measure::{
     UnevaluatedReason, WINDOW_TIGHTENING,
 };
 pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
-pub use verbs::shell::ShellLane;
 pub use names::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKey,
@@ -189,6 +188,7 @@ pub use resolve::{
     NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictRow,
     VerdictSummary, VerdictVector, VerdictVectorKey, diff_summaries, verdict_summary,
 };
+pub use verbs::shell::ShellLane;
 // GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray
 // vocabulary re-exported from `bvh` so a layer-3 consumer needs no
 // direct bvh dependency.
