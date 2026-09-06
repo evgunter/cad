@@ -2781,9 +2781,10 @@ fn later(a: Option<usize>, b: Option<usize>) -> Option<usize> {
 
 /// The index of the LATEST member of `members` this path mentions,
 /// `Some(None)` for a path that mentions no member at all, and `None`
-/// for one that mentions a node which is not a member of this union —
-/// the state `SetMembers` creates by removing a declared member, and
-/// the state a name from another node's space is in.
+/// for a path that is not in this node's published space: one naming a
+/// node the member list no longer holds — the state `SetMembers`
+/// creates by removing a declared member — or one carrying a segment
+/// the member-keying rule never mints.
 fn latest_member(members: &[RecipeNodeId], path: &[names::RoleSeg]) -> Option<Option<usize>> {
     use crate::names::{Qualifier, RoleSeg};
     let mut best: Option<usize> = None;
@@ -2815,10 +2816,54 @@ fn latest_member(members: &[RecipeNodeId], path: &[names::RoleSeg]) -> Option<Op
                 }
                 acc
             }
-            // Everything else carries no member: an ordinal
-            // discriminator, the output body's own row, and every
-            // segment no boolean emitter mints.
-            _ => None,
+            // The two segments this node's space carries that name no
+            // member: the accumulated body's own row, and the ordinal
+            // fragment discriminator, whose ranks are numbers.
+            RoleSeg::OutputBody | RoleSeg::Fragment(Qualifier::OrderAlong { .. }) => None,
+            // Everything else is a segment the member-keying rule
+            // never mints, so a name carrying one is not in this
+            // node's published space and denotes nothing here — the
+            // `FromA`/`FromB` pair included, which is the fold's
+            // INTERNAL space and is exactly what `collapse` takes out.
+            // Named one by one rather than caught by a wildcard, for
+            // the reason `collapse`'s own match names them: a new
+            // `RoleSeg` stops the compiler here and is decided.
+            RoleSeg::FromA(_)
+            | RoleSeg::FromB(_)
+            | RoleSeg::Cap(_)
+            | RoleSeg::Lateral(_)
+            | RoleSeg::RimEdge(_, _)
+            | RoleSeg::LateralEdge(_)
+            | RoleSeg::CapVertex(_, _)
+            | RoleSeg::Band(_)
+            | RoleSeg::BandRim(_)
+            | RoleSeg::BandRimPi(_)
+            | RoleSeg::BandPi(_)
+            | RoleSeg::Meridian(_, _)
+            | RoleSeg::MeridianVertex(_, _)
+            | RoleSeg::RevolveCap(_)
+            | RoleSeg::Pole(_)
+            | RoleSeg::AxisEdge(_)
+            | RoleSeg::SplitBody(_)
+            | RoleSeg::SectionFace { .. }
+            | RoleSeg::SectionEdge { .. }
+            | RoleSeg::SplitFragment { .. }
+            | RoleSeg::CrossingVertex { .. }
+            | RoleSeg::OnToolVertex { .. }
+            | RoleSeg::FromTarget(_)
+            | RoleSeg::BlendFace(_)
+            | RoleSeg::CornerFace(_)
+            | RoleSeg::TrimEdge { .. }
+            | RoleSeg::FootVertex { .. }
+            | RoleSeg::CornerArc { .. }
+            | RoleSeg::BandFace(_)
+            | RoleSeg::BandTrim { .. }
+            | RoleSeg::BandFoot(_)
+            | RoleSeg::BandCross(_)
+            | RoleSeg::BandCut(_)
+            | RoleSeg::BandSlit(_)
+            | RoleSeg::InPart { .. }
+            | RoleSeg::Instance { .. } => return None,
         };
         best = later(best, here);
     }
