@@ -813,57 +813,6 @@ pub fn fit_offset_at(
     }
 }
 
-/// Which stopping condition ended the refinement loop without a
-/// certificate — the two exits that are not the stall guard's.
-#[derive(Clone, Copy)]
-enum Stop {
-    /// [`OFFSET_FIT_BUDGET`] rounds ran.
-    RoundBudget,
-    /// The next round's schedule would exceed [`OFFSET_FIT_SAMPLE_CAP`].
-    SampleCap,
-}
-
-/// The refusal for a loop that `stop` ended after `rounds` refinement
-/// rounds, with `achieved` measured on `grid`: the face that names
-/// the stop's own lever when there is a finite bound to carry, and
-/// [`OffsetFitError::BoundNeverFinite`] — whichever the stop — when
-/// there is not. The `inf` a never-finite loop measures is not a
-/// bound the caller can use, so no face carries it.
-fn expiry(
-    stop: Stop,
-    rounds: usize,
-    grid: (usize, usize),
-    achieved: f64,
-    tolerance: f64,
-) -> OffsetFitError {
-    // `rounds` never exceeds `OFFSET_FIT_BUDGET`, so the narrowing is
-    // exact.
-    #[allow(clippy::cast_possible_truncation)]
-    let rounds = rounds as u32;
-    if !achieved.is_finite() {
-        return OffsetFitError::BoundNeverFinite {
-            rounds,
-            grid,
-            tolerance,
-        };
-    }
-    match stop {
-        Stop::RoundBudget => OffsetFitError::BudgetExhausted {
-            budget: OFFSET_FIT_BUDGET,
-            grid,
-            achieved,
-            tolerance,
-        },
-        Stop::SampleCap => OffsetFitError::SampleCapReached {
-            cap: OFFSET_FIT_SAMPLE_CAP,
-            rounds,
-            grid,
-            achieved,
-            tolerance,
-        },
-    }
-}
-
 /// Re-derives the certificate of an ALREADY fitted surface against a
 /// base and `d`, and classifies both limbs against `tolerance` — the
 /// validator posture (O5: never trust a stored certificate), and the
@@ -1131,6 +1080,57 @@ pub fn recertify_approx_at(
 }
 
 // SHELL-TOLERANCE-CHAIN END.
+
+/// Which stopping condition ended the refinement loop without a
+/// certificate — the two exits that are not the stall guard's.
+#[derive(Clone, Copy)]
+enum Stop {
+    /// [`OFFSET_FIT_BUDGET`] rounds ran.
+    RoundBudget,
+    /// The next round's schedule would exceed [`OFFSET_FIT_SAMPLE_CAP`].
+    SampleCap,
+}
+
+/// The refusal for a loop that `stop` ended after `rounds` refinement
+/// rounds, with `achieved` measured on `grid`: the face that names
+/// the stop's own lever when there is a finite bound to carry, and
+/// [`OffsetFitError::BoundNeverFinite`] — whichever the stop — when
+/// there is not. The `inf` a never-finite loop measures is not a
+/// bound the caller can use, so no face carries it.
+fn expiry(
+    stop: Stop,
+    rounds: usize,
+    grid: (usize, usize),
+    achieved: f64,
+    tolerance: f64,
+) -> OffsetFitError {
+    // `rounds` never exceeds `OFFSET_FIT_BUDGET`, so the narrowing is
+    // exact.
+    #[allow(clippy::cast_possible_truncation)]
+    let rounds = rounds as u32;
+    if !achieved.is_finite() {
+        return OffsetFitError::BoundNeverFinite {
+            rounds,
+            grid,
+            tolerance,
+        };
+    }
+    match stop {
+        Stop::RoundBudget => OffsetFitError::BudgetExhausted {
+            budget: OFFSET_FIT_BUDGET,
+            grid,
+            achieved,
+            tolerance,
+        },
+        Stop::SampleCap => OffsetFitError::SampleCapReached {
+            cap: OFFSET_FIT_SAMPLE_CAP,
+            rounds,
+            grid,
+            achieved,
+            tolerance,
+        },
+    }
+}
 
 // ---------------------------------------------------------------------
 // A9.4 — global surface interpolation at the base's own parameters

@@ -790,7 +790,7 @@ unit is `docs/PROPS-SIGN-HULL-SPEC.md` (block PROPS-B2 slot 1, dual).
 
 **budget-faces in review (2026-09-06)** — PR
 [#2008](https://github.com/evgunter/cad/pull/2008), branch
-`props/budget-faces`, head `484be661b`, item
+`props/budget-faces` (head as on the PR), item
 `budgetexhausted-conflates-three-terminations` at `status: review`
 per the spec's §Landing (NOT merged; the orchestrator lands after the
 style review). `OffsetFitError::BudgetExhausted` is four faces:
