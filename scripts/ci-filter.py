@@ -84,7 +84,10 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
   RUN_STEP_EXPORT=true|false    step import (freecad) row
   RUN_PNCAD_PY=true|false       python suite (wheel + unittest) row — keyed on
                                 SEEDS, not on the closure, like
-                                RUN_VIEWER_TOOLKIT below; see `PNCAD_PY_SEEDS`
+                                RUN_VIEWER_TOOLKIT below. The set is
+                                `PNCAD_PY_SEEDS` widened by the members the
+                                FAÇADE names, read off crates/pncad/src/lib.rs;
+                                see `_facade_reexported_members`
   RUN_INTERVAL_BACKEND=true|false   interval-transcendentals' own workspace
   RUN_INTERVAL_ORACLE=true|false    its oracle-inari certification tier
   RUN_TOPO_RELEASE=true|false   corrupt input (release profile) row. LOCAL-ONLY
@@ -1402,16 +1405,76 @@ VIEWER_TOOLKIT_SEEDS: frozenset[str] = frozenset({"viewer", "pncad", "bvh"})
 # can change what the suite sees without any other crate moving. `editor-core`
 # — the document model the suite drives through the façade (the guide and
 # north-star tests build documents), and the one non-façade edge the bindings
-# have. A kernel crate that `pncad` merely re-exports is deliberately NOT here:
-# a breaking change to a re-exported type reddens the ordinary closure rows on
-# the offending PR, and a change in its NUMBERS is what the nightly re-take is
-# for.
+# have.
+#
+# THEY ARE NOT THE WHOLE SET, and `_facade_reexported_members` below is the
+# rest of it: a crate the façade re-exports is a crate the suite's own Python
+# calls, so a change to one moves the suite's subject. What the three names
+# above cannot express is that reach, because it is a property of the façade's
+# source and not of this file.
 #
 # Adding a name here is a decision about what can change the wheel's observable
-# behaviour without touching the three above; it is not a convenience. The
-# nightly lane re-takes the whole suite daily, which is what makes the set safe
-# to keep small.
+# behaviour without touching the three above AND without being named by the
+# façade; it is not a convenience.
 PNCAD_PY_SEEDS: frozenset[str] = frozenset({"pncad-py", "pncad", "editor-core"})
+
+# THE FAÇADE'S OWN SOURCE FILE, and the shape of a re-export in it.
+#
+# `pub use geom_core;` hands the whole crate to `pncad`'s consumers under one
+# name. `pub mod profile;` is the SAME REACH THROUGH A SMALLER DOOR — a
+# curated module standing in where a whole-crate re-export was withdrawn — and
+# the bindings name `pncad::profile` in ten places, so a rule that read only
+# `pub use` would be blind to the one crate the façade deliberately narrowed.
+# A curated module whose name happens to match a member it does not wrap costs
+# an extra true verdict on that member's changes, which is the safe direction.
+FACADE_LIB = os.path.join("crates", "pncad", "src", "lib.rs")
+_FACADE_REEXPORT = re.compile(r"^pub (?:use|mod) ([a-z][a-z0-9_]*);")
+
+
+def _facade_reexported_members(root: str, packages: set[str]) -> frozenset[str]:
+    """The workspace members the façade names at its top level.
+
+    THE CONDITION THIS ANSWERS is "can this change reach the Python surface" —
+    and the answer is the façade's, not this file's, because the façade is
+    what the bindings call. A crate it re-exports is a crate the suite's own
+    scripts exercise through `pncad`; a crate it keeps interior (`bvh`, and
+    every member no line here names) reaches the wheel only as something the
+    wheel COMPILES, which is the condition this axis exists to not be.
+
+    DERIVED, NOT LISTED, because a list is a promise about a file it cannot
+    see: the day the façade narrows a re-export the way it narrowed `profile`,
+    a list keeps buying the suite for a crate the bindings can no longer name,
+    and the day it adds one, a list stops buying it for a crate they can. The
+    read is over `_rust_code_view`, so a `pub use` inside a doc comment — the
+    façade's own header prose spells several — is not a re-export.
+
+    FAILS CLOSED like everything else here: a façade that names no member at
+    all is a reader that has stopped reading, not a façade that re-exports
+    nothing, and `Bail` puts the suite back on."""
+    path = os.path.join(root, FACADE_LIB)
+    try:
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+    except OSError as exc:
+        raise Bail(f"the façade's own source is unreadable at {FACADE_LIB}: {exc}") from exc
+    out = {
+        m.group(1).replace("_", "-")
+        for m in (_FACADE_REEXPORT.match(ln) for ln in _rust_code_view(text).splitlines())
+        if m is not None and m.group(1).replace("_", "-") in packages
+    }
+    if not out:
+        raise Bail(
+            f"{FACADE_LIB} names no workspace member at its top level; the python "
+            "suite's seed set cannot be derived from a façade that re-exports nothing"
+        )
+    return frozenset(out)
+
+
+def pncad_py_seeds(root: str) -> frozenset[str]:
+    """The full seed set for `RUN_PNCAD_PY`: the three above, plus the façade's."""
+    _, deps = _members(root)
+    return PNCAD_PY_SEEDS | _facade_reexported_members(root, set(deps))
+
 
 # THE MATRIX. Every point of LANES x EPS_ROWS runs on every hosted code-tier
 # run (2026-09-04); these two lists are also the legal values a request may
@@ -2100,6 +2163,7 @@ def decorate(
     res: dict[str, str],
     files: list[str] | None = None,
     config: dict[str, tuple[str, str]] | None = None,
+    facade_seeds: frozenset[str] | None = None,
 ) -> dict[str, str]:
     tier = res["TIER"]
     pkgs = set(p for p in res["PKGS"].split(",") if p)
@@ -2194,16 +2258,30 @@ def decorate(
     # the non-default `python` feature (pyo3 plus four more crates, its own
     # cache lane), to run a suite whose subject had not moved.
     #
-    # WHY THESE SEEDS ARE ENOUGH. The suite exercises the bindings' own
-    # surface: the .pyi lattice, the guide and north-star scripts, and the
-    # façade calls they make. `pncad-py` is that code; `pncad` is the façade it
-    # calls; `editor-core` is the document model those scripts drive. A change
-    # in any OTHER kernel crate reaches the suite only through `pncad`'s
-    # re-exports — and a breaking one there reddens that crate's ordinary
-    # closure rows on the offending PR, in the same run, because the Rust side
-    # of the façade is compiled by the ordinary build. What the seeds give up
-    # is a change in kernel NUMBERS that the python suite's own assertions
-    # would have caught first, and that is what the nightly re-take exists for.
+    # WHICH SEEDS, AND WHY THE FIRST ANSWER WAS TOO SMALL. The suite exercises
+    # the bindings' own surface: the .pyi lattice, the guide and north-star
+    # scripts, and the façade calls they make. `pncad-py` is that code;
+    # `pncad` is the façade it calls; `editor-core` is the document model
+    # those scripts drive. Those three were once the whole set, on the reading
+    # that a change in any other kernel crate reaches the suite only through
+    # `pncad`'s re-exports and that a breaking one there reddens the ordinary
+    # closure rows anyway. THE SECOND HALF OF THAT IS TRUE AND THE FIRST IS
+    # NOT A REASON TO SKIP: a re-exported crate is a crate the suite's Python
+    # CALLS, so its numbers, its refusals and its .pyi shapes are the suite's
+    # subject, and a compile that stays green says nothing about them. The
+    # seed set is therefore those three widened by every member the façade
+    # names — `_facade_reexported_members`, read off the façade itself.
+    #
+    # WHAT IT COSTS, measured 2026-09-06 over 35 code-tier runs that ran it:
+    # the job takes 115-125 s and finishes 692-917 s BEFORE the run does,
+    # because it needs only `filter` while the run's length is the serial
+    # build -> test chain (856-1302 s wall). Peak concurrency across a run
+    # goes from ~14 jobs to ~17. It is off the critical path, so the wall
+    # clock it adds to a code-tier run is zero — and wall clock is the
+    # currency, this repository being public and standard-runner minutes free.
+    # What stays out of the set is a member the façade keeps INTERIOR (`bvh`
+    # today): the wheel compiles it, and "the wheel compiles it" is the
+    # condition this axis exists to not be.
     #
     # RECORDED, NEVER SILENT (the KLINT_ROW lesson, and the viewer axis's own
     # rule): this is an output key, the filter echoes it with the seeds it was
@@ -2217,9 +2295,14 @@ def decorate(
         # Unscopable: no seed information, so the axis fails OPEN like every
         # other signal here.
         res["RUN_PNCAD_PY"] = "true"
+    elif facade_seeds is None:
+        # The façade could not be read, so the reach it defines is unknown —
+        # and an unknown reach fails OPEN here exactly as an unresolvable diff
+        # does above. `main` says on stderr which way it went and why.
+        res["RUN_PNCAD_PY"] = "true"
     else:
         seeds = set(s for s in res.get("SEEDS", "").split(",") if s)
-        res["RUN_PNCAD_PY"] = "true" if seeds & PNCAD_PY_SEEDS else "false"
+        res["RUN_PNCAD_PY"] = "true" if seeds & facade_seeds else "false"
     # THE CONFIGURATION IS THE LAST WORD AND READS NOTHING ABOVE IT: which
     # points of the matrix a run gates is independent of which rows the change
     # filter selected, and keeping the two apart is what lets the local gate
@@ -2352,11 +2435,31 @@ _PY_FIXTURE_PKGS = {
     "pncad-py": [("pncad", "normal")],
 }
 
+# THE FAÇADE'S OWN GRAPH, one crate wider, because the boundary this axis
+# actually sits on is not "in the closure" but "named by the façade" — and the
+# graph above cannot express the difference: every crate in it is under
+# `pncad`, so re-exporting or not re-exporting `topo` is the ONLY axis it
+# varies, and a case pair needs two crates that differ on it.
+#
+#   pncad-py -> pncad -> {editor-core -> topo, bvh}
+#
+# with the façade re-exporting `topo` and keeping `bvh` interior — this
+# tree's own arrangement in miniature, `bvh` included by name because it is
+# the member the real façade deliberately does not re-export.
+_PY_FACADE_FIXTURE_PKGS = {
+    "topo": [],
+    "bvh": [],
+    "editor-core": [("topo", "normal")],
+    "pncad": [("editor-core", "normal"), ("bvh", "normal")],
+    "pncad-py": [("pncad", "normal")],
+}
+
 
 def _plant_seed_axis_fixture(
     t: str,
     pkgs: dict[str, list] = _VIEWER_FIXTURE_PKGS,
     tree_reaching: str = "viewer",
+    facade: str = "",
 ) -> str:
     """A minimal workspace exercising a SEED-keyed axis — `RUN_VIEWER_TOOLKIT`
     by default, `RUN_PNCAD_PY` with `_PY_FIXTURE_PKGS`.
@@ -2365,13 +2468,20 @@ def _plant_seed_axis_fixture(
     viewer cases assert an exact PKGS closure, so growing one fixture to serve
     both axes would make every one of those expectations a statement about the
     other axis's dependency edges.
+
+    `facade` is the body of the fixture's `crates/pncad/src/lib.rs`, which is
+    what `_facade_reexported_members` reads. Left empty — the viewer cases,
+    which are not about this axis — the derivation Bails and `RUN_PNCAD_PY`
+    fails open, which is the honest reading of a façade with no re-exports in
+    it and is why those cases assert the other key.
     """
     import shutil
 
     for pkg in pkgs:
         os.makedirs(os.path.join(t, "crates", pkg, "src"), exist_ok=True)
         open(os.path.join(t, "crates", pkg, "Cargo.toml"), "w").close()
-        open(os.path.join(t, "crates", pkg, "src", "lib.rs"), "w").close()
+        with open(os.path.join(t, "crates", pkg, "src", "lib.rs"), "w") as fh:
+            fh.write(facade if pkg == "pncad" else "")
     # EVERY FIXTURE NEEDS ONE, because `classify` bails when the reach finds no
     # tree-wide guard at all — a tree that has none is a scanner that has
     # stopped reading. It goes in the SINK crate of each graph here, the one
@@ -2889,7 +2999,13 @@ def selftest() -> None:
     # directions: without the closure-only case a closure-keyed implementation
     # passes this battery, and the axis would be unenforced.
     with tempfile.TemporaryDirectory() as t:
-        _plant_seed_axis_fixture(t, _PY_FIXTURE_PKGS)
+        # The façade here re-exports `editor-core` and NOTHING ELSE, so the
+        # derivation comes back non-empty (an empty one Bails, by design) while
+        # adding no member the three hand seeds did not already hold. Every
+        # case below therefore still reads the three, and `topo` — under
+        # `pncad-py` through two crates and named by no line of this façade —
+        # is still the crate that must not buy the suite.
+        _plant_seed_axis_fixture(t, _PY_FIXTURE_PKGS, facade="pub use editor_core;\n")
         _files_case(t, "the binding crate's own sources buy the python suite",
                     ["crates/pncad-py/src/lib.rs"],
                     TIER="closure", SEEDS="pncad-py", RUN_PNCAD_PY="true")
@@ -2911,6 +3027,8 @@ def selftest() -> None:
         # the closure and is not a seed. A closure-keyed axis says true here —
         # on nearly every kernel change — and buys a second kernel compile
         # under the `python` feature for a suite whose subject held still.
+        # This façade names no crate but `editor-core`, so `topo` is out of
+        # reach of the bindings' Python here as well as out of the seeds.
         _files_case(t, "a kernel crate reaching pncad-py only through the closure does NOT",
                     ["crates/topo/src/lib.rs"],
                     TIER="closure", PKGS="editor-core,pncad,pncad-py,topo",
@@ -2920,6 +3038,42 @@ def selftest() -> None:
                     ["Cargo.toml"], TIER="all", SEEDS="", RUN_PNCAD_PY="true")
         _files_case(t, "a docs-only change runs nothing, the python suite included",
                     ["README.md"], TIER="docs", SEEDS="", RUN_PNCAD_PY="false")
+
+    # --- WHAT THE FAÇADE ADDS TO THE SEEDS, on `_PY_FACADE_FIXTURE_PKGS`.
+    # The pair below is the whole boundary: two crates that sit under
+    # `pncad-py` identically, differing only in whether the façade hands them
+    # to the bindings' Python. A seed set of three names cannot tell them
+    # apart and calls both of them false — which is the defect: a public
+    # signature moving in a re-exported crate moves what the suite's own
+    # scripts call, and no ordinary closure row runs those scripts.
+    with tempfile.TemporaryDirectory() as t:
+        _plant_seed_axis_fixture(
+            t, _PY_FACADE_FIXTURE_PKGS, facade="pub use editor_core;\npub use topo;\n"
+        )
+        _files_case(t, "a crate the facade re-exports whole buys the python suite",
+                    ["crates/topo/src/lib.rs"],
+                    TIER="closure", PKGS="editor-core,pncad,pncad-py,topo",
+                    SEEDS="topo", RUN_PNCAD_PY="true")
+        # THE OTHER SIDE. `bvh` is a dependency of the façade, so `pncad-py`
+        # is in its closure exactly as it is in `topo`'s — and the façade
+        # names it nowhere, so nothing the suite can call moved. This is the
+        # case a closure-keyed axis gets wrong and the case that keeps this
+        # widening from collapsing into one.
+        _files_case(t, "a crate the facade keeps interior does NOT",
+                    ["crates/bvh/src/lib.rs"],
+                    TIER="closure", PKGS="bvh,pncad,pncad-py",
+                    SEEDS="bvh", RUN_PNCAD_PY="false")
+        # A RE-EXPORT SPELLED IN A COMMENT IS NOT A RE-EXPORT. A withdrawn one
+        # left in place — the shape this façade's own `profile` note describes
+        # in prose — sits at column 0 inside a block comment, where a
+        # derivation reading raw lines takes it for the thing it describes and
+        # buys the suite for a crate the bindings cannot name.
+        with open(os.path.join(t, "crates", "pncad", "src", "lib.rs"), "w") as fh:
+            fh.write("/*\npub use bvh;\n*/\n/// pub use bvh;\npub use editor_core;\npub use topo;\n")
+        _files_case(t, "a re-export spelled only in a comment does NOT buy it",
+                    ["crates/bvh/src/lib.rs"],
+                    TIER="closure", PKGS="bvh,pncad,pncad-py",
+                    SEEDS="bvh", RUN_PNCAD_PY="false")
 
     # --- THE REACH FAILING CLOSED, on its own fixture because it pins a crate
     # the battery above requires NOT to be pinned. An ascent the chain resolver
@@ -3070,6 +3224,7 @@ def selftest() -> None:
                  "LANE": "both", "KLINT_ROW": "all"})
 
     _selftest_docs_premise()
+    _selftest_facade_premise()
     _selftest_eps_rows_workflow()
     _selftest_klint_workflow()
     _selftest_unsampled()
@@ -3096,7 +3251,12 @@ def selftest() -> None:
         "reach that finds no tree-wide guard at all bails to TIER=all rather than passing — "
         "while a path that stays inside its own crate, one under target/ and one bound in "
         "a let and ascended in the next statement pin nothing, and none of it reaches "
-        "JOB_ROOTS; the oracle signal fires on certified sources and lockfile and "
+        "JOB_ROOTS; THE PYTHON SUITE'S SEEDS are the bindings, the façade and the document "
+        "model WIDENED BY EVERY MEMBER THE FAÇADE ITSELF NAMES, re-derived off this tree's "
+        "own crates/pncad/src/lib.rs rather than listed here — a crate the façade re-exports "
+        "whole buys the suite though it seeds nothing else, a crate it keeps interior does "
+        "not though the wheel compiles it, and a re-export spelled only in a comment is not "
+        "one; the oracle signal fires on certified sources and lockfile and "
         "not on their prose; NO CONFIGURATION DIMENSION IS SAMPLED OR PINNED — LANE=both, "
         "EPS=all and KLINT_ROW=all over an ordinary diff, over the two file lists that used "
         "to pin the lane or the k-lint row, over the demo roots the k-lint pin left alone "
@@ -3840,6 +4000,50 @@ def _selftest_docs_premise() -> None:
           "tier: " + (", ".join(sorted(consumed)) or "(none)"))
 
 
+def _selftest_facade_premise() -> None:
+    """THE PYTHON SUITE'S SEED SET, read off the REAL façade rather than
+    asserted in a header — the fixture battery proves the RULE, and this
+    proves the rule still reads THIS tree.
+
+    WHAT IT PROVES AND WHAT IT DOES NOT. It proves the derivation comes back
+    on this tree, that it holds the kernel crates whose signatures the suite's
+    own scripts reach through `pncad`, and that it stops at a member the
+    façade keeps interior. It does NOT prove the set is COMPLETE: a member the
+    façade reaches through a curated module that does not share its name is
+    invisible to it and would be missed silently. That residue is bounded by
+    the negative below — every member NOT in the set is named there, so the
+    set can only lose members into a list this function reads out loud."""
+    root = _repo_root()
+    try:
+        seeds = pncad_py_seeds(root)
+    except Bail as exc:
+        raise SystemExit(
+            f"SELFTEST FAILED: this tree's python-suite seed set cannot be derived: {exc}"
+        ) from exc
+    # The bindings call these through `pncad`, so a signature moving in one
+    # moves what `crates/pncad-py/tests/*.py` calls, and no other row runs
+    # those files. `profile` is here because the façade narrowed its
+    # whole-crate re-export to `pub mod profile` and the bindings still name
+    # `pncad::profile`; a `pub use`-only rule would drop it.
+    for must in ("pncad-py", "pncad", "editor-core", "geom-core", "geom", "topo",
+                 "sweep", "mesh", "quantity", "profile"):
+        if must not in seeds:
+            raise SystemExit(
+                f"SELFTEST FAILED: {must} is not in the python suite's seed set. The suite's "
+                "own scripts reach it through the façade, so a change to it can move what they "
+                "assert while every ordinary closure row stays green")
+    dir_of, _ = _members(root)
+    outside = sorted(set(dir_of.values()) - seeds)
+    if "bvh" not in outside:
+        raise SystemExit(
+            "SELFTEST FAILED: bvh is in the python suite's seed set. It is the member this "
+            "façade deliberately keeps interior, and an axis that holds it holds every crate "
+            "the wheel merely COMPILES — which is the condition this axis exists to not be")
+    print("ci-filter selftest: the python suite's seeds on this tree: " + ", ".join(sorted(seeds)))
+    print("ci-filter selftest: members outside them, which a closure-keyed axis would have held: "
+          + (", ".join(outside) or "(none)"))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     src = ap.add_mutually_exclusive_group(required=True)
@@ -3968,7 +4172,27 @@ def main() -> int:
     # allowlist, so the very changes the oracle cares about arrive here as
     # TIER=all with a perfectly good file list. Only a failure to resolve
     # the diff at all leaves `files` None, and that is the case that runs.
-    out = decorate(res, files, config)
+    # THE PYTHON SUITE'S SEED SET IS READ OFF THE FAÇADE, HERE AND NOT IN
+    # `decorate`, which stays a pure function of its arguments. `_members` is
+    # memoised, so on the ordinary path this is one file read.
+    #
+    # RECORDED, NEVER SILENT: the set is printed either way, so the filter
+    # job's log says which members bought the suite — or that the façade could
+    # not be read and the suite runs unconditionally because of it.
+    facade_seeds: frozenset[str] | None = None
+    try:
+        facade_seeds = pncad_py_seeds(root)
+        print(
+            "ci-filter: python-suite seeds: " + ",".join(sorted(facade_seeds)),
+            file=sys.stderr,
+        )
+    except Exception as exc:  # noqa: BLE001 — fail OPEN on this axis
+        print(
+            f"ci-filter: the python-suite seed set is underivable, so the suite runs: {exc}",
+            file=sys.stderr,
+        )
+
+    out = decorate(res, files, config, facade_seeds)
 
     # THE NOTICES ARE COMPOSED HERE AND WRITTEN TWICE, TO ONE WORDING. They go
     # to stderr, where the local half and anyone running this by hand sees

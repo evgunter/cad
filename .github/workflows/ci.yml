@@ -3643,20 +3643,29 @@ jobs:
   # under the non-default `python` feature on almost every code-tier run.
   #
   # The condition is now the change filter's SEEDS — the members whose OWN
-  # files moved — intersecting {pncad-py, pncad, editor-core}: the binding
-  # layer, the façade every binding call goes through, and the document
-  # model the guide and north-star scripts drive. The .py tests and .pyi
-  # stub live under `crates/pncad-py/`, so they seed that member like any
-  # other source.
+  # files moved — intersecting the python-suite seed set: the binding
+  # layer, the façade every binding call goes through, the document model
+  # the guide and north-star scripts drive, AND every member the façade
+  # names in `crates/pncad/src/lib.rs`. The .py tests and .pyi stub live
+  # under `crates/pncad-py/`, so they seed that member like any other
+  # source.
   #
-  # WHAT THE SKIP GIVES UP is re-taken daily: nightly.yml's `python suite
-  # (ungated re-take)` runs this suite with no filter at all, so a kernel
-  # change that moves a NUMBER the .py assertions pin — reaching the
-  # bindings through `pncad`'s re-exports without seeding anything here —
-  # surfaces within a day rather than at whichever unlucky PR next touches
-  # the façade. A change that BREAKS the re-exported Rust API still reds
-  # that crate's ordinary closure rows on the offending PR, in the same
-  # run, because the façade's Rust side is compiled by the ordinary build.
+  # WHY THE FAÇADE'S OWN MEMBERS ARE IN IT (2026-09-06). A crate `pncad`
+  # re-exports is a crate the suite's Python CALLS, so its numbers and its
+  # refusals are this suite's subject; the three-name set left them to the
+  # nightly on the reading that a compile-break reds the ordinary closure
+  # rows anyway — true, and no argument about the assertions, which no
+  # other row runs. And the skip bought nothing measurable: this job takes
+  # 115-125 s, needs only `filter`, and finishes 692-917 s before the run
+  # does (35 code-tier runs, 2026-09-06), so it is off the critical path
+  # and the wall clock it adds is zero. Minutes are free on a public
+  # repository; wall clock is the currency.
+  #
+  # WHAT THE SKIP STILL GIVES UP is re-taken daily: nightly.yml's `python
+  # suite (ungated re-take)` runs this suite with no filter at all, so a
+  # change confined to a member the façade keeps INTERIOR (`bvh`) — which
+  # the wheel compiles and the suite cannot name — surfaces within a day
+  # rather than at whichever unlucky PR next touches the façade.
   #
   # RECORDED, NEVER SILENT: the verdict is printed by an always-run step
   # in the `filter` job, with the seeds it was decided from. That siting
@@ -3747,14 +3756,18 @@ jobs:
       # is it.
       #
       # WHAT THE SITING GIVES UP is this job's seed key and its `push`
-      # skip: on a PR whose seeds miss {pncad-py, pncad, editor-core} the
-      # row does not run. A lint introduced BY the binding code, or by
-      # `pncad`/`editor-core`, seeds the axis and is caught on its own PR;
-      # one reaching `src/py/` from further down (`quantity`, the kernel
-      # through `pncad`'s re-exports) or from a `stable` toolchain bump
-      # shipping a new lint seeds nothing, and waits for nightly.yml's
-      # `python suite (ungated re-take)`, which carries this same step
-      # ungated once a day.
+      # skip: on a PR whose seeds miss the python-suite seed set the row
+      # does not run. That set is the binding crate, the façade and the
+      # document model WIDENED BY EVERY MEMBER THE FAÇADE NAMES, derived
+      # from `crates/pncad/src/lib.rs` by `scripts/ci-filter.py`'s
+      # `_facade_reexported_members` and printed by the change filter, so
+      # a lint reaching `src/py/` from the kernel through `pncad`'s
+      # re-exports — `quantity` included — now seeds the axis and is
+      # caught on its own PR. What still seeds nothing is a member the
+      # façade keeps interior (`bvh`) and a `stable` toolchain bump
+      # shipping a new lint; those wait for nightly.yml's `python suite
+      # (ungated re-take)`, which carries this same step ungated once a
+      # day.
       - name: clippy (pncad-py, python feature)
         run: cargo clippy -p pncad-py --features python --all-targets -- -D warnings
       - name: install maturin (pinned, official prebuilt)

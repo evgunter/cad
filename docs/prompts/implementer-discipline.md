@@ -20,8 +20,15 @@ that** (2026-09-04, Ev's two authorisations). A code-tier run gates EVERY point
 of {default features, `interval`} x {default eps, 1e-6, 1e-12} — twelve
 `test (…)` jobs, each naming its lane, its eps row and its shard — and all five
 `k-lint (gate, <row>)` feature unifications. **Nothing is sampled any more.**
-The python suite, the gates, the discipline and parity rows and the render lanes
-are unchanged and still run on every code-tier run. Three things follow for you:
+The gates, the discipline and parity rows and the render lanes are unchanged and
+still run on every code-tier run. **The python suite runs whenever the change
+can reach the wheel's Python surface**: its seeds are `pncad-py`, `pncad` and
+`editor-core` plus every workspace member the façade names in
+`crates/pncad/src/lib.rs`, which is every kernel crate the suite's own scripts
+can call. A closure seeded ONLY in a member the façade keeps interior — `bvh`,
+`verbs`, `viewer`, `test-utils` — skips it, and the `change filter` job's log
+prints both the seed set and `RUN_PNCAD_PY`, so a run says which way it went.
+Three things follow for you:
 
 - **A green run means green at all six lane/eps points and all five k-lint
   unifications.** That is what the job list shows: if you cannot see twelve

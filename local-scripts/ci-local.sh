@@ -574,10 +574,12 @@ topo_release() {
 #
 # UNCONDITIONAL HERE, SEED-GATED HOSTED (2026-09-03), and it is the same
 # asymmetry the viewer toolkit rows below carry, for the same reason. The
-# hosted job runs only when the change filter's SEEDS intersect
-# {pncad-py, pncad, editor-core} — it is billed by the minute on every PR
-# and the wheel is a second compile of the kernel under the `python`
-# feature. This half is billed in one developer's wall clock, on a run
+# hosted job runs only when the change filter's SEEDS intersect the
+# python-suite seed set — {pncad-py, pncad, editor-core} widened by every
+# member the façade names, derived from `crates/pncad/src/lib.rs`, so
+# every crate the suite's own Python can call is in it and a member the
+# façade keeps interior (`bvh`) is not. This half is billed in one
+# developer's wall clock, on a run
 # they chose to make, and it is already the lane that runs every point of
 # every dimension: skipping work here would buy nothing
 # and would leave the local gate proving strictly less than the hosted
