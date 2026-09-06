@@ -189,3 +189,21 @@ the gate verifies geometry, not the folded frames; the gate's
 pinned. The viewer cannot author a `Part` node at all (no `AddPart`
 op) — CHROME's, to be filed. Style review and correctness arm
 dispatched on that head.
+
+## MSOLVE-2 reviews adjudicated, fix pass dispatched (2026-09-06)
+
+Correctness arm APPROVE-WITH-FIXES: C1–C5 confirmed on documents of
+its own (two and three levels deep, transforms between and above,
+circular and linear rules at non-identity indices, the viewer's real
+rays), with one MAJOR the spec itself placed wrong: the `Part`-index
+check lived in the offset, which runs only for a tree edge's first
+mate, so a DECLARING mate whose `Part` gathers a different copy than
+its name names was silently green — and the gate did not catch it,
+because it looks the NAMED copy up and finds it seated while the body
+the `Part` gathers floats. Ruled: the per-reference checks that need
+evaluation (the `Part`'s index against the name, the index against
+the count) move to the solve's own walk site, for every reference of
+every mate, refusing typed there; the offset keeps the arithmetic.
+Style: no MAJOR; the loop rows never folded a non-identity outer map
+(fixed with the reviewer's rows), two spellings of "which mates weld"
+collapsed, the copied test helpers hoisted beside the shared oracle.
