@@ -419,9 +419,15 @@ something that just happened**. A badge therefore outlives the frame
 that raised it and the line carries one frame's news — the lifetime is
 the consequence of the test, not the test.
 
-**"Held state" is a strong indicator and not a decision procedure**,
-and the sweep that sorts twenty writers on this rule needs the three
-ways it falls short. It is a property of the FACT and not of a
+**The channel is decided by PROVENANCE** — what caused the sentence to
+exist — and not by what it is about (Ev, 2026-09-06). Every refusal is
+about something and caused by something, so both are coherent axes;
+provenance wins because it is the only one a reader can SEE, in whether
+the sentence exists on a frame where nobody acted.
+
+**"Held state" is the mechanical shadow of that, a strong indicator and
+not a decision procedure**, and the sweep that sorts twenty writers on
+this rule needs the three ways it falls short. It is a property of the FACT and not of a
 signature — `frame::unindexed_refusal` takes a `&NotIndexed`, and what
 makes it an outcome is that `pick::unindexed` raises it for a `Select`
 and nothing else. Tracing to the raiser does not settle it either:

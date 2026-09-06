@@ -2,7 +2,9 @@
 id: unindexed-refusal-is-an-outcome-not-a-read
 kind: issue
 title: The ruling's worked example puts unindexed_refusal on the badge channel and the ruling's own rule puts it on the line
-status: open
+status: closed
+pr: 1957
+closed: 2026-09-06
 refs: [1945, 1957, news-and-standing-facts-are-orthogonal-axes, status-line-writers-bypass-the-ranking]
 opened: 2026-09-05
 ---
@@ -62,7 +64,54 @@ frame's own events are the discriminator. The unit took the rule
 because the rule is what Ev ratified in as many words and because the
 example is refuted by the code it names.
 
-## For Ev
+## RULED (Ev, 2026-09-06): the rule governs, not the example
 
-Confirm the rule over the example, or say the example was the ruling
-and this door moves too.
+> "your recommendation seems fine here"
+
+`unindexed_refusal` **stays on the line**. Recorded here rather than
+only as an answer to this door, because **this is the sweep's sorting
+rule**.
+
+### The two candidate tests, and why provenance wins
+
+They differ on *whose event decides*:
+
+- the **rule** asks **what caused this sentence to exist** → an act;
+- the **example** asks **what this sentence is about** → a seam.
+
+Every refusal is about something and caused by something, so both are
+coherent axes and neither is refuted by a definition. **Provenance
+wins because it is the only one a user can see.** It decides whether
+the sentence exists when nobody acted: `crates/viewer/src/pick.rs`'s
+`unindexed` gates on `any(|a| matches!(a, PickAction::Select(_)))` and
+`.then_some(...)`, so today the sentence exists only if the frame
+carried a click, while as a badge it would be lit for the whole
+2–13 second index window regardless. That is the observable
+difference, and there is no other.
+
+### Three consequences, recorded with it
+
+1. **It would put one sentence in two places.**
+   `crates/viewer/src/app.rs` already hangs
+   `NotIndexed::Building.to_string()` on the spinner as its hover text,
+   and `frame::Progress`'s header forbids two indicators lit for one
+   wait with no rule saying which a reader should believe.
+2. **It would undo half of #1843.** That ruling's deliverable was the
+   indicator **and** the pick path distinguishing "not indexed yet"
+   from "nothing under the cursor" — the indicator is held state (a
+   badge), the refusal is the answer to a click (the line). Merging
+   them lands back on a spinner over inert picks, which is the
+   fail-quiet #1843 refused.
+3. **The example's test would cost frame state and the rule's does
+   not.** "Held" is author-chosen — #1957 CREATED `scene_fault` and
+   `projection_fault` so those facts would qualify — so badging seam
+   refusals means minting a held field per refusal, and each is a new
+   entry in `ViewerApp`'s frame-state inventory. That inventory is what
+   GQ6's toolkit decision rests on and what #1843 was careful not to
+   grow.
+
+### What it settles beyond this door
+
+The sort test for `status-line-writers-bypass-the-ranking` is
+provenance, not subject matter. Noted on that item; re-sorting its list
+is that unit's work and not this one's.

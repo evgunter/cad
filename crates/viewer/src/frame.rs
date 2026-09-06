@@ -36,9 +36,17 @@
 //! and it cannot sort a fact that is both true after its frame and
 //! provoked by one.
 //!
-//! **"Held state" is a strong indicator and not a decision
-//! procedure**, and the sweep that sorts twenty writers on this
-//! paragraph needs the three ways it falls short said out loud:
+//! **The channel is decided by PROVENANCE** — what caused the sentence
+//! to exist — and not by what it is about (Ev, 2026-09-06). Every
+//! refusal is about something and caused by something, so both are
+//! coherent axes; provenance wins because it is the only one a reader
+//! can SEE, in whether the sentence exists on a frame where nobody
+//! acted.
+//!
+//! **"Held state" is the mechanical shadow of that, a strong
+//! indicator and not a decision procedure**, and the sweep that sorts
+//! twenty writers on this paragraph needs the three ways it falls
+//! short said out loud:
 //!
 //! * **It is a property of the FACT, not of a signature.**
 //!   [`unindexed_refusal`] takes a `&NotIndexed` and nothing else;
@@ -1001,7 +1009,16 @@ impl SeamSubject for NotIndexed {
 ///
 /// Its subject is the pick index seam's own ([`SeamSubject`]), because
 /// a `Building` refusal stops being the answer when the build lands —
-/// the same event that ends the badge.
+/// the same event that ends the badge. Which is the point: the
+/// subject agrees with the badge's and the CHANNEL still differs,
+/// because the two questions are independent.
+///
+/// Ruled (Ev, 2026-09-06) against the worked example that named this a
+/// badge. As a badge it would be lit for the whole index window
+/// whether or not anyone clicked, it would say what the spinner's
+/// hover text already says, and it would undo half of #1843 — which
+/// asked for the indicator AND a pick path that distinguishes "not
+/// indexed yet" from "nothing under the cursor".
 pub fn unindexed_refusal(refusal: &NotIndexed) -> Message {
     Message::new(NotIndexed::SUBJECT, refusal.to_string())
 }

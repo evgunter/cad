@@ -83,12 +83,21 @@ binding.
   the notices have to be HELD rather than rendered once into the
   field.
 
-**One line message that reads like a standing fact.**
-`frame::unindexed_refusal` reports seam state but is raised by a click
-and by nothing else, so the rule leaves it on the line; the ruling's
-worked example named it a badge. That disagreement is
-`unindexed-refusal-is-an-outcome-not-a-read` and it decides which of
-the two tests this sweep sorts twenty writers on.
+**The sort test is settled, and it is PROVENANCE** (Ev, 2026-09-06, on
+`unindexed-refusal-is-an-outcome-not-a-read`). A writer is sorted by
+**what caused its sentence to exist** — an act puts it on the line —
+and not by what the sentence is about. The two axes disagree on every
+refusal that reports a seam, and provenance won because it is the only
+one a reader can see: it decides whether the sentence exists on a frame
+where nobody acted.
+
+Two entries above are that class and **stay news** under it:
+`frame::unindexed_refusal`, which `pick::unindexed` raises for a
+`Select` and for nothing else; and `crates/viewer/src/pane/viewport.rs`'s
+cursor action the pick index refused. Under the rival test both would
+have moved, and with them the whole class *"a refusal about a seam"* —
+the largest coherent group on this news list after the tool refusals.
+Re-sorting the list against the settled test is this unit's work.
 
 **A policy that reaches the field without the ranking**, which is
 this item's own module being one of its subjects:
