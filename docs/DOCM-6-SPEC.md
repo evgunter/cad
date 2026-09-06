@@ -1,4 +1,4 @@
-# DOCM-6 — The instantiation seam carries mate identity and mint health (spec, DRAFT until §Fork is ruled)
+# DOCM-6 — The instantiation seam carries mate identity and mint health (spec)
 
 **Program:** DOCM (`work/docm/plan.md`), unit `DOCM-6`
 (`work/docm/DOCM-6.md`). **Ruling of record:** the plan's "questions
@@ -6,9 +6,9 @@ still open" item 1 — carry `MintedDeclaration` (and `unminted`) across
 `PartValue` so a carried refutation names its mate and the outermost
 gate sees inner mint health. The finding it answers is
 `work/docm/instantiation-seam-drops-mate-identity.md` (from MATE-6's
-dual review) — read it in full. **The one open decision is §Fork**,
-Ev's; everything else here is settled by the ruling of record and
-`crates/editor-core/ASSEMBLY.md`.
+dual review) — read it in full. The inner-mint-refusal semantics is
+RULED (§Ruling, Ev, 2026-09-06); everything else here is settled by the
+ruling of record and `crates/editor-core/ASSEMBLY.md`.
 **Track:** kernel change — the standard v6 unit.
 **Pre-draw fields, logged before the draw:** difficulty **M**, task-class
 **STRUCTURAL**.
@@ -63,37 +63,32 @@ strike the "cannot name its mate" prose wherever it stands
 **4. Mint health at the outermost gate** (`assembly.rs`,
 `assemble_gathered`). Today the gate raises the head of THIS
 document's `unminted`. After this unit it also reads
-`carried_unminted` — and what it does with a non-empty list is §Fork.
+`carried_unminted` — and refuses on a non-empty list, per §Ruling.
 
 **5. The Python mirror.** `Attribution`'s exhaustive mirror in
 `pncad-py` forces the `Carried` arm's tag and projection rows; no new
 Python door. Disclose the rows.
 
-## Fork — Ev's ruling, recorded here before dispatch
+## Ruling — inner mint refusals refuse at the outermost gate (Ev, 2026-09-06)
 
 **Question.** An inner document whose only mate cannot be minted
 refuses its own `assemble`. Instantiated into an outer document, is
-that refusal the OUTER document's error?
+that refusal the OUTER document's error? **Ruled: yes.** The fail-loud
+reading of Q1 ("verification runs once at the outermost gate") and of
+A2's "what a document means is its product": an outer assembly is
+unusable while an inner part is broken, which is what a broken part
+means, and a wrong "at rest" over an unverified contact is the thing
+the badge exists to deny.
 
-- **(A) Yes — refuse at the outermost gate** (the orchestrator's
-  recommendation; the fail-loud reading of Q1 and of A2's "what a
-  document means is its product"). `assemble_gathered` raises a new
-  `AssemblyError::CarriedMintRefusal { through, of, via, refusal }`
-  for the first carried refusal in gather order, BEFORE its own
-  `unminted` head and before the at-rest gate, naming the inner
-  document and mate so the author knows which file to open. The
-  landing's badge renders it. Cost: an outer assembly is unusable while
-  an inner part is broken — which is what a broken part means.
-- **(B) Advisory** — the gate certifies over the records it has;
-  `carried_unminted` rides `Assembly` as data and the registry gets a
-  resident (or the badge a secondary line) that reports "N declarations
-  of instantiated parts could not be minted", attributed. Cost: an
-  assembly reads as at rest while a part inside it has an unverified
-  contact, which the Q1 ruling's letter called the bound on "verification
-  runs once at the outermost gate".
-
-Whichever is ruled, the rows in A4 assert it and the other option's
-sentence is not written anywhere.
+`assemble_gathered` raises a new `AssemblyError::CarriedMintRefusal {
+through, of, via, refusal }` for the first carried refusal in gather
+order, BEFORE its own `unminted` head and before the at-rest gate,
+naming the inner document and mate so the author knows which file to
+open; the landing's badge renders it through `product_refusal`'s
+sibling. The advisory alternative (certify over the records held and
+report the inner refusals as findings) is NOT built and its sentence
+is written nowhere; a chrome that shows a partial assembly while
+refusing to certify it is CHROME's later question, not this gate's.
 
 ## Acceptance
 
@@ -114,12 +109,15 @@ sentence is not written anywhere.
   fixture whose outer gate refuses, each `Unattributed` finding is an
   `UndeclaredContact` (or an escalation/census arm the doc names) —
   never a carried declaration's refutation or decline.
-- **A4 — the fork's rows.** (A): an inner document with an unmintable
+- **A4 — the ruling's rows.** An inner document with an unmintable
   mate instantiated into an outer document refuses the outer gate
-  `CarriedMintRefusal` naming `(through, of, mate)`; the inner
-  document alone refuses as today; two levels down names the route.
-  (B): the outer gate certifies and the report/badge carries the
-  attributed advisory. Only the ruled option's rows exist.
+  `CarriedMintRefusal` naming `(through, of, mate)` BEFORE the outer
+  document's own `unminted` head and before the at-rest gate (a row
+  with both present pins the order); the inner document alone refuses
+  as today; two levels down names the route; the landing's badge
+  renders the refusal. No advisory channel exists (grep the diff for
+  `carried_unminted` outside the gate's refusal and the channel's
+  carry).
 - **A5 — nothing else moved.** Every existing assembly, mate and
   registry row passes unchanged; DOCM-5's landing rows (one gather)
   pass unchanged; the wire round-trip is untouched (`PartValue` is

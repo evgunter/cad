@@ -1418,3 +1418,19 @@ now points at the paragraph at `Mat3::rotation_about`; no assertion
 moved. The vec3-doors rider (#1977) adds `crates/profile/tests/sketch_plane.rs`,
 which the tool lists as tcost's as well as bool's. Signed (PROPS
 orchestrator).
+
+## One census line from TOPO's D50 (2026-09-06)
+
+`crates/topo/src/live.rs` now reads Rust source (the `Live` guard row),
+so `reader_census.rs` gained one `Shared` line for it, forced by the
+census's own arrival detector; `UNCONVERTED_TODAY` untouched. Landed
+with PR 1949.
+
+## Seam announced by TOPO (2026-09-06): the Euler-counts door
+
+Ev ratified `readback::euler_counts` / `genus()` (PR 2010). The unit
+converts the hand-written identity in `crates/topo/tests/*` (four
+files) and `crates/sweep/tests/*` (ten files) to the door — test rows
+as ordinary tests, one call replacing five `.count()`s and a sum per
+site; nothing else in those files moves. Lands on
+`topo/census-door`; say here if a TCOST lane is live on any of them.

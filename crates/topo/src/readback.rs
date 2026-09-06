@@ -325,9 +325,9 @@ pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, Read
 /// kept, and comparing it against a kind is the same exact comparison
 /// `select_where`'s surface-kind filter makes. "Is this face planar"
 /// is `face_carrier_kind(..)? == SurfaceKind::Plane`, and no number
-/// is consulted on the way. The total twin
-/// [`crate::query::face_surface_kind`] answers `None` for a stale key
-/// where this door refuses typed; the predicate seat wants an honest
+/// is consulted on the way. The total flattening
+/// [`crate::query::face_surface_kind`] reads through this door and
+/// answers `None` where it refuses typed; the predicate seat wants an honest
 /// NO, a read-back wants to know WHICH lookup came back empty.
 ///
 /// # Errors
