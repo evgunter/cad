@@ -1,7 +1,7 @@
 ---
 id: pick-and-parts-name-the-session-driver
 kind: issue
-title: pick and parts are vocabularies that name DocSession, so the boundary rule is false at two sites
+title: pick and parts are vocabularies that name DocSession, so the boundary rule is false at five sites
 status: closed
 opened: 2026-09-04
 closed: 2026-09-05
