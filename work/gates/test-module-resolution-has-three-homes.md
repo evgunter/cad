@@ -2,11 +2,12 @@
 id: test-module-resolution-has-three-homes
 kind: issue
 title: Test-module resolution and the excluded-path filter have three homes under scripts/gates/ — one rustc-correct, two textual — and lib.sh owns neither
-status: review
+status: closed
 opened: 2026-09-06
 refs: [gate-mod-path-resolved-textually, D211]
 branch: gates/reader-homes
 pr: 2058
+closed: 2026-09-06
 ---
 
 

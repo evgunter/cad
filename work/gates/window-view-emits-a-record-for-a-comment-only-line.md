@@ -2,11 +2,12 @@
 id: window-view-emits-a-record-for-a-comment-only-line
 kind: issue
 title: lib.sh's --window view emits a record for a comment-only line, so a hit is reported twice, one line early
-status: review
+status: closed
 opened: 2026-09-06
 refs: [D109, S49]
 branch: gates/reader-homes
 pr: 2058
+closed: 2026-09-06
 ---
 
 
