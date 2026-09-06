@@ -452,3 +452,56 @@ spelled once in the header with the awk comment a pointer to it; the
 PR body's mutation-D attribution corrected (caught first by
 `plant_desync_open_bracket`, then the nested fixture, then the live
 tree through the pin self-test).
+
+
+## PR 2058 reviewed (2026-09-06)
+
+Style review of `test-module-resolution-has-three-homes` +
+`window-view-emits-a-record-for-a-comment-only-line`: mergeable. File
+sets, the `all(test, …)` plant, the record counts (68,792 line records
+gone, 12,266 statement lines moved, text unchanged), the six mutations
+and the mawk/gawk identity all reproduced against the merge-base. One
+finding with teeth, sent back as a fix pass: the widened raw narrowing
+(the `all(test, …)` first-stage fix) had no fixture — reverting it to
+the literal left every self-test green. Also: the rustc rule restated
+in prose at two consumers and the not-test-only rule at a third; a
+stale planted comment; the two-dialect constraint on the shared
+regexes unstated; the filter helper's mounts arriving as a global
+while its sibling takes arguments.
+## Landed: PR 2058 (2026-09-06)
+
+`test-module-resolution-has-three-homes` and
+`window-view-emits-a-record-for-a-comment-only-line` closed. rustc's
+test-module resolution (`#[path]`, root/`mod.rs` to the sibling, other
+declarers into `dir/foo/`, inline modules to no file) lives once in
+`lib.sh` as `gate_test_only_mounts` / `gate_filter_test_only_paths` /
+`gate_production_sources`, with the test-only `cfg` attribute spelled
+once (`GATE_CFG_TEST_RE`) and read by the reader's skip, the resolver
+and the raw narrowing (which was a fixed `#[cfg(test)]` string and now
+closes the `all(test, …)` hole). Retired: `witness-not-ambient.sh`'s
+and `panic-free-macro-bodies.sh`'s textual copies and
+`interval-square-allowlist.sh`'s `production_sources`. One file moved
+in the two textual gates: `boolean/solid_contain/r1_generic_poses.rs`,
+declared from a non-root file, whose sibling-rule exclusion named a
+path that does not exist — it was scanned as production; both gates
+now scan 396 files, not 433 with records filtered after. The window
+view starts a window only at a code line (a comment-only line is not
+a record in any shape); statement views byte-identical, no gate's
+output moves. PR 2033's resolver fixtures became
+`gate_selftest_test_module_homes`, run by every caller of
+`gate_production_sources`, because deleting a gate's textual copy
+outright had left its self-test green. `loop-boundary-discards.sh`'s
+line-view duplicate filter measured dead after the window fix and
+retired in the same PR. Delimiter walkers left at three, stated as a
+cost: a depth column serves two of three callers and not the one that
+needs spans.
+Fix pass from the review: the widened raw narrowing (`all(test, …)` in
+the first stage) now has a must-NOT-fire fixture run by every caller
+of `gate_production_sources`, mutation-proved on all three gates
+(reverting the narrowing to the literal reds exactly that case in each);
+the rustc rule and the test-only rule restated at three consumers
+became pointers to `lib.sh`'s clauses; a stale planted comment fixed;
+the two-dialect (grep-ERE and awk-ERE) constraint stated at the shared
+regexes; the filter helper's global mount list named in its doc with
+the reason the shape differs from its sibling. Gate loop green under
+both awks on the merged head; scanned sets unmoved.

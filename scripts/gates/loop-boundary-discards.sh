@@ -212,11 +212,12 @@ REGISTER=(
   "crates/topo/src/validate.rs|tier3_local_checks_marked||2|unaudited"
 )
 
-# The matchers, in one place. Anchored at the start of a record, which
-# is also what makes each site count ONCE: a window whose first record
-# is a comment-only line (the indent before `//` survives the strip)
-# repeats the same join one line early, so a hit is kept only where the
-# LINE view shows the pattern really starting there.
+# The matchers, in one place. Anchored at the start of a record, because
+# a discard is a construct that BEGINS at its site: a pattern free to
+# match mid-record would read a `LoopBoundary::Cycle {` several lines
+# into a window as a site of its own. `ANCHOR_RE` is that same head
+# matched over the LINE view, where it marks the lines a site can start
+# at and the enclosing `fn` open at each of them.
 #
 # NO BACKSLASH APPEARS IN THEM, and that is not a style choice. A
 # metacharacter is written as a one-member bracket expression (`[{]`,
@@ -303,10 +304,7 @@ gate() {
       phase == 1 {
         if (file != curfile) { curfile = file; depth = 0; pending = ""; nfn = 0 }
         bare = txt; sub(/^[ \t]+/, "", bare)
-        if (bare ~ ANCHOR) {
-          anch[file ":" line] = 1
-          at[file ":" line] = (nfn > 0) ? fname[nfn] : "(no enclosing fn)"
-        }
+        if (bare ~ ANCHOR) at[file ":" line] = (nfn > 0) ? fname[nfn] : "(no enclosing fn)"
         if (match(txt, /(^|[^A-Za-z0-9_])fn [A-Za-z_][A-Za-z0-9_]*/)) {
           s = substr(txt, RSTART, RLENGTH); sub(/^[^f]*fn /, "", s); pending = s
         }
@@ -326,7 +324,13 @@ gate() {
       {
         sub(/^ /, "", txt)
         if (!(txt ~ LETRE || txt ~ ARMRE)) next
-        if (!((file ":" line) in anch)) next
+        # The enclosing `fn`, read at the line the window starts on. A
+        # window starts on a CODE line and its first component is the
+        # text of that line, so a record matching above has a site
+        # there and `at[]` names its item; an empty one matches no
+        # entry and is reported, never dropped. (No apostrophe here:
+        # a single quote cannot appear anywhere in this program, which
+        # is itself single-quoted.)
         item = at[file ":" line]
         head = txt
         if (txt ~ LETRE) {
@@ -386,15 +390,17 @@ gate() {
 # THE PLANTED SPELLING CYCLES through every form the two matchers
 # accept, so the clean fixture is where each one is shown to be READ,
 # and the firing planters below show them FIRE. Every planted site sits
-# under a comment-only line, which is the record that repeats a window
-# one line early: without the anchor filter each of them would count
-# twice and every entry would MISCOUNT.
+# under a COMMENT-ONLY LINE, and that is this fixture's second job: a
+# line carrying no code is not a record, and a reader that emitted one
+# would start a window at the comment and count every site here twice —
+# every entry MISCOUNTing at pinned+1. The pinned counts are what make
+# that a check rather than a hope.
 gate_plant_site() {
   local file=$1 item=$2 form=$3
   {
     printf 'fn %s() {\n' "$item"
     printf '    for lk in loops {\n'
-    printf '        // the comment-only line whose record repeats the window\n'
+    printf '        // a comment-only line, which is not a record at all\n'
     case "$form" in
       wrapped-continue)
         printf '        let LoopBoundary::Cycle { first } = body\n'
@@ -618,7 +624,7 @@ gate_selftest() {
   gate_selftest_passes "a let-else and a match arm discarding some OTHER enum" plant_other_enum_discard
   gate_selftest_passes "a LoopBoundary value BOUND and used, not discarded" plant_bound_and_used
   gate_selftest_passes "the spelling in prose, in a doc comment, in a string literal and inside matches!" plant_prose_and_predicate
-  printf '%s selftest OK: passes a tree whose every discard is registered at its pinned count, across all ten spellings the matchers accept and with every site under the comment-only line that repeats a window; fires on an unregistered let-else, an unregistered match arm, a register entry whose site is gone, a malformed entry, and a second discard absorbed by a plain key or by a fragment; names the ENCLOSING fn rather than a closed helper; stays quiet on another enum, on a bound-and-used value and on prose; and stays RED, with a diagnosis, when the reader itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a tree whose every discard is registered at its pinned count, across all ten spellings the matchers accept and with every site under a comment-only line, which the shared reader must not make a record of; fires on an unregistered let-else, an unregistered match arm, a register entry whose site is gone, a malformed entry, and a second discard absorbed by a plain key or by a fragment; names the ENCLOSING fn rather than a closed helper; stays quiet on another enum, on a bound-and-used value and on prose; and stays RED, with a diagnosis, when the reader itself cannot run\n' "$(gate_name)"
 }
 
 # `--register` is this gate's own flag, so it is taken out of argv
