@@ -1127,3 +1127,26 @@ every same-object identity it guarantees whose consumer node it can
 build identically, stopping at the first bound that is the
 dependency-widening class. The lane resumed on it before the review
 freeze; the reviews will see the unit at the amended scope.
+
+## M10-9 frozen and under dual review (2026-09-06)
+
+The second report under A1: both of the arc carrier's same-object
+identities registered — the span identity through a structural
+same-node door (`Curve3::eval`'s circle arm delegating to
+`Curve3::circle_at`, D13) — each discharging its predicate wholly at
+every nominal, `registered` linted at 80 per driver CSV, and the
+plate's bound walking one predicate further to
+`carrier_matches_mapped_source`, the scaffolding residual between the
+carrier and the `MappedCurve` pushforward: two independently built
+objects, the exact line E12's reserve draws, so A1's stop rule fired
+and the lane filed it (`plate-ceiling-is-now-the-scaffold-pushforward`)
+with the two options owed — a form-level equation the spec forbids, or
+retiring the scaffolding residual for arc carriers, a D3/PCURVE
+question. No ceiling moved on any document at any ε, and every
+ceiling still scales exactly with ε. Frozen at ac34ceec3; ordinal 510
+drawn (branch-side record). What the reviews are pointed at beyond the
+door's soundness: whether the trail of identity-shaped bounds (rim →
+span → mapped-source) is a long tail that per-identity registrants
+cannot finish, and what the FULL refusal set just past the ceiling
+says about where the exit condition actually lives.
+
