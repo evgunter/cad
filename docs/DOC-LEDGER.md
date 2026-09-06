@@ -703,6 +703,7 @@ that lands here resolves without opening the walk:
 | `S-BLEND-EXIT-WALK.md` | 2026-08-31 | PR #1370 | this row; vocabulary at `crates/sweep/README.md`, enclosing tangency at `crates/profile/README.md` |
 | `S-QA-EXIT-WALK.md` | 2026-08-31 | PR #1341 | this row |
 | `S-MATE-EXIT-WALK.md` | 2026-09-04 | PR #1528, merged by Ev 2026-09-01; ratification confirmed in-chat 2026-09-04 | this row; design at `crates/editor-core/ASSEMBLY.md`; sweep 6 below |
+| `FILLET-EXIT-WALK.md` | 2026-09-06 | PR #1973, ratified in-chat 2026-09-06 | this row; sweep 7 below; vocabulary and bands at `crates/sweep/README.md` |
 | `S-CERT-EXIT-WALK.md` | 2026-09-06 | PR #1924, merged by Ev 2026-09-06 (the merge is the ratification, per the S-MATE convention) | this row; A/B record ordinals 700–714 in `docs/MODEL-AB-LOG.md`; sweep 7 above |
 
 
@@ -717,6 +718,7 @@ that lands here resolves without opening the walk:
 - `S-BLEND-EXIT-WALK.md` — S-BLEND exit walk — criteria vs evidence
 - `S-QA-EXIT-WALK.md` — S-QA exit walk — criteria vs evidence
 - `S-MATE-EXIT-WALK.md` — S-MATE exit walk — criteria vs evidence
+- `FILLET-EXIT-WALK.md` — FILLET exit walk — criteria vs evidence
 - `S-CERT-EXIT-WALK.md` — S-CERT exit walk — criteria vs evidence
 
 ### Per-unit specs, unit merged (46 files)
@@ -1181,3 +1183,46 @@ The rule above; the unit's record is its item's `## Closed` section
 its A/B row is MODEL-AB-LOG SEAT9.
 
 - `SEAT-9-SPEC.md` — SEAT-9, the shell arm on `Verb` and ε travelling only as `Tol` down the offset-fit chain (#1995)
+
+## Sweep 7 — 2026-09-06: FILLET leaves the tracker
+
+Sweep SHA: `efe21acb8f599dd146fbaadc0251dc3981ebbf9a` — `main`'s tip immediately before the deletion,
+so every path below is recoverable at
+`git show efe21acb8f599dd146fbaadc0251dc3981ebbf9a:work/fillet/<FILE>` and
+`git show efe21acb8f599dd146fbaadc0251dc3981ebbf9a:docs/FILLET-EXIT-WALK.md`.
+
+FILLET — the blend-completion second pass — closed 2026-09-06 on Ev's
+ratification of `docs/FILLET-EXIT-WALK.md` (PR #1973, "1973 is good", in
+chat). Per the sweep-5 rule the program's directory leaves whole:
+`program.md`, `plan.md`, `log.md`, and every item file, every one of them
+`status: closed` or `parked`-then-closed except the residue moved below.
+Eight dualled units (samples #126, #131, #132, #134, #135, #136, #139,
+#141; ordinals 2000–2007), three E openers under single style reviews,
+five `[ev]` rulings (PRs 1733, 1734, 1735, 1736, 1916) and the H7
+vocabulary ratified on PR 1819.
+
+| program | title | closed | done-state of record |
+| --- | --- | --- | --- |
+| `fillet` | FILLET — blend completion, second pass | 2026-09-06 | this row and the exit-walk row below; the A/B rows in `docs/MODEL-AB-LOG.md`; design at `crates/sweep/README.md` (A3 as amended by H4/H5/H7), `crates/profile/README.md` (the `NoCornerOfPair` envelope), `crates/topo/README.md` (`rim_of`) |
+
+### Residue re-homed before the deletion
+
+Moved by `git mv` with ids kept (ownership is the directory):
+
+| item | to |
+| --- | --- |
+| `rim-door-admits-a-double-cover` | `work/seat/` |
+| `cut-off-arc-persists-as-a-corner-arc` | `work/docm/` |
+| `debug-in-prose-at-blend-and-step-import` | `work/fix/` |
+| `blend-size-gate-unmetered-under-epsilon`, `blend-payloads-outside-the-margin-family` | `work/props/` |
+| `ambiguity-k-below-the-cap-rim-crossover`, `blend-recourses-under-describe-their-doors`, `curved-single-host-rim-refuses-at-the-half-band-gate`, `escalated-recourse-dispatch-has-no-coaxiality-arm`, `fillet-escalation-site-has-no-producer`, `hostless-rim-on-a-ringed-host-refuses`, `ladder-rim-phase-may-retire-a-new-split-key`, `overrun-attribution-picks-the-first-candidate`, `path-fillet-door-validator-tangency-disagree`, `rim-seed-finders-disagree-on-at-this-radius`, `ring-clearance-refuses-a-nested-trim-circle`, `smooth-arm-siblings-disagree-on-the-in-band-case`, `sweep-top-field-docs-make-the-spatial-claim-capend-shed`, `tangent-parallel-certifier-passes-a-transverse-arc` | `work/issues/` — the blend kernel and the profile fillet door have no live program, and S-CERT (the certifier's owner) has already left the tracker; the next blend program's opening slate |
+
+Closed at the sweep as records, not work: `plane-hosted-rim-has-no-native-instance`
+(Phase 1's census, cited by the walk). The `corner-config-tag-all-concave-trihedron`
+ruling stays code-quality's (re-asked on PR 1935).
+
+### The exit walk's row
+
+| walk | program closed | ratified on | done-state now |
+| --- | --- | --- | --- |
+| `FILLET-EXIT-WALK.md` | 2026-09-06 | PR #1973, in chat | this row; the residue table above; vocabulary and bands at `crates/sweep/README.md` |

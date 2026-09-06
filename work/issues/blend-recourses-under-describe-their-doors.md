@@ -4,7 +4,6 @@ kind: issue
 title: Two blend recourse sentences under-describe the doors they endorse
 status: open
 opened: 2026-09-04
-refs: [recourse-sentences-owe-followability-pin]
 ---
 
 Neither of these is a DEAD recourse: following either sentence
@@ -63,3 +62,7 @@ names "circular rims between two coaxial revolution surfaces" — the
 plane–cylinder top rim included — with the repaired-pole exception
 (README A3-2) stated in the sentence. §1 (the spine-kind sentence) is
 untouched by that PR and stays this item's open half.
+
+## Pointer (FILLET sweep, 2026-09-06)
+
+Former `refs` `recourse-sentences-owe-followability-pin` named FILLET items now deleted with that program's directory: `recourse-sentences-owe-followability-pin` — FILLET E2, closed (PR 1753). Recoverable at the sweep SHA in `docs/DOC-LEDGER.md` (sweep 7).

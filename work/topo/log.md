@@ -263,3 +263,51 @@ names versus a tag read, and #1902's "one kernel door, callers keep
 their names" is this item's (a)). Ratified (a). The item is a unit,
 dispatched on `topo/two-homes-face-kind` as a one-door seam on SEAT's
 `query.rs`, announced; single style review, no row.
+
+## D50 delivered; style review out (2026-09-05)
+
+`topo/d50-live-guard` delivered as PR 1949, head `e69760e1`, full
+matrix green (run 33950634858). The guard is one row in `live.rs` over
+the shared `code_only` view: the declaration and `new` carry no
+visibility, every door reaches a closed lookup vocabulary before its
+first construction, and the doors and sites are pinned to the header's
+list plus the crate-wide "no other file builds one". Three mutants red
+by name. `D260` is one sentence. Two deviations: `source_walk.rs`'s
+item scan widened from `pub fn` to every named `fn` (the doors are
+`pub(crate)`), with its own row; and one `Shared` line in the reader
+census, forced by the census's own detector (S-TCOST's file — noted on
+its board at adjudication). One residue filed: the guard proves
+ordering, not that the key looked up is the key wrapped. Single style
+review dispatched on the frozen head.
+
+## D50 adjudicated (2026-09-06)
+
+Style review (single, Fable; the first attempt died on the account's
+usage limit and was relaunched fresh): MERGEABLE-AFTER-FIXES. Every
+planted mutant redded naming its door — the guard is real. Findings:
+D260's sentence claims the header names the doors (it does not); the
+PR body claims a cross-file check with `euler.rs`'s door list that the
+row does not make; one of the new scan rows cannot fail on the mutant
+it was written for; the residue's reason for declining the cheap
+argument-spelling partial was falsified by execution (green on the
+tree, red on the residue's own example) — so the partial is taken and
+the residue narrowed to the two gaps that remain (arena-blind `.get(`,
+nested items unscanned); a stale measured door count; two vocabulary
+spellings no door uses. Ten-item fix pass to the same lane. The item
+scan's missing shared home and two smaller siblings appended to the
+S-TCOST issue filed from D261's review.
+
+## Two-homes unit delivered; orchestrator meta-review (2026-09-06)
+
+PR 1959, head `c1539db5`, full matrix green: two function bodies in
+SEAT's `query.rs`, the mutant receipt showing the delegation is real
+(the door made to refuse → one `topo` row and one `sweep` row red).
+Deliberate deviation from the per-unit style-review posture, recorded:
+for a six-line delegation with an executed receipt, the orchestrator's
+own read is the review — a lane would re-derive the two disclosed
+questions and nothing else. Both questions got files: the missing
+positive row on SEAT's slate (`face-surface-kind-has-no-positive-row-in-topo`),
+the edge side's absent readback door on this one
+(`edge-carrier-kind-has-no-readback-door`). The lane's one-word
+question in `readback.rs` ("twin" → "flattening") taken
+orchestrator-direct on the branch; merges on green.

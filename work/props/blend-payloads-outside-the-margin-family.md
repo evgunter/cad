@@ -4,7 +4,7 @@ kind: issue
 title: blend payloads outside the seven-field margin family: two dropped margins and the sweep's third blind spot
 status: open
 opened: 2026-09-04
-refs: [bare-f64-margin-payload-family, 934, 931, 925]
+refs: [934, 931, 925]
 ---
 
 Found by the FILLET-E3 review (PR 1763). E3 fixed the seven
@@ -136,3 +136,7 @@ Rows 1 and 2 are FILLET's own ground and are the reason this is filed
 under `work/fillet/`. Row 3's instances are named per row with the
 program that owns each, and none of them should be edited by a FILLET
 unit without an announced seam. Row 4 is LIB's.
+
+## Pointer (FILLET sweep, 2026-09-06)
+
+Former `refs` `bare-f64-margin-payload-family` named FILLET items now deleted with that program's directory: `bare-f64-margin-payload-family` — FILLET E3, closed (PR 1763). Recoverable at the sweep SHA in `docs/DOC-LEDGER.md` (sweep 7).
