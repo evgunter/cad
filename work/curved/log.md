@@ -128,3 +128,12 @@ nothing re-takes them; three coaxiality policies now coexist in
 measured-and-admitted). Operations: the `CI-Config` commit-trailer
 path was deleted on main (`eeb912512`, 2026-09-04) — briefs must stop
 mentioning it; the k-lint draw is retired and all five rows run.
+
+## Doc rot relayed by TOPO (2026-09-06)
+
+`docs/CURVED-MERGEDOOR-SPEC.md:185` cites `is_arena_fault (:447-452)`
+as untouched; TOPO's D265 (PR 2013) rewrites that function (now
+`crates/topo/src/merge_faces.rs:583-618`) to classify the merge door's
+own refusals. The spec's premise — a non-`Op` variant is never an
+arena fault — still holds; the line cite and "untouched" do not.
+Found by D265's reviews; the file is this program's.
