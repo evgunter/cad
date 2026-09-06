@@ -357,3 +357,13 @@ plan's constant. Outside the experiment (generator, ledger, debug
 postcondition). Both briefs pre-log difficulty M; the D265 arm was
 known when its guess was written (block drawn 2026-09-05), disclosed
 in the spec.
+
+## The census door goes to Ev (2026-09-06)
+
+`no-public-census-or-genus-query`: recommendation (A) — a typed
+whole-body read in `readback` (`euler_counts` + `genus() -> Result`),
+shells as the shell term, parity refusing typed. Three viable shapes
+on paper; the API shape is a design question by the item's own words,
+so it goes out as an `[ev]` PR. Re-measured at 26 sites in 22 files,
+and the ledger's solids-for-shells slip (`S69`'s lane) is the row's
+cost already realised.
