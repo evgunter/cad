@@ -281,3 +281,24 @@ add). In flight: PR 2056 (`D102`) under review; `gates/reader-homes`
 and `gates/viewer-module-kinds-guards` building. Landed today so far:
 ten rows over eight PRs (2029, 2030, 2032, 2033, 2038, 2042, 2044,
 2049).
+
+## PR 2056 reviewed (2026-09-06)
+
+Style review of `D102` + `bounds-tripwire-blind-to-named-alias`:
+mergeable with fixes. The bijection holds (183 old line-records map
+one-to-one onto 183 statement records; per-file pins identical), the
+four silent spellings fire and the three near misses do not, the
+mutations flip exactly the fixtures that guard them. Findings, all
+minor, sent back as a fix pass: shapes `main`'s regex caught that the
+parameter-keyed reader is silent on (`dyn A + B`, `-> impl A + B`,
+`type S = dyn A + B;`, lifetimes, `;` inside a generic list — zero
+population, undisclosed at the claim site); `?Sized` and a lifetime
+treated oppositely; the reader's own paragraph carried over from the
+line reader and false under statements; the `EvalScalar` roster entry
+saying its uses are unchecked when `evalscalar-allowlist.sh` checks
+them (and that gate's header listing six supertraits of ten); a stale
+example in the `D102` row; the `real.rs` paragraph's "ratified here";
+three stale comments and a duplicated header sentence; the OK line's
+count wording. Out of fence, filed: three bracket-depth bound-list
+readers (`bounds-allowlist.sh`'s awk, `bounds_census.rs`, `test_utils`)
+none citing the others — `code-quality/bound-list-readers-have-three-homes`.
