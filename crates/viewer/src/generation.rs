@@ -7,7 +7,7 @@
 //! key their answers by and what the session, the frame policies, the
 //! pick index and the app all compare; sited inside either seam it
 //! makes every one of those readers import a seam to name a counter,
-//! and it made `evalseam` and `pick` import each other
+//! and it made `evalseam` and `pickcache` import each other
 //! (`crates/viewer/README.md`, *Module boundaries*).
 //!
 //! Module kind: **vocabulary** — it names no driver type and no

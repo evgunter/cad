@@ -65,9 +65,10 @@ use crate::frame::{self, IdQueryLog, StatusUpdate};
 use crate::generation::Generation;
 use crate::gpu::{DEPTH_BITS, ViewportRenderer};
 use crate::input::InputMap;
+use crate::marks;
 use crate::parts::PartChooser;
-use crate::pick::{self, PickCache};
-use crate::pickindex::{self, PickIndex};
+use crate::pickcache::{self, PickCache};
+use crate::pickindex::PickIndex;
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::scene::{self, DisplayTolerance, SceneError, SceneMesh};
 use crate::session::{DocSession, Refusal, Selection, SessionOp};
@@ -293,7 +294,7 @@ pub struct ViewerApp {
     /// rebuild exactly as a new evaluation does.
     scene_display: Option<u64>,
     /// The focus set `scene` was built under — the ids of what the side
-    /// panel is showing (`pickindex::focus`), which the scene carries as a
+    /// panel is showing (`marks::focus`), which the scene carries as a
     /// per-corner flag and therefore has to be rebuilt for.
     ///
     /// Compared as a SET rather than counted by a revision, because
@@ -741,19 +742,19 @@ impl ViewerApp {
         // screen is used on the frame it arrives rather than the next
         // one. A refusal is held by the cache and badged, not
         // announced; a superseded answer is nothing to say
-        // (`pick::IndexLanding::Stale` is what restart-without-cancel
+        // (`pickcache::IndexLanding::Stale` is what restart-without-cancel
         // produces, once per δ changed mid-build).
         let mut rebuilt = false;
         for landing in self.picks.pump() {
             match landing {
-                pick::IndexLanding::Built => rebuilt = true,
+                pickcache::IndexLanding::Built => rebuilt = true,
                 // Nothing to say here: the cache HOLDS the refusal
                 // under its one-attempt-per (generation, δ) policy,
                 // and `frame::index_badge` reads it every frame the
                 // toolbar draws. Announcing it once put a read on a
                 // line the next acting batch sweeps.
-                pick::IndexLanding::Refused => {}
-                pick::IndexLanding::Stale => {}
+                pickcache::IndexLanding::Refused => {}
+                pickcache::IndexLanding::Stale => {}
             }
         }
         // The cache owns the retry policy: one attempt per (landed
@@ -762,13 +763,13 @@ impl ViewerApp {
         //
         // Every arm but `Current` leaves the viewport drawing the mesh
         // it already has — an older picture, which the indexing
-        // indicator names and `pick::unindexed` refuses picks against.
+        // indicator names and `pickcache::unindexed` refuses picks against.
         match self.picks.sync(self.session.index_inputs(), self.delta) {
-            pick::CacheStep::Held
-            | pick::CacheStep::Nothing
-            | pick::CacheStep::Submitted
-            | pick::CacheStep::Indexing => return,
-            pick::CacheStep::Current => {}
+            pickcache::CacheStep::Held
+            | pickcache::CacheStep::Nothing
+            | pickcache::CacheStep::Submitted
+            | pickcache::CacheStep::Indexing => return,
+            pickcache::CacheStep::Current => {}
         }
         // The scene is a function of (index, display state, focus): a
         // display or selection change over a current index still owes
@@ -777,7 +778,7 @@ impl ViewerApp {
         let Some(index) = self.picks.index() else {
             return;
         };
-        let focus = pickindex::focus(index, self.session.doc(), self.session.selection());
+        let focus = marks::focus(index, self.session.doc(), self.session.selection());
         if !rebuilt && self.scene_display == Some(display_revision) && self.scene_focus == focus {
             return;
         }
@@ -1297,7 +1298,7 @@ impl eframe::App for ViewerApp {
                         }
                         if indexing {
                             ui.weak("indexing…")
-                                .on_hover_text(crate::pick::NotIndexed::Building.to_string());
+                                .on_hover_text(crate::pickcache::NotIndexed::Building.to_string());
                             ui.ctx().request_repaint();
                         }
                     }
@@ -1309,7 +1310,7 @@ impl eframe::App for ViewerApp {
                         ui.separator();
                         ui.spinner();
                         ui.label("indexing…")
-                            .on_hover_text(crate::pick::NotIndexed::Building.to_string());
+                            .on_hover_text(crate::pickcache::NotIndexed::Building.to_string());
                         ui.ctx().request_repaint();
                     }
                     None => {}
@@ -1555,7 +1556,7 @@ pub(crate) struct ViewerBehavior<'a> {
     /// Whether a build for the picture this frame WANTS is under way —
     /// the other half of what `index: None` means, and the half that
     /// decides which sentence a refused pick gets
-    /// (`pick::NotIndexed`). Carried as a value rather than re-derived
+    /// (`pickcache::NotIndexed`). Carried as a value rather than re-derived
     /// from the session, because "someone is building one" is the pick
     /// cache's answer and nothing else's.
     pub(crate) indexing: bool,
