@@ -1220,6 +1220,15 @@ jobs:
         run: |
           scripts/gates/no-extra-real-bounds.sh --selftest
           scripts/gates/no-extra-real-bounds.sh
+      # clippy does not lint inside a `macro_rules!` body, so the
+      # panic-family stanza in [workspace.lints.clippy] — the
+      # enforcement of D9's "no panic on any input" — stops at every
+      # macro. This gate is that stanza reaching the one place clippy
+      # cannot look.
+      - name: panic family inside macro bodies
+        run: |
+          scripts/gates/panic-free-macro-bodies.sh --selftest
+          scripts/gates/panic-free-macro-bodies.sh
       # Test-aggregation discipline: one [[test]] target per crate. Each
       # extra one is a full codegen+link of the ~40-rlib graph — 96% of
       # this workflow's build job, measured (bazel-verdict report).
