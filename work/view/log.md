@@ -3627,3 +3627,72 @@ The brief also carries the rule's three limits as things to apply
 rather than skip, and the standing instruction that **a site the rule
 cannot sort outranks the sweep** — the same fence that has now produced
 a finding on each of the two units it was applied to.
+
+## The sweep: the census was wrong four times because the TEST was wrong (2026-09-06)
+
+**#2026 green** on `a0e71d3b0`. Under style review. The twenty-writer
+sweep is built — and the headline is that there are **eighteen**, and
+the lane found why the number kept moving.
+
+### The membership test, not the counting
+
+Every previous count used *"reaches the field outside the ranking"*.
+The right test is **"can put a SENTENCE on the line that the ranking
+never saw"** — because **applying a verdict outside the ranking is not
+writing one, and a retirement must not be ranked.**
+
+That is why the number was wrong four times (nineteen in the item,
+eighteen in the README and `frame.rs`, twenty from #1933's recount, and
+now eighteen again on a different test): each recount counted more
+carefully against a test that was itself wrong.
+
+Two sites come off, and both are instructive:
+
+- **`frame::cursor_status` returns only `Keep`/`Expire`.** It can never
+  put a sentence on the line, so it was never one of these writers —
+  **it is the well-behaved shape the item asks every writer to
+  become**, and it had been counted as one of the offenders.
+- **`frame::dialog_status`'s `Show` arm is unreachable at both call
+  sites.** Open… and Save As… are `add_enabled(chooser.usable(), …)`
+  and the arm needs `usable: false`, so a click implies usable.
+  Latent, not live — and it goes through the new door anyway, so if
+  that guard is ever removed the sentence lands in the notices.
+
+**The README and the header now state the distinction, not the
+number**, so the next reader inherits the test. That is the correct
+repair for a figure that has been restated wrongly in three documents.
+
+### `notices` is an addition, not a move — and the reason is the finding
+
+I briefed this as *"`ViewerBehavior` carries `status` and not
+`notices`, so that field moves with the sweep"*. Wrong: **`status`
+stays.** A notice cannot express a retirement, so `cursor_status` and a
+clean fold still need the field.
+
+Hence `frame::deliver`, a door for a policy that may or may not have
+something to say: `Show` → notices, `Keep`/`Expire`/`Clear` → field.
+`apply_status` stays for the **ranked** verdict. Whether two doors over
+one vocabulary survive contact is the first thing the style review is
+asked.
+
+### An honest miss, reported rather than found
+
+Two rows **failed in CI and not locally**, and the lane says why: the
+`app` feature gates whole test modules, and it ran `-p viewer` and
+`clippy --all-features` but not `cargo test -p viewer --features app`.
+It reported the gap and added the command to what it runs.
+
+That is worth carrying past this unit: **`--all-features` on clippy
+does not imply the test binaries under that feature were run.** It is
+the same shape as `memories/agent-lane-operations.md`'s "a step can be
+green having EXECUTED nothing", one level down and inside a lane rather
+than in CI.
+
+### Filed rather than built, as the brief asked
+
+`startup-notices-need-holding-to-badge` — the startup preferences
+notices badge under the rule but **cannot badge without being held**:
+they are consumed at construction, and what would retire a held one is
+a design question, since nothing watches the file. Three shapes costed.
+That is the one site the brief named as report-not-build, and it came
+back reported.
