@@ -1324,3 +1324,21 @@ its MERGED entry in `work/msolve/log.md` (no A/B row: the program runs
 none).
 
 - `MSOLVE-4-SPEC.md` — MSOLVE-4, a mate's memo key carries the solve's answer (#1960)
+
+## Per-merge deletion — MSOLVE-2's spec (2026-09-06)
+
+Recoverable at `git show ef8926c2df3f39e5f351f4dd972931dc037e7519:docs/MSOLVE-2-SPEC.md`
+(the MSOLVE-2 unit head, before the state-sync commit that deleted it;
+unamended — no stop clause fired). Two clauses were corrected by
+measurement rather than met, and the argument is in the unit's PR:
+A2(a)'s "different inner index, same outer index" under one outer
+pattern is unbuildable (a pattern takes one body), so the row holds the
+outer index across two chains; and item 3 placed the `Part`-index check
+in the offset, which runs only for a tree edge's first mate — the
+correctness review found a declaring mate's mismatch silently green,
+and the checks that need evaluation moved to the solve's own walk site
+for every reference. The rule above; the unit's record is its item's
+`## Closed` section and its MERGED entry in `work/msolve/log.md` (no
+A/B row: the program runs none).
+
+- `MSOLVE-2-SPEC.md` — MSOLVE-2, the member chain: nested copies through `Part`, sibling distinctness at every level (#2039)

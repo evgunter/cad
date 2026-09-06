@@ -134,3 +134,14 @@ state-sync commit without a fresh run (docs and tracker only). Item
 closed, spec deleted into the ledger, `mate-memo-key-does-not-carry-
 the-solve` closed. Next: MSOLVE-2 dispatched on `msolve/2-member-chain`
 against the spec on main; MSOLVE-3 after it.
+
+## MSOLVE-2 MERGED (2026-09-06, PR 2039)
+
+Fix pass green on the full matrix at `ef8926c`. Item closed, spec
+deleted into the ledger, `nested-pattern-mate-heads-refuse` closed —
+the PR 1731 ruling is fully landed. One consequence the fix pass
+stated: a mate the per-reference checks refuse still welds its
+cluster (the partition is structural), so an instance no pair reaches
+rides its cluster's recorded frame with the mate's row red, as a
+dangling head already does. Next: MSOLVE-3 on
+`msolve/3-placer-refused`.
