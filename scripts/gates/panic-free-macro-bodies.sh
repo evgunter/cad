@@ -116,8 +116,10 @@ PANIC_TOKENS='\.(unwrap|expect)[^A-Za-z0-9_]|[^A-Za-z0-9_](panic|todo|unimplemen
 # THE MATCH IS FENCED TO THE BODY FIELD. A record is
 # `FILE:LINE:MACRO:BODY`, and the first three fields hold no colon, so
 # the prefix below consumes them exactly: a path or a macro name that
-# happens to spell a token is not scanned as if it were code.
-PANIC_RE="^[^:]*:[0-9]+:[^:]*:.*($PANIC_TOKENS)"
+# happens to spell a token is not scanned as if it were code. The first
+# two fields are `lib.sh`'s record prefix, which every view emits and
+# this gate extends by one field.
+PANIC_RE="$GATE_RECORD_PREFIX_RE[^:]*:.*($PANIC_TOKENS)"
 
 # One record per line of `macro_rules!` body, as
 # `FILE:LINE:MACRO:BODY-TEXT` — the `grep -rn` shape the filters below
