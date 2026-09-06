@@ -305,3 +305,46 @@ fn the_two_fillet_forms() {
     });
     println!("   counts {counts:?}");
 }
+
+/// **§4 — the ring width, measured not assumed.** The alternative to
+/// the door was a wider coefficient ring: the plate's rim residual needs
+/// ~640 bits and up, and the shipped bound is 256
+/// (`geom_core::sym::COEFF_BITS`,
+/// `work/m10/plate-rim-residual-needs-the-wide-coefficient-ring`).
+///
+/// `COEFF_BITS` is a compile-time constant, so this row is run three
+/// times against three edited values (256, 1024, 4096) and the numbers
+/// are transcribed into the PR body and the census; nothing here reads
+/// the bound. What it prints, per document, is the cost of ONE leaf and
+/// whether the whole-certifying ceiling moved off the 256-bit
+/// measurement — half of it must certify and twice it must refuse, so
+/// the answer is a bracket and not a point.
+#[test]
+#[ignore = "evidence-only: the COEFF_BITS ring table, one run per edited bound"]
+fn m10_9_ring_table() {
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    let rows: [(&str, f64, &dyn Fn(f64) -> ProfileDoc); 2] = [
+        (
+            "two_hole_plate",
+            7.787e2 * eps,
+            &|s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0,
+        ),
+        (
+            "r2_filleted_bracket",
+            3.865e2 * eps,
+            &|s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0,
+        ),
+    ];
+    for (name, ceiling, at) in rows {
+        for (label, scale) in [("0.5x ceiling", 0.5), ("2x ceiling", 2.0)] {
+            let doc = at(scale * ceiling);
+            let t = std::time::Instant::now();
+            let ok = certifies_whole(&doc, SymRules::shipped(), tol);
+            println!(
+                "   {name:<20} {label:<12} certifies_whole={ok} in {:.2}s (one leaf)",
+                t.elapsed().as_secs_f64()
+            );
+        }
+    }
+}

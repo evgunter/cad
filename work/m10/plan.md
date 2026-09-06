@@ -275,7 +275,16 @@ ERROR-DESIGN's own "Open after this doc" list.
   tier's theorems; the numeric bits untouched; the ring width measured
   in one table. Acceptance is E12's: the plate certifies, ε-free.
   Option 1 of two put to Ev after M10-8; ruled in chat ("proceeding
-  with 1").
+  with 1"). **MEASURED**: the door ships with one registrant (the
+  swept arc's rim identity, at the sagitta construction's site) and
+  discharges `carrier_endpoint_start` outright on all four documents;
+  no ceiling moves and none stops scaling with ε. The plate's bound is
+  now `carrier_endpoint_end`, the arc's SPAN identity — a different
+  theorem (`plate-ceiling-is-now-the-arc-span-identity`) — and R2's
+  bracket and pad are bounded by `line_span`, the real-margin
+  dependency-widening class. The fillet's declared tangency cannot be
+  registered: the constructor's node is not the joint classifier's
+  (`fillet-tangency-is-not-the-constructors-node`).
 
 Cross-program interfaces, named so "error" does not become a
 bucket: the PARAM-LINT unit (DISCIPLINES) is not ours and blocks

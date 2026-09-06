@@ -594,6 +594,27 @@ number.
   expression identity. Taken only if the census shows a family the
   symbolic tier misses.
 
+  **TAKEN (M10-9, 2026-09-06)**, on the family M10-7's census and
+  M10-8's measurement showed: `geom_core::sym::Sym::register_equal`,
+  a session-level record that two DAG NODES denote one function of the
+  parameters, made by the site that guarantees it, witnessed in the
+  lane scalar (enclosures must meet at `Interval`), refused typed when
+  it lies, and counted apart from both theorem kinds
+  (`SymCounts::registered`, the K token `registered`). The numeric
+  channel is untouched — a registration reads no value except its own
+  witness and writes none — and the numeric channel runs FIRST at
+  every decide site, so no registration can turn a margin the
+  enclosure proved non-zero into a `Zero`.
+
+  The "same-OBJECT" limit in this bullet is exactly what M10-9
+  measured, and it BINDS: the swept arc's rim identity discharges
+  because the registrant builds the very node the consumer divides by,
+  and the `Fillet` step's declared tangency does not, because the node
+  the constructor holds is not the node the joint classifier builds —
+  the two normal FORMS are identical and the two node ids are not
+  (`work/m10/fillet-tangency-is-not-the-constructors-node`). No
+  form-level axiom store was built, and the reason is this clause.
+
 Rationale: the driver's job is to certify over the STUDY's box; a
 certifier that can only certify boxes narrower than its own ε is
 correct and useless, and the honest state M10-3 pinned was never the

@@ -49,3 +49,29 @@ declared tangency — and is the consumer the door was waiting for.
   registering its two tangencies through it.
 - The pad's ceiling re-measured with the door open, and the R2 probe
   row `r2_end_to_end_rounded_pad_study` re-cut as its pin.
+
+## Answered by M10-9 (2026-09-06), and half of it filed on
+
+The door exists (`geom_core::sym::Sym::register_equal`, ERROR-DESIGN
+E12's reserve, taken) with its own count and its own K token. The pad
+was re-measured with it open:
+
+- `carrier_line_circle` on the pad is **24 decisions at the nominal,
+  all numeric, door open or shut** — the `Fillet` step's declared
+  tangency is NOT discharged, and the reason is the door's same-object
+  clause rather than the tier's algebra. Filed with both rendered forms
+  and the two node ids as
+  `work/m10/fillet-tangency-is-not-the-constructors-node`.
+- The pad's whole-certifying ceiling is `[2.083e3, 2.091e3] · ε` at
+  ε = 1e-6, 1e-9 and 1e-12 alike — R2's `2.083e-6` restated
+  ε-relatively, and unmoved by the door — and the first refusal beyond
+  it is `line_span` (enclosure `[-1.666 · ε, 1.666 · ε]`), not
+  `carrier_line_circle`. So the tangency is not what bounds this
+  document either.
+- What the door DOES discharge on the pad is the arc rim identity:
+  `carrier_endpoint_start` 24 of 32 numeric decisions at the nominal,
+  and `carrier_matches_mapped_source` 12 more.
+
+This row stays open for the last bullet of its "what is owed" — the R2
+probe row re-cut against the measured state above — and the door half
+is done.
