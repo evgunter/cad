@@ -514,3 +514,21 @@ before dispatch on `docm/b3-block` as slot 1's pre-draw fields; the arm
 was fixed by the block draw, byte 124 ⇒ fable at slot 1). Unit branch
 `docm/8-flat-merged` from main with the spec on it; spec PR #2068 to
 main. Lane running.
+
+## 2026-09-06 — DOCM-8 stop clause fired; spec amended; lane resumed as the same arm
+
+The lane built the flat mint, `collapse`'s refusal, the look-through
+and the prose, then measured the stop clause on a four-member chain: a
+merged face that passes through an untouched fold step is named
+through a `FromA` descent chain (`[FromA([FromA([Merged(cs)])])]`), so
+the spec's "operand face named exactly `Merged(cs)`" rule never fired
+there and the next merge nested again; the same pass-through shape
+already exists in the pair boolean's corpus (`corner_table` node 22).
+Scratch-measured by the lane: reading the name through its wrappers
+and re-wrapping each constituent by the same chain makes all 48
+orders fuse and moves one more `corner_table` name. Ruled by the
+orchestrator as the ruling's own rule applied through descents (not a
+space crossing — every constituent stays a face name of the table the
+chain descends into): spec item 1 and A2 amended, the stop clause
+resolved; the lane resumes on the same arm (the DOCM-2 precedent).
+Draft PR #2073.
