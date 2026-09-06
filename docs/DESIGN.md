@@ -1366,6 +1366,15 @@ the project publishes with one still in the shipped state.
   publish rather than a chore (**S65**, `work/code-quality/S65.md`, is
   the worked example).
 - **The name (Q9).**
+- **Post-publish schema discipline for the verb tags** (VERB-SEAT-DESIGN
+  §2 V2, folded here at the SEAT program's close). The document
+  content tags `verb_content_tag` commits to (`editor-core/src/eval/
+  mod.rs`) and the `Node` tag space are stable identifiers a
+  published document format would freeze: after publication a tag
+  number is never reused or renumbered, a kernel-only verb keeps
+  `None` until a node arm exists, and the three tag censuses are the
+  guard. Before publication they are pinned but movable by a
+  deliberate re-baseline.
 
 ## Crate landscape
 
