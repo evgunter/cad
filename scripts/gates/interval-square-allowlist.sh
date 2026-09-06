@@ -244,21 +244,6 @@ CENSUS_PAREN_FIRST_RE="(?<!\w)\(\s*($SQUARE_PATH)\s*\*\s*[^()]*\)\s*\*\s*\1(?![\
 CENSUS_NESTED_PAREN_RE="(?<!\w)\(\s*[^()]*\([^()]*\)[^()]*\*\s*($SQUARE_PATH)\s*\)\s*\*\s*\1(?![\w.(\[])"
 CENSUS_THREE_FACTOR_RE="(?<![\w.])($SQUARE_PATH)(?:\s*\*\s*(?!\1(?![\w.]))[A-Za-z0-9_.]+)+\s*\*\s*\1(?![\w.(\[])"
 
-# THE REGISTER — `<shape>|<file>|<fragment>|<count>|<disposition>`, the
-# `S49` shape: the POPULATION is re-read out of the tree on every run
-# and this is only the DISPOSITION of what was read. `<fragment>` is a
-# substring of the candidate statement's own text and is what keys the
-# entry — never a line number, which rots under every edit above it.
-# `<count>` is why this is a register and not an allowlist: without it a
-# second candidate matching an existing fragment would inherit that
-# entry's disposition silently, so each entry pins how many it stands
-# for and a difference IN EITHER DIRECTION reds — `matched 0` is an
-# entry whose site is gone.
-#
-# THE GATE READS THE DISPOSITION AS TEXT AND NOTHING MORE. That the
-# sentence is TRUE is a reviewer's judgement; what CI holds is that the
-# entry exists, that its site is still there, and that no candidate
-# arrives without one.
 # THE ALLOWLISTED FILES, as paths and held once: the filter's exemption
 # is built from this list and the clean fixture plants every entry of it,
 # so a file cannot be exempt in one and absent from the other. The
@@ -287,6 +272,21 @@ allowlisted_re() {
   printf '%s' "${alts[*]}"
 }
 
+# THE REGISTER — `<shape>|<file>|<fragment>|<count>|<disposition>`, the
+# `S49` shape: the POPULATION is re-read out of the tree on every run
+# and this is only the DISPOSITION of what was read. `<fragment>` is a
+# substring of the candidate statement's own text and is what keys the
+# entry — never a line number, which rots under every edit above it.
+# `<count>` is why this is a register and not an allowlist: without it a
+# second candidate matching an existing fragment would inherit that
+# entry's disposition silently, so each entry pins how many it stands
+# for and a difference IN EITHER DIRECTION reds — `matched 0` is an
+# entry whose site is gone.
+#
+# THE GATE READS THE DISPOSITION AS TEXT AND NOTHING MORE. That the
+# sentence is TRUE is a reviewer's judgement; what CI holds is that the
+# entry exists, that its site is still there, and that no candidate
+# arrives without one.
 CENSUS_REGISTER=(
   # The projector conjugation: `free1` and `p2` are `Mat3<f64>`, so
   # there is no enclosure to straddle zero and no `powi` to reach for.
