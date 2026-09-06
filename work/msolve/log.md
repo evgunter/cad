@@ -257,3 +257,11 @@ row that could catch it did not compare, the untested explicit-rule
 arm, doc rot in `topo/src/query.rs` and the role lists. Filed: the
 four-workspace build hazard (CIW) and the `names/{flush,select}.rs`
 `map_err(|_| ..)` discards (SEAT), `work/issues/`.
+
+## Remap-inference record correction closed (2026-09-06)
+
+`mate1-sweep-inferred-a-remap-from-a-refuted-reachability` closed as
+a record correction: the finding is the record, its (b)-SKIP premise
+is ratified since PR 1914, and no code moves. Slate after MSOLVE-3
+merges: the gate's `Vanished` below a pattern (next unit) and the
+lever's extent (`[ev]`).
