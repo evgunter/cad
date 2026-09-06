@@ -972,3 +972,44 @@ the route available is the PR body plus this line — and neither is a
 slate. Stated as a debt rather than as a discharge: if unit 2 merges and
 nobody has told LIB, the citations are stale and the only record is
 here.
+
+## 2026-09-06 — two retractions, both this orchestrator's
+
+**`work/meta/territory-is-blind-to-keep-out` is withdrawn and its file is
+deleted before it ever reached `main`.** The premise was false.
+
+The finding was that `work.py territory` reported 0 cross-fence paths for
+a branch editing `scripts/ci-filter.py`, and my explanation was that
+`territory` reads `paths` globs while `keep_out` is prose. The
+explanation was plausible and the observation was an artefact: unit 2's
+lane had run `territory` on an **uncommitted** tree, and `territory`
+diffs `origin/main...HEAD`. The lane found this itself on the fix pass
+and retracted it.
+
+Re-taken here on the committed branch, and it is right about everything:
+
+    scripts/ci-filter.py: owned by tcost
+    docs/prompts/implementer-discipline.md: owned by meta
+    .github/workflows/{ci,nightly}.yml, local-scripts/ci-local.sh: owned by ciw
+
+`scripts/ci-filter.py` **is** in S-TCOST's `paths` — I asserted it was in
+no program's `paths` and did not check. The check works; it also caught a
+**second** cross-fence edge (`docs/prompts/*` is META's) that the unit's
+first pass had missed entirely, which is the opposite of the failure I
+filed. META already holds a real and different blindness in
+`territory-cannot-see-a-path-two-programs-both-claim`; nothing here adds
+to it.
+
+**The mistake worth naming is mine, not the lane's.** I verified the
+`bvh` finding hop by hop before acting on it and took the `territory`
+finding on trust in the same adjudication, because one looked like a
+claim about the kernel and the other looked like a claim about a tool. A
+finding filed onto another program's slate is the one that most needs the
+check: they cannot see the branch it came from.
+
+**The LIB routing debt recorded above is also withdrawn.** Both items —
+`work/lib/pncad-py-python-feature-clippy-lane-is-red` and
+`work/lib/the-python-feature-half-of-pncad-py-is-linted-by-no-ci-row` —
+are `status: closed`. A dated citation inside a closed item is a record
+of what was true when the work was done, not a live thread, so there is
+nothing to route and no debt to pay at unit 2's merge.
