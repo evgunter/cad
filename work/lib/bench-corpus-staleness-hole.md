@@ -46,3 +46,51 @@ Cited from the test header in `crates/pncad-py/tests/test_assembly_eval.py`.
 ## Home
 
 The corpus and its guard live in `crates/pncad-py/*`, LIB's `paths:` territory, and the census/audit gates on the bindings are its charter.
+
+## Question for Ev (2026-09-06, LIB orchestrator; `[ev]` PR)
+
+Which of the four options in this file's body closes the hole. The
+orchestrator's recommendation first:
+
+- **(A) A shared scene crate.** Lift the tour's assembly-authoring
+  functions (`demos/tour/src/assembly.rs`'s document builders, not the
+  rendering) into a small crate both `demo-tour` and a kernel-workspace
+  test depend on; a code-tier test then RE-AUTHORS the scene and pins
+  the saved text against `crates/pncad-py/tests/corpus/bench/`, the
+  `plate_param` pattern. Structure, derived constants and placement
+  literals all go red together. Cost: the tour's structure gains a
+  crate, and the demo-purpose rule (a demo is written the way a user
+  would write it) has to survive the move — the builders stay
+  user-shaped, only their home changes.
+- **(D) Narrow the claim.** Rewrite the corpus test's header so the
+  corpus claims only "the tour's scene as of its last regeneration,
+  with these five constants and these four post boxes pinned", and
+  delete the sentence that schedules a mechanism. Honest, cheap, and
+  the hole stays.
+- (B) building `demo-tour` in the code tier for one pin, and (C) a
+  render-lane diff that does not run on every PR, are listed in the
+  body and not recommended: (B) is a release build of the whole kernel
+  in a detached workspace for one text pin, (C) lands the check where
+  a PR cannot see it.
+
+Recommendation: (A) if the builders separate from the render deps
+cleanly (a read of `demos/tour/Cargo.toml` says they should: the scene
+functions use `pncad` only); (D) otherwise, with the header rewritten
+in the same PR that decides.
+
+## Ruled (Ev, PR 2019, 2026-09-06): **(E) — delete the committed bytes**
+
+Not one of the four options above: Ev's question ("why are these
+committed?") exposed that the corpus's premise is stale. G18B closed
+Python's assembly authoring the day LIB-G18a landed, and
+`crates/pncad-py/tests/test_assembly_author.py` already authors the post,
+the shelf, the flat-pack layout and the mated stand from nothing into a
+temp `Workspace` (`BenchWorkspace`). So: `test_assembly_eval.py` builds
+its store from the authored scene (the builders shared between the two
+files), saving the documents to the temp store before evaluating so the
+LOAD path stays exercised; `corpus/bench/` and its MANIFEST are deleted;
+the header's false live claim ("Python cannot AUTHOR an instantiate
+node") goes with them; the constant-reading guard stays, pointed at the
+shared Python constants, so a tour drift still reds; `demo-tour
+asm-corpus` is retired or kept as a demo-only door, the unit decides and
+says which. Dispatchable as a LIB unit.

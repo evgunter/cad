@@ -2,12 +2,13 @@
 id: doc-gate-two-unread-axes
 kind: issue
 title: The two axes the rustdoc gate still cannot read after pass 3: an in-half broken link, and the not(debug_assertions) profile axis
-status: review
+status: closed
 opened: 2026-08-31
 github: 1317
 refs: [1313, rustdoc-gate-disagrees-with-workspace-doc]
 pr: 1847
 branch: ciw/doc-gate-axes
+closed: 2026-09-06
 ---
 
 ## From GitHub issue 1317
@@ -200,3 +201,13 @@ runs). That lands on every PR — `ci.yml`'s `fmt` job runs `--selftest`
 
 The one-line `topo` prose fix (`boolean/mod.rs:31`,
 `boolean/reduce.rs:18`) is Track Q's fence and is left to it.
+
+## Closed 2026-09-06
+
+PR 1847. Both axes answered by measurement: (a) the in-half broken link is
+accepted permanently and the differential run shown not implementable — the
+two runs never see the same site — said in the gate header and in
+`README.md`'s build block; (b) the `not(debug_assertions)` axis is pinned by
+two self-test arms (control fires, tripwire passes) at +9.5 s warm on
+`--selftest`. The one-line `topo` prose fix it declined is Track Q's and is
+carried on `rustdoc-d-warnings-breakages-outside-the-doc-gate`.
