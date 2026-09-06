@@ -72,6 +72,20 @@ use core::ops::{Add, Div, Mul, Neg, Sub};
 /// Every arm is a REFUSAL or a record, and none of them is silent:
 /// the door answers what it did, so a registrant that wanted to be
 /// loud can be and a pin can read it.
+///
+/// **Six flat arms over two axes, and that is a decision** (a review
+/// flagged the flattening; this is the call). The axes are the WITNESS
+/// — did the value channel find the two values one real: witnessed,
+/// contradicted, or unable to say — and the REGISTRY — recorded,
+/// already there, refused as cyclic, or not consulted. A struct of two
+/// fields would name them separately and would also make
+/// `{Contradicted, Recorded}` spellable, which is a state the door must
+/// never be in; a registrant would then match twice to learn one thing.
+/// The six arms are exactly the reachable combinations, so the
+/// impossible ones cannot be written down, and a call site reads one
+/// answer. The cost, stated: "was this refused?" is a two-arm match
+/// rather than a field read, and every registrant pays it by hand
+/// (`work/m10/sym-registration-flattens-two-axes`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SymRegistration {
     /// Recorded: from here on the two nodes denote one function of the

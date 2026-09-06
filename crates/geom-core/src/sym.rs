@@ -189,19 +189,23 @@
 //! these, and the three are different nodes.
 //!
 //! **What they do NOT move, and this is the unit's finding.** No
-//! ceiling on any of the four documents changes by a digit. The
-//! predicate that bounds the plate walks one further with each
+//! ceiling on any of the five measured documents changes by a digit.
+//! The predicate that bounds the plate walks one further with each
 //! registrant — `carrier_endpoint_start` → `carrier_endpoint_end` →
 //! `carrier_matches_mapped_source` — and stops on the scaffolding
 //! residual, the carrier against the `MappedCurve` pushforward: an
 //! identity between two INDEPENDENTLY BUILT objects, which is the line
 //! E12's reserve draws, and which no node alias reaches without
 //! carrying the certifier's sampling schedule into a construction site
-//! (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`). R2's
-//! bracket and pad are bounded by `line_span`, a real margin of the
-//! dependency-widening class
-//! (`work/m10/real-margin-dependency-widening`). The door works and the
-//! family it discharges is no longer the family that bounds a document.
+//! (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`).
+//!
+//! And that same residual is where EVERY one of them stops. Read as the
+//! over-band SET at the refusing end of the bisection — not as one
+//! drive's first refusal at a scale well past the ceiling, which
+//! evaluation order picks — `carrier_matches_mapped_source` is the only
+//! predicate over the band on all five documents, at all three ε rows,
+//! door open and door shut. The door works, and the family it
+//! discharges is not the family that bounds a document.
 //!
 //! # Node ids are CONTENT HASHES (D9)
 //!

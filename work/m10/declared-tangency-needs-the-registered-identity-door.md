@@ -58,16 +58,19 @@ was re-measured with it open:
 
 - `carrier_line_circle` on the pad is **24 decisions at the nominal,
   all numeric, door open or shut** — the `Fillet` step's declared
-  tangency is NOT discharged, and the reason is the door's same-object
-  clause rather than the tier's algebra. Filed with both rendered forms
-  and the two node ids as
+  tangency is NOT discharged. The reason is a data-flow fact about the
+  profile representation, not the tier's algebra: the emitted VERTEX is
+  the constructor's own node, but the CENTRE the predicate asks about
+  is re-derived by `build_seg` from `(a, b, bulge)` and the constructor
+  does not hold the far endpoint that closed form needs. Filed as
   `work/m10/fillet-tangency-is-not-the-constructors-node`.
-- The pad's whole-certifying ceiling is `[2.083e3, 2.091e3] · ε` at
-  ε = 1e-6, 1e-9 and 1e-12 alike — R2's `2.083e-6` restated
-  ε-relatively, and unmoved by the door — and the first refusal beyond
-  it is `line_span` (enclosure `[-1.666 · ε, 1.666 · ε]`), not
-  `carrier_line_circle`. So the tangency is not what bounds this
-  document either.
+- The pad's whole-certifying ceiling is unmoved by the door at
+  ε = 1e-6, 1e-9 and 1e-12 alike, and what bounds it at ceiling + δ is
+  `carrier_matches_mapped_source`, not `carrier_line_circle` and not
+  `line_span`. The staged-ceiling dial settles it directly: PASSING
+  `carrier_line_circle` — measuring the pad as if the tangency were
+  discharged — leaves the ceiling where it was. So the tangency is not
+  what bounds this document either.
 - What the door DOES discharge on the pad is the arc rim identity:
   `carrier_endpoint_start` 24 of 32 numeric decisions at the nominal,
   and `carrier_matches_mapped_source` 12 more.

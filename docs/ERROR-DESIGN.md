@@ -597,22 +597,44 @@ number.
   **TAKEN (M10-9, 2026-09-06)**, on the family M10-7's census and
   M10-8's measurement showed: `geom_core::sym::Sym::register_equal`,
   a session-level record that two DAG NODES denote one function of the
-  parameters, made by the site that guarantees it, witnessed in the
-  lane scalar (enclosures must meet at `Interval`), refused typed when
-  it lies, and counted apart from both theorem kinds
-  (`SymCounts::registered`, the K token `registered`). The numeric
-  channel is untouched — a registration reads no value except its own
-  witness and writes none — and the numeric channel runs FIRST at
-  every decide site, so no registration can turn a margin the
-  enclosure proved non-zero into a `Zero`.
+  parameters, made by the site that guarantees it, counted apart from
+  both theorem kinds (`SymCounts::registered`, the K token
+  `registered`). The numeric channel is untouched — a registration
+  reads no value except its own witness and writes none — and the
+  numeric channel runs FIRST at every decide site, so no registration
+  can turn a margin the enclosure proved non-zero into a `Zero`; where
+  a registration WOULD have, the run counts the contradiction
+  (`SymCounts::registrations_contradicted`) instead of folding it away.
+
+  **What the witness is worth, stated exactly, because this clause's
+  own wording ("verified at the f64 witness point") overstates it.** A
+  registration is an AXIOM: its soundness rests on the registrant's
+  proof and on nothing the door checks. The witness refuses only a lie
+  visible AT THE POINT, or one whose two certified enclosures are
+  DISJOINT over the box — and "the enclosures meet" is satisfied by
+  every coincidence, so `x² ≡ x` over `[0.9, 1.1]` is recorded, and a
+  registration false by a geometric amount is recorded as soon as the
+  box is wide enough for the two enclosures to overlap. The door cannot
+  tell an identity from a coincidence. Two consequences ship with it:
+  every registrant carries its theorem in its doc comment, and the call
+  sites are an allowlist a reviewer can read
+  (`scripts/gates/register-equal-allowlist.sh`) — the method hands
+  every generic `T: Real` body a value comparison, which is the
+  capability evaluation-code discipline exists to keep out of that
+  position.
 
   The "same-OBJECT" limit in this bullet is exactly what M10-9
-  measured, and it BINDS: the swept arc's rim identity discharges
-  because the registrant builds the very node the consumer divides by,
-  and the `Fillet` step's declared tangency does not, because the node
-  the constructor holds is not the node the joint classifier builds —
-  the two normal FORMS are identical and the two node ids are not
-  (`work/m10/fillet-tangency-is-not-the-constructors-node`). No
+  measured, and it BINDS: the swept arc's rim and span identities
+  discharge because the registrant builds the very nodes the consumer
+  asks about; the `Fillet` step's declared tangency does not, because
+  the CENTRE the joint classifier asks about is re-derived inside the
+  funnel from the stored `(a, b, bulge)` and the constructor does not
+  hold the operands that closed form needs
+  (`work/m10/fillet-tangency-is-not-the-constructors-node`); and the
+  residual that bounds every measured document,
+  `carrier_matches_mapped_source`, is an identity between two
+  INDEPENDENTLY BUILT objects, which is the line this bullet draws
+  (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`). No
   form-level axiom store was built, and the reason is this clause.
 
 Rationale: the driver's job is to certify over the STUDY's box; a
