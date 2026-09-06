@@ -3268,3 +3268,66 @@ table from 29 to ~46 lines** — the exact shape the item names as the
 problem. `frame.rs` 2036 → 2229. **Third unit running to skip the cheap
 half while making the file bigger.** Told to take it in this PR and to
 append what deferring it three times cost.
+
+## Ev ruled the rule over its own example (2026-09-06)
+
+> "your recommendation seems fine here"
+
+**The rule governs; `unindexed_refusal` stays on the line.** The lane
+built the rule against the ruling's worked example, escalated the
+contradiction rather than resolving it quietly, and was right.
+
+### The reasoning, recorded because it is the sweep's sorting rule
+
+The two candidate tests differ on **whose event decides**:
+
+- the **rule** asks *what caused this sentence to exist* → an act;
+- the **example** asks *what this sentence is about* → a seam.
+
+Every refusal is about something and caused by something, so both are
+coherent axes. **Provenance wins because it is the only one a user can
+see.** `pick::unindexed` gates on `any(|a| matches!(a, Select))` and
+`.then_some(...)`, so the sentence exists only if the frame carried a
+click; as a badge it would be lit for the whole 2–13 second window
+regardless. That is the observable difference and there is no other.
+
+Three consequences, all verified against the tree before the answer
+went out:
+
+1. **It would put one sentence in two places.** `app.rs:1225` and
+   `:1237` already hang `NotIndexed::Building.to_string()` as the
+   spinner's hover text, and `frame::Progress`'s header
+   (`frame.rs:1051-1057`) forbids two indicators lit for one wait "with
+   no rule anywhere saying which the reader should believe".
+2. **It would undo half of #1843**, whose deliverable was the indicator
+   *and* the pick path distinguishing "not indexed yet" from "nothing
+   under the cursor" — the indicator held state, the refusal the answer
+   to a click. Merging them returns to a spinner over inert picks,
+   which that ruling refused as fail-quiet.
+3. **The example's test costs frame state and the rule's does not.**
+   Since "held" is author-chosen — this unit *created* `scene_fault`
+   and `projection_fault` so those facts would qualify — badging seam
+   refusals means minting a held field per refusal, each a new entry in
+   `ViewerApp`'s frame-state inventory, which is what GQ6's toolkit
+   decision rests on and what #1843 was careful not to grow.
+
+### What it settles beyond the door
+
+`pane/viewport.rs:172` ("a cursor action the pick index refused")
+**stays news** for the same reason. Under the example it would have
+moved, and with it the whole class *"a refusal about a seam"* — the
+largest coherent group on the sweep's news list after the tool
+refusals. So the answer sorts a class, not a door, which is why it was
+worth asking rather than deciding.
+
+The sweep item gets a sentence naming the settled axis; it does **not**
+get re-sorted here, that being the sweep's own unit.
+
+**Third ruling this program has taken where building the thing
+produced the option the ruling needed.** #1883 answered from a
+vocabulary that had no "badge with a subject"; #1945 supplied it; and
+#1945's own example then turned out to be refuted by the code it named.
+Each time the ruling was sound and the example was the casualty —
+which is an argument for worked examples being checked against the
+tree at the moment a ruling is written, not a reason to stop giving
+them.
