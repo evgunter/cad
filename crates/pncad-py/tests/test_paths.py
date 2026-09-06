@@ -132,7 +132,7 @@ class TestTheLatticeWalks(unittest.TestCase):
         )
         self.assertEqual(lune.vertex_count, 3)
         doc = Doc()
-        node = doc.insert(Node.profile(lune))
+        node = doc.insert(Node.profile(lune, plane=doc.sketch_frame()))
         self.assertTrue(evaluate(doc).succeeded(node))
 
     def test_the_three_arc_binding_modes(self):
@@ -312,13 +312,14 @@ class TestRefusalsFireAtTheCallSite(unittest.TestCase):
         # `turn(0)` lands in the tangent band by construction.
         self.refuses("junction_tangent", lambda: east.turn(0 * deg))
 
-    def test_the_collinear_tangent_arc_close_refuses_always(self):
-        # A ray that hits Start is a VALUE coincidence, and the ladder
-        # never infers from values. The refusal is carrier identity --
-        # the same one a non-closing collinear tangent arc gets, since
-        # targeting Start does not change what the geometry is.
+    def test_the_collinear_tangent_arc_close_refuses(self):
+        # Carrier identity is no longer the reason (ruled 2026-09-02:
+        # every zero-turn joint is a declared tangent joint). What
+        # refuses is the geometry: Start is collinear with the declared
+        # departure and BEHIND it, so the tangent-chord angle is pi and
+        # no arc spans the chord.
         self.refuses(
-            "same_carrier_junction",
+            "degenerate_arc_chord",
             lambda: Open.at(ORIGIN)
             .line_to((1 * m, 0 * m))
             .tangent()
@@ -335,6 +336,34 @@ class TestRefusalsFireAtTheCallSite(unittest.TestCase):
             .toward(0.0, 1.0)
             .to((0 * m, 3 * m)),
         )
+
+    def test_a_fillet_refusal_names_every_corner_it_tried(self):
+        # The envelope: a refusal about a carrier PAIR reports every
+        # corner that refused at the answering stage, each with its own
+        # reason and its own point. A straight pair derives one corner,
+        # so the list is one row; the reason is reachable without
+        # parsing the sentence.
+        with self.assertRaises(pncad.PathError) as caught:
+            (
+                Open.at(ORIGIN)
+                .toward(1.0, 0.0)
+                .fillet(2.5 * m)
+                .toward(0.0, 1.0)
+                .to((3 * m, 2 * m))
+            )
+        err = caught.exception
+        self.assertEqual(err.variant, "no_corner_of_pair")
+        self.assertEqual(len(err.corners), 1)
+        (x, y, reason) = err.corners[0]
+        self.assertEqual(reason, "anchor_outside_trimmed_extent")
+        self.assertAlmostEqual(x, 3.0)
+        self.assertAlmostEqual(y, 0.0)
+        # The sentence names the corner it is about.
+        self.assertIn("at the corner near", str(err))
+        # Every other refusal carries the attribute too, empty.
+        with self.assertRaises(pncad.PathError) as other:
+            circle(ORIGIN, 0 * m)
+        self.assertIsNone(other.exception.corners)
 
     def test_the_sign_gates(self):
         self.refuses("nonpositive_circle_radius", lambda: circle(ORIGIN, 0 * m))
@@ -381,7 +410,7 @@ class TestTheProfileNode(unittest.TestCase):
 
     def test_an_arc_bearing_profile_evaluates(self):
         doc = Doc()
-        solid = doc.insert(Node.extrude(doc.insert(Node.profile(self.rounded())), 1 * m))
+        solid = doc.insert(Node.extrude(doc.insert(Node.profile(self.rounded(), plane=doc.sketch_frame())), 1 * m))
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(solid))
         body = ev.value(solid).body()
@@ -393,7 +422,7 @@ class TestTheProfileNode(unittest.TestCase):
     def test_the_carrier_form_lands_as_its_own_program_arm(self):
         doc = Doc()
         solid = doc.insert(
-            Node.extrude(doc.insert(Node.profile(circle((0 * m, 0 * m), 0.5 * m))), 2 * m)
+            Node.extrude(doc.insert(Node.profile(circle((0 * m, 0 * m), 0.5 * m), plane=doc.sketch_frame())), 2 * m)
         )
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(solid))
@@ -415,12 +444,12 @@ class TestTheProfileNode(unittest.TestCase):
 
         doc = Doc()
         plate = doc.insert(
-            Node.extrude(doc.insert(Node.profile(rect(0, 2, 0, 2))), 1 * m)
+            Node.extrude(doc.insert(Node.profile(rect(0, 2, 0, 2), plane=doc.sketch_frame())), 1 * m)
         )
         boss = doc.insert(
             Node.extrude(
                 doc.insert(
-                    Node.profile(rect(0.5, 1.5, 0.5, 1.5), elevation=0.5 * m)
+                    Node.profile(rect(0.5, 1.5, 0.5, 1.5), plane=doc.sketch_frame(elevation=0.5 * m))
                 ),
                 1 * m,
             )
@@ -433,7 +462,7 @@ class TestTheProfileNode(unittest.TestCase):
 
     def test_the_program_survives_persistence_bit_for_bit(self):
         doc = Doc()
-        doc.insert(Node.extrude(doc.insert(Node.profile(self.rounded())), 1 * m))
+        doc.insert(Node.extrude(doc.insert(Node.profile(self.rounded(), plane=doc.sketch_frame())), 1 * m))
         replayed = load(doc.save()).doc
         self.assertTrue(doc.bit_eq(replayed), "replay is bit-identical, not merely close")
 

@@ -26,7 +26,7 @@
     clippy::unreachable
 )]
 
-mod common;
+use crate::common;
 
 use common::{lift, profile, tol};
 use geom_core::k_stats::{self, Probe};

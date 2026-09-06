@@ -7,15 +7,18 @@
 # red-lined the whole gate.
 #
 # THE COUNT IS NOT WRITTEN HERE, and this line is why. It used to read
-# "2 build jobs + 8 matrix legs … ~10 fetches", which was true of the
-# unsampled matrix and stopped being true on 2026-08-22, when a run began
-# drawing ONE lane and ONE ε row (ci.yml's matrix note and
-# `scripts/ci-filter.py`'s CONFIGURATION SAMPLING note own that
-# arithmetic). Nothing re-took the number and nothing would have gone red
-# when it moved — a stale extracted count in a justification, which is
-# the shape this repository keeps finding. What the argument rests on is
-# that MORE THAN ONE job fetches concurrently on the critical path, which
-# both the sampled and the unsampled matrix satisfy.
+# "2 build jobs + 8 matrix legs … ~10 fetches", which was true of one
+# matrix and stopped being true on 2026-08-22, when a run began drawing
+# ONE lane and ONE ε row; the count moved AGAIN on 2026-09-04, when the
+# lane and ε draws were removed and the test matrices went back to twelve
+# legs (ci.yml's matrix note and `scripts/ci-filter.py`'s CONFIGURATION
+# COVERAGE note own that arithmetic). Nothing re-took the number either
+# time and nothing would have gone red when it moved — a stale extracted
+# count in a justification, which is the shape this repository keeps
+# finding, and which this very header has now watched happen twice. What
+# the argument rests on is that MORE THAN ONE job fetches concurrently on
+# the critical path, which every matrix this repository has had
+# satisfies.
 #
 # Two layers now stand between the gate and that host:
 #

@@ -7,7 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     Attr, AttrKind, BooleanOp, BranchCertification, CancelToken, Dimension, DocEdit, DocParam,
@@ -15,19 +15,17 @@ use editor_core::{
     ProfileProgram, RecipeNodeId, Rgba8, RoleSeg, SlotId, StableName, WitnessDatum, apply,
     evaluate, load, save,
 };
-use fixture::{desc, insert, len};
+use fixture::{desc, insert, len, on_frame};
 use geom_core::Tol;
 
 fn small() -> (ProfileDoc, String) {
     let doc = ProfileDoc::empty_derived("m4_pr6_review_probes", Tol::witness());
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let (doc, _) = insert(
         doc,
@@ -52,32 +50,45 @@ fn small() -> (ProfileDoc, String) {
 
 /// ATTACK 1: the save-door NaN walk skips bits == u64::MAX (the
 /// float_bits loop marker), but 0xFFFF_FFFF_FFFF_FFFF is itself a real
-/// NaN and the payload is pub. Does save accept it? (v4: the payload's
-/// only RAW floats are the 12 plane placement values — program args
-/// are Exprs whose literal door refuses non-finite at construction, so
-/// the attack surface SHRANK to the placement.)
+/// NaN and the payload is pub. Does save accept it?
+///
+/// **The attack surface is now empty**, and that is the claim. v4 made
+/// program arguments `Expr`s, shrinking a profile's raw floats to the
+/// 12 plane placement values; the sketch frame becoming a NODE removed
+/// those too. A profile payload is an id and a list of programs — a
+/// float has nowhere to sit — and the frame that carries the plane
+/// holds `Expr`s, so the all-ones NaN is refused one layer EARLIER, at
+/// the literal door, and never becomes document data at all.
 #[test]
 fn attack_all_ones_nan_slips_save_door() {
+    let nan = f64::from_bits(u64::MAX);
+    assert!(nan.is_nan(), "the marker bit pattern is a real NaN");
+    // Every slot a frame is authored through refuses it, by dimension:
+    // the origin is a Length, the two axes are Scalars.
+    for dim in [Dimension::Length, Dimension::Scalar] {
+        assert!(
+            matches!(
+                Expr::literal(nan, dim),
+                Err(editor_core::DimensionError::NonFiniteLiteral)
+            ),
+            "the {dim:?} literal door must refuse the all-ones NaN"
+        );
+    }
+    // And a document built the only way that is left saves clean: the
+    // profile carries no float for the walk to miss.
     let doc = ProfileDoc::empty_derived("m4_pr6_review_probes", Tol::witness());
-    let mut d = desc(
+    let (doc, p) = on_frame(
+        doc,
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]],
     );
-    d.plane.placement.translation.y = f64::from_bits(u64::MAX); // a NaN
-    let (doc, _) = insert(doc, Node::Profile(d));
-    match save(&doc, &[], Tol::witness()) {
-        Err(PersistError::NonFinite {
-            site: editor_core::persist::NonFiniteSite::Profile { node, index },
-        }) => {
-            // Placement floats in column order: c0, c1, c2, then
-            // translation (x, y, z) — translation.y = index 10.
-            assert_eq!(node, RecipeNodeId(0));
-            assert_eq!(index, 10);
-        }
-        other => panic!("all-ones NaN must refuse typed at save, got {other:?}"),
-    }
+    save(&doc, &[], Tol::witness()).expect("a float-free profile saves");
+    assert!(
+        matches!(doc.node(p), Some(Node::Profile(_))),
+        "the profile is in the document that saved"
+    );
 }
 
 /// MAJOR-1's structural fix, restated at the v4 substrate: loop shape
@@ -87,9 +98,9 @@ fn attack_all_ones_nan_slips_save_door() {
 /// cannot even be built into program data.
 #[test]
 fn tokens_separate_structure_from_data() {
-    let quad = |loops: Vec<Vec<(f64, f64)>>| {
-        desc([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], loops)
-    };
+    // These two programs never enter a document — the comparison is
+    // about loop STRUCTURE — so the frame they name is scaffolding.
+    let quad = |loops: Vec<Vec<(f64, f64)>>| desc(RecipeNodeId(0), loops);
     // Loop shape stays structure-distinct: (2 loops of 1 point) vs
     // (1 loop of 2 points) — different programs, never a value alias.
     let two_loops = quad(vec![vec![(0.0, 0.0)], vec![(1.0, 1.0)]]);
@@ -228,14 +239,13 @@ fn attack_inf_via_big_exponent() {
 /// fingerprint identity (independent of the shipped kitchen sink).
 #[test]
 fn attack_all_fourteen_edit_variants_round_trip() {
-    let quad = |o: f64| {
+    let quad = |plane: RecipeNodeId| {
         desc(
-            [o, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
+            plane,
             vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
         )
     };
+    let frame_at = |o: f64| fixture::frame([o, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
     let mut doc = ProfileDoc::empty_derived("m4_pr6_review_probes", Tol::witness());
     let mut edits: Vec<DocEdit<ProfileProgram>> = Vec::new();
     let mut push = |doc: &mut ProfileDoc, e: DocEdit<ProfileProgram>| -> Option<RecipeNodeId> {
@@ -253,11 +263,19 @@ fn attack_all_fourteen_edit_variants_round_trip() {
             value: DocParam::continuous(Dimension::Length, 1.5),
         },
     );
-    // 2 InsertNode xN
+    // 2 InsertNode xN — the two quads sit at different x offsets, so
+    // they are on different planes and each names its own frame.
+    let f0 = push(
+        &mut doc,
+        DocEdit::InsertNode {
+            node: frame_at(0.0),
+        },
+    )
+    .unwrap();
     let p0 = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Node::Profile(quad(0.0)),
+            node: Node::Profile(quad(f0)),
         },
     )
     .unwrap();
@@ -271,10 +289,17 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         },
     )
     .unwrap();
+    let f1 = push(
+        &mut doc,
+        DocEdit::InsertNode {
+            node: frame_at(1.0),
+        },
+    )
+    .unwrap();
     let p1 = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Node::Profile(quad(1.0)),
+            node: Node::Profile(quad(f1)),
         },
     )
     .unwrap();
@@ -301,10 +326,17 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     )
     .unwrap();
     // A doomed node for DeleteNode.
+    let f_doomed = push(
+        &mut doc,
+        DocEdit::InsertNode {
+            node: frame_at(5.0),
+        },
+    )
+    .unwrap();
     let doomed = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Node::Profile(quad(5.0)),
+            node: Node::Profile(quad(f_doomed)),
         },
     )
     .unwrap();
@@ -577,7 +609,7 @@ fn attack_meta_order_canonical() {
     let (doc, _) = small();
     let name = StableName {
         kind: EntityKind::Body,
-        node: RecipeNodeId(1),
+        node: RecipeNodeId(2),
         path: vec![RoleSeg::OutputBody],
     };
     let tree = |order: bool| {
@@ -622,7 +654,7 @@ fn duplicate_keys_refuse_in_every_map() {
     let doc = apply(
         &doc,
         &DocEdit::ReWitness {
-            node: RecipeNodeId(0),
+            node: RecipeNodeId(1),
             witness: WitnessDatum {
                 schema: 1,
                 bytes: vec![0x11],
@@ -634,7 +666,7 @@ fn duplicate_keys_refuse_in_every_map() {
     .doc;
     let body = StableName {
         kind: EntityKind::Body,
-        node: RecipeNodeId(1),
+        node: RecipeNodeId(2),
         path: vec![RoleSeg::OutputBody],
     };
     let doc = apply(
@@ -666,7 +698,11 @@ fn duplicate_keys_refuse_in_every_map() {
     let cases: [(&str, &str, &str); 5] = [
         (
             "\"witnesses\": {",
-            "\"witnesses\": {\"0\": {\"schema\": 9, \"bytes\": \"22\"}, ",
+            // The key the document ALREADY carries: the row is about
+            // the strict map's duplicate refusal, and a second, unused
+            // node id would be a witness on a node that cannot hold
+            // one — a different door (`WitnessSite`).
+            "\"witnesses\": {\"1\": {\"schema\": 9, \"bytes\": \"22\"}, ",
             "duplicate witness node key",
         ),
         (

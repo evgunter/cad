@@ -2,34 +2,86 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
 {
   "snapshot": {
     "id": "5ef5ef0364b6939c4ca61f34b393f7b3",
-    "next_id": 7,
+    "next_id": 9,
     "nodes": {
       "0": {
-        "Profile": {
-          "plane": {
-            "basis": [
-              [
-                1.0,
-                0.0,
-                0.0
-              ],
-              [
-                0.0,
-                1.0,
-                0.0
-              ],
-              [
-                0.0,
-                0.0,
-                1.0
-              ]
-            ],
+        "Datum": {
+          "Frame": {
             "origin": [
-              0.0,
-              0.0,
-              0.0
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              }
+            ],
+            "u": [
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "v": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
             ]
-          },
+          }
+        }
+      },
+      "1": {
+        "Profile": {
+          "plane": 0,
           "loops": [
             {
               "Chain": [
@@ -171,9 +223,9 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
           ]
         }
       },
-      "1": {
+      "2": {
         "Extrude": {
-          "profile": 0,
+          "profile": 1,
           "distance": {
             "Literal": {
               "value": 0.5,
@@ -183,32 +235,84 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
           }
         }
       },
-      "2": {
-        "Profile": {
-          "plane": {
-            "basis": [
-              [
-                1.0,
-                0.0,
-                0.0
-              ],
-              [
-                0.0,
-                1.0,
-                0.0
-              ],
-              [
-                0.0,
-                0.0,
-                1.0
-              ]
-            ],
+      "3": {
+        "Datum": {
+          "Frame": {
             "origin": [
-              0.0,
-              0.0,
-              0.125
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.125,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              }
+            ],
+            "u": [
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "v": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
             ]
-          },
+          }
+        }
+      },
+      "4": {
+        "Profile": {
+          "plane": 3,
           "loops": [
             {
               "Chain": [
@@ -298,9 +402,9 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
           ]
         }
       },
-      "3": {
+      "5": {
         "Extrude": {
-          "profile": 2,
+          "profile": 4,
           "distance": {
             "Literal": {
               "value": 0.25,
@@ -310,15 +414,15 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
           }
         }
       },
-      "4": {
+      "6": {
         "Boolean": {
           "op": "Union",
-          "a": 1,
-          "b": 3,
+          "a": 2,
+          "b": 5,
           "declare": null
         }
       },
-      "5": {
+      "7": {
         "Measure": {
           "expr": {
             "Primitive": {
@@ -330,10 +434,10 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
           },
           "refs": [
             {
-              "at": 1,
+              "at": 2,
               "name": {
                 "kind": "Face",
-                "node": 1,
+                "node": 2,
                 "path": [
                   {
                     "Lateral": {
@@ -345,10 +449,10 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
               }
             },
             {
-              "at": 1,
+              "at": 2,
               "name": {
                 "kind": "Face",
-                "node": 1,
+                "node": 2,
                 "path": [
                   {
                     "Lateral": {
@@ -362,9 +466,9 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
           ]
         }
       },
-      "6": {
+      "8": {
         "Assertion": {
-          "measure": 5,
+          "measure": 7,
           "bound": {
             "Literal": {
               "value": 0.0,
@@ -383,11 +487,13 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
       3,
       4,
       5,
-      6
+      6,
+      7,
+      8
     ],
     "roots": [
-      4,
-      6
+      6,
+      8
     ],
     "placements": {},
     "params": {

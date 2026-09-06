@@ -71,7 +71,12 @@ impl Frame {
     /// A zero (or non-finite) axis normalizes to NaN and yields a
     /// non-finite frame, which `SetPlacement` refuses typed
     /// ([`Frame::is_finite`]) — the transform node's own
-    /// `DegenerateDirection` refusal, arriving at this layer's door.
+    /// `DegenerateDirection`/`NonFiniteDirection` refusals, arriving at
+    /// this layer's door. The bit-identity above is between the two
+    /// MAPS, not between the two refusals: the transform node asks
+    /// whether the axis has a finite length before it normalizes, and
+    /// this constructor asks nothing and is refused downstream on the
+    /// frame it built.
     pub fn rotate_then_translate(axis: [f64; 3], angle: f64, v: [f64; 3]) -> Self {
         let m = Mat3::rotation_about(Vec3::new(axis[0], axis[1], axis[2]).normalize(), angle);
         Self {

@@ -22,7 +22,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+// `tests/fixture/` is named because the documents these rows analyse are built
+// there. A marker's own file is implicit; a sibling helper module is not.
+test_utils::gated_to![
+    "crates/editor-core/src/distribution.rs",
+    "crates/editor-core/src/analysis.rs",
+    "crates/editor-core/src/measure.rs",
+    "crates/geom-core/src/tolerance.rs",
+    "crates/editor-core/tests/fixture/",
+];
+
+use crate::fixture;
 
 use editor_core::{
     AnalysisPolicy, CancelToken, DEFAULT_QUANTILE_MASS, Dimension, Distribution, DocEdit, DocParam,

@@ -10,7 +10,7 @@
 //! arm — `tube_along_arc_hollow`'s full period reaches the same path
 //! with hand-built concentric circles and its own wall funnel as the
 //! evidence), and `shell`'s sealed hollow
-//! (`docs/OFFSET-DESIGN.md` O4).
+//! (`crates/geom-brep/README.md` O4).
 //!
 //! # Contract
 //!

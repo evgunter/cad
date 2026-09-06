@@ -102,7 +102,7 @@
 //! same build on the same inputs yields bit-identical endpoints, and the
 //! `interval` feature imposes no instruction-set floor. (The historical
 //! repo-wide `-C target-cpu=x86-64-v3` rustflag was dropped after the
-//! swap — 2026-07-29, Evan's #127 review; `f64::mul_add` in the
+//! swap — 2026-07-29, Ev's #127 review; `f64::mul_add` in the
 //! backend's witness paths is correctly-rounded with or without
 //! hardware FMA, so results are unchanged.) This crate's
 //! `forbid(unsafe_code)` is untouched, and so is
@@ -527,7 +527,7 @@ impl crate::real::CertifiedEnclosure for Interval {
 /// and lands on the first span deterministically — the poisoned `t`
 /// then propagates through the evaluation arithmetic as a value.
 impl crate::spline::SpanLocate for Interval {
-    fn locate_spans(self, knots: &crate::spline::KnotVector) -> crate::spline::SpanSet {
+    fn locate_spans<'a>(self, knots: &'a crate::spline::KnotVector) -> crate::spline::SpanSet<'a> {
         // `span_range` now answers in validated spans, which is exactly
         // what a `SpanSet` carries — so the locator is the range query
         // again, with no unpacking in between.

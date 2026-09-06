@@ -5,7 +5,7 @@
 //! adopt → fix → invert).
 //!
 //! Probe 1 attacked the ratified fork itself: the ruling
-//! (`docs/MATE-4B-CROSSING-DESIGN.md`) legalizes an IN-CONTACT-PLANE
+//! (`crates/topo/README.md`) legalizes an IN-CONTACT-PLANE
 //! crossing and calls a TRANSVERSE crossing interpenetration, and the
 //! spec's rung backs "a crossing of two coplanar boundary edges" —
 //! but at the frozen head nothing checked that the crossing edges lie
@@ -33,7 +33,7 @@
 //! silence.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use geom_core::Tol;
 use topo::{Body, CensusContact, ContactRecords, FaceKey, PatchContact, ValidationError};
@@ -121,8 +121,12 @@ fn r1_a_diving_edge_crossing_is_not_backed_by_the_seat_pair() {
     let shelf_bottom = skeys.face(shelf.bottom_face).unwrap();
     topo::graft_disjoint_all_keyed(&mut body, &spike.body, Tol::witness()).unwrap();
 
-    let dive_witness = |w: &String| w.contains("x: 0.45,") || w.contains("x: 0.55,");
-    let at_seat_level = |w: &String| w.contains("z: 0.5 ");
+    // The witness is a coordinate triple, and a crossing witness may
+    // carry a trailing side-verdict clause after it — so both probes
+    // match INSIDE the triple rather than anchoring on its end. The
+    // `)` in the z probe is what separates z = 0.5 from z = 0.54.
+    let dive_witness = |w: &String| w.contains("(0.45,") || w.contains("(0.55,");
+    let at_seat_level = |w: &String| w.contains(", 0.5)");
 
     // Bare: the two diving crossings at seat level are reported
     // (alongside the cap's two in-plane crossings and the z = 0.54

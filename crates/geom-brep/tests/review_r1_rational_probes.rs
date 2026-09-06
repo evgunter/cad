@@ -23,19 +23,17 @@
     clippy::useless_vec
 )]
 
+use core::num::NonZeroUsize;
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::nurbs_patch_face;
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, MarginDiag, RingInterval};
+use geom_core::{MarginDiag, RingInterval};
 
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
+use crate::shared::patch::{dbasis_over, dense_over};
+use crate::shared::ring::p3 as p;
+use crate::shared::tol::band;
 
-/// The engine's convergence target as a multiple of ε
-/// (`QUAD_TARGET_LEN_FACTOR`, crate-private — mirrored here so a
-/// refusal's carried target can be checked against the run's ε).
 /// Relative-ulp overshoot of `v` outside `[lo, hi]`; `0.0` when inside.
 ///
 /// A DIAGNOSTIC, printed on every probe row so that a carrier drifting
@@ -47,7 +45,11 @@ fn overshoot_ulps(lo: f64, hi: f64, v: f64) -> f64 {
     ((lo - v).max(v - hi).max(0.0)) / (mag * f64::EPSILON)
 }
 
-const TARGET_LEN_FACTOR: f64 = 1024.0;
+/// The engine's convergence target as a multiple of ε
+/// (`QUAD_TARGET_LEN_FACTOR`, crate-private — mirrored here, once for
+/// the aggregated binary, so a refusal's carried target can be checked
+/// against the run's ε).
+pub(crate) const TARGET_LEN_FACTOR: f64 = 1024.0;
 
 /// The corpus's declared ambient uncertainty — the ε the fixed
 /// quadrature schedule (D9) is dimensioned for, and the boundary the
@@ -133,7 +135,13 @@ enum Posture {
     /// (checked in the `Ok` arm of [`probe`]).
     Certified,
     /// [`PropsError::QuadratureBudget`]: the fixed schedule's floor is
-    /// DEFINITELY above the run's target. Carries the measured floor.
+    /// DEFINITELY above the run's target. Carries the width the
+    /// schedule's LAST round reaches: measured, when the schedule ran
+    /// out, or its lower bound, when the loop proved after round 0
+    /// that the last round could not certify and refused without
+    /// running it. The two differ by the midpoint sum's own rounding
+    /// width — at most 4e-4 relative on every carrier below, inside
+    /// the pins' 1e-3 window — so a pin reads either the same way.
     Budget(f64),
     /// The same shortfall, in-band for the run's `Band{ε, Kε}` — so
     /// `props_quad_converged` escalates through the funnel before the
@@ -153,7 +161,10 @@ enum Posture {
 /// The refinement schedule is fixed by D9 and only the target moves
 /// with ε, so a carrier that refuses at the budget refuses with the
 /// SAME width on every ε row; the pinned number is that width, as
-/// measured by this suite. A carrier whose floor sits under the run's
+/// measured by this suite. The refusal's payload is that width or its
+/// lower bound ([`Posture::Budget`]) — every pin below was re-read
+/// against the bound, none moved past its window, and no pinned
+/// number changed. A carrier whose floor sits under the run's
 /// target certifies instead (the ε row working as designed), so only
 /// the budget arm is pinned — the anti-vacuity test below is what
 /// keeps "everything refuses" from being green.
@@ -184,14 +195,6 @@ fn pin_floor(name: &str, posture: Posture, floor: f64) {
 // carrier that starts reaching it again wants the helper back and, more
 // importantly, wants explaining.
 
-fn p(x: f64, y: f64, z: f64) -> [RingInterval; 3] {
-    [
-        RingInterval::point(x),
-        RingInterval::point(y),
-        RingInterval::point(z),
-    ]
-}
-
 // ---------------------------------------------------------------
 // The independent oracle: plain-f64 B-spline basis + derivatives
 // (Cox-de Boor, no kernel spline code), rational surface point and
@@ -199,6 +202,20 @@ fn p(x: f64, y: f64, z: f64) -> [RingInterval; 3] {
 // ---------------------------------------------------------------
 
 /// All basis values N_{i,p}(t) for a clamped knot vector.
+///
+/// **This copy stays, and is the only part of this oracle that does.**
+/// It seeds the Cox-de Boor recursion by clamping `t` into the last
+/// nonzero span at the domain end, where
+/// `crates/geom-brep/tests/shared/patch.rs`'s takes a separate
+/// `t >= knots[n]` branch. That seeding is the part of an oracle a
+/// `props::quad` defect could plausibly be mirrored by, so the crate
+/// keeps more than one of it on purpose; the recurrence and the
+/// quadrature loop underneath carry no such risk and are shared.
+///
+/// It is character-identical to `cert5_r2_probes.rs`'s. Those two are
+/// one derivation spelled twice, and collapsing them is an
+/// adjudication about which suite owns it rather than a dedup — left
+/// for TCOST-8, not decided here.
 fn basis(knots: &[f64], degree: usize, ncp: usize, t: f64) -> Vec<f64> {
     let n = knots.len() - 1;
     let mut nn = vec![0.0f64; n]; // degree-0
@@ -253,22 +270,11 @@ fn basis(knots: &[f64], degree: usize, ncp: usize, t: f64) -> Vec<f64> {
     nn
 }
 
-/// Basis derivatives N'_{i,p}(t).
+/// Basis derivatives N'_{i,p}(t) — the shared divided difference,
+/// taken over THIS file's `basis` above, so the derivative path keeps
+/// the seeding that makes this oracle independent.
 fn dbasis(knots: &[f64], degree: usize, ncp: usize, t: f64) -> Vec<f64> {
-    let n = knots.len() - 1;
-    // degree-(p-1) values over the full index range
-    let mut low = basis(knots, degree - 1, n - (degree - 1), t);
-    low.resize(n, 0.0);
-    let mut out = vec![0.0f64; ncp];
-    let pf = degree as f64;
-    for (i, o) in out.iter_mut().enumerate() {
-        let da = knots[i + degree] - knots[i];
-        let db = knots[i + degree + 1] - knots[i + 1];
-        let a = if da > 0.0 { pf / da * low[i] } else { 0.0 };
-        let b = if db > 0.0 { pf / db * low[i + 1] } else { 0.0 };
-        *o = a - b;
-    }
-    out
+    dbasis_over(basis, knots, degree, ncp, t)
 }
 
 struct Patch {
@@ -284,6 +290,10 @@ struct Patch {
 
 impl Patch {
     /// (S, S_u, S_v) by the quotient rule on the homogeneous sums.
+    /// **Deliberately not `shared::patch::Patch::eval`**, which is this
+    /// text: it calls this file's OWN `basis`, whose span seeding is
+    /// where this suite's independence lives (see this module's `basis`).
+    /// The quadrature loop under it IS shared — `patch::dense_over`.
     fn eval(&self, u: f64, v: f64) -> ([f64; 3], [f64; 3], [f64; 3]) {
         let bu = basis(&self.ku, self.du, self.nu, u);
         let bv = basis(&self.kv, self.dv, self.nv, v);
@@ -317,66 +327,14 @@ impl Patch {
         (s, su, sv)
     }
 
-    /// Dense (flux, area) by composite 5-pt Gauss-Legendre per span
-    /// rectangle, `cells` cells per span per axis.
+    /// Dense (flux, area) at `cells` cells per span per axis: the
+    /// shared composite Gauss-Legendre loop over THIS file's `eval`.
+    /// The ladder this suite runs it at is 24/48; why two rungs a
+    /// factor of two apart settle the oracle's own error is
+    /// [`crate::shared::patch::dense_over`]'s doc, which is that
+    /// argument's one home.
     fn dense(&self, cells: usize) -> (f64, f64) {
-        let gx = [
-            -0.906_179_845_938_664,
-            -0.538_469_310_105_683,
-            0.0,
-            0.538_469_310_105_683,
-            0.906_179_845_938_664,
-        ];
-        let gw = [
-            0.236_926_885_056_189,
-            0.478_628_670_499_366,
-            0.568_888_888_888_889,
-            0.478_628_670_499_366,
-            0.236_926_885_056_189,
-        ];
-        let spans = |knots: &[f64]| -> Vec<(f64, f64)> {
-            let mut s = Vec::new();
-            for w in knots.windows(2) {
-                if w[1] > w[0] {
-                    s.push((w[0], w[1]));
-                }
-            }
-            s
-        };
-        let su = spans(&self.ku);
-        let sv = spans(&self.kv);
-        let mut flux = 0.0;
-        let mut area = 0.0;
-        for (ua, ub) in &su {
-            for (va, vb) in &sv {
-                for cu in 0..cells {
-                    for cv in 0..cells {
-                        let hu = (ub - ua) / cells as f64;
-                        let hv = (vb - va) / cells as f64;
-                        let u0 = ua + cu as f64 * hu;
-                        let v0 = va + cv as f64 * hv;
-                        for a in 0..5 {
-                            for b in 0..5 {
-                                let u = u0 + hu * 0.5 * (1.0 + gx[a]);
-                                let v = v0 + hv * 0.5 * (1.0 + gx[b]);
-                                let (s, sud, svd) = self.eval(u, v);
-                                let cx = [
-                                    sud[1] * svd[2] - sud[2] * svd[1],
-                                    sud[2] * svd[0] - sud[0] * svd[2],
-                                    sud[0] * svd[1] - sud[1] * svd[0],
-                                ];
-                                let f = s[0] * cx[0] + s[1] * cx[1] + s[2] * cx[2];
-                                let g = (cx[0] * cx[0] + cx[1] * cx[1] + cx[2] * cx[2]).sqrt();
-                                let wq = gw[a] * gw[b] * hu * hv * 0.25;
-                                flux += wq * f;
-                                area += wq * g;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        (flux, area)
+        dense_over(&self.ku, &self.kv, cells, |u, v| self.eval(u, v))
     }
 }
 
@@ -547,6 +505,7 @@ fn probe(
                 PropsError::QuadratureBudget {
                     width_len,
                     target_len,
+                    ..
                 } => {
                     assert!(
                         width_len.is_finite() && width_len > target_len,
@@ -597,7 +556,7 @@ const PI: f64 = core::f64::consts::PI;
 /// pi/2. Signed flux from the oracle.
 #[test]
 fn probe_sphere_octant() {
-    let kv2 = KnotVector::unit_segment(2);
+    let kv2 = KnotVector::unit_segment(const { NonZeroUsize::new(2).unwrap() });
     let net = [
         p(0.0, 0.0, 1.0),
         p(0.0, 0.0, 1.0),
@@ -626,7 +585,7 @@ fn probe_sphere_octant() {
 /// Quarter torus patch (R=2, r=0.5): dense oracle only.
 #[test]
 fn probe_quarter_torus() {
-    let kv2 = KnotVector::unit_segment(2);
+    let kv2 = KnotVector::unit_segment(const { NonZeroUsize::new(2).unwrap() });
     let (rr, r) = (2.0, 0.5);
     // tube quarter arc in xz-plane: (R+r,0,0) -> (R+r,0,r) -> (R,0,r)
     let prof = [(rr + r, 0.0), (rr + r, r), (rr, r)];
@@ -658,8 +617,8 @@ fn probe_quarter_torus() {
 /// lambda^i, lambda = 10 -> same locus): flux = area = pi exactly.
 #[test]
 fn probe_moebius_quarter_cylinder() {
-    let ku = KnotVector::unit_segment(2);
-    let kv = KnotVector::unit_segment(1);
+    let ku = KnotVector::unit_segment(const { NonZeroUsize::new(2).unwrap() });
+    let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     let h = 2.0;
     let net = [
         p(1.0, 0.0, 0.0),
@@ -688,7 +647,7 @@ fn probe_moebius_quarter_cylinder() {
 /// mixed corner weights (1e-3 / 1e3): flux = area = 1 exactly.
 #[test]
 fn probe_extreme_weight_square() {
-    let kv1 = KnotVector::unit_segment(1);
+    let kv1 = KnotVector::unit_segment(NonZeroUsize::MIN);
     let net = [
         p(0.0, 0.0, 1.0),
         p(0.0, 1.0, 1.0),
@@ -728,7 +687,7 @@ fn probe_extreme_weight_square() {
 /// weights: dense oracle only.
 #[test]
 fn probe_extreme_weight_hypar() {
-    let kv1 = KnotVector::unit_segment(1);
+    let kv1 = KnotVector::unit_segment(NonZeroUsize::MIN);
     let net = [
         p(0.0, 0.0, 0.0),
         p(0.0, 1.0, 1.0),
@@ -753,8 +712,8 @@ fn probe_extreme_weight_hypar() {
 /// row's shape; shared with the anti-vacuity test below).
 /// Closed forms: flux = (pi/2) r^2 h, area = (pi/2) r h.
 fn quarter_cylinder_probe(name: &str, r: f64, h: f64) -> Posture {
-    let ku = KnotVector::unit_segment(2);
-    let kv = KnotVector::unit_segment(1);
+    let ku = KnotVector::unit_segment(const { NonZeroUsize::new(2).unwrap() });
+    let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     let net = [
         p(r, 0.0, 0.0),
         p(r, 0.0, h),
@@ -839,7 +798,7 @@ fn probe_scale_extremes() {
 /// that excluded the truth fails there, not here.)
 #[test]
 fn probe_suite_still_certifies_something() {
-    let kv1 = KnotVector::unit_segment(1);
+    let kv1 = KnotVector::unit_segment(NonZeroUsize::MIN);
     let flat = [
         p(0.0, 0.0, 1.0),
         p(0.0, 1.0, 1.0),
@@ -880,7 +839,7 @@ fn probe_suite_still_certifies_something() {
 #[test]
 fn probe_half_cylinder_interior_knot() {
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
-    let kv = KnotVector::unit_segment(1);
+    let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     let h = 2.0;
     let net = [
         p(1.0, 0.0, 0.0),
@@ -917,7 +876,7 @@ fn probe_half_cylinder_interior_knot() {
 fn probe_c0_kink_area() {
     let ku =
         KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0 / 3.0, 1.0 / 3.0, 1.0, 1.0, 1.0], 2).unwrap();
-    let kv = KnotVector::unit_segment(1);
+    let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     // profile in the xy-plane: straight (0,0)->(1,0), corner, then
     // straight (1,0)->(1,4); extruded in z by 1.
     let prof = [(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (1.0, 2.0), (1.0, 4.0)];
@@ -944,8 +903,8 @@ fn probe_c0_kink_area() {
 /// BIT-identical (also printed for the debug/release cross-check).
 #[test]
 fn probe_determinism_bits() {
-    let ku = KnotVector::unit_segment(2);
-    let kv = KnotVector::unit_segment(1);
+    let ku = KnotVector::unit_segment(const { NonZeroUsize::new(2).unwrap() });
+    let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     let h = 2.0;
     let net = [
         p(1.0, 0.0, 0.0),
@@ -1040,11 +999,16 @@ fn probe_determinism_bits() {
         Err(PropsError::QuadratureBudget {
             width_len,
             target_len,
+            ..
         }) => {
             println!("BUDGET width_len {width_len:.15e} target {target_len:.6e}");
             assert!(width_len.is_finite() && width_len > target_len);
             // The schedule is fixed (D9), so this carrier bottoms out
-            // at the same displacement whatever the target is.
+            // at the same displacement whatever the target is. The
+            // payload is the last round's lower bound (the loop refuses
+            // after round 0 once it has proved the schedule cannot
+            // certify): 2.0e-5 relative under the pinned measurement,
+            // which the window below covers without a digit moving.
             assert!(
                 (width_len - QUARTER_CYLINDER_FLOOR).abs() <= 1e-3 * QUARTER_CYLINDER_FLOOR,
                 "the quarter cylinder's refusal floor MOVED: {width_len:e} against \
@@ -1140,7 +1104,7 @@ fn diag_refine_half_circle() {
 #[test]
 fn diag_uniform_weight_twins() {
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
-    let kv = KnotVector::unit_segment(1);
+    let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     let h = 2.0;
     let net = [
         p(1.0, 0.0, 0.0),
@@ -1231,8 +1195,8 @@ fn diag_uniform_weight_twins() {
 #[test]
 fn probe_interval_scalar_agrees() {
     use geom_core::Interval;
-    let ku = KnotVector::unit_segment(2);
-    let kv = KnotVector::unit_segment(1);
+    let ku = KnotVector::unit_segment(const { NonZeroUsize::new(2).unwrap() });
+    let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     let h = 2.0;
     let net = [
         p(1.0, 0.0, 0.0),

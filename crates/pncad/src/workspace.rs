@@ -435,15 +435,26 @@ impl PartResolver for Workspace {
     fn resolve(&self, doc_ref: &DocRef, tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
         Workspace::resolve(self, doc_ref, tol).map_err(|e| ResolveFailure {
             fault: resolve_fault(&e),
-            // Not an exception to [`resolve_fault`]'s paragraph
-            // below: this match RENDERS rather than classifies, and
-            // the wildcard's answer is the enum's own `Display`. A
-            // variant added later answers for itself here, and misses
-            // only a recourse sentence it does not have.
-            message: match &e {
-                WorkspaceError::PinMismatch { .. } => format!("{e}; {PIN_MISMATCH_RECOURSE}"),
-                _ => e.to_string(),
-            },
+            // The message is the enum's own `Display`, with nothing
+            // appended and no per-variant rendering — so there is
+            // nothing here for [`resolve_fault`]'s exhaustiveness
+            // paragraph to make an exception for, and a variant added
+            // later answers for itself.
+            //
+            // A caller holding only the kernel-side
+            // `ResolveFailure::message` never sees the store's
+            // `WorkspaceError`, so this door carries the recourse ONLY
+            // because [`WorkspaceError`]'s `PinMismatch` arm ends on
+            // [`PIN_MISMATCH_RECOURSE`] unconditionally (see the arm
+            // above) — a real coupling between two impls, and the
+            // reason a second copy appended here would be a second
+            // copy rather than a fallback. It is held rather than
+            // merely hoped: `crates/viewer/tests/instance_authoring.rs`
+            // asserts the recourse on the badge an evaluation renders,
+            // which is this message, in this workspace and with no
+            // interpreter. The demo's update walk and the Python author
+            // suite pin the COUNT at one from further out.
+            message: e.to_string(),
         })
     }
 }

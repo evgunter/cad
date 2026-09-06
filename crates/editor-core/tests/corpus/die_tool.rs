@@ -25,6 +25,27 @@
 //! Vocabulary: Profile, Datum (Axis), Revolve, PlacedUnion (Explicit),
 //! Boolean (Subtract), `InsertNode`, `SetParam`.
 //!
+//! # It crosses to Python, byte for byte
+//!
+//! `work/lib/log.md` carried "die_tool's Python re-authoring (banked
+//! behind its Revolve/datum half)" from LIB-PYPU on: that unit bound
+//! the placement vocabulary and authored the LINEAR twin
+//! (`heat_sink_fins`, extrude-only), while this document's prototype is
+//! a Revolve about a `Datum::Axis` whose meridian runs pole to pole —
+//! the chart `die_pips`' retired deviation (b) existed to dodge.
+//!
+//! LIB-DIETOOL measured that half CLEARED, by construction. The recipe
+//! below is unchanged — it has carried the natural meridian since the
+//! day it was authored, `7581fb65d` having deleted the workaround one
+//! commit earlier — and
+//! `crates/pncad-py/tests/test_placed_union.py::TestTheDieTool` now
+//! says the same seven nodes through the bound Python doors. The claim
+//! is not eyeballed: `crates/editor-core/tests/lib_dietool_crossing.rs`
+//! pins THIS document's saved text as `corpus/die_tool.pncad`, and the
+//! Python row asserts its own `Doc.save()` against those bytes line for
+//! line (bar the swept `epsilon`), so a recipe change on either side is
+//! a red run rather than a silent divergence.
+//!
 //! # No mass pin
 //!
 //! `die_pips`' reason verbatim: the oracle is `L³ − 6 · cap(R, H)` with
@@ -33,11 +54,10 @@
 //! pins is validity and the census; `lib_placedunion.rs` pins the tool
 //! against the pairwise Transform + Union chain it replaces.
 
-use editor_core::{BooleanOp, Datum, DocEdit, Frame, LoopProgram, Node, ProfileProgram, SlotId};
-use geom_core::{Point3, Vec3};
-use profile::SketchPlane;
+use editor_core::{BooleanOp, DocEdit, Frame, LoopProgram, Node, ProfileProgram, SlotId};
 
-use super::super::fixture::{ang, len, scl};
+use crate::fixture::{ang, axis_in_plane, frame, len, xy_frame};
+
 use super::die_pips::{DIE_L, PIP_H, PIP_R, half_disc_program};
 use super::{CorpusDoc, Recorder};
 
@@ -82,8 +102,9 @@ pub fn document() -> CorpusDoc {
     // ---- the sharp cube, [0, L]³ ----
     let square = LoopProgram::polygon([(0.0, 0.0), (DIE_L, 0.0), (DIE_L, DIE_L), (0.0, DIE_L)])
         .expect("the die's square");
+    let cube_plane = r.insert(xy_frame());
     let cube_p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: cube_plane,
         loops: vec![square],
     }));
     let cube = r.insert(Node::Extrude {
@@ -92,16 +113,13 @@ pub fn document() -> CorpusDoc {
     });
 
     // ---- the master ball, poled along +Z (`die_pips`' construction) ----
-    let axis = r.insert(Node::Datum(Datum::Axis {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        direction: [scl(0.0), scl(0.0), scl(1.0)],
-    }));
+    let ball_plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
+    // The axis, written in the meridian frame it turns: that frame's
+    // v is world +Z, so the pole axis is its own +y through (0, 0).
+    // It is minted AFTER the frame because it names it.
+    let axis = r.insert(axis_in_plane(ball_plane, (0.0, 0.0), (0.0, 1.0)));
     let ball_p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::from_frame(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-        ),
+        plane: ball_plane,
         loops: vec![half_disc_program()],
     }));
     let ball = r.insert(Node::Revolve {

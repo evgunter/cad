@@ -47,8 +47,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+test_utils::gated_to![
+    "crates/sweep/src/blend/",
+    "crates/sweep/src/revolve/",
+    "crates/sweep/src/extrude.rs",
+    "crates/sweep/src/test_support.rs",
+    "crates/geom-core/src/predicate.rs",
+];
+
+use crate::common::approx::band;
 use geom::Surface;
-use geom_core::{Band, Point2, Tol};
+use geom_core::{Point2, Tol};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::blend::battery::{BlendRequest, run_battery};
@@ -61,10 +70,6 @@ use topo::{Body, EdgeKey};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -386,7 +391,8 @@ fn co_surface_seams_still_refuse_while_transverse_rims_do_not() {
         );
         match fillet_edges(&ball, &[seam], r * 0.05, tol()).map_err(|r| r.error) {
             Err(BlendError::TangentialEdge { margin, .. }) => assert_eq!(
-                margin, 0.0,
+                (margin.predicate, margin.value()),
+                ("fillet3_convexity_sign", Some(0.0)),
                 "a co-surface seam's dihedral sine is structurally zero (r={r})"
             ),
             other => {

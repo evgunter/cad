@@ -29,17 +29,20 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::interval::iv;
 use geom_brep::SketchSegment;
 use geom_core::{Bounds, Interval, Point2, Real, Vec2};
-
-fn iv(x: f64) -> Interval {
-    Interval::from_f64(x)
-}
 
 fn wide(x: f64, w: f64) -> Interval {
     Interval::from_bounds(x - w, x + w)
 }
 
+/// The width meter, and (below) its point form.
+///
+/// **Deliberately not shared with `arc_eval_anchor.rs`'s pair**, which
+/// is this text: this suite re-derives that file's anchor comparison
+/// independently, and borrowing its meter would make the two agree
+/// about what "narrower" means by construction. See that file's copy.
 fn width(x: Interval) -> f64 {
     x.hi() - x.lo()
 }

@@ -19,7 +19,7 @@
 # not "simplify" that away (learned 2026-07-24).
 # Expect your own comments to echo back (same account) — ignore those.
 #
-# COMMENT FILTERING (Evan's ask, 2026-08-11: per-comment spam is
+# COMMENT FILTERING (Ev's ask, 2026-08-11: per-comment spam is
 # excessive; new-issue/PR events stay repo-wide). Because all
 # orchestrators share one GitHub account, authorship cannot route —
 # the ROUTING SIGNALS are the repo's own conventions instead, so the
@@ -33,7 +33,7 @@
 #       already contains the tag (you joined the conversation — covers
 #       cross-program threads and issues you filed or answered), or if
 #       the comment BODY mentions the tag or one of your addresses.
-# Addresses are the CANONICAL summons keywords (Evan, 2026-08-11):
+# Addresses are the CANONICAL summons keywords (Ev, 2026-08-11):
 #       "@ orchestrators" reaches everyone (every session includes
 #       it); "@ <role>" (e.g. "@ lib", "@ m8", "@ asm") reaches one.
 #       "@ <role>" is DERIVED from the tag automatically; extend with
@@ -59,6 +59,20 @@ fi
 # "@ <role>" derived from the tag: "(LIB orchestrator)" -> "@ lib".
 role=$(printf '%s' "$SELF_TAG" | tr -d '()' | awk '{print tolower($1)}')
 ADDRESSES="@ orchestrators,@ ${role}${CAD_CHANNEL_ADDRESSES:+,$CAD_CHANNEL_ADDRESSES}"
+# CAD_CHANNEL_NEW_EVENTS=summons narrows the repo-wide NEW ISSUE/PR
+# stream to items whose title/body carry the tag or an address
+# (default: all, the historical behaviour).
+NEW_EVENTS="${CAD_CHANNEL_NEW_EVENTS:-all}"
+# summoned <text>: true if the text carries SELF_TAG or any address.
+summoned() {
+  local t="$1" a
+  printf '%s' "$t" | grep -qiF "$SELF_TAG" && return 0
+  local IFS=,
+  for a in $ADDRESSES; do
+    printf '%s' "$t" | grep -qiF "$a" && return 0
+  done
+  return 1
+}
 CACHE_TTL="${CAD_CHANNEL_CACHE_TTL:-10}"   # polls between membership re-checks
 touch "$WATCHLIST"
 
@@ -124,11 +138,11 @@ poll_comments() {
   local path="$1" c_url c_user c_body c_head c_num
   while IFS=$'\t' read -r c_url c_user c_body; do
     [ -n "$c_url" ] || continue
-    # SELF-SUPPRESSION (Evan, 2026-08-12): a comment that LEADS
+    # SELF-SUPPRESSION (Ev, 2026-08-12): a comment that LEADS
     # with this session's own role tag is our own echo (shared
     # account — authorship cannot distinguish orchestrators; the
     # leading tag can: nobody else signs as us). Mid-body tag
-    # mentions (Evan summoning us) still pass. Convention: every
+    # mentions (Ev summoning us) still pass. Convention: every
     # comment we post LEADS with the tag.
     c_head=$(printf '%s' "$c_body" | sed 's/^[[:space:]*_>#-]*//' | head -c 64)
     case "$c_head" in "$SELF_TAG"*) continue;; esac
@@ -146,7 +160,20 @@ while true; do
   now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   top=$(gh api "repos/$REPO/issues?state=all&per_page=30" --jq '.[].number' 2>/dev/null | sort -n | tail -1)
   if [ -n "$top" ] && [ "$top" -gt "$seen" ]; then
-    gh api "repos/$REPO/issues?state=all&per_page=30" --jq ".[] | select(.number > $seen) | \"NEW ISSUE/PR #\(.number): \(.title) [\(.user.login)]\"" 2>/dev/null
+    if [ "$NEW_EVENTS" = "summons" ]; then
+      # Ev, 2026-09-04 (in-chat, CURVED): repo-wide NEW lines are noise
+      # for an autonomous orchestrator; keep only the ones that summon
+      # this session by tag or address in the title or body. Comments
+      # are unaffected — "@ <role>" mentions always reach us there.
+      while IFS=$'\t' read -r n_num n_title n_user n_body; do
+        [ -n "$n_num" ] || continue
+        if summoned "$n_title $n_body"; then
+          echo "NEW ISSUE/PR #$n_num: $n_title [$n_user]"
+        fi
+      done < <(gh api "repos/$REPO/issues?state=all&per_page=30" --jq ".[] | select(.number > $seen) | [.number, .title, .user.login, (.body // \"\" | gsub(\"[\\\\n\\\\t]\"; \" \"))] | @tsv" 2>/dev/null)
+    else
+      gh api "repos/$REPO/issues?state=all&per_page=30" --jq ".[] | select(.number > $seen) | \"NEW ISSUE/PR #\(.number): \(.title) [\(.user.login)]\"" 2>/dev/null
+    fi
     seen=$top
   fi
   poll_n=$((poll_n + 1))

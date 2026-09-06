@@ -93,9 +93,12 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
         | E::SolidInvalid { node, .. } => (id(node), none(), none()),
         E::RootPoisoned { node, through } => (id(node), id(through), none()),
         E::Naming { node, name } => (id(node), none(), text(name)),
-        E::NoBodyRoots | E::ProductInvalid { .. } | E::ContactLineage { .. } => {
-            (none(), none(), none())
-        }
+        // The document-mismatch arm names two DOCUMENTS, which this
+        // node/node/name triple cannot carry; the message states both.
+        E::NoBodyRoots
+        | E::ProductInvalid { .. }
+        | E::ContactLineage { .. }
+        | E::EvaluationOfAnotherDocument { .. } => (none(), none(), none()),
     }
 }
 
@@ -112,10 +115,14 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
 /// state, so two evaluations of a root-neutral edit yield the same
 /// solid order.
 ///
-/// `evaluation` must be an evaluation OF `doc` — the gather looks each
-/// root up by node id, and node ids are minted per document, so a
-/// foreign evaluation refuses `unknown_node` rather than answering
-/// about the wrong document.
+/// `evaluation` must be an evaluation OF `doc`, and the door CHECKS
+/// it: an evaluation carries the id of the document it was run on,
+/// and a foreign one raises `ProductError` with tag
+/// `evaluation_of_another_document` before the first root is read.
+/// Node ids alone could not decide this — they are minted by a
+/// per-document counter, so two documents built from one recipe carry
+/// the same ids for the same nodes, and a gather over the wrong one
+/// would succeed, in full, about other geometry.
 ///
 /// Raises `ProductError`, typed: a root that failed, was poisoned or
 /// is absent from this evaluation; a document whose roots denote no
@@ -124,10 +131,13 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
 #[pyfunction]
 pub(crate) fn product(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> PyResult<Body> {
     let tol = Tol::witness();
+    // The gather DECLARES NOTHING: it is the root list's solids side
+    // by side, with no gate and no minted records, so the product
+    // body is plain and `Body.validate_pseudomanifold` will report
+    // any seam between two roots as undeclared. `assemble` is the
+    // door that mints declarations over the same geometry.
     d::product(&doc.inner, &evaluation.inner, tol)
-        .map(|body| Body {
-            inner: Arc::new(body),
-        })
+        .map(|body| Body::plain(Arc::new(body)))
         .map_err(|err| product_err(py, &err))
 }
 
@@ -154,12 +164,7 @@ pub(crate) fn product_named(
         .iter()
         .map(|(name, _)| name_text(py, name))
         .collect::<PyResult<Vec<String>>>()?;
-    Ok((
-        Body {
-            inner: Arc::new(body),
-        },
-        names,
-    ))
+    Ok((Body::plain(Arc::new(body)), names))
 }
 
 // ---- The gate's payload types ----
@@ -527,9 +532,13 @@ pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> Py
         .map(|(name, _)| name_text(py, name))
         .collect::<PyResult<Vec<String>>>()?;
     Ok(Assembly {
-        body: Body {
-            inner: Arc::new(assembly.body),
-        },
+        // The at-rest body keeps the record set the gate certified it
+        // against — the parts' own carried declarations (D-1) plus
+        // this document's minted mate declarations (D-2). Reaching an
+        // `Assembly` at all means tier 3′ ALREADY passed over exactly
+        // this pair, so `Assembly.body.validate_pseudomanifold()` is
+        // the same verdict re-taken, un-attributed.
+        body: Body::declared(Arc::new(assembly.body), Arc::new(assembly.contacts)),
         names,
         minted: assembly.minted.into_iter().map(MintedDeclaration).collect(),
     })

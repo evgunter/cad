@@ -20,6 +20,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
+use crate::common::oracles::chamfered_cube_volume;
 use geom::Surface;
 use geom_core::{Band, Point2, Tol};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
@@ -28,8 +29,6 @@ use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
 use topo::query;
 use topo::{Body, ChartMove, FaceKey, ReplaceFaceError, ShellError};
-
-const FIT_TOL: f64 = 1e-6;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -51,12 +50,6 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     extrude(&profile, Extrusion::Distance(h), Tol::witness())
         .expect("a polygon extrudes")
         .body
-}
-
-/// `a³ − 6ad² + (16/3)d³` — the chamfered cube's own closed form
-/// (restated from `verbs_chamfer.rs`, where it is derived).
-fn chamfered_cube_volume(a: f64, d: f64) -> f64 {
-    a.powi(3) - 6.0 * a * d * d + (16.0 / 3.0) * d.powi(3)
 }
 
 /// The convex polygon inset by `t`: each edge's line moved inward,
@@ -120,7 +113,7 @@ fn r2a_valence4_nonconcurring_corner_refuses_typed() {
         (24, 48),
         "every vertex 4-valent (2E/V = 4)"
     );
-    let e = topo::shell(&chamfered, 0.02, FIT_TOL, tol)
+    let e = topo::shell(&chamfered, 0.02, tol)
         .expect_err("a chamfered cube's corners do not concur under a uniform inset");
     let ShellError::Face { error, .. } = e else {
         panic!("not the offset door's refusal: {e}");
@@ -246,8 +239,9 @@ fn r2a_bevel_kite_triangle_walls_in_closed_form() {
         ),
     ] {
         let body = prism(&pts, h);
-        let hollow = topo::shell(&body, t, FIT_TOL, tol)
-            .unwrap_or_else(|e| panic!("{what} hollows, got {e}"));
+        let hollow = topo::shell(&body, t, tol)
+            .unwrap_or_else(|e| panic!("{what} hollows, got {e}"))
+            .body;
         let props = topo::mass_properties(&hollow, tol).expect("props");
         let want = shoelace(&pts) * h - shoelace(&inset(&pts, t)) * (h - 2.0 * t);
         println!("[r2a] {what}: wall {} want {want}", props.volume);
@@ -389,7 +383,7 @@ fn r2a_one_curved_face_among_oblique_planes_refuses_at_the_old_door() {
         .filter(|(_, f)| !matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
         .count();
     assert!(curved > 0, "the bore is a curved chart");
-    let e = topo::shell(&body, 0.02, FIT_TOL, tol)
+    let e = topo::shell(&body, 0.02, tol)
         .expect_err("one curved face puts the whole body outside the simultaneous door");
     println!("[r2a] one-arc hexagon: {e}");
     if let ShellError::Face { ref error, .. } = e {
@@ -422,8 +416,8 @@ fn r2a_straight_vertex_prism_through_shell_at_head() {
         &[(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
         0.4,
     );
-    match topo::shell(&body, 0.05, FIT_TOL, tol) {
-        Ok(hollow) => {
+    match topo::shell(&body, 0.05, tol) {
+        Ok(topo::Shelled { body: hollow, .. }) => {
             let props = topo::mass_properties(&hollow, tol).expect("props");
             println!(
                 "[r2a] straight-vertex prism at head: HOLLOWS, wall {} (closed form 0.157)",

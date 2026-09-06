@@ -21,7 +21,7 @@
 //! - `SolidOwners` places every face and vertex of a multi-solid body.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{describe_as_intersections, geometric_cube};
 use geom_core::Tol;

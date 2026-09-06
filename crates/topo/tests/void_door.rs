@@ -16,7 +16,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::prism_z;
 use geom_core::{Sign, Tol};

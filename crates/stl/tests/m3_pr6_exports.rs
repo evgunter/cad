@@ -20,7 +20,7 @@
 use mesh::validate::{check_mesh, signed_volume};
 use topo::{BooleanResult, mass_properties, union, validate_pseudomanifold};
 
-mod common;
+use crate::common;
 use common::brick;
 use geom_core::Tol;
 

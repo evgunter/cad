@@ -3,6 +3,20 @@
 //! the parse/format round-trip property against quantity's formatter.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+// Gated to the code it tests (TCOST-1). The claim is the expression TEXT
+// door: the grammar, child order under `descend`, every `DimensionError`
+// reachable through the parser, and a parse/format round trip against
+// `quantity`'s formatter. It rests on the parser, on the expression algebra
+// that owns `unparse`, `Dimension` and `literal_bits`, on the evaluator the
+// dimension rows read their answers from, and on `quantity`, whose
+// formatter is the other half of the round trip.
+test_utils::gated_to![
+    "crates/editor-core/src/parse.rs",
+    "crates/editor-core/src/expr.rs",
+    "crates/editor-core/src/eval/",
+    "crates/quantity/src/",
+];
+
 use std::collections::BTreeMap;
 
 use editor_core::{

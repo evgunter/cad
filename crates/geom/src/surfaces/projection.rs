@@ -181,7 +181,7 @@ impl<T: Bounds> NurbsSurface<T> {
                         #[allow(clippy::cast_precision_loss)]
                         let fv = j as f64 / (PROJECT_SEEDS_PER_SPAN - 1) as f64;
                         let v = b0 + (b1 - b0) * fv;
-                        let d = self.eval_in_span(win, T::from_f64(u), T::from_f64(v)) - p;
+                        let d = win.eval_in_span(T::from_f64(u), T::from_f64(v)) - p;
                         let d2 = mid(d.dot(d));
                         // Strict `<`: first minimum wins, NaN never does.
                         if d2 < best_d2 {
@@ -239,7 +239,9 @@ impl<T: CertifiedBounds> NurbsSurface<T> {
         let mut last_fv = f64::NAN;
         let mut last_dist = f64::NAN;
         while iterations < PROJECT_MAX_ITERS {
-            let j = self.ders_in_span(self.window_at(u, v), T::from_f64(u), T::from_f64(v));
+            let j = self
+                .window_at(u, v)
+                .ders_in_span(T::from_f64(u), T::from_f64(v));
             let r = j.point - p;
             // The iteration reads structure through the brackets; the
             // T-valued jet above is what the accepted payload is built
@@ -284,8 +286,9 @@ impl<T: CertifiedBounds> NurbsSurface<T> {
             // through the chart (domain-edge feet land here).
             let moved = j.du * T::from_f64(un - u) + j.dv * T::from_f64(vn - v);
             if mid(moved.norm()) <= PROJECT_EPS_POINT {
-                let jn =
-                    self.ders_in_span(self.window_at(un, vn), T::from_f64(un), T::from_f64(vn));
+                let jn = self
+                    .window_at(un, vn)
+                    .ders_in_span(T::from_f64(un), T::from_f64(vn));
                 let r = jn.point - p;
                 let dist = r.norm();
                 if !mid(dist).is_nan() {

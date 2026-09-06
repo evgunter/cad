@@ -12,7 +12,7 @@
 # build for wasm32 until a backend is named, and naming one takes both
 # halves: the `getrandom/wasm_js` feature (already in the viewer's
 # `cfg(target_arch = "wasm32")` stanza) AND this cfg flag. Setting only
-# the flag is the error docs/GQ6-RESURVEY.md §4 records. It is passed as
+# the flag is the error crates/viewer/README.md (toolkit and CI posture) records. It is passed as
 # a per-command prefix rather than an `export` because RUSTFLAGS
 # silently REPLACES any .cargo/config.toml rustflags — see gate.sh's
 # hazard list. The repo sets none today, so scoping it costs nothing and

@@ -2,10 +2,15 @@
 //! of the retired `ProfileDesc::tokens` key pins (#101 MINOR-1/NOTE-1;
 //! their subject, the stored token stream, died with the stored
 //! segments): the profile content key now feeds from the program's
-//! (tag, payload) stream — plane bits, per-loop LoopStart tags, per
-//! resolved step the verb tag + structural tags + resolved-f64 bits —
-//! so structure can never alias float data, resolved values move the
-//! key, and display units NEVER enter it (D7).
+//! (tag, payload) stream — per-loop LoopStart tags, per resolved step
+//! the verb tag + structural tags + resolved-f64 bits — so structure
+//! can never alias float data, resolved values move the key, and
+//! display units NEVER enter it (D7).
+//!
+//! The plane is NOT in that stream. It is a document node the profile
+//! names, so it folds into the key as an upstream input key, the same
+//! way every other input does; these rows build every document with
+//! its frame at node 0 and read the profile at node 1.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
@@ -14,7 +19,11 @@ use editor_core::{
     parse_expr,
 };
 use geom_core::Tol;
-use profile::SketchPlane;
+
+/// The frame every document below is built on, and the profile drawn
+/// on it: two nodes, inserted in that order.
+const PLANE: RecipeNodeId = RecipeNodeId(0);
+const PROFILE: RecipeNodeId = RecipeNodeId(1);
 
 fn key_of(doc: &ProfileDoc) -> ContentKey {
     let ev = evaluate::<f64>(
@@ -24,24 +33,48 @@ fn key_of(doc: &ProfileDoc) -> ContentKey {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    ev.value(RecipeNodeId(0))
-        .expect("profile evaluates")
-        .content_key
+    ev.value(PROFILE).expect("profile evaluates").content_key
 }
 
 fn doc_with(loops: Vec<LoopProgram>) -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("switch_program_key", Tol::witness());
+    with_frame(doc)
+        .apply(
+            &DocEdit::InsertNode {
+                node: Node::Profile(ProfileProgram {
+                    plane: PLANE,
+                    loops,
+                }),
+            },
+            Tol::witness(),
+        )
+        .expect("valid program")
+        .doc
+}
+
+/// The world xy frame at node 0. Every row here is about the PROGRAM's
+/// key, so every document shares one plane: a key difference between
+/// two of these documents can only have come from their programs.
+fn with_frame(doc: ProfileDoc) -> ProfileDoc {
     doc.apply(
         &DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
-                plane: SketchPlane::xy(),
-                loops,
+            node: Node::Datum(editor_core::Datum::Frame {
+                origin: [lit_len(0.0), lit_len(0.0), lit_len(0.0)],
+                u: [lit_scl(1.0), lit_scl(0.0), lit_scl(0.0)],
+                v: [lit_scl(0.0), lit_scl(1.0), lit_scl(0.0)],
             }),
         },
         Tol::witness(),
     )
-    .expect("valid program")
+    .expect("the frame inserts")
     .doc
+}
+
+fn lit_len(v: f64) -> Expr {
+    Expr::literal(v, Dimension::Length).expect("finite")
+}
+fn lit_scl(v: f64) -> Expr {
+    Expr::literal(v, Dimension::Scalar).expect("finite")
 }
 
 /// Authored program ORDER is structure: the same hole wound the other
@@ -73,9 +106,25 @@ fn verb_tags_are_structure() {
     assert_ne!(key_of(&a), key_of(&b));
 }
 
-/// The resolved-value convention: a param edit that changes a resolved
-/// program value MOVES the key; re-spelling the same value as a
-/// literal keys IDENTICALLY (resolved bits, not spelling, feed it).
+/// The resolved-value convention, and **the one place it no longer
+/// holds** (SEAT-7, key format v5).
+///
+/// A param edit that changes a resolved program value still moves the
+/// key. What changed is the second half: a CARRIER LOOP's radius
+/// re-spelled at the same value now keys DIFFERENTLY, because that
+/// expression stopped being only a number. The sweeps declare the
+/// profile edge's radius into the walls they mint, so an extrude of
+/// this circle carries the lowered identity of THIS expression in its
+/// cylinder's field source — and two spellings of one value are two
+/// different bodies downstream. Keying them identically would let the
+/// memo serve a body whose token names an expression the document no
+/// longer holds, which is the stale-token class the blend's own
+/// flow-bearing slot was fixed for at v4.
+///
+/// The convention itself is unchanged everywhere it still applies:
+/// every OTHER program expression — centres, chain steps, phases — is
+/// resolved-bits-only, and the row below pins one of them so the
+/// exception is bounded rather than assumed.
 #[test]
 fn resolved_values_feed_the_key() {
     let with_param = |value: f64| {
@@ -90,33 +139,81 @@ fn resolved_values_feed_the_key() {
             )
             .unwrap()
             .doc;
-        doc.apply(
+        with_frame(doc)
+            .apply(
+                &DocEdit::InsertNode {
+                    node: Node::Profile(ProfileProgram {
+                        plane: PLANE,
+                        loops: vec![LoopProgram::Circle {
+                            centre: [
+                                Expr::literal(0.0, Dimension::Length).unwrap(),
+                                Expr::literal(0.0, Dimension::Length).unwrap(),
+                            ],
+                            radius: Expr::param(ParamName::new("r"), Dimension::Length),
+                        }],
+                    }),
+                },
+                Tol::witness(),
+            )
+            .unwrap()
+            .doc
+    };
+    let k_half = key_of(&with_param(0.5));
+    let k_quarter = key_of(&with_param(0.25));
+    assert_ne!(k_half, k_quarter, "a resolved-value change moves the key");
+    let literal = doc_with(vec![LoopProgram::circle(0.0, 0.0, 0.5).unwrap()]);
+    assert_ne!(
+        k_half,
+        key_of(&literal),
+        "a carrier radius is flow-bearing: its SPELLING reaches the walls a \
+         sweep mints, so two spellings of one value must not share a memo entry"
+    );
+}
+
+/// **The exception is exactly one expression wide**: a carrier loop's
+/// CENTRE, re-spelled at the same value, keys identically.
+///
+/// Nothing downstream carries a centre's identity — the walls store a
+/// radius, and a placement is not a stored scalar — so the
+/// resolved-value convention is untouched for it. Without this row the
+/// row above would read as "spelling entered the key", which is not
+/// what happened.
+#[test]
+fn a_carrier_centre_respelled_keys_identically() {
+    let doc = ProfileDoc::empty_derived("switch_program_key", Tol::witness());
+    let doc = doc
+        .apply(
+            &DocEdit::SetDocParam {
+                name: ParamName::new("cx"),
+                value: DocParam::continuous(Dimension::Length, 1.0),
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .doc;
+    let parameterized = with_frame(doc)
+        .apply(
             &DocEdit::InsertNode {
                 node: Node::Profile(ProfileProgram {
-                    plane: SketchPlane::xy(),
+                    plane: PLANE,
                     loops: vec![LoopProgram::Circle {
                         centre: [
-                            Expr::literal(0.0, Dimension::Length).unwrap(),
+                            Expr::param(ParamName::new("cx"), Dimension::Length),
                             Expr::literal(0.0, Dimension::Length).unwrap(),
                         ],
-                        radius: Expr::param(ParamName::new("r"), Dimension::Length),
+                        radius: Expr::literal(0.5, Dimension::Length).unwrap(),
                     }],
                 }),
             },
             Tol::witness(),
         )
         .unwrap()
-        .doc
-    };
-    let k_half = key_of(&with_param(0.5));
-    let k_quarter = key_of(&with_param(0.25));
-    assert_ne!(k_half, k_quarter, "a resolved-value change moves the key");
-    let literal = doc_with(vec![LoopProgram::circle(0.0, 0.0, 0.5).unwrap()]);
+        .doc;
+    let literal = doc_with(vec![LoopProgram::circle(1.0, 0.0, 0.5).unwrap()]);
     assert_eq!(
-        k_half,
+        key_of(&parameterized),
         key_of(&literal),
-        "same resolved bits, same key — spelling does not enter (V2's \
-         resolved-value convention, inherited from node slots)"
+        "a centre's spelling does not reach any stored field, so it must not enter the key"
     );
 }
 

@@ -3,7 +3,7 @@
 //! re-certification, composition against booleans, and refusal doors.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use std::f64::consts::FRAC_PI_2;
 

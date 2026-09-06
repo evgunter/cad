@@ -4,7 +4,7 @@
 2026-07-21 after the adversarial review byte-reproduced the CSVs at all
 three ε rows and independently re-derived every reported number. The
 outcome is ratified into DESIGN.md's Q1 residue by the M2-exit sweep.
-Per Evan on #41, the value needed no separate sign-off. That
+Per Ev on #41, the value needed no separate sign-off. That
 byte-reproduction was a check against the tree of that day and is not
 a standing property of the committed CSVs — see "Provenance of the M2
 CSVs" under Methodology.)
@@ -148,14 +148,14 @@ gathered across M2's full pipeline.
 
   **This break never touched the gate, and the gate reads no committed
   CSV at all.** `ci.yml`'s *K-telemetry probe sweep* runs
-  `scripts/k_probe_sweep.sh` into `target/k-fresh` on every run that
-  gates the `dev-probe` unification — drawn 1 in 5 since the
-  configuration sampling (`KLINT_ROWS`, `scripts/ci-filter.py`), and
-  askable by name with a `CI-Config: klint=dev-probe` trailer. **Not
-  1 in 5 on every merge**: a change under `tools/` PINS `dev-default`
-  (`KLINT_PATH_ROWS`), so such a merge does not gate this row at all —
-  and that includes a change to `tools/k-lint` itself, whose binary
-  this step runs. Ask for the row by name when that is what moved. And
+  `scripts/k_probe_sweep.sh` into `target/k-fresh` in the `dev-probe`
+  leg of `k-lint (gate)`, which **every code-tier run has** since the
+  k-lint unification stopped being sampled on 2026-09-04 (`KLINT_ROWS`,
+  `scripts/ci-filter.py`). From 2026-08-22 to that day the row was drawn
+  1 in 5 and a `tools/` change pinned `dev-default` instead, so a merge
+  could go green without gating this row at all; the commit trailer that
+  used to ask for it by name was deleted on 2026-09-04, once every run
+  gated every row and it had nothing left to ask for. And
   `tools/k-lint` lints **that fresh sweep** against constants
   pinned in `tools/k-lint/src/lib.rs` (`BASELINE_FLOOR_MARGIN = 4.0e-5`
   and the rule set). Nothing under `docs/k-report-data/` is opened at
@@ -165,17 +165,20 @@ gathered across M2's full pipeline.
   committed CSV can weaken the gate, and `k_report.rs` is the M2-era
   instrument only.
 
-  **What CI now covers, stated precisely** (D17, closed 2026-08-20;
-  **the schedule restated 2026-08-30**, when the sampling made the
-  original wording false). `k_report.rs` is both **type-checked and
-  run** on every run that gates the `dev-probe` unification — **1 in
-  5**, not on every building merge, which is what this sentence said
-  until the correction, and **none at all on a merge that touches
-  `tools/`**, where the path pin substitutes `dev-default`. The row is a persistence-detector: a harness
-  that stops compiling or starts panicking stays broken until a later
-  draw finds it, so what the sampling gave up here is latency, not
-  coverage. The `k-lint` job's *"compile and list every probe-gated test target"*
-  step covers the whole workspace — `scripts/gates/probe-suite-census.sh`
+  **What CI now covers, stated precisely** (D17, closed 2026-08-20; the
+  schedule restated 2026-08-30 when the sampling made the original
+  wording false, and restated again 2026-09-04 when the sampling was
+  retired). `k_report.rs` is both **type-checked and run** in
+  `k-lint (gate)`'s `dev-probe` leg, and **every code-tier run has that
+  leg** — so "on every building merge" is true again, which is what this
+  sentence said before 2026-08-30 and could not say between then and
+  2026-09-04, when the row was drawn 1 in 5 and a `tools/` diff pinned
+  `dev-default` instead. The row is a persistence-detector, which is
+  what made the sampling sound while it lasted: a harness that stops
+  compiling or starts panicking stays broken until a later draw finds
+  it, so what the sampling gave up here was latency, not coverage. The
+  `k-lint` job's *"compile and list every probe-gated test target"* step
+  covers the whole workspace — `scripts/gates/probe-suite-census.sh`
   derives the owning crates from the tree and the step `cargo check`s
   each `--features probe --all-targets`; the gate greps for that step
   name, **which is why this paragraph could go quietly false about how
@@ -233,23 +236,26 @@ gathered across M2's full pipeline.
   f64 one, and greenness is tolerance-dependent. `m4_pr8_k_probe`'s
   `run_doc` asserts the same predicate over every corpus document at all
   three ε **in the same sweep invocation** — both halves are
-  `k_probe_sweep.sh`, so both ride the `dev-probe` unification and run
-  on the 1 run in 5 that gates it (none, on a merge the `tools/` path
-  pin sends to `dev-default`), never on every merge — so the ε
-  sweep of that property is already paid on exactly the runs this one
-  is. What running the default selection adds is that these bodies
-  execute at all, and the `#[ignore]`d complement the floor reconciles.
+  `k_probe_sweep.sh`, so both ride the `dev-probe` unification, which
+  every code-tier run gates since 2026-09-04 (until then: 1 run in 5,
+  and none at all on a merge the `tools/` path pin sent to
+  `dev-default`) — so the ε sweep of that property is already paid on
+  exactly the runs this one is. What running the default selection adds
+  is that these bodies execute at all, and the `#[ignore]`d complement
+  the floor reconciles.
   It runs at a stated ε (1e-9) rather than at whatever the ambient
   default happens to be.
 
   The total is deliberately not written here: it is that gate's derived
-  tally, recomputed on every building merge — and **that one really is
-  every merge**, which is why it is worth saying which half is meant.
-  `probe-suite-census.sh`'s default mode (the per-crate tally and its
-  `CENSUS_FLOOR`) is sited in `discipline`, a job the configuration
-  sampling does not touch. The `--check-executed` reconciliation
-  described just above is the other half, and it rides `dev-probe` with
-  the sweep that feeds it: 1 run in 5.
+  tally, recomputed on every building merge. Which half is meant used to
+  matter and no longer decides anything: `probe-suite-census.sh`'s
+  default mode (the per-crate tally and its `CENSUS_FLOOR`) is sited in
+  `discipline`, and the `--check-executed` reconciliation described just
+  above rides `dev-probe` with the sweep that feeds it — which was 1 run
+  in 5 until 2026-09-04 and is every code-tier run since. The siting
+  distinction stands on its own merits (an ABSENCE detector belongs in
+  an unconditional job), and it is the reason the census half stayed
+  correct through the sampled period.
 
   **The M2 dump rides beside the gate, not inside it.** The sweep writes
   it to `<outdir>/m2/<prefix><ε>.csv`; `tools/k-lint` is handed the
@@ -311,7 +317,7 @@ CSVs in `docs/k-report-data/eps-{1e-6,1e-9,1e-12}.csv`
 (columns: shape, predicate, margin, band_zero, band_escalate,
 outcome).
 
-### Counterfactual K (Evan-requested, #41)
+### Counterfactual K (Ev-requested, #41)
 
 Every `MarginSample` records the margin and `band_zero`, so outcome
 counts for ANY candidate K are derivable post hoc from the normalized
@@ -347,7 +353,7 @@ completely flat across the candidate range on this corpus.
    `(τ − θ)·r` on near-full partial revolves — a margin the USER
    controls (their θ), not evaluation noise. Even θ = τ − 0.01 clears
    Kε by 3 decades at ε = 1e-6.
-4. **What this corpus cannot show** (scoping, per Evan): M2's native
+4. **What this corpus cannot show** (scoping, per Ev): M2's native
    constructions are a **well-conditioned corpus** — profile-validated
    inputs, sweep-generated geometry, margins the modeler controls.
    The expectation is that the strongest K evidence arrives at **D7
@@ -364,7 +370,7 @@ pressure to move it in either direction: the band converted zero
 decisions at any tested ε — and the counterfactual table shows every
 candidate in {3, 10, 30, 100} behaves identically on this corpus — so
 the value is currently free, and a free parameter should keep its
-ratified, documented default rather than churn. (Per Evan's #41
+ratified, documented default rather than churn. (Per Ev's #41
 direction, K is now ε-style per-run configuration —
 `Tol::k`, env `CAD_AMBIGUITY_K`, default 10 — so future
 corpora can probe alternatives without code changes.)
@@ -493,7 +499,7 @@ because one parameterised site carries many names: **83 of the 233
 names in the committed M7 baseline have no `decide("<name>"` site
 anywhere in the tree.**
 
-Five ways a name escapes the old pattern, all live today:
+Six ways a name escapes the old pattern, all live today:
 
 1. **A different funnel entry — the sharpest instance, because the
    site satisfies the method's own criterion.** `decide("` does not
@@ -508,26 +514,54 @@ Five ways a name escapes the old pattern, all live today:
    least `check_residual`, `classify`, `require_zero`, `coincident`,
    `zero`, `gap_is_zero` and `signed_is_zero`. The old method named the
    last two.
-3. **A named `const &str` rather than a literal at the site.** Six,
-   not the three previously recorded: `sector_shape.rs`'s
+3. **A named `const &str` rather than a literal at the site.** Seven,
+   not the three originally recorded: `sector_shape.rs`'s
    module-private `SECTOR_{ARM,REFLEX,STRAIGHT}`, plus
    `SEL_DATUM_DISTANCE` (`sel_datum_distance` — since SEAT-2 a `pub`
    const in `topo/src/query.rs`, re-exported by `editor-core`),
-   `DATUM_UNIT_NORM` (`datum_unit_norm` — since SEAT-DV a `pub` const
-   beside it, the length decision inside `UnitVec3::new`; the datum
-   arms of `editor-core`'s evaluation reach the funnel through that
-   constructor rather than through their own `eval_direction_norm`
-   site, which stays for the directions the evaluation layer owns —
-   note that `mate/solve.rs` re-derives a circular pattern's DATUM axis
-   from the recipe and decides it under `eval_direction_norm`, so one
-   datum direction carries two names by road, issue 1570) and
    `sweep/src/fillet/surgery.rs`'s module-private `RING_CLEARANCE`
-   (`fillet3_ring_clearance`).
-4. **A struct field or a local table.** `ray_parity::ParityRows` (the
+   (`fillet3_ring_clearance`), and the direction-length pair —
+   `DATUM_UNIT_NORM` (`datum_unit_norm`, a `pub` const in
+   `topo/src/query.rs`) and `EVAL_DIRECTION_NORM`
+   (`eval_direction_norm`, `editor-core`'s `eval/wire.rs`), which are
+   the same shape for the same reason and are described together
+   below.
+4. **A name PASSED to the deciding body by its caller** — the pair
+   just named, and the reason they are also a separate way of
+   escaping the pattern. Since SEAT-DN one function decides
+   direction length for the whole workspace
+   (`topo::query::decide_unit_direction`: finiteness, then the sign
+   of the norm, then normalize or refuse) and it takes the funnel site
+   as a `&'static str` PARAMETER, because the layer that owns a value
+   is the layer whose telemetry names its length decision. So
+   `decide(` at that site names a variable: `datum_unit_norm` is
+   passed by `UnitVec3::new` a few dozen lines below for a datum's
+   normal or axis direction, and `eval_direction_norm` by
+   `editor-core`'s `unit()`, a crate away, for the directions the
+   evaluation layer owns (a transform's rotation axis, a pattern's
+   direction, and the mate solve's re-derivation of both from the
+   recipe). Two names, one body — Ev's ratified answer to the
+   direction-family question, executed by SEAT-DN. The consequence
+   for a name roster is the one this section is about: a scan for
+   `decide("<name>"` finds NEITHER of these two live names, and only
+   a reader following the parameter does.
+
+   **And this route accepts names nobody registered.** The door is
+   `pub` in a `pub mod` and its site is a bare `&'static str`, so any
+   crate in the workspace can pass a literal of its own and mint a K
+   name that appears in the emitted stream and in no document —
+   executed: `decide_unit_direction(v, "rev_probe_site", band)`
+   escalates carrying `predicate: Some("rev_probe_site")`. Nothing
+   mechanical catches it, because nothing mechanical reads this
+   roster at all (see "Maintenance: this roster is a RECORD" below).
+   That is this document's standing hole made one route wider, not a
+   new one: a third caller of the shared body owes an entry here, by
+   hand, exactly as a new `decide("literal")` site does.
+5. **A struct field or a local table.** `ray_parity::ParityRows` (the
    one carrier this document already listed), `swept.rs`'s
    `CosurfaceNames`, and `transform.rs:129`'s seven-element
    `[(&'static str, T); 7]` array consumed by a loop variable.
-5. **The scan root — a scope error in the method, not a missed site.**
+6. **The scan root — a scope error in the method, not a missed site.**
    The pattern greps `crates/*/src`, while the corpus the gate is fed
    from is not confined to it: `demos/tour/src/booleans.rs` decided
    `demo_flush_{offset,orient,parallel}` through the same funnel, and
@@ -603,8 +637,9 @@ enters the K stream under `bool_plane_parallel` /
 own. Those three rows therefore carry more samples than before, drawn
 from the same geometry through a different door — a distribution
 change to READ rather than a threshold to restore, and the first
-`k-lint` sweep after the merge is what reads it (SEAT-3 asked for one
-with a `klint=dev-probe` head trailer).
+`k-lint` sweep after the merge is what reads it (SEAT-3 had to ask for
+one with a `klint=dev-probe` head trailer, which was the spelling while
+the row was drawn; every run gates it now).
 
 **Maintenance: this roster is a RECORD, and stays hand-maintained.**
 The decision is on what the roster is *for*, and the evidence is that
@@ -626,7 +661,7 @@ nothing computes with it:
   merge in `target/k-fresh`, one `cut -d, -f2 | sort -u` away.
 
 So: **stated criterion, disclosed residue, no CI row.** What a future
-reader is owed instead is above — the rule, the five escape routes, the
+reader is owed instead is above — the rule, the six escape routes, the
 two blind spots, and the seven names measured outside both documents.
 Adding a name carrier without recording it here still silently drops
 its rows from the roster; that is now a disclosed cost rather than an
@@ -750,7 +785,7 @@ a real 1.7 mm feature gap). The gap between the clusters spans ~12
 decades and is EMPTY: 0 indeterminate, 0 invalid, nothing within a
 decade of any band edge at any ε row.
 
-### The large-K lint (Evan's ask, ruled 2026-07-25; spec D3)
+### The large-K lint (Ev's ask, ruled 2026-07-25; spec D3)
 
 *Historical, left as written. The thresholds and rule set below are the
 M4 originals; both were revised on 2026-08-07 — see "M7 addendum: the
@@ -810,7 +845,7 @@ demo scenes as they stand at main's tip (post-#166). This is the
 #89 revisit that M2's Finding 4 named — and the FIRST snapshot in
 which the counterfactual-K decision surface is not completely flat.
 Its outcome: **#89 is CLOSED and K = 10 is the permanent ratified
-default** (Evan, PR #169 comment 5171303851, 2026-08-03), with a
+default** (Ev, PR #169 comment 5171303851, 2026-08-03), with a
 testable re-open trigger. See "Decision" below.**
 
 - **Harnesses**: unchanged — `scripts/k_probe_sweep.sh`
@@ -1024,7 +1059,7 @@ K = 30 has 5.5×; K = 10 retains better than a decade.
 
 ### Decision: #89 CLOSED — K = 10 is the permanent ratified default
 
-**Ruled by Evan on PR #169 (comment 5171303851, 2026-08-03):
+**Ruled by Ev on PR #169 (comment 5171303851, 2026-08-03):
 "closing 89 makes sense."** This supersedes the continuation this
 addendum originally recommended; the grounds below are the ones the
 recommendation was built on and they support the close directly.
@@ -1100,10 +1135,10 @@ happened; the section above is left as written.
 landing: ε = 1e-7, fixture `cone_trunc`, predicate
 `props_rim_level_group`, margin 5.590169943747308e-7 = √5/4 × 1e-6
 — in Band{1e-7, 1e-6}. Verified bit-exact at review (the A3
-attack), reported to Evan on the designated #89 thread with nothing
+attack), reported to Ev on the designated #89 thread with nothing
 retuned.
 
-**The diagnosis.** Evan's probe of the margin's DIMENSION broke the
+**The diagnosis.** Ev's probe of the margin's DIMENSION broke the
 case: the margin was an AREA (m², a two-length product, quadratic
 in model scale) where a rim-level comparand should be a LENGTH.
 Root cause in `geom-brep/src/props/curved.rs::du_of_rims`: every
@@ -1137,7 +1172,7 @@ is `docs/predicate-dimension-audit.md` (~120 rows, F-findings).
    required exactly the re-reading the sentence hoped to avoid.
 3. The two "M6 pickup" follow-ups above are hereby re-tagged
    **UNOWNED pickups** — M6's executed units (1–4) all merged with
-   neither follow-up done, and M6 remains open awaiting Evan's exit
+   neither follow-up done, and M6 remains open awaiting Ev's exit
    walk (the k-lint baseline floor is still the stale M4-era 1.5e-3
    with ~102 advisory flags/run; the SSI Probe lane still has no
    owner). The k-lint floor refresh holds a promoted lull-queue
@@ -1416,7 +1451,7 @@ lane) and `split_sector_{arm,reflex,straight}` (splitting lane) are, since
 #647, literally one implementation of one quantity —
 `crates/topo/src/sector_shape.rs`, called from both lanes, with the name
 set handed in as a parameter precisely so this decision could be taken
-separately. It is taken: **pool them** (Evan, 2026-08-19, issue #652).
+separately. It is taken: **pool them** (Ev, 2026-08-19, issue #652).
 They now emit `sector_arm`, `sector_reflex`, `sector_straight`.
 
 **Why, in one line that is not tidiness.** Coverage. Recomputed from
@@ -1454,13 +1489,50 @@ names depending on the road**: `mate/solve.rs`'s derived-offset
 derivation re-reads a circular pattern's datum-axis node from the
 recipe and normalizes that same direction through `eval_direction_norm`
 (same arithmetic, same refusal shape, different name in this census).
-That is a family question, not a defect of either site, and it is homed
-at issue **1570** — this paragraph is the census-side record of it, and
-neither road was migrated.
 
-**Effect on the emitted stream.** Margins, order, bands and outcomes are
-bit-identical; only the `predicate` column changes, and only for these
-six values. Reproduced with the probe #647 left for exactly this —
+**And the mate road is not the only place one triple carries two
+names.** `DatumValue::AxisInPlane` is decided twice by design: the
+evaluation layer lifts the authored sketch direction and decides the
+lifted 3-D vector under `datum_unit_norm` (`wire.rs`'s
+`datum_unit(lift(plane_dir), …)`), while `sweep`'s revolve takes the
+UNLIFTED sketch pair and decides it again under
+`revolve_axis_direction` (`revolve/axis.rs`) — same authored numbers,
+two names, because the frame's axes are orthonormal and
+`|lift(d)| = |d|`. The variant's own doc says why it carries both
+spellings. So "one length, two funnel names, split by road" is a
+SHAPE in this workspace rather than a one-off, and the ruling below is
+about which layer names a decision, not about ever having only one
+name for a value.
+
+**Both facts are RATIFIED, and SEAT-DN is where they were answered**
+(Ev's ruling (B), 2026-09-05, on the `[ev]` PR that put the options).
+The two names stay exactly where they are read, because the layer that
+OWNS a value is the layer whose telemetry names its length decision: a
+`DatumValue` has no unnormalized spelling, so its normal is the kernel
+type's to decide, while a transform axis and a pattern direction are
+the evaluation layer's — and collapsing the two names would erase
+which layer a decision came from, in the one column this census has to
+say it in. So **no row here moves**, the count is unchanged, and the
+one triple under two names by road is a property of the roads, not a
+defect of either site.
+
+What SEAT-DN did collapse is the BODY: both names are now passed as a
+parameter to `topo::query::decide_unit_direction`, the workspace's only
+decide/normalize/refuse for a 3-D direction length. The census
+consequence is nil (same names, same margins, same order, same
+outcomes); the roster consequence is that neither name is a literal at
+its `decide` site any more, recorded as escape route 4 in the
+inventory method above. The population under each name is unchanged —
+`datum_unit_norm` for the datum arms of `wire_datum`,
+`eval_direction_norm` for the evaluation layer's own directions and
+for the mate solve's re-derivation of both rule kinds from the
+recipe.
+
+**Effect on the emitted stream** (the SECTOR rename above — the SEAT-DV
+and SEAT-DN paragraphs between are later additions to this section, and
+move nothing in this stream). Margins, order, bands and outcomes are
+bit-identical; only the `predicate` column changes, and only for the six
+sector names. Reproduced with the probe #647 left for exactly this —
 `cargo test -p topo --features probe --test all -- --nocapture
 probe_s5_sectors::sector_margin_stream | grep '^K '` on merge base
 (`17b077f7`) and tip:
@@ -1537,3 +1609,294 @@ crop M3 added, and it is accurate about that. Read alongside this note.
 `split_sector_{coplanar,extent}` are the `sector_face` twins and the
 face-extent arm — different quantities, still two implementations, the
 rest of smell-scan S5. Pooling does not reach them.
+
+## M10 addendum (2026-09-03): the E6 subdivision driver's own K population — a per-rule verdict
+
+M10-6 added a third E10 CI row that sweeps the E6 subdivision driver's
+certified midpoints and lints the result (`ci.yml`'s
+`driver K-telemetry lint`, on the `dev-probe`/`all` draw of the
+`klint_row` axis). This is the K re-examination E6's T6 obligation
+promised. It is written down here because the runbook above says a
+demotion needs a recorded justification, and because the SHAPE of the
+verdict is not the one the corpus rows have.
+
+**What the population is.** Not author-chosen nominals. The driver
+subdivides a parameter box until every predicate over a leaf is
+definite, so its margins are, by construction, the smallest ones at
+which each predicate still decides — they pile up *just outside* the
+escalation threshold. That is the algorithm working. The corpus rows'
+thresholds were calibrated against a distribution with no such
+pressure, so applying them unchanged to this population measures the
+calibration mismatch rather than any geometry.
+
+**Measured (2026-09-03, this branch, dev profile, `--features probe`).**
+
+| ε | samples | flags |
+| --- | --- | --- |
+| 1e-6 | 257,025 | 15,768 |
+| 1e-9 | 257,025 | 25,112 |
+| 1e-12 | 257,025 | 25,112 |
+
+Every flag is rule 2 or rule 3 — a margin that WAS decided, sitting
+near a threshold or below a calibrated floor. 216 distinct margins are
+involved, with a floor of 1.0083e-5 ≈ Kε on `dihedral_wedge`,
+`dihedral_arm`, `interval_span_forward` and
+`extrusion_normal_component`. **Rule 1 — `indeterminate` or `invalid`
+— fired ZERO times at every ε.**
+
+**The disposition, and why it is not a blanket demotion.** Recourse 2
+above (demote with a recorded justification) is taken, but only for
+rules 2 and 3. Rule 1 keeps gating, via `k-lint --gate-rule-1-only`.
+The reason is that rule 1 is the trigger this document's runbook names:
+an in-band or poisoned margin says the run could not decide something
+it had to. A row demoted wholesale would have printed such a margin
+among tens of thousands of rule-2/3 flags and still gone green — the
+demotion would have covered the very finding the row exists to catch.
+
+**The counts are printed, not inferred.** `k-lint` tallies per rule on
+every run, gated or not, at each ε row, and the CI step relays those
+lines into the job summary. "Zero rule-1 flags" is therefore a reported
+number a reader can check, not something read off the absence of a red.
+
+**What would re-open the K question here**: any rule-1 flag in this
+population. Changing geometry to move a margin out of the band remains
+the forbidden move, exactly as for every other row in this report.
+
+## M10-7 addendum (2026-09-04): the symbolic tier's own column, and the extent lever's non-move
+
+Two changes of M10-7 touch this report: the E12 symbolic identity tier
+adds an OUTCOME to the funnel, and E3's extent lever moves the arm two
+funnel predicates are metered at. Both are recorded here because the
+runbook asks a distribution change to be READ rather than restored.
+
+### The driver population, split
+
+`geom_core::k_stats::SampleOutcome::SymbolicZero` is a fourth outcome
+beside `Definite` / `Indeterminate` / `Invalid`. It records a decision
+the symbolic tier answered: the margin's expression is identically zero
+in the document's parameters, so `Zero` was a theorem and no enclosure
+was consulted. **It is never a rule-1 sample, and cannot be**: no margin
+was classified against the band at all, so there is nothing in-band to
+find. The K question — where do decided margins sit relative to the
+thresholds — is asked of the numeric column only, which is what the
+column split is for.
+
+**Measured (2026-09-04, M10-7's head, dev profile, `--features
+probe,interval`), by `scripts/k_probe_sweep.sh`'s own `E6 driver` leg —
+the `m10_3_driver_k_probe_interval::` sweep the M10 addendum above
+describes, read out of the CSV it wrote rather than from a hand run:**
+
+| shape | certified leaves | samples |
+| --- | --- | --- |
+| `driver/slab_narrow` | 1 | 745 |
+| `driver/slab_across_zero` | 65 | 48,425 |
+
+| outcome | samples | share |
+| --- | --- | --- |
+| `symbolic_zero` | 31,812 | 64.7% |
+| `positive` | 16,830 | 34.2% |
+| `zero` (numeric) | 528 | 1.1% |
+| `indeterminate` / `invalid` | **0** | — |
+
+**Identical at ε = 1e-6, 1e-9 and 1e-12** — all three rows of the sweep
+wrote the same 49,170 samples with the same split. For the symbolic
+column that is what the tier claims (a zero it answers is a theorem, so
+no threshold enters); for the numeric column on THIS fixture it says the
+margins are far from both thresholds at every ε the sweep draws.
+
+**The population SHRANK against the M10-6 reading (257,025 samples), and
+that is the tier working rather than a loss.** The K probe replays one
+midpoint per CERTIFIED LEAF, and with the identities discharged the same
+box is certified in far fewer, far larger leaves — 65 where M10-6 needed
+344. Fewer leaves, fewer replays, fewer samples; the geometry certified
+is the same geometry.
+
+**Rule 1 still fires zero times**, so the M10 addendum's disposition —
+rule 1 gates, rules 2 and 3 demoted with a recorded justification — is
+unchanged, and it is unchanged for the same measured reason rather than
+by inheritance.
+
+### The gate that reported this was not able to fail, and for how long
+
+**Read this before quoting any driver-population number from a CI run
+between 2026-09-03 and 2026-09-04.** Two defects composed, and between
+them the driver K row reported success over a lint that had linted
+nothing.
+
+1. **The lint refused every driver file unread.** `SampleOutcome`
+   gained `SymbolicZero`, serialized `symbolic_zero`;
+   `tools/k-lint`'s accepted-token list did not learn it; and an unknown
+   token is HARNESS BREAKAGE by design, so `lint_csv` returned `Err` at
+   the first sample row of the first file. On run 33828394312 the step
+   log is one line — `malformed sweep row (harness breakage): …
+   symbolic_zero` — with no per-file line and no TOTAL.
+2. **The step could not fail.** Its status capture read `PIPESTATUS[0]`
+   on the line AFTER `status=$?`, and that assignment had already
+   rewritten `PIPESTATUS`; `status` was 0 whatever the lint said, so both
+   non-zero arms of its `case` were unreachable.
+
+**How long: since the row was born.** The step landed in M10-6's own PR
+(#1685) at `eab6e3acc` WITHOUT a pipe, where its plain `|| status=$?`
+was exact; `eeb28648b`, eight commits later in the same PR, added the
+`| tee` and the broken capture. So the row reached `main` already
+disarmed, and **no run on `main` or on any branch has ever been able to
+red it** — not on findings (exit 2, which IS the E6 re-open trigger) and
+not on harness breakage.
+
+What that costs this document, stated exactly:
+
+- The M10 addendum's "rule 1 gates" was a claim about a gate that could
+  not fire. Its *numbers* were read from the sweep's CSV and stand; its
+  *gating* claim was vacuous for the whole of its life so far.
+- The table above is measured from the CSV `scripts/k_probe_sweep.sh`
+  writes, not from the lint's verdict, so it is unaffected. What is now
+  also true, and was not before, is that the lint READS those rows: the
+  hosted step prints a per-file line and a TOTAL with a
+  `symbolic_zero` column beside the classified count.
+
+Both defects are fixed in M10-7's PR (1725): k-lint learns the token and
+counts it in its own column, the outcome vocabulary gets one home on
+`SampleOutcome::token()` with a k-lint test pinning the two across the
+workspace boundary, and the ci.yml step captures `PIPESTATUS` on the
+pipeline line. The `PIPESTATUS` pattern elsewhere in `ci.yml` is CIW's
+to sweep: `work/ciw/pipestatus-after-assignment-in-ci-yml.md`.
+
+The largest symbolic columns are `carrier_matches_mapped_source`,
+`carrier_on_surface_1` and `carrier_on_surface_2` (7,128 each),
+`segment_straightness` (1,650), and the two the M10-3 unit pinned,
+`carrier_endpoint_start`/`_end` (1,584 each), beside
+`newell_plane_residual` (1,584) and `witness_at_mid_parameter` (1,377).
+
+### The extent lever: the population did NOT move, and that is measured
+
+E3's amendment changes the arm `eval::measure` meters
+`bool_plane_parallel` and `carrier_cyl_axis_parallel` at, from
+`max(separation, 1 m)` to an upper bound on the operands' extent. The
+margin is `‖n̂_a × n̂_b‖ · L`, LINEAR in the arm, so any sample through
+that door scales by exactly `L_new / 1 m` — for a sub-metre part, a move
+DOWN by that factor, floor and all.
+
+Measured on the M2 corpus sweep at ε = 1e-9 (`m4_pr8_k_probe::`), the
+population this could move is:
+
+- `bool_plane_parallel` — 4,288 samples, every one of them through the
+  boolean verifier's and the flush detector's OWN arms
+  (`topo::boolean::carrier_eq`, `topo::chart_region`), which this unit
+  did not touch. No corpus document carries a plane-pair `distance` or
+  `gap` measure, so none of these come through the changed door.
+- `carrier_cyl_axis_parallel` — 3 samples, all from
+  `corpus/measured_web`, which is the only corpus document that measures
+  through the changed door. All three have margin **exactly `0e0`**: the
+  two hole axes are exactly parallel, so the cross product is exactly
+  zero and the arm multiplies zero.
+
+So the linted distribution is unchanged, and the reason is the fixtures
+rather than the change: nothing in either population exercises the
+changed arm at a nonzero tilt. What DOES exercise it is
+`editor-core/tests/m10_7_lever.rs`, whose rows are behavioural (a number
+or a typed refusal) rather than margins, and which is where the move
+would be seen if a fixture ever produced one. A future document that
+measures a distance across a tilted plane pair will land here scaled by
+`L_new / 1 m`, and this paragraph is the record of what that scaling is.
+
+## M10-8 addendum (2026-09-05): the `sign_gated` outcome, the constant fold that ships, and a mis-charged K population
+
+M10-8 built the arc-family atom algebra behind the `SymRules` dial,
+measured it per mechanism on four documents, shipped the one mechanism
+that moved a ceiling, and — by scoping the recorder's predicate name —
+found a shipped decide path whose samples had been charged to the
+wrong predicate since the funnel was built. All three touch this
+report.
+
+### The `sign_gated` outcome
+
+`geom_core::k_stats::SampleOutcome::SignGated` (serialized `sign_gated`)
+joins `SymbolicZero`: it records a decision the symbolic tier answered
+through a clause-3 fold — rule C, `sqrt(X) = R` where `X = R²` as forms
+and `R`'s sign is certified over the leaf box (`geom_core::sym::signed`,
+the one value the tier reads, as the parameter's `f64` bracket through
+the ring) — a theorem CONDITIONAL on that read. Rule C is BUILT and
+unit-pinned (the positive fold, the negated root, the straddling and
+unbracketed refusals), and **does not ship**: it folds on none of the
+plate, the bracket, the annulus or the pad at the shipped coefficient
+bound, moves no ceiling at any bound, and costs 2× per leaf for the
+early walk it rides. So `sign_gated` reads **0** in every driver CSV,
+and the reason is measured rather than "unbuilt". Like `symbolic_zero`
+it is NEVER a rule sample: no margin is classified against the band.
+`k-lint` learns the token in its own column (`Scan::sign_gated`), the
+vocabulary keeps its one home on `SampleOutcome::token()`/`ALL` with
+the cross-workspace pin (`k-lint`'s `tests/outcome_vocabulary.rs`), and
+the per-file and TOTAL lines print `symbolic_zero` and `sign_gated`
+side by side.
+
+### What ships, and what it does to the K population
+
+The constant fold **A0** (`geom_core::SymRules::shipped`): `sqrt(c)`
+and `abs(c)` of a constant form fold to the exact rational, in a second
+walk ALONGSIDE the plain form (M10-7's, asked first and never
+re-labelled), over a coefficient ring widened from `i128` to arbitrary
+precision under a 256-bit bound (`geom_core::sym::COEFF_BITS`, an
+`i128` inline and a heap integer only past it). It moves R2's filleted
+bracket's whole-certifying box from `3.7e1 · ε` to `3.9e2 · ε` (10.4×)
+and R1's annulus from `2.0e1 · ε` to `7.8e2 · ε` (39×), certifies
+M10-4's stepped shaft's real ±0.1 study whole, and leaves the two-hole
+plate at `7.81e2 · ε` — at about 1.8× M10-7's cost per leaf where the
+plain form does not answer (plate 0.35 → 0.54 s, bracket 1.47 →
+2.75 s). More `symbolic_zero` samples, fewer classified ones, no new
+rule sample: the population moves in the direction the tier exists to
+move it.
+
+### The driver population, with an arc fixture
+
+`m10_3_driver_k_probe_interval` gains `two_hole_plate_narrow` — the
+tour's plate scaled to `1e3 · ε` of its real study, just above its
+whole-certifying ceiling (`7.81e2 · ε` at every ε row: the ceiling is
+the numeric channel's and scales with the band), so the driver splits
+once and certifies two leaves whose certified-midpoint replays carry
+the arc family. The scale is ε-relative like the slabs': as the
+constant `1e-6` it was 1280× the ceiling at ε = 1e-12 and the fixture
+certified nothing on that row (hosted run 33950882617). Measured at
+ε = 1e-6, 1e-9 and 1e-12 alike under M10-7's tier, the plate
+certifies 2 leaves and contributes 2,826 samples; each CSV lints clean
+(rule 1 = 0). The slabs contribute `symbolic_zero` too (their
+straight-walled identities discharge through the plain form); what
+only this fixture contributes is the arc family's. The final head's
+numbers, per ε row, are quoted from the hosted log in the PR body.
+
+### A mis-charged K population, found and named (ledger F18)
+
+`k_stats::classify` sets the recorder's predicate name in a
+thread-local and, until M10-8, never reset it — so a decision taken
+OUTSIDE any named `classify` was recorded under whichever predicate had
+classified last. M10-8 scoped the name (restored on the way out) for
+its shape-report instrument, and the M4 corpus sweep's `<unnamed>`
+guard went red at once: **1,054 samples at ε = 1e-6** had been
+recorded with no name of their own. Their one source:
+`editor_core::expr::refuse_non_finite`, the evaluator's door-2
+finiteness check (`value · 0` against the band `(1e-100, 1e-50)`),
+which called `sign_within` directly. Every one of those samples is a
+`Definite(Zero)` at margin 0 and never a rule sample, so no K claim in
+this report moves; what moves is the per-predicate attribution of
+1,054 rows that used to inflate whichever predicate preceded them. The
+site now goes through the recorder's named evaluator door
+(`k_stats::check_unlogged`) under its own name, `expr_non_finite`,
+with ledger row **F18** (`docs/predicate-dimension-audit.md`:
+`value · 0` carries `value`'s dimension, so no `Margin` door fits), and
+the guard is green by naming — it was never relaxed. The door is
+UNLOGGED on purpose, and that is a second finding: routed through
+`classify` the check entered the verdict log, whose rows the drive
+compares between the f64 witness and each leaf, and the two lanes do
+not evaluate the same number of expressions — every M10-6
+min-clearance box refused on the vector mismatch with no geometry
+changed. The verdict log is the certification predicates'; an
+evaluator check's refusal reaches the consumer as
+`EvalError::NonFiniteResult` already.
+
+### The rest of the algebra, measured and filed off
+
+Rules A/B over the top residual add no discharge on any document once
+A0 has run; per node (`SymRules::early_ab`) they reach the plate's
+nested `sqrt(…)²` at minutes per replay (138 s for the plate's
+nominal). Both stay dial-selectable and off; the census's rule column
+(`work/m10/symbolic-tier-census.md`) records which mechanism
+discharges each row.

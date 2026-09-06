@@ -27,6 +27,12 @@
 //! file merely CHANGED succeeds — against the new content, which is
 //! the version the author is looking at and the one A4 says a fresh
 //! reference should carry.
+//!
+//! Module kind: **vocabulary**, with a recorded exception — it
+//! takes a `&DocSession` as a read-only argument at the sites
+//! `scripts/gates/viewer-module-kinds.sh` records, and names no
+//! other driver type and no `app`-only crate
+//! (`crates/viewer/README.md`, Two vocabularies that read the session).
 
 use std::path::{Path, PathBuf};
 

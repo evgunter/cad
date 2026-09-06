@@ -197,3 +197,36 @@ pub fn freecad_fixture(name: &str) -> String {
     .collect();
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {path:?}: {e}"))
 }
+
+/// **The arc section**: a square of half-width `s` with a
+/// quarter-circle bulge on the `+x` side — the arc-bearing profile
+/// whose lofted wall is RATIONAL (weights `1, cos 22.5°, 1` over two
+/// 45° sub-arcs), and so the cheapest profile these suites have that
+/// puts an imported body's enclosure on the QUADRATURE lane rather
+/// than on a closed form.
+///
+/// One copy for this crate's suites. `sweep`'s own copy lives in
+/// `crates/sweep/tests/common/`; the two are not folded together
+/// because cross-crate constant deduplication is LIB-U6's territory
+/// and that module's routing rule says so out loud.
+pub fn arc_section(s: f64) -> sweep::Section {
+    use profile::RawLoop as _;
+    let v = |x: f64, y: f64, bulge: f64| {
+        profile::ProfileVertex::new(geom_core::Point2::new(x, y), bulge)
+    };
+    vec![profile::ProfileLoop::new(vec![
+        v(-s, -s, 0.0),
+        // tan(π/8): a quarter-circle bulge-out.
+        v(s, -s, 0.4142135623730951),
+        v(s, s, 0.0),
+        v(-s, s, 0.0),
+    ])]
+}
+
+/// Loft placements: the given heights, each scaled by `s`, as pure
+/// `+z` translations.
+pub fn stacked(z: &[f64], s: f64) -> Vec<geom_core::Affine3<f64>> {
+    z.iter()
+        .map(|h| geom_core::Affine3::translation(geom_core::Vec3::new(0.0, 0.0, h * s)))
+        .collect()
+}

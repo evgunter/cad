@@ -18,7 +18,7 @@
 //! gave.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::witness_bodies::{apex_crossing_bowtie, pole_crossing_half_cap};
 use geom_brep::props::PropsError;

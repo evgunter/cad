@@ -11,14 +11,11 @@
 // `-D warnings`. Nothing else in this file is this lane's.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::point::p3 as p;
 use geom::surfaces::nurbs::NurbsSurface;
 use geom_brep::patch_bound::{PatchCell, patch_cells};
 use geom_core::spline::knots::KnotVector;
 use geom_core::{Point3, Vec3};
-
-fn p(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
 
 /// Clamped knot vector of `degree` with the given interior knots on
 /// `[0, 1]`.
@@ -162,6 +159,13 @@ fn extreme_weights() -> NurbsSurface<f64> {
 
 /// A quarter cylinder — the PR body's own headline fixture for the
 /// 11x `muv` tightening, rebuilt here independently.
+///
+/// The net it produces is `crate::shared::fixture::quarter_cylinder`'s
+/// at `r = 1, h = 2` (same knots, same control order, `FRAC_1_SQRT_2`
+/// being `cos(π/4)`), and it is spelled out here on purpose: this file
+/// re-derives a claim the unit made about that fixture, and a probe
+/// that reached for the unit's own spelling would be checking the claim
+/// against the thing the claim was written from.
 fn quarter_cylinder() -> NurbsSurface<f64> {
     let ku = kv(2, &[]);
     let kv_ = kv(1, &[]);

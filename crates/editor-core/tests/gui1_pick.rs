@@ -8,14 +8,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     CancelToken, EntityKey, EvalOptions, Evaluation, HitTestError, MeshPick, MeshPickError, Node,
     PickTarget, ProfileDoc, Ray, RecipeNodeId, Resolution, RunCtx, ValuePayload, pick_face,
     resolve,
 };
-use fixture::{desc, insert, len};
+use fixture::{insert, len, on_frame};
 use geom_core::{Point3, Tol, Vec3};
 use mesh::{FacePatch, Mesh};
 use topo::Body;
@@ -41,14 +41,12 @@ fn ray(origin: [f64; 3], dir: [f64; 3]) -> Ray {
 
 /// A unit cube `[0,1]³` shifted by `dx` along x, as one extrude node.
 fn cube_doc_node(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(dx, 0.0), (dx + 1.0, 0.0), (dx + 1.0, 1.0), (dx, 1.0)]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(dx, 0.0), (dx + 1.0, 0.0), (dx + 1.0, 1.0), (dx, 1.0)]],
     );
     insert(
         doc,
@@ -237,14 +235,12 @@ fn miss_is_a_typed_miss() {
 fn unusable_nodes_surface_typed_errors() {
     let doc = ProfileDoc::empty_derived("gui1_pick_err", Tol::witness());
     let (doc, good) = cube_doc_node(doc, 0.0);
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let (doc, bad) = insert(
         doc,
@@ -436,14 +432,12 @@ fn boundary_names_are_total_distinct_and_the_polylines_own() {
 fn node_pick_door_is_prepaired_and_typed() {
     let doc = ProfileDoc::empty_derived("gui1_pick_door", Tol::witness());
     let (doc, ext) = cube_doc_node(doc, 0.0);
-    let (doc, lone_profile) = insert(
+    let (doc, lone_profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let (doc, bad) = insert(
         doc,

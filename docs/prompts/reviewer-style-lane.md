@@ -7,6 +7,9 @@ review, alongside the claims to falsify you were handed.
 must carry the `sure` / `likely` / `unsure` confidence vocabulary.** That is how
 a skipped read is visible in the output rather than invisible.
 
+**Every finding carries one, including those filed under "off-target" or "worth
+mentioning".**
+
 Dispatcher-facing material — why this lane exists, how to calibrate it, and how
 to dispatch it — is in `docs/REVIEW-STYLE-DISPATCH.md`.
 
@@ -153,7 +156,7 @@ Per Protocol v5: if a deviation is *better* than the spec's letter, nothing
 further is owed. Anything else — a shortcut, a narrowing, a placeholder, a
 fence artifact, a "can move there later" — owes a **concretely scheduled
 followup**: an issue
-number, or a named unit in a plan. "Recorded as a pickup" and "deferred" are
+file under `work/` (CLAUDE.md says how to file one), or a named unit in a plan. "Recorded as a pickup" and "deferred" are
 not schedules. Flag any deviation that is disclosed but unscheduled.
 
 **A claim resting on a measurement is the same shape.** What it owes is a

@@ -19,7 +19,7 @@
 //! [`Real`](crate::Real) trait surface — evaluation code stays
 //! comparison-free.
 //!
-//! # Fencing (Evan, #53/#57/#58)
+//! # Fencing (Ev, #53/#57/#58)
 //!
 //! - The type-punning plumbing (`Any` downcast + raw bit extraction)
 //!   lives in THIS file only; the CI "bit-identity channel tripwire"

@@ -1,6 +1,6 @@
 # Recipe doors for the shipped surgery verbs — chamfer, tube, shell
 
-**Status: RATIFIED (Evan, in-chat, 2026-08-29): D2, D3, D4, D5
+**Status: RATIFIED (Ev, in-chat, 2026-08-29): D2, D3, D4, D5
 signed off ("sounds good" ×3; D4 "sure", with the one-kind-vs-two
 consideration restated in-conversation). D1 was probed as "design or
 just sequencing?" and is RECLASSIFIED below as orchestrator
@@ -9,6 +9,14 @@ one-meaning-per-version rule and needed no sign-off.** The register
 items are G16 (#918), the audit's tube row (24, widened by
 VERBS-TUBEWALL), and G17. Mechanics are measured (file:line), not
 assumed.
+
+*(Factual update, 2026-09-03: BOOL-13 (#1553, ratified #1540)
+demolished the persist schema version after this doc's ratification.
+The "bump"/"version" clauses in D1 and D4 read today as ordinary
+additive vocabulary changes — no version to claim, no ledger, no
+coordination; the sequencing and vocabulary decisions themselves are
+unaffected. See docs/LIB-TUBE-SPEC.md's amendment for the tube
+unit's adaptation.)*
 
 ## The problem, priced
 
@@ -68,7 +76,7 @@ and that ~255-reference rename is explicitly not this unit's; a
 
 ## D4 — the tube vocabulary SPLITS: `Node::Tube` and `Node::HollowTube` (REVISED by the #1205 ruling)
 
-**Ruling (Evan, issue #1205 comment + in-chat sign-off on this
+**Ruling (Ev, issue #1205 comment + in-chat sign-off on this
 revision, 2026-08-29): "i definitely lean 'split the vocabulary'" —
 the issue's outcome 2.** A solid tube and a hollow tube are
 different artifacts (full-disc vs annular section), and the
@@ -109,7 +117,7 @@ vocabulary now says so where callers read:
 
 **History.** The original D4 (one `Node::Tube` carrying
 `wall: Option<Expr>`, tracking the private build's shape) was
-ratified WITH A RECORDED RESERVATION (Evan, in-chat, 2026-08-29:
+ratified WITH A RECORDED RESERVATION (Ev, in-chat, 2026-08-29:
 "i don't love that but it doesn't sound like the issue is new
 here"), the reservation escalated to **issue #1205** (one
 vocabulary item covering two different artifacts via a mode flag),
@@ -121,17 +129,19 @@ recipe-side and is VERBS territory kernel-side.
 
 ## D5 — shell WAITS on a kernel birth channel, and LIB files the ask now
 
-`shell`/`shell_open` return a bare `Body<T>` — no birth record
-exists (measured: no naming machinery anywhere in `topo/src/shell.rs`),
-where fillet/split/boolean each have one. A recipe node without an
-emitter mints no names, which reproduces G16's exact defect one verb
-over. So the shell unit has a hard prerequisite LIB cannot fence:
-a `ShellNaming` birth record (rims minted per opened face, wall
-faces off source faces, the FilletNaming shape) written by the
-kernel door. LIB's proposal: file the kernel ask as an issue at this
-doc's ratification, offer the record shape, and hold the Node::Shell
-unit until it lands (kernel program's concurrence per the standing
-rule). The node payload, decided now so the ask is concrete:
+`shell`/`shell_open` return `Shelled<T>`: the body and the
+`ShellNaming` birth record its consumers name entities through, in
+the shape fillet/split/boolean each already have. A recipe node
+without an emitter mints no names, which reproduces G16's exact
+defect one verb over, so the shell unit had a hard prerequisite LIB
+could not fence — a birth record (rims minted per opened chart, wall
+faces off source faces, inner twins through the void graft map)
+written by the kernel door itself. LIB's proposal was to file the
+kernel ask as an issue at this doc's ratification, offer the record
+shape, and hold the Node::Shell unit until it landed (kernel
+program's concurrence per the standing rule); the kernel took the
+ask and the channel is in `crates/topo/src/shell.rs`, so what the
+node waits on now is only its own unit. The node payload, decided now so the ask is concrete:
 `{ target, thickness: Expr, open: Vec<StableName> }` — open faces by
 frozen stable-name selection resolved through the N5 ladder to the
 `FaceKey`s the door takes (the teapot's by-description scan is the

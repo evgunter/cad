@@ -88,7 +88,7 @@ def box(doc, width, depth, height):
         .line_to((0 * m, depth * m))
         .line_to(Start)
     )
-    return doc.insert(Node.extrude(doc.insert(Node.profile(outline)), height * m))
+    return doc.insert(Node.extrude(doc.insert(Node.profile(outline, plane=doc.sketch_frame())), height * m))
 
 
 def body_of(doc, node):
@@ -214,7 +214,7 @@ class TestWatertight(unittest.TestCase):
         that makes a mesh watertight by construction rather than by a
         repair pass."""
         doc = Doc()
-        disc = doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m)))
+        disc = doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=doc.sketch_frame()))
         cyl = doc.insert(Node.extrude(disc, 2 * m))
         self.assertEqual(unmatched_half_edges(body_of(doc, cyl).tessellate(5 * mm)), [])
 
@@ -229,7 +229,7 @@ class TestWatertight(unittest.TestCase):
         )
         hole = circle((0 * m, 0 * m), 0.7 * m)
         plate = doc.insert(
-            Node.extrude(doc.insert(Node.profile([outer, hole])), 0.6 * m)
+            Node.extrude(doc.insert(Node.profile([outer, hole], plane=doc.sketch_frame())), 0.6 * m)
         )
         self.assertEqual(unmatched_half_edges(body_of(doc, plate).tessellate(5 * mm)), [])
 
@@ -239,7 +239,7 @@ class TestBudget(unittest.TestCase):
 
     def test_a_finer_budget_buys_more_triangles_on_a_curve(self):
         doc = Doc()
-        disc = doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m)))
+        disc = doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=doc.sketch_frame()))
         body = body_of(doc, doc.insert(Node.extrude(disc, 2 * m)))
         coarse = body.tessellate(20 * mm)
         fine = body.tessellate(1 * mm)
@@ -315,7 +315,7 @@ class TestCrossCheckOnBooleanGeometry(unittest.TestCase):
                     (3 * m, 3 * m),
                     (1 * m, 3 * m),
                 ],
-                elevation=0.5 * m,
+                plane=doc.sketch_frame(elevation=0.5 * m),
             )
         )
         tool = doc.insert(Node.extrude(tool_p, 1 * m))
@@ -345,7 +345,7 @@ class TestCrossCheckOnASketchPlane(unittest.TestCase):
         sketch = doc.insert(
             Node.polygon(
                 [(0 * m, 0 * m), (2 * m, 0 * m), (2 * m, 1 * m), (0 * m, 1 * m)],
-                plane=plane,
+                plane=doc.sketch_frame(plane=plane),
             )
         )
         prism = doc.insert(Node.extrude(sketch, 3 * m))
@@ -373,9 +373,12 @@ class TestCrossCheckConverges(unittest.TestCase):
             .line_to((0.5 * m, 2 * m))
             .line_to(Start)
         )
-        axis = doc.insert(Node.datum_axis((0 * m, 0 * m, 0 * m), (0.0, 1.0, 0.0)))
+        frame = doc.sketch_frame()
+        # The axis in the sketch's own coordinates: the frame's v is
+        # world +y, so the world y axis IS its own +y through (0, 0).
+        axis = doc.insert(Node.datum_axis_in_plane(frame, (0 * m, 0 * m), (0.0, 1.0)))
         ring = doc.insert(
-            Node.revolve(doc.insert(Node.profile(outline)), axis, 360 * deg)
+            Node.revolve(doc.insert(Node.profile(outline, plane=frame)), axis, 360 * deg)
         )
         body = body_of(doc, ring)
         body.validate()

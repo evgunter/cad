@@ -39,22 +39,11 @@
 
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_6};
 
+use crate::shared::surf::cylinder as zcyl;
+use crate::shared::tol::band;
 use geom::Surface;
 use geom_brep::{OffsetError, offset_surface};
-use geom_core::{Band, Point3, Tol, Vec3};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
-fn zcyl(radius: f64) -> Surface<f64> {
-    Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::unit_z(),
-        radius,
-        u_ref: Vec3::unit_x(),
-    }
-}
+use geom_core::{Point3, Tol, Vec3};
 
 fn zcone(alpha: f64) -> Surface<f64> {
     Surface::Cone {
@@ -67,6 +56,8 @@ fn zcone(alpha: f64) -> Surface<f64> {
 
 /// Meridian signed distance to a cone (extended generator line — the
 /// same spelling the shipped suite uses, restated here independently).
+/// **Deliberately not shared with `offset_mint.rs`'s**, which is this
+/// closed form: it is a DERIVATION, and this suite reviews that one.
 fn cone_dist(apex: Point3<f64>, axis: Vec3<f64>, alpha: f64, q: Point3<f64>) -> f64 {
     let rel = q - apex;
     let h = rel.dot(axis);

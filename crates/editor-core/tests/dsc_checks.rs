@@ -17,7 +17,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use std::collections::BTreeMap;
 
@@ -26,7 +26,7 @@ use editor_core::{
     ChecksConfig, ChecksReport, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, Severity,
     enforce_checks, run_checks, subject_body,
 };
-use fixture::{desc, insert, len, square};
+use fixture::{ang, insert, len, on_frame, scl, square};
 use geom_core::Tol;
 use topo::ShellClassifyError;
 
@@ -43,14 +43,12 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 /// An extruded square: half-width `h` centered at `(cx, 0)` on the
 /// z = `z0` plane, extruded `dz` up.
 fn slab(doc: ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(cx, 0.0, h)],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(cx, 0.0, h)],
     );
     insert(
         doc,
@@ -327,12 +325,24 @@ fn a_findings_attribution_resolves_to_its_subject() {
     let report =
         run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness()).expect("checks run");
     let finding = &report.findings[0];
-    let body = subject_body(&ev, finding.root, finding.output_ix)
+    let (body, contacts) = subject_body(&ev, finding.root, finding.output_ix)
         .expect("the attribution resolves against the evaluation it came from");
     // The flagged body IS the disjoint union: the two shells the
     // finding counted (their grouping into solids is the kernel's
     // business, not pinned here).
     assert_eq!(body.shells().count(), 2);
+    // The subject's DECLARATIONS travel with it, so the tier-3′ gate
+    // reached through an attribution asks about the same body the
+    // producer minted. This union declares nothing (`declare: None`,
+    // and its operands are three metres apart), so the honest claim
+    // here is that the empty set is what arrived — not that the pair
+    // is populated. The case where a non-empty set is the difference
+    // between passing and refusing is a carried D-1 record set, which
+    // needs a store and a referenced document; it is pinned at the
+    // Python boundary instead
+    // (`test_checks.py::TestSubjectBodyCarriesItsDeclarations`), which
+    // is where the narrowing was measured.
+    assert_eq!(*contacts, topo::ContactRecords::default());
     // An attribution with no subject (a stale expectation's shape)
     // resolves to None, not to a wrong body.
     assert!(subject_body(&ev, finding.root, 7).is_none());
@@ -483,6 +493,97 @@ fn separation_off_is_visibly_skipped_and_independent() {
     assert_eq!(report.skipped, vec![CheckId::Connectedness]);
     assert_eq!(report.findings.len(), 1);
     assert_eq!(report.findings[0].check, CheckId::Separation);
+
+    // **And `Off` means the subject is never derived**, which is the
+    // half a document that gathers cannot show: a document whose
+    // gather REFUSES still reports, because with the only
+    // subject-reading resident off there is nothing to gather for.
+    // Two `Transform`s of one extrude are two roots whose name rows
+    // collide in the product table.
+    let doc = ProfileDoc::empty_derived("dsc-checks-collide", Tol::witness());
+    let (doc, profile) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
+    );
+    let (doc, extrude) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
+    let moved = |doc, dx: f64| {
+        insert(
+            doc,
+            Node::Transform {
+                input: extrude,
+                translation: [len(dx), len(0.0), len(0.0)],
+                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+                rotation_angle: ang(0.0),
+            },
+        )
+    };
+    let (doc, _) = moved(doc, 3.0);
+    let (doc, _) = moved(doc, 6.0);
+    let ev = run(&doc);
+    assert!(
+        editor_core::product_recorded(&doc, &ev, Tol::witness()).is_err(),
+        "the premise: this document's gather refuses"
+    );
+    let off = ChecksConfig {
+        separation: Advisory::Off,
+        ..ChecksConfig::default()
+    };
+    let report = run_checks(&doc, &ev, &off, Tol::witness())
+        .expect("with the subject-reading resident off, no gather is attempted");
+    assert_eq!(report.skipped, vec![CheckId::Separation]);
+    // …and with it on, the same document refuses on the subject.
+    assert!(
+        run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness()).is_err(),
+        "the control: the resident that reads the subject is what needs one"
+    );
+}
+
+/// INVARIANT: [`CheckId::ALL`] is EVERY check, in the order the
+/// registry runs them — the list `ChecksConfig::needs_a_subject` folds
+/// over, so a check missing from it would be a resident whose
+/// subject-reading never made the registry gather.
+///
+/// The match is the compiler's own walk of the closed set: a new
+/// variant fails to compile here until it is named, and the assertion
+/// then fails until it is in `ALL`.
+#[test]
+fn the_registry_order_is_every_check() {
+    // WHAT THIS CAN AND CANNOT DO: no test can prove a constant array
+    // lists every variant of an enum. What the match below does is
+    // fail to COMPILE when a variant is added, at which point its
+    // position has to be written down here — and the assertion then
+    // fails until `ALL` carries it. That is the walk, and it is the
+    // same mechanism `ChecksConfig::severity` relies on.
+    for check in CheckId::ALL {
+        let position = match check {
+            CheckId::Connectedness => 0,
+            CheckId::Separation => 1,
+        };
+        assert_eq!(
+            CheckId::ALL[position],
+            check,
+            "{check} is not where the registry's order puts it"
+        );
+    }
+    assert_eq!(
+        CheckId::ALL.len(),
+        2,
+        "a variant added without a place in `ALL` is a resident the \
+         registry would never gather for"
+    );
+    // The one resident that reads a subject is the one the registry
+    // gathers for.
+    assert!(!CheckId::Connectedness.reads_subject());
+    assert!(CheckId::Separation.reads_subject());
 }
 
 /// INVARIANT: this resident cannot refuse, and the TYPE is what says

@@ -10,11 +10,16 @@
 //! # The three rules these doors keep
 //!
 //! 1. **Values, never verdicts.** A door answers "this face's carrier
-//!    frame is (o, n, u)". No door answers "is this face planar", "is
-//!    this edge convex", "is this at z ≈ 1" — geometric predicates are
-//!    decided-predicate sites under the margins discipline and stay
-//!    deferred. Nothing here decides anything: every answer is stored
-//!    data, copied out.
+//!    frame is (o, n, u)", "this face's carrier is a plane", "this
+//!    face's sense is reversed". No door answers "is this edge convex"
+//!    or "is this at z ≈ 1" — NUMERIC predicates are decided-predicate
+//!    sites under the margins discipline and stay deferred. A stored
+//!    TAG is not one of those: "is this face planar" is a comparison
+//!    of the carrier's kind tag against `Plane`, the same exact read
+//!    `select_where`'s surface-kind filter makes, and
+//!    [`face_carrier_kind`] hands the tag out for exactly that
+//!    comparison. Nothing here decides anything: every answer is
+//!    stored data, copied out.
 //! 2. **Definitional re-read carries no pad.** The produced surface IS
 //!    the definition (DESIGN Q8) — reading a plane's stored origin and
 //!    normal back is a re-read of authored data, not a measurement, so
@@ -46,6 +51,7 @@
 
 use geom::Curve3;
 use geom::Surface;
+use geom_brep::SurfaceKind;
 use geom_core::{Point3, Real, Vec3};
 
 use crate::body::Body;
@@ -68,7 +74,10 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, VertexKey};
 ///   plane normal, a line's direction. It is the CHART's direction,
 ///   NOT corrected by a face's orientation sense — the sense is a
 ///   separate fact about the face, and folding it in silently would
-///   make two different questions share one answer.
+///   make two different questions share one answer. That second fact
+///   travels BESIDE the axis as [`Pose::sense`], so a reader that
+///   wants the outward normal forms it as `sense · axis` in the open
+///   rather than receiving it pre-folded.
 /// - `u_ref` is the in-frame reference direction where the carrier's
 ///   convention fixes one (the seam of every closed chart, θ = 0 of a
 ///   circle, an ellipse's semi-major direction). It is `None` where
@@ -84,6 +93,17 @@ pub struct Pose<T: Real> {
     pub axis: Vec3<T>,
     /// The in-frame reference direction, where the carrier fixes one.
     pub u_ref: Option<Vec3<T>>,
+    /// **The face's orientation sense**, copied out of the face record
+    /// ([`crate::entity::Face::sense`]): `true` when the face's outward
+    /// normal is `+axis`, `false` when it is `-axis`. This is the
+    /// second fact [`Pose::axis`] deliberately does not fold in — the
+    /// axis stays the chart's, and the outward normal is `sense ·
+    /// axis`, formed by the reader.
+    ///
+    /// An EDGE has no orientation sense, so [`edge_pose`] carries
+    /// `true` here — the sign that leaves `axis` exactly as the chart
+    /// stores it — and the field says nothing about the edge.
+    pub sense: bool,
 }
 
 impl<T: Real> Pose<T> {
@@ -198,7 +218,12 @@ impl std::error::Error for ReadbackError {}
 ///
 /// This is rule 2's definitional re-read: no measurement, no pad. It
 /// is also rule 1's line — the answer is the frame, never a verdict
-/// about what kind of frame it is.
+/// about what kind of frame it is (that kind is its own read,
+/// [`face_carrier_kind`]).
+///
+/// The face's orientation sense comes back BESIDE the frame
+/// ([`Pose::sense`]): `axis` stays the chart's direction, and the
+/// outward normal is `sense · axis`, formed by the caller.
 ///
 /// # Errors
 ///
@@ -237,6 +262,9 @@ impl std::error::Error for ReadbackError {}
 /// // A plane fixes its in-plane reference direction; the triad is
 /// // right-handed.
 /// assert_eq!(pose.v_ref().expect("a complete triad").y, 1.0);
+/// // The sense is the face's stored flag, beside the chart axis —
+/// // a seed face is minted agreeing with its chart.
+/// assert!(pose.sense);
 /// ```
 pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, ReadbackError> {
     let f = body.get_face(face).ok_or(ReadbackError::Dangling {
@@ -249,6 +277,7 @@ pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, Read
         origin,
         axis,
         u_ref: Some(u_ref),
+        sense: f.sense,
     };
     match surface {
         Surface::Plane {
@@ -286,6 +315,58 @@ pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, Read
             carrier: "approximating surface",
         }),
     }
+}
+
+/// **A face's carrier kind** — the [`SurfaceKind`] tag of the surface
+/// the face is a region of, copied out.
+///
+/// A tag read, not a verdict (rule 1): the answer is which closed
+/// variant the stored surface IS, which is where the model's intent is
+/// kept, and comparing it against a kind is the same exact comparison
+/// `select_where`'s surface-kind filter makes. "Is this face planar"
+/// is `face_carrier_kind(..)? == SurfaceKind::Plane`, and no number
+/// is consulted on the way. The total twin
+/// [`crate::query::face_surface_kind`] answers `None` for a stale key
+/// where this door refuses typed; the predicate seat wants an honest
+/// NO, a read-back wants to know WHICH lookup came back empty.
+///
+/// # Errors
+///
+/// [`ReadbackError::Dangling`] for a stale face or surface key — the
+/// only refusals: every carrier, NURBS and approximating included,
+/// has a kind.
+///
+/// ```
+/// use geom_brep::SurfaceKind;
+/// use geom_core::{Point3, Vec3};
+/// use topo::readback::face_carrier_kind;
+/// use topo::{Body, FaceSurface, Surface};
+///
+/// let mut body = Body::<f64>::new();
+/// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).expect("mvfs has no preconditions");
+/// body.set_face_surface(
+///     seed.face,
+///     FaceSurface::New(Surface::Plane {
+///         origin: Point3::new(0.0, 0.0, 0.0),
+///         normal: Vec3::new(0.0, 0.0, 1.0),
+///         u_ref: Vec3::new(1.0, 0.0, 0.0),
+///     }),
+/// )
+/// .expect("a live face takes a surface");
+///
+/// assert_eq!(face_carrier_kind(&body, seed.face), Ok(SurfaceKind::Plane));
+/// ```
+pub fn face_carrier_kind<T: Real>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Result<SurfaceKind, ReadbackError> {
+    let f = body.get_face(face).ok_or(ReadbackError::Dangling {
+        what: DanglingRef::Entity(EntityId::Face(face)),
+    })?;
+    let surface = body.get_surface(f.surface).ok_or(ReadbackError::Dangling {
+        what: DanglingRef::Geometry(GeomRef::Surface(f.surface)),
+    })?;
+    Ok(SurfaceKind::of(surface))
 }
 
 /// **A vertex's position** — the stored point, copied out. The
@@ -364,6 +445,7 @@ pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, Read
             origin: *origin,
             axis: *dir,
             u_ref: None,
+            sense: true,
         }),
         Curve3::Circle {
             center,
@@ -380,6 +462,7 @@ pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, Read
             origin: *center,
             axis: *axis,
             u_ref: Some(*u_ref),
+            sense: true,
         }),
         Curve3::Nurbs(_) => Err(ReadbackError::NoCanonicalFrame {
             carrier: "nurbs curve",

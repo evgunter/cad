@@ -68,7 +68,7 @@ use geom::NurbsCurve3;
 use geom_core::{Point3, Tol, Vec3};
 use sweep::{Lofted, sweep_body};
 
-mod common;
+use crate::common;
 use common::orient::{
     LevelIndex, along_v, assert_caps_face_out, assert_walls_face_out, loft_contains, ring_centroid,
     wall_outward_at, wall_point_at,

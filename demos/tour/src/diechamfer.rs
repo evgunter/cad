@@ -141,7 +141,8 @@ fn feet_agreement(filleted: &Body<f64>, chamfered: &Body<f64>) -> (f64, usize) {
 /// The material a chamfer of setback `d` takes off a box edge lattice
 /// of side `a`: twelve triangular prisms less the eight corner
 /// over-counts, `6·a·d² − (16/3)·d³` (the closed form
-/// `crates/sweep/tests/verbs_chamfer.rs` derives). The pips sit far
+/// `crates/sweep/tests/common/oracles.rs` derives, as
+/// `chamfered_cube_removed`). The pips sit far
 /// enough inboard that the chamfer never reaches one, so this is the
 /// WHOLE difference between the source solid and the chamfered die.
 fn edge_material(a: f64, d: f64) -> f64 {
@@ -235,7 +236,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             name: "diechamferblank",
             caption: "the die blank (chamfers)".to_string(),
             // Standalone for the same reason `diefillet`'s blank is
-            // (Evan, #218 follow-up): the partial die reads as a
+            // (Ev, #218 follow-up): the partial die reads as a
             // near-duplicate of the composed one on the sheet. The
             // sheet's chamfer panel is `diechamfer`.
             montage: false,

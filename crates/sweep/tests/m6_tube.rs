@@ -1,5 +1,5 @@
 //! **M6-3 Leg F acceptance: `tube_along_arc`** — the world-coordinate
-//! tube/torus door (the Evan-ratified rider, #175 thread).
+//! tube/torus door (the Ev-ratified rider, #175 thread).
 //!
 //! The pins, per the binding spec (§6): a tube-door donut against the
 //! revolve-door donut — same census, same tier-3 outcome; volume

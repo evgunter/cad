@@ -124,10 +124,18 @@ pub struct OffsetCertificate {
     ///
     /// **Provenance of the FIT, not a limb**, and the one field a
     /// re-derivation cannot recompute: re-measuring a finished fit runs
-    /// no refinement. So [`crate::ApproxSurface`]'s stored copy carries
-    /// the MINT loop's count across the re-derivation the storage door
-    /// makes (see `geom_brep::approx_offset_surface`), and a bare
-    /// `certify_offset` — which has no loop behind it — reports `0`.
+    /// no refinement. A bare `geom_brep::certify_offset` — which has no
+    /// loop behind it — therefore reports `0`.
+    ///
+    /// **This is the one home of the carry argument**, and the two
+    /// doors that carry it cite this field rather than restate it.
+    /// Whoever holds the honest count passes it across a re-derivation:
+    /// the storage door (`geom_brep::approx_offset_surface`) has the
+    /// mint loop's, and `topo::transform_rigid` has the operand
+    /// surface's — the mapped fit is the rigid image of a fit that took
+    /// exactly that many rounds. Nothing classifies against this field,
+    /// so carrying it cannot make a bad surface look good; resetting it
+    /// to `0` would only lose provenance.
     pub rounds: u32,
 }
 
@@ -219,8 +227,10 @@ impl<T: Real> ApproxSurface<T> {
     ///
     /// The certifier's refusal propagates verbatim — this door neither
     /// interprets it nor works around it, so a capability the
-    /// certification stack does not have (a rational fit, today) stays
-    /// a refusal all the way out.
+    /// certification stack does not have stays a refusal all the way
+    /// out. (A RATIONAL fit is not one of those: the fit door's
+    /// composite is weighted, so rationality takes the polynomial
+    /// path and a rational base mints like any other.)
     ///
     /// **The window is handed to the certifier**, not merely stored
     /// beside its answer: the today's certifier

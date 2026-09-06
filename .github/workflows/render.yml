@@ -39,15 +39,18 @@
 # and every step here that renders sets that override in the file,
 # because this workflow is the sanctioned renderer.
 #
-# THE KERNEL LANE'S FALLBACK HOLE IS PLUGGED HERE. That lane has a
-# matplotlib fallback which EXITS 0 and writes the gitignored preview
-# tree, so an unattended kernel run could "pass" having drawn nothing
-# with FreeCAD at all — the one thing that makes this lane less
-# trustworthy off-box than the `--freecad` lane, which has no fallback
-# by design. So every leg asserts the fallback tree does not exist
-# (`assert no matplotlib fallback`), which is a structural check on
-# render.sh's own #221 routing invariant: on fallback it touches nothing
-# under the committed lane and everything under renders-preview/.
+# THIS WORKFLOW ADDS NO CHECK OF ITS OWN, AND USED TO ADD ONE. The
+# kernel lane once fell back to matplotlib automatically and EXITED 0
+# doing it, writing the ignored preview tree, so an unattended kernel
+# run could "pass" having drawn nothing with FreeCAD at all. Every leg
+# therefore asserted the preview tree did not exist. That check was
+# load-bearing for exactly as long as a failed pass could report
+# success: `demos/render.sh` now fails nonzero when freecadcmd is
+# missing or a scene does not draw, and reaches matplotlib only when
+# `--matplotlib` asks for it, which no lane here passes. A check whose
+# condition can no longer arise is a check that will be maintained
+# forever against nothing, so it went with the fallback that made it
+# necessary — the lane's verdict is the renderer's own exit status.
 #
 # TWO ENTRY POINTS, ONE PIPELINE. `workflow_dispatch` renders on demand;
 # `workflow_call` is ci.yml's render lane, the SAME lanes over a PR's
@@ -59,7 +62,7 @@
 #
 # WHY THIS IS POSSIBLE AT ALL. It was not, when the committed cells came
 # from a developer's GL stack and these came from llvmpipe. Hosted is
-# the canonical producer since Evan's #338 ruling, and a repeat hosted
+# the canonical producer since Ev's #338 ruling, and a repeat hosted
 # render of one commit is byte-identical — measured across all 55 cells
 # of both PNG lanes — so a diff is a real finding, and an ungated
 # committed artifact rots silently. What a diff MEANS still differs by
@@ -82,7 +85,7 @@
 #     `uv sheet drift (demos)` row was retired when that started; this
 #     workflow owns the obligation outright.
 #
-# THE LANES COMMIT THEIR OWN RE-BASELINES (2026-08-17, Evan's ruling —
+# THE LANES COMMIT THEIR OWN RE-BASELINES (2026-08-17, Ev's ruling —
 # this REVISES the "NO JOB COMMITS OR PUSHES, in either mode" rule that
 # stood here from the commit that first gated the lanes).
 #
@@ -115,10 +118,10 @@
 # `.github/actions/rebaseline-lane` carries the full reasoning,
 # including why neutral rather than red and why not silent green.
 #
-# What did NOT change: a wedged pass still fails, the matplotlib-
-# fallback assertion still fails, and the re-baseline is only reached
-# when the render itself succeeded — so a wedge is still a wedge and is
-# never re-reported as drift.
+# What did NOT change: a wedged pass still fails, a crashed one now
+# fails too, and the re-baseline is only reached when the render itself
+# succeeded — so a wedge is still a wedge and is never re-reported as
+# drift.
 #
 # ALL FOUR LANES, INCLUDING UV. The uv sheet was briefly held back —
 # ci.yml had its own `uv sheet drift (demos)` row, and a self-
@@ -183,7 +186,7 @@ on:
         default: use
         options: [use, refresh]
       ref:
-        description: "Branch/tag/SHA to render (default: this workflow's ref)"
+        description: "Branch/tag/SHA to render (default: the commit this run is about, i.e. the tip of the branch you dispatch on)"
         required: false
         default: ""
       # Left empty, this resolves to the branch you dispatched ON — but
@@ -272,6 +275,189 @@ concurrency:
   cancel-in-progress: ${{ inputs.gate == true }}
 
 jobs:
+  # THE OBJECT THE LANES RENDER, RESOLVED ONCE AND PROBED BEFORE ANY LANE
+  # STARTS.
+  #
+  # THE LANES DO NOT CHECK OUT `github.ref`. Inside a `workflow_call` from a
+  # pull_request run that is the transient `refs/pull/N/merge` — a ref GitHub
+  # RE-POINTS on every push to the pull request and DELETES when the request
+  # closes — so a lane reaching its checkout after either event dies with
+  # `fatal: couldn't find remote ref refs/pull/N/merge` and reports nothing
+  # whatever about the tree. The scale that buys this job: 103 such failed
+  # jobs across 89 runs in three weeks, more reds than clippy produced over
+  # the same window.
+  #
+  # `github.sha` NAMES THE SAME TREE AND IS AN OBJECT rather than a name. On
+  # a pull_request it IS that merge commit; on a push it is the pushed
+  # commit; and GitHub serves an object it still holds by SHA whether or not
+  # a ref points at it, so re-pointing the merge ref no longer takes the
+  # lane with it. It also pins BOTH lanes to ONE commit — resolving a branch
+  # NAME twice can hand the montage lane a different tree from the one whose
+  # scene inputs it downloads, and on a moving branch that is a real race
+  # rather than a theoretical one.
+  #
+  # WHY THIS FILE AND NO OTHER, and it is NOT that nobody else names a ref.
+  # Of the 32 `actions/checkout` steps under `.github/workflows/`, 14 name
+  # one: nightly.yml's TWELVE — eleven `${{ inputs.ref || github.sha }}` and
+  # one bare `${{ github.sha }}` — and these two. The other 18 name none,
+  # and `actions/checkout` with no `ref:` already fetches `github.sha`. So
+  # every step in the repository either takes that default or reaches for an
+  # OBJECT; these two lanes were the only pair anywhere that reached for the
+  # transient REF, which is why the 103 reds landed on exactly them.
+  #
+  # WHAT THIS JOB COSTS, AND THE ONE-LINER IT DECLINES. The re-pointing half
+  # of the defect is fixable in one line — `ref: ${{ inputs.ref ||
+  # github.sha }}` — and the sweep above is what makes that alternative live
+  # rather than hypothetical: it is nightly.yml's house idiom, spelled
+  # eleven times there. Taking it would leave `.github/workflows/` with ONE
+  # spelling of "which object does this run check out". This job leaves it
+  # with two, and render's is the odd one. That is the real price, and it is
+  # named here rather than left for a reader to notice.
+  #
+  # It is paid for the half the one-liner cannot do. Under the one-liner a
+  # vanished object is still a red at `actions/checkout` saying nothing
+  # about the tree — the same shape as the 103, only rarer — and ending
+  # SKIPPED WITH A REASON instead needs a job-level `if:`, because a step
+  # cannot make its own job skip and the only other spelling is that
+  # decision repeated into every remaining step of both lanes. So: an author
+  # adding a THIRD checkout to this file copies `needs.checkout-target`, and
+  # an author adding a lane to nightly.yml copies nightly's line. The two
+  # idioms are not a drift to reconcile; they answer different questions,
+  # and only this file has ever needed the second one.
+  #
+  # A DISPATCHED `ref` IS PASSED THROUGH VERBATIM, unresolved and unprobed.
+  # It is a request naming a branch, tag or SHA, and a request that cannot
+  # be honoured belongs red at the checkout, which is the one place that
+  # prints what was asked for.
+  #
+  # WHEN EVEN THE OBJECT IS GONE THE LANES SKIP, and this job's log says so
+  # in as many words. A real GitHub `skipped`, not a green job that did
+  # nothing: a lane that cannot obtain the tree holds no verdict about the
+  # tree, and the one thing it must not do is look like it checked. ONLY a
+  # 404 from the object-reading API takes that path — any other probe
+  # outcome runs the lanes and leaves the checkout to speak, because "the
+  # API did not answer" is not evidence that a commit is gone.
+  #
+  # WHAT THE PROBE ASSUMES, stated because a wrong answer here is a lane
+  # that reports nothing: `.../git/commits/<sha>` reads the object store and
+  # applies no reachability filter, so it answers 200 for a commit no ref
+  # points at — measured on five closed-and-unmerged pull requests of this
+  # repository, whose `refs/pull/N/merge` is deleted and whose test-merge
+  # commit the endpoint still serves. That is the same condition that lets
+  # `actions/checkout` fetch the commit by SHA, which is why one stands in
+  # for the other. The one other way to read 404 is a token that cannot see
+  # the repository at all — GitHub answers 404 rather than 403 for that —
+  # so the skip path asks the repository endpoint the same question first
+  # and stands down if that 404s too. A false 404 therefore needs the object
+  # genuinely absent from the store, and an object absent from the store is
+  # one no fetch could have obtained either.
+  #
+  # WHAT STILL GETS THROUGH, said plainly because "a pre-filter, not a gate"
+  # only gestures at it. The probe runs in THIS job, and the checkout runs
+  # in another job minutes later: an object that is present when the probe
+  # asks and gone when the checkout fetches still dies red at
+  # `actions/checkout`, which is the original symptom exactly. What the
+  # change buys against that is not immunity but a window — the exposure
+  # falls from "any moment between the run starting and this lane's
+  # checkout, on a ref that is re-pointed by every push" to "the minutes
+  # between one job and the next, on an object that only a repository
+  # garbage collection removes". The residue is small, and it is not zero.
+  #
+  # THE FIVE-PULL-REQUEST READING AND THE 103/89 CENSUS ARE ONE-SHOT AND
+  # RE-DERIVABLE, WHICH IS WHY NEITHER CARRIES A GUARD. The first is
+  # `.../git/commits/<sha>` against the `merge_commit_sha` of any closed,
+  # unmerged pull request, which answers in seconds at any time; the second
+  # is a scan of failed jobs over a date range, which the S-TCOST red-history
+  # census took once (`work/`'s issue for this unit carries its provenance)
+  # and nothing re-takes. Nothing reds if either drifts: the census motivates
+  # this job and does not parameterise it, and if the probe's premise ever
+  # changed, the skip path would stop firing and the lanes would go back to
+  # reporting the checkout's own error — the state this replaced.
+  #
+  # NO LOCAL MIRROR: this job answers "which GitHub object is this hosted run
+  # about", and a developer box has no run and no merge ref — the local half
+  # renders the working tree it is standing in, so there is nothing here for
+  # it to reproduce or to disagree with.
+  checkout-target:
+    name: checkout target
+    runs-on: ubuntu-latest
+    # Reads one object through the API. Checks nothing out — so the prune
+    # rule that binds every checked-out job does not reach it — writes
+    # nothing, and needs no more than read.
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    outputs:
+      ref: ${{ steps.resolve.outputs.ref }}
+      run_lanes: ${{ steps.resolve.outputs.run_lanes }}
+    steps:
+      - id: resolve
+        name: which object the lanes check out, and whether it is still there
+        env:
+          REQUESTED: ${{ inputs.ref }}
+          PROBE_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          if [ -n "$REQUESTED" ]; then
+            {
+              echo "ref=$REQUESTED"
+              echo "run_lanes=true"
+            } >>"$GITHUB_OUTPUT"
+            echo "CHECKING OUT the requested ref '$REQUESTED', verbatim."
+            echo "  A dispatch names its own target; this job neither resolves nor"
+            echo "  probes it, so a ref that does not exist is red at the checkout,"
+            echo "  where the message names what was asked for."
+            exit 0
+          fi
+          sha="$GITHUB_SHA"
+          echo "ref=$sha" >>"$GITHUB_OUTPUT"
+          code="$(curl -sS -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer $PROBE_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/git/commits/$sha")" || code="unreachable"
+          if [ "$code" = "404" ]; then
+            # GitHub answers 404, not 403, for a repository a token may not
+            # see — so a 404 about the OBJECT is only about the object once
+            # the same token can read the repository at all.
+            repo_code="$(curl -sS -o /dev/null -w '%{http_code}' \
+              -H "Authorization: Bearer $PROBE_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY")" || repo_code="unreachable"
+            if [ "$repo_code" != "200" ]; then
+              echo "run_lanes=true" >>"$GITHUB_OUTPUT"
+              echo "CHECKING OUT $sha, the commit this run is about."
+              echo "  The object probe answered 404 — but so did $GITHUB_REPOSITORY"
+              echo "  itself ('$repo_code'), so that is a statement about this token"
+              echo "  and not about the commit. The lanes run and the checkout speaks"
+              echo "  for itself."
+              exit 0
+            fi
+            echo "run_lanes=false" >>"$GITHUB_OUTPUT"
+            echo "SKIPPING THE RENDER LANES, with the reason rather than a red:"
+            echo "  $sha — the commit this run is about, which $GITHUB_REF pointed at"
+            echo "  when the run started — is no longer in this repository. On a"
+            echo "  pull_request that commit is the merge preview GitHub builds for"
+            echo "  refs/pull/N/merge, and it goes away when the pull request closes"
+            echo "  or the ref is re-pointed under a still-queued run."
+            echo "  There is no tree to render, so the lanes claim NOTHING about the"
+            echo "  tree: they are skipped, not passed and not failed. Push again for"
+            echo "  a verdict, or dispatch render.yml with an explicit \`ref\`."
+            exit 0
+          fi
+          echo "run_lanes=true" >>"$GITHUB_OUTPUT"
+          if [ "$code" = "200" ]; then
+            echo "CHECKING OUT $sha, the commit this run is about."
+            echo "  It is an object, not the transient $GITHUB_REF, so re-pointing or"
+            echo "  deleting that ref cannot take the lanes down with it."
+          else
+            echo "CHECKING OUT $sha, the commit this run is about."
+            echo "  The reachability probe answered '$code' rather than 200 or 404."
+            echo "  That is not evidence the commit is gone, so the lanes run and the"
+            echo "  checkout speaks for itself."
+          fi
+
   # THE THREE RENDERER-FREE LANES, IN ONE JOB (merged 2026-08-22).
   #
   # This was three jobs — `tour`, `uv`, `wild` — and the merge is worth two
@@ -345,11 +531,18 @@ jobs:
     permissions:
       contents: write
       checks: write
-    # NO JOB-LEVEL `if:`, deliberately: every value of `lanes` needs at least
-    # one of the three halves — `kernel`/`freecad` need the tour built for
-    # the montage lanes to download, `uv` needs the tour and the sheet,
+    needs: checkout-target
+    # THE ONE JOB-LEVEL `if:`, and it is not about lanes: it is `checkout
+    # target`'s verdict that the commit this run is about still exists (see
+    # that job). Gone, and this lane SKIPS with the reason stated there
+    # rather than dying at `actions/checkout`.
+    #
+    # LANE SELECTION IS DELIBERATELY NOT HERE: every value of `lanes` needs at
+    # least one of the three halves — `kernel`/`freecad` need the tour built
+    # for the montage lanes to download, `uv` needs the tour and the sheet,
     # `wild` needs only the wild generator. The three `*_WANTED` flags below
     # are what actually select, per step.
+    if: ${{ needs.checkout-target.outputs.run_lanes == 'true' }}
     timeout-minutes: 75
     env:
       # WHICH HALVES THIS RUN WANTS. Written once here rather than repeated
@@ -363,14 +556,38 @@ jobs:
       # `Swatinem/rust-cache` caches for workspace `.`, so the sharing and
       # the caching are the same directory rather than two arrangements.
       CARGO_TARGET_DIR: ${{ github.workspace }}/target
-      # See the uv lane's note below: the render entry points refuse to run
-      # without this sentence and deliberately do NOT sniff for CI. THIS
-      # workflow is the sanctioned renderer, so it says so in the file.
-      CAD_RENDER_LOCAL_OVERRIDE: i-accept-local-render-drift
+      # The render entry points refuse to run without this sentence and
+      # deliberately do NOT sniff for CI (demos/hosted-render-guard.sh), so
+      # THIS workflow says in the file which acceptor it is. It is the
+      # HOSTED sentence, not the local one: the frames this job draws are
+      # the committed ones, and the local sentence's message — preview
+      # only, do not commit what this pass draws — is false of every line
+      # of it.
+      CAD_RENDER_LOCAL_OVERRIDE: i-am-the-hosted-renderer
     steps:
+      # THE OBJECT, NOT THE REF. `checkout target` resolved this and probed
+      # it; that job's header carries the whole argument.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref || github.ref }}
+          ref: ${{ needs.checkout-target.outputs.ref }}
+      # WHICH OF THE TWO THIS LANE DID, in the lane's own log. THE LINE is
+      # what carries that, not the existence of the log: a job skipped by a
+      # job-level `if:` runs no steps and writes no log, but a job whose
+      # CHECKOUT FAILED has a log and does not have the tree — that is the
+      # 103 reds, and it is the case this file exists to be unambiguous
+      # about. So the line below appears if and only if a checkout
+      # succeeded, and it names the object it succeeded on.
+      # `CHECKOUT_REF` through `env:` rather than `${{ }}` in the script: an
+      # expression interpolated into a shell body is a shell body someone
+      # else can write.
+      - name: the object this lane checked out
+        env:
+          CHECKOUT_REF: ${{ needs.checkout-target.outputs.ref }}
+        run: |
+          echo "rendering $(git rev-parse HEAD)"
+          echo "  asked \`actions/checkout\` for: $CHECKOUT_REF"
+          echo "  \`checkout target\` says where that came from and why it is not"
+          echo "  \`github.ref\`. This lane did NOT skip: it has the tree."
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
       # local-scripts/ (the local half of the tooling split) and .claude/
       # (agent session config: the SessionStart hook that provisions a
@@ -669,10 +886,10 @@ jobs:
   # `persistence` and `corpus` jobs.
   #
   # TWO RIDERS THE MERGE HAD TO CARRY, both of them per-lane:
-  #   * `assert no matplotlib fallback` runs AFTER EACH LANE, against that
-  #     lane's own preview directory (`renders-preview/<lane-dir>` —
-  #     render.sh's routing), never against the tree. Checking the tree would
-  #     attribute the kernel lane's fallback to the freecad lane as well.
+  #   * A NOT-CLEAN-BUT-GREEN PASS IS SURFACED PER LANE, out of that
+  #     lane's own collapsed group, as a `::warning::` and a step-summary
+  #     line. With two lanes in one job the group is the only thing
+  #     separating their output, so the lift has to name the lane.
   #   * THE LOGS ARE MOVED ASIDE PER LANE. render.sh clears `*.status` and
   #     `batch*.log` at the start of a pass and names per-scene logs after
   #     the scene, so the second lane would overwrite the first's. Each
@@ -699,10 +916,15 @@ jobs:
     permissions:
       contents: write
       checks: write
-    needs: scene-inputs
+    needs: [checkout-target, scene-inputs]
     # `!cancelled()` plus the tour's OWN verdict, not the whole job's — see
     # that job's `outputs:` note. A uv sheet or a wild montage that failed
     # says nothing about whether these two lanes can draw.
+    #
+    # `checkout-target` is a `needs:` for its OUTPUT (the object to check
+    # out) and is not restated as a condition: a vanished commit skips
+    # `scene-inputs`, which publishes no `tour_ok`, which is already false
+    # here. One place decides, and this lane cannot disagree with it.
     if: ${{ !cancelled() && needs.scene-inputs.outputs.tour_ok == 'true' && contains(fromJSON('["all","kernel","freecad"]'), inputs.lanes) }}
     # A wedged pass is bounded by render.sh's own per-process budget (two
     # attempts x the budget, per batch); this is the outer stop so a
@@ -743,10 +965,14 @@ jobs:
       #     wedge eating its whole batch — is not the failure mode this
       #     workload actually has.
       #   * THE RATE IS ~1 IN 4,300 scene renders, and the BUDGET IS FLAT in
-      #     B (render.sh, 2026-08-22), so a failure costs the same wall clock
-      #     at any B. Blast radius is therefore NOT the binding constraint:
-      #     the hazard is per-scene, so expected collateral is under 1% of a
-      #     lane-run's scene work at every B.
+      #     B (render.sh, 2026-08-22), so a WEDGE costs the same wall clock
+      #     at any B. A CRASH costs one process more above B=1 than at B=1:
+      #     the poisoned batch, then the scene ALONE TWICE, because the
+      #     split re-enters render.sh's crash retry at one scene. At ~5-6 s
+      #     of effective scene work that is seconds, not a budget. Blast
+      #     radius is therefore NOT the binding constraint: the hazard is
+      #     per-scene, so expected collateral is under 1% of a lane-run's
+      #     scene work at every B.
       #
       # WHAT IS NOT MEASURED, and what actually picks the number: CONTENTION
       # HEADROOM. The budget is 300 s PER PROCESS however many scenes the
@@ -771,18 +997,39 @@ jobs:
       # entire pass, i.e. no bound per unit of work at all, and it is the
       # arrangement the contended datum above would break first.
       CAD_RENDER_BATCH: "5"
-      # See the uv lane's note: the entry points refuse without this
-      # sentence and do not sniff for CI. This workflow IS the sanctioned
-      # renderer, and its "pixel drift vs the committed lane" step is the
-      # measurement of the drift the sentence names.
-      CAD_RENDER_LOCAL_OVERRIDE: i-accept-local-render-drift
+      # The entry points refuse without this sentence and do not sniff for
+      # CI (demos/hosted-render-guard.sh). This job IS the sanctioned
+      # renderer — its "pixel drift vs the committed lane" step is the
+      # measurement of that drift, and on main it commits the result — so
+      # it declares the HOSTED sentence rather than the local one.
+      CAD_RENDER_LOCAL_OVERRIDE: i-am-the-hosted-renderer
       # No GPU on a hosted runner: force the software rasterizer rather
       # than letting Coin pick up whatever partial GL the image ships.
       LIBGL_ALWAYS_SOFTWARE: "1"
     steps:
+      # THE OBJECT, NOT THE REF. `checkout target` resolved this and probed
+      # it; that job's header carries the whole argument.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref || github.ref }}
+          ref: ${{ needs.checkout-target.outputs.ref }}
+      # WHICH OF THE TWO THIS LANE DID, in the lane's own log. THE LINE is
+      # what carries that, not the existence of the log: a job skipped by a
+      # job-level `if:` runs no steps and writes no log, but a job whose
+      # CHECKOUT FAILED has a log and does not have the tree — that is the
+      # 103 reds, and it is the case this file exists to be unambiguous
+      # about. So the line below appears if and only if a checkout
+      # succeeded, and it names the object it succeeded on.
+      # `CHECKOUT_REF` through `env:` rather than `${{ }}` in the script: an
+      # expression interpolated into a shell body is a shell body someone
+      # else can write.
+      - name: the object this lane checked out
+        env:
+          CHECKOUT_REF: ${{ needs.checkout-target.outputs.ref }}
+        run: |
+          echo "rendering $(git rev-parse HEAD)"
+          echo "  asked \`actions/checkout\` for: $CHECKOUT_REF"
+          echo "  \`checkout target\` says where that came from and why it is not"
+          echo "  \`github.ref\`. This lane did NOT skip: it has the tree."
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
       # local-scripts/ (the local half of the tooling split) and .claude/
       # (agent session config: the SessionStart hook that provisions a
@@ -905,32 +1152,44 @@ jobs:
           for lane in kernel freecad; do
             wanted="KERNEL_WANTED"; [ "$lane" = freecad ] && wanted="FREECAD_WANTED"
             [ "${!wanted}" = "true" ] || { echo "::notice::$lane lane not requested by this dispatch"; continue; }
-            flag=""; dir="renders"
-            if [ "$lane" = freecad ]; then flag="--freecad"; dir="renders-freecad"; fi
+            flag=""
+            if [ "$lane" = freecad ]; then flag="--freecad"; fi
+            out="$RUNNER_TEMP/render-$lane.log"
             echo "::group::$lane lane"
             FREECADCMD="$HOME/freecad-appimage/squashfs-root/usr/bin/freecadcmd" \
               xvfb-run -a --server-args="-screen 0 1600x1200x24" \
-              demos/render.sh $flag && status=0 || status=$?
+              demos/render.sh $flag 2>&1 | tee "$out"
+            status=${PIPESTATUS[0]}
             echo "::endgroup::"
 
-            # THE ONE CHECK THIS WORKFLOW ADDS, PER LANE. The kernel lane's
-            # matplotlib fallback exits 0, so without this a hosted pass
-            # could be green having drawn nothing with FreeCAD; the frames
-            # would be sitting in the gitignored preview tree and the
-            # artifact would hold the committed cells unchanged. Asked of
-            # THIS lane's own preview directory (render.sh's routing:
-            # renders-preview/<lane-dir>), never of the tree — with both
-            # lanes on one runner, a tree-wide test would report the kernel
-            # lane's fallback against the freecad lane too. (The `--freecad`
-            # lane has no fallback at all, so this is vacuous there —
-            # asserted anyway, because a vacuous check costs nothing and a
-            # missing one costs #221 again.)
-            if [ -e "demos/renders-preview/$dir" ]; then
-              find "demos/renders-preview/$dir" -type f | head -50
-              echo "::error::[$lane] render.sh fell back to matplotlib — demos/renders-preview/$dir exists, so this pass drew NOTHING with FreeCAD and demos/$dir/ is untouched. The artifact is the committed cells, not this run's. See the render step's stderr for the reason render.sh gave."
-              status=1
+            # GREEN BUT NOT CLEAN, LIFTED OUT OF THE GROUP. render.sh
+            # announces a retry, and a process that stalled after
+            # writing its frames, on stderr — which is inside the
+            # collapsed group above and nowhere a reader meets by
+            # default. A pass that only drew because a process was
+            # retried is not the same event as a clean pass, and this
+            # workflow just retired an assertion for letting a
+            # not-really-successful pass read as a successful one; a
+            # flaky lane that is silent at the surface is one notch of
+            # the same thing. A FAILING lane already gets `::error::`
+            # below, so this is only about the green one.
+            notclean=$(grep -cE 'NOTE — |TIMED OUT after|CRASHED — ' "$out" || true)
+            if [ "$status" -eq 0 ] && [ "${notclean:-0}" -gt 0 ]; then
+              echo "::warning::[$lane] GREEN BUT NOT CLEAN — ${notclean} line(s) report a retried or stalled freecadcmd process. The lane drew everything, but the renderer misbehaved doing it; the first attempt's log is in the freecad-logs-$lane artifact as *.attempt1.log."
+              printf -- '- **%s lane**: green, but %s line(s) report a retried or stalled process — the renderer misbehaved and drew anyway (see `*.attempt1.log` in `freecad-logs-%s`).\n' \
+                "$lane" "$notclean" "$lane" >> "$GITHUB_STEP_SUMMARY"
             fi
 
+            # THE LANE'S VERDICT IS render.sh's EXIT STATUS, and nothing
+            # else. This loop used to also assert that
+            # this lane's preview directory did not exist, because the
+            # kernel lane's automatic matplotlib fallback exited 0: a
+            # hosted pass could be green having drawn nothing with
+            # FreeCAD. render.sh no longer has that fallback — a missing
+            # renderer or an undrawn scene fails the pass — so the
+            # condition the assertion detected cannot arise, and the
+            # status read here means what it says.
+            #
             # render.sh clears *.status and batch*.log at the start of a
             # pass and names per-scene logs after the scene, so the second
             # lane would otherwise overwrite the first's evidence.
@@ -987,7 +1246,6 @@ jobs:
           path: |
             demos/out/freecad-logs-kernel/**
             demos/out/stage/renders/**
-            demos/renders-preview/renders/**
           retention-days: 14
           if-no-files-found: ignore
       - name: upload logs + staging tree (freecad)
@@ -998,7 +1256,6 @@ jobs:
           path: |
             demos/out/freecad-logs-freecad/**
             demos/out/stage/renders-freecad/**
-            demos/renders-preview/renders-freecad/**
           retention-days: 14
           if-no-files-found: ignore
 

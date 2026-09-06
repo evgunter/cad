@@ -9,7 +9,7 @@ developer's box. A 2026-08-22 census re-measured the same ratio at **4.95 /
 4.99** on a 4-core AVX-512 guest — about 30% less than the figure the verdict
 is built on, enough that the note's "~2x and ~3x margins" would become 0.94x
 and 0.91x, i.e. opt-0 winning outright. That is NOT a licence to flip: the
-census box is not CI's 2-vCPU runner, and a ratio is exactly the kind of
+census box is not CI's runner, and a ratio is exactly the kind of
 number that does not transfer between machines. It IS a demonstration that the
 quantity CI relies on has never been measured where CI runs.
 
@@ -199,6 +199,23 @@ def _step_seconds(job: dict, name: str) -> float | None:
     return None
 
 
+def page_is_whole(listing: dict) -> bool:
+    """Did this jobs-API page carry the WHOLE run, or only its first `per_page`?
+
+    THE SAME SHAPE AS `scripts/check-run-jobs.py`'s paging guard, and stated
+    here because the shape has two readers and only one of them was hardened:
+    `?per_page=N` answers a PAGE, and `jobs.get("jobs", [])` on a run with more
+    jobs than N is a subset that reads exactly like a whole run. There it is a
+    gate summarising a subset of the run and calling it the run; here it is a
+    sample whose `E` is the sum of the shard rows, so a dropped shard
+    UNDERSTATES the free arm — the same bias `sample_run` already refuses a
+    cancelled shard for, arriving one layer further out. The disposition is
+    that one: skip the run, do not sample half of it.
+    """
+    total = listing.get("total_count")
+    return total is None or total <= len(listing.get("jobs", []))
+
+
 def sample_run(jobs: list[dict]) -> dict | None:
     """`{a, E, shards, labels}` for one workflow run, or None if this run is
     not a DEFAULT-LANE CODE-TIER run — a docs-tier run has no archive job, an
@@ -250,6 +267,8 @@ def read_free_arm(opt_level: int, runs: int, window: int) -> dict:
             jobs = _api(f"/repos/{repo}/actions/runs/{run['id']}/jobs?per_page=100")
         except (urllib.error.URLError, OSError, KeyError):
             continue
+        if not page_is_whole(jobs):
+            continue
         got = sample_run(jobs.get("jobs", []))
         if got is None:
             continue
@@ -267,7 +286,7 @@ def summarise_free_arm(opt_level: int, samples: list[dict]) -> dict:
         "opt_level": opt_level,
         "source": "gate-runs",
         "n": len(samples),
-        # MEDIAN, not mean: a hosted 2-vCPU runner has a fat tail (the same
+        # MEDIAN, not mean: a shared hosted runner has a fat tail (the same
         # sentence docs/perf-data/rebuild-latency/README.md carries), and one
         # contended run would drag a mean far enough to move the verdict.
         "a": statistics.median(s["a"] for s in samples),
@@ -375,6 +394,58 @@ def _run(cmd: list[str]) -> str:
         return ""
 
 
+# The flag subset that actually moves these rows, and the same two fields under
+# the same names as the lane's other emitters (`scripts/criterion-emit.py`,
+# `crates/editor-core/tests/m4_pr8_latency.rs`) so the blocks compare. Not the
+# whole `flags` line: the opt-0/opt-2 ratio measured 30% apart between an
+# AVX-512 guest and CI (2026-08-22 census), which is the discrimination this
+# sample's verdict actually rests on.
+HOST_CPU_FLAGS = ("avx2", "avx512f")
+
+# Read through a name so the selftest can point it at a path that is not there
+# and PROVE the degradation rather than assert it.
+CPUINFO = "/proc/cpuinfo"
+
+
+def cpu_identity() -> tuple[str | None, list[str] | None]:
+    """Which box this is, as far as `/proc/cpuinfo` can say.
+
+    `nproc`, `mem_total_kb` and `platform.machine()` are constant across a
+    hosted runner pool while the CPU generation underneath it is not, so
+    without this pair a sample cannot be attributed to a host at all.
+
+    PARITY OBLIGATION: two more copies of this parser exist, in
+    `scripts/criterion-emit.py` and
+    `crates/editor-core/tests/m4_pr8_latency.rs`. They are copies rather
+    than one reader because no cheap home is shared across Rust and Python,
+    so the obligation is manual: a change to the field names, to
+    `HOST_CPU_FLAGS`, or to what a null means here is owed to both of them
+    in the same diff.
+
+    `(None, None)` means the file could not be read; `[]` means the flags are
+    genuinely absent. A reader must be able to tell those apart, and a box
+    without `/proc` must not cost the whole environment block.
+    """
+    try:
+        with open(CPUINFO, encoding="utf-8", errors="replace") as fh:
+            text = fh.read()
+    except OSError:
+        return None, None
+    model: str | None = None
+    flags: list[str] | None = None
+    for line in text.splitlines():
+        key, sep, value = line.partition(":")
+        if not sep:
+            continue
+        key = key.strip()
+        if key == "model name" and model is None:
+            model = value.strip() or None
+        elif key == "flags" and flags is None:
+            present = set(value.split())
+            flags = [f for f in HOST_CPU_FLAGS if f in present]
+    return model, ([] if flags is None else flags)
+
+
 def environment() -> dict:
     """The block that makes two samples comparable rather than arguable — the
     same fields ci.yml's rebuild-latency measurement records, for the same
@@ -386,6 +457,7 @@ def environment() -> dict:
             mem = fh.readline().split()[1]
     except (OSError, IndexError):
         pass
+    cpu_model, cpu_flags = cpu_identity()
     return {
         "runner": os.environ.get("RUNNER_ENV_LABEL", "")
                   or f"{platform.system()}/{platform.machine()} {os.environ.get('RUNNER_IMAGE', 'ubuntu-latest')}",
@@ -393,6 +465,10 @@ def environment() -> dict:
         "arch": platform.machine(),
         "nproc": os.cpu_count(),
         "mem_total_kb": int(mem) if mem.isdigit() else None,
+        # Which box, not just which class of box: every field above is constant
+        # across a hosted runner pool. See `cpu_identity`.
+        "cpu_model": cpu_model,
+        "cpu_flags": cpu_flags,
         "rustc": _run(["rustc", "-V"]),
         "nextest": _run(["cargo-nextest", "nextest", "--version"]),
         "rustflags": os.environ.get("RUSTFLAGS", ""),
@@ -648,6 +724,12 @@ def selftest() -> None:
     partial = json.loads(json.dumps(_FAKE_JOBS["jobs"]))
     partial[1]["steps"][0]["conclusion"] = "cancelled"
     assert sample_run(partial) is None
+    # A PAGED JOB LIST. `?per_page=100` answers a page and not necessarily the
+    # run; a run that outgrew it would hand back a subset whose missing shards
+    # understate `E`. Refused at the listing, before `sample_run` ever sees it.
+    assert page_is_whole({"total_count": 2, "jobs": [{}, {}]})
+    assert page_is_whole({"jobs": [{}]})
+    assert not page_is_whole({"total_count": 140, "jobs": [{}, {}]})
     # A RENAMED STEP goes quiet, never wrong.
     renamed = json.loads(json.dumps(_FAKE_JOBS["jobs"]))
     renamed[0]["steps"][1]["name"] = "build test binaries + archive (v2)"
@@ -750,8 +832,20 @@ def selftest() -> None:
 
     env = environment()
     for key in ("runner", "nproc", "rustflags", "cargo_profile", "debug_assertions",
-                "tolerance_eps", "nightly_suite_cfg"):
+                "tolerance_eps", "nightly_suite_cfg", "cpu_model", "cpu_flags"):
         assert key in env, key
+    assert env["cpu_flags"] is None or set(env["cpu_flags"]) <= set(HOST_CPU_FLAGS), env
+
+    # HOST IDENTITY MUST DEGRADE, not crash and not take the block with it: a
+    # box with no readable /proc/cpuinfo still owes a complete environment.
+    saved_cpuinfo = globals()["CPUINFO"]
+    globals()["CPUINFO"] = os.path.join(tempfile.gettempdir(), "no-such-cpuinfo-dir", "cpuinfo")
+    try:
+        degraded = environment()
+    finally:
+        globals()["CPUINFO"] = saved_cpuinfo
+    assert degraded["cpu_model"] is None and degraded["cpu_flags"] is None, degraded
+    assert "rustflags" in degraded and degraded["nproc"], degraded
 
     print("opt-level-calibrate selftest OK: a run's free-arm sample is read from the archive "
           "step and the summed shards; a docs-tier run, a cancelled shard and a renamed step "
@@ -762,8 +856,10 @@ def selftest() -> None:
           "tree that moved recalibrates unconditionally instead of drifting one level's E "
           "against another's; schema-1 and schema-2 samples still read and still derive; the "
           "cadence fires on a first sample, on the calendar and on >20% drift, and holds "
-          "otherwise; no free arm means no measured arm is spent; and a flip is reported "
-          "loudly without failing anything")
+          "otherwise; no free arm means no measured arm is spent; the environment block "
+          "names the host CPU and degrades to nulls (never to a missing block) where "
+          "/proc/cpuinfo cannot be read; and a flip is reported loudly without failing "
+          "anything")
 
 
 def main() -> int:

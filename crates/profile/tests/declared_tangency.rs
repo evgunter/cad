@@ -14,7 +14,7 @@
 //! [`profile::PathError`]'s.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{bracket, chain, circle_h, pinned, profile, quarter_bulge, tol};
 use geom_core::Point2;
@@ -95,20 +95,15 @@ fn declared_tangency_on_a_transversal_joint_is_contradicted() {
         .validate(tol())
         .expect_err("contradicted declaration must refuse")
     {
-        ProfileError::TangencyContradicted {
-            joint,
-            same_carrier,
-            ..
-        } => {
+        ProfileError::TangencyContradicted { joint, .. } => {
             assert_eq!(joint, 2);
-            assert!(!same_carrier);
         }
         other => panic!("expected TangencyContradicted, got {other:?}"),
     }
 }
 
 #[test]
-fn declared_tangency_on_collinear_lines_is_contradicted_as_continuation() {
+fn declared_tangency_on_collinear_lines_is_a_declared_tangent_joint() {
     // A rectangle with a redundant collinear vertex on the bottom
     // side: legal undeclared (carrier continuation)...
     let redundant = || {
@@ -123,34 +118,30 @@ fn declared_tangency_on_collinear_lines_is_contradicted_as_continuation() {
     profile(vec![redundant()])
         .validate(tol())
         .expect("collinear continuation is legal undeclared");
-    // ...but a tangency declaration there is refused: continuation is
-    // not a tangency.
+    // ...and legal DECLARED too, since 2026-09-02: every zero-turn
+    // joint is a declared tangent joint (Ev, in-chat). Identity is a
+    // fact about the carriers and tangency is a fact about the
+    // directions; the directions agree here, so the declaration is
+    // true. The row used to require `TangencyContradicted
+    // { same_carrier: true }`, and that arm is retired.
     let mut lp = redundant();
     lp = lp.with_tangent_joints(vec![1]);
-    match profile(vec![lp]).validate(tol()).expect_err("continuation") {
-        ProfileError::TangencyContradicted {
-            joint,
-            same_carrier,
-            ..
-        } => {
-            assert_eq!(joint, 1);
-            assert!(same_carrier);
-        }
-        other => panic!("expected same-carrier contradiction, got {other:?}"),
-    }
+    profile(vec![lp])
+        .validate(tol())
+        .expect("a declared collinear joint is a declared tangent joint");
 }
 
 #[test]
-fn declared_tangency_on_a_cocircular_joint_is_contradicted() {
+fn declared_tangency_on_a_cocircular_joint_is_a_declared_tangent_joint() {
     // The minimal two-arc circle: joints are cocircular continuation —
-    // legal undeclared (asserted all over the corpus), contradicted
-    // declared.
+    // legal undeclared (asserted all over the corpus), and legal
+    // DECLARED since 2026-09-02 for the same reason as the collinear
+    // row above.
     let mut lp = circle_h(0.0, 0.0, 1.0);
     lp = lp.with_tangent_joints(vec![0]);
-    match profile(vec![lp]).validate(tol()).expect_err("cocircular") {
-        ProfileError::TangencyContradicted { same_carrier, .. } => assert!(same_carrier),
-        other => panic!("expected same-carrier contradiction, got {other:?}"),
-    }
+    profile(vec![lp])
+        .validate(tol())
+        .expect("a declared cocircular joint is a declared tangent joint");
 }
 
 #[test]
@@ -322,7 +313,7 @@ fn oversized_fillet_radius_is_refused_typed_both_legs() {
     // (3, 2) is the carriers' intersection; the anchors that pin the
     // two extents are the ray's origin (3, 0) and the arrival's own
     // anchor (0, 2).
-    match Open
+    let err = Open
         .at(p2(0.0, 0.0))
         .line_to(p2(3.0, 0.0), Tol::witness())
         .expect("bottom side")
@@ -333,30 +324,30 @@ fn oversized_fillet_radius_is_refused_typed_both_legs() {
         .toward(-1.0, 0.0, Tol::witness())
         .expect("the arrival side runs −x")
         .to(p2(0.0, 2.0), Tol::witness())
-        .expect_err("oversized radius must refuse")
-    {
-        PathError::AnchorOutsideTrimmedExtent {
-            side,
-            carrier,
-            setback,
-            available,
-        } => {
-            assert_eq!(carrier, profile::FilletLegCarrier::Line);
-            // Incoming→outgoing gate order: the shorter incoming side
-            // reports first; right angle + dyadic legs: exact values.
-            assert_eq!(side, profile::FilletLeg::Incoming);
-            assert_eq!(setback, 10.0);
-            assert_eq!(available, 2.0);
-        }
-        other => panic!("expected AnchorOutsideTrimmedExtent, got {other:?}"),
-    }
+        .expect_err("oversized radius must refuse");
+    // A straight carrier pair derives ONE corner, so the envelope
+    // carries one entry and it is the fit refusal.
+    assert_eq!(
+        common::corners(&err).len(),
+        1,
+        "a straight pair derives one corner: {err:?}"
+    );
+    let Some((side, carrier, setback, available)) = common::anchor_fit(&err) else {
+        panic!("expected an anchor-fit entry, got {err:?}")
+    };
+    assert_eq!(carrier, profile::FilletLegCarrier::Line);
+    // Incoming→outgoing gate order: the shorter incoming side
+    // reports first; right angle + dyadic legs: exact values.
+    assert_eq!(side, profile::FilletLeg::Incoming);
+    assert_eq!(setback, 10.0);
+    assert_eq!(available, 2.0);
 }
 
 #[test]
 fn oversized_fillet_radius_is_refused_for_one_overrun_leg() {
     // Incoming side (3) fits; the arrival side (2) overruns at
     // r = 2.5, so the refusal names the outgoing anchor.
-    match Open
+    let err = Open
         .at(p2(0.0, 0.0))
         .toward(1.0, 0.0, Tol::witness())
         .expect("the incoming ray runs +x")
@@ -365,21 +356,19 @@ fn oversized_fillet_radius_is_refused_for_one_overrun_leg() {
         .toward(0.0, 1.0, Tol::witness())
         .expect("the arrival side runs +y")
         .to(p2(3.0, 2.0), Tol::witness())
-        .expect_err("outgoing overrun must refuse")
-    {
-        PathError::AnchorOutsideTrimmedExtent {
-            side,
-            carrier,
-            setback,
-            available,
-        } => {
-            assert_eq!(carrier, profile::FilletLegCarrier::Line);
-            assert_eq!(side, profile::FilletLeg::Outgoing);
-            assert_eq!(setback, 2.5);
-            assert_eq!(available, 2.0);
-        }
-        other => panic!("expected AnchorOutsideTrimmedExtent, got {other:?}"),
-    }
+        .expect_err("outgoing overrun must refuse");
+    assert_eq!(
+        common::corners(&err).len(),
+        1,
+        "a straight pair derives one corner: {err:?}"
+    );
+    let Some((side, carrier, setback, available)) = common::anchor_fit(&err) else {
+        panic!("expected an anchor-fit entry, got {err:?}")
+    };
+    assert_eq!(carrier, profile::FilletLegCarrier::Line);
+    assert_eq!(side, profile::FilletLeg::Outgoing);
+    assert_eq!(setback, 2.5);
+    assert_eq!(available, 2.0);
 }
 
 #[test]

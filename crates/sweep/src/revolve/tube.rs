@@ -1,5 +1,5 @@
 //! **`tube_along_arc` — the world-coordinate tube/torus door** (M6-3
-//! Leg F; the Evan-ratified rider, #175 thread). A ring-torus body
+//! Leg F; the Ev-ratified rider, #175 thread). A ring-torus body
 //! from its INTENT parameters: spine centre/axis/reference direction,
 //! major radius, an arc window (or a full ring), and the tube's minor
 //! radius — **stored exactly**, with no profile→bulge→radius

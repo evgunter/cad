@@ -12,16 +12,13 @@
 )]
 
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
+use core::num::NonZeroUsize;
 
+use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, chart_pcurve};
-use geom_core::Tol;
-use geom_core::{Band, Point2, Point3, Vec2, Vec3};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
+use geom_core::{Point2, Point3, Vec2, Vec3};
 
 fn wide() -> ChartWindow<f64> {
     ChartWindow {
@@ -32,6 +29,10 @@ fn wide() -> ChartWindow<f64> {
     }
 }
 
+/// **Deliberately not `shared::surf::sphere`.** This sphere is placed
+/// OFF the origin, at `(0.3, -0.2, 1.1)`: these rows are about a chart
+/// window on a surface the frame does not privilege, and a centred one
+/// would make the claim vacuous.
 fn sphere(r: f64) -> Surface<f64> {
     Surface::Sphere {
         center: Point3::new(0.3, -0.2, 1.1),
@@ -263,7 +264,7 @@ fn probe_dev1_area_enclosure_contains_a_violent_patch_oracle() {
     use geom_core::spline::KnotVector;
     let band = band();
     let eps = 1e-9;
-    let kv = KnotVector::unit_segment(3);
+    let kv = KnotVector::unit_segment(const { NonZeroUsize::new(3).unwrap() });
     let p = |x: f64, y: f64, z: f64| {
         [
             RingInterval::point(x),

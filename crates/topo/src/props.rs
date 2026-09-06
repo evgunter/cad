@@ -692,7 +692,7 @@ pub fn classify_shells<T: PropsQuadLane>(
     Ok(out)
 }
 
-/// The certified-quadrature **lane split** (M5 PR 11; Evan's ruling at
+/// The certified-quadrature **lane split** (M5 PR 11; Ev's ruling at
 /// this PR, superseding a runtime-`Option` bracket seam): certification
 /// is the f64 / Probe / Interval lanes' business; derivative transport
 /// is the dual lane's — and that split lives in the TYPES. Each
@@ -716,8 +716,10 @@ pub fn classify_shells<T: PropsQuadLane>(
 ///
 /// The supertrait is [`geom_brep::PcurveFittedLane`], not bare
 /// [`Decide`], and the bundling is deliberate rather than incidental:
-/// it is **the same split, over the same four scalars, for the same
-/// reason**. A fitted (rung-3) pcurve's between-samples obligation is a
+/// it is **the same split, over the same scalars, for the same
+/// reason** — five of them since the symbolic tier landed (`f64`, the
+/// telemetry probe, the interval scalar, `Sym` over any of those, and
+/// the refusing dual). A fitted (rung-3) pcurve's between-samples obligation is a
 /// C9-ring hull bound reached through a scalar's bracket, exactly as
 /// the quadrature's flux enclosures are; `f64`, the telemetry probe and
 /// the interval scalar can derive both, and the dual scalar can derive
@@ -733,11 +735,15 @@ pub fn classify_shells<T: PropsQuadLane>(
 /// pointwise-identical lane bound through every tier-3 signature and
 /// every generic body helper in the workspace, which would have bought
 /// no additional honesty — the refusing side is the same scalar.
+// SHELL-TOLERANCE-CHAIN BEGIN — the sentinel
+// `tests/shell_tolerance_chain.rs` reads. Between here and the END
+// sentinel is the kernel's last stretch of the shell's offset chain:
+// the lane's two fit doors and the one site that turns the run's
+// witness into a number. No signature in this region may take an `f64`
+// epsilon; the quadrature lane's own ε reads elsewhere in this file are
+// a different chain and are deliberately outside the region.
 pub trait PropsQuadLane:
-    Decide
-    + geom_brep::PcurveFittedLane
-    + geom_brep::EdgeNurbsLane
-    + crate::chart_region::ChartRegionLane
+    Decide + geom_brep::PcurveFittedLane + crate::chart_region::ChartRegionLane
 {
     /// The certified flux/area enclosures of a conic-trimmed cylinder
     /// face, or `None` when this scalar has no certified lane.
@@ -796,13 +802,19 @@ pub trait PropsQuadLane:
     /// The fit door's typed refusal, when the re-derivation fails.
     fn recertify_approx(
         approx: &geom::ApproxSurface<Self>,
-        tolerance: f64,
+        tol: Tol,
         band: Band,
     ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>>;
 
     /// Mints the certified approximating surface for a NURBS operand's
     /// offset — the fit door, reached through the lane so the doors
     /// above it stay scalar-generic.
+    ///
+    /// The fit target is the run's ε and arrives as the witness, for
+    /// [`PropsQuadLane::recertify_approx`]'s reason: the mint and the
+    /// re-derivation that must later re-establish its claim classify
+    /// against the same number by construction, not because two
+    /// callers passed the same one.
     ///
     /// `None` = this scalar has no fit lane. That is not a pass: a
     /// caller that cannot mint the offset refuses, exactly as tier 3
@@ -818,7 +830,7 @@ pub trait PropsQuadLane:
     fn approx_offset_surface(
         base: std::sync::Arc<geom::NurbsSurface<Self>>,
         d: Self,
-        tolerance: f64,
+        tol: Tol,
         band: Band,
     ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>>;
 
@@ -843,19 +855,19 @@ impl PropsQuadLane for f64 {
 
     fn recertify_approx(
         approx: &geom::ApproxSurface<Self>,
-        tolerance: f64,
+        tol: Tol,
         band: Band,
     ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
-        Some(geom_brep::recertify_approx(approx, tolerance, band))
+        Some(geom_brep::recertify_approx(approx, tol, band))
     }
 
     fn approx_offset_surface(
         base: std::sync::Arc<geom::NurbsSurface<Self>>,
         d: Self,
-        tolerance: f64,
+        tol: Tol,
         band: Band,
     ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
-        Some(geom_brep::approx_offset_surface(base, d, tolerance, band))
+        Some(geom_brep::approx_offset_surface(base, d, tol, band))
     }
 
     fn quad_cut_face(
@@ -880,7 +892,7 @@ impl PropsQuadLane for geom_core::Probe {
     // tier 3 reports `ApproxLaneUnsupported` rather than passing.
     fn recertify_approx(
         _approx: &geom::ApproxSurface<Self>,
-        _tolerance: f64,
+        _tol: Tol,
         _band: Band,
     ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
         None
@@ -889,7 +901,7 @@ impl PropsQuadLane for geom_core::Probe {
     fn approx_offset_surface(
         _base: std::sync::Arc<geom::NurbsSurface<Self>>,
         _d: Self,
-        _tolerance: f64,
+        _tol: Tol,
         _band: Band,
     ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
         None
@@ -918,7 +930,7 @@ impl PropsQuadLane for geom_core::interval::Interval {
     // DERIVATION rather than about which values can arrive.
     fn recertify_approx(
         _approx: &geom::ApproxSurface<Self>,
-        _tolerance: f64,
+        _tol: Tol,
         _band: Band,
     ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
         None
@@ -927,7 +939,57 @@ impl PropsQuadLane for geom_core::interval::Interval {
     fn approx_offset_surface(
         _base: std::sync::Arc<geom::NurbsSurface<Self>>,
         _d: Self,
-        _tolerance: f64,
+        _tol: Tol,
+        _band: Band,
+    ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
+        None
+    }
+
+    fn datum_lo(self) -> f64 {
+        geom_core::Bounds::lo(self)
+    }
+
+    fn quad_cut_face(
+        body: &Body<Self>,
+        surface: &Surface<Self>,
+        outer: &[LoopEdge<Self>],
+        hes: &[HalfEdgeKey],
+        band: Band,
+        tol: Tol,
+    ) -> Result<Option<FaceCutBounds>, PropsError> {
+        quad_lane::cut_face(body, surface, outer, hes, band, tol).map(Some)
+    }
+}
+
+/// **The symbolic tier over a certifying scalar** (`geom_core::sym`):
+/// every lane door is the BASE scalar's, run at `Sym<T>` itself.
+///
+/// The tier changes exactly one thing — how a margin whose expression
+/// is identically zero decides — and it changes it inside the scalar.
+/// Everything a quadrature lane does is arithmetic, so it runs here
+/// unaltered; wrapping the base scalar must not silently demote a
+/// certifying lane to a refusing one, or the driver's leaf replay would
+/// stop validating the bodies it certifies.
+impl<T> PropsQuadLane for geom_core::Sym<T>
+where
+    geom_core::Sym<T>: Decide + geom_core::Bounds,
+    T: geom_core::CertifiedBounds,
+{
+    // No re-derivation lane, for the base scalar's reason: the offset
+    // fit is derived at `f64` only. This is about the DERIVATION, not
+    // about which values can arrive.
+    fn recertify_approx(
+        _approx: &geom::ApproxSurface<Self>,
+        _tol: Tol,
+        _band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
+        None
+    }
+
+    fn approx_offset_surface(
+        _base: std::sync::Arc<geom::NurbsSurface<Self>>,
+        _d: Self,
+        _tol: Tol,
         _band: Band,
     ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
         None
@@ -960,7 +1022,7 @@ where
     // DERIVATION rather than about which values can arrive.
     fn recertify_approx(
         _approx: &geom::ApproxSurface<Self>,
-        _tolerance: f64,
+        _tol: Tol,
         _band: Band,
     ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
         None
@@ -969,7 +1031,7 @@ where
     fn approx_offset_surface(
         _base: std::sync::Arc<geom::NurbsSurface<Self>>,
         _d: Self,
-        _tolerance: f64,
+        _tol: Tol,
         _band: Band,
     ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
         None
@@ -990,6 +1052,8 @@ where
         Ok(None)
     }
 }
+
+// SHELL-TOLERANCE-CHAIN END.
 
 /// The **scalar policy for the certified at-rest gates**
 /// (`docs/DUAL-DESIGN.md` DL3): whether an evaluation-service
@@ -1078,7 +1142,7 @@ impl AtRestPolicy for f64 {
         contacts: &ContactRecords,
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
-        crate::validate::validate_pseudomanifold(body, contacts, tol)
+        crate::validate::validate_pseudomanifold_certified(body, contacts, tol)
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -1094,7 +1158,7 @@ impl AtRestPolicy for geom_core::Probe {
         contacts: &ContactRecords,
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
-        crate::validate::validate_pseudomanifold(body, contacts, tol)
+        crate::validate::validate_pseudomanifold_certified(body, contacts, tol)
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -1110,7 +1174,31 @@ impl AtRestPolicy for geom_core::interval::Interval {
         contacts: &ContactRecords,
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
-        crate::validate::validate_pseudomanifold(body, contacts, tol)
+        crate::validate::validate_pseudomanifold_certified(body, contacts, tol)
+            .map(|()| AtRestOutcome::Validated)
+    }
+}
+
+/// **The symbolic tier over a certifying scalar**: the gates are the
+/// base scalar's, run at `Sym<T>`. A leaf the driver certifies is
+/// validated at rest exactly as it was before the tier existed —
+/// demoting to the dual's `NotRunAtThisScalar` arm here would quietly
+/// drop the validator from the one replay that certifies.
+impl<T> AtRestPolicy for geom_core::Sym<T>
+where
+    geom_core::Sym<T>: PropsQuadLane,
+    T: geom_core::CertifiedBounds,
+{
+    fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
+        crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
+    }
+
+    fn gate_at_rest_declared(
+        body: &Body<Self>,
+        contacts: &ContactRecords,
+        tol: Tol,
+    ) -> Result<AtRestOutcome, Vec<ValidationError>> {
+        crate::validate::validate_pseudomanifold_certified(body, contacts, tol)
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -1174,12 +1262,18 @@ mod at_rest_policy_tests {
             "gate_at_rest must be validate_geometric verbatim at a certifying scalar"
         );
         let contacts = ContactRecords::default();
-        let door = crate::validate::validate_pseudomanifold(&b, &contacts, tol);
+        // The CERTIFIED twin, and the door name is the assertion: a
+        // certifying arm takes the door whose bound names the right it
+        // has, so check 2 re-derives the M7-8 carrier class here. The
+        // lane-keeping `validate_pseudomanifold` is the dual-admitting
+        // sibling and is not what this arm runs.
+        let door = crate::validate::validate_pseudomanifold_certified(&b, &contacts, tol);
         assert!(door.is_err(), "the seed body must refuse the census door");
         assert_eq!(
             T::gate_at_rest_declared(&b, &contacts, tol),
             door.map(|()| AtRestOutcome::Validated),
-            "gate_at_rest_declared must be validate_pseudomanifold verbatim at a certifying scalar"
+            "gate_at_rest_declared must be validate_pseudomanifold_certified verbatim at a \
+             certifying scalar"
         );
     }
 
@@ -1246,7 +1340,7 @@ mod quad_lane {
     use geom_core::Tol;
     use geom_core::ring_interval::RingInterval;
     // The compound `Decide + Bounds` bound below is a RATIFIED seam
-    // (M5 PR 11, Evan's lane-split ruling; discipline allowlist row):
+    // (M5 PR 11, Ev's lane-split ruling; discipline allowlist row):
     // this module is the certified lanes' plumbing and never
     // instantiates for duals. TWO things enforce that, and since #643
     // the second is the load-bearing one: [`super::PropsQuadLane`]'s

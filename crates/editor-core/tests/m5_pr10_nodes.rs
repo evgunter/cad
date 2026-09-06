@@ -14,13 +14,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     CancelToken, Dimension, DocEdit, EvalOptions, Expr, Node, NodeErrorKind, NodeResult,
     ProfileDoc, RecipeNodeId, SlotId, evaluate, load, save,
 };
-use fixture::{desc, insert};
+use fixture::{insert, on_frame};
 use geom_core::Tol;
 
 /// A Count literal — `Expr::count`, because `Expr::literal` REFUSES
@@ -29,9 +29,14 @@ fn count(v: i64) -> Expr {
     Expr::count(v)
 }
 
-/// A square section at height `z`, scaled by `s`.
-fn section(z: f64, s: f64) -> editor_core::ProfileProgram {
-    desc(
+/// A square section at height `z`, scaled by `s`: the frame it sits
+/// on, then the profile that names it.
+///
+/// Each section is at a DIFFERENT height, so each gets its own frame —
+/// distinct planes are what a loft's sections are.
+fn section(doc: ProfileDoc, z: f64, s: f64) -> (ProfileDoc, RecipeNodeId) {
+    on_frame(
+        doc,
         [0.0, 0.0, z],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
@@ -50,7 +55,7 @@ fn loft_doc() -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty_derived("m5_pr10_nodes", Tol::witness());
     let mut profiles = Vec::new();
     for (z, s) in [(0.0, 1.0), (1.0, 1.6), (2.0, 1.0)] {
-        let (d, id) = insert(doc, Node::Profile(section(z, s)));
+        let (d, id) = section(doc, z, s);
         doc = d;
         profiles.push(id);
     }
@@ -90,9 +95,9 @@ fn loft_inputs_are_its_profiles_in_order() {
 #[test]
 fn sweep_inputs_are_profile_then_path_and_it_carries_both_slots() {
     let mut doc = ProfileDoc::empty_derived("m5_pr10_nodes", Tol::witness());
-    let (d, profile) = insert(doc, Node::Profile(section(0.0, 1.0)));
+    let (d, profile) = section(doc, 0.0, 1.0);
     doc = d;
-    let (d, path) = insert(doc, Node::Profile(section(0.0, 1.0)));
+    let (d, path) = section(doc, 0.0, 1.0);
     doc = d;
     let (doc, sweep) = insert(
         doc,
@@ -180,9 +185,9 @@ fn a_loft_document_round_trips_bit_identically() {
 #[test]
 fn a_sweep_document_round_trips_bit_identically() {
     let mut doc = ProfileDoc::empty_derived("m5_pr10_nodes", Tol::witness());
-    let (d, profile) = insert(doc, Node::Profile(section(0.0, 1.0)));
+    let (d, profile) = section(doc, 0.0, 1.0);
     doc = d;
-    let (d, path) = insert(doc, Node::Profile(section(0.0, 2.0)));
+    let (d, path) = section(doc, 0.0, 2.0);
     doc = d;
     let (doc, _) = insert(
         doc,
@@ -265,17 +270,15 @@ fn a_well_formed_loft_evaluates_to_a_body() {
 #[test]
 fn mismatched_sections_refuse_before_the_frontier() {
     let mut doc = ProfileDoc::empty_derived("m5_pr10_nodes", Tol::witness());
-    let (d, a) = insert(doc, Node::Profile(section(0.0, 1.0)));
+    let (d, a) = section(doc, 0.0, 1.0);
     doc = d;
     // A triangle where the other section is a quad: no correspondence.
-    let (d, b) = insert(
+    let (d, b) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (2.0, 0.0), (1.0, 1.0)]],
-        )),
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (2.0, 0.0), (1.0, 1.0)]],
     );
     doc = d;
     let (doc, loft) = insert(
@@ -346,9 +349,9 @@ fn a_non_profile_input_refuses_typed() {
 #[test]
 fn a_sweep_node_reaches_its_own_wider_frontier() {
     let mut doc = ProfileDoc::empty_derived("m5_pr10_nodes", Tol::witness());
-    let (d, profile) = insert(doc, Node::Profile(section(0.0, 1.0)));
+    let (d, profile) = section(doc, 0.0, 1.0);
     doc = d;
-    let (d, path) = insert(doc, Node::Profile(section(0.0, 2.0)));
+    let (d, path) = section(doc, 0.0, 2.0);
     doc = d;
     let (doc, sweep) = insert(
         doc,
@@ -377,9 +380,9 @@ fn a_sweep_node_reaches_its_own_wider_frontier() {
 #[test]
 fn a_sweeps_structural_slots_are_checked_before_the_frontier() {
     let mut doc = ProfileDoc::empty_derived("m5_pr10_nodes", Tol::witness());
-    let (d, profile) = insert(doc, Node::Profile(section(0.0, 1.0)));
+    let (d, profile) = section(doc, 0.0, 1.0);
     doc = d;
-    let (d, path) = insert(doc, Node::Profile(section(0.0, 2.0)));
+    let (d, path) = section(doc, 0.0, 2.0);
     doc = d;
     let (doc, sweep) = insert(
         doc,

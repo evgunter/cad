@@ -2,7 +2,10 @@
 //! body builders (through public profile/sweep APIs only), the
 //! full-mesh acceptance check, exact surface distances, and the D9
 //! byte-identity dump.
-#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(dead_code)]
+// one instance per binary; no single consumer uses all of it
+// Why a helper tree allows these: `crates/editor-core/tests/fixture/mod.rs`.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 /// The Euler-door witnesses the iso-rectangle shape door is measured

@@ -60,8 +60,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
 
 use corpus::{CorpusDoc, cone, documents, eval, failures};
 use editor_core::eval::KeyHasher;
@@ -189,6 +188,25 @@ fn value_digest<T: Decide + ValueChannelBits>(ev: &Evaluation<T>) -> u64 {
                         d.vec3(u.get());
                         d.vec3(v.get());
                     }
+                    // Tag 24, appended: an in-plane axis is its own
+                    // payload, and BOTH its spellings are digested —
+                    // the sketch pair is what a revolve consumes, so a
+                    // drift there that the world lift happened to hide
+                    // must still move the digest.
+                    ValuePayload::Datum(DatumValue::AxisInPlane {
+                        plane_origin,
+                        plane_dir,
+                        origin,
+                        dir,
+                    }) => {
+                        d.u64(24);
+                        d.scalar(plane_origin.x);
+                        d.scalar(plane_origin.y);
+                        d.scalar(plane_dir.x);
+                        d.scalar(plane_dir.y);
+                        d.point3(*origin);
+                        d.vec3(dir.get());
+                    }
                     ValuePayload::Profile(p) => {
                         d.u64(13);
                         for lp in p.validated.loops() {
@@ -236,6 +254,11 @@ fn value_digest<T: Decide + ValueChannelBits>(ev: &Evaluation<T>) -> u64 {
                     // The measured quantity IS a lane value, so it is
                     // digested through the same value-channel bracket
                     // every coordinate takes.
+                    // A measure with no value at this scalar digests as
+                    // the ABSENCE, at its own tag: two passes that both
+                    // failed to measure agree, and neither agrees with
+                    // a pass that measured something.
+                    ValuePayload::MeasureUnavailable { .. } => d.u64(24),
                     ValuePayload::Measure { value, dim } => {
                         d.u64(21);
                         d.u64(match dim {

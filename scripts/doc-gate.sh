@@ -60,6 +60,46 @@
 # the one feature selection the two above cannot express; see the
 # `not(feature)` section below. It adds no manifest to the coverage set.
 #
+# TWO MODES, AND THE DEFAULT IS THE WHOLE GATE (S-TCOST C2, Ev's
+# approval in chat 2026-09-03).
+#
+#   * `--nightly`, or nothing at all: all three passes, every root. This
+#     is what `local-scripts/ci-local.sh` runs and what nightly.yml's
+#     `rustdoc (gate, every root)` job runs. `--nightly` NAMES the
+#     default rather than enabling it — a gate whose full form has to be
+#     asked for becomes a subset of itself the first time a caller
+#     forgets to ask.
+#   * `--pr`: pass 1 only, and `--scope` narrows it to the change
+#     filter's `CARGO_SCOPE` packages. This is ci.yml's `fmt` job. It
+#     also narrows `--print-roots` to `.`, so the hosted cache's scope
+#     tracks the passes that actually run.
+#
+# WHY THAT SPLIT IS ALLOWED, and it is the persistence case that
+# docs/CI-MINUTES-2026-08.md §*What is NOT sampled, and the rule*
+# licenses: everything passes 2 and 3 detect PERSISTS in the tree. A
+# broken intra-doc link, a doc comment that stopped rendering, a
+# `not(feature)` half that no longer compiles — none of them heals, so a
+# run a few hours later finds what a PR run would have. None of them is
+# a detector of ABSENCE, which is the shape that rule forbids demoting.
+# The parts of this file that ARE about absence — the two readers below,
+# which refuse to report green over a tree they could not read, and the
+# derived root list whose whole subject is a root falling silently out
+# of coverage — are inside passes 2 and 3 and moved to the nightly WITH
+# them. They run there in full, over the same tree, every night; nothing
+# was left behind at a cadence its own guard does not share.
+#
+# WHAT THE SPLIT COSTS is attribution: a break in an excluded root, or
+# inside a `not(feature)` half, lands on the night's merges rather than
+# on the PR that wrote it. The handles are nightly.yml's `ref` dispatch
+# input and the local gate, which is unsplit and unscoped.
+#
+# THE SELF-TEST CARRIES AN ARM PER MODE, in both directions, because a
+# mode is a second gate and an unchecked one is the failure this file's
+# `--selftest` exists for. `--pr` must still fire on a workspace-pass
+# break, and must NOT fire on the two it no longer reads — which is how
+# the boundary above is stated in something that runs rather than in
+# this comment.
+#
 # THE ROOT LIST IS DERIVED AND MUST STAY DERIVED. A literal list here
 # would be the second hand-written roster in this repo, and
 # scripts/gates/gate-roster.sh exists because the first one drifted: a
@@ -203,32 +243,61 @@
 # AND `rustdoc::broken_intra_doc_links` IS ALLOWED IN PASS 3 — ONLY
 # THERE, AND THIS IS THE COST OF THE WIDENING RATHER THAN A TIDINESS
 # FLAG. With F off, every link into F-gated code is unresolvable BY
-# CONSTRUCTION. MEASURED 2026-08-31, on the derived root set of that
-# date: a `-D warnings` pass 3 reddens 15 CORRECT link SITES — 13 in
-# `geom-core` over five identifiers (`Interval`, `DualInterval`,
-# `Probe`, `start_recording`, `take_samples`, across `dual.rs`,
-# `k_stats.rs` and `real.rs`) and 2 in `topo`'s boolean prose
-# (`SweepStrategy::Idealized`, `boolean/mod.rs:27` and
-# `boolean/reduce.rs:18`). That is the SAME false-positive population
-# the FEATURES paragraph above adopted --all-features to kill, arriving
-# from the other side. Reds on prose that is correct under the gate's
-# own primary selection are how a gate gets routed around, so the lint
-# that cannot tell "this link is broken" from "this link's target is in
-# the other half" is off in this pass. The count and the names are
-# DATED because they are a reading of the tree and not a property of it:
-# a number written here that disagrees with the run is the drift this
-# gate is about, which is the same rule the root count above obeys.
+# CONSTRUCTION. RE-MEASURED 2026-09-04, on the derived root set of that
+# date (seven roots): a `-D warnings` pass 3 reddens 25 CORRECT link
+# SITES over 15 identifiers, in FOUR roots. AN IDENTIFIER IS A LINK
+# SPELLING (`Probe` and `crate::Probe` are two, which is how rustdoc
+# reports them), and the enumeration below is COMPLETE, not
+# illustrative: `geom-core` ×15 over eight (`Interval`, `DualInterval`,
+# `Probe`, `start_recording`, `take_samples`, `crate::Interval`,
+# `crate::Probe`, `crate::Interval::sign_within`, across `dual.rs`,
+# `k_stats.rs`, `real.rs` and `sym.rs`), `editor-core` ×7 over five
+# (`crate::clearance`, `crate::clearance::min_separation`,
+# `crate::clearance::FaceScope`, `crate::report`, `geom_core::Interval`,
+# across `measure.rs`, `eval/measure.rs` and `eval/mod.rs`), `topo` ×2
+# over one (`SweepStrategy::Idealized`, `boolean/mod.rs` and
+# `boolean/reduce.rs`) and `sweep` ×1 over one
+# (`ring_clearance_for_tests`, `blend/surgery.rs`). Line numbers are
+# deliberately NOT carried: they are the half of a citation that rots
+# fastest, and the 2026-08-31 reading this supersedes had already
+# drifted one (`boolean/mod.rs:27` is now `:31`) with nothing saying so.
+#
+# THE POPULATION GREW AND SPREAD, AND THE LIKE-FOR-LIKE PAIR IS SITES —
+# 15 on 2026-08-31 and 25 now, two roots then and four now, both over
+# the whole derived root set. The identifier figures are NOT comparable
+# and nothing rests on them: the superseded "five" was `geom-core`'s
+# share alone (its two-root total was six) and collapsed spellings this
+# reading counts apart. What the growth is evidence of cuts both ways
+# and both are said: it strengthens the case for ALLOWING the lint here,
+# and it is a reading of how fast an UNWATCHED number rots — 67% in five
+# days, into two roots it was not in, with nothing going red. The second
+# is not an argument for a register; §Q6/#651 draws that line, and the
+# lint's case does not turn on the magnitude.
+#
+# IT IS THE SAME FALSE-POSITIVE POPULATION the FEATURES paragraph above
+# adopted --all-features to kill, arriving from the other side. Reds on
+# prose that is correct under the gate's own primary selection are how a
+# gate gets routed around, so the lint that cannot tell "this link is
+# broken" from "this link's target is in the other half" is off in this
+# pass. The count and the names are DATED because they are a reading of
+# the tree and not a property of it: a number written here that
+# disagrees with the run is the drift this gate is about, which is the
+# same rule the root count above obeys.
 #
 # THE PER-ROOT DENY LIST, CONSIDERED AND REJECTED. Allowing the lint on
-# `geom-core` and `topo` alone — the two roots that carry cross-half
-# prose today — looks tighter and is worse: it makes the LINT SET a
-# function of which crate currently happens to have such prose, so the
-# first correct cross-half link written in `mesh` reds for being
-# correct, and the remedy a reader reaches for at 2am is to delete the
-# link. A blind spot that is uniform is one sentence; a blind spot that
-# is per-root is a roster, and the paragraphs above are about rosters.
+# the roots that carry cross-half prose today looks tighter and is
+# worse: it makes the LINT SET a function of which crate currently
+# happens to have such prose, so the first correct cross-half link
+# written in `mesh` reds for being correct, and the remedy a reader
+# reaches for at 2am is to delete the link. A blind spot that is uniform
+# is one sentence; a blind spot that is per-root is a roster, and the
+# paragraphs above are about rosters. THAT IS NOW MEASURED RATHER THAN
+# PREDICTED: `geom-core, topo` when the list was rejected on 2026-08-31,
+# `geom-core, topo, editor-core, sweep` today — the roster drifted
+# inside five days, in a tree where nothing was trying to make it.
 #
-# THE BLIND SPOT THAT LEAVES, NAMED, AND SCHEDULED AT ISSUE #1317: a
+# THE BLIND SPOT THAT LEAVES, NAMED, AND ACCEPTED PERMANENTLY (issue
+# #1317, answered 2026-09-04): a
 # genuinely broken intra-doc link written INSIDE a `not(feature)` half
 # is still reported by nothing. The lint is on in pass 1 and pass 2, so
 # it covers the whole tree under --all-features and only this one shape
@@ -239,21 +308,98 @@
 # doc build, so prose on an item that stopped existing is a hard error
 # rather than a silence.
 #
-# THE SIBLING AXIS PASS 3 DOES NOT COVER, swept and named rather than
-# left to be rediscovered, AND SCHEDULED AT ISSUE #1317 alongside the
-# blind spot above: `#[cfg(not(debug_assertions))]`. `cargo doc` runs
-# the dev profile, so `debug_assertions` is ON in every pass here and
-# that half is compiled out of all three — the same shape as the
-# feature axis, one profile over, and no feature selection reaches it.
-# Sixteen sites carry it as of 2026-08-31
+# ACCEPTED, AND NOT DEFERRED, BECAUSE THE DIFFERENTIAL RUN BANKED AS
+# THE ALTERNATIVE CANNOT WORK — derived here so the next reader does
+# not re-reach for it. The idea was to document each root at BOTH
+# selections and red only on a site both runs report. What kills it is
+# that the two runs never see the same site: a link inside a `not(F)`
+# half is reported at
+# `--no-default-features`; at `--all-features` its ENCLOSING ITEM is not
+# compiled, so rustdoc says nothing about it — not "resolved", nothing.
+# The intersection therefore contains none of the sites the differential
+# was for, and its difference is the whole 25-site false-positive
+# population above. THAT ARGUMENT IS THE WHOLE OF IT and stands alone.
+#
+# A SECOND ARGUMENT STOOD HERE AND WAS FALSE; it is corrected rather
+# than deleted, because a wrong reason removed without a trace is one
+# the next reader re-derives. It read "features are additive, so no
+# selection compiles the `not(F)` half while the `F` half's targets
+# exist". Additivity constrains ONE crate's own feature set and not a
+# DEPENDENCY's, which cargo lets you set independently: measured
+# 2026-09-04, `cargo doc -p editor-core --no-default-features --features
+# geom-core/interval` compiles editor-core with its own `interval` OFF
+# while `geom_core::Interval` exists, 7 unresolved sites down to 6 — and
+# `interval = ["geom-core/interval", …]` forwarding is the shape this
+# workspace is built out of. Only the intra-crate claim survives, and
+# the differential does not need it.
+#
+# A `--output-format json` census at --all-features could
+# answer "does this NAME exist in the crate" but not "does this LINK
+# resolve" — intra-doc resolution is scope-sensitive, so a name check
+# both over- and under-approximates it, and it would buy the format
+# instability that is its own open question. So the hole is one
+# sentence, uniform, said here and once more where a contributor meets
+# it (README's build block), rather than a second instrument. THE README
+# DOES NOT RESTATE THIS COUNT: it carries its own reader's reading —
+# default features, public items — which is a different population,
+# dated there.
+#
+# THE SIBLING AXIS, ANSWERED AT THE SAME TIME AND BY MEASUREMENT:
+# `#[cfg(not(debug_assertions))]`. Banked as a cost question — "covering
+# it means a `--release` doc pass" — it is not one, because THAT PASS
+# WOULD READ NOTHING. Measured on the pinned toolchain (1.97.0,
+# 2026-09-04): cargo passes no `-C debug-assertions` to rustdoc at all,
+# so `cargo doc --release` skips the `not` half exactly as dev does; and
+# rustdoc IGNORES the flag handed to it directly, where rustc under it
+# compiles that half (probe: a `#[cfg(not(debug_assertions))]
+# compile_error!`, firing for rustc and never for rustdoc). No rustdoc
+# invocation reaches this axis, so no pass can be written that does. A
+# SECOND, INDEPENDENT reason on THIS tree: the root `[profile.release]`
+# sets `debug-assertions = true`.
+#
+# WHAT IT WOULD HAVE COST, since the point of measuring was to decide:
+# +81.0 s cold / +40.1 s warm for a fourth pass over the workspace less
+# `viewer`, +25.1 s / +3.3 s for the minimal derived selection
+# (`-p geom-core -p topo`) — 4 vCPU / 15 GB, the public repo's
+# standard-runner class, `doc_pass`'s two-invocation shape, cold being
+# the first build at that profile's fingerprints. Free minutes make it
+# affordable; it is still not worth a second, the coverage being zero.
+#
+# AND THE AXIS IS NOT UNCOVERED, WHICH IS THE OTHER HALF OF THE ANSWER.
+# Swept 2026-09-04, same family matcher this file's `not(feature)`
+# derivation uses: 14 `#[cfg(not(debug_assertions))]` ATTRIBUTES
 # (`crates/geom-core/src/spline/knots.rs` ×1,
-# `crates/topo/src/review_d18.rs` ×12,
-# `crates/topo/src/review_m1_pr2/release_corruption.rs` ×3), every one a
-# statement or expression block rather than a documented item, so the
-# axis is LATENT here rather than live: there is no prose behind it
-# today to be unread. Covering it means a `--release` doc pass, which is
-# a cost decision and not a spelling one, and it is not taken on this
-# gate's own authority.
+# `crates/topo/src/review_d18.rs` ×11,
+# `crates/topo/src/review_m1_pr2/release_corruption.rs` ×2), plus two
+# hits of the shape inside `//!` prose — the 2026-08-31 reading of "16"
+# was the raw grep, attributes and prose together. THIRTEEN OF THE
+# FOURTEEN ARE INSIDE `#[cfg(test)]` MODULES (`crates/topo/src/lib.rs`
+# gates both), which no `cargo doc` compiles at ANY profile, so a
+# working `--release` pass would not have read them either; the
+# fourteenth is a bare expression block in a function body, which
+# rustdoc does not document. ALL FOURTEEN ARE TYPE-CHECKED TODAY, by
+# nightly.yml's `corrupt-input suites, release profile` job — it pins
+# `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"` over the whole graph
+# precisely so those halves compile.
+#
+# THAT IS ABOUT THESE FOURTEEN, NOT ABOUT THE AXIS. The job's reach is
+# `-p topo --lib` plus topo's closure (`bvh`, `geom`, `geom-brep`,
+# `geom-core`), and all fourteen happen to sit inside it today; a
+# FIFTEENTH in `mesh`, `sweep`, `editor-core`, `viewer` or `step-*`
+# would be compiled by no job at debug-assertions-off AND read by no doc
+# pass, with nothing going red. So: owned by that job WHERE IT REACHES,
+# owned by nothing outside topo's closure — today's tree, dated like the
+# counts above.
+#
+# THE LATENCY IS NOT "no prose behind the cfg", which the earlier
+# reading said: items behind this cfg DO carry prose, three of them with
+# intra-doc links in it (`review_d18`'s `OPS`, `tear_landed`, `hammer`).
+# It is latent because all of those sit inside `#[cfg(test)]`, unread
+# for a SECOND reason, and the one site outside documents nothing. An
+# item outside `cfg(test)` growing prose behind this cfg is what no gate
+# would say anything about, and it does not exist today. The two
+# selftest arms below pin the mechanism so this stays a decision rather
+# than a forgetting.
 #
 # WHAT PASS 3 COSTS, so the next reader prices it rather than
 # rediscovers it. It is a DISTINCT FEATURE UNIFICATION, which is F6's
@@ -267,6 +413,14 @@
 # +22.5 s the fixtures). THE NUMBER GREW EVERY TIME IT WAS RE-READ,
 # which is the honest headline: plan against the largest and re-read it
 # rather than quoting the first.
+#
+# THE PROFILE-AXIS PAIR BELOW IS PRICED TOO, since a pass this file
+# DECLINES is priced to a tenth of a second and the arms it SHIPS would
+# otherwise not be priced at all: 7.0-7.4 s standing alone, and
+# `--selftest` end to end 85.0 -> 94.5 s, i.e. +9.5 s warm (2026-09-04,
+# 4 vCPU / 15 GB, three paired runs). That lands on every PR, in the
+# same `fmt` job the paragraph below records as already past F6's 2
+# billed minutes.
 #
 # HOSTED, WARM AGAINST WARM, WHICH IS THE READING THAT DECIDES THE BILL:
 # the `fmt` job's `rustdoc (gate)` step goes 110 s -> 153 s and the job
@@ -342,7 +496,12 @@
 #     price of the exception paragraph above and is named as such.
 #
 # THE OUTSIDE ROOTS ARE ALSO THE CACHE'S SCOPE, WHICH IS WHY
-# `--print-roots` EXISTS. Hosted CI's `fmt` job restores one
+# `--print-roots` EXISTS — AND WHY IT READS THE MODE. Under `--pr` it
+# prints `.` alone, because that mode writes one target directory;
+# telling rust-cache about six the job never touches is a restore and a
+# re-save bought for nothing. The measurement below is the full mode's,
+# which is what nightly.yml runs and what the entry it cites measured.
+# Hosted CI's `fmt` job restores one
 # `Swatinem/rust-cache` entry, and until #921 that entry covered `./target`
 # and nothing else — so the workspace pass ran against a warm dependency
 # graph while the six roots above compiled from nothing on EVERY run,
@@ -649,6 +808,17 @@ $cand
 # cached by this list because they are already inside it.
 print_roots() {
   local m outside
+  # `--pr` DOCUMENTS ONE ROOT, SO IT CACHES ONE. The hosted `fmt` job
+  # hands this straight to `Swatinem/rust-cache`'s `workspaces:`, and an
+  # input that named six target directories the job no longer writes
+  # would restore and re-save them for nothing — the cost F6 measured,
+  # paid for coverage that has moved to the nightly. Same derivation,
+  # narrowed by the same flag that narrows the passes, so the cache's
+  # scope cannot drift from the gate's.
+  if [ "$MODE" = pr ]; then
+    printf '.\n'
+    return 0
+  fi
   # CAPTURED INTO A VARIABLE, AND THE FAILURE CHECKED HERE TOO. Written
   # as `done <<<"$(outside_roots)"` a reader that could not answer would
   # print its diagnosis, hand back nothing, and this would print a bare
@@ -675,27 +845,82 @@ gate() {
     return 0
   fi
 
-  # PASS 1 — the workspace.
+  # PASS 1 — the workspace, at whatever selection `--scope` named.
   #
-  # `--skip-viewer-toolkit` is the ONE thing that changes here, and it
-  # changes the FEATURES of one member rather than dropping it: `viewer`
-  # comes out of the --all-features pass and goes back in under DEFAULT
-  # features, so its renderer-free modules keep their rustdoc gate and
-  # only the `app`-gated ones (which drag ~140 eframe/wgpu crates in)
-  # are skipped. Evan's viewer-CI-posture ruling, docs/GUI-LOG.md
+  # `--skip-viewer-toolkit` is the ONE feature thing that changes here,
+  # and it changes the FEATURES of one member rather than dropping it:
+  # `viewer` comes out of the --all-features pass and goes back in under
+  # DEFAULT features, so its renderer-free modules keep their rustdoc gate
+  # and only the `app`-gated ones (which drag ~140 eframe/wgpu crates in)
+  # are skipped. Ev's viewer-CI-posture ruling, docs/GUI-LOG.md
   # 2026-08-27; the caller decides, this script only obeys, and the
   # hosted caller passes the flag off the change filter's seed-keyed
   # RUN_VIEWER_TOOLKIT.
+  #
+  # `--exclude viewer` IS SPELLED ONLY WHEN THE SELECTION IS THE WHOLE
+  # WORKSPACE, because cargo accepts it only there. Under an explicit
+  # `-p` list the same intent is expressed by leaving `viewer` out of the
+  # --all-features invocation and documenting it separately — and only
+  # when the list names it at all, since a closure that does not reach
+  # `viewer` has no viewer prose to read.
+  local -a scope_no_viewer=()
+  local wants_viewer=false t prev=
+  if [ "${SCOPE_ARGS[0]}" = "--workspace" ]; then
+    wants_viewer=true
+    scope_no_viewer=(--workspace --exclude viewer)
+  else
+    # The selection is `-p NAME` pairs — the argv parser proved that
+    # before `gate_main` ran. Walk them and split `viewer` out of the
+    # --all-features invocation, keeping the rest in.
+    for t in "${SCOPE_ARGS[@]}"; do
+      if [ "$prev" = "-p" ]; then
+        if [ "$t" = viewer ]; then
+          wants_viewer=true
+        else
+          scope_no_viewer+=(-p "$t")
+        fi
+      fi
+      prev=$t
+    done
+  fi
+
   if [ "$SKIP_VIEWER_TOOLKIT" = true ]; then
-    doc_pass "the workspace pass (viewer at default features) — a doc comment above has stopped rendering (a link to a renamed, deleted, or test-only item is the usual cause), and clippy is blind to every one of these lints" \
-      --workspace --all-features --exclude viewer || rc=1
-    doc_pass "the viewer pass at DEFAULT features — its renderer-free modules are gated on every run; only the app-feature modules are skipped" \
-      -p viewer || rc=1
+    # THE ALL-FEATURES INVOCATION CAN BE EMPTY under a closure whose only
+    # member is `viewer`, and `cargo doc` with no package selection would
+    # then document the current directory instead of nothing — a pass over
+    # the wrong tree reading as a pass. So it is skipped rather than run
+    # empty, and the viewer pass below is the whole of pass 1.
+    if [ ${#scope_no_viewer[@]} -gt 0 ]; then
+      doc_pass "the workspace pass (viewer at default features) — a doc comment above has stopped rendering (a link to a renamed, deleted, or test-only item is the usual cause), and clippy is blind to every one of these lints" \
+        "${scope_no_viewer[@]}" --all-features || rc=1
+    fi
+    if [ "$wants_viewer" = true ]; then
+      doc_pass "the viewer pass at DEFAULT features — its renderer-free modules are gated on every run; only the app-feature modules are skipped" \
+        -p viewer || rc=1
+    fi
   else
     doc_pass "the workspace pass — a doc comment above has stopped rendering (a link to a renamed, deleted, or test-only item is the usual cause), and clippy is blind to every one of these lints" \
-      --workspace --all-features || rc=1
+      "${SCOPE_ARGS[@]}" --all-features || rc=1
   fi
   n=1
+
+  # `--pr` STOPS HERE, AND THE SUCCESS LINE SAYS WHAT IT DID NOT READ.
+  #
+  # Passes 2 and 3 — the six cargo roots the workspace excludes, and the
+  # --no-default-features re-read of every root carrying a not(feature)
+  # half — are the nightly's, ungated, once a day. The soundness argument
+  # is the one docs/CI-MINUTES-2026-08.md §*What is NOT sampled* licenses:
+  # a broken intra-doc link PERSISTS in the tree, so a later run finds it.
+  # It is not an absence detector — nothing here notices that a check went
+  # missing, only that prose stopped rendering — and the derivations that
+  # WOULD be absence detectors (the two readers, the root list) moved with
+  # the passes and still run in full every night.
+  if [ "$MODE" = pr ]; then
+    GATE_SCAN_FILES=$n
+    [ "$rc" -eq 0 ] || exit 1
+    gate_ok "the workspace pass renders under --pr, over ${SCOPE_ARGS[*]} — library, binary and example targets alike. NOT READ HERE and re-taken ungated by nightly.yml's \`rustdoc (gate, every root)\` job: the cargo roots this workspace excludes, and the --no-default-features pass over every root with a not(feature) half"
+    return 0
+  fi
 
   # PASS 2 — every manifest the workspace pass did not cover, one
   # `--no-deps` pass each, so a package in a nested workspace is
@@ -776,11 +1001,12 @@ gate() {
 gate_plant_clean() {
   local r=$1
   mkdir -p "$r/crates/clean/src" "$r/crates/clean/examples" \
+    "$r/crates/viewer/src" \
     "$r/outside/src" "$r/outside/examples" \
     "$r/interval-transcendentals/src"
   {
     printf '[workspace]\nresolver = "2"\n'
-    printf 'members = ["crates/clean"]\n'
+    printf 'members = ["crates/clean", "crates/viewer"]\n'
     printf 'exclude = ["outside", "interval-transcendentals"]\n'
   } > "$r/Cargo.toml"
   {
@@ -799,6 +1025,22 @@ gate_plant_clean() {
     > "$r/crates/clean/src/main.rs"
   printf '//! The member example, linking to [`main`].\nfn main() {}\n' \
     > "$r/crates/clean/examples/demo.rs"
+  # A SECOND MEMBER, NAMED `viewer` ON PURPOSE — the same reason
+  # DEFAULT_FEATURES_ROOT's fixture package is planted at
+  # `interval-transcendentals/`: the gate matches that literal name, so a
+  # fixture that spelled it anything else would exercise the general path
+  # and never the one the hosted caller takes. It buys two arms that had
+  # none: `--skip-viewer-toolkit` (viewer out of the --all-features
+  # invocation and back in at DEFAULT features), and `--pr --scope`, where
+  # the selection is `-p NAME` pairs and `--exclude` is not spellable.
+  {
+    printf '[package]\nname = "viewer"\nversion = "0.0.0"\nedition = "2021"\n\n'
+    printf '[features]\napp = []\n'
+  } > "$r/crates/viewer/Cargo.toml"
+  {
+    printf '//! The second member, linking to [`identity`].\n'
+    printf 'pub fn identity(x: f64) -> f64 { x }\n'
+  } > "$r/crates/viewer/src/lib.rs"
   {
     printf '[workspace]\n\n'
     printf '[package]\nname = "outside"\nversion = "0.0.0"\nedition = "2021"\n\n'
@@ -1033,6 +1275,56 @@ plant_untracked_worktree_with_broken_link() {
   } > "$1/.claude/worktrees/agent-x/src/lib.rs"
 }
 
+# THE PROFILE AXIS, PINNED IN BOTH DIRECTIONS — the pair that makes the
+# `not(debug_assertions)` answer in the header a thing that runs rather
+# than a paragraph someone re-derives in a year.
+#
+# ONE PLANTER, PARAMETERISED ON THE CFG, and two thin wrappers — the
+# shape `plant_doc_error_behind_not_a_feature` above already uses. The
+# pair differs in the cfg expression and in NOTHING else, and that is
+# the whole content of the experiment: same break, same file, same
+# invocation, one bit changed. Two copies of the body would let the
+# bodies drift apart, which would make the pair prove less than it
+# looks like it proves.
+plant_broken_link_behind_cfg() {
+  {
+    printf '\n#[cfg(%s)]\n' "$2"
+    printf '/// Links to [`no_such_item`].\npub fn documented() {}\n'
+  } >> "$1/crates/clean/src/lib.rs"
+}
+
+# The FIRST plants the break behind `#[cfg(debug_assertions)]` and must
+# FIRE. WHAT IT CONTROLS FOR IS NARROW, and narrower than it first
+# looks: `plant_broken_link_in_member` already appends the
+# byte-identical break to the byte-identical path and fires in every
+# mode, so "the fixture reaches rustdoc at all" is pinned without this
+# arm. What this one adds is that a `#[cfg(…)]` ATTRIBUTE standing over
+# the item does not by itself suppress the lint — so the second arm's
+# green is about WHICH cfg, not about there being one.
+plant_broken_link_behind_debug_assertions() {
+  plant_broken_link_behind_cfg "$1" 'debug_assertions'
+}
+
+# The SECOND plants the SAME break behind `#[cfg(not(debug_assertions))]`
+# and must PASS — because rustdoc compiles that half in no invocation
+# this repo can spell, which is the measured finding the header records.
+# Note the lint here is the FULL set: this half is read (or not) by pass
+# 1, not by pass 3, so `broken_intra_doc_links` is DENIED and the only
+# thing standing between this fixture and a red is the cfg itself.
+#
+# IT IS A TRIPWIRE, AND SAYING SO IS THE POINT. A future rustdoc that
+# honours `-C debug-assertions`, or a cargo that passes the profile's
+# codegen options through to rustdoc, turns this arm RED. That is not a
+# fixture to repair: it is the header's cost paragraph becoming
+# answerable again, and the response is to re-price the fourth pass
+# against whatever prose the axis carries by then — not to reach for
+# `#[allow]`. THE PRICE IS NOT RESTATED HERE, for the reason
+# `plant_link_from_the_disarmed_half_into_the_gated_one` gives above:
+# the header owns that measurement and is one grep away.
+plant_broken_link_behind_not_debug_assertions() {
+  plant_broken_link_behind_cfg "$1" 'not(debug_assertions)'
+}
+
 # --document-private-items, pinned. Without the flag rustdoc never
 # renders a private item and so never resolves its links, and this
 # fixture goes green — which is precisely how the flag could be dropped
@@ -1058,6 +1350,13 @@ plant_public_link_to_private_item() {
 # workspace MEMBER must NOT appear: it is covered by pass 1, and
 # `crates/clean/target` is a directory cargo never writes, so caching it
 # would be caching nothing while reading as a covered root.
+# THE SECOND MEMBER'S BREAK. Read by pass 1 in every mode — but only when
+# the SELECTION names it, which is what the --scope arms below turn on.
+plant_broken_link_in_viewer_member() {
+  printf '\n/// Links to [`no_such_item`].\npub fn documented() {}\n' \
+    >> "$1/crates/viewer/src/lib.rs"
+}
+
 gate_selftest_prints_roots() {
   local tmp out want
   tmp=$(mktemp -d)
@@ -1078,6 +1377,55 @@ outside'
       "$want" "$out" >&2
     exit 1
   fi
+}
+
+# `--print-roots --pr` PRINTS EXACTLY ONE ROOT, and the hosted `fmt` job's
+# cache is scoped to whatever it prints. The failure this pins is the
+# quiet one in the other direction from `gate_selftest_prints_roots`: a
+# `--pr` that kept printing all seven would have rust-cache restoring and
+# re-saving six target directories the PR job no longer writes, on every
+# run, for coverage that has moved to the nightly.
+gate_selftest_prints_roots_pr() {
+  local tmp out
+  tmp=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  if ! out=$("$0" --root "$tmp" --print-roots --pr 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: --print-roots --pr exited non-zero on a clean fixture\n%s\n' "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+  if [ "$out" != "." ]; then
+    printf 'SELFTEST FAILED: --print-roots --pr printed more than the workspace root. The PR mode documents ONE root, so caching seven is six target directories restored and re-saved for passes that did not run.\nwanted:\n.\ngot:\n%s\n' \
+      "$out" >&2
+    exit 1
+  fi
+}
+
+# gate_selftest_rejects WHAT WANT ARGS... — a MALFORMED INVOCATION, on a
+# clean fixture. The scope parser is the one place in this file that fails
+# CLOSED on its input rather than open into more work, and a parser never
+# shown to refuse anything is the same non-guard `--selftest` exists for:
+# without these, `--scope 'p geom-core'` would silently become
+# `--workspace` (or worse, nothing) and the gate would report green over a
+# selection nobody asked for.
+gate_selftest_rejects() {
+  local what=$1 want=$2; shift 2
+  local tmp out
+  tmp=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  if out=$("$0" --root "$tmp" "$@" 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: the gate ACCEPTED %s and ran anyway\n%s\n' "$what" "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+  gate_selftest_assert_diagnosed "$what" "$out"
+  case "$out" in
+    *"$want"*) ;;
+    *) printf 'SELFTEST FAILED (%s): the gate refused with an unexpected message:\n%s\n' "$what" "$out" >&2
+       exit 1 ;;
+  esac
 }
 
 gate_selftest() {
@@ -1107,6 +1455,12 @@ gate_selftest() {
     plant_excepted_root_paired_module_plus_a_gated_break
   gate_selftest_passes "a cargo root the repository does not track (an agent worktree under .claude/)" \
     plant_untracked_worktree_with_broken_link
+  # THE PROFILE AXIS, BOTH DIRECTIONS. The FIRES arm is the positive
+  # control that keeps the PASSES arm from being vacuous; the PASSES arm
+  # is the tripwire on a rustdoc that starts reading the other half.
+  gate_selftest_case "$want" plant_broken_link_behind_debug_assertions
+  gate_selftest_passes "a broken link behind not(debug_assertions) — no rustdoc invocation compiles that half" \
+    plant_broken_link_behind_not_debug_assertions
   # THE TWO READERS. Both decide whether pass 2 covers anything, and
   # neither had ever been shown to fail — S157's class, in the gate
   # whose subject is that a guard never shown to fire is not a guard.
@@ -1126,22 +1480,160 @@ gate_selftest() {
   gate_selftest_without_tool cargo "cargo metadata failed"
   gate_selftest_without_tool git "git ls-files failed"
   GATE_SELFTEST_ARGS=()
-  printf '%s selftest OK: passes a clean three-root fixture, a public link to a private sibling, a link from a not(feature) half into the gated one, prose behind the excepted root'"'"'s feature (whether or not pass 3 also reads that root), and an untracked worktree checkout; fires on a broken link in a workspace member and in a root outside the workspace — in each of their same-named binaries and examples — on a private item, on an excluded root'"'"'s feature-gated prose, on a doc error inside a not(feature) half in each of the gate'"'"'s three root treatments, and when either cargo or git cannot answer; prints the derived root set under --print-roots, and diagnoses rather than shortening it when a reader fails\n' \
+
+  # `--pr`, THE PR-RUN SUBSET — A CASE PER MODE, AND BOTH DIRECTIONS OF
+  # EACH. A mode that only ever ran its own arms would be a second gate
+  # nobody checks; what these pin is exactly the boundary the demotion
+  # drew. The FIRES arm says pass 1 still gates on a PR; the two PASSES
+  # arms say, in the harness rather than in prose, precisely which
+  # coverage moved to the nightly — so deleting nightly.yml's job and
+  # leaving this mode in place is a claim these cases already contradict.
+  gate_selftest_prints_roots_pr
+  GATE_SELFTEST_ARGS=(--pr)
+  gate_selftest_clean
+  gate_selftest_case "$want" plant_broken_link_in_member
+  gate_selftest_passes "a broken link in a root the workspace EXCLUDES — pass 2 is the nightly's" \
+    plant_broken_link_in_excluded_root
+  gate_selftest_passes "a doc error inside a not(feature) half — pass 3 is the nightly's" \
+    plant_doc_error_behind_not_a_feature_in_member
+  GATE_SELFTEST_ARGS=()
+
+  # `--pr --scope`, THE CLOSURE SELECTION. Both directions again, because
+  # a scope is the one input here that can quietly document NOTHING: a
+  # selection the gate mis-splits runs `cargo doc` over the current
+  # directory and exits zero.
+  GATE_SELFTEST_ARGS=(--pr --scope "-p viewer")
+  gate_selftest_case "$want" plant_broken_link_in_viewer_member
+  gate_selftest_passes "a break in a member the --scope selection does not name" \
+    plant_broken_link_in_member
+  GATE_SELFTEST_ARGS=()
+  GATE_SELFTEST_ARGS=(--pr --scope "-p clean")
+  gate_selftest_case "$want" plant_broken_link_in_member
+  gate_selftest_passes "a break in the OTHER member, which this selection does not name" \
+    plant_broken_link_in_viewer_member
+  GATE_SELFTEST_ARGS=()
+
+  # `--skip-viewer-toolkit` HAD NO ARM AT ALL until this fixture grew a
+  # `viewer` member, in either mode: the flag takes that member out of the
+  # --all-features invocation and puts it back at DEFAULT features, and
+  # nothing had ever shown the second half of that happening. Under a
+  # `-p` selection it cannot be spelled with `--exclude`, which is the
+  # arm that matters on a PR run — where the closure names viewer and the
+  # seeds do not buy the toolkit.
+  GATE_SELFTEST_ARGS=(--skip-viewer-toolkit)
+  gate_selftest_case "$want" plant_broken_link_in_viewer_member
+  GATE_SELFTEST_ARGS=()
+  GATE_SELFTEST_ARGS=(--pr --skip-viewer-toolkit --scope "-p clean -p viewer")
+  gate_selftest_case "$want" plant_broken_link_in_viewer_member
+  gate_selftest_case "$want" plant_broken_link_in_member
+  GATE_SELFTEST_ARGS=()
+
+  # THE SCOPE PARSER REFUSES rather than falling back, and says so.
+  gate_selftest_rejects "a --scope that is not a cargo package selection" \
+    "takes \`--workspace\` or \`-p NAME\` pairs" --pr --scope "p clean"
+  gate_selftest_rejects "a --scope ending in a bare -p" \
+    "ends with a bare" --pr --scope "-p"
+  gate_selftest_rejects "a --scope on the full gate, which has nothing to scope" \
+    "only meaningful with --pr" --scope "-p clean"
+  # THE ONE THAT READS AS A NARROWING AND BEHAVES AS A WIDENING. Without
+  # this arm an empty `CARGO_SCOPE` reaching the hosted step documents the
+  # whole workspace and reports as a scoped pass.
+  gate_selftest_rejects "an empty --scope, which silently widened to --workspace" \
+    "empty selection" --pr --scope ""
+
+  printf '%s selftest OK: passes a clean three-root fixture, a public link to a private sibling, a link from a not(feature) half into the gated one, prose behind the excepted root'"'"'s feature (whether or not pass 3 also reads that root), an untracked worktree checkout, and a broken link behind not(debug_assertions) — the profile axis no rustdoc invocation reaches; fires on a broken link in a workspace member and in a root outside the workspace — in each of their same-named binaries and examples — on a private item, on an excluded root'"'"'s feature-gated prose, on a doc error inside a not(feature) half in each of the gate'"'"'s three root treatments, behind cfg(debug_assertions) (the control for the arm above), and when either cargo or git cannot answer; prints the derived root set under --print-roots, and diagnoses rather than shortening it when a reader fails; and, per MODE: --pr still fires on the workspace pass and deliberately does NOT read the excluded roots or the not(feature) halves (nightly.yml re-takes both), prints exactly one root for the cache, honours a --scope selection in both directions, documents `viewer` at DEFAULT features under --skip-viewer-toolkit with and without an explicit selection, and REFUSES a malformed or EMPTY scope instead of falling back to one nobody asked for\n' \
     "$(gate_name)"
 }
 
-# --print-roots pulled out of argv before lib.sh's parser sees it, the
+# The modes are pulled out of argv before lib.sh's parser sees it, the
 # way scripts/gates/probe-suite-census.sh adds its modes: `gate_parse_args`
 # knows `--selftest` and `--root` and rejects anything else.
+#
+# THE DEFAULT IS THE WHOLE GATE. `--nightly` names it rather than
+# enabling it, so a caller that runs everything SAYS so and a caller that
+# forgets to say anything still runs everything. A default that had to be
+# asked for is how a gate becomes a subset of itself by omission.
 PRINT_ROOTS=false
 SKIP_VIEWER_TOOLKIT=false
+MODE=full
+SCOPE_ARGS=()
+# Whether `--scope` was SPELLED, as opposed to what it resolved to. An
+# empty value resolves to an empty array, which is indistinguishable from
+# never having been passed — and those two must not have the same answer.
+SCOPE_GIVEN=false
 gate_args=()
-for a in "$@"; do
-  case "$a" in
+while [ $# -gt 0 ]; do
+  case "$1" in
     --print-roots) PRINT_ROOTS=true ;;
     --skip-viewer-toolkit) SKIP_VIEWER_TOOLKIT=true ;;
-    *) gate_args+=("$a") ;;
+    --pr) MODE=pr ;;
+    --nightly) MODE=full ;;
+    --scope)
+      shift
+      [ $# -gt 0 ] || { gate_error "$(gate_name): --scope needs a cargo package selection (\`--workspace\`, or one or more \`-p NAME\`)"; exit 2; }
+      # SPLIT ON WHITESPACE ON PURPOSE: the value is `CARGO_SCOPE` as the
+      # change filter prints it, which is one string holding several
+      # tokens. Word-splitting it here is the whole reason it arrives as
+      # one argument rather than as a shell expansion at the call site,
+      # where an empty value would silently become no argument at all and
+      # `cargo doc` would document the current directory's package alone.
+      # shellcheck disable=SC2206
+      SCOPE_ARGS=($1)
+      SCOPE_GIVEN=true
+      ;;
+    *) gate_args+=("$1") ;;
   esac
+  shift
 done
 gate_parse_args ${gate_args[@]+"${gate_args[@]}"}
+
+# THE SCOPE IS VALIDATED, AND A BAD ONE IS A HARD FAILURE rather than a
+# fall back to `--workspace`. Every other failure in this file is an
+# inability to READ the tree, where documenting more is the safe answer;
+# this one is an INPUT ERROR whose author is a workflow step someone is
+# looking at. Falling back would hand them a green gate over a selection
+# they did not ask for, which is the question they were asking.
+if [ "$SCOPE_GIVEN" = true ] && [ ${#SCOPE_ARGS[@]} -eq 0 ]; then
+  # AN EMPTY `--scope` IS A REFUSAL, NOT A DEFAULT. It is the one input
+  # shape that reads as a narrowing and behaves as a widening: the value
+  # word-splits to nothing, `SCOPE_ARGS` falls back to `--workspace`, and
+  # the gate documents the WHOLE workspace while its caller believes it
+  # asked for a closure. The hosted caller interpolates the change
+  # filter's `CARGO_SCOPE` here, so the way this arrives is exactly the
+  # way it would matter — that key coming back empty because the filter
+  # could not classify. Everything else in this file fails open into more
+  # work because it could not READ the tree; this is an input error whose
+  # author is a workflow step someone is looking at, and handing them a
+  # green gate over a selection they did not ask for is the question they
+  # were asking.
+  gate_error "$(gate_name): --scope was given an empty selection. That is not \`--workspace\`: it is a caller asking for a narrowing and getting the widest pass there is. Pass \`--workspace\` if that is what you mean, or drop --scope"
+  exit 2
+fi
+if [ ${#SCOPE_ARGS[@]} -gt 0 ]; then
+  if [ "$MODE" != pr ]; then
+    gate_error "$(gate_name): --scope is only meaningful with --pr; the full gate documents every cargo root this repository tracks and has nothing to scope"
+    exit 2
+  fi
+  _expect_name=false
+  for _t in "${SCOPE_ARGS[@]}"; do
+    if [ "$_expect_name" = true ]; then
+      case "$_t" in
+        -*) gate_error "$(gate_name): --scope has \`-p\` with no package name after it: ${SCOPE_ARGS[*]}"; exit 2 ;;
+      esac
+      _expect_name=false
+      continue
+    fi
+    case "$_t" in
+      --workspace) ;;
+      -p) _expect_name=true ;;
+      *) gate_error "$(gate_name): --scope takes \`--workspace\` or \`-p NAME\` pairs and nothing else; got \`$_t\` in: ${SCOPE_ARGS[*]}"; exit 2 ;;
+    esac
+  done
+  if [ "$_expect_name" = true ]; then
+    gate_error "$(gate_name): --scope ends with a bare \`-p\`: ${SCOPE_ARGS[*]}"
+    exit 2
+  fi
+fi
+[ ${#SCOPE_ARGS[@]} -gt 0 ] || SCOPE_ARGS=(--workspace)
+
 gate_main

@@ -13,7 +13,7 @@
 //! demonstrates it composes, it does not ratify it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{profile, rounded_rect, tol};
 use geom::Curve3;

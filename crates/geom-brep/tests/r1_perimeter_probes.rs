@@ -10,16 +10,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::props::quad::{RVec3, boundary_chord_perimeter_lo};
-use geom_core::RingInterval;
-
-fn p(x: f64, y: f64, z: f64) -> RVec3 {
-    [
-        RingInterval::point(x),
-        RingInterval::point(y),
-        RingInterval::point(z),
-    ]
-}
+use crate::shared::ring::p3 as p;
+use geom_brep::props::quad::boundary_chord_perimeter_lo;
 
 /// Sanity: the flat unit square. True perimeter 4; the chord polygon
 /// on straight edges is exact, so the bound should be 4 to rounding.

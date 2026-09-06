@@ -68,7 +68,21 @@ use topo::{Body, EulerOpError, FaceKey, SurfaceKey};
 /// `decide(` instead finds neither this funnel's callers nor
 /// `revolve::tube`'s four. It over-catches by the doc comments that
 /// name the funnel, which are prose, not calls; that is the price of
-/// having no false negatives. Stated as the command rather than as a
+/// having no false negatives.
+///
+/// There is a **third path**, and the grep does not see it: a
+/// `geom-brep` predicate this crate calls records under its own name,
+/// from its own crate. `geom_brep::classify_dihedral`,
+/// `classify_material_pairing` and — since FILLET-H6 hoisted the
+/// must-carry rule out of two hand-rolled spellings here —
+/// `geom_brep::tangent_second_order` each reach the recorder that way,
+/// so `dihedral_arm`, `dihedral_wedge`, `material_wedge_side` and
+/// `tangent_second_order` appear in this crate's K stream with no
+/// `k_stats::decide` anywhere in `crates/sweep/src` to grep for. That
+/// is the intended shape (one home per predicate, wherever the
+/// predicate lives), not a leak — but a reader counting this crate's
+/// recorder sites from the command above will undercount by it.
+/// Stated as the command plus its one blind spot, rather than as a
 /// count or a list of names.
 pub(crate) fn decide<T: Decide>(
     name: &'static str,
@@ -513,17 +527,15 @@ pub(crate) fn describe_face_rim_at_rest<T: Decide>(
                 key: topo::EntityId::Edge(edge),
             })?
             .curve;
-        let Some(curve) = body
+        let scaffolded = body
             .get_curve_geom(curve_key)
             .and_then(topo::CurveGeom::certified)
-        else {
-            continue; // null scaffolding carries no description at all
-        };
-        if !matches!(curve.description(), geom_brep::EdgeDescription::Scaffold(_)) {
+            // Null scaffolding carries no description at all.
+            .is_some_and(|c| matches!(c.description(), geom_brep::EdgeDescription::Scaffold(_)));
+        if !scaffolded {
             continue;
         }
-        let spec = curve.restated_spec().at_rest_in_chart(chart, false);
-        body.set_edge_curve(edge, spec, tol)?;
+        body.describe_at_rest(edge, chart, tol)?;
     }
     Ok(())
 }

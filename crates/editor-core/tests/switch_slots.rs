@@ -9,27 +9,42 @@
 //! evaluation error (V1 class 2). Both directions pinned here.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::fixture;
+
 use editor_core::{
     CancelToken, Dimension, DocEdit, DocParam, EditError, EvalOptions, Expr, ExprPath, LoopProgram,
-    Node, NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram, ProgramRefusal,
-    RecipeNodeId, SlotId, StepArg, ValuePayload, evaluate,
+    Node, NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfilePayload, ProfileProgram,
+    ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, SlotId, StepArg,
+    ValuePayload, evaluate,
 };
 use geom_core::Tol;
-use profile::SketchPlane;
+
+/// Every document below is a frame and then the profile drawn on it,
+/// in that order.
+const PLANE: RecipeNodeId = RecipeNodeId(0);
+const PROFILE: RecipeNodeId = RecipeNodeId(1);
 
 fn circle_doc(r: f64) -> ProfileDoc {
-    ProfileDoc::empty_derived("switch_slots", Tol::witness())
+    let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Profile(ProfileProgram {
-                    plane: SketchPlane::xy(),
-                    loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
-                }),
+                node: fixture::xy_frame(),
             },
             Tol::witness(),
         )
         .unwrap()
-        .doc
+        .doc;
+    doc.apply(
+        &DocEdit::InsertNode {
+            node: Node::Profile(ProfileProgram {
+                plane: PLANE,
+                loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
+            }),
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .doc
 }
 
 fn radius_slot() -> SlotId {
@@ -46,7 +61,7 @@ fn radius_slot() -> SlotId {
 #[test]
 fn profile_nodes_enumerate_program_slots() {
     let doc = circle_doc(0.5);
-    let Some(node) = doc.node(RecipeNodeId(0)) else {
+    let Some(node) = doc.node(PROFILE) else {
         panic!("profile node");
     };
     let slots = node.slots();
@@ -81,7 +96,7 @@ fn set_param_on_a_program_slot_moves_geometry() {
     let grown = doc
         .apply(
             &DocEdit::SetParam {
-                node: RecipeNodeId(0),
+                node: PROFILE,
                 slot: radius_slot(),
                 expr: Expr::literal(0.75, Dimension::Length).unwrap(),
             },
@@ -99,7 +114,7 @@ fn set_param_on_a_program_slot_moves_geometry() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    let Some(v) = ev.value(RecipeNodeId(0)) else {
+    let Some(v) = ev.value(PROFILE) else {
         panic!("profile evaluates");
     };
     let ValuePayload::Profile(pv) = &v.payload else {
@@ -128,7 +143,7 @@ fn set_expression_and_expr_at_route_into_programs() {
     let doc = doc
         .apply(
             &DocEdit::SetParam {
-                node: RecipeNodeId(0),
+                node: PROFILE,
                 slot: radius_slot(),
                 expr: sum,
             },
@@ -137,7 +152,7 @@ fn set_expression_and_expr_at_route_into_programs() {
         .unwrap()
         .doc;
     let path = ExprPath {
-        node: RecipeNodeId(0),
+        node: PROFILE,
         slot: radius_slot(),
         path: vec![0],
     };
@@ -169,7 +184,7 @@ fn program_slots_refuse_wrong_dimensions() {
     let doc = circle_doc(0.5);
     match doc.apply(
         &DocEdit::SetParam {
-            node: RecipeNodeId(0),
+            node: PROFILE,
             slot: radius_slot(),
             expr: Expr::literal(0.5, Dimension::Angle).unwrap(),
         },
@@ -193,7 +208,7 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
     let doc = circle_doc(0.5);
     match doc.apply(
         &DocEdit::SetParam {
-            node: RecipeNodeId(0),
+            node: PROFILE,
             slot: radius_slot(),
             expr: Expr::literal(0.0, Dimension::Length).unwrap(),
         },
@@ -209,7 +224,7 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
                     ..
                 },
         }) => {
-            assert_eq!(node, RecipeNodeId(0));
+            assert_eq!(node, PROFILE);
             assert_eq!(kind, profile::PathErrorKind::NonpositiveCircleRadius);
         }
         other => panic!("r = 0 must refuse at the edit door, got {other:?}"),
@@ -235,8 +250,17 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
+                node: fixture::xy_frame(),
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .doc;
+    let doc = doc
+        .apply(
+            &DocEdit::InsertNode {
                 node: Node::Profile(ProfileProgram {
-                    plane: SketchPlane::xy(),
+                    plane: PLANE,
                     loops: vec![LoopProgram::Circle {
                         centre: [
                             Expr::literal(0.0, Dimension::Length).unwrap(),
@@ -269,7 +293,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    match ev.nodes.get(&RecipeNodeId(0)) {
+    match ev.nodes.get(&PROFILE) {
         Some(NodeResult::Failed(e)) => match &e.kind {
             NodeErrorKind::ProfileReplay { loop_: 0, error } => {
                 assert_eq!(error.step, 0, "the circle step names itself");
@@ -285,8 +309,21 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
 /// program ever enters the document (the check_node_slots walk).
 #[test]
 fn insert_node_checks_program_dimensions() {
+    // The frame goes in first. The insert door checks that a node's
+    // INPUTS resolve before it walks the slot dimensions, so a profile
+    // naming a plane the document does not have is turned away as an
+    // unresolved input — which is not the refusal this row is about.
+    let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
+        .apply(
+            &DocEdit::InsertNode {
+                node: fixture::xy_frame(),
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .doc;
     let bad = ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: PLANE,
         loops: vec![LoopProgram::Circle {
             centre: [
                 Expr::literal(0.0, Dimension::Length).unwrap(),
@@ -296,7 +333,7 @@ fn insert_node_checks_program_dimensions() {
             radius: Expr::literal(0.5, Dimension::Angle).unwrap(),
         }],
     };
-    match ProfileDoc::empty_derived("switch_slots", Tol::witness()).apply(
+    match doc.apply(
         &DocEdit::InsertNode {
             node: Node::Profile(bad),
         },
@@ -308,5 +345,178 @@ fn insert_node_checks_program_dimensions() {
             ..
         }) => {}
         other => panic!("a wrong-dimension role must refuse at insert, got {other:?}"),
+    }
+}
+
+/// **The arrival spec's `Sweep`/`ArcLen`/`Bulge` argument has a role of
+/// its own** — `SweepVal2`, `ArcLenVal2`, `Bulge2`.
+///
+/// A fused step carries two specs, and `spec_slots` enumerates the
+/// arrival's roles as the spec₂ twins. With a twin for every mode, a
+/// hand-built `ArcFilletArc` whose two specs share a mode addresses
+/// each spec's argument exactly once; the second clause here is the
+/// bijection the census walks, read at one step.
+///
+/// **Where the reach ends**, and it is the lattice's answer rather than
+/// addressing's: `profile`'s `family::ArrivalSpec` is implemented for
+/// `Center`, `Via` and `Radius` alone, so replay refuses one of these
+/// three modes in second position and the VQ9 door turns the program
+/// away at `InsertNode` (the persistence snapshot walk refuses the same
+/// program at load). No document holds the shape, so `SetParam`,
+/// `SetExpression` and `Doc::expr_at` have no node to route into — the
+/// payload's `expr`/`expr_mut`, which is the half of that route the
+/// three doors share and the only half a hand-built program reaches,
+/// is what the clauses below exercise.
+#[test]
+fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
+    let len = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
+    let ang = |v: f64| Expr::literal(v, Dimension::Angle).unwrap();
+    let sca = |v: f64| Expr::literal(v, Dimension::Scalar).unwrap();
+    let sweep = |a: f64| ProgramArcData::Sweep {
+        r: len(1.5),
+        side: profile::ArcSide::Left,
+        angle: ang(a),
+    };
+    let arclen = |l: f64| ProgramArcData::ArcLen {
+        r: len(2.5),
+        side: profile::ArcSide::Right,
+        len: len(l),
+    };
+    let bulge = |b: f64| ProgramArcData::Bulge {
+        target: ProgramTarget::Point([len(2.0), len(1.0)]),
+        b: sca(b),
+    };
+
+    // (incoming spec, arrival spec, incoming role, arrival role, the
+    // arrival argument's authored value, a replacement for it).
+    let rows: Vec<(ProgramArcData, ProgramArcData, StepArg, StepArg, f64, Expr)> = vec![
+        (
+            sweep(0.25),
+            sweep(0.6),
+            StepArg::SweepVal,
+            StepArg::SweepVal2,
+            0.6,
+            ang(0.7),
+        ),
+        (
+            arclen(0.3),
+            arclen(0.7),
+            StepArg::ArcLenVal,
+            StepArg::ArcLenVal2,
+            0.7,
+            len(0.8),
+        ),
+        (
+            bulge(0.2),
+            bulge(0.45),
+            StepArg::Bulge,
+            StepArg::Bulge2,
+            0.45,
+            sca(0.55),
+        ),
+    ];
+
+    let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
+        .apply(
+            &DocEdit::InsertNode {
+                node: fixture::xy_frame(),
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .doc;
+
+    for (spec, spec2, incoming, arrival, authored, replacement) in rows {
+        let fused = SlotId::Profile {
+            loop_: 0,
+            step: 1,
+            arg: arrival,
+        };
+        let mut program = ProfileProgram {
+            plane: PLANE,
+            loops: vec![LoopProgram::Chain(vec![
+                ProgramStep::At([len(0.0), len(0.0)]),
+                ProgramStep::ArcFilletArc {
+                    spec,
+                    radius: len(0.5),
+                    spec2,
+                },
+            ])],
+        };
+
+        // Both roles are enumerated, once each.
+        let slots = program.slots();
+        for arg in [incoming, arrival] {
+            let hits = slots
+                .iter()
+                .filter(|s| matches!(s, SlotId::Profile { step: 1, arg: a, .. } if *a == arg))
+                .count();
+            assert_eq!(
+                hits, 1,
+                "{arg:?} is enumerated {hits} times at the fused step"
+            );
+        }
+
+        // …and the arrival role addresses the ARRIVAL spec's argument,
+        // which is the whole of issue #829.
+        assert_eq!(
+            program.expr(fused).and_then(Expr::literal_value),
+            Some(authored),
+            "{arrival:?} addresses the arrival spec's argument"
+        );
+        assert_eq!(fused.dimension(), replacement.dim());
+
+        // The write half — the path `SetParam` takes once a node is in
+        // hand — reaches the arrival argument and leaves the incoming
+        // one alone.
+        let incoming_before = program
+            .expr(SlotId::Profile {
+                loop_: 0,
+                step: 1,
+                arg: incoming,
+            })
+            .and_then(Expr::literal_value);
+        *program
+            .expr_mut(fused)
+            .expect("the arrival role is writable") = replacement.clone();
+        assert_eq!(
+            program.expr(fused).and_then(Expr::literal_value),
+            replacement.literal_value()
+        );
+        assert_eq!(
+            program
+                .expr(SlotId::Profile {
+                    loop_: 0,
+                    step: 1,
+                    arg: incoming,
+                })
+                .and_then(Expr::literal_value),
+            incoming_before,
+            "writing the arrival argument moved the incoming one"
+        );
+
+        // The document door: the shape is refused as a lattice
+        // transition, so no `SetParam`/`SetExpression`/`expr_at` row
+        // can exist for these three roles.
+        match doc.apply(
+            &DocEdit::InsertNode {
+                node: Node::Profile(program),
+            },
+            Tol::witness(),
+        ) {
+            Err(EditError::ProfileProgramRefused {
+                refusal:
+                    ProgramRefusal::Transition {
+                        loop_: 0,
+                        step: 1,
+                        verb,
+                        ..
+                    },
+                ..
+            }) => assert_eq!(verb, Some(profile::Verb::ArcFilletArc)),
+            other => {
+                panic!("a {arrival:?}-carrying program must refuse at the VQ9 door, got {other:?}")
+            }
+        }
     }
 }

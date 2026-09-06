@@ -1,6 +1,6 @@
 # Patterns & mirror — the reflection-instancing design conversation
 
-**Status: RATIFIED (Evan's sign-off on PR #909, 2026-08-22, with a P1 conversation round — u ↦ −u per Evan's agreement).**
+**Status: RATIFIED (Ev's sign-off on PR #909, 2026-08-22, with a P1 conversation round — u ↦ −u per Ev's agreement).**
 (VERBS program). Proposals P1–P6. Substrate anchors verified on main
 2026-08-21. The headline finding reframes the register's row: **the
 patterns half is largely SHIPPED** — `Node::Pattern` (linear/
@@ -38,7 +38,7 @@ pcurves, chart regions — the payloads `transform_rigid` currently
 carries as map-invariant, an invariance that is a det = +1 theorem,
 not a general one.
 
-**The chart is user-invisible, so ONE convention suffices (Evan's
+**The chart is user-invisible, so ONE convention suffices (Ev's
 #909 question, answered).** For a given mirror plane M — any
 orientation — both conventions represent the SAME point set M∘S
 exactly; they differ only in how the stored chart names its points.

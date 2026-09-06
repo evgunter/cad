@@ -19,7 +19,7 @@ use topo::{
     validate_closed, validate_geometric,
 };
 
-mod common;
+use crate::common;
 
 /// The geometric-cube op sequence of `common::geometric_cube`, but
 /// with every coordinate passed through `map` — with a reflection the

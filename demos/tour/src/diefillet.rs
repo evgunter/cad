@@ -49,10 +49,10 @@ use core::f64::consts::PI;
 use pncad::document::{BooleanOp, BooleanValue, save};
 use pncad::prelude::{
     CancelToken, CurveKind, CurveKindSet, DEG, Datum, Dimension, Doc, DocEdit, EntityKind,
-    EvalOptions, Evaluation, Expr, GeomPred, LoopProgram, MM, NamePat, Node, Point3,
-    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector,
-    SketchPlane, SurfaceKind, SurfaceKindSet, ValuePayload, Vec3, WrittenAngle, WrittenLength,
-    all_edges, apply, evaluate, select_where,
+    EvalOptions, Evaluation, Expr, GeomPred, LoopProgram, MM, NamePat, Node, ProfileProgram,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SurfaceKind,
+    SurfaceKindSet, ValuePayload, WrittenAngle, WrittenLength, all_edges, apply, evaluate,
+    select_where,
 };
 use pncad::topo::Body;
 
@@ -205,10 +205,19 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -
 /// verb and in nothing else.
 fn cube_node(doc: &mut Doc<ProfileProgram>, tol: Tol) -> RecipeNodeId {
     // ---- the sharp cube, [0, L]³ ----
+    let cube_plane = insert(
+        doc,
+        Node::Datum(Datum::Frame {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+        tol,
+    );
     let cube_p = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane: cube_plane,
             loops: vec![LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap()],
         }),
         tol,
@@ -227,24 +236,33 @@ fn cube_node(doc: &mut Doc<ProfileProgram>, tol: Tol) -> RecipeNodeId {
 /// the second half of the shared source solid.
 fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> RecipeNodeId {
     // ---- the master ball, poled along +Z ----
+    // u = +X, v = +Z: the sketch's revolve axis lands on the world +Z
+    // axis, which is the pole `placements` rotates.
+    let ball_plane = insert(
+        doc,
+        Node::Datum(Datum::Frame {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(0.0), scl(1.0)],
+        }),
+        tol,
+    );
+    // The pole axis, written in the meridian frame: that frame's v IS
+    // world +Z, so the axis is its own +y through (0, 0). Minted after
+    // the frame, which it names.
     let axis = insert(
         doc,
-        Node::Datum(Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(0.0), scl(1.0)],
+        Node::Datum(Datum::AxisInPlane {
+            plane: ball_plane,
+            origin: [len(0.0), len(0.0)],
+            direction: [scl(0.0), scl(1.0)],
         }),
         tol,
     );
     let ball_p = insert(
         doc,
         Node::Profile(ProfileProgram {
-            // u = +X, v = +Z: the sketch's revolve axis lands on the
-            // world +Z axis, which is the pole `placements` rotates.
-            plane: SketchPlane::from_frame(
-                Point3::new(0.0, 0.0, 0.0),
-                Vec3::new(1.0, 0.0, 0.0),
-                Vec3::new(0.0, 0.0, 1.0),
-            ),
+            plane: ball_plane,
             loops: vec![half_disc()],
         }),
         tol,
@@ -261,53 +279,43 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
     );
 
     // ---- 21 placements, unioned into ONE cutting tool ----
-    // The group discipline used to be load-bearing: cutting the pips
-    // one at a time presented a body already carrying a TRIMMED sphere
-    // face as the next operand, which the extent scan refused. It is a
-    // CHOICE now — a trimmed sphere face is served through the sphere
-    // chart's own [azimuth] × [latitude] window, and the closed-group
-    // certificate is asked only where it is used — and the reason to
-    // keep it is the one below, which is about the recipe layer rather
-    // than the kernel.
+    // The 21 placements are the MEMBERS of ONE `Node::Union`, which is
+    // how the recipe layer says "these bodies, fused". A union names
+    // each pip by its own member EDGE, so a pip's rim name records
+    // nothing about the other twenty and dropping one pip leaves their
+    // names — and the rim fillet's frozen selection — standing. That
+    // is the acceptance row this scene exists to carry
+    // (`docm3_union::removing_any_pip_leaves_both_die_fillets_resolving`).
     //
-    // NAMED GAP (2026-08-14): the recipe layer's only way to assemble
-    // a multi-shell body is a PAIRWISE `Node::Boolean(Union)`, so a
-    // 21-shell tool costs twenty union nodes and leaves the last
-    // ball's names twenty `FromA`/`FromB` segments deep. A group-union
-    // node (or a union that takes a list) would say this in one.
-    // Recorded in `docs/M8-LOG.md` beside the meridian gap.
-    let mut tool: Option<RecipeNodeId> = None;
-    for p in placements() {
-        let pip = insert(
-            doc,
-            Node::Transform {
-                input: ball,
-                translation: p.centre.map(len),
-                rotation_axis: p.axis.map(scl),
-                rotation_angle: ang(p.angle),
-            },
-            tol,
-        );
-        tool = Some(match tool {
-            None => pip,
-            Some(acc) => insert(
+    // Fusing them as a group is also what keeps the cut off the extent
+    // scan's refusal path: cutting the pips one at a time presents a
+    // body already carrying a TRIMMED sphere face as the next operand.
+    // That is a CHOICE rather than a requirement — a trimmed sphere
+    // face is served through the sphere chart's own [azimuth] ×
+    // [latitude] window, and the closed-group certificate is asked only
+    // where it is used.
+    let members: Vec<RecipeNodeId> = placements()
+        .into_iter()
+        .map(|p| {
+            insert(
                 doc,
-                Node::Boolean {
-                    op: BooleanOp::Union,
-                    a: acc,
-                    b: pip,
-                    declare: None,
+                Node::Transform {
+                    input: ball,
+                    translation: p.centre.map(len),
+                    rotation_axis: p.axis.map(scl),
+                    rotation_angle: ang(p.angle),
                 },
                 tol,
-            ),
-        });
-    }
+            )
+        })
+        .collect();
+    let tool = insert(doc, Node::Union { members }, tol);
     insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
             a: cube,
-            b: tool.expect("21 pips"),
+            b: tool,
             declare: None,
         },
         tol,
@@ -528,7 +536,7 @@ pub fn corpus_text(tol: Tol) -> String {
 /// to fix. Nothing was ever going to make this file draw the die.
 ///
 /// So the file carries the scene's SUBJECT — "the composed die, which
-/// remains the sheet's die" (Evan's montage curation, #218 follow-up,
+/// remains the sheet's die" (Ev's montage curation, #218 follow-up,
 /// which already ruled the two partial dice out of the sheet for
 /// reading as near-duplicates). The blank keeps its stop, its
 /// narration and its render; what it loses is a second root in one
@@ -537,7 +545,9 @@ pub fn corpus_text(tol: Tol) -> String {
 /// The deletion goes through the ordinary edit door, so the root list
 /// is maintained by `roots::on_delete` rather than asserted here, and
 /// the remaining document is exactly the recipe that builds the die:
-/// 49 nodes, one root, 89 faces, V = 0.952915, no separation finding.
+/// 32 nodes, one root, 89 faces, V = 0.952915, no separation finding.
+/// The 21 pips are the members of ONE `Node::Union`, so the node count
+/// is the pips, the blank and the two blends — not a chain length.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let die = build(tol);
     apply(&die.doc, &DocEdit::DeleteNode { id: die.blank }, tol)
@@ -601,7 +611,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         Stop {
             name: "diefillet",
             caption: "the die blank (rolling-ball fillets)".to_string(),
-            // Standalone since the montage-v2 curation (Evan, #218
+            // Standalone since the montage-v2 curation (Ev, #218
             // follow-up): the two PARTIAL dice — the blank and the
             // pipped cube — are interesting for how they work (the
             // battery, the closed-group cut), but without that context

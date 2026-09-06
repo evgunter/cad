@@ -32,7 +32,7 @@
 //!
 //! **The primary (left) button selects, and a plain drag of it moves
 //! no camera.** It is the button click-to-select takes — the first of
-//! `docs/GUI-DESIGN.md` G3's four items — so it is bound to
+//! `crates/viewer/README.md` G3's four items — so it is bound to
 //! [`PickAction::Select`] and, unmodified, to nothing in the
 //! navigation vocabulary. Navigation lives on middle and secondary,
 //! which is mainstream CAD convention independently of that.
@@ -52,6 +52,9 @@
 //! a drag moves the camera and picks nothing, a click picks and moves
 //! nothing — but that is a property of the default bindings, not an
 //! invariant either function enforces on the other.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use crate::camera::{Camera, CameraOp, Folded};
 

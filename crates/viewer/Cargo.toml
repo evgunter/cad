@@ -175,7 +175,7 @@ rfd = { version = "0.17.2", default-features = false, features = [
 # (ASM-1 spec D-1). On wasm32 that crate refuses to build until a
 # backend is named, and naming one takes BOTH halves — this feature
 # and `RUSTFLAGS='--cfg getrandom_backend="wasm_js"'`. Setting only
-# the flag is the error `docs/GQ6-RESURVEY.md` §4 records; this stanza
+# the flag is the error `crates/viewer/README.md` (toolkit and CI posture) records; this stanza
 # is the other half, so the flag is all a builder has to remember.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { workspace = true, features = ["wasm_js"] }
@@ -225,6 +225,23 @@ test-utils = { path = "../test-utils" }
 # same boundary `viewer::theme` crosses. One edge, three jobs.
 perceive-cvd = "=0.1.0"
 perceive-color = "=0.1.0"
+
+# --- the GPU smoke row's block-on (`src/gpu.rs`'s `mod tests`) ---
+#
+# `wgpu`'s adapter and device requests are futures, and a test is not
+# async. This is the executor that drives the two of them: a parking
+# loop on the current thread and nothing else.
+#
+# ALREADY IN THE LOCKFILE, at exactly this version — `wgpu` itself
+# carries it, so the `app` graph has it either way and this edge adds
+# no crate there. What it does add is one crate, with no dependencies
+# of its own, to the DEFAULT-feature test build, because cargo has no
+# optional dev-dependencies. 1.0.1 (2026-06-11), MIT OR Apache-2.0,
+# zero dependencies, ~8 kB.
+#
+# Not hand-rolled: a noop-waker poll loop would be a dozen lines that
+# silently spin forever the day a future actually parks.
+pollster = "1.0.1"
 
 
 [features]

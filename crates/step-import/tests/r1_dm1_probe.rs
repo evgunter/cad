@@ -142,10 +142,10 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
                 "the refusal must name an entity: solid {solid:?}, verdicts {errors:?}"
             );
             let shown = StepImportError::TierInvalid { solid, errors }.to_string();
-            let stalled = shown.contains("the certified quadrature enclosure stalled at");
+            let budget = shown.contains("the certified quadrature enclosure cannot reach the");
             let escalated = shown.contains("predicate 'props_quad_converged' indeterminate");
             assert!(
-                if coarse { escalated } else { stalled },
+                if coarse { escalated } else { budget },
                 "the frontier is the rational patch-flux lane either way — the round \
                  budget at a fine band, the convergence predicate's ambiguity band at \
                  a coarse one: {shown}"

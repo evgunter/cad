@@ -11,7 +11,7 @@
 //! `src/test_support_impl.rs` docs give the rule for all three.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(dead_code)] // one instance per binary; no single consumer uses all of it
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use geom::Surface;
@@ -577,7 +577,8 @@ pub fn cube_into(body: &mut Body<f64>, map: impl Fn(f64, f64, f64) -> Point3<f64
 }
 
 /// Test-authoring convenience: the [`BooleanDeclarations`] declaring
-/// every flush-plane face pair of `(a, b)` — the test author's
+/// every flush face pair of `(a, b)`, on any carrier the `Rest`
+/// ladder verifies — the test author's
 /// stand-in for a recipe `Declare` (the author built the contact
 /// deliberately; this writes the intent down).
 ///

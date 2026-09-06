@@ -28,14 +28,15 @@
 //! CLEARED to `IdMap::NOTHING` — so "the cursor is over nothing" is a
 //! value the pass produces rather than a case the reader infers.
 //!
-//! # Nothing here has ever run
+//! # Construction runs; drawing does not
 //!
-//! Every line in this module compiles and lints, and none of it has
-//! executed: the lanes that wrote it had no GPU and no display. Issue
-//! #1097 owns first light, and its checklist carries the two questions
-//! only hardware answers about the code below — whether the depth
-//! attachment is really attached, and whether the id pass and the ray
-//! path agree on the same cursor.
+//! [`ViewportRenderer::new`] and everything it builds execute on a real
+//! device under `--features app`, so a pipeline this module cannot
+//! build is a red row. Nothing below that seam does: no surface, no
+//! frame, no readback, no pixel. The questions only a drawn frame
+//! answers — whether the depth attachment is really attached, and
+//! whether the id pass and the ray path agree on the same cursor —
+//! are open, and issue #1097 owns them.
 //!
 //! # Depth
 //!
@@ -53,18 +54,23 @@
 //!
 //! The triangles are outward-wound (`mesh::FacePatch`'s contract) and
 //! the shading uses that winding: the normal comes from the triangle's
-//! own vertex order. Back-face *culling* is a second question — which
-//! screen-space winding wgpu calls "front" — that this lane had no GPU
-//! to settle, and getting it backwards makes a closed solid vanish
-//! entirely. With a depth buffer and an opaque closed body, drawing
-//! both sides is visually identical and cannot fail that way.
+//! own vertex order. Back-face *culling* was a second question — which
+//! screen-space winding wgpu calls "front" — and it is **settled: `Ccw`**.
+//! An outward-wound triangle presents counter-clockwise on screen, so
+//! `front_face: FrontFace::Ccw` with `cull_mode: Some(Face::Back)` keeps a
+//! closed solid whole. Read on hardware for issue #1097, on a D3D12 device
+//! (Intel Iris Plus): the plate stayed complete through a full orbit, bore
+//! included, with neither the total vanish that `Cw` would have produced
+//! nor any partial loss of patches. The answer is backend-independent —
+//! wgpu normalizes `FrontFace` — so it is stated here as a fact and not as
+//! one driver's opinion.
 //!
-//! **Scheduled, not merely noted: issue #1097** (viewer first light) owns
-//! turning it on — set `cull_mode: Some(Face::Back)`, run it, and if the
-//! solid vanishes the answer is `FrontFace::Cw` rather than `Ccw`. Whoever
-//! does it replaces this section with which one it was; the reason it is
-//! off today is ignorance, and ignorance recorded is a debt with an
-//! owner.
+//! **The edge pass keeps `cull_mode: None`, deliberately.** An edge mark is
+//! a camera-facing quad, not part of a closed solid, so back-face culling
+//! is a question about billboards rather than about winding, and the
+//! reading above does not answer it. It stays open on its own terms.
+//!
+//! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -464,7 +470,7 @@ impl ViewportRenderer {
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
                 // See the module docs: both sides are drawn.
-                cull_mode: None,
+                cull_mode: Some(wgpu::Face::Back),
                 unclipped_depth: false,
                 polygon_mode: wgpu::PolygonMode::Fill,
                 conservative: false,
@@ -734,7 +740,7 @@ impl IdPass {
                 // #1097 settles on hardware, and an id pass that culled
                 // the wrong way would answer NOTHING over a face that
                 // is plainly there.
-                cull_mode: None,
+                cull_mode: Some(wgpu::Face::Back),
                 unclipped_depth: false,
                 polygon_mode: wgpu::PolygonMode::Fill,
                 conservative: false,
@@ -1448,7 +1454,11 @@ fn fs_id(in: IdOut) -> @location(0) u32 {
 "#;
 
 #[cfg(test)]
+// Panicking is a test's failure mechanism (workspace lint note).
+#[allow(clippy::expect_used, clippy::panic)]
 mod tests {
+    use eframe::egui_wgpu;
+
     use super::*;
 
     /// Every `{{TOKEN}}` in [`SHADER`] must be substituted by
@@ -1459,10 +1469,11 @@ mod tests {
     /// spells every token `shader_source` replaces (a token renamed on
     /// one side only would otherwise pass silently).
     ///
-    /// Runs only under `--features app`, the module's own gate — an
-    /// instance of issue 1451's class: no CI row builds the app
-    /// feature, and the smoke row proposed there is where this starts
-    /// gating.
+    /// Runs only under `--features app`, this module's own gate, so
+    /// its seat is the hosted row `cargo nextest run -p viewer
+    /// --features app` (`.github/workflows/ci.yml`) rather than the
+    /// workspace archive — see `lib.rs`'s loud-skip marker for what a
+    /// build without the feature is not checking.
     #[test]
     fn every_shader_token_is_substituted() {
         let source = shader_source(wgpu::TextureFormat::Bgra8Unorm);
@@ -1531,6 +1542,129 @@ mod tests {
                 "the shader's sRGB encode no longer spells {constant}; \
                  `theme::channel_to_srgb8` is the other half of this curve",
             );
+        }
+    }
+
+    /// **Every pipeline in this module, built on a real device.**
+    ///
+    /// Device acquisition, shader-module compilation and each
+    /// `create_render_pipeline` call are pure construction under
+    /// wgpu's typed validation, and that validation refuses
+    /// combinations the Rust types admit: a depth bias on a
+    /// non-triangle topology, a vertex layout the WGSL does not
+    /// declare, an attachment format the pipeline's blend state
+    /// cannot take. Every one of those is raised when the
+    /// application starts, on every adapter and every backend, and
+    /// nothing above this seam can see them — G1 excuses pixel
+    /// painting from a headless row, and pipeline construction is
+    /// not pixel painting. This row is where the whole family gates.
+    ///
+    /// **Construction only.** No surface, no swapchain, no frame, no
+    /// readback, and nothing is asserted about a pixel. What is
+    /// asserted is that the device raised no validation error while
+    /// [`ViewportRenderer::new`] built the shaded pipeline, the id
+    /// pipeline and their 1x1 targets, and the edge pipeline.
+    ///
+    /// **Two formats, one axis.** [`shader_source`] branches on
+    /// `is_srgb()`, not on the format, so `Bgra8Unorm` and
+    /// `Bgra8UnormSrgb` sample both sides of the only branch it has —
+    /// two shader modules and two sets of pipelines. The channel order
+    /// is NOT sampled: `Rgba8Unorm`/`Rgba8UnormSrgb`, which a surface
+    /// may well prefer, build no pipeline here.
+    ///
+    /// **No adapter is a FAILURE here, never a skip.** A row that
+    /// goes green where no GPU exists reports the same thing whether
+    /// the pipelines built or the driver was absent, and a reader
+    /// cannot tell those apart — which is the exact defect this row
+    /// exists to close. The environment owes this row an adapter:
+    /// `mesa-vulkan-drivers` supplies lavapipe, it needs no display
+    /// and no X server (crates/viewer/README.md, headless), and the
+    /// panic below names it when it is missing.
+    #[test]
+    fn every_pass_builds_on_a_real_device() {
+        // `_from_env` so `WGPU_BACKEND` can steer this row at an
+        // operator's hand; with the variable unset it is every
+        // backend the build has. No display handle: this row opens
+        // no surface, so there is no window to hand one from.
+        let instance =
+            wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
+        let adapter =
+            pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
+                .expect(
+                    "NO WGPU ADAPTER. This row builds every pipeline in this module on a real \
+                     device and can report nothing without one, so it fails rather than passing \
+                     emptily. Install a software ICD: `mesa-vulkan-drivers` supplies lavapipe, \
+                     which needs no display (crates/viewer/README.md, headless).",
+                );
+        let info = adapter.get_info();
+        println!(
+            "viewer::gpu pipeline smoke: adapter {:?} / {} ({:?}, driver {:?})",
+            info.backend, info.name, info.device_type, info.driver
+        );
+
+        // THE APP'S DEVICE, NOT A PERMISSIVE ONE. This crate never
+        // builds a `DeviceDescriptor`: `NativeOptions`' default
+        // `wgpu_options` carries `egui_wgpu`'s own closure, and that
+        // is what the running app requests. So the row ASKS THAT
+        // CLOSURE rather than restating its limits or handing itself
+        // `adapter.limits()` — at the adapter's limits a pipeline that
+        // fits the hardware and exceeds what egui asks for builds
+        // green here and panics at startup, which is the one failure
+        // this row exists to close.
+        let egui_wgpu::WgpuSetup::CreateNew(setup) =
+            egui_wgpu::WgpuConfiguration::default().wgpu_setup
+        else {
+            panic!(
+                "egui_wgpu's default setup is no longer `CreateNew`, so this row can no longer                  ask it for the device descriptor the app requests"
+            );
+        };
+        let (device, _queue) =
+            pollster::block_on(adapter.request_device(&(setup.device_descriptor)(&adapter)))
+                .expect("the adapter above must yield a device at the limits egui_wgpu asks for");
+
+        // THE CENSUS, BOUND TO THE SOURCE. "Every pipeline" is a claim
+        // only if something notices a new one: all three of this
+        // file's `create_render_pipeline` calls are reached from
+        // `ViewportRenderer::new`, and a fourth built lazily in a
+        // frame path this row never enters would leave the row green
+        // and its name unchanged.
+        //
+        // Read through the SHARED lexer, which is what
+        // `crates/test-utils/tests/reader_census.rs` exists to make
+        // the only way: a raw `matches` over the text counts the
+        // needle in comments and in this row's own literals too, so it
+        // would answer about prose rather than about calls. The code
+        // view strips both, which is also why the needle needs no
+        // splitting trick to avoid counting itself.
+        assert_eq!(
+            test_utils::source::code_only(include_str!("gpu.rs"))
+                .matches(".create_render_pipeline(")
+                .count(),
+            3,
+            "this module no longer builds exactly the three pipelines `ViewportRenderer::new` \
+             builds. Route the new one through `new` so this row covers it, or narrow this \
+             row's claim and its count together."
+        );
+
+        for target_format in [
+            wgpu::TextureFormat::Bgra8Unorm,
+            wgpu::TextureFormat::Bgra8UnormSrgb,
+        ] {
+            let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
+            // Held until the scope is popped: the error is raised by
+            // the calls inside `new`, and dropping the pipelines first
+            // would not unsay it, but keeping the value is what makes
+            // the construction the scope's subject rather than a
+            // temporary's lifetime.
+            let renderer = ViewportRenderer::new(&device, target_format);
+            let error = pollster::block_on(scope.pop());
+            assert!(
+                error.is_none(),
+                "{target_format:?}: {}",
+                error.map_or_else(String::new, |e| e.to_string()),
+            );
+            drop(renderer);
+            println!("  {target_format:?}: shaded, id and edge pipelines built");
         }
     }
 }

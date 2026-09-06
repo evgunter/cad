@@ -10,18 +10,41 @@
 //!
 //! # The leaf protocol, and what "certified" is allowed to mean
 //!
-//! A leaf replays the recipe at [`geom_core::Interval`] over the leaf's
-//! own parameter environment (E8: the committed witness verbatim; the
-//! profile lift GUIDED, so profile geometry is a function of the
-//! leaf's parameters and every consumed structure decision is
+//! A leaf replays the recipe at `geom_core::Sym<`[`geom_core::Interval`]`>`
+//! over the leaf's own parameter environment (E8: the committed witness
+//! verbatim; the profile lift GUIDED, so profile geometry is a function
+//! of the leaf's parameters and every consumed structure decision is
 //! re-verified there). It certifies when, and only when:
 //!
 //! 1. **every predicate was definite** — no `k_stats` escalation, no
 //!    guided typed abort, no node that failed for a reason this driver
 //!    cannot prove definite; and
-//! 2. **the leaf's verdict vector equals the witness build's, EXACTLY**
-//!    — same nodes, same outcomes, same predicates, same signs, in
-//!    order.
+//! 2. **the leaf's CERTIFYING verdict vector equals the witness
+//!    build's, EXACTLY** — same nodes, same outcomes, same predicates,
+//!    same signs, in order. "Certifying" is one exclusion and it is
+//!    named at [`crate::drive::certifying_vector`]: an `Assertion` node
+//!    reports and gates nothing (E10 v1), and certification is a gate,
+//!    so its rows are not in the comparison.
+//!
+//! **What the wrapper adds, and what it does not** (ERROR-DESIGN E12).
+//! The numeric channel is `Interval`'s, verbatim and bit for bit —
+//! `Sym<T>` computes every operation at `T` and mints a DAG node beside
+//! it. One thing changes: a margin whose expression is identically zero
+//! in the document's parameters decides `Zero` before any enclosure is
+//! consulted, at any box width. That is what lets a MACROSCOPIC box
+//! certify at all; before it, the certification identities' enclosures
+//! widened as `[0, c·w]` and a leaf went definite only below a fraction
+//! of ε. `DriveConfig::symbolic` is the dial, and
+//! [`crate::drive::SymbolicDials::off`] replays at plain `Interval` —
+//! the pre-E12 driver, reproduced rather than approximated. (The path is
+//! spelled in full because these module docs are merged with the OUTER
+//! doc comment on `pub mod drive;` in `lib.rs`, so rustdoc resolves
+//! their links in the crate root's scope rather than this module's.)
+//!
+//! **The f64 witness pass is untouched**, deliberately: a point residual
+//! is tight, so it still catches a constructor that does not build what
+//! it claims — the failure an expression that is identically zero on
+//! paper could otherwise hide.
 //!
 //! Clause 2 is an equality of [`geom_core::k_stats::Verdict`] rows,
 //! which are float-free and scalar-independent by construction: the
@@ -68,8 +91,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom_core::interval::Interval;
-use geom_core::k_stats::Verdict;
-use geom_core::{MarginDiag, Tol};
+use geom_core::{MarginDiag, Sym, SymCounts, Tol};
 
 #[cfg(feature = "probe")]
 use crate::analysis::BoxAxis;
@@ -79,9 +101,13 @@ use crate::eval::{
     CancelToken, ContentKey, EvalOptions, Evaluation, KeyHasher, NodeErrorKind, NodeResult,
     ProfileLift, evaluate,
 };
-use crate::node::RecipeNodeId;
+use crate::node::{Node, RecipeNodeId};
 use crate::program::ProfileProgram;
 use crate::resolve::{FlipSet, diff_verdicts};
+// The two derived verdict forms live in one module (`resolve::vdiff`);
+// this driver is the strict form's certifying consumer, and names it at
+// `drive::` because that is where every consumer already reaches for it.
+pub use crate::resolve::{VerdictRow, VerdictVector, VerdictVectorKey};
 use crate::witness::WitnessBifurcation;
 
 /// The per-axis split budget: how many times ONE axis of the box may be
@@ -130,6 +156,153 @@ pub struct DriveConfig {
     /// writes to only exists in a probe build.
     #[cfg(feature = "probe")]
     pub k_probe: KProbe,
+    /// The symbolic identity tier (E12): whether the leaf replay carries
+    /// parameter expressions, and how large a normal form may grow
+    /// before it freezes.
+    pub symbolic: SymbolicDials,
+}
+
+/// **The symbolic tier's dials** (E12, `geom_core::sym`).
+///
+/// # The defaults, and the argument for them
+///
+/// `enabled` is ON, because a certifier that can only certify boxes
+/// narrower than its own ε is the state M10-3 pinned and E12 exists to
+/// leave; the tier off is the comparison lane, not the shipped one.
+///
+/// [`DEFAULT_SYM_MAX_TERMS`] = 4096 and [`DEFAULT_SYM_MAX_DEGREE`] = 128
+/// are the FREEZING budget, and both were MEASURED on this kernel's own
+/// fixtures rather than picked.
+///
+/// **Degree is the binding dial; terms are not.** A certification
+/// identity on an analytic carrier looks low-degree written down — the
+/// plate's widest form is a squared distance in three symbols — but the
+/// form the tier actually builds is not the written one. It is a
+/// QUOTIENT of polynomials reached by repeated cross-multiplication, and
+/// a metered extrusion contributes `‖w‖` and its reciprocal to every
+/// term it touches, so the degree that matters is the degree AFTER
+/// those denominators have been carried up the DAG. Measured on the
+/// M10-3 slab, the endpoint identity the tier's headline row depends on
+/// needs **degree ≥ 32** to cancel; at 16 it freezes and the row does
+/// not move. 128 is the next power of two with real headroom above the
+/// measurement, and it freezes NOTHING on that fixture. Terms never
+/// bound anything measured: 64 sufficed at every degree tried, and 4096
+/// is headroom against a NURBS-heavy product rather than a number any
+/// fixture approached.
+///
+/// What the budget defends against is exactly that pathological product,
+/// where a form grows multiplicatively with no identity at the end of
+/// it; there the freeze costs a cancellation that was never going to
+/// happen and saves the replay. The evidence for the numbers is the
+/// FROZEN COUNT on the verdict: a corpus that freezes nothing has budget
+/// to spare, and a corpus that freezes often is telling you to look at
+/// the forms rather than to raise the dial. On curved geometry it
+/// freezes for a different reason — `i128` coefficient overflow, not the
+/// dials — and the unit's D6 carries that measurement.
+///
+/// `SymbolicDials::off()` reproduces the numeric-only replay bit for
+/// bit: no session is installed, no node is minted, and the verdict's
+/// serialization carries no symbolic line at all.
+///
+/// # What the tier COSTS, measured
+///
+/// `enabled` is on by default, so every `DriveConfig::default()` drive
+/// pays this. The bill, release profile, one machine, from
+/// `editor-core/tests/m10_7_probe_interval.rs::m10_7_what_the_tier_costs`
+/// (run it rather than trusting the numbers — the ratios are what
+/// travels):
+///
+/// | fixture | tier ON | tier OFF | |
+/// | --- | --- | --- | --- |
+/// | slab, macroscopic box, 32 leaves | 17.1 ms, **certifies** | 5.4 ms, certifies nothing | 3.2x |
+/// | slab, macroscopic box, 256 leaves | 9.8 ms, **certifies** | 36.1 ms, certifies nothing | **0.27x** |
+/// | filleted bracket (CURVED), 32 leaves | 43.1 ms, certifies nothing | 2.5 ms, certifies nothing | **17x** |
+///
+/// Three different answers, and the middle one is not a typo. Where the
+/// tier CERTIFIES, it certifies in one leaf and the numeric lane
+/// subdivides to its budget and fails, so a larger leaf budget makes the
+/// tier the FASTER lane — the work it saves is the subdivision it makes
+/// unnecessary. Where it cannot certify, it is pure overhead, and the
+/// worst measured case is curved geometry: 17x for nothing, because the
+/// arc family it cannot discharge (`work/m10/M10-8.md`) means the box
+/// refuses either way.
+///
+/// Two things keep that bill down and both are measured rather than
+/// argued. A margin the numeric channel has already proved NON-ZERO
+/// never has its form built at all (`geom_core::sym`'s `Decide` impl —
+/// a certified enclosure excluding zero is a proof no normal form can
+/// contradict), which is most margins on most documents. And
+/// `Poly::mul` refuses on pre-bounds instead of building a product and
+/// discarding it, so an over-budget multiplication costs its two
+/// operands' sizes rather than their product.
+///
+/// The residual worry is the curved case, and the honest statement is
+/// that it is a real 17x paid for nothing on documents the tier cannot
+/// help — which is an argument for M10-8, not for a dial.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SymbolicDials {
+    /// Whether the leaf replay runs at the symbolic tier.
+    pub enabled: bool,
+    /// The most terms one normal form may hold before it freezes.
+    pub max_terms: usize,
+    /// The largest total degree one normal form may reach.
+    pub max_degree: u32,
+    /// The atom-algebra rules the normal form applies
+    /// ([`geom_core::SymRules`]): the shipped set by default
+    /// ([`geom_core::SymRules::shipped`], chosen by measurement); each
+    /// switchable alone, and [`geom_core::SymRules::none`] is the
+    /// quotient form with every atom opaque — the tier exactly as it
+    /// stood before the algebra, so the effect of each rule on a
+    /// document is a measurement taken through this dial rather than
+    /// an assumption.
+    pub rules: geom_core::SymRules,
+}
+
+/// The shipped term budget ([`SymbolicDials`]).
+pub const DEFAULT_SYM_MAX_TERMS: usize = 4096;
+
+/// The shipped degree budget ([`SymbolicDials`]).
+pub const DEFAULT_SYM_MAX_DEGREE: u32 = 128;
+
+impl SymbolicDials {
+    /// The tier off — the numeric-only replay, bit for bit.
+    #[must_use]
+    pub fn off() -> Self {
+        Self {
+            enabled: false,
+            ..Self::default()
+        }
+    }
+
+    /// The budget as the scalar's own type.
+    fn budget(self) -> geom_core::SymBudget {
+        geom_core::SymBudget {
+            max_terms: self.max_terms,
+            max_degree: self.max_degree,
+        }
+    }
+
+    /// The replay lane these dials name — the currency every
+    /// certified-leaf consumer takes ([`crate::eval::LeafLane`]).
+    pub(crate) fn lane(self) -> crate::eval::LeafLane {
+        if self.enabled {
+            crate::eval::LeafLane::Symbolic(self.budget(), self.rules)
+        } else {
+            crate::eval::LeafLane::Numeric
+        }
+    }
+}
+
+impl Default for SymbolicDials {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            max_terms: DEFAULT_SYM_MAX_TERMS,
+            max_degree: DEFAULT_SYM_MAX_DEGREE,
+            // The shipped atom-algebra set ([`geom_core::SymRules::shipped`]).
+            rules: geom_core::SymRules::default(),
+        }
+    }
 }
 
 /// How driver-path predicate samples reach the `k_stats` funnel.
@@ -187,132 +360,39 @@ impl Default for DriveConfig {
             parallel: false,
             #[cfg(feature = "probe")]
             k_probe: KProbe::Off,
+            symbolic: SymbolicDials::default(),
         }
     }
 }
 
-/// How one node's replay came out, as scalar-independent data.
+/// **The CERTIFYING vector**: [`VerdictVector::of`] with the rows of
+/// nodes that only report left out.
 ///
-/// The verdict rows alone do not separate "this node built and decided
-/// nothing" from "this node failed before deciding anything", and a
-/// certificate that could not tell those apart would certify a leaf
-/// whose build refused. The tag closes that.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReplayOutcome {
-    /// The node produced a value.
-    Built,
-    /// The node itself refused.
-    Refused,
-    /// An ancestor refused; this node never ran.
-    Poisoned,
-}
-
-/// One node's row of a [`VerdictVector`].
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VerdictRow {
-    /// The node.
-    pub node: RecipeNodeId,
-    /// How its replay came out.
-    pub outcome: ReplayOutcome,
-    /// Every definite decision it made, in decision order.
-    pub verdicts: Vec<Verdict>,
-}
-
-/// An evaluation's verdict vector: one [`VerdictRow`] per node, in the
-/// evaluation's deterministic order.
+/// A free function and not a method on the strict form: the form is
+/// `resolve::vdiff`'s, beside the population form it is the counterpart
+/// of, and WHICH ROWS A GATE EXCLUDES is this driver's policy. One node
+/// kind qualifies and it is [`Node::Assertion`], whose contract is that
+/// nothing downstream reads its verdict — "no gate consults it" (E10
+/// v1: assertions report; a gating mode is additive policy nobody has
+/// ratified), and certification IS a gate. The measure node itself is
+/// NOT dropped: a leaf where the measurement could not be taken is not
+/// the witness build, and that difference stays in the comparison.
 ///
-/// Float-free, so equality is exact and means what it says. This is the
-/// object leaf certification compares, and the ONLY thing it compares.
-///
-/// # Why this is not `resolve::vdiff`'s `NodeVerdicts`
-///
-/// Two shapes, two questions, and the driver asks both.
-///
-/// - **"Is this leaf the witness build?"** wants the STRICTEST
-///   available test, because a false yes is a false certificate. Order
-///   included, outcome tags included, no cancellation anywhere: that is
-///   this type, and it is what [`drive`] gates on.
-/// - **"What differs, and what should the report call it?"** wants a
-///   test that survives permutation, because construction order inside
-///   an op is itself predicate-steered — `vdiff`'s populations, which
-///   [`FlipEvidence`] carries verbatim.
-///
-/// The population form is deliberately WEAKER (a pure sign exchange in
-/// one node nets to nothing), so it can name but must not gate; this
-/// form cannot explain a difference it detects, so it gates but does
-/// not name. Neither subsumes the other. `NodeVerdicts` is `vdiff`'s
-/// own serializable spelling of its population form, so the tree
-/// carries two derived shapes over one substrate rather than three
-/// unrelated ones. Whether the split should stay a split is issue
-/// #1255, filed so it is a decision on the record.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct VerdictVector {
-    /// The rows, in evaluation order.
-    pub rows: Vec<VerdictRow>,
-}
-
-impl VerdictVector {
-    /// The vector of an evaluation, in its own `order`.
-    pub fn of<T: geom_core::Decide>(ev: &Evaluation<T>) -> Self {
-        let rows = ev
-            .order
-            .iter()
-            .map(|&node| {
-                let (outcome, verdicts) = match ev.nodes.get(&node) {
-                    Some(NodeResult::Ok(v)) => (ReplayOutcome::Built, v.verdicts.to_vec()),
-                    Some(NodeResult::Failed(_)) => (ReplayOutcome::Refused, Vec::new()),
-                    // A node with no entry at all (a canceled prefix)
-                    // has run nothing, which is what `Poisoned` says
-                    // about the rows below it too.
-                    Some(NodeResult::Poisoned { .. }) | None => {
-                        (ReplayOutcome::Poisoned, Vec::new())
-                    }
-                };
-                VerdictRow {
-                    node,
-                    outcome,
-                    verdicts,
-                }
-            })
-            .collect();
-        Self { rows }
-    }
-
-    /// The vector's content key — the `verdict_vector_key` a certified
-    /// leaf carries. Derived, never persisted (E10).
-    pub fn key(&self) -> VerdictVectorKey {
-        let mut h = KeyHasher::new();
-        h.write_tag(0xE6);
-        h.write_u64(self.rows.len() as u64);
-        for row in &self.rows {
-            h.write_u64(row.node.0);
-            h.write_tag(match row.outcome {
-                ReplayOutcome::Built => 1,
-                ReplayOutcome::Refused => 2,
-                ReplayOutcome::Poisoned => 3,
-            });
-            h.write_u64(row.verdicts.len() as u64);
-            for v in &row.verdicts {
-                h.write_str(v.predicate);
-                h.write_tag(sign_tag(v.sign));
-            }
-        }
-        VerdictVectorKey(h.finish().0)
-    }
-}
-
-/// The identity of a [`VerdictVector`] — what a certified leaf carries
-/// instead of a copy of the vector, since every certified leaf's vector
-/// is the witness's by definition.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct VerdictVectorKey(pub u128);
-
-fn sign_tag(s: geom_core::Sign) -> u8 {
-    match s {
-        geom_core::Sign::Negative => 1,
-        geom_core::Sign::Zero => 2,
-        geom_core::Sign::Positive => 3,
-    }
+/// No row this returns carries [`crate::resolve::RunStatus::Absent`].
+/// Every `evaluate` in this module runs on a fresh [`CancelToken`], so
+/// no run here has a canceled prefix, and [`drive`] refuses
+/// [`DriveRefusal::WitnessDoesNotBuild`] unless every node of the
+/// witness's `order` is `Ok`. A consumer that takes
+/// [`VerdictVector::of`] over some other evaluation can see `Absent`.
+pub fn certifying_vector<T: geom_core::Decide, P>(
+    doc: &Doc<P>,
+    ev: &Evaluation<T>,
+) -> VerdictVector {
+    let mut vector = VerdictVector::of(ev);
+    vector
+        .rows
+        .retain(|row| !matches!(doc.node(row.node), Some(Node::Assertion { .. })));
+    vector
 }
 
 /// **The flip evidence a [`RefusalReason::FlipCrossing`] carries.**
@@ -415,6 +495,26 @@ pub enum RefusalReason {
     /// partial answer, and never a leaf quietly dropped from the
     /// receipt.
     Budget(BudgetKind),
+    /// **A measure could not be taken, for a reason the BOX cannot
+    /// change** (M10-6, R1's MINOR-6): a selection that names the wrong
+    /// kind of entity, a pairing the wedge rule empties, a carrier the
+    /// engine does not support.
+    ///
+    /// These are facts about the DOCUMENT, not about the parameter
+    /// values, so every sub-box inherits them exactly. Before this
+    /// class they fell to the catch-all `Bisect` and the driver split
+    /// its way through the whole leaf budget re-deriving the same
+    /// refusal — a measured >60 s on a `NoAdmittedPair` fixture — and
+    /// then priced the mass as `Budget`, which named the symptom
+    /// instead of the cause. Refusing terminally is both faster and
+    /// truer: the mass is refused under its own class, and the class
+    /// carries the engine's own name for the refusal.
+    MeasureRefused {
+        /// The measure node that could not be taken.
+        node: RecipeNodeId,
+        /// The engine's or the wiring's own class name for it.
+        class: &'static str,
+    },
 }
 
 impl RefusalReason {
@@ -426,6 +526,7 @@ impl RefusalReason {
             Self::Bifurcation(_) => ReasonClass::Bifurcation,
             Self::Infeasible => ReasonClass::Infeasible,
             Self::Budget(_) => ReasonClass::Budget,
+            Self::MeasureRefused { .. } => ReasonClass::MeasureRefused,
         }
     }
 }
@@ -465,6 +566,8 @@ pub enum ReasonClass {
     Infeasible,
     /// [`RefusalReason::Budget`].
     Budget,
+    /// [`RefusalReason::MeasureRefused`].
+    MeasureRefused,
 }
 
 impl ReasonClass {
@@ -476,6 +579,7 @@ impl ReasonClass {
             Self::Bifurcation => "bifurcation",
             Self::Infeasible => "infeasible",
             Self::Budget => "budget",
+            Self::MeasureRefused => "measure_refused",
         }
     }
 }
@@ -503,6 +607,10 @@ pub struct CertifiedLeaf {
     pub verdict_vector_key: VerdictVectorKey,
     /// What its replay produced.
     pub results: LeafResults,
+    /// How this leaf's decisions were answered — the E12 receipt
+    /// ([`SymbolicDials`]). All zero when the tier is off, because no
+    /// session exists to count in.
+    pub decisions: SymCounts,
 }
 
 /// A leaf the driver refused, and why.
@@ -512,6 +620,9 @@ pub struct RefusedLeaf {
     pub box_: ParamBox,
     /// The typed reason.
     pub reason: RefusalReason,
+    /// How this leaf's decisions were answered before it refused — the
+    /// E12 receipt ([`SymbolicDials`]).
+    pub decisions: SymCounts,
 }
 
 /// The counting receipt of one drive.
@@ -546,6 +657,8 @@ pub struct ParamBoxVerdict {
     refused: Vec<RefusedLeaf>,
     accounting: MeasureAccounting,
     receipt: Receipt,
+    decisions: SymCounts,
+    symbolic: SymbolicDials,
     witness_vector: Arc<VerdictVector>,
     root: ParamBox,
 }
@@ -571,8 +684,25 @@ impl ParamBoxVerdict {
         self.receipt
     }
 
-    /// The witness build's verdict vector — the thing every certified
-    /// leaf's vector was compared against, shipped once.
+    /// **The E12 receipt**: how this drive's predicate decisions were
+    /// answered, summed over every leaf — `symbolic_zero` against
+    /// `numeric`, with `frozen` beside them.
+    ///
+    /// All zero when the symbolic tier is off ([`SymbolicDials::off`]),
+    /// which is not a claim that nothing decided: with no session
+    /// installed there is nothing counting, and the verdict says so by
+    /// omitting the line rather than by reporting zeros as data.
+    pub fn decisions(&self) -> SymCounts {
+        self.decisions
+    }
+
+    /// The witness build's CERTIFYING verdict vector — the thing every
+    /// certified leaf's vector was compared against, shipped once.
+    ///
+    /// [`certifying_vector`]'s, not [`VerdictVector::of`]'s: it
+    /// carries no `Assertion` row, because a report node's verdict is
+    /// not part of what certification means. A consumer who wants the
+    /// whole vector of an evaluation takes `of` over that evaluation.
     pub fn witness_vector(&self) -> &VerdictVector {
         &self.witness_vector
     }
@@ -580,6 +710,25 @@ impl ParamBoxVerdict {
     /// The box that was driven.
     pub fn root(&self) -> &ParamBox {
         &self.root
+    }
+
+    /// **The tier this drive ran at** ([`SymbolicDials`]).
+    ///
+    /// Shipped on the verdict because every consumer that REPLAYS a
+    /// certified leaf — a stackup's content tie, a measure hull, a
+    /// histogram row, an assertion read-back — has to replay it the way
+    /// the driver certified it. A leaf certified with the symbolic tier
+    /// on can carry a node that a numeric-only replay refuses, and a
+    /// consumer that replayed at the wrong tier would report the
+    /// verdict as "not of this build" rather than reading it.
+    pub fn symbolic(&self) -> SymbolicDials {
+        self.symbolic
+    }
+
+    /// The replay lane [`Self::symbolic`] names — the currency
+    /// `crate::eval::replay_leaf` takes.
+    pub(crate) fn lane(&self) -> crate::eval::LeafLane {
+        self.symbolic.lane()
     }
 
     /// The verdict's goldening form: a deterministic, float-exact text
@@ -617,7 +766,84 @@ impl ParamBoxVerdict {
                 render_reason(&leaf.reason)
             );
         }
+        // The symbolic tier's receipt, and ONLY when there is one: a
+        // drive with the tier off installs no session, counts nothing,
+        // and serializes exactly the text it serialized before E12 —
+        // which is what makes the tier-off differential a byte
+        // comparison rather than a filtered one.
+        if self.decisions != SymCounts::default() {
+            let _ = write!(
+                s,
+                "decisions symbolic_zero={} numeric={} frozen={}",
+                self.decisions.symbolic_zero, self.decisions.numeric, self.decisions.frozen
+            );
+            // The clause-3 count by the same rule as the line itself:
+            // present only when there is one, so a drive with that rule
+            // off serializes the pre-algebra line byte for byte.
+            if self.decisions.sign_gated != 0 {
+                let _ = write!(s, " sign_gated={}", self.decisions.sign_gated);
+            }
+            let _ = writeln!(s);
+        }
         let _ = write!(s, "{}", self.accounting.serialize());
+        s
+    }
+
+    /// **The human form** (M10-6 §2), beside the goldening one and
+    /// never instead of it: leaf counts as counts, masses as
+    /// percentages, the tail on its own line, and the
+    /// priced-or-forced basis stated rather than assumed.
+    ///
+    /// It takes the analyzed box because the BASIS is a property of
+    /// the box's distributions, not of the verdict: a drive over a
+    /// band-only box produces exactly the same masses as one over a
+    /// uniform box, and only the box knows that none of them is a
+    /// probability ([`crate::report::MassBasis`]).
+    pub fn render(&self, analyzed: &AnalyzedBox) -> String {
+        use core::fmt::Write as _;
+        let mut s = String::new();
+        let r = self.receipt;
+        let _ = writeln!(
+            s,
+            "drive over {} axis/axes: {} certified, {} refused ({} splits; receipt {})",
+            self.root.axes().len(),
+            r.certified,
+            r.refused,
+            r.splits,
+            if r.holds() { "holds" } else { "BROKEN" }
+        );
+        let mut classes: BTreeMap<&'static str, usize> = BTreeMap::new();
+        for leaf in &self.refused {
+            *classes.entry(leaf.reason.class().name()).or_default() += 1;
+        }
+        for (class, n) in &classes {
+            let _ = writeln!(s, "  {n} leaf/leaves refused {class}");
+        }
+        let d = self.decisions;
+        if d != SymCounts::default() {
+            let total = d.decisions();
+            let share = if total == 0 {
+                0.0
+            } else {
+                100.0 * (d.symbolic_zero as f64) / (total as f64)
+            };
+            let _ = write!(
+                s,
+                "  {} of {total} decisions were symbolic identities ({share:.1}%)",
+                d.symbolic_zero
+            );
+            // The clause-3 count only where there is one (rule C off, or
+            // nothing folded, prints the pre-algebra line).
+            if d.sign_gated != 0 {
+                let _ = write!(s, ", {} more by a certified sign", d.sign_gated);
+            }
+            let _ = writeln!(s, "; {} form(s) frozen", d.frozen);
+        }
+        let _ = write!(
+            s,
+            "{}",
+            crate::report::MassBudget::of(&self.accounting, analyzed).render()
+        );
         s
     }
 
@@ -753,6 +979,28 @@ pub enum DriveRefusal {
     /// answers this document completely, and saying so is more useful
     /// than returning a one-leaf verdict that looks like an analysis.
     NothingVaries,
+    /// **The symbolic tier and the clearance engine do not compose**
+    /// (E12's unit, deviation D3; issue `symbolic-tier-and-clearance-engine`).
+    ///
+    /// `min_clearance` answers with an enclosure computed by
+    /// [`crate::clearance`]'s engine, which is written at
+    /// [`geom_core::Interval`] concretely — it borrows a
+    /// `&Body<Interval>` — so it cannot be handed the leaf replay's
+    /// `Body<Sym<Interval>>`, and no scalar remap of a body exists to
+    /// strip one. The lane therefore has no clearance answer at all.
+    ///
+    /// Refused up front rather than degraded: the trait's honest `None`
+    /// reads downstream as the typed absence
+    /// [`crate::eval::ValuePayload::MeasureUnavailable`], which is a
+    /// VALUE, so the leaf would certify with the clearance measure
+    /// silently missing from it. That is precisely the quiet degradation
+    /// this kernel refuses, so the drive says so instead. The recourse
+    /// is in the message: drive this document with
+    /// [`SymbolicDials::off`].
+    SymbolicClearanceUnsupported {
+        /// The measure node whose primitive has no lane.
+        node: RecipeNodeId,
+    },
 }
 
 impl core::fmt::Display for DriveRefusal {
@@ -767,6 +1015,13 @@ impl core::fmt::Display for DriveRefusal {
             Self::NothingVaries => f.write_str(
                 "no parameter of this document declares a distribution, so the analyzed box has \
                  no varying axis — the nominal build is the whole answer",
+            ),
+            Self::SymbolicClearanceUnsupported { node } => write!(
+                f,
+                "node {} measures a `min_clearance`, whose engine has no lane at the symbolic \
+                 identity tier — drive with `DriveConfig {{ symbolic: SymbolicDials::off(), .. }}` \
+                 to get the numeric-only answer, or measure a closed form",
+                node.0
             ),
         }
     }
@@ -797,6 +1052,11 @@ pub fn drive(
     if root.varying().next().is_none() {
         return Err(DriveRefusal::NothingVaries);
     }
+    if config.symbolic.enabled
+        && let Some(node) = clearance_measure(doc)
+    {
+        return Err(DriveRefusal::SymbolicClearanceUnsupported { node });
+    }
 
     // The WITNESS build: the document at its nominals, at f64, with the
     // profile lift on. The lift is on rather than off because the leaf
@@ -815,7 +1075,7 @@ pub fn drive(
             .map_or_else(|| "not evaluated".to_owned(), |e| e.kind.to_string());
         return Err(DriveRefusal::WitnessDoesNotBuild { node, cause });
     }
-    let witness_vector = Arc::new(VerdictVector::of(&witness));
+    let witness_vector = Arc::new(certifying_vector(doc, &witness));
     let witness_key = witness_vector.key();
     // The witness EVALUATION stays alive for the whole drive, not just
     // long enough to take its vector: `diff_verdicts` names a leaf's
@@ -826,6 +1086,7 @@ pub fn drive(
     let mut certified: Vec<CertifiedLeaf> = Vec::new();
     let mut refused: Vec<RefusedLeaf> = Vec::new();
     let mut splits = 0usize;
+    let mut decisions = SymCounts::default();
 
     // A level-synchronous frontier, so the sequential and the parallel
     // schedule visit the same boxes in the same order and combine them
@@ -841,35 +1102,45 @@ pub fn drive(
         // priced and reported, never dropped.
         if certified.len() + refused.len() + frontier.len() > config.max_leaves {
             for b in frontier.drain(..) {
+                // A box the budget refuses before it is replayed decided
+                // nothing, so its receipt is empty rather than absent.
                 refused.push(RefusedLeaf {
                     box_: b.box_,
                     reason: RefusalReason::Budget(BudgetKind::Leaves {
                         max_leaves: config.max_leaves,
                     }),
+                    decisions: SymCounts::default(),
                 });
             }
             break;
         }
-        let verdicts: Vec<LeafVerdict> = if config.parallel {
+        let leaf = |b: &Box_| {
+            classify(
+                doc,
+                &b.box_,
+                &witness,
+                &witness_vector,
+                witness_key,
+                config.symbolic,
+                tol,
+            )
+        };
+        let verdicts: Vec<(LeafVerdict, SymCounts)> = if config.parallel {
             use rayon::prelude::*;
-            frontier
-                .par_iter()
-                .map(|b| classify(doc, &b.box_, &witness, &witness_vector, witness_key, tol))
-                .collect()
+            frontier.par_iter().map(leaf).collect()
         } else {
-            frontier
-                .iter()
-                .map(|b| classify(doc, &b.box_, &witness, &witness_vector, witness_key, tol))
-                .collect()
+            frontier.iter().map(leaf).collect()
         };
         let mut next = Vec::new();
         let level = frontier.len();
-        for (i, (b, v)) in frontier.drain(..).zip(verdicts).enumerate() {
+        for (i, (b, (v, counts))) in frontier.drain(..).zip(verdicts).enumerate() {
+            decisions.absorb(counts);
             match v {
                 LeafVerdict::Certified(leaf) => certified.push(leaf),
                 LeafVerdict::Refused(reason) => refused.push(RefusedLeaf {
                     box_: b.box_,
                     reason,
+                    decisions: counts,
                 }),
                 // The budget is enforced AT ADMISSION, not after the
                 // fact: splitting turns one box into two, so the split
@@ -895,6 +1166,7 @@ pub fn drive(
                             reason: RefusalReason::Budget(BudgetKind::Leaves {
                                 max_leaves: config.max_leaves,
                             }),
+                            decisions: counts,
                         });
                     } else {
                         match bisect(&b, &root, config.max_depth) {
@@ -906,6 +1178,7 @@ pub fn drive(
                             Err(kind) => refused.push(RefusedLeaf {
                                 box_: b.box_,
                                 reason: RefusalReason::Budget(kind),
+                                decisions: counts,
                             }),
                         }
                     }
@@ -918,7 +1191,7 @@ pub fn drive(
     #[cfg(feature = "probe")]
     if config.k_probe == KProbe::CertifiedMidpoints {
         for leaf in &certified {
-            probe_midpoint(doc, &leaf.box_, tol);
+            probe_midpoint(doc, &leaf.box_, config.symbolic, tol);
         }
     }
 
@@ -951,8 +1224,25 @@ pub fn drive(
         refused,
         accounting,
         receipt,
+        decisions,
+        symbolic: config.symbolic,
         witness_vector,
         root,
+    })
+}
+
+/// The first `Measure` node reading a `min_clearance` primitive, if
+/// the document has one ([`DriveRefusal::SymbolicClearanceUnsupported`]).
+fn clearance_measure(doc: &Doc<ProfileProgram>) -> Option<RecipeNodeId> {
+    doc.order().iter().copied().find(|&id| {
+        let Some(Node::Measure { expr, .. }) = doc.node(id) else {
+            return false;
+        };
+        let mut prims = Vec::new();
+        expr.primitives(&mut prims);
+        prims
+            .iter()
+            .any(|p| matches!(p, crate::measure::MeasurePrimitive::MinClearance { .. }))
     })
 }
 
@@ -961,7 +1251,24 @@ pub fn drive(
 /// every structure decision is re-verified at the lane), sequential
 /// (leaf-level parallelism is the driver's, and nesting a rayon scope
 /// per leaf inside one buys nothing), and no memo.
-fn lane_opts() -> EvalOptions {
+///
+/// **Crate-visible because the clearance engine replays INSIDE a leaf**
+/// ([`crate::clearance`]) and must replay it the way this driver
+/// certified it. Two copies of these options are two lanes: a clearance
+/// query whose lift setting drifted from the driver's would be
+/// certifying a body other than the one the leaf's verdict vector is
+/// about.
+///
+/// The SCALAR is the other half of "the way this driver certified it",
+/// and it does not ride here: it rides on the verdict
+/// ([`ParamBoxVerdict::symbolic`]) and reaches a consumer through
+/// `crate::eval::replay_leaf`. The clearance engine is the one consumer
+/// that cannot take it — its selection type is written at `Interval`
+/// concretely — which is why a document carrying a `min_clearance`
+/// measure refuses the symbolic tier up front
+/// ([`DriveRefusal::SymbolicClearanceUnsupported`]) rather than
+/// certifying leaves the engine could not then read.
+pub(crate) fn lane_opts() -> EvalOptions {
     // `EvalOptions::default()` already mints an epoch; minting a second
     // one to overwrite it burnt a process-global counter per leaf, and
     // a drive is tens of thousands of leaves. The epoch is a
@@ -988,21 +1295,92 @@ enum LeafVerdict {
     Bisect,
 }
 
-/// The leaf protocol: replay at `Interval` over this box and classify.
+/// The leaf protocol: replay this box at the configured lane scalar and
+/// classify, answering the verdict beside the leaf's own E12 receipt.
+///
+/// **Which scalar, and why the choice is here rather than inside**
+/// (E12). With the symbolic tier on, the replay runs at
+/// `Sym<Interval>` inside a fresh [`geom_core::sym::with_session`]: the
+/// numeric channel is `Interval`'s, verbatim and bit for bit, and the
+/// tier adds one thing — a margin whose expression is identically zero
+/// in the document's parameters decides `Zero` without consulting its
+/// enclosure. With the tier off the replay is the plain `Interval` one,
+/// which is why `SymbolicDials::off()` is a byte-exact reproduction of
+/// the pre-E12 driver rather than an approximation of it.
+///
+/// The session is per-CALL, so its hash-consing table is per leaf and is
+/// dropped with the leaf; under the parallel schedule each leaf runs
+/// wholly on one rayon thread, and the session is thread-local, so no
+/// table is ever shared. Node ids are content hashes, so the two
+/// schedules build identical DAGs anyway (D9).
+///
+/// **The f64 witness pass is untouched.** A point residual is tight, so
+/// the witness still catches a constructor that does not build what it
+/// claims — which is exactly the failure the symbolic tier could
+/// otherwise hide, since an expression that is identically zero on
+/// paper says nothing about whether the code computed it.
 fn classify(
     doc: &Doc<ProfileProgram>,
     box_: &ParamBox,
     witness: &Evaluation<f64>,
     witness_vector: &VerdictVector,
     witness_key: VerdictVectorKey,
+    symbolic: SymbolicDials,
     tol: Tol,
-) -> LeafVerdict {
+) -> (LeafVerdict, SymCounts) {
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),
         ..lane_opts()
     };
+    if symbolic.enabled {
+        let (leaf, counts) =
+            geom_core::sym::with_session_rules(symbolic.budget(), symbolic.rules, || {
+                let leaf: Evaluation<Sym<Interval>> =
+                    evaluate(doc, None, &CancelToken::new(), &opts, tol);
+                leaf
+            });
+        return (
+            classify_replay(
+                doc,
+                box_,
+                &leaf,
+                witness,
+                witness_vector,
+                witness_key,
+                counts,
+            ),
+            counts,
+        );
+    }
     let leaf: Evaluation<Interval> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
+    let counts = SymCounts::default();
+    (
+        classify_replay(
+            doc,
+            box_,
+            &leaf,
+            witness,
+            witness_vector,
+            witness_key,
+            counts,
+        ),
+        counts,
+    )
+}
 
+/// The classification itself, over an already-replayed leaf — generic
+/// in the lane scalar at `Decide`, the weakest bound its reads need,
+/// because the two lanes above differ only in which scalar produced the
+/// evaluation and in nothing this function looks at.
+fn classify_replay<T: geom_core::Decide>(
+    doc: &Doc<ProfileProgram>,
+    box_: &ParamBox,
+    leaf: &Evaluation<T>,
+    witness: &Evaluation<f64>,
+    witness_vector: &VerdictVector,
+    witness_key: VerdictVectorKey,
+    decisions: SymCounts,
+) -> LeafVerdict {
     // (i) Definiteness. An indeterminacy anywhere is the cue to
     // bisect — unless the enclosure that could not be classified sits
     // wholly inside the band, in which case refinement provably cannot
@@ -1017,18 +1395,30 @@ fn classify(
     // escalation and the profile lift's guided abort — are the two E6
     // names as the cue to bisect.
     //
-    // WHY IT CANNOT SIMPLY ASK. `k_stats` records definite outcomes
-    // (the verdict log) and nothing at all for indeterminate ones, so
-    // "was every predicate here definite" has no observable form; an
-    // escalation reaches this loop wrapped inside whichever op's error
-    // enum raised it, ~40 variants across five crates. The channel that
-    // would answer it directly is issue #1254 — filed together with the
-    // verdict log's own banked redo, because both are one mechanism and
-    // `k_stats`' module docs forbid deepening the current one. Until it
-    // lands, a terminal sliver that surfaces through an op's own error
-    // (rather than through `NodeErrorKind::Escalated`) is priced
-    // `Budget` instead of `SliverTerminal`: a worse answer for the same
-    // mass, never a wrong one.
+    // HOW IT ASKS, AND IN WHAT ORDER. Three reads per node, and the
+    // order is a rule: (1) a DEFINITE box-independent refusal is
+    // terminal whatever else the op recorded — bisection cannot change
+    // a fact about the document — so it is read first; (2) the node's
+    // escalation log decides among the box-DEPENDENT outcomes: every
+    // indeterminate outcome the FUNNEL produced while the op ran is on
+    // it — on the value if the op built anyway, on the error if it did
+    // not — so an escalation an op wrapped in its own error enum (a
+    // sweep's `ExtrusionEscalated`, ~40 such variants across five
+    // crates) is seen without matching on any of them, and the FIRST
+    // escalation in decision order speaks: a sliver, or the cue to
+    // bisect (a later sliver behind a refinable escalation does not
+    // argue — refinement may never reach it on the branch a definite
+    // first decision takes — so that order is the conservative one);
+    // (3) the error-enum arms. Those arms are LOAD-BEARING, not a
+    // fallback: the log carries the funnel's escalations only, and a
+    // predicate that asks the funnel, gets a definite sign, and then
+    // mints an `Indeterminate` of its own (`geom_brep::enters`,
+    // `dihedral`, `pcurve_cache`, `certify`, `edge_nurbs`, `ssi::march`
+    // — eight sites) reaches this loop only through the enum it was
+    // wrapped in; the whole-document mate solve's escalations likewise
+    // arrive only as `NodeErrorKind::Mate`, since no node's bracket is
+    // open when it runs. The gap and the unit that closes it:
+    // `work/props/escalation-channel-misses-op-minted-indeterminates.md`.
     // ITERATION ORDER IS NODE ID, and where a leaf carries several
     // refusing nodes that decides which one speaks: the FIRST
     // indeterminacy in node-id order settles the leaf as a sliver or a
@@ -1040,27 +1430,45 @@ fn classify(
     // is refused mass either way, and the receipt does not change.
     let mut structure_flips = Vec::new();
     for (&node, result) in &leaf.nodes {
-        let NodeResult::Failed(err) = result else {
+        let (escalations, failure) = match result {
+            NodeResult::Ok(v) => (&v.escalations, None),
+            NodeResult::Failed(e) => (&e.escalations, Some(e)),
+            NodeResult::Poisoned { .. } => continue,
+        };
+        // (1) **Box-independent measure refusals are TERMINAL** (M10-6,
+        // R1's MINOR-6). A selection naming the wrong kind of entity,
+        // or a pairing the wedge rule empties, is a fact about the
+        // document: every sub-box inherits it exactly, so refining
+        // re-derives the same refusal until the budget runs out and
+        // then prices the mass `Budget`, naming the symptom. The
+        // classes listed in `box_independent_measure_class` are the
+        // ones that provably cannot move under refinement; a clearance
+        // refusal that CAN (a cell budget, a poisoned enclosure, an
+        // unverified witness) still bisects, because for those a
+        // smaller box is exactly the remedy. Read BEFORE the log: an
+        // escalation the same op also recorded changes nothing about
+        // a refusal no box can move.
+        if let Some(err) = failure
+            && let Some(class) = box_independent_measure_class(&err.kind)
+        {
+            return LeafVerdict::Refused(RefusalReason::MeasureRefused { node, class });
+        }
+        // (2) The escalation log.
+        if let Some(first) = escalations.first() {
+            return indeterminate(&first.source);
+        }
+        // (3) The error-enum arms.
+        let Some(err) = failure else {
             continue;
         };
         match &err.kind {
-            NodeErrorKind::Escalated { source, .. } => {
-                if let Some(p) = sliver(source) {
-                    return LeafVerdict::Refused(RefusalReason::SliverTerminal { predicate: p });
-                }
-                return LeafVerdict::Bisect;
-            }
+            NodeErrorKind::Escalated { source, .. } => return indeterminate(source),
             NodeErrorKind::ProfileLaneReplay {
                 structure: Some(refusal),
                 ..
             } => match &refusal.kind {
                 profile::StructureRefusalKind::Indeterminate(source) => {
-                    if let Some(p) = sliver(source) {
-                        return LeafVerdict::Refused(RefusalReason::SliverTerminal {
-                            predicate: p,
-                        });
-                    }
-                    return LeafVerdict::Bisect;
+                    return indeterminate(source);
                 }
                 profile::StructureRefusalKind::Flipped { .. } => {
                     structure_flips.push(StructureFlip {
@@ -1073,13 +1481,15 @@ fn classify(
         }
     }
 
-    // (ii) The comparison. EXACT, on the verdict vector — never a
-    // width.
-    let vector = VerdictVector::of(&leaf);
+    // (ii) The comparison. EXACT, on the CERTIFYING verdict vector —
+    // never a width, and never a report node
+    // ([`certifying_vector`]).
+    let vector = certifying_vector(doc, leaf);
     if structure_flips.is_empty() && vector == *witness_vector {
         return LeafVerdict::Certified(CertifiedLeaf {
             box_: box_.clone(),
             verdict_vector_key: witness_key,
+            decisions,
             results: LeafResults {
                 node_keys: leaf
                     .order
@@ -1090,13 +1500,43 @@ fn classify(
         });
     }
     // NAMED by the built-once engine, not by a second diff of our own
-    // (see `FlipEvidence`): the two evaluations go in, its `FlipSet`
-    // comes out unaltered.
+    // (see `FlipEvidence`): the two evaluations go in and its
+    // `FlipSet` comes out. What this module then does is DROP THE
+    // NODES the comparison above does not read.
+    //
+    // **Why the evidence has to be filtered the same way** (M10-6,
+    // both reviews). `certifying_vector` retains no `Assertion` row, so an
+    // assertion's `assert_bound` flip cannot be why this leaf refused
+    // — the comparison never looked at it. Left in, the evidence names
+    // a predicate that did not cause the refusal, on exactly the
+    // documents E10 exists for: a `min_clearance` assertion is
+    // `Unevaluated` at every f64 witness and definite over a certified
+    // leaf, so it flips on EVERY leaf and would head the flip list of
+    // every unrelated refusal.
+    //
+    // It is a projection of the engine's answer onto the nodes the
+    // question is about, not a second diff: the engine still runs over
+    // the whole evaluation, its per-node deltas come back unaltered,
+    // and the filter is the SAME predicate `certifying_vector` uses, spelled
+    // once here so the two cannot drift.
+    let mut verdicts = diff_verdicts(witness, leaf);
+    verdicts
+        .nodes
+        .retain(|id, _| !matches!(doc.node(*id), Some(Node::Assertion { .. })));
     LeafVerdict::Refused(RefusalReason::FlipCrossing {
         flipped: Box::new(FlipEvidence {
-            verdicts: diff_verdicts(witness, &leaf),
+            verdicts,
             structure: structure_flips,
         }),
+    })
+}
+
+/// What one escalation makes of a leaf: a terminal sliver when its
+/// enclosure sits wholly inside the band ([`sliver`]), otherwise the
+/// cue to bisect. One spelling for the three reads of `classify_replay`.
+fn indeterminate(source: &geom_core::Indeterminate) -> LeafVerdict {
+    sliver(source).map_or(LeafVerdict::Bisect, |predicate| {
+        LeafVerdict::Refused(RefusalReason::SliverTerminal { predicate })
     })
 }
 
@@ -1110,7 +1550,14 @@ fn classify(
 /// either way there is something narrowing could still resolve. Only an
 /// enclosure strictly between the two thresholds, on one side of zero,
 /// describes a quantity that IS in the band.
-fn sliver(source: &geom_core::Indeterminate) -> Option<&'static str> {
+/// **Crate-visible because the clearance engine's inner subdivision
+/// refuses by the same rule** ([`crate::clearance`]): a cell pair whose
+/// separation margin sits wholly inside the band is terminal for
+/// exactly this reason — interval enclosures shrink monotonically under
+/// subdivision, so a sub-cell's enclosure stays inside the band its
+/// parent's was inside. One home, so the two subdivisions cannot drift
+/// apart on what a sliver is.
+pub(crate) fn sliver(source: &geom_core::Indeterminate) -> Option<&'static str> {
     let MarginDiag::Enclosure { lo, hi } = source.margin else {
         // A point margin (an `f64` lane) or an invalid one says nothing
         // about a box.
@@ -1248,7 +1695,7 @@ fn contained(root: &ParamBox, certified: &[CertifiedLeaf], refused: &[RefusedLea
 /// existing scalar, the existing sink — the driver only decides WHICH
 /// parameter points get sampled.
 #[cfg(feature = "probe")]
-fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, tol: Tol) {
+fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, symbolic: SymbolicDials, tol: Tol) {
     // THE SAME MIDPOINT THE SPLIT RULE USES, through the same door
     // (`BoxAxis::midpoint`). Writing `0.5 * (lo + hi)` here as well
     // would let a change to the split rule silently detach the K
@@ -1267,12 +1714,26 @@ fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, tol: Tol) {
         param_box: Some(Arc::new(ParamBox::from_axes(mid))),
         ..lane_opts()
     };
+    // The replay runs at the SAME TIER the drive did (E12): with the
+    // tier on the recording scalar is `Sym<Probe>`, so a margin that is
+    // an identity lands in the funnel as `SampleOutcome::SymbolicZero`
+    // and the hosted K row reports the symbolic/numeric split of the
+    // driver's own population. Running it at bare `Probe` would report a
+    // population the driver did not produce.
+    if symbolic.enabled {
+        let _ = geom_core::sym::with_session_rules(symbolic.budget(), symbolic.rules, || {
+            let ev: Evaluation<Sym<geom_core::Probe>> =
+                evaluate(doc, None, &CancelToken::new(), &opts, tol);
+            ev
+        });
+        return;
+    }
     let _: Evaluation<geom_core::Probe> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
 }
 
 /// A box's goldening rendering: `name=[lo_bits,hi_bits]` per axis, in
 /// name order, floats as exact bits.
-fn render_box(b: &ParamBox) -> String {
+pub(crate) fn render_box(b: &ParamBox) -> String {
     use core::fmt::Write as _;
     let mut s = String::new();
     for (name, axis) in b.axes() {
@@ -1295,6 +1756,9 @@ fn render_reason(r: &RefusalReason) -> String {
     use core::fmt::Write as _;
     match r {
         RefusalReason::SliverTerminal { predicate } => format!("sliver_terminal {predicate}"),
+        RefusalReason::MeasureRefused { node, class } => {
+            format!("measure_refused {} {class}", node.0)
+        }
         RefusalReason::FlipCrossing { flipped } => {
             let mut s = String::from("flip_crossing");
             // Deterministic by construction: `FlipSet` is a `BTreeMap`
@@ -1352,5 +1816,85 @@ fn render_mass(m: &Result<f64, MeasureUnavailable>) -> String {
         Err(MeasureUnavailable::BandHasNoMeasure { param }) => {
             format!("refused band:{}", param.0)
         }
+    }
+}
+
+/// **The recorded requirement's verdict over one certified leaf** —
+/// the number E10 says a CI row gates on, through a door rather than
+/// through a hand-assembled evaluation.
+///
+/// A consumer with a `ParamBoxVerdict` in hand has the leaves; what it
+/// did not have until M10-6's review was any way to ask what the
+/// assertion says over one, short of rebuilding `EvalOptions`, picking
+/// the interval scalar and matching on `ValuePayload` — three steps in
+/// which the easy mistake is to skip the node entirely and compare
+/// `worst_case.lo` against the bound by hand. That comparison is an
+/// `f64` `<` over quantities that may differ by less than the run's own
+/// coincidence threshold, and it manufactures exactly the certainty the
+/// band exists to deny. The tour's tolerance cell made it; this door is
+/// what it should have called.
+///
+/// `None` when `assertion` is not an `Assertion` node, or the
+/// evaluation over `box_` did not produce a verdict for it.
+///
+/// The scalar is the interval one, not a choice: a verdict over a BOX
+/// is only meaningful from an enclosure, and the point scalars cannot
+/// produce one.
+pub fn assertion_at(
+    doc: &Doc<ProfileProgram>,
+    assertion: RecipeNodeId,
+    box_: &ParamBox,
+    symbolic: SymbolicDials,
+    tol: Tol,
+) -> Option<crate::measure::AssertionVerdict<geom_core::Interval>> {
+    if !matches!(doc.node(assertion), Some(Node::Assertion { .. })) {
+        return None;
+    }
+    // The SAME LANE the leaf was certified on ([`ParamBoxVerdict::symbolic`]).
+    crate::eval::replay_leaf(
+        doc,
+        &EvalOptions {
+            param_box: Some(Arc::new(box_.clone())),
+            ..lane_opts()
+        },
+        symbolic.lane(),
+        &crate::eval::LeafPrior::None,
+        crate::eval::LeafRequest {
+            assertion: Some(assertion),
+            ..crate::eval::LeafRequest::default()
+        },
+        tol,
+    )
+    .assertion
+}
+
+/// The measure-refusal classes a smaller box cannot change
+/// ([`RefusalReason::MeasureRefused`]).
+///
+/// Conservative by construction: a class is here only when refinement
+/// PROVABLY cannot alter it, and everything else keeps bisecting. The
+/// cost of being wrong in this direction is a leaf refused early
+/// (visible, priced under its own name); the cost of being wrong the
+/// other way is a leaf that could have certified and did not, which is
+/// why the list is enumerated rather than defaulted.
+fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<&'static str> {
+    match kind {
+        // The selection resolved to the wrong KIND of entity. Document
+        // structure; no parameter value moves it.
+        NodeErrorKind::MeasureSelectionKind { .. } => Some("selection_kind"),
+        NodeErrorKind::MeasureClearanceRefused(r) => match r.class {
+            // Which faces are admitted, whether the two scopes pair at
+            // all, and whether the carrier has an implementation: all
+            // decided by the document's own topology and the engine's
+            // support table, not by the box.
+            c @ ("no_admitted_pair" | "unsupported" | "selection" | "empty_scope"
+            | "not_a_distance") => Some(c),
+            // `budget`, `sliver`, `poison_enclosure`, `witness_unverified`,
+            // `nothing_certified`, `tolerance_has_no_band`: every one of
+            // these can differ over a smaller box, so refinement is the
+            // right answer and the catch-all keeps it.
+            _ => None,
+        },
+        _ => None,
     }
 }

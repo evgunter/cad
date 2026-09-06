@@ -31,35 +31,14 @@ use core::f64::consts::FRAC_PI_2;
 
 use geom::NurbsSurface;
 use geom::curves::fit::interpolate_columns;
-use geom_brep::offset_fit::{OffsetFitError, certify_offset, fit_offset, offset_point};
+use geom_brep::offset_fit::{OffsetFitError, certify_offset_at, fit_offset_at};
 use geom_brep::offset_meters::{OFFSET_METER_LADDER, patch_collapse};
 use geom_brep::patch_bound::patch_cells_refined;
-use geom_core::spline::KnotVector;
-use geom_core::{Band, Point3, Tol};
+use geom_core::Point3;
 
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
-fn kv2() -> KnotVector {
-    KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap()
-}
-
-fn kv1() -> KnotVector {
-    KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap()
-}
-
-/// A deterministic dense schedule, coprime counts, off the fit's grid.
-fn dense(nu: usize, nv: usize) -> Vec<(f64, f64)> {
-    let mut out = Vec::with_capacity(nu * nv);
-    for i in 0..nu {
-        for j in 0..nv {
-            #[allow(clippy::cast_precision_loss)]
-            out.push((i as f64 / (nu - 1) as f64, j as f64 / (nv - 1) as f64));
-        }
-    }
-    out
-}
+use crate::shared::fixture::{arc_weight, kv1, kv2, quarter_cylinder};
+use crate::shared::sample::{grid, worst_offset_residual};
+use crate::shared::tol::band;
 
 // ---------------------------------------------------------------------
 // P1 — the two-limb inequality, brute-forced
@@ -179,8 +158,12 @@ fn p1b_without_the_sign_condition_the_inequality_is_false() {
 /// spec's acceptance asks for, built section-wise rather than as a
 /// height field.
 fn skinned_loft() -> NurbsSurface<f64> {
-    let nu = 7usize;
-    let nv = 5usize;
+    // Four spans by three: a genuine multi-span cubic loft with no
+    // closed form as any analytic kind, at the smallest section count
+    // that is still one — the sections, not their number, are what
+    // makes it non-analytic.
+    let nu = 5usize;
+    let nv = 4usize;
     #[allow(clippy::cast_precision_loss)]
     let uparams: Vec<f64> = (0..nu).map(|i| i as f64 / (nu - 1) as f64).collect();
     #[allow(clippy::cast_precision_loss)]
@@ -233,7 +216,7 @@ fn skinned_loft() -> NurbsSurface<f64> {
 /// two-directional weight net, unlike the cylinder's one-directional
 /// one.
 fn torus_patch(major: f64, minor: f64) -> NurbsSurface<f64> {
-    let w = (FRAC_PI_2 * 0.5).cos();
+    let w = arc_weight(FRAC_PI_2);
     // Minor quarter arc in the (r, z) half-plane, from (major+minor, 0)
     // to (major, minor), tangent-intersection point at
     // (major+minor, minor).
@@ -258,19 +241,15 @@ fn torus_patch(major: f64, minor: f64) -> NurbsSurface<f64> {
 }
 
 fn contains_dense_sample(name: &str, base: &NurbsSurface<f64>, d: f64, tol: f64) {
-    let (fit, cert) = fit_offset(base, d, tol, band())
+    let (fit, cert) = fit_offset_at(base, d, tol, band())
         .unwrap_or_else(|e| panic!("{name}: fit_offset refused at d = {d}: {e}"));
     assert!(
         cert.hull_sup <= tol,
         "{name}: certified sup {} exceeds {tol}",
         cert.hull_sup
     );
-    let mut worst = 0.0f64;
-    for (u, v) in dense(41, 37) {
-        let target = offset_point(base, d, u, v)
-            .unwrap_or_else(|| panic!("{name}: the exact offset is undefined at ({u}, {v})"));
-        worst = worst.max((fit.eval(u, v) - target).norm());
-    }
+    let worst = worst_offset_residual(base, &fit, d, &grid(41, 37))
+        .unwrap_or_else(|(u, v)| panic!("{name}: the exact offset is undefined at ({u}, {v})"));
     // The red direction: a bound that UNDER-reports.
     assert!(
         worst <= cert.hull_sup,
@@ -323,13 +302,9 @@ fn p3_offset_just_inside_the_certified_reach_still_bounds_the_sample() {
     // 90% of the certified reach: the door must either certify with a
     // bound that still contains a dense sample, or refuse LOUD.
     let d = -0.9 * coll.reach;
-    match fit_offset(&base, d, 1e-2, band()) {
+    match fit_offset_at(&base, d, 1e-2, band()) {
         Ok((fit, cert)) => {
-            let mut worst = 0.0f64;
-            for (u, v) in dense(41, 37) {
-                let target = offset_point(&base, d, u, v).unwrap();
-                worst = worst.max((fit.eval(u, v) - target).norm());
-            }
+            let worst = worst_offset_residual(&base, &fit, d, &grid(41, 37)).unwrap();
             assert!(
                 worst <= cert.hull_sup,
                 "extreme d = {d}: certified sup {} UNDER-reports {worst}",
@@ -377,7 +352,7 @@ fn p6b_a_near_degenerate_chart_passes_the_floor_at_large_d_and_fails_at_small_d(
     );
     let verdict = |d: f64| {
         !matches!(
-            fit_offset(&base, d, 1e-3, band()),
+            fit_offset_at(&base, d, 1e-3, band()),
             Err(OffsetFitError::Meter(
                 geom_brep::offset_meters::MeterError::NormalFloor { .. }
                     | geom_brep::offset_meters::MeterError::Escalated { .. }
@@ -413,7 +388,7 @@ fn p6b_a_near_degenerate_chart_passes_the_floor_at_large_d_and_fails_at_small_d(
 fn p4_certify_offset_on_a_rational_fit() {
     let base = quarter_cylinder(1.0, 1.0);
     let d = 0.25;
-    let (fit, _) = fit_offset(&base, d, 1e-3, band()).unwrap();
+    let (fit, _) = fit_offset_at(&base, d, 1e-3, band()).unwrap();
     let (cu, cv) = fit.control_counts();
     // Same control points and knots; weights perturbed. In ℝ this is
     // a DIFFERENT surface, and the composite's `Ẽ = F̃·w − A·w_fit` is
@@ -432,17 +407,13 @@ fn p4_certify_offset_on_a_rational_fit() {
     )
     .unwrap();
     // What the handed-in surface's residual actually is.
-    let mut worst = 0.0f64;
-    for (u, v) in dense(41, 37) {
-        let target = offset_point(&base, d, u, v).unwrap();
-        worst = worst.max((rational_fit.eval(u, v) - target).norm());
-    }
+    let worst = worst_offset_residual(&base, &rational_fit, d, &grid(41, 37)).unwrap();
     // A tolerance ABOVE the true residual: limb 1 cannot refuse, so
     // whatever limb 2 reports is what certifies — and far enough above
     // it that the door's own `≤ tolerance` test is not what caps the
     // ratio below. The ceiling is this row's, and it is re-taken.
     let tol = worst * 8.0;
-    let cert = certify_offset(&base, &rational_fit, d, tol, band()).unwrap_or_else(|e| {
+    let cert = certify_offset_at(&base, &rational_fit, d, tol, band()).unwrap_or_else(|e| {
         panic!("P4: certify_offset refused a rational fit it can now bound (residual {worst}): {e}")
     });
     assert!(
@@ -465,21 +436,6 @@ fn p4_certify_offset_on_a_rational_fit() {
         cert.hull_sup,
         cert.hull_sup / worst
     );
-}
-
-/// A quarter cylinder, exact (the shipped suite's fixture, re-spelled
-/// here so the probes stand alone).
-fn quarter_cylinder(r: f64, h: f64) -> NurbsSurface<f64> {
-    let s = (FRAC_PI_2 * 0.5).cos();
-    let control = vec![
-        Point3::new(r, 0.0, 0.0),
-        Point3::new(r, 0.0, h),
-        Point3::new(r, r, 0.0),
-        Point3::new(r, r, h),
-        Point3::new(0.0, r, 0.0),
-        Point3::new(0.0, r, h),
-    ];
-    NurbsSurface::new(kv2(), kv1(), control, vec![1.0, 1.0, s, s, 1.0, 1.0]).unwrap()
 }
 
 /// **P6 — the regularity predicate's lever.** AMENDED at adoption:
@@ -508,7 +464,7 @@ fn p6_a_regular_patch_is_refused_when_d_is_small() {
         reg.sine_floor, reg.floor
     );
     for d in [1e-3_f64, 1e-6, 1e-9] {
-        let r = fit_offset(&base, d, 1e-3, band());
+        let r = fit_offset_at(&base, d, 1e-3, band());
         let refused_at_the_floor = matches!(
             r,
             Err(OffsetFitError::Meter(
@@ -540,7 +496,7 @@ fn p6_a_regular_patch_is_refused_when_d_is_small() {
 fn p5_budget_refusal_payload_is_the_bound_the_door_re_derives() {
     let base = skinned_loft();
     let d = 0.08;
-    match fit_offset(&base, d, 1e-14, band()) {
+    match fit_offset_at(&base, d, 1e-14, band()) {
         Err(OffsetFitError::BudgetExhausted {
             achieved,
             tolerance,
@@ -555,7 +511,7 @@ fn p5_budget_refusal_payload_is_the_bound_the_door_re_derives() {
             // The same base at a tolerance the achieved bound clears
             // must now certify — i.e. `achieved` is a real bound the
             // loop reached, not a number it printed.
-            let (_, cert) = fit_offset(&base, d, achieved * 1.5, band()).unwrap_or_else(|e| {
+            let (_, cert) = fit_offset_at(&base, d, achieved * 1.5, band()).unwrap_or_else(|e| {
                 panic!("the achieved bound {achieved} is not reachable by the same door: {e}")
             });
             assert!(cert.hull_sup <= achieved * 1.5);

@@ -62,9 +62,14 @@
 
 use editor_core::{
     Dimension, Expr, LoopProgram, ParamEnv, ProfilePayload, ProfileProgram, ProgramArcData,
-    ProgramStep, ProgramTarget, RecordedProgramError, SlotId,
+    ProgramStep, ProgramTarget, SlotId,
 };
-use profile::{ArcMode, SketchPlane, Verb};
+use profile::{ArcMode, Verb};
+
+/// The plane the corpus programs name. These programs are resolved and
+/// serialized on their own, never inserted into a document, so nothing
+/// here reads the node it points at.
+const SCAFFOLD_PLANE: editor_core::RecipeNodeId = editor_core::RecipeNodeId(0);
 
 fn len(v: f64) -> Expr {
     Expr::literal(v, Dimension::Length).unwrap()
@@ -143,10 +148,11 @@ fn mode_witness(mode: ArcMode) -> ProgramArcData {
 /// addresses as a fused incoming — without anyone remembering to add
 /// it.
 ///
-/// The gap that remains, stated: `ArcFilletArc` is hand-written and
-/// walked at ONE mode pair, because it is the step whose two specs can
-/// address the same role twice (issue #829), so generating its pairs
-/// would author the aliasing case rather than test around it.
+/// `ArcFilletArc` is generated from `ArcMode::ALL` too, at the SAME
+/// mode in both positions: that is the pair whose two specs compete
+/// for one role, so it is the pair the bijection census has to walk.
+/// One cross-mode pair is written out beside it, because a generated
+/// same-mode sweep says nothing about a step whose two specs differ.
 fn chain_steps() -> Vec<ProgramStep> {
     let mut steps = vec![
         ProgramStep::At(pt(0.0, 0.0)),
@@ -160,6 +166,10 @@ fn chain_steps() -> Vec<ProgramStep> {
         ProgramStep::Turn(ang(0.1)),
         ProgramStep::Line(len(1.0)),
         ProgramStep::LineTo(point(1.0, 0.0)),
+        ProgramStep::ContinueTo(point(2.0, 0.0)),
+        // The seam's two declared arrivals, so the corpus the wire
+        // round-trip and the slot bijection walk carries them.
+        ProgramStep::ContinueTo(ProgramTarget::StartArriving),
     ];
     steps.extend(
         ArcMode::ALL
@@ -182,6 +192,14 @@ fn chain_steps() -> Vec<ProgramStep> {
     steps.extend(ArcMode::ALL.iter().map(|mode| ProgramStep::ArcFillet {
         spec: mode_witness(*mode),
         radius: len(0.4),
+    }));
+    // Both specs of a fused step, at the same mode: the position where
+    // the incoming and the arrival roles are drawn from one spec
+    // vocabulary and each has to address its own argument.
+    steps.extend(ArcMode::ALL.iter().map(|mode| ProgramStep::ArcFilletArc {
+        spec: mode_witness(*mode),
+        radius: len(0.5),
+        spec2: mode_witness(*mode),
     }));
     steps.extend([
         ProgramStep::ArcFilletArc {
@@ -206,7 +224,10 @@ fn chain_steps() -> Vec<ProgramStep> {
 /// forms, which are `LoopProgram` variants rather than steps.
 fn corpus() -> ProfileProgram {
     ProfileProgram {
-        plane: SketchPlane::xy(),
+        // The corpus is resolved and serialized directly, never
+        // inserted, so the frame it names is scaffolding: no row here
+        // reads what the plane denotes.
+        plane: SCAFFOLD_PLANE,
         loops: vec![
             LoopProgram::Chain(chain_steps()),
             LoopProgram::circle(1.0, 1.0, 0.5).unwrap(),
@@ -261,112 +282,106 @@ fn every_table_verb_is_a_document_program() {
         .iter()
         .flat_map(|loop_| loop_.iter().map(profile::Step::verb))
         .collect();
-    let missing: Vec<&Verb> = Verb::ALL
-        .iter()
-        .filter(|v| !seen.contains(v) && !NOT_IN_DOCUMENT.iter().any(|(n, _, _)| n == *v))
-        .collect();
+    let missing: Vec<&Verb> = Verb::ALL.iter().filter(|v| !seen.contains(v)).collect();
     assert!(
         missing.is_empty(),
         "the document step vocabulary is short of the transition table: {missing:?} — \
-         either spell them in `ProgramStep` or, if the gap is deliberate and coordinated, \
-         name them in NOT_IN_DOCUMENT with the reason"
+         spell them in `ProgramStep`. There is no exception list: the one entry this \
+         census ever carried (`ContinueTo`, waiting on a format change) landed with the \
+         seam's declared arrival, and an empty escape hatch is a hatch that will be used"
     );
 }
 
-/// **The verbs the document vocabulary deliberately does not spell**,
-/// each with the reason — the census's escape hatch, and the only one.
+/// **The TARGET census**, on the mode census's model and for its
+/// reasons verbatim one level down.
 ///
-/// This exists because the gap is real and the alternative is worse
-/// than recording it. `ProgramStep` is matched exhaustively by the wire
-/// form, so a verb reaching the document reaches the PERSISTED
-/// vocabulary in the same commit, and that is a ratified schema-version
-/// break with in-tree corpus regeneration behind it — coordinated work,
-/// not a side effect of adding an authoring verb. What this list is NOT
-/// is a way to stay green. An entry costs three things, and the third
-/// is the one that makes the list DECAY:
+/// `res_target` matches the document target vocabulary and CONSTRUCTS
+/// the kernel one, so an arm that builds a NEIGHBOUR's form is
+/// well-typed, ships, and silently re-authors the seam — a `Start` that
+/// resolved to `StartArriving` would close a loop declaring something
+/// the author never wrote. Comparing the resolved form
+/// against the form asked for is what catches that, and it is exactly
+/// what the mode census does for `ArcData`.
 ///
-/// 1. a REASON, in prose, naming the coordinated work the gap waits on;
-/// 2. the lifting door refusing the verb TYPED rather than dropping it
-///    (`RecordedProgramError::VerbNotInDocumentVocabulary`);
-/// 3. a WITNESS — a recorded chain carrying the verb — which
-///    [`the_document_vocabulary_exceptions_are_still_exceptions`] runs
-///    through that door and requires it to be refused.
-///
-/// The witness is what the first version of this roster lacked, and it
-/// is the whole point. A row asserting only "the reason is non-empty
-/// and the table still declares the verb" is satisfied by ANY verb,
-/// including one the document spells perfectly well — so a stale entry
-/// would sit here excusing the census above forever, which is exactly
-/// the quiet the census exists to prevent. R1's blinded review proved
-/// that by inserting `Verb::LineTo`: all five assertions passed. With
-/// the witness that insertion reds, because `LineTo`'s chain LIFTS and
-/// the door never refuses it.
-///
-/// This mirrors `pncad-py`'s `the_not_bound_roster_decays`, the sibling
-/// this design cites, which likewise asserts the would-be spelling is
-/// genuinely ABSENT rather than merely listed.
-type DocumentGapEntry = (Verb, &'static str, fn() -> Vec<profile::Step<f64>>);
-
-const NOT_IN_DOCUMENT: &[DocumentGapEntry] = &[(
-    Verb::ContinueTo,
-    "the declared point-target continuation (issue 433's lattice half): reaching the \
-     document means reaching the wire, which is a format change and its own unit",
-    // Minimal on purpose: `At` establishes a position so the chain is
-    // well-formed, and the closer arm carries the verb under test.
-    || {
-        vec![
-            profile::Step::At(geom_core::Point2::new(0.0, 0.0)),
-            profile::Step::ContinueTo(profile::Target::Start),
-        ]
-    },
-)];
-
-/// **The exception list decays.** Every verb named in
-/// [`NOT_IN_DOCUMENT`] must ACTUALLY be unspellable as a document
-/// program, and this row proves it the only way that is proof: it runs
-/// the entry's own witness chain through the lifting door and requires
-/// the typed vocabulary refusal, naming that verb.
-///
-/// So the day the document vocabulary catches up, the witness lifts,
-/// the refusal does not arrive, and this row reds pointing at the stale
-/// entry — instead of that entry silently excusing
-/// [`every_table_verb_is_a_document_program`] forever.
-///
-/// The first three assertions are hygiene (a reason; a verb the table
-/// still declares; a witness that really carries that verb). The fourth
-/// is the falsifier, and it is the one the first version of this row
-/// was missing.
+/// The roster is a MATCH rather than a list, so a target form the
+/// kernel gains stops this file compiling instead of quietly not being
+/// censused. The corpus clause is the mode census's second half for the
+/// same reason: the wire round-trip and the slot bijection walk
+/// `corpus()`, and neither says anything about a form the corpus omits.
 #[test]
-fn the_document_vocabulary_exceptions_are_still_exceptions() {
-    for (verb, reason, witness) in NOT_IN_DOCUMENT {
-        assert!(
-            !reason.is_empty(),
-            "{verb:?} is excused from the census with no reason"
+fn every_target_form_is_a_document_program() {
+    /// Every document target, with the kernel form it must resolve to.
+    /// Exhaustive by construction: adding a `ProgramTarget` variant
+    /// without a witness here fails to compile at the match below.
+    fn witnesses() -> Vec<(ProgramTarget, &'static str)> {
+        let all = [
+            ProgramTarget::Point([
+                Expr::literal(1.0, Dimension::Length).unwrap(),
+                Expr::literal(2.0, Dimension::Length).unwrap(),
+            ]),
+            ProgramTarget::Start,
+            ProgramTarget::StartArriving,
+        ];
+        all.into_iter()
+            .map(|t| {
+                let name = match &t {
+                    ProgramTarget::Point(_) => "Point",
+                    ProgramTarget::Start => "Start",
+                    ProgramTarget::StartArriving => "Declared",
+                };
+                (t, name)
+            })
+            .collect()
+    }
+
+    for (target, name) in witnesses() {
+        let program = ProfileProgram {
+            plane: SCAFFOLD_PLANE,
+            loops: vec![LoopProgram::Chain(vec![ProgramStep::LineTo(target)])],
+        };
+        let resolved = program
+            .resolve(&ParamEnv::<f64>::default())
+            .expect("a one-step target witness resolves at f64");
+        let profile::Step::LineTo(got) = &resolved[0][0] else {
+            panic!("the witness for {name} lifted to something other than a straight leg");
+        };
+        let got_name = match got {
+            profile::Target::Point(_) => "Point",
+            profile::Target::Start => "Start",
+            profile::Target::StartArriving => "Declared",
+        };
+        assert_eq!(
+            got_name, name,
+            "the document target {name} resolved to {got_name}"
         );
+    }
+
+    // The corpus clause: which forms the generated corpus actually
+    // carries, so a form present in the vocabulary and absent from the
+    // corpus is visible rather than assumed.
+    let seen: Vec<&'static str> = corpus()
+        .resolve(&ParamEnv::<f64>::default())
+        .expect("the corpus resolves at f64")
+        .iter()
+        .flat_map(|loop_| loop_.iter())
+        .filter_map(|step| match step {
+            profile::Step::LineTo(t)
+            | profile::Step::ContinueTo(t)
+            | profile::Step::TangentArcTo(t) => Some(t),
+            profile::Step::ArcTo(spec) => spec.target(),
+            _ => None,
+        })
+        .map(|t| match t {
+            profile::Target::Point(_) => "Point",
+            profile::Target::Start => "Start",
+            profile::Target::StartArriving => "Declared",
+        })
+        .collect();
+    for form in ["Point", "Start", "Declared"] {
         assert!(
-            Verb::ALL.contains(verb),
-            "{verb:?} is excused from the census but the table no longer declares it"
+            seen.contains(&form),
+            "the corpus carries no {form} target: {seen:?}"
         );
-        let steps = witness();
-        assert!(
-            steps.iter().any(|s| s.verb() == *verb),
-            "{verb:?}'s witness chain does not carry {verb:?}, so it proves nothing"
-        );
-        // THE DECAY HALF. Not "the reason is non-empty" — that is
-        // satisfied by any verb at all, including a document-spellable
-        // one. This asks the document layer itself, and takes its answer.
-        match LoopProgram::from_recorded(&steps) {
-            Err(RecordedProgramError::VerbNotInDocumentVocabulary(v)) => assert_eq!(
-                v, *verb,
-                "{verb:?}'s witness was refused, but for a DIFFERENT verb ({v:?})"
-            ),
-            other => panic!(
-                "{verb:?} is listed as having no document spelling, but its witness chain \
-                 did not reach the vocabulary door: {other:?}. If the document vocabulary \
-                 has caught up, DELETE the NOT_IN_DOCUMENT entry — that is what this row \
-                 is for."
-            ),
-        }
     }
 }
 
@@ -389,7 +404,7 @@ fn the_document_vocabulary_exceptions_are_still_exceptions() {
 fn every_arc_mode_is_a_document_program() {
     for mode in ArcMode::ALL {
         let program = ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane: SCAFFOLD_PLANE,
             loops: vec![LoopProgram::Chain(vec![ProgramStep::ArcTo(mode_witness(
                 *mode,
             ))])],

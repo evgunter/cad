@@ -18,8 +18,8 @@
 use editor_core::UnitSym;
 use editor_core::{
     AssertionDir, Datum, Dimension, DocEdit, DocParam, DocumentId, EditError, EntityKind, Expr,
-    MeasureExpr, MeasureNodeFault, MeasurePrimitive, MeasureRef, Node, ParamName, PersistError,
-    ProfileDoc, RecipeNodeId, RoleSeg, SnapshotError, StableName, apply, load, save,
+    MeasureExpr, MeasureNodeFault, MeasurePrimitive, Node, ParamName, PersistError, ProfileDoc,
+    RecipeNodeId, RoleSeg, SitedRef, SnapshotError, StableName, apply, load, save,
 };
 use geom_core::Tol;
 
@@ -49,10 +49,10 @@ fn two_named_nodes(doc: &ProfileDoc) -> ProfileDoc {
     doc
 }
 
-fn name(node: u64) -> MeasureRef {
+fn name(node: u64) -> SitedRef {
     // Read at the minting node: these fixtures are about the WIRE, and
     // none of them places geometry.
-    MeasureRef::at_mint(StableName {
+    SitedRef::at_mint(StableName {
         kind: EntityKind::Face,
         node: RecipeNodeId(node),
         path: vec![RoleSeg::OutputBody],
@@ -60,7 +60,10 @@ fn name(node: u64) -> MeasureRef {
 }
 
 /// A document carrying a measure with every primitive leaf and every
-/// arithmetic arm, plus an assertion over it.
+/// arithmetic arm, plus an assertion over it. Adding a
+/// `MeasurePrimitive` variant without adding it here leaves that
+/// variant's wire form unexercised, so this fixture is where the
+/// table's growth is checked.
 fn every_form() -> ProfileDoc {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-measure-wire"), Tol::witness());
     let push = |d: &ProfileDoc, e: &DocEdit<editor_core::ProfileProgram>| {
@@ -82,15 +85,23 @@ fn every_form() -> ProfileDoc {
     );
     let prim = |p: MeasurePrimitive| MeasureExpr::primitive(p);
     let scalar = |v: f64| MeasureExpr::value(Expr::literal(v, Dimension::Scalar).expect("finite"));
-    // distance - gap, halved, floored by a parameter and ceilinged by a
-    // literal: every arithmetic arm and all three primitives at once.
+    // distance - gap + min_clearance, halved, floored by a parameter and
+    // ceilinged by a literal: every arithmetic arm and every Length
+    // primitive at once. `min_clearance` (M10-6) is here for the same
+    // reason the other three are — this fixture IS the populated wire
+    // golden for the primitive table, so a primitive absent from it
+    // round-trips under no test at all.
     let expr = MeasureExpr::max(
         MeasureExpr::min(
             MeasureExpr::div(
                 MeasureExpr::mul(
                     MeasureExpr::add(
                         MeasureExpr::sub(
-                            prim(MeasurePrimitive::Distance { a: 0, b: 1 }),
+                            MeasureExpr::add(
+                                prim(MeasurePrimitive::Distance { a: 0, b: 1 }),
+                                prim(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
+                            )
+                            .expect("Length + Length"),
                             prim(MeasurePrimitive::Gap { outer: 1, inner: 0 }),
                         )
                         .expect("Length - Length"),

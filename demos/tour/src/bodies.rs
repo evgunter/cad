@@ -424,7 +424,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             bracket(tol),
             None,
         )),
-        // Montage cell RETIRED by the montage-v3 curation (Evan,
+        // Montage cell RETIRED by the montage-v3 curation (Ev,
         // 2026-08-30): `diechamfer` carries the chamfer verb on the
         // sheet, on a better part and at the SAME setback as
         // `diefillet`'s radius, so the two panels compare verbs. This
@@ -446,7 +446,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             spacer_body,
             Some(spacer_note),
         )),
-        // Montage cell RETIRED by the montage-v3 curation (Evan,
+        // Montage cell RETIRED by the montage-v3 curation (Ev,
         // 2026-08-30): the genus-2 holed-profile EXTRUDE moves onto
         // `twopeg`, whose plate Q is authored as one extrude of a
         // profile with two circular inner loops (it was two boolean
@@ -466,7 +466,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             plate(tol),
             None,
         )),
-        // Montage cell RETIRED by the montage-v3 curation (Evan,
+        // Montage cell RETIRED by the montage-v3 curation (Ev,
         // 2026-08-30): every surface this axis-touching full revolve
         // shows is on the sheet elsewhere — the teapot's pot IS this
         // meridian (foot cylinder, one sphere-zone arc, mouth) and the
@@ -500,7 +500,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             sheave_body,
             Some(sheave_note),
         ),
-        // Montage cell RETIRED by the montage-v3 curation (Evan,
+        // Montage cell RETIRED by the montage-v3 curation (Ev,
         // 2026-08-30). `Revolution::Partial` stays legible on the
         // sheet through klein's tubes and the lily's bud (three
         // partial revolves of the lantern meridian), so what the cell
@@ -525,7 +525,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     ]
 }
 
-// RE-HOMED (LIB-RETTAIL, Evan's ruling on #413): `finale_fail_loud` —
+// RE-HOMED (LIB-RETTAIL, Ev's ruling on #413): `finale_fail_loud` —
 // the bowtie coda — left the tour. A broken-on-purpose scene is not a
 // use case, and it was the last thing keeping a raw public authoring
 // tier alive. Its fail-loud contract did not evaporate: it is
@@ -586,16 +586,26 @@ pub fn bud_rim<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
     )
     .expect("revolve bud")
     .body;
-    // The mouth: the one CLOSED latitude rim of radius 0.8. Selected by
-    // the analytically known radius, the way every rim fixture is.
-    let mouth: Vec<pncad::topo::EdgeKey> = body
+    // The mouth: the rim at the analytically known radius 0.8. The
+    // scene names ONE of its arcs — by that radius, the way every rim
+    // is named from outside the kernel — and the query seat hands back
+    // the rim whole, chart seams and all. The radius is read through
+    // `Bounds`, not compared as a scalar: `Scalar` is the recording
+    // lane too, where a bare `<` is not available and would not mean
+    // what it says.
+    // The co-surface exclusion stays in the SEED search, and it is not
+    // decoration here: a sphere's chart seam is a great circle that can
+    // carry a rim's radius exactly, and seeding the door with one asks
+    // it about a seam meridian — which it refuses `CoSurface`, correctly
+    // and unhelpfully. A scene names the arc it means; the door says
+    // what rim that arc belongs to.
+    let surface_of = |he| {
+        let l = body.get_half_edge(he)?.parent_loop;
+        Some(body.get_face(body.get_loop(l)?.face)?.surface)
+    };
+    let seed = body
         .edges()
-        .filter(|(_, e)| {
-            let closed =
-                body.get_half_edge(e.he_plus).map(|h| h.start) == body.half_edge_end(e.he_plus);
-            // The radius is read through `Bounds`, not compared as a
-            // scalar: `Scalar` is the recording lane too, where a bare
-            // `<` is not available and would not mean what it says.
+        .find(|(_, e)| {
             let r = body
                 .get_curve_geom(e.curve)
                 .and_then(|g| g.certified())
@@ -603,10 +613,15 @@ pub fn bud_rim<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
                     pncad::geom::Curve3::Circle { radius, .. } => Some(radius),
                     _ => None,
                 });
-            closed && r.is_some_and(|r| (r - S::from_f64(0.8)).abs().hi() < 1e-9)
+            let two_sided = match (surface_of(e.he_plus), surface_of(e.he_minus)) {
+                (Some(a), Some(b)) => a != b,
+                _ => false,
+            };
+            two_sided && r.is_some_and(|r| (r - S::from_f64(0.8)).abs().hi() < 1e-9)
         })
         .map(|(k, _)| k)
-        .collect();
+        .expect("the bud carries a mouth arc of radius 0.8");
+    let mouth = query::rim_of(&body, seed).expect("the mouth arc names one whole rim");
     assert_eq!(mouth.len(), 1, "the bud has one mouth rim of radius 0.8");
     pncad::sweep::blend::fillet_edges(&body, &mouth, S::from_f64(0.05), tol)
         .expect("the sphere-cone mouth rim fillets")

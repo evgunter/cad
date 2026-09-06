@@ -1,4 +1,4 @@
-//! Re-mint-at-transform pins (ruled with Evan, PR #83, 2026-07-24):
+//! Re-mint-at-transform pins (ruled with Ev, PR #83, 2026-07-24):
 //! `transform_rigid` re-mints Intersection witnesses construction-
 //! fresh from the MAPPED carrier at the pinned mid parameter, instead
 //! of mapping the stored witness. These tests pin the mechanism on
@@ -6,7 +6,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::prism_z;
 use geom_brep::{CERT_SAMPLES, EdgeDescription};

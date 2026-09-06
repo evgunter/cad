@@ -9,145 +9,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::cavity::{cavity_edges, vented_cavity};
+use crate::common::oracles::chamfered_cube_removed;
 use geom::Surface;
-use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use geom_core::{Point3, Tol, Vec3};
 use sweep::blend::build::fillet_edges;
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
-use sweep::{Extrusion, extrude};
-use topo::{Body, EdgeKey, subtract, validate, validate_closed};
+use topo::{Body, EdgeKey, validate, validate_closed};
 
 /// The chamfer setback, meters.
 const D: f64 = 0.25;
-
-/// An axis-aligned box, authored the way a user would: a rectangle
-/// profile on a translated sketch plane, extruded.
-fn brick(lo: Point3<f64>, hi: Point3<f64>) -> Body<f64> {
-    let lp = ProfileLoop::polygon([
-        Point2::new(lo.x, lo.y),
-        Point2::new(hi.x, lo.y),
-        Point2::new(hi.x, hi.y),
-        Point2::new(lo.x, hi.y),
-    ]);
-    let plane = SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
-        Point3::new(0.0, 0.0, lo.z) - Point3::origin(),
-    ));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .expect("a rectangle is a valid profile");
-    extrude(&profile, Extrusion::Distance(hi.z - lo.z), Tol::witness())
-        .expect("a brick extrudes")
-        .body
-}
-
-/// A circular rod: two half-arc profile segments extruded, so its wall
-/// is a cylinder and the ring it cuts in a plane is a circle.
-fn rod(center: Point2<f64>, r: f64, z0: f64, z1: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(center.x - r, center.y), 1.0),
-        ProfileVertex::new(Point2::new(center.x + r, center.y), 1.0),
-    ]);
-    let plane = SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
-        Point3::new(0.0, 0.0, z0) - Point3::origin(),
-    ));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .expect("a circle is a valid profile");
-    extrude(&profile, Extrusion::Distance(z1 - z0), Tol::witness())
-        .expect("a rod extrudes")
-        .body
-}
-
-/// **The fixture: a block with a rectangular cavity, vented.**
-///
-/// The block is `[0,4]³`; the cavity is `[1,3]³`; and a round chimney
-/// of radius `0.5` on the axis `x = y = 2`, from `z = 2.5` clear of the
-/// top, is cut first — so the cavity is a VENT rather than a void, i.e.
-/// one shell, which is what the surgery's body door admits, with the
-/// vent's mouth strictly inside the cavity's ceiling. The vent is round
-/// because the ring the mouth leaves in that ceiling rides through the
-/// carve, and the exact ring-clearance check covers circle rings.
-///
-/// The cavity's twelve edges are all concave and its eight corners are
-/// all-concave trihedra: the mirror of the chamfered cube. Nothing
-/// else in the body touches them — the vent pierces the ceiling face's
-/// interior — so the twelve are a whole component of the edge graph,
-/// which is what makes the request a complete one.
-///
-/// # Why the fixture is a vented cavity, and what that does not claim
-///
-/// The requirement is a CLASS, not this shape. A concave request must
-/// be a whole component of the edge graph, and two doors say so from
-/// different sides: a subset with loose ends refuses where those ends
-/// are read, and a subset with NO ends never gets that far — the
-/// pocket floor's four edges close into a sharp-cornered ring and
-/// refuse at the G1 door, because the trivalent-ends clause only
-/// speaks once a chain has ends at all. A concave component that
-/// reaches the surface always ends at mixed corners, so it must
-/// enclose; an enclosed void is two shells, which the body door
-/// refuses; hence a vented cavity.
-///
-/// **That argument does not make this the smallest such body, and an
-/// earlier draft of this doc wrongly said it was.** A triangular
-/// prism cavity carves the same way with nine edges and six corners.
-/// Both probe suites hold the bound: the pocket attacks and the
-/// nine-edge cavity carves.
-fn vented_cavity() -> Body<f64> {
-    let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
-    let vent = rod(Point2::new(2.0, 2.0), 0.5, 2.5, 5.0);
-    let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
-    let vented = subtract(&block, &vent, Tol::witness())
-        .expect("the vent cut succeeds")
-        .body()
-        .expect("the vent cut leaves material")
-        .body
-        .clone();
-    subtract(&vented, &cavity, Tol::witness())
-        .expect("the cavity cut succeeds")
-        .body()
-        .expect("the cavity cut leaves material")
-        .body
-        .clone()
-}
-
-/// The cavity's twelve edges, found by their endpoints — both of them
-/// corners of the cavity box `[1,3]³` — never by index.
-fn cavity_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    let corner = |p: Point3<f64>| {
-        [p.x, p.y, p.z]
-            .iter()
-            .all(|c| (c - 1.0).abs() < 1e-12 || (c - 3.0).abs() < 1e-12)
-    };
-    let mut found: Vec<EdgeKey> = body
-        .edges()
-        .filter(|(k, _)| {
-            let Some(e) = body.get_edge(*k) else {
-                return false;
-            };
-            let Some(h) = body.get_half_edge(e.he_plus) else {
-                return false;
-            };
-            let Some(end) = body.half_edge_end(e.he_plus) else {
-                return false;
-            };
-            let pt = |v| {
-                body.get_vertex(v)
-                    .and_then(|x| body.get_point(x.point))
-                    .copied()
-            };
-            match (pt(h.start), pt(end)) {
-                (Some(a), Some(b)) => corner(a) && corner(b),
-                _ => false,
-            }
-        })
-        .map(|(k, _)| k)
-        .collect();
-    found.sort_unstable();
-    found
-}
 
 /// **The fixture is what it claims**: one solid, one shell, tiers 1–2,
 /// and twelve cavity edges.
@@ -161,30 +33,24 @@ fn the_vented_cavity_is_one_shell_with_twelve_cavity_edges() {
     assert_eq!(cavity_edges(&body).len(), 12, "the cavity's twelve edges");
 }
 
-/// **The volume a chamfered cavity of side `a` encloses.**
-///
-/// The `6ad² − 16⁄3 d³` term is the chamfered cube's removed volume,
-/// and this is the FIFTH copy of it in the suite tree — the others
-/// live in the chamfer acceptance suite, twice in the r1 chamfer
-/// probes, and once in the sf2a r2 probes. Naming them here rather
-/// than adding a sixth silently: the class is declared, and a shared
-/// home for it is a test-support change no row in this unit needs.
+/// **The volume a chamfered cavity of side `a` encloses** — the
+/// fixture's own arithmetic, which is what stays here: the block,
+/// less the cavity, less the part of the vent above the cavity's
+/// ceiling, plus what the carve adds.
 ///
 /// The chamfer of a concave edge ADDS material, and what it adds is
 /// congruent to what the same chamfer removes from a convex block:
 /// the cavity's twelve edges and eight corners are the mirror of a
 /// cube's, and neither the strip nor the corner patch has a side to
-/// pick. So the added volume is the chamfered cube's own removed
-/// volume at that side — twelve triangular prisms `d²/2` along the
-/// edges and eight corner tetrahedra, less the `2d³` each corner's
-/// four sets over-count — and the block keeps its vent.
+/// pick. So the added term is the chamfered cube's own removed volume
+/// at that side, which is [`chamfered_cube_removed`]'s derivation and
+/// lives there.
 fn chamfered_cavity_volume(a: f64, d: f64) -> f64 {
     let block = 4.0_f64.powi(3);
     // The vent removes material only ABOVE the cavity's ceiling; below
     // it the cavity term already has that space.
     let vent = core::f64::consts::PI * 0.5 * 0.5 * (4.0 - 3.0);
-    let added = 6.0 * a * d * d - (16.0 / 3.0) * d.powi(3);
-    block - a.powi(3) - vent + added
+    block - a.powi(3) - vent + chamfered_cube_removed(a, d)
 }
 
 /// **THE CHAMFERED CAVITY** — all twelve concave edges at equal

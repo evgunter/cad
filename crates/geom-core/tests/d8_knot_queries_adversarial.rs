@@ -43,6 +43,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+test_utils::gated_to![
+    "crates/geom-core/src/spline/",
+    "crates/geom-core/src/ring_interval.rs",
+];
+
 use geom_core::ring_interval::RingInterval;
 use geom_core::spline::KnotVector;
 use geom_core::spline::compose::CurveRingData;

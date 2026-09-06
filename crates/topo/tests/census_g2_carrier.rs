@@ -20,7 +20,7 @@
 //!   fixture rather than about the predicate.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use geom::Surface;
 use geom_core::{Band, Point3, Tol};
@@ -31,7 +31,7 @@ use topo::{
 
 fn band() -> Band {
     let tol = Tol::witness();
-    Band::new(tol.eps(), tol.k() * tol.eps()).unwrap()
+    Band::linear(tol).unwrap()
 }
 
 /// The one planar face of `body` whose outward normal points along
@@ -396,6 +396,7 @@ fn verdict_class(r: Result<ChartOverlap, ChartRegionError>) -> String {
                 ChartRegionError::TouchingBoundary => "TouchingBoundary",
                 ChartRegionError::DegenerateLoop { .. } => "DegenerateLoop",
                 ChartRegionError::RayExhausted => "RayExhausted",
+                ChartRegionError::WitnessBudgetExhausted { .. } => "WitnessBudgetExhausted",
                 ChartRegionError::Corrupt => "Corrupt",
                 ChartRegionError::Escalated(_) => unreachable!("handled above"),
             }

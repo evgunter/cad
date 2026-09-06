@@ -22,46 +22,16 @@
 //! hollows it out must not be able to leave the suite green.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::fixture::segment;
+use crate::shared::fixture::{quarter_cylinder_wall, transverse_plane};
+use crate::shared::tol::band;
 use geom::NurbsCurve3;
 use geom::{NurbsSurface, Surface};
-use geom_brep::{EdgeNurbsLane, PlaneNurbsRefusal};
+use geom_brep::{PlaneNurbsRefusal, plane_nurbs_limbs};
 use geom_core::Tol;
-use geom_core::spline::KnotVector;
-use geom_core::{Band, Point3, Vec3};
+use geom_core::{Point3, Vec3};
 use test_utils::tightness::{Anchor, Sup};
 use test_utils::vacuity::{self, Exposure};
-
-fn quarter_cylinder_wall() -> NurbsSurface<f64> {
-    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
-    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    let control = vec![
-        Point3::new(1.0, 0.0, 0.0),
-        Point3::new(1.0, 0.0, 1.0),
-        Point3::new(1.0, 1.0, 0.0),
-        Point3::new(1.0, 1.0, 1.0),
-        Point3::new(0.0, 1.0, 0.0),
-        Point3::new(0.0, 1.0, 1.0),
-    ];
-    let w = core::f64::consts::FRAC_1_SQRT_2;
-    NurbsSurface::new(ku, kv, control, vec![1.0, 1.0, w, w, 1.0, 1.0]).unwrap()
-}
-
-fn transverse_plane() -> Surface<f64> {
-    Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(0.0, 1.0, 0.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
-}
-
-fn segment(a: Point3<f64>, b: Point3<f64>) -> NurbsCurve3<f64> {
-    let k = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    NurbsCurve3::new(k, vec![a, b], vec![1.0, 1.0]).unwrap()
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 
 /// A spline carrier that interpolates `(1 + a·sin(32πt), 0, t)` at 257
 /// chord points: exactly ON both surfaces at every one of the lane's
@@ -122,7 +92,7 @@ fn a_wiggle_vanishing_at_the_whole_schedule_must_refuse() {
     let a = 1e-3;
     let carrier = wiggle_carrier(a);
     let (truth, _) = dense_true_sup(&carrier, &wall);
-    match f64::plane_nurbs_limbs(&carrier, &plane, &wall, 1.0, band()) {
+    match plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band()) {
         Ok(limbs) => panic!(
             "GRID-ONLY HOLE: a carrier displaced {truth:e} m between samples \
              certified with hull_sup {:e}",
@@ -160,7 +130,7 @@ fn an_off_plane_wiggle_must_refuse_via_the_plane_envelope() {
     let params: Vec<f64> = (0..n).map(|i| f64::from(i) / f64::from(n - 1)).collect();
     let carrier = NurbsCurve3::interpolate_with_params(&pts, 3, &params).unwrap();
     let (truth, _) = dense_true_sup(&carrier, &wall);
-    match f64::plane_nurbs_limbs(&carrier, &plane, &wall, 1.0, band()) {
+    match plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band()) {
         Ok(limbs) => panic!(
             "PLANE-SIDE GRID-ONLY HOLE: off-plane-between-samples carrier \
              (true sup {truth:e}) certified with hull_sup {:e}",
@@ -276,7 +246,7 @@ fn the_certified_sup_bounds_the_dense_sampled_true_sup() {
                 "the a={a:e} wiggle did not survive the fit: true sup {truth:e}"
             );
         }
-        match f64::plane_nurbs_limbs(&carrier, &plane, &wall, 1.0, band()) {
+        match plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band()) {
             Ok(limbs) => {
                 seen.note("certified");
                 println!(
@@ -379,7 +349,7 @@ fn displacement_scan_finds_the_refusal_boundary_typed() {
             } else {
                 segment(Point3::new(1.0, d, 0.0), Point3::new(1.0, d, 1.0))
             };
-            match f64::plane_nurbs_limbs(&carrier, &plane, &wall, 1.0, band()) {
+            match plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band()) {
                 Ok(l) => {
                     largest_certified = largest_certified.max(d);
                     seen.note(&format!("{dir} certified"));
@@ -431,7 +401,7 @@ fn a_drifted_subsegment_of_the_true_locus_certifies_at_the_lane() {
     let wall = quarter_cylinder_wall();
     let plane = transverse_plane();
     let carrier = segment(Point3::new(1.0, 0.0, 0.2), Point3::new(1.0, 0.0, 0.9));
-    let r = f64::plane_nurbs_limbs(&carrier, &plane, &wall, 0.7, band());
+    let r = plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 0.7, band());
     println!("R1 drift subsegment: {r:?}");
     assert!(r.is_ok(), "a true-locus subsegment is on both surfaces");
 }
@@ -465,7 +435,7 @@ fn near_tangential_scan_is_typed_at_every_angle() {
             normal: Vec3::new(alpha.cos(), alpha.sin(), 0.0),
             u_ref: Vec3::new(0.0, 0.0, 1.0),
         };
-        match f64::plane_nurbs_limbs(&carrier, &plane, &wall, 1.0, band()) {
+        match plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band()) {
             Ok(l) => {
                 seen.note("certified");
                 println!(

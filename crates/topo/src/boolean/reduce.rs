@@ -1341,8 +1341,22 @@ fn curved_face_arm<T: Decide>(
         // identically) — so a covered on-carrier edge's residual is
         // one-signed and a Zero endpoint is a touch, never an entry.
         // A configuration without that one-sign story must not be
-        // admitted to the lane (issue #974 names the coaxial
-        // cylinder×sphere circle arm's blocking precondition). A
+        // admitted to the lane. **The coaxial cylinder×sphere circle
+        // arm is no longer an EXAMPLE of one, and this citation is
+        // corrected rather than left standing**: #974 recorded that arm
+        // as blocked on the one-sign story, and VERBS-CYLSPH MEASURED
+        // the story and it PASSES — at the only coaxial tangency the
+        // sphere lies wholly in the cylinder's closed inside and the
+        // cylinder wholly outside the sphere. The orientations are
+        // OPPOSITE per direction, which this contract never forbade:
+        // the internally tangent parallel cylinder pair the lane
+        // already admits has exactly that structure
+        // (`crates/topo/tests/verbs_cylsph_tangent_residuals.rs` pins
+        // both halves). What keeps that arm out is downstream and
+        // structural, and is stated at [`super::rest::tangent_locus`]
+        // itself: `TangentLocus` carries a LINE only and no consumer of
+        // it has a circle story. The RULE this comment states is
+        // unchanged; only the example it reached for was superseded. A
         // NEGATIVE partner is a genuine crossing — never the covered
         // posture. Uncovered keeps both frontier doors verbatim.
         (Sign::Zero, Sign::Zero) if covered => {

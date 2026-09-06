@@ -354,19 +354,37 @@ pub enum ReplaceFaceError<T: Real> {
         /// The face named twice.
         face: FaceKey,
     },
-    /// **The simultaneous door: two corner solves disagree about where
-    /// an edge ends.** Distinct from
-    /// [`ReplaceFaceError::ReanchorOffCarrier`], which is the per-face
-    /// door's finding about a moved vertex leaving an UNMOVED
-    /// neighbour's carrier. This one is the simultaneous door's: the
-    /// edge's own line was carried to where its two moved planes put
-    /// it, and the far endpoint — solved independently, against a
-    /// different triple of planes — did not land on it. Two solves
-    /// agreeing is the claim; this is it failing.
+    /// **The simultaneous door: an edge's re-derived geometry
+    /// disagrees with a moved surface or carrier by `gap`.** Distinct
+    /// from [`ReplaceFaceError::ReanchorOffCarrier`], which is the
+    /// per-face door's finding about a moved vertex leaving an UNMOVED
+    /// neighbour's carrier. This one is the simultaneous door's
+    /// verification net over every edge it re-derives, and THREE
+    /// meters raise it — two about an endpoint, one about the carrier
+    /// itself:
+    ///
+    /// - `offset_together_edge_agreement` (the planar door): the far
+    ///   endpoint — solved independently, against a different triple
+    ///   of planes — read onto the carried line; `gap` is its distance
+    ///   off that line. Two solves agreeing is the claim; this is it
+    ///   failing.
+    /// - `offset_axial_edge_agreement` (the axial door's `param_on`):
+    ///   a moved endpoint read onto the minted carrier; `gap` is the
+    ///   endpoint's distance off it — the same two-solves claim, one
+    ///   carrier kind wider.
+    /// - `offset_axial_edge_on_surface` (the axial door): the minted
+    ///   carrier's own MIDPOINT metered against each of the two moved
+    ///   surfaces the edge separates; `gap` is the midpoint's residual
+    ///   to the surface that refused. No endpoint pair is compared at
+    ///   this meter at all — the carrier itself stands off a surface
+    ///   it claims to lie in. (The sphere lune's pre-RIMCAP refusal
+    ///   was this meter, on the axis edge between its two moved caps —
+    ///   the site an earlier draft of this doc misdescribed as an
+    ///   endpoint disagreement.)
     TogetherEdgeDisagreement {
-        /// The edge whose two ends were solved apart.
+        /// The edge whose re-derived geometry failed verification.
         edge: EdgeKey,
-        /// How far the far endpoint missed the line, in meters.
+        /// The disagreement the raising meter measured, in meters.
         gap: T,
     },
     /// **The axial door's kind gate**: a face wears a surface that is
@@ -597,9 +615,10 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             ),
             Self::TogetherEdgeDisagreement { edge, gap } => write!(
                 f,
-                "the simultaneous offset: {edge:?}'s two ends were solved {gap:?} m apart — \
-                 the far corner's own solve did not land on the carrier its two moved \
-                 SURFACES give it"
+                "the simultaneous offset: {edge:?}'s re-derived geometry is {gap:?} m out of \
+                 agreement — an independently solved endpoint stands off the edge's carrier, \
+                 or the minted carrier's own midpoint stands off a moved surface the edge \
+                 separates"
             ),
             Self::TogetherNonPlanar { face, kind } => write!(
                 f,
@@ -934,9 +953,11 @@ struct EdgePlan<T: Real> {
 /// distance `d` and re-describes the face's boundary against the moved
 /// chart (module docs).
 ///
-/// `tolerance` is the fit door's parameter and is consulted only on the
-/// NURBS lane, where the offset is not closed-form; the analytic kinds
-/// mint exactly and ignore it.
+/// The fit target is the run's ε_precision and reaches the fit door as
+/// the [`Tol`] witness (`geom_brep::approx_offset_surface`); it is
+/// consulted only on the NURBS lane, where the offset is not
+/// closed-form, and the analytic kinds mint exactly without reading a
+/// tolerance at all.
 ///
 /// The body is **untouched on every `Err`**: the mint, the refusals and
 /// the whole boundary plan are decided read-only, the mutation runs on
@@ -952,11 +973,10 @@ pub fn replace_face_offset<T: Decide + PropsQuadLane>(
     body: &mut Body<T>,
     face: FaceKey,
     d: T,
-    tolerance: f64,
     band: Band,
     tol: Tol,
 ) -> Result<(), ReplaceFaceError<T>> {
-    replace_faces_offset(body, &[face], d, tolerance, band, tol)
+    replace_faces_offset(body, &[face], d, band, tol)
 }
 
 /// [`replace_face_offset`] for a CHART: every face carrying one surface
@@ -985,7 +1005,6 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
     body: &mut Body<T>,
     faces: &[FaceKey],
     d: T,
-    tolerance: f64,
     band: Band,
     tol: Tol,
 ) -> Result<(), ReplaceFaceError<T>> {
@@ -1020,7 +1039,7 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
         .get_surface(old_key)
         .ok_or(ReplaceFaceError::Corrupt)?
         .clone();
-    let new_surface = mint_offset(face, &old_surface, d, tolerance, band)?;
+    let new_surface = mint_offset(face, &old_surface, d, band, tol)?;
 
     // ---- Decide: the apex window (cones only). ----
     let shift = apex_shift(&old_surface, d);
@@ -1181,18 +1200,22 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
 
 /// The offset surface for `old`: the analytic mint, or the fit lane's
 /// certified `Approx` where the kind is not closed under offset.
+// `band, tol` in that order, matching the public doors above rather
+// than the `tolerance, band` this used to end in: the raw tolerance is
+// gone and the witness takes the trailing position every door on this
+// chain gives it.
 fn mint_offset<T: Decide + PropsQuadLane>(
     face: FaceKey,
     old: &Surface<T>,
     d: T,
-    tolerance: f64,
     band: Band,
+    tol: Tol,
 ) -> Result<Surface<T>, ReplaceFaceError<T>> {
     if let Surface::Nurbs(base) = old {
         if base.is_placeholder() {
             return Err(ReplaceFaceError::PlaceholderSurface { face });
         }
-        return match T::approx_offset_surface(Arc::clone(base), d, tolerance, band) {
+        return match T::approx_offset_surface(Arc::clone(base), d, tol, band) {
             None => Err(ReplaceFaceError::ApproxLaneUnsupported { face }),
             Some(Ok(s)) => Ok(s),
             Some(Err(error)) => Err(ReplaceFaceError::Fit { face, error }),

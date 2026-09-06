@@ -342,7 +342,7 @@ impl CheckEvidence {
             d::CheckEvidence::Escalated { source } | d::CheckEvidence::Unsupported { source } => {
                 Some(source.to_string())
             }
-            d::CheckEvidence::SeparationUnavailable { reason } => Some(reason.clone()),
+            d::CheckEvidence::SeparationUnavailable { reason, .. } => Some(reason.clone()),
             _ => None,
         }
     }
@@ -476,10 +476,12 @@ fn checks_err(py: Python<'_>, err: &d::ChecksError) -> PyErr {
         d::ChecksError::Root { node } => Py::new(py, NodeId(*node))
             .map(|v| v.into_any())
             .unwrap_or_else(|_| py.None()),
-        // A tolerance that forms no band and a gather that yields no
-        // product are both refusals about the WHOLE document; neither
-        // has a node to name.
-        d::ChecksError::Band { .. } | d::ChecksError::Product { .. } => none(),
+        // A tolerance that forms no band, a gather that yields no
+        // product and a pair that is not a pair are all refusals about
+        // the WHOLE document; none has a node to name.
+        d::ChecksError::Band { .. }
+        | d::ChecksError::EvaluationOfAnotherDocument { .. }
+        | d::ChecksError::Product { .. } => none(),
     };
     typed_err(
         py,
@@ -599,9 +601,26 @@ pub(crate) fn enforce_checks(
 /// root has no value, denotes no body, or has no output at that index:
 /// exactly the attributions a `stale_expectation` finding names, which
 /// is what makes that arm's `None` an answer rather than a failure.
+///
+/// The body arrives WITH the declarations its producer minted for it —
+/// `editor_core::checks::subject_body` hands back the pair
+/// `product::sources_of` builds, and this door captures the records
+/// onto the `Body` exactly as `Value.body` does. So one subject has
+/// one tier-3′ verdict however it is reached: a subject that IS a
+/// declared boolean result, or an instance carrying a referenced
+/// document's D-1 declarations, certifies its own seam under
+/// `Body.validate_pseudomanifold` here and through `Value.body`
+/// alike, and neither door can bless a coincidence no record backs.
+///
+/// The Python signature is unchanged by that — still `Optional[Body]`,
+/// because the records are CAPTURED on the body rather than returned
+/// beside it (`Body`'s own docs give the reason: `ContactRecords` has
+/// no Python spelling, and a door that took one could hand a body
+/// another body's declarations).
 #[pyfunction]
 pub(crate) fn subject_body(evaluation: &Evaluation, root: &NodeId, output_ix: u32) -> Option<Body> {
-    d::subject_body(&evaluation.inner, root.0, output_ix).map(|inner| Body { inner })
+    d::subject_body(&evaluation.inner, root.0, output_ix)
+        .map(|(body, contacts)| Body::declared(body, contacts))
 }
 
 /// Register the advisory-check registry on the module.

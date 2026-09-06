@@ -34,7 +34,6 @@ fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
-const FIT_TOL: f64 = 1e-6;
 const T: f64 = 1.0 / 128.0;
 
 /// A box with ONE bulged side: an extruded profile whose arc mints a
@@ -94,7 +93,7 @@ fn wedge_of(angle: f64, r: f64, h: f64) -> Body<f64> {
 fn r1p1_a_bulged_box_is_not_axial_and_refuses_typed() {
     let tol = Tol::witness();
     let body = bulged_box();
-    match topo::shell(&body, T, FIT_TOL, tol) {
+    match topo::shell(&body, T, tol) {
         Ok(_) => panic!("a non-axial curved body must not hollow through the axial door"),
         Err(e) => println!("[r1p1] bulged box refuses: {e:?}"),
     }
@@ -146,8 +145,8 @@ fn r1p2_a_sliver_wedge_with_no_cavity_must_refuse() {
             "[r1p2] angle {angle}: moved meridians cross at rho {cross:.6}, wall at {:.6}",
             r - T
         );
-        match topo::shell(&body, T, FIT_TOL, tol) {
-            Ok(hollow) => {
+        match topo::shell(&body, T, tol) {
+            Ok(topo::Shelled { body: hollow, .. }) => {
                 let props = topo::mass_properties(&hollow, tol).expect("props");
                 let outer = topo::mass_properties(&body, tol).expect("props").volume;
                 println!(
@@ -205,8 +204,8 @@ fn r1p4_a_bare_ball_hollows_to_its_closed_form() {
     )
     .expect("the ball revolves")
     .body;
-    match topo::shell(&ball, T, FIT_TOL, tol) {
-        Ok(hollow) => {
+    match topo::shell(&ball, T, tol) {
+        Ok(topo::Shelled { body: hollow, .. }) => {
             let got = topo::mass_properties(&hollow, tol).expect("props").volume;
             let want = 4.0 / 3.0 * core::f64::consts::PI * (r.powi(3) - (r - T).powi(3));
             println!("[r1p4] ball wall volume {got} vs closed form {want}");

@@ -25,7 +25,7 @@ use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, CurveGeom, FaceKey, ReplaceFaceError};
 
-mod common;
+use crate::common;
 use common::approx::{FIT_DEGREE, prism};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -36,8 +36,13 @@ fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
-/// The fit tolerance the `Approx` rows mint at — the OFF-C consumer's.
-const FIT_TOL: f64 = 1e-6;
+/// The target these fixtures hand the fit ENGINE, and no longer a door's
+/// argument: since the shell chain took the `Tol` witness, the only
+/// tolerance a kernel door accepts is the run's ε, and a chosen number
+/// reaches the fit only through `geom-brep`'s `_at` instrument. 1e-6 is
+/// what these planar pull-backs were always fitted at and the value is
+/// unchanged; what moved is what it means.
+const ENGINE_FIT_TARGET: f64 = 1e-6;
 
 /// Revolves the closed `(r, y)` polygon a full turn about the `y` axis.
 fn revolved(points: &[(f64, f64)]) -> Body<f64> {
@@ -69,12 +74,35 @@ fn tube() -> Body<f64> {
     revolved(&[(0.4, 0.0), (0.8, 0.0), (0.8, 0.6), (0.4, 0.6)])
 }
 
-/// A tube whose outer wall is a cylinder BELOW and a cone ABOVE — the
-/// pair `(cone, cylinder)` has no route arm, which is what the C5 row
-/// needs, and the cone's own `v`-window is what the apex row decides
-/// over.
+/// A tube whose outer wall is a cylinder BELOW and a cone ABOVE. The
+/// pair `(cone, cylinder)` is ROUTED (the coaxial closed form), so this
+/// is the fixture that reaches past C5, and the cone's own `v`-window
+/// is what the apex row decides over.
 fn coned_tube() -> Body<f64> {
     revolved(&[(0.4, 0.0), (0.8, 0.0), (0.8, 0.3), (0.4, 0.6)])
+}
+
+/// A tube whose outer wall is TWO cones of different half-angles: the
+/// rim between them is `(cone, cone)`, a pair with no route arm and no
+/// closed form claimed for it. This is the C5 row's fixture — the
+/// gate's own refusal, on a pair whose general-rung arm has not
+/// retired.
+fn double_coned_tube() -> Body<f64> {
+    revolved(&[(0.4, 0.0), (0.8, 0.0), (0.6, 0.3), (0.4, 0.7)])
+}
+
+/// The cone face whose half-angle carries `tan α` — the fixture above
+/// has two, and a row that means one of them must say which.
+fn cone_face_with_tan(body: &Body<f64>, tan_a: f64) -> FaceKey {
+    body.faces()
+        .find(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(Surface::Cone { half_angle, .. }) if (half_angle.tan() - tan_a).abs() < 1e-9
+            )
+        })
+        .map(|(k, _)| k)
+        .unwrap_or_else(|| panic!("no cone face with tan alpha = {tan_a}"))
 }
 
 /// The face whose cylinder carries `radius`.
@@ -155,7 +183,7 @@ fn the_cylinder_wall_offsets_at_both_signs() {
     for d in [0.05_f64, -0.05] {
         let mut body = tube();
         let face = cylinder_face(&body, 0.8);
-        topo::replace_face_offset(&mut body, face, d, FIT_TOL, band(), Tol::witness())
+        topo::replace_face_offset(&mut body, face, d, band(), Tol::witness())
             .unwrap_or_else(|e| panic!("d = {d}: the outer wall's offset must land: {e}"));
 
         assert!(
@@ -184,7 +212,7 @@ fn the_untouched_cap_seams_are_re_anchored() {
     let d = 0.05;
     let mut body = tube();
     let face = cylinder_face(&body, 0.8);
-    topo::replace_face_offset(&mut body, face, d, FIT_TOL, band(), Tol::witness()).unwrap();
+    topo::replace_face_offset(&mut body, face, d, band(), Tol::witness()).unwrap();
 
     // **Re-expressed at PCURVE P-1b.** This row is about a SKETCH
     // DATUM — the radial segment the door re-states — and about the
@@ -236,7 +264,7 @@ fn a_planar_cap_offsets_at_both_signs() {
     for d in [0.05_f64, -0.05] {
         let mut body = tube();
         let face = plane_face(&body, 0.6);
-        topo::replace_face_offset(&mut body, face, d, FIT_TOL, band(), Tol::witness())
+        topo::replace_face_offset(&mut body, face, d, band(), Tol::witness())
             .unwrap_or_else(|e| panic!("d = {d}: the cap's offset must land: {e}"));
 
         let Some(Surface::Plane { origin, .. }) =
@@ -268,7 +296,7 @@ fn every_face_of_a_tube_offsets_in_turn() {
         // Inward is against the chart normal on a positively-sensed
         // face and with it on a reversed one.
         let d = if sense { -0.02 } else { 0.02 };
-        topo::replace_face_offset(&mut body, face, d, FIT_TOL, band(), Tol::witness())
+        topo::replace_face_offset(&mut body, face, d, band(), Tol::witness())
             .unwrap_or_else(|e| panic!("{face:?} at d = {d}: {e}"));
     }
     assert_eq!(
@@ -290,7 +318,7 @@ fn the_radius_floor_refuses_typed() {
     let mut body = tube();
     let face = cylinder_face(&body, 0.4);
     let before = body.clone();
-    let e = topo::replace_face_offset(&mut body, face, -0.5, FIT_TOL, band(), Tol::witness())
+    let e = topo::replace_face_offset(&mut body, face, -0.5, band(), Tol::witness())
         .expect_err("an offset past the axis must not mint");
     assert!(
         matches!(
@@ -310,25 +338,69 @@ fn the_radius_floor_refuses_typed() {
 }
 
 /// **The C5 boundary.** A cone's rims are intersections with the walls
-/// either side, and `cone × cylinder` has no route arm: the moved
-/// cone cannot be re-stated against its untouched neighbour, so the
-/// door refuses naming the pair.
+/// either side, and `cone × cone` has no route arm: the moved cone
+/// cannot be re-stated against its untouched neighbour, so the door
+/// refuses naming the pair.
+///
+/// The fixture is a pair of cones because `cone × cylinder` — this
+/// row's operand until the coaxial arm landed — is now routed. What the
+/// row holds is the GATE, not the pair: a neighbour the C5 table
+/// declines stops the door before any mutation, and the refusal names
+/// which pair declined.
 #[test]
 fn an_undescribable_neighbor_pair_refuses_typed() {
-    let mut body = coned_tube();
-    let face = cone_face(&body);
-    let e = topo::replace_face_offset(&mut body, face, 0.05, FIT_TOL, band(), Tol::witness())
+    let mut body = double_coned_tube();
+    let face = cone_face_with_tan(&body, 0.2 / 0.3);
+    let e = topo::replace_face_offset(&mut body, face, 0.05, band(), Tol::witness())
         .expect_err("the cone's neighbours have no route arm");
     assert!(
         matches!(
             e,
             ReplaceFaceError::NeighborPairUnroutable {
                 kind: geom_brep::SurfaceKind::Cone,
-                other_kind: geom_brep::SurfaceKind::Cylinder,
+                other_kind: geom_brep::SurfaceKind::Cone,
                 ..
             }
         ),
-        "expected the C5 refusal naming (cone, cylinder), got {e}"
+        "expected the C5 refusal naming (cone, cone), got {e}"
+    );
+}
+
+/// **What the coaxial arm bought, measured at the door.** With
+/// `cone × cylinder` routed, the coned tube's cone reaches PAST the C5
+/// gate and stops at the next honest door: the per-chart re-anchor.
+///
+/// The magnitude is pinned, not just the variant. The cone's rims stand
+/// on cylinders that did NOT move, and the door transports the shared
+/// vertex by this ONE chart's own offset action — a displacement of `d`
+/// along the cone's normal, whose radial component `d·cos α` is exactly
+/// how far the vertex ends up off the untouched cylinder it must still
+/// stand on. At `d = 0.05` and `cos α = 0.6` that is `0.03` m of real
+/// corner error, correctly refused rather than built: the per-chart
+/// door offsets one chart, and a body of revolution wanting all of them
+/// at once goes through the simultaneous axial door instead.
+#[test]
+fn the_routed_cone_reaches_past_c5_and_refuses_at_the_rims() {
+    let mut body = coned_tube();
+    let face = cone_face(&body);
+    let before = format!("{body:?}");
+    let e = topo::replace_face_offset(&mut body, face, 0.05, band(), Tol::witness())
+        .expect_err("the untouched cylinders cannot hold the cone's moved rims");
+    assert!(
+        !matches!(e, ReplaceFaceError::NeighborPairUnroutable { .. }),
+        "cone x cylinder is routed; the C5 gate must not shadow the honest door, got {e}"
+    );
+    let ReplaceFaceError::ReanchorOffCarrier { gap, .. } = e else {
+        panic!("expected the per-chart re-anchor refusal, got {e}");
+    };
+    assert!(
+        (gap - 0.03).abs() < 1e-12,
+        "the corner error is d·cos alpha: got {gap}"
+    );
+    assert_eq!(
+        format!("{body:?}"),
+        before,
+        "the body is BIT-untouched on Err, not merely radius-untouched"
     );
 }
 
@@ -341,7 +413,7 @@ fn an_undescribable_neighbor_pair_refuses_typed() {
 fn an_apex_window_crossing_refuses_typed() {
     let mut body = coned_tube();
     let face = cone_face(&body);
-    let e = topo::replace_face_offset(&mut body, face, 1.5, FIT_TOL, band(), Tol::witness())
+    let e = topo::replace_face_offset(&mut body, face, 1.5, band(), Tol::witness())
         .expect_err("a window shifted across the apex must not be called this face's offset");
     assert!(
         matches!(e, ReplaceFaceError::ApexWindow { face: f, .. } if f == face),
@@ -377,7 +449,7 @@ fn a_shared_surface_key_refuses_typed() {
         "the fixture's two wall faces really do share one surface"
     );
     let before = format!("{body:?}");
-    let e = topo::replace_face_offset(&mut body, wall, 0.05, FIT_TOL, band(), Tol::witness())
+    let e = topo::replace_face_offset(&mut body, wall, 0.05, band(), Tol::witness())
         .expect_err("a shared chart is a multi-face operand");
     assert!(
         matches!(e, ReplaceFaceError::SharedSurfaceKey { face: f, .. } if f == wall),
@@ -421,7 +493,7 @@ fn the_fitted_lane_refuses_at_a_shared_bounded_chart() {
             .first()
             .expect("the prism has spline walls");
         let before = body.clone();
-        let e = topo::replace_face_offset(&mut body, wall, d, FIT_TOL, band(), Tol::witness())
+        let e = topo::replace_face_offset(&mut body, wall, d, band(), Tol::witness())
             .expect_err("a fitted face's shared seam has nowhere to go");
         assert!(
             matches!(e, ReplaceFaceError::FittedBoundaryUnsupported { .. }),
@@ -456,7 +528,7 @@ fn a_fitted_charts_iso_row_carries_the_fits_spline_space() {
     let seed_degree = base.knots_v().degree();
     let seed_knots = base.knots_v().knots().to_vec();
 
-    let approx = geom_brep::approx_offset_surface(base.clone(), d, FIT_TOL, band())
+    let approx = geom_brep::approx_offset_surface_at(base.clone(), d, ENGINE_FIT_TARGET, band())
         .expect("the wall's own offset fits");
     let Surface::Approx(a) = &approx else {
         panic!("the fit door mints the variant")
@@ -502,7 +574,7 @@ fn a_body_the_door_did_not_touch_is_bit_identical() {
     );
     let mut moved = a.clone();
     let face = cylinder_face(&moved, 0.8);
-    topo::replace_face_offset(&mut moved, face, 0.05, FIT_TOL, band(), Tol::witness()).unwrap();
+    topo::replace_face_offset(&mut moved, face, 0.05, band(), Tol::witness()).unwrap();
     assert_ne!(
         radius_of(&moved, face),
         radius_of(&a, face),
@@ -585,7 +657,7 @@ fn the_moved_caps_own_seam_keeps_its_declaring_pushforward() {
         "both are minted at the identity placement, got {before:?}"
     );
 
-    topo::replace_face_offset(&mut body, cap, d, FIT_TOL, band(), Tol::witness())
+    topo::replace_face_offset(&mut body, cap, d, band(), Tol::witness())
         .expect("the cap offset lands");
 
     let after = declared_seams(&body);

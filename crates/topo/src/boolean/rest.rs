@@ -500,29 +500,24 @@ type RestSurfaces = (SecondaryMap<SurfaceKey, ()>, SecondaryMap<SurfaceKey, ()>)
 /// only meters the angular sliver band (exact fixtures decide
 /// definitely either way).
 ///
-/// **Who calls this, exactly one caller, and where the shared arm
-/// really is.** This door has ONE consumer today: the flush
-/// detector's candidate-generation mode ([`crate::flush`],
-/// `declared: false`). Verify-at-use stopped calling it at M9-1, when
-/// [`verify_declared_pairs`] and the op's front door moved to the
-/// kind-generalized [`carrier_pair_relation`]. The anti-twin property
-/// (SELECT-DESIGN §3b) survives that move rather than resting on it,
-/// because the two doors CONVERGE one link down: `carrier_pair_relation`
-/// builds the same sense-folded plane description through
-/// [`face_carrier`]'s Plane arm and the same identity through
-/// [`face_plane_source`], and its `(Plane, Plane)` case delegates to
-/// [`oriented_plane_eq_verdict`](super::plane_eq::oriented_plane_eq_verdict)
-/// — the very function this door's [`super::oriented_plane_eq`] wraps.
-/// One verdict function, one set of `decide` sites, one verification
-/// arm, reached by two spellings of the same three inputs. The #304
-/// review's planted-drift probe showed a hand-mirrored arm passes
-/// every axis-aligned suite, which is why the arm is shared rather
-/// than mirrored — and why the chain above is stated rather than
-/// summarized as "the same door".
+/// **This door has NO in-tree consumer.** Verify-at-use stopped
+/// calling it at M9-1 and the flush detector followed when its scope
+/// became the `Rest` ladder's; what to do about a published door with
+/// no caller is `work/seat/flush-pair-relation-has-no-caller.md`.
+/// What it still IS is [`carrier_pair_relation`]'s planar projection,
+/// and the two cannot drift: that door's `(Plane, Plane)` case
+/// delegates to
+/// [`oriented_plane_eq_verdict`](super::plane_eq::oriented_plane_eq_verdict),
+/// the very function [`super::oriented_plane_eq`] wraps here — one
+/// verdict function, one set of `decide` sites, one verification arm.
+/// (The #304 review's planted-drift probe showed a hand-mirrored arm
+/// passes every axis-aligned suite, which is why the arm is shared
+/// rather than mirrored.)
 ///
-/// `None`: not a planar pair — there is no description to compare
-/// (the detector's honest "not a v1 candidate"; the REST lane treats
-/// it as an invariant violation at its own site).
+/// `None`: not a planar pair — there is no plane description to
+/// compare (the REST lane treats it as an invariant violation at its
+/// own site; [`carrier_pair_relation`] is where a caller asks the
+/// same question of any carrier the ladder names).
 pub fn flush_pair_relation<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -720,10 +715,23 @@ pub enum TangentLocusError {
 /// internally) tangent parallel cylinders is one-signed against the
 /// other — so an on-carrier edge under a verified declaration never
 /// crosses the partner surface. A new arm may NOT land here without
-/// restating its own residual-sign story: the coaxial
-/// cylinder×sphere circle arm's residuals are one-signed in OPPOSITE
-/// orientations per direction, which is exactly why it is blocked on
-/// that story (issue #974).
+/// restating its own residual-sign story.
+///
+/// **The coaxial cylinder×sphere circle arm's story is MEASURED and it
+/// PASSES — and that is not what still blocks the arm** (issue #974;
+/// the blocker's stated cause is superseded here rather than left
+/// standing). At the only coaxial tangency, `R = r`, the sphere lies
+/// wholly in the cylinder's non-positive residual half-space and the
+/// cylinder wholly in the sphere's non-negative one. The orientations
+/// are OPPOSITE per direction, which this contract never forbade: the
+/// internally tangent parallel cylinder pair the `|r1 − r2|` fallback
+/// already admits has exactly that structure. Both halves are pinned
+/// by `crates/topo/tests/verbs_cylsph_tangent_residuals.rs`. What
+/// blocks the arm is downstream of the story: [`TangentLocus`] carries
+/// a LINE and nothing else, its consumers all read a locus DIRECTION
+/// and none has a circle story, and the arm would need a
+/// declared-coaxiality channel this lane cannot reach. #974 stays open
+/// for that work.
 ///
 /// # Errors
 ///
@@ -941,10 +949,11 @@ fn verify_declared_pairs<T: Decide>(
         if class != ContactClass::Rest {
             continue;
         }
-        // The one flush-pair door ([`flush_pair_relation`]): oriented
-        // sources, sense-folded descriptions, and the verification
-        // arm all live inside it — shared with the LIB-SEL2 detector
-        // by construction.
+        // The one carrier-pair door: oriented sources, sense-folded
+        // descriptions, and the verification arm all live inside it —
+        // shared with the flush detector by construction, since that
+        // detector asks THIS function in its `declared: false`
+        // posture.
         // The generalized door: planar pairs reach exactly the numbers
         // the plane ladder always reached (its plane arm delegates),
         // and a curved declared pair is verified rather than being

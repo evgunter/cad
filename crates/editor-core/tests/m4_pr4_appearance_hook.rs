@@ -10,7 +10,7 @@
 //! per-kind collision refusal.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     AppearanceLossCause, Attr, AttrKind, BooleanOp, CancelToken, CapEnd, Diagnosis, DocEdit,
@@ -19,7 +19,7 @@ use editor_core::{
     appearance_rebind_suggestions, enrich_appearance_loss, enrich_appearance_loss_with_prior,
     evaluate,
 };
-use fixture::{desc, insert, len, scl, step};
+use fixture::{insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -66,14 +66,12 @@ fn block(
     z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
     );
     insert(
         doc,
@@ -89,23 +87,21 @@ fn block(
 fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m4_pr4_appearance_hook", Tol::witness());
     let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![
-                (2.0, 1.0),
-                (6.0, 1.0),
-                (6.0, 3.0),
-                (2.0, 3.0),
-                (2.0, 2.5),
-                (5.0, 2.5),
-                (5.0, 1.5),
-                (2.0, 1.5),
-            ]],
-        )),
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (2.0, 1.0),
+            (6.0, 1.0),
+            (6.0, 3.0),
+            (2.0, 3.0),
+            (2.0, 2.5),
+            (5.0, 2.5),
+            (5.0, 1.5),
+            (2.0, 1.5),
+        ]],
     );
     let (doc, b) = insert(
         doc,
@@ -144,7 +140,7 @@ fn gap_fixture() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, StableName) {
             declare: None,
         },
     );
-    let cap = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::Top));
+    let cap = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap.clone(), red());
     (doc, a, uni, cap)
 }
@@ -211,7 +207,7 @@ fn node_gone_loss_enriches_with_the_derived_deletion_edit() {
         0.0,
         1.0,
     );
-    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Top));
+    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap.clone(), red());
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: ext });
     let ev = run(&doc);
@@ -402,7 +398,7 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
         0.0,
         1.0,
     );
-    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Top));
+    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc2 = set(doc2, cap, red());
     let cancel = CancelToken::new();
     cancel.cancel();
@@ -572,7 +568,7 @@ fn suggestion_map_is_total_over_the_store() {
         0.0,
         1.0,
     );
-    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Top));
+    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap.clone(), red());
     let ev = run(&doc);
     let suggestions = appearance_rebind_suggestions(doc.appearance(), &ev);

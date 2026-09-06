@@ -5,7 +5,7 @@
 //! reviewer's probe set in the S6 fix pass.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{near_tangent_hole, tangent_hole, tol};
 use geom_core::COINCIDENCE_RECOURSE;

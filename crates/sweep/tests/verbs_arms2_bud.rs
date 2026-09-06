@@ -37,22 +37,19 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::approx::band;
 use geom::{Curve3, Surface};
-use geom_core::{Band, Point2, Tol, Vec3};
+use geom_core::{Point2, Tol, Vec3};
 use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::battery::{BlendRequest, run_battery};
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::revolved_about_y;
+use sweep::test_support::{one_edge_rim, revolved_about_y};
 use topo::{Body, EdgeKey, FaceSurface, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
 /// The **bud's meridian**: bore at `0.2`, a flat base annulus at `t = 0`,
@@ -115,7 +112,7 @@ fn closed_rims(body: &Body<f64>, r: f64) -> Vec<(EdgeKey, f64)> {
 fn closed_rim(body: &Body<f64>, r: f64) -> EdgeKey {
     let hits = closed_rims(body, r);
     assert_eq!(hits.len(), 1, "exactly one closed rim of radius {r}");
-    hits[0].0
+    one_edge_rim(body, hits[0].0)
 }
 
 /// The one closed rim of radius `r` at axial station `y`.
@@ -130,7 +127,7 @@ fn closed_rim_at(body: &Body<f64>, r: f64, y: f64) -> EdgeKey {
         1,
         "exactly one closed rim of radius {r} at y = {y}"
     );
-    hits[0]
+    one_edge_rim(body, hits[0])
 }
 
 fn band_torus(body: &Body<f64>, face: topo::FaceKey) -> (f64, f64) {

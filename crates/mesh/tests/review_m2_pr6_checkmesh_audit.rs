@@ -5,7 +5,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{axis_y, ball, check_mesh_acceptance, cone, donut, p2, validated, washer, wedge};
 use geom_core::Point3;

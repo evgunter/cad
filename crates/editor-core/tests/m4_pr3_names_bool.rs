@@ -9,13 +9,13 @@
     clippy::unreachable
 )]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, EntityKind, Entry, EvalOptions, Evaluation, NameTable, Node,
     ProfileDoc, Qualifier, RecipeNodeId, RoleSeg, StableName, evaluate,
 };
-use fixture::{ang, declare_x_offset_flush, desc, insert, len, scl};
+use fixture::{ang, declare_x_offset_flush, insert, len, on_frame, scl};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -50,14 +50,12 @@ fn block(
     z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
     );
     insert(
         doc,
@@ -93,7 +91,7 @@ fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
             .is_some()
     );
     // M4 PR 5 (N3/D5, the Merged lane LIVE): the declared flush caps
-    // GLUE — the operands' top caps retire into one `Merged` row whose
+    // GLUE — the operands' end caps retire into one `Merged` row whose
     // constituents are exactly the two FromX-wrapped cap names, sorted.
     let mut cap_constituents = vec![
         name1(
@@ -102,7 +100,7 @@ fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
             RoleSeg::FromA(Box::new(name1(
                 EntityKind::Face,
                 a,
-                RoleSeg::Cap(CapEnd::Top),
+                RoleSeg::Cap(CapEnd::End),
             ))),
         ),
         name1(
@@ -111,7 +109,7 @@ fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
             RoleSeg::FromB(Box::new(name1(
                 EntityKind::Face,
                 b,
-                RoleSeg::Cap(CapEnd::Top),
+                RoleSeg::Cap(CapEnd::End),
             ))),
         ),
     ];
@@ -202,8 +200,8 @@ fn slot_subtract_discriminates_cap_fragments_by_side_of_vectors() {
     );
     let ev = run(&doc);
     let t = table(&ev, sub);
-    let top = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::Top));
-    // Exactly two fragments of A's top cap, SideOf-qualified, with
+    let end = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
+    // Exactly two fragments of A's end cap, SideOf-qualified, with
     // DISTINCT vectors (each Unique — no tie: the slot walls
     // discriminate).
     let frags: Vec<&StableName> = t
@@ -212,7 +210,7 @@ fn slot_subtract_discriminates_cap_fragments_by_side_of_vectors() {
             let is_frag = n.kind == EntityKind::Face
                 && matches!(
                     n.path.first(),
-                    Some(RoleSeg::FromA(inner)) if **inner == top
+                    Some(RoleSeg::FromA(inner)) if **inner == end
                 )
                 && matches!(n.path.get(1), Some(RoleSeg::Fragment(Qualifier::SideOf(_))));
             (is_frag && matches!(e, Entry::Unique(_))).then_some(n)
@@ -250,23 +248,21 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
     // wall x = 4 into TWO prong fragments on the SAME side of the
     // only cutting carrier — no covariant qualifier separates them:
     // the N2 tie, recorded, naming total.
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![
-                (2.0, 1.0),
-                (6.0, 1.0),
-                (6.0, 3.0),
-                (2.0, 3.0),
-                (2.0, 2.5),
-                (5.0, 2.5),
-                (5.0, 1.5),
-                (2.0, 1.5),
-            ]],
-        )),
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (2.0, 1.0),
+            (6.0, 1.0),
+            (6.0, 3.0),
+            (2.0, 3.0),
+            (2.0, 2.5),
+            (5.0, 2.5),
+            (5.0, 1.5),
+            (2.0, 1.5),
+        ]],
     );
     let (doc, b) = insert(
         doc,

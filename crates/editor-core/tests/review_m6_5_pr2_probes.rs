@@ -10,8 +10,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
+use crate::fixture;
 
 use std::collections::BTreeSet;
 
@@ -49,18 +49,16 @@ fn table_of(
 
 /// P1: the shrunk supports' `FromTarget` rows are a BIJECTION onto the
 /// target's face names — six supports, each wrapping a distinct one of
-/// {Cap(Bottom), Cap(Top), Wall(0..3)}, all kind Face.
+/// {Cap(Start), Cap(End), Wall(0..3)}, all kind Face.
 #[test]
 fn p1_shrunk_supports_wrap_exactly_the_targets_face_names() {
     let doc = ProfileDoc::empty_derived("review_m6_5_pr2_probes", Tol::witness());
-    let (doc, p) = fixture::insert(
+    let (doc, p) = fixture::on_frame(
         doc,
-        Node::Profile(fixture::desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let (doc, cube) = fixture::insert(
         doc,
@@ -89,8 +87,8 @@ fn p1_shrunk_supports_wrap_exactly_the_targets_face_names() {
     let got: BTreeSet<_> = inner.iter().cloned().collect();
     assert_eq!(got.len(), 6, "each support wraps a distinct upstream face");
     let expected: BTreeSet<StableName> = [
-        fixture::fname(cube, RoleSeg::Cap(CapEnd::Bottom)),
-        fixture::fname(cube, RoleSeg::Cap(CapEnd::Top)),
+        fixture::fname(cube, RoleSeg::Cap(CapEnd::Start)),
+        fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
         fixture::fname(cube, fixture::wall(0)),
         fixture::fname(cube, fixture::wall(1)),
         fixture::fname(cube, fixture::wall(2)),
@@ -155,14 +153,12 @@ fn p2_surgery_supports_wrap_names_the_target_table_carries() {
 fn p3_totality_holds_for_a_triangular_prism() {
     use editor_core::resolve::{Resolution, RunCtx, resolve};
     let doc = ProfileDoc::empty_derived("review_m6_5_pr2_probes", Tol::witness());
-    let (doc, p) = fixture::insert(
+    let (doc, p) = fixture::on_frame(
         doc,
-        Node::Profile(fixture::desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (2.0, 0.0), (0.0, 2.0)]],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (2.0, 0.0), (0.0, 2.0)]],
     );
     let (doc, prism) = fixture::insert(
         doc,

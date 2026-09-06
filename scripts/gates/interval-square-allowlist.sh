@@ -339,6 +339,29 @@ plant_not_squares() {
   } > "$1/crates/planted/src/lib.rs"
 }
 
+# EVERY SOURCE EXCLUDED, WITH NO CYCLE ANYWHERE. The exclusion is built
+# as `dir/name.rs` from the DECLARING file's own directory, and nothing
+# checks that the target differs from the declarer — so one file that
+# declares a module of its own name excludes ITSELF. With nothing else in
+# the tree, `production_sources` returns empty and the guard below fires.
+# Two lines of Rust, and it is a tree `rustc` accepts (`only.rs` would
+# resolve `mod only;` to `only/only.rs`, which is missing — a compile
+# error about a missing file, not about a cycle, and this gate never
+# compiles anything).
+#
+# THAT SELF-EXCLUSION IS THE VISIBLE HALF of a wider mismatch: for a
+# declaration inside a non-`mod.rs` file, `rustc` resolves `mod bar;` to
+# `dir/name/bar.rs` while this code excludes the SIBLING `dir/bar.rs`,
+# so a production sibling is dropped from the scan and the real test
+# module is scanned. Filed as `gate-mod-path-resolved-textually` in
+# work/code-quality/ with both directions measured; NOT repaired here,
+# because resolving module paths properly changes what this gate scans
+# on the live tree and that is its own row.
+plant_every_source_excluded_by_itself() {
+  rm -f "$1/crates/clean/src/lib.rs"
+  printf '#[cfg(test)]\nmod only;\n' > "$1/crates/clean/src/only.rs"
+}
+
 # The same square, in a module file whose declaration is cfg(test)-gated:
 # test-only code, and it must NOT fire. This case and the one above are
 # the two directions of the same rule, and neither is evidence without
@@ -367,10 +390,12 @@ gate_selftest() {
   gate_selftest_case "$want" plant_wrapped_product
   gate_selftest_case "$want" plant_scaled_square
   gate_selftest_case "$want" plant_scaled_square_field_path
+  gate_selftest_case "is test-only — the gate scanned no production code" \
+    plant_every_source_excluded_by_itself
   gate_selftest_passes "prose, string literals, mixed products, a * a.method(), a call whose result multiplies its own argument, a parenthesized product whose last factor is not the repeated one, and a cfg(test) module" plant_not_squares
   gate_selftest_passes "a square in a module file whose declaration is cfg(test)-gated" plant_gated_module_file
   gate_selftest_passes "the same, declared on one line" plant_gated_module_file_one_line
-  printf '%s selftest OK: passes a clean fixture, prose/strings/mixed products/`a * a.method()`/a cfg(test) module, and a test-only module file declared on one line or two; fires on a bare identifier, a field path, a `self.` field, a two-level path, a rustfmt-wrapped product, a square behind a block comment, a PARENTHESIZED SCALED square in both bare and field-path form, the same module file registered WITHOUT the cfg gate, and one registered under any(debug_assertions, test), which is every debug build; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, prose/strings/mixed products/`a * a.method()`/a cfg(test) module, and a test-only module file declared on one line or two; fires on a bare identifier, a field path, a `self.` field, a two-level path, a rustfmt-wrapped product, a square behind a block comment, a PARENTHESIZED SCALED square in both bare and field-path form, the same module file registered WITHOUT the cfg gate, and one registered under any(debug_assertions, test), which is every debug build; refuses a tree whose only source excludes ITSELF by declaring a cfg(test) module of its own name, which needs no cycle; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

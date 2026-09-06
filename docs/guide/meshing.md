@@ -31,7 +31,7 @@ from pncad import Doc, Node, TessellateError, evaluate, m, mm
 
 doc = Doc()
 sketch = doc.insert(
-    Node.polygon([(0 * m, 0 * m), (2 * m, 0 * m), (2 * m, 1 * m), (0 * m, 1 * m)])
+    Node.polygon([(0 * m, 0 * m), (2 * m, 0 * m), (2 * m, 1 * m), (0 * m, 1 * m)], plane=doc.sketch_frame())
 )
 slab = doc.insert(Node.extrude(sketch, 1 * m))
 body = evaluate(doc).value(slab).body()
@@ -135,12 +135,16 @@ def is_closed(mesh):
 # A washer: a rectangle revolved a full turn about the y axis, so
 # every lateral face is a cylinder and the mesh is an approximation.
 doc = Doc()
+frame = doc.sketch_frame()
 outline = doc.insert(
     Node.polygon(
-        [(0.5 * m, 0 * m), (1.5 * m, 0 * m), (1.5 * m, 2 * m), (0.5 * m, 2 * m)]
+        [(0.5 * m, 0 * m), (1.5 * m, 0 * m), (1.5 * m, 2 * m), (0.5 * m, 2 * m)],
+        plane=frame,
     )
 )
-axis = doc.insert(Node.datum_axis((0 * m, 0 * m, 0 * m), (0.0, 1.0, 0.0)))
+# The axis in the sketch's own coordinates: the frame's v is world
+# +y, so the world y axis IS its own +y through (0, 0).
+axis = doc.insert(Node.datum_axis_in_plane(frame, (0 * m, 0 * m), (0.0, 1.0)))
 washer = doc.insert(Node.revolve(outline, axis, 360 * deg))
 
 body = evaluate(doc).value(washer).body()
@@ -186,7 +190,7 @@ from pncad import Doc, Node, StlError, evaluate, m, mm
 
 doc = Doc()
 sketch = doc.insert(
-    Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)])
+    Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)], plane=doc.sketch_frame())
 )
 cube = doc.insert(Node.extrude(sketch, 1 * m))
 mesh = evaluate(doc).value(cube).body().tessellate(1 * mm)

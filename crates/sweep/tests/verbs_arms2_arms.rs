@@ -38,6 +38,7 @@
 
 use geom::{Curve3, Surface};
 use geom_core::{Point3, Vec3};
+use sweep::blend::Convexity;
 use sweep::blend::arms::{BlendArm, EdgeBlend, Meridian, Ruling, plane_sphere_blend};
 
 const EPS: f64 = 1e-12;
@@ -455,6 +456,8 @@ fn the_shared_reduction_agrees_with_the_plane_sphere_arm() {
             1.0,
             radius,
             sphere_sense,
+            // A CONVEX chain: the ball rests on the material side of both.
+            Convexity::Convex,
         );
         let sheet = Meridian {
             origin: p3(0.0, 0.0, 0.0),

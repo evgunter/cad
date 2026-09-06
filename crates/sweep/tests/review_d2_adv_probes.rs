@@ -53,11 +53,21 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
+test_utils::gated_to![
+    "crates/sweep/src/blend/",
+    "crates/sweep/src/revolve/",
+    "crates/topo/src/boolean/",
+    "crates/sweep/src/test_support.rs",
+    "crates/topo/src/query.rs",
+    "crates/topo/src/instance.rs",
+    "crates/geom-core/src/predicate.rs",
+];
+
 use core::f64::consts::PI;
 
 use geom_brep::SurfaceKind;
 use geom_core::Tol;
-use geom_core::{Affine3, Band, Point2, Vec2, Vec3};
+use geom_core::{Affine3, Point2, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::{BlendError, fillet_edges};
 use sweep::test_support::cube;
@@ -72,11 +82,6 @@ use topo::{Body, BooleanDeclarations, EdgeKey};
 /// of `CAD_FUZZ_EFFORT` per body. `CAD_FUZZ_SEED` pins the draws.
 fn effort() -> usize {
     fuzz::scaled(24)
-}
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
 }
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -396,6 +401,7 @@ fn class(e: &BlendError) -> &'static str {
         BlendError::UnsupportedRunOut { .. } => "UnsupportedRunOut(row 2)",
         BlendError::UnsupportedGeometry { .. } => "UnsupportedGeometry(row 2)",
         BlendError::BodyNotIntact { .. } => "BodyNotIntact(row 1)",
+        BlendError::SurgeryInvariant { .. } => "SurgeryInvariant(row 4)",
         BlendError::RingClearance { .. } => "RingClearance",
         BlendError::Certify { .. } => "Certify",
         BlendError::Op { .. } => "Op",
@@ -530,15 +536,16 @@ fn d2_reached_variants() {
 }
 
 /// **The row-1 refutation's witness, attacked at the door.** The PR
-/// classifies 46 sites as `BodyNotIntact` — reachable-but-invalid
+/// classifies the surgery's `BodyNotIntact` sites as reachable-but-invalid
 /// rather than kernel bug — on the strength of ONE named public door:
 /// `topo::instance::graft_disjoint_all`, whose docs say a refusal
 /// raised mid-transplant leaves the destination *spent, never
 /// resumable*, so a caller who discards the `Err` hands `fillet_edges`
 /// a tier-1-invalid body with no kernel bug in the trace.
 ///
-/// All 46 sites sit BELOW `blend_surgery`'s entry gate
-/// (`solids != 1 || shells != 1` — `surgery.rs:212`). This row pins
+/// Every such site sits BELOW `blend_surgery`'s entry gate
+/// (`solids != 1 || shells != 1` — `blend_surgery`'s entry gate in
+/// `blend/surgery.rs`). This row pins
 /// the arithmetic that decides whether the witness can get there in
 /// the scenario the refutation describes — *a caller keeps the body it
 /// already had*: a graft ADDS a solid (`graft_disjoint_all_keyed`
@@ -584,8 +591,8 @@ fn d2_a_grafted_destination_is_stopped_at_the_entry_gate() {
         Err(BlendError::UnsupportedBody { solids, shells }) => {
             println!(
                 "d2_a_grafted_destination_is_stopped_at_the_entry_gate: \
-                 {solids} solid(s), {shells} shell(s) — refused at surgery.rs:212, \
-                 above all 46 `BodyNotIntact` sites"
+                 {solids} solid(s), {shells} shell(s) — refused at `blend_surgery`'s entry gate, \
+                 above every `BodyNotIntact` site"
             );
         }
         other => panic!("a grafted destination must be refused at the entry gate, got {other:?}"),

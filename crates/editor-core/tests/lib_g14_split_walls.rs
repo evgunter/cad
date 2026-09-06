@@ -20,7 +20,7 @@
 //! across both legs). Those chords now become one N2 TIE.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     BooleanOp, CancelToken, Cmp, CurveKind, CurveKindSet, Datum, EntityKind, Entry, EvalOptions,
@@ -29,7 +29,7 @@ use editor_core::{
     StableName, evaluate, select, select_where,
 };
 
-use fixture::{desc, insert, len, scl};
+use fixture::{insert, len, on_frame, scl};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -72,14 +72,12 @@ fn plane(doc: ProfileDoc, origin: [f64; 3], normal: [f64; 3]) -> (ProfileDoc, Re
 
 /// A prism: the polygon `pts` on z = `z0`, extruded `dz`.
 fn prism(doc: ProfileDoc, pts: Vec<(f64, f64)>, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![pts],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![pts],
     );
     insert(
         doc,

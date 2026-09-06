@@ -224,7 +224,7 @@ fn past_one_period_the_answer_aliases_by_a_turn_inside_the_span() {
 ///   bit-stable answer cannot get one by picking a "nicer" anchor —
 ///   it has to pick an anchor that never CHANGES).
 ///
-/// That second half is the fact `sweep::fillet::surgery::
+/// That second half is the fact `sweep::blend::surgery::
 /// seam_split_param` is built on. Its anchor used to be the stored
 /// window's midpoint, and a stored window is rewritten every time the
 /// meridian is split — so the same crossing came back with different

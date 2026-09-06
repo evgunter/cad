@@ -6,6 +6,19 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+// Gated to the code it tests (TCOST-1). The claim is that the tree's
+// candidate set IS the brute-force overlap set, in the same order, and that
+// a build is bit-reproducible — so it rests on the tree's construction and
+// traversal and on the box predicate they decide with. `geom-core`'s
+// `linalg` and `real` are named because an `Aabb`'s corners and the
+// `Bounds` bracket its arithmetic is generic over live there, and a change
+// to either moves what `overlaps` answers without touching `bvh/`.
+test_utils::gated_to![
+    "crates/bvh/src/",
+    "crates/geom-core/src/linalg/",
+    "crates/geom-core/src/real.rs",
+];
+
 use bvh::{Aabb, Bvh};
 use proptest::prelude::*;
 

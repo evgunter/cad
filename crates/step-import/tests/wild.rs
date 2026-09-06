@@ -26,7 +26,7 @@
 //! the oracle's.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use std::path::PathBuf;
 
@@ -94,7 +94,7 @@ const WILD_REFUSALS: [(&str, &str); 4] = [
     // structurally by `r1_dm1_probe`.
     (
         "stepcode/dm1-id-214.stp",
-        "the certified quadrature enclosure stalled at",
+        "the certified quadrature enclosure cannot reach the",
     ),
     // A spline-carried edge between analytic surfaces: the file's
     // geometry is inside the subset entity by entity, and the D7

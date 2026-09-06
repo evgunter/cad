@@ -9,6 +9,18 @@ rust-version.workspace = true
 workspace = true
 
 [features]
+# Makes the fillet recourse SENTENCES — the prose one Display arm
+# appends — nameable from this crate's `tests/` binaries. A `tests/`
+# file is a SEPARATE crate, so it can name neither a `#[cfg(test)]`
+# item nor a `pub(crate)` one; a suite that asserted a caller reads
+# these sentences would otherwise have to restate them, and a restated
+# sentence agrees with itself rather than with the code (S52, and the
+# same argument as sweep's `test-support`). Off by default and enabled
+# only through the self-dev-dependency below, so it is on exactly for
+# this crate's own tests and off for every normal build — which is why
+# these six names are NOT part of the surface pncad's facade
+# completeness guard watches.
+test-support = []
 # Forwards geom-core's certified interval scalar so validation runs at
 # `Interval` — exercised by the feature-gated test modules in CI's
 # interval lane.
@@ -25,6 +37,13 @@ probe = ["geom-core/probe"]
 geom-core = { path = "../geom-core" }
 
 [dev-dependencies]
+# Self dev-dependency: turns `test-support` on for THIS crate's own
+# integration tests without exposing it to production dependents. Same
+# shape and same argument as sweep's, written out there: a
+# dev-dependency is in no consumer's build graph, and a flagless
+# `cargo build [--release]` does not build test targets, so this is the
+# only edge that ever enables the feature.
+profile = { path = ".", features = ["test-support"] }
 # Shared fuzz harness for this crate's randomized sweeps (one RNG, the
 # per-run seed, the CAD_FUZZ_EFFORT dial). A dependency-free leaf crate
 # named by [dev-dependencies] only, here and everywhere else — which is

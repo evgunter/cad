@@ -56,7 +56,7 @@
 //! quiet claim is most likely to be false.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::witness_bodies::{keyway, oblique_lens, slit};
 use common::*;

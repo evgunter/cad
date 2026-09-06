@@ -20,7 +20,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use std::collections::BTreeMap;
 
@@ -43,7 +43,7 @@ fn plate(
     side: f64,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
-    let (doc, profile) = common::inserted(doc, common::square(side), tol);
+    let (doc, profile) = common::framed_square(doc, side, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {

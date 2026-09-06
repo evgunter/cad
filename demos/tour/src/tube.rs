@@ -1,5 +1,5 @@
 //! **The tube door made visible** — `pncad::sweep::tube_along_arc`, the
-//! world-coordinate torus door (M6-3 Leg F, the Evan-ratified rider
+//! world-coordinate torus door (M6-3 Leg F, the Ev-ratified rider
 //! on the #175 thread).
 //!
 //! # Why this is a scene and not "another torus"
@@ -94,7 +94,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     vec![Stop {
         name: "tube_along_arc",
         caption: "tube_along_arc (intent parameters, stored)".to_string(),
-        // Standalone since the montage-v2 curation (Evan, #218 follow-up):
+        // Standalone since the montage-v2 curation (Ev, #218 follow-up):
         // the cell's content — bit-exact STORED intent parameters — is
         // interesting for how it works, not visually; without that context
         // it reads as one more partial revolve. The scene, its assertions

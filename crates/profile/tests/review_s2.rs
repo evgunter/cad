@@ -46,10 +46,10 @@
 //! σ·τ = +1 and r > R — and every row DEMANDS the enclosing tangency.
 //! `the_lattice_door_never_emits_an_enclosing_tangency` pins what the
 //! shipped door answers on that table: the typed refusal
-//! `PathError::FilletEnclosesLegCarrier`, on every band.
+//! `CornerReason::EnclosesLegCarrier`, on every band.
 //!
 //! **That boundary is permanent, not a finding.**
-//! `docs/ENCLOSING-TANGENCY-DESIGN.md` rules the class out for good — an
+//! `crates/profile/README.md` rules the class out for good — an
 //! arc whose circle contains both leg carriers contains the corner too,
 //! so it cannot touch the corner it would round, and a construction that
 //! cannot touch the corner is not a fillet OF it. No door emits the
@@ -81,7 +81,15 @@
 //! the distribution rather than a rare class.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+// `tests/common/` is named because this suite takes its tolerance from
+// `common::tol`. A marker's own file is implicit; a sibling helper module is not.
+test_utils::gated_to![
+    "crates/profile/src/",
+    "crates/geom-core/src/tolerance.rs",
+    "crates/profile/tests/common/",
+];
+
+use crate::common;
 
 use common::tol;
 use geom_core::Point2;
@@ -560,7 +568,7 @@ struct CornerCounts {
 
 /// **The ruling, asserted — the one home of that check.** For a corner
 /// whose geometry demands the enclosing (ρ < 0) tangency, no door emits
-/// one (`docs/ENCLOSING-TANGENCY-DESIGN.md`), so whatever a door built
+/// one (`crates/profile/README.md`), so whatever a door built
 /// must swallow NEITHER carrier: |P − O| + R stays above r. Called from
 /// `check_corner`'s enclosing arm and from `report_moved_refuse_pin`,
 /// which is what both enclosing pins call; the three copies of this
@@ -576,7 +584,7 @@ fn assert_swallows_nothing(
     assert!(
         d + radius > r - 1e-9,
         "the door emitted an ENCLOSING tangency (|P-O| + R = {} < r = {r}) — the class \
-         docs/ENCLOSING-TANGENCY-DESIGN.md rules permanently out — {}",
+         crates/profile/README.md rules permanently out — {}",
         d + radius,
         ctx()
     );
@@ -613,7 +621,7 @@ fn report_moved_refuse_pin(
     }
     panic!(
         "{}: {what} now BUILDS (a non-swallowing fillet, verified above) where \
-         docs/ENCLOSING-TANGENCY-DESIGN.md rules that a radius demanding the enclosing \
+         crates/profile/README.md rules that a radius demanding the enclosing \
          class must refuse typed; this is a violation of that ruling, not a boundary to \
          re-pin",
         ctx()
@@ -1035,11 +1043,11 @@ fn enclosing_cases() -> Vec<EnclosingCase> {
 /// other crossing inside its windows. So the ladder never had a reason
 /// to emit an enclosing tangency, and now it has no route to one either:
 /// the class is **ruled out permanently** by
-/// `docs/ENCLOSING-TANGENCY-DESIGN.md`. The blend circle contains both
+/// `crates/profile/README.md`. The blend circle contains both
 /// leg carriers, hence the corner, so the arc cannot touch the corner it
 /// would round — which makes it no fillet OF that corner at all — and a
 /// radius demanding it is answered by the typed
-/// `PathError::FilletEnclosesLegCarrier`, gated on the construction's own
+/// `CornerReason::EnclosesLegCarrier`, gated on the construction's own
 /// signed ρ before any candidate centre is computed.
 ///
 /// This test pins exactly that: every table corner still DEMANDS the
@@ -1088,13 +1096,23 @@ fn the_lattice_door_never_emits_an_enclosing_tangency() {
             // side's R and its offset radius is the row's own negative
             // ρ, re-derived here from the drawn geometry rather than
             // read back from the construction.
-            Err(PathError::FilletEnclosesLegCarrier {
-                side,
-                carrier_radius,
-                offset_radius,
-                radius,
-                largest_tangent_radius,
-            }) => {
+            Err(ref err @ PathError::NoCornerOfPair { radius, .. }) => {
+                // WHICH corner: the drawn one, alone — the envelope
+                // names the corner the table authored and nothing else.
+                crate::common::assert_corners(
+                    err,
+                    &[(case.corner.x, case.corner.y)],
+                    "the table's drawn corner",
+                );
+                let Some((side, carrier_radius, offset_radius, largest_tangent_radius)) =
+                    crate::common::enclosing(err)
+                else {
+                    panic!(
+                        "{name}: a radius demanding the enclosing class must refuse with \
+                         the enclosing-class entry (crates/profile/README.md); the \
+                         envelope carries none: {err:?}"
+                    )
+                };
                 assert_eq!(radius, case.r, "{name}: the refusal renamed the radius");
                 // Every table row swallows BOTH carriers, so the refusal
                 // says so rather than picking a side.
@@ -1170,7 +1188,7 @@ fn the_lattice_door_never_emits_an_enclosing_tangency() {
             }
             Err(other) => panic!(
                 "{name}: a radius demanding the enclosing class must refuse with \
-                 FilletEnclosesLegCarrier (docs/ENCLOSING-TANGENCY-DESIGN.md), not with \
+                 the enclosing-class entry (crates/profile/README.md), not with \
                  {other:?}"
             ),
             Ok(lp) => {
@@ -1235,7 +1253,7 @@ fn the_lattice_door_never_emits_an_enclosing_tangency() {
 /// named for. The sugar refuses all three as the enclosing class it is —
 /// the ρ < 0 leg is the one the refusal names, and the partner never has
 /// to be examined, because a swallowed carrier is already a corner no
-/// fillet of that radius can touch (`docs/ENCLOSING-TANGENCY-DESIGN.md`).
+/// fillet of that radius can touch (`crates/profile/README.md`).
 /// Before that ruling these rows came back as `OffsetCarriersDisjoint`,
 /// the same inequality read from the offset side — true, and about the
 /// offset carriers rather than about the fillet the author asked for.
@@ -1275,13 +1293,17 @@ fn an_enclosing_leg_forces_an_equally_enclosing_partner() {
             "{name}: the row must contain a rho < 0 leg to be about the enclosing class"
         );
         match build_corner(c, leg_in, leg_out, r) {
-            Err(PathError::FilletEnclosesLegCarrier {
-                side,
-                offset_radius,
-                carrier_radius,
-                largest_tangent_radius,
-                ..
-            }) => {
+            Err(ref err @ PathError::NoCornerOfPair { .. }) => {
+                crate::common::assert_corners(err, &[(c.x, c.y)], "the drawn corner");
+                let Some((side, carrier_radius, offset_radius, largest_tangent_radius)) =
+                    crate::common::enclosing(err)
+                else {
+                    panic!(
+                        "{name}: a swallowed carrier next to this partner is geometrically \
+                         impossible, and the swallowing itself is refused typed, so the \
+                         envelope must carry the enclosing-class entry; got {err:?}"
+                    )
+                };
                 assert!(
                     offset_radius < 0.0 && carrier_radius < r,
                     "{name}: the refusal must name the swallowed carrier (rho \
@@ -1301,7 +1323,7 @@ fn an_enclosing_leg_forces_an_equally_enclosing_partner() {
             other => panic!(
                 "{name}: a swallowed carrier next to this partner is geometrically \
                  impossible, and the swallowing itself is refused typed, so the sugar must \
-                 refuse with FilletEnclosesLegCarrier; got {other:?}"
+                 refuse with the enclosing-class entry; got {other:?}"
             ),
         }
     }
@@ -1342,32 +1364,30 @@ fn overrun_attribution_names_the_authored_corners_candidate() {
         0.5,
     )
     .expect_err("short legs must refuse");
-    match err {
-        PathError::AnchorOutsideTrimmedExtent {
-            side,
-            setback,
-            available,
-            ..
-        } => {
-            // The bottom corner's OWN candidate: it overruns the 4-degree
-            // (0.1396 m) leg, but only by a factor of a few — not by the
-            // 4.4 m the top corner's wrap-around reading produced.
-            assert_eq!(side, profile::FilletLeg::Incoming);
-            assert!(
-                (available - 0.139_626_340_159_546_53).abs() < 1e-12,
-                "leg length {available}"
-            );
-            assert!(
-                setback > available && setback < 1.0,
-                "setback {setback}: expected the near candidate's own overrun, not a \
-                 wrap-around distance to the corner the author never named"
-            );
-            // Half the carrier's circumference is the hard ceiling a
-            // signed setback can never exceed (|dtheta| <= pi, R = 2).
-            assert!(setback < core::f64::consts::PI * 2.0, "setback {setback}");
-        }
-        other => panic!("unexpected refusal {other:?}"),
-    }
+    // This row's SUBJECT is attribution, so it says which corner the
+    // refusal is about and that the corner the author never named is
+    // not in the list at all: the bottom corner (0, -sqrt 3), alone.
+    let s3 = 3.0f64.sqrt();
+    crate::common::assert_corners(&err, &[(0.0, -s3)], "the corner the anchors bracket");
+    let Some((side, _, setback, available)) = crate::common::anchor_fit(&err) else {
+        panic!("unexpected refusal {err:?}")
+    };
+    // The bottom corner's OWN candidate: it overruns the 4-degree
+    // (0.1396 m) leg, but only by a factor of a few — not by the
+    // 4.4 m the top corner's wrap-around reading produced.
+    assert_eq!(side, profile::FilletLeg::Incoming);
+    assert!(
+        (available - 0.139_626_340_159_546_53).abs() < 1e-12,
+        "leg length {available}"
+    );
+    assert!(
+        setback > available && setback < 1.0,
+        "setback {setback}: expected the near candidate's own overrun, not a \
+         wrap-around distance to the corner the author never named"
+    );
+    // Half the carrier's circumference is the hard ceiling a
+    // signed setback can never exceed (|dtheta| <= pi, R = 2).
+    assert!(setback < core::f64::consts::PI * 2.0, "setback {setback}");
 }
 
 /// **The conditioning gate's mined witness (M8).** The corner
@@ -1546,8 +1566,8 @@ fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
 /// nobody would author), at the permanent boundary the table test pins:
 /// the geometry still DEMANDS the enclosing tangency (both rho < 0,
 /// re-derived), and **the door refuses with
-/// `PathError::FilletEnclosesLegCarrier`**, on every band. That is the
-/// ruling of `docs/ENCLOSING-TANGENCY-DESIGN.md`, not a finding about
+/// `CornerReason::EnclosesLegCarrier`**, on every band. That is the
+/// ruling of `crates/profile/README.md`, not a finding about
 /// today's ladder: a blend circle that swallows both leg carriers
 /// swallows the corner, so it can never touch the corner it would round.
 /// The `Ok` arm is unreachable under that ruling; it checks the
@@ -1590,13 +1610,16 @@ fn enclosing_fillet_swallows_both_leg_carriers() {
         // enclosing-class variant on every shipped band (measured at
         // 1e-6 / 1e-9 / 1e-12), naming a swallowed side whose carrier
         // radius bounds the fillet and whose rho is negative.
-        Err(PathError::FilletEnclosesLegCarrier {
-            side,
-            carrier_radius,
-            offset_radius,
-            radius,
-            largest_tangent_radius,
-        }) => {
+        Err(ref err @ PathError::NoCornerOfPair { radius, .. }) => {
+            crate::common::assert_corners(err, &[(corner.x, corner.y)], "the mined corner");
+            let Some((side, carrier_radius, offset_radius, largest_tangent_radius)) =
+                crate::common::enclosing(err)
+            else {
+                panic!(
+                    "the mined enclosing corner must refuse with the enclosing-class entry \
+                     (crates/profile/README.md); the envelope carries none: {err:?}"
+                )
+            };
             assert_eq!(radius, r, "the refusal renamed the radius");
             assert_eq!(side, None, "this corner swallows BOTH carriers");
             assert!(
@@ -1633,8 +1656,8 @@ fn enclosing_fillet_swallows_both_leg_carriers() {
             assert_swallows_nothing(pf, o2, r2, endorsed, &ctx);
         }
         Err(other) => panic!(
-            "the mined enclosing corner must refuse with FilletEnclosesLegCarrier \
-             (docs/ENCLOSING-TANGENCY-DESIGN.md), not with {other:?}"
+            "the mined enclosing corner must refuse with the enclosing-class entry \
+             (crates/profile/README.md), not with {other:?}"
         ),
         Ok(lp) => {
             let ctx = || "enclosing_fillet_swallows_both_leg_carriers".to_string();
@@ -1752,6 +1775,12 @@ fn an_ill_conditioned_corner_lands_its_tangent_point_on_the_carrier() {
 ///   DEFINITE arm — and, per the resolve doctrine, ABORTS the whole
 ///   resolve rather than being outranked by the hairline pair's twin
 ///   corner (the silent-build class this pin caught once already).
+///
+/// The abort survives the refusal envelope: the lever gate is a
+/// conditioning fact about the run, not a fact about one crossing of
+/// the pair, so it reaches the caller as its own variant and never as
+/// a `NoCornerOfPair` entry beside the twin corner's story. The match
+/// below is exhaustive on that, which is what pins it.
 ///
 /// What must never happen — on any band — is a build.
 #[test]

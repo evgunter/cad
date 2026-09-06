@@ -27,7 +27,7 @@ that is the lane working.
 
 **Hosted is the canonical producer.** PNG pixels are not
 byte-comparable across GL stacks, so exactly one stack produces
-committed frames and it is the hosted one (Evan's ruling);
+committed frames and it is the hosted one (Ev's ruling);
 byte-stability is defined against a repeat HOSTED render. Local renders
 are preview-only and refuse to commit without the explicit
 `CAD_RENDER_LOCAL_OVERRIDE` sentence.

@@ -38,8 +38,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+test_utils::gated_to![
+    "crates/sweep/src/blend/",
+    "crates/sweep/src/revolve/",
+    "crates/sweep/src/extrude.rs",
+    "crates/sweep/src/test_support.rs",
+    "crates/geom-core/src/predicate.rs",
+];
+
+use crate::common::approx::band;
 use geom::Surface;
-use geom_core::{Band, Point2, Tol};
+use geom_core::{Point2, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::battery::{BlendRequest, run_battery};
@@ -51,10 +60,6 @@ use topo::{Body, EdgeKey};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -329,9 +334,10 @@ fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
         assert!(!seams.is_empty(), "a full ball carries a seam meridian");
         match fillet_edges(&ball, &seams[..1], 0.05 * r, tol()).map_err(|r| r.error) {
             Err(BlendError::TangentialEdge { margin, .. }) => {
+                assert_eq!(margin.predicate, "fillet3_convexity_sign");
                 assert_eq!(
-                    margin,
-                    0.0,
+                    margin.value(),
+                    Some(0.0),
                     "a co-surface seam's sine is structurally zero; {}",
                     fuzz::replay()
                 );

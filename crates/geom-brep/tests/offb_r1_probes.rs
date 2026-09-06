@@ -1,6 +1,15 @@
 //! VERBS-OFF-B r1 reviewer probes — adversarial consumer rows for
-//! `geom_brep::offset_fit` and the two meters, independent of the
-//! shipped `offset_fit.rs` fixtures.
+//! `geom_brep::offset_fit` and the two meters.
+//!
+//! **What is independent here is what the rows DO to a carrier, not
+//! the carrier.** Two of the exact carriers this file used to declare
+//! — the quarter cylinder and the sphere band — were
+//! character-for-character `offset_fit.rs`'s, control order and
+//! weights included, and are now the one `crate::shared::fixture`
+//! pair; the header claimed an independence they did not have. The
+//! warp, the sign inversion, the tangential slide and the
+//! extreme-weight net below are this file's own, and that is where the
+//! adversarial content is.
 //!
 //! What these rows push on, beyond the shipped suite:
 //!
@@ -21,89 +30,22 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::FRAC_PI_2;
-
 use geom::NurbsSurface;
-use geom_brep::offset_fit::{OffsetFitError, OffsetLimb, certify_offset, fit_offset, offset_point};
+use geom_brep::offset_fit::{OffsetFitError, OffsetLimb, certify_offset_at, fit_offset_at};
 use geom_brep::offset_meters::{OFFSET_METER_LADDER, patch_collapse};
 use geom_brep::patch_bound::patch_cells_refined;
-use geom_core::spline::KnotVector;
-use geom_core::{Band, Point3, Tol};
+use geom_core::Point3;
 
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
-fn kv2() -> KnotVector {
-    KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap()
-}
-
-fn kv1() -> KnotVector {
-    KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap()
-}
-
-/// The shipped suite's exact quarter cylinder (weights `1, √2/2, 1`).
-fn quarter_cylinder(r: f64, h: f64) -> NurbsSurface<f64> {
-    let s = (FRAC_PI_2 * 0.5).cos();
-    let control = vec![
-        Point3::new(r, 0.0, 0.0),
-        Point3::new(r, 0.0, h),
-        Point3::new(r, r, 0.0),
-        Point3::new(r, r, h),
-        Point3::new(0.0, r, 0.0),
-        Point3::new(0.0, r, h),
-    ];
-    let weights = vec![1.0, 1.0, s, s, 1.0, 1.0];
-    NurbsSurface::new(kv2(), kv1(), control, weights).unwrap()
-}
-
-/// The shipped suite's exact sphere band (A8.1 weight product).
-fn sphere_band(r: f64, lat0: f64, lat1: f64) -> NurbsSurface<f64> {
-    let theta = 0.5 * (lat1 - lat0);
-    let wm = theta.cos();
-    let a = (r * lat0.cos(), r * lat0.sin());
-    let b = (r * lat1.cos(), r * lat1.sin());
-    let mid = (a.0 + b.0, a.1 + b.1);
-    let mlen = (mid.0 * mid.0 + mid.1 * mid.1).sqrt();
-    let m = (mid.0 / mlen * r / wm, mid.1 / mlen * r / wm);
-    let meridian = [(a.0, a.1, 1.0), (m.0, m.1, wm), (b.0, b.1, 1.0)];
-    let wr = (FRAC_PI_2 * 0.5).cos();
-    let mut control = Vec::with_capacity(9);
-    let mut weights = Vec::with_capacity(9);
-    for iu in 0..3 {
-        for (x, z, w) in meridian {
-            control.push(match iu {
-                0 => Point3::new(x, 0.0, z),
-                1 => Point3::new(x, x, z),
-                _ => Point3::new(0.0, x, z),
-            });
-            weights.push(if iu == 1 { w * wr } else { w });
-        }
-    }
-    NurbsSurface::new(kv2(), kv2(), control, weights).unwrap()
-}
-
-/// A dense deterministic grid, coprime to every schedule in the unit.
-fn dense(nu: usize, nv: usize) -> Vec<(f64, f64)> {
-    let mut out = Vec::with_capacity(nu * nv);
-    for i in 0..nu {
-        for j in 0..nv {
-            #[allow(clippy::cast_precision_loss)]
-            out.push((i as f64 / (nu - 1) as f64, j as f64 / (nv - 1) as f64));
-        }
-    }
-    out
-}
+use crate::shared::fixture::{kv2, quarter_cylinder, sphere_band};
+use crate::shared::sample::{grid, worst_offset_residual};
+use crate::shared::tol::band;
 
 /// The true residual of `candidate` against the exact offset locus of
-/// `base` at `d`, dense-sampled.
+/// `base` at `d`, over 41 x 37 stations — counts coprime to every cell
+/// schedule in the unit, so the sample never sits where the fitter
+/// already looked.
 fn sampled_residual(base: &NurbsSurface<f64>, candidate: &NurbsSurface<f64>, d: f64) -> f64 {
-    let mut worst = 0.0f64;
-    for (u, v) in dense(41, 37) {
-        let target = offset_point(base, d, u, v).unwrap();
-        worst = worst.max((candidate.eval(u, v) - target).norm());
-    }
-    worst
+    worst_offset_residual(base, candidate, d, &grid(41, 37)).unwrap()
 }
 
 /// `certify_offset` accepts an externally supplied fit with ANY
@@ -117,7 +59,7 @@ fn sampled_residual(base: &NurbsSurface<f64>, candidate: &NurbsSurface<f64>, d: 
 fn r1_certify_offset_on_a_rational_fit_never_under_reports() {
     let base = quarter_cylinder(1.0, 1.0);
     let d = 0.3;
-    let (fit, _) = fit_offset(&base, d, 1e-4, band()).unwrap();
+    let (fit, _) = fit_offset_at(&base, d, 1e-4, band()).unwrap();
     // Perturb one interior weight: the surface moves, and so does the
     // homogeneous net the hull limb reads, which is what makes the
     // certificate below a claim about the surface actually supplied.
@@ -138,7 +80,7 @@ fn r1_certify_offset_on_a_rational_fit_never_under_reports() {
     // what caps the ratio below. The CEILING is this row's, asserted,
     // and re-taken on every run.
     let tol = true_residual * 8.0;
-    let cert = certify_offset(&base, &warped, d, tol, band()).unwrap_or_else(|e| {
+    let cert = certify_offset_at(&base, &warped, d, tol, band()).unwrap_or_else(|e| {
         panic!(
             "certify_offset refused a rational fit it can now bound \
              (true residual {true_residual}): {e}"
@@ -178,8 +120,8 @@ fn r1_certify_offset_on_a_rational_fit_never_under_reports() {
 #[test]
 fn r1_a_fit_for_the_wrong_sign_refuses() {
     let base = quarter_cylinder(1.25, 0.75);
-    let (fit_neg, _) = fit_offset(&base, -0.3, 1e-3, band()).unwrap();
-    match certify_offset(&base, &fit_neg, 0.3, 10.0, band()) {
+    let (fit_neg, _) = fit_offset_at(&base, -0.3, 1e-3, band()).unwrap();
+    match certify_offset_at(&base, &fit_neg, 0.3, 10.0, band()) {
         Ok(cert) => panic!(
             "a fit of the OPPOSITE offset certified against +d with hull_sup {}",
             cert.hull_sup
@@ -211,7 +153,7 @@ fn r1_a_fit_for_the_wrong_sign_refuses() {
 fn r1_a_slid_fit_s_tau_limb_never_under_reports() {
     let base = quarter_cylinder(1.0, 1.0);
     let d = 0.25;
-    let (fit, _) = fit_offset(&base, d, 1e-4, band()).unwrap();
+    let (fit, _) = fit_offset_at(&base, d, 1e-4, band()).unwrap();
     // Slide the whole net along +z: on a cylinder about z this is
     // purely tangential, so ‖E‖ barely moves while E × m grows.
     let slid_control: Vec<Point3<f64>> = fit
@@ -231,7 +173,7 @@ fn r1_a_slid_fit_s_tau_limb_never_under_reports() {
         true_residual >= 4e-4,
         "the slide did not register: {true_residual}"
     );
-    match certify_offset(&base, &slid, d, true_residual * 3.0, band()) {
+    match certify_offset_at(&base, &slid, d, true_residual * 3.0, band()) {
         Err(_) => {}
         Ok(cert) => assert!(
             cert.hull_sup >= true_residual,
@@ -255,10 +197,10 @@ fn r1_extreme_d_near_the_collapse_bound_certifies_and_contains() {
     assert!(reach > 0.0 && reach.is_finite());
     for d in [-0.9 * reach, 5.0] {
         let tol = 2e-3;
-        let (fit, cert) = fit_offset(&base, d, tol, band())
+        let (fit, cert) = fit_offset_at(&base, d, tol, band())
             .unwrap_or_else(|e| panic!("fit_offset refused at d = {d} (reach {reach}): {e}"));
         let mut worst = 0.0f64;
-        for (u, v) in dense(41, 37) {
+        for (u, v) in grid(41, 37) {
             let p = base.eval(u, v);
             let k = (r + d) / r;
             let want = Point3::new(p.x * k, p.y * k, p.z * k);
@@ -295,7 +237,7 @@ fn r1_an_extreme_weight_rational_base_refuses_or_contains() {
     let weights = vec![1.0, 0.05, 1.0, 0.4, 1.0, 0.4, 1.0, 0.05, 1.0];
     let base = NurbsSurface::new(kv2(), kv2(), control, weights).unwrap();
     let d = 0.05;
-    match fit_offset(&base, d, 5e-4, band()) {
+    match fit_offset_at(&base, d, 5e-4, band()) {
         Err(e) => eprintln!("extreme-weight base refused (sound): {e}"),
         Ok((fit, cert)) => {
             let worst = sampled_residual(&base, &fit, d);

@@ -119,7 +119,7 @@ reproduces that text. It was the one live compliance gap the audit found.
 
 **D2 — FINDING (upholds and sharpens M7-4's own flag): the STEPcode data files'
 license is UNCLEAR, and the audit excludes all four from any montage.** M7-4
-flagged this for Evan and proceeded on the reading that "the repository license
+flagged this for Ev and proceeded on the reading that "the repository license
 governs its committed assets". Independent checking makes that reading thinner,
 not thicker: STEPcode's `COPYING` is BSD-3 for STEPcode, and its `INTENT.md` —
 which the license itself points at for scope — addresses only *source code and
@@ -132,7 +132,7 @@ redistributor's license does not necessarily convey rights it never held. As a
 redistribution). As *committed repo artwork* it is a distribution the audit will
 not clear. **EXCLUDED-FROM-MONTAGE: `sg1-c5-214.stp`, `dm1-id-214.stp`,
 `io1-cm-214.stp`, `TAIL_TURBINE.stp`.** Only `sg1-c5-214.stp` costs anything —
-the other three refuse import regardless. Evan can overrule this; it should be
+the other three refuse import regardless. Ev can overrule this; it should be
 an explicit decision, not a default.
 
 **D3 — the Adafruit fixtures were renamed and the provenance comments record the

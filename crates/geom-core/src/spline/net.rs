@@ -7,7 +7,7 @@
 //!
 //! A tensor patch's partials are themselves tensor-product B-splines
 //! whose coefficient nets come from knot differencing **per direction**
-//! (The NURBS Book Eq. 3.24 — [`super::hull::derivative_coeffs`],
+//! (The NURBS Book Eq. 3.24 — [`super::hull::SplineCoeffs::derivative_coeffs`],
 //! iterated across lines of the net). That iteration — transpose, apply
 //! the one-dimensional step down each line, scatter the result back —
 //! is the same operation for every consumer, and it had been written
@@ -25,7 +25,7 @@
 //! one-dimensional step as a closure. A caller whose direction is a
 //! clamped [`KnotVector`] passes [`TensorNet::diff_u_knots`] /
 //! [`TensorNet::diff_v_knots`], which is
-//! [`super::hull::derivative_coeffs`]. A caller carrying a direction
+//! [`super::hull::SplineCoeffs::derivative_coeffs`]. A caller carrying a direction
 //! the clamped invariant cannot spell — a derivative whose interior
 //! multiplicity equals the parent degree, so it is genuinely
 //! discontinuous — passes its own step and keeps its own structure.
@@ -44,16 +44,16 @@
 //! answer with zeros turns one refusal into one poison plus `n - 2`
 //! finite zeros, which is a finite bound over a window nothing covered
 //! — the failure this module exists to make impossible, and the same
-//! shape [`super::hull::sup_norm_bound_span`] refuses one dimension
-//! down. **Truncating** a long answer hides a caller bug behind a
+//! shape the [`super::hull`] mint refuses for one dimension down when
+//! the coefficient count disagrees. **Truncating** a long answer hides a caller bug behind a
 //! plausible net. Poisoning the line is the only answer that reaches a
 //! consumer as a refusal.
 //!
 //! *Measured reachability, so this is a guard and not a story about
 //! one:* neither shipped caller can trip it.
-//! [`super::hull::derivative_coeffs`] answers `n - 1` for every line
-//! its knot vector admits, and short-answers only on a
-//! coefficient-count mismatch; `geom_brep::props::quad`'s `raw_deriv`
+//! [`super::hull::SplineCoeffs::derivative_coeffs`] answers `n - 1` for
+//! every line its knot vector admits, and the step short-answers only
+//! when the mint refuses a coefficient-count mismatch; `geom_brep::props::quad`'s `raw_deriv`
 //! answers `n - 1` whenever its degree is at least 1, which its own
 //! `Dir` construction guarantees, and it fills a DEGENERATE (empty)
 //! span itself with an explicit zero rather than by returning fewer
@@ -69,7 +69,6 @@
 
 use core::ops::RangeInclusive;
 
-use super::hull::derivative_coeffs;
 use super::knots::KnotVector;
 use crate::ring_interval::RingInterval;
 
@@ -303,19 +302,20 @@ impl TensorNet {
     }
 
     /// [`TensorNet::diff_u`] with the clamped-knot-vector step
-    /// ([`super::hull::derivative_coeffs`]): a line this vector does
-    /// not admit yields a poisoned derivative rather than a widened
-    /// one, because that step short-answers and the line poisons.
+    /// ([`KnotVector::difference_coeffs`]): a line this vector does
+    /// not admit — one the mint refuses — yields a poisoned derivative
+    /// rather than a widened one, because the step then short-answers
+    /// (one poison entry, never zero) and the line poisons.
     #[must_use]
     pub fn diff_u_knots(&self, kv: &KnotVector) -> Self {
-        self.diff_u(|c| derivative_coeffs(kv, c))
+        self.diff_u(|c| kv.difference_coeffs(c))
     }
 
     /// [`TensorNet::diff_v`] with the clamped-knot-vector step
     /// ([`TensorNet::diff_u_knots`]).
     #[must_use]
     pub fn diff_v_knots(&self, kv: &KnotVector) -> Self {
-        self.diff_v(|c| derivative_coeffs(kv, c))
+        self.diff_v(|c| kv.difference_coeffs(c))
     }
 }
 
@@ -358,7 +358,7 @@ mod tests {
     /// coefficient is `p·(c1 − c0)/Δu` with `p = 1`, `Δu = 1`.
     #[test]
     fn diff_matches_the_knot_difference() {
-        let kv = KnotVector::unit_segment(1);
+        let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let n = TensorNet::from_rows(&[vec![pt(0.0), pt(1.0)], vec![pt(2.0), pt(5.0)]]);
         // The ring rounds outward, so each answer is ENCLOSED, not
         // equalled (D4 ¶2: a bound, never an estimate).

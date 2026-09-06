@@ -75,6 +75,9 @@
 //! silently denote the NEW nodes. That aliasing is a class hazard of
 //! layer-3 state holding `RecipeNodeId`s across history rewinds,
 //! tracked as issue #1384.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{Doc, ProfileProgram, RecipeNodeId};
 
@@ -158,7 +161,8 @@ impl Seat {
     pub fn wants(self) -> NodeKindWanted {
         match self {
             Self::RevolveProfile => NodeKindWanted::Profile,
-            Self::RevolveAxis | Self::PatternAxis => NodeKindWanted::Axis,
+            Self::RevolveAxis => NodeKindWanted::SketchAxis,
+            Self::PatternAxis => NodeKindWanted::Axis,
             Self::SplitPlane => NodeKindWanted::Plane,
             Self::OperandA
             | Self::OperandB

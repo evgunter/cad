@@ -3,8 +3,7 @@
 //! Dual64 (and Interval), plus the composed door at f64.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
 
 use corpus::{documents, eval};
 use editor_core::product_recorded;

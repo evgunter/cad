@@ -11,7 +11,7 @@
 //!
 //! Usage: `cargo run --release -- <outdir>` (from `demos/tour/`).
 //!
-//! # The demos' purpose (Evan, 2026-08-09 — binding for every edit here)
+//! # The demos' purpose (Ev, 2026-08-09 — binding for every edit here)
 //!
 //! These scenes exist to demonstrate REAL, NATURAL library usage —
 //! the way a user would actually write the model. Consequences:
@@ -61,6 +61,9 @@ mod skinned;
 mod teapot;
 #[cfg(feature = "budget")]
 mod tessbudget;
+#[cfg(feature = "interval")]
+mod tolerance;
+mod torusvessel;
 mod tube;
 mod tubewall;
 mod twopeg;
@@ -680,6 +683,14 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
         visit(&stop);
     }
 
+    println!(
+        "\n-- the torus-walled vessel (TORAX #1494 + C5ARMS PR-1 #1577: a donut band \
+         in the wall, hollowed and opened) --"
+    );
+    for stop in torusvessel::stops(tol) {
+        visit(&stop);
+    }
+
     println!("\n-- the boolean leg (M3): union / subtract / intersect, planar-only --");
     for stop in bool_bodies::stops(tol) {
         visit(&stop);
@@ -722,6 +733,21 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
          a cavity is not a component) --"
     );
     checks::narration(tol);
+
+    // The tolerance cell (M10-6 §6): narration-only, and behind the
+    // `interval` feature because its whole subject is the certified
+    // scalar's leaves. A tour built without the feature says so rather
+    // than silently walking one scene fewer.
+    #[cfg(feature = "interval")]
+    {
+        println!("\n-- the two-hole plate (M10/E10: a tolerance study, certified and advisory) --");
+        tolerance::narration(tol);
+    }
+    #[cfg(not(feature = "interval"))]
+    println!(
+        "\n-- the two-hole plate (M10/E10) is SKIPPED: build with `--features interval`, \
+         whose certified scalar is the cell's entire subject --"
+    );
 
     println!(
         "\n-- the bench (the assembly layer: pinned part documents, patterns, mates, \

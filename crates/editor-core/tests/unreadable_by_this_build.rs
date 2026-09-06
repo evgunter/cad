@@ -25,24 +25,22 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{Node, PersistError, ProfileDoc, REGENERATE_RECOURSE, load, save};
-use fixture::{desc, insert, len};
+use fixture::{insert, len, on_frame};
 use geom_core::Tol;
 
 /// A profile and an extrude: the smallest recipe with a node whose
 /// payload has a required field.
 fn small() -> String {
     let doc = ProfileDoc::empty_derived("unreadable-by-this-build", Tol::witness());
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let (doc, _) = insert(
         doc,
@@ -65,10 +63,13 @@ fn split(text: &str) -> (String, serde_json::Value) {
 }
 
 /// The extrude node's externally-tagged object (`{"Extrude": {...}}`).
+///
+/// Node 2: the fixture is a sketch frame, the profile drawn on it, and
+/// the extrude over that.
 fn extrude_mut(v: &mut serde_json::Value) -> &mut serde_json::Map<String, serde_json::Value> {
-    v["snapshot"]["nodes"]["1"]
+    v["snapshot"]["nodes"]["2"]
         .as_object_mut()
-        .expect("node 1 is an object")
+        .expect("node 2 is an object")
 }
 
 fn join(header: &str, v: &serde_json::Value) -> String {
@@ -149,21 +150,37 @@ fn a_missing_required_field_refuses_naming_it() {
 /// part of the shape; the id line and the snapshot id agree by
 /// construction, as a saved file's do; the recorded ε is rewritten to
 /// the process's below so the LOAD is asserted on every CI ε row.
+///
+/// RE-FROZEN when a profile's sketch plane became a document node. The
+/// previous exemplar carried a placement object in the profile's
+/// `plane`, which is a node reference now — a BREAKING change, so those
+/// bytes are `Unreadable` today rather than loadable. That is the
+/// ruling working (a break refuses typed rather than migrating), and it
+/// is measured on the real historical corpus by the `bool13r2_probes`
+/// row above. The ADDITIVE half cannot be measured with bytes older
+/// than a break, so this exemplar is written by today's writer and kept
+/// minimal: nothing newer than {Datum, Profile, Extrude} appears in it.
 const OLDER_SHAPED: &str = concat!(
-    "id: 403dad134a805e2f6ad6d453633789a4\n",
-    "{\"snapshot\":{\"id\":\"403dad134a805e2f6ad6d453633789a4\",\"next_id\":2,",
-    "\"nodes\":{\"0\":{\"Profile\":{\"plane\":{\"basis\":[[1.0,0.0,0.0],[0.0,1.0,0.0],[0.0,0.0,1.0]],",
-    "\"origin\":[0.0,0.0,0.0]},\"loops\":[{\"Chain\":[{\"At\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",",
-    "\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}}]},",
-    "{\"LineTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}},",
-    "{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},",
-    "{\"LineTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}},",
-    "{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},",
-    "{\"LineTo\":{\"Point\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},",
-    "{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":\"Start\"}]}]}},",
-    "\"1\":{\"Extrude\":{\"profile\":0,\"distance\":{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",",
-    "\"unit\":\"m\"}}}}},\"order\":[0,1],\"roots\":[1],\"placements\":{},\"params\":{},\"epsilon\":1e-09,",
-    "\"witnesses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
+    "id: 12c74470374c7c76269f22a931efab85\n",
+    "{\"snapshot\":{\"id\":\"12c74470374c7c76269f22a931efab85\",\"next_id\":3,\"nodes\":{\"0",
+    "\":{\"Datum\":{\"Frame\":{\"origin\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"un",
+    "it\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal",
+    "\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}}],\"u\":[{\"Literal\":{\"value\":1.0",
+    ",\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Scalar\",\"uni",
+    "t\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}}],\"v\":[{\"Lit",
+    "eral\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":1.0,\"d",
+    "im\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":",
+    "\"\"}}]}}},\"1\":{\"Profile\":{\"plane\":0,\"loops\":[{\"Chain\":[{\"At\":[{\"Literal\":",
+    "{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":",
+    "\"Length\",\"unit\":\"m\"}}]},{\"LineTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\"",
+    ":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m",
+    "\"}}]}},{\"LineTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":",
+    "\"m\"}},{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":{",
+    "\"Point\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":",
+    "{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":\"Start\"}]}]}},\"2\":",
+    "{\"Extrude\":{\"profile\":1,\"distance\":{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",",
+    "\"unit\":\"m\"}}}}},\"order\":[0,1,2],\"roots\":[2],\"placements\":{},\"params\":{},\"ep",
+    "silon\":1e-09,\"witnesses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
     "\n"
 );
 
@@ -192,8 +209,8 @@ fn an_older_shaped_document_lacking_newer_vocabulary_loads() {
     let loaded = load(&text, Tol::witness()).expect("an older-shaped document loads");
     assert_eq!(
         loaded.doc.order().len(),
-        2,
-        "profile and extrude, as written"
+        3,
+        "frame, profile and extrude, as written"
     );
     assert_eq!(loaded.doc.epsilon().to_bits(), eps.to_bits());
 }

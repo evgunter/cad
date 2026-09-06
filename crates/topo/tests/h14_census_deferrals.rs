@@ -24,7 +24,7 @@
 //! rows it belongs with.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use geom_core::Point3;
 use geom_core::Tol;

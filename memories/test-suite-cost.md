@@ -10,7 +10,7 @@ metadata:
 These bind **ALL fuzzing in this repo** — every randomized sweep,
 property sweep, adversarial sweep and fuzz row, wherever it lives.
 
-**A fuzzer MUST NOT FIX ITS SEED (Evan, 2026-08-13).** No hardcoded
+**A fuzzer MUST NOT FIX ITS SEED (Ev, 2026-08-13).** No hardcoded
 literal, no `const SEED`, no seed derived from a loop counter. A fixed
 seed does not make a weak fuzzer, it makes something that is not a
 fuzzer at all: it explores the same points on every run for the rest of
@@ -39,7 +39,7 @@ the floor's witness static, or split the test.
 **When a fixed seed IS right** — each case must say in-file which one
 it is; an unexplained literal seed is the failure mode:
 
-- **A coverage/witness claim of the third shape.** Condition (Evan): K
+- **A coverage/witness claim of the third shape.** Condition (Ev): K
   large enough, or the simultaneous conditions numerous enough, that
   the row is VERY UNLIKELY TO PASS BY ACCIDENT on a lucky seed. K = 1
   against a 1-in-1000 class is the shape to avoid.
@@ -77,7 +77,7 @@ Three properties every fuzzer needs, together:
 
 # Everything else
 
-**Failure isolation is worth less than per-run cost (Evan).** When
+**Failure isolation is worth less than per-run cost (Ev).** When
 several tests rebuild the same expensive fixture, merge them — nextest
 is process-per-test, so a `OnceLock` shares nothing and each pays in
 full. Compensate by LABELLING each assertion so the failing property is

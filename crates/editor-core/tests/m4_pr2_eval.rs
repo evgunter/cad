@@ -7,7 +7,7 @@
 //! where the rows were, below.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     BooleanValue, CancelToken, EvalOptions, EvalOutcome, Evaluation, NodeResult, ProfileDoc,
@@ -35,8 +35,8 @@ fn final_body(ev: &Evaluation<f64>, id: editor_core::RecipeNodeId) -> &Body<f64>
 
 // **RETIRED (2026-08-13 test-time audit): `die_evaluates_to_the_exact\
 // _oracle`.** It built `fixture::die()`, ran it cold, and asserted
-// `n_nodes == 77`, `outcome == Completed`, `order.len() == 77`,
-// `(recomputed, reused) == (77, 0)`, `volume == 7.8359375`,
+// `n_nodes == 84`, `outcome == Completed`, `order.len() == 84`,
+// `(recomputed, reused) == (84, 0)`, `volume == 7.8359375`,
 // `surface_area == 26.625`, `validate == Ok`, `validate_closed == Ok`.
 //
 // The gate that owns those claims is `m4_pr8_corpus.rs` over corpus
@@ -55,11 +55,15 @@ fn final_body(ev: &Evaluation<f64>, id: editor_core::RecipeNodeId) -> &Body<f64>
 //   as `24.0 + 21.0 * 4.0 * 0.25 * DEPTH`, which is that number), plus
 //   a floor on how many documents still carry a pin at all.
 //
-// The one assertion that is a literal 77 rather than the document's own
+// The one assertion that is a literal 84 rather than the document's own
 // length stays in this file: `cancelation_returns_a_typed_partial_\
-// result` asserts `ev.order.len() == 77` and `(77, 0)` on the same
+// result` asserts `ev.order.len() == 84` and `(84, 0)` on the same
 // document, and `poisoning_hits_descendants_only_and_is_walkable`
-// asserts `77 - 3`. So the die's node count is still pinned here.
+// asserts `84 - 3`. So the die's node count is still pinned here.
+//
+// It was 77 until a profile's sketch plane became a document node: the
+// die draws on seven distinct planes (the cube's, and one per face), so
+// the count rose by exactly seven frames.
 
 // **RETIRED (2026-08-13 test-time audit): `incremental_edit_recomputes\
 // _only_the_downstream_cone`.** It moved the +z pip's Transform x from
@@ -125,7 +129,9 @@ fn doc_param_edit_recomputes_the_param_cone() {
         .unwrap()
         .doc;
     let memo = run(&edited, Some(&full), false);
-    assert_eq!((memo.recomputed, memo.reused), (48, 29));
+    // The seven frames are reused: a `pip_depth` edit does not
+    // touch a sketch plane.
+    assert_eq!((memo.recomputed, memo.reused), (48, 36));
     let vol = mass_properties(final_body(&memo, d.final_node), Tol::witness())
         .unwrap()
         .volume;
@@ -196,7 +202,7 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
         .values()
         .filter(|r| matches!(r, NodeResult::Ok(_)))
         .count();
-    assert_eq!(ok_count, 77 - 3); // all but Failed + 2 Poisoned
+    assert_eq!(ok_count, 84 - 3); // all but Failed + 2 Poisoned
 }
 
 #[test]
@@ -208,7 +214,7 @@ fn cancelation_returns_a_typed_partial_result() {
     let ev = evaluate::<f64>(&d.doc, None, &cancel, &opts, Tol::witness());
     assert_eq!(ev.outcome, EvalOutcome::Canceled);
     assert!(ev.nodes.is_empty()); // canceled before the first node
-    assert_eq!(ev.order.len(), 77); // order is data, not schedule
+    assert_eq!(ev.order.len(), 84); // order is data, not schedule
     assert_eq!(ev.epoch, opts.epoch); // the identity token round-trips
 
     // Distinct evaluations carry distinct minted epochs (GQ2's
@@ -226,7 +232,7 @@ fn cancelation_returns_a_typed_partial_result() {
         Tol::witness(),
     );
     assert_eq!(full.outcome, EvalOutcome::Completed);
-    assert_eq!((full.recomputed, full.reused), (77, 0));
+    assert_eq!((full.recomputed, full.reused), (84, 0));
 }
 
 #[test]
@@ -234,14 +240,12 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
     use editor_core::{BooleanOp, Node};
     // A 1×1×1 cube inside a 3×3×3 cube: inner ∖ outer = ∅.
     let doc = ProfileDoc::empty_derived("m4_pr2_eval", Tol::witness());
-    let (doc, small_p) = fixture::insert(
+    let (doc, small_p) = fixture::on_frame(
         doc,
-        Node::Profile(fixture::desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(1.0, 1.0), (2.0, 1.0), (2.0, 2.0), (1.0, 2.0)]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(1.0, 1.0), (2.0, 1.0), (2.0, 2.0), (1.0, 2.0)]],
     );
     let (doc, small) = fixture::insert(
         doc,
@@ -250,14 +254,12 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
             distance: len(1.0),
         },
     );
-    let (doc, big_p) = fixture::insert(
+    let (doc, big_p) = fixture::on_frame(
         doc,
-        Node::Profile(fixture::desc(
-            [0.0, 0.0, -1.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]],
-        )),
+        [0.0, 0.0, -1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]],
     );
     let (doc, big) = fixture::insert(
         doc,
@@ -304,14 +306,12 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
 fn split_evaluates_both_parts_role_tagged() {
     use editor_core::{Datum, DatumValue, Node, SplitSide};
     let doc = ProfileDoc::empty_derived("m4_pr2_eval", Tol::witness());
-    let (doc, prof) = fixture::insert(
+    let (doc, prof) = fixture::on_frame(
         doc,
-        Node::Profile(fixture::desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
     );
     let (doc, cube) = fixture::insert(
         doc,

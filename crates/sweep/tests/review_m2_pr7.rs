@@ -8,7 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod revolve_common;
+use crate::revolve_common;
 
 use core::f64::consts::{FRAC_PI_2, PI};
 use profile::RawLoop;

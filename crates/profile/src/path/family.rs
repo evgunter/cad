@@ -254,7 +254,7 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
         pending.radius(),
         tol,
     )?;
-    core.emit_fillet_in(&trims, merge, tol)?;
+    core.emit_fillet_in(&trims, merge)?;
     // The carrier run to the anchor follows the fillet arc tangentially
     // by construction, so the arc's outgoing joint is declared exactly
     // when that run exists; on an exact fit the fillet arc ends the
@@ -324,7 +324,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
         pending.radius(),
         tol,
     )?;
-    core.emit_fillet_in(&trims, merge, tol)?;
+    core.emit_fillet_in(&trims, merge)?;
     let radius = (start_pos - centre).norm_squared().sqrt();
     if trims.fit_out == Sign::Positive {
         // The arrival still has carrier run left: the fillet arc is an
@@ -1169,19 +1169,6 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
     ) -> Result<(), PathError<T>> {
         let (at, ang) = self.dep()?;
         let leg = spec.leg(DirectedPoint { at, dir: ang }, tol)?;
-        if self.tip.ang_by_tangent
-            && let Some(inc) = self.tip.pos.as_ref().and_then(|pd| pd.incoming.as_ref())
-            && let Some(prev) = &inc.carrier
-        {
-            super::refuse_identical_carriers(
-                prev,
-                &SegArc {
-                    center: leg.centre,
-                    radius: (at - leg.centre).norm_squared().sqrt(),
-                },
-                tol,
-            )?;
-        }
         open_arc(
             &mut self.core,
             PendingArc {
@@ -1208,12 +1195,6 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             center: leg.centre,
             radius: (at - leg.centre).norm_squared().sqrt(),
         };
-        if self.tip.ang_by_tangent
-            && let Some(inc) = self.tip.pos.as_ref().and_then(|pd| pd.incoming.as_ref())
-            && let Some(prev) = &inc.carrier
-        {
-            super::refuse_identical_carriers(prev, &carrier, tol)?;
-        }
         self.core.push_arc(leg.end, leg.bulge, carrier)?;
         let arm = carrier.radius.min(leg.chord);
         Ok(in_state(
@@ -1495,7 +1476,26 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Start> 
             target: Target::Start,
             b: spec.b,
         }));
-        path.arc_to_start(spec.b, tol)
+        path.arc_to_start(spec.b, false, tol)
+    }
+}
+
+/// The SHARP arc seam with its arrival DECLARED. The bulge fixes the
+/// arc's end tangent, so nothing is overdetermined: the spec constructs
+/// and the target checks, exactly as on `tangent_arc_to`.
+///
+/// `Bulge` alone, and that is a scope statement rather than a rule —
+/// `Via` and `Center` fix an end tangent too and the same token would
+/// serve them. Their arms stay lattice violations until a unit takes
+/// them (issue 1579; PATHS-DESIGN §6 records it).
+impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, super::ArrivesTangent> {
+    type Out = Result<ClosedLoop<T>, PathError<T>>;
+    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out {
+        path.core.record(Step::ArcTo(ArcData::Bulge {
+            target: Target::StartArriving,
+            b: spec.b,
+        }));
+        path.arc_to_start(spec.b, true, tol)
     }
 }
 
@@ -1519,7 +1519,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Via<T, Start> {
             target: Target::Start,
         }));
         let bulge = path.arc_via_bulge(spec.q, path.start_target()?, tol)?;
-        path.arc_to_start(bulge, tol)
+        path.arc_to_start(bulge, false, tol)
     }
 }
 
@@ -1545,7 +1545,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Center<T, Start> {
             target: Target::Start,
         }));
         let bulge = path.arc_center_bulge(spec.c, path.start_target()?, spec.winding, tol)?;
-        path.arc_to_start(bulge, tol)
+        path.arc_to_start(bulge, false, tol)
     }
 }
 

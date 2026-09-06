@@ -15,7 +15,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;

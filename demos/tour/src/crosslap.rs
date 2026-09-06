@@ -1,4 +1,4 @@
-//! The cross-lap joint (#91 C1, Evan's pick): two beams, each notched
+//! The cross-lap joint (#91 C1, Ev's pick): two beams, each notched
 //! half-depth by a subtract — each notched beam is itself a boolean
 //! result, so the joint is #90's boolean-of-boolean payload made
 //! visible. Geometry is the `issue86_double_subtract` crossing-slots

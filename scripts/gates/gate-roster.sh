@@ -241,7 +241,41 @@ gate() {
       rc=1
       continue
     fi
-    if ! grep -qE "(^|[[:space:]])$esc[[:space:]]*(\$|\||&|;)" <<<"$cmds"; then
+    # A REAL RUN IS ANY INVOCATION THAT IS NOT THE SELF-TEST — FLAGS AND
+    # ALL. The matcher used to demand a BARE invocation (path, then end of
+    # line or a shell operator), which read "runs the gate" as "runs it
+    # with no arguments". That was true of this repo by accident and
+    # stopped being true when the hosted rustdoc row started passing
+    # `--pr` and a `--scope`: a gate the hosted half genuinely runs would
+    # have reported as unwired, and the fix a reader reaches for at that
+    # point is to add a bare call beside the real one, which is a second
+    # invocation written to satisfy a checker. What the claim needs is
+    # only that the hosted half does something with this gate OTHER than
+    # self-test it, and that is what this reads.
+    #
+    # SPELLED AS "the invocations that RUN the gate", by dropping the ones
+    # that do not and then looking for any invocation left. Not as one
+    # regex: ERE has no negative lookahead, so the only single-pattern
+    # spellings are an enumeration of every flag that does run it, which is
+    # a roster. And not with `-oE`, deliberately — the broken-grep arm of
+    # this gate's own self-test shims exactly that call shape, and a matcher
+    # failing HERE would report as "never RUNS" instead of reaching the
+    # marker `gate_ok` reads.
+    #
+    # TWO MODES ARE DROPPED, NOT ONE, AND THE SECOND IS THE ONE THIS CHECK
+    # WAS CAUGHT ON. `--selftest` is the obvious one: a gate only
+    # self-tested is a gate not run, which is what this claim has always
+    # said. `--print-roots` is the same shape and was admitted for a whole
+    # day by the widening that made this a substring check — it is a
+    # DERIVATION the workflow reads for its cache input, it documents
+    # nothing and can fail nothing, and ci.yml calls it in a step of its
+    # own. Reproduced before this line was written: delete both real
+    # invocations from ci.yml, leave the roots step, and the roster printed
+    # OK over a workflow that never ran the gate. Any future mode of this
+    # shape belongs on this list, and the arms below are what say so.
+    local runs
+    runs=$(gate_grep -vE "(^|[[:space:]])$esc[[:space:]]+(--selftest|--print-roots)([[:space:]]|\$)" <<<"$cmds") || rc=1
+    if ! grep -qE "(^|[[:space:]])$esc([[:space:]]|\$)" <<<"$runs"; then
       gate_error "$HOSTED_HALF never RUNS $outlier — it is a gate under lib.sh's contract sited outside scripts/gates/, so this list is the only thing watching its wiring (naming it in a comment, or only self-testing it, does not run it)"
       rc=1
     fi
@@ -334,6 +368,29 @@ plant_outlier_unwired_hosted() {
 
 plant_outlier_hosted_selftest_deleted() {
   outlier_ci_yml_without "$1" "^ *${OUTLIER_GATES[0]} --selftest\$"
+}
+
+# THE NEAR MISS FOR THE WIDENING ABOVE: the hosted half's real run
+# carries flags. That is what ci.yml does today (`--pr`, a `--scope`, and
+# `--skip-viewer-toolkit` on some runs), and a matcher that demanded a
+# bare invocation would call it unwired. The `unwired_hosted` case above
+# is the other direction and is what keeps this from being a hole: delete
+# the real run and leave only `--selftest`, and the gate still fires.
+plant_outlier_hosted_run_has_flags() {
+  local root=$1
+  sed -i "s#^\( *\)${OUTLIER_GATES[0]}\$#\1${OUTLIER_GATES[0]} --pr --scope '-p a'#" \
+    "$root/.github/workflows/ci.yml"
+}
+
+# AND THE FAILURE THAT WIDENING LET THROUGH, planted so the drop-list is a
+# checked claim rather than a comment. The real run becomes
+# `--print-roots`, which reads the gate's derivation for the cache input
+# and documents nothing; `--selftest` is left in place, so a matcher that
+# only drops the self-test finds this line and calls the gate wired.
+plant_outlier_hosted_run_is_print_roots() {
+  local root=$1
+  sed -i "s#^\( *\)${OUTLIER_GATES[0]}\$#\1${OUTLIER_GATES[0]} --print-roots --pr#" \
+    "$root/.github/workflows/ci.yml"
 }
 
 plant_outlier_unwired_local() {
@@ -450,11 +507,14 @@ exec "$GATE_REAL_TOOL" "$@"'
   gate_selftest_case "never RUNS ${OUTLIER_GATES[0]}" plant_outlier_unwired_hosted
   gate_selftest_case "runs ${OUTLIER_GATES[0]} without running its --selftest" \
     plant_outlier_hosted_selftest_deleted
+  gate_selftest_passes "an outlier whose hosted run carries flags" \
+    plant_outlier_hosted_run_has_flags
+  gate_selftest_case "never RUNS ${OUTLIER_GATES[0]}" plant_outlier_hosted_run_is_print_roots
   gate_selftest_case "never RUNS ${OUTLIER_GATES[0]}" plant_outlier_unwired_local
   gate_selftest_case "runs ${OUTLIER_GATES[0]} without its --selftest" \
     plant_outlier_local_selftest_deleted
   gate_selftest_case "which is not an executable file" plant_outlier_missing
-  printf '%s selftest OK: every case is a REAL subprocess invocation, so a diagnosis lost to errexit fails the self-test. Passes a clean fixture; refuses to go green when a matcher dies mid-scan inside a process substitution (the marker path through gate_ok); fires on an unwired gate, a comment-only mention, a selftest-only call, a ghost step, a gate that landed mode 0644, a deleted local loop, a local loop that stopped self-testing, a local loop that went back to excluding lib.sh by mode, a step running lib.sh, and — for a gate sited outside scripts/gates/ — either half dropping its real call or its --selftest, and a list entry naming a file that is not there\n' "$(gate_name)"
+  printf '%s selftest OK: every case is a REAL subprocess invocation, so a diagnosis lost to errexit fails the self-test. Passes a clean fixture and a hosted run that carries flags (which is what the rustdoc row is today); refuses a hosted half whose only real call is `--print-roots`, a derivation that documents nothing; refuses to go green when a matcher dies mid-scan inside a process substitution (the marker path through gate_ok); fires on an unwired gate, a comment-only mention, a selftest-only call, a ghost step, a gate that landed mode 0644, a deleted local loop, a local loop that stopped self-testing, a local loop that went back to excluding lib.sh by mode, a step running lib.sh, and — for a gate sited outside scripts/gates/ — either half dropping its real call or its --selftest, and a list entry naming a file that is not there\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

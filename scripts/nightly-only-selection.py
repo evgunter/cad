@@ -8,7 +8,7 @@ WHY THIS EXISTS. A test demoted to the nightly carries, at the test:
 
 so it is `#[ignore]`d in every ordinary build and an ordinary test under
 `RUSTFLAGS="--cfg nightly_suite"`. The nightly has to run exactly those and
-nothing else — Evan, 2026-08-22: the scheduled job runs *only the demoted
+nothing else — Ev, 2026-08-22: the scheduled job runs *only the demoted
 tests, not the whole suite* — and the marker deliberately lives AT the test
 rather than in a central roster, so there is no list to read the set off.
 
@@ -35,12 +35,12 @@ exists to prevent. The set below is therefore
 
 which is precisely "the tests whose `ignore` is conditional on that cfg".
 
-EVAN'S CONSTRAINT HOLDS BY CONSTRUCTION, not by a list. A pre-existing plain
+EV'S CONSTRAINT HOLDS BY CONSTRUCTION, not by a list. A pre-existing plain
 `#[ignore]` — a reporting row, an instrument, a test only valid as the sole
 test in a process — is `ignored: true` in BOTH listings, so it cancels out of
 the difference and can never be selected. That is why the nightly needs no
 `--run-ignored` in any spelling, and must never grow one: with the flag, the
-whole pre-existing ignored population would run, which is the thing Evan
+whole pre-existing ignored population would run, which is the thing Ev
 ruled out.
 
 FAILS CLOSED ON A BROKEN RIG. An empty difference is LEGITIMATE here — unlike
@@ -256,7 +256,7 @@ def main(argv):
         "demoted (nightly-only) tests: {} selected of {} in the gate listing; "
         "{} test(s) carry a plain #[ignore] and are ignored under BOTH builds, so "
         "they cancel out of this difference and the nightly does not run them "
-        "either (Evan's constraint, by construction rather than by a list)\n".format(
+        "either (Ev's constraint, by construction rather than by a list)\n".format(
             len(selected), len(gate), still_ignored
         )
     )

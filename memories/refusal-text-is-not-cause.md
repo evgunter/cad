@@ -24,7 +24,7 @@ assumed fix had nothing to act on.
    requirement structurally bans," and that claim was ITSELF the
    next false premise — both reviewers independently reached the
    one-face cap via public kef→kev (tier 2 binds at-rest bodies,
-   not intermediates). Evan's original repair-op steer was right
+   not intermediates). Ev's original repair-op steer was right
    all along; the exemption was withdrawn pre-merge. Lesson within
    the lesson: a measurement that dissolves a premise can smuggle
    in its own — "nothing can build it" needs the constructive

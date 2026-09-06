@@ -55,6 +55,8 @@
 //! `interior_knots() == the code that was deleted`; dropping these four
 //! trades a behaviour-preservation gate for a correctness one.
 
+test_utils::gated_to!["crates/geom-core/src/spline/"];
+
 use geom_core::spline::KnotVector;
 use test_utils::fuzz;
 

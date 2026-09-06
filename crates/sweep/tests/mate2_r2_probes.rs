@@ -9,7 +9,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod mate2_common;
+use crate::mate2_common;
 
 use geom_core::{Point3, Tol, Vec2, Vec3};
 use mate2_common::*;

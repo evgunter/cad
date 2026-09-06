@@ -34,8 +34,9 @@
 # more runner-minutes and no new information.
 #
 # It takes the CI run WHATEVER ITS CONCLUSION: a run can still fail for
-# a wedged pass or the matplotlib-fallback assertion, and lanes upload
-# before any of that is decided, so the artifact is there either way.
+# a wedged pass, a missing renderer or a scene that would not draw, and
+# lanes upload before any of that is decided, so the artifact is there
+# either way.
 #
 # Renders are hosted (`.github/workflows/render.yml`); the local entry
 # points refuse without an explicit override (demos/hosted-render-guard.sh).
@@ -199,9 +200,10 @@ lanes_of() {
 # specific run's bytes for comparison.
 #
 # The run is taken WHATEVER ITS CONCLUSION, which is the point rather
-# than a leniency: a run can still fail on a wedged pass or the
-# matplotlib-fallback assertion, and the artifacts are uploaded before
-# any of that is decided, so a failed run still has them.
+# than a leniency: a run can still fail on a wedged pass, a missing
+# renderer or a scene that would not draw, and the artifacts are
+# uploaded before any of that is decided, so a failed run still has
+# them.
 if [ "$ON_DEMAND" = 0 ] && [ -z "$RUN_ID" ]; then
     if [ -z "$REF" ]; then
         REF="$(git rev-parse --abbrev-ref HEAD)"

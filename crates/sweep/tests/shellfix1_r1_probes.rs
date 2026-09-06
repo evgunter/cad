@@ -27,8 +27,6 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
 
-const FIT_TOL: f64 = 1e-6;
-
 fn polygon(pts: &[(f64, f64)]) -> ProfileLoop<f64> {
     ProfileLoop::new(
         pts.iter()
@@ -159,9 +157,9 @@ fn p1_partial_revolve_cap_is_never_a_validated_wrong_body() {
     let chart = plane_chart_at_y(&body, 0.4);
     println!("[p1] wedge cap chart: {} face(s)", chart.len());
     assert!(!chart.is_empty(), "the wedge has a top cap");
-    match topo::shell_open(&body, 0.05, &chart, FIT_TOL, Tol::witness()) {
+    match topo::shell_open(&body, 0.05, &chart, Tol::witness()) {
         Err(e) => println!("[p1] REFUSED typed: {e}"),
-        Ok(cup) => {
+        Ok(topo::Shelled { body: cup, .. }) => {
             println!(
                 "[p1] BUILT: shells {}, rings {}, genus {}",
                 cup.shells().count(),
@@ -204,13 +202,13 @@ fn p2_counterbore_mouth_two_half_annuli_split_into_two_rims() {
     // merge whose leftover duplicate is anchored at BOTH ends) stays
     // door-unreachable here. Pinned as the typed refusal it is: never
     // a validated wrong body.
-    match topo::shell_open(&body, t, &chart, FIT_TOL, Tol::witness()) {
+    match topo::shell_open(&body, t, &chart, Tol::witness()) {
         Err(ShellError::OpenFacesDisconnect { components, .. }) => {
             println!("[p2] refused typed at the designation gate: {components} components");
             assert_eq!(components, 2);
         }
         Err(e) => panic!("[p2] expected the disconnect gate or a build, got {e}"),
-        Ok(cup) => {
+        Ok(topo::Shelled { body: cup, .. }) => {
             let mouth = plane_chart_at_y(&cup, h);
             println!(
                 "[p2] BUILT: shells {}, rings {}, genus {}, mouth faces {}",
@@ -289,8 +287,9 @@ fn p3_vase_opened_at_its_bottom_mints_one_annular_rim() {
     ]);
     let chart = plane_chart_at_y(&body, 0.0);
     assert_eq!(chart.len(), 2, "the base is two half-discs");
-    let cup = topo::shell_open(&body, t, &chart, FIT_TOL, Tol::witness())
-        .unwrap_or_else(|e| panic!("[p3] the vase opens at its base, got {e}"));
+    let cup = topo::shell_open(&body, t, &chart, Tol::witness())
+        .unwrap_or_else(|e| panic!("[p3] the vase opens at its base, got {e}"))
+        .body;
     assert_eq!(cup.shells().count(), 1);
     assert_eq!(
         (rings_of(&cup), genus_of(&cup)),
@@ -322,8 +321,9 @@ fn p4_annular_split_holds_on_fresh_radii() {
     let body = revolved_full(&[(ri, 0.0), (ro, 0.0), (ro, h), (ri, h)]);
     let chart = plane_chart_at_y(&body, h);
     assert_eq!(chart.len(), 1, "a closed off-axis meridian closes its seam");
-    let cup = topo::shell_open(&body, t, &chart, FIT_TOL, Tol::witness())
-        .unwrap_or_else(|e| panic!("[p4] the tube opens, got {e}"));
+    let cup = topo::shell_open(&body, t, &chart, Tol::witness())
+        .unwrap_or_else(|e| panic!("[p4] the tube opens, got {e}"))
+        .body;
     assert_eq!(cup.shells().count(), 1);
     assert_eq!(
         (rings_of(&cup), genus_of(&cup)),
@@ -362,7 +362,7 @@ fn p5_two_holed_designation_refuses_typed() {
         2,
         "carrying two holes"
     );
-    match topo::shell_open(&body, t, &top, FIT_TOL, Tol::witness()) {
+    match topo::shell_open(&body, t, &top, Tol::witness()) {
         Err(ShellError::OpenFaceRimNotExpressible { what, .. }) => {
             println!("[p5] refused: {what}");
             assert!(
@@ -371,7 +371,7 @@ fn p5_two_holed_designation_refuses_typed() {
             );
         }
         Err(e) => panic!("[p5] expected OpenFaceRimNotExpressible, got {e}"),
-        Ok(cup) => {
+        Ok(topo::Shelled { body: cup, .. }) => {
             // If it builds, it must at least be coherent — but the PR
             // says this door refuses, so a build is a finding either way.
             assert_coherent("p5 two-holed cup", &cup, None);
@@ -401,13 +401,13 @@ fn p6_single_square_hole_splits_on_line_carriers() {
     let body = extruded(vec![outer, hole], h);
     let top = plane_chart_at_z(&body, h);
     assert_eq!(top.len(), 1);
-    match topo::shell_open(&body, t, &top, FIT_TOL, Tol::witness()) {
+    match topo::shell_open(&body, t, &top, Tol::witness()) {
         Err(e) => {
             // A refusal here is a FINDING (an undisclosed narrowing to
             // circular splits) — record it loudly.
             panic!("[p6] a one-holed slab is inside the stated scope and refused: {e}");
         }
-        Ok(cup) => {
+        Ok(topo::Shelled { body: cup, .. }) => {
             assert_eq!(cup.shells().count(), 1);
             // FOUR rings total, not two: the operand's through-hole
             // already puts one ring on the bottom cap and one on the
@@ -453,10 +453,10 @@ fn p7_thickness_gate_shields_check_9s_band_at_this_door() {
     let top = plane_chart_at_z(&body, 4.0);
     // In the band or below: the thickness gate refuses first.
     for t in [3e-7, 5e-6] {
-        match topo::shell_open(&body, t, &top, FIT_TOL, Tol::witness()) {
+        match topo::shell_open(&body, t, &top, Tol::witness()) {
             Err(ShellError::Thickness { .. }) => println!("[p7] t = {t}: thickness gate"),
             Err(e) => println!("[p7] t = {t}: refused elsewhere: {e}"),
-            Ok(cup) => {
+            Ok(topo::Shelled { body: cup, .. }) => {
                 assert_coherent("p7 thin cup", &cup, None);
                 println!("[p7] t = {t}: BUILT and coherent (note: ring sits {t} from outer)");
             }
@@ -465,8 +465,9 @@ fn p7_thickness_gate_shields_check_9s_band_at_this_door() {
     // At the escalation floor: certifiably positive, must build, and
     // the ring at 1e-5 from the outer loop must NOT trip check 9.
     let t = 2e-5;
-    let cup = topo::shell_open(&body, t, &top, FIT_TOL, Tol::witness())
-        .unwrap_or_else(|e| panic!("[p7] t = {t} is certifiably positive, got {e}"));
+    let cup = topo::shell_open(&body, t, &top, Tol::witness())
+        .unwrap_or_else(|e| panic!("[p7] t = {t} is certifiably positive, got {e}"))
+        .body;
     assert_eq!(
         topo::validate_geometric(&cup, Tol::witness()),
         Ok(()),
@@ -484,9 +485,10 @@ fn p8_hollow_operand_still_refuses_typed() {
         vec![polygon(&[(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.0, 3.0)])],
         4.0,
     );
-    let sealed = topo::shell(&body, 0.25, FIT_TOL, Tol::witness()).expect("seals");
-    let e =
-        topo::shell(&sealed, 0.05, FIT_TOL, Tol::witness()).expect_err("a hollow operand refuses");
+    let sealed = topo::shell(&body, 0.25, Tol::witness())
+        .expect("seals")
+        .body;
+    let e = topo::shell(&sealed, 0.05, Tol::witness()).expect_err("a hollow operand refuses");
     assert!(
         matches!(e, ShellError::OperandAlreadyHollow { shells: 2 }),
         "got {e}"

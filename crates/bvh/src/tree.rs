@@ -97,6 +97,39 @@ impl Bvh {
         }
     }
 
+    /// **The `T: Bounds` construction door**: one point cloud per item,
+    /// each item's box the bracket hull of its cloud padded outward by
+    /// `pad` metres.
+    ///
+    /// The same tree by the same rule — the door reads brackets through
+    /// [`Aabb::from_points`] and hands the boxes to [`Bvh::build`], so
+    /// the split rule, the arena order and every query are untouched.
+    /// What it adds is that the SCALAR may be the certified one: at
+    /// `T = Interval` every real configuration the brackets stand for
+    /// lies inside the item box, so a query's candidate set is
+    /// conservative over a whole parameter box rather than at one point
+    /// of it. At `T = f64` a bracket is a point and this is the
+    /// vertex-extent constructor it always was.
+    ///
+    /// An item with NO points is the poison box: it overlaps everything
+    /// and is never pruned, which is the honest answer for an item whose
+    /// extent nothing described. A negative or NaN `pad` poisons too,
+    /// through [`Aabb::padded`]'s own rule.
+    ///
+    /// Deterministic (D9): the item order is the iterator's order, and
+    /// that is the input index every query answers in.
+    pub fn build_bounded<T: geom_core::Bounds, P, I>(items: I, pad: f64) -> Self
+    where
+        P: IntoIterator<Item = geom_core::Point3<T>>,
+        I: IntoIterator<Item = P>,
+    {
+        let boxes: Vec<Aabb> = items
+            .into_iter()
+            .map(|pts| Aabb::from_points(pts).map_or_else(Aabb::poison, |b: Aabb| b.padded(pad)))
+            .collect();
+        Self::build(&boxes)
+    }
+
     /// The number of items the tree was built over.
     pub fn len(&self) -> usize {
         self.boxes.len()
@@ -149,6 +182,95 @@ impl Bvh {
         // Each item lives in exactly one leaf, so this is a
         // permutation sort, never a dedup.
         out.sort_unstable();
+        out
+    }
+
+    /// All input indices whose item box comes within `pad` metres of
+    /// `query` — the proximity form of [`Bvh::overlapping`], for a
+    /// caller asking what could be NEAR a box rather than what could
+    /// touch it.
+    ///
+    /// Pruning is [`Aabb::separation_lo`], a certified LOWER bound on a
+    /// Euclidean separation, so a subtree is dropped only when every
+    /// item under it is provably further than `pad` — and dropping it
+    /// is sound because a node hull contains its items' boxes, whose
+    /// own separations are therefore no smaller. Nothing is decided:
+    /// the answer is a candidate set, and a proximity consumer still
+    /// classifies each survivor at its own funnel (the crate's
+    /// decides-nothing contract).
+    ///
+    /// A negative or NaN `pad` makes every item a candidate — the
+    /// fail-safe direction, matching [`Aabb::padded`]'s own poison rule
+    /// rather than silently pruning the tree bare.
+    ///
+    /// Otherwise [`Bvh::overlapping`]'s contract verbatim: ascending
+    /// input order, poison never pruned (a poison box separates from
+    /// nothing).
+    pub fn within(&self, query: &Aabb, pad: f64) -> Vec<usize> {
+        let pad = if pad.is_nan() || pad < 0.0 {
+            f64::INFINITY
+        } else {
+            pad
+        };
+        let mut out = Vec::new();
+        // Same fixed traversal shape as `overlapping` (D9 discipline).
+        let mut stack = Vec::new();
+        if !self.nodes.is_empty() {
+            stack.push(0usize);
+        }
+        while let Some(idx) = stack.pop() {
+            let Some(node) = self.nodes.get(idx) else {
+                // Unreachable: child indices are minted by the build.
+                continue;
+            };
+            match node {
+                Node::Leaf { start, count, aabb } => {
+                    if aabb.separation_lo(query) > pad {
+                        continue;
+                    }
+                    for &item in self.items.iter().skip(*start).take(*count) {
+                        if self
+                            .boxes
+                            .get(item)
+                            .is_some_and(|b| b.separation_lo(query) <= pad)
+                        {
+                            out.push(item);
+                        }
+                    }
+                }
+                Node::Inner { right, aabb } => {
+                    if aabb.separation_lo(query) > pad {
+                        continue;
+                    }
+                    stack.push(*right);
+                    stack.push(idx + 1);
+                }
+            }
+        }
+        // Each item lives in exactly one leaf, so this is a permutation
+        // sort, never a dedup.
+        out.sort_unstable();
+        out
+    }
+
+    /// Every CROSS pair `(i, j)` — `i` an item of `self`, `j` an item of
+    /// `other` — whose boxes come within `pad` metres, in ascending
+    /// `(i, j)` order.
+    ///
+    /// The walk is [`Bvh::within`]'s, once per item of `self`, so there
+    /// is no second traversal to keep conservative in step with the
+    /// first. The cost of that choice is a descent per item where a dual
+    /// descent would prune both sides at once; a profile, not a
+    /// preference, is the reason to change it.
+    ///
+    /// Deterministic (D9): the outer loop is input order and each inner
+    /// answer is already ascending, so the result is sorted by
+    /// construction.
+    pub fn pairs_within(&self, other: &Self, pad: f64) -> Vec<(usize, usize)> {
+        let mut out = Vec::new();
+        for (i, b) in self.boxes.iter().enumerate() {
+            out.extend(other.within(b, pad).into_iter().map(|j| (i, j)));
+        }
         out
     }
 

@@ -585,7 +585,9 @@ fn member_of(
     let checks: Vec<(&'static str, f64)> = match g {
         // The empty set holds nothing, and no margin decides that —
         // the answer is structural, so it never reaches the funnel.
-        Subgroup::Empty => return Ok(Err(("mate_member_empty", f64::INFINITY))),
+        Subgroup::Empty => {
+            return Ok(Err((super::MATE_MEMBER_EMPTY, f64::INFINITY)));
+        }
         Subgroup::Se3 => Vec::new(),
         Subgroup::Trivial => vec![
             (

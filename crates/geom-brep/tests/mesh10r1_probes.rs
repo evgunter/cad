@@ -18,68 +18,31 @@
 //!   Do the other pieces' stored circles enter the answer at all?
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::Curve3;
+use crate::shared::surf;
+use crate::shared::tol::band;
+use crate::shared::topo;
+use crate::shared::topo::edge;
 use geom::Surface;
 use geom_brep::props::{CarrierId, LoopEdge, PropsError, curved_face, require_iso_rectangle};
-use geom_core::Tol;
-use geom_core::{Band, Point3, Vec3};
-
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 
 const RR: f64 = 0.020;
 const R0: f64 = 0.005;
 
 fn torus() -> Surface<f64> {
-    Surface::Torus {
-        center: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
-        major_radius: RR,
-        minor_radius: R0,
-        u_ref: v3(1.0, 0.0, 0.0),
-    }
+    surf::torus(RR, R0)
 }
 
-fn edge(carrier: Curve3<f64>, a: f64, b: f64, start: u32, end: u32) -> LoopEdge<f64> {
-    let (t0, t1, forward) = if a < b { (a, b, true) } else { (b, a, false) };
-    LoopEdge::hand_built(carrier, t0, t1, forward, start, end)
-}
 fn trim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
-    edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, R0 * v.sin()),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: RR + R0 * v.cos(),
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
-        u0,
-        u1,
-        a,
-        b,
-    )
+    edge(topo::torus_rim_circle(RR, R0, v), u0, u1, a, b)
 }
+/// **Deliberately not shared with `iso_rectangle_door.rs`'s `tmer`**
+/// (reviewer-pair independence, see `control` below), and not with
+/// `mesh10r2_probes.rs`'s either, whose `edge` stamps the id itself.
+/// The circle is shared; the stamping is not.
 fn tmer(u: f64, v0: f64, v1: f64, a: u32, b: u32, id: Option<u64>) -> LoopEdge<f64> {
     LoopEdge {
         carrier_id: id.map(CarrierId::minted),
-        ..edge(
-            Curve3::Circle {
-                center: p3(RR * u.cos(), RR * u.sin(), 0.0),
-                axis: v3(u.sin(), -u.cos(), 0.0),
-                radius: R0,
-                u_ref: v3(u.cos(), u.sin(), 0.0),
-            },
-            v0,
-            v1,
-            a,
-            b,
-        )
+        ..edge(topo::torus_meridian_circle(RR, R0, u), v0, v1, a, b)
     }
 }
 
@@ -88,6 +51,10 @@ const V1: f64 = 1.2;
 const U0: f64 = -1.0;
 const U1: f64 = 1.0;
 
+/// **Deliberately not shared**, though `iso_rectangle_door.rs` and
+/// `mesh10r2_probes.rs` spell the same four calls: this is R1's own
+/// rebuild of the rectangle, and the door suite it reviews must not be
+/// the source of the loop it is checked against.
 /// The unit's control rectangle: each meridian one edge.
 fn control() -> Vec<LoopEdge<f64>> {
     vec![

@@ -10,7 +10,7 @@
     clippy::print_stdout
 )]
 
-mod common;
+use crate::common;
 use common::*;
 use geom_core::Tol;
 use topo::Body;

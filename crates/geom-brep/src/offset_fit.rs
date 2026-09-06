@@ -1,6 +1,6 @@
 //! **The offset fit and its certificate** — the Book's §9.4 stack for
-//! surfaces, and the two-limb residual bound (`docs/OFFSET-DESIGN.md`
-//! O2/O3, `docs/CURVED-DESIGN.md` C8).
+//! surfaces, and the two-limb residual bound (`crates/geom-brep/README.md`
+//! O2/O3, `crates/geom-brep/README.md` C8).
 //!
 //! The offset of a NURBS surface is **not** a NURBS — normalizing the
 //! chart normal introduces a square root that breaks rationality — so
@@ -153,6 +153,38 @@
 //! and it is why the fit door refuses on the floor before it fits
 //! anything.
 //!
+//! # The production doors and the numeric-target instrument
+//!
+//! Every door here comes in two forms, and the pair is the shape D4 ¶1's
+//! witness rule asks for.
+//!
+//! The **production** door takes [`Tol`] — [`fit_offset`],
+//! [`certify_offset`], [`certify_offset_over`],
+//! [`approx_offset_surface`], [`recertify_approx`]. That is the whole
+//! surface the kernel reaches: `topo::props`'s lane doors call the last
+//! two, and the mint calls down to the first three. A caller has no
+//! number to pass, so two callers cannot fit against two epsilons, and
+//! the value is read once (`precision_target`, private — the doors
+//! are the surface).
+//!
+//! The **`_at`** form takes a chosen target and is `#[doc(hidden)]`,
+//! because it is an INSTRUMENT rather than a door: this engine is a
+//! general approximation routine, and the only way to measure its
+//! refinement, its round budget, its stall guard and each limb of its
+//! classification is to run it at targets chosen for the measurement —
+//! 1e-2 through 1e-18, and bounds derived from a measured residual.
+//! One committed ε cannot express any of that, and rewriting those rows
+//! to make the GEOMETRY worse instead would delete the evidence rather
+//! than move it. The suites in `crates/geom-brep/tests/` and
+//! `crates/sweep/tests/` are the whole population.
+//!
+//! **One production caller reaches an `_at` routine**, named at its own
+//! door: the transform lane's `PcurveFittedLane::remap_certificate`
+//! classifies a MAPPED pair against the tolerance the surface's own
+//! claim was made at, which is a stored datum and deliberately not the
+//! run's ε. Nothing else does, and
+//! `crates/topo/tests/shell_tolerance_chain.rs` holds that as a census.
+//!
 //! # Discipline
 //!
 //! The whole stack is **f64 substrate**: fitting is C6 structure
@@ -165,7 +197,7 @@ use geom::curves::fit::{FitError, interpolate_columns};
 use geom::surfaces::{NurbsSurface, Surface};
 use geom_core::spline::compose::patch::PatchSpans;
 use geom_core::spline::{KnotVector, SplineError};
-use geom_core::{Band, Point3, ring_interval::RingInterval};
+use geom_core::{Band, Point3, Tol, ring_interval::RingInterval};
 
 use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig, sqrt_down, sqrt_up};
 use crate::patch_bound::{Net, PatchBoundError, derived_knots, is_rational};
@@ -315,10 +347,12 @@ pub enum OffsetFitError {
         /// The tolerance it had to reach.
         tolerance: f64,
     },
-    /// The storage door was asked to certify over a window that is not
-    /// the base's own chart rectangle. The certificate this module
-    /// derives covers that rectangle and nothing narrower, so a
-    /// sub-window claim would be a bound it never proved.
+    /// A certification was asked for over a window that is not the
+    /// base's own chart rectangle. This module's derivation covers that
+    /// rectangle and nothing narrower, so a sub-window claim would be a
+    /// bound it never proved. Raised by [`certify_offset_over`], and so
+    /// by every door that goes through it — the storage mint, the
+    /// validator's re-derivation and the transform door's lane.
     WindowUnsupported {
         /// The window asked for.
         window: geom::ApproxWindow,
@@ -409,8 +443,8 @@ impl core::fmt::Display for OffsetFitError {
             ),
             Self::WindowUnsupported { window } => write!(
                 f,
-                "approx_offset_surface: the window asked for (u {:?}, v {:?}) is not the base's \
-                 own chart rectangle, and the certificate covers that rectangle only",
+                "the window (u {:?}, v {:?}) is not the base's own chart rectangle, and the \
+                 offset certificate covers that rectangle only",
                 window.u, window.v
             ),
             Self::Limb {
@@ -476,7 +510,62 @@ pub use geom::OffsetCertificate;
 /// non-finite samples, [`OffsetFitError::BudgetExhausted`] carrying
 /// the achieved bound, and [`OffsetFitError::RefinementStalled`]
 /// carrying the bound the loop stopped improving on.
+// SHELL-TOLERANCE-CHAIN BEGIN — the sentinel
+// `topo/tests/shell_tolerance_chain.rs` reads. Between here and the END
+// sentinel are this module's five PRODUCTION doors, the one site that
+// turns the run's witness into a number, and the numeric-target `_at`
+// routines each door delegates to. No PRODUCTION signature here may
+// take an `f64` epsilon, and the region may hold exactly one `.eps()`
+// read. The `_at` routines are exempt from the first rule and only
+// from it: taking a chosen target is what they are for, they are
+// `#[doc(hidden)]`, and a separate census holds that no production file
+// outside this crate's transform lane reaches one. Do not move a
+// production door out of this region.
+/// **The fit target, and the ONE place the run's ε is read on the
+/// chain that reaches this module** (D4 ¶1's witness rule; D4 ¶2's
+/// ε_precision; the residual O3 ratifies).
+///
+/// From the shell door down to here the tolerance travels as the [`Tol`]
+/// witness and nothing else — `topo::shell`, the face-replacement
+/// doors, `topo::props`'s lane doors and this module's five production
+/// doors all name the witness in their signatures — so no caller on the
+/// way can name a second epsilon, and none can do arithmetic on the one
+/// the run committed. The value appears for the first time here, and
+/// `crates/topo/tests/shell_tolerance_chain.rs` pins that this is the
+/// only `.eps()` read in the guarded region.
+fn precision_target(tol: Tol) -> f64 {
+    tol.eps()
+}
+
+/// **The fit door**, at the run's ε_precision: fit the offset of `base`
+/// at signed distance `d` until the measured residual meets the target,
+/// or refuse typed. The docs of the routine it delegates to
+/// ([`fit_offset_at`]) carry the method, the doors, the bound's
+/// tightness and the refusal ladder; what is stated HERE is only which
+/// target this form uses, because that is the whole difference between
+/// the two.
+///
+/// # Errors
+///
+/// As [`fit_offset_at`].
 pub fn fit_offset(
+    base: &NurbsSurface<f64>,
+    d: f64,
+    tol: Tol,
+    band: Band,
+) -> Result<(NurbsSurface<f64>, OffsetCertificate), OffsetFitError> {
+    fit_offset_at(base, d, precision_target(tol), band)
+}
+
+/// [`fit_offset`] against a CHOSEN target rather than the run's ε — the
+/// engine as an instrument (module docs, "the numeric-target
+/// instrument").
+///
+/// # Errors
+///
+/// As [`fit_offset`].
+#[doc(hidden)]
+pub fn fit_offset_at(
     base: &NurbsSurface<f64>,
     d: f64,
     tolerance: f64,
@@ -609,6 +698,23 @@ pub fn certify_offset(
     base: &NurbsSurface<f64>,
     fit: &NurbsSurface<f64>,
     d: f64,
+    tol: Tol,
+    band: Band,
+) -> Result<OffsetCertificate, OffsetFitError> {
+    certify_offset_at(base, fit, d, precision_target(tol), band)
+}
+
+/// [`certify_offset`] against a CHOSEN target rather than the run's ε —
+/// the engine as an instrument (module docs).
+///
+/// # Errors
+///
+/// As [`certify_offset`].
+#[doc(hidden)]
+pub fn certify_offset_at(
+    base: &NurbsSurface<f64>,
+    fit: &NurbsSurface<f64>,
+    d: f64,
     tolerance: f64,
     band: Band,
 ) -> Result<OffsetCertificate, OffsetFitError> {
@@ -647,6 +753,64 @@ pub fn certify_offset(
         curvature_reach: coll.reach,
         rounds: 0,
     })
+}
+
+/// **The window rule and the certification behind it, one home.**
+/// Every door that certifies an offset fit against a described base
+/// goes through here: the storage mint ([`approx_offset_surface`]),
+/// the validator's re-derivation ([`recertify_approx`], which tier 3
+/// reaches through `topo::props::PropsQuadLane`) and the transform
+/// door's lane (`crate::PcurveFittedLane::remap_certificate`).
+///
+/// The rule: [`certify_offset`] derives over the base's WHOLE chart
+/// rectangle, so a `window` is honoured exactly when it IS that
+/// rectangle. Checked here rather than attested at each caller —
+/// three copies of one predicate is three chances for two doors to
+/// disagree about the same surface, which is what a narrowed window
+/// planted behind an honest certificate would exploit.
+///
+/// # Errors
+///
+/// [`OffsetFitError::WindowUnsupported`] for a window this derivation
+/// does not cover, then whatever [`certify_offset`] refuses.
+pub fn certify_offset_over(
+    base: &NurbsSurface<f64>,
+    fit: &NurbsSurface<f64>,
+    d: f64,
+    window: geom::ApproxWindow,
+    tol: Tol,
+    band: Band,
+) -> Result<OffsetCertificate, OffsetFitError> {
+    certify_offset_over_at(base, fit, d, window, precision_target(tol), band)
+}
+
+/// [`certify_offset_over`] against a CHOSEN target rather than the run's
+/// ε — the engine as an instrument (module docs).
+///
+/// **It has one production caller**, and that is not a leak: the
+/// transform door's lane (`crate::PcurveFittedLane::remap_certificate`)
+/// re-derives a MAPPED pair against the tolerance the surface's own
+/// claim was made at, which is the property that keeps the map and the
+/// validator agreeing about a given surface (`topo::transform`'s
+/// `map_approx` states it). That target is a stored datum rather than
+/// the run's ε, so this is the door it must reach.
+///
+/// # Errors
+///
+/// As [`certify_offset_over`].
+#[doc(hidden)]
+pub fn certify_offset_over_at(
+    base: &NurbsSurface<f64>,
+    fit: &NurbsSurface<f64>,
+    d: f64,
+    window: geom::ApproxWindow,
+    tolerance: f64,
+    band: Band,
+) -> Result<OffsetCertificate, OffsetFitError> {
+    if window != geom::ApproxWindow::of(base) {
+        return Err(OffsetFitError::WindowUnsupported { window });
+    }
+    certify_offset_at(base, fit, d, tolerance, band)
 }
 
 // ---------------------------------------------------------------------
@@ -699,10 +863,26 @@ pub fn offset_point(base: &NurbsSurface<f64>, d: f64, u: f64, v: f64) -> Option<
 pub fn approx_offset_surface(
     base: std::sync::Arc<NurbsSurface<f64>>,
     d: f64,
+    tol: Tol,
+    band: Band,
+) -> Result<Surface<f64>, OffsetFitError> {
+    approx_offset_surface_at(base, d, precision_target(tol), band)
+}
+
+/// [`approx_offset_surface`] against a CHOSEN target rather than the
+/// run's ε — the engine as an instrument (module docs).
+///
+/// # Errors
+///
+/// As [`approx_offset_surface`].
+#[doc(hidden)]
+pub fn approx_offset_surface_at(
+    base: std::sync::Arc<NurbsSurface<f64>>,
+    d: f64,
     tolerance: f64,
     band: Band,
 ) -> Result<Surface<f64>, OffsetFitError> {
-    let (fit, loop_cert) = fit_offset(&base, d, tolerance, band)?;
+    let (fit, loop_cert) = fit_offset_at(&base, d, tolerance, band)?;
     let spec = geom::SurfaceSpec {
         window: geom::ApproxWindow::of(&*base),
         description: geom::SurfaceDescription::Offset { base, d },
@@ -711,18 +891,14 @@ pub fn approx_offset_surface(
     };
     let approx = geom::ApproxSurface::certify(spec, |description, fit, window, tolerance| {
         let geom::SurfaceDescription::Offset { base, d } = description;
-        // The certificate covers the base's whole chart rectangle, so
-        // the window asked for is honoured exactly when it IS that
-        // rectangle. Checked, not attested.
-        if window != geom::ApproxWindow::of(base) {
-            return Err(OffsetFitError::WindowUnsupported { window });
-        }
-        certify_offset(base, fit, *d, tolerance, band).map(|cert| OffsetCertificate {
-            // Every measured field is the re-derivation's; `rounds` is
-            // the FIT's provenance, which a re-measurement cannot
-            // recompute, so the loop's honest count travels with it.
-            rounds: loop_cert.rounds,
-            ..cert
+        certify_offset_over_at(base, fit, *d, window, tolerance, band).map(|cert| {
+            OffsetCertificate {
+                // Every measured field is the re-derivation's; `rounds` is
+                // the loop's, for the reason `OffsetCertificate::rounds`
+                // states.
+                rounds: loop_cert.rounds,
+                ..cert
+            }
         })
     })?;
     Ok(Surface::Approx(std::sync::Arc::new(approx)))
@@ -742,17 +918,40 @@ pub fn approx_offset_surface(
 /// which is D4's blessed consequence of ε-tightening and the edge
 /// machinery's exact behaviour.
 ///
+/// The stored WINDOW is read, and it is the one stored datum that is:
+/// it is not a claim to be re-measured but the statement of WHERE the
+/// claim is made, so a surface asserting a rectangle this derivation
+/// does not cover refuses here exactly as it does at the mint and at
+/// the transform door ([`certify_offset_over`], the one home).
+///
 /// # Errors
 ///
-/// As [`certify_offset`].
+/// As [`certify_offset_over`].
 pub fn recertify_approx(
+    approx: &geom::ApproxSurface<f64>,
+    tol: Tol,
+    band: Band,
+) -> Result<OffsetCertificate, OffsetFitError> {
+    recertify_approx_at(approx, precision_target(tol), band)
+}
+
+/// [`recertify_approx`] against a CHOSEN target rather than the run's ε
+/// — the engine as an instrument (module docs).
+///
+/// # Errors
+///
+/// As [`recertify_approx`].
+#[doc(hidden)]
+pub fn recertify_approx_at(
     approx: &geom::ApproxSurface<f64>,
     tolerance: f64,
     band: Band,
 ) -> Result<OffsetCertificate, OffsetFitError> {
     let geom::SurfaceDescription::Offset { base, d } = approx.description();
-    certify_offset(base, approx.fit(), *d, tolerance, band)
+    certify_offset_over_at(base, approx.fit(), *d, approx.window(), tolerance, band)
 }
+
+// SHELL-TOLERANCE-CHAIN END.
 
 // ---------------------------------------------------------------------
 // A9.4 — global surface interpolation at the base's own parameters
@@ -1619,7 +1818,7 @@ mod tests {
             geom::NurbsSurface::new(kv2, kv1, control, vec![1.0, 1.0, s, s, 1.0, 1.0]).unwrap();
         let d = 1e-6;
         let band = Band::linear(Tol::witness()).unwrap();
-        let (fit, cert) = super::fit_offset(&base, d, 1e-3, band).unwrap();
+        let (fit, cert) = super::fit_offset_at(&base, d, 1e-3, band).unwrap();
         let (reg, _) = crate::offset_meters::meter_patch(&base, d, band).unwrap();
         let comp = super::Composite::build(&base, &fit, d).unwrap();
         let (nu, nv) = comp.x.cell_counts();

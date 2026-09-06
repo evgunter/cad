@@ -5,24 +5,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::tol::{band, eps};
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::implicit_residual;
 use geom_brep::intersect::{
-    EqualCylinderSection, PlaneConeSection, PlaneCylinderSection, RadiusEvidence, Rung,
-    SectionError, SurfaceKind, cylinder_cylinder_section, plane_cone_section,
-    plane_cylinder_section, route,
+    CoaxialEvidence, CylinderSphereSection, EqualCylinderSection, PlaneConeSection,
+    PlaneCylinderSection, RadiusEvidence, Rung, SectionError, SurfaceKind,
+    cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section, plane_cylinder_section,
+    route,
 };
-use geom_core::Tol;
-use geom_core::{Band, Point3, Vec3};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
-fn eps() -> f64 {
-    Tol::witness().get().eps
-}
+use geom_core::{Point3, Vec3};
 
 /// The general rung EXISTS (M5 PR 7). So an arm that still refuses owes
 /// what it is MISSING — a trace shape, a certificate, a conversion —
@@ -73,7 +66,11 @@ fn route_inventory() {
         // PR 7 plus the tensor-composite sup bound for limb 2.
         (Plane, Nurbs, Rung::General, true),
         (Cylinder, Cylinder, Rung::Conic, true),
-        (Cylinder, Cone, Rung::General, false),
+        // VERBS-C5ARMS retired this arm's coaxial half: two
+        // closed-form Circles, one per nappe (cone_cylinder_section);
+        // tilted and parallel-but-offset cylinders still route to the
+        // general rung, named at the arm's refusal.
+        (Cylinder, Cone, Rung::Closed, true),
         // M5 PR 7 retired this arm: the ℝ³ implicit-pair march, all
         // three C2 limbs, in-op exhaustiveness.
         (Cylinder, Sphere, Rung::General, true),
@@ -644,29 +641,418 @@ fn plane_cone_generic_tilt_refuses_typed_r1() {
 }
 
 // ---------------------------------------------------------------------
+// cylinder × sphere, DECLARED coaxial
+// ---------------------------------------------------------------------
+
+/// The coaxial fixture, stated once: a `z`-axis cylinder of radius `r`
+/// through the origin and a sphere of radius `big_r` centred ON that
+/// axis at `cz`.
+fn coaxial_pair(r: f64, big_r: f64, cz: f64) -> (Surface<f64>, Surface<f64>) {
+    (
+        Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            radius: r,
+            u_ref: Vec3::unit_x(),
+        },
+        Surface::Sphere {
+            center: Point3::new(0.0, 0.0, cz),
+            radius: big_r,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        },
+    )
+}
+
+/// **The re-posed twin's map**, off every axis plane: a rotation about
+/// a non-axis direction through a non-origin point, after a
+/// non-axis-aligned translation. Applied to BOTH operands, so the
+/// configuration is unchanged and only its pose is.
+fn twin_map() -> geom_core::Affine3<f64> {
+    geom_core::Affine3::rotation_about_axis(
+        Point3::new(0.3, -0.2, 0.7),
+        Vec3::new(1.0, 2.0, 3.0).normalize(),
+        0.7,
+    ) * geom_core::Affine3::translation(Vec3::new(0.11, 0.23, -0.37))
+}
+
+/// The rigid image of a cylinder or sphere under [`twin_map`]. Written
+/// here rather than borrowed from `topo::transform_rigid` because the
+/// rows below are SURFACE rows: they must not depend on a body.
+fn posed(s: &Surface<f64>) -> Surface<f64> {
+    let m = twin_map();
+    match *s {
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => Surface::Cylinder {
+            origin: m.transform_point(origin),
+            axis: m.transform_vec(axis),
+            radius,
+            u_ref: m.transform_vec(u_ref),
+        },
+        Surface::Sphere {
+            center,
+            radius,
+            axis,
+            u_ref,
+        } => Surface::Sphere {
+            center: m.transform_point(center),
+            radius,
+            axis: m.transform_vec(axis),
+            u_ref: m.transform_vec(u_ref),
+        },
+        _ => panic!("the coaxial fixture is a cylinder and a sphere"),
+    }
+}
+
+/// The 33 sample points of one section circle, as the classification
+/// names it: `center + axis·station` ± the two in-plane unit vectors.
+fn circle_samples(
+    center: Point3<f64>,
+    axis: Vec3<f64>,
+    radius: f64,
+    station: f64,
+) -> Vec<Point3<f64>> {
+    let u = if axis.cross(Vec3::unit_x()).norm() > 0.5 {
+        axis.cross(Vec3::unit_x()).normalize()
+    } else {
+        axis.cross(Vec3::unit_y()).normalize()
+    };
+    let v = axis.cross(u);
+    let c = center + axis * station;
+    (0..=32)
+        .map(|i| {
+            let t = f64::from(i) / 32.0 * core::f64::consts::TAU;
+            c + u * (radius * t.cos()) + v * (radius * t.sin())
+        })
+        .collect()
+}
+
+/// `R > r`: two circles of the CYLINDER's radius, at the factored
+/// stations `±√((R−r)(R+r))` from the sphere centre — and every point
+/// of both lies on BOTH surfaces, which is the only claim that matters.
+///
+/// The re-posed twin runs the same assertions under [`twin_map`].
+#[test]
+fn declared_coaxial_crossing_is_two_circles() {
+    for (label, cyl, sph) in [
+        (
+            "direct",
+            coaxial_pair(1.0, 1.5, 0.0).0,
+            coaxial_pair(1.0, 1.5, 0.0).1,
+        ),
+        (
+            "re-posed twin",
+            posed(&coaxial_pair(1.0, 1.5, 0.0).0),
+            posed(&coaxial_pair(1.0, 1.5, 0.0).1),
+        ),
+    ] {
+        let s = cylinder_sphere_section(&cyl, &sph, CoaxialEvidence::Declared, band()).unwrap();
+        let CylinderSphereSection::TwoCircles {
+            center,
+            axis,
+            radius,
+            station,
+        } = s
+        else {
+            panic!("{label}: expected two circles, got {s:?}");
+        };
+        assert_eq!(radius, 1.0, "{label}: the circles carry the CYLINDER's r");
+        assert!(
+            (station - 1.25f64.sqrt()).abs() < 1e-14,
+            "{label}: station {station}"
+        );
+        for st in [station, -station] {
+            for p in circle_samples(center, axis, radius, st) {
+                assert!(
+                    implicit_residual(&cyl, p).abs() < 1e-13,
+                    "{label}: cylinder residual {} at station {st}",
+                    implicit_residual(&cyl, p)
+                );
+                assert!(
+                    implicit_residual(&sph, p).abs() < 1e-13,
+                    "{label}: sphere residual {} at station {st}",
+                    implicit_residual(&sph, p)
+                );
+            }
+        }
+    }
+}
+
+/// `R = r`: ONE circle at the equator station — classification data.
+/// The row also pins the CONSISTENCY clause: on the same pose the
+/// marcher's own tangency door refuses toward C7 rather than marching,
+/// so the two doors agree and neither constructs a carrier.
+#[test]
+fn declared_coaxial_tangency_is_classification_data_at_both_doors() {
+    for (label, cyl, sph) in [
+        (
+            "direct",
+            coaxial_pair(1.0, 1.0, 0.0).0,
+            coaxial_pair(1.0, 1.0, 0.0).1,
+        ),
+        (
+            "re-posed twin",
+            posed(&coaxial_pair(1.0, 1.0, 0.0).0),
+            posed(&coaxial_pair(1.0, 1.0, 0.0).1),
+        ),
+    ] {
+        let s = cylinder_sphere_section(&cyl, &sph, CoaxialEvidence::Declared, band()).unwrap();
+        let CylinderSphereSection::TangentCircle {
+            center,
+            axis,
+            radius,
+        } = s
+        else {
+            panic!("{label}: expected the tangent circle, got {s:?}");
+        };
+        assert_eq!(radius, 1.0, "{label}");
+        // It IS the contact locus: zero residual against both.
+        for p in circle_samples(center, axis, radius, 0.0) {
+            assert!(implicit_residual(&cyl, p).abs() < 1e-13, "{label}");
+            assert!(implicit_residual(&sph, p).abs() < 1e-13, "{label}");
+        }
+        // The SSI's own tangency trilean refuses the SAME pose toward
+        // C7 — one adjudication, two doors that agree.
+        let domain = geom_brep::ssi::SsiDomain {
+            center,
+            half_extent: 1.5,
+            extent: 2.0,
+            floor_scale: 1.0,
+        };
+        //
+        // Pinned to the TANGENCY door EXACTLY, with its payload. The
+        // row used to accept `TubeStraddles` and `CertificateLimb`
+        // beside it; `CertificateLimb` is not a tangency door at all —
+        // it is a certificate limb failing — so accepting it would
+        // have let the consistency claim green on a refusal that says
+        // nothing about tangency. Measured payload at this pose:
+        // `sin θ = 0`, `arm = 1`, `σ₂ = 0` — a transversality that is
+        // exactly, not nearly, dead.
+        let err = geom_brep::ssi::cylinder_sphere_ssi(&cyl, &sph, domain, band())
+            .expect_err("the marcher must refuse a tangency");
+        let geom_brep::ssi::SsiError::TransversalityBand {
+            sin_theta,
+            arm,
+            sigma_min,
+        } = err
+        else {
+            panic!("{label}: expected the SSI's TANGENCY door, got {err:?}");
+        };
+        assert_eq!(sin_theta, 0.0, "{label}");
+        assert_eq!(arm, 1.0, "{label}");
+        assert_eq!(sigma_min, 0.0, "{label}");
+    }
+}
+
+/// `R < r`: the sphere never reaches the wall.
+#[test]
+fn declared_coaxial_short_sphere_is_empty() {
+    for (label, cyl, sph) in [
+        (
+            "direct",
+            coaxial_pair(1.0, 0.5, 0.0).0,
+            coaxial_pair(1.0, 0.5, 0.0).1,
+        ),
+        (
+            "re-posed twin",
+            posed(&coaxial_pair(1.0, 0.5, 0.0).0),
+            posed(&coaxial_pair(1.0, 0.5, 0.0).1),
+        ),
+    ] {
+        let s = cylinder_sphere_section(&cyl, &sph, CoaxialEvidence::Declared, band()).unwrap();
+        assert!(matches!(s, CylinderSphereSection::Empty), "{label}: {s:?}");
+    }
+}
+
+/// **The never-infer rule.** A pose whose axis-to-centre distance is
+/// EXACTLY zero, offered without ladder evidence, routes to the general
+/// rung — the distance is never read at all.
+#[test]
+fn coaxiality_is_never_inferred_from_the_measured_distance() {
+    for (label, cyl, sph) in [
+        (
+            "direct",
+            coaxial_pair(1.0, 1.5, 0.0).0,
+            coaxial_pair(1.0, 1.5, 0.0).1,
+        ),
+        (
+            "re-posed twin",
+            posed(&coaxial_pair(1.0, 1.5, 0.0).0),
+            posed(&coaxial_pair(1.0, 1.5, 0.0).1),
+        ),
+    ] {
+        let err = cylinder_sphere_section(&cyl, &sph, CoaxialEvidence::None, band()).unwrap_err();
+        let SectionError::RoutesToGeneralRung { why, pair } = err else {
+            panic!("{label}: expected the rung-3 routing refusal, got {err:?}");
+        };
+        assert_eq!(pair, "cylinder×sphere", "{label}");
+        refusal_is_grounded(why, "cylinder x sphere, undeclared");
+        assert!(
+            why.contains("never inferred from a measured axis-to-centre distance"),
+            "{label}: {why}"
+        );
+        // The note says what the pair DOES get, which is the whole
+        // reason this refusal is a routing and not a frontier.
+        assert!(why.contains("IS implemented"), "{label}: {why}");
+    }
+}
+
+/// **Declared ≠ unchecked.** A definitely off-axis centre under a
+/// (false) declaration is contradicted, typed; an in-band offset
+/// escalates.
+#[test]
+fn declared_coaxiality_is_verified() {
+    let off = |dx: f64| Surface::Sphere {
+        center: Point3::new(dx, 0.0, 0.0),
+        radius: 1.5,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let cyl = coaxial_pair(1.0, 1.5, 0.0).0;
+    for (label, c, s) in [
+        ("direct", cyl.clone(), off(0.25)),
+        ("re-posed twin", posed(&cyl), posed(&off(0.25))),
+    ] {
+        let err = cylinder_sphere_section(&c, &s, CoaxialEvidence::Declared, band()).unwrap_err();
+        assert!(
+            matches!(err, SectionError::CoaxialDeclarationContradicted),
+            "{label}: {err:?}"
+        );
+    }
+    for (label, c, s) in [
+        ("direct", cyl.clone(), off(3.0 * eps())),
+        ("re-posed twin", posed(&cyl), posed(&off(3.0 * eps()))),
+    ] {
+        let err = cylinder_sphere_section(&c, &s, CoaxialEvidence::Declared, band()).unwrap_err();
+        // The PREDICATE is pinned, not merely the variant: an
+        // escalation from any other row of the arm would satisfy
+        // `Escalated(_)` while saying nothing about the declaration
+        // check (the ordinal-111 precedent on the sibling arm).
+        let SectionError::Escalated(diag) = err else {
+            panic!("{label}: expected an escalation, got {err:?}");
+        };
+        assert_eq!(diag.predicate, Some("cs_declared_coaxial"), "{label}");
+    }
+}
+
+/// **The degeneracy guard covers the FULL convention, and each clause
+/// is load-bearing on its own.** A guard that decided only `R − r`
+/// would let all three of these poses through, and each would mint a
+/// WRONG answer rather than a conservative one:
+///
+/// - `r = 0`: `R − r` is Positive ⇒ two circles of radius ZERO — a
+///   pair of points wearing a locus's name.
+/// - `r = R = 0`: `R − r` is Zero ⇒ a radius-zero "tangent circle".
+/// - `R = −r`: `R − r` is Negative ⇒ `Empty`, a FALSE NEGATIVE. A
+///   `Surface::Sphere` whose stored radius is negative denotes the same
+///   point set as its absolute value (`implicit_residual` squares it),
+///   so the true section of that pose is the tangent circle.
+#[test]
+fn the_degeneracy_guard_covers_the_full_convention() {
+    for (row, r, big_r, clause) in [
+        ("r = 0, R > 0", 0.0, 1.5, "cylinder"),
+        ("r = R = 0", 0.0, 0.0, "cylinder"),
+        ("R = 0, r > 0", 1.0, 0.0, "sphere"),
+        ("R = -r", 1.0, -1.0, "sphere"),
+    ] {
+        let (cyl, sph) = coaxial_pair(r, big_r, 0.0);
+        for (label, c, s) in [
+            ("direct", cyl.clone(), sph.clone()),
+            ("re-posed twin", posed(&cyl), posed(&sph)),
+        ] {
+            let err =
+                cylinder_sphere_section(&c, &s, CoaxialEvidence::Declared, band()).unwrap_err();
+            let SectionError::DegenerateOperand { what } = err else {
+                panic!("{row} / {label}: expected the degeneracy refusal, got {err:?}");
+            };
+            assert!(what.contains(clause), "{row} / {label}: {what}");
+        }
+    }
+}
+
+/// The reach trilean's in-band row: an ill-conditioned declared pair
+/// escalates rather than picking a branch.
+#[test]
+fn the_reach_trilean_escalates_in_band() {
+    for (label, c, s) in [
+        (
+            "direct",
+            coaxial_pair(1.0, 1.0 + 3.0 * eps(), 0.0).0,
+            coaxial_pair(1.0, 1.0 + 3.0 * eps(), 0.0).1,
+        ),
+        (
+            "re-posed twin",
+            posed(&coaxial_pair(1.0, 1.0 + 3.0 * eps(), 0.0).0),
+            posed(&coaxial_pair(1.0, 1.0 + 3.0 * eps(), 0.0).1),
+        ),
+    ] {
+        let err = cylinder_sphere_section(&c, &s, CoaxialEvidence::Declared, band()).unwrap_err();
+        // The PREDICATE, not just the variant: this row exists to pin
+        // the REACH trilean's in-band arm, and the two degeneracy rows
+        // and the declaration row above it all escalate through the
+        // same variant.
+        let SectionError::Escalated(diag) = err else {
+            panic!("{label}: expected an escalation, got {err:?}");
+        };
+        assert_eq!(diag.predicate, Some("cs_wall_reach"), "{label}");
+    }
+}
+
+/// The arm is order-fixed: cylinder first, sphere second. A caller that
+/// hands them the other way round is a caller BUG, typed.
+#[test]
+fn the_cylinder_sphere_arm_names_its_lane() {
+    let (cyl, sph) = coaxial_pair(1.0, 1.5, 0.0);
+    let err = cylinder_sphere_section(&sph, &cyl, CoaxialEvidence::Declared, band()).unwrap_err();
+    let SectionError::WrongLane { expected } = err else {
+        panic!("expected the lane refusal, got {err:?}");
+    };
+    assert!(expected.contains("cylinder first"), "{expected}");
+    let err = cylinder_sphere_section(&cyl, &cyl, CoaxialEvidence::Declared, band()).unwrap_err();
+    let SectionError::WrongLane { expected } = err else {
+        panic!("expected the lane refusal, got {err:?}");
+    };
+    assert!(expected.contains("sphere second"), "{expected}");
+}
+
+/// **The route note moved with the arm** (the refusal-text rule): the
+/// sentence that said the coaxial case is "not classified here" is
+/// gone, and the replacement names what IS classified and what still
+/// marches.
+#[test]
+fn the_cylinder_sphere_route_note_names_the_declared_arm() {
+    for pair in [
+        (SurfaceKind::Cylinder, SurfaceKind::Sphere),
+        (SurfaceKind::Sphere, SurfaceKind::Cylinder),
+    ] {
+        let note = route(pair.0, pair.1).note;
+        assert!(
+            !note.contains("coaxial circle special case is not classified here"),
+            "the retired sentence survives: {note}"
+        );
+        assert!(note.contains("DECLARED-coaxial"), "{note}");
+        assert!(note.contains("cylinder_sphere_section"), "{note}");
+        assert!(note.contains("still marches"), "{note}");
+        assert!(
+            note.contains("never inferred from a measured distance"),
+            "{note}"
+        );
+    }
+}
+
+// ---------------------------------------------------------------------
 // The interval lane: classification replays and residuals enclose zero
 // ---------------------------------------------------------------------
 
 #[cfg(feature = "interval")]
 mod interval {
     use super::*;
+    use crate::shared::interval::{ip, iv3 as iv};
     use geom_core::{Bounds, Interval, Real};
-
-    fn ip(p: Point3<f64>) -> Point3<Interval> {
-        Point3::new(
-            Interval::from_f64(p.x),
-            Interval::from_f64(p.y),
-            Interval::from_f64(p.z),
-        )
-    }
-
-    fn iv(v: Vec3<f64>) -> Vec3<Interval> {
-        Vec3::new(
-            Interval::from_f64(v.x),
-            Interval::from_f64(v.y),
-            Interval::from_f64(v.z),
-        )
-    }
 
     /// The tilted plane×cylinder classification runs at `T = Interval`
     /// and its ellipse's residual enclosures contain zero — the
@@ -773,6 +1159,177 @@ mod interval {
         }
     }
 
+    /// The DECLARED-coaxial cylinder×sphere classification replays at
+    /// `T = Interval`, and both section circles' points enclose zero
+    /// against both operands.
+    ///
+    /// **This row does NOT pin the factored station form, and saying so
+    /// is the point.** The station is the factored `√((R−r)(R+r))`, but
+    /// at these comfortable radii (`r = 1`, `R = 1.5`) the factored and
+    /// the squared `√(R² − r²)` forms are BIT-IDENTICAL — measured:
+    /// both give a station enclosure of width `4.440892098500626e-16`,
+    /// so every residual below is unchanged by the swap and this row
+    /// greens under either. The rationale this doc once carried — that
+    /// the two forms "differ in the last bits of the station" at exactly
+    /// these numbers — was measured FALSE and is replaced by what is
+    /// true. The factored form's real win is NEAR-CANCELLATION, where
+    /// `R² − r²` subtracts two nearly equal widened squares, and it is
+    /// [`cylinder_sphere_station_is_tight_near_tangency`] that pins it.
+    #[test]
+    fn cylinder_sphere_coaxial_residuals_enclose_zero_at_interval() {
+        let cyl: Surface<Interval> = Surface::Cylinder {
+            origin: ip(Point3::new(0.0, 0.0, 0.0)),
+            axis: iv(Vec3::unit_z()),
+            radius: Interval::from_f64(1.0),
+            u_ref: iv(Vec3::unit_x()),
+        };
+        let sph: Surface<Interval> = Surface::Sphere {
+            center: ip(Point3::new(0.0, 0.0, 0.25)),
+            radius: Interval::from_f64(1.5),
+            axis: iv(Vec3::unit_z()),
+            u_ref: iv(Vec3::unit_x()),
+        };
+        let s = cylinder_sphere_section(&cyl, &sph, CoaxialEvidence::Declared, band()).unwrap();
+        let CylinderSphereSection::TwoCircles {
+            center,
+            axis,
+            radius,
+            station,
+        } = s
+        else {
+            panic!("expected two circles, got {s:?}");
+        };
+        for sign in [Interval::one(), -Interval::one()] {
+            let c = center + axis * (station * sign);
+            for i in 0..=16 {
+                let t = f64::from(i) / 16.0 * core::f64::consts::TAU;
+                let p = c
+                    + iv(Vec3::unit_x()) * (radius * Interval::from_f64(t.cos()))
+                    + iv(Vec3::unit_y()) * (radius * Interval::from_f64(t.sin()));
+                for (name, sf) in [("cylinder", &cyl), ("sphere", &sph)] {
+                    let r = implicit_residual(sf, p);
+                    assert!(
+                        r.lo() <= 0.0 && 0.0 <= r.hi(),
+                        "{name} residual at {t}: [{}, {}]",
+                        r.lo(),
+                        r.hi()
+                    );
+                    assert!(r.hi() - r.lo() < 1e-12, "{name} width at {t}");
+                }
+            }
+        }
+    }
+
+    /// **The row that actually pins the FACTORED station form** — the
+    /// spec-mandated `√((R−r)(R+r))` against its squared rewrite
+    /// `√(R² − r²)`, at the radii where the two stop agreeing.
+    ///
+    /// The comfortable-radius row above cannot see the difference: at
+    /// `r = 1, R = 1.5` both forms give the same station enclosure to
+    /// the bit. NEAR TANGENCY they diverge, because that is where
+    /// `R² − r²` is a subtraction of two nearly equal quantities each
+    /// already widened by its own squaring: the squared form's `R²`
+    /// enclosure is a full f64 ulp wide near `1`, and that `~2.2e-16`
+    /// ABSOLUTE width survives the cancellation into a difference of
+    /// size `2δ` — a relative blow-up that grows as `δ` shrinks — while
+    /// the factored form subtracts exactly (Sterbenz: `R − r` is exact
+    /// in f64 for `r ≤ R ≤ 2r`) and its width stays at the rounding of
+    /// one product and one `sqrt`.
+    ///
+    /// **The gap `δ` is BAND-RELATIVE, and that is a correction rather
+    /// than a preference.** This row first hardcoded `δ = 1e-7` and CI
+    /// reds it on the `eps = 1e-6` draw, correctly: at that tolerance
+    /// `R − r = 1e-7` is INSIDE the band, `cs_wall_reach` escalates, and
+    /// there is no `TwoCircles` to measure at all. A fixture that only
+    /// exists at one tolerance row is not a fixture. `δ` is now
+    /// `100 × band.escalate()` — definitely positive at every draw by
+    /// construction, and still tiny against the radii.
+    ///
+    /// **The tightness claim is RELATIVE too**, computed against the
+    /// squared form evaluated here on the same interval inputs, so no
+    /// absolute threshold has to be re-tuned per tolerance row. Both
+    /// halves were measured at both draws:
+    ///
+    /// | draw | `δ` | factored | squared | ratio |
+    /// |---|---|---|---|---|
+    /// | `eps = 1e-6` | 1e-3 | 2.08e-17 | 4.98e-15 | 239× |
+    /// | `eps = 1e-12` | 1e-9 | 2.71e-20 | 4.97e-12 | 1.8e8× |
+    ///
+    /// The assertion asks for 10×, which the worst draw clears by more
+    /// than an order — deliberately, because `δ` moves with the draw
+    /// and the ratio moves with `δ`. Under the squared-form mutation the two widths are EQUAL,
+    /// so the row reds at BOTH draws — and under that mutation every
+    /// OTHER row of this file, both lanes, still greens (45 passed, 1
+    /// failed, at each draw), which is why the pin had to be written
+    /// rather than assumed.
+    ///
+    /// It asserts the enclosure is HONEST first — against the surfaces,
+    /// not against a recomputed station, which would only restate the
+    /// form under test — because a tight interval that had lost the
+    /// answer would be worse than a wide one, not better.
+    #[test]
+    fn cylinder_sphere_station_is_tight_near_tangency() {
+        // Definitely outside the reach trilean's band at any draw (100×
+        // its own escalation threshold), and still a near-tangency —
+        // the gap the row needs, in the units the band is denominated
+        // in rather than in a number that only works at one draw.
+        let delta = 100.0 * band().escalate();
+        let big_r = 1.0 + delta;
+        let cyl: Surface<Interval> = Surface::Cylinder {
+            origin: ip(Point3::new(0.0, 0.0, 0.0)),
+            axis: iv(Vec3::unit_z()),
+            radius: Interval::from_f64(1.0),
+            u_ref: iv(Vec3::unit_x()),
+        };
+        let sph: Surface<Interval> = Surface::Sphere {
+            center: ip(Point3::new(0.0, 0.0, 0.0)),
+            radius: Interval::from_f64(big_r),
+            axis: iv(Vec3::unit_z()),
+            u_ref: iv(Vec3::unit_x()),
+        };
+        let s = cylinder_sphere_section(&cyl, &sph, CoaxialEvidence::Declared, band()).unwrap();
+        let CylinderSphereSection::TwoCircles { station, .. } = s else {
+            panic!("a near-tangent pose (delta {delta:e}) is still two circles, got {s:?}");
+        };
+        // Honest first: a point of each section circle still encloses
+        // zero residual on BOTH operands.
+        for sign in [Interval::one(), -Interval::one()] {
+            let p = Point3::new(
+                Interval::from_f64(1.0),
+                Interval::from_f64(0.0),
+                station * sign,
+            );
+            for (name, sf) in [("cylinder", &cyl), ("sphere", &sph)] {
+                let res = implicit_residual(sf, p);
+                assert!(
+                    res.lo() <= 0.0 && 0.0 <= res.hi(),
+                    "{name} residual lost zero: [{}, {}]",
+                    res.lo(),
+                    res.hi()
+                );
+            }
+        }
+        // Tight second, against the squared rewrite evaluated HERE on
+        // the same interval inputs — the comparison the spec is about,
+        // not an absolute number that would need re-tuning per draw.
+        let big_r_i = Interval::from_f64(big_r);
+        let r_i = Interval::from_f64(1.0);
+        let squared = (big_r_i * big_r_i - r_i * r_i).sqrt();
+        let squared_width = squared.hi() - squared.lo();
+        let width = station.hi() - station.lo();
+        assert!(
+            squared_width > 0.0,
+            "the squared rewrite is exact at this pose, so the row proves nothing \
+             (delta {delta:e})"
+        );
+        assert!(
+            width * 10.0 < squared_width,
+            "the station enclosure is not the factored form's: width {width:e} \
+             against the squared rewrite's {squared_width:e} (delta {delta:e}) — \
+             under the squared form the two are EQUAL"
+        );
+    }
+
     /// Both plane×torus closed forms run at `T = Interval` UNCHANGED —
     /// no lane fork, because the form is `atan2`-free and
     /// branch-cut-free by construction — and every circle's residual
@@ -822,6 +1379,77 @@ mod interval {
                 }
             }
         }
+    }
+
+    /// The cone×cylinder closed form runs at `T = Interval` UNCHANGED —
+    /// no lane fork, because the form is `atan2`-free and
+    /// branch-cut-free by construction — and both circles' residual
+    /// enclosures contain zero against BOTH surfaces. The arm's own doc
+    /// makes this claim in words; this is where it is measured.
+    #[test]
+    fn cone_cylinder_residuals_enclose_zero_at_interval() {
+        use geom_brep::intersect::{ConeCylinderSection, cone_cylinder_section};
+        // The f64 row's frame, at the interval scalar. `atan` is not on
+        // the interval lane's menu, so the half-angle is stated as the
+        // f64 constant the fixture is built on and lifted.
+        let axis3 = Vec3::new(2.0, -1.0, 2.0).normalize();
+        let u3 = {
+            let u = Vec3::new(1.0, 2.0, 0.0).normalize();
+            (u - axis3 * u.dot(axis3)).normalize()
+        };
+        let cone: Surface<Interval> = Surface::Cone {
+            apex: ip(Point3::new(1.0, 2.0, 3.0)),
+            axis: iv(axis3),
+            half_angle: Interval::from_f64((4.0_f64 / 3.0).atan()),
+            u_ref: iv(u3),
+        };
+        let cyl: Surface<Interval> = Surface::Cylinder {
+            origin: ip(Point3::new(1.0, 2.0, 3.0) + axis3 * 1.7),
+            axis: iv(axis3),
+            radius: Interval::from_f64(0.5),
+            u_ref: iv(axis3.cross(u3)),
+        };
+        let ConeCylinderSection::CoaxialCircles { c1, c2 } =
+            cone_cylinder_section(&cone, &cyl, Interval::one(), band())
+                .expect("the coaxial pose classifies at the interval scalar");
+        for (which, c) in [("c1", &c1), ("c2", &c2)] {
+            for t in [0.0, 0.9, 2.2, -2.8, 5.1] {
+                let p = c.eval(Interval::from_f64(t));
+                for (name, surf) in [("cone", &cone), ("cylinder", &cyl)] {
+                    let r = implicit_residual(surf, p);
+                    assert!(
+                        r.lo() <= 0.0 && 0.0 <= r.hi(),
+                        "{which}: {name} residual at {t}: [{}, {}]",
+                        r.lo(),
+                        r.hi()
+                    );
+                    assert!(r.hi() - r.lo() < 1e-12, "{which}: {name} width at {t}");
+                }
+            }
+        }
+    }
+
+    /// The never-infer rule holds at `T = Interval` too: an exactly
+    /// coaxial pose without evidence still routes to the general rung.
+    #[test]
+    fn coaxiality_is_never_inferred_at_interval() {
+        let cyl: Surface<Interval> = Surface::Cylinder {
+            origin: ip(Point3::new(0.0, 0.0, 0.0)),
+            axis: iv(Vec3::unit_z()),
+            radius: Interval::from_f64(1.0),
+            u_ref: iv(Vec3::unit_x()),
+        };
+        let sph: Surface<Interval> = Surface::Sphere {
+            center: ip(Point3::new(0.0, 0.0, 0.0)),
+            radius: Interval::from_f64(1.5),
+            axis: iv(Vec3::unit_z()),
+            u_ref: iv(Vec3::unit_x()),
+        };
+        let err = cylinder_sphere_section(&cyl, &sph, CoaxialEvidence::None, band()).unwrap_err();
+        assert!(
+            matches!(err, SectionError::RoutesToGeneralRung { .. }),
+            "{err:?}"
+        );
     }
 }
 
@@ -1621,4 +2249,469 @@ fn plane_torus_levers_are_live_at_non_unit_arms() {
         matches!(c, PlaneTorusSection::ConcentricCircles { .. }),
         "R = 0.2 puts a 3ε sine inside Zero: got {c:?}"
     );
+}
+
+// ---------------------------------------------------------------------
+// cone × cylinder (VERBS-C5ARMS PR-2)
+// ---------------------------------------------------------------------
+
+/// A cone whose axis is a generic unit direction, apex deliberately off
+/// the origin. Half-angle `atan(4/3)` — `sin α = 0.8`, `cos α = 0.6`,
+/// `cot α = 0.75` exactly in binary, so the station is exact and a
+/// residual is the arm's own, not the fixture's.
+fn cone_43(apex: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>) -> Surface<f64> {
+    Surface::Cone {
+        apex,
+        axis,
+        half_angle: (4.0_f64 / 3.0).atan(),
+        u_ref,
+    }
+}
+
+/// The oblique frame both cone×cylinder rows are stated in: axis, seam
+/// and apex all off the chart directions, so a form that only works on
+/// an axis-aligned fixture cannot pass.
+fn cc_frame() -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
+    let axis = Vec3::new(2.0, -1.0, 2.0).normalize();
+    let u_ref = Vec3::new(1.0, 2.0, 0.0).normalize();
+    // Re-orthogonalize the seam against the axis (the surface
+    // convention), so `u_ref` is the frame's own datum.
+    let u_ref = (u_ref - axis * u_ref.dot(axis)).normalize();
+    (Point3::new(1.0, 2.0, 3.0), axis, u_ref)
+}
+
+/// **The closed form.** A COAXIAL cylinder cuts each nappe in one exact
+/// circle: radius the CYLINDER's `R`, centres `apex ± a·R·cot α`,
+/// carrier axis the cone's axis, `u_ref` the cone's own seam. The
+/// residual is identically zero in ℝ against BOTH surfaces, and `c1`
+/// and `c2` sit on OPPOSITE nappes — which is the assertion a flipped
+/// station sign or a single-nappe form fails, since both centres are
+/// on the cone either way and the residual alone cannot see it.
+#[test]
+fn cone_cylinder_coaxial_cut_is_two_exact_circles_zero_residual() {
+    use geom_brep::intersect::{ConeCylinderSection, cone_cylinder_section};
+    let (apex, axis, u_ref) = cc_frame();
+    let cone = cone_43(apex, axis, u_ref);
+    let big_r = 0.5;
+    // The cylinder's own origin is slid ALONG the shared axis and its
+    // seam is unrelated to the cone's: neither may reach the answer.
+    let cyl = Surface::Cylinder {
+        origin: apex + axis * 1.7,
+        axis,
+        radius: big_r,
+        u_ref: axis.cross(u_ref),
+    };
+    let s = cone_cylinder_section(&cone, &cyl, 1.0, band()).unwrap();
+    // `CoaxialCircles` is the arm's only live variant, so this pattern
+    // is irrefutable — the classification's other outcomes are typed
+    // ERRORS, not variants, and the refusal rows below are where they
+    // are pinned.
+    let ConeCylinderSection::CoaxialCircles { c1, c2 } = s;
+    let station = big_r * 0.75;
+    for (which, c, sign) in [("c1", &c1, 1.0), ("c2", &c2, -1.0)] {
+        let Curve3::Circle {
+            center,
+            axis: c_axis,
+            radius,
+            u_ref: c_u,
+        } = *c
+        else {
+            panic!("{which}: carrier is a circle");
+        };
+        assert!(
+            (radius - big_r).abs() < 1e-15,
+            "{which}: the cylinder's own radius"
+        );
+        assert!(
+            (center - (apex + axis * (sign * station))).norm() < 1e-15,
+            "{which}: centre at apex ± a·R·cot α"
+        );
+        assert!(
+            c_axis.dot(axis) > 0.999_999_999,
+            "{which}: axis is the cone's"
+        );
+        assert!(
+            c_u.dot(u_ref) > 0.999_999_999,
+            "{which}: u_ref is the cone's"
+        );
+        // The nappe: `v = (p − apex)·a / cos α` is positive on the
+        // opening nappe and negative on its mirror.
+        assert!(
+            (center - apex).dot(axis) * sign > 0.0,
+            "{which}: on the nappe its own sign names"
+        );
+        for k in 0..17 {
+            let p = c.eval(0.37 * k as f64);
+            assert!(
+                implicit_residual(&cone, p).abs() < 1e-13,
+                "{which}: cone residual at sample {k}"
+            );
+            assert!(
+                implicit_residual(&cyl, p).abs() < 1e-13,
+                "{which}: cylinder residual at sample {k}"
+            );
+        }
+    }
+}
+
+/// The two general-rung refusals are DIFFERENT decisions and both are
+/// named: a cylinder tilted off the axis, and one parallel to it but
+/// OFFSET. The in-band twins of both routing trileans escalate typed
+/// (F6), each naming its own predicate. An ANTIPARALLEL coaxial
+/// cylinder is the same configuration read backwards and still cuts.
+#[test]
+fn cone_cylinder_tilted_and_offset_route_to_rung_3() {
+    use geom_brep::intersect::{ConeCylinderSection, cone_cylinder_section};
+    let (apex, axis, u_ref) = cc_frame();
+    let cone = cone_43(apex, axis, u_ref);
+    let cyl_at = |origin: Point3<f64>, b: Vec3<f64>| Surface::Cylinder {
+        origin,
+        axis: b,
+        radius: 0.5,
+        u_ref: (u_ref - b * u_ref.dot(b)).normalize(),
+    };
+    // Tilted: 0.3 rad off the shared axis.
+    let tilted = cyl_at(
+        apex,
+        (axis * 0.3_f64.cos() + u_ref * 0.3_f64.sin()).normalize(),
+    );
+    let err = cone_cylinder_section(&cone, &tilted, 1.0, band()).expect_err("tilted cylinder");
+    let SectionError::RoutesToGeneralRung { pair, why } = err else {
+        panic!("expected the routing refusal, got {err:?}");
+    };
+    assert_eq!(pair, "cone×cylinder");
+    assert!(
+        why.contains("tilted"),
+        "the tilt refusal names the pose: {why}"
+    );
+    refusal_is_grounded(why, "cone×cylinder tilted");
+    // Parallel but 0.1 m off the axis.
+    let off = cyl_at(apex + u_ref * 0.1, axis);
+    let err = cone_cylinder_section(&cone, &off, 1.0, band()).expect_err("offset cylinder");
+    let SectionError::RoutesToGeneralRung { why, .. } = err else {
+        panic!("expected the routing refusal, got {err:?}");
+    };
+    assert!(
+        why.contains("OFF it"),
+        "the offset refusal names the pose: {why}"
+    );
+    refusal_is_grounded(why, "cone×cylinder parallel-offset");
+    // Antiparallel and coaxial: the same configuration, and it cuts.
+    let anti = cyl_at(apex - axis * 2.0, axis * -1.0);
+    let ConeCylinderSection::CoaxialCircles { c1, .. } =
+        cone_cylinder_section(&cone, &anti, 1.0, band())
+            .expect("an antiparallel coaxial cylinder still cuts");
+    let Curve3::Circle {
+        center,
+        axis: c_axis,
+        ..
+    } = c1
+    else {
+        panic!("carrier is a circle");
+    };
+    assert!(
+        (center - (apex + axis * 0.375)).norm() < 1e-15,
+        "the cone's own nappe convention decides c1, not the cylinder's axis sign"
+    );
+    // The CARRIER's axis is the cone's too. On every other fixture the
+    // two agree and this says nothing; here they are opposed, so a
+    // carrier minted from the cylinder's `b` fails exactly here.
+    assert!(
+        c_axis.dot(axis) > 0.999_999_999,
+        "the carrier axis is the CONE's, not the cylinder's: {c_axis:?}"
+    );
+    // In-band on `coc_axes_parallel`: 3ε of a radian off parallel,
+    // levered at extent 1.
+    let t = 3.0 * eps();
+    let almost = cyl_at(apex, (axis * (1.0 - t * t).sqrt() + u_ref * t).normalize());
+    let err = cone_cylinder_section(&cone, &almost, 1.0, band())
+        .expect_err("in-band axis angle must escalate");
+    let SectionError::Escalated(diag) = err else {
+        panic!("expected escalation, got {err:?}");
+    };
+    assert_eq!(diag.predicate, Some("coc_axes_parallel"));
+    // In-band on `coc_coaxial`: parallel, 3ε off the axis.
+    let near = cyl_at(apex + u_ref * (3.0 * eps()), axis);
+    let err = cone_cylinder_section(&cone, &near, 1.0, band())
+        .expect_err("in-band axis distance must escalate");
+    let SectionError::Escalated(diag) = err else {
+        panic!("expected escalation, got {err:?}");
+    };
+    assert_eq!(diag.predicate, Some("coc_coaxial"));
+}
+
+/// The convention guards, each its OWN question: a cylinder radius that
+/// is not definitely positive, a half-angle closing onto the axis
+/// (`sin α`, which the station divides by), and one opening to a right
+/// angle (`cos α` — a plane through the apex, not a cone). Every
+/// in-band twin escalates naming its predicate, and wrong-lane kinds
+/// refuse typed on both sides.
+#[test]
+fn cone_cylinder_convention_guards_and_wrong_lane() {
+    use geom_brep::intersect::cone_cylinder_section;
+    let (apex, axis, u_ref) = cc_frame();
+    let cone = cone_43(apex, axis, u_ref);
+    let cyl_r = |radius: f64| Surface::Cylinder {
+        origin: apex,
+        axis,
+        radius,
+        u_ref: axis.cross(u_ref),
+    };
+    let cone_at = |half_angle: f64| Surface::Cone {
+        apex,
+        axis,
+        half_angle,
+        u_ref,
+    };
+    for (what, cone, cyl) in [
+        ("zero radius", &cone, cyl_r(0.0)),
+        ("negative radius", &cone, cyl_r(-0.5)),
+        ("closed half-angle", &cone_at(0.0), cyl_r(0.5)),
+        (
+            "right half-angle",
+            &cone_at(core::f64::consts::FRAC_PI_2),
+            cyl_r(0.5),
+        ),
+    ] {
+        let err = cone_cylinder_section(cone, &cyl, 1.0, band()).expect_err(what);
+        assert!(
+            matches!(err, SectionError::DegenerateOperand { .. }),
+            "{what}: got {err:?}"
+        );
+    }
+    // The in-band twins, one per guard.
+    let s = 3.0 * eps();
+    for (what, cone, cyl, predicate) in [
+        ("radius", &cone, cyl_r(s), "coc_cylinder_radius"),
+        (
+            "aperture sin",
+            &cone_at(s.asin()),
+            cyl_r(0.5),
+            "coc_aperture_sin",
+        ),
+        (
+            "aperture cos",
+            &cone_at(s.acos()),
+            cyl_r(0.5),
+            "coc_aperture_cos",
+        ),
+    ] {
+        let err = cone_cylinder_section(cone, &cyl, 1.0, band())
+            .expect_err("an in-band guard must escalate");
+        let SectionError::Escalated(diag) = err else {
+            panic!("{what}: expected escalation, got {err:?}");
+        };
+        assert_eq!(diag.predicate, Some(predicate), "{what}");
+    }
+    // Wrong-lane kinds refuse typed, both sides (the cylinder-first
+    // spelling is a caller bug, not a symmetric alternative).
+    let cyl = cyl_r(0.5);
+    // The message has to say WHICH SEAT was wrong — a single
+    // "cone×cylinder" string leaves a caller who swapped its arguments
+    // to guess, and the cylinder-first spelling is exactly the bug this
+    // arm's asymmetry invites.
+    for (a, b, want) in [
+        (&cyl, &cyl, "cone first"),
+        (&cyl, &cone, "cone first"),
+        (&cone, &cone, "cylinder second"),
+        (&cone, &plane_xy(), "cylinder second"),
+    ] {
+        let err = cone_cylinder_section(a, b, 1.0, band()).expect_err("wrong lane");
+        let SectionError::WrongLane { expected } = err else {
+            panic!("expected the wrong-lane refusal, got {err:?}");
+        };
+        assert!(
+            expected.contains(want),
+            "the wrong-lane text names which seat: want {want:?}, got {expected:?}"
+        );
+    }
+}
+
+/// A plane, for the wrong-lane row's second-operand seat.
+fn plane_xy() -> Surface<f64> {
+    Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+/// **The parallel lever is live.** `coc_axes_parallel` meters a
+/// SINE at the operand extent, so the same pose reads differently at a
+/// different extent — a bare `Margin::of` on the sine would make both
+/// calls agree and this row is what would fail.
+#[test]
+fn cone_cylinder_parallel_lever_is_live_at_a_non_unit_arm() {
+    use geom_brep::intersect::{ConeCylinderSection, cone_cylinder_section};
+    let (apex, axis, u_ref) = cc_frame();
+    let cone = cone_43(apex, axis, u_ref);
+    // 3ε of a radian off parallel: in-band at extent 1 (levered
+    // margin 3ε), definitely tilted at extent 100 (300ε).
+    let t = 3.0 * eps();
+    let cyl = Surface::Cylinder {
+        origin: apex,
+        axis: (axis * (1.0 - t * t).sqrt() + u_ref * t).normalize(),
+        radius: 0.5,
+        u_ref: axis.cross(u_ref),
+    };
+    let err = cone_cylinder_section(&cone, &cyl, 100.0, band()).expect_err("tilted at extent 100");
+    assert!(
+        matches!(err, SectionError::RoutesToGeneralRung { .. }),
+        "the large arm reads the same sine as definite: got {err:?}"
+    );
+    // The SAME pose at extent 0.01 levers to 0.03ε, which is Zero: the
+    // arm reads it as coaxial and mints, and the circles it mints are
+    // the exact ones — a lever that changed the verdict without
+    // changing the construction would pass the line above and fail
+    // here. The radius shrinks with the extent because the station
+    // `R·cot α` has to stay inside it; that is `coc_station_reach`
+    // doing its job, and the row below is where IT is pinned.
+    let small = Surface::Cylinder {
+        origin: apex,
+        axis: (axis * (1.0 - t * t).sqrt() + u_ref * t).normalize(),
+        radius: 0.002,
+        u_ref: axis.cross(u_ref),
+    };
+    let ConeCylinderSection::CoaxialCircles { c1, c2 } =
+        cone_cylinder_section(&cone, &small, 0.01, band())
+            .expect("the small arm reads the same sine as Zero");
+    for c in [&c1, &c2] {
+        let Curve3::Circle { radius, .. } = *c else {
+            panic!("carrier is a circle");
+        };
+        assert!((radius - 0.002).abs() < 1e-15, "the cylinder's own radius");
+    }
+}
+
+/// **The lever is LINEAR in the extent, not quadratic.** The row above
+/// shows the lever is live; this one shows it is the right lever. One
+/// pose, `30ε` of a radian off parallel: definite at `extent = 1`
+/// (`30ε ≥ Kε`) and in-band at `extent = 0.1` (`3ε`). Under an
+/// `extent²` lever the second call reads `0.3ε` — Zero — and mints
+/// instead of escalating, which is what this row catches.
+#[test]
+fn cone_cylinder_parallel_lever_is_linear_in_the_extent() {
+    use geom_brep::intersect::cone_cylinder_section;
+    let (apex, axis, u_ref) = cc_frame();
+    let cone = cone_43(apex, axis, u_ref);
+    let t = 30.0 * eps();
+    let cyl = Surface::Cylinder {
+        origin: apex,
+        axis: (axis * (1.0 - t * t).sqrt() + u_ref * t).normalize(),
+        radius: 0.002,
+        u_ref: axis.cross(u_ref),
+    };
+    let err = cone_cylinder_section(&cone, &cyl, 1.0, band()).expect_err("definite at extent 1");
+    assert!(
+        matches!(err, SectionError::RoutesToGeneralRung { .. }),
+        "30ε at extent 1 is definitely tilted: got {err:?}"
+    );
+    let err = cone_cylinder_section(&cone, &cyl, 0.1, band()).expect_err("in-band at extent 0.1");
+    let SectionError::Escalated(diag) = err else {
+        panic!("30ε at extent 0.1 levers to 3ε and must escalate, got {err:?}");
+    };
+    assert_eq!(diag.predicate, Some("coc_axes_parallel"));
+}
+
+/// **The aperture guard's lever is live too.** `sin α = 30ε` is a
+/// definite length at `extent = 1` and an in-band one at
+/// `extent = 0.1`; an unlevered `Margin::of(sin α)` reads the same
+/// value twice and never escalates. The station guard cannot stand in
+/// for this row: it fires later, and the pose here is refused by the
+/// aperture clause first.
+#[test]
+fn cone_cylinder_aperture_guard_is_levered() {
+    use geom_brep::intersect::cone_cylinder_section;
+    let (apex, axis, u_ref) = cc_frame();
+    let cone = Surface::Cone {
+        apex,
+        axis,
+        half_angle: (30.0 * eps()).asin(),
+        u_ref,
+    };
+    let cyl = Surface::Cylinder {
+        origin: apex,
+        axis,
+        radius: 0.002,
+        u_ref: axis.cross(u_ref),
+    };
+    let err = cone_cylinder_section(&cone, &cyl, 0.1, band())
+        .expect_err("the in-band aperture must escalate");
+    let SectionError::Escalated(diag) = err else {
+        panic!("expected the aperture escalation, got {err:?}");
+    };
+    assert_eq!(diag.predicate, Some("coc_aperture_sin"));
+}
+
+/// **The admission criterion is the STATION, and this is the table it
+/// was written for.** `coc_station_reach` refuses a section circle the
+/// caller's own metered reach does not cover, because the mint's
+/// absolute error is carried by `R·cot α` and diverges as the
+/// half-angle closes — while an angular guard levered at `extent`
+/// LOOSENS as the operand grows, so metering the aperture alone lets a
+/// BIGGER operand admit a WORSE mint.
+///
+/// Row 2 is the measured falsifier: at `ε = 1e-9` the aperture clause
+/// reads `sin α · extent = 30ε`, definitely positive, and the arm used
+/// to return `Ok` with both circles ~1.7e9 m from the apex — points off
+/// BOTH operands, under a doc that says "zero residual by
+/// construction".
+#[test]
+fn cone_cylinder_station_reach_is_the_admission_criterion() {
+    use geom_brep::intersect::{ConeCylinderSection, cone_cylinder_section};
+    let (apex, axis, u_ref) = cc_frame();
+    let cyl_r = |radius: f64| Surface::Cylinder {
+        origin: apex,
+        axis,
+        radius,
+        u_ref: axis.cross(u_ref),
+    };
+    let cone_at = |half_angle: f64| Surface::Cone {
+        apex,
+        axis,
+        half_angle,
+        u_ref,
+    };
+    // Row 1: the well-posed pose. Station 0.375 inside extent 1.
+    let ConeCylinderSection::CoaxialCircles { c1, .. } =
+        cone_cylinder_section(&cone_43(apex, axis, u_ref), &cyl_r(0.5), 1.0, band())
+            .expect("a station well inside the reach mints");
+    let Curve3::Circle { center, .. } = c1 else {
+        panic!("carrier is a circle");
+    };
+    assert!(
+        (center - (apex + axis * 0.375)).norm() < 1e-15,
+        "row 1's station"
+    );
+    // Row 2: R1's falsifier, robustly spelled — a half-angle whose
+    // levered aperture margin is definitely positive at this extent
+    // (30ε) and whose station is 1.7e9 m.
+    let err = cone_cylinder_section(&cone_at((0.3 * eps()).asin()), &cyl_r(0.5), 100.0, band())
+        .expect_err("a station beyond the reach must refuse");
+    let SectionError::BeyondOperandExtent { what } = err else {
+        panic!("expected the extent refusal, got {err:?}");
+    };
+    assert!(
+        what.contains("R·cot α"),
+        "the refusal names the station: {what}"
+    );
+    // Row 2b: R1's literal row, α = 1e-10 at extent 100. Its aperture
+    // margin sits exactly on the escalation boundary, so WHICH door
+    // refuses is a boundary detail; that it refuses is not.
+    assert!(
+        cone_cylinder_section(&cone_at(1e-10), &cyl_r(0.5), 100.0, band()).is_err(),
+        "α = 1e-10 at extent 100 must not mint"
+    );
+    // Row 3: the in-band twin — a station 3ε short of the reach.
+    let alpha = (4.0_f64 / 3.0).atan();
+    let station = |r: f64| r * (alpha.cos() / alpha.sin());
+    let r_at = |want_station: f64| want_station * (alpha.sin() / alpha.cos());
+    let r = r_at(1.0 - 3.0 * eps());
+    assert!((station(r) - (1.0 - 3.0 * eps())).abs() < 1e-14);
+    let err = cone_cylinder_section(&cone_at(alpha), &cyl_r(r), 1.0, band())
+        .expect_err("a station 3ε inside the reach is in-band");
+    let SectionError::Escalated(diag) = err else {
+        panic!("expected the station escalation, got {err:?}");
+    };
+    assert_eq!(diag.predicate, Some("coc_station_reach"));
 }

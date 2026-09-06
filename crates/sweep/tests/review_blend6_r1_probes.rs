@@ -12,18 +12,18 @@
 //! arm; what was missing is the verb assertion over those renders.
 //! Probe 1 supplies it.
 //!
-//! Probe 2 pins what a fillet caller reads at a nonpositive size — the
-//! door asymmetry the PR discloses (`NonpositiveSize` is minted at the
-//! chamfer door only) — so the current nonsense sentence is a measured
-//! fact rather than a rumor, and the row goes red the day the fillet
-//! door gains the check (at which point it should flip to assert the
-//! `NonpositiveSize` refusal, as the chamfer's own row does).
+//! Probe 2 pins what a fillet caller reads at a nonpositive size: the
+//! typed `NonpositiveSize` refusal both doors mint before anything is
+//! metered, and the absence of predicate 1's headroom sentence, which
+//! is false in both halves at a zero radius and advises reducing it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, BandError, Indeterminate, MarginDiag, Tol};
+use geom_core::{Band, BandError, Indeterminate, MarginDiag, Sign, Tol};
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, BlendKind, BlendRefusal, BlendSite, Convexity, CornerConfig};
+use sweep::blend::{
+    BlendError, BlendKind, BlendRefusal, BlendSite, ClassifiedMargin, Convexity, CornerConfig,
+};
 use sweep::test_support::cube;
 use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
@@ -34,6 +34,12 @@ use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 /// the in-crate list).
 fn seeds() -> Vec<BlendError> {
     let band = Band::new(1e-9, 1e-6).expect("a band");
+    let decided = |predicate, m: f64, sign| ClassifiedMargin {
+        predicate,
+        reading: MarginDiag::Value(m),
+        band,
+        sign,
+    };
     vec![
         BlendError::Band(BandError::Empty {
             zero: 1.0,
@@ -44,37 +50,37 @@ fn seeds() -> Vec<BlendError> {
         },
         BlendError::RadiusHeadroom {
             face: FaceKey::default(),
-            margin: -1e-3,
+            margin: decided("fillet3_radius_headroom", -1e-3, Sign::Negative),
             radius: 0.5,
         },
         BlendError::FaceClearanceUncertified {
             face: FaceKey::default(),
-            margin: -1e-3,
-            gap: 0.2,
+            margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
+            gap: MarginDiag::Value(0.2),
             cross_chain: false,
         },
         BlendError::FaceClearanceUncertified {
             face: FaceKey::default(),
-            margin: -1e-3,
-            gap: 0.2,
+            margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
+            gap: MarginDiag::Value(0.2),
             cross_chain: true,
         },
         BlendError::TangentialEdge {
             edge: EdgeKey::default(),
-            margin: 0.0,
+            margin: decided("fillet3_convexity_sign", 0.0, Sign::Zero),
         },
         BlendError::SpineIrregular {
-            margin: -1e-3,
+            margin: decided("fillet3_spine_regularity", -1e-3, Sign::Negative),
             radius: 0.5,
         },
         BlendError::ChainNotG1 {
             vertex: VertexKey::default(),
-            margin: -1e-3,
-            arm: 0.5,
+            margin: decided("fillet3_chain_g1", 1e-3, Sign::Positive),
+            arm: MarginDiag::Value(0.5),
         },
         BlendError::ConvexitySignFlip {
             edge: EdgeKey::default(),
-            margin: -1e-3,
+            margin: decided("fillet3_convexity_sign", -1e-3, Sign::Negative),
             chain: Convexity::Convex,
         },
         BlendError::UnsupportedCorner {
@@ -137,7 +143,7 @@ fn seeds() -> Vec<BlendError> {
         },
         BlendError::RingClearance {
             face: FaceKey::default(),
-            margin: -1e-3,
+            margin: decided("fillet3_ring_clearance", -1e-3, Sign::Negative),
         },
         BlendError::Certify {
             site: "blend face pcurves",
@@ -236,30 +242,36 @@ fn verb_words_appear_only_where_a_disposition_covers_them() {
     }
 }
 
-/// **Probe 2 — what a fillet caller actually reads at size zero**,
-/// executed. The chamfer door refuses `NonpositiveSize` before
-/// anything is metered; the fillet door has no such check (disclosed
-/// in the BLEND-6 PR as behavior unchanged), so a zero radius reaches
-/// predicate 1 and refuses `RadiusHeadroom` with a sentence that is
-/// false in both halves for this input: radius 0 does not "exceed"
-/// anything, and "reduce the fillet radius" is advice with nowhere to
-/// go from zero. Pinned as a characterization: this row documents the
-/// current behavior and goes red the day the fillet door gains the
-/// door check — flip it then to assert `NonpositiveSize`, as the
-/// chamfer's own row in the blend6 suite does.
+/// **Probe 2 — what a fillet caller actually reads at a nonpositive
+/// radius**, executed. The fillet door refuses `NonpositiveSize`
+/// before anything is metered, the way the chamfer door does: whether
+/// the caller handed in a positive number is a fact about the REQUEST,
+/// so a zero, a negative or a poisoned radius is named as invalid
+/// input rather than levered into a margin. The false-fact half is
+/// pinned too — the sentence must NOT be predicate 1's "radius 0 m
+/// exceeds the curvature headroom … reduce the fillet radius", which
+/// is false in both halves at zero and is advice with nowhere to go
+/// from there.
 #[test]
-fn a_zero_radius_fillet_reads_a_headroom_refusal_with_unfollowable_advice() {
+fn a_nonpositive_radius_fillet_refuses_as_invalid_input() {
     let t = Tol::witness();
     let body = cube(1.0, t);
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
-    let err = fillet_edges(&body, &edges, 0.0, t).expect_err("a zero radius does not build");
-    assert!(
-        matches!(err.error, BlendError::RadiusHeadroom { radius, .. } if radius == 0.0),
-        "today the zero radius reaches predicate 1, not a door check: {err:?}"
-    );
-    let text = err.to_string();
-    assert!(
-        text.contains("reduce the fillet radius"),
-        "and the recourse tells the caller to reduce zero: {text}"
-    );
+    for radius in [0.0, -0.1, f64::NAN] {
+        let err = fillet_edges(&body, &edges, radius, t)
+            .expect_err("a nonpositive radius must not mint a body");
+        assert!(
+            matches!(err.error, BlendError::NonpositiveSize { .. }),
+            "a nonpositive radius names the request, not the geometry, at r = {radius}: {err:?}"
+        );
+        let text = err.to_string();
+        assert!(
+            !text.contains("curvature headroom") && !text.contains("reduce the fillet radius"),
+            "the refusal must not assert a headroom fact about the body: {text}"
+        );
+        assert!(
+            text.starts_with("fillet: "),
+            "the verb still crosses at the door: {text}"
+        );
+    }
 }

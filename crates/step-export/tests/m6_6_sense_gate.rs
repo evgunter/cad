@@ -26,7 +26,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{ball, cone, cube, cut_cylinder, die_pips, donut, lily_lantern, notched, washer};
 use geom::Surface;
