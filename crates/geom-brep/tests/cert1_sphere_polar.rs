@@ -174,7 +174,7 @@ fn a_split_vertex_a_hair_off_the_pole_still_certifies() {
 #[test]
 fn a_multi_wrap_span_is_refused_at_the_parse() {
     let pi = core::f64::consts::PI;
-    let band = Band::linear(Tol::witness()).unwrap();
+    let band = band();
     let pair = vec![
         great(0.0, 0.0, 3.0 * pi, 0, 1),
         great(0.0, 3.0 * pi, 4.0 * pi, 1, 0),
