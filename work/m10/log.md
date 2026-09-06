@@ -1103,3 +1103,27 @@ measured in one table and expected not to ship. Spec
 stays a draft until this unit merges and is re-cut against what it
 measures.
 
+
+## M10-9 amended before the freeze: the span identity (2026-09-06)
+
+The implementer's report (PR #2048, green on the full matrix, ~550k
+tokens, ~4 h): the door built and sound (value channel byte-identical
+door on/off; a planted lie refused typed; invalidation on
+registration pinned both ways; D9), the arc's rim identity registered
+at the site that guarantees it, `registered` counted apart and linted
+in the driver row (48 per ε row, all on the plate fixture), the ring
+table closing the wide-ring item (1024 bits: 38× the bracket's leaf
+for no ceiling), the fillet's tangency NOT registrable — the
+constructor's `|h|` node is not the joint's (`center − t2` against
+`center − line.a`; rendered forms identical, node ids not; filed with
+both). And no ceiling moved: `carrier_endpoint_start` is discharged
+16/16 at the plate's nominal, and the plate is bounded at the same
+width by `carrier_endpoint_end` — the arc's SPAN identity, E12's own
+"built as `carrier.eval(t0)`" example — which the spec's "any
+registrant outside these two" forbade. The count was wrong in the
+spec, not in the lane: amendment A1 (#2052, on main) makes the
+CONSTRUCTOR the unit of scope — the arc carrier's builder registers
+every same-object identity it guarantees whose consumer node it can
+build identically, stopping at the first bound that is the
+dependency-widening class. The lane resumed on it before the review
+freeze; the reviews will see the unit at the amended scope.
