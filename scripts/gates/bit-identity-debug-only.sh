@@ -31,6 +31,15 @@
 #
 #   * A `cfg(debug_assertions)` ITEM encloses by BRACE DEPTH, so a use
 #     after the item closes is outside it however close it looks.
+#   * A `cfg(debug_assertions)` ITEM ENDS AT A `;` ONLY WHERE A `;` CAN
+#     END ONE: at round/square bracket depth zero, which is a `use`, a
+#     `type` alias or an attribute in statement position. A `;` inside
+#     the item's SIGNATURE — an array type `[(T, T); N]`, a const-generic
+#     default — ends nothing, and reading it as an item end reports a
+#     correctly gated `fn` ungated. Angle brackets are NOT counted: a `;`
+#     reaches the inside of a `<…>` only through a `[…]` or a `{…}`,
+#     which are, and reading `<`/`>` as brackets mistakes every
+#     comparison for one.
 #   * A `debug_assert!` encloses by STATEMENT, and the statement ends at
 #     `;`, `{` or `}`. A per-line substring test gets this wrong in both
 #     directions and the first version of this rewrite did:
@@ -74,11 +83,13 @@ debug_only_report() {
       if (p1 == 0 || p2 == 0) next
       f = substr($0, 1, p1 - 1); ln = substr(r, 1, p2 - 1)
       code = substr(r, p2 + 1)
-      if (f != FNAME) { FNAME = f; depth = 0; gated = 0; seen = 0; stmt = "" }
+      if (f != FNAME) {
+        FNAME = f; depth = 0; gated = 0; seen = 0; stmt = ""; bdepth = 0
+      }
       if (gated == 0 &&
           code ~ /#\[cfg\(([^]]*[(,][[:space:]]*)?debug_assertions[,)]/ &&
           code !~ /#\[cfg\([^]]*(any|not)\(/) {
-        gated = 1; seen = 0; gdepth = depth
+        gated = 1; seen = 0; gdepth = depth; bdepth = 0
       }
       # Delimiter-wise, so that the statement a use sits in is the
       # statement the `debug_assert!` test asks about, and so that brace
@@ -92,13 +103,20 @@ debug_only_report() {
           if (gated == 0 && stmt !~ DBG)
             print "UNGATED " f ":" ln ":" piece
         }
+        # Round and square brackets are counted, never cut on: they end
+        # no statement, and the depth they carry is what separates a `;`
+        # inside the signature of an item from the `;` that ends it.
+        # `<= 0` and not `== 0` so that a desync can only end an item
+        # early, which is the direction that fires.
+        t = piece; bdepth += gsub(/[[(]/, "", t)
+        t = piece; bdepth -= gsub(/[])]/, "", t)
         if (cut == 0) break
         d = substr(code, cut, 1)
-        if (d == "{") { depth++; if (gated == 1) seen = 1 }
+        if (d == "{") { depth++; if (gated == 1 && bdepth <= 0) seen = 1 }
         else if (d == "}") {
           depth--
           if (gated == 1 && seen == 1 && depth <= gdepth) gated = 0
-        } else if (gated == 1 && seen == 0) gated = 0
+        } else if (gated == 1 && seen == 0 && bdepth <= 0) gated = 0
         stmt = ""
         code = substr(code, cut + 1)
       }
@@ -155,6 +173,31 @@ plant_after_the_gated_item() {
     printf 'pub fn agree(a: f64, b: f64) -> bool {\n'
     printf '    eq_bits(a, b)\n'
     printf '}\n'
+    printf 'pub fn later(a: f64, b: f64) -> bool { eq_bits(a, b) }\n'
+  } > "$1/$SUBJECT"
+}
+
+# A `;` INSIDE THE SIGNATURE IS NOT THE ITEM'S END. An array-typed
+# parameter carries one before the body brace, and the use inside the
+# item is gated.
+plant_semicolon_in_signature() {
+  mkdir -p "$1/crates/topo/src"
+  {
+    printf '#[cfg(debug_assertions)]\n'
+    printf 'pub fn agree<const N: usize>(pairs: [(f64, f64); N]) -> bool {\n'
+    printf '    eq_bits(pairs[0].0, pairs[0].1)\n'
+    printf '}\n'
+  } > "$1/$SUBJECT"
+}
+
+# THE SAME QUESTION FROM THE OTHER SIDE, so that reading a `;` at depth
+# zero as an item end stays REQUIRED: a `use` under the attribute is an
+# item that ends at its `;`, and the use below it is outside the gate.
+plant_after_the_gated_use() {
+  mkdir -p "$1/crates/topo/src"
+  {
+    printf '#[cfg(debug_assertions)]\n'
+    printf 'use geom_core::bit_identity::eq_bits;\n'
     printf 'pub fn later(a: f64, b: f64) -> bool { eq_bits(a, b) }\n'
   } > "$1/$SUBJECT"
 }
@@ -247,6 +290,7 @@ gate_selftest() {
   gate_selftest_case "$want" plant
   gate_selftest_case "$want" plant_one_gated_one_leaked
   gate_selftest_case "$want" plant_after_the_gated_item
+  gate_selftest_case "$want" plant_after_the_gated_use
   gate_selftest_case "$want" plant_any_cfg
   gate_selftest_case "$want" plant_not_cfg
   gate_selftest_case "$want" plant_leak_after_debug_assert
@@ -254,7 +298,8 @@ gate_selftest() {
   gate_selftest_passes "a debug_assert!, prose, a string literal and a gated inner module" plant_permitted_shapes
   gate_selftest_passes "a rustfmt-wrapped debug_assert! around the use" plant_wrapped_debug_assert
   gate_selftest_passes "cfg(all(…)) with debug_assertions as the SECOND operand" plant_all_cfg_swapped
-  printf '%s selftest OK: passes a clean fixture, a debug_assert! (wrapped or not), cfg(all(…)) in either operand order, prose/strings and a gated inner module; fires on a bare use, on a leak BESIDE a properly gated use, on a leak AFTER a debug_assert! on the same line, on a use after the gated item closes, on any(…) and not(debug_assertions) items, and on the subject file being gone; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  gate_selftest_passes "a ';' inside a gated item's signature" plant_semicolon_in_signature
+  printf '%s selftest OK: passes a clean fixture, a debug_assert! (wrapped or not), cfg(all(…)) in either operand order, prose/strings and a gated inner module and a `;` inside a gated signature; fires on a bare use, on a leak BESIDE a properly gated use, on a leak AFTER a debug_assert! on the same line, on a use after the gated item closes, on a use after a gated `;`-terminated item, on any(…) and not(debug_assertions) items, and on the subject file being gone; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 # The subject removed out from under the gate.
