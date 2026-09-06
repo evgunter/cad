@@ -858,14 +858,10 @@ fn the_gate_on_a_mate_read_below_the_outer_pattern_names_the_operand() {
         panic!("expected the reference refusal, got {err:?}");
     };
     assert_eq!((*at, *side), (mate, MateSide::B));
-    assert_eq!(*why, RefusedRef::ReadBelowARoot { at: part });
     // The gate names the operand the mate reads at, not a vanished
-    // name: the `Part`'s row is there, one level below the root.
-    let said = err.to_string();
-    assert!(
-        said.contains(&format!("read at node {}", part.0)) && said.contains("not a root"),
-        "the gate names the operand: {said}"
-    );
+    // name: the `Part`'s row is there, one level below the root. (The
+    // sentence is pinned in `display_contract`.)
+    assert_eq!(*why, RefusedRef::ReadBelowARoot { at: part });
     // Read AT the outer pattern instead, the same document gathers
     // and the gate holds: the difference is whether the name is a
     // product ROOT's own row.

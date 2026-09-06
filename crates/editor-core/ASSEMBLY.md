@@ -170,7 +170,9 @@ reads at whether the name is spelled in its own table — a name spelled
 there at a node the product does not list refuses
 `RefusedRef::ReadBelowARoot { at }` in the operand's voice, so
 `RefusedRef::Vanished` means a name nothing answers to where the mate
-reads it. It runs no predicate of its own; kernel findings
+reads it. The operand's entry decides its kind first: a non-face
+entry refuses `RefusedRef::NotAFace` wherever it is read, and only a
+face entry at a non-root refuses `ReadBelowARoot`. It runs no predicate of its own; kernel findings
 come back as `AtRestFinding`s attributed to the mate whose declaration
 they concern. Undeclared contact between instances is a hard error,
 never blessed. `AssemblyError::AtRest` is a verdict against the

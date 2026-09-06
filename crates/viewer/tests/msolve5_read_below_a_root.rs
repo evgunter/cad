@@ -4,9 +4,9 @@
 //! The badge renders the gate's own `Display`, so the viewer needs no
 //! code for the arm: this row pins that the sentence a user reads on
 //! the issue's document — a pattern over a transform over the shelf,
-//! the mate read AT the transform — names the transform and says it
-//! is not a root of the product, rather than calling the name
-//! vanished.
+//! the mate read AT the transform — IS the gate's `ReadBelowARoot`
+//! refusal, word for word. The words themselves are pinned once, in
+//! `editor-core`'s `display_contract`.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -16,8 +16,8 @@ use crate::common;
 
 use common::asm;
 use pncad::document::{
-    Dimension, DocEdit, DocumentId, Expr, Node, PatternKind, ProfileDoc, ProfileProgram,
-    RecipeNodeId, SitedRef, apply,
+    AssemblyError, Dimension, DocEdit, DocumentId, Expr, MateSide, Node, PatternKind, ProfileDoc,
+    ProfileProgram, RecipeNodeId, RefusedRef, SitedRef, apply,
 };
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
@@ -42,7 +42,7 @@ fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeN
 /// lifted by a transform, a two-copy pattern of the lifted shelf, and
 /// the seat mate read AT the transform. Stored beside the bench's
 /// parts so the session's resolver finds them.
-fn read_below_a_root(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, RecipeNodeId) {
+fn read_below_a_root(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, AssemblyError) {
     let mut asm = ProfileDoc::empty(DocumentId::derive("msolve5-viewer"), tol);
     let post = insert(&mut asm, Node::instantiate_part(bench.post), tol);
     let shelf = insert(&mut asm, Node::instantiate_part(bench.shelf), tol);
@@ -69,11 +69,12 @@ fn read_below_a_root(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, Recip
         },
         tol,
     );
-    insert(
+    let b = asm::in_part(shelf, &bench.shelf_bottom);
+    let mate = insert(
         &mut asm,
         Node::Mate {
             a: SitedRef::at_mint(asm::in_part(post, &bench.post_top)),
-            b: SitedRef::new(lifted, asm::in_part(shelf, &bench.shelf_bottom)),
+            b: SitedRef::new(lifted, b.clone()),
             class: ContactClass::Rest,
             alignment: asm::seat_alignment(asm::SHELF_LENGTH / 2.0, None),
         },
@@ -81,14 +82,20 @@ fn read_below_a_root(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, Recip
     );
     let mut ws = Workspace::open(&bench.dir).expect("the bench's workspace opens");
     let path = ws.create(&asm, tol).expect("the assembly stores");
-    (path, lifted)
+    let expected = AssemblyError::Reference {
+        mate,
+        side: MateSide::B,
+        name: Box::new(b),
+        why: RefusedRef::ReadBelowARoot { at: lifted },
+    };
+    (path, expected)
 }
 
 #[test]
 fn the_badge_names_the_operand_of_a_mate_read_below_a_root() {
     let tol = Tol::witness();
     let bench = asm::bench("msolve5-badge", tol);
-    let (path, lifted) = read_below_a_root(&bench, tol);
+    let (path, expected) = read_below_a_root(&bench, tol);
     let mut session = DocSession::inline(
         pncad::document::Doc::empty_derived("msolve5-boot", tol),
         tol,
@@ -102,11 +109,10 @@ fn the_badge_names_the_operand_of_a_mate_read_below_a_root() {
         session.product_fault()
     );
     match session.at_rest() {
-        Some(AtRestBadge::Refused { message }) => assert!(
-            message.contains(&format!("read at node {}", lifted.0))
-                && message.contains("not a root")
-                && !message.contains("no entity of the product answers"),
-            "the badge names the operand, not a vanished name: {message}"
+        Some(AtRestBadge::Refused { message }) => assert_eq!(
+            *message,
+            expected.to_string(),
+            "the badge is the gate's own refusal, word for word"
         ),
         other => panic!("a mate read below a root turns the badge red, got {other:?}"),
     }

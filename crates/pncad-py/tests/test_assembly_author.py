@@ -786,10 +786,6 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertEqual(err.why.at, lifted)
         self.assertIsNone(err.why.width)
         self.assertIsNone(err.why.kind)
-        # A node id crosses as an opaque `NodeId(n)`; the message spells
-        # the same `n`.
-        self.assertIn(f"read at node {repr(lifted)[len('NodeId('):-1]}", str(err.why))
-        self.assertIn("not a root", str(err.why))
 
     def test_a_mate_reference_that_is_not_a_face_refuses_at_the_gate(self):
         doc, post_i, shelf_i = self.two_instances()

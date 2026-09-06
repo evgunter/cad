@@ -73,6 +73,7 @@ use topo::{AtRestPolicy, ContactRecords, FaceKey, PatchContact, ValidationError}
 use crate::doc::Doc;
 use crate::eval::{Evaluation, NodeResult, ValuePayload};
 use crate::mate::{ClassAdmission, ContactClass, MateSide, class_admission};
+use crate::names::interrogate::value_of;
 use crate::names::{EntityKey, EntityKind, Entry, NameTable, StableName};
 use crate::node::{Node, RecipeNodeId, SitedRef};
 use crate::product::{Product, ProductError, product_recorded};
@@ -267,22 +268,24 @@ pub struct Assembly<T: Decide> {
 /// `ReadBelowARoot`. No consumer is walked; the two tables and the
 /// root list decide.
 ///
-/// The `Ambiguous` / `NotAFace` vocabulary is `resolve_declarations`'
-/// — the shapes a `Declare` node's names refuse with — stated
-/// separately because the SUBJECT differs (a mate's reference
-/// resolves against the assembly's product table, not a boolean
-/// operand's).
+/// `Vanished` and `Ambiguous` are the silence and the tie every name
+/// lookup refuses with (`ResolveError` spells them for a `Declare`
+/// node's names); `NotAFace` is this gate's own word, because only a
+/// mate declaration must name a FACE. The subject here is the
+/// assembly's product table and the operand's, not a boolean
+/// operand's.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RefusedRef {
-    /// No entity of the product answers to the name, and neither does
-    /// the operand the mate reads it at: the name names nothing where
-    /// the mate reads it.
+    /// No entity answers to the name — not in the product's table,
+    /// and not in the table of the operand the mate reads it at: the
+    /// name names nothing where the mate reads it.
     Vanished,
     /// The operand's own table answers to the name with a face, but
-    /// the operand is not a root of the product, so the product spells
-    /// that face some other way — under a pattern, as the
-    /// `Instance(i)` row at the pattern node. The mate is read at a
-    /// node the product does not list.
+    /// the operand is not a root of the product, and a reference
+    /// resolves against a root's own rows: the product may spell that
+    /// face some other way — under a pattern, as the `Instance(i)` row
+    /// at the pattern node — or not at all. The mate is read at a node
+    /// the product does not list.
     ReadBelowARoot {
         /// The operand the mate reads at — a live node whose table
         /// answers to the name, and which is not a product root.
@@ -706,12 +709,13 @@ pub enum AssemblyError {
 impl core::fmt::Display for RefusedRef {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Vanished => f.write_str("no entity of the product answers to it"),
+            Self::Vanished => f.write_str(
+                "no entity answers to it, in the product or at the node the mate reads it at",
+            ),
             Self::ReadBelowARoot { at } => write!(
                 f,
-                "it is read at node {}, which is not a root of the product; the product \
-                 spells its entities at its roots, and under a pattern that spelling is \
-                 the instance row at the pattern node",
+                "it is read at node {}, which is not a root of the product, and a reference \
+                 resolves against a root's own rows",
                 at.0
             ),
             Self::Ambiguous { width } => write!(
@@ -1076,8 +1080,8 @@ pub(crate) fn mint<P, T: Decide>(
 /// reference is never widened into one.
 ///
 /// The product's table is asked first; only when it is silent is the
-/// operand's own table asked, through [`below_a_root`], so a name the
-/// product does answer to is never re-described by the operand.
+/// operand's own table asked, through [`operand_answer`], so a name
+/// the product does answer to is never re-described by the operand.
 fn resolve_face<P, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
@@ -1101,64 +1105,66 @@ fn resolve_face<P, T: Decide>(
         Some(Entry::Tied(ents)) => Err(refuse(RefusedRef::Ambiguous {
             width: u32::try_from(ents.len()).unwrap_or(u32::MAX),
         })),
-        None => Err(refuse(below_a_root(doc, evaluation, reference))),
+        None => Err(refuse(operand_answer(doc, evaluation, reference))),
     }
 }
 
-/// **The second question**, asked only once the product's table is
+/// **The operand's answer**, asked only once the product's table is
 /// silent on a reference: does the OPERAND the mate reads at spell
-/// the name? Its own table is the `name_table` of `at`'s live value
-/// — the same table the name interrogation doors read. Four answers,
-/// in this order:
+/// the name? Its own table is the `name_table` of `at`'s live value,
+/// read through the same door the name interrogation doors read it
+/// ([`value_of`]). One match, four answers, in this order:
 ///
 /// 1. Silent there too → [`RefusedRef::Vanished`]: the name names
 ///    nothing where the mate reads it.
-/// 2. A non-face entry → [`RefusedRef::NotAFace`], the same answer
-///    the product's own lookup gives for a non-face row it holds: a
+/// 2. A non-face entry, unique or tied → [`RefusedRef::NotAFace`]: a
 ///    non-face never mints anywhere, so WHAT it is precedes WHERE it
-///    is rooted. A root's BODY row lands here — the product's own
-///    body is nobody's root body, so body rows do not carry
-///    (`product::carry_names`) and the product is silent on them.
+///    is rooted. The kind is the NAME's kind, which the table makes
+///    the entry's kind for every candidate (`NameTable::insert`,
+///    `insert_tied`). A root's body row lands here — see
+///    `product::carry_names` for why the product is silent on it.
 /// 3. A face entry — unique or tied — at a node the product does not
-///    list as a root → [`RefusedRef::ReadBelowARoot`]: the face
-///    exists, spelled at a node the product does not list. A tie
-///    among faces below a root is still read below a root; the
-///    product decides ties for its own rows.
-/// 4. A face entry at a ROOT with the product silent is unreachable
-///    by construction: `carry_names` carries every face row of every
-///    root's table, re-keyed verbatim, so a face the root spells is a
-///    face the product spells. The arm answers `Vanished` rather than
-///    panicking; a hit here is a `carry_names` bug, not a vanished
-///    name.
+///    list as a root → [`RefusedRef::ReadBelowARoot`]. A tie among
+///    faces below a root is still read below a root; the product
+///    decides ties for its own rows.
+/// 4. A face entry at a ROOT with the product silent: `carry_names`
+///    carries every face row of every root at the source's index, so
+///    a hit here is its bug, not a vanished name. `Vanished` in
+///    release, asserted in debug.
 ///
-/// A mate whose operand is not a live value has nothing to answer
-/// with: the solve refuses such a mate before it is live, so the gate
-/// never reads it; a `None` here is answered `Vanished` rather than
-/// unwrapped.
-fn below_a_root<P, T: Decide>(
+/// An operand that is not a live value has no table to answer with,
+/// and the gate never asks it: every live node sits under some root
+/// (A10 coverage), so an operand that failed or was poisoned has a
+/// failed or poisoned root above it, and the gather's first pass
+/// refuses the document (`ProductError::RootFailed` /
+/// `RootPoisoned`) before any mate is read — the mate itself may
+/// well be live and `Determining`. The ladder's other rungs are
+/// answered `Vanished` here rather than unwrapped.
+fn operand_answer<P, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     reference: &SitedRef,
 ) -> RefusedRef {
     let at = reference.at;
-    let entry = match evaluation.result(at) {
-        Some(NodeResult::Ok(value)) => value.name_table.lookup(&reference.name),
-        Some(NodeResult::Failed(_) | NodeResult::Poisoned { .. }) | None => None,
-    };
+    let kind = reference.name.kind;
+    let rooted = doc.roots().contains(&at);
+    let entry = value_of(evaluation, at)
+        .ok()
+        .and_then(|value| value.name_table.lookup(&reference.name));
     match entry {
-        None => return RefusedRef::Vanished,
-        Some(Entry::Unique(ent)) => match ent.key {
-            EntityKey::Face(_) => {}
-            other @ (EntityKey::Body | EntityKey::Edge(_) | EntityKey::Vertex(_)) => {
-                return RefusedRef::NotAFace { kind: other.kind() };
-            }
-        },
-        Some(Entry::Tied(_)) => {}
-    }
-    if doc.roots().contains(&at) {
-        RefusedRef::Vanished
-    } else {
-        RefusedRef::ReadBelowARoot { at }
+        None => RefusedRef::Vanished,
+        Some(Entry::Unique(_) | Entry::Tied(_)) if kind != EntityKind::Face => {
+            RefusedRef::NotAFace { kind }
+        }
+        Some(Entry::Unique(_) | Entry::Tied(_)) if !rooted => RefusedRef::ReadBelowARoot { at },
+        Some(Entry::Unique(_) | Entry::Tied(_)) => {
+            debug_assert!(
+                !rooted,
+                "a root's face row is absent from the product's table: \
+                 `product::carry_names` carries every face row of every root"
+            );
+            RefusedRef::Vanished
+        }
     }
 }
 
