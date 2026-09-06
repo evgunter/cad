@@ -247,6 +247,15 @@ pub struct SymbolicDials {
     pub max_terms: usize,
     /// The largest total degree one normal form may reach.
     pub max_degree: u32,
+    /// The atom-algebra rules the normal form applies
+    /// ([`geom_core::SymRules`]): the shipped set by default
+    /// ([`geom_core::SymRules::shipped`], chosen by measurement); each
+    /// switchable alone, and [`geom_core::SymRules::none`] is the
+    /// quotient form with every atom opaque — the tier exactly as it
+    /// stood before the algebra, so the effect of each rule on a
+    /// document is a measurement taken through this dial rather than
+    /// an assumption.
+    pub rules: geom_core::SymRules,
 }
 
 /// The shipped term budget ([`SymbolicDials`]).
@@ -277,7 +286,7 @@ impl SymbolicDials {
     /// certified-leaf consumer takes ([`crate::eval::LeafLane`]).
     pub(crate) fn lane(self) -> crate::eval::LeafLane {
         if self.enabled {
-            crate::eval::LeafLane::Symbolic(self.budget())
+            crate::eval::LeafLane::Symbolic(self.budget(), self.rules)
         } else {
             crate::eval::LeafLane::Numeric
         }
@@ -290,6 +299,8 @@ impl Default for SymbolicDials {
             enabled: true,
             max_terms: DEFAULT_SYM_MAX_TERMS,
             max_degree: DEFAULT_SYM_MAX_DEGREE,
+            // The shipped atom-algebra set ([`geom_core::SymRules::shipped`]).
+            rules: geom_core::SymRules::default(),
         }
     }
 }
@@ -761,11 +772,18 @@ impl ParamBoxVerdict {
         // which is what makes the tier-off differential a byte
         // comparison rather than a filtered one.
         if self.decisions != SymCounts::default() {
-            let _ = writeln!(
+            let _ = write!(
                 s,
                 "decisions symbolic_zero={} numeric={} frozen={}",
                 self.decisions.symbolic_zero, self.decisions.numeric, self.decisions.frozen
             );
+            // The clause-3 count by the same rule as the line itself:
+            // present only when there is one, so a drive with that rule
+            // off serializes the pre-algebra line byte for byte.
+            if self.decisions.sign_gated != 0 {
+                let _ = write!(s, " sign_gated={}", self.decisions.sign_gated);
+            }
+            let _ = writeln!(s);
         }
         let _ = write!(s, "{}", self.accounting.serialize());
         s
@@ -809,12 +827,17 @@ impl ParamBoxVerdict {
             } else {
                 100.0 * (d.symbolic_zero as f64) / (total as f64)
             };
-            let _ = writeln!(
+            let _ = write!(
                 s,
-                "  {} of {total} decisions were symbolic identities ({share:.1}%); \
-                 {} form(s) frozen",
-                d.symbolic_zero, d.frozen
+                "  {} of {total} decisions were symbolic identities ({share:.1}%)",
+                d.symbolic_zero
             );
+            // The clause-3 count only where there is one (rule C off, or
+            // nothing folded, prints the pre-algebra line).
+            if d.sign_gated != 0 {
+                let _ = write!(s, ", {} more by a certified sign", d.sign_gated);
+            }
+            let _ = writeln!(s, "; {} form(s) frozen", d.frozen);
         }
         let _ = write!(
             s,
@@ -1310,11 +1333,12 @@ fn classify(
         ..lane_opts()
     };
     if symbolic.enabled {
-        let (leaf, counts) = geom_core::sym::with_session(symbolic.budget(), || {
-            let leaf: Evaluation<Sym<Interval>> =
-                evaluate(doc, None, &CancelToken::new(), &opts, tol);
-            leaf
-        });
+        let (leaf, counts) =
+            geom_core::sym::with_session_rules(symbolic.budget(), symbolic.rules, || {
+                let leaf: Evaluation<Sym<Interval>> =
+                    evaluate(doc, None, &CancelToken::new(), &opts, tol);
+                leaf
+            });
         return (
             classify_replay(
                 doc,
@@ -1371,18 +1395,30 @@ fn classify_replay<T: geom_core::Decide>(
     // escalation and the profile lift's guided abort — are the two E6
     // names as the cue to bisect.
     //
-    // WHY IT CANNOT SIMPLY ASK. `k_stats` records definite outcomes
-    // (the verdict log) and nothing at all for indeterminate ones, so
-    // "was every predicate here definite" has no observable form; an
-    // escalation reaches this loop wrapped inside whichever op's error
-    // enum raised it, ~40 variants across five crates. The channel that
-    // would answer it directly is issue #1254 — filed together with the
-    // verdict log's own banked redo, because both are one mechanism and
-    // `k_stats`' module docs forbid deepening the current one. Until it
-    // lands, a terminal sliver that surfaces through an op's own error
-    // (rather than through `NodeErrorKind::Escalated`) is priced
-    // `Budget` instead of `SliverTerminal`: a worse answer for the same
-    // mass, never a wrong one.
+    // HOW IT ASKS, AND IN WHAT ORDER. Three reads per node, and the
+    // order is a rule: (1) a DEFINITE box-independent refusal is
+    // terminal whatever else the op recorded — bisection cannot change
+    // a fact about the document — so it is read first; (2) the node's
+    // escalation log decides among the box-DEPENDENT outcomes: every
+    // indeterminate outcome the FUNNEL produced while the op ran is on
+    // it — on the value if the op built anyway, on the error if it did
+    // not — so an escalation an op wrapped in its own error enum (a
+    // sweep's `ExtrusionEscalated`, ~40 such variants across five
+    // crates) is seen without matching on any of them, and the FIRST
+    // escalation in decision order speaks: a sliver, or the cue to
+    // bisect (a later sliver behind a refinable escalation does not
+    // argue — refinement may never reach it on the branch a definite
+    // first decision takes — so that order is the conservative one);
+    // (3) the error-enum arms. Those arms are LOAD-BEARING, not a
+    // fallback: the log carries the funnel's escalations only, and a
+    // predicate that asks the funnel, gets a definite sign, and then
+    // mints an `Indeterminate` of its own (`geom_brep::enters`,
+    // `dihedral`, `pcurve_cache`, `certify`, `edge_nurbs`, `ssi::march`
+    // — eight sites) reaches this loop only through the enum it was
+    // wrapped in; the whole-document mate solve's escalations likewise
+    // arrive only as `NodeErrorKind::Mate`, since no node's bracket is
+    // open when it runs. The gap and the unit that closes it:
+    // `work/props/escalation-channel-misses-op-minted-indeterminates.md`.
     // ITERATION ORDER IS NODE ID, and where a leaf carries several
     // refusing nodes that decides which one speaks: the FIRST
     // indeterminacy in node-id order settles the leaf as a sliver or a
@@ -1394,27 +1430,45 @@ fn classify_replay<T: geom_core::Decide>(
     // is refused mass either way, and the receipt does not change.
     let mut structure_flips = Vec::new();
     for (&node, result) in &leaf.nodes {
-        let NodeResult::Failed(err) = result else {
+        let (escalations, failure) = match result {
+            NodeResult::Ok(v) => (&v.escalations, None),
+            NodeResult::Failed(e) => (&e.escalations, Some(e)),
+            NodeResult::Poisoned { .. } => continue,
+        };
+        // (1) **Box-independent measure refusals are TERMINAL** (M10-6,
+        // R1's MINOR-6). A selection naming the wrong kind of entity,
+        // or a pairing the wedge rule empties, is a fact about the
+        // document: every sub-box inherits it exactly, so refining
+        // re-derives the same refusal until the budget runs out and
+        // then prices the mass `Budget`, naming the symptom. The
+        // classes listed in `box_independent_measure_class` are the
+        // ones that provably cannot move under refinement; a clearance
+        // refusal that CAN (a cell budget, a poisoned enclosure, an
+        // unverified witness) still bisects, because for those a
+        // smaller box is exactly the remedy. Read BEFORE the log: an
+        // escalation the same op also recorded changes nothing about
+        // a refusal no box can move.
+        if let Some(err) = failure
+            && let Some(class) = box_independent_measure_class(&err.kind)
+        {
+            return LeafVerdict::Refused(RefusalReason::MeasureRefused { node, class });
+        }
+        // (2) The escalation log.
+        if let Some(first) = escalations.first() {
+            return indeterminate(&first.source);
+        }
+        // (3) The error-enum arms.
+        let Some(err) = failure else {
             continue;
         };
         match &err.kind {
-            NodeErrorKind::Escalated { source, .. } => {
-                if let Some(p) = sliver(source) {
-                    return LeafVerdict::Refused(RefusalReason::SliverTerminal { predicate: p });
-                }
-                return LeafVerdict::Bisect;
-            }
+            NodeErrorKind::Escalated { source, .. } => return indeterminate(source),
             NodeErrorKind::ProfileLaneReplay {
                 structure: Some(refusal),
                 ..
             } => match &refusal.kind {
                 profile::StructureRefusalKind::Indeterminate(source) => {
-                    if let Some(p) = sliver(source) {
-                        return LeafVerdict::Refused(RefusalReason::SliverTerminal {
-                            predicate: p,
-                        });
-                    }
-                    return LeafVerdict::Bisect;
+                    return indeterminate(source);
                 }
                 profile::StructureRefusalKind::Flipped { .. } => {
                     structure_flips.push(StructureFlip {
@@ -1423,24 +1477,7 @@ fn classify_replay<T: geom_core::Decide>(
                     });
                 }
             },
-            // **Box-independent measure refusals are TERMINAL**
-            // (M10-6, R1's MINOR-6). A selection naming the wrong kind
-            // of entity, or a pairing the wedge rule empties, is a
-            // fact about the document: every sub-box inherits it
-            // exactly, so refining re-derives the same refusal until
-            // the budget runs out and then prices the mass `Budget`,
-            // naming the symptom. The classes listed in
-            // `box_independent_measure_class` are the ones that
-            // provably cannot move under refinement; a clearance
-            // refusal that CAN (a cell budget, a poisoned enclosure,
-            // an unverified witness) still bisects, because for those
-            // a smaller box is exactly the remedy.
-            kind => {
-                if let Some(class) = box_independent_measure_class(kind) {
-                    return LeafVerdict::Refused(RefusalReason::MeasureRefused { node, class });
-                }
-                return LeafVerdict::Bisect;
-            }
+            _ => return LeafVerdict::Bisect,
         }
     }
 
@@ -1491,6 +1528,15 @@ fn classify_replay<T: geom_core::Decide>(
             verdicts,
             structure: structure_flips,
         }),
+    })
+}
+
+/// What one escalation makes of a leaf: a terminal sliver when its
+/// enclosure sits wholly inside the band ([`sliver`]), otherwise the
+/// cue to bisect. One spelling for the three reads of `classify_replay`.
+fn indeterminate(source: &geom_core::Indeterminate) -> LeafVerdict {
+    sliver(source).map_or(LeafVerdict::Bisect, |predicate| {
+        LeafVerdict::Refused(RefusalReason::SliverTerminal { predicate })
     })
 }
 
@@ -1675,7 +1721,7 @@ fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, symbolic: Symbolic
     // driver's own population. Running it at bare `Probe` would report a
     // population the driver did not produce.
     if symbolic.enabled {
-        let _ = geom_core::sym::with_session(symbolic.budget(), || {
+        let _ = geom_core::sym::with_session_rules(symbolic.budget(), symbolic.rules, || {
             let ev: Evaluation<Sym<geom_core::Probe>> =
                 evaluate(doc, None, &CancelToken::new(), &opts, tol);
             ev

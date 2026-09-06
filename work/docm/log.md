@@ -324,3 +324,26 @@ the Python doors' double gather (LIB), debug-only counters' missing
 gate. The spec is deleted into the ledger. Next: the instantiation
 seam waits on Ev's inner-mint-refusal ruling; the certified range
 query waits on M10.
+
+## Announced seam from PROPS (2026-09-05): one hunk in `eval/parts.rs`
+
+The k-stats bracket (PR #1969, merged `3f8a91ff3`) shields the part
+cache's miss path in `PartCache::get` with its own verdict bracket whose
+frame is discarded — without it the instantiator's frame received
+430–505 of the part's decisions from whichever instance took the miss,
+making an instantiate node's log schedule-dependent. One binding
+(`let _shield = Bracket::open();`) with a two-sentence argument at the
+site; nothing else in `eval/parts.rs` moves. The bracket at `run_op` in
+`eval/mod.rs` was announced to SEAT at the spec. Signed (PROPS
+orchestrator).
+
+## Announced seam from PROPS (2026-09-06): a doc line at `Datum::FaceFrame::spin` with the sign-hull unit
+
+`docs/PROPS-SIGN-HULL-SPEC.md` (branch `props/sign-hull`) changes the
+frame `Vec3::orthonormal_basis` makes, so what `spin = 0` means on a
+wall or a cap changes with it; the unit adds one doc line at
+`Datum::FaceFrame::spin` (`crates/editor-core/src/node.rs:~704`)
+naming the axis order and tie-break, and re-points
+`docm1_face_frame.rs` where it named M10-5's retired `chart_frame`.
+No committed document carries a `FaceFrame` (#1939 census). Announced
+by the spec §Seams. Signed (PROPS orchestrator).

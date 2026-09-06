@@ -79,22 +79,13 @@ fn rim(half: f64) -> MappedCurve<Interval> {
 ///   multiplier is the **z coordinate, 3** — not `|p|`, which is
 ///   `√17 = 4.12`.
 ///
-/// So `1 − cos` is at most HALF of it, and retiring `1 − cos` alone
-/// does not remove even that half: `t` respelled to the half angle is
-/// `[0, 2.5e-323]`, but adding subnormal dust to a near-1 quantity
-/// still rounds the sum outward by an ulp of 1, leaving the entry
-/// 6.66e-16 wide — which, multiplied by 3 and rounded outward again,
-/// gives back the **same 2.66e-15**. Measured recovery from respelling
-/// `t` alone: **0%**. From respelling `t` and `c` both (`c = 1 − 2sin²`,
-/// the full half-angle form): **17%** at this sample, and **0%** at the
-/// full-period sample, where the shipped and fully-respelled forms are
-/// both 2.66e-15.
-///
-/// The irreducible part is `cos`'s own enclosure at an exact angle,
-/// which is a backend property, not a spelling. `Mat3::rotation_about`
-/// is still recorded as an audit member of the same class — its `t`
-/// does contribute the other half — but it is not "the entire residue",
-/// and retiring it would buy at most a sixth of this number.
+/// So `1 − cos` is at most HALF of it. What each respell of `t` and
+/// `c` recovers, and why the floor is the backend's `cos` at an exact
+/// angle rather than a spelling's, is documented once, at
+/// `Mat3::rotation_about`'s width-floor paragraph (its instrument is
+/// `geom-core`'s `cert3_evidence` rows); the ruling is no respell
+/// (`work/props/rotation-about-diagonal-width-floor.md`), so this
+/// residue is the floor, not a defect this row waits on.
 ///
 /// ε-free: enclosure widths only, no tolerance is consulted, so the row
 /// reads identically at every tolerance row.
