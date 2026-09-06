@@ -2,12 +2,13 @@
 id: trait-generic-sole-bracket
 kind: issue
 title: bounds-allowlist.sh's trait-declaration alternative fires on a trait generic over a SOLE bracket bound
-status: review
+status: closed
 opened: 2026-09-03
 track: K
 refs: [D102, D68]
 branch: gates/bounds-small
 pr: 2029
+closed: 2026-09-06
 ---
 
 

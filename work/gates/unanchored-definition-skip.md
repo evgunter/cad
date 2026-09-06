@@ -2,12 +2,13 @@
 id: unanchored-definition-skip
 kind: issue
 title: bounds-allowlist.sh's CertifiedBounds definition skip is unanchored, so the moved lines stay exempt while the subject check goes silent
-status: review
+status: closed
 opened: 2026-09-03
 track: K
 refs: [D106]
 branch: gates/bounds-small
 pr: 2029
+closed: 2026-09-06
 ---
 
 
