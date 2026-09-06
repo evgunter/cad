@@ -5327,3 +5327,164 @@ the two pre-existing prose findings the review filed (three
 `Point3<f64>` cast sites against a doc sentence naming two;
 `highlight`/`edge_overlay` called "twins" while disagreeing on whether
 a hover that IS the selection is reported as hovered).
+
+## Two things put where they belong: `cursor_projection` home, `Generation::get` gone (2026-09-06)
+
+The two "this is not where it belongs" rows from #2079's and #2083's
+reviews, in two commits because they are two different kinds of change
+and only one of them is certifiable by a sorted-line diff.
+
+**`cursor_projection` → `camera`, and the home was verified before the
+move rather than after.** The item PROPOSED `camera`; four checks made
+it a finding rather than a guess. `camera` already builds the matrix
+the function transforms (`view_projection`) and already answers in the
+frame its `cursor_ndc` is in (`project`, `ray_through`), so the subject
+is the module's. The signature is three arrays of `f32` and nothing
+else, so `camera` gains no import and its module kind is unchanged.
+`camera` already holds free `pub fn`s (`apply`, `fold`,
+`fold_recorded`), so a function outside `impl Camera` is the file's
+existing shape. And the doc link NARROWED —
+`[\`crate::camera::Camera::project\`]` back to `[\`Camera::project\`]`
+— which is #2083's tell running in reverse.
+
+**No shim, and no test-side re-pointing needed.** Every suite already
+spelled it `viewer::cursor_projection`; that crate-root re-export moved
+from the `pub use marks::{…}` list to `pub use camera::{…}`, so there
+stays exactly ONE path to the function. `session-shims-and-test-imports`
+is open because unit 1c left two spellings of every moved path; this
+left one. `gpu.rs` is the only production consumer and imports
+`crate::camera::cursor_projection`.
+
+**`Generation::get` deleted, and the precedent it looked like does not
+reach it.** `tool-kind-all-and-ordinal-have-no-production-reader` kept
+a `pub` item and documented the suites as its only readers — the item
+was preserved BECAUSE it had a reader. `get` has none anywhere: not
+`src`, not `tests`, not `examples`. What survives the deletion is the
+need its doc named: `Generation` derives `Debug`, so a log line and a
+debugger still show the counter, and the accessor was a second door
+onto what `Debug` already opens. `next`'s twelve-line ceiling paragraph
+lost the part describing a state nothing can construct and kept the
+part that is the reason for `saturating_add` over `+`.
+
+**The tracker pass found eighteen stale citations, and eleven of them
+predate this branch.** Re-derived, never shifted, every one verified by
+reading the line it names. **Seven this branch broke**: the six
+`marks.rs` citations in three open rows (`:132-135`, `:286`, `:200`,
+`:224-227`, `:118-121`, `:261`) all move by −13, the header section
+this commit deleted, and `camera.rs:908` moves to `:954` under the
+insert. **Eleven that were already wrong on `origin/main`** and would
+have gone on being wrong: `session-shims`'s `lib.rs:147` (`:163` on
+base, `:160` on head, so this branch moved a line that was already
+mis-cited), `two-datumkind`'s `lib.rs:124` (`:128`) and `forms.rs:55`
+(`:93`), `session-shims`'s `combine_ops.rs:1327` (`:1340`), and seven
+in `adjacent-same-typed-arguments-are-the-same-swap` — five
+`session.rs` citations all off by exactly four, `session/refuse.rs:308`
+(`:323`) and `frame.rs:1658` (`:1689`). Six of those seven are the
+brief's own warning working: they cite MULTI-LINE `fn` headers, which
+is exactly what a grep over a signature cannot re-find.
+
+That is the lesson worth keeping. The instrument was sold as a check on
+what your own diff shifted; run over every row a branch touches it
+finds more drift than the branch caused, because a row that has sat
+open through a few refactors accumulates it silently and nothing else
+reads those numbers. Eleven of eighteen here.
+
+One more, `work/tcost/loud-skip-marker-is-a-hand-kept-idiom`'s
+`lib.rs:103` and `lib.rs:92-100`, is outside this program's fence —
+the symbol it names, `app_lane_skipped_no_chrome_or_gpu_coverage_here`,
+is not in `crates/viewer/src/lib.rs` under any line number today — so
+it is in the PR body and this report rather than edited here.
+
+## The fix pass for #2089: the receipt was wrong about itself, twice in a row (2026-09-06)
+
+The entry above is left as written — it is the record of what this lane
+believed when it wrote it — and this one corrects it. Nothing in the
+code was wrong; every claim corrected here is prose or arithmetic in
+the durable record, which is the part a later reader trusts.
+
+### "There stays exactly ONE path to the function" is false
+
+`crates/viewer/src/lib.rs:55` is `pub mod camera;`, so
+`viewer::camera::cursor_projection` resolves beside
+`viewer::cursor_projection` — and both spellings existed through
+`marks` before the move. **What the move preserved is the COUNT of
+public paths, not a uniqueness that never held.** The contrast the
+entry above drew against `session-shims-and-test-imports` therefore
+does not land as written: that row's hazard is a `pub use` shim INSIDE
+a module, which is a lie about where an item lives, not a crate-root
+re-export, which is a convenience. Every item in `lib.rs`'s `pub use`
+blocks has two public paths for the same reason, which is the class the
+reviewer filed as
+`every-crate-root-reexport-is-a-second-path-not-the-only-one`. The
+sentence is corrected in the PR body and in the item's `## Closed`.
+
+### Every summary number in the citation receipt was wrong
+
+This is the second consecutive PR of this program's for which that is
+true — `citation-repoint-shifted-a-number-the-lane-knew-was-wrong`
+(#2083, closed) is the class row, and
+`the-citation-receipts-summary-numbers-are-not-re-derivable` is the new
+one. **Saying it plainly: the per-citation work was right both times
+and the summaries wrapped around it were wrong both times**, which is
+the more dangerous half, because a summary is what a reader quotes.
+
+- **"60 citations checked" had no enumeration rule behind it.** The
+  rule, stated so a second reader can re-derive it: a `path.ext:N`
+  regex, one hit per match, a `:a-b` span counting once and a `:a,:b`
+  comma-list twice, over the eight VIEW item files this branch's own
+  commits edit. At `abf518285` that gives **51** — the reviewer's
+  number, reproduced here exactly. At this fix pass's tip it gives
+  **57** over those eight, **64** counting the `work/issues/` row filed
+  below. A count without its rule is not a receipt.
+- **"The six `marks.rs` citations all move by −13" — five do.** The
+  sixth, `the-point3-to-gpu-corner-cast-is-at-three-sites`'s
+  `:132-135`, became `:119-121`: a three-line span, not a shifted
+  four-line one, because `marks.rs:135` on `bc44531e1` was
+  `#[derive(…)]` and was never part of the quoted sentence. So that
+  citation was **already** wrong on `main` and was filed in the wrong
+  bucket. **The split is 7 + 12, not 7 + 11.**
+- **"Twelve lines argued the ceiling … six instead of ten."** Nothing
+  in either tree is twelve, and the comparison was a paragraph against
+  a block. Re-derived: `next`'s rustdoc block is 10 lines on
+  `bc44531e1` (`generation.rs:33-42`) and 8 on head (`:36-43`); the
+  ceiling paragraph inside it is 8 (`:35-42`) and 6 (`:38-43`).
+- **"Two public items" — three**, all with readers: `Generation`,
+  `Generation::FIRST` (25 occurrences of that spelling tree-wide) and
+  `Generation::next` (`session.rs:1814`, `review_gui2_r2.rs:1563`).
+
+### The 51/51 was the joke, and the paragraph is now two lines
+
+`generation.rs` was 51 lines on base and 51 on head: the close deleted
+four lines of code and added a six-line paragraph about their absence,
+in a unit whose finding was that a reader-less `pub` item is a third of
+a 51-line leaf module's API — and then quoted 51 as an outcome. The
+paragraph does earn a place, because the next reader reaching for the
+counter needs to know `Debug` is the door and would otherwise re-add
+the accessor; it earns **two lines** (`generation.rs:27-28`), not six.
+The module is now **47**.
+
+### The subject check in the `camera` argument did not hold as stated
+
+Three of the four checks were exact. The fourth said `camera` "already
+answers in the frame its `cursor_ndc` is in", and it does not: the
+doors do not meet at the type — `f64` matrices and pixels with `+y`
+down against an `f32` NDC function — and the conversion happens two
+modules away in a driver. **The move is still right**; the other three
+checks carry it, and the module header no longer claims otherwise.
+`cursor-projection-is-f32-in-a-module-whose-matrices-are-f64` holds the
+type question. The placement prose also did not shrink in the first
+pass (19 lines before, 19 after); it is 14 now.
+
+### §6 has now produced nothing twice on the same row, so it is a file
+
+The stale TCOST loud-skip citations were reported out-of-fence in the
+PR body — and #1848's close, on this program's own slate, already
+reported the SAME row the same way on 2026-09-04, with the same
+nothing resulting. A merged PR body is not a slate, and a disclosure
+inside a closed item's prose is invisible to the re-homing sweep by
+`work/README.md`'s own account, so the second lane could not see the
+first. Filed as
+`work/issues/loud-skip-marker-row-cites-a-lib-paragraph-that-was-reversed`,
+which also records that one of the row's citations is not stale but
+REVERSED: VIEW fixed that marker at #1848, so `lib.rs` now says the
+opposite of what the row quotes it as saying.

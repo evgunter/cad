@@ -23,6 +23,9 @@
 /// "identifies the document version": a result may land only against
 /// the request that asked for it, so a run canceled and then re-asked
 /// can never have its abandoned answer accepted for the new ask.
+///
+/// The counter is not readable: every consumer compares generations
+/// and none displays one, so `Debug` is the only door to the number.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Generation(u64);
 
@@ -34,18 +37,11 @@ impl Generation {
     ///
     /// Saturating, not wrapping. A wrap would make a stale result
     /// compare equal to the current request — the one thing this type
-    /// exists to prevent — and it is unreachable at `u64` anyway, so
-    /// the arithmetic that cannot produce the failure is the one to
-    /// write. At the ceiling every request shares a generation and the
-    /// staleness filter degrades to accepting everything, which is the
-    /// pre-existing behaviour of a counter that never advances; no run
-    /// of this application gets within astronomical distance of it.
+    /// exists to prevent — so the arithmetic that cannot produce that
+    /// failure is the one to write. The ceiling it saturates at is not
+    /// reachable: [`Generation::FIRST`] is zero and this is the only
+    /// way to advance one, so getting there is 2^64 submits.
     pub fn next(self) -> Self {
         Self(self.0.saturating_add(1))
-    }
-
-    /// The raw counter, for a caller displaying it.
-    pub fn get(self) -> u64 {
-        self.0
     }
 }
