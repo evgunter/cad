@@ -980,5 +980,60 @@ class TestProductRoots(BenchWorkspace):
         self.assertEqual(caught.exception.variant, "no_body_roots")
 
 
+class TestCarriedAcrossTheSeam(BenchWorkspace):
+    """What an inner document's mates say, at the OUTER document's
+    gate.
+
+    A part's declared contacts cross the instantiation seam with its
+    geometry, and so does the bookkeeping that names them. What a
+    Python author sees because of that: an inner part whose own mate
+    could not be minted refuses the OUTER gate, naming the instance it
+    was reached through, rather than passing silently."""
+
+    def stand_doc(self, label, class_=ContactClass.Rest):
+        """The bench stand as its OWN document, so it can be
+        instantiated."""
+        doc = Doc(label)
+        post_a = doc.insert(Node.instantiate_part(self.post_ref))
+        doc.apply(
+            DocEdit.set_placement(
+                post_a,
+                Frame.translation(
+                    (0 * m, (SHELF_DEPTH - POST_SECTION) / 2 * m, 0 * m)
+                ),
+            )
+        )
+        shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
+        a_top = self.instance_face(doc, post_a, CapEnd.End)
+        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
+        mate = doc.insert(
+            Node.mate(post_a, a_top, shelf_i, s_bottom, class_, seat(POST_SEAT, SEAT_A))
+        )
+        self.ws.create(doc)
+        return doc, mate, DocRef(doc.id, content_pin(doc))
+
+    def instantiated(self, label, ref):
+        doc = Doc(label)
+        return doc, doc.insert(Node.instantiate_part(ref))
+
+    def test_an_inner_mate_that_cannot_be_minted_refuses_the_outer_gate(self):
+        # A `Tangent` mate solves and mints no record at rest, so the
+        # stand refuses its own gate — and an outer document is not at
+        # rest over a part whose contact nothing verified.
+        _, _, ref = self.stand_doc("carried-unmintable", class_=ContactClass.Tangent)
+        outer, instance = self.instantiated("carried-unmintable-outer", ref)
+        with self.assertRaises(pncad.AssemblyError) as caught:
+            assemble(outer, evaluate(outer, resolver=self.ws))
+        err = caught.exception
+        self.assertEqual(err.variant, "carried_mint_refusal")
+        # `through` is the instantiating node — the one id in the
+        # refusal that is a node of the document that was asked about.
+        self.assertEqual(err.through, instance)
+        # The inner mate is named in the message and NOT under `mate`,
+        # which every other arm answers in this document's id space.
+        self.assertIsNone(err.mate)
+        self.assertIn("at rest", str(err))
+
+
 if __name__ == "__main__":
     unittest.main()
