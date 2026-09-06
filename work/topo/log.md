@@ -296,3 +296,18 @@ nested items unscanned); a stale measured door count; two vocabulary
 spellings no door uses. Ten-item fix pass to the same lane. The item
 scan's missing shared home and two smaller siblings appended to the
 S-TCOST issue filed from D261's review.
+
+## Two-homes unit delivered; orchestrator meta-review (2026-09-06)
+
+PR 1959, head `c1539db5`, full matrix green: two function bodies in
+SEAT's `query.rs`, the mutant receipt showing the delegation is real
+(the door made to refuse → one `topo` row and one `sweep` row red).
+Deliberate deviation from the per-unit style-review posture, recorded:
+for a six-line delegation with an executed receipt, the orchestrator's
+own read is the review — a lane would re-derive the two disclosed
+questions and nothing else. Both questions got files: the missing
+positive row on SEAT's slate (`face-surface-kind-has-no-positive-row-in-topo`),
+the edge side's absent readback door on this one
+(`edge-carrier-kind-has-no-readback-door`). The lane's one-word
+question in `readback.rs` ("twin" → "flattening") taken
+orchestrator-direct on the branch; merges on green.
