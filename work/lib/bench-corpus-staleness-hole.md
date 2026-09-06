@@ -6,7 +6,6 @@ status: open
 opened: 2026-08-29
 github: 1186
 refs: [1176]
-needs_ev: true
 ---
 
 ## From GitHub issue 1186
@@ -78,3 +77,20 @@ Recommendation: (A) if the builders separate from the render deps
 cleanly (a read of `demos/tour/Cargo.toml` says they should: the scene
 functions use `pncad` only); (D) otherwise, with the header rewritten
 in the same PR that decides.
+
+## Ruled (Ev, PR 2019, 2026-09-06): **(E) — delete the committed bytes**
+
+Not one of the four options above: Ev's question ("why are these
+committed?") exposed that the corpus's premise is stale. G18B closed
+Python's assembly authoring the day LIB-G18a landed, and
+`crates/pncad-py/tests/test_assembly_author.py` already authors the post,
+the shelf, the flat-pack layout and the mated stand from nothing into a
+temp `Workspace` (`BenchWorkspace`). So: `test_assembly_eval.py` builds
+its store from the authored scene (the builders shared between the two
+files), saving the documents to the temp store before evaluating so the
+LOAD path stays exercised; `corpus/bench/` and its MANIFEST are deleted;
+the header's false live claim ("Python cannot AUTHOR an instantiate
+node") goes with them; the constant-reading guard stays, pointed at the
+shared Python constants, so a tour drift still reds; `demo-tour
+asm-corpus` is retired or kept as a demo-only door, the unit decides and
+says which. Dispatchable as a LIB unit.
