@@ -2,7 +2,7 @@
 id: MSOLVE-3
 kind: unit
 title: MateFault::PatternRule carries the evaluation layer's typed refusal; the DanglingHead catch-all closes
-status: spec
+status: dispatched
 opened: 2026-09-05
 refs: [mate-dangling-head-is-a-catch-all-that-reports-a-false-cause]
 branch: msolve/3-placer-refused

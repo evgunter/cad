@@ -1680,6 +1680,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_datum_too_small_to_lever",
             "mate_frame_degenerate",
             "mate_indeterminate",
+            "mate_part_selects_another_copy",
             "mate_poses_of_another_document",
             "mate_self",
             "mate_table_lacks",

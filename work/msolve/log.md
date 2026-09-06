@@ -207,3 +207,23 @@ every mate, refusing typed there; the offset keeps the arithmetic.
 Style: no MAJOR; the loop rows never folded a non-identity outer map
 (fixed with the reviewer's rows), two spellings of "which mates weld"
 collapsed, the copied test helpers hoisted beside the shared oracle.
+
+## MSOLVE-2 MERGED (2026-09-06, PR 2039)
+
+Fix pass green on the full matrix at `ef8926c`. Item closed, spec
+deleted into the ledger, `nested-pattern-mate-heads-refuse` closed —
+the PR 1731 ruling is fully landed. One consequence the fix pass
+stated: a mate the per-reference checks refuse still welds its
+cluster (the partition is structural), so an instance no pair reaches
+rides its cluster's recorded frame with the mate's row red, as a
+dangling head already does. Next: MSOLVE-3 on
+`msolve/3-placer-refused`.
+
+## MSOLVE-3 dispatched (2026-09-06)
+
+MSOLVE-2 merged (PR 2039, `6dff151`). `msolve/3-placer-refused` cut
+from main in the same lane clone against `docs/MSOLVE-3-SPEC.md`,
+which predates MSOLVE-2's move of the count check to
+`check_reference`; the lane reads the tree as it is. Slate after it:
+the gate's `Vanished` below a pattern, the lever's extent (`[ev]`),
+the remap-inference record correction.
