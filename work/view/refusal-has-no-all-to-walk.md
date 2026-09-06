@@ -6,6 +6,8 @@ status: closed
 opened: 2026-09-05
 closed: 2026-09-06
 refs: [refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake, session-clearing-walk-is-hand-maintained-three-times, viewer-const-all-tables-have-no-exhaustiveness-guard, dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum]
+pr: 2053
+branch: view/refusal-all
 ---
 
 
