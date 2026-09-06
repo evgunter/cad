@@ -21,3 +21,12 @@ D2-addendum classification is owed by whichever unit takes it (a refusal minted 
 ## Home
 
 `work/cert/` — S-CERT's charter names interval-mode honesty and period folds, the issue names S-CERT's slate as the natural home, and CERT-4 just landed on `chord_join.rs` with CERT-8 due to visit it.
+
+## Re-homed (2026-09-06)
+
+Moved from `work/cert/` to `work/props/` on S-CERT's exit walk PR
+(#1924, its handoffs ledger; merged by Ev 2026-09-06 = ratified), before
+`work/cert/` was deleted at sweep 7 of `docs/DOC-LEDGER.md`. Id, body
+and header are unchanged; the directory is the claim (`work/README.md`).
+The `## Home` section above naming `work/cert/` is superseded by this
+line and is kept as the record of why the file was filed there.

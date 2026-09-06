@@ -21,3 +21,12 @@ Unifying them means deciding whether the composite lane can afford a per-cell ce
 ## Home
 
 `work/cert/` — both sites, `crates/geom-brep/src/patch_bound.rs` and `crates/geom-brep/src/offset_fit.rs`, are named territory globs of S-CERT, and it is CERT-10's own residue.
+
+## Re-homed (2026-09-06)
+
+Moved from `work/cert/` to `work/props/` on S-CERT's exit walk PR
+(#1924, its handoffs ledger; merged by Ev 2026-09-06 = ratified), before
+`work/cert/` was deleted at sweep 7 of `docs/DOC-LEDGER.md`. Id, body
+and header are unchanged; the directory is the claim (`work/README.md`).
+The `## Home` section above naming `work/cert/` is superseded by this
+line and is kept as the record of why the file was filed there.

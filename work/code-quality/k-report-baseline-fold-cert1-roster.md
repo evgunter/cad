@@ -28,3 +28,12 @@ Refs: PR 1220, `docs/K-REPORT.md`, `docs/predicate-dimension-audit.md` (the `pro
 ## Home
 
 `work/cert/` — the roster that moved is `props/curved.rs`'s, inside S-CERT's `crates/geom-brep/src/props/*` territory, and the change is CERT-1's own consequence.
+
+## Re-homed (2026-09-06)
+
+Moved from `work/cert/` to `work/code-quality/` on S-CERT's exit walk PR
+(#1924, its handoffs ledger; merged by Ev 2026-09-06 = ratified), before
+`work/cert/` was deleted at sweep 7 of `docs/DOC-LEDGER.md`. Id, body
+and header are unchanged; the directory is the claim (`work/README.md`).
+The `## Home` section above naming `work/cert/` is superseded by this
+line and is kept as the record of why the file was filed there.

@@ -36,6 +36,12 @@ and routed here rather than edited, per `docs/prompts/implementer-discipline.md`
 `D322`, `D325` and `D326` are all closed, so nothing it kept out is live.
 `work/fillet/plan.md:71` is left as written — the exit walk quotes it verbatim.
 
+## CERT's half (2026-09-06, sweep 7)
+
+`work/cert/plan.md` was deleted whole at S-CERT's closing sweep
+(`docs/DOC-LEDGER.md`, sweep 7) and the spent sentence went with it,
+recoverable at the sweep SHA. Nothing remains for CERT to strike.
+
 ## Was
 
 `unrowed` — raised by lane T-1 (code-quality, Track T).
