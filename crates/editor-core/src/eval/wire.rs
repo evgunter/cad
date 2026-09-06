@@ -3917,6 +3917,8 @@ fn wire_sweep<T: Decide + geom_core::Bounds + super::SectionScalar>(
 /// exactly one step rather than tried at several.
 #[cfg(test)]
 mod route_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
     use super::{DeclaredPair, NodeErrorKind, RecipeNodeId, route_declarations};
     use crate::names::{CapEnd, EntityKind, RoleSeg, StableName};
     use crate::node::Node;
