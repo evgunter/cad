@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-03
 refs: [1191, 1939]
 pr: 1939
-needs_ev: true
 ---
 
 ## What was measured
@@ -188,6 +187,26 @@ refuse) at an enclosure straddling a tie rather than pick, and every
 stored `u_ref` changes — all STEP goldens re-bless once, any
 `FaceFrame` in a user document would rotate (none exists; pre-release).
 Awaiting Ev's confirmation of option 1 with that cost.
+
+## RULED: option 1 (Ev, 2026-09-06, on PR 1944)
+
+Ev: "we need to do option 1 to be correct", and on the second "cost"
+above: "(2) is not a cost; there's supposed to be instructions that
+changing bits on goldens is never a reason to skip on a change that
+would improve the code" (`docs/prompts/implementer-discipline.md` §3,
+Demos: if the new output is right, re-baseline and say in the PR what
+moved and why). The orchestrator had weighed the re-bless as a cost in
+§Sized and on the PR; that weighing was the error, not the option.
+
+So: `orthonormal_basis` crosses the normal with the world axis chosen
+by a total order on its components and normalises — no sign transfer.
+The one design point that remains is the `Interval` tie rule (an
+enclosure straddling the order's tie hulls the candidate frames or
+refuses typed; never picks), and it is the unit's to spell and measure.
+Every stored `u_ref` changes; every golden that pins one re-blesses
+with its reason in the PR; `Datum::FaceFrame`'s doc line names the
+class; M10-5's `in_plane_axis`/`chart_frame` workaround retires
+outright. Spec: `docs/PROPS-SIGN-HULL-SPEC.md`.
 
 ## Home
 
