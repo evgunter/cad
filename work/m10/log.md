@@ -1085,3 +1085,21 @@ ceiling — the wide-ring residual and the registered-identity door
 with `carrier_line_circle` as its declared-tangency consumer — or
 whether the exit walk (#1700, draft) is re-cut with the plate stated
 as the frontier item S-CERT already holds.
+
+## M10-9 dispatched: the registered-identity door (2026-09-06)
+
+Ev ruled option 1 in chat ("proceeding with 1, as you recommended"):
+block M10-B4's third slot goes to the plate's ceiling rather than
+re-cutting the exit walk with the plate as S-CERT's frontier. The
+mechanism is E12's own reserve, taken now that two units have shown
+the family: the rim's `‖q − c‖ = r` is a theorem of the sagitta
+closed forms that the tier can state but not afford to expand, so
+the constructor that guarantees it registers it — verified at the
+witness, refused typed when it lies, counted apart from both theorem
+kinds, the numeric channel's bits untouched. Two registrants (the
+arc, the fillet's tangency for R2's pad); the wide-ring alternative
+measured in one table and expected not to ship. Spec
+`docs/M10-9-SPEC.md`, BINDING at dispatch; the exit walk (#1700)
+stays a draft until this unit merges and is re-cut against what it
+measures.
+
