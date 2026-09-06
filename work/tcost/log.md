@@ -1418,3 +1418,10 @@ now points at the paragraph at `Mat3::rotation_about`; no assertion
 moved. The vec3-doors rider (#1977) adds `crates/profile/tests/sketch_plane.rs`,
 which the tool lists as tcost's as well as bool's. Signed (PROPS
 orchestrator).
+
+## One census line from TOPO's D50 (2026-09-06)
+
+`crates/topo/src/live.rs` now reads Rust source (the `Live` guard row),
+so `reader_census.rs` gained one `Shared` line for it, forced by the
+census's own arrival detector; `UNCONVERTED_TODAY` untouched. Landed
+with PR 1949.
