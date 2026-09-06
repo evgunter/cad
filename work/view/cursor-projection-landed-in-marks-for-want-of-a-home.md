@@ -2,9 +2,10 @@
 id: cursor-projection-landed-in-marks-for-want-of-a-home
 kind: issue
 title: cursor_projection is a camera transform living in marks because no module claimed it
-status: open
+status: closed
 opened: 2026-09-06
 refs: [2083]
+closed: 2026-09-06
 ---
 
 
@@ -46,3 +47,50 @@ until a unit moved it to `camera`, or the unit should have moved it to
 `likely`. The move is behaviour-preserving and nothing is broken; this
 is a judgement that `marks` is the wrong home and that the header
 damage is the evidence.
+
+## Closed
+
+`cursor_projection` moved to `crates/viewer/src/camera.rs` — the home
+the item proposed, verified before the move rather than assumed:
+
+- **`camera` already holds the projection algebra.** `view_projection`
+  builds the very matrix the function transforms, `project` answers in
+  the frame the function's `cursor_ndc` is in, and `ray_through` takes
+  a cursor and a viewport the same way. The function's subject is this
+  module's, which is the thing `marks` could never say.
+- **It costs `camera` no import.** The signature is `[[f32; 4]; 4]`,
+  `[f32; 2]`, `[f32; 2]` and nothing else, so the `use` block is
+  untouched and the module-kind gate's answer is unchanged
+  (**vocabulary**, both before and after; `viewer-module-kinds.sh` OK).
+- **`camera` already holds free functions** — `apply`, `fold`,
+  `fold_recorded` — so a `pub fn` outside `impl Camera` is the file's
+  existing shape, not a new one.
+- **The doc link narrowed rather than widened**, which is the item's
+  own tell running in reverse: `[\`crate::camera::Camera::project\`]`
+  is `[\`Camera::project\`]` in its new home.
+
+**Behaviour-preserving.** The body and signature moved verbatim; the
+only edits are prose. `crates/viewer/tests/*` needed no re-pointing
+because every suite already spelled it `viewer::cursor_projection`, the
+crate-root re-export, and that spelling is unchanged — it moved from
+the `pub use marks::{…}` list to the `pub use camera::{…}` one, so
+there is exactly one path to the function and **no `pub use` shim**
+(`session-shims-and-test-imports`'s hazard is not repeated). The one
+production consumer, `gpu.rs`, now imports `crate::camera::cursor_projection`.
+
+**Three structural sentences the move falsified, all fixed:**
+`marks.rs`'s *"# `cursor_projection` is not a mark, and is here for
+want of a home"* section is deleted — the module is now the three marks
+its opening claims and nothing else; `camera.rs`'s opening line said
+*"one state value, one typed operation vocabulary, one pure `apply`"*
+and now names the algebra too, with a `# The one free transform`
+section saying why the function is there; and the README's GQ7 row
+listed `cursor_projection` among `marks.rs`'s members and now names
+`camera::cursor_projection` separately, as projection algebra rather
+than a mark.
+
+**Where it is now**, since the citations above name the pre-fix tree:
+`crates/viewer/src/camera.rs:863-896` (doc from `:863`, `pub fn` at
+`:882`), imported by `crates/viewer/src/gpu.rs:80` and called at
+`gpu.rs:595`; the doc link this item cited at `marks.rs:460` is
+`camera.rs:875`.

@@ -1,5 +1,6 @@
 //! The viewport camera: one state value, one typed operation
-//! vocabulary, one pure `apply`.
+//! vocabulary, one pure `apply`, and the projection algebra over
+//! what it produces.
 //!
 //! # The state
 //!
@@ -31,6 +32,16 @@
 //! zero-scale dolly). Those are **refused typed** by [`apply`], never
 //! clamped and never silently dropped: a caller folding user input
 //! gets a [`CameraOpError`] it can show, and the camera it already had.
+//!
+//! # The one free transform
+//!
+//! [`cursor_projection`] is not about the camera's state at all: it
+//! takes a view-projection matrix, a cursor and a viewport size and
+//! returns another matrix. It is here because that matrix is the one
+//! [`Camera::view_projection`] produces and that cursor is in the
+//! frame [`Camera::project`] answers in — the projection algebra is
+//! this module's subject, and the id pass that consumes it is
+//! `gpu`'s.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
@@ -847,6 +858,41 @@ pub fn fold<'a>(
         Some((_, error)) => Err(error),
         None => Ok(folded.camera),
     }
+}
+
+/// The view-projection that puts ONE source pixel over the whole 1×1
+/// target the GPU id pass renders into.
+///
+/// A pixel centred at `cursor_ndc` spans `2 / width` by `2 / height` of
+/// normalized device space, so translating that point to the origin and
+/// scaling by the viewport's pixel dimensions maps exactly that pixel
+/// onto the target's `[−1, 1]²`. In a column-major clip-space matrix
+/// the translation is a subtraction of `cursor · w`, which is why the
+/// `w` row participates.
+///
+/// **It is out of the render module because it is the one part of the
+/// id pass a machine with no GPU can check**: composed with
+/// [`Camera::project`] it says that the world point the ray path
+/// un-projects to is the point the id pass rasterizes at the centre of
+/// its target. That composition is the headless half of "both picking
+/// paths answer the same question". It is HERE because its subject is
+/// this module's — the matrix it transforms is the one
+/// [`Camera::view_projection`] produces, and the cursor it takes is in
+/// the frame [`Camera::project`] answers in.
+pub fn cursor_projection(
+    view_projection: &[[f32; 4]; 4],
+    cursor_ndc: [f32; 2],
+    viewport_px: [f32; 2],
+) -> [[f32; 4]; 4] {
+    let [cx, cy] = cursor_ndc;
+    let [sx, sy] = viewport_px;
+    let mut out = *view_projection;
+    for column in &mut out {
+        let w = column[3];
+        column[0] = (column[0] - cx * w) * sx;
+        column[1] = (column[1] - cy * w) * sy;
+    }
+    out
 }
 
 /// The centre and radius of a box's bounding sphere.

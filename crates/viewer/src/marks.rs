@@ -28,19 +28,6 @@
 //! reaching past one. That property is what made the module separable,
 //! and keeping it is what keeps the two files independent.
 //!
-//! # [`cursor_projection`] is not a mark, and is here for want of a home
-//!
-//! It takes no index, no selection and no document — a
-//! view-projection, a cursor and a viewport size in, a matrix out —
-//! and nothing is lit by it. It is the id pass's 1×1 target
-//! transform, and it sits here because it is the one part of that pass
-//! a machine with no GPU can check, which is an argument about
-//! TESTABILITY rather than about subject. Said plainly because the
-//! alternative is a header that quietly counts it as a fourth mark:
-//! `work/view/cursor-projection-landed-in-marks-for-want-of-a-home`
-//! argues its home is `crate::camera`, whose `Camera::project` its own
-//! doc composes with, and holds that question.
-//!
 //! # A mark is a value, recomputed, and never retained
 //!
 //! Every answer here is a plain value computed from state that lives
@@ -443,36 +430,4 @@ fn drives(doc: &Doc<ProfileProgram>, node: RecipeNodeId, name: &ParamName) -> bo
             refs.iter().any(|(referenced, _)| referenced == name)
         })
     })
-}
-
-/// The view-projection that puts ONE source pixel over the whole 1×1
-/// target the GPU id pass renders into.
-///
-/// A pixel centred at `cursor_ndc` spans `2 / width` by `2 / height` of
-/// normalized device space, so translating that point to the origin and
-/// scaling by the viewport's pixel dimensions maps exactly that pixel
-/// onto the target's `[−1, 1]²`. In a column-major clip-space matrix
-/// the translation is a subtraction of `cursor · w`, which is why the
-/// `w` row participates.
-///
-/// **It lives here, out of the render module, because it is the one
-/// part of the id pass a machine with no GPU can check**: composed
-/// with [`crate::camera::Camera::project`] it says that the world
-/// point the ray path un-projects to is the point the id pass
-/// rasterizes at the centre of its target. That composition is the
-/// headless half of "both picking paths answer the same question".
-pub fn cursor_projection(
-    view_projection: &[[f32; 4]; 4],
-    cursor_ndc: [f32; 2],
-    viewport_px: [f32; 2],
-) -> [[f32; 4]; 4] {
-    let [cx, cy] = cursor_ndc;
-    let [sx, sy] = viewport_px;
-    let mut out = *view_projection;
-    for column in &mut out {
-        let w = column[3];
-        column[0] = (column[0] - cx * w) * sx;
-        column[1] = (column[1] - cy * w) * sy;
-    }
-    out
 }
