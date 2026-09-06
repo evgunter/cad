@@ -275,7 +275,25 @@ ERROR-DESIGN's own "Open after this doc" list.
   tier's theorems; the numeric bits untouched; the ring width measured
   in one table. Acceptance is E12's: the plate certifies, ε-free.
   Option 1 of two put to Ev after M10-8; ruled in chat ("proceeding
-  with 1").
+  with 1"). **MEASURED**: the door ships with one registrant (the
+  swept arc's rim identity, at the sagitta construction's site) and
+  discharges `carrier_endpoint_start` outright on all four documents.
+  Amendment A1 (the unit of scope is the CONSTRUCTOR) added the SPAN
+  identity at the same builder, discharging `carrier_endpoint_end` too;
+  still no ceiling moves and none stops scaling with ε. Read as the
+  over-band SET at the refusing end of the bisection, **all five
+  measured documents** (plate, R2's bracket, R1's annulus, R2's pad,
+  R2's link) are bounded by ONE predicate,
+  `carrier_matches_mapped_source` — the carrier against the scaffold
+  pushforward, two independently built objects
+  (`plate-ceiling-is-now-the-scaffold-pushforward`). The earlier
+  reading, that two of them were bounded by `line_span`, was an
+  artefact of asking one drive for its first refusal at twice the
+  ceiling; `line_span` is itself an identity residual
+  (`symbolic-tier-census`). The fillet's declared tangency cannot be
+  registered: the CENTRE the joint classifier asks about is re-derived
+  by `build_seg`, not the constructor's node
+  (`fillet-tangency-is-not-the-constructors-node`).
 
 Cross-program interfaces, named so "error" does not become a
 bucket: the PARAM-LINT unit (DISCIPLINES) is not ours and blocks

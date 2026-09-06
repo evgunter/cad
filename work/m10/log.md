@@ -888,3 +888,40 @@ The sign-hull unit (`docs/PROPS-SIGN-HULL-SPEC.md`, branch
 call sites — retires; the `refines` refusal door stays. The
 `m10_5_*_interval` and `r2_m10_di_*` rows re-derive on the stored
 frame. Announced by the spec §Seams. Signed (PROPS orchestrator).
+
+## M10-9 MERGED (2026-09-06)
+
+PR #2048 merged, sample #150 (ordinal 510). Block M10-B4 concludes.
+E12's reserve is taken and built honestly: a constructor registers a
+same-object identity it guarantees, the value channel never moves, a
+registered zero against a definite numeric sign is a typed
+contradiction, the count is its own, and the K row lints it. The arc
+carrier's rim and span identities discharge their predicates wholly
+at every nominal. And the result the unit ends on is not the one it
+was opened for, nor the one it first reported: the fix pass measured
+the over-band set at ceiling + δ on five documents at three ε rows,
+door on and off, and found one predicate over the band every time —
+`carrier_matches_mapped_source`, the scaffold pushforward, an
+identity between two independently built objects. The identities the
+door discharges were never what bounded a document. Every "what
+bounds this" sentence since M10-7 had been read at twice the ceiling,
+where evaluation order picks the name (filed against the instrument).
+So the spec's §2 sentence naming `line_span` as the dependency-
+widening class was wrong twice over: `line_span` is an identity of
+the fillet construction, and it was never the bound. What the staged
+walk past the scaffold residual shows is the shape of what remains:
+three identity residuals worth 2× together, then a fourth worth
+1.68e5× that lands the plate at 0.263 of its real study against
+`assert_bound` — the real flip E12 predicts. A per-identity door is on
+the wrong side of that cliff; the three past the scaffold residual
+are FORM identities, and the mechanism that reaches them is
+form-level — the early A/B walk that M10-8 built and dialled off, or
+the ring — which no unit in this block was allowed to ship. Both
+reviews found the door's contract overstated (the interval witness
+accepts any coincidence whose enclosures meet; the assert that would
+catch a false axiom had been exempted) and one found the diagnosis
+wrong; the fix pass found the diagnosis wrong one level further up.
+Two review fixes were built, measured and reverted with the argument
+filed. Thirty-one deviations. The spec leaves `docs/` with this merge;
+the exit walk (#1700) is re-cut against these numbers, and whether
+the form-level unit is owed before M10 closes goes to Ev.

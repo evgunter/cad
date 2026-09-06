@@ -594,6 +594,57 @@ number.
   expression identity. Taken only if the census shows a family the
   symbolic tier misses.
 
+  **TAKEN (M10-9, 2026-09-06)**, on the family M10-7's census and
+  M10-8's measurement showed: `geom_core::sym::Sym::register_equal`,
+  a session-level record that two DAG NODES denote one function of the
+  parameters, made by the site that guarantees it, counted apart from
+  both theorem kinds (`SymCounts::registered`, the K token
+  `registered`). The numeric channel is untouched — a registration
+  reads no value except its own witness and writes none — and the
+  numeric channel runs FIRST at every decide site, so no registration
+  can turn a margin the enclosure proved non-zero into a `Zero`; where
+  a registration WOULD have, the run counts the contradiction
+  (`SymCounts::registrations_contradicted`) instead of folding it away.
+
+  **What the witness is worth, stated exactly, because this clause's
+  own wording ("verified at the f64 witness point") overstates it.** A
+  registration is an AXIOM: its soundness rests on the registrant's
+  proof and on nothing the door checks. The witness refuses only a lie
+  visible AT THE POINT, or one whose two certified enclosures are
+  DISJOINT over the box — and "the enclosures meet" is satisfied by
+  every coincidence, so `x² ≡ x` over `[0.9, 1.1]` is recorded, and a
+  registration false by a geometric amount is recorded as soon as the
+  box is wide enough for the two enclosures to overlap. The door cannot
+  tell an identity from a coincidence. Two consequences ship with it:
+  every registrant carries its theorem in its doc comment, and the call
+  sites are an allowlist a reviewer can read
+  (`scripts/gates/register-equal-allowlist.sh`) — the method hands
+  every generic `T: Real` body a value comparison, which is the
+  capability evaluation-code discipline exists to keep out of that
+  position.
+
+  The point witness is also ε-INDEPENDENT: a relative constant
+  (`geom_core::real::WITNESS_REL`), not the run's tolerance, because a
+  library body may not mint one and the door takes no `tol`. At a tight
+  ε row it is many band-widths loose. Filed with the two routes out
+  (`work/m10/the-witness-slack-is-eps-independent`); the `Interval`
+  refusal, which is the one that matters over a box, carries no
+  tolerance at all.
+
+  The "same-OBJECT" limit in this bullet is exactly what M10-9
+  measured, and it BINDS: the swept arc's rim and span identities
+  discharge because the registrant builds the very nodes the consumer
+  asks about; the `Fillet` step's declared tangency does not, because
+  the CENTRE the joint classifier asks about is re-derived inside the
+  funnel from the stored `(a, b, bulge)` and the constructor does not
+  hold the operands that closed form needs
+  (`work/m10/fillet-tangency-is-not-the-constructors-node`); and the
+  residual that bounds every measured document,
+  `carrier_matches_mapped_source`, is an identity between two
+  INDEPENDENTLY BUILT objects, which is the line this bullet draws
+  (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`). No
+  form-level axiom store was built, and the reason is this clause.
+
 Rationale: the driver's job is to certify over the STUDY's box; a
 certifier that can only certify boxes narrower than its own ε is
 correct and useless, and the honest state M10-3 pinned was never the
