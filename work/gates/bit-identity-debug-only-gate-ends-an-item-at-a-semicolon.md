@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-04
 track: K
 branch: gates/debug-only-subjects
+pr: 2030
 ---
 
 ## What
