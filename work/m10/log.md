@@ -1150,3 +1150,93 @@ span → mapped-source) is a long tail that per-identity registrants
 cannot finish, and what the FULL refusal set just past the ceiling
 says about where the exit condition actually lives.
 
+
+## M10-9 dual review adjudication (2026-09-06)
+
+Both arms on frozen ac34ceec3 (PR #2048, green on the full matrix).
+R1 mergeable (2 MAJ / 6 MIN / 2 NOTE, rubric 4/4/3); R2 mergeable
+(2 MAJ / 5 MIN / 6 NOTE, rubric 4/4/3). Both reproduced every headline
+number (the four ceilings identical door on/off to the digit, the
+counts, the hosted K lines); both say the door is sound WITHIN ITS
+STATED LIMITS and that the limits are overstated. Where they diverge
+is what each attacked hardest.
+
+R1, BY EXECUTION, on the door's CONTRACT: at `Sym<Interval>` — the
+lane the driver replays in — the witness is "the enclosures meet",
+which any coincidence satisfies: `x² ≡ x` over `[0.9, 1.1]` is
+Recorded and then decides `Zero` for the whole box on a residual that
+changes sign inside it; a 0.1 %-wrong radius that f64 refuses is
+Recorded at Interval. The f64 witness catches only lies false at the
+nominal, so the door cannot tell an identity from a coincidence — the
+one thing E12 says the tier does — and the sentence "refused typed
+when it lies" is false in the PR, at `sym.rs:1608`, `real.rs:145`
+and in the E12 "TAKEN" clause the unit wrote. And the cross-check
+that would catch a false axiom was silently disabled: the
+debug-assert at `sym.rs:3023` exempts `Discharge::Registered`, the
+only way a zero form under a definite numeric sign can now arise,
+while its doc fifteen lines up still calls that a soundness bug;
+refusals leave no trace (the typed answer discarded by both
+registrants, `register_equal` not `#[must_use]`, no count). Verified
+at the site. R1's tail measurement: past the ceiling every identity
+residual scales exactly with the box (ratio 512.0 over ×2 → ×1024,
+door on and off), so removing one identity moves the ceiling by at
+most the ratio of coefficients (~4 %) — per-identity registrants can
+never finish.
+
+R2, BY EXECUTION, on the DIAGNOSIS: the bracket, pad and annulus are
+NOT bounded by `line_span`; the PR read the first refusal at 2× the
+ceiling, where evaluation order (validation before certify) picks
+`line_span`, and at ceiling + δ all five documents (R2's own link
+included) are bounded by `carrier_matches_mapped_source`. And
+`line_span` there is itself an IDENTITY of the fillet construction —
+the tangent contact's foot is the leg's end, so `min(t, L − t)` is
+identically zero and its enclosure is centred on zero — not the
+real-margin class; "E12's what-opens class reached" is false in four
+documents. Then the finding that matters for the program: with an
+evidence-only dial passing each indeterminate identity in turn, the
+plate walks mapped-source (7.8e2·ε) → `carrier_on_surface_2`
+(1.04e3·ε) → `pcurve_map_residual` (1.25e3·ε) → `witness_on_surface_2`
+(1.56e3·ε) → **2.63e8·ε = 0.263 of the real study, bounded by
+`assert_bound`** — the real flip E12 predicts. The plate is FOUR
+identity residuals from a macroscopic box; the three past the
+scaffold residual are FORM identities (`v·v = r²` under
+`sin² + cos²`, the chart residual, the witness residual) that no node
+alias reaches — the mechanism is form-level or ring, which this
+unit's spec forbade. R2 also shows the fillet obstacle is an
+implementation choice (the step holds `origin`, `t1`, `t2`, `bulge`;
+the consumer re-derives its nodes through `build_seg`; a
+`Real`-bounded door in `profile::seg` of D13's shape would make them
+the same node — R1 found the complementary half: the CENTRE is what
+is re-derived, `line.a` IS `t2`), with no ceiling impact either way.
+
+Correspondence: R1's coincidence MAJOR ≡ R2's MINOR-1 (bilateral,
+severity divergence — calibration data); R1's assert MAJOR ≡ R2's
+NOTE-6 (bilateral, severity divergence); the `Real` oracle (R1 m5 ≡
+R2 MINOR-3), the fillet cause (R1 m4 ∪ R2 MINOR-2), the attribution
+order (R1 m1 ∪ R2 MINOR-4) and the evaluation-order artefact (R1 m6 ⊂
+R2 MAJOR-1) bilateral. TALLY CANDIDATES: R2's MAJOR-2 (unilateral, by
+execution — the four-identity walk to the real flip) and R2's MAJOR-1
+(the bound mis-named in four documents and `line_span` shown an
+identity — R1 saw the order artefact on the pad without overturning
+the class claim; overlap disclosed for the blinded adjudication).
+Unilateral MINORs: R1's gate-carry silent deviation; R2's unregistered
+revolve constructors; R1's WITNESS_REL ε-story against R2's "never
+consulted in a drive" (one of them is wrong — the fix pass measures).
+
+Fix pass IMPLEMENTER-INHERITED: the contract re-stated everywhere with
+both coincidence probes adopted as pins of the LIMIT; a registered
+zero against a definite numeric sign made a typed contradiction at
+decide time (never a debug-only assert), refusals counted and shown,
+`register_equal` `#[must_use]`; the bound re-measured at ceiling + δ
+with the full over-band set on every document and every "real-margin
+class reached" sentence corrected, `line_span` recorded as an
+identity; the scaffold finding re-cut with R2's four-step walk and
+R1's tail ratio as the next unit's starting numbers; the fillet
+finding re-cut with the true cause; the `Real` door's discipline
+gated to registrant sites and the substrate→consumer import removed;
+the door asked last and `gated` carried; WITNESS_REL resolved; the
+revolve constructors registered; the pins tightened to the bisection
+bracket; the silent deviations disclosed. Durable homes: the
+form-identity tail (an M10 item naming the three residuals and the
+form-level mechanism, for the exit conversation); `line_span` as an
+identity (census); the five spellings of `Registered` (class).
