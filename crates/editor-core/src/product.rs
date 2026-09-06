@@ -442,9 +442,9 @@ pub struct Product<T: Decide> {
     /// The rows are the attribution channel and nothing else: the
     /// records themselves carry arena keys, so a finding against one
     /// needs this list to say which mate authored it. A declaration
-    /// that arrived from a sub-assembly has no row here — its mate
-    /// belongs to another document, whose bookkeeping does not cross
-    /// the seam even though its record does.
+    /// that arrived from a sub-assembly has no row HERE — its mate
+    /// belongs to another document, so it rides `carried` below, which
+    /// keeps that document and the route with it.
     pub minted: Vec<crate::assembly::MintedDeclaration>,
     /// One row per live mate the gather could NOT mint, in document
     /// order ([`crate::MintRefusal`]).

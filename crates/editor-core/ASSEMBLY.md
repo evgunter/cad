@@ -170,8 +170,22 @@ never blessed. `AssemblyError::AtRest` is a verdict against the
 document; `AssemblyError::Uncertified` is the declared direction's
 frontier (every finding declined, none refuted). A disjoint assembly
 certifies as a multi-solid tier-3 body. A sub-assembly's declarations
-ride through the seam as records (`PartValue::contacts`), but
-attribution stops at the seam. Interference fits through recorded
+ride through the seam as records (`PartValue::contacts`) **and so does
+the bookkeeping that names them**: `PartValue::minted`/`unminted` carry
+each inner mate's declaration and each mate the inner document could
+not mint, re-keyed at every graft through the graft's own descendant
+map into `Product::carried`/`carried_unminted` and tagged with the
+route they arrived by — the instantiating node, the document that
+minted them, and the instances below it. A finding against a carried
+declaration therefore attributes `Attribution::Carried`, naming that
+mate, that document and that route, and `Attribution::Unattributed`
+means what it says: a finding no declaration of ANY document in the
+tree answers for. An inner mate that could not be minted refuses the
+outer gate (`AssemblyError::CarriedMintRefusal`), before this
+document's own unminted head and before the at-rest gate — an outer
+assembly is unusable while an inner part's contact is unverified.
+Nothing is re-verified or re-minted across the seam: verification runs
+once, at the outermost gate. Interference fits through recorded
 gate-skips are not implemented.
 
 ## Mirror

@@ -447,16 +447,16 @@ fn p7_seam_gate_by_arm() {
     }
 }
 
-/// P8: the seam drops the inner document's UNMINTED rows too. An inner
+/// P8: an inner document's UNMINTED rows cross the seam. An inner
 /// stand whose only mate is an unmintable Tangent over a GAP (seat
-/// 5.0): the inner document's own `assemble` refuses `NoAtRestRecord`,
-/// but instantiated into an outer document the outer gate has nothing
-/// to see — no contact, no declaration, no carried refusal — and
-/// passes. Identical to main by construction (main carried nothing
-/// either); printed here to bound "verification runs once at the
-/// outermost gate": inner MINT REFUSALS do not reach the outer gate.
+/// 5.0) refuses its own `assemble` with `NoAtRestRecord`, and
+/// instantiated into an outer document that refusal reaches the outer
+/// gate as `CarriedMintRefusal`: an outer assembly is not at rest over
+/// a part whose contact nothing verified. "Verification runs once at
+/// the outermost gate" bounds where the KERNEL is asked, not which
+/// documents' mint health the gate reads.
 #[test]
-fn p8_inner_mint_refusals_stop_at_the_seam() {
+fn p8_inner_mint_refusals_reach_the_outer_gate() {
     let mut store = StubStore::default();
     let part = store.insert(cube_part("m6r2-p8-cube"), Tol::witness());
     let mut inner = ProfileDoc::empty(DocumentId::derive("m6r2-p8-stand"), Tol::witness());
@@ -488,4 +488,8 @@ fn p8_inner_mint_refusals_stop_at_the_seam() {
         headline(&inner_result),
         headline(&outer_result)
     );
+    assert!(matches!(
+        outer_result,
+        Err(AssemblyError::CarriedMintRefusal { .. })
+    ));
 }

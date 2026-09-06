@@ -110,6 +110,8 @@ mod docm3_union;
 mod docm4_evaluation_identity;
 #[path = "docm5_subject.rs"]
 mod docm5_subject;
+#[path = "docm6_seam_declarations.rs"]
+mod docm6_seam_declarations;
 #[path = "dsc_checks.rs"]
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
