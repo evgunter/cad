@@ -4,7 +4,6 @@ kind: issue
 title: blend size gate: a positive size under the band's zero still reaches a false-fact refusal at both doors
 status: open
 opened: 2026-09-04
-refs: [fillet-nonpositive-radius-false-fact-refusal]
 ---
 
 Both blend doors share `nonpositive_size_gate`
@@ -69,3 +68,7 @@ Filed out of FILLET-E1's review round (PR 1743), which landed the
 shared gate; the review's own probe row for this class was `#[ignore]`d
 and has been converted to the characterization above rather than left
 skipped.
+
+## Pointer (FILLET sweep, 2026-09-06)
+
+Former `refs` `fillet-nonpositive-radius-false-fact-refusal` named FILLET items now deleted with that program's directory: `fillet-nonpositive-radius-false-fact-refusal` — FILLET E1, closed (PR 1743). Recoverable at the sweep SHA in `docs/DOC-LEDGER.md` (sweep 7).

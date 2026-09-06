@@ -4,7 +4,7 @@ kind: issue
 title: The six profile fillet recourse sentences are dead: EscalationSite::Fillet has no producer and PathError::Escalated has no fillet arm
 status: open
 opened: 2026-09-04
-refs: [recourse-sentences-owe-followability-pin, S11]
+refs: [S11]
 ---
 
 ## The class
@@ -59,3 +59,7 @@ route the `sugar` fillet escalations through `ProfileError` at the
 `Fillet` site; or retire the six constants and the arm as machinery
 with no producer. A door change either way — input to the FILLET
 program's H units.
+
+## Pointer (FILLET sweep, 2026-09-06)
+
+Former `refs` `recourse-sentences-owe-followability-pin` named FILLET items now deleted with that program's directory: `recourse-sentences-owe-followability-pin` — FILLET E2, closed (PR 1753). Recoverable at the sweep SHA in `docs/DOC-LEDGER.md` (sweep 7).
