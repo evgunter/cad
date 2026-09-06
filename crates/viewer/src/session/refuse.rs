@@ -338,9 +338,15 @@ impl Refusal {
     /// parameter form shows the same sentence BEFORE the click — one
     /// composition, so the pre-click notice and the refusal cannot
     /// drift apart.
+    ///
+    /// The dimension is named through its OWN `Display`, which is the
+    /// one home of the dimension-in-prose rule (`Dimension`'s impl in
+    /// editor-core): a dimension is a quantity KIND, so a sentence a
+    /// person reads says the common noun and never the variant
+    /// identifier.
     pub fn exists_wording(name: &ParamName, dimension: Dimension) -> String {
         format!(
-            "parameter {} already exists ({dimension:?}) — edit it instead?",
+            "parameter {} already exists ({dimension}) — edit it instead?",
             name.0
         )
     }

@@ -408,28 +408,37 @@ fn the_affordance_outranks_the_bookkeeping_refusal_it_causes() {
     assert!(shown.rank() < Refusal::NoGesture.rank());
 }
 
-/// **Five refusals a panel can provoke render as sentences** — five,
-/// named, and not a claim about the vocabulary.
+/// **Six refusals a panel can provoke render as sentences** — six,
+/// named, and not a claim about the vocabulary. Each is a real op
+/// through a real door, so the rendering asserted is the one a person
+/// reads.
 ///
-/// The title used to say "every refusal" while the body exercised the
-/// `Io` arm alone, which is why it stayed green while `Refusal::Edit`
-/// rendered a `{:?}`-quoted parameter name into the status line. Each
-/// row below is now a real op through a real door, so the rendering
-/// asserted is the one a person reads.
+/// **The universal is not asserted here, because a sample cannot hold
+/// it.** `Refusal` has 18 arms and one of them is `Edit`, which
+/// forwards ~50 sub-variants, so what decides the rendering is the
+/// payload's variant one level down — `crates/pncad-py/src/
+/// prose_census.rs` states exactly that failure mode, and a roster
+/// that picks its own samples excludes the failing mode by
+/// construction. The two vocabulary-wide halves live elsewhere, and
+/// are named here so this row is not read as holding them:
 ///
-/// **The universal is not restored, because it is not true.**
-/// `Refusal` has 18 arms and this walks 5; worse, one of them is
-/// `Edit`, which forwards ~50 sub-variants, so what decides the
-/// rendering is the payload's variant one level down —
-/// `crates/pncad-py/src/prose_census.rs` states exactly that failure
-/// mode, and a roster that picks its own samples excludes the failing
-/// mode by construction. It is excluded here too: `EditError`'s
-/// metadata arms (`MetaNotSet`, `MetaNonFinite`, `MetaUnversioned`,
-/// `RebindMetadataCollision`) render a `key: String` through `Debug`,
-/// so `!contains('"')` is FALSE of them today and this row cannot see
-/// it. What covers a claim of that shape is a source census over the
-/// tree, not a sample: `work/view/refusal-has-no-all-to-walk.md`
-/// carries the gap and the two censuses that already exist.
+/// * **that every arm renders at all** is the compiler's.
+///   `Display for Refusal` and `Refusal::rank` are exhaustive matches
+///   with no wildcard, so a nineteenth arm reds both until it is
+///   given a sentence and a rank. That is the obligation an `ALL`
+///   over this vocabulary was wanted for, and the type has it already
+///   — which is why there is no `Refusal::ALL` to walk.
+/// * **that no rendering carries the field-brace fingerprint** is
+///   `prose_census`'s, a census over SITES rather than samples.
+///
+/// The shape asserted below is F6's — editor-core's ratified `Display`
+/// contract (`crates/editor-core/tests/display_contract.rs`): no
+/// brace, no `Debug` field punctuation, no variant identifier, and
+/// never simply the dump. A quotation mark is not on that list and is
+/// not asserted against: `EditError`'s metadata arms quote a user's
+/// key deliberately and `MetaUnversioned` names the D7 `"v"` field by
+/// writing it, so a blanket quote ban fires on correct prose rather
+/// than on a dump.
 #[test]
 fn refusals_render_as_sentences() {
     let tol = Tol::witness();
@@ -484,20 +493,44 @@ fn refusals_render_as_sentences() {
         .refusal
         .expect("a profile has no radius slot");
 
-    for (arm, rendered) in [
-        ("Io", io.to_string()),
-        ("Edit", edit.to_string()),
-        ("NoSuchParam", lookup.to_string()),
-        ("WrongNodeKind", kind.to_string()),
-        ("NoSuchSlot", slot.to_string()),
+    // The arm whose sentence is composed OUTSIDE `Display` — through
+    // `Refusal::exists_wording`, shared with the add-parameter form's
+    // pre-click notice — and therefore outside the source census,
+    // which reads `impl Display` bodies. It names the dimension in
+    // editor-core's own word.
+    let exists = session
+        .perform(SessionOp::CreateParam {
+            name: common::thickness_param(),
+            value: pncad::document::DocParam::continuous(pncad::document::Dimension::Length, 1.0),
+        })
+        .refusal
+        .expect("creating over a declared name refuses");
+    assert!(
+        exists.to_string().contains("(length)"),
+        "the dimension is the quantity's noun, not its variant identifier: {exists}"
+    );
+
+    for (arm, refusal) in [
+        ("Io", &io),
+        ("Edit", &edit),
+        ("NoSuchParam", &lookup),
+        ("WrongNodeKind", &kind),
+        ("NoSuchSlot", &slot),
+        ("ParamExists", &exists),
     ] {
+        let rendered = refusal.to_string();
         assert!(
-            !rendered.contains('{') && !rendered.contains('"'),
+            !rendered.contains('{') && !rendered.contains("node:") && !rendered.contains("name:"),
             "{arm} is a sentence, not a debug dump: {rendered}"
         );
         assert!(
             !rendered.contains(arm),
             "{arm} leaves its variant name standing: {rendered}"
+        );
+        assert_ne!(
+            rendered,
+            format!("{refusal:?}"),
+            "{arm} renders as its own dump"
         );
     }
 

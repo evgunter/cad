@@ -4307,3 +4307,60 @@ The board is now **48 open, 27 closed, nothing dispatched, nothing on
 Ev**, and no large item left: small units, two waiting on DOCM's
 `next_id` door, and the focus-map siting question no single program can
 answer.
+
+## `Refusal` has no `ALL`, and does not need one — 2026-09-06
+
+`refusal-has-no-all-to-walk` closed answered-and-fixed. The item asked
+for an instrument that cannot exist in the shape it named, and the
+question underneath it turned out to have a live defect in it.
+
+**No `ALL` can exist, and none is needed.** A `Refusal` value needs a
+payload and a payload needs a document, so an `ALL` would mint fixtures
+rather than state a fact about the type; `vocabulary!` (#2046) projects
+one for fieldless variants only, and this vocabulary is nearly all
+payload arms. What an `ALL` was wanted for — *a new arm must answer for
+itself* — the type already has: `Display for Refusal` and
+`Refusal::rank` are exhaustive matches with no wildcard, so nothing can
+join this vocabulary and reach a user unrendered. That reasoning is in
+the item's `## Closed`, because the next reader's first question is why
+there is no `Refusal::ALL`.
+
+**The property left over was prose, and one arm was failing it.**
+`Refusal::exists_wording` rendered `({dimension:?})`, so the status
+line and the add-parameter form's pre-click notice both said
+"parameter width already exists (**Length**)" — the variant identifier,
+against `Dimension`'s `Display` in editor-core, which declares itself
+the one home of the dimension-in-prose rule and says it holds
+*wherever a dimension reaches a user*. Three siblings stood in the
+properties panel. All four fixed; the refusal one is pinned by
+`refusals_render_as_sentences`, which now walks `ParamExists` through
+`CreateParam`.
+
+**It got past both instruments for two independent reasons**, and this
+is the part worth keeping. `prose_census` scans `impl Display` bodies
+and nothing else — but this vocabulary composes three sentences in an
+inherent `impl` on purpose, so a pre-click surface and the status line
+cannot drift, and `Display` delegates to them through a bare `{}`. The
+census cannot see a delegated wording. And had it seen this one, the
+verdict would still have been `Prose`: a fieldless enum carries no
+`" { "`, so a census that asks about BRACES never asks whether a
+`Debug` here spells an identifier a person then reads. Both gaps are
+LIB's ground (`crates/pncad-py/*`) and are handed over in the PR rather
+than filed onto another program's slate.
+
+**The item's own ask is answered no.** It wanted the census extended so
+a `{binding:?}` over a `String` reds, because the row asserted
+`!contains('"')`. That would enforce an unratified rule against
+deliberate prose — F6 (`display_contract.rs`) lists the `Debug`
+fingerprints and a quotation mark is not among them; `EditError` quotes
+a user's key on purpose and `MetaUnversioned` names the D7 `"v"` field
+by writing it. The clause was a tripwire on correct prose, and the row
+now asserts F6's shape instead, with a doc comment naming which half is
+the compiler's and which is the census's so it stops reading as a claim
+over the vocabulary.
+
+One near-duplicate avoided: the add-parameter form's hand-written
+`Dimension` table was filed hours earlier by #2046's style review as
+`dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum`, whose
+last section reads its labels against the same clause. It stays open
+and is not what this unit touched.
