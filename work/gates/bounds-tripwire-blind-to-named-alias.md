@@ -2,10 +2,13 @@
 id: bounds-tripwire-blind-to-named-alias
 kind: issue
 title: Discipline tripwire — teach the compound-Bounds grep the ArcCarrierScalar alias (and named compound bounds generally)
-status: open
+status: closed
 opened: 2026-08-09
 github: 279
 refs: [273]
+branch: gates/d102-parameter-grouped-bounds
+pr: 2056
+closed: 2026-09-06
 ---
 
 ## From GitHub issue 279
@@ -125,3 +128,30 @@ as far as `crates/pncad/src/profile.rs:54`.
 ## Claimed by GATES (2026-09-06)
 
 Moved from `work/code-quality/` to `work/gates/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, `track:` letter and body unchanged. Unlettered; its live residue is one paragraph in `crates/geom-core/src/real.rs` (PROPS' file, edited by announced seam) and it closes with `D102`, the survey's routing.
+
+## Closed with D102
+
+The live residue — ask 2 — is landed: `crates/geom-core/src/real.rs`'s
+`Bounds` scope rule now says that a NAMED compound bound is the same
+obligation as the literal `+ Bounds` spelling, naming both live aliases
+(`ArcCarrierScalar`, `EvalScalar`), so the ratified text covers the
+named form and not only the literal one. One paragraph, in PROPS' file,
+announced in the PR.
+
+Ask 1 stays argued against FOR `ArcCarrierScalar` (S63: the roster-keyed
+matcher reds two files — `family.rs` and `program.rs` — whose every use
+is the sole bracket bound `plant_sole_bracket_bounds` pins as
+must-NOT-fire). It is not argued against per se, and the other rostered
+name is the counterexample: `scripts/gates/evalscalar-allowlist.sh`, in
+the tree since 2026-09-04, IS that matcher keyed on `EvalScalar`, with
+`eval/{mod,parts}.rs` allowlisted, and it is green — because that name's
+uses are confined to the seam. What decides is the name's population,
+not the instrument. Ask 3 is D102 and is landed with it.
+
+So the two aliases stand differently. `ArcCarrierScalar`'s uses remain
+capability rather than evasion and remain invisible to every matcher
+here — KNOWN GAP 3, registered on the roster, not discharged.
+`EvalScalar`'s uses inside `crates/*/src` are checked by that sibling
+gate; its uses outside it — the name is re-exported at
+`crates/editor-core/src/lib.rs:117` and bound in
+`crates/editor-core/tests/` — are outside both gates' source view.

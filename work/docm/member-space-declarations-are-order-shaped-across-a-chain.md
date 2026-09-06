@@ -108,3 +108,12 @@ The row flips when the ruling lands:
 `crates/editor-core/tests/docm7_union_declare.rs`,
 `member_space_declarations_across_a_chain_are_order_shaped` — it asserts
 BOTH outcomes as they are today and names this file.
+
+## Ruled (2026-09-06)
+
+Ev, in chat: a nested `Merged` should never have existed — whatever
+creates it should create it flat (N3's constituent SET was already the
+contract); `collapse` does not flatten, it refuses the nested shape as
+an emission bug. With flat sets the look-through is a membership test
+at the union's routing step, before the shared resolver. Built as
+`DOCM-8` (`docs/DOCM-8-SPEC.md`); this file closes at its merge.

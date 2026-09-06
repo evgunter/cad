@@ -175,7 +175,7 @@ use crate::pick::{IdMap, NotIndexed, PickError, PickIndex, PickIndexError};
 use crate::prefs::StoreError;
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
-use crate::session::{AtRestBadge, Refusal, SessionOp};
+use crate::session::{AtRestBadge, Outstanding, Refusal, SessionOp};
 
 /// **What something the chrome shows is ABOUT** — carried by a
 /// [`Message`] on the line and by a [`Badge`] on the toolbar alike.
@@ -1408,8 +1408,8 @@ pub fn projection_badge(error: Option<&CameraError>) -> Option<Badge> {
 /// seam; expressing that as a second `if` beside the first would have
 /// given the toolbar two indicators that can both be lit, for one
 /// wait, with no rule anywhere saying which the reader should believe.
-/// The rule is here instead, and it is a total function of three
-/// booleans.
+/// The rule is here instead, and it is a total function of what the
+/// session owes and whether the index seam is busy.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Progress {
     /// A run is in flight: the picture is older than the document and
@@ -1439,7 +1439,8 @@ pub enum Progress {
     Indexing,
 }
 
-/// The one state, from the session's two answers and the pick cache's.
+/// The one state, from what the session owes and what the pick cache
+/// is doing.
 ///
 /// **Evaluation outranks indexing**, because an index built for a
 /// generation the session has already moved past is about to be
@@ -1447,12 +1448,12 @@ pub enum Progress {
 /// without cancel means both can be in flight at once, and naming the
 /// index build there would tell a reader the wait was nearly over when
 /// a whole evaluation is still ahead of it.
-pub fn progress(busy: bool, running: bool, indexing: bool) -> Option<Progress> {
-    match (busy, running, indexing) {
-        (true, true, _) => Some(Progress::Evaluating),
-        (true, false, indexing) => Some(Progress::Canceled { indexing }),
-        (false, _, true) => Some(Progress::Indexing),
-        (false, _, false) => None,
+pub fn progress(outstanding: Outstanding, indexing: bool) -> Option<Progress> {
+    match outstanding {
+        Outstanding::Evaluating => Some(Progress::Evaluating),
+        Outstanding::Canceled => Some(Progress::Canceled { indexing }),
+        Outstanding::Current if indexing => Some(Progress::Indexing),
+        Outstanding::Current => None,
     }
 }
 
@@ -1540,13 +1541,37 @@ const PREFS_DIR: &str = "pncad";
 /// The preferences file's name inside it.
 const PREFS_FILE: &str = "viewer.toml";
 
+/// What the `zenity` probe read.
+///
+/// A named type rather than a `bool` for the reason
+/// [`crate::session::Outstanding`] gives: it sits beside a second
+/// environment reading of the same shape, and two adjacent `bool`s
+/// that mean different things transpose silently.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Zenity {
+    /// A `zenity` binary sits in some `PATH` directory.
+    OnPath,
+    /// None does.
+    NotOnPath,
+}
+
+/// What the D-Bus probe read. Named for the same reason as
+/// [`Zenity`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SessionBus {
+    /// A session-bus address is advertised.
+    Advertised,
+    /// None is.
+    NotAdvertised,
+}
+
 /// The chooser verdict as a pure function of the two probe readings,
 /// so the rows exercising it do not depend on the CI box's `PATH`.
-pub fn chooser_backend_of(zenity_on_path: bool, session_bus: bool) -> ChooserBackend {
-    match (zenity_on_path, session_bus) {
-        (true, _) => ChooserBackend::ZenityPresent,
-        (false, true) => ChooserBackend::PortalPossible,
-        (false, false) => ChooserBackend::Absent,
+pub fn chooser_backend_of(zenity: Zenity, bus: SessionBus) -> ChooserBackend {
+    match (zenity, bus) {
+        (Zenity::OnPath, _) => ChooserBackend::ZenityPresent,
+        (Zenity::NotOnPath, SessionBus::Advertised) => ChooserBackend::PortalPossible,
+        (Zenity::NotOnPath, SessionBus::NotAdvertised) => ChooserBackend::Absent,
     }
 }
 
@@ -1576,15 +1601,26 @@ pub fn chooser_backend() -> ChooserBackend {
 /// Whether a `zenity` binary sits in some `PATH` directory. Presence
 /// is the signal `rfd`'s own fallback lookup uses; a present but
 /// broken zenity is the dialog's own problem to report.
-fn zenity_on_path() -> bool {
-    std::env::var_os("PATH")
-        .is_some_and(|paths| std::env::split_paths(&paths).any(|dir| dir.join("zenity").is_file()))
+fn zenity_on_path() -> Zenity {
+    let found = std::env::var_os("PATH")
+        .is_some_and(|paths| std::env::split_paths(&paths).any(|dir| dir.join("zenity").is_file()));
+    if found {
+        Zenity::OnPath
+    } else {
+        Zenity::NotOnPath
+    }
 }
 
 /// Whether a D-Bus session-bus address is advertised — the necessary
 /// (never sufficient) condition for the portal chooser.
-fn session_bus_hinted() -> bool {
-    std::env::var_os("DBUS_SESSION_BUS_ADDRESS").is_some_and(|address| !address.is_empty())
+fn session_bus_hinted() -> SessionBus {
+    let advertised =
+        std::env::var_os("DBUS_SESSION_BUS_ADDRESS").is_some_and(|address| !address.is_empty());
+    if advertised {
+        SessionBus::Advertised
+    } else {
+        SessionBus::NotAdvertised
+    }
 }
 
 /// Where this platform keeps the viewer's preferences:

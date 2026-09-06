@@ -4307,3 +4307,441 @@ The board is now **48 open, 27 closed, nothing dispatched, nothing on
 Ev**, and no large item left: small units, two waiting on DOCM's
 `next_id` door, and the focus-map siting question no single program can
 answer.
+
+## `Refusal` has no `ALL`, and does not need one — 2026-09-06
+
+`refusal-has-no-all-to-walk` closed answered-and-fixed. The item asked
+for an instrument that cannot exist in the shape it named, and the
+question underneath it turned out to have a live defect in it.
+
+**No `ALL` can exist, and none is needed.** A `Refusal` value needs a
+payload and a payload needs a document, so an `ALL` would mint fixtures
+rather than state a fact about the type; `vocabulary!` (#2046) projects
+one for fieldless variants only, and this vocabulary is nearly all
+payload arms. What an `ALL` was wanted for — *a new arm must answer for
+itself* — the type already has: `Display for Refusal` and
+`Refusal::rank` are exhaustive matches with no wildcard, so nothing can
+join this vocabulary and reach a user unrendered. That reasoning is in
+the item's `## Closed`, because the next reader's first question is why
+there is no `Refusal::ALL`.
+
+**The property left over was prose, and one arm was failing it.**
+`Refusal::exists_wording` rendered `({dimension:?})`, so the status
+line and the add-parameter form's pre-click notice both said
+"parameter width already exists (**Length**)" — the variant identifier,
+against `Dimension`'s `Display` in editor-core, which declares itself
+the one home of the dimension-in-prose rule and says it holds
+*wherever a dimension reaches a user*. Three siblings stood in the
+properties panel. All four fixed; the refusal one is pinned by
+`refusals_render_as_sentences`, which now walks `ParamExists` through
+`CreateParam`.
+
+**It got past both instruments for two independent reasons**, and this
+is the part worth keeping. `prose_census` scans `impl Display` bodies
+and nothing else — but this vocabulary composes three sentences in an
+inherent `impl` on purpose, so a pre-click surface and the status line
+cannot drift, and `Display` delegates to them through a bare `{}`. The
+census cannot see a delegated wording. And had it seen this one, the
+verdict would still have been `Prose`: a fieldless enum carries no
+`" { "`, so a census that asks about BRACES never asks whether a
+`Debug` here spells an identifier a person then reads. Both gaps are
+LIB's ground (`crates/pncad-py/*`) and are handed over in the PR rather
+than filed onto another program's slate.
+
+**The item's own ask is answered no.** It wanted the census extended so
+a `{binding:?}` over a `String` reds, because the row asserted
+`!contains('"')`. That would enforce an unratified rule against
+deliberate prose — F6 (`display_contract.rs`) lists the `Debug`
+fingerprints and a quotation mark is not among them; `EditError` quotes
+a user's key on purpose and `MetaUnversioned` names the D7 `"v"` field
+by writing it. The clause was a tripwire on correct prose, and the row
+now asserts F6's shape instead, with a doc comment naming which half is
+the compiler's and which is the census's so it stops reading as a claim
+over the vocabulary.
+
+One near-duplicate avoided: the add-parameter form's hand-written
+`Dimension` table was filed hours earlier by #2046's style review as
+`dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum`, whose
+last section reads its labels against the same clause. It stays open
+and is not what this unit touched.
+
+## PR 2053's style review, and what a sweep that reads only the tree misses — 2026-09-06
+
+The substance of `refusal-has-no-all-to-walk` held under review: both
+matches name all eighteen `Refusal` arms with no bare `_ =>`, every
+number in the PR body reproduced, and the closure stands. Six findings
+came back. Three are fixed here, two the reviewer filed and left, one
+is a coordination miss worth the program's attention.
+
+**The miss is the entry that matters.**
+`work/fix/verb-and-dimension-render-through-debug` — open, on FIX's
+slate since 2026-09-04 — already enumerated all four `Dimension` sites
+this unit "found", at their pre-split paths, and holds a fifth of the
+same class the sweep did not reach: `profile::path::Verb` rendered
+`{verb:?}` at `crates/viewer/src/sketch.rs:663`, on screen through
+`pane/create.rs`. So a unit half-completed another program's open item
+without knowing, and the reason is stateable: **the sweep grepped the
+tree and did not read the board.** Every sweep this program has run has
+scoped itself by shape; none has asked whether the shape was already
+filed. The `Verb` half stays untouched — its fix is `impl Display for
+Verb` in `crates/profile`, not ours, and forwarding it from the viewer
+would mint a fourth spelling of the word list — and
+`viewer-preview-names-a-verb-by-its-variant-identifier` now records
+where both halves of the FIX item stand.
+
+**Two rows had been left weaker than they looked.** The refusal row
+traded `!contains('"')` for F6's `node:`/`name:` clauses, and the
+dropped clause is the only one that catches its founding case: a `{:?}`
+over a `String` or a `ParamName` renders `"width"`, which carries no
+brace, no field punctuation, and leaks the PAYLOAD's identifier rather
+than the arm's. The PR's argument for dropping it was about
+`EditError`'s metadata arms, which that row does not walk. Restored.
+The distinction it turns on is worth keeping: **a tripwire over named
+samples may be stricter than the ratified contract; a claim over a
+vocabulary may not.** Separately the new `ParamExists` row asked for
+the dimension it had declared, so it could not tell the arm reporting
+what already stands there from the arm forwarding the request — the
+roster-excludes-its-own-failing-mode shape, inside the row pinning this
+unit's fix. It now asks for an angle over a length.
+
+**And the closure overstated its reach by one level.** `Refusal::rank`
+carried `Self::Display(_) => 1` beside two `DisplayFault` arms
+hand-listed at rank 2, so an eighth display fault took a rank nobody
+chose. Fixed rather than caveated — that arm matches its payload
+exhaustively now — because a closure that has to be qualified is worse
+than one made true. `Edit` and `SlotUnit` keep one rank per vocabulary
+and the code now says why that is a default and not an oversight.
+
+**One correction to the record.** The PR claimed `prose_census` did not
+run hosted because the `python suite` job was skipped. It did:
+`prose_census` is a Rust `#[cfg(test)]` module in
+`crates/pncad-py/src/`, `scripts/ci-filter.py` puts `pncad-py` in
+`PKGS` via the read reach (verified on this diff: `CARGO_SCOPE` carries
+`-p pncad-py`, `RUN_PNCAD_PY=false`), and the skipped job is the
+maturin suite over `crates/pncad-py/tests`. A false gap recorded in a
+merged PR body is the same defect as false prose in a doc comment.
+
+The two census findings are now
+`work/issues/prose-census-cannot-see-a-bypassed-prose-renderer` — one
+row, not two, because neither half alone catches the defect that
+motivated them.
+
+## #2053 MERGED; the sweep read the tree and not the board (2026-09-06)
+
+**#2053 merged at `736846beb`.** Fourteen units on main this session.
+CI: 37 jobs, twelve `test (…)`, five `k-lint (gate, …)`, `gate ok`
+success, zero non-green.
+
+### The unit found a live user-visible defect while answering a filed hazard
+
+`refusal-has-no-all-to-walk` asked for an instrument that cannot exist
+in the shape it named — `vocabulary!` is fieldless-only and `Refusal`
+is nearly all payload arms, so there is no `ALL` of `Refusal` VALUES to
+project, because a value needs a payload and a payload needs a
+document. The dispatch said so and said closing it as ANSWERED was a
+legitimate outcome.
+
+It closed answered-AND-fixed, because underneath the question was a
+sentence a person reads: `Refusal::exists_wording` rendered
+`({dimension:?})`, so the status line and the add-parameter form's
+pre-click notice both said *"parameter width already exists
+(**Length**)"* — a Rust variant identifier where a person reads prose,
+against a rule whose home is `Dimension`'s own `Display`. Four sites.
+
+**Why both instruments were green over it, and this is the part worth
+keeping.** Two independent failures. `prose_census` scans
+`impl Display` bodies, and these three sentences are composed in an
+INHERENT impl **on purpose** — each is "its one home" so the pre-click
+notice cannot drift from the status line — with `Display` delegating
+through a bare `{}`. A delegated wording is invisible to it. And had it
+seen the site the verdict would still have been `Prose`: the census
+asks about BRACES, never about whether a `Debug` spells an identifier a
+person then reads.
+
+The item's own ask was answered **no**: extending the census to the
+quoting question would enforce an unratified rule against deliberate
+prose, since `EditError` quotes a user's key on purpose.
+
+### The finding that is the orchestrator's as much as the lane's
+
+`work/fix/verb-and-dimension-render-through-debug.md` — **open, on
+FIX's slate since 2026-09-04** — already enumerated, at pre-split
+paths, the exact four `Dimension` sites this unit fixed, PLUS a fifth
+it did not: `profile::path::Verb` rendered `{verb:?}` at
+`crates/viewer/src/sketch.rs:663`, which `pane/create.rs:581-585` puts
+on screen.
+
+**The sweep read the tree and not the board.** The dispatch that
+briefed it did not say to check the tracker either, so this is the
+dispatcher's miss as much as the lane's, and it is recorded that way.
+Every sweep this program runs from here owes a tracker pass: an
+instance already filed on another slate is one a tree-grep cannot tell
+you about, and half-completing another program's item without saying so
+is how two programs come to disagree about what is done.
+
+Handled by REPORTING, not by acting: the `Verb` fix is
+`impl Display for Verb` in `crates/profile`, which is not VIEW's
+territory, and rendering the verb in prose from the viewer would mint a
+fourth spelling — the defect one of the review's own findings is about.
+The PR body names FIX's item, says its `Dimension` half is complete and
+by which PR, says its `Verb` half is untouched, and says it should not
+be closed on the `Dimension` half alone.
+
+### What the review caught in the unit's own instruments
+
+**The test lost the clause that caught its own defect.**
+`panel_edits.rs` traded `!contains('"')` for two prefix checks, and the
+dropped clause is the only one that catches the row's founding case: a
+`{:?}` over a `ParamName` renders `"width"` — no brace, no field
+punctuation — and the identifier it leaks is the PAYLOAD's, not the
+arm's, so `contains(arm)` misses it and `assert_ne!` against the whole
+dump cannot see a `Debug` fragment inside prose. The lane restored it
+and wrote down the distinction it had got wrong: **a tripwire over
+named samples may be stricter than the ratified contract; a claim over
+a vocabulary may not.**
+
+**`Refusal::rank` wildcarded its payload** — `Self::Display(_) => 1`
+beside two `DisplayFault` arms hand-listed at rank 2 — which was the
+one place the closure's "no wildcard" argument did not reach. The lane
+fixed it rather than qualifying the closure, on the argument that a
+closure needing a caveat is worse than one made true, and labelled the
+two arms that legitimately default (`Edit`, `SlotUnit`) with the reason
+they may.
+
+**The PR's own CI worry was false.** It said `prose_census` did not run
+hosted because the `python suite` job was skipped. `prose_census` is a
+Rust `#[cfg(test)]` module in `crates/pncad-py/src/`; `ci-filter.py`
+puts `pncad-py` in `CARGO_SCOPE` via the read reach, so it ran in all
+twelve `test (…)` jobs, and the skipped job is the maturin suite over a
+different directory. Removed rather than restated — a false gap in a
+merged PR body is the same defect as false prose in a doc comment.
+
+### One judgement taken against the dispatch, and accepted
+
+The dispatch said to file the two `prose_census` findings as two items
+in `work/issues/`. The lane filed **one**, arguing that neither half
+alone catches the founding defect — widening the scan set leaves
+`Dimension` a `Prose` verdict, and adding a bypass verdict leaves
+`exists_wording` unread — so a lane taking one would ship a guard that
+still passes over the case and reasonably believe the class closed. It
+stated that as a decision and invited a split. **Accepted**: the
+argument is right, and it is the same "instance versus shape"
+distinction this program applies to code.
+
+## `frame::progress`'s two swappable bools became one session value (2026-09-06)
+
+`progress(busy, running, indexing)` is closed by
+`session::Outstanding` — `Current | Evaluating | Canceled`, minted by
+`DocSession::outstanding()` — with the chrome door now
+`progress(Outstanding, bool)`.
+
+The interesting part was not the type, it was **where the pair stops
+existing**. A struct with `busy` and `running` fields types the
+signature and moves the swap into the constructor; three named types
+type the arguments and leave the caller assembling them in order. The
+enum is the only shape where the two reads are never a pair a caller
+holds: `outstanding()` consults each by name in an if/else chain, and
+the eighth combination the old function was total over
+(`!busy && running`, unreachable through a session) stops being
+expressible rather than staying documented.
+
+**The test was half the defect and got the other half of the fix.**
+The `frame_policy` row repeated the same positional convention as
+`app.rs`, so a swapped call site and a swapped test agreed; naming
+states instead of positions leaves nothing to mirror, and the swap is
+now a type error. But that row still says nothing about which SESSION
+state produces which chrome state, and `app.rs` is `app`-gated and
+untested, so the fold got coverage where it can execute without the
+feature: `tests/eval_seam.rs`'s cancel row now walks a real
+`DocSession` through `Evaluating` → `Canceled` → `Evaluating` →
+`Current`, asserting `outstanding()` at each. That mapping had no
+assertion anywhere before.
+
+`busy()` and `running()` both stay: nineteen and five readers use them
+singly, mostly as wait predicates. What is gone is any signature that
+takes both.
+
+The rule is in `crates/viewer/README.md`'s session paragraph, beside
+`Landing` and `AtRestBadge` — the other values the session mints for a
+vocabulary to consume, which is what settled where `Outstanding` lives
+rather than in `frame` (a per-frame policy module already carrying
+eight concerns).
+
+## #2055's style review: the receipt was the finding, and it was wrong about its own file (2026-09-06)
+
+The unit's thesis held and its best claim survived checking — the fold
+is behaviour-preserving over all eight combinations, and `eval_seam.rs`
+really does pin a mapping nothing asserted before. Two things did not,
+and both are about **what the PR said**, not what the code does.
+
+### A sweep receipt that a reader would have trusted
+
+`frame::chooser_backend_of(zenity_on_path: bool, session_bus: bool)`
+sits a hundred lines below `frame::progress` and is the same defect in
+every part: adjacent differently-defined bools, a `match (a, b)` body,
+a positional call site, a test row repeating the convention. The
+receipt said the crate held no second instance. The `rg` behind it
+**cannot match a multi-line signature**, which is the whole lesson: a
+grep over a signature is a grep over one line of it.
+
+The re-run parses every `fn` header's parameter list and reports each
+adjacent identically-typed pair. Two `bool` hits in `crates/viewer/src`,
+both now fixed — the second by naming the two readings (`Zenity`,
+`SessionBus`) rather than folding them, because there is no third party
+minting them; `ChooserBackend` is already the value that ranks them.
+Taking it here rather than filing it is what makes the unit remove the
+SHAPE from the crate instead of one instance of it.
+
+**A wrong negative result is worse than none**, because it is the one
+form of evidence that stops the next reader looking. That is the
+sentence worth keeping from this round.
+
+### A coverage regression disclosed as its opposite
+
+The PR said the unreachable eighth combination "stops being expressible
+rather than staying documented". It stops being expressible at
+`progress`'s signature and moves into `outstanding()`'s first arm — and
+the diff deleted the tree's only executable statement about it. Net:
+documented and asserted → documented only, written up as the reverse.
+
+Restored one level down, where it is a stronger row than the one lost:
+a `NeverIdle` seam reports work while the picture is current, and the
+session answers `Current`. The reason the state is unreachable is now
+written as its two mechanisms — `request_eval` bumping the generation
+on every submit, and both shipped seams handing a result up only with
+nothing queued — instead of the restatement of its own conclusion that
+stood there. That second mechanism is a property of two
+implementations and not of `EvalService`, and `HeldEvaluator` already
+departs from it, so it left with its own file.
+
+### Fifty lines of prose out
+
+One argument written five times, two near-verbatim, one of them
+defending against a shape the tree no longer contains. The README is
+now declared the home in its own text and the four other sites keep
+invariant-plus-pointer; `frame::progress`'s new paragraph, which
+described the signature printed beneath it, is deleted outright.
+
+### The residue this time
+
+Six items came back from the review. Four closed here; two stay open by
+the brief's instruction. Two more were split out at close rather than
+left in closing prose — the unenforced `EvalService` coalescing rule,
+and the same README/type-doc double statement for `LandedRun`. The
+first pass's "no residue" over three disclosed blind spots is what
+produced most of that list.
+
+## #2055 MERGED; a receipt is a claim, and this one was wrong about its own file (2026-09-06)
+
+**#2055 merged at `471786d5c`.** Fifteen units on main this session.
+CI on the conflict-resolved head `9c50a7b1a`: 37 jobs, twelve
+`test (…)`, five `k-lint (gate, …)`, `gate ok` success, zero
+non-green.
+
+### The finding was the receipt, not the code
+
+The unit's own thesis held under review and its best part was real: the
+fold is behaviour-preserving across all eight combinations (checked
+independently by the orchestrator and again by the reviewer), the 19/5
+read counts are right, no reader changed, and `tests/eval_seam.rs`
+genuinely drives a real `DocSession` through `Evaluating` → `Canceled`
+→ `Evaluating` → `Current`, a session-to-chrome mapping asserted
+nowhere in the tree before.
+
+What was wrong was the **sweep receipt**. It reported one hit for the
+shape; there were two, and the second —
+`frame::chooser_backend_of(zenity_on_path: bool, session_bus: bool)` —
+is a hundred lines below the function that was fixed, in the same file,
+with the same `match (a, b)` body, the same positional call site, and
+the same test row repeating the convention.
+
+The cause is worth writing down in the form the lane found for it: **a
+grep over a signature is a grep over one line of it.** `rg` cannot see
+a multi-line `fn` header. The corrected method parses every `fn`
+header under `crates/viewer/src` and splits its parameter list at
+top-level commas, and it returns: two adjacent `bool` pairs, one
+`bool` pair separated by an argument (judged out of scope, and
+recorded), zero tuple-struct adjacencies, and forty-three same-typed
+adjacencies of any type.
+
+A receipt offered as evidence and wrong about its own file is worse
+than no receipt, because a reader stops looking. That is the sentence
+this program should keep.
+
+### Both open calls were taken the hard way, and argued
+
+**The second instance was fixed, not filed.** `Zenity`
+(`OnPath | NotOnPath`) and `SessionBus`
+(`Advertised | NotAdvertised`) are named types now, returned by the two
+probe functions and taken by `chooser_backend_of`, so the bools are
+gone from the whole chain. Two named types rather than the fold
+`Outstanding` got, because no third party mints these — they are
+independent environment probes and `ChooserBackend` already ranks them.
+The argument for taking it rather than scheduling it: the unit then
+removes the SHAPE from the crate instead of one instance, and a later
+lane would have re-derived the same argument for a fifteen-line change
+in a file this PR already edits.
+
+**The false claim was struck and the assertion restored one level
+down, stronger than the one lost.** The first pass said the unreachable
+eighth combination *"stops being expressible rather than staying
+documented"*; it stopped being expressible at `progress`'s signature
+and moved into `outstanding()`'s first arm, while the diff deleted the
+tree's only executable statement about it. Documented-and-asserted
+became documented-only, written up as the reverse.
+`a_current_picture_reads_current_even_when_the_seam_claims_work` now
+hands `DocSession::new` a `NeverIdle` seam — an `InlineEvaluator` whose
+`busy()` is always true — lands the first result, and asserts both that
+`!busy() && running()` really holds and that `outstanding()` answers
+`Current`. The old row asserted at `frame::progress`, which no longer
+takes the pair.
+
+The REASON was rewritten too: what stood there was a restatement of its
+own conclusion, and the actual mechanisms are that `request_eval` bumps
+the generation on every submit and that both shipped seams hand a
+result up only with nothing queued. The doc now says plainly that the
+second is a property of **the two implementations and not of
+`EvalService`**, and that `HeldEvaluator` already departs from it —
+which got its own file rather than a sentence.
+
+### Two operational corrections
+
+**The slow interval shard is not a fixed shard.** The measurement this
+log recorded named `test (interval, eps = 1e-12, 1/2)`; on this run the
+slow one was `2/2` (~9 min) while `1/2` finished in 75s. nextest's
+partitioning moves the heavy tests between runs, so the durable fact is
+that ONE interval shard carries most of the tier's work, not that a
+particular one does. Anything reading a specific shard name as a
+baseline is reading it wrong.
+
+**A merge conflict is work now, not a bounce.** #2055 came back
+mergeable-false because #2053 had landed under it and both had appended
+to `work/view/log.md`. Resolved in the lane's worktree by keeping both
+entries in chronological order rather than sending it back — the lane
+had reported and the conflict was in a file whose merges are
+append-and-order, not a semantic one.
+
+### Residue
+
+Four reviewer items closed here; two left open by instruction (the
+class one type away, and the two three-state enums a hop apart, with
+two of the class item's own blind spots now checked and recorded on
+it); **two split out at close rather than left in closing prose** —
+`evalservice-coalescing-rule-is-prose-no-implementor-is-held-to` and
+`readme-and-type-docs-restate-one-argument-for-landing-and-landedrun`,
+the second checked and found true of `LandedRun` and NOT of
+`AtRestBadge`, which is the kind of qualification a claim like that
+usually loses.
+
+Five adjacent-`bool` signatures outside this program's fence were
+reported and not filed (implementer-discipline §6): two in `sweep`, two
+in `topo`, one in `step-export`. That last is
+`composed_direction(bound_orientation, oriented_edge_flag)` in an
+**oracle** — where a transposition that agrees with the code under test
+is the worst case there is, because the thing meant to confirm the
+implementation independently would confirm the same mistake.
+
+The first pass's "no residue at all" over three disclosed blind spots
+is what produced most of that list. `work/README.md` is explicit that
+disclosing a residue is not scheduling it, and this is the clearest
+instance of that rule paying for itself.

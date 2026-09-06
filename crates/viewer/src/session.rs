@@ -6,9 +6,12 @@
 //! The driver, and nothing else. `session` owns [`DocSession`] and
 //! dispatches [`SessionOp`]; what stays here is that state, its
 //! `Gesture`, its [`Derived`] block with the [`LandedRun`] inside it,
-//! [`Landing`], [`AtRestBadge`], [`DocSession::perform`]
+//! [`Landing`], [`AtRestBadge`], [`Outstanding`],
+//! [`DocSession::perform`]
 //! and the operation doors — every door mutates the session, and
 //! `perform`'s dispatch is the one place an operation becomes state.
+//! The three values are what the session says about itself and are
+//! minted nowhere else.
 //!
 //! The values those doors speak in are vocabularies beside it, six of
 //! them: what is selected is [`select`], the refusal ladder with its
@@ -423,6 +426,30 @@ pub enum Landing {
     Canceled,
 }
 
+/// What the session owes at one moment: the picture against the
+/// document, and the seam against the picture.
+///
+/// [`DocSession::busy`] and [`DocSession::running`] answer those two
+/// separately and both stay, because each is useful alone. **Read
+/// together they are one three-state fact**, and this is that fact as
+/// a value — the only thing a consumer of it is handed
+/// ([`DocSession::outstanding`] is the one site that reads both).
+/// `crates/viewer/README.md`, The session's vocabularies, argues why.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Outstanding {
+    /// The picture answers the document the session holds: nothing is
+    /// owed and nothing is running.
+    Current,
+    /// The picture is older than the document and the seam is working
+    /// on it.
+    Evaluating,
+    /// The picture is older than the document and NOTHING is working
+    /// on it — a cancel. [`SessionOp::Reevaluate`] is what recovers
+    /// from it, and the state exists so the chrome does not spin over
+    /// an idle seam forever.
+    Canceled,
+}
+
 impl DocSession {
     /// A session over `doc`, evaluated through `eval`.
     ///
@@ -685,6 +712,34 @@ impl DocSession {
     /// [`SessionOp::Reevaluate`] recovers from.
     pub fn running(&self) -> bool {
         self.eval.busy()
+    }
+
+    /// The two reads above as [`Outstanding`] — the one value a
+    /// consumer of "is there work outstanding" is given, read here by
+    /// NAME rather than paired into an argument list.
+    ///
+    /// `!busy() && running()` reaches the first arm and reads as
+    /// [`Outstanding::Current`], because the picture is what the
+    /// chrome describes. **That combination is unreachable through
+    /// both shipped seams, by two mechanisms and not by the shape of
+    /// this function**: [`DocSession::request_eval`] bumps the
+    /// generation on EVERY submit, so `!busy()` means the newest
+    /// generation submitted is the one that landed; and both seams
+    /// keep at most one request outstanding
+    /// (`crates/viewer/src/evalseam.rs`, the module header), so a
+    /// landed newest generation leaves the seam nothing to be doing.
+    /// The second is a property of the two implementations rather than
+    /// of [`EvalService`], which is why the arm is executed by a row
+    /// holding a seam that reports work anyway
+    /// (`tests/eval_seam.rs`) instead of being left to the comment.
+    pub fn outstanding(&self) -> Outstanding {
+        if !self.busy() {
+            Outstanding::Current
+        } else if self.running() {
+            Outstanding::Evaluating
+        } else {
+            Outstanding::Canceled
+        }
     }
 
     /// The feature tree's rows for the shown document.

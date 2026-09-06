@@ -29,9 +29,28 @@
 # 3,000,000 samples with `|x|` in [1e-60, 1e60]**, so it is
 # unreachable in the live regime — which is a reason to state it
 # once, not a reason to keep saying "never". THAT SWEEP IS AN
-# UNDATED ONE-SHOT AND NOTHING RE-TAKES IT: the witness at
-# `x = 2^-481*1.5` is a derivation anyone can re-run in a line, and
-# the 3,000,000-sample negative is what it always is — evidence about
+# UNDATED ONE-SHOT AND NOTHING RE-TAKES IT, and this gate is not
+# where it could be re-taken: the claim is about the BACKEND's
+# arithmetic, so re-running it means compiling
+# `interval-transcendentals`, which a shell gate in the discipline
+# job has no means to do and no business doing. What is written down
+# instead is the re-run itself, so "anyone can re-run it in a line"
+# is a line rather than a promise — a `#[test]` under
+# `interval-transcendentals/tests/`, written in that crate's OWN public
+# API because it is its own workspace and cannot depend on geom-core:
+#
+#     use interval_transcendentals::DInterval;
+#     let x = DInterval::point(f64::from_bits(0x21E0_0000_0000_0000) * 1.5);
+#     assert!(x.powi(2).lo() < (x * x).lo() && x.powi(2).hi() > (x * x).hi());
+#     let y = DInterval::point(1.5);   // a magnitude above the floor
+#     assert!(y.powi(2).lo() == (y * y).lo() && y.powi(2).hi() == (y * y).hi());
+#
+# and the FLOOR the derivation rests on has a home already —
+# `TWO_PROD_VALID_MIN` at `interval-transcendentals/src/round.rs`,
+# whose own value and the `mul_hi` lemma above it are what a moved
+# floor would change, with the `2^-960` windows in that crate's
+# `tests/certify.rs` and `tests/review_fuzz_exact.rs` sweeping it. The
+# 3,000,000-sample negative is what it always is — evidence about
 # a range, not a theorem about it. It is stated at the magnitude it
 # was taken because the CONCLUSION is a statement about which regime
 # real geometry lives in, and a re-sweep finding a case inside
@@ -57,13 +76,12 @@
 # KNOWN GAP 1: the scan is PRODUCTION CODE ONLY — a `#[cfg(test)]` item
 # is dropped, and so is a module file whose `mod` declaration is one. A
 # `x * x` inside a test cannot poison a shipped enclosure, and scanning
-# them is what produced the false positives above. **Only a TEST-ONLY
-# attribute counts**: `any(test, …)` and `not(test)` are both scanned,
-# because an `any(debug_assertions, test, …)` module is every debug
-# build — `topo`'s `test_support_impl` is exactly that, and an earlier
-# draft skipped it. The cost is that a test-only helper later promoted
-# to production arrives unscanned; the promotion is a diff a human
-# reads.
+# them is what produced the false positives above. WHICH attribute is
+# test-only — and which, being true under some other configuration, is
+# not — is `lib.sh`'s §"THE TEST-ONLY `cfg` ATTRIBUTE", and is not
+# restated here. The COST is this gate's: a test-only helper later
+# promoted to production arrives unscanned, and the promotion is a diff
+# a human reads.
 #
 # KNOWN GAP 2: an operand starting with an uppercase letter is invisible
 # (`SOME_CONST * SOME_CONST`). Deliberate: the ALL-CAPS population in
@@ -100,16 +118,57 @@
 # everything here: the scan's unit is a statement, and that square is
 # two of them.
 #
-# NONE OF THESE IS LIVE, AND A CLEAN RUN OF THIS GATE IS NOT WHY. These
-# five spellings are exactly what this matcher cannot see, so its own
-# green says nothing about them; only a differently-shaped sweep can.
-# One was run: separate patterns per spelling, plus a two-statement
-# `let`-binding scan over 52,471 production statements. `(x * k) * x`
-# and the nested-paren forms: 0. The three-factor and two-statement
-# forms: 21 + 3 candidates, every one either in an already-allowlisted
-# file, a `Mat3<f64>` projector conjugation, or a Taylor term over an
-# already-tight `.sqr()` value. A hole this gate cannot see is still a
-# hole, so it is written down rather than closed.
+# NONE OF THESE IS LIVE, AND A CLEAN RUN OF THE MATCHER ABOVE IS NOT
+# WHY. Those five spellings are exactly what it cannot see, so its own
+# green says nothing about them; only a differently-shaped sweep can,
+# and that sweep is `census` below rather than a paragraph. It re-runs
+# on every pass, its definition is `CENSUS_*_RE` and `two_statement_
+# candidates` — read those, not this — and its result is checked
+# against `CENSUS_REGISTER`, one entry per dispositioned site at a
+# pinned count. WHAT THE DISPOSITIONS SAY IS IN THE REGISTER and is not
+# summarised here: a summary is a second copy that goes stale in the
+# silent direction, which is the defect this whole block is a fix for.
+# A hole this gate cannot see is still a hole, so it is written down
+# rather than closed — but it is now written down in a form that reds
+# when it moves.
+#
+# THE CENSUS IS A SECOND MATCHER AND HAS ITS OWN BLIND SPOTS, which is
+# why it counts CANDIDATES and not violations. Each shape reads the
+# same statement view the gate reads, so everything `lib.sh`'s reader
+# cannot do (macro bodies, `include!`d text, an unterminated `/*`) it
+# cannot do either, and KNOWN GAPS 1-3 apply unchanged: a `#[cfg(test)]`
+# item, an ALL-CAPS operand and an indexed or repeated-call operand are
+# outside every shape here. Beyond those:
+#
+#   * THE THREE-FACTOR SHAPE IS A PRODUCT CHAIN, so the text between the
+#     two operands must be `* FACTOR` and nothing else. `k * (a + b) * x
+#     * x`'s outer pair is not counted — the shape KNOWN GAP 5 names is
+#     the one with "no parentheses anywhere", and a middle free to run
+#     through `+`, `,` or a paren counts arithmetic that is not one
+#     product. UNDER-count, deliberate, and the direction to widen in if
+#     a real instance ever arrives.
+#   * THE NESTED-PAREN SHAPE READS ONE NESTED GROUP AT ONE LEVEL, so
+#     `((a * (b + c)) * x) * x` is invisible to it: the pattern spells a
+#     single `(…)` inside the outer group and cannot count depth, which
+#     an ERE with a backreference cannot do at all. UNDER-count. It is
+#     left because the shape is empty in this tree and the instrument
+#     that would close it is a parser, not a wider pattern.
+#   * THE TWO-STATEMENT SHAPE FOLLOWS ONE BINDING HOP, not two: `let
+#     kx = k * x;` … `kx * x` is seen, `let kx = k * x; let m = kx * y;`
+#     … `m * x` is not. UNDER-count. It also requires the binding's RHS
+#     to be paren-free and to END in the repeated operand, so
+#     `let kx = f(k) * x` is not a binding it tracks.
+#   * A CANDIDATE IS SCOPED TO ITS FILE for the two-statement shape,
+#     because the statement view carries no item boundary: two unrelated
+#     functions in one file can pair. OVER-count, which is the safe
+#     direction — it arrives as an unregistered candidate, never as a
+#     silent pass.
+#   * AN ENTRY WHOSE FILE IS GONE FROM THE SCAN goes quiet, and a tree
+#     holding NONE of the register's files does not check the register's
+#     counts at all — a register is a claim about the tree it describes,
+#     and a fixture tree is not that tree. So a deleted FILE is a diff a
+#     human reads, while a deleted or changed SITE inside a file that is
+#     still there reds here.
 #
 # Allowlist rationale, per file:
 #  - geom-core real.rs / ring_interval.rs — the scalar implementations
@@ -157,316 +216,250 @@ SQUARE_PATH='(?:[a-z_][a-z0-9_]*)(?:\.[a-z_][a-z0-9_]*)*'
 SQUARE_RE="(?<![\w.])($SQUARE_PATH)\s*\*\s*\1(?![\w.(\[])"
 SQUARE_RE="$SQUARE_RE|(?<!\w)\(\s*[^()]*?\*\s*($SQUARE_PATH)\s*\)\s*\*\s*\2(?![\w.(\[])"
 
-# A relative path with its `.` and `..` segments taken out. An exclusion
-# is matched against the scan set as text, so an unnormalised
-# `crates/mesh/src/../tests/common/x.rs` excludes nothing at all — a
-# silent no-op wearing the shape of an exclusion.
-gate_norm_path() {
-  printf '%s' "$1" | awk -F/ '
+# --- THE FIVE-SHAPE CENSUS --------------------------------------------
+#
+# KNOWN GAP 5's five spellings, one pattern each, stated where their
+# result is. Three read the statement view; the fourth is a binding hop
+# and reads it in `two_statement_candidates` below, because a shape
+# whose two halves are two records is not a regex over one.
+#
+# `paren-first-factor` and `nested-paren` are the two the header says
+# are empty. They are here BECAUSE they are empty: a shape with no
+# entries is the one whose matcher nothing exercises on a real tree, so
+# the self-test plants one of each and the register is what would have
+# to grow if the tree did.
+#
+# EVERY WEDGED FACTOR MUST DIFFER FROM THE OPERAND, and that guard is
+# what keeps this census about what the LIVE MATCHER CANNOT SEE. Without
+# it `h * h * h` is a three-factor candidate — and it is not: branch 1
+# already reads the adjacent `h * h` inside it, so the gate is quiet
+# there only because the file is allowlisted. Counting it here would
+# make the OK line's claim false for that candidate, and would put a
+# NEW adjacent square in an allowlisted file through the census as an
+# unregistered candidate — silently replacing KNOWN GAP 4's
+# file-granular ratification with a per-site one for that one spelling.
+# The two shapes are kept apart instead: adjacency is branch 1's, and a
+# genuinely wedged repeat is this one's.
+CENSUS_PAREN_FIRST_RE="(?<!\w)\(\s*($SQUARE_PATH)\s*\*\s*[^()]*\)\s*\*\s*\1(?![\w.(\[])"
+CENSUS_NESTED_PAREN_RE="(?<!\w)\(\s*[^()]*\([^()]*\)[^()]*\*\s*($SQUARE_PATH)\s*\)\s*\*\s*\1(?![\w.(\[])"
+CENSUS_THREE_FACTOR_RE="(?<![\w.])($SQUARE_PATH)(?:\s*\*\s*(?!\1(?![\w.]))[A-Za-z0-9_.]+)+\s*\*\s*\1(?![\w.(\[])"
+
+# THE REGISTER — `<shape>|<file>|<fragment>|<count>|<disposition>`, the
+# `S49` shape: the POPULATION is re-read out of the tree on every run
+# and this is only the DISPOSITION of what was read. `<fragment>` is a
+# substring of the candidate statement's own text and is what keys the
+# entry — never a line number, which rots under every edit above it.
+# `<count>` is why this is a register and not an allowlist: without it a
+# second candidate matching an existing fragment would inherit that
+# entry's disposition silently, so each entry pins how many it stands
+# for and a difference IN EITHER DIRECTION reds — `matched 0` is an
+# entry whose site is gone.
+#
+# THE GATE READS THE DISPOSITION AS TEXT AND NOTHING MORE. That the
+# sentence is TRUE is a reviewer's judgement; what CI holds is that the
+# entry exists, that its site is still there, and that no candidate
+# arrives without one.
+CENSUS_REGISTER=(
+  # The projector conjugation: `free1` and `p2` are `Mat3<f64>`, so
+  # there is no enclosure to straddle zero and no `powi` to reach for.
+  "three-factor|crates/editor-core/src/mate/coset.rs|free1 * p2 * free1|1|not an enclosure: Mat3<f64> matrix arithmetic, and the repeated factor is a matrix rather than a scalar"
+  # The odd-power Taylor terms of `sin_step`. What makes them safe is
+  # not that the powers differ but that every factor is NONNEGATIVE:
+  # `a1 = pt(s.abs())` and `a2 = a1.sqr()`, so no product here straddles
+  # zero and the plain product's four-corner minimum already IS the
+  # tight bound — which is this gate's own rule for a `lo >= 0`
+  # enclosure, stated at the top of this file.
+  "two-statement|crates/geom-brep/src/props/quad.rs|let a3 = a1 * a2|1|no factor straddles zero: a1 is pt(s.abs()) and a2 is a1.sqr(), both nonnegative, so the plain product is already the tight bound"
+  "two-statement|crates/geom-brep/src/props/quad.rs|let a5 = a3 * a2|1|no factor straddles zero: a1 is pt(s.abs()) and a2 is a1.sqr(), both nonnegative, so the plain product is already the tight bound"
+  "two-statement|crates/geom-brep/src/props/quad.rs|let a7 = a5 * a2|1|no factor straddles zero: a1 is pt(s.abs()) and a2 is a1.sqr(), both nonnegative, so the plain product is already the tight bound"
+)
+
+# Set by `--register FILE`, which replaces the array above. It exists so
+# the self-test can plant a MALFORMED entry — a red no fixture tree can
+# reach, because the register it guards is baked into this file.
+GATE_CENSUS_REGISTER_FILE=
+
+# THE BINDING HOP, over the statement view on stdin. A `let N = … * X`
+# whose RHS is paren-free and ends in `X` is remembered; the first later
+# statement in the SAME FILE holding `N * X` or `X * N` completes the
+# square, and the candidate is reported AT THE BINDING, which is the
+# statement a fix would rewrite. One completion per binding — the
+# binding is the site, and a value used twice is still one place where
+# the square was split.
+two_statement_candidates() {
+  awk '
+    # A REMEMBERED NAME IS DATA AND IT IS SPLICED INTO A REGEX, so it is
+    # escaped first. Both names come from the code, and the only
+    # metacharacter their character classes admit is a DOT: the operand
+    # may be a FIELD PATH (v.x), and unescaped that dot is a wildcard
+    # matching vax, a candidate the source does not contain. The escape
+    # is a one-member bracket expression and not a backslash, which is
+    # the ruling in loop-boundary-discards.sh and holds under every awk.
+    # Completeness is checkable rather than hoped for: the two classes
+    # are [a-z_][A-Za-z0-9_]* and [A-Za-z_][A-Za-z0-9_.]*, so the dot is
+    # the whole list, and widening either class means widening this.
+    # (No apostrophe appears in this program, which is itself
+    # single-quoted.)
+    function esc(s,   t) { t = s; gsub(/[.]/, "[.]", t); return t }
     {
-      n = 0
-      for (i = 1; i <= NF; i++) {
-        if ($i == "" || $i == ".") continue
-        if ($i == ".." && n > 0 && seg[n] != "..") { n--; continue }
-        seg[++n] = $i
+      i = index($0, ":"); file = substr($0, 1, i - 1); rest = substr($0, i + 1)
+      j = index(rest, ":"); line = substr(rest, 1, j - 1) + 0
+      txt = substr(rest, j + 1); sub(/^ /, "", txt)
+      if (file != cf) { cf = file; nb = 0 }
+      for (k = 1; k <= nb; k++) {
+        if (done[k]) continue
+        if (txt ~ ("(^|[^A-Za-z0-9_.])" en[k] " [*] " ex[k] "([^A-Za-z0-9_.([]|$)") ||
+            txt ~ ("(^|[^A-Za-z0-9_.])" ex[k] " [*] " en[k] "([^A-Za-z0-9_.([]|$)")) {
+          done[k] = 1
+          print bf[k] ":" bl[k] ": " bt[k]
+        }
       }
-      out = ""
-      for (i = 1; i <= n; i++) out = (i == 1) ? seg[i] : out "/" seg[i]
-      print out
-    }'
+      if (match(txt, /^let [a-z_][A-Za-z0-9_]* = /)) {
+        nm = substr(txt, 5); sub(/ =.*/, "", nm)
+        rhs = substr(txt, RLENGTH + 1)
+        if (rhs !~ /[()]/ && match(rhs, /[*] [A-Za-z_][A-Za-z0-9_.]*$/)) {
+          nb++
+          en[nb] = esc(nm); ex[nb] = esc(substr(rhs, RSTART + 2))
+          bf[nb] = file; bl[nb] = line; bt[nb] = txt; done[nb] = 0
+        }
+      }
+    }
+  '
 }
 
-# WHERE A GATED DECLARATION MOUNTS, read from the CODE-ONLY view that
-# `gate_rust_code` already builds — comments and string bodies are gone
-# before this sees a line, so no comment rule is re-minted beside the
-# shared reader's. One pass over the declaring file carries the three
-# things the statement view drops:
-#
-#   * `{` VS `;`. An inline `mod x { … }` declares no file at all, and
-#     the statement view cuts at both delimiters, so an inline module and
-#     a file declaration arrive as the same record.
-#   * THE ENCLOSING INLINE-MODULE CHAIN. `mod y { #[cfg(test)] mod x; }`
-#     mounts at `y/x.rs`; read as top-level it excludes the unrelated
-#     production `x.rs` instead, which is the unsafe direction.
-#   * WHERE a `#[path]` attribute sits. Its payload is a string literal
-#     and this view blanks it, so only the raw line can supply it — the
-#     line, the occurrence on it and how many the code view sees there
-#     are named here, so the raw read is one line long and cannot pick up
-#     a mount the code view does not have.
-#
-# Prints `KIND|CHAIN|PATH_LINE|PATH_INDEX|PATH_COUNT` — `|` and not a
-# tab, because a tab is IFS whitespace and `read` folds a run of it, so
-# an empty CHAIN would shift every field after it by one.
-# KIND is `attr` (a `#[path]` mount), `default` (rustc's positional
-# rule), `inline` (no file) or `refuse` (an enclosing brace that is not a
-# module, where rustc mounts a non-inline module only through `#[path]`).
-# CHAIN is the enclosing module names, `/`-joined. NO OUTPUT means the
-# code view does not place the declaration the statement view reported —
-# also a refusal, and the caller says so.
-declaration_shape() {
-  gate_rust_code "$1" | awk -v start="$2" -v name="$3" '
-    # THE ANSWER IS HELD TO `END`, NOT PRINTED AND EXITED ON. This `awk`
-    # reads a pipe, and exiting at the declaration closes it while the
-    # shared reader upstream is still writing: that write fails, the
-    # reader dies of it, and `pipefail` reports a pipeline that did its
-    # job as a pipeline that broke. Whether it lands is a race between
-    # two processes, which is the worst way for a gate to be wrong —
-    # green on one machine and red on the next over the same tree.
-    function emit(kind,   i, c) {
-      if (done) return
-      done = 1
-      c = ""
-      for (i = 1; i <= depth; i++) {
-        if (chain[i] == "") { out = "refuse||0|0|0"; return }
-        c = (c == "") ? chain[i] : c "/" chain[i]
+# census STATEMENT_VIEW — the candidates of all four shapes, checked
+# against the register. The summary the gate's OK line carries comes
+# back in `CENSUS_SUMMARY` and NOT on stdout, because this function also
+# PRINTS its findings: captured in a command substitution the offending
+# lines would go into the caller's variable and its `gate_error` into
+# nothing, which is S157 and is the defect `lib.sh` exists to close.
+CENSUS_SUMMARY=
+census() {
+  local view=$1 entries cands report bad files
+  if [ -n "$GATE_CENSUS_REGISTER_FILE" ]; then
+    # THE OS's REASON IS KEPT. `2>/dev/null` here would report "cannot
+    # read" for a missing file, an unreadable one and a directory alike,
+    # and the one thing a reader needs is which.
+    local why
+    why=$(cat "$GATE_CENSUS_REGISTER_FILE" 2>&1 >/dev/null) || true
+    if ! entries=$(cat "$GATE_CENSUS_REGISTER_FILE" 2>/dev/null); then
+      gate_error "$(gate_name): cannot read the census register at $GATE_CENSUS_REGISTER_FILE, so the five shapes were counted against nothing — ${why:-no reason reported}"
+      exit 1
+    fi
+  else
+    entries=$(printf '%s\n' "${CENSUS_REGISTER[@]}")
+  fi
+  # The shape name is prefixed here rather than carried through the
+  # matchers, so each pattern stays exactly the text the header points
+  # at. `sed` cannot fail to match; `gate_grep` reports a matcher that
+  # could not run, and its marker crosses this substitution.
+  if ! cands=$(
+    printf '%s\n' "$view" | gate_grep -P "$CENSUS_PAREN_FIRST_RE" | sed 's/^/paren-first-factor|/'
+    printf '%s\n' "$view" | gate_grep -P "$CENSUS_NESTED_PAREN_RE" | sed 's/^/nested-paren|/'
+    printf '%s\n' "$view" | gate_grep -P "$CENSUS_THREE_FACTOR_RE" | sed 's/^/three-factor|/'
+    printf '%s\n' "$view" | two_statement_candidates | sed 's/^/two-statement|/'
+  ); then
+    gate_error "$(gate_name): a census matcher could not run over the statement view, so the shapes this gate cannot see were not counted — that is not a pass"
+    exit 1
+  fi
+  # WHICH REGISTER FILES THIS TREE HOLDS, as whole paths. The count
+  # checks run only over the entries whose file is in the scan, and only
+  # when the tree holds at least one of them: a fixture tree holds none,
+  # and a register is a claim about the tree it describes.
+  files=$(printf '%s\n' "${GATE_PRODUCTION_FILES[@]}")
+  if ! report=$(printf '%s\n===\n%s\n===\n%s\n' "$entries" "$files" "$cands" | awk '
+    /^===$/ { phase++; next }
+    phase == 0 {
+      if ($0 == "") next
+      ne++
+      n = split($0, f, "\\|")
+      if (n != 5 || f[1] !~ /^(paren-first-factor|nested-paren|three-factor|two-statement)$/ ||
+          f[2] == "" || f[3] == "" || f[4] !~ /^[1-9][0-9]*$/ || f[5] == "") {
+        print "MALFORMED|" $0
       }
-      out = sprintf("%s|%s|%d|%d|%d", kind, c, pline, pidx, pcount)
+      es[ne] = f[1]; ef[ne] = f[2]; eg[ne] = f[3]; ec[ne] = f[4] + 0
+      next
     }
-    done { next }
+    phase == 1 { if ($0 != "") have[$0] = 1; next }
     {
-      s = $0
-      if (!match(s, /^[^:]*:[0-9]+:/)) next
-      ln = substr(s, RSTART, RLENGTH); sub(/^[^:]*:/, "", ln); sub(/:$/, "", ln)
-      s = substr(s, RSTART + RLENGTH)
-      ln += 0
-      if (ln >= start && pline == 0) {
-        k = 0; t = s
-        while (match(t, /#\[[ \t]*path[ \t]*=/)) { k++; t = substr(t, RSTART + RLENGTH) }
-        if (k > 0) { pline = ln; pidx = 1; pcount = k }
+      if ($0 == "") next
+      i = index($0, "|"); shape = substr($0, 1, i - 1); r = substr($0, i + 1)
+      i = index(r, ":"); file = substr(r, 1, i - 1); r = substr(r, i + 1)
+      i = index(r, ":"); line = substr(r, 1, i - 1); txt = substr(r, i + 1)
+      sub(/^ /, "", txt)
+      seen[shape]++
+      hit = 0; best = -1
+      for (k = 1; k <= ne; k++) {
+        if (es[k] != shape || ef[k] != file) continue
+        if (index(txt, eg[k]) == 0) continue
+        if (length(eg[k]) > best) { best = length(eg[k]); hit = k }
       }
-      i = 1; L = length(s)
-      while (i <= L) {
-        c = substr(s, i, 1)
-        if (c == "{") {
-          if (want) { emit("inline"); next }
-          depth++; chain[depth] = pending; pending = ""; i++; continue
-        }
-        if (c == ";") {
-          if (want) { emit(pline > 0 ? "attr" : "default"); next }
-          pending = ""; i++; continue
-        }
-        if (c == "}") {
-          # The declaration was found and neither delimiter followed it —
-          # a shape this reader cannot place, so it says nothing and the
-          # caller refuses.
-          if (want) { done = 1; out = ""; next }
-          if (depth > 0) { chain[depth] = ""; depth-- }
-          pending = ""; i++; continue
-        }
-        r = substr(s, i)
-        if (match(r, /^mod[ \t]+[A-Za-z_][A-Za-z0-9_]*/) &&
-            (i == 1 || substr(s, i - 1, 1) !~ /[A-Za-z0-9_]/)) {
-          w = substr(r, RSTART, RLENGTH); sub(/^mod[ \t]+/, "", w)
-          i += RLENGTH
-          pending = w
-          if (ln >= start && w == name) want = 1
-          continue
-        }
-        i++
-      }
+      # THE WHOLE RECORD, NOT A TRIMMED ONE. `gate_grep` trims its
+      # diagnosis because it echoes a few hundred file operands; a
+      # statement record is one statement, so there is nothing to trim
+      # and a width literal here would be an undisclosed second copy of
+      # that one. The record IS the evidence a reader needs to
+      # disposition the candidate.
+      if (hit == 0) print "UNREG|" shape "|" file "|" line "|" txt
+      else matched[hit]++
+      next
     }
-    END { if (out != "") print out }'
-}
-
-# THE MOUNT'S PAYLOAD, from the one raw line the code view named. This
-# one reads the file directly rather than a pipe, so stopping at that
-# line closes nothing behind it. Prints
-# nothing when that line does not carry the same attributes the view saw
-# — a `#[path]` written inside a comment beside a live one, or a payload
-# that is not a string literal on that line — because a payload the two
-# views disagree about is not a decision.
-path_payload() {
-  awk -v ln="$2" -v idx="$3" -v want="$4" '
-    NR == ln {
-      k = 0; s = $0; p = ""
-      while (match(s, /#\[[ \t]*path[ \t]*=[ \t]*"[^"]*"/)) {
-        k++
-        if (k == idx) {
-          p = substr(s, RSTART, RLENGTH)
-          sub(/^[^"]*"/, "", p); sub(/"$/, "", p)
-        }
-        s = substr(s, RSTART + RLENGTH)
+    END {
+      live = 0
+      for (k = 1; k <= ne; k++) if (ef[k] in have) live = 1
+      for (k = 1; k <= ne; k++) {
+        if (!live) continue
+        if (!(ef[k] in have)) { print "ABSENT|" es[k] "|" ef[k] "|" eg[k]; continue }
+        got = (k in matched) ? matched[k] : 0
+        if (got != ec[k]) print "MISCOUNT|" es[k] "|" ef[k] "|" eg[k] "|pinned " ec[k] "|matched " got
       }
-      if (k == want) print p
-      exit
-    }' "$1"
-}
-
-# A refusal, and it is loud in the one way that crosses the boundary it
-# is written behind: this runs inside `production_sources`, which the
-# gate reads through a process substitution, so an `exit` here cannot
-# fail the caller and the list printed so far would be read as the whole
-# answer. The marker is what `gate` checks the moment the list is in.
-refuse_declaration() {
-  gate_error "$(gate_name): $1 — that is not a pass"
-  : >> "$GATE_MATCHER_FAILED"
-  exit 1
-}
-
-# A module whose `mod` declaration is `#[cfg(test)]`-gated is test-only
-# code that happens to live in its own file, and the reader's per-item
-# skip cannot see across files. Resolved here, from the declaration
-# rather than from a list of names, so a new one needs no edit.
-#
-# THE RESOLUTION IS RUSTC'S, and nothing else resolves both directions at
-# once. `mod bar;` names the SIBLING `dir/bar.rs` (or `dir/bar/mod.rs`)
-# only when the declaring file is a crate root or a `mod.rs`; declared in
-# any other file `dir/foo.rs` it names `dir/foo/bar.rs` (or
-# `dir/foo/bar/mod.rs`); an enclosing inline `mod y { … }` adds `y/` to
-# whichever of those two the declarer chooses; and a `#[path = "P"]`
-# attribute overrides the file name with `P`, relative to the declaring
-# file's directory at top level and to the inline module's directory
-# inside one. Reading every declaration as a sibling drops the production
-# `dir/bar.rs` from the scan because an unrelated file declared a test
-# module of its name, and scans the test module that was actually
-# declared as production.
-#
-# ROOTNESS IS READ FROM THE BASENAME, which is a proxy for what Cargo
-# actually says: a `[[bin]]` or `[lib]` `path =` can make any name a
-# crate root. The tree's one root outside the three names —
-# `crates/viewer/src/bin/viewer.rs` — declares no module at all, so the
-# proxy decides nothing today; a root named otherwise that declares a
-# gated module would be resolved as a non-root and mount its module one
-# directory too deep.
-#
-# WHERE THIS READER IS BLIND, each with the direction it errs in:
-#
-#   * A DECLARATION SPLIT OVER LINES (`mod` and its name on separate
-#     ones) is not matched by the raw narrowing below, which is
-#     line-scoped, so a file whose only gated declaration takes that
-#     shape never becomes a candidate and its module file is scanned as
-#     production. OVER-SCAN — a false red, not a silent hole. Once the
-#     file IS a candidate the same spelling is refused loudly instead.
-#   * `#[cfg_attr(…, path = "…")]` is not read as a mount, so the
-#     declaration falls through to the positional rule. BOTH DIRECTIONS
-#     at once: the positional path is excluded though nothing mounts
-#     there (under-scan if production code sits at it) and the real
-#     target is scanned as production (over-scan).
-#   * A DECLARATION WRITTEN BY A MACRO or pulled in by `include!` is
-#     invisible to the shared reader, so its module file is scanned as
-#     production. OVER-SCAN.
-production_sources() {
-  local decl file rest line name shape kind chain pline pidx pcount
-  local base payload target f e skip keep=() narrowed=() cands=() excl=()
-  # TWO STAGES, because reading every source twice costs more than this
-  # gate is worth: raw `grep` narrows to the handful of files that carry
-  # both the attribute and a `mod` declaration, and only those are read
-  # properly. A file that fails the raw narrowing carries no
-  # `#[cfg(test)]` text at all, so it cannot carry a gated declaration.
-  #
-  # The declaration is matched over the STATEMENT view, which is what
-  # makes `#[cfg(test)] mod probes;` on ONE line and the same split over
-  # two the same record — the earlier `grep -A1` form saw only the split
-  # one, and cried wolf on the other.
-  #
-  # NO `xargs` BETWEEN THE STAGES. `xargs` reports 123 for any child that
-  # exited 1-125, which folds `grep`'s "nothing matched" and its "I could
-  # not search" into one status before anything here can tell them apart.
-  # The narrowed list is small by construction, so the second stage takes
-  # it as arguments.
-  mapfile -t narrowed < <(gate_grep -lF '#[cfg(test)]' "${GATE_SOURCE_FILES[@]}")
-  if [ "${#narrowed[@]}" -gt 0 ]; then
-    mapfile -t cands < <(gate_grep -lE '(^|[[:space:]])mod [a-z_][a-z0-9_]*;' "${narrowed[@]}")
+      printf "COUNT|%d|%d|%d|%d|%d|%d\n", seen["paren-first-factor"] + 0,
+        seen["nested-paren"] + 0, seen["three-factor"] + 0,
+        seen["two-statement"] + 0, ne + 0, live
+    }
+  '); then
+    gate_error "$(gate_name): the five-shape census could not run, so what this matcher cannot see was not counted — that is not a pass"
+    exit 1
   fi
-  if [ "${#cands[@]}" -gt 0 ]; then
-    while IFS= read -r decl; do
-      [ -n "$decl" ] || continue
-      file=${decl%%:*}; rest=${decl#*:}; line=${rest%%:*}; name=${rest#*:}
-      # A READER THAT DIED IS NOT AN ANSWER either, and captured in a
-      # command substitution it would otherwise die under errexit with
-      # its status thrown away and no diagnosis at all.
-      if ! shape=$(declaration_shape "$file" "$line" "$name"); then
-        refuse_declaration "reading $file to place its \`mod $name;\` failed, so where that module lives was not decided"
-      fi
-      IFS='|' read -r kind chain pline pidx pcount <<<"$shape"
-      case "$kind" in
-        inline) continue ;;
-        refuse)
-          refuse_declaration "$file:$line declares mod $name inside a brace that is not a module, where rustc mounts a non-inline module only through #[path]; where that module lives was not decided" ;;
-        attr|default)
-          case "${file##*/}" in
-            mod.rs|lib.rs|main.rs) base=${file%/*} ;;
-            *) base=${file%.rs} ;;
-          esac
-          if [ "$kind" = attr ]; then
-            # A top-level `#[path]` is relative to the declaring file's
-            # DIRECTORY whatever the file is named; inside an inline
-            # module it is relative to that module's directory, which is
-            # the positional base plus the chain.
-            [ -n "$chain" ] || base=${file%/*}
-            [ -z "$chain" ] || base=$base/$chain
-            payload=$(path_payload "$file" "$pline" "$pidx" "$pcount") || payload=
-            if [ -z "$payload" ]; then
-              refuse_declaration "$file:$line mounts mod $name with a #[path] whose payload line $pline does not read back as the code view sees it, so where that module lives was not decided"
-            fi
-            target=$(gate_norm_path "$base/$payload")
-          else
-            [ -z "$chain" ] || base=$base/$chain
-            target=$base/$name.rs
-          fi ;;
-        *)
-          refuse_declaration "$file:$line declares mod $name in the statement view and the code view does not place it, so where that module lives was not decided" ;;
-      esac
-      # A declaration resolving onto its own declarer (`mod lib;` in
-      # `lib.rs`) names no other file, and excluding the declarer takes
-      # the whole tree with it. The directory form stays: `dir/lib/mod.rs`
-      # is a different file and a real resolution of that declaration.
-      [ "$target" = "$file" ] || excl+=("$target")
-      excl+=("${target%.rs}/")
-    done < <(gate_rust_code --statements "${cands[@]}" \
-      | gate_grep -E '#\[cfg\(([^]]*[(,][[:space:]]*)?test[,)]' \
-      | gate_grep -vE '#\[cfg\([^]]*(any|not)\(' \
-      | gate_grep -oE '^[^:]*:[0-9]+:.*[[:space:]]mod [a-z_][a-z0-9_]*$' \
-      | sed -E 's/:([0-9]+):.*[[:space:]]mod /:\1:/')
+  bad=$(printf '%s\n' "$report" | sed -n '/^COUNT|/!p')
+  if [ -n "$bad" ]; then
+    printf '%s\n' "$bad"
+    gate_error "$(gate_name): the five-shape census does not match CENSUS_REGISTER — a MALFORMED line is an entry that is not <shape>|<file>|<fragment>|<count>|<disposition> with a known shape and a positive count; an UNREG line is a candidate of a shape THIS GATE'S MATCHER CANNOT SEE and no entry names, so disposition it in the register (or fix it, if the square is real); a MISCOUNT line is an entry standing for a different number of candidates than it pins, and both directions matter — 'matched 0' is an entry whose site is gone and whose disposition now covers nothing; an ABSENT line is an entry whose file has left the scan while the rest of the register is still live"
+    exit 1
   fi
-  if [ "${#excl[@]}" -eq 0 ]; then
-    printf '%s\n' "${GATE_SOURCE_FILES[@]}"
-    return 0
+  local counts p1 p2 p3 p4 nent live
+  counts=$(printf '%s\n' "$report" | sed -n 's/^COUNT|//p')
+  IFS='|' read -r p1 p2 p3 p4 nent live <<<"$counts"
+  CENSUS_SUMMARY="the five spellings this matcher cannot see re-derived over the same statement view: $p1 + $p2 + $p3 + $p4 candidates (parenthesized-first, nested-paren, three-factor, two-statement)"
+  if [ "$live" = 1 ]; then
+    CENSUS_SUMMARY="$CENSUS_SUMMARY, each dispositioned by one of $nent register entries at its pinned count"
+  else
+    CENSUS_SUMMARY="$CENSUS_SUMMARY, none unregistered — this tree holds no file the $nent register entries describe, so their counts are not its to answer for"
   fi
-  # AN EXCLUSION IS A PATH, NOT A SUBSTRING, and that is why the filter
-  # is a comparison here rather than a `grep -F` over the list: `-F`
-  # matches anywhere in the line, so an excluded `foo/bar.rs` also takes
-  # `foo/bar.rs_old.rs`, and an excluded `crates/p/src/foo/bar.rs` takes
-  # a `crates/q/src/crates/p/src/foo/bar.rs` under another crate. A file
-  # entry is the WHOLE path; a directory entry is a path PREFIX, which is
-  # what its trailing `/` says. Nothing here can fail to run, so nothing
-  # here needs the marker.
-  for f in "${GATE_SOURCE_FILES[@]}"; do
-    skip=false
-    for e in "${excl[@]}"; do
-      if [ "${e%/}" != "$e" ]; then
-        if [ "${f#"$e"}" != "$f" ]; then skip=true; break; fi
-      elif [ "$f" = "$e" ]; then
-        skip=true; break
-      fi
-    done
-    [ "$skip" = true ] || keep+=("$f")
-  done
-  [ "${#keep[@]}" -eq 0 ] || printf '%s\n' "${keep[@]}"
 }
 
 gate() {
   gate_require_crate_sources
-  local files hits
-  mapfile -t files < <(production_sources)
-  # THE BOUNDARY, READ BEFORE ANY GUARD READS THE LIST. `production_sources`
-  # prints its file set only once it is complete, so a refusal inside it
-  # arrives here as an EMPTY list — the same shape a tree of nothing but
-  # test-only sources has, and the guard below would then answer a
-  # question nobody asked, with the true diagnosis scrolled off above it.
-  # The marker is what crosses the process substitution; the status
-  # cannot.
-  if [ -e "$GATE_MATCHER_FAILED" ]; then
-    rm -f "$GATE_MATCHER_FAILED"
-    gate_error "$(gate_name): the scan's file set was not decided (diagnosed above), so what it does not contain is unknown — that is not a pass"
+  local hits view
+  # WHERE A TEST-ONLY MODULE LIVES is `lib.sh`'s, resolved rustc's way,
+  # and so are the two refusals it can end in: a declaration nothing can
+  # place, and a tree whose every source is test-only.
+  gate_production_sources
+  # ONE READ, TWO MATCHERS. The census below asks a different question
+  # of the SAME view, and re-reading the tree for it would let the two
+  # answers be about different trees — as well as costing a second pass
+  # over crates/*/src. A reader that died is caught here rather than
+  # inherited: captured in a substitution its status would otherwise be
+  # thrown away, which is the defect `lib.sh` exists to close.
+  if ! view=$(gate_rust_code --skip-cfg-test --statements "${GATE_PRODUCTION_FILES[@]}"); then
+    gate_error "$(gate_name): the shared Rust reader could not build the statement view, so what it did not match is unknown — that is not a pass"
     exit 1
   fi
-  GATE_SCAN_FILES=${#files[@]}
-  if [ "$GATE_SCAN_FILES" -eq 0 ]; then
-    gate_error "$(gate_name): every source under crates/*/src in $PWD is test-only — the gate scanned no production code, which is not a pass"
+  if [ -z "$view" ]; then
+    gate_error "$(gate_name): the shared Rust reader returned NOTHING over $GATE_SCAN_FILES production source file(s) — the scan decided nothing, which is not a pass"
     exit 1
   fi
-  hits=$(gate_rust_code --skip-cfg-test --statements "${files[@]}" \
+  hits=$(printf '%s\n' "$view" \
     | gate_grep -P "$SQUARE_RE" \
     | gate_grep -vE '^crates/geom-core/src/(real|ring_interval)\.rs:' \
     | gate_grep -vE '^crates/geom-core/src/linalg/(svd|lsq)\.rs:' \
@@ -476,7 +469,8 @@ gate() {
     gate_error "use powi(2): it is strictly tighter than x*x when the enclosure straddles zero, and equal elsewhere except for a square below 2^-960, where the backend pads once more (see this gate's header — NOT 'never wider'). Whether THIS enclosure can straddle zero is a global property of upstream callers that refactors change silently — four live bugs arrived exactly that way. Convert, or ratify this file into the allowlist."
     exit 1
   fi
-  gate_ok "no unratified x*x outside the allowlisted files"
+  census "$view"
+  gate_ok "no unratified x*x outside the allowlisted files; and $CENSUS_SUMMARY"
 }
 
 plant() {
@@ -530,35 +524,10 @@ plant_wrapped_product() {
   } > "$1/crates/planted/src/lib.rs"
 }
 
-# A test-only module declared on ONE line. The `grep -A1` form that
-# preceded the statement view saw only the two-line spelling and cried
-# wolf on this one.
-plant_gated_module_file_one_line() {
-  mkdir -p "$1/crates/planted/src"
-  printf '#[cfg(test)] mod probes;\n' > "$1/crates/planted/src/lib.rs"
-  printf 'pub fn sq<T: Real>(x: T) -> T { x * x }\n' > "$1/crates/planted/src/probes.rs"
-}
-
-# `any(test, …)` is NOT test-only: an `any(debug_assertions, test, …)`
-# module is every debug build, so its square is production code.
-plant_any_gated_module_file() {
-  mkdir -p "$1/crates/planted/src"
-  printf '#[cfg(any(debug_assertions, test))]\nmod probes;\n' > "$1/crates/planted/src/lib.rs"
-  printf 'pub fn sq<T: Real>(x: T) -> T { x * x }\n' > "$1/crates/planted/src/probes.rs"
-}
-
 # Behind a block comment on one line — the strip has to be real.
 plant_after_block_comment() {
   mkdir -p "$1/crates/planted/src"
   printf 'pub fn sq<T: Real>(x: T) -> T { /* why */ x * x }\n' > "$1/crates/planted/src/lib.rs"
-}
-
-# A test-only module in its own file, registered WITHOUT the cfg gate:
-# ordinary production code, and it must fire.
-plant_ungated_module_file() {
-  mkdir -p "$1/crates/planted/src"
-  printf 'mod probes;\n' > "$1/crates/planted/src/lib.rs"
-  printf 'pub fn sq<T: Real>(x: T) -> T { x * x }\n' > "$1/crates/planted/src/probes.rs"
 }
 
 # THE NEAR MISSES, bundled: in the must-NOT-fire direction any one line
@@ -593,177 +562,225 @@ plant_not_squares() {
   } > "$1/crates/planted/src/lib.rs"
 }
 
-# EVERY SOURCE EXCLUDED, WITH NO CYCLE IN THE TREE ITSELF. A crate root
-# resolves its declarations as siblings, so two roots in one directory
-# each declaring a test module of the OTHER's name exclude each other:
-# `production_sources` returns empty and the guard below fires. Neither
-# declaration names its own file, which is the case the guard beside it
-# covers.
-plant_every_source_excluded_by_a_sibling() {
-  printf '#[cfg(test)]\nmod main;\n' > "$1/crates/clean/src/lib.rs"
-  printf '#[cfg(test)]\nmod lib;\n' > "$1/crates/clean/src/main.rs"
+# THE BREACH `lib.sh`'s test-module cases plant, and the only thing this
+# gate supplies to them: a square, appended to a file whose directory
+# they have already made.
+plant_square_at() {
+  printf 'pub fn sq<T: Real>(x: T) -> T { x * x }\n' >> "$1"
 }
 
-# A DECLARATION THAT RESOLVES ONTO ITS OWN DECLARER excludes nothing:
-# `mod lib;` in `lib.rs` names the file it is written in, and dropping
-# that file would take a whole crate out of the scan on the strength of
-# one line. The square here is production code and has to be read.
-plant_self_naming_declaration() {
+# --- THE CENSUS'S OWN FIXTURES ----------------------------------------
+#
+# ONE UNDISPOSITIONED CANDIDATE PER SHAPE, and each must be invisible to
+# the LIVE matcher or the case proves nothing about the census: the gate
+# would red on the square itself and the register would never be
+# consulted. That is why none of the four below puts the two operands
+# beside each other or makes the repeated operand a group's last factor.
+plant_undispositioned_paren_first() {
   mkdir -p "$1/crates/planted/src"
-  printf '#[cfg(test)]\nmod lib;\npub fn sq<T: Real>(x: T) -> T { x * x }\n' \
+  printf 'pub fn f<T: Real>(k: T, x: T) -> T { (x * k) * x }\n' > "$1/crates/planted/src/lib.rs"
+}
+
+plant_undispositioned_nested_paren() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f<T: Real>(a: T, b: T, x: T) -> T { ((a + b) * x) * x }\n' \
     > "$1/crates/planted/src/lib.rs"
 }
 
-# THE UNDER-SCAN DIRECTION, and it is the silent one: `bar.rs` is
-# production code that no declaration gates, while the module `foo.rs`
-# declares lives at `foo/bar.rs`. Resolving the declaration to the
-# SIBLING drops this file from the scan entirely and its square is never
-# read — the file at the resolved path is deliberately clean, so only
-# the sibling can decide this case.
-plant_production_sibling_of_gated_module() {
-  mkdir -p "$1/crates/planted/src/foo"
-  printf 'mod bar;\nmod foo;\n' > "$1/crates/planted/src/lib.rs"
-  printf '#[cfg(test)]\nmod bar;\n' > "$1/crates/planted/src/foo.rs"
-  printf 'pub fn sq<T: Real>(x: T) -> T { x * x }\n' > "$1/crates/planted/src/bar.rs"
-  printf 'pub fn t<T: Real>(x: T) -> T { x.powi(2) }\n' \
-    > "$1/crates/planted/src/foo/bar.rs"
-}
-
-# AN INLINE `mod x { ... }` DECLARES NO FILE. The statement view cuts at
-# `{` and `;` alike, so an inline test module reaches the matcher as the
-# same record a file declaration does — and read as one it excludes a
-# production file that has nothing to do with it.
-plant_inline_test_module_beside_named_file() {
-  mkdir -p "$1/crates/planted/src/foo"
-  printf 'mod foo;\n' > "$1/crates/planted/src/lib.rs"
-  printf 'mod bar;\n#[cfg(test)]\nmod probes {\n    fn t() {}\n}\n' \
-    > "$1/crates/planted/src/foo.rs"
-  printf 'pub fn sq<T: Real>(x: T) -> T { x * x }\n' \
-    > "$1/crates/planted/src/foo/probes.rs"
-}
-
-# THE OVER-SCAN DIRECTION: the file the declaration actually names.
-# `#[cfg(test)] mod bar;` inside `foo.rs` is `foo/bar.rs`, so this square
-# is test-only and reading it as production is crying wolf.
-plant_gated_module_in_declarer_directory() {
-  mkdir -p "$1/crates/planted/src/foo"
-  printf 'mod foo;\n' > "$1/crates/planted/src/lib.rs"
-  printf '#[cfg(test)]\nmod bar;\n' > "$1/crates/planted/src/foo.rs"
-  printf 'pub fn sq<T: Real>(x: T) -> T { x * x }\n' \
-    > "$1/crates/planted/src/foo/bar.rs"
-}
-
-# A GATED DECLARATION INSIDE AN INLINE MODULE mounts under that module:
-# `mod y { #[cfg(test)] mod x; }` in a crate root is `y/x.rs`, so the
-# top-level `x.rs` beside it is production code and has to be read. This
-# is the direction that loses a production file, and the resolved path
-# carries no square, so only the sibling can decide the case.
-plant_nested_gated_declaration_sibling() {
-  mkdir -p "$1/crates/planted/src/y"
-  printf 'mod x;\npub mod y {\n    #[cfg(test)]\n    mod x;\n}\n' \
+plant_undispositioned_three_factor() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f<T: Real>(k: T, m: T, x: T) -> T { k * x * m * x }\n' \
     > "$1/crates/planted/src/lib.rs"
-  printf 'pub fn sq<T: Real>(x: T) -> T { x * x }\n' > "$1/crates/planted/src/x.rs"
-  printf 'pub fn t<T: Real>(x: T) -> T { x.powi(2) }\n' > "$1/crates/planted/src/y/x.rs"
 }
 
-# THE SAME CHAIN, from the other side: the file that declaration really
-# mounts is test-only and must stay out of the scan.
-plant_nested_gated_declaration_target() {
-  mkdir -p "$1/crates/planted/src/y"
-  printf 'pub mod y {\n    #[cfg(test)]\n    mod x;\n}\n' \
+plant_undispositioned_two_statement() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f<T: Real>(k: T, x: T) -> T { let kx = k * x; let y = kx * x; y }\n' \
     > "$1/crates/planted/src/lib.rs"
-  printf 'pub fn sq<T: Real>(x: T) -> T { x * x }\n' > "$1/crates/planted/src/y/x.rs"
 }
 
-# AN INLINE MODULE IN A CRATE ROOT, which the non-root rule never
-# reaches: here the inline check is the only thing standing between
-# `mod probes { … }` and the production `probes.rs` beside it.
-plant_inline_test_module_in_a_root() {
+# THE REGISTER'S OWN TREE, written FROM the register — the only way a
+# gate with these reds can have a fixture that reaches them at all.
+# Every entry must find exactly the number of candidates it pins, so the
+# fixture plants that many, and it is a check on the register's own
+# shape: an entry whose fragment the matchers cannot reproduce fails
+# here rather than on a real tree. The three statement-scoped shapes
+# plant their fragment as a statement; the binding hop plants the
+# binding AND a use, because one statement of it is not the shape.
+# census_plant_entry ROOT ENTRY — one entry's site(s), appended to the
+# file it names. Both directions of the register are written from THIS
+# function, so a fixture cannot pass by planting something the register
+# does not describe.
+census_plant_entry() {
+  local root=$1 shape file frag count name x i
+  IFS='|' read -r shape file frag count _ <<<"$2"
+  mkdir -p "$root/${file%/*}"
+  i=0
+  while [ "$i" -lt "$count" ]; do
+    case "$shape" in
+      paren-first-factor|nested-paren|three-factor)
+        printf 'pub fn c() { %s; }\n' "$frag" >> "$root/$file" ;;
+      two-statement)
+        name=$(printf '%s\n' "$frag" | awk '{ print $2 }')
+        x=$(printf '%s\n' "$frag" | awk '{ print $NF }')
+        printf 'pub fn c() { %s; let use_%s = %s * %s; }\n' \
+          "$frag" "$name" "$name" "$x" >> "$root/$file" ;;
+      *)
+        printf 'SELFTEST FAILED: no planter for census shape %s\n' "$shape" >&2
+        exit 1 ;;
+    esac
+    i=$((i + 1))
+  done
+}
+
+plant_register_tree() {
+  local e
+  for e in "${CENSUS_REGISTER[@]}"; do census_plant_entry "$1" "$e"; done
+}
+
+# census_field INDEX FIELD — one field of one register entry, read from
+# the array rather than written out, so a register that is re-ordered or
+# re-worded does not silently stop being tested. EVERY MUTATION BELOW
+# TAKES AN INDEX: keyed on entry 0 alone they exercised the three-factor
+# shape only, and the binding hop's own MISCOUNT and ABSENT paths were
+# reached by nothing.
+census_field() { printf '%s' "${CENSUS_REGISTER[$1]}" | cut -d'|' -f"$2"; }
+
+# plant_register_tree_less INDEX ROOT — every entry but one. The file of
+# the omitted entry is created anyway if nothing else plants it, so the
+# case is "the SITE is gone" and not "the FILE is gone" — two different
+# reds, and a fixture that cannot tell them apart proves neither.
+plant_register_tree_less() {
+  local idx=$1 root=$2 i file
+  for i in "${!CENSUS_REGISTER[@]}"; do
+    [ "$i" = "$idx" ] || census_plant_entry "$root" "${CENSUS_REGISTER[$i]}"
+  done
+  file=$(census_field "$idx" 2)
+  mkdir -p "$root/${file%/*}"
+  [ -f "$root/$file" ] || printf 'pub fn benign(x: f64) -> f64 { x }\n' > "$root/$file"
+}
+
+# A SECOND CANDIDATE UNDER AN ENTRY THAT PINS ONE — what a register
+# without a count would absorb, taking that entry's disposition for a
+# square nobody has looked at.
+plant_register_extra() {
+  plant_register_tree "$2"
+  census_plant_entry "$2" "${CENSUS_REGISTER[$1]}"
+}
+
+# AN ENTRY WHOSE SITE IS GONE while its file is still read: the
+# disposition now covers nothing, and an entry standing for nothing is a
+# ratification waiting to be inherited.
+plant_register_site_gone() { plant_register_tree_less "$1" "$2"; }
+
+# AN ENTRY WHOSE FILE HAS LEFT THE SCAN while the rest of the register
+# is still live — the other direction of the same question, and the one
+# the count check alone cannot tell from a site that moved. Every entry
+# sharing that file goes ABSENT with it.
+plant_register_file_gone() {
+  plant_register_tree "$2"
+  rm -f "$2/$(census_field "$1" 2)"
+}
+
+# --- THE (file, shape) KEY, ONE HALF EACH -----------------------------
+#
+# Both cases hand the gate a WRITTEN register rather than mutating a
+# tree, because what has to vary is the ENTRY and not the tree. A
+# fixture that can tell a missing check from a present one needs the
+# candidate the entry would WRONGLY claim to be the ONLY candidate there
+# is: with the right one also in the tree, dropping the check turns a
+# pass into a MISCOUNT and the case reds either way, proving nothing.
+census_written_register_case() {
+  local what=$1 want=$2 entry=$3 file=$4 body=$5
+  local tmp out reg
+  tmp=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  mkdir -p "$tmp/${file%/*}"
+  printf '%s\n' "$body" > "$tmp/$file"
+  reg=$tmp/planted-register.txt
+  printf '%s\n' "$entry" > "$reg"
+  if out=$("$0" --root "$tmp" --register "$reg" 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: the gate PASSED on %s\n%s\n' "$what" "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+  gate_selftest_assert_diagnosed "$what" "$out"
+  case "$out" in
+    *"$want"*) ;;
+    *) printf 'SELFTEST FAILED (%s): the gate fired with an unexpected message — wanted %s, got:\n%s\n' \
+         "$what" "$want" "$out" >&2
+       exit 1 ;;
+  esac
+}
+
+# THE MALFORMED RED, which no fixture tree can reach: the register it
+# guards is baked into this file, so the case hands the gate a written
+# one instead.
+# AN ADJACENT TRIPLE IN AN ALLOWLISTED FILE, and it is the fixture the
+# three-factor shape's wedge guard exists for. `h * h * h` contains the
+# adjacent `h * h` branch 1 already reads, so the gate is quiet here on
+# the allowlist's ratification and on nothing else. Counted as a census
+# candidate it would arrive UNREGISTERED — turning KNOWN GAP 4's
+# file-granular ratification into a per-site one for this one spelling,
+# through a pass whose whole subject is meant to be what the matcher
+# CANNOT see.
+plant_adjacent_triple_in_an_allowlisted_file() {
+  mkdir -p "$1/crates/geom-brep/src/ssi"
+  printf 'pub fn c<T: Real>(h: T) -> T { h * h * h }\n' \
+    > "$1/crates/geom-brep/src/ssi/march.rs"
+}
+
+# A BINDING HOP WHOSE OPERAND IS A FIELD PATH, beside the name its dot
+# would match as a wildcard. `v.x` unescaped is the regex `v.x`, which
+# matches `vax`, so the reader would report a two-statement candidate
+# the source does not contain — and this file has no entry for it, so it
+# would arrive as an unregistered candidate and red a correct tree.
+plant_field_path_binding_near_miss() {
   mkdir -p "$1/crates/planted/src"
-  printf 'mod other;\n#[cfg(test)]\nmod probes {\n    fn t() {}\n}\n' \
+  printf 'pub fn f<T: Real>(k: T, v: V<T>, vax: T) -> T { let kx = k * v.x; kx * vax }\n' \
     > "$1/crates/planted/src/lib.rs"
-  printf 'pub fn sq<T: Real>(x: T) -> T { x * x }\n' \
-    > "$1/crates/planted/src/probes.rs"
 }
 
-# AN EXCLUSION IS A PATH, NOT A SUBSTRING. `foo/bar.rs.rs` is a different
-# file from the excluded `foo/bar.rs` and it is production code; a
-# substring filter drops it with the module it merely starts with.
-plant_production_file_extending_an_exclusion() {
-  mkdir -p "$1/crates/planted/src/foo"
-  printf 'mod foo;\n' > "$1/crates/planted/src/lib.rs"
-  printf '#[cfg(test)]\nmod bar;\n' > "$1/crates/planted/src/foo.rs"
-  printf 'pub fn t<T: Real>(x: T) -> T { x.powi(2) }\n' \
-    > "$1/crates/planted/src/foo/bar.rs"
-  printf 'pub fn sq<T: Real>(x: T) -> T { x * x }\n' \
-    > "$1/crates/planted/src/foo/bar.rs.rs"
+# `--register` WITH NO ARGUMENT. Left to `shift 2` this ends the script
+# under errexit with nothing printed, which is the one failure a gate
+# must never have: it decided nothing and said so to nobody.
+gate_selftest_census_register_without_argument() {
+  local tmp out
+  tmp=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  if out=$("$0" --root "$tmp" --register 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: the gate PASSED with --register given no argument\n%s\n' "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+  gate_selftest_assert_diagnosed "--register with no argument" "$out"
+  case "$out" in
+    *"--register takes a FILE"*) ;;
+    *) printf 'SELFTEST FAILED (--register with no argument): the gate failed for some OTHER reason:\n%s\n' "$out" >&2
+       exit 1 ;;
+  esac
 }
 
-# A DECLARATION NEAR THE TOP OF A LONG FILE, which is the shape that
-# catches a reader that stops reading once it has its answer: the shared
-# reader upstream is still writing, its write fails on the closed pipe,
-# and `pipefail` turns a declaration this gate DID place into a refusal.
-# The file is longer than a pipe buffer on purpose — that is the whole
-# difference between the two outcomes, and it is why the same tree could
-# pass here and fail on a runner.
-plant_early_declaration_in_a_long_file() {
-  mkdir -p "$1/crates/planted/src"
-  {
-    printf '#[cfg(test)]\nmod probes;\n'
-    seq 4000 | awk '{ printf "pub fn f%s(x: f64) -> f64 { x + %s.0 }\n", $1, $1 }'
-  } > "$1/crates/planted/src/lib.rs"
-  printf 'pub fn sq<T: Real>(x: T) -> T { x * x }\n' > "$1/crates/planted/src/probes.rs"
-}
-
-# THE DIRECTORY FORM of the same resolution: `mod bar;` names
-# `foo/bar.rs` OR `foo/bar/mod.rs`, and a module big enough to be a
-# directory is exactly the test module a gate would otherwise scan
-# whole.
-plant_gated_module_directory_form() {
-  mkdir -p "$1/crates/planted/src/foo/bar"
-  printf 'mod foo;\n' > "$1/crates/planted/src/lib.rs"
-  printf '#[cfg(test)]\nmod bar;\n' > "$1/crates/planted/src/foo.rs"
-  printf 'pub fn sq<T: Real>(x: T) -> T { x * x }\n' \
-    > "$1/crates/planted/src/foo/bar/mod.rs"
-}
-
-# WHERE THE RAW READER STOPS, and it stops LOUDLY. `mod` and its name on
-# separate lines are one statement to the code view and no `mod NAME;`
-# line to the raw one, so the mount point is not decided — and a gate
-# that cannot decide where a module lives has not cleared the tree.
-# (The file needs a `mod x;` of its own to reach this stage at all: the
-# raw narrowing above is line-scoped, so a lone split declaration is
-# invisible to the gate and its file is scanned as production.)
-plant_declaration_split_across_lines() {
-  mkdir -p "$1/crates/planted/src"
-  printf 'mod other;\n#[cfg(test)]\nmod\nbar;\n' > "$1/crates/planted/src/lib.rs"
-  printf 'pub fn sq<T: Real>(x: T) -> T { x * x }\n' > "$1/crates/planted/src/bar.rs"
-}
-
-# A `#[path]` MOUNT overrides both positional rules, relative to the
-# declaring file's own directory — and the tree has live ones, so a
-# resolver without it re-mints the over-scan it just fixed. The dead
-# mount above the live one is the reason the attribute is LOCATED in the
-# code-only view and only its payload read from the raw line: a reader
-# that went to the raw text for both would follow `decoy.rs`, exclude
-# nothing that exists and scan this square as production.
-plant_gated_module_behind_path_attribute() {
-  mkdir -p "$1/crates/planted/src"
-  printf 'mod foo;\n' > "$1/crates/planted/src/lib.rs"
-  printf '#[cfg(test)]\n// #[path = "decoy.rs"]\n#[path = "bar_impl.rs"]\nmod bar;\n' \
-    > "$1/crates/planted/src/foo.rs"
-  printf 'pub fn sq<T: Real>(x: T) -> T { x * x }\n' \
-    > "$1/crates/planted/src/bar_impl.rs"
-}
-
-# The same square, in a module file whose declaration is cfg(test)-gated:
-# test-only code, and it must NOT fire. This case and the one above are
-# the two directions of the same rule, and neither is evidence without
-# the other.
-plant_gated_module_file() {
-  mkdir -p "$1/crates/planted/src"
-  printf '#[cfg(test)]\nmod probes;\n' > "$1/crates/planted/src/lib.rs"
-  printf 'pub fn sq<T: Real>(x: T) -> T { x * x }\n' > "$1/crates/planted/src/probes.rs"
+gate_selftest_census_malformed_register() {
+  local tmp out reg
+  tmp=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  reg=$tmp/planted-register.txt
+  printf '%s\n' "${CENSUS_REGISTER[@]}" | sed '1s/|1|/|0|/' > "$reg"
+  if out=$("$0" --root "$tmp" --register "$reg" 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: the gate PASSED on a census register entry pinning a count of zero\n%s\n' "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+  gate_selftest_assert_diagnosed "a malformed census register entry" "$out"
+  case "$out" in
+    *MALFORMED*) ;;
+    *) printf 'SELFTEST FAILED (a malformed census register entry): the gate fired for some OTHER reason:\n%s\n' "$out" >&2
+       exit 1 ;;
+  esac
 }
 
 gate_selftest() {
@@ -779,41 +796,80 @@ gate_selftest() {
   gate_selftest_case "$want" plant_self_field
   gate_selftest_case "$want" plant_nested_field_path
   gate_selftest_case "$want" plant_after_block_comment
-  gate_selftest_case "$want" plant_ungated_module_file
-  gate_selftest_case "$want" plant_any_gated_module_file
   gate_selftest_case "$want" plant_wrapped_product
   gate_selftest_case "$want" plant_scaled_square
   gate_selftest_case "$want" plant_scaled_square_field_path
-  gate_selftest_case "is test-only — the gate scanned no production code" \
-    plant_every_source_excluded_by_a_sibling
-  gate_selftest_case "$want" plant_self_naming_declaration
-  gate_selftest_case "$want" plant_production_sibling_of_gated_module
-  gate_selftest_case "$want" plant_inline_test_module_beside_named_file
-  gate_selftest_case "where that module lives was not decided" \
-    plant_declaration_split_across_lines
-  # THE SAME FIXTURE, ASSERTED ON THE OTHER HALF of the refusal: without
-  # the marker read in `gate` the list arrives empty and the every-source
-  # guard answers instead, with a diagnosis that is false about the tree.
-  gate_selftest_case "the scan's file set was not decided" \
-    plant_declaration_split_across_lines
-  gate_selftest_case "$want" plant_nested_gated_declaration_sibling
-  gate_selftest_case "$want" plant_inline_test_module_in_a_root
-  gate_selftest_case "$want" plant_production_file_extending_an_exclusion
   gate_selftest_passes "prose, string literals, mixed products, a * a.method(), a call whose result multiplies its own argument, a parenthesized product whose last factor is not the repeated one, and a cfg(test) module" plant_not_squares
-  gate_selftest_passes "a square in a module file whose declaration is cfg(test)-gated" plant_gated_module_file
-  gate_selftest_passes "the same, declared on one line" plant_gated_module_file_one_line
-  gate_selftest_passes "a square in the module file a non-root declarer actually names" \
-    plant_gated_module_in_declarer_directory
-  gate_selftest_passes "a square in the module file a #[path] attribute mounts" \
-    plant_gated_module_behind_path_attribute
-  gate_selftest_passes "a square in the mod.rs of a resolved module directory" \
-    plant_gated_module_directory_form
-  gate_selftest_passes "a square in the file an inline module's own gated declaration mounts" \
-    plant_nested_gated_declaration_target
-  gate_selftest_passes "a gated declaration near the top of a file longer than a pipe buffer" \
-    plant_early_declaration_in_a_long_file
-  printf '%s selftest OK: passes a clean fixture, and prose, string literals, near-miss products and every shape of test-only module; fires on each square spelling the matcher claims — bare identifier, field path, `self.` field, nested path, rustfmt-wrapped product, behind a block comment, and the parenthesized scaled square in both forms; places a cfg(test) declaration where rustc mounts it, so a production sibling, a production file under an inline module and a production path that merely extends an exclusion all stay in the scan and red, while the file the declaration names — positional, #[path]-mounted, directory-form or nested in an inline module — does not; and it REFUSES, with its own diagnosis and never a second false one, a declaration it cannot place — while a declaration it CAN place stays placed however long the file under it runs, a tree whose sources exclude each other, and a `grep` that cannot run\n' "$(gate_name)"
+  gate_selftest_test_module_homes "$want" plant_square_at
+  # THE CENSUS, in both directions. `census` is the half whose subject
+  # is what the matcher above CANNOT see, so every one of its cases has
+  # to be invisible to that matcher: a fixture the live matcher reds is
+  # a fixture that proves nothing here.
+  local cwant="the five-shape census does not match CENSUS_REGISTER"
+  gate_selftest_case "$cwant" plant_undispositioned_paren_first
+  gate_selftest_case "$cwant" plant_undispositioned_nested_paren
+  gate_selftest_case "$cwant" plant_undispositioned_three_factor
+  gate_selftest_case "$cwant" plant_undispositioned_two_statement
+  # EVERY `want` BELOW IS A FRAGMENT OF THE OFFENDING LINE, never a word
+  # from the umbrella diagnosis. `lib.sh` warns that `$want` alone can
+  # be satisfied by text the gate prints for some other reason, and this
+  # gate is where that happened: `matched 0` and `ABSENT` both appear in
+  # the message that explains what those lines MEAN, so either case was
+  # satisfied by any census red at all — including one with the check it
+  # is about deleted. The register supplies the fragments, so a
+  # re-worded register does not silently stop testing.
+  local i e
+  for i in 0 1; do
+    e="$(census_field "$i" 1)|$(census_field "$i" 2)|$(census_field "$i" 3)"
+    gate_selftest_case "MISCOUNT|$e|pinned 1|matched 2" plant_register_extra "$i"
+    gate_selftest_case "MISCOUNT|$e|pinned 1|matched 0" plant_register_site_gone "$i"
+    gate_selftest_case "ABSENT|$e" plant_register_file_gone "$i"
+  done
+  # THE (file, shape) KEY. Each half is a written register whose single
+  # entry would wrongly claim the tree's single candidate if that half
+  # of the key were dropped — so the case reds ONLY because the check is
+  # there, which is what the two cases above cannot say for it.
+  census_written_register_case \
+    "a candidate in one file and an entry naming another" \
+    "UNREG|three-factor|crates/planted/src/here.rs" \
+    "three-factor|crates/planted/src/there.rs|free1 * p2 * free1|1|planted" \
+    "crates/planted/src/here.rs" \
+    "pub fn c() { free1 * p2 * free1; }"
+  census_written_register_case \
+    "a three-factor candidate and an entry of another shape naming its file and text" \
+    "UNREG|three-factor|crates/planted/src/one.rs" \
+    "two-statement|crates/planted/src/one.rs|let a3 = a1 * a2|1|planted" \
+    "crates/planted/src/one.rs" \
+    "pub fn c() { let a3 = a1 * a2 * b * a2; }"
+  gate_selftest_census_malformed_register
+  gate_selftest_census_register_without_argument
+  gate_selftest_passes "the tree the census register describes, every entry finding exactly the candidates it pins" plant_register_tree
+  gate_selftest_passes "an adjacent triple in an allowlisted file, which branch 1 already reads and the census must not claim" plant_adjacent_triple_in_an_allowlisted_file
+  gate_selftest_passes "a binding hop whose operand is a FIELD PATH, beside a name the unescaped dot in it would match" plant_field_path_binding_near_miss
+  printf '%s selftest OK: passes a clean fixture, and prose, string literals and near-miss products; fires on each square spelling the matcher claims — bare identifier, field path, `self.` field, nested path, rustfmt-wrapped product, behind a block comment, and the parenthesized scaled square in both forms; re-derives the five spellings it CANNOT see and passes the register'"'"'s own tree while firing, on a fragment of the offending line rather than on the umbrella text, on an undispositioned candidate of each of the four shapes and — for a three-factor entry and a binding-hop one alike — on a second candidate under a one-site entry, an entry whose site is gone and an entry whose file has left the scan; holds BOTH halves of the (file, shape) key against a written register; refuses a --register with no argument and a malformed entry; keeps a field-path binding from matching a name its unescaped dot would, and an adjacent triple in an allowlisted file out of the census entirely; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
-gate_parse_args "$@"
+# `--register FILE` is this gate's own flag, so it is taken out of argv
+# before lib.sh's parser — which rejects what it does not know — sees
+# the rest. It is NOT in that parser's usage line, and that line is
+# lib-wide: a per-gate flag added to it would be printed by every gate
+# that does not have it. So it is written here, which is where a reader
+# of this gate looks.
+#
+# THE MISSING ARGUMENT IS DIAGNOSED, not left to `shift 2`: under
+# errexit a short shift ends the script with nothing printed at all,
+# which is a gate that decided nothing and said so to nobody.
+GATE_ARGV=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --register)
+      if [ $# -lt 2 ]; then
+        gate_error "$(gate_name): --register takes a FILE holding the census register, one entry per line, and none was given"
+        exit 2
+      fi
+      GATE_CENSUS_REGISTER_FILE=$2; shift 2 ;;
+    *) GATE_ARGV+=("$1"); shift ;;
+  esac
+done
+gate_parse_args ${GATE_ARGV[@]+"${GATE_ARGV[@]}"}
 gate_main

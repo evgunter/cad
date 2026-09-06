@@ -91,19 +91,14 @@
 #     shared view (`--skip-cfg-test`);
 #   * a whole file whose `mod` line is `#[cfg(test)] mod x;`, in either
 #     spelling — the attribute alone on its line, or the whole
-#     declaration on one (both planted; the one-line form is what an
-#     arm keyed to the attribute alone cries wolf on).
-#     `crates/topo/src/review_m1_pr5_internal.rs` is the live resident:
-#     its `leak_probe!` body carries a `.unwrap()` inside a `#[test]
-#     fn`, and the file carries no `cfg` of its own because its `mod`
-#     line in `lib.rs` carries it.
+#     declaration on one. `crates/topo/src/review_m1_pr5_internal.rs`
+#     is the live resident: its `leak_probe!` body carries a
+#     `.unwrap()` inside a `#[test] fn`, and the file carries no `cfg`
+#     of its own because its `mod` line in `lib.rs` carries it.
 #
-# That second resolution is `witness-not-ambient.sh`'s and is TEXTUAL,
-# not rustc's — `mod x;` outside a crate root resolves to
-# `<declarer>/x.rs`, not the sibling this names — kept identical so the
-# class has one shape for the row that owns it
-# (`work/gates/test-module-resolution-has-three-homes.md`); the only
-# resident it decides is declared in a `lib.rs`, where both agree.
+# WHERE that file lives is not decided here: `gate_test_only_mounts`
+# places it and `gate_filter_test_only_paths` takes it out of the scan,
+# under `lib.sh`'s §"WHERE A TEST-ONLY MODULE LIVES".
 #
 # Panicking IS a test's failure mechanism, which is why the stanza lets
 # test code allow the family per-module; a gate that fired there would
@@ -121,46 +116,10 @@ PANIC_TOKENS='\.(unwrap|expect)[^A-Za-z0-9_]|[^A-Za-z0-9_](panic|todo|unimplemen
 # THE MATCH IS FENCED TO THE BODY FIELD. A record is
 # `FILE:LINE:MACRO:BODY`, and the first three fields hold no colon, so
 # the prefix below consumes them exactly: a path or a macro name that
-# happens to spell a token is not scanned as if it were code.
-PANIC_RE="^[^:]*:[0-9]+:[^:]*:.*($PANIC_TOKENS)"
-
-# Files whose whole content is test code because their `mod` line is
-# `#[cfg(test)]`. Resolved from the DECLARING file's directory, both
-# spellings (`x.rs` and `x/mod.rs`), so a renamed module cannot quietly
-# re-enter the scan as shipped code. A `#[cfg(test)]` may be followed by
-# further attributes before the `mod` line, and `#[path = "…"]` renames
-# the file outright; both appear in this tree.
-#
-# THE ATTRIBUTE IS STRIPPED, NOT CONSUMED, so `#[cfg(test)] mod x;` on
-# ONE line and the same pair split over two are the same declaration
-# here. An arm that armed only on the attribute alone read the one-line
-# form as ungated and cried wolf on the file it names.
-cfg_test_module_files() {
-  awk '
-    FNR == 1 { armed = 0; path = "" }
-    /^[[:space:]]*#\[cfg\(test\)\]/ {
-      armed = 1; path = ""
-      sub(/^[[:space:]]*#\[cfg\(test\)\][[:space:]]*/, "", $0)
-      if ($0 ~ /^[[:space:]]*$/) next
-    }
-    armed && /^[[:space:]]*#\[path[[:space:]]*=/ {
-      if (match($0, /"[^"]+"/)) path = substr($0, RSTART + 1, RLENGTH - 2)
-      next
-    }
-    armed && /^[[:space:]]*#\[/ { next }
-    armed && /^[[:space:]]*(pub(\([a-z]+\))?[[:space:]]+)?mod[[:space:]]+[a-z_0-9]+[[:space:]]*;/ {
-      name = $0
-      sub(/^[[:space:]]*(pub(\([a-z]+\))?[[:space:]]+)?mod[[:space:]]+/, "", name)
-      sub(/[[:space:]]*;.*$/, "", name)
-      dir = FILENAME
-      sub(/\/[^\/]*$/, "", dir)
-      if (path != "") print dir "/" path
-      else { print dir "/" name ".rs"; print dir "/" name "/" }
-      armed = 0; next
-    }
-    { armed = 0 }
-  ' "${GATE_SOURCE_FILES[@]}"
-}
+# happens to spell a token is not scanned as if it were code. The first
+# two fields are `lib.sh`'s record prefix, which every view emits and
+# this gate extends by one field.
+PANIC_RE="$GATE_RECORD_PREFIX_RE[^:]*:.*($PANIC_TOKENS)"
 
 # One record per line of `macro_rules!` body, as
 # `FILE:LINE:MACRO:BODY-TEXT` — the `grep -rn` shape the filters below
@@ -223,11 +182,13 @@ macro_bodies() {
 
 gate() {
   gate_require_crate_sources
-  local excluded hits
-  excluded=$(cfg_test_module_files | sort -u)
-  hits=$(gate_rust_code --skip-cfg-test "${GATE_SOURCE_FILES[@]}" \
+  local hits
+  # A FILE the scan never reads, rather than a record filtered after it:
+  # the test-only modules leave the file set, so the count this gate
+  # prints names what it actually read.
+  gate_production_sources
+  hits=$(gate_rust_code --skip-cfg-test "${GATE_PRODUCTION_FILES[@]}" \
     | macro_bodies \
-    | { if [ -n "$excluded" ]; then gate_grep -vF -f <(printf '%s\n' "$excluded" | sed 's#\.rs$#.rs:#'); else cat; fi } \
     | gate_grep -E "$PANIC_RE" \
     | cut -c1-160)
   if [ -n "$hits" ]; then
@@ -436,42 +397,13 @@ mod tests {
 RS
 }
 
-# THE ALLOW's third spelling and the live one: a whole file that is test
-# code because its `mod` line says so, carrying no `cfg` of its own.
-# These two planters differ in ONE character of whitespace — the newline
-# after the attribute — and an arm keyed to the attribute alone passes
-# the split one and reds the other.
-plant_cfg_test_module_file_split() {
-  plant_cfg_test_module_file "$1" '#[cfg(test)]
-mod probes;'
-}
-
-plant_cfg_test_module_file_one_line() {
-  plant_cfg_test_module_file "$1" '#[cfg(test)] mod probes;'
-}
-
-# The declaration is the argument; the rest is the same tree, and the
-# clean fixture's `direct` fn is kept so this case carries the negative
-# control the other planters get from `gate_plant_clean`.
-plant_cfg_test_module_file() {
-  local root=$1 decl=$2
-  { printf '%s\n' "$decl"
-    printf 'pub fn direct(v: Option<u32>) -> u32 {\n'
-    printf '    v.expect("clippy sees this one and denies it")\n'
-    printf '}\n'
-  } > "$root/crates/clean/src/lib.rs"
-  cat > "$root/crates/clean/src/probes.rs" <<'RS'
-macro_rules! leak_probe {
-    ($arena:ident) => {{
-        let k = $arena.keys().next().unwrap();
-        k
-    }};
-}
-#[test]
-fn t() {
-    let _ = 1;
-}
-RS
+# THE BREACH `lib.sh`'s test-module cases plant, and the only thing this
+# gate supplies to them: a macro body spelling one of the six tokens,
+# appended to a file whose directory they have already made. It is the
+# live resident's own shape — a `.unwrap()` in a body, in a file whose
+# `mod` line carries the only `cfg` there is.
+plant_macro_panic_at() {
+  printf 'macro_rules! leak_probe { ($a:ident) => { $a.keys().next().unwrap() }; }\n' >> "$1"
 }
 
 # `unreachable!` is absent from the workspace stanza by ratified
@@ -567,13 +499,12 @@ gate_selftest() {
   gate_selftest_case "$want" plant_second_macro_after_a_clean_one
   gate_selftest_passes "the same call in a plain fn beside the macro" plant_plain_fn_only
   gate_selftest_passes "a #[cfg(test)] macro item and one in a #[cfg(test)] module" plant_cfg_test_macro
-  gate_selftest_passes "a macro in a file declared #[cfg(test)]\\nmod x;" plant_cfg_test_module_file_split
-  gate_selftest_passes "a macro in a file declared #[cfg(test)] mod x; on one line" plant_cfg_test_module_file_one_line
   gate_selftest_passes "unreachable!, which the workspace stanza omits" plant_unreachable
   gate_selftest_passes "unwrap_or/unwrap_or_else/expect_err/assert!/debug_assert!" plant_near_miss_names
   gate_selftest_passes "a token in the FILE PATH rather than the body" plant_token_in_the_path
   gate_selftest_passes "the tokens in comments and string literals" plant_prose_only
-  printf '%s selftest OK: 11 planted spellings fire (the row repro, .unwrap, panic!, todo!, unimplemented!, dbg!, a space before the bang, a paren-delimited definition, a body after a braced format string, a body after a brace char literal and raw string, and a second macro after a clean one); the same call in a plain fn, both inline #[cfg(test)] spellings, a file declared `#[cfg(test)] mod x;` split over two lines AND on one, unreachable!, the unwrap_or/expect_err/assert! near misses, a token spelled by the FILE PATH and comment/string-literal mentions stay green; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' \
+  gate_selftest_test_module_homes "$want" plant_macro_panic_at
+  printf '%s selftest OK: 11 planted spellings fire (the row repro, .unwrap, panic!, todo!, unimplemented!, dbg!, a space before the bang, a paren-delimited definition, a body after a braced format string, a body after a brace char literal and raw string, and a second macro after a clean one); the same call in a plain fn, both inline #[cfg(test)] spellings, unreachable!, the unwrap_or/expect_err/assert! near misses, a token spelled by the FILE PATH and comment/string-literal mentions stay green; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' \
     "$(gate_name)"
 }
 

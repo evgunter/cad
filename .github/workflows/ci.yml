@@ -1229,6 +1229,12 @@ jobs:
         run: |
           scripts/gates/panic-free-macro-bodies.sh --selftest
           scripts/gates/panic-free-macro-bodies.sh
+      # Every LoopBoundary discard is a register entry at a pinned
+      # count, and the entry says whether its arm has been named.
+      - name: LoopBoundary deferral register
+        run: |
+          scripts/gates/loop-boundary-discards.sh --selftest
+          scripts/gates/loop-boundary-discards.sh
       # Test-aggregation discipline: one [[test]] target per crate. Each
       # extra one is a full codegen+link of the ~40-rlib graph — 96% of
       # this workflow's build job, measured (bazel-verdict report).

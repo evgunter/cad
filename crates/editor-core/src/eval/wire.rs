@@ -52,6 +52,11 @@ pub(crate) struct OpOut<T: Decide> {
     pub payload: ValuePayload<T>,
     pub names: Arc<NameTable>,
     pub contacts: Arc<topo::ContactRecords>,
+    /// Whose mate authored each of those records, and which mates of
+    /// the documents below could not be minted at all — the same
+    /// channel's bookkeeping half, in the same arena and filled at the
+    /// same one op.
+    pub carried: Arc<crate::assembly::CarriedDeclarations>,
 }
 
 impl<T: Decide> OpOut<T> {
@@ -62,6 +67,7 @@ impl<T: Decide> OpOut<T> {
             payload,
             names,
             contacts: Arc::new(topo::ContactRecords::default()),
+            carried: Arc::new(crate::assembly::CarriedDeclarations::default()),
         }
     }
 }
@@ -381,11 +387,66 @@ where
     // identity fast path clones keys verbatim. Re-deriving them from
     // the placed geometry is exactly the scan-to-bless move F1 bans;
     // the declaration is inherited, never rediscovered.
+    // The bookkeeping half of the same channel. The face keys ride the
+    // placement unchanged for the same reason the records do, so the
+    // gather re-keys both alike; what is added here is the ROUTE, and
+    // one rule builds every one of them: a row the pinned document
+    // minted itself arrives through THIS node, and a row that already
+    // came up from deeper keeps its own `of` with this node prepended
+    // ([`Route::through_instance`]).
+    let carried = crate::assembly::CarriedDeclarations {
+        minted: carry_up(
+            &part.minted,
+            part.carried.iter().map(|r| (&r.route, &r.declaration)),
+            id,
+            doc_ref.id,
+        )
+        .map(|(route, declaration)| crate::assembly::CarriedDeclaration { route, declaration })
+        .collect(),
+        unminted: carry_up(
+            &part.unminted,
+            part.carried_unminted.iter().map(|r| (&r.route, &r.refusal)),
+            id,
+            doc_ref.id,
+        )
+        .map(|(route, refusal)| crate::assembly::CarriedRefusal { route, refusal })
+        .collect(),
+    };
     Ok(OpOut {
         payload: ValuePayload::Body(Arc::new(placed)),
         names: table,
         contacts: Arc::clone(&part.contacts),
+        carried: Arc::new(carried),
     })
+}
+
+/// One instantiation's worth of routed rows, over one payload kind:
+/// the pinned document's OWN rows first — reached through `node`, `of`
+/// that document, nothing in between — then the rows it carried up
+/// itself, each re-routed through `node`
+/// ([`crate::assembly::Route::through_instance`]).
+///
+/// Generic over the payload because a declaration and a mint refusal
+/// are the same act here — a row of another document reaching this one
+/// — and one route rule written twice is one place for it to drift.
+fn carry_up<'a, P: Clone + 'a>(
+    own: &'a [P],
+    below: impl Iterator<Item = (&'a crate::assembly::Route, &'a P)> + 'a,
+    node: RecipeNodeId,
+    of: crate::ident::DocumentId,
+) -> impl Iterator<Item = (crate::assembly::Route, P)> + 'a {
+    own.iter()
+        .map(move |payload| {
+            (
+                crate::assembly::Route {
+                    through: node,
+                    of,
+                    via: Vec::new(),
+                },
+                payload.clone(),
+            )
+        })
+        .chain(below.map(move |(route, payload)| (route.through_instance(node), payload.clone())))
 }
 
 /// Stamps every UNSOURCED description of `body` with this node's

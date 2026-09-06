@@ -1262,15 +1262,11 @@ impl eframe::App for ViewerApp {
                 // buttons beside it are the shipped token and its pair.
                 // Neither knows whether a thread is involved.
                 //
-                // THREE states, not two, because a cancel leaves a
-                // fourth thing to say: the picture is older than the
-                // document AND nothing is running. A spinner there
-                // would be a lie about work nobody is doing.
-                match frame::progress(
-                    self.session.busy(),
-                    self.session.running(),
-                    self.picks.indexing(),
-                ) {
+                // ONE indicator for one wait: `progress` ranks what
+                // the session owes against what the index seam is
+                // doing, so the toolbar never lights two spinners for
+                // the same moment.
+                match frame::progress(self.session.outstanding(), self.picks.indexing()) {
                     Some(frame::Progress::Evaluating) => {
                         ui.separator();
                         ui.spinner();

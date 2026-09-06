@@ -36,7 +36,7 @@ use viewer::pick::{self, CacheStep, IdMap, IndexLanding, PickCache, PickIndex};
 use viewer::props::SlotValue;
 use viewer::scene::{self, DisplayTolerance, FittedDelta, PLATE_EXTENT};
 use viewer::session::{
-    AtRestBadge, DocSession, FaceSelection, Hovered, Refusal, Selection, SessionOp,
+    AtRestBadge, DocSession, FaceSelection, Hovered, Outstanding, Refusal, Selection, SessionOp,
 };
 
 fn delta() -> DisplayTolerance {
@@ -722,23 +722,23 @@ fn the_chooser_probe_is_confident_only_with_neither_backend_reading() {
     // nothing". The probe's decision logic is a pure function of the
     // two readings, so these rows hold whatever is on the CI box's
     // PATH.
-    use frame::ChooserBackend;
+    use frame::{ChooserBackend, SessionBus, Zenity};
     assert_eq!(
-        frame::chooser_backend_of(true, false),
+        frame::chooser_backend_of(Zenity::OnPath, SessionBus::NotAdvertised),
         ChooserBackend::ZenityPresent
     );
     assert_eq!(
-        frame::chooser_backend_of(true, true),
+        frame::chooser_backend_of(Zenity::OnPath, SessionBus::Advertised),
         ChooserBackend::ZenityPresent,
         "zenity needs no portal"
     );
     assert_eq!(
-        frame::chooser_backend_of(false, true),
+        frame::chooser_backend_of(Zenity::NotOnPath, SessionBus::Advertised),
         ChooserBackend::PortalPossible,
         "a session bus makes a portal POSSIBLE — a hint, never a verdict"
     );
     assert_eq!(
-        frame::chooser_backend_of(false, false),
+        frame::chooser_backend_of(Zenity::NotOnPath, SessionBus::NotAdvertised),
         ChooserBackend::Absent
     );
     assert!(ChooserBackend::ZenityPresent.usable());
@@ -1569,48 +1569,36 @@ fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
 }
 
 /// One indicator for one wait, and the ranking that decides which.
+///
+/// The six points are the whole domain: the three states a session can
+/// owe, times the index seam's two.
 #[test]
 fn the_chrome_has_one_progress_state_and_evaluation_outranks_indexing() {
-    // busy, running, indexing.
-    assert_eq!(frame::progress(false, false, false), None);
+    assert_eq!(frame::progress(Outstanding::Current, false), None);
     assert_eq!(
-        frame::progress(true, true, false),
+        frame::progress(Outstanding::Evaluating, false),
         Some(frame::Progress::Evaluating)
     );
     assert_eq!(
-        frame::progress(true, false, false),
+        frame::progress(Outstanding::Canceled, false),
         Some(frame::Progress::Canceled { indexing: false }),
         "a spinner over no running work would be a lie",
     );
     assert_eq!(
-        frame::progress(true, false, true),
+        frame::progress(Outstanding::Canceled, true),
         Some(frame::Progress::Canceled { indexing: true }),
         "a cancel with an index build still running is one state that \
          carries the work, not a second indicator beside it",
     );
     assert_eq!(
-        frame::progress(false, false, true),
+        frame::progress(Outstanding::Current, true),
         Some(frame::Progress::Indexing)
     );
     assert_eq!(
-        frame::progress(true, true, true),
+        frame::progress(Outstanding::Evaluating, true),
         Some(frame::Progress::Evaluating),
         "an index for a superseded generation is about to be discarded",
     );
-    // The last two of the eight. `busy` is "the picture is older than
-    // the document" and `running` is "the seam has work", so a seam
-    // with work outstanding always has a generation the picture has
-    // not caught up to: NOT busy while running is unreachable through
-    // `DocSession`. The function is total anyway, and what it answers
-    // there is written down rather than left to be discovered.
-    for indexing in [false, true] {
-        assert_eq!(
-            frame::progress(false, true, indexing),
-            frame::progress(false, false, indexing),
-            "with the picture current, a running evaluation the session \
-             cannot report changes nothing",
-        );
-    }
 }
 
 // --- the pairing sweep ----------------------------------------------
