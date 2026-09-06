@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-06
 refs: [debug-only-reader-cannot-place-a-statement-attribute-over-a-braced-call, debug-only-bit-witness-callers-are-on-no-row]
 branch: gates/debug-only-topo-class
+pr: 2066
 ---
 
 
