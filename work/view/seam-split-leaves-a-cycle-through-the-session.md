@@ -72,3 +72,14 @@ at the section rather than restating it.
 Whether the surviving ring should be broken at all is not opened here
 and is not this item's question — it records that the ring is
 deliberate.
+
+**Two of the three line numbers in `## What` above shifted inside the
+same fix pass that closed this**, because rewriting the two module
+headers moved every import below them: `pick.rs:44` is `:60` and
+`pickindex.rs:64` is `:99`; `session.rs:78` is unmoved. The README
+carries the current three. The numbers above are left as the reviewer
+recorded them — that is what a closed row is for — and the shift is
+noted here because this program spent the same day learning that a
+resolving citation reads as a checked one
+(`stale-file-citations-after-the-split`). This is that item's class
+biting inside the PR that corrected it.

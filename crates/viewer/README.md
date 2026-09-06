@@ -653,8 +653,8 @@ survives on the seam types; the split alone leaves `pickindex` needing
 holds a ring** — said here because a picture of a chain is exactly the
 sentence that stops the next reader looking:
 
-    pick.rs:44        use crate::pickindex::{PickIndex, PickIndexError}
-    pickindex.rs:64   use crate::session::{…, SessionOp}
+    pick.rs:60        use crate::pickindex::{PickIndex, PickIndexError}
+    pickindex.rs:99   use crate::session::{…, SessionOp}
     session.rs:78     use crate::pick            (for `pick::IndexInputs`)
 
 `pick → pickindex → session → pick` is live, it predates this split —
