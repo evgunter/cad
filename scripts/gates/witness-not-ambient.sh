@@ -129,6 +129,7 @@ gate_plant_clean() {
 # rather than every such gate carrying this override.
 gate_plant_home_every_source_excluded() {
   rm -f "$1/$HOME_FILE"
+  mkdir -p "$1/crates/clean/src"
   printf '#[cfg(test)]\nmod main;\n' > "$1/crates/clean/src/lib.rs"
   printf '#[cfg(test)]\nmod lib;\n' > "$1/crates/clean/src/main.rs"
 }

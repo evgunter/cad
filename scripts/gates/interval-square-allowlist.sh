@@ -528,6 +528,7 @@ gate_plant_home_every_source_excluded() {
   for home in "${ALLOWLISTED_HOMES[@]}"; do
     rm -f "$1/$home"
   done
+  mkdir -p "$1/crates/clean/src"
   printf '#[cfg(test)]\nmod main;\n' > "$1/crates/clean/src/lib.rs"
   printf '#[cfg(test)]\nmod lib;\n' > "$1/crates/clean/src/main.rs"
 }
