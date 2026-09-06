@@ -279,3 +279,20 @@ census, forced by the census's own detector (S-TCOST's file — noted on
 its board at adjudication). One residue filed: the guard proves
 ordering, not that the key looked up is the key wrapped. Single style
 review dispatched on the frozen head.
+
+## D50 adjudicated (2026-09-06)
+
+Style review (single, Fable; the first attempt died on the account's
+usage limit and was relaunched fresh): MERGEABLE-AFTER-FIXES. Every
+planted mutant redded naming its door — the guard is real. Findings:
+D260's sentence claims the header names the doors (it does not); the
+PR body claims a cross-file check with `euler.rs`'s door list that the
+row does not make; one of the new scan rows cannot fail on the mutant
+it was written for; the residue's reason for declining the cheap
+argument-spelling partial was falsified by execution (green on the
+tree, red on the residue's own example) — so the partial is taken and
+the residue narrowed to the two gaps that remain (arena-blind `.get(`,
+nested items unscanned); a stale measured door count; two vocabulary
+spellings no door uses. Ten-item fix pass to the same lane. The item
+scan's missing shared home and two smaller siblings appended to the
+S-TCOST issue filed from D261's review.
