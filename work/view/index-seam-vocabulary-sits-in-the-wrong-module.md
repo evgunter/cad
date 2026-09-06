@@ -4,7 +4,6 @@ kind: issue
 title: evalseam and pick import each other because the index seam's trait lives beside the evaluation seam rather than beside its payload
 status: open
 opened: 2026-09-05
-needs_ev: true
 refs: [index-request-and-index-inputs-are-one-concept-twice, viewer-session-god-module-split]
 ---
 
@@ -173,3 +172,34 @@ if the split lands as its own unit rather than riding another, and (a)
 if the answer is that VIEW has better things to do — but the one thing
 that should not survive is the item's current text, which offers three
 answers that do not work.
+
+
+## RULED: (d) (Ev, PR 2076, 2026-09-06)
+
+> (d) sounds good!
+
+So the unit is the two moves, and they land together because neither
+breaks the cycle alone:
+
+1. **`Generation` to a leaf** — its own module, or beside
+   `DisplayTolerance` in `scene`; the lane picks and argues.
+2. **`pick.rs` splits at the layer boundary** — the index data
+   structure and its queries out, the policy (`PickCache`,
+   `IndexInputs`, `CacheStep`, `IndexLanding`, `NotIndexed`,
+   `unindexed`) staying in `pick`.
+
+Target shape: `generation ← pickindex ← evalseam ← pick`, acyclic, with
+`evalseam` keeping BOTH seams and therefore both sets of threads.
+
+**It is a move, so no assertion changes.** Unit 1c is the precedent and
+the standard — it split `session.rs` and `app.rs` with no test file
+touched and no assertion changed, and
+`docs/prompts/implementer-discipline.md` §3 forbids a behaviour change
+smuggled through a mechanical one. A `pub use` shim left behind is what
+`session-shims-and-test-imports` is still open about, so this unit
+re-points its callers rather than leaving two spellings of every moved
+path.
+
+`crates/viewer/tests/*` is VIEW's territory now (Ev, in-chat,
+2026-09-04), so the test-side re-pointing is this unit's to do rather
+than announce.
