@@ -757,7 +757,8 @@ pub enum NodeErrorKind {
         count: usize,
     },
     /// A direction-valued vector decided to zero length (datum
-    /// normal/direction, transform rotation axis, pattern direction).
+    /// normal/direction, transform rotation axis, pattern direction,
+    /// placement rotation axis).
     DegenerateDirection {
         /// Which vector, by role.
         role: &'static str,
