@@ -2,12 +2,13 @@
 id: bounds-tripwire-blind-to-named-alias
 kind: issue
 title: Discipline tripwire — teach the compound-Bounds grep the ArcCarrierScalar alias (and named compound bounds generally)
-status: review
+status: closed
 opened: 2026-08-09
 github: 279
 refs: [273]
 branch: gates/d102-parameter-grouped-bounds
 pr: 2056
+closed: 2026-09-06
 ---
 
 ## From GitHub issue 279
