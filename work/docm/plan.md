@@ -68,12 +68,12 @@ place (ids kept); so are `D365`'s census, `C6`'s `WireStep` member,
 
 ## The questions still open, in order
 
-1. **The instantiation seam** — `instantiation-seam-drops-mate-identity`:
+1. **DONE (DOCM-6, PR 2035) — the instantiation seam** — `instantiation-seam-drops-mate-identity`:
    carry `MintedDeclaration` (and `unminted`) across `PartValue` so a
    carried refutation names its mate and the outermost gate sees
    inner mint health; whether an inner mint refusal is the outer
    document's error reads the Q1 ruling's letter and is put to Ev.
-2. **The check registry's subject** — `check-registry-gathers-product-twice`:
+2. **DONE (DOCM-5, PR 1871) — the check registry's subject** — `check-registry-gathers-product-twice`:
    `run_checks` computes the product once and hands residents a
    subject; `assemble` takes a pre-gathered product; the `product.rs`
    Dual arms are edited by announced seam to M10.

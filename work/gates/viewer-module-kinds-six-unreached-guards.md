@@ -2,9 +2,12 @@
 id: viewer-module-kinds-six-unreached-guards
 kind: issue
 title: six of viewer-module-kinds.sh's gate_error guards are reached by no selftest case
-status: open
+status: closed
 opened: 2026-09-06
 refs: [D109]
+branch: gates/viewer-module-kinds-guards
+pr: 2057
+closed: 2026-09-06
 ---
 
 ## Finding
@@ -54,3 +57,37 @@ message; any-of scores a site reached off a fragment two messages share.
 `D109`'s fence is `lib.sh`, `probe-suite-census.sh` and
 `gate-roster.sh`. `viewer-module-kinds.sh` is this program's ground and
 nobody's open lane; six fixtures is a unit, not a rider.
+
+## Landed (2026-09-06)
+
+Six fixtures on `gates/viewer-module-kinds-guards`, one per site.
+
+**The reading, re-derived at merge base 607ecfe2a** the way this row
+says: `gate_error` instrumented with `BASH_SOURCE`/`BASH_LINENO` AND the
+message, every `--selftest` in `scripts/gates/` traced, a site scored
+reached when ALL of its literal fragments appear in ONE fired message.
+**113 sites, 6 unreached** — the six named above, at the lines named
+above. The population moved 105 -> 106 -> 113 across D109 and the lanes
+that landed beside it, which is why it is re-derived rather than
+carried: it is a reading, not a register.
+
+**Five sites took a fixture where they stood. One could not.**
+`:427` — no vocabulary modules under `$SRC` — sat below check 4, which
+requires every row of the README's vocabulary tables to name a module
+declaring `vocabulary` and exits if one does not, over tables already
+proved non-empty. Below that exit an empty vocabulary set is
+unreachable, so the guard could not fire for any tree. It now sits
+directly under check 1, where the tree's own answer is known, and its
+fixture is a tree whose every module declares `driver`.
+
+**The two exception-list guards are the shape `D109` corrected
+elsewhere**: an exception list bounded by a check never shown to fire is
+bounded by nothing. Both plant the ENTRY and not a file — it reaches the
+gate through `GATE_SELFTEST_VOCAB_EXCEPTIONS` while `gate_plant_clean`
+plants from the in-process list, so an entry can name a path the fixture
+never writes.
+
+Every guard was backed out on a scratch copy in turn and each time
+exactly its own case went red. **After: 113 sites, 0 unreached, in this
+gate and in `scripts/gates/` as a whole.** The live pass is unchanged —
+same counts, same 42 scanned modules.
