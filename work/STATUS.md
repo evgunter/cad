@@ -745,12 +745,14 @@ area `kernel`; prefix `trim/`; tag `(TRIM orchestrator)`; ab_band `2500-2599`.
 | item | opened | title |
 |---|---|---|
 | `axis-flavoured-declarations-have-no-channel` | 2026-09-04 | Axis-flavoured declarations (coaxial, structural-parallel) have no identity channel: ParamSource carries stored scalar fields only, so CoaxialEvidence and SPHSPH's option (a) cannot be served by it |
+| `assembly-door-raises-only-the-head-of-each-refusal-list` | 2026-09-06 | assemble_gathered raises only the head of unminted and of carried_unminted; the widening it names as a follow-up is not filed |
 | `boolean-op-has-a-third-hand-written-complete-list` | 2026-09-06 | BooleanOp has a third hand-written complete list, in a different order, in editor-core |
 | `contact-class-has-two-content-tag-functions` | 2026-09-06 | ContactClass is tagged into content keys by two functions: contact_class_tag (u8, wildcard arm) and ContactClass::content_tag (u64, exhaustive) |
 | `editor-core-suites-carry-eleven-part-resolver-stubs` | 2026-09-06 | Eleven editor-core suites carry their own PartResolver stub, in_part and PART_BODY; MSOLVE-4 hoists one into tests/fixture and the ten siblings owe a migration |
 | `loud-skip-marker-row-cites-a-lib-paragraph-that-was-reversed` | 2026-09-06 | work/tcost/loud-skip-marker-is-a-hand-kept-idiom cites three stale rows and one paragraph VIEW reversed, and this is the second time it has been reported with nothing filed |
 | `names-flush-and-select-discard-a-refusal-with-map-err-underscore` | 2026-09-06 | names/flush.rs and names/select.rs discard a typed refusal with map_err(|_| ..), the shape MSOLVE-3 closed in mate/ |
 | `no-local-script-builds-all-four-cargo-workspaces` | 2026-09-06 | The repo has four Cargo workspaces plus tools/tess-meter and no local script builds them all, so a signature change sweeps crates/ and reaches hosted CI red from demos/ |
+| `product-gather-refuses-a-split-root-whose-tie-spans-both-halves` | 2026-09-06 | The product gather refuses DuplicateName for a split root whose tied name has one candidate in each half |
 | `product-table-answers-a-tie-before-kind-the-operand-the-reverse` | 2026-09-06 | The gate answers Ambiguous for a tied non-face in the product's own rows but NotAFace for the same tie at the operand |
 | `prose-census-cannot-see-a-bypassed-prose-renderer` | 2026-09-06 | prose_census cannot see a Display that delegates, nor a Debug that spells an identifier |
 | `the-prose-word-for-a-kind-has-four-spellings-and-only-display-is-censused` | 2026-09-06 | the prose word for a kind has four spellings and prose_census can only see one of them |
