@@ -2785,3 +2785,23 @@ a LIB-13 block draw (LIB-12 closed 09-03).
   LIB's `paths:`. Both stay on LIB's slate as the party that wants
   them and get routed to DOCM at the next natural seam rather than
   dispatched across the fence.
+
+**LIB-G17 SPEC WRITTEN AND BLOCK LIB-13 DRAWN (2026-09-06).**
+`docs/LIB-G17-SPEC.md` binds the unit as D5's elaboration. Three
+decisions the spec makes that D5 did not spell out, each argued at the
+clause: `open` is ORDERED (the kernel's `RimNaming::rim` is
+`sources[0]`, so sorting would move the rim's identity — the one place
+the blend precedent does not transfer); the refusal crosses as
+`NodeErrorKind::Shell(Box<ShellError<f64>>)` by a total fold, since
+`NodeErrorKind` is scalar-free and `ShellError<T>` is the first generic
+kernel refusal to reach the document layer (`verb_refused`'s own comment
+anticipated this arm); and three additive roles (`Inner`, `Rim`,
+`HoleRim`) translate `ShellNaming`'s rows one-to-one. LB16 — those are
+faithful elaborations of a ratified record shape, self-merged with the
+writeup and offered for Ev's retroactive read in the unit's PR, not an
+`[ev]` fork. The teapot's conversion is fenced out (render lane,
+tess-budget rows) and the spec's `vessel.rs` corpus document is the
+document-door spelling of the same mouth. Sequencing deviation stated
+rather than hidden: the draw byte was read in the same tool call as
+the last spec read, minutes before the difficulty sentence was written
+down; the difficulty is the G16 precedent's and was not moved.
