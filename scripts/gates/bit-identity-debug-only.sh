@@ -219,39 +219,43 @@ gate_plant_clean() {
 }
 
 plant() {
-  plant_source "$1" "$4" "pub fn agree(a: f64, b: f64) -> bool { $3 }"
+  local path=$1 expr=$3 root=$4
+  plant_source "$path" "$root" "pub fn agree(a: f64, b: f64) -> bool { $expr }"
 }
 
 # THE CASE THE COUNTING FORM PASSED, and the reason this gate was
 # rewritten: one properly gated use, and a production leak beside it.
 plant_one_gated_one_leaked() {
-  plant_source "$1" "$4" \
+  local path=$1 expr=$3 root=$4
+  plant_source "$path" "$root" \
     '#[cfg(debug_assertions)]' \
-    "pub fn agree(a: f64, b: f64) -> bool { $3 }" \
+    "pub fn agree(a: f64, b: f64) -> bool { $expr }" \
     'pub fn production_leak(a: f64, b: f64) -> bool {' \
-    "    $3 == Some(true)" \
+    "    $expr == Some(true)" \
     '}'
 }
 
 # The gated item ENDS, and the next use is outside it. Depth, not
 # proximity.
 plant_after_the_gated_item() {
-  plant_source "$1" "$4" \
+  local path=$1 expr=$3 root=$4
+  plant_source "$path" "$root" \
     '#[cfg(debug_assertions)]' \
     'pub fn agree(a: f64, b: f64) -> bool {' \
-    "    $3" \
+    "    $expr" \
     '}' \
-    "pub fn later(a: f64, b: f64) -> bool { $3 }"
+    "pub fn later(a: f64, b: f64) -> bool { $expr }"
 }
 
 # A `;` INSIDE THE SIGNATURE IS NOT THE ITEM END. An array-typed
 # parameter carries one before the body brace, and the use inside the
 # item is gated.
 plant_semicolon_in_signature() {
-  plant_source "$1" "$4" \
+  local path=$1 expr=$3 root=$4
+  plant_source "$path" "$root" \
     '#[cfg(debug_assertions)]' \
     'pub fn agree<const N: usize>(pairs: [(f64, f64); N]) -> bool {' \
-    "    let _ = pairs; $3" \
+    "    let _ = pairs; $expr" \
     '}'
 }
 
@@ -260,10 +264,11 @@ plant_semicolon_in_signature() {
 # attribute is an item that ends at its `;`, and the use below it is
 # outside the gate.
 plant_after_the_gated_use() {
-  plant_source "$1" "$4" \
+  local path=$1 sym=$2 expr=$3 root=$4
+  plant_source "$path" "$root" \
     '#[cfg(debug_assertions)]' \
-    "use crate::inner::$2;" \
-    "pub fn later(a: f64, b: f64) -> bool { $3 }"
+    "use crate::inner::$sym;" \
+    "pub fn later(a: f64, b: f64) -> bool { $expr }"
 }
 
 # THE SENTENCE THIS GATE EXISTS TO STOP PRINTING. A `debug_assert!`
@@ -273,18 +278,20 @@ plant_after_the_gated_use() {
 # cfg(debug_assertions) item or a debug_assert!"*, which is verbatim the
 # evidence-free sentence S63 recorded against the form this replaced.
 plant_leak_after_debug_assert() {
-  plant_source "$1" "$4" \
-    "pub fn leak(a: f64, b: f64) -> bool { debug_assert!(a == a); $3 }"
+  local path=$1 expr=$3 root=$4
+  plant_source "$path" "$root" \
+    "pub fn leak(a: f64, b: f64) -> bool { debug_assert!(a == a); $expr }"
 }
 
 # The same enclosure the other way round: a use in a `debug_assert!`
 # that rustfmt has wrapped over three lines is inside it, and the
 # per-line test called it a violation.
 plant_wrapped_debug_assert() {
-  plant_source "$1" "$4" \
+  local path=$1 expr=$3 root=$4
+  plant_source "$path" "$root" \
     'pub fn ok(a: f64, b: f64) {' \
     '    debug_assert!(' \
-    "        $3 == Some(true)" \
+    "        $expr == Some(true)" \
     '    );' \
     '}'
 }
@@ -293,24 +300,27 @@ plant_wrapped_debug_assert() {
 # rewrite read only `all(debug_assertions, …)` — S56's order-sensitivity,
 # minted fresh in the PR that closes S125.
 plant_all_cfg_swapped() {
-  plant_source "$1" "$4" \
+  local path=$1 expr=$3 root=$4
+  plant_source "$path" "$root" \
     '#[cfg(all(feature = "probe", debug_assertions))]' \
-    "pub fn agree(a: f64, b: f64) -> bool { $3 }"
+    "pub fn agree(a: f64, b: f64) -> bool { $expr }"
 }
 
 # `not(debug_assertions)` is a RELEASE-only item, so a use inside it is
 # a production use.
 plant_not_cfg() {
-  plant_source "$1" "$4" \
+  local path=$1 expr=$3 root=$4
+  plant_source "$path" "$root" \
     '#[cfg(not(debug_assertions))]' \
-    "pub fn agree(a: f64, b: f64) -> bool { $3 }"
+    "pub fn agree(a: f64, b: f64) -> bool { $expr }"
 }
 
 # `any(debug_assertions, …)` is not a debug-only gate.
 plant_any_cfg() {
-  plant_source "$1" "$4" \
+  local path=$1 expr=$3 root=$4
+  plant_source "$path" "$root" \
     '#[cfg(any(debug_assertions, feature = "probe"))]' \
-    "pub fn agree(a: f64, b: f64) -> bool { $3 }"
+    "pub fn agree(a: f64, b: f64) -> bool { $expr }"
 }
 
 # THE NEAR MISSES. A use inside a `debug_assert!` is debug-only by
@@ -318,19 +328,20 @@ plant_any_cfg() {
 # one is how this gate announced a number that was not the number of
 # calls.
 plant_permitted_shapes() {
-  plant_source "$1" "$4" \
-    "/// The one call site: $2, cfg(debug_assertions)-gated." \
-    "// $2 is named here and used nowhere." \
+  local path=$1 sym=$2 expr=$3 root=$4
+  plant_source "$path" "$root" \
+    "/// The one call site: $sym, cfg(debug_assertions)-gated." \
+    "// $sym is named here and used nowhere." \
     "/*" \
-    " * Nor is $2 used inside this block comment." \
+    " * Nor is $sym used inside this block comment." \
     " */" \
-    "pub const NOTE: &str = \"$2\";" \
+    "pub const NOTE: &str = \"$sym\";" \
     'pub fn checked(a: f64, b: f64) {' \
-    "    debug_assert!($3 == Some(true));" \
+    "    debug_assert!($expr == Some(true));" \
     '}' \
     '#[cfg(debug_assertions)]' \
     'mod inner {' \
-    "    pub fn agree(a: f64, b: f64) -> bool { super::$3 }" \
+    "    pub fn agree(a: f64, b: f64) -> bool { super::$expr }" \
     '}'
 }
 
