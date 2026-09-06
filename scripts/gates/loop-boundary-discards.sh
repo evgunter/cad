@@ -217,13 +217,26 @@ REGISTER=(
 # is a comment-only line (the indent before `//` survives the strip)
 # repeats the same join one line early, so a hit is kept only where the
 # LINE view shows the pattern really starting there.
+#
+# NO BACKSLASH APPEARS IN THEM, and that is not a style choice. A
+# metacharacter is written as a one-member bracket expression (`[{]`,
+# `[(]`, `[|]`, `[.]`) because a backslashed one has to survive TWO
+# escape passes to reach the matcher intact — bash's, and awk's own
+# processing of a `-v` assignment — and it did not: `-v RE='…\(…'`
+# handed awk `(` and the ERE came out unbalanced. mawk shrugged and
+# matched; the hosted runner's awk warned on every `\(` and then died
+# on the unmatched one, so the gate's own clean fixture failed there
+# and passed here. `bit-identity-debug-only.sh`'s header names the same
+# hazard. The regexes reach awk through ENVIRON below, which does no
+# escape processing at all, and a bracket expression is then correct
+# under either route and under every awk.
 PATH_PREFIX='([A-Za-z_][A-Za-z0-9_]*::)*'
 ENUM="(${PATH_PREFIX}LoopBoundary|Self)::(Cycle|Empty)"
-NO_BINDING='\{ *(\.\.|[A-Za-z_][A-Za-z0-9_]* *: *_[A-Za-z0-9_]*) *\}'
+NO_BINDING='[{] *([.][.]|[A-Za-z_][A-Za-z0-9_]* *: *_[A-Za-z0-9_]*) *[}]'
 DEFER='(continue|break|return)([^A-Za-z0-9_]|$)'
-LET_RE="^let (${ENUM} \\{[^;{}]*\\}|[A-Za-z_][A-Za-z0-9_:]*\\(${ENUM} \\{[^;{}]*\\}\\)) = [^;]*else *\\{ *${DEFER}"
-ARM_RE="^${ENUM} ${NO_BINDING}( *\\| *${ENUM} ${NO_BINDING})*( if [^;{}]*)? => (\\{ *\\}|\\{ *${DEFER}|${DEFER})"
-ANCHOR_RE="^(let )?([A-Za-z_][A-Za-z0-9_:]*\\()?${ENUM} \\{"
+LET_RE="^let (${ENUM} [{][^;{}]*[}]|[A-Za-z_][A-Za-z0-9_:]*[(]${ENUM} [{][^;{}]*[}][)]) = [^;]*else *[{] *${DEFER}"
+ARM_RE="^${ENUM} ${NO_BINDING}( *[|] *${ENUM} ${NO_BINDING})*( if [^;{}]*)? => ([{] *[}]|[{] *${DEFER}|${DEFER})"
+ANCHOR_RE="^(let )?([A-Za-z_][A-Za-z0-9_:]*[(])?${ENUM} [{]"
 
 # Set by --register; empty means the array above.
 GATE_REGISTER_FILE=
@@ -255,12 +268,18 @@ gate() {
     gate_error "$(gate_name): the shared Rust reader returned NOTHING over $GATE_SCAN_FILES source file(s) — the scan decided nothing, which is not a pass"
     exit 1
   fi
+  export LBD_ANCHOR="$ANCHOR_RE" LBD_LET="$LET_RE" LBD_ARM="$ARM_RE"
   if ! report=$(printf '%s\n' "$entries" "===" "$lineview" "===" "$winview" \
-    | awk -v ANCHOR="$ANCHOR_RE" -v LETRE="$LET_RE" -v ARMRE="$ARM_RE" '
+    | awk '
+      BEGIN {
+        ANCHOR = ENVIRON["LBD_ANCHOR"]
+        LETRE = ENVIRON["LBD_LET"]
+        ARMRE = ENVIRON["LBD_ARM"]
+      }
       /^===$/ { phase++; next }
       phase == 0 {
         ne++
-        n = split($0, f, "|")
+        n = split($0, f, "\\|")
         if (n != 5 || f[1] == "" || f[2] == "" || f[4] !~ /^[1-9][0-9]*$/ ||
             (f[5] != "unaudited" && f[5] !~ /^audited: ./)) {
           print "MALFORMED|" $0
@@ -311,9 +330,9 @@ gate() {
         item = at[file ":" line]
         head = txt
         if (txt ~ LETRE) {
-          if (match(txt, /else *\{ *[A-Za-z_]*/)) head = substr(txt, 1, RSTART + RLENGTH - 1)
+          if (match(txt, /else *[{] *[A-Za-z_]*/)) head = substr(txt, 1, RSTART + RLENGTH - 1)
         } else {
-          if (match(txt, /=> *\{? *[A-Za-z_]*/)) head = substr(txt, 1, RSTART + RLENGTH - 1)
+          if (match(txt, /=> *[{]? *[A-Za-z_]*/)) head = substr(txt, 1, RSTART + RLENGTH - 1)
         }
         total++
         hit = 0; best = -1
