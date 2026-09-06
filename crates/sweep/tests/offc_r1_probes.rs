@@ -37,7 +37,13 @@ use common::approx::{
 /// budget is for a curved pulled-back base); large enough to be far
 /// above f64 dust.
 const D: f64 = 5e-10;
-const FIT_TOL: f64 = 1e-6;
+/// The target these fixtures hand the fit ENGINE, and no longer a door's
+/// argument: since the shell chain took the `Tol` witness, the only
+/// tolerance a kernel door accepts is the run's ε, and a chosen number
+/// reaches the fit only through `geom-brep`'s `_at` instrument. 1e-6 is
+/// what these planar pull-backs were always fitted at and the value is
+/// unchanged; what moved is what it means.
+const ENGINE_FIT_TARGET: f64 = 1e-6;
 
 /// **The measured re-attach threshold of the twisted fixture**, in
 /// metres: the largest `IsoCurve` residual the surgery's re-attach
@@ -93,7 +99,7 @@ fn above_threshold(d: f64) -> bool {
 /// assert what the kernel has correctly refused to build.
 fn twisted_approx() -> Option<(Body<f64>, Vec<FaceKey>)> {
     let mut body = twisted_loft(0.05);
-    match try_approx_walls(&mut body, D, FIT_TOL) {
+    match try_approx_walls(&mut body, D, ENGINE_FIT_TARGET) {
         Ok(faces) => {
             assert!(
                 above_threshold(D),
@@ -231,7 +237,7 @@ fn the_twisted_reattach_threshold_is_where_it_was_measured() {
     for d in [D, -D] {
         let expected = residual_for(d);
         let mut body = twisted_loft(0.05);
-        let outcome = try_approx_walls(&mut body, d, FIT_TOL);
+        let outcome = try_approx_walls(&mut body, d, ENGINE_FIT_TARGET);
         let measured = match &outcome {
             // Above the threshold the surgery completed, so the number
             // is recovered from the KERNEL's certifier by bisection —
@@ -290,7 +296,7 @@ fn the_twisted_reattach_threshold_is_where_it_was_measured() {
 fn a_curved_approx_walled_body_validates_at_tier_three() {
     for d in [D, -D] {
         let mut body = twisted_loft(0.05);
-        let faces = match try_approx_walls(&mut body, d, FIT_TOL) {
+        let faces = match try_approx_walls(&mut body, d, ENGINE_FIT_TARGET) {
             Ok(faces) => faces,
             Err(r) => {
                 // Below the threshold the surgery cannot build the
@@ -327,7 +333,9 @@ fn a_degraded_curved_fit_goes_red_at_tier_three() {
     };
     let geom::SurfaceDescription::Offset { base, .. } = live.description();
     let base = Arc::clone(base);
-    let honest = geom_brep::approx_offset_surface(Arc::clone(&base), D, FIT_TOL, band()).unwrap();
+    let honest =
+        geom_brep::approx_offset_surface_at(Arc::clone(&base), D, ENGINE_FIT_TARGET, band())
+            .unwrap();
     let Surface::Approx(good) = &honest else {
         panic!("the door mints the variant")
     };
@@ -412,13 +420,13 @@ fn a_boolean_against_the_twisted_approx_body_refuses_typed() {
 #[test]
 fn a_skinned_base_approx_face_earns_the_germ_pair_refusal() {
     let base = Arc::new(skinned_base());
-    let approx = geom_brep::approx_offset_surface(Arc::clone(&base), 0.05, 1e-5, band())
+    let approx = geom_brep::approx_offset_surface_at(Arc::clone(&base), 0.05, 1e-5, band())
         .expect("the skinned base's offset fits to 1e-5");
     let Surface::Approx(a_surf) = &approx else {
         panic!("the door mints the variant")
     };
     // The certificate is real: re-derivation agrees at rest.
-    let re = geom_brep::offset_fit::recertify_approx(a_surf, 1e-5, band())
+    let re = geom_brep::offset_fit::recertify_approx_at(a_surf, 1e-5, band())
         .expect("the skinned offset re-certifies");
     assert!(re.hull_sup <= 1e-5);
 
@@ -451,8 +459,13 @@ fn diag_spline_spaces() {
             && !p.is_placeholder()
         {
             let base = Arc::new(pulled_back(p, D));
-            let approx = geom_brep::approx_offset_surface(Arc::clone(&base), D, FIT_TOL, band())
-                .expect("fit");
+            let approx = geom_brep::approx_offset_surface_at(
+                Arc::clone(&base),
+                D,
+                ENGINE_FIT_TARGET,
+                band(),
+            )
+            .expect("fit");
             let Surface::Approx(a) = &approx else {
                 panic!()
             };
