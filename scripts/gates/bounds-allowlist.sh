@@ -143,6 +143,16 @@
 # matcher that fired on it would red every certification file in
 # geom-brep and geom.
 #
+# A LIFETIME AND A RELAXED `?Trait` BOUND ARE NOT BOUND TERMS, and the
+# two are read the same way for one reason: neither GRANTS a capability,
+# so neither is the extra bound the scope rule calls the escape hatch.
+# `'a` says how long the value lives and `?Sized` REMOVES an obligation
+# rather than adding one, so `T: 'a + Bounds` and `T: ?Sized + Bounds`
+# are SOLE bracket bounds and do not fire, while `?Sized + Decide +
+# Bounds` does — the second term is `Decide`. Planted in both
+# directions; before this rule the two were read oppositely, `?Sized`
+# counting as a term and a lifetime not.
+#
 # THE MATCHER IS A READER AND NOT A REGEX, because it has to skip a
 # trait's own generic list, tell `Sym<T>`'s bound from `T`'s, and follow
 # bracket depth to know which `,` ends a list — none of which an ERE can
@@ -152,9 +162,7 @@
 # alias written: any `…Bounds` IDENTIFIER fires, not only a trait
 # (`TangentSpanBounds`, `FaceCutBounds`, `FaceBounds` exist and would),
 # and a false positive is answered by a ratification line, never by
-# narrowing back to a list. A SOLE bound does NOT fire, planted as a
-# negative case: a matcher that fired on it would red every certification
-# file in geom-brep and geom.
+# narrowing back to a list.
 #
 # THE GAP NUMBERS ARE STABLE IDS, not a sequence: a gap that closes
 # keeps its number for whatever remains of it, and a retired one leaves
@@ -216,13 +224,31 @@
 #                  |\+[[:space:]]*(ArcCarrierScalar)\b"
 #
 # It PASSES `plant_sole_bracket_bounds` and its output on this tree is
-# family.rs and program.rs and nothing else. So THE ONLY CLOSE AVAILABLE
-# IS THE ONE S63 FORBIDS — redding those two files and allowlisting
-# them, the cry-wolf-then-allowlist outcome recorded at linalg/mat.rs —
-# and NOT "no instrument of this kind can see the sites". Read the
-# narrow claim, not the wide one: an earlier draft of this paragraph
-# wrote the wide one while the roster three screens down was the
-# counterexample to it.
+# family.rs and program.rs and nothing else. So FOR `ArcCarrierScalar`
+# THE ONLY CLOSE AVAILABLE IS THE ONE S63 FORBIDS — redding those two
+# files and allowlisting them, the cry-wolf-then-allowlist outcome
+# recorded at linalg/mat.rs — and NOT "no instrument of this kind can
+# see the sites". Read the narrow claim, not the wide one: an earlier
+# draft of this paragraph wrote the wide one while the roster three
+# screens down was the counterexample to it.
+#
+# IT IS NARROW PER NAME, AND THE OTHER ROSTERED NAME IS THE
+# COUNTEREXAMPLE. `scripts/gates/evalscalar-allowlist.sh` IS this
+# matcher, keyed on `EvalScalar` with `eval/{mod,parts}.rs` as its
+# allowlist, and it is green: that name's uses inside `crates/*/src`
+# are confined to the seam its declaration's doc names, so the matcher
+# costs nothing there. What decides is the name's POPULATION, not the
+# instrument. Neither gate reaches past `crates/*/src`: `EvalScalar` is
+# re-exported at crates/editor-core/src/lib.rs:117 and the integration
+# suites bind `T: editor_core::EvalScalar` in crates/editor-core/tests/,
+# which is outside the source view both gates read.
+#
+# A SECOND-ORDER CHAIN IS INVISIBLE TO BOTH THE SCAN AND THE CENSUS.
+# `trait B: ArcCarrierScalar` names no `…Bounds`/`…Enclosure`
+# identifier, so it is no scan hit and no declaration the census reads —
+# a rostered name can be aliased again, and the second name is on no
+# roster and reds nowhere. Unchanged here, and stated rather than left
+# to be found.
 #
 # THE INVISIBILITY OF THE SITES TO *THIS* MATCHER IS MEASURED RATHER
 # THAN ASSERTED. The fixture `plant_alias_uses_invisible` plants the
@@ -284,6 +310,19 @@
 # and not a second matcher beside it, which is what a separate regex
 # for the count would be.
 #
+# THE PINS GUARD NEITHER THE GROUPING NOR THE DECLARATION TEST, because
+# both have zero population in the 26 files. Every live occurrence is a
+# `+`-adjacent bound in ONE bound list, and every live declaration is
+# also a compound bound on its own record: mutate the grouping to one
+# group per bound list, or stop letting a declaration make a record a
+# hit and an occurrence, and this tree still reads 26 files and 183
+# occurrences. The FIXTURES are the whole guard for both --
+# `plant_where_clause_pair` and `plant_generic_list_and_where` for the
+# grouping, and `plant_sole_supertrait_alias`, `plant_where_self_alias`,
+# `plant_rustfmt_where_block` and `plant_alias_declaration_rustfmt_block`
+# for the declaration test. Delete a fixture here and nothing else
+# notices.
+#
 # THE READING IS NOT "HOW MANY BOUNDS", and the difference is stated
 # rather than left to surprise: `T: Decide + Bounds + CertifiedEnclosure`
 # is ONE parameter's bound and TWO occurrences, so a three-term seam
@@ -297,6 +336,48 @@
 # each hit's enclosing item, which is a parser and not a grep. The same
 # class on the sibling list is `interval-square-allowlist.sh`'s KNOWN
 # GAP 4, and it is not closed there.
+#
+# KNOWN GAP 7, AND IT IS WHAT KEYING ON THE BOUND TARGET COSTS. The
+# reader groups the terms written FOR A TARGET, so a bracket door that
+# stands on no target is not read at all -- and neither is one the
+# statement cutter has already put in the next record. Seven shapes the
+# `+` regex fired on are silent here. The direction is BLIND, not
+# cry-wolf: nothing new reds, what is lost is a red that used to land.
+#
+#     fn f(b: Box<dyn Decide + Bounds>)       the door is inside a TYPE
+#     fn f() -> impl Decide + Bounds          and not on a bound target;
+#     type S = dyn Decide + Bounds;           `S` names a type, not a
+#     trait S = Decide + Bounds;              parameter handed one
+#
+#     fn f<'a, T: 'a + Bounds>(..)            a lifetime is not a bound
+#     fn f<T: Bounds + 'static>(..)           term, so these read SOLE
+#
+#     trait Arr<T: Array<[u8; 4]>>: Bounds    `lib.sh`'s statement cutter
+#     where T: Decide + Fn() -> [u8; 4]       is bracket-blind at `;`: the
+#                + Bounds                     record ends inside the
+#                                             `[..]`, and what carries
+#                                             the door is a second record
+#                                             with no target and no
+#                                             `trait` token in it
+#
+# THE FIRST THREE ARE IN THE RULE'S CLASS -- a value that decides and
+# reads brackets, handed over as a `dyn`/`impl` type or given a name --
+# so this is a hole and not a definitional exclusion. The ARGUMENT
+# position still fires: `fn f(x: impl Decide + Bounds)` is a bound on
+# the target `x` and is a hit; `-> impl Decide + Bounds` is not.
+#
+# THE POPULATION IS ZERO TODAY. This is the check, one ERE that fires on
+# every shape above, does NOT fire on the argument position, and finds
+# nothing in `crates/*/src`:
+#
+# ONE LINE, and it is one line because a continuation inside the quoted ERE would put the indent of the next line INTO an alternative:
+#     grep -rnE "(\bdyn\b|->[[:space:]]*impl\b|\btype\b[^;=]*=|\btrait\b[^;{]*=)[^;{}]*\+[^;{}]*[A-Za-z0-9_]*(Bounds|Enclosure)([^A-Za-z0-9_]|$)|'[A-Za-z0-9_]+[[:space:]]*\+[^;{}]*[A-Za-z0-9_]*(Bounds|Enclosure)([^A-Za-z0-9_]|$)|[A-Za-z0-9_]*(Bounds|Enclosure)[[:space:]]*\+[[:space:]]*'|[<[][^]<>]*[;{][^]<>]*[]>][^;{]*[A-Za-z0-9_]*(Bounds|Enclosure)" --include=*.rs crates/*/src
+#
+# WIDENING THE READER TO CATCH THEM IS A NEW UNIT, not a fix withheld:
+# a door inside a type expression asks what a VALUE is, which is a
+# different question from what a parameter was handed, and the cutter's
+# `;` blindness is `lib.sh`'s -- the shared view every gate reads, so it
+# moves for all of them or for none. Nothing here is a mitigation.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -589,8 +670,13 @@ BOUNDS_ALIAS_ROSTER=(
   # 2026-07-29 (M5 PR 8), the driver amendment — the same ratification
   # the `eval/mod.rs` entry above cites, and the declaration's own doc
   # names it. The name is confined to `eval/mod.rs` and `eval/parts.rs`
-  # by that doc; the uses are `T: EvalScalar` and are unchecked, exactly
-  # as `ArcCarrierScalar`'s are.
+  # by that doc, and a SIBLING GATE checks that: `evalscalar-allowlist.sh`
+  # is the name-keyed matcher KNOWN GAP 3 declines for
+  # `ArcCarrierScalar`, run over this one name with those two files as
+  # its allowlist. So these uses are checked and `ArcCarrierScalar`'s
+  # are not — inside `crates/*/src`; the name is re-exported at
+  # crates/editor-core/src/lib.rs:117 and bound in
+  # crates/editor-core/tests/, which is outside both gates' view.
   'crates/editor-core/src/eval/mod.rs EvalScalar'
 )
 
@@ -620,21 +706,17 @@ BOUNDS_ALIAS_ROSTER=(
 # from the end of the generic list), a `:` reached without crossing `;`
 # or `{`, then a `…Bounds`/`…Enclosure` identifier reached the same way.
 #
-# IT IS NOT THE SAME MATCHER EITHER SIDE OF THAT, and the two directions
-# it moves in are here rather than in a claim of identity. `match()` takes
-# the FIRST `trait` token on a record, so a second declaration written after
-# a first on ONE record (`trait A<T: Foo> {} trait B: Bounds {}`) is no
-# longer read as a declaration — though `trait B`'s own supertrait list
-# is a separate STATEMENT and reaches the test on its own; and a `;` or
-# `{` INSIDE the skipped generic list
-# (`trait Arr<T: Array<[u8; 4]>>: Bounds {}`) no longer stops the search,
-# so that one is read where the regex's `[^;{]*` could not cross it.
-# Both have zero population in the tree, and both move toward the answer
-# the rule wants — the first construct is two declarations, of which the
-# second is caught by nothing either way; the second IS a supertrait
-# bound. Neither is a subset claim: the reader is a different matcher,
-# narrower where it counts and wider where the regex was accidentally
-# blind.
+# THE `;`/`{` STOP IS NOT WHAT DECIDES THOSE CASES, because the RECORD
+# is already cut there. `match()` takes the FIRST `trait` token on a
+# record, but two declarations cannot share one record — `{` and `}` cut
+# it — so `trait A<T: Foo> {} trait B: Bounds {}` arrives as two records
+# and `trait B: Bounds` FIRES on its own. And `;` cuts a record whatever
+# brackets it is inside, so `trait Arr<T: Array<[u8; 4]>>: Bounds {}`
+# arrives as `pub trait Arr<T: Array<[u8` and `4]>>: Bounds`, the second
+# of which has no `trait` token: nothing fires, and the reader is BLIND
+# here rather than wider than the regex it replaced. That is KNOWN GAP 7,
+# where the shape is registered with its zero population; it is not a
+# property of this test and cannot be fixed at this test.
 #
 # MODE `records` emits the matching FILE:LINE:TEXT record, which is what
 # the scan wants; `names` emits `PATH NAME` for a DECLARATION, which is
@@ -724,8 +806,22 @@ gate_bound_reader() {
           if (key != "" && d == kd) inret = 1
           i += 2; continue
         }
+        # NEITHER A LIFETIME NOR A RELAXED BOUND IS A BOUND TERM, and
+        # the two are dropped by the same rule: neither GRANTS a
+        # capability, so neither is the extra bound real.rs calls the
+        # escape hatch. A lifetime says how long the value lives;
+        # ?Sized REMOVES an obligation. A parameter carrying one of
+        # those beside a bracket door is therefore a SOLE bracket
+        # bound, while ?Sized + Decide + Bounds fires -- on Decide.
+        # (No apostrophe below: this program is in single quotes.)
         if (c == Q) {                    # a lifetime: the tick and its name
           i++
+          while (i <= n && substr(line, i, 1) ~ /[A-Za-z0-9_]/) i++
+          continue
+        }
+        if (c == "?") {                  # a relaxed bound: `?` and its trait
+          i++
+          while (i <= n && substr(line, i, 1) ~ /[ \t]/) i++
           while (i <= n && substr(line, i, 1) ~ /[A-Za-z0-9_]/) i++
           continue
         }
@@ -789,14 +885,13 @@ gate_bound_reader() {
   '
 }
 
-# THE MATCHER, over `lib.sh`'s shared CODE-ONLY view on stdin: the two
-# `+` alternatives as one regex, the trait declaration through the
-# reader above, unioned — the shape `no-extra-real-bounds.sh` uses for
-# its own two matchers.
+# THE MATCHER, over `lib.sh`'s shared CODE-ONLY view on stdin: ONE
+# reader, which asks both of the header's questions about each record it
+# is handed, and the definition skip after it.
 #
-# THE PREFILTER IS EXACT, not a heuristic: every alternative needs the
-# token `Bounds` or `Enclosure` on the line, so the two matchers only
-# ever see lines that carry one and neither reads the whole tree twice.
+# THE PREFILTER IS EXACT, not a heuristic: both questions need the token
+# `Bounds` or `Enclosure` in the record, so the reader — the expensive
+# half, an awk walk per record — only ever sees records that carry one.
 gate_matcher() {
   gate_grep -E 'Bounds|Enclosure' | gate_bound_reader records | gate_definition_skip
 }
@@ -806,13 +901,17 @@ gate_matcher() {
 # allowlisting` is the message that edit needs. This check exists for the
 # edits the scan lets through — a declaration going quiet where it stands,
 # and a name minted inside a file the list above already ratifies.
+#
+# IT READS THE SCAN'S OWN RECORDS, handed in as $1, and does not go over
+# the tree a second time. `names` is a mode of the same reader over the
+# same record set, so the census cannot see a declaration the scan did
+# not — which is the property `gate_bound_reader`'s one-function note
+# asks for, and the drift it warns about arrives the moment the census
+# grows a second pass with a filter of its own.
 gate_alias_roster_census() {
   local seen entry path line extra="" missing="" gone="" msg=""
   local -A declared=() rostered=()
-  seen=$(gate_rust_code --statements "${GATE_SOURCE_FILES[@]}" |
-    gate_grep -E 'Bounds|Enclosure' |
-    gate_definition_skip |
-    gate_bound_reader names)
+  seen=$(printf '%s\n' "$1" | gate_bound_reader names)
   while IFS= read -r line; do
     if [ -n "$line" ]; then declared["$line"]=1; fi
   done <<< "$seen"
@@ -857,8 +956,8 @@ gate() {
   # The shared CODE-ONLY view in its STATEMENT record shape, so comment
   # text and literal bodies never reach the matcher and a declaration
   # arrives with its whole `where` clause whatever the line breaks (see
-  # the header). Read ONCE: the scan and the per-entry count are two
-  # questions about one record set.
+  # the header). Read ONCE: the scan, the census and the per-entry count
+  # are three questions about one record set.
   records=$(gate_rust_code --statements "${GATE_SOURCE_FILES[@]}" | gate_matcher)
   hits=$(printf '%s\n' "$records" | gate_grep -v '^$' |
     cut -d: -f1 | sort -u |
@@ -868,9 +967,9 @@ gate() {
     gate_error "compound Bounds/Enclosure bound outside the ratified seams above — see geom-core/src/real.rs (Bounds scope rule); ratify before allowlisting"
     exit 1
   fi
-  gate_alias_roster_census
+  gate_alias_roster_census "$records"
   gate_allowlist_counts "$records"
-  gate_ok "no compound Bounds/Enclosure bound outside the ratified seams, and each ratified file carries the count its entry pins (${#BOUNDS_ALLOWLIST[@]} files, $BOUNDS_OCCURRENCE_TOTAL compound-bound occurrences)"
+  gate_ok "no compound Bounds/Enclosure bound outside the ratified seams; each of the ${#BOUNDS_ALLOWLIST[@]} ratified files carries the count its entry pins ($BOUNDS_OCCURRENCE_TOTAL occurrences in total -- bracket doors standing in a compound group, plus one for each record caught only as a trait declaration); and the ${#BOUNDS_ALIAS_ROSTER[@]} rostered alias names are each declared where their entry says, with no unrostered declaration beside them"
 }
 
 # THE CLEAN FIXTURE CARRIES EVERY LIST'S OWN SUBJECT, and it has to.
@@ -1141,6 +1240,44 @@ plant_where_clause_near_misses() {
     printf '{\n'
     printf '}\n'
   } > "$1/crates/planted/src/lib.rs"
+}
+
+# THE TWO NON-TERMS, ONE FIXTURE EACH AND NOT BUNDLED, which is the one
+# place this file departs from "bundle the must-NOT-fire cases". A
+# bundle is stronger against a matcher that fires; it is weaker as a
+# MUTATION target, and these two guard two independent skips in the
+# reader (the tick, and the `?`). Separated, backing either skip out
+# reds exactly one case and names which rule was lost.
+#
+# WHY THEY ARE NOT TERMS is at the reader: neither grants a capability,
+# so neither is the extra bound the scope rule refuses. Before this
+# rule the two were read oppositely -- `?Sized` counted as a term and a
+# lifetime did not -- so `T: ?Sized + Bounds` fired and `T: 'a + Bounds`
+# did not, on the same reading of the same rule.
+plant_lifetime_bound_sole() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn a<%sa, T: %sa + Bounds>(_t: &%sa T) {}\n' "'" "'" "'" \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_relaxed_bound_sole() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn a<T: ?Sized + Bounds>(_t: &T) {}\n' > "$1/crates/planted/src/lib.rs"
+}
+
+# And the other direction, one spelling per fixture as every must-FIRE
+# case here is: a non-term does not make a compound bound, and it does
+# not stop one either.
+plant_lifetime_beside_compound() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn a<%sa, T: %sa + Decide + Bounds>(_t: &%sa T) {}\n' "'" "'" "'" \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_relaxed_beside_compound() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn a<T: ?Sized + Decide + Bounds>(_t: &T) {}\n' \
+    > "$1/crates/planted/src/lib.rs"
 }
 
 # THE THREE FORMS THE CODE-ONLY VIEW BUYS, and they are must-NOT-fire
@@ -1443,6 +1580,8 @@ gate_selftest() {
   gate_selftest_case "$want" plant_bound_split_across_lines
   gate_selftest_case "$want" plant_rustfmt_where_block
   gate_selftest_case "$want" plant_wrapper_type_compound
+  gate_selftest_case "$want" plant_lifetime_beside_compound
+  gate_selftest_case "$want" plant_relaxed_beside_compound
   gate_selftest_case "$want" plant_real_rs_signature
   gate_selftest_case "no longer in crates/geom-core/src/real.rs verbatim" plant_real_rs_alias_redefined
   gate_selftest_case "$want" plant_definition_lines_elsewhere
@@ -1461,6 +1600,10 @@ gate_selftest() {
     plant_sole_bracket_bounds
   gate_selftest_passes "a sole bracket bound in a where clause, two parameters bounded one each, and a wrapper type bounded beside its own parameter" \
     plant_where_clause_near_misses
+  gate_selftest_passes "a bracket bound beside a lifetime, which is not a bound term" \
+    plant_lifetime_bound_sole
+  gate_selftest_passes "a bracket bound beside a relaxed ?Sized bound, which is not a bound term either" \
+    plant_relaxed_bound_sole
   gate_selftest_passes "a rostered declaration in the multi-line where block rustfmt converges on, which the census reads" \
     plant_alias_declaration_rustfmt_block
   gate_selftest_passes "the two CertifiedBounds definition lines in real.rs, which is their home" \
@@ -1469,11 +1612,11 @@ gate_selftest() {
     plant_spelling_in_comments_and_literals
   gate_selftest_passes "an alias DECLARATION in its ratified home plus its uses in a file that is not ratified (KNOWN GAP 3, measured)" \
     plant_alias_uses_invisible
-  gate_selftest_passes "a trait generic over a sole bracket bound inside a ratified file, a sole bracket bound in a where clause, two parameters bounded one each, a wrapper type bounded beside its own parameter (the near miss the grouping owes, and the shape three ratified files write), a rostered declaration reformatted into the rustfmt where block, which the census still reads" \
+  gate_selftest_passes "a trait generic over a sole bracket bound inside a RATIFIED file, where the scan is silent and the census is the only reader left" \
     plant_trait_generic_sole_bracket_ratified
   gate_selftest_passes "one ratified compound bound replaced by another at the same count" \
     plant_ratified_file_swaps_a_bound
-  printf '%s selftest OK: passes a clean fixture and a sole bracket bound as a fn, a path-qualified fn, a struct, and a trait generic over one -- bare, nested two deep, and beside an `Fn(..) -> ..` parameter in both orders -- and the two CertifiedBounds definition lines at home in real.rs, which is the anchored skip proved in its positive direction; fires on both operand orders of Decide+Bounds, of Decide+CertifiedBounds and of Decide+Enclosure, on the same obligation spelled with no plus at all -- repeated on one parameter in a where clause, split between the generic list and the where clause, and broken across lines -- on a wrapper type that decides and reads brackets in its own where clause, on a path-qualified alias after the plus, on Bounds- and Enclosure-shaped alias names not in the tree today, on all three one-line spellings of a non-Bounds-named alias DECLARATION (pair, sole supertrait, where-clause) and on the multi-line `where` block rustfmt converges on from the third, which no line-based reader sees, on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through the definition-skip subject check), on the two definition lines written at a path that is not their home, which is the moved real.rs the skip is anchored against, and on the equivalent spelling of dual.rs Bounds impl (GAP 2); fires, through the ALIAS ROSTER, on a rostered declaration going quiet where it stands (its name pasted by a macro, which is what GAP 4 keeps), on the same declaration renamed (both halves of one diagnosis), and on a new alias -- compound OR bracket-only -- minted inside a file the list already ratifies, where the scan is silent, and on a roster entry whose file is no longer in the tree, which is the retirement the roster claims to make loud; fires, through the PINNED OCCURRENCE COUNT each allowlist entry carries, on a ratified file that has gained a compound bound, which is the silent inheritance S159 names, on one that has gained a SECOND bound inside a signature that already held one, which is that inheritance arriving where a record count cannot see it, on one that has LOST an occurrence, and on one that is gone entirely with its entry still standing; refuses, before any scan runs, an allowlist entry with no fields after its path, one with no ruling after its count, one whose count is not a positive decimal integer -- spelled out, zero-padded, or shifted off the end by a path carrying a space -- and a second entry for a path that already has one; passes the spelling written into a trailing comment, a block comment and a string literal, which the leading-`//` strip this gate carried fired on, a trait generic over a sole bracket bound inside a ratified file, a sole bracket bound in a where clause, two parameters bounded one each, a wrapper type bounded beside its own parameter (the near miss the grouping owes, and the shape three ratified files write), a rostered declaration reformatted into the rustfmt where block, which the census still reads, one ratified compound bound swapped for another at the SAME occurrence count, which is what a per-file count cannot see (KNOWN GAP 6), and KNOWN GAP 3 itself -- the alias declaration in its ratified home beside its uses in a file that is not, which this gate cannot see and does not claim to; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture and a sole bracket bound as a fn, a path-qualified fn, a struct, and a trait generic over one -- bare, nested two deep, and beside an `Fn(..) -> ..` parameter in both orders -- and the two CertifiedBounds definition lines at home in real.rs, which is the anchored skip proved in its positive direction; fires on both operand orders of Decide+Bounds, of Decide+CertifiedBounds and of Decide+Enclosure, on the same obligation spelled with no plus at all -- repeated on one parameter in a where clause, split between the generic list and the where clause, and broken across lines -- on a wrapper type that decides and reads brackets in its own where clause, on that same obligation written beside a lifetime and beside a relaxed ?Sized bound, neither of which is a bound term, on a path-qualified alias after the plus, on Bounds- and Enclosure-shaped alias names not in the tree today, on all three one-line spellings of a non-Bounds-named alias DECLARATION (pair, sole supertrait, where-clause) and on the multi-line `where` block rustfmt converges on from the third, which no line-based reader sees, on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through the definition-skip subject check), on the two definition lines written at a path that is not their home, which is the moved real.rs the skip is anchored against, and on the equivalent spelling of dual.rs Bounds impl (GAP 2); fires, through the ALIAS ROSTER, on a rostered declaration going quiet where it stands (its name pasted by a macro, which is what GAP 4 keeps), on the same declaration renamed (both halves of one diagnosis), and on a new alias -- compound OR bracket-only -- minted inside a file the list already ratifies, where the scan is silent, and on a roster entry whose file is no longer in the tree, which is the retirement the roster claims to make loud; fires, through the PINNED OCCURRENCE COUNT each allowlist entry carries, on a ratified file that has gained a compound bound, which is the silent inheritance S159 names, on one that has gained a SECOND bound inside a signature that already held one, which is that inheritance arriving where a record count cannot see it, on one that has LOST an occurrence, and on one that is gone entirely with its entry still standing; refuses, before any scan runs, an allowlist entry with no fields after its path, one with no ruling after its count, one whose count is not a positive decimal integer -- spelled out, zero-padded, or shifted off the end by a path carrying a space -- and a second entry for a path that already has one; passes the spelling written into a trailing comment, a block comment and a string literal, which the leading-`//` strip this gate carried fired on, a bracket bound beside a lifetime and one beside a ?Sized, which are SOLE bounds because neither is a bound term, a trait generic over a sole bracket bound inside a ratified file, a sole bracket bound in a where clause, two parameters bounded one each, a wrapper type bounded beside its own parameter (the near miss the grouping owes, and the shape three ratified files write), a rostered declaration reformatted into the rustfmt where block, which the census still reads, one ratified compound bound swapped for another at the SAME occurrence count, which is what a per-file count cannot see (KNOWN GAP 6), and KNOWN GAP 3 itself -- the alias declaration in its ratified home beside its uses in a file that is not, which this gate cannot see and does not claim to; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

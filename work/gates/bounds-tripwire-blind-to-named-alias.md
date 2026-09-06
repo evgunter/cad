@@ -137,8 +137,20 @@ obligation as the literal `+ Bounds` spelling, naming both live aliases
 named form and not only the literal one. One paragraph, in PROPS' file,
 announced in the PR.
 
-Ask 1 stays argued against (S63: the roster-keyed matcher reds two files
-whose every use is the sole bracket bound `plant_sole_bracket_bounds`
-pins as must-NOT-fire). Ask 3 is D102 and is landed with it. The uses of
-both aliases remain capability rather than evasion and remain invisible
-to this matcher — KNOWN GAP 3, registered on the roster, not discharged.
+Ask 1 stays argued against FOR `ArcCarrierScalar` (S63: the roster-keyed
+matcher reds two files — `family.rs` and `program.rs` — whose every use
+is the sole bracket bound `plant_sole_bracket_bounds` pins as
+must-NOT-fire). It is not argued against per se, and the other rostered
+name is the counterexample: `scripts/gates/evalscalar-allowlist.sh`, in
+the tree since 2026-09-04, IS that matcher keyed on `EvalScalar`, with
+`eval/{mod,parts}.rs` allowlisted, and it is green — because that name's
+uses are confined to the seam. What decides is the name's population,
+not the instrument. Ask 3 is D102 and is landed with it.
+
+So the two aliases stand differently. `ArcCarrierScalar`'s uses remain
+capability rather than evasion and remain invisible to every matcher
+here — KNOWN GAP 3, registered on the roster, not discharged.
+`EvalScalar`'s uses inside `crates/*/src` are checked by that sibling
+gate; its uses outside it — the name is re-exported at
+`crates/editor-core/src/lib.rs:117` and bound in
+`crates/editor-core/tests/` — are outside both gates' source view.

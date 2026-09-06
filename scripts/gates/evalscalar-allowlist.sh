@@ -6,10 +6,16 @@
 #
 # The SAME gate, over the compound bound's NAME (ASM-2A review
 # MINOR-4). `editor_core::EvalScalar` is the evaluation-service
-# bound — `Decide + ContentBits + Bounds + Send + Sync +
-# PropsQuadLane` — declared once at the seam the rule above
-# already ratifies, so `eval/parts.rs` names the requirement
-# instead of restating `+ Bounds`. That is a naming, and it must
+# bound — ten supertraits at `editor-core/src/eval/mod.rs`, of which
+# `geom_core::Bounds` is the bracket door: `Decide + ContentBits +
+# geom_core::Bounds + Send + Sync + topo::AtRestPolicy` (which carries
+# `topo::PropsQuadLane` as its own supertrait) `+
+# crate::analysis::AxisScalar + crate::analysis::SeedScalar +
+# crate::measure::MinClearanceLane + SectionScalar` — declared once at
+# the seam the rule above already ratifies, so `eval/parts.rs` names
+# the requirement instead of restating `+ Bounds`. The list is read
+# from that declaration and is not checked here: what this gate checks
+# is where the NAME may be bound, not what it gathers. That is a naming, and it must
 # stay one: the trait is `pub` (the integration suites need it),
 # so without this step any file in any crate could acquire a
 # compound Bounds bound invisibly to the grep above. Allowlist =
