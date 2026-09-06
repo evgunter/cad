@@ -6,7 +6,6 @@ status: open
 opened: 2026-08-20
 github: 759
 refs: [S79]
-needs_ev: true
 ---
 
 ## From GitHub issue 759
@@ -82,3 +81,14 @@ door plus one `PathError` arm. The trait-level `polygon` in
 `crates/profile` is NOT this door: it mints the raw vertex table with
 no junction classification, which is exactly what the demotion
 removed from the façade.
+
+## Ruled (Ev, PR 2017, 2026-09-06): **(A) — build it**
+
+`pncad::authoring::polygon(&[(f64, f64)], tol) -> Result<ProfileLoop, PathError>`
+spelled through the PATHS lattice as the tour's `path_polygon` spells it
+(a `line_to` per vertex, `line_to(Start)` as the seam), refusing at
+authoring; one new `PathError` arm for fewer than three vertices; the
+tour's helper deleted and its thirteen call sites moved onto the door;
+the comment block at the demoted site replaced by the door. The
+`PathError` arm crosses to Python through `path_error_tag` like every
+other arm, with its `TAG_INVENTORY` row. Dispatchable as a LIB unit.
