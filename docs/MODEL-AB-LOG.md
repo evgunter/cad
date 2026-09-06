@@ -3939,6 +3939,28 @@ concludes. Method note applying to BOTH arms equally: a saturated
 serialized on the machine mutex; the account's weekly usage budget may
 force pauses — any interruption is recorded and 3(e) applied.
 
+## CURVED-TORUS PR-1 review ordinal fixed at dispatch (2026-09-06)
+
+CURVED-TORUS PR-1 (`work/curved/torus-operand-boxes-span-whole-ring.md`,
+PR #1907 open — frozen head `5c04d2c4`): **ordinal 2201** (CURVED band).
+Pre-draw fields at the spec (`docs/CURVED-TORUS-SPEC.md` §PR shape):
+difficulty **M**, task-class **NUMERIC**; implementer arm per block
+CURVED-B1 slot 1 (record branch-side on `curved/b1-block`, with the
+slot 1/2 reorder note). Protocol v6 dual: draw = `/dev/urandom` byte
+**107**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS**. Method, recorded before
+either review runs: CONCURRENT same-head on frozen `5c04d2c4`, both
+briefs authored and STORED with sha256 before either dispatches
+(4b619930a88c0150… r1 / a9c71ad69b2a2cd1… r2 — identical text modulo
+lane names, verified by diff), neither reviewer sees the other's
+report, v6 item 5 isolation in both briefs, PRIVATE `CARGO_TARGET_DIR`
+per reviewer (fresh for both); the implementer's unit log entry is not
+written until the dual concludes. Method note applying to BOTH arms
+equally: a shared 8-core box; the implementer lane itself was paused
+twice by the account's usage limit and resumed from transcript
+(recorded here so 3(e) can be applied to the IMPLEMENTER arm if the
+protocol reads it that way at the blinded coding); the pair's own
+interruptions, if any, are recorded at merge.
+
 ## DOCM program rows (work/docm/; band 1800–1899; blocks named DOCM-B<n>)
 
 Block DOCM-B1 pre-draw fields (2026-09-04, logged before the draw):
