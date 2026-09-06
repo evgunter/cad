@@ -93,3 +93,22 @@ it: `debug-only-helpers-outside-the-subject-list` (five more
 candidates), and on their owners' slates the `bits_witness` slice
 workaround (TOPO), the `ci.yml` step title (CIW) and the
 `landing_gathers.rs` source-text row (S-TCOST).
+
+## clippy-panic-gate-blind-in-macros landed (2026-09-06)
+
+PR 2032, `gates/panic-free-macro-bodies`, one style review
+(MERGEABLE-WITH-FIXES, fix pass landed). A new gate,
+`panic-free-macro-bodies.sh`: the stanza's six macro-blind lints
+(`.unwrap`, `.expect`, `panic!`, `todo!`, `unimplemented!`, `dbg!`)
+inside every `macro_rules!` body in the three delimiter forms, through
+the code-only view, matched on the body field only; `unreachable!`
+excluded because the D2 addendum removed it from the stanza — the
+lane's deviation, an improvement. Allow: `#[cfg(test)]` on the item,
+an enclosing module, or a file declared by `#[cfg(test)] mod x;` in
+either spelling. The one-time audit: 24 bodies in 15 files, two carry a
+token (`fit.rs:714`'s sanctioned `unreachable!`,
+`review_m1_pr5_internal.rs:116` under test). UFCS `Option::unwrap(v)`
+measured as parity with clippy, not a hole. One wiring step in
+`ci.yml`, announced to CIW; `ci-local.sh` globs the directory. 18
+cases. Its textual `mod` resolver is the third in the directory —
+`test-module-resolution-has-three-homes`.
