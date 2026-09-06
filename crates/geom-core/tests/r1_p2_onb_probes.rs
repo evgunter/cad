@@ -20,7 +20,7 @@ test_utils::gated_to![
     "interval-transcendentals/src/",
 ];
 
-use geom_core::{Real, Vec3};
+use geom_core::Vec3;
 
 /// The axis order written out with a raw branch — the spelling the
 /// constructor may not use, since a value branch does not survive an
