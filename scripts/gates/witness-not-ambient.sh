@@ -78,6 +78,14 @@ set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+# THE FILE that DEFINES `witness`, held once: the filter's exemption is
+# built from it and the clean fixture plants it, so the two cannot
+# drift. The three exemptions below it are a DIRECTORY prefix twice and
+# a path CLASS once — `crates/*/src/bin/` names a cargo convention and
+# not a file — so they have no `FILE:LINE:` shape to pin and stay
+# prefixes on purpose.
+HOME_FILE=crates/geom-core/src/tolerance.rs
+
 gate() {
   gate_require_crate_sources
   local hits
@@ -87,7 +95,7 @@ gate() {
   gate_production_sources
   hits=$(gate_rust_code --skip-cfg-test "${GATE_PRODUCTION_FILES[@]}" \
     | gate_grep -E 'Tol::witness|tolerance::witness' \
-    | gate_grep -vE '^crates/geom-core/src/tolerance\.rs:' \
+    | gate_grep -vE "$(gate_record_anchor "$HOME_FILE")" \
     | gate_grep -vE '^crates/pncad/src/' \
     | gate_grep -vE '^crates/pncad-py/src/py/' \
     | gate_grep -vE '^crates/[^/]+/src/bin/')
@@ -97,6 +105,42 @@ gate() {
     exit 1
   fi
   gate_ok "no kernel library code mints a tolerance witness"
+}
+
+# THE DEFINING FILE IS IN THE CLEAN FIXTURE, which is `lib.sh`'s
+# exact-skip contract read for a whole-file skip: a skip no fixture
+# exercises is dead in every case, and an anchor that over-narrows is
+# then noticed by nobody. The home mints the witness it is the home OF,
+# so the clean case reds the moment the exemption stops covering it.
+gate_plant_clean() {
+  gate_plant_clean_sources "$1"
+  mkdir -p "$1/${HOME_FILE%/*}"
+  printf 'pub fn witness() -> Tol { Tol::witness() }\n' > "$1/$HOME_FILE"
+}
+
+# THE SHARED "no production source left" CASE, over a clean fixture that
+# plants one file more than `lib.sh` assumes. That planter excludes
+# exactly the two sources `gate_plant_clean_sources` writes; the home
+# this gate's clean fixture adds is a third, production, so the tree the
+# case is about does not exist and the refusal it wants cannot fire. The
+# home is taken back out here, which is what "every source is test-only"
+# means for this gate's tree. THE FIX BELONGS IN `lib.sh` — the shared
+# planter should clear whatever the gate's own clean fixture planted,
+# rather than every such gate carrying this override.
+gate_plant_home_every_source_excluded() {
+  rm -f "$1/$HOME_FILE"
+  printf '#[cfg(test)]\nmod main;\n' > "$1/crates/clean/src/lib.rs"
+  printf '#[cfg(test)]\nmod lib;\n' > "$1/crates/clean/src/main.rs"
+}
+
+# THE `FILE:LINE:` SHAPE, which a skip ending at `:` does not pin: a
+# file whose own path carries a colon after the home reads as the home
+# plus a line number and rides the exemption. The path is legal on this
+# filesystem and in git, and the anchor's `[0-9]+` is what refuses it —
+# `gate_record_anchor` in `lib.sh` argues the reachable set once.
+plant_colon_after_the_home_that_is_not_a_line_number() {
+  printf 'pub fn eps() -> f64 { geom_core::Tol::witness().eps() }\n' \
+    > "$1/$HOME_FILE:x.rs"
 }
 
 plant() {
@@ -175,11 +219,12 @@ gate_selftest() {
   gate_selftest_case "$want" plant
   gate_selftest_case "$want" plant_facade_spelling
   gate_selftest_case "$want" plant_main_outside_bin
+  gate_selftest_case "$want" plant_colon_after_the_home_that_is_not_a_line_number
   gate_selftest_passes "the call named in prose, a block comment and a string literal" plant_prose_only
   gate_selftest_passes "the same call inside a #[cfg(test)] module" plant_in_cfg_test
   gate_selftest_passes "a bin target's main under src/bin" plant_in_bin
   gate_selftest_test_module_homes "$want" plant_witness_at
-  printf '%s selftest OK: passes a clean fixture, prose/block-comment/string-literal mentions of the call, the same call inside a #[cfg(test)] module, and a bin target under src/bin; fires on a witness minted in library code, on the pncad::tolerance::witness facade spelling, and on a main written outside src/bin; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying the file that DEFINES witness, prose/block-comment/string-literal mentions of the call, the same call inside a #[cfg(test)] module, and a bin target under src/bin; fires on a witness minted in library code, on the pncad::tolerance::witness facade spelling, on a main written outside src/bin, and at the colon-carrying path a home skip that ends at `:` exempts; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
