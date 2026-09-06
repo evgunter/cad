@@ -6,6 +6,7 @@ status: open
 opened: 2026-08-20
 github: 759
 refs: [S79]
+needs_ev: true
 ---
 
 ## From GitHub issue 759
@@ -51,3 +52,33 @@ The demotion looks right on its merits — junction classification at authoring 
 ## Home
 
 LIB: the missing door is in `crates/pncad/src/authoring.rs`, the program's own `crates/pncad/*` territory, and the LIB register fold placed this issue in its category A (the F1 curation-gap class).
+
+## Question for Ev (2026-09-06, LIB orchestrator; `[ev]` PR)
+
+Whether the lattice-backed façade `polygon` gets built, or the
+demotion is made permanent at the site. The orchestrator's
+recommendation first:
+
+- **(A) Build it.** `pncad::authoring::polygon(&[(f64, f64)], tol)
+  -> Result<ProfileLoop, PathError>`, spelled through the PATHS
+  lattice exactly as `demos/tour/src/paths.rs::path_polygon` spells it
+  today (`Open.at(p0)`, a `line_to` per vertex, `line_to(Start)` as
+  the seam), so a within-band-tangent or cusped corner refuses at
+  authoring. The one piece of vocabulary it needs is the refusal for
+  fewer than three vertices, which `PathError` has no honest arm for
+  today — one new variant. Then the tour's helper is deleted and its
+  thirteen call sites use the door, which is what a demo is for.
+- **(B) Say no at the site.** Rewrite the comment block at
+  `crates/pncad/src/authoring.rs` from "a reasonable future door,
+  fenced out of this unit" to a decision: the lattice IS the façade's
+  polygon spelling, and the tour's helper is the demo of it. Re-point
+  the helper's doc, which today says it "mirrors
+  `pncad::authoring::polygon`" — a function that no longer exists.
+
+Recommendation: (A). Thirteen call sites in the tour reach for one
+shape and route around the façade to get it; `memories/demo-purpose.md`
+says that is a library finding, and the cost of (A) is one fallible
+door plus one `PathError` arm. The trait-level `polygon` in
+`crates/profile` is NOT this door: it mints the raw vertex table with
+no junction classification, which is exactly what the demotion
+removed from the façade.
