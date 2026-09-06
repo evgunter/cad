@@ -5600,3 +5600,58 @@ back identical** before committing, re-taking the reported measurements
 after the re-apply. Disclosed unprompted. The lesson for a successor:
 take base measurements in a separate worktree, never by checking out
 over live edits.
+
+## The debug walk stops being hand-maintained, and takes a sibling with it (2026-09-06)
+
+`debug-for-docsession-is-a-fourth-hand-maintained-walk` closed on
+`view/debug-walk`. Four `Debug` impls now open with an exhaustive
+`let Self { … } = self;`: `DocSession`, `Derived`, `LandedRun` and —
+the sibling — `PickCache`. A field added to any of the four is E0027 in
+its own walk, verified by adding a witness field to each and reading
+the compiler, four for four, then reverting. `DocSession` renders
+`Derived` as one field, so `Derived`'s members travel with their
+declaration rather than being listed twice.
+
+**`finish_non_exhaustive` now means exactly the `_` arms above it.**
+That is the answer to the question the item left open. `Derived` has
+none — all five fields render — so it `finish`es and the marker is
+gone. `LandedRun` keeps it for the evaluation and the document it
+answers; `DocSession` keeps it for five (`eval`, `requested_doc`,
+`tol`, `display`, `resolver`); `PickCache` for its `IndexService`. A
+field the walk will not carry is bound to `_` rather than left out of
+the pattern, which is what makes the marker's list one the compiler
+holds complete instead of a shrug.
+
+**The derive was available and was rejected.** `Doc`, `Evaluation`,
+`ProductError`, `ChecksReport` and `AtRestBadge` all derive `Debug`
+today, so the "blockers" the item named are not blockers — and that is
+the argument against it, not for it: a derive would print the whole
+recipe DAG and the whole result DAG at every `{:?}` on a session, and
+it cannot summarise, which is the one thing the existing walk's taste
+does (`states`, `gesture`).
+
+**The item's own sweep claim had gone stale in a day.** It recorded
+`impl.*Debug for` and `finish_non_exhaustive` at one hit each under
+`crates/viewer/src/`; both give two now, because `PickCache`'s impl
+landed at `83fcb9540` the day after the file was opened. The entry at
+line 1833 of this log carries the same claim, from the lane that made
+it, and it is overtaken rather than wrong: the class to sweep is still
+*hand-listed field census*, and the trait-shaped grep now finds two of
+them instead of one. A sweep is accurate as of its merge base, and this
+one was not re-run until the fix.
+
+**Seven out-of-fence instances, reported not filed.** `Span`,
+`SplineCoeffs`, `RationalCoeffs`, `CoeffWindow`, `RationalWindow`,
+the macro-generated NURBS curve windows, `SurfaceWindow` and
+`ParamSource` all hand-list their fields and end in `finish()` — the
+same silent absence, with the stronger claim of completeness on top.
+They are geom-core, geom and topo ground; §6 puts them in the report
+and the PR body.
+
+**Behaviour moved and says so.** `selection` and `hover` are now inside
+a `derived` block, `landed_generation` became `derived.landed` with its
+four verdicts beside it, and `derived.scratch` and `derived.bounds`
+render for the first time — those two are the fields this defect had
+already eaten. Nothing in the tree renders a `DocSession` or a
+`PickCache`, so no assertion moved; the rendering is unobserved and the
+PR says so rather than leaving a reader to find that out.

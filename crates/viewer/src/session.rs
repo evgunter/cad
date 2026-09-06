@@ -299,6 +299,39 @@ impl Derived {
     }
 }
 
+/// **Exhaustive by destructuring, so the dump cannot fall behind the
+/// declaration.** A field added to [`Derived`] is an unbound-pattern
+/// error here, exactly as it is in [`Derived::none`] — the property
+/// that makes a new field reset by being declared, given to the
+/// rendering as well, since a field silently absent from every dump is
+/// visible only to a reader who wonders what is not there.
+///
+/// A field the dump summarises rather than prints is still bound and
+/// still rendered; a field it deliberately does not carry at all is
+/// bound to `_`, which is a decision a reader can see and the compiler
+/// still forces. Those `_` arms are what a `finish_non_exhaustive` on
+/// one of these impls stands for. This one has none, so it `finish`es.
+impl std::fmt::Debug for Derived {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self {
+            selection,
+            hover,
+            scratch,
+            landed,
+            bounds,
+        } = self;
+        f.debug_struct("Derived")
+            .field("selection", selection)
+            .field("hover", hover)
+            // A whole `Doc`; that one is in flight is the fact, and it
+            // is `Some` exactly while `DocSession::gesture` is.
+            .field("scratch", &scratch.is_some())
+            .field("landed", landed)
+            .field("bounds", bounds)
+            .finish()
+    }
+}
+
 /// One completed evaluation, landed: the pair it answers and every
 /// verdict taken for that pair.
 ///
@@ -383,6 +416,35 @@ struct LandedRun {
     /// changing the shape; do not trust the figures to have stayed
     /// true.
     body: Option<Arc<Body<f64>>>,
+}
+
+/// Exhaustive by destructuring, as [`Derived`]'s is.
+///
+/// `finish_non_exhaustive` stands for `evaluation` and `doc`: the
+/// result DAG and the document it answers are the run's DATA, printing
+/// to a dump nobody can read, while everything else here is a verdict
+/// ABOUT that pair and is what a session dump is asked for. `body` is
+/// carried as its presence — whether the landing's gather is still
+/// memoized, not the aggregate itself.
+impl std::fmt::Debug for LandedRun {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self {
+            evaluation: _,
+            doc: _,
+            generation,
+            fault,
+            at_rest,
+            checks,
+            body,
+        } = self;
+        f.debug_struct("LandedRun")
+            .field("generation", generation)
+            .field("fault", fault)
+            .field("at_rest", at_rest)
+            .field("checks", checks)
+            .field("body", &body.is_some())
+            .finish_non_exhaustive()
+    }
 }
 
 /// The A5 at-rest verdict for the landed pair — a mated document's
@@ -1876,16 +1938,37 @@ fn session_dir(path: &Path) -> PathBuf {
     }
 }
 
+/// Exhaustive by destructuring, as [`Derived`]'s is: a field added to
+/// [`DocSession`] is an unbound-pattern error here. The block the
+/// session knows because of its document renders as one field, so
+/// `Derived`'s members travel with their declaration rather than being
+/// listed a second time.
+///
+/// `finish_non_exhaustive` stands for the five `_` arms below, and they
+/// are five for three reasons: `eval` is a service and has nothing to
+/// print; `requested_doc` is a whole document; and `tol`, `display` and
+/// `resolver` are values the session OWNS rather than knows — each
+/// with its own `Debug`, dumped by asking it, not by inlining it here.
 impl std::fmt::Debug for DocSession {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self {
+            history,
+            tol: _,
+            gesture,
+            eval: _,
+            generation,
+            requested_doc: _,
+            derived,
+            path,
+            display: _,
+            resolver: _,
+        } = self;
         f.debug_struct("DocSession")
-            .field("generation", &self.generation)
-            .field("landed_generation", &self.landed_generation())
-            .field("selection", &self.derived.selection)
-            .field("hover", &self.derived.hover)
-            .field("states", &self.history.len())
-            .field("gesture", &self.gesture.is_some())
-            .field("path", &self.path)
+            .field("generation", generation)
+            .field("states", &history.len())
+            .field("gesture", &gesture.is_some())
+            .field("path", path)
+            .field("derived", derived)
             .finish_non_exhaustive()
     }
 }

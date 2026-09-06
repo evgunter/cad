@@ -160,13 +160,27 @@ pub struct PickCache {
     seam: Box<dyn IndexService>,
 }
 
+/// Exhaustive by destructuring: a field added to [`PickCache`] is an
+/// unbound-pattern error here, not a silent absence from every dump.
+///
+/// `finish_non_exhaustive` stands for the one `_` arm — `seam` is a
+/// service and has nothing to print. `index` is carried as the
+/// generation it describes rather than as the index itself, which is
+/// the fact a dump is asked for.
 impl core::fmt::Debug for PickCache {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            index,
+            attempted,
+            outstanding,
+            error,
+            seam: _,
+        } = self;
         f.debug_struct("PickCache")
-            .field("index", &self.index.as_ref().map(PickIndex::generation))
-            .field("attempted", &self.attempted)
-            .field("outstanding", &self.outstanding)
-            .field("error", &self.error)
+            .field("index", &index.as_ref().map(PickIndex::generation))
+            .field("attempted", attempted)
+            .field("outstanding", outstanding)
+            .field("error", error)
             .finish_non_exhaustive()
     }
 }

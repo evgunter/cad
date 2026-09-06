@@ -428,6 +428,24 @@ says about the other. The behaviour is older than the block above and
 has its own item
 (`work/view/free-move-drag-dissolved-by-open.md`).
 
+**The dump is held to the same declaration.** `Debug` for `DocSession`,
+for `Derived` and for `LandedRun` destructures its own value
+exhaustively, so a new field is an unbound-pattern error in the
+rendering exactly as it is in `Derived::none` — a field silently absent
+from every dump is nobody's compile error and is visible only to a
+reader who wonders what is not there. `DocSession` renders `Derived` as
+one field rather than reaching through it, so those members travel with
+their declaration instead of being listed a second time. A field the
+dump will not carry is bound to `_` rather than left out of the
+pattern, which is what makes the omission a decision a reader can see,
+and those `_` arms are precisely what a `finish_non_exhaustive` here
+stands for: the result DAG and the document a landing answers, and the
+session's evaluation service, its outstanding document and the three
+values it owns rather than knows (`tol`, `display`, `resolver`).
+`Derived` has no such arm, so it `finish`es. `PickCache` is the same
+shape one seam away and takes the same destructuring, with its
+`IndexService` the one thing it cannot print.
+
 ### The app's vocabularies
 
 | Module | Holds |
