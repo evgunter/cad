@@ -4364,3 +4364,4 @@ own.
 
 Block DOCM-B3 slot record (branch-side, appended as each slot concludes):
 slot 0 pre-draw fields (2026-09-06, at dispatch; arm fixed by the draw above): DOCM-7 (docs/DOCM-7-SPEC.md) — difficulty M, task-class STRUCTURAL. Dispatched concurrently with DOCM-6 (block B2 slot 2) on disjoint files (the union's fold and naming against the assembly seam).
+slot 0 = DOCM-7 (OPUS; pre-draw M / STRUCTURAL at `docs/DOCM-7-SPEC.md`) — concluded 2026-09-06 at merge of PR #2028, ordinal 1805, sample #148 (no stop; the union fix pass; no bilateral MAJOR, two unilateral-MAJOR candidates, one per slot: the chained-order gap filed for Ev's ruling, the content-key feed claim corrected). Slots 1 (FABLE) and 2 (OPUS) remain: the next kernel units in dispatch order take them, pre-draw fields at their specs.
