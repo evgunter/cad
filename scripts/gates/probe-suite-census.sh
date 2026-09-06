@@ -82,6 +82,18 @@
 # dated, sourced evidence, not a baseline — a taker who needs them
 # re-measures.
 #
+# WHAT READING A VIEW COSTS, AS A DATED READING AND NOT AS A CLAIM
+# ABOUT TODAY. Lexing every `crates/*/tests/**.rs` is the whole of the
+# difference: 0.29 s to 2.17 s for this gate's real pass, best of three,
+# 2026-09-06, on a 4-core container at load average ~0.8 with `mawk` —
+# and every other gate in the directory unmoved to two decimal places
+# (0.02–0.52 s). Both halves of CI run this gate twice, `--selftest`
+# then the real pass. There is NO PREFILTER between the file list and
+# the reader, deliberately: one on the raw text would be sound only
+# under an argument about what a comment can sit inside, and this gate
+# would then be as fast as it was and blind in a way its fixtures do not
+# reach. A taker who needs the number re-measures.
+#
 # WHAT THE PREDICATE CANNOT MATCH, stated because the previous one's blind
 # spot was not: a gate split across lines (the reader emits one record
 # per line, and `[^]]` holds a match inside one attribute); a gate
