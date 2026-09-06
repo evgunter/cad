@@ -82,9 +82,28 @@ That is a different mechanism from an exact-text skip, and calling
 `gate_exact_skip_filter` would drop the site-granularity the gate
 argues for at `README`'s cited section. What it shares is the anchor,
 and it takes that: `gate_record_anchor` replaces its three hand-spelled
-`^$SRC/$exfile:[0-9]+:` interpolations and escapes the path, which the
-hand-spelled form did not (`forms.rs` as a pattern also matches
-`formsXrs`). Its subject check already reds on a missing home, so the
-divergence this row names is resolved in its favour.
+`^$SRC/$exfile:[0-9]+:` interpolations and escapes the path. The
+escaping is exactness and not a hole closed — every module this gate
+scans is a `.rs` file it found by name, so the `formsXrs` an unescaped
+`forms.rs` also matches is unreachable by construction; the reachable
+half of the escaping is the TEXT, where a ratified line carries `+`,
+`.` and brackets. Its subject check already reds on a missing home, so
+the divergence this row names is resolved in its favour.
+
+The style review's fix pass, in one commit on the same branch: the
+one-record refusal is made TERMINAL (nested inside
+`$(gate_ere_escape "$(…)")` its `exit` was the inner substitution's and
+the builder returned a pattern matching nothing), with a subprocess
+fixture that fails if the line after the refusal runs; the pattern
+builder and record reader take (view, home, texts) as ARGUMENTS, so the
+mechanism's own cases stop saving and restoring globals; the generic
+record prefix gets one name, `GATE_RECORD_PREFIX_RE`, read at the five
+sites that spelled it (two through `awk`'s ENVIRON) and
+`gate_record_anchor` at `bounds-allowlist.sh`'s per-file count;
+reachability claims about the PATH half of the escaping are stated as
+construction rather than as live holes; the header's argument, which
+the PR body carries, is trimmed to the invariant; comments go present
+tense; and `viewer-module-kinds.sh`'s `work/code-quality/D103.md`
+citation is corrected to `work/gates/D103.md`.
 
 What did NOT land: nothing else was deferred inside the fence.

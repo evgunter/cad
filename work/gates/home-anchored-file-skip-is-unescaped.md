@@ -1,7 +1,7 @@
 ---
 id: home-anchored-file-skip-is-unescaped
 kind: issue
-title: signed-zero-one-home.sh's home-anchored file skip interpolates the path unescaped, so a sibling path exempts itself
+title: signed-zero-one-home.sh's home-anchored file skip interpolates the path unescaped, so the anchor is exact only by accident
 status: review
 branch: gates/file-skip-anchor
 pr: 2065
@@ -21,45 +21,49 @@ sanctioned home with
 
 where `HOME_FILE=crates/step-import/src/signed_zero.rs` (`:66`) is
 interpolated into an ERE **unescaped**. The `.` is a metacharacter, so
-the pattern reads `signed_zero?rs:` and names more than one path.
+as a pattern the skip also names `crates/step-import/src/signed_zeroXrs`.
 
-WHAT IT ACTUALLY EXEMPTS, corrected against the scan (this paragraph
-replaces the first reading of it, and #2064's review found the same
-thing from the other side). The flat `crates/step-import/src/
-signed_zeroXrs` is NOT exempted, because it is never read:
-`find … -name '*.rs'` at `:102` does not return it, so the gate passes
-on it whether the skip is escaped or not. Every record's FILE
-therefore ends in `.rs`, and the pattern's trailing `:` must land on a
-real character, so a path this scan reaches and this skip exempts has
-to carry a `:` INSIDE it — `crates/step-import/src/
-signed_zero_rs:9:x.rs` is one, planted and confirmed exempt under the
-unescaped spelling and firing under the escaped one. That is a narrow
-set, not an empty one: a colon is legal in a path here and in git.
+**THAT PATH IS UNREACHABLE, and this row's first reading of it was
+wrong in both directions.** The gate's scan set is
+`find "${SCAN_DIRS[@]}" -type f -name '*.rs'` (`:102`), so no record it
+reads carries a path whose extension is not `.rs`: a flush planted at
+`signed_zeroXrs` does not fire, before the fix or after, and a fixture
+built on it proves the scan's glob rather than the anchor. Confirmed by
+planting it, and #2064's review found the same from the other side.
 
-Population today: zero, and held there by the SCAN'S GLOB and by the
-trailing `:` rather than by the skip. Both are one edit away from a
-gate that exempts a file nobody ratified, which is the direction that
-never cries wolf — a file at such a path is exempt from the
-negative-zero-flush rule with nothing red anywhere. `gate_record_anchor`
-makes the skip name one path by construction instead of by two
-coincidences, which is what `bounds-allowlist.sh`'s and
-`viewer-module-kinds.sh`' own anchors were changed toward in that unit.
+**What does not follow is "zero for any tree this gate can scan."**
+Every record is `FILE:LINE:TEXT` and the pattern's trailing `:` has to
+land on a real character, so an exempted path must end in `.rs` AND
+carry a `:` inside it — legal on this filesystem and in git.
+`crates/step-import/src/signed_zero_rs:9:x.rs` is one, planted and
+confirmed EXEMPT under the unescaped spelling and firing under the
+escaped one. The reachable set is narrow, not empty.
 
-Not fixed there because it is a different mechanism: this skip exempts
-a WHOLE FILE, not one ratified text, so it takes neither
-`gate_exact_skip` nor its fixtures. Its subject check is already the
-rule that unit landed — `gate_require_file "$HOME_FILE"` at `:100`
-reds when the home is gone.
+Population today: zero, and held there by the SCAN'S GLOB and the
+trailing `:` rather than by the skip.
+
+What it is instead: **an anchor that is exact by accident rather than
+by construction**, in a gate whose whole claim is "the flush lives in
+THIS file and nowhere else". The pattern says something wider than the
+gate means, and what keeps it nearly harmless is a property of a
+DIFFERENT line — the `-name '*.rs'` in the scan — that nothing ties to
+this one.
 
 ## Fix shape
 
 `| gate_grep -vE "$(gate_record_anchor "$HOME_FILE")"` — `lib.sh`'s
 anchor builder, which escapes the path and pins the `FILE:LINE:` shape
-— plus the fixtures that hold it. The anchor has three parts and each
-one needs a planted path that FIRES only while that part is there: the
-escaping (a path carrying a `:`, above), the `^` (a path ENDING in the
-home), and the `:[0-9]+:` boundary (a path BEGINNING with the home).
-The home itself must still pass, which is `gate_plant_clean`'s job.
+that every view emits — plus the fixtures that hold it. The anchor has
+three parts and each needs a planted path that FIRES only while that
+part is there: the escaping (a path carrying a `:`, above), the `^` (a
+path ENDING in the home), and the `:[0-9]+:` boundary (a path
+BEGINNING with the home). The home itself must still pass, which is
+`gate_plant_clean`'s job.
+
+This row earlier said the second half could not be planted as a `.rs`
+file in the scan and would have to be a unit assertion over hand-built
+records, `gate_exact_skip_escaping_case`'s shape. It can be planted;
+that paragraph came from the same wrong premise as the one above.
 
 ## What was not measured
 
@@ -75,11 +79,7 @@ skip built by a helper or spelled with the anchor in a variable.
 the `FILE:LINE:` shape pinned. Live output byte-identical, stdout and
 stderr.
 
-THREE planted cases hold it, one per part of the anchor, and none of
-them is the file this row first named. `crates/step-import/src/
-signed_zeroXrs` is not a fixture at all — `find … -name '*.rs'` never
-returns it, so the gate passes on it under the old spelling too, which
-proves the scan's glob and nothing about the anchor.
+THREE planted cases hold it, one per part of the anchor:
 
   * `plant_sibling_the_raw_anchor_exempted` — the ESCAPING.
     `crates/step-import/src/signed_zero_rs:9:x.rs`, the reachable

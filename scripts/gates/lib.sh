@@ -648,8 +648,7 @@ gate_rust_code() {
 # text at one path, and never a file entry: allowlisting the file
 # un-guards every other line in it.
 #
-# THREE THINGS MAKE ONE MECHANISM, and they were hand-spelled in two
-# gates and half-spelled in a third before this existed:
+# THREE THINGS MAKE ONE MECHANISM:
 #
 #   * THE FILTER IS ANCHORED AT THE HOME. Unanchored, the ratified text
 #     is exempt wherever in the tree it is written, so the same
@@ -662,51 +661,39 @@ gate_rust_code() {
 #     a retirement stops it matching, and the tempting repairs — widen
 #     the skip to a name, allowlist the file — are both the thing the
 #     skip exists to refuse.
-#   * THE PATTERN IS DERIVED FROM THE PLAIN TEXT, once. The two gates
-#     that spelled this by hand each carried the text twice: the plain
-#     line for the subject check and a hand-escaped `_RE` twin for the
-#     filter, with the escaping and the view's own rendering (a
-#     statement record is cut at `{`, `}` and `;` and has its whitespace
-#     collapsed) copied into the twin by eye. Two texts that must agree
-#     and nothing checking that they do is the drift this file exists
-#     to close; the twin is gone, and the record shape comes from the
-#     READER rather than from a comment about it.
+#   * THE PATTERN IS DERIVED FROM THE PLAIN TEXT, once, and that is
+#     what leaves the caller ONE spelling of it. A skip spelled by hand
+#     carries its text twice — the plain line the subject check reads
+#     verbatim, and an escaped twin the filter matches — with the
+#     escaping and the view's own rendering (a statement record is cut
+#     at `{`, `}` and `;` and has its whitespace collapsed) transcribed
+#     into the twin by eye, and nothing checking that the two agree.
+#     Here there is no twin: the record shape comes from the READER and
+#     the escaping from `gate_ere_escape`.
 #
-# A MISSING HOME IS A RED, NOT AN ABSTENTION, and that is the one
-# question the two hand-spellings answered differently (they returned
-# early on `[ -f … ] || return 0`; `viewer-module-kinds.sh` reds on an
-# exception naming a file that is not there). The rule here is the red,
-# for three reasons and against one:
-#
-#   * A SKIP WHOSE HOME IS GONE EXEMPTS NOTHING TODAY and is a
-#     ratification the next file written at that path inherits without
-#     argument — D103's class, which this directory already reds on
-#     twice: `viewer-module-kinds.sh` on an exception whose count has
-#     nothing behind it, `bounds-allowlist.sh` on a roster entry whose
-#     file is not in the tree.
-#   * `lib.sh` ALREADY ANSWERS THIS for a gate's subject file, at
-#     `gate_require_file`: a renamed subject makes a gate pass green
-#     forever. A skip's home is a subject the gate reads a decision out
-#     of, and the answer does not change because the decision is an
-#     exemption rather than a scan.
-#   * THE ABSTENTION'S OWN DEFENCE COVERS ONE CASE OF THREE. It was
-#     argued as costing nothing because a MOVED home carries the text to
-#     a path the anchor no longer matches, so the scan reds — true, and
-#     silent about the other two: a home DELETED with its text, and a
-#     home never written at that path at all (a typo in the constant),
-#     where the gate goes green carrying a skip that has never dropped
-#     anything.
-#
-# AGAINST: the red is not about the tree, which may be perfectly clean —
-# it is about the SCRIPT being stale. That is accepted here, and it is
-# the same trade every allowlist entry in this directory already makes.
+# A MISSING HOME IS A RED, NOT AN ABSTENTION. A skip whose home is gone
+# exempts nothing, and left standing it is a ratification the next file
+# written at that path inherits without argument — D103's class, which
+# this directory reds on twice over: `viewer-module-kinds.sh` on an
+# exception whose site count has nothing behind it, `bounds-allowlist.sh`
+# on a roster entry whose file is not in the tree. `gate_require_file`
+# above answers the same question the same way for a gate's SCAN
+# subject, and an exemption is a decision read out of a file exactly as
+# a scan is.
 #
 # WHAT IT COSTS THE CALLER is one line in its clean fixture: the tree a
-# gate calls clean now has to carry the skip's own home, the way
-# `bounds-allowlist.sh`'s clean fixture already carries every list's own
-# subject. That is a gain and not a tax — the skip is then LIVE in every
+# gate calls clean has to carry the skip's own home, the way
+# `bounds-allowlist.sh`'s clean fixture carries every list's own
+# subject. That is a gain and not a tax — the skip is LIVE in every
 # fixture, so an anchor that over-narrows reds the clean case rather
 # than waiting for the one fixture written to notice.
+
+# THE DECLARED SKIP, held in globals because a gate has exactly one and
+# every part of the mechanism asks about the same one: the filter, the
+# subject check and the four planted cases. The pattern builder and the
+# record reader take their inputs as ARGUMENTS as well (`…_for`), so a
+# case that has to ask about a skip the gate does not declare — the
+# escaping and two-record cases below — asks without writing to these.
 GATE_EXACT_SKIP_HOME=
 GATE_EXACT_SKIP_TEXTS=()
 GATE_EXACT_SKIP_VIEW=()
@@ -720,10 +707,27 @@ gate_ere_escape() {
   printf '%s' "$1" | sed 's/[][\\^$.|?*+(){}]/\\&/g'
 }
 
-# gate_record_anchor PATH — the `FILE:LINE:` prefix of a record at PATH,
-# as an anchored ERE. All three views emit `FILE:LINE:TEXT`, so this is
-# the one place a gate says "at this path and nowhere else"; the path is
-# ESCAPED, because `real.rs` read as a pattern also matches `realXrs`.
+# THE `FILE:LINE:` PREFIX EVERY RECORD CARRIES, in the two shapes a
+# matcher wants it: pinned to one path, and open. All three of
+# `gate_rust_code`'s views emit `FILE:LINE:TEXT`, so a matcher that
+# reads records says where it is anchored here rather than respelling
+# the shape.
+#
+# THE PATH IS ESCAPED, and what that buys is mostly exactness rather
+# than a defect closed: a home's only metacharacter is the extension's
+# `.`, and every scan set here is `find -name '*.rs'`, so the flat
+# `realXrs` an unescaped `real.rs` would also match is never read.
+# MOSTLY, and not entirely. A record is `FILE:LINE:TEXT` and the
+# anchor's `:` has to land on a real character, so a path that ends in
+# `.rs` AND carries a `:` inside it satisfies an unescaped anchor and
+# is exempted — planted, and confirmed exempt before the escaping, at
+# `signed-zero-one-home.sh`'s `plant_sibling_the_raw_anchor_exempted`.
+# The reachable set is narrow, not empty.
+# The escaping is one rule over path and text alike — the TEXT half is
+# where it bites, since a ratified line carries `+`, `.` and brackets —
+# and a reader should not have to case-split it to know the anchor is
+# the path.
+GATE_RECORD_PREFIX_RE='^[^:]*:[0-9]+:'
 gate_record_anchor() {
   printf '^%s:[0-9]+:' "$(gate_ere_escape "$1")"
 }
@@ -768,55 +772,88 @@ gate_exact_skip() {
   }
 }
 
-# THE RECORD ONE TEXT RENDERS AS, read out of the reader itself rather
-# than transcribed. The text is handed to `gate_rust_code` as a file of
-# its own, so what comes back is exactly what the scan would carry for
-# that line, whitespace collapsing and delimiter cutting included, and
-# the `FILE:LINE:` prefix is dropped because the anchor supplies it.
+# gate_exact_skip_record_for VIEW TEXT — THE RECORD ONE TEXT RENDERS AS,
+# read out of the reader itself rather than transcribed. The text is
+# handed to `gate_rust_code` as a file of its own, so what comes back is
+# exactly what the scan would carry for that line, whitespace collapsing
+# and delimiter cutting included, and the `FILE:LINE:` prefix is dropped
+# because the anchor supplies it. VIEW is the reader's flags as one
+# word-split string, empty for the line view.
 #
-# EXACTLY ONE RECORD, or the skip is refused. A text that renders as two
-# records (a `;` in the middle of it, under the statement view) or as
-# none (a text the view discards) would build a pattern that matches
-# nothing, and a skip that drops nothing is indistinguishable from a
-# skip that works until the day it is needed.
-gate_exact_skip_record() {
+# EXACTLY ONE RECORD, or the skip is refused, and the refusal ENDS the
+# gate. A text that renders as two records (a `;` or a `{` in the middle
+# of it, under the statement view) or as none (a text the view discards,
+# a comment among them) builds a pattern that matches something other
+# than the line it names, and a skip that drops the wrong thing — or
+# nothing — is indistinguishable from one that works until the day it is
+# needed. The refusal is terminal by the shape of its CALLER, which is
+# why the builder below captures this in a statement of its own.
+gate_exact_skip_record_for() {
+  local view=$1
   local -a recs=()
-  mapfile -t recs < <(gate_rust_code \
-    ${GATE_EXACT_SKIP_VIEW[@]+"${GATE_EXACT_SKIP_VIEW[@]}"} \
-    <(printf '%s\n' "$1") | sed -E 's/^[^:]*:[0-9]+://')
-  if [ "${#recs[@]}" -ne 1 ] || [ -z "${recs[0]}" ]; then
-    gate_error "$(gate_name): the skipped text \`$1\` renders as ${#recs[@]} records in this gate's view, and a skip is one NON-EMPTY record — so the pattern built from it would match something other than the line it names. Re-derive the skip against a single record of the view the gate reads"
+  # UNQUOTED ON PURPOSE: VIEW is a flag list, and its words are the
+  # reader's arguments.
+  # shellcheck disable=SC2086
+  mapfile -t recs < <(gate_rust_code $view <(printf '%s\n' "$2") \
+    | sed -E "s/$GATE_RECORD_PREFIX_RE//")
+  if [ "${#recs[@]}" -ne 1 ]; then
+    gate_error "$(gate_name): the skipped text \`$2\` renders as ${#recs[@]} records in this gate's view, and a skip is one record — so the pattern built from it would match something other than the line it names. Re-derive the skip against a single record of the view the gate reads"
     : >> "$GATE_MATCHER_FAILED"
     exit 1
   fi
   printf '%s' "${recs[0]}"
 }
 
-# The filter's pattern: one anchored alternative per text. Each
-# alternative is anchored at both ends, so alternation cannot widen one.
-gate_exact_skip_pattern() {
-  local t anchor
+# gate_exact_skip_pattern_for VIEW HOME TEXT... — the filter's pattern:
+# one anchored alternative per text, anchored at BOTH ends so alternation
+# cannot widen one.
+#
+# THE RECORD IS CAPTURED IN A STATEMENT OF ITS OWN, and that is the
+# difference between a refusal that ends the gate and one it prints on
+# its way past. Nested as `$(gate_ere_escape "$(gate_exact_skip_record_for
+# …)")` the inner `exit` is the INNER substitution's status and the
+# outer substitution reports the ESCAPER's 0: the refused text still
+# yields a pattern — `^HOME:[0-9]+:$`, matching no record at all — and
+# the gate reads its own diagnosis, then the un-skipped record, then a
+# second diagnosis under it. As an assignment the failure is the
+# statement's, and errexit carries it out through every caller.
+gate_exact_skip_pattern_for() {
+  local view=$1 home=$2
+  shift 2
+  local t rec anchor
   local -a alts=()
-  anchor=$(gate_record_anchor "$GATE_EXACT_SKIP_HOME")
-  for t in "${GATE_EXACT_SKIP_TEXTS[@]}"; do
-    alts+=("$anchor$(gate_ere_escape "$(gate_exact_skip_record "$t")")\$")
+  anchor=$(gate_record_anchor "$home")
+  for t in "$@"; do
+    rec=$(gate_exact_skip_record_for "$view" "$t")
+    alts+=("$anchor$(gate_ere_escape "$rec")\$")
   done
   local IFS='|'
   printf '%s' "${alts[*]}"
 }
 
+gate_exact_skip_pattern() {
+  gate_exact_skip_pattern_for "${GATE_EXACT_SKIP_VIEW[*]-}" \
+    "$GATE_EXACT_SKIP_HOME" "${GATE_EXACT_SKIP_TEXTS[@]}"
+}
+
 # gate_exact_skip_filter — records on stdin, the skipped ones dropped.
+# The pattern is captured before the matcher runs for the reason the
+# builder gives: inside `gate_grep -vE "$(…)"` a refusal's status is
+# discarded by the expansion and `grep -vE ''` drops EVERY record, which
+# is a silent green over a scan that decided nothing.
 gate_exact_skip_filter() {
-  gate_grep -vE "$(gate_exact_skip_pattern)"
+  local pat
+  pat=$(gate_exact_skip_pattern)
+  gate_grep -vE "$pat"
 }
 
 # THE SKIP'S SUBJECT, proved before the scan that depends on it.
 #
-# `gate_grep`, NOT the `grep -qxF` PREDICATE the two hand-spellings
-# used. A predicate reads exit 2 — a `grep` that could not search — as
-# "the text is not there", and answers with the drift diagnosis over a
-# tree it never read. `gate_grep` diagnoses that case as itself and
-# leaves this function only through a message that is true.
+# `gate_grep`, NOT a `grep -qxF` PREDICATE. A predicate reads exit 2 — a
+# `grep` that could not search — as "the text is not there", and answers
+# with the drift diagnosis over a tree it never read. `gate_grep`
+# diagnoses that case as itself and leaves this function only through a
+# message that is true.
 gate_exact_skip_subject() {
   local t found
   if [ ! -f "$GATE_EXACT_SKIP_HOME" ]; then
@@ -933,7 +970,9 @@ gate_norm_path() {
 # code view does not place the declaration the statement view reported —
 # also a refusal, and the caller says so.
 gate_declaration_shape() {
-  gate_rust_code "$1" | awk -v start="$2" -v name="$3" '
+  gate_rust_code "$1" \
+    | GATE_RECORD_PREFIX_RE="$GATE_RECORD_PREFIX_RE" \
+      awk -v start="$2" -v name="$3" '
     # THE ANSWER IS HELD TO `END`, NOT PRINTED AND EXITED ON. This `awk`
     # reads a pipe, and exiting at the declaration closes it while the
     # shared reader upstream is still writing: that write fails, the
@@ -954,7 +993,7 @@ gate_declaration_shape() {
     done { next }
     {
       s = $0
-      if (!match(s, /^[^:]*:[0-9]+:/)) next
+      if (!match(s, ENVIRON["GATE_RECORD_PREFIX_RE"])) next
       ln = substr(s, RSTART, RLENGTH); sub(/^[^:]*:/, "", ln); sub(/:$/, "", ln)
       s = substr(s, RSTART + RLENGTH)
       ln += 0
@@ -1108,7 +1147,7 @@ gate_test_only_mounts() {
   done < <(gate_rust_code --statements "${cands[@]}" \
     | gate_grep -E "$GATE_CFG_TEST_RE" \
     | gate_grep -vE "$GATE_CFG_TEST_NOT_RE" \
-    | gate_grep -oE '^[^:]*:[0-9]+:.*[[:space:]]mod [a-z_][a-z0-9_]*$' \
+    | gate_grep -oE "$GATE_RECORD_PREFIX_RE.*[[:space:]]mod [a-z_][a-z0-9_]*\$" \
     | sed -E 's/:([0-9]+):.*[[:space:]]mod /:\1:/')
 }
 
@@ -1668,15 +1707,15 @@ gate_selftest_test_module_homes() {
     gate_plant_home_early_declaration_in_a_long_file "$plant"
   printf '%s selftest OK (test-module homes): places a cfg(test) declaration where rustc mounts it, so a production sibling, a production file under an inline module, a file whose path merely extends an exclusion, an ungated declaration and an any(test, …) one all stay in the scan and red, while the file the declaration names — positional, one-line or two, gated on `test` alone or inside an all(…), #[path]-mounted, directory-form or nested in an inline module — does not; and it REFUSES, with its own diagnosis and never a second false one, a declaration it cannot place, while a declaration it CAN place stays placed however long the file under it runs and a tree whose sources exclude each other is not a clean tree\n' "$(gate_name)"
 }
+
 # --- THE ANCHORED SKIP'S OWN CASES ------------------------------------
 #
 # WHY THEY LIVE HERE AND NOT IN ONE GATE. The mechanism has one home, so
 # one gate's fixtures prove the MECHANISM and nothing about the gate
 # beside it being wired to the same answer — the reason
-# `gate_selftest_test_module_homes` is written here, and the reason PR
-# 2029's copy of these cases arrived one fixture short of the twin it
-# was copied from. Every caller of `gate_exact_skip` runs all of them
-# and carries all of them.
+# `gate_selftest_test_module_homes` is written here. A copy of these
+# cases kept per gate is one edit away from being a copy short. Every
+# caller of `gate_exact_skip` runs all of them and carries all of them.
 #
 # THE PLANTERS TAKE NO ARGUMENT BUT THE TREE: what to plant is the
 # declaration, which is already in the globals, so a case cannot plant a
@@ -1708,34 +1747,37 @@ gate_exact_skip_plant_home_gone() {
   rm -f "$1/$GATE_EXACT_SKIP_HOME"
 }
 
-# THE ESCAPING, PROVED IN BOTH DIRECTIONS AND IN ONE PROCESS. The three
+# THE ESCAPING, PROVED IN BOTH DIRECTIONS AND IN ONE PROCESS. The
 # planted cases above cannot see it: they run the gate over trees whose
 # only text is the ratified one, and a pattern whose metacharacters went
 # in unescaped still matches the text it was built from — it matches
 # MORE, which no tree carrying only that text can show. So this case
-# hands the real filter four hand-built records and pins which of them
-# survive. It is the reader's own `--window` assertion one section up,
-# applied to the other thing every caller of this file depends on.
+# builds a pattern from a text of its own and pins which of four
+# hand-built records survive the filter's one line. It is the reader's
+# own `--window` assertion two sections up, applied to the other thing
+# every caller of this file depends on.
 #
-# The text carries `[`, `]`, `(`, `)` and `.`; the home carries a `.`
-# too. Read as a pattern rather than as text, `[f64; 2]` is ONE
-# character from a class, `(…)` is a group that disappears, and `.` is
-# any character — so each decoy below is what the SAME LINE would look
-# like if the escaping were dropped, and every one of them must survive.
+# THE TEXT IS THE REACHABLE HALF. `[`, `]`, `(`, `)` and `.` inside a
+# RATIFIED LINE are what a real skip carries (both live skips carry a
+# `+`), and read as a pattern instead of as text they match lines that
+# are not the ratified one. THE DECOY IS THAT READING, derived term by
+# term: unescaped, `(f64, [f64; 2])` is a group holding `f64, ` and a
+# one-character class, so `f64, 6` satisfies it; `(1.0, [2.0, 3.0])` is
+# a group holding `1`, ANY character, `0, ` and another one-character
+# class, so `1a0, 2` satisfies it; the literal `;` ends both readings.
+# THE PATH HALF cannot be reached from any tree these gates read — a
+# home's only metacharacter is the extension's `.` and every scan set is
+# `*.rs` — and is pinned anyway, because the escaping is one rule and a
+# skip that anchored at `metaXrs` as well would be wider than it says.
 gate_exact_skip_escaping_case() {
   local home='crates/planted/src/meta.rs'
   local text='pub const K: (f64, [f64; 2]) = (1.0, [2.0, 3.0]);'
   local decoy='pub const K: f64, 6 = 1a0, 2;'
-  local out want
-  local -a saved_view=() saved_texts=()
-  local saved_home=$GATE_EXACT_SKIP_HOME saved_subject=$GATE_EXACT_SKIP_SUBJECT
-  local saved_repair=$GATE_EXACT_SKIP_REPAIR
-  saved_view=(${GATE_EXACT_SKIP_VIEW[@]+"${GATE_EXACT_SKIP_VIEW[@]}"})
-  saved_texts=(${GATE_EXACT_SKIP_TEXTS[@]+"${GATE_EXACT_SKIP_TEXTS[@]}"})
+  local out want pat
   # The LINE view, whatever the gate reads: the record is then the text
   # verbatim, so what this case measures is the escaping and not the
   # rendering.
-  gate_exact_skip --subject 'x is' --repair 'y' "$home" "$text"
+  pat=$(gate_exact_skip_pattern_for '' "$home" "$text")
   want="$home:2:$decoy
 crates/planted/src/metaXrs:3:$text
 crates/other/src/lib.rs:4:$text"
@@ -1743,17 +1785,51 @@ crates/other/src/lib.rs:4:$text"
     "$home:1:$text" \
     "$home:2:$decoy" \
     "crates/planted/src/metaXrs:3:$text" \
-    "crates/other/src/lib.rs:4:$text" | gate_exact_skip_filter)
-  GATE_EXACT_SKIP_HOME=$saved_home
-  GATE_EXACT_SKIP_SUBJECT=$saved_subject
-  GATE_EXACT_SKIP_REPAIR=$saved_repair
-  GATE_EXACT_SKIP_VIEW=(${saved_view[@]+"${saved_view[@]}"})
-  GATE_EXACT_SKIP_TEXTS=(${saved_texts[@]+"${saved_texts[@]}"})
+    "crates/other/src/lib.rs:4:$text" | gate_grep -vE "$pat")
   if [ "$out" != "$want" ]; then
     printf 'SELFTEST FAILED: the anchored skip built from a text carrying regex metacharacters drops the wrong records — every metacharacter in the text AND in the home path is matched as itself or the skip is wider than the line it names:\nwanted:\n%s\ngot:\n%s\n' \
       "$want" "$out" >&2
     exit 1
   fi
+}
+
+# A TEXT THAT IS NOT ONE RECORD ENDS THE GATE, and this case is what
+# holds the refusal terminal. It runs the builder in a REAL SUBPROCESS
+# with a line after it: a refusal that only printed would let that line
+# run, and inside this process an `if` or a `||` would suppress the
+# errexit the refusal travels out on — the harness's own reason for
+# running every gate as a subprocess, one layer down.
+#
+# The text is the sealed declaration with a body written onto it, which
+# the statement view cuts into two records at the `{`.
+gate_exact_skip_two_record_case() {
+  local tmp out
+  local text='pub trait SpanLocate: sealed::Sealed + Real { fn a(); }'
+  tmp=$(mktemp -d)
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'set -euo pipefail\n'
+    printf '. %s\n' "${BASH_SOURCE[0]}"
+    printf 'gate_exact_skip_pattern_for --statements crates/planted/src/lib.rs "$1"\n'
+    printf 'printf "PAST THE REFUSAL\\n"\n'
+  } > "$tmp/two-records.sh"
+  if out=$(bash "$tmp/two-records.sh" "$text" 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: the pattern builder RETURNED a pattern for a text that renders as two records — a skip built from it matches no record at all, and the gate reading it decides nothing:\n%s\n' "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+  gate_selftest_assert_diagnosed "a text that renders as two records" "$out"
+  case "$out" in
+    *"renders as 2 records"*) ;;
+    *) printf 'SELFTEST FAILED (a text that renders as two records): the builder failed for some OTHER reason:\n%s\n' "$out" >&2
+       exit 1 ;;
+  esac
+  case "$out" in
+    *"PAST THE REFUSAL"*)
+      printf 'SELFTEST FAILED (a text that renders as two records): the refusal PRINTED and the line after it still ran — a refusal that is not terminal leaves the gate to red a second time, on the record it failed to skip:\n%s\n' "$out" >&2
+      exit 1 ;;
+  esac
 }
 
 # gate_exact_skip_selftest WANT — the mechanism's cases, for one gate.
@@ -1765,6 +1841,7 @@ crates/other/src/lib.rs:4:$text"
 gate_exact_skip_selftest() {
   local want=$1
   gate_exact_skip_escaping_case
+  gate_exact_skip_two_record_case
   gate_selftest_passes "the ratified text at its own home, which is the anchor in its positive direction" \
     gate_exact_skip_plant_home
   gate_selftest_case "$want" gate_exact_skip_plant_elsewhere
@@ -1772,7 +1849,7 @@ gate_exact_skip_selftest() {
     gate_exact_skip_plant_text_gone
   gate_selftest_case "skip is anchored at a path this tree does not have" \
     gate_exact_skip_plant_home_gone
-  printf '%s selftest OK (the anchored exact-text skip): the ratified text at %s passes, the same text at a path that is not its home is an ordinary hit, the home standing with the text gone is the subject check'"'"'s red and the home gone from the tree is a red rather than an abstention; and the pattern is built from the plain text once, so a metacharacter in the text or in the path is matched as itself\n' \
+  printf '%s selftest OK (the anchored exact-text skip): the ratified text at %s passes, the same text at a path that is not its home is an ordinary hit, the home standing with the text gone is the subject check'"'"'s red and the home gone from the tree is a red rather than an abstention; the pattern is built from the plain text once, so a metacharacter in the text or in the path is matched as itself; and a text that is not one record of the view ends the gate at the refusal rather than under it\n' \
     "$(gate_name)" "$GATE_EXACT_SKIP_HOME"
 }
 
