@@ -23,21 +23,19 @@ where `HOME_FILE=crates/step-import/src/signed_zero.rs` (`:66`) is
 interpolated into an ERE **unescaped**. The `.` is a metacharacter, so
 as a pattern the skip also names `crates/step-import/src/signed_zeroXrs`.
 
-**THAT PATH IS UNREACHABLE, and this row's first reading of it was
-wrong in both directions.** The gate's scan set is
+**THAT PATH IS UNREACHABLE.** The gate's scan set is
 `find "${SCAN_DIRS[@]}" -type f -name '*.rs'` (`:102`), so no record it
 reads carries a path whose extension is not `.rs`: a flush planted at
 `signed_zeroXrs` does not fire, before the fix or after, and a fixture
-built on it proves the scan's glob rather than the anchor. Confirmed by
-planting it, and #2064's review found the same from the other side.
+built on it proves the scan's glob rather than the anchor.
 
-**What does not follow is "zero for any tree this gate can scan."**
-Every record is `FILE:LINE:TEXT` and the pattern's trailing `:` has to
-land on a real character, so an exempted path must end in `.rs` AND
-carry a `:` inside it — legal on this filesystem and in git.
-`crates/step-import/src/signed_zero_rs:9:x.rs` is one, planted and
-confirmed EXEMPT under the unescaped spelling and firing under the
-escaped one. The reachable set is narrow, not empty.
+**What is reachable is a path carrying a `:` of its own.** Every record
+is `FILE:LINE:TEXT` and a `:` in the pattern lands on the path's own if
+it has one, so `crates/step-import/src/signed_zero_rs:9:x.rs` — which
+ends in `.rs`, so the scan reads it — is exempt from the unescaped
+anchor and an ordinary hit under the escaped one. A `:` is legal in a
+path here and in git. `gate_record_anchor`'s header in `lib.sh` carries
+this argument for all three parts of the anchor and is where it lives.
 
 Population today: zero, and held there by the SCAN'S GLOB and the
 trailing `:` rather than by the skip.
@@ -60,10 +58,9 @@ path ENDING in the home), and the `:[0-9]+:` boundary (a path
 BEGINNING with the home). The home itself must still pass, which is
 `gate_plant_clean`'s job.
 
-This row earlier said the second half could not be planted as a `.rs`
-file in the scan and would have to be a unit assertion over hand-built
-records, `gate_exact_skip_escaping_case`'s shape. It can be planted;
-that paragraph came from the same wrong premise as the one above.
+All three are plantable as `.rs` files in this gate's own scan, so none
+of them needs the hand-built-record shape `gate_exact_skip_escaping_case`
+uses.
 
 ## What was not measured
 
@@ -93,9 +90,13 @@ THREE planted cases hold it, one per part of the anchor:
     included, whose four records all begin at the path. A flush at
     `crates/step-import/src/crates/step-import/src/signed_zero.rs` is
     exempt from an unanchored skip and fires under this one.
-  * `plant_longer_path_beginning_with_the_home` — the `:[0-9]+:`
-    boundary, without which the skip is a prefix match over every
-    longer path the home opens. `signed_zero.rs.generated.rs`.
+  * `plant_colon_after_the_home_that_is_not_a_line_number` — the
+    `[0-9]+`. `crates/step-import/src/signed_zero.rs:x.rs`: an anchor
+    ending at `:` reads this file's own colon as the record's and
+    exempts it, one ending at `:[0-9]+:` does not. A path ending in the
+    home plus `.something.rs` was the first spelling here and is
+    weaker — it reds only when the whole suffix goes, so it left the
+    digits unwitnessed.
 
 The home's own exemption needed nothing: `gate_plant_clean` already
 writes the home in the wrapped flush form, so the skip is live in every
@@ -105,8 +106,9 @@ fixture and an over-narrow anchor reds the clean case.
 
 The row's open question — whether any other gate reads a whole-file
 skip this way — is answered no: this was the only skip built by
-interpolating a path into an ERE. Fifteen other whole-file skips in six
-gates are single-quoted literals with their dots hand-escaped. They do
-not pin `FILE:LINE:` and they escape by reviewer rather than by
-construction, which is
+interpolating a path into an ERE. The rest, in six gates, are
+single-quoted literals with their dots hand-escaped; they do not pin
+`FILE:LINE:` and they escape by reviewer rather than by construction,
+and none of them checks that the file it exempts still exists. That
+class, its grep and its measurements are
 `whole-file-skips-are-hand-spelled-not-anchored`.

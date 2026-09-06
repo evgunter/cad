@@ -713,16 +713,28 @@ gate_ere_escape() {
 # reads records says where it is anchored here rather than respelling
 # the shape.
 #
-# THE PATH IS ESCAPED, and what that buys is mostly exactness rather
-# than a defect closed: a home's only metacharacter is the extension's
-# `.`, and every scan set here is `find -name '*.rs'`, so the flat
-# `realXrs` an unescaped `real.rs` would also match is never read.
-# MOSTLY, and not entirely. A record is `FILE:LINE:TEXT` and the
-# anchor's `:` has to land on a real character, so a path that ends in
-# `.rs` AND carries a `:` inside it satisfies an unescaped anchor and
-# is exempted — planted, and confirmed exempt before the escaping, at
-# `signed-zero-one-home.sh`'s `plant_sibling_the_raw_anchor_exempted`.
-# The reachable set is narrow, not empty.
+# WHAT EACH OF THE THREE PARTS RULES OUT. This is the one place that
+# argument is written; the callers and their fixtures point here.
+#
+# A home's only metacharacter is the extension's `.`, which unescaped
+# reads as ANY character, and every scan set in this directory is
+# `find -name '*.rs'`. Those two together rule out the flat `realXrs` a
+# raw `real.rs` would also match — no scan returns it, so a fixture
+# planted there proves the glob and not the anchor. What they do NOT
+# rule out is a path that ends in `.rs` and carries a `:` OF ITS OWN,
+# because a record is `FILE:LINE:TEXT` and a `:` in the pattern will
+# land on that one. Three reachable shapes remain, one per part:
+#
+#   * unescaped path — `…/real_rs:9:x.rs`, whose `_` sits where the
+#     wildcard is and whose `:9:` satisfies the rest of the anchor;
+#   * no `[0-9]+` — `…/real.rs:x.rs`, the home followed by a colon that
+#     is not a line number;
+#   * no `^` — any path ENDING in the home, such as a vendored sub-tree
+#     that repeats the crate layout.
+#
+# Narrow, not empty: a `:` is legal in a path here and in git. All
+# three are planted, and confirmed exempt before the fix, in
+# `signed-zero-one-home.sh`'s three anchor planters.
 #
 # The escaping is one rule over path and text alike — the TEXT half is
 # where it bites, since a ratified line carries `+`, `.` and brackets —
@@ -1766,10 +1778,10 @@ gate_exact_skip_plant_home_gone() {
 # one-character class, so `f64, 6` satisfies it; `(1.0, [2.0, 3.0])` is
 # a group holding `1`, ANY character, `0, ` and another one-character
 # class, so `1a0, 2` satisfies it; the literal `;` ends both readings.
-# THE PATH HALF cannot be reached from any tree these gates read — a
-# home's only metacharacter is the extension's `.` and every scan set is
-# `*.rs` — and is pinned anyway, because the escaping is one rule and a
-# skip that anchored at `metaXrs` as well would be wider than it says.
+# THE PATH HALF is reachable too, though not by the flat `metaXrs`
+# this case's third record spells: `gate_record_anchor`'s header has
+# which paths reach it and which planters hold them. It is pinned here
+# because the escaping is one rule over path and text alike.
 gate_exact_skip_escaping_case() {
   local home='crates/planted/src/meta.rs'
   local text='pub const K: (f64, [f64; 2]) = (1.0, [2.0, 3.0]);'
