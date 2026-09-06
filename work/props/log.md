@@ -807,3 +807,20 @@ merging main into the branch — one conflict, `mesh11r2_base_probes.rs`
 — getting CI green and self-auditing the unit against
 `docs/MESH-12-SPEC.md`; then the dual under the claimed ordinal, the
 fix pass, and the landing. Recorded in `work/mesh/log.md` too.
+
+**MESH-12 dual dispatched (2026-09-06).** The merge-forward lane
+(the unit's own arm) merged main into `mesh/12-saturated-span` — one
+textual conflict (`mesh11r2_base_probes.rs`, both sides kept) and one
+semantic one (`cert1_sphere_polar.rs:177`, main's `band()` helper) —
+and reported green locally on both lanes (geom-brep/mesh/topo 1942 and
+2046 rows; three-ε 51/51; clippy, fmt, lint; D9 digests identical to
+main at three ε rows) with every spec deliverable delivered; its one
+caveat: the import-door rim-continuation measurement is prose only,
+pinned by no row (it is claim C5 of the briefs). Frozen head
+`3daab7d80` (the last commit is trailer-only, `CI-Config:
+lane=interval eps=default` — noted for the reviewers). Dual under the
+ordinal S-MESH claimed at its dispatch (1210, parity byte 40 ⇒ R1 opus
+/ R2 fable), concurrent, R2 isolated; briefs symmetric, stored on
+`props/b2-block` as `mesh12-review-brief-{r1,r2}.md` (sha256 r1
+03d5d5d2…, r2 071d199c…) before dispatch; hosted run 34016450337 on
+the head at dispatch.
