@@ -7,6 +7,7 @@ opened: 2026-09-05
 refs: [index-request-and-index-inputs-are-one-concept-twice, viewer-session-god-module-split]
 closed: 2026-09-06
 branch: view/index-seam
+pr: 2079
 ---
 
 
