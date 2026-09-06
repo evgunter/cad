@@ -356,8 +356,8 @@ fn main() {
     let mut seam = ThreadEvaluator::spawn().expect("the worker starts");
     let ring = docio::open(&dir.join("ring.pncad"), tol).expect("ring opens");
     for generation in [
-        viewer::evalseam::Generation::FIRST,
-        viewer::evalseam::Generation::FIRST.next(),
+        viewer::generation::Generation::FIRST,
+        viewer::generation::Generation::FIRST.next(),
     ] {
         seam.submit(viewer::evalseam::EvalRequest {
             generation,

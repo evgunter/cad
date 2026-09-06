@@ -34,7 +34,7 @@ use pncad::document::{Dimension, Doc, Evaluation, Expr, Node, ProfileProgram, Re
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::select::{HitTestError, NodePick};
-use viewer::pick::{EdgeId, EdgeNameFault, PickIndex};
+use viewer::pickindex::{EdgeId, EdgeNameFault, PickIndex};
 use viewer::scene;
 use viewer::session::{DocSession, EdgeSelection, FaceSelection};
 

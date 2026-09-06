@@ -14,7 +14,8 @@ use crate::datums::{self, datum_view};
 use crate::frame::{self, IdStep};
 use crate::gpu::{IdQuery, ViewportCallback};
 use crate::input::{self, PointerButton, ViewportEvent, ViewportSize};
-use crate::pick::{self, PickIndex};
+use crate::pick;
+use crate::pickindex::{self, PickIndex};
 use crate::session::SessionOp;
 use crate::sketch::{heading, tip_mark};
 
@@ -179,7 +180,7 @@ impl ViewerBehavior<'_> {
 
         // The cursor path: actions in, session operations out. Every
         // step of it — the un-projection, the ray service, the miss
-        // rule — lives in `pick::PickIndex::op_for`, so this is the
+        // rule — lives in `pickindex::PickIndex::op_for`, so this is the
         // same path a headless test drives.
         let actions = input::pick_stream(&self.input, &events);
         // **An open tool narrows the priority rule, it does not
@@ -218,15 +219,15 @@ impl ViewerBehavior<'_> {
 
         // What to mark, as a pure function of what is drawn and what is
         // selected. Recomputed every frame; nothing retains it.
-        let highlight = self
-            .index
-            .map(|index| pick::highlight(index, self.session.selection(), self.session.hover()));
+        let highlight = self.index.map(|index| {
+            pickindex::highlight(index, self.session.selection(), self.session.hover())
+        });
         // The edge half of the same question, and the same discipline:
         // recomputed every frame from state that lives in one place.
         let mut edges = self
             .index
             .map(|index| {
-                pick::edge_overlay(
+                pickindex::edge_overlay(
                     index,
                     self.display,
                     self.session.selection(),

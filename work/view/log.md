@@ -4745,3 +4745,133 @@ The first pass's "no residue at all" over three disclosed blind spots
 is what produced most of that list. `work/README.md` is explicit that
 disclosing a residue is not scheduling it, and this is the clearest
 instance of that rule paying for itself.
+
+## The `evalseam`/`pick` cycle, broken by two moves (2026-09-06)
+
+Ev ruled (d) on #2076 and the lane landed it: `Generation` to a leaf,
+`pick.rs` split at its layer boundary. Both, because neither breaks the
+cycle alone — `Generation` alone leaves `PickIndex` beside `PickCache`,
+the split alone leaves `pickindex` reaching into `evalseam` for the
+counter. The chain is `generation ← pickindex ← evalseam ← pick`, and
+`evalseam` keeps both seams and therefore both sets of threads, which
+is the property that made this shape beat a third seam module.
+
+### The siting call, and why `scene` lost it
+
+The ruling offered `Generation` its own module or a seat beside
+`DisplayTolerance` in `scene`. The lane took its own module. The
+argument that decided it is that the two candidates pass DIFFERENT
+tests: `scene` imports nothing from this crate, which is what the
+analysis measured, but `generation.rs` imports nothing at all — its
+`use crate::` count is zero and its kernel count is zero — and that is
+the property a leaf is supposed to have. `scene`'s written charter
+covers what the viewport draws at a δ, so a request counter would have
+been a second concept in a module this program is already trying to
+keep to one.
+
+### The boundary was verified, not trusted
+
+The dispatch said to check the split the analysis proposed rather than
+take it. It held exactly: over the policy half the only names reaching
+into the index half are `PickIndex` and `PickIndexError`, and over the
+index half the only name reaching forward is a doc mention of
+`IndexInputs` in the header sentence that belongs to the policy. The
+in-file `mod tests` belongs to `PartWindows`/`IdMap` and travelled with
+them, unedited.
+
+### The move discipline held, and the count says so
+
+501 passed / 1 ignored on `--test all` and 24 passed / 1 failed on
+`--lib` (the Vulkan-less `gpu::every_pass_builds_on_a_real_device`,
+expected off hardware), before and after, identical. No assertion was
+touched; every test-side change is an import or a path. No `pub use`
+shim was left, so `session-shims-and-test-imports` is no larger.
+
+### The tracker pass was the expensive half of the sweep
+
+A tree-grep re-points source; it does not see the twelve tracker rows
+citing `crates/viewer/src/pick.rs:NNNN`. Those went onto
+`stale-file-citations-after-the-split`, which already owns the class
+from the 1c split — VIEW's five live rows corrected in the same PR, six
+rows under `work/chrome/` and `work/code-quality/` announced rather
+than edited, and the closed VIEW rows left as written. **The new
+member's contribution to that item is a negative result worth having**:
+the 1c entry is remembered for the row where the claim, not the number,
+went stale, and this split produced none of those — a move that changes
+no behaviour cannot falsify a sentence about behaviour. So the item's
+two halves, "resolve the number" and "check the claim", come apart
+cleanly here, and a `<file>.rs:<line>` gate would have caught all of
+this member and none of the previous one.
+
+## #2079's style review: the move survived, the prose did not (2026-09-06)
+
+The reviewer could not break the split and said so with a measurement
+worth keeping: a whitespace-sensitive sorted-line diff of the merge
+base's `pick.rs` against `pick.rs + pickindex.rs` is **one line removed
+and 43 added**, all doc-header and import lines; no visibility,
+signature, `derive`, field or `impl` changed; `#[test]` 531 both sides;
+`Generation` byte-identical. That is the strongest form the "it is a
+move" claim has had in this program, and it is stronger than the claim
+the lane itself made — the boundary has ZERO back-references, not the
+one the PR conceded.
+
+Nine items came back. Six are closed by the fix pass, three stay open
+(the second `pickindex` split, `Generation::get`'s missing reader, and
+the naming question below). What follows is the two that generalise.
+
+### A pure move cannot falsify a sentence about behaviour, and reliably falsifies one about structure
+
+The lane's negative result was that this split produced no stale
+CLAIMS, only stale numbers, *"because a move that changes no behaviour
+cannot falsify a sentence about behaviour"*. True premise, false
+conclusion, and the reviewer produced three counterexamples — including
+`crates/viewer/README.md:323`, whose `session::op` row listed `pick` as
+a `SessionOp` reader when `pick.rs` has zero hits and `pickindex.rs`
+seven, **in a file the lane re-read and corrected two other rows of**.
+
+A tracker is not mostly sentences about behaviour. It is mostly
+sentences about where things are and what names what, which is exactly
+what a move falsifies. The corrected statement is on
+`stale-file-citations-after-the-split`, and it moves that item's two
+halves onto a better axis: not *numbers versus claims* but **what a
+machine can reach**. A `<file>.rs:<line>` gate resolves every numeric
+citation in this member and catches none of the three, the README row
+least of all — it names a module in prose and cites nothing.
+
+**The lesson for this program's move-shaped units** is that the
+discipline aimed at behaviour is aimed away from the failure a move
+actually causes.
+
+### A grep that cannot run reads exactly like a grep that found nothing
+
+The sweep missed two live VIEW rows that its own disclosed pattern
+matched. The PR blamed a pattern gap; the real cause was worse and has
+two halves: the first pass's `grep` over `work/view/*.md` was
+**malformed** — an unescaped `|` printed `command not found` above
+output the lane read as a result — and the disposition step then acted
+only on the `pick.rs:NNNN` hits, leaving bare paths and
+`module::symbol` citations matched but unhandled.
+
+So the honest statement is not "the pattern was too narrow". It is
+**the pattern was right and the reading of it was not**, which is the
+harder failure to catch because the output looks like a clean negative.
+The re-sweep ran three greps and checked each hit's status before
+deciding; it found a third out-of-fence row
+(`work/fix/error-types-with-no-display-class.md`) the first pass had
+missed.
+
+### The naming question, declined with a reason
+
+`pick.rs` claimed to be *"the policy half of picking"* and is not — the
+policy (`op_for`, `hovered_for`, the priority and miss rules) is in
+`pickindex`; `pick.rs` is a cache. The false sentence is fixed and both
+headers now say the real boundary, which is **stateful against pure**
+and is a better boundary than the one the first draft claimed.
+
+The rename is declined and the row parked behind the second split. A
+rename is not a move: it would rewrite call sites across twenty-nine
+files and destroy the sorted-line diff that made this unit certifiable,
+to reach names that are not knowable until
+`pickindex-holds-the-frames-marks-as-well-as-the-index` is decided —
+and `pick` → `pickcache` would strand `NotIndexed`/`unindexed` in a
+module named for a cache anyway.
