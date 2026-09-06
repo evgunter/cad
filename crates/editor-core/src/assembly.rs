@@ -646,7 +646,11 @@ impl core::fmt::Display for AssemblyError {
                 via,
                 refusal,
             } => {
-                write!(f, "assembly: document {of}, instantiated through instance {}", through.0)?;
+                write!(
+                    f,
+                    "assembly: document {of}, instantiated through instance {}",
+                    through.0
+                )?;
                 for node in via {
                     write!(f, " → instance {}", node.0)?;
                 }

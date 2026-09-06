@@ -353,7 +353,14 @@ class AssemblyError(PncadError):
     FRONTIER: nothing refuted, nothing undeclared, the census simply
     declined to certify, so nothing was decided about the geometry
     either way. A gather refusal arrives under the GATHER's own tag
-    (`no_body_roots`, `root_failed`, ...), not a wrapper tag."""
+    (`no_body_roots`, `root_failed`, ...), not a wrapper tag.
+
+    `carried_mint_refusal` is an inner part's own mate that could not
+    be minted at all: an outer assembly is not at rest over a part
+    whose contact nothing verified. `through` is the instantiating
+    node; the inner document, its mate and the route are in the
+    message, and `mate` stays `None` because every other arm answers
+    it in THIS document's id space."""
 
     variant: str
     mate: Optional[NodeId]
@@ -3277,8 +3284,15 @@ class Attribution:
         """`refuted` (the faces do not meet as declared — a finding
         against the document), `declined` (the census has no certifier
         lane for a face the declaration names, so nothing was decided
-        either way), or `unattributed` (no declaration answers — an
-        UNDECLARED contact, the hard error by definition)."""
+        either way), or `unattributed` (no declaration of ANY document
+        in the tree answers — an UNDECLARED contact, the hard error by
+        definition).
+
+        A declaration a document BELOW this one authored answers under
+        `carried_refuted` and `carried_declined`: the same two
+        relations, and a separate pair of tags because
+        `declaration.mate` is then a node of THAT document. Which
+        document, and the route to it, are in `str(...)`."""
 
     @property
     def declaration(self) -> Optional[MintedDeclaration]: ...
@@ -3320,8 +3334,9 @@ def assemble(doc: Doc, evaluation: Evaluation) -> Assembly:
     Raises AssemblyError, typed. Read `variant` first: `at_rest` is a
     verdict AGAINST the document, `uncertified` is the declared
     direction's FRONTIER where nothing was decided either way, and the
-    remaining arms (`mate_reference_refused`, `no_at_rest_record`, the
-    gather's own tags) refuse before any verdict."""
+    remaining arms (`mate_reference_refused`, `no_at_rest_record`,
+    `carried_mint_refusal`, the gather's own tags) refuse before any
+    verdict."""
 
 # --- the recorded refactorings ----------------------------------------
 # Both are PURE: they hand back the new document VALUES plus the

@@ -28,9 +28,9 @@ use std::sync::Arc;
 
 use editor_core::{
     Alignment, Assembly, AssemblyError, Attribution, AxisSense, CancelToken, CapEnd,
-    CarriedRelation, ContactClass, DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Evaluation,
-    Frame, MateFrame, MatePrimitive, Node, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault,
-    RoleSeg, SitedRef, StableName, assemble, content_pin, evaluate, product_recorded,
+    CarriedRelation, ContactClass, DocEdit, DocRef, DocumentId, EntityKind, EvalOptions,
+    Evaluation, Frame, MateFrame, MatePrimitive, Node, ProfileDoc, RecipeNodeId, ResolveFailure,
+    ResolveFault, RoleSeg, SitedRef, StableName, assemble, content_pin, evaluate, product_recorded,
 };
 use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
@@ -632,7 +632,11 @@ fn a_carried_declaration_does_not_soften_a_carried_refusal() {
     let ev = run(&doc, &opts(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the mixed row gathers");
     assert_eq!(gathered.carried.len(), 1, "the good stand's declaration");
-    assert_eq!(gathered.carried_unminted.len(), 1, "the broken stand's mate");
+    assert_eq!(
+        gathered.carried_unminted.len(),
+        1,
+        "the broken stand's mate"
+    );
     assert!(
         matches!(
             assemble(&doc, &ev, Tol::witness()),
