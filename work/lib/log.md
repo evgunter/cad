@@ -2882,3 +2882,12 @@ committed bytes and build the eval test's store from the authored
 scene, which closes the hole rather than narrowing it. Lesson for the
 orchestrator: an `[ev]` question is a claim about the tree and owes
 the same re-measurement as any other before it is asked.
+
+**RULED — the bench corpus's committed bytes go (Ev, PR 2019,
+2026-09-06: "E is great!").** A LIB unit, mechanical under the 08-29
+ruling: `test_assembly_eval.py` builds its store from the Python-authored
+scene, the four `.pncad` files and the MANIFEST are deleted, the false
+header claim with them. All four `[ev]` questions of the day are now
+ruled; the four units they produce (SAVEFORK, POLYGON, CORPUS, PRODUCT)
+queue behind Wave 1 for the box, each brief-as-spec off its item's
+"Ruled" section.
