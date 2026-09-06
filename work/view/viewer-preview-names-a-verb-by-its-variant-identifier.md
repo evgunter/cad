@@ -4,7 +4,7 @@ kind: issue
 title: the profile preview names a Verb by its variant identifier, the class PR 2053 enforced
 status: open
 opened: 2026-09-06
-refs: [2053]
+refs: [verb-and-dimension-render-through-debug, the-prose-word-for-a-kind-has-four-spellings-and-only-display-is-censused, 2053]
 ---
 
 
@@ -55,3 +55,37 @@ the impl goes in the macro beside `Verb::ALL` or is written out) and a
 forward at this site. The viewer half of that is this program's; the
 `profile` half is not. Whoever takes either should also close out that
 item's `Dimension` section, which PR 2053 completed without saying so.
+
+## The FIX item's two halves, as they now stand (PR 2053)
+
+Recorded here so the VIEW side points at the FIX side rather than
+leaving a reader to re-derive it.
+
+`work/fix/verb-and-dimension-render-through-debug.md` is **open** and
+holds two halves. PR 2053 completed one of them without knowing the
+item existed:
+
+- **`Dimension` renders through `Debug` in four UI labels` — DONE by
+  PR 2053.** The item lists them at pre-split paths `app.rs:2832`,
+  `app.rs:4339`, `app.rs:4362` and `session.rs:750`; they are now
+  `crates/viewer/src/pane/properties.rs` (the parameter header and the
+  two dimension tags) and `crates/viewer/src/session/refuse.rs`
+  (`Refusal::exists_wording`). All four forward to `Dimension`'s
+  `Display`. The item's one stated check — that the `Display` reads
+  correctly inside a parenthetical, where three of the four sit — holds:
+  the sentence is *"parameter width already exists (length) — edit it
+  instead?"*.
+- **`profile::path::Verb` has no `Display`` — UNTOUCHED, and this row
+  is its viewer half.** PR 2053 deliberately did not fix
+  `crates/viewer/src/sketch.rs:663`. The fix FIX's item specifies is
+  `impl Display for Verb` in `crates/profile`, which is not this
+  program's territory, and forwarding the verb in prose from the viewer
+  instead would mint a fourth spelling of the word list — the defect
+  `work/issues/the-prose-word-for-a-kind-has-four-spellings-and-only-display-is-censused.md`
+  is about.
+
+So `verb-and-dimension-render-through-debug` should not be closed on
+its `Dimension` half alone, and whoever takes its `Verb` half takes
+this row with it. Neither `work/fix/` nor that item was edited by
+PR 2053: a unit branch does not file or close on another program's
+slate (`docs/prompts/implementer-discipline.md`, §6).

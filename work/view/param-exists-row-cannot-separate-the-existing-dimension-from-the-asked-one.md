@@ -2,9 +2,11 @@
 id: param-exists-row-cannot-separate-the-existing-dimension-from-the-asked-one
 kind: issue
 title: the ParamExists row asks for the dimension it already declared, so it cannot see the arm report the wrong one
-status: open
+status: closed
 opened: 2026-09-06
 refs: [2053]
+closed: 2026-09-06
+pr: 2053
 ---
 
 
@@ -41,3 +43,18 @@ This is the roster-picks-its-own-sample shape `prose_census`'s header
 names, in the row that pins 2053's fix. Worth checking the same way
 wherever a refusal's payload is asserted through its rendering and the
 fixture makes two candidate sources of that payload identical.
+
+## Closed
+
+Fixed as the row proposed. The `CreateParam` now asks for
+`Dimension::Angle` over `thickness`, which `common::parametric_plate`
+declares a `Length`, and the assertions are that the sentence says
+`(length)` AND does not say `angle`. A `create_param` forwarding the
+asked-for dimension instead of `existing.dim()` now reds.
+
+The finding is right about the class as well as the instance: the
+fixture had made the two candidate sources of the payload identical,
+so the assertion could not fail for the thing the arm exists for. That
+is `prose_census`'s roster argument — a sample that excludes the
+failing mode by construction — reappearing inside the row that pins
+2053's fix, one level up from where the PR argued it.

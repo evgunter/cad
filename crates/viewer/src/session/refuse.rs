@@ -275,12 +275,27 @@ impl Refusal {
             | Self::Workspace(_)
             | Self::SelfInstance { .. }
             | Self::Io(_) => 1,
-            // The two gesture-order arms rank with their document
-            // twins; the substantive display refusals rank with the
-            // real failures, because "this instance is mate-
-            // constrained" is a decision about what the user tried.
-            Self::Display(DisplayFault::NoFreeMove | DisplayFault::FreeMoveInFlight) => 2,
-            Self::Display(_) => 1,
+            // The ONE arm whose rank is a per-payload decision, so it
+            // is matched exhaustively rather than defaulted: the two
+            // gesture-order faults rank with their document twins,
+            // and the substantive ones rank with the real failures,
+            // because "this instance is mate-constrained" is a
+            // decision about what the user tried. An eighth
+            // `DisplayFault` reds here until its rank is chosen —
+            // which is the obligation every other arm on this table
+            // gets from `Refusal`'s own variants. `Edit` and
+            // `SlotUnit` forward whole vocabularies at one rank each
+            // and that IS a default: every condition either raises is
+            // a real failure, so no payload of theirs ranks
+            // differently.
+            Self::Display(fault) => match fault {
+                DisplayFault::NoFreeMove | DisplayFault::FreeMoveInFlight => 2,
+                DisplayFault::NoSuchNode { .. }
+                | DisplayFault::NotAnInstance { .. }
+                | DisplayFault::MateConstrained { .. }
+                | DisplayFault::NonRigidFrame { .. }
+                | DisplayFault::FusedGeometry { .. } => 1,
+            },
             Self::NoGesture | Self::GestureInFlight | Self::NothingToDo => 2,
         }
     }

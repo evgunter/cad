@@ -2,9 +2,11 @@
 id: refusals-render-row-dropped-the-clause-that-caught-its-own-defect
 kind: issue
 title: refusals_render_as_sentences dropped the quote clause that caught the defect it was written for
-status: open
+status: closed
 opened: 2026-09-06
 refs: [2053]
+closed: 2026-09-06
+pr: 2053
 ---
 
 
@@ -51,3 +53,29 @@ quote-free and none is a metadata arm), or replace it with something
 that actually catches a `{:?}`-rendered payload — the row's own
 `assert_ne!(rendered, format!("{refusal:?}"))` is a whole-string
 comparison and does not see a `Debug` fragment inside prose.
+
+## Closed
+
+Restored, as filed. The clause is back in
+`crates/viewer/tests/panel_edits.rs`'s dump assertion, alongside F6's
+three, and all six sampled arms are green under it.
+
+The review's reading is the correct one and the PR's argument for
+dropping it was aimed at the wrong target: `EditError`'s metadata arms
+quote a user's key deliberately, but this row does not walk them, and
+"the clause cannot be a rule over the vocabulary" is not a reason to
+drop it from a row that is six named arms and says so. A tripwire over
+named samples may be stricter than the ratified contract; only a claim
+over a vocabulary may not.
+
+The row's doc comment now carries that distinction, and states what
+the clause catches that nothing else here does: a `{:?}` over a
+`String` or a `ParamName` renders `"width"` — no brace, no field
+punctuation, and the identifier it leaks is the PAYLOAD's rather than
+the arm's, so the `contains(arm)` clause misses it too, and
+`assert_ne!(rendered, format!("{:?}"))` compares whole strings and
+cannot see a `Debug` fragment inside prose.
+
+The `node:`/`name:` clauses are kept though near-subsumed by the brace
+check: they are F6's own spelling, and the row claims to assert F6's
+shape.

@@ -2,9 +2,11 @@
 id: refusal-rank-wildcards-the-display-fault-payload
 kind: issue
 title: Refusal::rank wildcards DisplayFault, so a new display fault takes a rank nobody chose
-status: open
+status: closed
 opened: 2026-09-06
 refs: [2053]
+closed: 2026-09-06
+pr: 2053
 ---
 
 
@@ -42,3 +44,32 @@ The same question applies to `Refusal::Edit(Box<EditError>)` and
 `Refusal::SlotUnit(props::SlotUnitFault)`, which take one rank each for
 a whole vocabulary; those are deliberate, but the `DisplayFault` split
 shows the shape where it is not.
+
+## Closed
+
+Fixed rather than caveated, because the alternative was to weaken the
+closure the item it was filed against rests on.
+
+`Refusal::rank` now matches the payload exhaustively:
+
+    Self::Display(fault) => match fault {
+        DisplayFault::NoFreeMove | DisplayFault::FreeMoveInFlight => 2,
+        DisplayFault::NoSuchNode { .. }
+        | DisplayFault::NotAnInstance { .. }
+        | DisplayFault::MateConstrained { .. }
+        | DisplayFault::NonRigidFrame { .. }
+        | DisplayFault::FusedGeometry { .. } => 1,
+    },
+
+so an eighth `DisplayFault` reds until its rank is chosen. With that,
+"a new arm cannot join this vocabulary without answering for itself"
+is true of the ranking table one level down as well, which is what
+`refusal-has-no-all-to-walk` closes on.
+
+`Edit(Box<EditError>)` and `SlotUnit(props::SlotUnitFault)` keep one
+rank each for a whole vocabulary, and the code now says why that is a
+default rather than an oversight: every condition either of those
+raises names a real failure, so no payload of theirs ranks
+differently. `DisplayFault` was the one arm where the rank was already
+a per-payload decision — two of its seven were hand-listed at rank 2 —
+and a decision with a default under it is the shape that goes wrong.

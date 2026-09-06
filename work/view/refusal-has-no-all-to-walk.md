@@ -5,7 +5,7 @@ title: Refusal has no ALL value, so every property over the vocabulary is a hand
 status: closed
 opened: 2026-09-05
 closed: 2026-09-06
-refs: [refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake, session-clearing-walk-is-hand-maintained-three-times, viewer-const-all-tables-have-no-exhaustiveness-guard, dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum]
+refs: [refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake, session-clearing-walk-is-hand-maintained-three-times, viewer-const-all-tables-have-no-exhaustiveness-guard, dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum, verb-and-dimension-render-through-debug, prose-census-cannot-see-a-bypassed-prose-renderer, viewer-preview-names-a-verb-by-its-variant-identifier]
 pr: 2053
 branch: view/refusal-all
 ---
@@ -111,6 +111,18 @@ build:
   rank. Nothing can be added to this vocabulary and reach a user
   UNRENDERED.
 
+  **That reach stops at `Refusal`'s own arms, and it used to stop one
+  level too early.** `rank` carried `Self::Display(_) => 1` beside two
+  `DisplayFault` arms hand-listed at rank 2, so an eighth display fault
+  took a rank nobody chose — the closure would have overstated itself
+  on the one arm whose rank is a per-payload decision. The style review
+  of PR 2053 found it
+  (`refusal-rank-wildcards-the-display-fault-payload`) and it is fixed
+  here rather than caveated: that arm now matches `DisplayFault`
+  exhaustively. `Edit` and `SlotUnit` still take one rank each for a
+  whole vocabulary, which is a default and is now labelled as one —
+  every condition either raises names a real failure.
+
 So the property left over is not "every arm renders" but "every arm
 renders as PROSE", and that decomposes into three, of which one was
 live and broken:
@@ -159,10 +171,23 @@ ratified `Display` contract is F6
 dump. A quotation mark is not a `Debug` fingerprint — *no metadata
 "colour" is set on the face minted by node 7* quotes a user's key on
 purpose, and `MetaUnversioned` names the D7 `"v"` field by writing it.
-So the row's quote clause was a tripwire on correct prose, not a guard,
-and it is replaced here by F6's clauses. The row's doc comment now
-states which half is the compiler's and which is the census's, so it
-stops reading as a claim over the vocabulary.
+So a CENSUS extended to a blanket quote ban would red correct prose.
+
+**But the row's own clause was dropped on that argument and should not
+have been**, which the style review caught
+(`refusals-render-row-dropped-the-clause-that-caught-its-own-defect`).
+The metadata arms are not arms this row walks; all six sampled arms are
+quote-free, so the clause was green. And it is the only clause that
+catches the case the row exists for: a `{:?}` over a `String` or a
+`ParamName` renders `"width"` — no brace, no field punctuation, and the
+identifier it leaks is the PAYLOAD's rather than the arm's, so
+`contains(arm)` misses it and the whole-string `assert_ne!` against
+`Debug` cannot see a fragment inside prose. It is restored, beside
+F6's three. The distinction that survives is the one this whole item
+turns on: **a tripwire over named samples may be stricter than the
+ratified contract; a claim over a vocabulary may not.** The row's doc
+comment carries it, along with which half is the compiler's and which
+the census's.
 
 **Residue.** Inside this program's fence there is one, and it was
 already on the slate:
@@ -171,13 +196,29 @@ the add-parameter form's hand-written `Dimension` table AND its
 capitalized labels, which its last section reads against the same
 dimension-in-prose clause this unit enforced. The three sites fixed
 here are not that row and it stays open. Outside the fence, the two
-census gaps above —
-`prose_census` reads `impl Display` bodies only, and its verdict asks
-about braces rather than about identifiers — are LIB's ground
-(`crates/pncad-py/*`), so they are handed over in this unit's PR
-description and report rather than filed onto another program's slate
-(`docs/prompts/implementer-discipline.md`, filing what you find
-outside your fence).
+census gaps above — `prose_census` reads `impl Display` bodies only,
+and its verdict asks about braces rather than about identifiers — are
+LIB's ground (`crates/pncad-py/*`), so they are filed as
+`work/issues/prose-census-cannot-see-a-bypassed-prose-renderer`, which
+is where a finding no single program owns goes; a unit branch does not
+file onto LIB's slate.
+
+**The coordination miss.** This unit's `Dimension` sweep read the tree
+and not the board.
+`work/fix/verb-and-dimension-render-through-debug` (open, FIX's slate)
+already enumerated all four sites fixed here, at their pre-split paths,
+under "`Dimension` renders through `Debug` in four UI labels" — so the
+tracker held the complete hit list before the grep did. It also holds a
+FIFTH instance of the same class this sweep missed, because the pattern
+was scoped to the type and not to the defect:
+`profile::path::Verb` rendered `{verb:?}` at
+`crates/viewer/src/sketch.rs:663` and put on screen by
+`pane/create.rs`. That half is deliberately untouched — its fix is
+`impl Display for Verb` in `crates/profile`, not this program's
+territory, and forwarding it from the viewer would mint a fourth
+spelling of the word list. The reviewer's
+`viewer-preview-names-a-verb-by-its-variant-identifier` is its viewer
+half and now records the state of both halves of the FIX item.
 
 Closed as ANSWERED-and-fixed: the instrument asked for cannot exist,
 the compile-time obligation it stood in for already does, and the one

@@ -434,11 +434,24 @@ fn the_affordance_outranks_the_bookkeeping_refusal_it_causes() {
 /// The shape asserted below is F6's — editor-core's ratified `Display`
 /// contract (`crates/editor-core/tests/display_contract.rs`): no
 /// brace, no `Debug` field punctuation, no variant identifier, and
-/// never simply the dump. A quotation mark is not on that list and is
-/// not asserted against: `EditError`'s metadata arms quote a user's
-/// key deliberately and `MetaUnversioned` names the D7 `"v"` field by
-/// writing it, so a blanket quote ban fires on correct prose rather
-/// than on a dump.
+/// never simply the dump — **plus a quotation mark**, which F6 does
+/// not list and this row asserts anyway.
+///
+/// That extra clause is the one that catches the case this row exists
+/// for. A `{:?}` over a `String` or a `ParamName` renders `"width"`:
+/// no brace, no field punctuation, and the identifier it leaks is the
+/// PAYLOAD's rather than the arm's, so every F6 clause passes over it
+/// and so does `assert_ne!(rendered, format!("{:?}"))`, which compares
+/// whole strings and cannot see a `Debug` fragment sitting inside
+/// prose.
+///
+/// It is asserted OF THESE SIX ARMS and is not a rule over the
+/// vocabulary — the distinction this row is built on. `EditError`'s
+/// metadata arms quote a user's key on purpose and `MetaUnversioned`
+/// names the D7 `"v"` field by writing it, so a census extended to a
+/// blanket quote ban would red correct prose. A tripwire over named
+/// samples can be stricter than the contract; a claim over a
+/// vocabulary cannot.
 #[test]
 fn refusals_render_as_sentences() {
     let tol = Tol::witness();
@@ -496,18 +509,30 @@ fn refusals_render_as_sentences() {
     // The arm whose sentence is composed OUTSIDE `Display` — through
     // `Refusal::exists_wording`, shared with the add-parameter form's
     // pre-click notice — and therefore outside the source census,
-    // which reads `impl Display` bodies. It names the dimension in
-    // editor-core's own word.
+    // which reads `impl Display` bodies.
+    //
+    // **The ASKED-for dimension differs from the declared one**, and
+    // it has to: this arm exists to name what already stands there
+    // (`create_param` reads `existing.dim()`), and a fixture that
+    // asks for the dimension it declared cannot tell that apart from
+    // an arm forwarding the request — which is the one mistake the
+    // refusal guards, `SetDocParam` being create-or-replace at the
+    // API. `thickness` is declared a length; this asks for an angle.
     let exists = session
         .perform(SessionOp::CreateParam {
             name: common::thickness_param(),
-            value: pncad::document::DocParam::continuous(pncad::document::Dimension::Length, 1.0),
+            value: pncad::document::DocParam::continuous(pncad::document::Dimension::Angle, 1.0),
         })
         .refusal
         .expect("creating over a declared name refuses");
+    let shown = exists.to_string();
     assert!(
-        exists.to_string().contains("(length)"),
-        "the dimension is the quantity's noun, not its variant identifier: {exists}"
+        shown.contains("(length)"),
+        "the dimension is the quantity's noun, not its variant identifier: {shown}"
+    );
+    assert!(
+        !shown.contains("angle"),
+        "and it is the EXISTING declaration's, not the one asked for: {shown}"
     );
 
     for (arm, refusal) in [
@@ -520,7 +545,10 @@ fn refusals_render_as_sentences() {
     ] {
         let rendered = refusal.to_string();
         assert!(
-            !rendered.contains('{') && !rendered.contains("node:") && !rendered.contains("name:"),
+            !rendered.contains('{')
+                && !rendered.contains('"')
+                && !rendered.contains("node:")
+                && !rendered.contains("name:"),
             "{arm} is a sentence, not a debug dump: {rendered}"
         );
         assert!(
