@@ -101,3 +101,26 @@ against the code-quality K–X fences. Id, body and header are unchanged;
 the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
+
+## Re-read against the tree (2026-09-06, CIW orchestrator)
+
+**Half 2 is discharged.** `demos tour fmt + clippy` and `demos wild fmt +
+clippy` are still `if: matrix.row == 'dev-default'`
+(`.github/workflows/ci.yml:4008`, `:4011`), but since PR 1850 the k-lint row
+is not drawn: `ci.yml:460` fans all five unifications on every code-tier run,
+so the `dev-default` leg — and with it both demo steps — executes every time.
+A green `k-lint` over a skipped demos step is no longer a state this workflow
+can reach. The title is stale from here on and the item is about half 1
+alone.
+
+**Half 1 stands, unchanged and untouched by any of this.** `demos/tour` and
+`demos/wild` are still detached workspaces, so `cargo clippy --workspace
+--all-targets` — the check a careful lane runs before pushing — still cannot
+see them, and `clippy-all-features` (`ci.yml:2109`) is `--workspace` too and
+does not reach them either. The hole is now one-sided rather than two: the
+gate catches it, the lane's own local check does not, and the lane finds out
+from CI instead of from its own run. That is a smaller defect than the one
+filed, and a real one.
+
+Its sibling `gui-wasm-build-is-not-gated-at-all` is NOT improved by 1850 —
+that one is an `--exclude`, not a draw.

@@ -2,10 +2,13 @@
 id: trait-generic-sole-bracket
 kind: issue
 title: bounds-allowlist.sh's trait-declaration alternative fires on a trait generic over a SOLE bracket bound
-status: open
+status: closed
 opened: 2026-09-03
 track: K
 refs: [D102, D68]
+branch: gates/bounds-small
+pr: 2029
+closed: 2026-09-06
 ---
 
 
@@ -81,6 +84,39 @@ plants that narrowing on the census side only.
 in the alternative itself, the way the census reader does, and plant the
 `trait` form into `plant_sole_bracket_bounds`. Whoever takes it owes the
 before/after hit-set diff `D102` asks for.
+
+## Repair (branch `gates/bounds-small`)
+
+The third alternative is now `gate_trait_declarations`, an awk reader
+that skips a balanced `<…>` after the trait name and then applies the
+same test the regex applied (`^[^;{]*:[^;{]*…(Bounds|Enclosure)` on what
+follows). It is one function in two modes: `records` feeds the scan
+through the new `gate_matcher`, `names` feeds the alias census, so the
+skip cannot be carried by one reader and not the other again — which is
+how the false positive arose. An ERE cannot express the skip, which is
+why the alternative left the regex.
+
+It is **not** the same matcher either side of the skip, and the style
+review measured the two differences: `match()` takes the FIRST `trait`
+token on a line, so a second declaration written after a first on ONE
+line is no longer read; and a `;`/`{` inside the skipped generic list no
+longer stops the search, so `trait Arr<T: Array<[u8; 4]>>: Bounds {}` is
+read where the regex's `[^;{]*` could not cross it. Both have zero live
+population and both move toward the answer the rule wants; they are
+stated at the function rather than claimed away as identity.
+
+`plant_sole_bracket_bounds` gains four `trait` forms: bare, depth-2
+nested (`trait Carrier<T: CertifiedBounds, P: ControlPoint<T>>`), and an
+`Fn(u8) -> u8` parameter in both orders — the arrow's `>` closed the list
+early for the first depth counter, so the tail handed back carried the
+real parameter colons and the false positive survived. Every fixture was
+shown to red against the matcher without its fix.
+
+Hit-set diff on the live tree, matcher records surviving the definition
+skip and before the per-file filters: 163 records over 26 files, byte
+identical before and after; the one live alt-3 hit
+(`profile/src/path/arc_fillet.rs:924`) has no generic list. The census's
+declaration set is unchanged at one entry.
 
 ## Claimed by GATES (2026-09-06)
 
