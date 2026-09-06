@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 # bit-identity-debug-only.sh — the debug-only subjects stay debug-only.
-# ONE home; ci.yml's "bit-identity debug-only guard (topo/source.rs)"
-# step and local-scripts/ci-local.sh's discipline row both call this
-# file.
+# ONE home; ci.yml's `discipline` job and local-scripts/ci-local.sh's
+# discipline row both call this file by name.
 #
 # A SUBJECT LIST, NOT A FILE. `SUBJECTS` carries one row per file that
-# owes a symbol to `cfg(debug_assertions)`: the path, an ERE for the
-# symbols whose uses are gated, and the spellings the fixtures write.
+# owes a symbol to `cfg(debug_assertions)`: the path, the spellings
+# whose uses are gated, and the text the fixtures write.
 # The enclosure analysis below is the part worth getting right, so it
 # exists exactly once and a second debug-only mechanism is a row here
 # rather than a second gate with a second reader.
@@ -83,27 +82,40 @@
 # block expression) ends the statement early, so a use after that `;`
 # reads as ungated. Cry-wolf, and no such site exists here.
 #
-# KNOWN GAP 3: a symbol pattern is matched in code text, so a row whose
-# symbols are also ordinary words would count uses that are not the
-# mechanism. Both rows name spellings that occur nowhere else in their
-# subject; a row that cannot is one this reader cannot serve.
+# KNOWN GAP 3: a symbol is matched at identifier boundaries, so a longer
+# name that merely contains it is not a use. What the reader cannot tell
+# apart is a WHOLE-identifier collision — the same spelling naming
+# something that is not the mechanism. Neither row has one; a row that
+# would is one this reader cannot serve.
+#
+# KNOWN GAP 4: a rustfmt-wrapped attribute — `#[cfg(` and
+# `debug_assertions` and `)]` on three lines — is not read as a gate,
+# because the attribute matcher reads one line, so a use inside that
+# item fires. Cry-wolf, and no such site exists here.
+#
+# KNOWN GAP 5: a `{ … }` const-generic default in a gated signature
+# marks the item entered at that brace, so the item reads as closed at
+# the matching `}` and a use in the real body fires. Cry-wolf again, in
+# the same direction.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-# PATH, the symbol ERE, a bare SYM the fixtures name, one EXPR that uses
-# it, and the noun the diagnosis calls the mechanism by. Only the noun
-# may carry spaces, and it is last for that reason.
+# PATH, the symbol spellings, a bare SYM the fixtures name, one EXPR
+# that uses it, and the noun the diagnosis calls the mechanism by. Only
+# the noun may carry spaces, and it is last for that reason.
+#
+# The symbol field is a `|`-SEPARATED LIST of spellings, each matched at
+# identifier boundaries, and not a general ERE: the reader splits on
+# `|`, so a `|` inside a group would be read as a separator. It reaches
+# awk through `-v`, which processes backslash escapes, so `foo\.bar`
+# would arrive as `foo.bar` — a spelling needing a literal backslash
+# cannot be written here.
 SUBJECTS=(
   'crates/topo/src/source.rs bit_identity::|eq_bits eq_bits eq_bits(a,b) the bit channel'
   'crates/editor-core/src/product.rs GATHERS|gathers_on_this_thread GATHERS GATHERS.with(get) the debug-only gather counter'
 )
 GATE_SCAN_NOUN='debug-only symbol use'
-
-# One SUBJECTS row into the five fields the gate and the fixtures read.
-subject_fields() {
-  read -r SUBJECT_PATH SUBJECT_PAT SUBJECT_SYM SUBJECT_EXPR SUBJECT_NOUN <<< "$1"
-}
 
 # Emits `USE` for every use of PATTERN and `UNGATED` for every one of
 # them not enclosed by a `cfg(debug_assertions)` item. Enclosure is
@@ -115,6 +127,22 @@ debug_only_report() {
       # A `debug_assert…!` macro, not a function whose name starts the
       # same way: the `!` is the whole distinction.
       DBG = "debug_assert[a-z_]*!"
+      # ONE SPELLING AT A TIME, each anchored on an identifier boundary
+      # at whichever of its ends is an identifier character. Unanchored,
+      # `eq_bits` matches `neq_bits` and `GATHERS` matches `PREGATHERS`,
+      # and a use the mechanism never made is counted and placed.
+      n = split(PAT, ALT, /\|/)
+      for (i = 1; i <= n; i++) {
+        lead = (ALT[i] ~ /^[A-Za-z0-9_]/) ? "(^|[^A-Za-z0-9_])" : ""
+        tail = (ALT[i] ~ /[A-Za-z0-9_]$/) ? "([^A-Za-z0-9_]|$)" : ""
+        ALT[i] = lead "(" ALT[i] ")" tail
+      }
+    }
+    # A READER THAT LOST ITS PLACE HAS DECIDED NOTHING. Reported once
+    # per gated item, so one desync cannot bury the rest of the report.
+    function report_desync(where, why) {
+      print "DESYNC " where ": " why
+      dsync = 1
     }
     {
       p1 = index($0, ":"); r = substr($0, p1 + 1); p2 = index(r, ":")
@@ -122,12 +150,15 @@ debug_only_report() {
       f = substr($0, 1, p1 - 1); ln = substr(r, 1, p2 - 1)
       code = substr(r, p2 + 1)
       if (f != FNAME) {
+        if (FNAME != "" && gated == 1 && seen == 0 && bdepth > 0 && dsync == 0)
+          report_desync(FNAME ":" gln, "the file ended with brackets still open after this cfg(debug_assertions) attribute")
         FNAME = f; depth = 0; gated = 0; seen = 0; stmt = ""; bdepth = 0
+        dsync = 0
       }
       if (gated == 0 &&
           code ~ /#\[cfg\(([^]]*[(,][[:space:]]*)?debug_assertions[,)]/ &&
           code !~ /#\[cfg\([^]]*(any|not)\(/) {
-        gated = 1; seen = 0; gdepth = depth; bdepth = 0
+        gated = 1; seen = 0; gdepth = depth; bdepth = 0; dsync = 0; gln = ln
       }
       # Delimiter-wise, so that the statement a use sits in is the
       # statement the `debug_assert!` test asks about, and so that brace
@@ -136,7 +167,9 @@ debug_only_report() {
         if (match(code, /[{};]/)) { cut = RSTART; piece = substr(code, 1, cut - 1) }
         else { cut = 0; piece = code }
         stmt = stmt " " piece
-        if (piece ~ PAT) {
+        hit = 0
+        for (i = 1; i <= n; i++) if (piece ~ ALT[i]) { hit = 1; break }
+        if (hit == 1) {
           print "USE " f ":" ln
           if (gated == 0 && stmt !~ DBG)
             print "UNGATED " f ":" ln ":" piece
@@ -144,13 +177,26 @@ debug_only_report() {
         # Round and square brackets are counted, never cut on: they end
         # no statement, and the depth they carry is what separates a `;`
         # inside the signature of an item from the `;` that ends it.
-        # `<= 0` and not `== 0` so that a desync can only end an item
-        # early, which is the direction that fires.
+        #
+        # WHAT THE COUNT GUARANTEES, in each direction it can be wrong.
+        # A NEGATIVE desync — more closers than openers — keeps `<= 0`
+        # true, so an item ends early and a use after it FIRES, which is
+        # the safe direction. A POSITIVE one would make the item never
+        # end and every later use read as gated, silently, so it is not
+        # tolerated: brackets still open at the body brace is reported
+        # as a reader desync and reds the gate.
         t = piece; bdepth += gsub(/[[(]/, "", t)
         t = piece; bdepth -= gsub(/[])]/, "", t)
         if (cut == 0) break
         d = substr(code, cut, 1)
-        if (d == "{") { depth++; if (gated == 1 && bdepth <= 0) seen = 1 }
+        if (d == "{") {
+          depth++
+          if (gated == 1 && seen == 0) {
+            if (bdepth <= 0) seen = 1
+            else if (dsync == 0)
+              report_desync(f ":" ln, "brackets are still open at the body brace of the cfg(debug_assertions) item at line " gln ", so the reader cannot say where that item ends")
+          }
+        }
         else if (d == "}") {
           depth--
           if (gated == 1 && seen == 1 && depth <= gdepth) gated = 0
@@ -159,34 +205,51 @@ debug_only_report() {
         code = substr(code, cut + 1)
       }
     }
+    END {
+      if (FNAME != "" && gated == 1 && seen == 0 && bdepth > 0 && dsync == 0)
+        report_desync(FNAME ":" gln, "the file ended with brackets still open after this cfg(debug_assertions) attribute")
+    }
   '
 }
 
 gate() {
-  local row report uses ungated total=0 proved= failures=0
+  local row path pat sym expr noun
+  local report ungated desynced uses total=0 proved= failures=0
   # EVERY subject is proved present before ANY is scanned, so a subject
   # that moved out from under the gate cannot be masked by a clean scan
-  # of the ones that stayed.
+  # of the ones that stayed. `gate_require_file` ends the gate at the
+  # FIRST missing subject, so two missing subjects name one.
   for row in "${SUBJECTS[@]}"; do
-    subject_fields "$row"
-    gate_require_file "$SUBJECT_PATH"
+    read -r path pat sym expr noun <<< "$row"
+    gate_require_file "$path"
   done
   for row in "${SUBJECTS[@]}"; do
-    subject_fields "$row"
-    report=$(gate_rust_code "$SUBJECT_PATH" | debug_only_report "$SUBJECT_PAT")
+    read -r path pat sym expr noun <<< "$row"
+    report=$(gate_rust_code "$path" | debug_only_report "$pat")
+    desynced=$(printf '%s\n' "$report" | gate_grep '^DESYNC ' | sed 's/^DESYNC //')
+    if [ -n "$desynced" ]; then
+      printf '%s\n' "$desynced"
+      # The rule `gate_grep` holds for a matcher that could not run,
+      # applied to a reader that could not place what it read: the
+      # marker keeps `gate_ok` from printing green over it.
+      : >> "$GATE_MATCHER_FAILED"
+      gate_error "$path: the reader lost bracket depth (above), so it cannot place a use against the item that encloses it — what it did not place is unknown, which is not a pass"
+      failures=$((failures + 1))
+      continue
+    fi
     ungated=$(printf '%s\n' "$report" | gate_grep '^UNGATED ' | sed 's/^UNGATED //')
     uses=$(printf '%s\n' "$report" | gate_grep -c '^USE ')
     total=$((total + uses))
     if [ -n "$ungated" ]; then
       printf '%s\n' "$ungated"
-      gate_error "$SUBJECT_PATH uses $SUBJECT_NOUN above outside any cfg(debug_assertions) item — a debug assertion is the only other place it may stand. One gated use elsewhere in the file does not cover these"
+      gate_error "$path uses $noun above outside any cfg(debug_assertions) item — a debug assertion is the only other place it may stand. One gated use elsewhere in the file does not cover these"
       failures=$((failures + 1))
       continue
     fi
-    proved="$proved${proved:+ and of }$SUBJECT_NOUN in $SUBJECT_PATH"
+    proved="$proved${proved:+ and of }$noun in $path"
   done
-  # EVERY subject is read before the gate fails, so a fix pass sees all
-  # of them at once rather than one per red run.
+  # Every subject is SCANNED before the gate fails, so one red run names
+  # every subject that has an ungated use rather than one per run.
   [ "$failures" -eq 0 ] || exit 1
   GATE_SCAN_FILES=$total
   gate_ok "every use of $proved is inside a cfg(debug_assertions) item or a debug_assert!"
@@ -209,12 +272,12 @@ plant_source() {
 
 # The clean tree is every subject, gated.
 gate_plant_clean() {
-  local row
+  local row path pat sym expr noun
   for row in "${SUBJECTS[@]}"; do
-    subject_fields "$row"
-    plant_source "$SUBJECT_PATH" "$1" \
+    read -r path pat sym expr noun <<< "$row"
+    plant_source "$path" "$1" \
       '#[cfg(debug_assertions)]' \
-      "pub fn agree(a: f64, b: f64) -> bool { $SUBJECT_EXPR }"
+      "pub fn agree(a: f64, b: f64) -> bool { $expr }"
   done
 }
 
@@ -345,6 +408,41 @@ plant_permitted_shapes() {
     '}'
 }
 
+# A LOST BRACKET DEPTH IS REPORTED, NOT PASSED. `lib.sh`'s reader does
+# not nest block comments, so the first `*/` closes the outer one and
+# `/* outer /* inner */ ( */` leaves a stray `(` in the code view.
+# Bracket depth then never returns to zero, the item never reads as
+# entered, and every use to the end of the file would read as gated.
+plant_desync_nested_block_comment() {
+  local path=$1 expr=$3 root=$4
+  plant_source "$path" "$root" \
+    '#[cfg(debug_assertions)]' \
+    '/* outer /* inner */ ( */' \
+    "pub fn agree(a: f64, b: f64) -> bool { $expr }" \
+    "pub fn leak(a: f64, b: f64) -> bool { $expr }"
+}
+
+# THE SAME LOSS WITH NO BRACE AFTER IT. The file ends inside the stray
+# bracket, so the body-brace arm is never reached and the end of the
+# file is where the reader has to say so. Every use here is gated, so
+# only the desync can red this fixture.
+plant_desync_at_end_of_file() {
+  local path=$1 expr=$3 root=$4
+  plant_source "$path" "$root" \
+    '#[cfg(debug_assertions)]' \
+    "pub fn agree(a: f64, b: f64) -> bool { $expr }" \
+    '#[cfg(debug_assertions)]' \
+    '/* outer /* inner */ ( */'
+}
+
+# THE NEAR MISS AT THE IDENTIFIER BOUNDARY: a longer name that merely
+# CONTAINS the symbol is not a use of it.
+plant_near_miss_identifier() {
+  local path=$1 sym=$2 root=$4
+  plant_source "$path" "$root" \
+    "pub fn near(a: f64, b: f64) -> bool { pre${sym}_post(a, b) }"
+}
+
 # The subject removed out from under the gate — one row of the list, so
 # the other subjects are clean and only the missing one can fail it.
 plant_subject_gone() { rm -f "$2/$1"; }
@@ -357,12 +455,9 @@ gate_selftest() {
   # produces. Proved here rather than asserted, because before
   # `gate_grep` this exact fixture printed OK and exited 0.
   gate_selftest_without_tool grep "it is grep saying it could not search"
-  local row path sym expr
+  local row path pat sym expr noun
   for row in "${SUBJECTS[@]}"; do
-    subject_fields "$row"
-    # Captured before any planter runs: `gate_plant_clean` walks the
-    # list itself and leaves SUBJECT_* naming the last row.
-    path=$SUBJECT_PATH sym=$SUBJECT_SYM expr=$SUBJECT_EXPR
+    read -r path pat sym expr noun <<< "$row"
     gate_selftest_case "$want" plant "$path" "$sym" "$expr"
     gate_selftest_case "$want" plant_one_gated_one_leaked "$path" "$sym" "$expr"
     gate_selftest_case "$want" plant_after_the_gated_item "$path" "$sym" "$expr"
@@ -370,6 +465,10 @@ gate_selftest() {
     gate_selftest_case "$want" plant_any_cfg "$path" "$sym" "$expr"
     gate_selftest_case "$want" plant_not_cfg "$path" "$sym" "$expr"
     gate_selftest_case "$want" plant_leak_after_debug_assert "$path" "$sym" "$expr"
+    gate_selftest_case "the reader lost bracket depth" \
+      plant_desync_nested_block_comment "$path" "$sym" "$expr"
+    gate_selftest_case "the reader lost bracket depth" \
+      plant_desync_at_end_of_file "$path" "$sym" "$expr"
     gate_selftest_case "the gate's subject is gone" plant_subject_gone "$path"
     gate_selftest_passes "a debug_assert!, prose, a string literal and a gated inner module" \
       plant_permitted_shapes "$path" "$sym" "$expr"
@@ -379,8 +478,10 @@ gate_selftest() {
       plant_all_cfg_swapped "$path" "$sym" "$expr"
     gate_selftest_passes 'a `;` inside a gated signature' \
       plant_semicolon_in_signature "$path" "$sym" "$expr"
+    gate_selftest_passes "a longer identifier that merely contains the symbol" \
+      plant_near_miss_identifier "$path" "$sym" "$expr"
   done
-  printf '%s selftest OK, over %s subjects: each passes a clean fixture, a debug_assert! (wrapped or not), cfg(all(…)) in either operand order, prose/strings and a gated inner module, and a `;` inside a gated signature; each fires on a bare use, on a leak BESIDE a properly gated use, on a leak AFTER a debug_assert! on the same line, on a use after the gated item closes, on a use after a gated `;`-terminated item, on any(…) and not(debug_assertions) items, and on that subject file being gone; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' \
+  printf '%s selftest OK, over %s subjects, each proved on its own: enclosure by brace depth and by `debug_assert!` statement (rustfmt-wrapped or not); `all(…)` gates in either operand order while `any(…)` and `not(…)` do not; prose, string literals and a longer identifier that merely contains the symbol are not uses; an item ends at a `;` only at bracket depth zero; and a lost bracket depth, a missing subject and a `grep` that cannot run are each a loud failure\n' \
     "$(gate_name)" "${#SUBJECTS[@]}"
 }
 
