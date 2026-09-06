@@ -205,15 +205,24 @@ gate_norm_path() {
 # also a refusal, and the caller says so.
 declaration_shape() {
   gate_rust_code "$1" | awk -v start="$2" -v name="$3" '
+    # THE ANSWER IS HELD TO `END`, NOT PRINTED AND EXITED ON. This `awk`
+    # reads a pipe, and exiting at the declaration closes it while the
+    # shared reader upstream is still writing: that write fails, the
+    # reader dies of it, and `pipefail` reports a pipeline that did its
+    # job as a pipeline that broke. Whether it lands is a race between
+    # two processes, which is the worst way for a gate to be wrong —
+    # green on one machine and red on the next over the same tree.
     function emit(kind,   i, c) {
+      if (done) return
+      done = 1
       c = ""
       for (i = 1; i <= depth; i++) {
-        if (chain[i] == "") { print "refuse||0|0|0"; exit }
+        if (chain[i] == "") { out = "refuse||0|0|0"; return }
         c = (c == "") ? chain[i] : c "/" chain[i]
       }
-      printf "%s|%s|%d|%d|%d\n", kind, c, pline, pidx, pcount
-      exit
+      out = sprintf("%s|%s|%d|%d|%d", kind, c, pline, pidx, pcount)
     }
+    done { next }
     {
       s = $0
       if (!match(s, /^[^:]*:[0-9]+:/)) next
@@ -229,15 +238,18 @@ declaration_shape() {
       while (i <= L) {
         c = substr(s, i, 1)
         if (c == "{") {
-          if (want) emit("inline")
+          if (want) { emit("inline"); next }
           depth++; chain[depth] = pending; pending = ""; i++; continue
         }
         if (c == ";") {
-          if (want) emit(pline > 0 ? "attr" : "default")
+          if (want) { emit(pline > 0 ? "attr" : "default"); next }
           pending = ""; i++; continue
         }
         if (c == "}") {
-          if (want) exit
+          # The declaration was found and neither delimiter followed it —
+          # a shape this reader cannot place, so it says nothing and the
+          # caller refuses.
+          if (want) { done = 1; out = ""; next }
           if (depth > 0) { chain[depth] = ""; depth-- }
           pending = ""; i++; continue
         }
@@ -252,10 +264,13 @@ declaration_shape() {
         }
         i++
       }
-    }'
+    }
+    END { if (out != "") print out }'
 }
 
-# THE MOUNT'S PAYLOAD, from the one raw line the code view named. Prints
+# THE MOUNT'S PAYLOAD, from the one raw line the code view named. This
+# one reads the file directly rather than a pipe, so stopping at that
+# line closes nothing behind it. Prints
 # nothing when that line does not carry the same attributes the view saw
 # — a `#[path]` written inside a comment beside a live one, or a payload
 # that is not a string literal on that line — because a payload the two
@@ -684,6 +699,22 @@ plant_production_file_extending_an_exclusion() {
     > "$1/crates/planted/src/foo/bar.rs.rs"
 }
 
+# A DECLARATION NEAR THE TOP OF A LONG FILE, which is the shape that
+# catches a reader that stops reading once it has its answer: the shared
+# reader upstream is still writing, its write fails on the closed pipe,
+# and `pipefail` turns a declaration this gate DID place into a refusal.
+# The file is longer than a pipe buffer on purpose — that is the whole
+# difference between the two outcomes, and it is why the same tree could
+# pass here and fail on a runner.
+plant_early_declaration_in_a_long_file() {
+  mkdir -p "$1/crates/planted/src"
+  {
+    printf '#[cfg(test)]\nmod probes;\n'
+    seq 4000 | awk '{ printf "pub fn f%s(x: f64) -> f64 { x + %s.0 }\n", $1, $1 }'
+  } > "$1/crates/planted/src/lib.rs"
+  printf 'pub fn sq<T: Real>(x: T) -> T { x * x }\n' > "$1/crates/planted/src/probes.rs"
+}
+
 # THE DIRECTORY FORM of the same resolution: `mod bar;` names
 # `foo/bar.rs` OR `foo/bar/mod.rs`, and a module big enough to be a
 # directory is exactly the test module a gate would otherwise scan
@@ -779,7 +810,9 @@ gate_selftest() {
     plant_gated_module_directory_form
   gate_selftest_passes "a square in the file an inline module's own gated declaration mounts" \
     plant_nested_gated_declaration_target
-  printf '%s selftest OK: passes a clean fixture, and prose, string literals, near-miss products and every shape of test-only module; fires on each square spelling the matcher claims — bare identifier, field path, `self.` field, nested path, rustfmt-wrapped product, behind a block comment, and the parenthesized scaled square in both forms; places a cfg(test) declaration where rustc mounts it, so a production sibling, a production file under an inline module and a production path that merely extends an exclusion all stay in the scan and red, while the file the declaration names — positional, #[path]-mounted, directory-form or nested in an inline module — does not; and it REFUSES, with its own diagnosis and never a second false one, a declaration it cannot place, a tree whose sources exclude each other, and a `grep` that cannot run\n' "$(gate_name)"
+  gate_selftest_passes "a gated declaration near the top of a file longer than a pipe buffer" \
+    plant_early_declaration_in_a_long_file
+  printf '%s selftest OK: passes a clean fixture, and prose, string literals, near-miss products and every shape of test-only module; fires on each square spelling the matcher claims — bare identifier, field path, `self.` field, nested path, rustfmt-wrapped product, behind a block comment, and the parenthesized scaled square in both forms; places a cfg(test) declaration where rustc mounts it, so a production sibling, a production file under an inline module and a production path that merely extends an exclusion all stay in the scan and red, while the file the declaration names — positional, #[path]-mounted, directory-form or nested in an inline module — does not; and it REFUSES, with its own diagnosis and never a second false one, a declaration it cannot place — while a declaration it CAN place stays placed however long the file under it runs, a tree whose sources exclude each other, and a `grep` that cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
