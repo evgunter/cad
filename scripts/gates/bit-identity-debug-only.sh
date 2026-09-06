@@ -481,17 +481,17 @@ gate() {
 #
 # Every planter takes the subject row it writes — its PATH, a bare SYM
 # and one USE of that symbol, both DERIVED from one of the row's
-# spellings — and then the fixture root, so each case runs once per
-# subject rather than once for the subject the matcher was written
-# against. Fixture text is read as text and never compiled: it carries
-# the SHAPE the reader decides on, not a type-correct program.
+# spellings — and then the fixture root, so one planter serves every
+# subject and a case plants the same shape in all of them. Fixture text
+# is read as text and never compiled: it carries the SHAPE the reader
+# decides on, not a type-correct program.
 #
 # EVERY SPELLING OF A ROW IS PLANTED, and that is the whole reason the
 # symbol is derived. The clean tree gives each spelling its own gated
-# item, and the basic must-fire case runs once per spelling, so a
-# spelling that the reader cannot match fails the self-test in both
-# directions: the clean tree loses a use, and the leak planted with that
-# spelling is not seen.
+# item, and the basic must-fire case runs once per SPELLING INDEX over
+# every row that has one, so a spelling the reader cannot match fails
+# the self-test in both directions: the clean tree loses a use, and the
+# leak planted with that spelling is not seen.
 plant_source() {
   local path=$1 root=$2
   shift 2
@@ -829,13 +829,10 @@ plant_subject_gone() { rm -f "$2/$1"; }
 
 # --- ONE TREE PER CASE, NOT ONE PER SUBJECT ---------------------------
 #
-# A CASE IS A SHAPE, AND A SHAPE COSTS ONE GATE INVOCATION. The
-# per-subject form planted the shape into ONE subject's file and ran the
-# gate, so every case cost a run per subject and the self-test grew with
-# the product of the two. `gate` already proves every subject present
-# and scans every one of them before it fails, naming each subject it
-# diagnoses, so a tree carrying the shape in EVERY subject decides the
-# same thing in one run.
+# A CASE IS A SHAPE, AND A SHAPE COSTS ONE GATE INVOCATION. `gate`
+# proves every subject present and scans every one of them before it
+# fails, naming each subject it diagnoses, so one tree carrying the
+# shape in EVERY subject decides for all of them in a single run.
 #
 # THE ASSERTION IS STILL PER SUBJECT, and that is what keeps the set of
 # outcomes identical rather than merely smaller. A run that red because
@@ -847,8 +844,8 @@ plant_subject_gone() { rm -f "$2/$1"; }
 #
 # THE SPELLINGS ARE TAKEN BY INDEX, because rows carry different numbers
 # of them. Case k plants each row's kth spelling in every row that has
-# one, so every (row, spelling) pair is planted and asserted exactly as
-# before, in as many runs as the LONGEST row has spellings.
+# one, so every (row, spelling) pair is planted and asserted, in as many
+# runs as the LONGEST row has spellings.
 
 # Plants PLANTER's shape into every subject carrying an INDEXth
 # spelling, and echoes the paths it planted, one per line. THIRD names
@@ -878,6 +875,13 @@ selftest_plant_over_subjects() {
 # diagnoses put the path first and the wanted text after it on one line,
 # and reading the two over the whole output instead would let one
 # subject's diagnosis answer for another's silence.
+#
+# THE PATH IS MATCHED AS A SUBSTRING, so a subject path CONTAINED in
+# another would put that answering-for-another back: the containing
+# subject's line satisfies the contained subject's test. That is an
+# assumption about the subject list rather than about the reader, so it
+# is held by `selftest_subject_paths_are_distinct` below and not
+# believed here.
 selftest_diagnosed_subject() {
   local path=$1 want=$2 line
   while IFS= read -r line; do
@@ -886,47 +890,76 @@ selftest_diagnosed_subject() {
   return 1
 }
 
+# The assumption the match above makes, proved over the list it is made
+# about. Quadratic in subjects and run once, which at this size is free.
+selftest_subject_paths_are_distinct() {
+  local i j path other pat count noun
+  for i in "${SUBJECTS[@]}"; do
+    read -r path pat count noun <<< "$i"
+    for j in "${SUBJECTS[@]}"; do
+      read -r other pat count noun <<< "$j"
+      [ "$other" != "$path" ] || continue
+      case "$other" in
+        *"$path"*)
+          printf 'SELFTEST FAILED: the subject path %s is contained in %s, so a diagnosis of the second satisfies the per-subject test for the first and a subject that stopped firing would pass unnoticed\n' \
+            "$path" "$other" >&2
+          exit 1 ;;
+      esac
+    done
+  done
+}
+
+# THE SHARED SKELETON of the two case drivers below: a fresh clean tree,
+# PLANTER's shape in every subject that has an INDEXth spelling, ONE
+# gate run, the tree gone. The three results are set as variables rather
+# than printed, because a caller needs all of them and a command
+# substitution would carry the substitution's exit status and not the
+# gate's.
+selftest_run_over_subjects() {
+  local index=$1 planter=$2 third=$3 tmp
+  tmp=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  SELFTEST_PLANTED=$(selftest_plant_over_subjects "$index" "$planter" "$third" "$tmp")
+  SELFTEST_STATUS=0
+  SELFTEST_OUT=$("$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1) ||
+    SELFTEST_STATUS=$?
+  rm -rf "$tmp"
+}
+
 # gate_selftest_case's all-subjects twin: the clean tree plus PLANTER's
 # shape in every subject that has an INDEXth spelling must FAIL, with a
 # gate_error diagnosis naming EACH of those subjects and containing
 # WANT.
 selftest_case_over_subjects() {
-  local want=$1 index=$2 planter=$3 third=$4
-  local tmp out planted path
-  tmp=$(mktemp -d)
-  gate_plant_clean "$tmp"
-  planted=$(selftest_plant_over_subjects "$index" "$planter" "$third" "$tmp")
-  if out=$("$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1); then
-    rm -rf "$tmp"
+  local want=$1 index=$2 planter=$3 third=$4 path
+  selftest_run_over_subjects "$index" "$planter" "$third"
+  if [ "$SELFTEST_STATUS" -eq 0 ]; then
     printf 'SELFTEST FAILED: the gate PASSED on a planted violation (%s, spelling %s of each row)\n%s\n' \
-      "$planter" "$index" "$out" >&2
+      "$planter" "$index" "$SELFTEST_OUT" >&2
     exit 1
   fi
-  rm -rf "$tmp"
-  gate_selftest_assert_diagnosed "$planter" "$out"
+  gate_selftest_assert_diagnosed "$planter, spelling $index of each row" "$SELFTEST_OUT"
   while IFS= read -r path; do
     [ -n "$path" ] || continue
-    selftest_diagnosed_subject "$path" "$want" "$out" && continue
+    selftest_diagnosed_subject "$path" "$want" "$SELFTEST_OUT" && continue
     printf 'SELFTEST FAILED (%s, spelling %s of each row): the gate red, but no diagnosis line names %s and says "%s" — one subject firing is not the others firing, and this case plants the shape in every subject:\n%s\n' \
-      "$planter" "$index" "$path" "$want" "$out" >&2
+      "$planter" "$index" "$path" "$want" "$SELFTEST_OUT" >&2
     exit 1
-  done <<< "$planted"
+  done <<< "$SELFTEST_PLANTED"
 }
 
 # gate_selftest_passes's all-subjects twin. One subject firing reds the
-# run, so the pass is a pass for every subject planted.
+# run, so the pass is a pass for every subject planted — and the failure
+# line names the PLANTER and the spelling index, because a case that
+# runs once per index carries the same `$what` at every one of them and
+# the text alone cannot say which fired.
 selftest_passes_over_subjects() {
   local what=$1 index=$2 planter=$3 third=$4
-  local tmp out
-  tmp=$(mktemp -d)
-  gate_plant_clean "$tmp"
-  selftest_plant_over_subjects "$index" "$planter" "$third" "$tmp" > /dev/null
-  if ! out=$("$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1); then
-    rm -rf "$tmp"
-    printf 'SELFTEST FAILED: the gate FIRED on %s, which is not a violation\n%s\n' "$what" "$out" >&2
-    exit 1
-  fi
-  rm -rf "$tmp"
+  selftest_run_over_subjects "$index" "$planter" "$third"
+  [ "$SELFTEST_STATUS" -ne 0 ] || return 0
+  printf 'SELFTEST FAILED (%s, spelling %s of each row): the gate FIRED on %s, which is not a violation\n%s\n' \
+    "$planter" "$index" "$what" "$SELFTEST_OUT" >&2
+  exit 1
 }
 
 # THE PIN, PROVED AGAINST THE TREE IT IS A READING OF. No fixture can
@@ -950,16 +983,15 @@ gate_selftest_pin() {
     # the list — the reading the tree carries has moved. Saying the
     # first of the second sends a reader looking for a matcher bug in a
     # gate that is working.
-    case "$out" in
-      *"$path carries $count uses"*) ;;
-      *"$path carries "*)
-        printf 'SELFTEST FAILED: a pin shifted by %s red for %s, but with a use count that is not the %s its row pins — the row is compared and the NUMBER is stale, so re-take the pin against this tree:\n%s\n' \
-          "$shift_by" "$path" "$count" "$out" >&2
-        exit 1 ;;
-      *) printf 'SELFTEST FAILED: a pin shifted by %s did not red for %s at all, so that row is pinned by nothing:\n%s\n' \
-           "$shift_by" "$path" "$out" >&2
-         exit 1 ;;
-    esac
+    selftest_diagnosed_subject "$path" "carries $count uses" "$out" && continue
+    if selftest_diagnosed_subject "$path" "carries " "$out"; then
+      printf 'SELFTEST FAILED: a pin shifted by %s red for %s, but with a use count that is not the %s its row pins — the row is compared and the NUMBER is stale, so re-take the pin against this tree:\n%s\n' \
+        "$shift_by" "$path" "$count" "$out" >&2
+      exit 1
+    fi
+    printf 'SELFTEST FAILED: a pin shifted by %s did not red for %s at all, so that row is pinned by nothing:\n%s\n' \
+      "$shift_by" "$path" "$out" >&2
+    exit 1
   done
 }
 
@@ -971,6 +1003,10 @@ gate_selftest() {
   # produces. Proved here rather than asserted, because before
   # `gate_grep` this exact fixture printed OK and exited 0.
   gate_selftest_without_tool grep "it is grep saying it could not search"
+  # Before any case reads a diagnosis per subject: the per-subject test
+  # is a substring match on the path, and that decides one subject only
+  # while no subject path is contained in another.
+  selftest_subject_paths_are_distinct
   local row path pat count noun alt spellings=0 widest=1 i
   for row in "${SUBJECTS[@]}"; do
     read -r path pat count noun <<< "$row"
@@ -979,10 +1015,10 @@ gate_selftest() {
     [ "${#alt[@]}" -le "$widest" ] || widest=${#alt[@]}
   done
   # THE TWO CASES THAT ARE ABOUT THE SPELLING RUN ONCE PER SPELLING
-  # INDEX, over every row that has one: the basic must-fire leak,
-  # because a row's second and later spellings are exactly what the old
-  # fixtures held nothing against, and the near misses, because the
-  # reader derives each end's anchor from that end of the SPELLING.
+  # INDEX, over every row that has one: the basic must-fire leak, so
+  # that each spelling of a row plants a leak of its own, and the near
+  # misses, because the reader derives each end's anchor from that end
+  # of the SPELLING.
   for ((i = 1; i <= widest; i++)); do
     selftest_case_over_subjects "$want" "$i" plant use
     selftest_passes_over_subjects "longer identifiers that merely contain a spelling, at each end alone, and the same name in another case" \
@@ -1020,7 +1056,7 @@ gate_selftest() {
   # THE ONE CASE THAT STAYS PER SUBJECT, and the reason is the guard it
   # holds: `gate_require_file` ends the gate at the FIRST missing
   # subject, so a tree with every subject removed proves the presence
-  # check on the first row and says nothing about the other fourteen.
+  # check on the first row and says nothing about any row below it.
   # A missing subject is asked one subject at a time or not at all.
   for row in "${SUBJECTS[@]}"; do
     read -r path pat count noun <<< "$row"
@@ -1028,7 +1064,7 @@ gate_selftest() {
   done
   gate_selftest_pin 1
   gate_selftest_pin -1
-  printf '%s selftest OK, over %s subjects and the %s spellings they carry, each proved on its own: every case but one plants its shape in EVERY subject and runs the gate ONCE, and reds unless a diagnosis line names each planted subject — every spelling plants its own leak, so a spelling the reader cannot match fails here; enclosure by brace depth and by `debug_assert!` statement (rustfmt-wrapped or not); `all(…)` gates in either operand order while `any(…)` and `not(…)` do not; prose, string literals, `cfg(test)` code, a longer identifier that merely contains a spelling (prefixed, suffixed, or both at once) and the same name in another case are not uses — the near misses run per SPELLING, because the reader takes the anchor at each end from that end of the spelling; an item ends at a `;` only at bracket depth zero, and only a `{` at bracket depth zero is the item ENTERING — so a statement-position attribute over a multi-line call whose arguments carry braces (nested, in more than one argument) covers that call and stops at its `;`, with a use below it firing as the ungated use it is; a NESTED block comment is comment to its balancing `*/`, so the stray bracket in one is not code — pinned both ways, the leak after one firing as the ordinary leak it is and the same comment closing a file passing; each row carries the use count it pins, proved against this tree in both directions; and a lost bracket depth (planted as code, both with braced items below the stray bracket and with nothing below it), a missing subject (asked one subject at a time, because the presence check ends at the first one gone) and a `grep` that cannot run are each a loud failure\n' \
+  printf '%s selftest OK, over %s subjects and the %s spellings they carry, each proved on its own: every shape case but `plant_subject_gone` plants its shape in EVERY subject and runs the gate ONCE, and reds unless a diagnosis line names each planted subject — every spelling plants its own leak, so a spelling the reader cannot match fails here; enclosure by brace depth and by `debug_assert!` statement (rustfmt-wrapped or not); `all(…)` gates in either operand order while `any(…)` and `not(…)` do not; prose, string literals, `cfg(test)` code, a longer identifier that merely contains a spelling (prefixed, suffixed, or both at once) and the same name in another case are not uses — the near misses run per SPELLING, because the reader takes the anchor at each end from that end of the spelling; an item ends at a `;` only at bracket depth zero, and only a `{` at bracket depth zero is the item ENTERING — so a statement-position attribute over a multi-line call whose arguments carry braces (nested, in more than one argument) covers that call and stops at its `;`, with a use below it firing as the ungated use it is; a NESTED block comment is comment to its balancing `*/`, so the stray bracket in one is not code — pinned both ways, the leak after one firing as the ordinary leak it is and the same comment closing a file passing; each row carries the use count it pins, proved against this tree in both directions; and a lost bracket depth (planted as code, both with braced items below the stray bracket and with nothing below it), a missing subject (asked one subject at a time, because the presence check ends at the first one gone) and a `grep` that cannot run are each a loud failure\n' \
     "$(gate_name)" "${#SUBJECTS[@]}" "$spellings"
 }
 

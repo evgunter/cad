@@ -110,13 +110,18 @@ the "outside any `cfg(debug_assertions)` item" diagnosis:
 | `boolean/plane_eq.rs:173` | GREEN | RED, naming `plane_eq.rs` |
 | `merge_faces.rs:1006` | GREEN | RED, naming `merge_faces.rs` |
 
-**The sweep the row asked for.** `grep -rn 'plane_bits_witness\|vec3_bits_witness\|bits_witness'`
-over the whole repo returns, outside `crates/topo/src`, only prose:
-`crates/editor-core/src/names/README.md:121`, `docs/MODEL-AB-LOG.md:4153`
-and this gate's own header and row. No Rust caller outside
-`crates/topo/src` exists today, so nothing else is rowed. What that
-pattern could not match is unchanged from the finding above: a witness
-reached through a re-export under another name.
+**The sweep the row asked for.** `grep -rln 'plane_bits_witness\|vec3_bits_witness\|bits_witness'`
+over the whole repo hits twelve files. Three are the rowed `topo`
+sources; the other nine are prose, and the complete list is:
+`crates/editor-core/src/names/README.md`, `docs/MODEL-AB-LOG.md`,
+`scripts/gates/bit-identity-debug-only.sh` (its own header and rows),
+`work/STATUS.md`, `work/gates/log.md`, this row, and three sibling
+tracker files — `work/gates/bit-identity-debug-only-gate-ends-an-item-at-a-semicolon.md`,
+`work/gates/debug-only-assert-euler-postcondition-is-on-no-row.md`,
+`work/topo/bits-witness-slice-workaround-outlived-its-defect.md`. No
+Rust caller outside `crates/topo/src` exists today, so nothing else is
+rowed. What that pattern could not match is unchanged from the finding
+above: a witness reached through a re-export under another name.
 
 **The cost the row pointed at is paid.** The self-test's per-case loop
 planted every subject and ran the gate once PER SUBJECT, so a case cost
