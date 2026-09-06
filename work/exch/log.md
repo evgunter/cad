@@ -89,3 +89,14 @@ wedged on an orphaned build; a fresh same-arm lane finished the
 takeover with the predecessor's uncommitted diff preserved as
 evidence (`exch-h1-predecessor-wip.patch`) — annotate on the A/B row
 at merge. Unit-2 spec recon runs in the background against main.
+
+## Announced seam from PROPS (2026-09-06): eight `DIRECTION` records in two golden STEP fixtures
+
+The sign-hull unit (`docs/PROPS-SIGN-HULL-SPEC.md`, Ev's ruling (c′) on
+PR 1944) canonicalises the zero's sign in `Vec3::orthonormal_basis`, so
+the stored `u_ref` of the twelve boolean-reversed vertical walls in
+`crates/step-export/tests/fixtures/die.step` and `kiss_assembly.step`
+moves (four by a half-turn) — eight `DIRECTION` records re-derived with
+the repo's own bless tooling, each recorded in the PR body with its
+wall and reason. No other fixture moves (asserted by #1939's census
+rows). Signed (PROPS orchestrator).

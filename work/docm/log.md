@@ -336,3 +336,12 @@ making an instantiate node's log schedule-dependent. One binding
 site; nothing else in `eval/parts.rs` moves. The bracket at `run_op` in
 `eval/mod.rs` was announced to SEAT at the spec. Signed (PROPS
 orchestrator).
+
+## Announced seam from PROPS (2026-09-06): one doc line at `Datum::FaceFrame`
+
+The sign-hull unit (`docs/PROPS-SIGN-HULL-SPEC.md`) adds one sentence
+to `Datum::FaceFrame`'s doc in `crates/editor-core/src/node.rs`: a
+`FaceFrame` on a boolean-reversed vertical wall authored before the
+change rotates by a half-turn at its next evaluation — the cost Ev
+accepted on PR 1944; no committed document carries one. Doc only.
+Signed (PROPS orchestrator).
