@@ -899,3 +899,36 @@ repository generates by construction, which is why the class recurs.
 Three duplicate pairs in one day (two within CIW's own slate, one
 across three programs) is not three accidents. The board is the only
 instrument that can see them and only an orchestrator reads it whole.
+
+## 2026-09-06 — unit 2 dispatched: the python suite on a closure run
+
+`closure-tier-skips-python-suite-on-geom-core-changes`, on
+`ciw/python-suite-closure`. Measured at the re-read rather than taken
+from the filing: `crates/geom-core/src/lib.rs` classifies `TIER=closure`
+with `RUN_PNCAD_PY=false` **while `pncad-py` is in `PKGS`**. So the
+wheel crate is built as a cargo target and the suite that exercises it
+is not run.
+
+That reading matters for the fix, because it rules out the obvious one.
+PR 1909's `JOB_ROOTS` subtracts the read reach again, deliberately, so
+that pinning a crate into the closure never silently switches a named
+job row permanently on. Widening the reach therefore cannot fix this and
+should not be attempted: the seam is between the cargo scope and the
+job-row signal, and the fix belongs on the signal.
+
+**Style review plus a correctness reviewer** — the second one earned,
+and the reason named in the PR: this changes what a hosted run executes,
+on the file S-TCOST owns, and the failure mode of getting it wrong is a
+gate that runs less than the tree says it does. That is the same class
+as the defect.
+
+**Announced cross-fence change**: `scripts/ci-filter.py` is S-TCOST's by
+this program's `keep_out`. Precedent for how to do it is PRs 1868 and
+1909 — the PR names the owner, says what moved, and invites S-TCOST to
+own the result.
+
+The unit may also conclude that the *doc* is what is wrong —
+`docs/prompts/implementer-discipline.md` §2 asserts the python suite
+runs on every code-tier run — but only with a cost number attached, and
+not on the strength of the filter being harder to change than the
+sentence.

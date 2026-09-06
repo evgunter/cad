@@ -2,8 +2,9 @@
 id: closure-tier-skips-python-suite-on-geom-core-changes
 kind: issue
 title: TIER=closure on a geom-core/geom public-signature change runs RUN_PNCAD_PY=false — the python wheel is never built although it compiles against those crates
-status: open
+status: dispatched
 opened: 2026-09-05
+branch: ciw/python-suite-closure
 ---
 
 
