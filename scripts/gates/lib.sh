@@ -231,10 +231,12 @@ gate_ok() {
 # that read source text by which of `test_utils::source`'s three views
 # their needle wants — `code_only`, `code_and_literals` (comments
 # stripped, literals KEPT) and `comments_only` (the inverse view: the
-# needle is prose) — and this reader builds the CODE-ONLY view, because
-# that is what the gates converted to it need: their needles are
-# bounds, calls and operators. WHICH gates those are is DERIVED, not
-# copied — `grep -l gate_rust_code scripts/gates/*.sh | grep -v /lib.sh`,
+# needle is prose) — and this reader builds TWO of them: the CODE-ONLY
+# view by default, because that is what most gates converted to it need
+# (their needles are bounds, calls and operators), and
+# `code_and_literals` under `--keep-literals` for a needle that contains
+# a literal. WHICH gates take which is DERIVED, not copied —
+# `grep -l gate_rust_code scripts/gates/*.sh | grep -v /lib.sh`,
 # and the exclusion is part of the derivation rather than a subtraction
 # left to the reader: this file names the function because it DEFINES
 # it. For the same reason the paragraph below gives.
@@ -247,15 +249,23 @@ gate_ok() {
 # nowhere else: a count copied into prose goes stale in the silent
 # direction, because the population grows by a reader arriving.
 #
-# THAT IS A STATEMENT ABOUT THE CALLERS, NOT ABOUT THE DIRECTORY. There
-# IS a gate here whose needle contains a string literal —
-# `probe-suite-census.sh`'s probe-gate matcher looks for
-# `#[cfg(feature = "probe")]` — and it wants comments stripped and
-# literals KEPT, which is `code_and_literals`: the one of the three
-# views this reader does not build. It is not converted, its matcher is
-# anchored at column zero instead, and it carries a prose fixture
-# because of that. Naming it here rather than claiming the directory is
-# uniform: **S163(b)** is the row.
+# `--keep-literals` IS ONE VIEW OF THE THREE, NOT A FOURTH. Its caller
+# is `probe-suite-census.sh`, whose needle is
+# `#[cfg(feature = "probe")]`: blanking the literal would leave it
+# looking for `feature = ""` and match every cfg gate in the tree, so
+# the code-only view is not merely unhelpful there but wrong. What
+# keeping literals costs is stated where the needle is, because it is a
+# property of the needle: a literal SPELLING the needle is
+# indistinguishable from the code, and only a raw literal can spell
+# one whose own quotes are unescaped.
+#
+# THE THIRD VIEW IS NOT BUILT HERE. `comments_only` — the needle is
+# prose — is the inverse selection, and its one caller in this
+# directory (the census's `^//!` disposition sentences) reads the raw
+# file for it. Building it would mean emitting what this scanner
+# discards, which is a second traversal of the same lexer states rather
+# than a flag on this one; the row that wants it is the row that adds
+# a second such caller.
 #
 # THREE RECORD SHAPES, one lexer, because two hand-rolled Rust readers
 # under `scripts/gates/` is how the leading-`//` strip came to be
@@ -285,17 +295,19 @@ gate_ok() {
 # bodies, `include!`d text, or code behind `#[cfg]` other than the
 # `test` skip below.
 gate_rust_code() {
-  local skip_cfg_test=0 mode=lines window=0
+  local skip_cfg_test=0 mode=lines window=0 keep_literals=0 status=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --skip-cfg-test) skip_cfg_test=1; shift ;;
+      --keep-literals) keep_literals=1; shift ;;
       --statements) mode=statements; shift ;;
       --window) mode=window; window=$2; shift 2 ;;
       *) break ;;
     esac
   done
   [ $# -gt 0 ] || return 0
-  awk -v SKIPTEST="$skip_cfg_test" -v MODE="$mode" -v WIN="$window" '
+  awk -v SKIPTEST="$skip_cfg_test" -v MODE="$mode" -v WIN="$window" \
+      -v KEEPLIT="$keep_literals" '
     # A single quote cannot be written inside this program, which is
     # itself single-quoted; CODEBRK is built rather than spelled.
     BEGIN { Q = sprintf("%c", 39); CODEBRK = "[\"" Q "/]" }
@@ -334,14 +346,19 @@ gate_rust_code() {
         }
         if (state == 2) {                      # inside "..." (or b"...")
           p = match(rest, /["\\]/)
-          if (p == 0) { i = n + 1; continue }
-          if (substr(rest, p, 1) == "\\") { i += p + 1; continue }
+          if (p == 0) { if (KEEPLIT == 1) out = out rest; i = n + 1; continue }
+          if (substr(rest, p, 1) == "\\") {
+            if (KEEPLIT == 1) out = out substr(rest, 1, p + 1)
+            i += p + 1; continue
+          }
+          if (KEEPLIT == 1) out = out substr(rest, 1, p - 1)
           out = out "\""; state = 0; i += p
           continue
         }
         if (state == 3) {                      # inside r#*"..."#*
           p = index(rest, "\"" rawhashes)
-          if (p == 0) { i = n + 1; continue }
+          if (p == 0) { if (KEEPLIT == 1) out = out rest; i = n + 1; continue }
+          if (KEEPLIT == 1) out = out substr(rest, 1, p - 1)
           out = out "\"" rawhashes; state = 0; i += p + rawh
           continue
         }
@@ -383,9 +400,15 @@ gate_rust_code() {
         if (substr(s, i + 1, 1) == "\\") {
           j = i + 3          # the backslash escapes exactly one char
           while (j <= n && substr(s, j, 1) != Q) j++
-          out = out Q Q; i = j + 1; continue
+          if (KEEPLIT == 1) out = out substr(s, i, j - i + 1)
+          else out = out Q Q
+          i = j + 1; continue
         }
-        if (substr(s, i + 2, 1) == Q) { out = out Q Q; i += 3; continue }
+        if (substr(s, i + 2, 1) == Q) {
+          if (KEEPLIT == 1) out = out substr(s, i, 3)
+          else out = out Q Q
+          i += 3; continue
+        }
         out = out Q; i++
       }
 
@@ -470,7 +493,19 @@ gate_rust_code() {
       if (MODE == "statements") flushstmt()
       else if (MODE == "window") flushwin()
     }
-  ' "$@"
+  ' "$@" || status=$?
+  # A READER THAT DIED IS NOT AN EMPTY FILE SET — `gate_grep`'s rule,
+  # applied to the other half of the scan. Every gate that reads Rust
+  # through this function pipes its output into a matcher, so an `awk`
+  # that cannot open a file, or is not on PATH at all, delivers NO
+  # RECORDS and every matcher downstream then finds nothing: the gate
+  # reads a dead reader as a clean tree. The marker is what crosses the
+  # process substitutions and command substitutions the status cannot,
+  # and `gate_ok` refuses to print over it.
+  [ "$status" -eq 0 ] && return 0
+  gate_error "$(gate_name): the shared Rust reader exited $status, so the code view it was asked for is missing or truncated and every matcher reading it decided nothing — that is not a clean scan"
+  : >> "$GATE_MATCHER_FAILED"
+  exit "$status"
 }
 
 # The clean fixture every self-test starts from. A gate whose subject is
