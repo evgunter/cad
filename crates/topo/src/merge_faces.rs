@@ -144,13 +144,15 @@ struct HalfEdgeFacts {
 /// whether its surface is curved.
 ///
 /// **The regime governs inventory failures and nothing else.** An
-/// inventory failure says *this group cannot be merged*; a stale key
-/// or a stale geometry reference says nothing about the group at all,
-/// it reports a torn arena. That is a fact about the whole body, so
-/// it refuses the call under BOTH regimes
-/// ([`MergeCoplanarError::is_arena_fault`]) and never becomes a skip
-/// record. The split is over inventory refusals; the escape is a
-/// class of refusal, not a third regime.
+/// inventory failure says *this group cannot be merged*; an arena
+/// fault says nothing about the group at all — either the variant's
+/// own line calls the body torn, or the refusal contradicts a fact
+/// the surgery established before the call it came back from
+/// ([`MergeCoplanarError::is_arena_fault`], [`OpPlacement`]). Either
+/// is a statement about the whole body, so it refuses the call under
+/// BOTH regimes and never becomes a skip record. The split is over
+/// inventory refusals; the escape is a class of refusal, not a third
+/// regime.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum GroupRegime {
     /// An inventory refusal is the CALL's refusal: nothing commits
@@ -268,8 +270,10 @@ pub enum MergeCoplanarError {
     /// [`EulerOpError::StaleKey`] / [`EulerOpError::StaleGeometry`],
     /// the state is the one the operators name and the caller's
     /// recourse is identical, so it is not given a second name here.
-    /// Those two are the arena faults that escape [`GroupRegime`]'s
-    /// split ([`MergeCoplanarError::is_arena_fault`]).
+    /// Those two are arena faults and escape [`GroupRegime`]'s split,
+    /// as does every other refusal the surgery's operator calls can
+    /// return — the class is [`MergeCoplanarError::is_arena_fault`]'s
+    /// and it is wider than a dangling reference.
     Op {
         /// The refusing operator's error.
         error: EulerOpError,
@@ -427,6 +431,126 @@ impl From<DanglingRef> for MergeCoplanarError {
     }
 }
 
+/// Where one [`EulerOpError`] falls **at this door**.
+///
+/// Two questions meet on an operator refusal that comes back to
+/// `Body::merge_group`, and they have different owners:
+///
+/// - *Is the variant torn by its own line?* A property of the
+///   VARIANT, exhaustive and owned by the operator layer
+///   ([`EulerOpError::reports_tier1_corruption`]). Nothing here
+///   answers it: [`OpPlacement::Torn`] records only that this door
+///   reaches the variant, and the verdict is delegated.
+/// - *Does the refusal contradict a fact the surgery established
+///   before the call?* A property of THIS DOOR, which no other
+///   caller of the operator can answer. `kef` cannot report
+///   [`EulerOpError::SameFace`] about a pair the absorption scan has
+///   just read out of two different faces; if it does, the arena
+///   changed under the door's feet — a kernel bug, which is exactly
+///   what the arena-fault escape exists for.
+///
+/// The third column of that classification — a variant an operator
+/// can return at this door on a tier-1-VALID body, i.e. a genuine
+/// inventory refusal for [`GroupRegime`] to place — is **empty**.
+/// Every one of the fifteen variants `merge_group`'s operator calls
+/// and lookups can raise is either torn by the enum's line or
+/// contradicts an established fact. The regime places the merge's own
+/// refusals ([`MergeCoplanarError::PeriodClosure`] and its siblings),
+/// never an [`EulerOpError`].
+///
+/// The match producing this is exhaustive on purpose, like the enum's
+/// own: a new [`EulerOpError`] variant does not compile until someone
+/// places it here as well as on the operator layer's line.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum OpPlacement {
+    /// A call this door makes can return it, and the variant's own
+    /// documentation already says the body is torn.
+    Torn,
+    /// A call this door makes can return it on a tier-1-valid body
+    /// only by contradicting a fact `merge_group` established before
+    /// the call — carried here, with the check that established it.
+    Contradicts(&'static str),
+    /// No call this door makes returns it. Placed by the enum's line
+    /// if one ever arrives.
+    NotRaisedHere,
+}
+
+impl OpPlacement {
+    /// Places one operator refusal against the facts `merge_group`
+    /// establishes before the call that returned it.
+    ///
+    /// The sites that can raise one: the `edge_halves`, `get_face`,
+    /// `face_is_planar` and `strut_tip` lookups, and the four
+    /// operator calls `ring_move`, `kef`, `kev`, `kemr`.
+    fn of(error: &EulerOpError) -> Self {
+        use EulerOpError as E;
+        match error {
+            // ---- Escape, this door's own: the refusal contradicts a
+            // fact established before the call it came back from. ----
+            E::NotSameLoop { .. } => Self::Contradicts(
+                "the intra-face pass verified the duplicate edge's two halves share a \
+                 loop — it refuses UnsupportedConfiguration where they do not — before \
+                 calling kemr",
+            ),
+            E::SelfLoopEdge { .. } => Self::Contradicts(
+                "the strut repair verified through `strut_tip` that the dying end's \
+                 vertex orbit holds ONE half-edge, which an edge whose two halves start \
+                 at one vertex cannot, before calling kev",
+            ),
+            E::SameLoop { .. } => Self::Contradicts(
+                "the absorption scan read the dying half-edge and its mate out of two \
+                 different FACES, and a loop belongs to one face",
+            ),
+            E::SameFace { .. } => Self::Contradicts(
+                "the absorption scan read the dying half-edge and its mate out of two \
+                 different faces — the survivor and the absorbed member — before \
+                 calling kef",
+            ),
+            E::FaceHasRings { .. } => Self::Contradicts(
+                "the absorption re-homed every ring of the dying face onto the survivor \
+                 through `ring_move` before calling kef",
+            ),
+            E::RingIsOuter { .. } => Self::Contradicts(
+                "the absorption took the ring out of the dying face's `rings` list, and \
+                 tier 1 keeps a face's outer loop out of that list",
+            ),
+            E::CrossShell { .. } => Self::Contradicts(
+                "the absorption scan found the two faces across ONE edge, and tier 1 \
+                 keeps an edge's two faces in one shell",
+            ),
+            // ---- Escape, delegated: torn by the variant's own line.
+            // Reachable here — the operators and the lookups beside
+            // them announce a failed lookup and a broken walk rather
+            // than answering — and what the state MEANS is the enum's
+            // to say, so this arm carries no verdict of its own. ----
+            E::StaleKey { .. }
+            | E::StaleGeometry { .. }
+            | E::LoopCycleBroken { .. }
+            | E::LoopNotCycle { .. }
+            | E::NotSameEdge { .. }
+            | E::UnclaimedHalfEdge { .. }
+            | E::OrbitBroken { .. }
+            | E::EmptyAnchorsCollide { .. } => Self::Torn,
+            // ---- Raised only by operators this door does not call:
+            // the attachment and split gates (`set_edge_curve`,
+            // `split_edge`), the make-side sites (`mev`, `mef`,
+            // `mekr`), `kvfs`, and `kfmrh`'s cross-solid form. ----
+            E::Certification { .. }
+            | E::DescriptionNotAdjacent { .. }
+            | E::FanStartMismatch { .. }
+            | E::FanOrbitBroken { .. }
+            | E::LoopNotEmpty { .. }
+            | E::NotSameFace { .. }
+            | E::SolidNotSingleShell { .. }
+            | E::ShellNotSingleFace { .. }
+            | E::NullScaffoldCurve { .. }
+            | E::SplitParamNotInterior { .. }
+            | E::SplitParamEscalated { .. }
+            | E::CrossSolid { .. } => Self::NotRaisedHere,
+        }
+    }
+}
+
 impl MergeCoplanarError {
     /// Whether this refusal reports a torn ARENA rather than a fact
     /// about the group's mergeability.
@@ -437,16 +561,30 @@ impl MergeCoplanarError {
     /// door that has just observed a kernel bug. Every other variant
     /// — the inventory refusals — is the regime's to place.
     ///
-    /// The class is **not enumerated here**. Every arena fault this
-    /// door can raise arrives from the operator layer, so membership
-    /// is asked of the operator layer
+    /// **The rule has two halves, because two questions meet here**
+    /// ([`OpPlacement`]). A refusal escapes when the variant is torn
+    /// by its own line — asked of the operator layer
     /// ([`EulerOpError::reports_tier1_corruption`], whose exhaustive
-    /// match is what stops the two lists drifting apart). A second
-    /// copy of the list in this file is exactly how the door came to
-    /// promise a rule it kept for two variants out of nine.
+    /// match is what stops the two lists drifting apart) — **or**
+    /// when it contradicts a fact `merge_group` established before
+    /// the call it came back from.
+    ///
+    /// The second half is enumerated here because it is this door's
+    /// own question and nothing else can answer it; the first is
+    /// delegated because it is not. A second copy of the ENUM's list
+    /// in this file is what the door must not keep, and does not:
+    /// keeping one is how the door came to promise a rule it kept for
+    /// two variants out of nine, and asking the enum a question it
+    /// does not answer is how the promise stayed false for seven
+    /// more.
     fn is_arena_fault(&self) -> bool {
         match self {
-            Self::Op { error } => error.reports_tier1_corruption(),
+            Self::Op { error } => match OpPlacement::of(error) {
+                OpPlacement::Contradicts(_) => true,
+                OpPlacement::Torn | OpPlacement::NotRaisedHere => {
+                    error.reports_tier1_corruption()
+                }
+            },
             _ => false,
         }
     }
@@ -588,10 +726,19 @@ impl<T: Decide> Body<T> {
     /// refusal and never becomes a record**: it says nothing about
     /// the group, so it refuses the call under both regimes rather
     /// than returning `Ok` from a door that has just observed a
-    /// kernel bug. The class is the operator layer's
-    /// ([`EulerOpError::reports_tier1_corruption`]) — a dangling
+    /// kernel bug. **Two things put a refusal in that class and this
+    /// door asks both** ([`MergeCoplanarError::is_arena_fault`]): the
+    /// operator layer's own line
+    /// ([`EulerOpError::reports_tier1_corruption`] — a dangling
     /// reference and the walks and bijections that cannot fail on a
-    /// tier-1-valid body — not a list kept here.
+    /// tier-1-valid body), and a refusal that CONTRADICTS a fact the
+    /// group's surgery established before the call it came back from.
+    /// `kef` reporting that the dying face still has rings, on a face
+    /// whose rings the surgery has just re-homed, reports the arena
+    /// and not the group's mergeability, whatever that variant means
+    /// at another door. The second class is enumerated here, since it
+    /// is this door's question; the first is the operator layer's and
+    /// is asked, not copied.
     ///
     /// [`MergeCoplanarError::GroupKindSplit`] also refuses under both
     /// regimes, but for a different reason and with a cost worth
