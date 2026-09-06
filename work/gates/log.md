@@ -331,3 +331,13 @@ Sent back before review: the branch predates PR 2044's merge, so the
 dead line-view filter it measured in `loop-boundary-discards.sh` is
 retired in this PR rather than filed as residue. Reviewer dispatched
 once that lands.
+
+## PR 2059 opened (2026-09-06)
+
+`gates/statement-attribute-items` reported: PR 2059 (the
+statement-attribute rule — an item under one has no body brace — and
+the seven `ArenaDelta` rows PR 2049 could not add; uses scanned 28 →
+68, the body-brace desync arm deleted). Residue filed on this slate:
+`assert_euler_postcondition` on no row. Reviewer dispatched. Note for
+the record: the row it closes was created in this PR — PR 2049
+disclosed it in prose and the file never reached `main`.
