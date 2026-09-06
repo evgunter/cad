@@ -234,8 +234,10 @@ nested even-power atoms:
 `work/m10/plate-rim-residual-needs-the-wide-coefficient-ring`), the
 declared tangency `carrier_line_circle` on R2's pad
 (`work/m10/declared-tangency-needs-the-registered-identity-door`), and
-the real-margin class M10-7 named (`arc_diameter_clearance`,
-`line_span`: `work/m10/real-margin-dependency-widening`).
+the real-margin class M10-7 named (`arc_diameter_clearance`:
+`work/m10/real-margin-dependency-widening`). `line_span` was listed in
+that class until M10-9 read it; it is an IDENTITY, and the section
+below says why.
 
 The counts behind the column, at the nominal, theorem/gated/numeric:
 
@@ -330,7 +332,40 @@ because they are the ones the door was expected to reach and does not:
   INDEPENDENTLY BUILT objects, which is not what a node alias can
   reach (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`).
 - **`carrier_line_circle`** — unchanged (R2's pad, 24 numeric at the
-  nominal, door on or off). The `Fillet(r)` step declares the tangency,
-  but the node the constructor could register is not the node the joint
-  classifier builds
+  nominal, door on or off). The `Fillet(r)` step declares the tangency
+  and the emitted VERTEX is the constructor's own node
+  (`path.rs:2605` stores `trims.t2` verbatim), but the CENTRE the
+  predicate asks about is re-derived by `build_seg` from `(a, b,
+  bulge)` (`seg.rs:140-148`) and the constructor does not hold the far
+  endpoint that closed form needs
   (`work/m10/fillet-tangency-is-not-the-constructors-node`).
+
+## Two identity-shaped predicates the class column mis-filed
+
+M10-9's fix pass, reading the over-band set at ceiling + δ rather than
+one drive's first refusal, found two predicates that were counted as
+real margins and are not. Neither is REACHED by the door — both are
+listed here so the next unit's scope is honest about what is left.
+
+- **`line_span`** (`crates/profile/src/seg.rs:193-196`) — margin
+  `min(t, L − t)` with `t = (q − a)·û`. On a fillet the point `q` it is
+  asked about is the tangency FOOT, and `line_arc` builds that foot as
+  `line.a + line.unit · (C − line.a)·line.unit` (`seg.rs:509`) at a
+  place the construction has already put at the leg's END. So `t = L`
+  by construction and the margin is IDENTICALLY zero: an identity
+  residual whose two sides are dependency-widened, straddling zero for
+  exactly the reason an identity does, and reported as a real margin
+  only because a widened identity and a real coincidence look the same
+  from the funnel.
+- **`contact_at_shared_vertex`** (`crates/profile/src/validate.rs:1407`)
+  — the second spelling of the same identity: the endpoint contact
+  `line_span` classified is then measured against the shared vertex it
+  IS. `coincident` on two spellings of one point.
+
+Neither is what bounds any of the five measured documents (that is
+`carrier_matches_mapped_source` on all five), and neither is reachable
+by a node alias as the profile stands: `q` is built inside the funnel,
+from the segment the funnel re-derived, so the constructor holds
+neither operand. They belong to the same class as
+`carrier_line_circle` — an identity the representation loses on the
+way in — and not to the real-margin class.

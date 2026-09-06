@@ -67,49 +67,121 @@ fn documents(tol: Tol) -> Vec<NamedStudy> {
             "r2_rounded_pad",
             Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         ),
+        // R2's own arc document, adopted so the corrected diagnosis is
+        // read on the same five documents both reviews measured.
+        (
+            "r2_link",
+            Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
+        ),
     ]
 }
 
-/// **The four ceilings, door OFF and door ON, at the tolerance this
-/// process was built with** — the bracket at both ends, and what
-/// refuses first beyond the door-ON one.
+/// **THE OVER-BAND SET at one scale**: every predicate with at least one
+/// decision the band could not classify, the widest such enclosure, and
+/// how many of that predicate's decisions were over the band.
+///
+/// It exists because reading a SINGLE first refusal answers the wrong
+/// question. A drive stops at its first refusal, and evaluation ORDER —
+/// validation before certification — picks which of several
+/// simultaneously-over-band predicates that is. M10-9's first cut read
+/// the refusal at twice the ceiling and reported `line_span`; at ceiling
+/// + δ the same documents are bounded by other predicates entirely, with
+/// `line_span` over the band as well. The bound is the SET, and it is
+/// read at the tightest refusing scale the bisection found.
+///
+/// Sorted widest-band first: the predicate furthest over the band is the
+/// one a slightly narrower study would still be stopped by.
+fn over_band_set(
+    shapes: &[geom_core::sym::report::DecisionShape],
+) -> Vec<(&'static str, (f64, f64), usize, usize)> {
+    let mut out: BTreeMap<&'static str, ((f64, f64), usize, usize)> = BTreeMap::new();
+    for s in shapes {
+        let e = out
+            .entry(s.predicate)
+            .or_insert(((f64::INFINITY, f64::NEG_INFINITY), 0, 0));
+        e.2 += 1;
+        if !matches!(
+            s.outcome,
+            ShapeOutcome::Indeterminate | ShapeOutcome::Invalid
+        ) {
+            continue;
+        }
+        e.1 += 1;
+        if let Some((lo, hi)) = s.enclosure {
+            e.0.0 = e.0.0.min(lo);
+            e.0.1 = e.0.1.max(hi);
+        }
+    }
+    let mut rows: Vec<_> = out
+        .into_iter()
+        .filter(|(_, (_, over, _))| *over > 0)
+        .map(|(p, (env, over, all))| (p, env, over, all))
+        .collect();
+    rows.sort_by(|a, b| {
+        (b.1.1 - b.1.0)
+            .partial_cmp(&(a.1.1 - a.1.0))
+            .unwrap_or(core::cmp::Ordering::Equal)
+    });
+    rows
+}
+
+/// **The ceilings, door OFF and door ON, and THE OVER-BAND SET AT
+/// CEILING + DELTA** — the bracket at both ends, and every predicate the
+/// band could not classify at the tightest refusing scale the bisection
+/// found, with its enclosure.
+///
+/// The last column is a SET and it is read at `hi`, the refusing end of
+/// a 16-step log bisection, for the reason [`over_band_set`] states:
+/// the first refusal a drive reports at a scale well PAST the ceiling
+/// is an artefact of evaluation order, not the bound. Twelve steps and
+/// a doubled scale — M10-9's first cut — were enough to be wrong about
+/// which predicate bounds four of these five documents.
 ///
 /// Run it once per ε row (`CAD_TOLERANCE_EPS=1e-6`, `1e-12`): the
-/// tolerance is a `OnceLock`, so one process is one row.
+/// tolerance is a `OnceLock`, so one process is one row. `CAD_M10_9_DOCS`
+/// names a comma-separated subset (the bracket and the pad cost minutes
+/// each under the shape report).
 #[test]
-#[ignore = "evidence-only: prints the four ceilings with and without the door"]
+#[ignore = "evidence-only: the ceilings, and the over-band set at ceiling + delta"]
 fn m10_9_ceilings_with_and_without_the_door() {
     let tol = Tol::witness();
     let eps = tol.eps();
     println!("== eps = {eps:e}");
+    let only = std::env::var("CAD_M10_9_DOCS")
+        .ok()
+        .filter(|s| !s.trim().is_empty());
     for (name, at) in documents(tol) {
+        if only
+            .as_deref()
+            .is_some_and(|l| !l.split(',').any(|n| n.trim() == name))
+        {
+            continue;
+        }
         for (label, rules) in door_rows() {
             let (lo, hi, per) =
-                crate::m10_8_harness::ceiling(&*at, rules, tol, 1.0e-1 * eps, 1.0e6 * eps, 12);
+                crate::m10_8_harness::ceiling(&*at, rules, tol, 1.0e-1 * eps, 1.0e6 * eps, 16);
             println!(
                 "   {name:<20} {label}: certifies x{lo:e}, refuses x{hi:e} ({per:.2}s/probe) \
                  [= {:.3e}·eps .. {:.3e}·eps]",
                 lo / eps,
                 hi / eps
             );
-            if lo.is_finite() && !lo.is_nan() {
-                let doc = at(lo * 2.0);
-                let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-                let (shapes, refusal, counts) = replay(&doc, &ParamBox::of(&analyzed), rules, tol);
-                println!("      beyond it: {refusal:?}; {counts:?}");
-                for s in shapes.iter().filter(|s| {
-                    matches!(
-                        s.outcome,
-                        ShapeOutcome::Indeterminate | ShapeOutcome::Invalid
-                    )
-                }) {
-                    println!(
-                        "      [{:?}] {}: {}",
-                        s.outcome,
-                        s.predicate,
-                        s.form.as_deref().unwrap_or("-")
-                    );
-                }
+            if !(lo.is_finite() && hi.is_finite()) {
+                continue;
+            }
+            // AT CEILING + DELTA, not at a round multiple past it.
+            let doc = at(hi);
+            let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+            let (shapes, refusal, counts) = replay(&doc, &ParamBox::of(&analyzed), rules, tol);
+            println!(
+                "      at ceiling+delta ({:.4e}·eps): the drive stops at {refusal:?}",
+                hi / eps
+            );
+            println!("      {counts:?}");
+            for (pred, (blo, bhi), over, all) in over_band_set(&shapes) {
+                println!(
+                    "      OVER BAND {pred:<34} [{blo:>11.4e},{bhi:>11.4e}] {over:>3}/{all:<4}"
+                );
             }
         }
     }

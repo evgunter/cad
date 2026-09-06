@@ -1,11 +1,10 @@
 ---
 id: fillet-tangency-is-not-the-constructors-node
 kind: issue
-title: the Fillet step's declared tangency cannot be registered: the node the constructor holds is not the node carrier_line_circle builds
+title: the Fillet step's declared tangency cannot be registered: the CENTRE carrier_line_circle asks about is re-derived by build_seg, not the constructor's node
 status: open
 opened: 2026-09-06
 ---
-
 
 **Measured by M10-9** (the registered-identity door, branch
 `m10/m10-9-registered-identity`), on R2's rounded-corner pad
@@ -13,83 +12,91 @@ opened: 2026-09-06
 document `work/m10/declared-tangency-needs-the-registered-identity-door`
 filed as the door's live consumer.
 
-The door was built and one registrant ships (the swept arc's rim
-identity). The `Fillet` step's declared tangency is the second
-registrant M10-9's spec named, and **it cannot be registered**: the door
-aliases NODES, and the node the constructor could state is not the node
-the joint classifier builds.
+The `Fillet` step's declared tangency is the second registrant M10-9's
+spec named, and **it cannot be registered as the constructor stands**.
+This row is the RE-CUT of a first version that named the wrong node.
 
-## The two forms, rendered
+## The obstacle is the CENTRE, not the vertex
 
-Transcribed from the two sites verbatim onto one corner's numbers
-(`m10_9_evidence_interval::m10_9_the_fillet_tangency_residual_rendered`,
-which prints both):
+The first cut of this row said the emitted vertex was not the
+constructor's node, on the strength of a hand transcription that
+anchored the leg at a different point from the real one. Read against
+the code, that is false:
 
-- **The consumer** (`crates/profile/src/seg.rs:326-343`,
-  `line_circle_joint`) decides `carrier_line_circle` on
-  `radius − |h|` with `h = line.unit.perp_dot(center − line.a)` —
-  `line.unit` the EMITTED leg's `chord / len`, `line.a` its start
-  vertex.
-- **The registrant** (`crates/profile/src/path.rs:2356`,
-  `fillet_arc_carrier`) holds `t2`, the arrival direction `u2` and the
-  radius, and builds `center = t2 + n̂·(σ·r)`, `n̂ = (−u2.y, u2.x)`. The
-  best `|h|` it can state is `|u2.perp_dot(center − t2)|`.
+- `ProfilePathBuilder::push_arc` (`crates/profile/src/path.rs:1989-2002`,
+  called at `path.rs:2605` as `self.push_arc(trims.t2, trims.bulge,
+  arc)?`) stores `trims.t2` **verbatim** as the emitted vertex's `pos`.
+  Nothing is recomputed. So the vertex the joint classifier reads —
+  `line.a`, `line.b`, the arc's start — IS the constructor's own node,
+  and a registration stated about it reaches the consumer.
 
-Rendered, on the most generous reading available — the registrant's
-`u2` spelled as the same unit vector the leg's chord produces — the two
-normal forms are **character-for-character identical**:
+What never reaches the joint is the **CENTRE**. The classifier does not
+receive it: `validate.rs:1328` calls
+`seg::build_seg(a.pos, b.pos, a.bulge, band)`, which RE-DERIVES the
+carrier from the three stored numbers alone
+(`crates/profile/src/seg.rs:140-148`):
 
 ```
-1·abs((-2·by·copysign(1, 1)·ay·r + 1·by^2·copysign(1, 1)·r
-     + 1·copysign(1, 1)·ay^2·r + -2·copysign(1, 1)·r·bx·ax
-     + 1·copysign(1, 1)·r·bx^2 + 1·copysign(1, 1)·r·ax^2)
-    / (1·sqrt(-2·by·ay + 1·by^2 + 1·ay^2 + -2·bx·ax + 1·bx^2 + 1·ax^2)^2))
+mid    = a.lerp(b, 1/2)
+n      = perp((b − a)/len)
+apothem = len·(1 − β²)/(4β)
+center = mid + n·apothem
 ```
 
-and the two NODES are not:
+whereas `fillet_arc_carrier` (`crates/profile/src/path.rs:2356`) holds
+`center = t2 + n̂·(σ·r)` with `n̂ = (−u2.y, u2.x)`. Two different node
+graphs for one point, and it is the centre that
+`carrier_line_circle` asks about — `h = line.unit.perp_dot(center −
+line.a)`, `crates/profile/src/seg.rs:498-505`. That is the whole
+obstacle, and it is a data-flow fact about the profile representation
+(a vertex list plus bulges; no carrier travels with a segment), not a
+limit of the door.
 
-```
-CONSUMER   |h| node 4ec13c47cb1264b772d59caa04b7ea3b
-REGISTRANT |h| node b65a68dfe7dd09847fbf98930c355ebc
-same node? false
-```
+**Why the constructor cannot simply state it.** The registration would
+have to be `center_consumer = center_registrant`, and the constructor
+cannot BUILD `center_consumer`: `build_seg`'s closed form needs the
+arc's FAR endpoint `b`, which does not exist yet at `push_arc` — it is
+pushed by whatever follows the fillet. The same-object condition is not
+the problem; the constructor's not holding the operands is.
 
-The difference is the two subtractions: the consumer forms
-`center − line.a`, the registrant `center − t2`, and `a ≠ t2` as nodes
-even where the anchoring is such that the two differences denote the
-same real. A registration on the registrant's node therefore reaches
-nothing the consumer asks about. Registering the CONSUMER's node is
-accepted by the door (`Recorded`) — the door is not the obstacle — but
-the constructor does not hold `line.a` or `line.unit`, and building
-them at the joint would be an edit at a funnel site, which M10-9's spec
-and ERROR-DESIGN E12 both forbid.
+## The two rendered forms
 
-**Measured consequence**: `carrier_line_circle` on the pad is 24
-decisions at the nominal, all numeric, door open or shut. The pad's
-whole-certifying ceiling is `[2.083e3, 2.091e3] · ε` at ε = 1e-6, 1e-9
-and 1e-12 alike, unmoved by the door, and the first refusal beyond it
-is not this predicate but `line_span`, enclosure
-`[-1.666 · ε, 1.666 · ε]` — the real-margin dependency-widening class
-(`work/m10/real-margin-dependency-widening`).
-
-## Why a form-level store would not fix it either
-
-Even as forms, the identity is not reached: the denominator is
-`sqrt(‖d‖²)²` — the sqrt ATOM squared — so `|σ·r·‖d‖²/‖d‖²| = r` needs
-rule A (`sqrt(X)² = X`), which is built, dial-selectable and off
-because it adds no discharge on any measured document. And the REAL
-pad's `carrier_line_circle` residual is worse than this transcription:
+`m10_9_evidence_interval::m10_9_the_fillet_tangency_residual_rendered`
+prints both, on one corner's numbers, and the door ANSWERS `Recorded`
+when the consumer's own node is handed to it: the door is not the
+obstacle. The pad's real residual is worse than any transcription —
 its radius arrives as a FROZEN atom and the rest carries `atan2`, `sin`
 and `cos` atoms from the path algebra (the same probe prints it).
 
-## What is owed
+## Measured consequence: it is not what bounds the pad
 
-- A decision on which of the three doors, if any, is worth opening:
-  (a) the fillet emitting its leg so that the constructor holds the
-  node the joint classifier will build — a change to the path
-  algebra's data flow, not to the tier; (b) rule A on, measured
-  against a document where it pays; (c) leaving `carrier_line_circle`
-  numeric and noting that it is not what bounds the pad anyway.
-- Whichever is taken, the pad re-measured, and this row and
-  `work/m10/declared-tangency-needs-the-registered-identity-door`
-  re-cut against it.
+- `carrier_line_circle` on the pad is 24 decisions at the nominal, all
+  numeric, door open or shut.
+- R2's staged-ceiling walk PASSED `carrier_line_circle` outright — the
+  ceiling measured as if the tangency were discharged — and the pad did
+  not move: `2.0831e3 · ε`, the same bracket as with it blocked
+  (`k_stats::identity_pass`, the `identity-pass-probe` feature).
+- The pad's ceiling is `[2.083e3, 2.091e3] · ε` at ε = 1e-6, 1e-9 and
+  1e-12 alike, unmoved by the door.
+
+So the tangency is a real obstacle to the tier's REACH and not a
+constraint on this document's ceiling. **Do not build it for the
+ceiling's sake.**
+
+## The two routes, if it is ever built
+
+1. **The constructor states the centre later.** Register at a point in
+   the builder where both arc endpoints are known, re-deriving
+   `build_seg`'s closed form there. No funnel edit — but it duplicates
+   `seg.rs:140-148` inside `path.rs`, and a registration whose truth
+   depends on two spellings staying character-identical is a theorem
+   the next edit silently breaks.
+2. **The segment carries its declared carrier.** `build_seg` accepts a
+   declared centre instead of re-deriving one, so the constructor's
+   node reaches the joint. This is the honest fix and it is an edit at
+   a funnel site: a change to the profile representation and to what
+   validation trusts, which M10-9's spec and ERROR-DESIGN E12 both put
+   outside a tier unit.
+
+Both are decisions for the unit that owns the path algebra, taken with
+`work/m10/declared-tangency-needs-the-registered-identity-door`.
