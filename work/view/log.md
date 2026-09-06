@@ -4425,3 +4425,105 @@ The two census findings are now
 `work/issues/prose-census-cannot-see-a-bypassed-prose-renderer` — one
 row, not two, because neither half alone catches the defect that
 motivated them.
+## `frame::progress`'s two swappable bools became one session value (2026-09-06)
+
+`progress(busy, running, indexing)` is closed by
+`session::Outstanding` — `Current | Evaluating | Canceled`, minted by
+`DocSession::outstanding()` — with the chrome door now
+`progress(Outstanding, bool)`.
+
+The interesting part was not the type, it was **where the pair stops
+existing**. A struct with `busy` and `running` fields types the
+signature and moves the swap into the constructor; three named types
+type the arguments and leave the caller assembling them in order. The
+enum is the only shape where the two reads are never a pair a caller
+holds: `outstanding()` consults each by name in an if/else chain, and
+the eighth combination the old function was total over
+(`!busy && running`, unreachable through a session) stops being
+expressible rather than staying documented.
+
+**The test was half the defect and got the other half of the fix.**
+The `frame_policy` row repeated the same positional convention as
+`app.rs`, so a swapped call site and a swapped test agreed; naming
+states instead of positions leaves nothing to mirror, and the swap is
+now a type error. But that row still says nothing about which SESSION
+state produces which chrome state, and `app.rs` is `app`-gated and
+untested, so the fold got coverage where it can execute without the
+feature: `tests/eval_seam.rs`'s cancel row now walks a real
+`DocSession` through `Evaluating` → `Canceled` → `Evaluating` →
+`Current`, asserting `outstanding()` at each. That mapping had no
+assertion anywhere before.
+
+`busy()` and `running()` both stay: nineteen and five readers use them
+singly, mostly as wait predicates. What is gone is any signature that
+takes both.
+
+The rule is in `crates/viewer/README.md`'s session paragraph, beside
+`Landing` and `AtRestBadge` — the other values the session mints for a
+vocabulary to consume, which is what settled where `Outstanding` lives
+rather than in `frame` (a per-frame policy module already carrying
+eight concerns).
+
+## #2055's style review: the receipt was the finding, and it was wrong about its own file (2026-09-06)
+
+The unit's thesis held and its best claim survived checking — the fold
+is behaviour-preserving over all eight combinations, and `eval_seam.rs`
+really does pin a mapping nothing asserted before. Two things did not,
+and both are about **what the PR said**, not what the code does.
+
+### A sweep receipt that a reader would have trusted
+
+`frame::chooser_backend_of(zenity_on_path: bool, session_bus: bool)`
+sits a hundred lines below `frame::progress` and is the same defect in
+every part: adjacent differently-defined bools, a `match (a, b)` body,
+a positional call site, a test row repeating the convention. The
+receipt said the crate held no second instance. The `rg` behind it
+**cannot match a multi-line signature**, which is the whole lesson: a
+grep over a signature is a grep over one line of it.
+
+The re-run parses every `fn` header's parameter list and reports each
+adjacent identically-typed pair. Two `bool` hits in `crates/viewer/src`,
+both now fixed — the second by naming the two readings (`Zenity`,
+`SessionBus`) rather than folding them, because there is no third party
+minting them; `ChooserBackend` is already the value that ranks them.
+Taking it here rather than filing it is what makes the unit remove the
+SHAPE from the crate instead of one instance of it.
+
+**A wrong negative result is worse than none**, because it is the one
+form of evidence that stops the next reader looking. That is the
+sentence worth keeping from this round.
+
+### A coverage regression disclosed as its opposite
+
+The PR said the unreachable eighth combination "stops being expressible
+rather than staying documented". It stops being expressible at
+`progress`'s signature and moves into `outstanding()`'s first arm — and
+the diff deleted the tree's only executable statement about it. Net:
+documented and asserted → documented only, written up as the reverse.
+
+Restored one level down, where it is a stronger row than the one lost:
+a `NeverIdle` seam reports work while the picture is current, and the
+session answers `Current`. The reason the state is unreachable is now
+written as its two mechanisms — `request_eval` bumping the generation
+on every submit, and both shipped seams handing a result up only with
+nothing queued — instead of the restatement of its own conclusion that
+stood there. That second mechanism is a property of two
+implementations and not of `EvalService`, and `HeldEvaluator` already
+departs from it, so it left with its own file.
+
+### Fifty lines of prose out
+
+One argument written five times, two near-verbatim, one of them
+defending against a shape the tree no longer contains. The README is
+now declared the home in its own text and the four other sites keep
+invariant-plus-pointer; `frame::progress`'s new paragraph, which
+described the signature printed beneath it, is deleted outright.
+
+### The residue this time
+
+Six items came back from the review. Four closed here; two stay open by
+the brief's instruction. Two more were split out at close rather than
+left in closing prose — the unenforced `EvalService` coalescing rule,
+and the same README/type-doc double statement for `LandedRun`. The
+first pass's "no residue" over three disclosed blind spots is what
+produced most of that list.
