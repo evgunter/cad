@@ -30,6 +30,10 @@ pub enum ShapeOutcome {
     Theorem,
     /// A symbolic `Zero` through a clause-3 fold.
     SignGated,
+    /// A `Zero` through a REGISTERED IDENTITY — an axiom a constructor
+    /// stated about what it built (`Sym::register_equal`), not a
+    /// theorem the tier proved.
+    Registered,
     /// The numeric channel certified a definite non-zero sign; the
     /// form was never built.
     Definite(Sign),
@@ -100,6 +104,7 @@ pub(super) fn record(
     let outcome = match (symbolic, numeric) {
         (Some(Discharge::Theorem), _) => ShapeOutcome::Theorem,
         (Some(Discharge::SignGated), _) => ShapeOutcome::SignGated,
+        (Some(Discharge::Registered), _) => ShapeOutcome::Registered,
         (None, Ok(Sign::Zero)) => ShapeOutcome::NumericZero,
         (None, Ok(s)) => ShapeOutcome::Definite(*s),
         (None, Err(e)) if matches!(e.margin, MarginDiag::Invalid) => ShapeOutcome::Invalid,

@@ -325,6 +325,53 @@ pub(crate) fn turn_axis<T: Real>(turn: Sign, normal: Vec3<T>) -> Vec3<T> {
     }
 }
 
+/// **The swept arc's rim identity, registered** (M10-9; ERROR-DESIGN
+/// E12's "kept in reserve — discharge by provenance", taken): the
+/// distance from an arc's endpoint to its center IS its radius, and
+/// this is the site that guarantees it, so this is the site that says
+/// so ([`geom_core::Real::register_equal`]).
+///
+/// **The proof, and it is two lines.** In the sketch plane the arc's
+/// geometry is the sagitta closed form (`profile::seg`): with `len` the
+/// chord length, `b` the bulge, `mid` the chord midpoint and `n̂` the
+/// unit chord normal, `apothem = len·(1 − b²)/(4b)`,
+/// `signed_radius = len·(1 + b²)/(4b)`, `center = mid + n̂·apothem` and
+/// `radius = |signed_radius|`. Either endpoint sits at `len/2` from
+/// `mid` along the chord, and `n̂ ⟂ chord`, so
+/// `‖q − c‖² = (len/2)² + apothem² = len²·(4b² + (1 − b²)²)/(16b²)
+/// = len²·(1 + b²)²/(16b²) = signed_radius² = radius²` — an identity of
+/// RATIONAL functions of the parameters, at every value where the arc
+/// is defined. Both sides are non-negative by construction (`‖q − c‖`
+/// is a `sqrt`, `radius` an `abs`), so the two are the same
+/// non-negative root and the squared identity is the unsquared one.
+/// The placement is rigid — an orthonormal frame and a translation —
+/// so the world distance is the sketch distance and the radius crosses
+/// unchanged; where a caller's placement is NOT rigid the door's own
+/// witness refuses the registration typed rather than believing this
+/// paragraph ([`geom_core::sym::SymRegistration::Contradicted`]).
+///
+/// **Why the tier cannot prove it for itself, measured.** The squared
+/// identity is a plain-form theorem wherever the coefficient ring can
+/// afford the expansion, and the unsquared one needs the outer `sqrt`
+/// discharged against an `abs` — rule C's shape, which folds on no
+/// document at the shipped 256-bit ring and needs ~640 bits and up at
+/// a leaf cost of minutes (`geom_core::sym`'s module docs,
+/// `work/m10/plate-rim-residual-needs-the-wide-coefficient-ring`). The
+/// ring width is a COST wall, and this door is the recourse E12 named
+/// for exactly that case.
+///
+/// **What it touches: nothing.** `rim.norm()` is the node
+/// `rim.normalize()` already divides by (`Vec3::normalize` is
+/// `self / self.norm()` and node ids are content hashes), so the
+/// registrant builds no expression the carrier did not already build,
+/// and no value anywhere changes — the carrier's `u_ref` is still
+/// `v / ‖v‖` at every lane. The rejected cheaper spelling is
+/// `v / radius`, which would buy the same cancellation by changing the
+/// `f64` lane's bits.
+pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T) {
+    rim.norm().register_equal(radius);
+}
+
 /// The edge spec of a profile segment carried into 3-space by one
 /// placement: `PlacedSegment` description, line or circle carrier per
 /// the crate docs' carrier conventions (arc axis = turn-signed plane
@@ -360,13 +407,19 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
             turn,
         } => {
             let c_world = place.transform_point(Point3::new(center.x, center.y, T::zero()));
+            let rim = q_from - c_world;
+            // The rim identity, stated where it is guaranteed
+            // (`register_rim_identity` carries the proof). Bound out of
+            // the expression below rather than spelled twice: one
+            // subtraction, one node, one set of bits.
+            register_rim_identity(rim, radius);
             EdgeCurveSpec {
                 description,
                 carrier: Curve3::Circle {
                     center: c_world,
                     axis: turn_axis(turn, normal),
                     radius,
-                    u_ref: (q_from - c_world).normalize(),
+                    u_ref: rim.normalize(),
                 },
                 param_start: T::zero(),
                 param_end: arc_span(seg.bulge()),

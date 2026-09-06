@@ -582,6 +582,22 @@ pub enum SampleOutcome {
     /// never a rule sample — the margin was never classified against
     /// the band.
     SignGated,
+    /// **The symbolic tier answered through a REGISTERED IDENTITY**
+    /// (`crate::sym::Sym::register_equal`, ERROR-DESIGN E12's
+    /// provenance reserve): the margin's expression is zero once two of
+    /// its nodes are taken to be one real, because the constructor that
+    /// built them guarantees it — a swept arc's rim distance and its
+    /// radius. An AXIOM about the construction, verified at the leaf's
+    /// witness, and therefore its own outcome beside
+    /// [`Self::SymbolicZero`] and [`Self::SignGated`] rather than
+    /// folded into either: the tier's theorems rest on exact rational
+    /// arithmetic alone, and this one rests additionally on the
+    /// registrant's argument. Reading the three columns apart is how a
+    /// document's discharge is read honestly.
+    ///
+    /// Like both of them, never a rule sample — the margin was never
+    /// classified against the band.
+    Registered,
 }
 
 #[cfg(feature = "probe")]
@@ -593,7 +609,7 @@ impl SampleOutcome {
     /// prove the list is complete, so adding one without listing it
     /// here reds a test rather than leaving a silent hole in whatever
     /// derives from it.
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::Definite(Sign::Negative),
         Self::Definite(Sign::Zero),
         Self::Definite(Sign::Positive),
@@ -601,6 +617,7 @@ impl SampleOutcome {
         Self::Invalid,
         Self::SymbolicZero,
         Self::SignGated,
+        Self::Registered,
     ];
 
     /// **The one spelling of this outcome**, and the K sweep's CSV
@@ -625,6 +642,7 @@ impl SampleOutcome {
             Self::Invalid => "invalid",
             Self::SymbolicZero => "symbolic_zero",
             Self::SignGated => "sign_gated",
+            Self::Registered => "registered",
         }
     }
 }
@@ -801,6 +819,13 @@ impl core::ops::Neg for Probe {
 impl Real for Probe {
     fn from_f64(x: f64) -> Self {
         Self(x)
+    }
+
+    /// The recording scalar's value channel IS an `f64`, so the
+    /// registered-identity witness is `f64`'s verbatim
+    /// ([`Real::register_equal`]).
+    fn register_equal(self, other: Self) -> crate::sym::SymRegistration {
+        self.0.register_equal(other.0)
     }
 
     fn zero() -> Self {

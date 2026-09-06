@@ -142,6 +142,43 @@ pub trait Real:
     /// the diagnostic; this method never replaces one.
     fn is_poison(self) -> bool;
 
+    /// **The registered-identity door's hook** (M10-9; ERROR-DESIGN
+    /// E12's "kept in reserve — discharge by provenance"): a
+    /// constructor generic over `T: Real` states that the two values
+    /// it holds are ONE real, because the construction it just
+    /// performed guarantees it — a swept arc's `‖q − c‖` and its
+    /// radius, say. The scalar decides what, if anything, that is worth
+    /// to it.
+    ///
+    /// **The default records nothing and claims nothing**
+    /// ([`crate::sym::SymRegistration::Unwitnessed`]), which is what
+    /// every scalar that tracks no expressions wants; the value channel
+    /// is untouched at every scalar, including the one that does. Two
+    /// jobs are behind the one method and the split is per scalar:
+    ///
+    /// - a scalar whose value channel can WITNESS the claim answers
+    ///   [`crate::sym::SymRegistration::Witnessed`] or, when the two
+    ///   values are not the same real,
+    ///   [`crate::sym::SymRegistration::Contradicted`] — `f64` and
+    ///   [`crate::Probe`] by a point tolerance
+    ///   ([`crate::sym::WITNESS_REL`]), [`crate::Interval`] by whether
+    ///   the two certified enclosures MEET. Neither records anything:
+    ///   there is no expression at a bare scalar to record it about;
+    /// - [`crate::Sym`] asks its own lane scalar that question first
+    ///   and, on a witness, RECORDS the identity in the installed
+    ///   session, where the symbolic tier's early normal form consults
+    ///   it (`crate::sym`'s module docs).
+    ///
+    /// Deliberately not `#[must_use]`. A registrant's business is to
+    /// state what it built; a refusal is typed and readable — the
+    /// door's own pins read it — but the loud channel for a constructor
+    /// that fails to build what it claims is the `f64` witness pass at
+    /// the funnel, which evaluates the residual at the point and
+    /// refuses there, where no widening can hide it.
+    fn register_equal(self, _other: Self) -> crate::sym::SymRegistration {
+        crate::sym::SymRegistration::Unwitnessed
+    }
+
     /// Raises `self` to an integer power by exponentiation by squaring;
     /// `n < 0` computes the reciprocal of `self.powi(|n|)`, and `n == 0`
     /// yields [`Real::one`] for every **non-poisoned** input. Poison
@@ -1183,6 +1220,29 @@ impl Real for f64 {
     /// `f64`'s one poison value is NaN.
     fn is_poison(self) -> bool {
         self.is_nan()
+    }
+
+    /// **The witness at a point** ([`Real::register_equal`]): `f64`
+    /// tracks no expression, so there is nothing to record — what it
+    /// can do is say whether the two values ARE the same real, which is
+    /// the half of the door's contract that keeps a constructor from
+    /// stating something it did not build.
+    ///
+    /// The comparison is relative to the larger magnitude, floored at
+    /// one, at [`crate::sym::WITNESS_REL`] (whose docs argue the
+    /// number). A poisoned value witnesses nothing: NaN is not a real,
+    /// so no claim about it is checkable.
+    fn register_equal(self, other: Self) -> crate::sym::SymRegistration {
+        use crate::sym::SymRegistration;
+        if self.is_nan() || other.is_nan() {
+            return SymRegistration::Unwitnessed;
+        }
+        let scale = self.abs().max(other.abs()).max(1.0);
+        if (self - other).abs() <= crate::sym::WITNESS_REL * scale {
+            SymRegistration::Witnessed
+        } else {
+            SymRegistration::Contradicted
+        }
     }
 
     /// [`powi_by_squaring`] behind a poison guard: `NaN⁰` is NaN, not 1 —

@@ -1233,6 +1233,24 @@ pub struct SymCounts {
     /// ([`signed`]). Kept apart from `symbolic_zero` because the two
     /// claims differ in kind; the matching K token is `sign_gated`.
     pub sign_gated: u64,
+    /// Decisions answered `Zero` through a REGISTERED IDENTITY
+    /// ([`Sym::register_equal`], ERROR-DESIGN E12's provenance
+    /// reserve) — not a theorem the tier proved but an AXIOM a
+    /// constructor stated about what it built, verified at the leaf's
+    /// witness and consulted by the early walk. Kept apart from BOTH
+    /// theorem counts because it is a different kind of claim: a
+    /// symbolic `Zero` rests on exact rational arithmetic alone, a
+    /// registered one rests additionally on the registrant's own
+    /// argument (`sweep::swept`'s arc carrier carries its proof in its
+    /// doc comment). The matching K token is `registered`.
+    ///
+    /// The attribution is the WEAKEST claim the form rests on: the
+    /// flag is sticky through every combinator, so a form that touched
+    /// a registered node at all counts here even where the fold that
+    /// finished it was A0's. Never the other way round — the plain
+    /// walk never consults the registry, so a decision the plain form
+    /// answers is `symbolic_zero` exactly as it was before this door.
+    pub registered: u64,
     /// Decisions handed to the numeric channel.
     pub numeric: u64,
     /// Nodes frozen into indeterminates (a budget or an overflow).
@@ -1243,13 +1261,14 @@ impl SymCounts {
     /// The three decision counts added together.
     #[must_use]
     pub fn decisions(&self) -> u64 {
-        self.symbolic_zero + self.sign_gated + self.numeric
+        self.symbolic_zero + self.sign_gated + self.registered + self.numeric
     }
 
     /// Adds another session's counts into this one.
     pub fn absorb(&mut self, other: Self) {
         self.symbolic_zero += other.symbolic_zero;
         self.sign_gated += other.sign_gated;
+        self.registered += other.registered;
         self.numeric += other.numeric;
         self.frozen += other.frozen;
     }
@@ -1325,6 +1344,20 @@ pub struct SymRules {
     /// the ring — and why a zero reached through it is counted
     /// `sign_gated` rather than `symbolic_zero`. Needs `early`.
     pub signed_root: bool,
+    /// **The REGISTERED-IDENTITY DOOR** (M10-9, ERROR-DESIGN E12's
+    /// provenance reserve): the early walk consults the session's
+    /// registry ([`Sym::register_equal`]), so a node a constructor
+    /// registered against another takes that other node's form and the
+    /// residual between them is the zero form.
+    ///
+    /// Not a rewrite RULE like the rest of this struct — the others are
+    /// algebra the tier performs, this one is an axiom a constructor
+    /// states — and it is a dial for exactly the reason they are: with
+    /// it off the tier is M10-8's, bit for bit, so what the door buys a
+    /// document is a measurement. Needs `early`: the registry is
+    /// consulted in the early memo only, never in the plain one, so a
+    /// theorem the plain form reaches is never re-labelled as an axiom.
+    pub registered: bool,
 }
 
 impl SymRules {
@@ -1338,6 +1371,7 @@ impl SymRules {
             early: true,
             early_ab: true,
             signed_root: true,
+            registered: true,
         }
     }
 
@@ -1372,6 +1406,7 @@ impl SymRules {
             early: true,
             early_ab: false,
             signed_root: false,
+            registered: true,
         }
     }
 
@@ -1386,6 +1421,19 @@ impl SymRules {
             early: false,
             early_ab: false,
             signed_root: false,
+            registered: false,
+        }
+    }
+
+    /// **The shipped set with the registered-identity door SHUT** —
+    /// M10-8's tier exactly, bit for bit, and the differential every
+    /// claim about what M10-9 costs and what it buys is measured
+    /// against ([`Self::registered`]).
+    #[must_use]
+    pub const fn shipped_without_the_door() -> Self {
+        Self {
+            registered: false,
+            ..Self::shipped()
         }
     }
 }
@@ -1457,7 +1505,124 @@ struct Session {
     params: IndetMap<(f64, f64)>,
     /// Every opaque atom minted so far, by its indeterminate id.
     atoms: IndetMap<AtomInfo>,
+    /// **The registered-identity registry** ([`Sym::register_equal`]):
+    /// `node -> the node it was registered equal to`, resolved
+    /// transitively by [`Session::alias`]. Keyed by content hashes and
+    /// per leaf replay, like everything else here; consulted by the
+    /// EARLY walk only, and only under [`SymRules::registered`].
+    registry: IdMap<SymId>,
     counts: SymCounts,
+}
+
+impl Session {
+    /// The node `id` denotes, following the registry to its end — `id`
+    /// itself when nothing was registered for it.
+    ///
+    /// The chain is finite because [`Sym::register_equal`] refuses a
+    /// registration that would close a cycle
+    /// ([`SymRegistration::Cyclic`]); the cap below is belt to that
+    /// braces, so a registry corrupted by a future edit degrades into a
+    /// missed cancellation rather than a hang.
+    fn alias(&self, id: SymId) -> SymId {
+        let mut cur = id;
+        for _ in 0..ALIAS_DEPTH {
+            match self.registry.get(&cur) {
+                Some(next) => cur = *next,
+                None => return cur,
+            }
+        }
+        cur
+    }
+
+    /// Whether `target` occurs in the expression `from` denotes, with
+    /// the registry already applied — the cycle test
+    /// [`Sym::register_equal`] runs before it records anything.
+    fn reaches(&self, from: SymId, target: SymId) -> bool {
+        let mut seen: IdMap<()> = IdMap::default();
+        let mut stack = vec![from];
+        while let Some(id) = stack.pop() {
+            let id = self.alias(id);
+            if id == target {
+                return true;
+            }
+            if seen.insert(id, ()).is_some() {
+                continue;
+            }
+            if let Some(node) = self.nodes.get(&id) {
+                stack.extend(node.kids[..node.op.arity()].iter().copied());
+            }
+        }
+        false
+    }
+}
+
+/// **The `f64` witness tolerance**: two values a constructor calls one
+/// real may differ by at most this, RELATIVE to the larger magnitude
+/// (floored at 1, so a claim about two near-zero values is judged
+/// absolutely).
+///
+/// `1e-9` is loose in ulps and tight in geometry, and that is the
+/// intent. A registration that IS a theorem of the construction differs
+/// only by the rounding of two closed forms — tens of ulps at worst for
+/// the sagitta's — which is a dozen orders below this. A constructor
+/// that fails to build what it claims is wrong by a GEOMETRIC amount,
+/// not by rounding. Pricing the gap tighter would turn the door into a
+/// second tolerance to calibrate, which is exactly what this repository
+/// does not want another of; the door is not the certifying instrument,
+/// the funnel is, and the `f64` witness pass still evaluates every
+/// residual against its own band at the point.
+pub const WITNESS_REL: f64 = 1.0e-9;
+
+/// How far [`Session::alias`] follows the registry before it gives up.
+/// A registration chain is at most as long as the registrations one
+/// leaf makes, which is a handful per arc.
+const ALIAS_DEPTH: usize = 64;
+
+/// **What the registered-identity door did with one registration**
+/// ([`Sym::register_equal`], ERROR-DESIGN E12's provenance reserve).
+///
+/// Every arm is a REFUSAL or a record, and none of them is silent:
+/// the door answers what it did, so a registrant that wanted to be
+/// loud can be and a pin can read it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SymRegistration {
+    /// Recorded: from here on the two nodes denote one function of the
+    /// parameters in this session's EARLY normal form, and a decision
+    /// that rests on the record is counted [`SymCounts::registered`].
+    Recorded,
+    /// Already recorded — the same two nodes, or two nodes the registry
+    /// already resolves to one. Idempotent, and cheap: nothing is
+    /// invalidated.
+    Already,
+    /// **REFUSED, typed: the two values are not one real.** The lane
+    /// scalar's own witness said so — certified enclosures that do not
+    /// MEET at [`crate::Interval`], `f64` values apart by more than
+    /// the point tolerance [`WITNESS_REL`] — so the constructor did not
+    /// build what it claims. Nothing is recorded, the registry is
+    /// unchanged, and every decision that would have rested on the
+    /// record stays numeric.
+    Contradicted,
+    /// **REFUSED, typed: the registration would close a cycle** — the
+    /// right node's expression already contains the left one, so
+    /// aliasing them would make the normal form's walk non-terminating.
+    /// (`form_in`'s termination argument is structural: a node's id is
+    /// a hash of its children's, so a cycle needs a hash preimage. The
+    /// registry is the one thing that could introduce one by hand, and
+    /// this arm is what keeps that argument true.)
+    Cyclic,
+    /// **The claim was witnessed and nothing was recorded.** Either the
+    /// scalar tracks no expressions (`f64`, `Interval`, `Probe`: there
+    /// is nothing at a bare scalar to record an identity ABOUT), or
+    /// there is one and nowhere to put it — no session installed, the
+    /// tier off at a zero-term budget, or [`SymRules::registered`]
+    /// off.
+    Witnessed,
+    /// **This scalar's value channel cannot witness the claim**, so
+    /// nothing is claimed and nothing is recorded — the default arm of
+    /// [`Real::register_equal`] and what every scalar that tracks no
+    /// expressions answers. A poisoned value answers this too: an
+    /// expression with no value witnesses nothing.
+    Unwitnessed,
 }
 
 thread_local! {
@@ -1535,6 +1700,7 @@ pub fn with_session_rules<R>(
             forms_early: IdMap::default(),
             params: IndetMap::default(),
             atoms: IndetMap::default(),
+            registry: IdMap::default(),
             counts: SymCounts::default(),
         });
     });
@@ -1680,6 +1846,24 @@ struct Form {
     /// reached through it is `sign_gated`, not `symbolic_zero`. Sticky
     /// through every combinator, like the poison flag.
     gated: bool,
+    /// **This form was built through a REGISTERED IDENTITY**
+    /// ([`Sym::register_equal`]): somewhere under it a node took
+    /// another node's form because a constructor said the two denote
+    /// one real. A zero reached through it is `registered` — an axiom
+    /// about the construction, verified at the leaf's witness — and
+    /// not a theorem the tier proved. Sticky through every combinator,
+    /// like the poison and the gate.
+    ///
+    /// It is deliberately NOT part of [`Form::digest`], unlike `gated`.
+    /// The registration claims the two nodes are the same real
+    /// UNCONDITIONALLY, so two forms that agree as rational functions
+    /// denote the same real whether or not a registration got one of
+    /// them there, and an atom over either is one indeterminate;
+    /// keying the flag into the digest would split that indeterminate
+    /// in two and cost the cancellations the door exists to buy. A
+    /// gated form, by contrast, is only equal to its expression over
+    /// THIS box, which is a different claim and stays in the key.
+    registered: bool,
 }
 
 impl Form {
@@ -1693,6 +1877,7 @@ impl Form {
             den,
             poisoned: false,
             gated: false,
+            registered: false,
         }
     }
 
@@ -1709,6 +1894,7 @@ impl Form {
             den: Poly::one(),
             poisoned: true,
             gated: false,
+            registered: false,
         }
     }
 
@@ -1735,6 +1921,7 @@ impl Form {
                 den: self.den.clone(),
                 poisoned: false,
                 gated: self.gated || other.gated,
+                registered: self.registered || other.registered,
             });
         }
         Some(Self {
@@ -1745,6 +1932,7 @@ impl Form {
             den: self.den.mul(&other.den, budget)?,
             poisoned: false,
             gated: self.gated || other.gated,
+            registered: self.registered || other.registered,
         })
     }
 
@@ -1757,6 +1945,7 @@ impl Form {
             den: self.den.clone(),
             poisoned: false,
             gated: self.gated,
+            registered: self.registered,
         })
     }
 
@@ -1769,6 +1958,7 @@ impl Form {
             den: self.den.mul(&other.den, budget)?,
             poisoned: false,
             gated: self.gated || other.gated,
+            registered: self.registered || other.registered,
         })
     }
 
@@ -1783,6 +1973,7 @@ impl Form {
             den: self.num.clone(),
             poisoned: false,
             gated: self.gated,
+            registered: self.registered,
         })
     }
 
@@ -1882,6 +2073,7 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
     // of a form that is only box-wise equal to the expression.
     let gate = |mut f: Form| {
         f.gated |= a.gated;
+        f.registered |= a.registered;
         f
     };
     let atom1 = |op: SymOp, sess: &mut Session| {
@@ -1977,6 +2169,7 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
             if folds {
                 let mut z = Form::zero();
                 z.gated = a.gated || b.gated;
+                z.registered = a.registered || b.registered;
                 return Some(z);
             }
             let id = indet_atom(node.op.tag(), node.payload, &[a.digest(), b.digest()]);
@@ -1987,6 +2180,7 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
             });
             let mut f = Form::poly(Poly::indet(id));
             f.gated = a.gated || b.gated;
+            f.registered = a.registered || b.registered;
             Some(f)
         }
         // Keyed by the CHILD IDS, never by their forms (the op's docs).
@@ -2002,6 +2196,7 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
                     .finish(),
             ));
             f.gated = a.gated || b.gated;
+            f.registered = a.registered || b.registered;
             Some(f)
         }
     }
@@ -2043,6 +2238,27 @@ fn form_in(sess: &mut Session, memo: &mut IdMap<Rc<Form>>, root: SymId, early: b
     while let Some((id, expanded)) = stack.pop() {
         if memo.contains_key(&id) {
             continue;
+        }
+        // **The registered-identity door** ([`Sym::register_equal`]),
+        // and the whole of where it acts: a node a constructor
+        // registered against another takes THAT node's form, marked
+        // `registered` so the decision it answers is counted as the
+        // axiom it is. Consulted in the EARLY walk only, so the plain
+        // form — the one a decision is asked of first — is M10-8's
+        // exactly and no theorem is ever re-labelled.
+        if early && sess.rules.registered {
+            let to = sess.alias(id);
+            if to != id {
+                if let Some(f) = memo.get(&to).cloned() {
+                    let mut g = (*f).clone();
+                    g.registered = true;
+                    memo.insert(id, Rc::new(g));
+                } else {
+                    stack.push((id, false));
+                    stack.push((to, false));
+                }
+                continue;
+            }
         }
         let Some(node) = sess.nodes.get(&id).copied() else {
             // Not in this session's table: an unrecorded leaf, or a node
@@ -2090,6 +2306,18 @@ fn form_in(sess: &mut Session, memo: &mut IdMap<Rc<Form>>, root: SymId, early: b
                 combined.map(|f| {
                     algebra::reduce_steps(&f, sess.rules, budget, &sess.atoms, EARLY_STEPS)
                         .filter(|g| within(budget, g))
+                        // The reduction rebuilds the quotient out of
+                        // polynomial pieces, so the STICKY flags are
+                        // carried across by hand: a reduced form is
+                        // gated or registered if what it reduced was.
+                        // Dropping either would report a weaker claim
+                        // as a stronger one, which is the one direction
+                        // the receipt may never move in.
+                        .map(|g| Form {
+                            gated: g.gated || f.gated,
+                            registered: g.registered || f.registered,
+                            ..g
+                        })
                         .unwrap_or(f)
                 })
             } else {
@@ -2144,6 +2372,12 @@ enum Discharge {
     /// box — the form is zero and was built through rule C's fold
     /// (`sign_gated`).
     SignGated,
+    /// An AXIOM about the construction: the form is zero, and it is
+    /// zero because a constructor registered two of its nodes as one
+    /// real ([`Sym::register_equal`]). Verified at the leaf's witness
+    /// when it was registered, counted apart from both theorem kinds
+    /// (`registered`).
+    Registered,
 }
 
 /// **The identity test**: is this node's expression identically zero in
@@ -2175,7 +2409,13 @@ fn discharge(id: SymId) -> Option<Discharge> {
         if rules.early {
             let e = early_form(sess, id);
             if e.is_zero() {
-                return Some(if e.gated {
+                // The WEAKEST claim any part of the form rests on:
+                // an axiom outranks a box-wise fold outranks a theorem,
+                // because reporting a weaker claim as a stronger one is
+                // the direction the receipt may never move in.
+                return Some(if e.registered {
+                    Discharge::Registered
+                } else if e.gated {
                     Discharge::SignGated
                 } else {
                     Discharge::Theorem
@@ -2200,6 +2440,7 @@ fn count_decision(discharge: Option<Discharge>) {
             match discharge {
                 Some(Discharge::Theorem) => sess.counts.symbolic_zero += 1,
                 Some(Discharge::SignGated) => sess.counts.sign_gated += 1,
+                Some(Discharge::Registered) => sess.counts.registered += 1,
                 None => sess.counts.numeric += 1,
             }
         }
@@ -2336,6 +2577,123 @@ impl<T> Sym<T> {
     }
 }
 
+impl<T: Real> Sym<T> {
+    /// **The registered-identity door** (M10-9; ERROR-DESIGN E12's
+    /// "kept in reserve — discharge by provenance", taken): records
+    /// that `self` and `other` denote ONE function of the parameters,
+    /// because the constructor that calls this GUARANTEES it.
+    ///
+    /// The tier's own `Zero` is a THEOREM — exact rational arithmetic
+    /// from the parameter symbols down, no value read. A registered
+    /// identity is an AXIOM: it rests on the registrant's argument
+    /// about what it built, and this door is where that argument enters
+    /// the tier. The two are counted apart for exactly that reason
+    /// ([`SymCounts::registered`], `SampleOutcome::Registered`), and a
+    /// registrant that cannot state its argument in its doc comment has
+    /// no business calling this.
+    ///
+    /// # What it does, and does not, do
+    ///
+    /// **It aliases NODES, and only nodes.** The LEFT node takes the
+    /// RIGHT node's normal form: the caller registers the quantity it
+    /// DERIVED against the one the construction HOLDS
+    /// (`norm.register_equal(radius)`). It is not a form-level equation
+    /// and there is no axiom store: an identity between two
+    /// independently built expressions discharges only where the
+    /// registrant builds the same content-hashed node the consumer
+    /// builds, which is a testable condition and is tested.
+    ///
+    /// **The value channel is untouched.** Nothing here reads, writes
+    /// or derives a value except the witness check below, which only
+    /// answers yes or no. `self.value` and `other.value` stay exactly
+    /// what their operations produced, at every lane — which is why the
+    /// cheaper spelling of the same wish, having the constructor
+    /// normalize by the declared radius (`(q - c) / r` instead of
+    /// `(q - c) / ||q - c||`), is REJECTED: it would change the `f64`
+    /// lane's bits and the numeric enclosure's dependency structure to
+    /// buy a symbolic cancellation, which is paying in the one currency
+    /// this tier promised not to spend.
+    ///
+    /// **It is consulted in the EARLY walk only.** The plain quotient
+    /// form — what a decision is asked of first — never sees the
+    /// registry, so every theorem the tier proved before this door
+    /// still counts as one and the door can only ADD a discharge
+    /// ([`SymRules::registered`]).
+    ///
+    /// # The witness, and the refusals
+    ///
+    /// The lane scalar is asked first ([`Real::register_equal`]): at
+    /// [`crate::Interval`] the two certified enclosures must MEET, at
+    /// `f64` the two values must agree to [`WITNESS_REL`]. Where they
+    /// do not, the door records nothing and answers
+    /// [`SymRegistration::Contradicted`], typed, so a constructor that
+    /// does not build what it claims cannot state it. A registration
+    /// that would close a cycle is refused
+    /// [`SymRegistration::Cyclic`] — `form_in`'s termination rests on
+    /// a node's id being a hash of its children's, and the registry is
+    /// the one thing that could break that by hand.
+    ///
+    /// The door is not the soundness argument on its own, and is not
+    /// claimed to be. Two further things hold it up: the numeric
+    /// channel runs FIRST at every decide site and short-circuits on a
+    /// definite non-zero sign, so **no registration can turn a margin
+    /// the enclosure proved non-zero into a `Zero`**; and the `f64`
+    /// witness pass evaluates every residual at the point against its
+    /// own band, where widening cannot hide a construction that lied.
+    ///
+    /// # Order against memoization
+    ///
+    /// A registration INVALIDATES the early memo — `forms_early` is
+    /// cleared — so a registrant may register after a consumer has
+    /// already decided, and the next decision sees the record. The
+    /// alternative (refusing a late registration) was rejected: the
+    /// evaluation service interleaves construction and decisions, so
+    /// "the registrant registers before any consumer builds" is not a
+    /// property a constructor can promise. What is NOT retroactive is
+    /// history: a decision already answered numerically stays answered,
+    /// which is a fact about when it was asked and not a miss. Clearing
+    /// costs the early walk of whatever is asked next, and only on a
+    /// registration that CHANGES the registry — a repeat answers
+    /// [`SymRegistration::Already`] and clears nothing.
+    ///
+    /// # D9
+    ///
+    /// The registry is keyed by content hashes and lives in the
+    /// per-leaf session, like the node table; a leaf's registrations
+    /// are made by the same fixed single-threaded walk of its recipe
+    /// that mints its nodes, so the record is identical across repeats
+    /// and across the rayon schedule, exactly as [`OPAQUE_SEQ`]'s
+    /// argument runs.
+    pub fn register_equal(self, other: Self) -> SymRegistration {
+        // The witness first: an unwitnessed or contradicted claim never
+        // reaches the registry at all.
+        match self.value.register_equal(other.value) {
+            SymRegistration::Contradicted => return SymRegistration::Contradicted,
+            SymRegistration::Unwitnessed => return SymRegistration::Unwitnessed,
+            _ => {}
+        }
+        SESSION.with(|s| {
+            let mut slot = s.borrow_mut();
+            let Some(sess) = slot.as_mut() else {
+                return SymRegistration::Witnessed;
+            };
+            if sess.budget.max_terms == 0 || !sess.rules.registered {
+                return SymRegistration::Witnessed;
+            }
+            let (a, b) = (sess.alias(self.node), sess.alias(other.node));
+            if a == b {
+                return SymRegistration::Already;
+            }
+            if sess.reaches(b, a) {
+                return SymRegistration::Cyclic;
+            }
+            sess.registry.insert(a, b);
+            sess.forms_early.clear();
+            SymRegistration::Recorded
+        })
+    }
+}
+
 impl<T: Real> Add for Sym<T> {
     type Output = Self;
 
@@ -2426,6 +2784,13 @@ impl<T: Real> Real for Sym<T> {
 
     fn is_poison(self) -> bool {
         self.value.is_poison()
+    }
+
+    /// **The one scalar that RECORDS** rather than only witnessing —
+    /// the door itself ([`Sym::register_equal`], which carries the
+    /// whole of the contract).
+    fn register_equal(self, other: Self) -> SymRegistration {
+        Sym::register_equal(self, other)
     }
 
     fn powi(self, n: i32) -> Self {
@@ -2583,7 +2948,10 @@ impl<T: Decide> Decide for Sym<T> {
         let definitely_nonzero = matches!(&numeric, Ok(Sign::Positive | Sign::Negative));
         if definitely_nonzero {
             debug_assert!(
-                discharge(self.node).is_none(),
+                !matches!(
+                    discharge(self.node),
+                    Some(Discharge::Theorem | Discharge::SignGated)
+                ),
                 "the numeric channel proved this margin nonzero and the form says it is                  identically zero: the two channels contradict each other"
             );
             count_decision(None);
@@ -2603,6 +2971,7 @@ impl<T: Decide> Decide for Sym<T> {
                 match how {
                     Discharge::Theorem => crate::k_stats::SampleOutcome::SymbolicZero,
                     Discharge::SignGated => crate::k_stats::SampleOutcome::SignGated,
+                    Discharge::Registered => crate::k_stats::SampleOutcome::Registered,
                 },
             );
             report::record(&numeric, Some(how), None);
