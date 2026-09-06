@@ -460,6 +460,11 @@ enum SymOp {
     Min,
     Max,
     Copysign,
+    /// The value-level decision door ([`Real::select_le_zero`]): the
+    /// only THREE-child op. Keyed like every other indeterminate atom —
+    /// by its children's normal forms — so two selects over equal forms
+    /// are one unknown and two over different ones are two.
+    Select,
     /// The multi-span enclosure hull ([`SpanLocate::enclosure_hull`]).
     /// Keyed by CHILD IDS rather than by their normal forms, because a
     /// hull is a function of the operands' ENCLOSURES and not of the
@@ -498,10 +503,11 @@ impl SymOp {
             Self::Copysign => 22,
             Self::Hull => 23,
             Self::Opaque => 24,
+            Self::Select => 25,
         }
     }
 
-    /// How many of the node's two child slots this op reads.
+    /// How many of the node's three child slots this op reads.
     fn arity(self) -> usize {
         match self {
             Self::Param | Self::Opaque | Self::Lit | Self::Pi => 0,
@@ -525,17 +531,20 @@ impl SymOp {
             | Self::Max
             | Self::Copysign
             | Self::Hull => 2,
+            Self::Select => 3,
         }
     }
 }
 
 /// One DAG node: its op, its payload bits (`Lit`'s float bits,
-/// `Param`'s symbol, `Powi`'s exponent) and up to two children.
+/// `Param`'s symbol, `Powi`'s exponent) and up to three children — the
+/// third read by [`SymOp::Select`] alone, and `UNRECORDED` on every
+/// other op.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct SymNode {
     op: SymOp,
     payload: u64,
-    kids: [SymId; 2],
+    kids: [SymId; 3],
 }
 
 impl SymNode {
@@ -546,6 +555,7 @@ impl SymNode {
                 .word(self.payload)
                 .wide(self.kids[0].0)
                 .wide(self.kids[1].0)
+                .wide(self.kids[2].0)
                 .finish(),
         )
     }
@@ -1434,7 +1444,7 @@ struct AtomInfo {
     /// without which a rule that rewrites an atom's ARGUMENT cannot
     /// re-mint the atom's id.
     payload: u64,
-    args: [Option<Rc<Form>>; 2],
+    args: [Option<Rc<Form>>; 3],
 }
 
 /// One leaf replay's DAG: the hash-consing table, the memoized forms and
@@ -1867,8 +1877,8 @@ fn powi_form(base: &Form, n: u32, budget: SymBudget) -> Option<Form> {
 /// cancellation the plain form already reaches. Every atom this mints
 /// is recorded in the session ([`Session::atoms`]) so that reduction
 /// can look its argument form back up.
-fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) -> Option<Form> {
-    let (a, b) = (kids[0], kids[1]);
+fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) -> Option<Form> {
+    let (a, b, third) = (kids[0], kids[1], kids[2]);
     let budget = sess.budget;
     // Where A0 applies: in the early walk when one is configured
     // (ALONGSIDE — the plain form stays M10-7's and can lose nothing),
@@ -1900,7 +1910,7 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
         sess.atoms.entry(id).or_insert_with(|| AtomInfo {
             op,
             payload: node.payload,
-            args: [Some(Rc::new(a.clone())), None],
+            args: [Some(Rc::new(a.clone())), None, None],
         });
         Some(gate(Form::poly(Poly::indet(id))))
     };
@@ -1983,10 +1993,37 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
             sess.atoms.entry(id).or_insert_with(|| AtomInfo {
                 op: node.op,
                 payload: node.payload,
-                args: [Some(Rc::new(a.clone())), Some(Rc::new(b.clone()))],
+                args: [Some(Rc::new(a.clone())), Some(Rc::new(b.clone())), None],
             });
             let mut f = Form::poly(Poly::indet(id));
             f.gated = a.gated || b.gated;
+            Some(f)
+        }
+        // The decision door: an indeterminate of its three arguments'
+        // forms. No fold — which arm it reads is a question about the
+        // decision's VALUE, which the form does not hold, and a
+        // both-candidates-equal fold would still have to prove the
+        // decision describable.
+        SymOp::Select => {
+            if a.tainted(b) || a.tainted(third) || b.tainted(third) {
+                return Some(Form::poison());
+            }
+            let id = indet_atom(
+                node.op.tag(),
+                node.payload,
+                &[a.digest(), b.digest(), third.digest()],
+            );
+            sess.atoms.entry(id).or_insert_with(|| AtomInfo {
+                op: node.op,
+                payload: node.payload,
+                args: [
+                    Some(Rc::new(a.clone())),
+                    Some(Rc::new(b.clone())),
+                    Some(Rc::new(third.clone())),
+                ],
+            });
+            let mut f = Form::poly(Poly::indet(id));
+            f.gated = a.gated || b.gated || third.gated;
             Some(f)
         }
         // Keyed by the CHILD IDS, never by their forms (the op's docs).
@@ -2076,11 +2113,17 @@ fn form_in(sess: &mut Session, memo: &mut IdMap<Rc<Form>>, root: SymId, early: b
         } else {
             None
         };
+        let fc = if arity >= 3 {
+            memo.get(&node.kids[2]).cloned()
+        } else {
+            None
+        };
         let budget = sess.budget;
         let made = {
             let kids = [
                 fa.as_deref().unwrap_or(&empty),
                 fb.as_deref().unwrap_or(&empty),
+                fc.as_deref().unwrap_or(&empty),
             ];
             let combined = combine(&node, kids, sess, early);
             // The per-node A/B reduction (`SymRules::early_ab`),
@@ -2097,7 +2140,7 @@ fn form_in(sess: &mut Session, memo: &mut IdMap<Rc<Form>>, root: SymId, early: b
             };
             combined.filter(|f| within(budget, f))
         };
-        drop((fa, fb));
+        drop((fa, fb, fc));
         let f = match made {
             Some(p) => Rc::new(p),
             None => frozen(sess, id),
@@ -2277,7 +2320,7 @@ impl<T> Sym<T> {
             node: intern(SymNode {
                 op: SymOp::Param,
                 payload: symbol.0,
-                kids: [SymId::UNRECORDED; 2],
+                kids: [SymId::UNRECORDED; 3],
             }),
         }
     }
@@ -2306,7 +2349,7 @@ impl<T> Sym<T> {
             node: intern(SymNode {
                 op,
                 payload,
-                kids: [SymId::UNRECORDED; 2],
+                kids: [SymId::UNRECORDED; 3],
             }),
         }
     }
@@ -2318,7 +2361,7 @@ impl<T> Sym<T> {
             node: intern(SymNode {
                 op,
                 payload,
-                kids: [self.node, SymId::UNRECORDED],
+                kids: [self.node, SymId::UNRECORDED, SymId::UNRECORDED],
             }),
         }
     }
@@ -2330,7 +2373,19 @@ impl<T> Sym<T> {
             node: intern(SymNode {
                 op,
                 payload: 0,
-                kids: [self.node, other.node],
+                kids: [self.node, other.node, SymId::UNRECORDED],
+            }),
+        }
+    }
+
+    /// Mints the node for a three-child op ([`SymOp::Select`]).
+    fn ternary(self, b: Self, c: Self, value: T, op: SymOp) -> Self {
+        Sym {
+            value,
+            node: intern(SymNode {
+                op,
+                payload: 0,
+                kids: [self.node, b.node, c.node],
             }),
         }
     }
@@ -2411,7 +2466,7 @@ impl<T: Real> Real for Sym<T> {
             node: intern(SymNode {
                 op: SymOp::Mul,
                 payload: 0,
-                kids: [two.node, pi.node],
+                kids: [two.node, pi.node, SymId::UNRECORDED],
             }),
         }
     }
@@ -2471,6 +2526,15 @@ impl<T: Real> Real for Sym<T> {
 
     fn copysign(self, sign: Self) -> Self {
         self.binary(sign, self.value.copysign(sign.value), SymOp::Copysign)
+    }
+
+    fn select_le_zero(self, when_le: Self, when_gt: Self) -> Self {
+        self.ternary(
+            when_le,
+            when_gt,
+            self.value.select_le_zero(when_le.value, when_gt.value),
+            SymOp::Select,
+        )
     }
 }
 

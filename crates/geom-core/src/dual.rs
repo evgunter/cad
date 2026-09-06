@@ -271,6 +271,22 @@ pub(crate) trait KinkJacobian: Real {
     /// enclosure selects `±abs_sign_factor(self)·self_deriv`, with the
     /// result's decoration capped by the deciding values'.
     fn copysign_deriv(self, self_deriv: Self, sign: Self) -> Self;
+
+    /// The tangent of `select_le_zero(self, ·, ·)`: the tangent of the
+    /// arm the value channel reads. `self` is the DECISION value and
+    /// its own tangent is not a parameter — the selection is locally
+    /// constant in it (the same discard rule as `min`'s unchosen
+    /// branch, and as `copysign`'s `sign`). `f64`: a NaN decision
+    /// poisons; otherwise `self <= 0` picks `when_le_deriv`. `Interval`:
+    /// a decided enclosure picks that arm's tangent with the decoration
+    /// capped by the deciding values'; an undecided one hulls both
+    /// tangents, decorated ≤ `Def` — the value channel hulls both
+    /// branches there, so the tangent is the subgradient set of the
+    /// same tie region ([`KinkJacobian::min_deriv`]'s convention, not
+    /// `copysign_deriv`'s entire line: the jump the door carries is in
+    /// the CANDIDATES, whose difference is enclosed, not in a factor of
+    /// unbounded slope).
+    fn select_le_zero_deriv(self, when_le_deriv: Self, when_gt_deriv: Self) -> Self;
 }
 
 /// `f64` kink selectors: IEEE comparisons, exact and deterministic (D9).
@@ -341,6 +357,19 @@ impl KinkJacobian for f64 {
             f64::NAN
         } else {
             f64::copysign(1.0, sign) * self.abs_sign_factor() * self_deriv
+        }
+    }
+
+    /// Selection mirroring `f64`'s [`Real::select_le_zero`] exactly: a
+    /// NaN decision ⇒ NaN; `self <= 0.0` keeps `when_le_deriv` (both
+    /// signed zeros take that arm), else `when_gt_deriv`.
+    fn select_le_zero_deriv(self, when_le_deriv: Self, when_gt_deriv: Self) -> Self {
+        if self.is_nan() {
+            f64::NAN
+        } else if self <= 0.0 {
+            when_le_deriv
+        } else {
+            when_gt_deriv
         }
     }
 }
@@ -511,6 +540,22 @@ impl<T: KinkJacobian> Real for Dual<T> {
         Self {
             value: self.value.copysign(sign.value),
             deriv: self.value.copysign_deriv(self.deriv, sign.value),
+        }
+    }
+
+    /// `(select_le_zero(d, a, b), select_le_zero_deriv(d, a', b'))` —
+    /// the value channel is `T::select_le_zero` verbatim, poison rule
+    /// included, and the tangent is the read arm's via
+    /// [`KinkJacobian::select_le_zero_deriv`]. The DECISION's own
+    /// tangent is discarded (it is locally constant in it), and where
+    /// the value channel hulls both candidates the tangent hulls both
+    /// tangents.
+    fn select_le_zero(self, when_le: Self, when_gt: Self) -> Self {
+        Self {
+            value: self.value.select_le_zero(when_le.value, when_gt.value),
+            deriv: self
+                .value
+                .select_le_zero_deriv(when_le.deriv, when_gt.deriv),
         }
     }
 

@@ -362,126 +362,127 @@ impl<T: Real> Vec3<T> {
     /// right-handed frame: returns `(b1, b2)` with `(b1, b2, self)`
     /// orthonormal and right-handed (`b1 × b2 = self` up to rounding).
     ///
-    /// This is the **branchless Pixar construction** (Duff, Burgess,
-    /// Christensen, Hery, Kensler, Liani, Villemin, *Building an
-    /// Orthonormal Basis, Revisited*, JCGT 6(1), 2017), the ratified
-    /// resolution of the M0 watchlist's "orthonormal-basis is a
-    /// value-branch" concern: there is **no value branch to guard** —
-    /// the construction is a fixed straight-line arithmetic sequence
-    /// whose only sign decision is [`Real::copysign`], a total value
-    /// operation. No predicate is needed because no branch exists;
-    /// evaluation is deterministic and bit-identical across
-    /// instantiations in the value channel by the same argument as any
-    /// other fixed formula.
-    ///
-    /// **Derivation.** For `s = ±1` matching the sign of `n.z`, the
-    /// reflection `R` through the plane bisecting `s·e_z` and `n` maps
-    /// `s·e_z ↦ n`; its other two (sign-adjusted) columns are then unit,
-    /// mutually orthogonal, and orthogonal to `n` by orthogonality of
-    /// the reflection. Writing `a = −1/(s + n.z)` collapses the
-    /// reflection's columns to the closed forms below (the paper's §3
-    /// algebra); the sign flip keeps the frame right-handed on both
-    /// hemispheres AND keeps `s + n.z` away from zero — the naive
-    /// single-branch formula divides by `1 + n.z`, which cancels
-    /// catastrophically near `n = −e_z` (the classic failure direction).
-    ///
-    /// **Evaluation order (fixed, D9), and why it is spelled this way.**
-    /// The denominator's MAGNITUDE is computed first and its sign is
-    /// applied separately, because `s` and `n.z` are correlated —
-    /// `s + n.z` is `±(1 + |n.z|)`, never near zero — and an enclosure
-    /// scalar that evaluates each occurrence of `s` independently cannot
-    /// see that. Writing the sum literally hands `Interval` a
-    /// zero-containing denominator for every `n.z = [0, 0]` (issue
-    /// #1157: every axis-aligned VERTICAL plane), which divides to
-    /// `[−∞, +∞]` decorated `Trv` — a manufactured non-real from inputs
-    /// that pose a perfectly real question, which `docs/DUAL-DESIGN.md`
-    /// DL6 forbids in a certified lane. So:
+    /// **The construction.** Let `k` be the index of the component of
+    /// `n = self` with the SMALLEST magnitude, ties going to the
+    /// HIGHEST index (`z` before `y` before `x`). Then
     ///
     /// ```text
-    /// s  = 1.copysign(n.z)
-    /// r  = 1/(1 + s·n.z)          // = 1/|s + n.z| = 1/(1 + |n.z|) ∈ (0, 1]
-    /// br = (n.x·n.y)·r
-    /// b1 = (1 − (n.x²)·r, −br, −(s·n.x))
-    /// b2 = (−(s·br), s − s·((n.y²)·r), −n.y)
+    /// b1 = normalize(e_k × n)
+    /// b2 = n × b1
     /// ```
     ///
-    /// each component exactly as parenthesized.
+    /// `b1 × b2 = b1 × (n × b1) = n·(b1·b1) − b1·(b1·n) = n` exactly in
+    /// ℝ, so the frame is right-handed by construction rather than by a
+    /// sign convention.
     ///
-    /// **`f64` is bit-identical to the `a = −1/(s + n.z)` spelling this
-    /// replaced, and that is measured, not derived** (`vec.rs`'s
-    /// `orthonormal_basis_matches_the_duff_spelling_bitwise` sweeps the
-    /// unit sphere plus the axis/equator edge set, signed zeros
-    /// included). The derivation the measurement confirms: `1 + s·n.z`
-    /// is the exact magnitude `|s + n.z|` (negation is exact and
-    /// addition is sign-symmetric), `1/s = s` exactly for `s = ±1`, so
-    /// `a = −s·r`; each component above then differs from its old
-    /// spelling only by multiplications by `±1`, which are exact and
-    /// sign-symmetric including on zeros.
+    /// **Why this order and this side of the cross**, in the terms a
+    /// user would state them: a horizontal face (`n = ±e_z`) has its two
+    /// smallest components tied at zero, takes `k = y`, and gets
+    /// `b1 = ±e_x`; a vertical wall (`n = (c, s, 0)`) takes `k = z` and
+    /// gets `b1 = (−s, c, 0)` — horizontal in the plane — with
+    /// `b2 = e_z`, up. Those are the frames a draughtsman would draw.
     ///
-    /// **What the new spelling buys at `Interval`.** `r`'s denominator
-    /// is `1 + |n.z|`, whose enclosure is `≥ 1` for EVERY `n.z`
-    /// enclosure — including the one-sided and straddling ones, which
-    /// is the whole point: `|·|` is a total, monotone map that needs no
-    /// sign decision, whereas `s · n.z` needs `copysign` to have
-    /// DECIDED a sign, and `Interval::copysign` is strict on both sides
-    /// (`interval.rs`), so it must return `[−1, 1]` for any `n.z`
-    /// enclosure touching zero. Writing the denominator as `1 + s·n.z`
-    /// therefore reintroduced the same defect one enclosure out from
-    /// the one #1157 filed: at `n.z = [0, 1]` — an ordinary one-sided
-    /// enclosure of a NON-NEGATIVE `z` — it gives `[0, 2]` and `r`
-    /// unbounded and `Trv`, while `1 + |n.z|` gives `[1, 2]` and
-    /// `r = [0.5, 1]`. The two spellings are bit-identical at `f64`
-    /// (`s · n.z ≡ |n.z|` there, signed zeros included), which is
-    /// exactly why the `f64` bitwise row cannot see the difference and
-    /// `orthonormal_basis_is_bounded_over_z_enclosures` exists.
+    /// **Conditioning: no seam on the sphere.** `|e_k × n|² = 1 − n_k²`,
+    /// and the smallest of three squares summing to 1 is at most `1/3`,
+    /// so `|e_k × n|² ≥ 2/3` for every unit `n`. The normalization is
+    /// therefore well conditioned everywhere — there is no direction at
+    /// which this construction is near-degenerate, and in particular
+    /// nothing happens at the equator `n.z = 0`, where every vertical
+    /// wall of every extrusion lives.
     ///
-    /// `b1` loses
-    /// `s` entirely except in `b1.z`: at `n.z = [0, 0]` the enclosure is
-    /// then the exact hull of the two frames the equator's sign flip
-    /// admits — `(1 − n.x²·r, −n.x·n.y·r, ±n.x)` — rather than a wide
-    /// or non-real one, and for a vertical plane with `n.x = 0` (the
-    /// `newell_plane` case) it is the EXACT frame. `b2` keeps both of
-    /// its `s` occurrences: they are what makes its `f64` bits identical
-    /// (a widened `b2.y` would flip a signed zero at `n = (0, ±1, −0.0)`),
-    /// and both production consumers — `newell.rs` and
-    /// `step-import`'s `recognize.rs` — take `b1` and discard `b2`.
+    /// **The discontinuity, documented honestly.** One must exist (no
+    /// continuous global frame on the sphere — hairy ball). Here it is
+    /// the DIAGONAL SET where the two smallest magnitudes tie: crossing
+    /// it rotates the frame about `n` by a quarter turn. It is never a
+    /// flip, and it is not a conditioning failure — both candidates are
+    /// perfectly conditioned there, which is what lets the enclosure
+    /// scalar answer with their hull instead of a non-real. Consumers
+    /// wanting a *stable* frame across parameter changes store the
+    /// frame (`u_ref`) as data, per D2; this constructor is for *making*
+    /// that data.
     ///
-    /// Both squares are the tight square (`powi(2)`), not the product
-    /// `n·n`: at `Interval` the product treats the two factors as
-    /// independent, so an enclosure straddling zero — every direction
-    /// near an equator — acquires a spurious negative lower bound. Nor
-    /// is `powi(2)` unconditionally narrower: on this backend it is 1
-    /// ulp wider on each side once the square falls below `2^-960`, i.e.
-    /// `|n.x| < 2^-480`, which no unit direction reaches
-    /// (`scripts/gates/interval-square-allowlist.sh` carries the
-    /// measurement).
+    /// **No sign is transferred anywhere.** The axis choice is a
+    /// comparison, and it goes through [`Real::select_le_zero`], the
+    /// value-level decision door, applied componentwise to the
+    /// candidate vectors — three scalar calls per stage, on the SAME
+    /// decision, so the two stages are two decisions and not six. The
+    /// door's tie-break keys on a value zero rather than a zero's sign
+    /// bit, which is what makes it decide at `Interval` where
+    /// [`Real::copysign`] must hull: a point enclosure `[0, 0]` names
+    /// one real and one arm. Spelling the choice as `copysign` on the
+    /// difference would be a total order at `f64` and a hull at every
+    /// point tie — that is, at every axis-aligned normal.
     ///
-    /// **Discontinuity, documented honestly:** the frame flips across
-    /// the equator `n.z = 0` (`s` jumps) — the construction is
-    /// deterministic and well-conditioned everywhere on the sphere, but
-    /// not continuous as a function of `n` there (no continuous global
-    /// frame on the sphere exists — hairy-ball; the seam had to go
-    /// somewhere, and `copysign`'s kink conventions carry it honestly
-    /// through duals and intervals). At `Interval` an `n.z` enclosure
-    /// containing zero cannot tell the two sides apart — a point
-    /// enclosure `[0, 0]` carries no sign bit — so the honest answer
-    /// there is the hull of both frames, which is what `b1.z` and `b2`
-    /// widen to. Consumers wanting a *stable* conventional frame across
-    /// parameter changes store the frame (`u_ref`) as data, per D2 —
-    /// this constructor is for *making* that data.
+    /// **Evaluation order (fixed, D9).** The two stages, exactly as
+    /// written:
+    ///
+    /// ```text
+    /// c_x = normalize(( 0,   −n.z,  n.y))      // e_x × n
+    /// c_y = normalize(( n.z,  0,   −n.x))      // e_y × n
+    /// c_z = normalize((−n.y,  n.x,  0  ))      // e_z × n
+    /// d1  = |n.z| − |n.y|      w = select(d1, c_z, c_y)   // ties → z
+    /// d2  = min(|n.z|, |n.y|) − |n.x|
+    ///       b1 = select(d2, w, c_x)                       // ties → w
+    /// b2  = n × b1
+    /// ```
+    ///
+    /// **Each candidate is normalized before the selection, not after
+    /// it**, and that ordering is load-bearing at `Interval`. Selecting
+    /// first and normalizing once would divide a straddled tie's HULL
+    /// by its own norm enclosure, and that hull can contain the zero
+    /// vector (at `n.y = n.z`, `c_z` and `c_y` have opposite `x`
+    /// components) — an unbounded, `Trv` answer to a question that is
+    /// real at every point of the box, which DL6 forbids. Normalizing
+    /// first makes the undecided answer the hull of two unit vectors:
+    /// bounded, decorated `Def`, and containing whichever frame the
+    /// `f64` program picked. At `f64` the two orderings are
+    /// bit-identical, since exactly one candidate is read.
+    ///
+    /// **The unread candidates may be poison, and that is by design.**
+    /// `e_k × n` is the zero vector exactly when `n` is parallel to
+    /// `e_k`, so `normalize` poisons `c_z` at `n = ±e_z` and `c_x` at
+    /// `n = ±e_x`. The axis order guarantees such a candidate is never
+    /// the one selected — it is the LARGEST magnitude's axis, and this
+    /// picks the smallest — and [`Real::select_le_zero`] propagates
+    /// poison only from the arm it reads. A poisoned INPUT still
+    /// poisons everything, through the decision.
+    ///
+    /// Both squares inside `normalize` are the tight square
+    /// (`powi(2)`), not the product `n·n`: at `Interval` the product
+    /// treats the two factors as independent, so an enclosure
+    /// straddling zero acquires a spurious negative lower bound.
     ///
     /// **Precondition (conventional, unchecked):** `self` is unit. A
     /// non-unit input yields a well-defined but non-orthonormal pair
     /// (no poison, no check — same posture as unit-`dir` curve data;
     /// tier-3 certification owns the invariant). A poisoned input
-    /// propagates poison.
+    /// propagates poison. The `≥ 2/3` conditioning bound and the
+    /// never-selected-poison argument above are both statements about
+    /// unit inputs; at a non-unit one the construction is still total,
+    /// but the candidate it picks is only the best of the three.
     pub fn orthonormal_basis(self) -> (Self, Self) {
-        let s = T::one().copysign(self.z);
-        let r = T::one() / (T::one() + self.z.abs());
-        let br = (self.x * self.y) * r;
-        let b1 = Self::new(T::one() - self.x.powi(2) * r, -br, -(s * self.x));
-        let b2 = Self::new(-(s * br), s - s * (self.y.powi(2) * r), -self.y);
-        (b1, b2)
+        let zero = T::zero();
+        let cx = Self::new(zero, -self.z, self.y).normalize();
+        let cy = Self::new(self.z, zero, -self.x).normalize();
+        let cz = Self::new(-self.y, self.x, zero).normalize();
+        let (ax, ay, az) = (self.x.abs(), self.y.abs(), self.z.abs());
+        let w = Self::select(az - ay, cz, cy);
+        let b1 = Self::select(az.min(ay) - ax, w, cx);
+        (b1, self.cross(b1))
+    }
+
+    /// [`Real::select_le_zero`] componentwise on one decision — `when_le`
+    /// if `d ≤ 0`, else `when_gt`.
+    ///
+    /// The SAME `d` steers all three components, which is what makes an
+    /// undecided enclosure the hull of the two candidate VECTORS rather
+    /// than a box over three independent choices.
+    fn select(d: T, when_le: Self, when_gt: Self) -> Self {
+        Self::new(
+            d.select_le_zero(when_le.x, when_gt.x),
+            d.select_le_zero(when_le.y, when_gt.y),
+            d.select_le_zero(when_le.z, when_gt.z),
+        )
     }
 }
 

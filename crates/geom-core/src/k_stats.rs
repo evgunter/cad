@@ -875,6 +875,10 @@ impl Real for Probe {
     fn copysign(self, sign: Self) -> Self {
         Self(Real::copysign(self.0, sign.0))
     }
+
+    fn select_le_zero(self, when_le: Self, when_gt: Self) -> Self {
+        Self(Real::select_le_zero(self.0, when_le.0, when_gt.0))
+    }
 }
 
 /// `Probe` brackets itself exactly, like `f64` (it IS an f64 with a

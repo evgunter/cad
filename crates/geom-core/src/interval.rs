@@ -380,6 +380,59 @@ impl Real for Interval {
         }
     }
 
+    /// The decision door over enclosures ([`Real::select_le_zero`]).
+    ///
+    /// **Decided** when the comparison holds at every point of the
+    /// enclosure: `hi ≤ 0` selects `when_le`, `lo > 0` selects
+    /// `when_gt`, each with its decoration capped by the DECIDING
+    /// enclosure's — the choice is only as trustworthy as the enclosure
+    /// that made it, the same convention as [`Real::copysign`]'s
+    /// sign-definite arms.
+    ///
+    /// `hi ≤ 0` includes the point tie `[0, 0]`, and that is the whole
+    /// difference from `copysign`: this door's tie-break keys on the
+    /// value zero rather than a zero's sign BIT, so a point enclosure
+    /// of zero names one real whose arm is the same for every `f64`
+    /// replay inside it. `copysign` cannot decide there — an `f64`
+    /// `-0.0` and `+0.0` are one enclosure and two different answers —
+    /// which is why its zero-containing arm hulls and this one does
+    /// not.
+    ///
+    /// **Undecided** (`lo ≤ 0 < hi`, necessarily of positive width) is
+    /// the hull of the two candidates with the decoration capped at
+    /// `Def`: the function is defined at every point of the box and
+    /// discontinuous in it, and the honest answer is both branches.
+    /// Never `Trv`, never empty, never a manufactured non-real — the
+    /// question is real and DL6 forbids answering a real question with
+    /// one. The hull is also the minimum that can hold: an `f64` point
+    /// inside the decision's enclosure may sit on either side, so any
+    /// enclosure of the true answer contains both candidates.
+    ///
+    /// Poison: NaI or empty in the DECISION propagates (no arm is
+    /// readable); in a candidate it propagates only through the arm
+    /// that reads it, including the hull ([`tangent_hull`] is poison-
+    /// first for exactly this reason). Raw endpoint comparisons are
+    /// scalar-implementation code (Q1's allowance, as in [`Real::min`]
+    /// at `f64`).
+    fn select_le_zero(self, when_le: Self, when_gt: Self) -> Self {
+        if self.0.is_nai() {
+            return Self(DInterval::nai());
+        }
+        if self.0.is_empty() {
+            return Self(DInterval::empty());
+        }
+        if self.0.hi() <= 0.0 {
+            Self(cap_decoration(when_le.0, self.0.decoration()))
+        } else if self.0.lo() > 0.0 {
+            Self(cap_decoration(when_gt.0, self.0.decoration()))
+        } else {
+            Self(cap_decoration(
+                tangent_hull(when_le.0, when_gt.0),
+                self.0.decoration().min(Decoration::Def),
+            ))
+        }
+    }
+
     /// **Overrides** the defaulted squaring algorithm with the backend's
     /// dedicated integer power, per the override clause in
     /// [`Real::powi`]'s docs: the interval contract is a **tight
@@ -798,6 +851,32 @@ impl KinkJacobian for Interval {
                     .decoration()
                     .min(sign.0.decoration())
                     .min(Decoration::Def),
+            ))
+        }
+    }
+
+    /// [`Real::select_le_zero`]'s tangent, arm for arm: a decided
+    /// decision enclosure keeps that arm's tangent with the decoration
+    /// capped by the decision's; an undecided one hulls both
+    /// ([`tangent_hull`]), decorated ≤ `Def` — the same tie-region
+    /// subgradient convention as [`KinkJacobian::min_deriv`]. The
+    /// decision's NaI/empty poisons; a candidate tangent's poisons only
+    /// through the arm that reads it.
+    fn select_le_zero_deriv(self, when_le_deriv: Self, when_gt_deriv: Self) -> Self {
+        if self.0.is_nai() {
+            return Self(DInterval::nai());
+        }
+        if self.0.is_empty() {
+            return Self(DInterval::empty());
+        }
+        if self.0.hi() <= 0.0 {
+            Self(cap_decoration(when_le_deriv.0, self.0.decoration()))
+        } else if self.0.lo() > 0.0 {
+            Self(cap_decoration(when_gt_deriv.0, self.0.decoration()))
+        } else {
+            Self(cap_decoration(
+                tangent_hull(when_le_deriv.0, when_gt_deriv.0),
+                self.0.decoration().min(Decoration::Def),
             ))
         }
     }
