@@ -5327,3 +5327,70 @@ the two pre-existing prose findings the review filed (three
 `Point3<f64>` cast sites against a doc sentence naming two;
 `highlight`/`edge_overlay` called "twins" while disagreeing on whether
 a hover that IS the selection is reported as hovered).
+
+## Two things put where they belong: `cursor_projection` home, `Generation::get` gone (2026-09-06)
+
+The two "this is not where it belongs" rows from #2079's and #2083's
+reviews, in two commits because they are two different kinds of change
+and only one of them is certifiable by a sorted-line diff.
+
+**`cursor_projection` → `camera`, and the home was verified before the
+move rather than after.** The item PROPOSED `camera`; four checks made
+it a finding rather than a guess. `camera` already builds the matrix
+the function transforms (`view_projection`) and already answers in the
+frame its `cursor_ndc` is in (`project`, `ray_through`), so the subject
+is the module's. The signature is three arrays of `f32` and nothing
+else, so `camera` gains no import and its module kind is unchanged.
+`camera` already holds free `pub fn`s (`apply`, `fold`,
+`fold_recorded`), so a function outside `impl Camera` is the file's
+existing shape. And the doc link NARROWED —
+`[\`crate::camera::Camera::project\`]` back to `[\`Camera::project\`]`
+— which is #2083's tell running in reverse.
+
+**No shim, and no test-side re-pointing needed.** Every suite already
+spelled it `viewer::cursor_projection`; that crate-root re-export moved
+from the `pub use marks::{…}` list to `pub use camera::{…}`, so there
+stays exactly ONE path to the function. `session-shims-and-test-imports`
+is open because unit 1c left two spellings of every moved path; this
+left one. `gpu.rs` is the only production consumer and imports
+`crate::camera::cursor_projection`.
+
+**`Generation::get` deleted, and the precedent it looked like does not
+reach it.** `tool-kind-all-and-ordinal-have-no-production-reader` kept
+a `pub` item and documented the suites as its only readers — the item
+was preserved BECAUSE it had a reader. `get` has none anywhere: not
+`src`, not `tests`, not `examples`. What survives the deletion is the
+need its doc named: `Generation` derives `Debug`, so a log line and a
+debugger still show the counter, and the accessor was a second door
+onto what `Debug` already opens. `next`'s twelve-line ceiling paragraph
+lost the part describing a state nothing can construct and kept the
+part that is the reason for `saturating_add` over `+`.
+
+**The tracker pass found eighteen stale citations, and eleven of them
+predate this branch.** Re-derived, never shifted, every one verified by
+reading the line it names. **Seven this branch broke**: the six
+`marks.rs` citations in three open rows (`:132-135`, `:286`, `:200`,
+`:224-227`, `:118-121`, `:261`) all move by −13, the header section
+this commit deleted, and `camera.rs:908` moves to `:954` under the
+insert. **Eleven that were already wrong on `origin/main`** and would
+have gone on being wrong: `session-shims`'s `lib.rs:147` (`:163` on
+base, `:160` on head, so this branch moved a line that was already
+mis-cited), `two-datumkind`'s `lib.rs:124` (`:128`) and `forms.rs:55`
+(`:93`), `session-shims`'s `combine_ops.rs:1327` (`:1340`), and seven
+in `adjacent-same-typed-arguments-are-the-same-swap` — five
+`session.rs` citations all off by exactly four, `session/refuse.rs:308`
+(`:323`) and `frame.rs:1658` (`:1689`). Six of those seven are the
+brief's own warning working: they cite MULTI-LINE `fn` headers, which
+is exactly what a grep over a signature cannot re-find.
+
+That is the lesson worth keeping. The instrument was sold as a check on
+what your own diff shifted; run over every row a branch touches it
+finds more drift than the branch caused, because a row that has sat
+open through a few refactors accumulates it silently and nothing else
+reads those numbers. Eleven of eighteen here.
+
+One more, `work/tcost/loud-skip-marker-is-a-hand-kept-idiom`'s
+`lib.rs:103` and `lib.rs:92-100`, is outside this program's fence —
+the symbol it names, `app_lane_skipped_no_chrome_or_gpu_coverage_here`,
+is not in `crates/viewer/src/lib.rs` under any line number today — so
+it is in the PR body and this report rather than edited here.
