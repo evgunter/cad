@@ -38,7 +38,7 @@ use viewer::input::{InputMap, PickAction, PointerButton, ViewportEvent, Viewport
 use viewer::pickindex::{IdMap, PatchId, PickIndex};
 use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, FaceSelection, Hovered, Selection, SessionOp};
-use viewer::{cursor_projection, pickindex};
+use viewer::{cursor_projection, marks};
 
 // -------------------------------------------------------------------
 // Fixtures, authored through the ordinary edit doors.
@@ -835,10 +835,10 @@ fn one_name_can_be_drawn_under_two_ids() {
 /// happens to carry the same stable name.
 ///
 /// The selection value carries `node` and `body` precisely so this
-/// question has an answer; `pickindex::highlight` reads only `name`.
+/// question has an answer; `marks::highlight` reads only `name`.
 ///
 /// **Was RED against the reviewed head — MAJOR-1, written as the gate
-/// it should become.** The fix pass made `pickindex::highlight` narrow by
+/// it should become.** The fix pass made `marks::highlight` narrow by
 /// `(node, body)` through `PickIndex::ids_of_target`, so the attribute
 /// is gone and this row gates.
 #[test]
@@ -858,7 +858,7 @@ fn the_highlight_marks_the_selected_bodys_patch_not_another_with_the_same_name()
         node: hit.node,
         body: hit.body,
     });
-    let marked = pickindex::highlight(&index, &selection, None);
+    let marked = marks::highlight(&index, &selection, None);
     assert_ne!(marked.selected, IdMap::NOTHING, "something is marked");
     let key = index
         .ids()

@@ -65,9 +65,10 @@ use crate::frame::{self, IdQueryLog, StatusUpdate};
 use crate::generation::Generation;
 use crate::gpu::{DEPTH_BITS, ViewportRenderer};
 use crate::input::InputMap;
+use crate::marks;
 use crate::parts::PartChooser;
 use crate::pick::{self, PickCache};
-use crate::pickindex::{self, PickIndex};
+use crate::pickindex::PickIndex;
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::scene::{self, DisplayTolerance, SceneError, SceneMesh};
 use crate::session::{DocSession, Refusal, Selection, SessionOp};
@@ -293,7 +294,7 @@ pub struct ViewerApp {
     /// rebuild exactly as a new evaluation does.
     scene_display: Option<u64>,
     /// The focus set `scene` was built under — the ids of what the side
-    /// panel is showing (`pickindex::focus`), which the scene carries as a
+    /// panel is showing (`marks::focus`), which the scene carries as a
     /// per-corner flag and therefore has to be rebuilt for.
     ///
     /// Compared as a SET rather than counted by a revision, because
@@ -777,7 +778,7 @@ impl ViewerApp {
         let Some(index) = self.picks.index() else {
             return;
         };
-        let focus = pickindex::focus(index, self.session.doc(), self.session.selection());
+        let focus = marks::focus(index, self.session.doc(), self.session.selection());
         if !rebuilt && self.scene_display == Some(display_revision) && self.scene_focus == focus {
             return;
         }

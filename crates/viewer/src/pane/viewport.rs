@@ -14,8 +14,9 @@ use crate::datums::{self, datum_view};
 use crate::frame::{self, IdStep};
 use crate::gpu::{IdQuery, ViewportCallback};
 use crate::input::{self, PointerButton, ViewportEvent, ViewportSize};
+use crate::marks;
 use crate::pick;
-use crate::pickindex::{self, PickIndex};
+use crate::pickindex::PickIndex;
 use crate::session::SessionOp;
 use crate::sketch::{heading, tip_mark};
 
@@ -219,15 +220,15 @@ impl ViewerBehavior<'_> {
 
         // What to mark, as a pure function of what is drawn and what is
         // selected. Recomputed every frame; nothing retains it.
-        let highlight = self.index.map(|index| {
-            pickindex::highlight(index, self.session.selection(), self.session.hover())
-        });
+        let highlight = self
+            .index
+            .map(|index| marks::highlight(index, self.session.selection(), self.session.hover()));
         // The edge half of the same question, and the same discipline:
         // recomputed every frame from state that lives in one place.
         let mut edges = self
             .index
             .map(|index| {
-                pickindex::edge_overlay(
+                marks::edge_overlay(
                     index,
                     self.display,
                     self.session.selection(),

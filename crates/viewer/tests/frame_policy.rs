@@ -1095,7 +1095,7 @@ fn the_highlight_narrows_a_twice_drawn_name_to_exactly_one_id() {
         index.ids_of(&face.name).len() > 1,
         "the name is drawn twice"
     );
-    let marked = viewer::pickindex::highlight(&index, &Selection::Face(face.clone()), None);
+    let marked = viewer::marks::highlight(&index, &Selection::Face(face.clone()), None);
     let key = index
         .ids()
         .key_of(marked.selected)
