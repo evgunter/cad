@@ -4,7 +4,7 @@ kind: issue
 title: Two public types named Verb in one workspace (verbs::Verb, profile::Verb) — the collision is known at one site and reconciled nowhere
 status: open
 opened: 2026-09-05
-refs: [SEAT-7, 1910, 1547]
+refs: [1910, 1547]
 ---
 
 
