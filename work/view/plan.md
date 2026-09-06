@@ -127,6 +127,7 @@ should be visible on its own.
 | `view/progress` (the swappable bool pair) | #2055 | style + fix pass |
 | `view/index-seam` (Ev's (d): the seam cycle broken) | #2079 | style + fix pass |
 | `view/marks` (the second split, and the rename) | #2083 | style + fix pass |
+| `view/homes` (`cursor_projection` to `camera`; `Generation::get` deleted) | #2089 | style + fix pass |
 
 **Fifteen units on main. Two rules this wave earned**, both about
 evidence rather than code:
@@ -138,6 +139,18 @@ evidence rather than code:
   same file. Parse the parameter list. A receipt offered as evidence and
   wrong about its own file is worse than no receipt, because a reader
   stops looking.
+
+**Take a base measurement in a SEPARATE worktree.** #2089's lane ran
+`git checkout HEAD -- crates/viewer` to measure its base and clobbered
+its own uncommitted edits; it caught and re-applied them, but the safe
+shape is a throwaway worktree with its own target dir, which is what
+#2079's and #2083's lanes used.
+
+**A §6 report is not a durable artifact.** The same out-of-fence stale
+citations were reported through §6 twice — #1848 and #2089 — with
+nothing a later reader could find either time, which is the case §6
+itself warns about. When a report is a REPEAT, file it in
+`work/issues/` instead.
 
 **Re-derive a citation, never shift it — and verify every one by
 reading the line.** The class cost this program five instances in one

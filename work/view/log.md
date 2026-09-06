@@ -5488,3 +5488,115 @@ first. Filed as
 which also records that one of the row's citations is not stale but
 REVERSED: VIEW fixed that marker at #1848, so `lib.rs` now says the
 opposite of what the row quotes it as saying.
+
+## #2089 MERGED; a unit that closed net-zero, and a §6 report that failed twice (2026-09-06)
+
+**#2089 merged at `aa4b64a17`.** Eighteen units on main this session.
+CI: 37 jobs, twelve `test (…)`, five `k-lint (gate, …)`, `gate ok`
+success, zero non-green. `#[test]` 534 at merge base `4887d865c` and
+534 at head — checked here, against the branch's own base, which had
+moved twice under the lane.
+
+Two commits: `cursor_projection` from `marks` to `camera`, and
+`Generation::get` deleted.
+
+### The unit's own arithmetic was the review's best finding
+
+The first pass deleted four lines of code and added a **six-line
+paragraph about their absence** — in a unit whose opening finding was
+that *a reader-less `pub` item is a third of a 51-line leaf module's
+API*. `generation.rs` was **51 lines on base and 51 on head**, and the
+PR quoted 51 as an outcome.
+
+The lane's answer is the right one: the paragraph earns its place at
+**two lines**, because a future reader reaching for the counter needs
+exactly one fact — `Debug` is the door — and everything else in the
+six-line version was argument for the deletion, which belongs in the
+item's `## Closed`. 51 → 47.
+
+### Every summary number was wrong while every checked fact was right
+
+The reviewer read all 51 resolvable citations and confirmed the eleven
+pre-existing stale ones individually. The summaries around them did not
+survive: *"60 citations"* had no enumeration rule behind it; *"the six
+`marks.rs` citations all move by −13"* was five, and the sixth had also
+**narrowed** — base `marks.rs:135` was a `#[derive(…)]` never part of
+the quoted sentence, so that one was already wrong on `main`, making
+the tally **7 + 12**, not 7 + 11; *"twelve lines … six instead of
+ten"* compared a paragraph to a block when nothing was twelve; *"two
+public items"* was three.
+
+**Second consecutive VIEW PR with this defect** —
+`citation-repoint-shifted-a-number-the-lane-knew-was-wrong` (#2083) is
+the class row, and the corrected receipt now states the rule that
+produces its number so a second reader can re-derive it.
+
+**And re-running the receipt after the last edit paid again**: the
+`camera` prose trim moved `clamp_distance` from `:954` to `:948`,
+invalidating a citation the same lane had corrected two hours earlier
+in the same PR. Caught, re-derived. That is the third time today the
+rule has caught a lane invalidating its own freshly-published
+coordinates.
+
+### The claim that was false in three places
+
+*"Exactly one path to the function"* — `lib.rs:55` is
+`pub mod camera;`, so `viewer::camera::cursor_projection` and
+`viewer::cursor_projection` both resolve, and both existed through
+`marks` before. The move preserved the COUNT, not uniqueness, and the
+contrast drawn with `session-shims-and-test-imports` (a shim *inside a
+module*) was the wrong one. Corrected in the PR body and the item;
+**appended** as a correction to this log rather than rewritten, which
+is the convention this program has held all day.
+
+The class is the reviewer's:
+`every-crate-root-reexport-is-a-second-path-not-the-only-one` — every
+item in `lib.rs`'s `pub use` blocks has two public paths.
+
+### The `camera` argument was three-quarters true
+
+Three of the lane's four pre-move checks held exactly. The **subject**
+check did not: `Camera::view_projection` returns `[[f64;4];4]` against
+an `f32` argument, `Camera::project` answers `[f64;3]` against an
+`[f32;2]` NDC input, and `ray_through` takes pixels with `+y` down. The
+doors do not meet at the type; the conversion happens two modules away
+in a driver. **The move is still right** — the other three checks carry
+it — and the sentence claiming otherwise is rewritten to what is true,
+with the f32/f64 question left to
+`cursor-projection-is-f32-in-a-module-whose-matrices-are-f64` (which
+also names four spellings of the f64→f32 matrix cast with no home).
+
+### §6 failed twice on the same row, and now has a durable artifact
+
+The out-of-fence TCOST citations this unit reported had **already been
+reported once** — `loud-skip-marker-says-two-modules-and-there-are-six`
+(VIEW's own slate, closed 2026-09-04 at #1848) ends with the same
+report, *"reported rather than edited, since the issue is homed outside
+this program's fence"*. Same defect, same channel, second traverse, no
+durable artifact either time, and the answer was one grep away inside
+this program's own directory.
+
+Filed as
+`work/issues/loud-skip-marker-row-cites-a-lib-paragraph-that-was-reversed`,
+which is the cross-program home this repo already uses. It carries all
+four non-resolving citations (including the reviewer's third, which the
+first pass missed by reading two of the table's entries rather than the
+table), the two that do resolve, the #1848 pointer, and the finding:
+**§6's "report, don't file" produces nothing a later reader can find** —
+exactly the case §6 warns about when it says you cannot tell whether
+the item already exists.
+
+One of those citations turned out not to be stale but **reversed**:
+VIEW fixed that marker at #1848, so `lib.rs` now says the opposite of
+what TCOST's row quotes. A better finding than "stale", and one only a
+read-the-line pass produces.
+
+### Disclosed by the lane, worth keeping
+
+Mid-pass it ran `git checkout HEAD -- crates/viewer` to take a base
+measurement and clobbered its own uncommitted edits with it. It caught
+this on the next grep, re-applied, and **verified every coordinate came
+back identical** before committing, re-taking the reported measurements
+after the re-apply. Disclosed unprompted. The lesson for a successor:
+take base measurements in a separate worktree, never by checking out
+over live edits.
