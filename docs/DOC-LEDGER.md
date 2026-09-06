@@ -1309,3 +1309,18 @@ ruling stays code-quality's (re-asked on PR 1935).
 | walk | program closed | ratified on | done-state now |
 | --- | --- | --- | --- |
 | `FILLET-EXIT-WALK.md` | 2026-09-06 | PR #1973, in chat | this row; the residue table above; vocabulary and bands at `crates/sweep/README.md` |
+## Per-merge deletion — MSOLVE-4's spec (2026-09-06)
+
+Recoverable at `git show e1ede48bff885c29770429897fb91876364836c6:docs/MSOLVE-4-SPEC.md`
+(the MSOLVE-4 unit head, before the state-sync commit that deleted it;
+unamended — no stop clause fired). One clause was withdrawn at the fix
+pass rather than met: A5's "a document with no mates keys bit-for-bit
+as before" — the key's format tag bumps to v6 with the mate's answer
+joining the key, because the tag block's own purpose is an honest
+input-set version for any future persistence, and the clause had no
+consumer (the correctness arm measured it true before the bump). The
+rule above; the unit's record is its item's `## Closed` section and
+its MERGED entry in `work/msolve/log.md` (no A/B row: the program runs
+none).
+
+- `MSOLVE-4-SPEC.md` — MSOLVE-4, a mate's memo key carries the solve's answer (#1960)

@@ -36,18 +36,23 @@ that seam succeeds — got two different answers in the same diff:
 - `crates/viewer/src/frame.rs`, `projection_refusal` —
   `Subject::Camera`, news.
 
-And `status-line-writers-bypass-the-ranking` classifies all three as
+And `status-line-writers-bypass-the-ranking` classified all three as
 **standing facts wanting a badge**, while #1883's ruling names the
 projection refusal among its four *news* instances. No rule anywhere
-distinguishes them, so the sweep has nothing to sort by.
+distinguished them, so the sweep had nothing to sort by. (Settled
+since: provenance is the test, ruled on
+`unindexed-refusal-is-an-outcome-not-a-read`; the sweep re-sorted its
+list against it and closed at #2026.)
 
 ## Why it is worth more than any line of that diff
 
-`status-line-writers-bypass-the-ranking` sorts nineteen writers into
+`status-line-writers-bypass-the-ranking` had to sort its writers into
 news and standing facts. If the two axes are orthogonal, that sort is
 under-determined for every writer whose fact outlives its frame *and*
-has a subject — which is most of the standing-fact list. The sweep
-needs the rule before it writes twenty sites against it.
+has a subject — which was most of the standing-fact list. The sweep
+needed the rule before it wrote its sites against it, and got it: the
+census settled at **eighteen** writers, seventeen of which #2026
+routed through the ranking.
 
 ## The shape of an answer
 
@@ -146,9 +151,13 @@ them true, not this ruling.
 
 ### What it unblocks
 
-`status-line-writers-bypass-the-ranking` — the twenty-writer sweep,
-the largest item on this board — which has been waiting for a rule to
-sort on since #1849 filed it.
+`status-line-writers-bypass-the-ranking` — the largest item on this
+board, waiting for a rule to sort on since #1849 filed it. It got one,
+re-derived its census to **eighteen** writers on it, and closed at
+#2026 with seventeen of them routed through the ranking. (The counts
+this file quotes — nineteen, twenty — are what was believed when it was
+written; the membership test they were wrong about is stated on that
+item.)
 
 
 ## What landed

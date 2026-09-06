@@ -73,8 +73,12 @@ section, written after the fact from `git log`.
    clearing, its refusal reaches the line through `frame_status`'s
    ranking, the product fault became a badge. The census of the other
    writers was filed, not swept: `status-line-writers-bypass-the-
-   ranking` (19 sites) and `four-badges-five-spellings` are its
-   residue, both open.
+   ranking` and `four-badges-five-spellings` were its residue. Both are
+   now **closed** — the badge family at #1957, and the sweep at #2026,
+   which routed seventeen of the eighteen writers through the ranking
+   and added `frame::deliver` as the door for a policy that may or may
+   not have news. The eighteenth is the startup initializer and has its
+   own file, `startup-notices-need-holding-to-badge`, open.
 
 4. `focus-marking-is-per-node-not-per-segment` — **blocked, and the
    blocker is not this program's to clear.** The authored-step to
@@ -104,11 +108,26 @@ section, written after the fact from `git log`.
 | `view/prune-report` (both `prune` discards) | #1886 | style |
 | `view/clearing-walk` (the four-site reset) | #1885 | style |
 | `view/pick-index-offthread` (6b) | #1888 | correctness + delta + style |
-| `view/scene-gathers` (the double gather) | #1908 | style — **fix pass in flight** |
+| `view/scene-gathers` (the double gather) | #1908 | style |
 
-Plus #1912, this session's orchestrator state-sync, merged separately
+Plus #1912, that session's orchestrator state-sync, merged separately
 because it is a session's worth of adjudication across five units and
 should be visible on its own.
+
+### The 2026-09-06 wave
+
+| unit | PR | reviews |
+|---|---|---|
+| `view/edit-door-wording` (`EditError`'s `Display`) | #1932 | style |
+| `view/module-kind-gate` (the gate's own clean-tree bug) | #1953 | style |
+| `view/axes-and-badges` (Ev's provenance rule, made structural) | #1957 | style |
+| `view/status-line-sweep` (seventeen of eighteen writers) | #2026 | style + fix pass |
+| `view/const-all` (the `vocabulary!` declaration) | #2046 | style — **in review** |
+
+Plus the `[ev]` PR carrying the three design forks, and this session's
+orchestrator state-sync — which had again gone 32 commits behind main
+before it was merged, the same failure #1912 repaired. See the log's
+2026-09-06 tail.
 
 **What the wave produced beyond its four diffs: eighteen new items**,
 every one of them a file rather than a sentence in a merged PR body.
@@ -146,22 +165,30 @@ been failing at; it is now the wave's largest single output.
   `two-hand-written-copies-of-the-g1-gesture-machine` waits on).
 - Open and undispatched:
   `revolve-tool-unreachable-no-axisinplane-form`,
-  `save-is-not-gesture-guarded`, `stale-file-citations-after-the-split`
-  (general case only), `sweep-blind-spots-...`,
-  `gesture-drags-have-no-cancel-door`,
+  `stale-file-citations-after-the-split` (general case only),
+  `sweep-blind-spots-...`, `gesture-drags-have-no-cancel-door`,
   `two-hand-written-copies-of-the-g1-gesture-machine`.
+  **`save-is-not-gesture-guarded` was on this list and is CLOSED** —
+  answered rather than fixed, 2026-09-04, with its one residue filed
+  as `save-permitted-row-argues-only-half-of-save` and taken by #1932.
+  It was still listed here two days later, which is this section's own
+  instance of `stale-file-citations-after-the-split`'s expensive half:
+  the CLAIM going stale rather than the number. Read `scripts/work.py
+  status --program view` before believing any list in this file.
 
 ### The three design forks, going to Ev as one PR
 
 `the-news-vocabulary-has-no-expiry`,
 `pick-and-parts-name-the-session-driver` and
-`four-badges-five-spellings` are decisions, not builds, and they
-interlock: the news vocabulary decides what
-`status-line-writers-bypass-the-ranking` sweeps *to*, the badge family
-decides what its standing-fact half sweeps to, and the boundary rule is
+`four-badges-five-spellings` were decisions, not builds, and they
+interlocked: the news vocabulary decided what
+`status-line-writers-bypass-the-ranking` swept *to*, the badge family
+decided what its standing-fact half swept to, and the boundary rule is
 ratified text of Ev's that #1848 proved false of the tree. One `[ev]`
-decision document carries all three while the build lanes run
-(Ev, in-chat, 2026-09-04).
+decision document carried all three while the build lanes ran
+(Ev, in-chat, 2026-09-04). **All three are answered**, and the sweep
+they gated closed at #2026; the boundary rule's mechanical half is
+still `boundary-rule-has-no-mechanical-check`.
 
 ### The standing hazard this program keeps hitting
 

@@ -68,14 +68,15 @@ on a track it has claimed takes the next number from that track's block
 and files the row in its own directory. Track J's block (`D180`–`D199`
 / `S250`–`S269`) is reserved and not reissued.
 
-**Three tracks are still this program's to dispatch — `K`, `P` and
-`X`.** They are the only three whose ground no other program's `paths:`
-reaches (measured 2026-09-04 against `git ls-files` and every
-`work/*/program.md`: `K` 0 of 42 tracked files claimed, `P` 0 of 15,
-`X` 11 of 144, those eleven being `ciw`'s `demos/*.sh` and
-`demos/*.py`). `W`'s ground is `tcost`'s and `V`'s is spread across
-eight programs, but no unit in either has claimed a row, so both still
-sit here.
+**One track is still this program's to dispatch — `X`** (`demos/`;
+three rows, one parked on `L2`). `K` was claimed whole on 2026-09-06
+by two programs opened for it, `gates` (`scripts/gates/*`) and
+`meter` (`tools/*` and the two instrument documents); `T`'s remainder
+on `crates/sweep/src` went to `blend`, FILLET's successor, the same
+day; `P` and `W` left on 2026-09-04. `V`'s ground is spread across
+DOCM, EVAL (the eval seat, opened 2026-09-06) and six others, and its
+rows on S-BOOL's `crates/profile` glob (`D364`, `G4`) and DOCM's
+`assembly.rs` (`S190`, whose trigger #855 has fired) still sit here.
 
 **Six programs have claimed rows off this board and now carry them**
 (2026-09-04, 35 rows):
@@ -88,6 +89,10 @@ sit here.
 | `trim` | `D36`, `S83`, `S394`, `D305` | riders on its units |
 | `fillet` | `D322`, `D325`, `D326` (T) | riders on its units |
 | `exch` | `D343` (U) | its `§E` unit |
+| `gates` (2026-09-06) | `D102`, `D103`, `D109`, `D211`, `D212`, `bit-identity-debug-only-gate-ends-an-item-at-a-semicolon`, `debug-only-counters-have-no-gate`, `trait-generic-sole-bracket`, `unanchored-definition-skip`, `clippy-panic-gate-blind-in-macros` (K); `gate-mod-path-resolved-textually`, `bounds-tripwire-blind-to-named-alias`, `S13`, `S49` | Track K's `scripts/gates/*` half, claimed whole at the program's opening |
+| `meter` (2026-09-06) | `C15`, `D201`, `D203`, `D206`, `D213`, `D214`, `tess-budget-doc-finding-block-stale`, `k-report-baseline-fold-cert1-roster` (K); `tess-lint-face-ordinal-join`, `cut-prefix-three-unpinned-spellings`, `k-lint-predicate-roster-unpinned` | Track K's `tools/*` half, claimed whole at the program's opening |
+| `blend` (2026-09-06) | `S90-impl` (M); `sweep-doc-comments-cite-tests-unenforced` | Track T's remainder, claimed at the program's opening |
+| `eval` (2026-09-06) | `D360`, `D367`, `D368`, `emit-blend-restates-the-kernels-own-arguments` (V) | the eval seat's rows, claimed at the program's opening |
 
 Those rows are not this program's any more and are not listed on its
 board; find them under the program that carries them. **A row claimed
@@ -96,12 +101,11 @@ claim and the move are one act, and a `keep_out` clause saying a
 claimed row stays here is the thing to delete.
 
 **The residue on claimed ground is the point of this directory, not an
-oversight.** Seven rows sit on tracks a program has claimed while no
-unit of that program names them: `S90-impl` (M — `cert` disclaims it
-and `fillet` says coordinate), `D283` (Q — Ev's ruling, never work),
-`D290`, `S350`, `S351` (Q), `D306` (R) and `D341` (U — `exch` says the
-`pncad-py` rows are LIB's, and LIB has not claimed them). They wait
-here for a claim, which is what waiting here means.
-
-`crates/sweep/src/skin.rs`, `swept.rs`, `test_support.rs` and `lib.rs`
-are the residue of Track T's fence that no program's `paths:` reaches.
+oversight.** Rows sit on tracks a program has claimed while no unit of
+that program names them: `D283` (Q — Ev's ruling, never work), `D290`,
+`S350`, `S351` (Q), `D306` (R), `D341` (U — `exch` says the `pncad-py`
+rows are LIB's, and LIB has not claimed them), `S116p` (T — a ruling),
+and two findings whose class spans six programs
+(`described-net-two-state-reads-hand-a-poisoned-net-the-described-arm`)
+and every program (`L1`–`L5`). They wait here for a claim, which is
+what waiting here means.

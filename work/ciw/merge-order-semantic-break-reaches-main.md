@@ -2,9 +2,10 @@
 id: merge-order-semantic-break-reaches-main
 kind: issue
 title: Two green PRs merged 22 minutes apart left main non-compiling: no run ever gates the union
-status: open
+status: parked
 opened: 2026-09-04
 refs: [f3-recosting-on-a-public-repo, main-latently-red-at-tier-all, 1725, 1769, 1792]
+blocked_on: [f3-recosting-on-a-public-repo]
 ---
 
 
@@ -81,3 +82,18 @@ Not measured here: how often this shape fires. One instance in one
 night is one instance, and the 34 min 25 s main stood
 non-compiling — 05:26:52Z, #1725's merge, to 06:01:17Z, #1792's — is
 one sample of exposure, not a distribution.
+
+## Parked on the F3 ruling (2026-09-06, CIW orchestrator)
+
+This item is the instance that produced CIW unit 8's question, and the answer
+to it is one Ev has to give: the merge queue that unit 8 recommended, and
+that Ev ruled on 2026-09-04 to trial, is unavailable to a user-owned
+repository (`merge-queue-trial`, closed 2026-09-05). The only surviving
+instrument for the composition-defect class is the full push job set plus a
+per-SHA concurrency design pass, and taking it is a new ruling, because the
+2026-09-04 ruling declined the push gate *in favour of* the queue.
+
+Nothing here is dispatchable until that is answered, and nothing about this
+item is un-measured — the numbers are in `f3-recosting-on-a-public-repo`'s
+options table. Parked on it rather than left open, so the board does not
+offer it as available work.
