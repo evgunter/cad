@@ -418,3 +418,19 @@ sentences, the copied sample array shared from `euler.rs`, an RAII
 guard on the tear flag, the six statements of one rule reduced to a
 home. Twelve-item fix pass to the same lane; both reviewers' probes
 handed over. CURVED's spec cite relayed to its board.
+
+## S69 delivered; style review out (2026-09-06)
+
+`topo/s69-kfmrh-fusion-form` delivered as PR 2014, head `a137b800`,
+full matrix green (run 34018946634). The three defects closed: the
+fusion form enters the catalog as `OpChoice::KfmrhFuse`; the ledger's
+`s` counts shells; `kfmrh`'s postcondition takes the plan phase's
+constant. The brief's premise was wrong and the lane said so: `mfkrh`
+mints no shell ENTITY (it splits a surface), so multi-shell solids come
+only from `mvfs` and `movefac`, and `movefac` had to enter the catalog
+too for the fusion row to be drawn at all. A real finding along the
+way: the fusion form's Euler vector is `Δh = 0, Δs = −1`, not the
+same-shell form's `Δh = +1` the operator's doc asserted for both.
+Three deviations declared, three residues filed inside the fence, the
+fuzz row put on the effort dial. Single style review dispatched on
+the frozen head.
