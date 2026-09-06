@@ -429,3 +429,22 @@ never `Vanished`; the two A2 rows the spec owed are added; deviation 8's
 arm is reachable and rowed; the three unfiled findings are filed; the
 style union (three hand-kept segment lists → one predicate, dead
 `arrival` arm, copied payload door, twice-written predicate).
+
+## 2026-09-06 — DOCM-6 dual adjudicated; fix pass dispatched
+
+Both reports in (R1 OPUS, R2 FABLE), both APPROVE-WITH-FIXES, no
+bilateral MAJOR, one unilateral-MAJOR candidate (R1's: the widened
+`Uncertified` predicate moves the outermost gate's verdict on a
+grazing part instantiated once — `AtRest` on the base, `Uncertified`
+naming the carried mate on the head — with no row and no sentence;
+R2 rated the same finding MINOR). Ruled: the widening stands as the
+contract's ("nothing refuted, nothing undeclared"), rowed and said in
+`ASSEMBLY.md`. Also ruled: A1's oracle (any recorded pair) is replaced
+by R2's name-table oracle, which the three surviving mutants die at;
+both Python rows the PR called unwritable are written (a decline reads
+as prose; an angular contradiction carries no `Fit { gap }` steer); the
+boolean "asymmetry" is not a live bound (the pair boolean refuses a
+multi-solid operand) — narrative corrected, class filed; precedence
+between own and carried rows pinned; one `Route` type and one relation
+vocabulary; the Python doors carry `of`/`via` wherever a foreign mate
+appears (API-first); the success arm returns `carried`.
