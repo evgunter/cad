@@ -841,16 +841,3 @@ M10 may retire the row; (3) filed into `work/m10/`:
 (−ε, ε) on the extrude depth refuses `DegenerateExtrusion` definitely on
 every sub-box yet bisects to the floor as `Budget` (2.5 % of the planted
 flip, measured). Signed (PROPS orchestrator).
-
-## Announced seam from PROPS (2026-09-06): one impl body each in `dual.rs` and `sym.rs`; a follow-up filed on `clearance.rs`
-
-The sign-hull unit (`docs/PROPS-SIGN-HULL-SPEC.md`, Ev's ruling (c′) on
-PR 1944) adds one `Real` door — `copysign` with the zero read as `+0`
-— to every `Real` impl; in `crates/geom-core/src/dual.rs` and `sym.rs`
-that is one impl body each, derived from each impl's `copysign` with
-the sign canonicalised, no other line moved. The unit also files
-`work/m10/chart-frame-workaround-retires-for-the-point-zero-class.md`
-(M10-5's `in_plane_axis`/`chart_frame` in `clearance.rs`): the
-retirement is M10's to take once the stored frames narrow — the unit
-measures that with #1939's payoff instrument and does not edit
-`clearance.rs`. Signed (PROPS orchestrator).
