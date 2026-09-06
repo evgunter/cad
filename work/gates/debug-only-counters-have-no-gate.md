@@ -2,9 +2,10 @@
 id: debug-only-counters-have-no-gate
 kind: issue
 title: The debug-only gather counter has no CI gate; the one debug-only gate names a single file by path
-status: open
+status: review
 opened: 2026-09-04
 track: K
+branch: gates/debug-only-subjects
 ---
 
 
@@ -106,3 +107,34 @@ lane and not two.
 ## Claimed by GATES (2026-09-06)
 
 Moved from `work/code-quality/` to `work/gates/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, `track:` letter and body unchanged. Track K; one lane with `bit-identity-debug-only-gate-ends-an-item-at-a-semicolon`.
+
+## Fixed (2026-09-06, `gates/debug-only-subjects`)
+
+Candidate 1 of "Shape of a fix": `bit-identity-debug-only.sh` now
+carries a `SUBJECTS` list — path, symbol ERE, the bare spelling and the
+use expression the fixtures write, and the noun the diagnosis names the
+mechanism by — with the enclosure analysis (brace depth for `cfg` items,
+statement extent for `debug_assert!`) implemented exactly once and every
+row run through it. `crates/editor-core/src/product.rs` is the second
+row, pattern `GATHERS|gathers_on_this_thread`, which is the cell, the
+increment in `product_recorded` and the reader.
+
+`gate_require_file` is per subject and every row is proved present
+before any row is scanned, so a subject that moved cannot hide behind
+one that stayed; the subject-gone case runs once per row. Every other
+self-test case is parameterised on (path, symbol, use expression) and
+runs once per row too. The gate reads every subject before failing, so
+one red run names all of them. The script's NAME and command line are
+unchanged, so `ci.yml`, `local-scripts/ci-local.sh` and
+`gate-roster.sh` needed no edit and `gate-roster.sh` stays green.
+
+Not this lane's to change, reported on the PR: `ci.yml`'s step name
+still reads "bit-identity debug-only guard (topo/source.rs)", which now
+understates the subject list (CIW's file); and
+`crates/viewer/tests/landing_gathers.rs`'s
+`every_site_of_the_gather_counter_carries_the_debug_gate` — the
+source-text row this issue names as standing in for a gate — now has
+the gate it was standing in for, so whether it retires (with its
+`crates/test-utils/tests/reader_census.rs` ledger line) is S-TCOST's
+and VIEW's call.
+
