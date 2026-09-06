@@ -58,8 +58,8 @@ use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_v
 use editor_core::report::{MassBasis, MassBudget};
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, DocParam,
-    EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureRef, Node, NodeResult,
-    ParamName, ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId, UnitSym, ValuePayload,
+    EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult, ParamName,
+    ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId, SitedRef, UnitSym, ValuePayload,
     evaluate,
 };
 use geom_core::Tol;
@@ -304,7 +304,7 @@ fn distributed_plate() -> ProfileDoc {
         )
         .expect("the hole wall is an exact atom");
         faces.sort();
-        MeasureRef::new(node, faces.remove(0))
+        SitedRef::new(node, faces.remove(0))
     };
     let refs = vec![wall(hole_a), wall(hole_b)];
     let radius_of = |n: &str| MeasureExpr::value(Expr::param(name(n), Dimension::Length));
@@ -434,8 +434,8 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
             vec![
-                MeasureRef::new(placed, fixture::fname(solid, fixture::wall(2))),
-                MeasureRef::new(placed, fixture::fname(solid, fixture::wall(9))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(2))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(9))),
             ],
         )
         .expect("both indices in range"),
@@ -871,8 +871,8 @@ fn plain_distance_doc() -> ProfileDoc {
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
             vec![
-                MeasureRef::at_mint(fixture::fname(solid, fixture::wall(0))),
-                MeasureRef::at_mint(fixture::fname(solid, fixture::wall(2))),
+                SitedRef::at_mint(fixture::fname(solid, fixture::wall(0))),
+                SitedRef::at_mint(fixture::fname(solid, fixture::wall(2))),
             ],
         )
         .expect("indices in range"),

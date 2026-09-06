@@ -244,17 +244,22 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         },
     );
     // The user double-picks the plinth into both operand seats. The
-    // door refuses TYPED, names the node, and records nothing.
+    // EDIT door refuses TYPED, names the node, and records nothing —
+    // layer 3 forwards that refusal rather than pre-checking the pair.
     let states = session.history().len();
     let mispick = session.perform(SessionOp::AddBoolean {
         op: BooleanOp::Union,
         a: softened,
         b: softened,
     });
+    let rendered = mispick
+        .refusal
+        .as_ref()
+        .expect("a self-boolean refuses")
+        .to_string();
     assert!(
-        matches!(mispick.refusal, Some(Refusal::SelfBoolean { node }) if node == softened),
-        "{:?}",
-        mispick.refusal
+        rendered.contains(&format!("node {}", softened.0)),
+        "the refusal names the double-picked node: {rendered}"
     );
     assert!(mispick.committed.is_empty(), "a refusal commits nothing");
     assert_eq!(session.history().len(), states, "and mints no state");

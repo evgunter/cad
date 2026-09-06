@@ -18,8 +18,8 @@
 use editor_core::UnitSym;
 use editor_core::{
     AssertionDir, Datum, Dimension, DocEdit, DocParam, DocumentId, EditError, EntityKind, Expr,
-    MeasureExpr, MeasureNodeFault, MeasurePrimitive, MeasureRef, Node, ParamName, PersistError,
-    ProfileDoc, RecipeNodeId, RoleSeg, SnapshotError, StableName, apply, load, save,
+    MeasureExpr, MeasureNodeFault, MeasurePrimitive, Node, ParamName, PersistError, ProfileDoc,
+    RecipeNodeId, RoleSeg, SitedRef, SnapshotError, StableName, apply, load, save,
 };
 use geom_core::Tol;
 
@@ -49,10 +49,10 @@ fn two_named_nodes(doc: &ProfileDoc) -> ProfileDoc {
     doc
 }
 
-fn name(node: u64) -> MeasureRef {
+fn name(node: u64) -> SitedRef {
     // Read at the minting node: these fixtures are about the WIRE, and
     // none of them places geometry.
-    MeasureRef::at_mint(StableName {
+    SitedRef::at_mint(StableName {
         kind: EntityKind::Face,
         node: RecipeNodeId(node),
         path: vec![RoleSeg::OutputBody],

@@ -312,7 +312,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                 // Read at node 2, the extrude that owns the body: the
                 // reference is unindexed by this expression, so it is
                 // carried data the measure never reads.
-                vec![editor_core::MeasureRef::new(
+                vec![editor_core::SitedRef::new(
                     editor_core::RecipeNodeId(2),
                     body.clone(),
                 )],

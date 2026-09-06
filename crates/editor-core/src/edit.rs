@@ -521,6 +521,16 @@ pub enum EditError {
         /// The name whose node is not live.
         name: StableName,
     },
+    /// A reference's READ SITE — the operand a mate is authored
+    /// against ([`Node::payload_read_sites`]) — names a node that does
+    /// not exist at edit time. The name half's rule, applied to the
+    /// half that is a node id rather than a name: a never-existed id
+    /// is a TYPO. (A later `DeleteNode` stranding an operand is
+    /// ALLOWED — N5 dangling semantics — and the solve refuses typed.)
+    ReadSiteMissingNode {
+        /// The operand that is not live.
+        at: RecipeNodeId,
+    },
     /// A non-finite (NaN/inf) float on a continuous doc param — its
     /// value or one of its distribution's offsets — refused at the
     /// edit door (ruled door 1 of the non-finite policy; F3's
@@ -759,65 +769,95 @@ pub enum EditError {
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
 // bindings' exception messages consume. The comment-style rule
 // applies — each arm states the PROBLEM (and where it is), not the
-// enum's guts; textual identifiers (slot ids, parameter names,
-// metadata keys) render via `Debug` because they ARE the location,
-// while stable names, kinds and dimensions render through their own
-// prose spellings (`StableName`'s `Display`, the `noun` renderings,
-// `Dimension`'s `Display`), never `Debug`. A name is parenthesized apposition when the sentence's
-// subject is a role word ("the rebind target ({name})") and inline
-// when the name itself is the subject ("the {name} does not
-// resolve"); new arms copy whichever their sentence shape calls for.
-// The typed variant remains the machine contract.
+// enum's guts; stable names, kinds and dimensions render through their
+// own prose spellings (`StableName`'s `Display`, the `noun`
+// renderings, `Dimension`'s `Display`), never `Debug`. A name is
+// parenthesized apposition when the sentence's subject is a role word
+// ("the rebind target ({name})") and inline when the name itself is
+// the subject ("the {name} does not resolve"); new arms copy whichever
+// their sentence shape calls for. The typed variant remains the
+// machine contract.
+//
+// **No category prefix, and parameter names render bare.** These
+// sentences are read verbatim by a person: the viewer's status line
+// composes them under its own frame ("the edit was refused: …") and
+// the bindings raise them as an exception message whose class already
+// says which door refused. An `edit: ` opening was therefore a second
+// spelling of the caller's own frame, and a `{:?}` name arrived
+// double-quoted inside prose that quotes nothing else — a dump in the
+// middle of a sentence. Both are gone: the frame belongs to whoever
+// received the refusal, and a name is written unquoted.
+//
+// **That makes `EditError` the exception in this crate, not the rule,
+// and the exception is deliberate.** Its neighbours still open with a
+// category of their own — `persist:`, `split:`, `inline:`, `parse:`,
+// `product:` — and `refactor.rs` quotes a parameter name exactly the
+// way this impl used to. They are outside the amendment that changed
+// this one, so they keep their spelling until someone decides for
+// them; a reader comparing the two should not read this paragraph as
+// describing the crate. What still renders through `Debug` here is the
+// SLOT id
+// ({slot:?}), which has a prose spelling (`SlotId::label`) it does not
+// use — that is a separate question, outside the amendment that
+// removed the other two, and it is filed rather than taken here.
 impl core::fmt::Display for EditError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::UnknownNode { id } => write!(f, "edit: node {} is not live", id.0),
+            Self::UnknownNode { id } => write!(f, "node {} is not live", id.0),
             Self::ProfileProgramRefused { node, refusal } => {
-                write!(
-                    f,
-                    "edit: node {}'s profile program refused: {refusal}",
-                    node.0
-                )
+                write!(f, "node {}'s profile program refused: {refusal}", node.0)
             }
             Self::UnresolvedInput { input } => {
-                write!(f, "edit: input {} does not resolve to a live node", input.0)
+                write!(f, "input {} does not resolve to a live node", input.0)
             }
             Self::WouldCycle { at } => {
-                write!(
-                    f,
-                    "edit: the recipe graph would cycle (through node {})",
-                    at.0
-                )
+                write!(f, "the recipe graph would cycle (through node {})", at.0)
             }
             // Forwarded, not restated: `InputFault` owns this
             // vocabulary and `node.rs` promises every door that renders
-            // it forwards. The door adds only its own frame — which
-            // edit, and which node the fault is about.
-            Self::DuplicateInput { node, input } => write!(
+            // it forwards. The door adds its own frame — which edit the
+            // fault is about — and joins it with a colon, because the
+            // forwarded sentence carries an em-dash of its own and two
+            // in a row read as a dump.
+            //
+            // **The frame does not name `node`, and must not.**
+            // `check_node_inputs` is reached from `InsertNode` with
+            // `RecipeNodeId(new.next_id)` — an id that does not exist
+            // and never will if the edit is refused — and from
+            // `SetMembers` with a live one. This rendering cannot tell
+            // which, so a sentence naming that id tells a person to go
+            // and look at a node that may be a phantom. The id the
+            // reader CAN act on is `input`, which the forwarded fault
+            // names, and it is live on both paths.
+            //
+            // The action is the door's to add: `InputFault` states the
+            // rule ("pairwise distinct"), which says what is wrong and
+            // not what to do about it. `TooFew` needs no such clause —
+            // its own sentence carries the count that is required.
+            Self::DuplicateInput { input, .. } => write!(
                 f,
-                "edit: node {} would be left invalid — {}",
-                node.0,
+                "the node this edit writes would be invalid: {}. Replace one of the two with a \
+                 different node.",
                 crate::node::InputFault::Duplicate { input: *input }
             ),
             Self::SetMembersOnNonList { node } => write!(
                 f,
-                "edit: node {} carries no list input, so it has no members to set",
+                "node {} carries no list input, so it has no members to set",
                 node.0
             ),
-            Self::TooFewMembers { node, found } => write!(
+            Self::TooFewMembers { found, .. } => write!(
                 f,
-                "edit: node {} would be left invalid — {}",
-                node.0,
+                "the node this edit writes would be invalid: {}",
                 crate::node::InputFault::TooFew { found: *found }
             ),
             Self::DeleteWouldDangle { id, referenced_by } => write!(
                 f,
-                "edit: node {} is still an input to node {} — delete node {} first, \
+                "node {} is still an input to node {} — delete node {} first, \
                  or delete node {} together with everything downstream of it",
                 id.0, referenced_by.0, referenced_by.0, id.0
             ),
             Self::UnknownSlot { id, slot } => {
-                write!(f, "edit: node {} has no slot {slot:?}", id.0)
+                write!(f, "node {} has no slot {slot:?}", id.0)
             }
             Self::SlotDimensionMismatch {
                 slot,
@@ -825,20 +865,19 @@ impl core::fmt::Display for EditError {
                 found,
             } => write!(
                 f,
-                "edit: slot {slot:?} needs {} {expected} expression, got {} {found}",
+                "slot {slot:?} needs {} {expected} expression, got {} {found}",
                 expected.article(),
                 found.article()
             ),
-            Self::StructuralSlotNeedsStructuralEdit { slot } => write!(
-                f,
-                "edit: slot {slot:?} is structural — use a structural edit"
-            ),
+            Self::StructuralSlotNeedsStructuralEdit { slot } => {
+                write!(f, "slot {slot:?} is structural — use a structural edit")
+            }
             Self::NotStructuralSlot { slot } => {
-                write!(f, "edit: slot {slot:?} is continuous, not structural")
+                write!(f, "slot {slot:?} is continuous, not structural")
             }
             Self::UnknownPayloadParam { name, node } => write!(
                 f,
-                "edit: document parameter {:?} does not exist (referenced by node {}'s \
+                "document parameter {} does not exist (referenced by node {}'s \
                  measurement payload)",
                 name.0, node.0
             ),
@@ -849,16 +888,16 @@ impl core::fmt::Display for EditError {
                 referenced,
             } => write!(
                 f,
-                "edit: document parameter {:?} is declared {declared} but node {}'s \
+                "document parameter {} is declared {declared} but node {}'s \
                  measurement payload references it as {referenced}",
                 name.0, node.0
             ),
             Self::MeasureMalformed { node, fault } => {
-                write!(f, "edit: measure node {}: {fault}", node.0)
+                write!(f, "measure node {}: {fault}", node.0)
             }
             Self::AssertionTarget { node, measure } => write!(
                 f,
-                "edit: assertion node {} references node {}, which is not a measure — an \
+                "assertion node {} references node {}, which is not a measure — an \
                  assertion constrains a measurement",
                 node.0, measure.0
             ),
@@ -869,7 +908,7 @@ impl core::fmt::Display for EditError {
                 bound,
             } => write!(
                 f,
-                "edit: assertion node {} bounds {} {measured} measure (node {}) with {} \
+                "assertion node {} bounds {} {measured} measure (node {}) with {} \
                  {bound} expression — an assertion compares like with like or not at all",
                 node.0,
                 measured.article(),
@@ -878,7 +917,7 @@ impl core::fmt::Display for EditError {
             ),
             Self::UnknownDocParam { name, node, slot } => write!(
                 f,
-                "edit: document parameter {:?} does not exist (referenced by node {}, slot {slot:?})",
+                "document parameter {} does not exist (referenced by node {}, slot {slot:?})",
                 name.0, node.0
             ),
             Self::DocParamDimensionMismatch {
@@ -889,17 +928,22 @@ impl core::fmt::Display for EditError {
                 referenced,
             } => write!(
                 f,
-                "edit: parameter {:?} is declared {declared} but node {} (slot {slot:?}) references it as {referenced}",
+                "parameter {} is declared {declared} but node {} (slot {slot:?}) references it as {referenced}",
                 name.0, node.0
             ),
             Self::ContinuousParamCannotBeCount { name } => write!(
                 f,
-                "edit: parameter {:?}: a continuous parameter cannot be a count — use a count parameter",
+                "parameter {}: a continuous parameter cannot be a count — use a count parameter",
                 name.0
             ),
+            // The closing clause is also `Refusal::NoSuchParam`'s, in
+            // the viewer: one mistake reaches this door by typing and
+            // that lookup by dragging, and the two are converged on the
+            // RECOURSE rather than on the sentence. A viewer test holds
+            // them in step (`panel_edits::refusals_render_as_sentences`).
             Self::DocParamNotDeclared { name } => write!(
                 f,
-                "edit: parameter {:?} is not declared, so a value edit has no declaration to carry \
+                "parameter {} is not declared, so a value edit has no declaration to carry \
                  forward — declare it first",
                 name.0
             ),
@@ -909,107 +953,108 @@ impl core::fmt::Display for EditError {
                 offered,
             } => write!(
                 f,
-                "edit: parameter {:?} is declared {declared} but the value edit offered a \
+                "parameter {} is declared {declared} but the value edit offered a \
                  {offered} — changing a parameter's kind is a redeclaration",
                 name.0
             ),
             Self::PathOffTree { path } => {
-                write!(f, "edit: expression path {path:?} runs off the tree")
+                write!(f, "expression path {path:?} runs off the tree")
             }
-            Self::Dimension(e) => write!(f, "edit: {e}"),
-            Self::DeclareNamesMissingNode { name } => write!(
+            Self::Dimension(e) => write!(f, "{e}"),
+            Self::DeclareNamesMissingNode { name } => {
+                write!(f, "the declared {name} refers to a node that is not live")
+            }
+            Self::ReadSiteMissingNode { at } => write!(
                 f,
-                "edit: the declared {name} refers to a node that is not live"
+                "the reference is read at node {}, which is not live",
+                at.0
             ),
             Self::NonFiniteDocParam { name } => write!(
                 f,
-                "edit: parameter {:?}: the value and every distribution offset must be finite",
+                "parameter {}: the value and every distribution offset must be finite",
                 name.0
             ),
             Self::InvalidDistribution { name, fault } => {
-                write!(f, "edit: parameter {:?}: {fault}", name.0)
+                write!(f, "parameter {}: {fault}", name.0)
             }
             Self::RebindTargetMissingNode { name } => write!(
                 f,
-                "edit: the rebind target ({name}) refers to a node that is not live"
+                "the rebind target ({name}) refers to a node that is not live"
             ),
             Self::RebindUnknownName { name } => write!(
                 f,
-                "edit: the rebind source ({name}) was never minted by this document"
+                "the rebind source ({name}) was never minted by this document"
             ),
             Self::RebindKindMismatch { from, to } => write!(
                 f,
-                "edit: a rebind cannot cross entity kinds ({} to {})",
+                "a rebind cannot cross entity kinds ({} to {})",
                 from.noun(),
                 to.noun()
             ),
             Self::RebindIdentity { name } => write!(
                 f,
-                "edit: rebinding the {name} to itself is a recorded no-op — refused"
+                "rebinding the {name} to itself is a recorded no-op — refused"
             ),
             Self::RebindNoReferences { name } => write!(
                 f,
-                "edit: no document site references the {name} — nothing to repair"
+                "no document site references the {name} — nothing to repair"
             ),
             Self::WitnessOnNonSketch { node } => write!(
                 f,
-                "edit: node {} is not sketch-bearing — nothing to re-witness",
+                "node {} is not sketch-bearing — nothing to re-witness",
                 node.0
             ),
-            Self::DuplicateWitnessEntry { node } => write!(
-                f,
-                "edit: node {} appears twice in the re-witness bulk",
-                node.0
-            ),
+            Self::DuplicateWitnessEntry { node } => {
+                write!(f, "node {} appears twice in the re-witness bulk", node.0)
+            }
             Self::EmptyWitnessBulk => {
-                f.write_str("edit: a re-witness bulk with no entries is a no-op — refused")
+                f.write_str("a re-witness bulk with no entries is a no-op — refused")
             }
             Self::NameUnresolvedInEvaluation { name } => write!(
                 f,
-                "edit: the {name} does not resolve in the supplied evaluation — recording the \
+                "the {name} does not resolve in the supplied evaluation — recording the \
                  reference would strand it"
             ),
             Self::RebindAppearanceCollision { name, kind } => write!(
                 f,
-                "edit: the rebind would land two {} attributes on the {name} — clear one first",
+                "the rebind would land two {} attributes on the {name} — clear one first",
                 kind.noun()
             ),
             Self::AppearanceWrongKind { name } => write!(
                 f,
-                "edit: appearance attaches to faces and bodies only (refused for the {name})"
+                "appearance attaches to faces and bodies only (refused for the {name})"
             ),
             Self::AppearanceNamesMissingNode { name } => write!(
                 f,
-                "edit: the appearance target ({name}) refers to a node that is not live"
+                "the appearance target ({name}) refers to a node that is not live"
             ),
             Self::AppearanceNotSet { name, kind } => {
-                write!(f, "edit: no {} attribute is set on the {name}", kind.noun())
+                write!(f, "no {} attribute is set on the {name}", kind.noun())
             }
-            Self::InvalidTolerance { value } => write!(
-                f,
-                "edit: tolerance {value:e} is not finite and strictly positive"
-            ),
+            Self::InvalidTolerance { value } => {
+                write!(f, "tolerance {value:e} is not finite and strictly positive")
+            }
             Self::MetaUnversioned { name, key, error } => write!(
                 f,
-                "edit: metadata {key:?} on the {name} does not carry the D7 integer \"v\" \
+                "metadata {key:?} on the {name} does not carry the D7 integer \"v\" \
                  version field: {error}"
             ),
             Self::MetaNonFinite { name, key, path } => write!(
                 f,
-                "edit: metadata {key:?} on the {name} carries a non-finite float at {path}"
+                "metadata {key:?} on the {name} carries a non-finite float at {path}"
             ),
             Self::MetaNotSet { name, key } => {
-                write!(f, "edit: no metadata {key:?} is set on the {name}")
+                write!(f, "no metadata {key:?} is set on the {name}")
             }
             Self::RebindMetadataCollision { name, key } => write!(
                 f,
-                "edit: the rebind would land two values under metadata {key:?} on the {name} — \
+                "the rebind would land two values under metadata {key:?} on the {name} — \
                  clear one first"
             ),
-            Self::Roots(fault) => write!(f, "edit: {fault}"),
+            Self::Roots(fault) => write!(f, "{fault}"),
             Self::PlacementOnNonInstance { node } => write!(
                 f,
-                "edit: node {} does not instantiate a part, so it has no placement cluster to \
+                "node {} does not instantiate a part, so it has no placement cluster to \
                  place",
                 node.0
             ),
@@ -1018,42 +1063,36 @@ impl core::fmt::Display for EditError {
             // two frame-shaped arms below keep their own prose because
             // their subject is a single cluster frame, which has no
             // index in a rule's placement list.
-            Self::EmptyPlacementList { node } => write!(
-                f,
-                "edit: node {}: {}",
-                node.0,
-                PlacementRuleFault::NoPlacements
-            ),
-            Self::PlacementRuleMismatch { node } => write!(
-                f,
-                "edit: node {}: {}",
-                node.0,
-                PlacementRuleFault::CountSpelling
-            ),
+            Self::EmptyPlacementList { node } => {
+                write!(f, "node {}: {}", node.0, PlacementRuleFault::NoPlacements)
+            }
+            Self::PlacementRuleMismatch { node } => {
+                write!(f, "node {}: {}", node.0, PlacementRuleFault::CountSpelling)
+            }
             Self::ImproperPlacement { node, determinant } => write!(
                 f,
-                "edit: the placement frame for node {} is improper (determinant {determinant}); \
+                "the placement frame for node {} is improper (determinant {determinant}); \
                  mirrored placements are admitted only behind the equivariance audit",
                 node.0
             ),
             Self::NonFinitePlacement { node } => write!(
                 f,
-                "edit: the placement frame for node {} carries a non-finite coordinate",
+                "the placement frame for node {} carries a non-finite coordinate",
                 node.0
             ),
             Self::NonFiniteAlignment { node } => write!(
                 f,
-                "edit: the mate at node {} carries a non-finite alignment coordinate",
+                "the mate at node {} carries a non-finite alignment coordinate",
                 node.0
             ),
             Self::UpdateOnNonInstance { node } => write!(
                 f,
-                "edit: node {} does not instantiate a part, so it has no pinned version to update",
+                "node {} does not instantiate a part, so it has no pinned version to update",
                 node.0
             ),
             Self::PinUnchanged { node, pin } => write!(
                 f,
-                "edit: node {} already pins {pin}, so this update would record no version move",
+                "node {} already pins {pin}, so this update would record no version move",
                 node.0
             ),
         }
@@ -1412,6 +1451,17 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
                     return Err(EditError::DeclareNamesMissingNode { name: name.clone() });
                 }
             }
+            // The same check for the node a reference is READ AT
+            // where that node is not also an input
+            // (`Node::payload_read_sites` — a mate's two operands).
+            // Same rule, same door, same N5 aftermath: a
+            // never-existed id is a typo; a later delete stranding it
+            // is the solve's to refuse.
+            for at in node.payload_read_sites() {
+                if !new.nodes.contains_key(&at) {
+                    return Err(EditError::ReadSiteMissingNode { at });
+                }
+            }
             let id = RecipeNodeId(new.next_id);
             check_node_inputs(id, node)?;
             if let Node::Mate { alignment, .. } = node
@@ -1607,7 +1657,10 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // Declare pair, and a blend selection's GROWTH PATH (M6-5,
             // ruled #217) re-canonicalizes there — for a chamfer's
             // selection exactly as for a fillet's, since both are the
-            // same canonical set.
+            // same canonical set. A mate reference read AT ITS OWN
+            // MINT stays read at its own mint; one read elsewhere
+            // keeps its operand, which is an authored fact this edit
+            // knows nothing about.
             let mut declare_sites = 0usize;
             for node in new.nodes.values_mut() {
                 declare_sites += node.rebind_payload_names(from, to);

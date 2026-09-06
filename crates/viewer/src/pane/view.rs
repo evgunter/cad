@@ -5,6 +5,7 @@
 use eframe::egui;
 
 use crate::app::ViewerBehavior;
+use crate::frame;
 
 impl ViewerBehavior<'_> {
     /// The view pane: the numbers the camera and the tessellation are
@@ -51,7 +52,7 @@ impl ViewerBehavior<'_> {
         };
         if let Some(status) = self.status.as_ref() {
             ui.separator();
-            ui.label(status.as_str());
+            ui.label(status.text());
         }
     }
 
@@ -92,10 +93,7 @@ impl ViewerBehavior<'_> {
                 // door, wherever it came from.
                 Ok(mm) => *self.delta_request = Some(mm * 1.0e-3),
                 Err(error) => {
-                    *self.status = Some(format!(
-                        "display δ: {:?} is not a number ({error})",
-                        typed.trim()
-                    ));
+                    *self.status = Some(frame::delta_not_a_number(typed.trim(), &error));
                 }
             }
         }

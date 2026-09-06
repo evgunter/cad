@@ -18,7 +18,7 @@
 
 use crate::common;
 
-use pncad::document::{BooleanOp, CancelToken, EvalOptions, NodeResult, evaluate};
+use pncad::document::{BooleanOp, CancelToken, EvalOptions, NodeResult, SitedRef, evaluate};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use viewer::session::{DocSession, SessionOp};
@@ -179,8 +179,8 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
         common::insert(
             session,
             SessionOp::AddMate {
-                a: common::asm::in_part(post, &bench.post_top),
-                b: common::asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+                a: SitedRef::at_mint(common::asm::in_part(post, &bench.post_top)),
+                b: SitedRef::at_mint(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
                 class: ContactClass::Rest,
                 alignment,
             },
@@ -283,8 +283,8 @@ fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
         common::insert(
             session,
             SessionOp::AddMate {
-                a: common::asm::in_part(bench.post_a, &bench.post_top),
-                b: common::asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+                a: SitedRef::at_mint(common::asm::in_part(bench.post_a, &bench.post_top)),
+                b: SitedRef::at_mint(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
                 class: ContactClass::Rest,
                 alignment,
             },
@@ -398,8 +398,8 @@ fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
         common::insert(
             session,
             SessionOp::AddMate {
-                a: common::asm::in_part(post, &bench.post_top),
-                b: common::asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+                a: SitedRef::at_mint(common::asm::in_part(post, &bench.post_top)),
+                b: SitedRef::at_mint(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
                 class: ContactClass::Rest,
                 alignment,
             },

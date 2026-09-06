@@ -36,9 +36,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
-use editor_core::drive::{
-    DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS, DriveConfig, SymbolicDials, drive,
-};
+use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS, SymbolicDials};
 use editor_core::{CancelToken, EvalOptions, ProfileLift, evaluate};
 use geom_core::k_stats::{SampleOutcome, start_recording, take_samples};
 use geom_core::{SymBudget, Tol};
@@ -147,20 +145,7 @@ fn measure_the_ceiling_on_the_two_hole_plate() {
     let tol = Tol::witness();
     let doc_at = |scale: f64| plate(5.0e-5 * scale, 1.0e-5 * scale, tol).0;
     let certifies_whole = |scale: f64, dials: SymbolicDials| {
-        let doc = doc_at(scale);
-        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-        drive(
-            &doc,
-            &analyzed,
-            &DriveConfig {
-                max_depth: 0,
-                max_leaves: 1,
-                symbolic: dials,
-                ..DriveConfig::default()
-            },
-            tol,
-        )
-        .is_ok_and(|v| v.receipt().certified == 1)
+        crate::m10_8_harness::certifies_whole_with(&doc_at(scale), dials, tol)
     };
     let ceiling = |dials: SymbolicDials| -> f64 {
         let (mut lo, mut hi) = (1.0e-12, 1.0);

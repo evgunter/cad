@@ -63,8 +63,8 @@ enum Disposition {
     /// The home itself.
     Home,
     /// Reads Rust source through something other than
-    /// [`test_utils::source`] — a hand-rolled reader, or one of
-    /// `topo`'s two crate-private blankers. The payload names the
+    /// [`test_utils::source`] — a hand-rolled reader, or raw text with
+    /// no reader at all. The payload names the
     /// track that owes the conversion, **or `unowned` where the
     /// partition has no track for the file**; an unowned entry is not
     /// an exemption, it is a second finding stacked on the first, and
@@ -201,6 +201,14 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/sweep/tests/review_fillet_split_r2_probes.rs",
+        disposition: Shared, // the seam's and open bands' visibility census, code view
+    },
+    Entry {
+        path: "crates/sweep/tests/review_fillet_t_r1_probes.rs",
+        disposition: Shared, // the blend surgery's one `kef` door, code view
+    },
+    Entry {
         path: "crates/test-utils/src/source.rs",
         disposition: Home,
     },
@@ -210,7 +218,10 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/topo/src/boolean/boxes.rs",
-        disposition: Unconverted("Track Q — reads through topo's private `source_walk::CodeOnly`"),
+        disposition: Unconverted(
+            "Track Q — reaches the shared lexer only through `source_walk::CodeOnly`, \
+             topo's handle on it; the direct call is Track Q's to make",
+        ),
     },
     Entry {
         path: "crates/topo/src/chord_join.rs",
@@ -218,19 +229,15 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/topo/src/face_normal.rs",
-        disposition: Unconverted("Track Q — raw text, plus topo's private `fixtures::code_only`"),
-    },
-    Entry {
-        path: "crates/topo/src/fixtures.rs",
-        disposition: Unconverted("unowned — `code_only`, the second topo blanker"),
+        disposition: Unconverted("Track Q — raw text"),
     },
     Entry {
         path: "crates/topo/src/review_d18.rs",
-        disposition: Unconverted("Track P — raw text and a `\n    }\n` body carve"),
+        disposition: Shared, // the announcing body, code view carved by `balanced_end`
     },
     Entry {
         path: "crates/topo/src/review_d18_probes.rs",
-        disposition: Unconverted("Track P — line-leading `//` only"),
+        disposition: Shared, // `unreachable!` message texts, literal view
     },
     Entry {
         path: "crates/topo/src/sector_shape.rs",
@@ -238,7 +245,7 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/topo/src/source_walk.rs",
-        disposition: Unconverted("unowned — `CodeOnly`, the other topo blanker"),
+        disposition: Shared, // the mutation-door walk, code view
     },
     Entry {
         path: "crates/topo/tests/all.rs",
@@ -247,6 +254,10 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/topo/tests/quad_lane_is_the_certified_lane.rs",
         disposition: Shared, // the props.rs lane impls, code view: their bodies ARE the pin
+    },
+    Entry {
+        path: "crates/topo/tests/shell_tolerance_chain.rs",
+        disposition: Shared, // the shell offset chain's signatures, code view
     },
     Entry {
         path: "crates/verbs/tests/all.rs",
@@ -625,7 +636,7 @@ fn the_unconverted_readers_are_the_ones_this_tree_still_owes() {
 /// The number of sites still reading Rust source through something
 /// other than [`test_utils::source`]. **Hand-synced with the ledger
 /// above, and it goes one way.**
-const UNCONVERTED_TODAY: usize = 9;
+const UNCONVERTED_TODAY: usize = 5;
 
 /// The languages other than Rust that a guard in this tree reads. **A
 /// `NotRust` line must name one of these**, because free text is what

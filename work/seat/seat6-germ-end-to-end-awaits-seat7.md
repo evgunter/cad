@@ -2,9 +2,10 @@
 id: seat6-germ-end-to-end-awaits-seat7
 kind: issue
 title: SEAT-6's germ end-to-end acceptance (a document reaching the cyl×cyl germ) awaits SEAT-7's extrude/revolve flow
-status: open
+status: closed
 opened: 2026-09-04
-refs: [SEAT-6, 1593]
+closed: 2026-09-05
+refs: [SEAT-6, SEAT-7, 1593]
 ---
 
 
@@ -56,3 +57,24 @@ Either of:
 
 Until one lands, the acceptance bullet is met in halves and this file is
 the durable statement of the gap.
+
+## Closed
+
+**Closed by SEAT-7** (`work/seat/SEAT-7.md`), through option 1 above: the
+extrude migrated with a flow row for the profile edge's carrier radius, so
+an extruded circle's cylindrical wall now carries the lowered identity of
+the radius expression the profile holds. The `verbs_germarms2` pose is
+authorable as a document with that row in place, and the end-to-end run is
+pinned at
+`crates/editor-core/tests/seat7_sweep_lowering.rs`'s
+`one_declared_radius_reaches_the_germ_from_a_document`: two extruded
+circles drawn at one declared `r`, each spun off the pinch, unioned — the
+kernel's `GermFrameCylinderPinch` refusal carries
+`RadiusEvidence::Declared`, and the kernel-direct twin at bit-identical
+radii carries `None`.
+
+The boolean's sphere-octant frontier (option 2) is untouched and still
+stands: a boolean over a FILLETED body remains unreachable, which is why
+the row rides the sweeps' walls rather than the blend's carriers. The
+SEAT-6 suite's header no longer claims the run is unpinned anywhere and
+points at the row instead.

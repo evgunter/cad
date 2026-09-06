@@ -269,7 +269,12 @@ fn corner_config_is_matchable(corner: CornerConfig) -> &'static str {
     // exhaustively is what makes `RunOutPolicy`'s carriage
     // load-bearing rather than decorative.
     match corner.policy() {
-        Some(RunOutPolicy::RunOutStopAtVertex | RunOutPolicy::RunOutFeather) | None => {}
+        Some(
+            RunOutPolicy::RunOutStopAtVertex
+            | RunOutPolicy::RunOutFeather
+            | RunOutPolicy::CutOffAtTransverseCap,
+        )
+        | None => {}
     }
     match corner {
         CornerConfig::ThreeConvexEdges => "three_convex_edges",
@@ -286,6 +291,9 @@ fn corner_config_is_matchable(corner: CornerConfig) -> &'static str {
         // door that EXISTS — the distinction a caller who could not
         // name this type had to read out of the prose.
         CornerConfig::SeamVertex => "seam_vertex",
+        // The ruled band's own termination — a configuration that
+        // CARVES, whose policy is the cut-off the tag's map assigns.
+        CornerConfig::TransverseCap => "transverse_cap",
         CornerConfig::Indeterminate => "indeterminate",
     }
 }
@@ -1576,7 +1584,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
             // node, spelled explicitly rather than assumed.
             walls
                 .into_iter()
-                .map(|name| pncad::document::MeasureRef::new(plate, name))
+                .map(|name| pncad::document::SitedRef::new(plate, name))
                 .collect(),
         )
         .expect("both indices address a reference"),
@@ -2192,8 +2200,8 @@ fn asm_r2a_mated_assembly(
     let (doc, _) = doors_insert(
         doc,
         Node::Mate {
-            a: name(ids[0]),
-            b: name(ids[1]),
+            a: pncad::document::SitedRef::at_mint(name(ids[0])),
+            b: pncad::document::SitedRef::at_mint(name(ids[1])),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: axis([30.0, 0.0, 0.0]),

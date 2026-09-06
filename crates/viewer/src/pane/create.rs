@@ -14,6 +14,7 @@ use crate::forms::{
     ANGLE_DRAG_SPEED, BOOLEAN_OPS, COUNT_DRAG_SPEED, DatumKind, FIELD_DRAG_SPEED, MATE_PRIMITIVES,
     PathVerb, PatternKindChoice, ShapeKind, UNIT_DRAG_SPEED,
 };
+use crate::frame;
 use crate::matetool::{MateChoice, MateToolState, admitted_classes};
 use crate::parts::PartChooser;
 use crate::seats::{Seat, seat_line};
@@ -161,14 +162,14 @@ impl ViewerBehavior<'_> {
                                 close = true;
                             }
                             Err(error) => {
-                                *self.status = Some(ToolKind::Mate.says(&error));
+                                *self.status = Some(frame::tool_news(ToolKind::Mate.says(&error)));
                             }
                         }
                     }
                     _ => {
-                        *self.status = Some(
+                        *self.status = Some(frame::tool_news(
                             ToolKind::Mate.says(&"no landed evaluation to derive frames from"),
-                        );
+                        ));
                     }
                 }
             }
@@ -374,7 +375,9 @@ impl ViewerBehavior<'_> {
                 // The add-datum form is not a seated TOOL, so it has
                 // no `ToolKind` to compose the prefix — the form's own
                 // name is the sentence's subject here.
-                Err(error) => *self.status = Some(format!("add datum: {error}")),
+                Err(error) => {
+                    *self.status = Some(frame::tool_news(format!("add datum: {error}")));
+                }
             }
         }
     }
@@ -599,8 +602,12 @@ impl ViewerBehavior<'_> {
                 // and typed rather than unwrapped: a form's enabling
                 // condition and its commit are two pieces of code, and
                 // this one does not assume the other got it right.
-                (None, _) => *self.status = Some("add profile: no frame picked".to_owned()),
-                (_, Err(error)) => *self.status = Some(format!("add profile: {error}")),
+                (None, _) => {
+                    *self.status = Some(frame::tool_news("add profile: no frame picked"));
+                }
+                (_, Err(error)) => {
+                    *self.status = Some(frame::tool_news(format!("add profile: {error}")));
+                }
             }
         }
     }
@@ -807,7 +814,9 @@ impl ViewerBehavior<'_> {
                             profile: node,
                             distance,
                         }),
-                        Err(error) => *self.status = Some(format!("extrude: {error}")),
+                        Err(error) => {
+                            *self.status = Some(frame::tool_news(format!("extrude: {error}")));
+                        }
                     }
                 }
             }
@@ -1138,7 +1147,7 @@ impl ViewerBehavior<'_> {
             .blend_mut()
             .and_then(|tool| tool.load_all_edges(target, eval, index));
         if let Some(event) = event {
-            *self.status = Some(ToolKind::Blend.says(&event));
+            *self.status = Some(frame::tool_news(ToolKind::Blend.says(&event)));
         }
     }
 
@@ -1170,12 +1179,14 @@ impl ViewerBehavior<'_> {
                         match op {
                             Some(Ok(op)) => self.ops.push(op),
                             Some(Err(error)) => {
-                                *self.status = Some(ToolKind::Blend.says(&error));
+                                *self.status = Some(frame::tool_news(ToolKind::Blend.says(&error)));
                             }
                             None => {}
                         }
                     }
-                    Err(error) => *self.status = Some(ToolKind::Blend.says(&error)),
+                    Err(error) => {
+                        *self.status = Some(frame::tool_news(ToolKind::Blend.says(&error)));
+                    }
                 }
             }
             if ui
@@ -1216,7 +1227,9 @@ impl ViewerBehavior<'_> {
             if ui.button(label).clicked() {
                 match op(self.drafts) {
                     Ok(op) => self.ops.push(op),
-                    Err(error) => *self.status = Some(kind.says(&error)),
+                    Err(error) => {
+                        *self.status = Some(frame::tool_news(kind.says(&error)));
+                    }
                 }
             }
             if ui.button("Cancel").clicked() {
