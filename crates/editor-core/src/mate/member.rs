@@ -585,8 +585,11 @@ pub(super) fn derived_offset<P: crate::ProfilePayload>(
 /// [`eval_slots`], the evaluation's own door for "this node's slots at
 /// these bindings", so a slot that does not evaluate on the solve road
 /// refuses with the very [`NodeErrorKind::Expr`] the node's own
-/// evaluation raises for it. There is no second reading of an
-/// expression anywhere in this module.
+/// evaluation raises for it. Nothing in this module reads an
+/// expression any other way: [`check_reference`]'s two counts go
+/// through `eval_count`, which is the call this door makes for a
+/// structural slot, and its doc says why they are read one at a time
+/// rather than through here.
 fn node_slots<P: crate::ProfilePayload>(
     node: &Node<P>,
     env: &ParamEnv<f64>,

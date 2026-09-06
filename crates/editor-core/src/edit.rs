@@ -294,17 +294,6 @@ pub enum DocEdit<P> {
     },
 }
 
-/// The direction door's refusal, in the authoring vocabulary — what
-/// makes `Frame::rotate_then_translate(..)?` compose with
-/// `apply(.., DocEdit::SetPlacement { .. })?` in one function.
-impl From<crate::eval::NodeErrorKind> for EditError {
-    fn from(error: crate::eval::NodeErrorKind) -> Self {
-        Self::PlacementAxis {
-            error: error.into(),
-        }
-    }
-}
-
 /// Typed, specific edit refusal (spec D6: no stringly errors).
 #[derive(Debug, Clone, PartialEq)]
 pub enum EditError {
@@ -839,6 +828,17 @@ pub enum EditError {
 // ({slot:?}), which has a prose spelling (`SlotId::label`) it does not
 // use — that is a separate question, outside the amendment that
 // removed the other two, and it is filed rather than taken here.
+/// The direction door's refusal, in the authoring vocabulary — what
+/// makes `Frame::rotate_then_translate(..)?` compose with
+/// `apply(.., DocEdit::SetPlacement { .. })?` in one function.
+impl From<crate::eval::NodeErrorKind> for EditError {
+    fn from(error: crate::eval::NodeErrorKind) -> Self {
+        Self::PlacementAxis {
+            error: error.into(),
+        }
+    }
+}
+
 impl core::fmt::Display for EditError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
