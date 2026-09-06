@@ -1,19 +1,13 @@
 //! What a frame MARKS, over an index someone else built.
 //!
-//! Every door here takes a [`crate::pickindex::PickIndex`] as an
-//! ARGUMENT and answers *what should be lit*. That is a different
-//! question from *what is under the cursor*, which is
-//! [`crate::pickindex`]'s and stays there: this module decides nothing
-//! about picking, holds no state, and builds no index.
+//! # The three marks
 //!
-//! **It reads the index through its public doors only** —
-//! `ids`, `name_of`, `ids_of_node`, `ids_of_target`, `edges_of_target`
-//! and `edge_polyline_for` — so no layout inside `PickIndex` is
-//! reachable from here and none of these answers can be tightened by
-//! reaching past one. That property is what made the module
-//! separable, and keeping it is what keeps the two files independent.
-//!
-//! # The four marks
+//! Each is a pure function of a built
+//! [`crate::pickindex::PickIndex`] and what is selected, and each
+//! answers *what should be lit* — a different question from *what is
+//! under the cursor*, which is [`crate::pickindex`]'s and stays
+//! there. Nothing here decides anything about picking, holds state, or
+//! builds an index.
 //!
 //! - [`highlight`] — the patch ids a selection and a hover light, as
 //!   a pure function of what is drawn and what is selected;
@@ -25,10 +19,27 @@
 //!   patches the side panel's selection is RESPONSIBLE for, which for
 //!   a parameter means walking `doc.order()` for the nodes it drives.
 //!   It reaches for an index because that is where the ids live, not
-//!   because it is about a pick;
-//! - [`cursor_projection`] — the id pass's 1×1 target matrix, kept
-//!   out of the render module because it is the one part of that pass
-//!   a machine with no GPU can check.
+//!   because it is about a pick.
+//!
+//! **The three read the index through its public doors only** —
+//! `ids`, `name_of`, `ids_of_node`, `ids_of_target`, `edges_of_target`
+//! and `edge_polyline_for` — so no layout inside `PickIndex` is
+//! reachable from here and none of these answers can be tightened by
+//! reaching past one. That property is what made the module separable,
+//! and keeping it is what keeps the two files independent.
+//!
+//! # [`cursor_projection`] is not a mark, and is here for want of a home
+//!
+//! It takes no index, no selection and no document — a
+//! view-projection, a cursor and a viewport size in, a matrix out —
+//! and nothing is lit by it. It is the id pass's 1×1 target
+//! transform, and it sits here because it is the one part of that pass
+//! a machine with no GPU can check, which is an argument about
+//! TESTABILITY rather than about subject. Said plainly because the
+//! alternative is a header that quietly counts it as a fourth mark:
+//! `work/view/cursor-projection-landed-in-marks-for-want-of-a-home`
+//! argues its home is `crate::camera`, whose `Camera::project` its own
+//! doc composes with, and holds that question.
 //!
 //! # A mark is a value, recomputed, and never retained
 //!
@@ -40,10 +51,13 @@
 //! (`tests/focus_highlight.rs`, `tests/edge_pick.rs`).
 //!
 //! **What a mark MEANS is here; what colour it comes out is
-//! `crate::theme`'s**, and the split is deliberate — `Theme::marks`
-//! names the same four (selected, hovered, probe, focus) and answers
-//! only the palette question. Neither file can change the other's
-//! answer.
+//! `crate::theme`'s.** The two enumerate DIFFERENT lists and neither
+//! checks the other: `Theme::marks` answers the palette question for
+//! four semantic marks — selected, hovered, probe, focus — and only
+//! the last of those is also a door here. One door feeds several of
+//! the theme's marks (an [`EdgeOverlay`] carries a selected lane, a
+//! hovered lane and two probe flags), so the two lists correspond
+//! many-to-many and a reader should not expect to line them up.
 //!
 //! Module kind: **vocabulary** (`crates/viewer/README.md`, Module
 //! boundaries). It names no driver type and no `app`-only crate.

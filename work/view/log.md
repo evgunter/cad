@@ -5076,3 +5076,127 @@ open rows on CHROME's and code-quality's slates cite
 `crates/viewer/src/pick.rs`, and three of the four were already citing
 the wrong file before this rename. `generation-get-has-no-reader` stays
 untouched, for the same reason as last time.
+
+## The fix pass for #2083, which committed the class it caught (2026-09-06)
+
+**Say it first, because it is the entry a successor needs: this unit
+named #2079 for shifting a line number instead of re-deriving it, and
+then did exactly that, in the same section that names it.**
+`ui-thread-work-after-the-index-seam:31` was written `pickindex.rs:910`
+— which is `:928 − 18`, the number the PR's own prose had just declared
+wrong, moved by a delta computed correctly somewhere else. The PR also
+claimed *"the numbers here were all re-read after the last edit"*; a
+re-read of `:910` returns `mesh: part.mesh(),`. The claim was false and
+the check it described was not performed.
+
+The correct citation is two citations, and the single parenthetical was
+hiding that: `PickIndex::scene_focused` is `pickindex.rs:894` and
+`SceneMesh::build_parts_focused` is `scene.rs:410` — a different file,
+which it has been all along.
+
+**Why the class survives being named.** Naming it produces vigilance
+about OTHER people's numbers and none about one's own, because a delta
+felt like a derivation. It is not: a delta is only as good as the
+origin it is applied to, and the origin here was a number the same
+paragraph called wrong. The instrument that works is not a grep and
+never was — it is to enumerate every `file:line` in every row the
+branch touches, `sed -n Np` each, and read whether the subject is
+there. Twenty-odd citations, a few minutes, and it is the only thing
+that catches this.
+
+Doing that turned up a sixth instance nobody had named: **the header
+rewrites in this very fix pass moved five of the review's own fresh
+citations** — in `cursor-projection-landed-in-marks-for-want-of-a-home`,
+`highlight-and-edge-overlay-disagree-on-hover-equals-selected`,
+`the-point3-to-gpu-corner-cast-is-at-three-sites` and
+`a-module-named-for-its-spine-type-is-unfalsifiable`. Re-derived by
+subject and verified one at a time. That is the third split in a row to
+feed `stale-file-citations-after-the-split`, and the row now says so.
+
+### The other counts, all four wrong the same way
+
+Four rows were merge-base-wrong, not three (`outstanding-and-progress:49`
+was fixed and not counted). Four of the four out-of-fence rows were
+already wrong, not three — the item said so and the PR body contradicted
+its own item. The receipt sentence said *"merge base against head"* when
+34/75 is true of the move commit `6702d15` alone; at head it is 35/76
+after the rename and 35/90 after this pass, because prose in those
+files keeps moving. Both head figures were MEASURED — a draft of the
+closure wrote one of them by estimate ("38/89") one paragraph after
+confessing the estimating habit, and it was caught by re-measuring
+before the commit rather than by noticing.
+The number was always right about the commit whose warrant it is, and
+naming the tree instead is the same error as the line numbers: a true
+measurement, quoted against the wrong subject. And the residue row's id
+said three programs where there are two — ids are stable for life, so
+it is renamed now rather than never:
+`renamed-module-leaves-citations-in-three-other-programs` →
+`renamed-module-leaves-citations-in-two-other-programs`. Every citation
+of the old id is re-pointed except the previous log entry, which is
+append-only.
+
+### The header this unit wrote from scratch
+
+#2079's lesson was that a split goes wrong in its header, and this unit
+wrote `marks.rs`'s from scratch and put three universals in it that the
+module falsifies: *"every door here takes a `PickIndex`"* (false for
+`cursor_projection`, which the PR's own member table records as taking
+none), a section titled *"The four marks"* counting a projection matrix
+as a mark, and *"`Theme::marks` names the same four"* when the two lists
+share one name. Rewritten: three marks in the opening section, scoped
+to those three; `cursor_projection` given its own section saying
+plainly that it is not a mark and is here for TESTABILITY rather than
+subject, pointing at the item that argues `camera` is its home; and the
+theme passage now says the two enumerate different lists that cannot be
+lined up, and why. A per-door tally in the first draft of that fix was
+itself removed — it was an inference over `gpu.rs`'s uniform block
+rather than something either module states, and this was not the item to
+over-claim on.
+
+**`cursor_projection` is not moved.** The reviewer's argument that
+`camera` is its home is good, and moving it would be a third move in a
+PR whose warrant is two clean ones. Filed, and the header now stops
+calling it a mark, which is what makes the item honest rather than a nag.
+
+### The naming rule is withdrawn as a rule
+
+*"A module named for the type whose inherent `impl` is its spine is
+named correctly"* cannot fail for any module built on one big type and
+would have certified `session.rs` before the 1c split. The rename is
+still right; the argument for it is not that rule but **the six items
+that left** — `Highlight`, `EdgeOverlay`, `highlight`, `edge_overlay`,
+`focus`, `cursor_projection`, none of which was `PickIndex` or about
+it. The closure and `pickcache.rs`'s header both now say the shared
+property is a description of two modules rather than a rule that
+decided a name, and point at
+`a-module-named-for-its-spine-type-is-unfalsifiable`, which also
+carries the structural symptom the closure does not resolve:
+`op_for`/`op_under` return `SessionOp`, so `pickindex` imports
+`crate::session` and that import is a leg of a live ring.
+
+### The sweep that was described but not run
+
+The PR disclosed its first pattern as *"the bare paths
+`pick.rs`/`pickindex.rs`"*. It was run over `work/` and `docs/` and not
+over `crates/`, and the body did not say so — which is how
+`tests/pick_windows.rs:297` survived inside the pattern's own reach,
+and `README.md:672` survived four lines below two sites the PR lists as
+fixed. Both fixed. The bare-word instrument was then run properly and
+found two more: `session.rs:1104` and `generation.rs:10`. One hit was
+triaged as not the module (`input.rs:338` names `InputMap::pick`,
+fourteen lines below it) and two as history. The hit list and its
+disposition are in the PR body, per `implementer-discipline` §5, which
+the first pass owed and did not pay.
+
+Also fixed: the closure enumerated `PickKinds` as one of *"the two
+constants"* — it is a `pub enum`, and the file holds three constants,
+one public.
+
+### Residue
+
+Four review items stay open and are not this pass's:
+`cursor-projection-landed-in-marks-for-want-of-a-home`,
+`a-module-named-for-its-spine-type-is-unfalsifiable`,
+`the-point3-to-gpu-corner-cast-is-at-three-sites` and
+`highlight-and-edge-overlay-disagree-on-hover-equals-selected` — the
+last two pre-existing. `generation-get-has-no-reader` still untouched.

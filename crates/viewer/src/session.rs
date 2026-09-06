@@ -1101,8 +1101,8 @@ impl DocSession {
     /// `tol`, is this session's ε — construction-time, never rewritten
     /// by a landing — and rides along because the build needs it.
     ///
-    /// `pick` is a vocabulary and may not name this driver, so the
-    /// read is hoisted rather than the rule widened
+    /// `pickcache` is a vocabulary and may not name this driver, so
+    /// the read is hoisted rather than the rule widened
     /// (`crates/viewer/README.md`, *What a vocabulary reads, it is
     /// handed*, carries the argument).
     #[must_use]

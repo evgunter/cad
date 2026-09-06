@@ -2,9 +2,10 @@
 id: marks-header-asserts-universals-its-own-module-breaks
 kind: issue
 title: marks.rs's new header opens with three universals the module itself falsifies
-status: open
+status: closed
 opened: 2026-09-06
 refs: [2083]
+closed: 2026-09-06
 ---
 
 
@@ -54,3 +55,36 @@ census.
 
 `sure` on 1 and 3 (mechanical); `likely` on 2, which is a judgement
 about what "mark" means.
+
+## Closed — the header is rewritten (2026-09-06, #2083's fix pass)
+
+All three are gone, and the citations above are left as filed: they
+name the header this item found, which no longer exists.
+
+- **1.** The universal is deleted. The opening section is now *"# The
+  three marks"*, and its lead sentence scopes itself to those three —
+  *"Each is a pure function of a built `PickIndex` and what is
+  selected"* — rather than quantifying over every door in the file.
+- **2.** `cursor_projection` is no longer counted as a mark. It has its
+  own section, *"# `cursor_projection` is not a mark, and is here for
+  want of a home"* (`marks.rs:31`), which says it takes no index, no
+  selection and no document, that nothing is lit by it, and that the
+  reason it sits here is TESTABILITY rather than subject. That section
+  points at `cursor-projection-landed-in-marks-for-want-of-a-home`,
+  which holds the question of whether `camera` is its home; the move
+  is not made here, because it would be a third move in a PR whose
+  warrant is two clean ones.
+- **3.** *"the same four"* is deleted. The passage now says the two
+  modules **enumerate different lists and neither checks the other**,
+  names the theme's four as SEMANTIC marks, says only `focus` appears
+  in both, and gives the reason they cannot be lined up: one door
+  feeds several of the theme's marks, so the correspondence is
+  many-to-many. The per-door tally that an earlier draft of this fix
+  carried was removed as well — it was an inference over `gpu.rs`'s
+  uniform block rather than something either module states, and this
+  item is about headers asserting more than they can support.
+
+The class the item names — a third spelling at `theme.rs:20` (five
+where `Theme::marks` returns four) — is NOT fixed here: it is
+`theme.rs`'s sentence, not this unit's, and no header written by this
+unit now claims a correspondence with it.

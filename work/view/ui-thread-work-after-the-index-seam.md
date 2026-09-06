@@ -28,8 +28,9 @@ is 6b's to fix: each is its own decision about a different seam, and
    BEFORE the index is submitted, so an `Open` still stops repainting
    for it.
 2. **The drawable scene's vertex assembly**, `PickIndex::scene_focused`
-   → `SceneMesh::build_parts_focused` (`crates/viewer/src/pickindex.rs:910`,
-   from `app.rs:~672`). It walks every drawn triangle to build the GPU
+   (`crates/viewer/src/pickindex.rs:894`) → `SceneMesh::build_parts_focused`
+   (`crates/viewer/src/scene.rs:410`), from `app.rs:~672`. It walks
+   every drawn triangle to build the GPU
    buffers, and it runs not only when an index lands but on every HIDE
    and every FOCUS change over an index that is already current — the
    two paths that reach it with no new tessellation behind them.

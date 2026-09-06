@@ -10,7 +10,11 @@ refs: [2083]
 
 Found by the style review of #2083, which ratifies the rule in
 `pick-and-pickindex-are-named-against-their-contents`'s closing prose
-and repeats it in `crates/viewer/src/pickcache.rs:28-31`.
+and repeats it in `crates/viewer/src/pickcache.rs:28-31`. (#2083's fix
+pass rewrote that header passage — it is `pickcache.rs:28-34` now and
+names this item rather than asserting the rule, and the closure was
+revised the same way. The rule itself is still what the rename was
+argued from, so this item stands.)
 
 ## The rule as stated
 

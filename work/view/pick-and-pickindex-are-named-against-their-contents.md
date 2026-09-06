@@ -4,7 +4,7 @@ kind: issue
 title: the module called pick holds no picking, and the policy it claims is in pickindex
 status: closed
 opened: 2026-09-06
-refs: [2079, pickindex-holds-the-frames-marks-as-well-as-the-index, renamed-module-leaves-citations-in-three-other-programs]
+refs: [2079, pickindex-holds-the-frames-marks-as-well-as-the-index, renamed-module-leaves-citations-in-two-other-programs]
 closed: 2026-09-06
 ---
 
@@ -91,6 +91,12 @@ modules and the third at once.
 
 ## Answered by the split: `pick` → `pickcache`, and `pickindex` was right all along (2026-09-06)
 
+**The finding's own evidence above is left as filed and is history.**
+Re-derived against this branch's head so a reader need not: `op_for`
+is `pickindex.rs:1506`, `op_under` `:1535`, `hovered_for` `:1297`, and
+`pane/viewport.rs:183` still carries the sentence quoted. `pick.rs` is
+`pickcache.rs`.
+
 The schedule fired. `pickindex-holds-the-frames-marks-as-well-as-the-
 index` landed as a pure move in the commit below this one, and the two
 arguments that were parked on it expire as predicted — but not with the
@@ -109,21 +115,30 @@ it"* — survives the split word for word.
 What the split makes visible is that **the complaint was a complaint
 about a type having methods.** After the move, every item left in
 `pickindex.rs` is `PickIndex`, one of its keys (`PatchId`, `EdgeId`,
-`IdMap`), its construction machinery (`PartWindows` and the `DrawnKind`
-pair), its errors (`IdMapError`, `PickIndexError`, `PickError`,
-`EdgeNameFault`), its answers (`EdgePick`), the two constants its
-queries take (`EDGE_PICK_RADIUS_PX`, `PickKinds`), or a private helper
-for one of its methods (`Candidate`, `placement`,
-`segment_distance_px`, `ray_segment_closest`). The policy is not
-free-standing there and never was: it is `PickIndex::op_for` and
-`PickIndex::hovered_for`, inherent methods on the type the module is
-named for. **A module named for the type whose inherent `impl` is its
-spine is named correctly**, and before the split it was not — six
-items (`Highlight`, `EdgeOverlay`, `highlight`, `edge_overlay`,
-`focus`, `cursor_projection`) were neither `PickIndex` nor about it.
-Those are `marks` now. So `pickindex` keeps its name, and this is the
-first point at which that could be said with evidence rather than
-hoped.
+`IdMap`), its construction machinery (`PartWindows`, `PartWindow`,
+`WindowFault` and the `DrawnKind` pair), its errors (`IdMapError`,
+`PickIndexError`, `PickError`, `EdgeNameFault`), its answers
+(`EdgePick`), the filter and radius its queries take (`PickKinds`, a
+`pub enum`, and `EDGE_PICK_RADIUS_PX`), or a private helper for one of
+its methods (`Candidate`, `placement`, `segment_distance_px`,
+`ray_segment_closest`, and the two private tolerance constants
+`OCCLUSION_SLACK_REL` and `PARALLEL_REL` — three constants in the file,
+of which one is public). The policy is not free-standing there and
+never was: it is `PickIndex::op_for` and `PickIndex::hovered_for`,
+inherent methods on the type the module is named for.
+
+Before the split that was not so: six items (`Highlight`,
+`EdgeOverlay`, `highlight`, `edge_overlay`, `focus`,
+`cursor_projection`) were neither `PickIndex` nor about it. Those are
+`marks` now. So the evidence for keeping the name is **the six items
+that left**, not a general rule about spine types — the review of this
+PR is right that *"a module named for the type whose inherent `impl` is
+its spine is named correctly"* cannot fail for any module built on one
+big type and would have certified `session.rs` before the 1c split, and
+`a-module-named-for-its-spine-type-is-unfalsifiable` carries that,
+including the structural symptom this closure does not resolve:
+`op_for`/`op_under` return `SessionOp`, so `pickindex` imports
+`crate::session` and that import is a leg of a live ring.
 
 **`pick` does not keep its name, and that half of the finding is
 unchanged by everything above.** The module called `pick` still holds
@@ -152,24 +167,26 @@ looks for *what happens when the cache holds nothing*. The objection
 was written against the word, and the word is not what the module
 holds.
 
-**The naming rule the three modules now follow**, stated so the next
-module does not have to re-derive it: each is named for the type it is
-built around — `pickindex`/`PickIndex`, `pickcache`/`PickCache` — and
-`marks`, which has no spine type (two small value types and five free
-functions), is named for what it produces.
+**What the three names have in common** — offered as a description of
+this outcome and not as a rule that decided it, per the item above:
+`pickindex` and `pickcache` each name the type they are built around,
+and `marks`, which has no such type, names what it produces.
 
 **Why this is a separate commit from the move.** Argument 1 does not
 expire and was never claimed to: a rename is not a move, and the
 sorted-line certification that makes a move readable does not survive
-call-site churn. So the move landed alone and certified (34 lines
-removed, 75 added, no code line among them, 144 declarations identical),
+call-site churn. So the move landed alone and certified at `6702d15`
+(34 lines removed, 75 added, no code line among them, 144 declarations
+identical),
 and this rename rides its own commit where a reviewer reads it as what
 it is. The churn is ~40 references across five source files, one test
 file and `lib.rs` — an order of magnitude smaller than the fifteen-
 source-file rewrite argument 1 was weighing, because that estimate was
 dominated by `pickindex`'s surface and `pickindex` is not being renamed.
 
-`work/view/renamed-module-leaves-citations-in-three-other-programs` is
-the residue this rename creates outside VIEW's fence.
+`work/view/renamed-module-leaves-citations-in-two-other-programs` is
+the residue this rename creates outside VIEW's fence;
+`pick-rename-left-two-live-sites-naming-the-old-file` was the residue
+it left INSIDE it, and is fixed in this branch's fix pass.
 
 ## Closed

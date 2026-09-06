@@ -51,9 +51,13 @@ coincidence about the fixture, not a property.
 The same shape — a viewer-side value derived from the document and
 reset (or not) by an op match rather than by the session — should be
 swept at least at `crates/viewer/src/tools.rs:487`,
-`crates/viewer/src/pickcache.rs:103-121` and
-`crates/viewer/src/pane/create.rs:141,415`. Cite what the sweep could
-not match when it is done.
+`crates/viewer/src/pickcache.rs` (**range unverified** — the row
+carried `pick.rs:103-121`, which after #2083's rename resolves to the
+tail of `IndexInputs::of` and the head of `PickCache`'s doc comment,
+neither of which is a gesture-reset site; the file is right, the range
+is not, and a taker should re-find the subject rather than trust it)
+and `crates/viewer/src/pane/create.rs:141,415`. Cite what the sweep
+could not match when it is done.
 
 ## What resolving it looks like
 

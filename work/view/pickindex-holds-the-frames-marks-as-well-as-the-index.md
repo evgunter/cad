@@ -96,13 +96,24 @@ them.** The one judgement call was `cursor_projection`, which takes no
 index at all and could have stayed: it went because its consumer set is
 the marks' one and its subject is the id pass, not the index.
 
-**The receipt.** Merge base `pickindex.rs` against head `pickindex.rs +
-marks.rs`, sorted, whitespace-sensitive: **34 lines removed, 75 added,
-and not one of them is code** — every removed line is a `//!` header
-line, a `///` doc line the doc-link fix reflowed, or a `use` line whose
-name list shrank. The 144 declarations (`fn`, `struct`, `enum`, `const`,
-`type`, `impl`, `mod`, `trait`, `#[derive]`) are byte-identical between
-the two sides. `#[test]` over `crates/viewer/{src,tests}` is 533 on the
+**The receipt, and it certifies ONE COMMIT rather than the branch.**
+Merge base `499a17b`'s `pickindex.rs` against the move commit
+`6702d15`'s `pickindex.rs + marks.rs`, sorted, whitespace-sensitive:
+**34 lines removed, 75 added, and not one of them is code**. The same
+diff measured at the branch head is 35/76 after the rename commit and
+35/90 after the fix pass, because both edit prose in those files — the
+numbers above are true of the commit whose warrant they are, and
+quoting them against the tree is what the review of this PR caught.
+(All three head figures are measured, not projected: an earlier draft
+of this paragraph wrote "38/89" by estimating one, which is the same
+error one paragraph after admitting it.) The no-code-line property
+holds at every one of the three.
+
+Every removed line is a `//!` header line, a `///` doc line the
+doc-link fix reflowed, or a `use` line whose name list shrank. The 144
+declarations (`fn`, `struct`, `enum`, `const`, `type`, `impl`, `mod`,
+`trait`, `#[derive]`) are byte-identical between the two sides, and
+that half holds at head as well as at `6702d15`. `#[test]` over `crates/viewer/{src,tests}` is 533 on the
 merge base and 533 on head; `--test all` is 503 passed / 1 ignored on
 both, and `--lib` 24 passed / 1 failed on both (the Vulkan-less
 `gpu::every_pass_builds_on_a_real_device`).

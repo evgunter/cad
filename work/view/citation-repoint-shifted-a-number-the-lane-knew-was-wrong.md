@@ -2,9 +2,10 @@
 id: citation-repoint-shifted-a-number-the-lane-knew-was-wrong
 kind: issue
 title: the citation fix pass shifted a number it had just declared wrong, and undercounts the already-wrong rows by one in three places
-status: open
+status: closed
 opened: 2026-09-06
 refs: [2083]
+closed: 2026-09-06
 ---
 
 
@@ -87,3 +88,60 @@ which is the open class row for exactly this.
 `sure` on 1, 2, 3 and 4 (all mechanical against `499a17b`). `sure` on
 the fact in 5; `likely` on the judgement that the disclosure is
 insufficient.
+
+## Closed — all five accepted, and the lane committed the class it caught (2026-09-06, #2083's fix pass)
+
+**Every one of the five is right, and the first is the one that
+matters.** This PR opens by naming #2079 for publishing line numbers
+its own header rewrites invalidated in the same commit, and then does
+the same thing in the same section: `:928` was declared wrong in the
+PR's own prose and then written as `:910`, which is `:928 − 18`. The
+delta was real; the number it was applied to was not. Nothing was
+re-read, whatever the PR claimed — a re-read of `:910` returns
+`mesh: part.mesh(),`, which is neither of the two subjects the citation
+names.
+
+**1.** `ui-thread-work-after-the-index-seam:31` re-derived by subject
+rather than adjusted, and split so each subject carries its own file:
+`PickIndex::scene_focused` is `crates/viewer/src/pickindex.rs:894` and
+`SceneMesh::build_parts_focused` is `crates/viewer/src/scene.rs:410` —
+it was never in `pickindex.rs` at all, which the single parenthetical
+had been hiding since before this branch.
+
+**2.** Four, not three, were wrong at the merge base. The uncounted one
+is `outstanding-and-progress:49`, which is now `pickcache.rs:376`
+(`PickCache::indexing`) — moved again by this fix pass's own header
+edit, and re-derived rather than shifted.
+
+**3.** Four, not three, of the out-of-fence rows were already wrong.
+The PR body is corrected to agree with the item, which was right.
+
+**4.** The row is renamed:
+`renamed-module-leaves-citations-in-two-other-programs`. Every
+reference to the old id is re-pointed except the log entry that
+introduced it, which is append-only and says so; the new log entry
+names both ids.
+
+**5.** `new-document-owes-the-reframe-open-gets:54` now carries the
+disclosure IN the item — the file, then *"range unverified"* with what
+`pickcache.rs:103-121` actually resolves to and an instruction to
+re-find the subject. A sweeper reading the row now learns what a reader
+of the PR body would have.
+
+## What the pattern has to be, since the grep is not one
+
+The item is right that no grep finds this. What this pass did instead,
+and what a successor should do: enumerate every `file:line` in every
+row the branch touches, `sed -n Np` each one, and read whether the
+subject is there. That is mechanical, it is cheap — twenty-odd
+citations here — and it is the only thing that catches a number that
+was shifted by a correct delta from a wrong origin.
+
+Doing it turned up a sixth instance nobody had named: **this fix pass's
+own header rewrites moved five of the REVIEW's fresh citations** in
+`cursor-projection-landed-in-marks-for-want-of-a-home`,
+`highlight-and-edge-overlay-disagree-on-hover-equals-selected`,
+`the-point3-to-gpu-corner-cast-is-at-three-sites` and
+`a-module-named-for-its-spine-type-is-unfalsifiable`. All were
+re-derived by subject and verified line by line, which is the only
+reason they are not the next member of this class.

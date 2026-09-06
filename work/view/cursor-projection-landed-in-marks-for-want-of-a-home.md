@@ -11,7 +11,7 @@ refs: [2083]
 Found by the style review of #2083, which names this the unit's one
 judgement call.
 
-`cursor_projection` (`crates/viewer/src/marks.rs:432-448`) takes a
+`cursor_projection` (`crates/viewer/src/marks.rs:448-478`) takes a
 view-projection matrix, a cursor in NDC and a viewport size, and
 returns a matrix. It names no index, no selection, no hover and no
 document. Nothing about it is a mark: its subject is a camera
@@ -29,7 +29,7 @@ set is exactly `gpu.rs:594` — the same consumer it was moved away from.
 
 `crate::camera` is the module the function composes with, the one whose
 doc link the move had to rewrite to
-`[\`crate::camera::Camera::project\`]` (`marks.rs:428`), and the one a
+`[\`crate::camera::Camera::project\`]` (`marks.rs:460`), and the one a
 reader hunting a projection matrix opens. That the move had to widen
 that link into a full path is itself the signal: the function's subject
 lives in another module.

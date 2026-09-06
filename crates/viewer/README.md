@@ -654,7 +654,7 @@ survives on the seam types; the split alone leaves `pickindex` needing
 holds a ring** — said here because a picture of a chain is exactly the
 sentence that stops the next reader looking:
 
-    pickcache.rs:58   use crate::pickindex::{PickIndex, PickIndexError}
+    pickcache.rs:61   use crate::pickindex::{PickIndex, PickIndexError}
     pickindex.rs:81   use crate::session::{…, SessionOp}
     session.rs:78     use crate::pickcache       (for `IndexInputs`)
 
@@ -669,7 +669,7 @@ that the driver's own module names the vocabulary back.
 So the two rings are different diagnoses and only the first is fixed
 here. `evalseam ↔ pickcache` was **one file holding two layers** with a seam
 running between them, which no placement of the seam could repair —
-that is what this section is about. `pick ↔ session` is **a vocabulary
+that is what this section is about. `pickcache ↔ session` is **a vocabulary
 and its driver trading a minted value**, which is the boundary rule
 working rather than failing. Nothing in this section generalises to the
 second, and `work/view/seam-split-leaves-a-cycle-through-the-session`

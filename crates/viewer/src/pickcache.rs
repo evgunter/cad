@@ -25,10 +25,13 @@
 //!
 //! Everything here owns mutable state and drives the seam; everything
 //! in [`crate::pickindex`] is a value or a pure function over one.
-//! That is the line the split was cut on, and each module is named
-//! for the type it is built around — [`PickCache`] here,
-//! `PickIndex` there — so a reader asking how a pick WORKS opens
-//! `pickindex` and one asking when an index EXISTS opens this file.
+//! That is the line the split was cut on. Each of the two names the
+//! type it is built around — [`PickCache`] here, `PickIndex` there —
+//! so a reader asking how a pick WORKS opens `pickindex` and one
+//! asking when an index EXISTS opens this file. That is a description
+//! of these two modules and not a rule that decides a name:
+//! `work/view/a-module-named-for-its-spine-type-is-unfalsifiable`
+//! holds why it cannot be one.
 //!
 //! # Why the index is not here
 //!

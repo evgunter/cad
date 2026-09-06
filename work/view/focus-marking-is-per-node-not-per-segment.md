@@ -51,7 +51,7 @@ is cut.
 
 ## Home
 
-Viewer ground (`crates/viewer/src/marks.rs`, where `focus` is `:336` since the marks split) with a lowering-side door in `profile`/`editor-core`; the GUI program is closed and may hold only closed items, so it lands under `work/issues/`.
+Viewer ground (`crates/viewer/src/marks.rs`, where `focus` is `:350`) with a lowering-side door in `profile`/`editor-core`; the GUI program is closed and may hold only closed items, so it lands under `work/issues/`.
 
 ## The blocker now has a file (VIEW orchestrator, 2026-09-04)
 

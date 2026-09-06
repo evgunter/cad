@@ -12,15 +12,15 @@ Found by the style review of #2083 (pre-existing; both members moved
 into `crates/viewer/src/marks.rs` together, so the divergence is now on
 one screen for the first time).
 
-`crates/viewer/src/marks.rs:186` calls `edge_overlay` *"the twin of
+`crates/viewer/src/marks.rs:200` calls `edge_overlay` *"the twin of
 [`highlight`]"* and says *"what the two share is the RULE"*. They do
 share the narrowing rule. They do not share what happens when the hover
 IS the selection:
 
-- `edge_overlay` (`marks.rs:218-221`) filters it out in Rust —
+- `edge_overlay` (`marks.rs:224-227`) filters it out in Rust —
   `hovered_edge = hover.and_then(Hovered::edge).filter(|edge| selected_edge != Some(*edge))`
   — so `EdgeOverlay::hovered` is empty for an edge already selected;
-- `highlight` (`marks.rs:104-107`) does not — `Highlight::selected` and
+- `highlight` (`marks.rs:118-121`) does not — `Highlight::selected` and
   `Highlight::hovered` carry the same patch id when a hover lands on the
   selection, and the precedence is resolved downstream in the shader.
 
