@@ -2,11 +2,12 @@
 id: debug-only-assert-euler-postcondition-is-on-no-row
 kind: issue
 title: Fifteen gated statements in topo name no pinned spelling, so the debug-only gate says nothing about them
-status: review
+status: closed
 opened: 2026-09-06
 refs: [debug-only-reader-cannot-place-a-statement-attribute-over-a-braced-call, debug-only-bit-witness-callers-are-on-no-row]
 branch: gates/debug-only-topo-class
 pr: 2066
+closed: 2026-09-06
 ---
 
 
