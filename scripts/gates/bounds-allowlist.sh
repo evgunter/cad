@@ -340,9 +340,10 @@
 # KNOWN GAP 7, AND IT IS WHAT KEYING ON THE BOUND TARGET COSTS. The
 # reader groups the terms written FOR A TARGET, so a bracket door that
 # stands on no target is not read at all -- and neither is one the
-# statement cutter has already put in the next record. Seven shapes the
-# `+` regex fired on are silent here. The direction is BLIND, not
-# cry-wolf: nothing new reds, what is lost is a red that used to land.
+# statement cutter has already put in the next record. Every spelling
+# below fired on the `+` regex and is silent here. The direction is
+# BLIND, not cry-wolf: nothing new reds, and what is lost is a red that
+# used to land.
 #
 #     fn f(b: Box<dyn Decide + Bounds>)       the door is inside a TYPE
 #     fn f() -> impl Decide + Bounds          and not on a bound target;
@@ -362,7 +363,9 @@
 #
 # THE FIRST THREE ARE IN THE RULE'S CLASS -- a value that decides and
 # reads brackets, handed over as a `dyn`/`impl` type or given a name --
-# so this is a hole and not a definitional exclusion. The ARGUMENT
+# so this is a hole and not a definitional exclusion; the fourth is the
+# same thing spelled with a nightly feature this tree does not use. The
+# ARGUMENT
 # position still fires: `fn f(x: impl Decide + Bounds)` is a bound on
 # the target `x` and is a hit; `-> impl Decide + Bounds` is not.
 #
