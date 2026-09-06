@@ -822,7 +822,7 @@ impl ViewerApp {
                 self.budget_delta = None;
                 self.sync_scene();
             }
-            Err(error) => self.status = Some(frame::delta_refusal(&error)),
+            Err(error) => self.notices.push(frame::delta_refusal(&error)),
         }
     }
 
@@ -999,7 +999,7 @@ impl ViewerApp {
             keys: self.keys_pref.clone(),
         };
         if let Err(error) = self.store.save(&prefs.to_toml()) {
-            self.status = Some(frame::store_refusal(&error));
+            self.notices.push(frame::store_refusal(&error));
         }
     }
 
@@ -1013,6 +1013,19 @@ impl ViewerApp {
     /// come through. This is the `&mut self` shorthand, nothing more.
     fn apply_status(&mut self, update: StatusUpdate) {
         frame::apply(&mut self.status, update);
+    }
+
+    /// The `&mut self` shorthand onto [`frame::deliver`], for a policy
+    /// whose verdict has NOT been through the ranking.
+    ///
+    /// [`ViewerApp::apply_status`] is for the ranked verdict — what
+    /// [`frame::frame_status`] already weighed — and applying an
+    /// unranked `Show` there is the defect this door exists to stop: a
+    /// sentence written straight to the field on a frame whose batch
+    /// then clears it, before the toolbar that would have painted it
+    /// runs again.
+    fn deliver_status(&mut self, update: StatusUpdate) {
+        frame::deliver(&mut self.notices, &mut self.status, update);
     }
 
     /// **The advisory-check findings, in a window a reader can keep
@@ -1164,7 +1177,7 @@ impl eframe::App for ViewerApp {
                         if let Some(path) = path {
                             ops.push(SessionOp::Open(path));
                         }
-                        self.apply_status(update);
+                        self.deliver_status(update);
                     }
                 }
                 if ui
@@ -1181,7 +1194,7 @@ impl eframe::App for ViewerApp {
                         if let Some(path) = path {
                             ops.push(SessionOp::Save(path));
                         }
-                        self.apply_status(update);
+                        self.deliver_status(update);
                     }
                 }
                 ui.separator();
@@ -1425,6 +1438,7 @@ impl eframe::App for ViewerApp {
                     profile_form_drawn: &mut profile_form_drawn,
                     pending_fit: &mut self.pending_fit,
                     projection_fault: &mut self.projection_fault,
+                    notices: &mut self.notices,
                     status: &mut self.status,
                     id_answer: &self.id_answer,
                     id_log: &mut self.id_log,
@@ -1543,6 +1557,17 @@ pub(crate) struct ViewerBehavior<'a> {
     /// had already painted past and the next accepted act would
     /// sweep.
     pub(crate) projection_fault: &'a mut Option<CameraError>,
+    /// **What this frame's panes have to SAY**, joined and ranked by
+    /// [`frame::frame_status`] with everything else the frame
+    /// produced. A pane that assigned `status` instead had no way to
+    /// say "I have nothing to add", and its sentence was erased by the
+    /// batch this frame accepted before it was ever painted —
+    /// `perform_batch` runs after the panes have drawn.
+    pub(crate) notices: &'a mut Vec<frame::Message>,
+    /// The line itself, for the one thing a notice cannot do: RETIRE a
+    /// sentence. `frame::cursor_status` and a clean camera fold expire
+    /// what they last said and add nothing, so they reach the field
+    /// directly ([`frame::deliver`] routes both halves).
     pub(crate) status: &'a mut Option<frame::Message>,
     pub(crate) id_answer: &'a Arc<AtomicU64>,
     pub(crate) id_log: &'a mut IdQueryLog,

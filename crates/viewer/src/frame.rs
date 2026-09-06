@@ -44,8 +44,8 @@
 //! acted.
 //!
 //! **"Held state" is the mechanical shadow of that, a strong
-//! indicator and not a decision procedure**, and the sweep that sorts
-//! twenty writers on this paragraph needs the three ways it falls
+//! indicator and not a decision procedure**, and the sweep that sorted
+//! eighteen writers on this paragraph needed the three ways it falls
 //! short said out loud:
 //!
 //! * **It is a property of the FACT, not of a signature.**
@@ -326,6 +326,37 @@ pub enum StatusUpdate {
     Expire(Subject),
     /// Show this message, replacing whatever the line held.
     Show(Message),
+}
+
+/// **Hand a policy's verdict to the frame**: what it has to SAY joins
+/// the frame's notices, and what it retires goes straight to the field.
+///
+/// The two halves of a [`StatusUpdate`] reach the line by different
+/// routes, and the difference is the whole of what this module ranks.
+/// A [`StatusUpdate::Show`] is news — a sentence that competes with
+/// every other sentence this frame produced, so it goes on `notices`
+/// and meets [`frame_status`]'s ranking, which is what stops the same
+/// frame's accepted batch from erasing it before it is painted.
+/// [`StatusUpdate::Keep`] and [`StatusUpdate::Expire`] say nothing and
+/// therefore compete with nothing: `Keep` is the absence of news
+/// spelled as a decision, and `Expire` is a RETIREMENT, which must
+/// reach the field directly because a notice cannot un-say anything.
+///
+/// [`StatusUpdate::Clear`] arrives here only from a policy that has
+/// one, and is applied for the same reason `Expire` is: it takes
+/// something away rather than adding to what the frame has to say.
+///
+/// **This is the door for a policy that may or may not have
+/// something to say** — [`fold_status`] and [`dialog_status`] are both
+/// that shape. A writer that already knows it has a [`Message`] pushes
+/// onto `notices` itself; a writer that assigns the field has no way
+/// to say "I have nothing to add", which is the defect [`apply`]'s
+/// docs describe and this door removes for the policies.
+pub fn deliver(notices: &mut Vec<Message>, status: &mut Option<Message>, update: StatusUpdate) {
+    match update {
+        StatusUpdate::Show(message) => notices.push(message),
+        retirement => apply(status, retirement),
+    }
 }
 
 /// **Apply a verdict to the status line**: the one place a
@@ -1962,6 +1993,52 @@ mod tests {
             apply(&mut status, cursor_status(event));
             assert_eq!(status, None, "{event:?} is a cursor event");
         }
+    }
+
+    /// **`deliver` splits a verdict by whether it has anything to
+    /// SAY**: news joins the frame's notices and meets the ranking, a
+    /// retirement reaches the field directly because a notice cannot
+    /// un-say anything.
+    ///
+    /// The two halves are asserted against each other rather than
+    /// separately: the same call that must not touch the field must
+    /// also have pushed, and the same call that must not push must
+    /// have touched the field. Either assertion alone passes for a
+    /// `deliver` that does nothing at all.
+    #[test]
+    fn deliver_sends_news_to_the_notices_and_retirements_to_the_field() {
+        let held = Message::new(Subject::Camera, "camera: refused a moment ago");
+
+        // News. The field is left alone — the ranking has not run yet,
+        // and writing it here is the defect: this frame's accepted
+        // batch would clear it before the toolbar painted it.
+        let mut notices = Vec::new();
+        let mut status = Some(held.clone());
+        let news = Message::new(Subject::Camera, "camera: dolly refused");
+        deliver(&mut notices, &mut status, StatusUpdate::Show(news.clone()));
+        assert_eq!(notices, vec![news], "a Show is news and joins the frame");
+        assert_eq!(status, Some(held.clone()), "and does not write the field");
+
+        // A retirement. Nothing to say, so nothing to rank — and it
+        // must reach the field, which is the one thing a notice cannot
+        // do.
+        let mut notices = Vec::new();
+        let mut status = Some(held.clone());
+        deliver(
+            &mut notices,
+            &mut status,
+            StatusUpdate::Expire(Subject::Camera),
+        );
+        assert!(notices.is_empty(), "an Expire adds nothing to the frame");
+        assert_eq!(status, None, "and retires what it was about");
+
+        // `Keep` is the absence of news spelled as a decision: neither
+        // route is taken.
+        let mut notices = Vec::new();
+        let mut status = Some(held.clone());
+        deliver(&mut notices, &mut status, StatusUpdate::Keep);
+        assert!(notices.is_empty());
+        assert_eq!(status, Some(held));
     }
 
     /// A fold the camera refused: a dolly by zero, which is not a

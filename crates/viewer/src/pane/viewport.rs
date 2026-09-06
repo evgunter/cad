@@ -32,11 +32,18 @@ use crate::sketch::{heading, tip_mark};
 /// frame a document lands, the landing's own.
 pub(crate) fn land(
     camera: &mut Camera,
+    notices: &mut Vec<frame::Message>,
     status: &mut Option<frame::Message>,
     folded: &camera::Folded,
 ) {
     *camera = folded.camera;
-    frame::apply(status, frame::fold_status(folded));
+    // Both halves of the verdict, each by its own route
+    // ([`frame::deliver`]): a refused fold is NEWS and joins this
+    // frame's notices, where the ranking can weigh it against whatever
+    // else the frame produced; a clean fold RETIRES the camera
+    // sentence and reaches the field directly, because a notice cannot
+    // un-say anything.
+    frame::deliver(notices, status, frame::fold_status(folded));
 }
 
 /// Direction the light travels, world space; a unit vector over the
@@ -134,7 +141,7 @@ impl ViewerBehavior<'_> {
                 aspect,
             };
             let folded = camera::fold_recorded(self.camera, std::slice::from_ref(&fit));
-            land(self.camera, self.status, &folded);
+            land(self.camera, self.notices, self.status, &folded);
         }
 
         // ONE fold, the same one `map_stream` gives the tests.
@@ -148,7 +155,7 @@ impl ViewerBehavior<'_> {
         // does and does not buy now that a clean fold clears nothing.
         let folded = input::fold_events(&self.input, self.camera, viewport, &events);
         if frame::folded_moved(&folded) {
-            land(self.camera, self.status, &folded);
+            land(self.camera, self.notices, self.status, &folded);
         }
 
         // **One movement verdict for both picking paths.** The id
@@ -197,7 +204,7 @@ impl ViewerBehavior<'_> {
                     // is churn in the one log a test reads.
                     Ok(SessionOp::Hover(face)) if face.as_ref() == self.session.hover() => {}
                     Ok(op) => self.ops.push(op),
-                    Err(error) => *self.status = Some(frame::pick_refusal(&error)),
+                    Err(error) => self.notices.push(frame::pick_refusal(&error)),
                 }
             }
         } else if let Some(refusal) = pick::unindexed(&actions, self.indexing) {
@@ -206,7 +213,7 @@ impl ViewerBehavior<'_> {
             // click that quietly did nothing here is the fail-quiet
             // this window's indexing indicator would otherwise be
             // painted over.
-            *self.status = Some(frame::unindexed_refusal(&refusal));
+            self.notices.push(frame::unindexed_refusal(&refusal));
         }
 
         // What to mark, as a pure function of what is drawn and what is
@@ -406,7 +413,7 @@ impl ViewerBehavior<'_> {
                 from_ray.as_ref().map(|face| &face.name),
             )
         }) {
-            *self.status = Some(report.notice());
+            self.notices.push(report.notice());
         }
 
         let id_query = match (step, cursor_px) {
@@ -496,7 +503,8 @@ mod tests {
         let landing =
             frame::Message::new(frame::Subject::Document, "product: the landing's own news");
         let mut status = Some(landing.clone());
-        land(&mut camera, &mut status, &folded);
+        let mut notices = Vec::new();
+        land(&mut camera, &mut notices, &mut status, &folded);
         assert_eq!(camera, folded.camera, "the camera still lands");
         assert_eq!(
             status,
@@ -511,7 +519,8 @@ mod tests {
         let refuses = CameraOp::Dolly { factor: 0.0 };
         let folded = fold_recorded(&camera, std::slice::from_ref(&refuses));
         let mut status = Some(frame::Message::new(frame::Subject::Document, "older news"));
-        land(&mut camera, &mut status, &folded);
+        let mut notices = Vec::new();
+        land(&mut camera, &mut notices, &mut status, &folded);
         let shown = status.expect("a refused fold is news");
         assert!(
             shown.text().contains("camera:") && shown.text().contains("dolly by a factor"),
@@ -530,7 +539,8 @@ mod tests {
         let refuses = CameraOp::Dolly { factor: 0.0 };
         let mut status = None;
         let folded = fold_recorded(&camera, std::slice::from_ref(&refuses));
-        land(&mut camera, &mut status, &folded);
+        let mut notices = Vec::new();
+        land(&mut camera, &mut notices, &mut status, &folded);
         assert!(status.is_some(), "the refusal reaches the line");
 
         let orbit = CameraOp::Orbit {
@@ -539,7 +549,8 @@ mod tests {
         };
         let folded = fold_recorded(&camera, std::slice::from_ref(&orbit));
         assert!(folded.refused.is_none(), "the orbit applies");
-        land(&mut camera, &mut status, &folded);
+        let mut notices = Vec::new();
+        land(&mut camera, &mut notices, &mut status, &folded);
         assert_eq!(
             status, None,
             "and the next camera event retires it, whatever that event says"
@@ -606,7 +617,8 @@ mod tests {
             "product: two roots collide in the name table",
         );
         let mut status = Some(raised.clone());
-        land(&mut camera, &mut status, &folded);
+        let mut notices = Vec::new();
+        land(&mut camera, &mut notices, &mut status, &folded);
         assert_eq!(
             status,
             Some(raised),

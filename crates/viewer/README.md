@@ -426,8 +426,8 @@ provenance wins because it is the only one a reader can SEE, in whether
 the sentence exists on a frame where nobody acted.
 
 **"Held state" is the mechanical shadow of that, a strong indicator and
-not a decision procedure**, and the sweep that sorts twenty writers on
-this rule needs the three ways it falls short. It is a property of the FACT and not of a
+not a decision procedure**, and the sweep that sorted eighteen writers
+on this rule needed the three ways it falls short. It is a property of the FACT and not of a
 signature — `frame::unindexed_refusal` takes a `&NotIndexed`, and what
 makes it an outcome is that `pick::unindexed` raises it for a `Select`
 and nothing else. Tracing to the raiser does not settle it either:
@@ -466,13 +466,23 @@ rebuild lands, `pane::viewport` clears `projection_fault` where a
 matrix forms); that is work about the seam, not about the chrome, and
 no writer decides the fate of anyone else's sentence.
 
-Twenty writers still assign the message field rather than answering
-`frame::frame_status`'s ranking, and two more — `frame::fold_status`
-and `frame::cursor_status` — answer in the vocabulary and apply it at
-`pane::viewport` without asking it. Each of the twenty names its
-subject — `Message` is the only spelling there is — but naming a
-subject is not asking the ranking, and routing them through it is
-tracked as its own item.
+**Every sentence the line can hold now comes through the ranking.**
+Eighteen writers used to reach the field without it — sixteen
+assignments, one struct-literal initializer at startup, and
+`frame::fold_status`, which answers in the vocabulary and applied its
+verdict at `pane::viewport` without asking. Each named its subject —
+`Message` is the only spelling there is — but naming a subject is not
+asking the ranking. They now push onto the frame's `notices`, which is
+why `ViewerBehavior` carries that field.
+
+**Applying a verdict outside the ranking is not the same as writing
+one**, and the difference is what the count turns on. A retirement has
+nothing to say and must NOT be ranked: `frame::cursor_status` returns
+only `Keep` or `Expire`, so it can never put a sentence on the line and
+was never one of these writers, and `frame::dialog_status`'s one
+`Show` arm is unreachable behind a disabled button at both of its call
+sites. `frame::deliver` is the door that splits the two: news to the
+notices, retirement to the field.
 
 **The badges.** A `frame::Badge` carries its subject, a `frame::Tone`
 (`Advisory` for a report, `Actionable` for a verdict a reader may need
