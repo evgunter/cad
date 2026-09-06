@@ -360,3 +360,15 @@ by the spec §Seams. Signed (PROPS orchestrator).
    takes a fresh block, DOCM-B3.
 3. **The v6 stream**: the duals continue for the moment; recorded in
    the log's protocol list, the readout still owed.
+
+## DOCM-6 and DOCM-7 dispatched concurrently (2026-09-06)
+
+DOCM-6 takes block DOCM-B2 slot 2 (OPUS per the byte-39 draw), branch
+`docm/6-seam`, the seam's mate-identity channel under the ruling that
+inner mint refusals refuse at the outermost gate. DOCM-7 opens block
+DOCM-B3: pre-draw fields at its spec (M / STRUCTURAL, committed at
+392a84d7 before the draw), byte 124 ⇒ fable at slot 1, so slot 0
+DOCM-7 = OPUS; branch `docm/7-union-declare`; record branch-side on
+`docm/b3-block`. Disjoint files (the assembly seam against the union's
+fold and naming); each lane's brief names the other's fence. Both
+lanes running.
