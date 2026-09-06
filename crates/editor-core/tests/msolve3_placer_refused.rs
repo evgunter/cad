@@ -648,10 +648,14 @@ fn the_placement_axis_refuses_in_its_own_voice() {
         "a NaN component is a non-finite LENGTH, not a zero one: {poisoned:?}"
     );
 
-    // The band is the door's, not the caller's judgement: a length
-    // under it is decided zero, one over it is a direction. Both
-    // answers come from the same door every other direction takes.
-    let under = set([1e-12, 0.0, 0.0]).expect_err("a length inside the band is decided zero");
+    // The BAND is the door's judgement, not a literal's: a length
+    // under its zero threshold is decided zero and one over its
+    // escalation threshold is a direction. Both come from the band
+    // this run actually has, so the row says the same thing at every
+    // eps rather than at the default one.
+    let band = fixture::band();
+    let under = set([band.zero() / 2.0, 0.0, 0.0])
+        .expect_err("a length under the band's zero is decided zero");
     assert!(
         matches!(
             &under,
@@ -660,7 +664,8 @@ fn the_placement_axis_refuses_in_its_own_voice() {
         ),
         "{under:?}"
     );
-    set([1e-7, 0.0, 0.0]).expect("a length clear of the band is a direction");
+    set([band.escalate() * 2.0, 0.0, 0.0])
+        .expect("a length clear of the band's escalation is a direction");
 
     set([0.0, 0.0, 1.0]).expect("a definite axis still goes through");
     let _ = store;
