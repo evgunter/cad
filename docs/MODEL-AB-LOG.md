@@ -4376,3 +4376,20 @@ seat-driven lowering, an emitter with three new roles, no new numeric
 decision. Spec `docs/LIB-G17-SPEC.md` (to main at dispatch; the D5
 elaboration). Dual review under v6 at the frozen head; ordinal claimed at
 review dispatch from the LIB band (300–399; claimed through 302).
+
+D265 review ordinal fixed at dispatch (2026-09-06, PR #2013 open —
+frozen head `4dc616d0`): **ordinal 2701** (TOPO band). Pre-draw fields
+(spec `docs/TOPO-D265-SPEC.md`): difficulty **M**, task class
+**STRUCTURAL** — written knowing the slot's arm (block TOPO-B1 drawn
+2026-09-05), disclosed there. Implementer arm per block TOPO-B1 slot 1
+(record branch-side on `topo/b1-block`). Protocol v6 dual: draw =
+`/dev/urandom` byte **229**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS**.
+Method, recorded before either review runs: CONCURRENT same-head on
+frozen `4dc616d0`, both briefs authored and STORED with sha256 before
+either dispatches (identical text modulo lane name, target and scratch
+paths, verified by diff), neither reviewer sees the other's report, v6
+item 5 isolation in both briefs; the implementer's unit log entry is
+not written until the dual concludes. Shared-box note applying to
+BOTH arms equally: one 4-core cloud box beside one other lane, `-j2`;
+R1's target is the implementer's warm one, R2's is seeded from an
+older warm build — wall-clock asymmetry only.
