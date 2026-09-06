@@ -23,3 +23,12 @@ Refs MESH-11, #1571, the `bounds-allowlist` gate's rationale, S19.
 ## Home
 
 `work/cert/` — the refusal arms are in `crates/geom-brep/src/props/curved.rs`, an S-CERT territory glob, and S-MESH names 1602 a cross-program follow-on on another program's ground.
+
+## Re-homed (2026-09-06)
+
+Moved from `work/cert/` to `work/props/` on S-CERT's exit walk PR
+(#1924, its handoffs ledger; merged by Ev 2026-09-06 = ratified), before
+`work/cert/` was deleted at sweep 7 of `docs/DOC-LEDGER.md`. Id, body
+and header are unchanged; the directory is the claim (`work/README.md`).
+The `## Home` section above naming `work/cert/` is superseded by this
+line and is kept as the record of why the file was filed there.

@@ -1898,5 +1898,5 @@ Rules A/B over the top residual add no discharge on any document once
 A0 has run; per node (`SymRules::early_ab`) they reach the plate's
 nested `sqrt(…)²` at minutes per replay (138 s for the plate's
 nominal). Both stay dial-selectable and off; the census's rule column
-(`work/cert/symbolic-tier-census.md`) records which mechanism
+(`work/m10/symbolic-tier-census.md`) records which mechanism
 discharges each row.

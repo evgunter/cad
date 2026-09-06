@@ -194,7 +194,7 @@
 //! funnel door, one for identity/gap-shaped string literals — and their
 //! union minus the bare filter words and the test-harness names. **107
 //! names.** The rule is written out in
-//! `work/cert/symbolic-tier-census.md`, which also carries the full
+//! `work/m10/symbolic-tier-census.md`, which also carries the full
 //! table: one row per name, with its bucket, its evidence and its site.
 //! Only the counts and the two families that matter are here.
 //!
