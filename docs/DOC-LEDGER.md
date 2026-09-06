@@ -613,11 +613,11 @@ by `plan.md`'s deletion.
 
 ## Sweep 8 — 2026-09-06: SEAT leaves the tracker
 
-Sweep SHA: `SWEEPSHA` (`main`'s tip immediately before the deletion),
+Sweep SHA: `326be1bf4` (`main`'s tip immediately before the deletion),
 so every path below is recoverable at
-`git show SWEEPSHA:work/seat/<FILE>`,
-`git show SWEEPSHA:docs/SEAT-EXIT-WALK.md` and
-`git show SWEEPSHA:docs/VERB-SEAT-DESIGN.md`.
+`git show 326be1bf4:work/seat/<FILE>`,
+`git show 326be1bf4:docs/SEAT-EXIT-WALK.md` and
+`git show 326be1bf4:docs/VERB-SEAT-DESIGN.md`.
 
 Sweep 5's rule. The walk rode `[ev]` PR #1997 as PROPOSED and Ev
 ratified it in session on 2026-09-06 ("1997 looks good"), merged
