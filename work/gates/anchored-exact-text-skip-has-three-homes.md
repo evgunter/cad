@@ -2,11 +2,12 @@
 id: anchored-exact-text-skip-has-three-homes
 kind: issue
 title: The anchored exact-text skip with an abstaining subject check is hand-spelled in three gates and lib.sh has no home for it
-status: review
+status: closed
 opened: 2026-09-06
 refs: [unanchored-definition-skip, D211]
 branch: gates/anchored-skip
 pr: 2064
+closed: 2026-09-06
 ---
 
 

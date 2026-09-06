@@ -505,3 +505,52 @@ the two-dialect (grep-ERE and awk-ERE) constraint stated at the shared
 regexes; the filter helper's global mount list named in its doc with
 the reason the shape differs from its sibling. Gate loop green under
 both awks on the merged head; scanned sets unmoved.
+
+
+## PR 2066 opened (2026-09-06)
+
+`gates/debug-only-topo-class` reported: PR 2066
+(`debug-only-assert-euler-postcondition-is-on-no-row`). Both spellings
+on the seven `topo` rows, pins re-taken with the gate's own matcher
+(68 → 105 uses scanned); the two dropped attributes green before and
+red after; `source.rs`'s row gained the three bit-witness heads on the
+same reading (green before, red after); the near-miss fixture split so
+each anchor is proved alone. Self-test 68 s → 82 s, linear in
+spellings as the row predicted. The class sweep leaves `ArenaCounts`
+off (named in a `cfg(test)` module the reader reads as ungated code)
+and three redundant attributes over `debug_assert_eq!`. Residue filed
+on this slate: two statement-position attributes over bit-witness
+calls in files with no row. Reviewer dispatched.
+## Landed: PR 2064 (2026-09-06)
+
+`anchored-exact-text-skip-has-three-homes` closed. `lib.sh` has
+`gate_exact_skip` and its family: the anchored filter, the subject
+check and the planted cases (at home passes; elsewhere fires; home
+present but text gone reds; home gone reds) are built from the plain
+text once — the record shape read out of `gate_rust_code` in the
+caller's declared view, the escaping out of `gate_ere_escape` — so no
+hand-escaped `_RE` twin exists to drift. `bounds-allowlist.sh` and
+`no-extra-real-bounds.sh` call it and their copies and four subsumed
+fixtures are deleted. The rule for a missing home is a red in every
+caller: a skip whose home is gone exempts nothing today and is a
+ratification the next file written at that path inherits without
+argument, and the abstention's defence covered a moved home but not a
+deleted or mistyped one. `viewer-module-kinds.sh` is not a third home
+— its exemption is a pattern granted at an exact site count in both
+directions — and takes only `gate_record_anchor`, which escapes the
+three interpolations that were not (`forms.rs` matched `formsXrs`).
+Off the live tree: the subject check no longer reads a dead `grep`
+as "text gone". Four gates byte-identical live; a metacharacter text
+planted deliberately. Residue on this slate:
+`home-anchored-file-skip-is-unescaped` (`signed-zero-one-home.sh`).
+Fix pass from the review: the one-record refusal ends the gate (the
+record and the pattern are computed in their own statements, so the
+refusal's exit is not lost inside a nested substitution — proved by a
+fixture that runs the builder in a subprocess and reds if anything
+runs past the refusal); the path-escaping half stated as construction
+rather than a live widening (every scan set is `*.rs`, so only the
+extension dot is a metacharacter and no sibling path is ever read);
+the generic record prefix named once (`GATE_RECORD_PREFIX_RE`) and
+read at its five sites; the pattern builders take their inputs as
+arguments; six comments to present tense; a stale D103 path in
+`viewer-module-kinds.sh` fixed. Five gates byte-identical live.
