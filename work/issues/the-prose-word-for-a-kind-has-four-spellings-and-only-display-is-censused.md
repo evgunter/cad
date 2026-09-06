@@ -67,3 +67,14 @@ prose renderer that exists" verdict reaches it.
 Not a proposal that every kind get a `Display`. Naming the four
 spellings is the finding; which one is the home, and whether the census
 can be taught to see past a delegation, are the two decisions.
+
+## Adjacent rows
+
+`work/fix/error-types-with-no-display-class.md` (closed, #1111) is the
+same rule for ERROR types with no `Display`; its residue is
+`work/fix/verb-and-dimension-render-through-debug.md` (open), which
+holds two instances. Neither asks the question this row asks, which is
+about the SPELLING of a kind's prose rather than about a missing
+`Display` on an error, and neither names the census's structural
+blindness to spellings 2-4. Whoever routes this should decide whether
+it merges into the FIX row or stands apart.
