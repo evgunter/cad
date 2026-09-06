@@ -5,6 +5,7 @@ title: Five debug-only helpers under cfg(debug_assertions) in mesh and topo are 
 status: review
 opened: 2026-09-06
 branch: gates/debug-only-subjects-2
+pr: 2049
 ---
 
 
