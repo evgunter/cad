@@ -74,7 +74,10 @@ The other scripts:
    AST-lint alternative actually evaluated and written down.
 10. `clippy-panic-gate-blind-in-macros` — direction chosen by this
     program (a token-grep gate over `macro_rules!` bodies with a
-    `#[test]` allow, composed with thin-macro delegation), then built.
+    `#[cfg(test)]` allow — the stanza's per-module idiom, stricter
+    than a `#[test]` allow — and the one-time audit in the PR body;
+    thin-macro delegation not taken as a convention), built as
+    `panic-free-macro-bodies.sh` (PR 2032).
 11. `S49` — the deferral-register gate over every `LoopBoundary`
     discard, `probe-suite-census.sh`'s shape; the audit of the 26+15
     sites is riders on their owners.
