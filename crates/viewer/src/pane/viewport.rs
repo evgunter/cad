@@ -55,6 +55,18 @@ impl ViewerBehavior<'_> {
             height_px: f64::from(rect.height()) * pixels_per_point,
         };
         let Some(aspect) = viewport.aspect() else {
+            // **A pane with no extent projects nothing, so it holds no
+            // projection refusal.** `view_projection` is not reached
+            // below, so the fault would otherwise be a claim about a
+            // camera nobody is asking to project — and unlike the
+            // sentence this replaced, a badge has no `Clear` to sweep
+            // it. Dragging a splitter to zero is an ordinary gesture.
+            //
+            // This closes that arm and NOT the one where the pane is
+            // not drawn at all, which needs a "the viewport did not
+            // draw this frame" latch and is
+            // `work/view/projection-fault-has-no-sweeper.md`.
+            *self.projection_fault = None;
             return;
         };
 

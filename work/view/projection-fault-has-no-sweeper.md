@@ -13,6 +13,10 @@ Found by the style review of #1957, which introduced both fields.
 
 ## 1. `projection_fault` can go permanently stale — a behaviour regression
 
+**Half of this is closed in #1957** (see the end of this section): the
+zero-extent arm clears the fault at the early return. What remains open
+is the pane that is not drawn at all.
+
 `crates/viewer/src/app.rs` holds `projection_fault: Option<CameraError>`
 and `frame::projection_badge` reads it. **It is written in exactly one
 place**, `crates/viewer/src/pane/viewport.rs`'s `viewport_ui`, at the
@@ -33,12 +37,23 @@ and no `StatusUpdate` reaches it, so nothing sweeps this.
 writing and the toolbar reading is benign; it does not consider the
 NO-frame case, and that is the gap.
 
-**Two shapes of fix, and neither is obviously right yet.** Clearing the
-fault at the zero-aspect return closes one arm and not the other. The
-honest shape is that the field means "what the viewport said the last
-time it drew", so the application clears it on a frame the viewport did
+**The cheap arm is taken (#1957).** The zero-aspect return now clears
+the fault before returning. That is not merely convenient: with no
+extent the pane reaches no `view_projection` at all, so a held refusal
+would be a claim about a camera nobody is asking to project. It adds no
+state, sits in the same function as the only other writer, and closes
+the arm a user actually reaches — dragging a splitter to zero is an
+ordinary gesture. The field now means **"what the viewport said the
+last time it could project"**, which is a statement it can keep.
+
+**What is still open is the pane that is not drawn.** `viewport_ui` is
+not called at all when the viewport pane is tabbed away or absent from
+the layout, so nothing runs and the last value stands. The honest fix
+is that the application clears the fault on a frame the viewport did
 NOT draw — the `profile_form_drawn` latch is the pattern, and it is a
-third piece of app-gated state.
+**third** piece of app-gated state, which is what §2 below and
+`frame.rs`'s own header are about. That is the design question, and it
+is why this half is not taken here.
 
 ## 2. Neither new field has a row
 
