@@ -15,7 +15,10 @@ one finding: both are the key failing to be a value).
 VIEW-6b made `(Generation, DisplayTolerance)` the thing that decides
 whether an index describes the picture on screen. It never became a
 type, so "is this the same picture?" is asked five ways, in
-`crates/viewer/src/pick.rs` and `crates/viewer/src/evalseam.rs`:
+`crates/viewer/src/pickindex.rs`, `crates/viewer/src/pick.rs` and
+`crates/viewer/src/evalseam.rs` (three files since the seam split — the
+first of the five is `PickIndex::current_for`, `pickindex.rs:756`; the
+next three are `PickCache`'s, still in `pick.rs`):
 
 - `PickIndex::current_for(Some(generation), delta)`;
 - `self.outstanding == Some(wanted)` and `self.attempted == Some(wanted)`;

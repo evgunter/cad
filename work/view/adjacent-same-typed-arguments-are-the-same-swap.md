@@ -52,7 +52,7 @@ gradient and a fix pass should not treat it as flat:
   `$HOME/pncad/` or `$XDG_CONFIG_HOME/.config/pncad/`, and the
   test row at `crates/viewer/tests/prefs.rs` names its two readings
   positionally the same way the chooser row does.
-- `pick.rs:408`/`445` `address(node, body: u32, position: usize,
+- `pickindex.rs:405`/`442` `address(node, body: u32, position: usize,
   flat: usize)`, `bounds.rs:357` `midpoint(valid: f64, invalid: f64,
   …)`, `camera.rs:908` `clamp_distance(distance: f64,
   scene_radius: f64)`, `sketch.rs:1000` `arc_points(radius: f64,

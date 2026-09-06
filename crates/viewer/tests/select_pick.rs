@@ -27,11 +27,11 @@ use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{Ray, Resolution};
 use viewer::camera::Camera;
 use viewer::input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
-use viewer::pick::{IdMap, PatchId, PickIndex};
+use viewer::pickindex::{IdMap, PatchId, PickIndex};
 use viewer::props::SlotValue;
 use viewer::scene::{self, PLATE_EXTENT};
 use viewer::session::{DocSession, Hovered, Selection, SessionOp, Standing};
-use viewer::{cursor_projection, input, pick};
+use viewer::{cursor_projection, input, pickindex};
 
 /// A session over the spike plate, evaluated and landed.
 fn plate_session(tol: Tol) -> (DocSession, RecipeNodeId) {
@@ -677,13 +677,13 @@ fn the_highlight_is_a_function_of_the_scene_and_the_selection() {
         .expect("no refusal")
         .expect("a hit");
 
-    let nothing = pick::highlight(&index, &Selection::None, None);
+    let nothing = pickindex::highlight(&index, &Selection::None, None);
     assert_eq!(nothing.selected, IdMap::NOTHING);
     assert_eq!(nothing.hovered, IdMap::NOTHING);
 
     session.perform(SessionOp::Select(Selection::Face(face.clone())));
     session.perform(SessionOp::Hover(Some(Hovered::Face(face.clone()))));
-    let lit = pick::highlight(&index, session.selection(), session.hover());
+    let lit = pickindex::highlight(&index, session.selection(), session.hover());
     assert_ne!(lit.selected, IdMap::NOTHING, "the selected patch is marked");
     assert_eq!(lit.hovered, lit.selected, "the same patch is under both");
     assert_eq!(
@@ -696,7 +696,7 @@ fn the_highlight_is_a_function_of_the_scene_and_the_selection() {
     // what "pure function" means here and why no widget retains it.
     assert_eq!(
         lit,
-        pick::highlight(&index, session.selection(), session.hover())
+        pickindex::highlight(&index, session.selection(), session.hover())
     );
 }
 

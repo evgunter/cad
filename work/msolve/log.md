@@ -174,6 +174,40 @@ Instance(i) }`, sibling distinctness at every level, one walk per
 reference, `mate/member.rs` split out. (The preceding merge commit on
 this branch carried the log's conflict markers; this commit resolves
 them — merge-only, nothing rewritten.)
+
+## MSOLVE-2 landed, in review (2026-09-06)
+
+The lane opened PR 2039 and was cut off by a session limit while
+polling; the one red was the Python mirror of the new
+`MateFault::PartSelectsAnotherCopy`, which it finished on resumption.
+Green on the full matrix at `75d975d`. What the build measured: two
+inner siblings under ONE outer pattern are unbuildable (a pattern takes
+one body), so A2(a) holds the outer index across two chains; an
+inconsistent loop is built by naming a sibling lifted clear, because
+the gate verifies geometry, not the folded frames; the gate's
+`Vanished` on a mate read below a pattern reproduces one level deeper,
+pinned. The viewer cannot author a `Part` node at all (no `AddPart`
+op) — CHROME's, to be filed. Style review and correctness arm
+dispatched on that head.
+
+## MSOLVE-2 reviews adjudicated, fix pass dispatched (2026-09-06)
+
+Correctness arm APPROVE-WITH-FIXES: C1–C5 confirmed on documents of
+its own (two and three levels deep, transforms between and above,
+circular and linear rules at non-identity indices, the viewer's real
+rays), with one MAJOR the spec itself placed wrong: the `Part`-index
+check lived in the offset, which runs only for a tree edge's first
+mate, so a DECLARING mate whose `Part` gathers a different copy than
+its name names was silently green — and the gate did not catch it,
+because it looks the NAMED copy up and finds it seated while the body
+the `Part` gathers floats. Ruled: the per-reference checks that need
+evaluation (the `Part`'s index against the name, the index against
+the count) move to the solve's own walk site, for every reference of
+every mate, refusing typed there; the offset keeps the arithmetic.
+Style: no MAJOR; the loop rows never folded a non-identity outer map
+(fixed with the reviewer's rows), two spellings of "which mates weld"
+collapsed, the copied test helpers hoisted beside the shared oracle.
+
 ## MSOLVE-2 MERGED (2026-09-06, PR 2039)
 
 Fix pass green on the full matrix at `ef8926c`. Item closed, spec
@@ -184,6 +218,15 @@ cluster (the partition is structural), so an instance no pair reaches
 rides its cluster's recorded frame with the mate's row red, as a
 dangling head already does. Next: MSOLVE-3 on
 `msolve/3-placer-refused`.
+
+## MSOLVE-3 dispatched (2026-09-06)
+
+MSOLVE-2 merged (PR 2039, `6dff151`). `msolve/3-placer-refused` cut
+from main in the same lane clone against `docs/MSOLVE-3-SPEC.md`,
+which predates MSOLVE-2's move of the count check to
+`check_reference`; the lane reads the tree as it is. Slate after it:
+the gate's `Vanished` below a pattern, the lever's extent (`[ev]`),
+the remap-inference record correction.
 
 ## MSOLVE-3 MERGED (2026-09-06, PR 2081)
 
