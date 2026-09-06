@@ -445,7 +445,14 @@ BOUNDS_ALLOWLIST=(
   # ratified by a ruling that does not mention it.
   "crates/topo/src/separation.rs 4 2026-07-29 (M5 PR 8) for three of them; the fourth (SolidSeparation::of) rests on SolidSeparation's own doc and OWES a ledger row"
   'crates/editor-core/src/eval/mod.rs 7 2026-07-29 (M5 PR 8), the driver amendment'
-  'crates/editor-core/src/eval/wire.rs 15 2026-07-29 (M5 PR 8), the driver amendment'
+  # The sixteenth is the shell lowering, and it names `Bounds` for one
+  # read: the total fold of the kernel's generic `ShellError<T>` to its
+  # f64 witness (`verb_refused`'s shell arm) reads `lo()` to REPORT a
+  # refused number, never to decide — `Real` has no f64 door, so
+  # `Bounds` is the weakest bound that writes the fold at all (the
+  # blends' `NonpositiveSize` reports `size.lo()` on the same
+  # argument, in an allowlisted seam).
+  'crates/editor-core/src/eval/wire.rs 16 2026-07-29 (M5 PR 8), the driver amendment; the shell fold reads lo() to report'
   # M5 PR 11, the certified-quadrature plumbing.
   'crates/topo/src/props.rs 14 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
