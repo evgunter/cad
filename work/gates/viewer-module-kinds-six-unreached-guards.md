@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-06
 refs: [D109]
 branch: gates/viewer-module-kinds-guards
+pr: 2057
 ---
 
 ## Finding
