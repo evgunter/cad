@@ -265,3 +265,14 @@ a record correction: the finding is the record, its (b)-SKIP premise
 is ratified since PR 1914, and no code moves. Slate after MSOLVE-3
 merges: the gate's `Vanished` below a pattern (next unit) and the
 lever's extent (`[ev]`).
+
+## MSOLVE-5 specified (2026-09-06)
+
+The gate's `Vanished` below a pattern is a unit: `docs/MSOLVE-5-
+SPEC.md`. Ruled as a change to what the refusal says, not to what is
+admitted — the master-spelling pin in `mate1_member_vocab.rs` is
+ratified and keeps refusing; the gate asks the operand's own table
+first, so `Vanished` means vanished and a name spelled at a non-root
+refuses `ReadBelowARoot { at }`. No consumer walk. The dead `NodeGone`
+arm goes with it. Minting on copy 0 instead would reopen the pin and
+is not asked. Dispatches from main once PR 2081 is in.
