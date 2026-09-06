@@ -126,6 +126,7 @@ should be visible on its own.
 | `view/refusal-all` (`Refusal` has no `ALL`) | #2053 | style + fix pass |
 | `view/progress` (the swappable bool pair) | #2055 | style + fix pass |
 | `view/index-seam` (Ev's (d): the seam cycle broken) | #2079 | style + fix pass |
+| `view/marks` (the second split, and the rename) | #2083 | style + fix pass |
 
 **Fifteen units on main. Two rules this wave earned**, both about
 evidence rather than code:
@@ -137,6 +138,17 @@ evidence rather than code:
   same file. Parse the parameter list. A receipt offered as evidence and
   wrong about its own file is worse than no receipt, because a reader
   stops looking.
+
+**Re-derive a citation, never shift it — and verify every one by
+reading the line.** The class cost this program five instances in one
+day, including two lanes each shifting a number by a delta computed
+correctly somewhere else, and one orchestrator propagating a lane's
+miscount into a check-in. No grep finds it: a citation pointing at the
+wrong line still parses. The instrument that works is #2083's —
+enumerate every `file:line` in every row a branch touches, `sed -n Np`
+each, and read whether the subject is there (39/39 there). Re-run it
+after the LAST edit, because a header rewrite moves every line under
+it.
 
 **A merge criterion is a TEST, never an absolute.** #2079's fix brief
 said the test counts "must still be 24/1 and 501/0/1"; they came back
