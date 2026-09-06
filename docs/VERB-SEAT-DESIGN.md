@@ -113,8 +113,7 @@ the geometry, two doors, the `ContactClass` re-export precedent
 **S3 — the flush detector at the body seat.** `topo` gains
 `find_flush_candidates(&Body<T>, &Body<T>, tol)` returning findings
 in `FaceKey`s, implemented as the C4 verifier run in
-candidate-generation mode — the verifier (`oriented_plane_eq`,
-`topo/src/boolean/plane_eq.rs`) already lives there, so the
+candidate-generation mode — the verifier (`carrier_pair_relation`, `topo/src/boolean/rest.rs` — the door verify-at-use itself calls, asked in candidate-generation posture; its `(Plane, Plane)` arm is `oriented_plane_eq`, and the detector's scope is the `Rest` ladder's, not the plane ladder's — REVISED at SEAT-FW, 2026-09-05, Ev's ruling on the `[ev]` PR lands here) already lives there, so the
 anti-twin rule ("the detector interprets nothing the verifier
 doesn't") holds by construction. `declare_all` sugar produces the
 `BooleanDeclarations` the op door takes; the no-fusion rule (GS-Q3)
@@ -365,7 +364,7 @@ masquerading as structure, the thing the contract forbids.
   refuses typed on the same geometry imported (P3).
 - The spacer's frictions 1 and 3, diechamfer finding 2 and klein
   finding 8 retire at their sites (demo doctrine: workarounds
-  deleted where re-authored); twopeg's nine and lily's six
+  deleted where re-authored); twopeg's nine and lily's three (the socket is one corm wall × three foot faces, measured at SEAT-FW — "six" was the scene's own miscount)
   declarations collapse to detector + declare; the two ~55-line
   flush declarers are deleted with the library door in place.
 - N4's invariant is untouched: name tables remain a function of
