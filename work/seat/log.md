@@ -862,3 +862,16 @@ ledger.
 
 Next: the program's exit walk — every wave item delivered, the open
 residues re-homed.
+
+## EXIT WALK OPENED (2026-09-05)
+
+SEAT-9 merged at 8ad3170ab (PR 1995); block SEAT-B3 closed and its
+draw published; the plan's wave cut is complete. The exit walk is
+out as an `[ev]` PR (`docs/SEAT-EXIT-WALK.md`): the done-state per
+unit, the design contract clause by clause, the A/B instrument's
+state of record (twelve fair pairs, five candidates, three blocks
+published), and the open list's disposition for the closing sweep.
+The same PR folds VERB-SEAT-DESIGN §5's post-publish stable-tag
+discipline into DESIGN.md's "Before publishing" list, which the
+ratification at #1388 said would happen and did not. Ratification is
+Ev's merge; the closing sweep follows it.
