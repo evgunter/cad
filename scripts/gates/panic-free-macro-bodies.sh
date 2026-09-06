@@ -54,13 +54,14 @@
 # the same call in a `fn` beside the macro is clippy's, not this
 # gate's to report twice.
 #
+# A `{` INSIDE A COMMENT OR A LITERAL IS NOT A BRACE the tracker counts:
+# the shared view lexes away strings, raw strings and char literals (all
+# three planted below) and block comments to their BALANCING `*/`,
+# nesting included. A nested `/* /* */ */` was on the list below while
+# `lib.sh`'s lexer closed at the first `*/`; it nests now, so it is not.
+#
 # WHAT THE TRACKER CANNOT SEE:
 #
-#   * A NESTED BLOCK COMMENT. A `{` inside a string, a raw string or a
-#     char literal is lexed away by the shared view before the tracker
-#     runs (all three planted below); a nested `/* /* */ */` is not,
-#     because `lib.sh`'s lexer closes at the first `*/` and reads the
-#     tail as code. That limit is inherited, not introduced.
 #   * A CALL SPLIT ACROSS LINES between the receiver and the method:
 #     `value\n.expect(…)` fires (the method and its name are on one
 #     record), `value.\nexpect(…)` does not.
