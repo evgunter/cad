@@ -2,7 +2,9 @@
 id: home-anchored-file-skip-is-unescaped
 kind: issue
 title: signed-zero-one-home.sh's home-anchored file skip interpolates the path unescaped, so a sibling path exempts itself
-status: open
+status: review
+branch: gates/file-skip-anchor
+pr: 2065
 opened: 2026-09-06
 ---
 
@@ -51,3 +53,43 @@ Whether any other gate reads a whole-file skip this way. The sweep that
 found it (`grep -n '\-E "\^\$' scripts/gates/*.sh`) matched the three
 exact-text skips, this one, and nothing else, but it cannot match a
 skip built by a helper or spelled with the anchor in a variable.
+
+## Landed
+
+`scripts/gates/signed-zero-one-home.sh`'s home skip is
+`gate_grep -vE "$(gate_record_anchor "$HOME_FILE")"`: the path escaped,
+the `FILE:LINE:` shape pinned. Live output byte-identical, stdout and
+stderr.
+
+Two planted cases hold it, and the first one is not the file this row
+named. `crates/step-import/src/signed_zeroXrs` is not a fixture at all
+— `find … -name '*.rs'` never returns it, so the gate passes on it
+under the old spelling too, which proves the scan's glob and nothing
+about the anchor. A record is `FILE:LINE:TEXT` and the pattern ended
+in `:`, so the exempted sibling must also carry a `:` inside the path;
+`plant_sibling_the_raw_anchor_exempted` plants
+`crates/step-import/src/signed_zero_rs:9:x.rs`, which the raw
+interpolation exempted and the escaped anchor does not. The population
+was held at zero by the glob and by the trailing `:`, not by the skip.
+
+`plant_nested_path_ending_in_the_home` is the second, and it closes
+something this row did not ask about: `gate_record_anchor`'s `^` had NO
+witness anywhere in `scripts/gates/` — dropping it left all nineteen
+selftests green, the shared `gate_exact_skip_escaping_case` included,
+whose records all begin at the path. A flush at
+`crates/step-import/src/crates/step-import/src/signed_zero.rs` is
+exempt from an unanchored skip and fires under this one.
+
+The home's own exemption needed nothing: `gate_plant_clean` already
+writes the home in the wrapped flush form, so the skip is live in every
+fixture.
+
+## What the sweep found
+
+The row's open question — whether any other gate reads a whole-file
+skip this way — is answered no: this was the only skip built by
+interpolating a path into an ERE. Fifteen other whole-file skips in six
+gates are single-quoted literals with their dots hand-escaped. They do
+not pin `FILE:LINE:` and they escape by reviewer rather than by
+construction, which is
+`whole-file-skips-are-hand-spelled-not-anchored`.
