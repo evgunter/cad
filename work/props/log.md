@@ -787,3 +787,23 @@ did not apply it to its own adjudication; at Ev's direction CLAUDE.md's
 reading list now names both `docs/prompts/` files as orchestrator
 reading. The item records the ruling with `needs_ev` cleared; the
 unit is `docs/PROPS-SIGN-HULL-SPEC.md` (block PROPS-B2 slot 1, dual).
+
+**Sign-hull unit dispatched (2026-09-06).** `docs/PROPS-SIGN-HULL-SPEC.md`
+on main (#2004): option 1 — `b1 = normalize(e_k × n)`, `k` the
+smallest-magnitude component with ties to the highest index, the choice
+through one value-level `Real` door (decided or point-tie selects;
+a straddled tie hulls at `Def`); every stored `u_ref` re-blesses with
+a locus receipt; M10-5's re-chart retires. M / NUMERIC, block PROPS-B2
+slot 1, dual review; branch `props/sign-hull`. Seam notes to M10, EXCH,
+DOCM, BOOL in the same PR.
+
+**MESH-12 taken over (2026-09-06).** Ev, in chat: "you can take over
+1617". S-MESH's unit (`work/mesh/MESH-12.md`, PR 1617, branch
+`mesh/12-saturated-span`, frozen 0e053a727, never reviewed; its A/B
+claim is ordinal 1210 in S-MESH's band, parity byte 40 ⇒ R1 opus /
+R2 fable, implementer fable) is finished here because the sphere lane
+needs `props/curved.rs`. A merge-forward lane (the unit's own arm) is
+merging main into the branch — one conflict, `mesh11r2_base_probes.rs`
+— getting CI green and self-auditing the unit against
+`docs/MESH-12-SPEC.md`; then the dual under the claimed ordinal, the
+fix pass, and the landing. Recorded in `work/mesh/log.md` too.
