@@ -163,3 +163,25 @@ the ones that want a source-shape pin). Behind PR 2038 (`lib.sh`):
 `viewer-module-kinds-six-unreached-guards`. Behind PR 2042
 (`bounds-allowlist.sh`): `D102`, `S13`,
 `anchored-exact-text-skip-has-three-homes`.
+
+## D103 landed (2026-09-06)
+
+PR 2042, `gates/d103-pinned-counts`, one style review
+(MERGEABLE-WITH-FIXES, fix pass landed). Every `bounds-allowlist.sh`
+entry is `PATH COUNT RULING`, one literal path per file (the
+alternation regexes expanded; exclusion set proved identical over a
+451-path universe), the count re-derived every run as compound-bound
+OCCURRENCES per record — the review showed a record pin took a second
+bound on the same line for free — and red in either direction with the
+entry's ruling named; malformed entries (no ruling, a non-integer or
+duplicate, a path with a space) refused before any scan. Live: 26 files,
+163 records, 183 occurrences, survivors 0 both sides. The
+`separation.rs` pin of four is stated as three by the M5 PR 8 ruling
+plus one resting on `SolidSeparation`'s own doc and owing a ledger row
+— filed on PROPS as
+`separation-of-fourth-compound-bound-rides-the-module-admission`. The
+same-count substitution stays KNOWN GAP 6, a stated cost. Filed from
+the review: `pinned-count-re-derived-each-run-has-three-spellings`
+(`viewer-module-kinds.sh`'s `FILE|NEEDLE|COUNT`, `reader_census.rs`'s
+`UNCONVERTED_TODAY`, and `interval-square-allowlist.sh`'s allowlist
+with no pin at all). 38 cases.
