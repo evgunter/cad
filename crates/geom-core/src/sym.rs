@@ -3763,8 +3763,8 @@ mod tests {
     /// COMPONENT, because the consumer asks
     /// `carrier.eval(t1).distance(end)`.
     ///
-    /// `(px, py)` stands for `eval(θ)`, `(qx, qy)` for `q_to`.
-    fn span(theta: f64, off: f64) -> ([Sym<f64>; 2], [Sym<f64>; 2], [Sym<f64>; 2]) {
+    /// Answers the three pairs `[eval(θ), q_to, eval(θ) − q_to]`.
+    fn span(theta: f64, off: f64) -> [[Sym<f64>; 2]; 3] {
         let (vx, vy) = (p("vx", 3.0), p("vy", 4.0));
         let b = p("b", theta);
         let (sn, cs) = (Sym::from_f64(4.0) * b.abs().atan()).sin_cos();
@@ -3783,7 +3783,7 @@ mod tests {
             p("qx", 1.0 + (3.0 * c0 - 4.0 * s0) + off),
             p("qy", -2.0 + (3.0 * s0 + 4.0 * c0) + off),
         );
-        ([px, py], [qx, qy], [px - qx, py - qy])
+        [[px, py], [qx, qy], [px - qx, py - qy]]
     }
 
     /// **The span identity discharges the far endpoint's residual, per
@@ -3791,7 +3791,7 @@ mod tests {
     #[test]
     fn the_span_identity_discharges_and_its_planted_lie_is_refused() {
         let (rows, counts) = with_session(budget(), || {
-            let (p_end, q_to, resid) = span(0.4, 0.0);
+            let [p_end, q_to, resid] = span(0.4, 0.0);
             for (a, b) in p_end.into_iter().zip(q_to) {
                 assert_eq!(a.register_equal(b), SymRegistration::Recorded);
             }
@@ -3802,7 +3802,7 @@ mod tests {
         // The planted lie: the same registration against a far vertex
         // displaced by a geometric amount.
         let (rows, counts) = with_session(budget(), || {
-            let (p_end, q_to, resid) = span(0.4, 1.0e-3);
+            let [p_end, q_to, resid] = span(0.4, 1.0e-3);
             for (a, b) in p_end.into_iter().zip(q_to) {
                 assert_eq!(
                     a.register_equal(b),
