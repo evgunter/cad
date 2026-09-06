@@ -2899,3 +2899,18 @@ the clone-value door exists; it does: the gathered product memoized on
 the immutable Python `Evaluation`, keyed by tolerance — no new surface,
 no staleness, every consumer served. Recorded on the item as (5); the
 LIB-PRODUCT unit runs on it with the clone measurement kept.
+
+**Incident — three lanes killed by a session interruption (2026-09-06,
+~07:29Z).** B-FACE-FRAME, MECH2 and G17 all died within a minute of
+each other; found at the 08:16 check-in (no processes, a stale
+`slot-1.holder`, no reports). The harness refused to resume them and Ev
+authorised a relaunch (in chat, 09:20). Fresh lanes from main on the
+same briefs, the dead trees moved aside as UNTRUSTED reference
+material (a derived-scope patch and an uncommitted diff for
+B-FACE-FRAME, an uncommitted diff for MECH2); MECH2's one pushed
+commit is inherited by its fresh lane. G17 had not built anything, so
+its A/B row will carry no interruption annotation — the arm and slot
+are unchanged and the lane started from nothing both times. Lesson for
+the orchestrator: a lane that has not pushed in thirty minutes is
+suspect regardless of the notification channel; the hourly check-in
+now reads the lock holders and process table, not just the branches.
