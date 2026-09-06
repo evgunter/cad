@@ -224,6 +224,13 @@ fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign
 static IDENTITY_PASS: std::sync::RwLock<String> = std::sync::RwLock::new(String::new());
 
 /// Sets [`IDENTITY_PASS`] (empty clears it). Test-only.
+///
+/// `doc(hidden)` for the reason `topo`'s failure-injection doors carry
+/// it: the doc job runs `--all-features`, so a rendered page here would
+/// advertise, in this crate's public API, the one call that makes the
+/// funnel answer `Zero` where it could not decide. It exists for the
+/// evidence rows named in [`IDENTITY_PASS`]'s docs and for nothing else.
+#[doc(hidden)]
 #[cfg(feature = "identity-pass-testing")]
 pub fn identity_pass_set(list: &str) {
     *IDENTITY_PASS.write().expect("the identity-pass list") = list.to_owned();
