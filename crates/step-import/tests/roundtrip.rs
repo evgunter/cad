@@ -141,6 +141,11 @@ fn fixed_point() {
         };
         let reimport = step_import::import_step(&export1, &reimport_options, Tol::witness())
             .unwrap_or_else(|e| panic!("{name}: re-import: {e}"));
+        let line_promotions = reimport
+            .curve_promotions()
+            .iter()
+            .filter(|p| p.kind == step_import::PromotedCurveKind::Line)
+            .count();
         let step_import::StepImport::Solid { body: body2, .. } = reimport else {
             panic!("{name}: re-import lost the solid");
         };
@@ -162,10 +167,43 @@ fn fixed_point() {
         );
         let export2 = step_export::step_string(&body2, &options, Tol::witness())
             .unwrap_or_else(|e| panic!("{name}: re-export 2: {e}"));
-        assert_eq!(
-            export1, export2,
-            "{name}: the second export must be byte-identical to the first"
-        );
+        if line_promotions == 0 {
+            assert_eq!(
+                export1, export2,
+                "{name}: the second export must be byte-identical to the first"
+            );
+        } else {
+            // The one-cycle byte pin moves EXACTLY one cycle out when
+            // the ambient band is coarser than the committed fixture's
+            // declared 1e-9: our re-export header states the ambient ε,
+            // so the re-import reads a coarser ε_in than the first and
+            // D7 promotes straight seam carriers the first left NURBS
+            // (each divergent record a reported promotion, re-stated as
+            // LINE). The SECOND cycle is the fixed point.
+            let count = |s: &str, pat: &str| s.matches(pat).count();
+            assert_eq!(
+                count(&export2, "= LINE("),
+                count(&export1, "= LINE(") + line_promotions,
+                "{name}: the divergence is exactly the promoted carriers, as LINE"
+            );
+            assert_eq!(
+                count(&export1, "B_SPLINE_CURVE_WITH_KNOTS("),
+                count(&export2, "B_SPLINE_CURVE_WITH_KNOTS(") + line_promotions,
+                "{name}: each promoted carrier retires one spline record"
+            );
+            let step_import::StepImport::Solid { body: body3, .. } =
+                step_import::import_step(&export2, &reimport_options, Tol::witness())
+                    .unwrap_or_else(|e| panic!("{name}: re-import 2: {e}"))
+            else {
+                panic!("{name}: re-import 2 lost the solid");
+            };
+            let export3 = step_export::step_string(&body3, &options, Tol::witness())
+                .unwrap_or_else(|e| panic!("{name}: re-export 3: {e}"));
+            assert_eq!(
+                export2, export3,
+                "{name}: fixed point from the second cycle on"
+            );
+        }
 
         // The measured (not required) comparison against the
         // committed fixture; report with `--nocapture`. The uncertainty
