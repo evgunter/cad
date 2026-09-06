@@ -292,17 +292,16 @@ fn a_name_the_operand_does_not_spell_stays_vanished() {
     assert_eq!(*why, RefusedRef::Vanished);
 }
 
-// ---- the root case, measured ----
+// ---- what it is precedes where it is rooted ----
 
-/// **A root's own row the product does not carry** is a BODY row:
-/// the gather drops root body rows because the product's own body is
-/// nobody's root body. A mate naming a root's body is the one
-/// authorable reference whose operand table answers, whose operand
-/// IS a root, and whose product lookup is silent — and it stays
-/// `Vanished`: the name names no face of the product wherever it is
-/// read, and the operand is not "below" anything.
+/// A mate naming a root's BODY refuses `NotAFace { kind: Body }`. The
+/// product's table is silent on it — the product's own body is
+/// nobody's root body, so body rows do not carry — and the operand's
+/// own table answers with a body: a non-face never mints anywhere,
+/// so the gate says what the name IS before asking where it is
+/// rooted. (On main this row refused `Vanished`; it still refuses.)
 #[test]
-fn a_mate_naming_a_roots_body_stays_vanished() {
+fn a_mate_naming_a_roots_body_refuses_not_a_face() {
     let s = scene("msolve5-body-row");
     let body = StableName {
         kind: EntityKind::Body,
@@ -324,15 +323,49 @@ fn a_mate_naming_a_roots_body_stays_vanished() {
         "the root's own table spells its body"
     );
     assert!(doc.roots().contains(&s.base));
-    let poses = solve_document(&doc, Tol::witness());
-    let placed = poses.fault(mate).is_none();
-    let verdict = gate(&doc, &ev);
-    match verdict {
-        Err(err) => {
-            let (named, side, why) = reference_refusal(&err);
-            assert_eq!((named, side), (mate, MateSide::A));
-            assert_eq!(*why, RefusedRef::Vanished, "solve placed it: {placed}");
+    let err = gate(&doc, &ev).expect_err("a body reference never mints");
+    let (named, side, why) = reference_refusal(&err);
+    assert_eq!((named, side), (mate, MateSide::A));
+    assert_eq!(
+        *why,
+        RefusedRef::NotAFace {
+            kind: EntityKind::Body
         }
-        Ok(()) => panic!("a body reference minted a face (solve placed it: {placed})"),
-    }
+    );
+}
+
+/// The same body read BELOW a root — `T(top)`'s body, read at `T`
+/// under the pattern — refuses `NotAFace { kind: Body }` too, not
+/// `ReadBelowARoot`: the kind question is asked before the root
+/// question, so a non-face is a non-face wherever it is read.
+#[test]
+fn a_body_read_below_a_root_refuses_not_a_face_before_the_root_question() {
+    let s = scene("msolve5-body-below");
+    let a = SitedRef::at_mint(in_part(s.base, CapEnd::End));
+    let body = StableName {
+        kind: EntityKind::Body,
+        node: s.top,
+        path: vec![RoleSeg::OutputBody],
+    };
+    let ev0 = run(&s.doc, &s.opts);
+    let Some(editor_core::NodeResult::Ok(value)) = ev0.result(s.xf) else {
+        panic!("the transform evaluates");
+    };
+    assert!(
+        value.name_table.lookup(&body).is_some(),
+        "the transform's own table spells the instance's body"
+    );
+    let b = SitedRef::new(s.xf, body);
+    let (doc, mate) = mated(s.doc, seat(a, b));
+    assert!(!doc.roots().contains(&s.xf));
+    let ev = run(&doc, &s.opts);
+    let err = gate(&doc, &ev).expect_err("a body reference never mints");
+    let (named, side, why) = reference_refusal(&err);
+    assert_eq!((named, side), (mate, MateSide::B));
+    assert_eq!(
+        *why,
+        RefusedRef::NotAFace {
+            kind: EntityKind::Body
+        }
+    );
 }
