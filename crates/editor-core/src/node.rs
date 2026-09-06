@@ -1685,6 +1685,12 @@ pub enum Node<P> {
     /// may strand either, which is N5's ratified semantics: no edge
     /// until the mate is re-authored, and the solve refuses typed
     /// naming the head.
+    ///
+    /// **A mate's VALUE is the solve's answer for it** — its role when
+    /// the solve placed it, a typed refusal when the solve faulted it
+    /// — so that answer is one of the node's inputs and its content
+    /// key feeds it beside this payload (`eval`'s `SolveAnswer` is the
+    /// one home for why).
     Mate {
         /// The `a` reference: an entity of one instance's product,
         /// read at the operand the mate is authored against.

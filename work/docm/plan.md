@@ -47,7 +47,8 @@ companion docs:
 - **`docs/DOCM-REFERENCES-DESIGN.md`** (DM1–DM6): what a recipe
   reference may be. Builds that stay here: `DOCM-1` (the derived
   sketch frame, the sense beside the pose, the carrier-kind read),
-  `DOCM-2` (`Node::Part`), `DOCM-3` (`Node::Union` n-ary,
+  `DOCM-2` (`Node::Part`), `DOCM-7` (the union's declaration channel in
+  member space, DM4 as amended 2026-09-06), `DOCM-3` (`Node::Union` n-ary,
   `DocEdit::SetMembers`, pairwise-distinct inputs).
   `no-docedit-splices-a-deleted-node` is parked on `DOCM-3` (DM6).
 - **`docs/DOCM-IDENTITY-DESIGN.md`** (DI1–DI5): a held value names

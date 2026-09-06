@@ -357,3 +357,38 @@ plan's constant. Outside the experiment (generator, ledger, debug
 postcondition). Both briefs pre-log difficulty M; the D265 arm was
 known when its guess was written (block drawn 2026-09-05), disclosed
 in the spec.
+
+## The census door goes to Ev (2026-09-06)
+
+`no-public-census-or-genus-query`: recommendation (A) — a typed
+whole-body read in `readback` (`euler_counts` + `genus() -> Result`),
+shells as the shell term, parity refusing typed. Three viable shapes
+on paper; the API shape is a design question by the item's own words,
+so it goes out as an `[ev]` PR. Re-measured at 26 sites in 22 files,
+and the ledger's solids-for-shells slip (`S69`'s lane) is the row's
+cost already realised.
+
+## Census door ruled (2026-09-06)
+
+PR 2010: Ev ratified (A). `no-public-census-or-genus-query` is a unit
+in `spec`, branch `topo/census-door`, queued behind the two running
+lanes; it draws block TOPO-B1 slot 2 (a new public answer). Seams
+announced: S-TCOST for the fourteen test files; the demos' owner at
+dispatch once `paths` say who that is.
+
+## D265 delivered; dual out at ordinal 2701 (2026-09-06)
+
+`topo/d265-door-corruption-class` delivered as PR 2013, head
+`4dc616d0`, full matrix green (run 34017473814). Phase 1 found
+`merge_group` raising from eight sites, not the spec's two; fifteen
+variants can arrive — eight torn, seven contradicting a fact the door
+established, and NONE reachable on a valid body, so the door was
+recording seven kinds of kernel bug as inventory skips. Executed:
+`kef → FaceHasRings` through the public door recorded as a skip on the
+merge base, escapes at the head. `OpPlacement` is the door's own
+exhaustive classification; `Torn` delegates its verdict to the enum.
+`euler.rs` untouched; `D262`'s helpers untouched. D263 gained a
+sharper witness (the whole placeholder cube grouped as one curved
+group), recorded on its file. Dual dispatched on the frozen head:
+ordinal 2701, parity byte 229 ⇒ R1 FABLE, R2 OPUS; briefs stored with
+sha256 privately.
