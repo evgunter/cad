@@ -407,7 +407,14 @@ pub enum RoleSeg {
     /// member's own names are therefore a function of the member's
     /// identity alone — neither its position nor how many members
     /// precede it — which is what lets a member be dropped without
-    /// renaming the rest.
+    /// renaming the rest. A declaration written in these names keeps
+    /// that identity through the fold: a member's face that a
+    /// declared merge has consumed resolves, at the step its pair is
+    /// fed to, to the accumulation's `Merged` row whose flat
+    /// constituent set holds it, so a member-space declaration
+    /// resolves through whatever merges the fold has performed and
+    /// reordering the members changes nothing about whether it
+    /// resolves ([`crate::Node::Union`]).
     ///
     /// That is a statement about the WRAPPER, and about nothing else.
     /// Which of a union's names exist at all is still the pair verb's
@@ -455,8 +462,10 @@ pub enum RoleSeg {
         /// The B-side crossing entity's name.
         b: Box<StableName>,
     },
-    /// An F7 merged face: the sorted set of constituent names retires
-    /// into this name (N3; canonical order = name order).
+    /// An F7 merged face: the sorted, FLAT set of constituent names
+    /// retires into this name (N3; canonical order = name order). A
+    /// constituent is never itself a merged face — a merge of a
+    /// merged face lists the faces, never the merge.
     Merged(Vec<StableName>),
     /// A fragment discriminator, composed AFTER the parent-bearing
     /// segment: `[FromA(f), Fragment(q)]` reads "the q-qualified

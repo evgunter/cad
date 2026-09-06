@@ -56,8 +56,11 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// measurement is now this number: forty-two rim arcs and twelve box
 /// edges, in one pin.
 ///
-/// **That number moved once, at DOCM-3, and it is the only row that
-/// did.** The die's cutting tool is one `Node::Union` over its 21 pips
+/// **That number moved once, at DOCM-3.** (`corner_table`'s moved
+/// when a merged face's constituent set became flat: its three
+/// legs' wall merges list the walls, not the earlier merge — see the
+/// A3 rows of `docm8_flat_merged`.) The die's cutting tool is one
+/// `Node::Union` over its 21 pips
 /// now instead of twenty chained pairwise unions, so every name in it
 /// below the tool is `FromMember { member, of }` — one segment, naming
 /// the pip — where it used to be a `FromA`/`FromB` descent as deep as
@@ -111,7 +114,7 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// must be disjoint.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0xfdf3_d13d_4782_a4e5),
-    ("corner_table", 0x9418_4d9f_f5bb_667e),
+    ("corner_table", 0x9592_0b18_b821_88f4),
     ("heat_sink", 0xa29d_1f9f_979d_097e),
     ("crossing_slots", 0xcdd4_d506_fa1a_ab9b),
     ("nested_islands_105", 0xb7d4_5b86_990b_53a8),

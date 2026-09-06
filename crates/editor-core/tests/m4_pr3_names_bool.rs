@@ -18,14 +18,18 @@ use editor_core::{
 use fixture::{ang, declare_x_offset_flush, insert, len, on_frame, scl};
 use geom_core::Tol;
 
+/// Evaluates, and holds every table the run produced to the N3
+/// flatness rule on the way out.
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(
+    let ev = evaluate::<f64>(
         doc,
         None,
         &CancelToken::new(),
         &EvalOptions::default(),
         Tol::witness(),
-    )
+    );
+    fixture::assert_no_nested_merged(&ev);
+    ev
 }
 
 fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {

@@ -13,14 +13,18 @@ use editor_core::{
 use fixture::{insert, len, on_frame};
 use geom_core::Tol;
 
+/// Evaluates, and holds every table the run produced to the N3
+/// flatness rule on the way out.
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(
+    let ev = evaluate::<f64>(
         doc,
         None,
         &CancelToken::new(),
         &EvalOptions::default(),
         Tol::witness(),
-    )
+    );
+    fixture::assert_no_nested_merged(&ev);
+    ev
 }
 
 /// A box: profile on z = 0, extruded 1.

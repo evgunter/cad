@@ -2685,11 +2685,20 @@ fn wire_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
         // node's refusal named, and a refusal names published rows
         // (`union_refusal`). So the door reads the accumulation in the
         // one space a caller can write.
+        //
+        // A member-space name the fold has already merged away is
+        // rewritten to the accumulation's `Merged` row that holds it
+        // (`look_through_merges`) before the door runs, so the door
+        // itself stays the pair boolean's. A refusal it raises is
+        // diagnosed against the AUTHORED bucket: the name that fails is
+        // one the rewrite left alone, and the pair a caller acts on is
+        // the one they wrote.
         let decls = if buckets[step].is_empty() {
             BooleanDeclarations::none()
         } else {
             let acc_view = names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
-            resolve_declarations(&buckets[step], doc, &acc_view, &member_table)
+            let resolved = look_through_merges(id, &buckets[step], &acc_view, &member_table)?;
+            resolve_declarations(&resolved, doc, &acc_view, &member_table)
                 .map_err(|err| step_diagnosis(err, id, members, &buckets[step]))?
         };
         match (verb.build)(BooleanOp::Union, decls)
@@ -3009,33 +3018,23 @@ fn decl_site(
 /// - Two fold rows are the accumulation's own carried contact, at the
 ///   first step that has both.
 ///
-/// # What a member-space declaration survives, and what it does not
+/// # A member-space declaration resolves through the fold's merges
 ///
 /// A declaration is routed, so a pair of MEMBER names outlives any
 /// reordering or dropping of the list: the two ids still say which
-/// step joins them, wherever they sit. What it does not outlive is a
-/// reordering that takes one of the two faces OUT of the operand
-/// tables — a declared merge consumes its two faces and publishes a
-/// `Merged` row in their place, so a face merged at an earlier step is
-/// no longer an operand row later on, and a pair naming it there is
-/// refused — as a member's own name that no longer resolves, since the
-/// face was consumed rather than never minted. Chained contacts are
-/// where this bites: with `a` touching `c` and `c` touching `d`, the
-/// orders that fold `c` in LAST fuse and the orders that fold it in
-/// second refuse, because `c`'s face was merged away before `d`
-/// arrived. The recourse — spell the accumulation's `Merged` row
-/// instead of the member's face — is itself order-shaped, since which
-/// faces are in that row depends on the order.
-///
-/// So: a member-space declaration resolves at its step only while the
-/// face it names is still an operand-table row there. That is the
-/// measured limit, pinned by
-/// `member_space_declarations_across_a_chain_are_order_shaped` and
-/// filed as
-/// `work/docm/member-space-declarations-are-order-shaped-across-a-chain.md`
-/// — the semantics that would remove it (constituent look-through,
-/// flattening nested `Merged`, or a narrowed contract) is a design
-/// ruling and not this node's to take.
+/// step joins them, wherever they sit. And it resolves at that step
+/// through whatever merges the fold has performed by then: a declared
+/// merge consumes the two faces it joins and publishes a `Merged` row
+/// in their place, and a member-space name that is no longer an
+/// operand row because of one is rewritten to the accumulation's
+/// `Merged` row whose constituent set holds it
+/// ([`look_through_merges`]) before the door runs. That set is flat
+/// (N3) — a merge of a merged face lists the faces, never the merge —
+/// so the row is the same whatever order the merges happened in, and
+/// reordering the members changes nothing about whether a pair
+/// resolves. With `a` touching `c` and `c` touching `d`, every order of
+/// the three fuses, and the cap row of the fused body is
+/// `Merged({a, c, d})` in each of them.
 ///
 /// Every name this node does not denote at all refuses through the N5
 /// ladder as a vanished name does — a member the list no longer holds,
@@ -3083,6 +3082,84 @@ fn route_declarations(
     }
     Ok(buckets)
 }
+
+/// **A member-space name the fold has merged away, rewritten to the
+/// merged row that holds it** — one step's bucket, read against the
+/// two tables that step joins, before the pair boolean's own door
+/// ([`resolve_declarations`]) sees the pair.
+///
+/// A declared merge consumes the two faces it joins and publishes a
+/// `Merged` row in their place, so a member's face merged at an
+/// earlier step is no longer an operand row at a later one. A pair
+/// naming it there still says what it said — this face of member `m`
+/// meets that face of member `n` — and the face it names is exactly
+/// one of the accumulation's merged rows by constituent membership,
+/// because a merged row's set is FLAT (N3): a merge of a merged face
+/// lists the faces, never the merge, so one face is in one row's set.
+/// The rewrite reads the step's two tables and nothing else: no
+/// re-measurement, no search past a membership test over those sets.
+///
+/// Three things it does not do. Only a MEMBER-SPACE name looks
+/// through — a one-segment `FromMember` path under this node — and an
+/// accumulation-entity name (`Seam`, `Merged`, `Fragment`,
+/// `OutputBody`) is its own row or nothing, as it always was: a
+/// `Merged` row that a later merge absorbed is gone, and looking it up
+/// by set inclusion would be a second, different rule. A member-space
+/// name in no table and in no merged row's set is left alone, and the
+/// door refuses it as the vanished name it is. And the rewrite does
+/// not decide what a pair means once both its names are rows: a pair
+/// whose two names land on ONE row is handed to the door as such, and
+/// refuses there by the door's own same-operand rule.
+///
+/// A face in the set of TWO merged rows cannot happen under the flat
+/// mint — a merged face's constituents retire, and a merge over it
+/// lists them in the new row's set and drops the old row — so meeting
+/// one is refused as the emission bug it would be.
+fn look_through_merges(
+    id: RecipeNodeId,
+    bucket: &[DeclaredPair],
+    acc_table: &NameTable,
+    member_table: &NameTable,
+) -> Result<Vec<DeclaredPair>, NodeErrorKind> {
+    use crate::names::RoleSeg;
+    let merged_row_of =
+        |name: &names::StableName| -> Result<Option<names::StableName>, NodeErrorKind> {
+            if name.node != id || !matches!(name.path.as_slice(), [RoleSeg::FromMember { .. }]) {
+                return Ok(None);
+            }
+            if acc_table.lookup(name).is_some() || member_table.lookup(name).is_some() {
+                return Ok(None);
+            }
+            let mut rows = acc_table
+                .iter()
+                .filter_map(|(row, _)| match row.path.as_slice() {
+                    // The set is sorted at the mint (name order), so
+                    // membership is a binary search.
+                    [RoleSeg::Merged(set)] if set.binary_search(name).is_ok() => Some(row),
+                    _ => None,
+                });
+            match (rows.next(), rows.next()) {
+                (None, _) => Ok(None),
+                (Some(row), None) => Ok(Some(row.clone())),
+                (Some(_), Some(_)) => Err(NodeErrorKind::Naming(names::NamingError::Emission {
+                    what: MEMBER_FACE_IN_TWO_MERGES,
+                })),
+            }
+        };
+    bucket
+        .iter()
+        .map(|((n1, n2), class)| {
+            let r1 = merged_row_of(n1)?.unwrap_or_else(|| n1.clone());
+            let r2 = merged_row_of(n2)?.unwrap_or_else(|| n2.clone());
+            Ok(((r1, r2), *class))
+        })
+        .collect()
+}
+
+/// A union's accumulation lists one member face in the constituent
+/// sets of two merged rows, which the flat mint cannot produce.
+const MEMBER_FACE_IN_TWO_MERGES: &str =
+    "a union's accumulation holds one member face in two merged rows' constituent sets";
 
 /// **A routed FOLD ROW that is not an operand row at the step it was
 /// sent to** — said as the routing failure it is.
@@ -3980,8 +4057,11 @@ fn wire_sweep<T: Decide + geom_core::Bounds + super::SectionScalar>(
 mod route_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-    use super::{DeclaredPair, NodeErrorKind, RecipeNodeId, route_declarations};
-    use crate::names::{CapEnd, EntityKind, RoleSeg, StableName};
+    use super::{
+        DeclaredPair, NodeErrorKind, RecipeNodeId, look_through_merges, resolve_declarations,
+        route_declarations,
+    };
+    use crate::names::{CapEnd, EntityKey, EntityKind, EntityRef, NameTable, RoleSeg, StableName};
     use crate::node::Node;
     use crate::{DocEdit, ProfileDoc};
     use geom_core::Tol;
@@ -4153,6 +4233,109 @@ mod route_tests {
         let refused = route_declarations(union, &members, std::slice::from_ref(&p), &doc);
         assert!(
             matches!(refused, Err(NodeErrorKind::UnionDeclareStep { .. })),
+            "{refused:?}",
+        );
+    }
+
+    /// A real face key for a hand-built table — a unit cube's top cap.
+    /// Nothing below reads the body; the door reads tables.
+    fn a_face_key() -> topo::FaceKey {
+        use profile::RawLoop;
+        let plane = profile::SketchPlane::from_frame(
+            geom_core::Point3::new(0.0, 0.0, 0.0),
+            geom_core::Vec3::new(1.0, 0.0, 0.0),
+            geom_core::Vec3::new(0.0, 1.0, 0.0),
+        );
+        let square = profile::ProfileLoop::polygon(
+            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+                .into_iter()
+                .map(|(x, y)| geom_core::Point2::new(x, y)),
+        );
+        let profile = profile::Profile::new(plane, vec![square])
+            .validate(Tol::witness())
+            .unwrap();
+        sweep::extrude(
+            &profile,
+            sweep::Extrusion::Distance(1.0_f64),
+            Tol::witness(),
+        )
+        .unwrap()
+        .top
+    }
+
+    fn face_ref(key: topo::FaceKey) -> EntityRef {
+        EntityRef {
+            body: 0,
+            key: EntityKey::Face(key),
+        }
+    }
+
+    /// The rewrite touches ONE shape: a member face that is no row and
+    /// sits in a merged row's set goes to that row. An accumulation
+    /// name — even one whose whole set is inside a wider row's — and a
+    /// member face in no set are handed on as written.
+    #[test]
+    fn look_through_rewrites_only_a_member_face_inside_a_merged_row() {
+        let (_doc, union) = doc_with_one_node();
+        let ms: Vec<RecipeNodeId> = (100..104).map(RecipeNodeId).collect();
+        let key = a_face_key();
+        // Step 2's row: the merge of step 1's `{m0, m1}` with `m2`,
+        // flat.
+        let mut set = vec![
+            member_face(union, ms[0]),
+            member_face(union, ms[1]),
+            member_face(union, ms[2]),
+        ];
+        set.sort();
+        let wide = StableName {
+            kind: EntityKind::Face,
+            node: union,
+            path: vec![RoleSeg::Merged(set)],
+        };
+        let mut acc = NameTable::new();
+        acc.insert(wide.clone(), face_ref(key)).unwrap();
+        let mut member = NameTable::new();
+        member
+            .insert(member_face(union, ms[3]), face_ref(key))
+            .unwrap();
+        let bucket = vec![
+            pair(member_face(union, ms[0]), member_face(union, ms[3])),
+            pair(merged(union, ms[0], ms[1]), member_face(union, ms[3])),
+            pair(
+                member_face(union, RecipeNodeId(200)),
+                member_face(union, ms[3]),
+            ),
+        ];
+        let out = look_through_merges(union, &bucket, &acc, &member).unwrap();
+        assert_eq!(out[0].0, (wide, member_face(union, ms[3])));
+        assert_eq!(out[1], bucket[1]);
+        assert_eq!(out[2], bucket[2]);
+    }
+
+    /// Both names of one pair inside ONE merged row: the rewrite hands
+    /// the door that row twice, and the door refuses it by its own
+    /// same-operand rule — a pair of two faces of one operand is not a
+    /// contact the pair verb takes.
+    #[test]
+    fn a_pair_whose_two_names_rewrite_to_one_row_refuses_typed() {
+        let (doc, union) = doc_with_one_node();
+        let (m0, m1) = (RecipeNodeId(100), RecipeNodeId(101));
+        let row = merged(union, m0, m1);
+        let mut acc = NameTable::new();
+        acc.insert(row.clone(), face_ref(a_face_key())).unwrap();
+        let member = NameTable::new();
+        let p = pair(member_face(union, m0), member_face(union, m1));
+        let out = look_through_merges(union, std::slice::from_ref(&p), &acc, &member).unwrap();
+        assert_eq!(out[0].0, (row.clone(), row));
+        let refused = resolve_declarations(&out, &doc, &acc, &member);
+        assert!(
+            matches!(
+                refused,
+                Err(NodeErrorKind::DeclareUnsupportedPair {
+                    kinds: (EntityKind::Face, EntityKind::Face),
+                    cross_operand: false,
+                })
+            ),
             "{refused:?}",
         );
     }
