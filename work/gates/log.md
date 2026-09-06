@@ -213,3 +213,59 @@ the Q4 shape — so the desync arms are now proved by planting the stray
 bracket as code, and `panic-free-macro-bodies.sh`'s claim that a brace
 inside a nested comment reaches its tracker was corrected. Filed from
 it: `window-view-emits-a-record-for-a-comment-only-line`.
+
+## Sixth wave dispatched (2026-09-06)
+
+With PR 2038 merged and `lib.sh` free: `gates/reader-homes`
+(`test-module-resolution-has-three-homes` and
+`window-view-emits-a-record-for-a-comment-only-line`, one lane because
+both are `lib.sh` mechanisms — the rustc-correct test-module resolver
+and an anchored path filter moved from `interval-square-allowlist.sh`
+into the shared reader and the two textual copies retired; the
+comment-only-line record fixed at the reader with the consumer's filter
+retired), and `gates/viewer-module-kinds-guards`
+(`viewer-module-kinds-six-unreached-guards`, fixtures for the six).
+PR 2044 waits on its run; PR 2049 merges main behind 2038; `D102` is
+in flight on `bounds-allowlist.sh`, with `D211`, `S13` and
+`anchored-exact-text-skip-has-three-homes` behind it.
+
+## S49 landed (2026-09-06)
+
+PR 2044, `gates/loop-boundary-discards`, one style review
+(MERGEABLE-WITH-FIXES with two MAJORs, fix pass landed). A new
+derived-census gate, `loop-boundary-discards.sh`: every discarded
+`LoopBoundary::Cycle`/`Empty` under `crates/*/src` — let-else with
+`continue`/`break`/`return`, including one wrapping pattern layer
+(`Some(…)`, the review's second MAJOR: three live sites missed), and
+no-binding match arms in the spellings that compile — must match a
+register entry `<file>|<fn>|<fragment>|<count>|<disposition>`, keyed by
+the brace-aware ENCLOSING fn (the review found one live key naming a
+neighbouring helper) and pinned at a count so a second discard in a
+registered fn reds rather than inheriting its audit (the first MAJOR,
+D103's shape one level down). 80 sites in 40 files under 75 entries, 2
+marked audited (`census.rs`'s `sweep_cross_solid_backstop`, split by
+fragment) and 73 unaudited — the audit is the owners' riders; the
+`snapshot` discard is filed on TOPO. `#[cfg(test)]` skipped. The runner
+red on the fix pass was `awk -v` processing backslash escapes in the
+regexes (mawk tolerated the mangled pattern; the runner's awk died) —
+the hazard PR 2030's header names; the patterns now travel through
+`ENVIRON` with every metacharacter a bracket expression. The reader
+artifact it found — a `--window` record for a comment-only line — is
+`window-view-emits-a-record-for-a-comment-only-line`.
+
+## debug-only-helpers-outside-the-subject-list landed (2026-09-06)
+
+PR 2049, `gates/debug-only-subjects-2`, one style review
+(MERGEABLE-WITH-FIXES, fix pass landed). Four of the five candidates
+got rows — mesh's `identified_ids`, `overused_identified_edge`,
+`unpaired_chord_segment` and `overused_identified_edge_in` (a row per
+file whose uses it crosses) — taking the gate from 5 to 28 uses
+scanned, none ungated. `ArenaDelta` was refused: twelve of its sites
+put a statement-position attribute over a multi-line braced call the
+reader cannot place — filed as
+`debug-only-reader-cannot-place-a-statement-attribute-over-a-braced-call`.
+From the review: every spelling of a row is now planted (the third
+field was the only one proved), and every row pins its use count, the
+program's shape since PR 2042, proved by perturbing the pin in both
+directions; two miscounted sentences in the row corrected. 98 gate
+invocations in the selftest.

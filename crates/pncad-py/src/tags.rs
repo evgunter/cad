@@ -54,9 +54,9 @@
 //! diff that teaches the reader too, never a silent hole.
 
 use pncad::document::{
-    AssemblyError, CheckEvidence, ChecksError, DimensionError, EditError, EvalError, InlineError,
-    MateFault, NodeErrorKind, ParseError, PersistError, PlacementRuleFault, RecordedProgramError,
-    RefusedRef, RootFault, SplitError, UpdateError,
+    AssemblyError, Attribution, CheckEvidence, ChecksError, DimensionError, EditError, EvalError,
+    InlineError, MateFault, NodeErrorKind, ParseError, PersistError, PlacementRuleFault,
+    RecordedProgramError, RefusedRef, Relation, RootFault, SplitError, UpdateError,
 };
 use pncad::geom_core::{FrameError, FrameInput};
 use pncad::mesh::TessellateError;
@@ -802,8 +802,40 @@ pub fn assembly_error_tag(err: &AssemblyError) -> &'static str {
         AssemblyError::Product(inner) => product_error_tag(inner),
         AssemblyError::Reference { .. } => "mate_reference_refused",
         AssemblyError::NoAtRestRecord { .. } => "no_at_rest_record",
+        AssemblyError::CarriedMintRefusal { .. } => "carried_mint_refusal",
         AssemblyError::AtRest { .. } => "at_rest",
         AssemblyError::Uncertified { .. } => "uncertified",
+    }
+}
+
+/// **The stable tag for one at-rest attribution** — what a finding
+/// says about a declaration it names, and whose declaration it is.
+///
+/// Four words rather than two, because a caller must be able to tell a
+/// refutation from a decline (relabelling the first as the second
+/// promotes a verdict against the document into the unrefuted
+/// frontier) AND a declaration this document authored from one a part
+/// did (`declaration.mate` is then a node of another document, and
+/// `of`/`via` are what make that id usable). It lives here, with the
+/// refusal tags, so this crate's `TAG_INVENTORY` guards it — that
+/// roster reads THIS file — because these words are as much a public
+/// Python contract as any tag below.
+///
+/// Exhaustive over both enums, so a relation or an attribution arm
+/// added in the kernel stops this build.
+pub fn attribution_tag(attribution: &Attribution) -> &'static str {
+    match attribution {
+        Attribution::Refuted(_) => "refuted",
+        Attribution::Declined(_) => "declined",
+        Attribution::Carried {
+            relation: Relation::Refuted,
+            ..
+        } => "carried_refuted",
+        Attribution::Carried {
+            relation: Relation::Declined,
+            ..
+        } => "carried_declined",
+        Attribution::Unattributed => "unattributed",
     }
 }
 
