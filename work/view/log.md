@@ -4425,3 +4425,105 @@ The two census findings are now
 `work/issues/prose-census-cannot-see-a-bypassed-prose-renderer` — one
 row, not two, because neither half alone catches the defect that
 motivated them.
+
+## #2053 MERGED; the sweep read the tree and not the board (2026-09-06)
+
+**#2053 merged at `736846beb`.** Fourteen units on main this session.
+CI: 37 jobs, twelve `test (…)`, five `k-lint (gate, …)`, `gate ok`
+success, zero non-green.
+
+### The unit found a live user-visible defect while answering a filed hazard
+
+`refusal-has-no-all-to-walk` asked for an instrument that cannot exist
+in the shape it named — `vocabulary!` is fieldless-only and `Refusal`
+is nearly all payload arms, so there is no `ALL` of `Refusal` VALUES to
+project, because a value needs a payload and a payload needs a
+document. The dispatch said so and said closing it as ANSWERED was a
+legitimate outcome.
+
+It closed answered-AND-fixed, because underneath the question was a
+sentence a person reads: `Refusal::exists_wording` rendered
+`({dimension:?})`, so the status line and the add-parameter form's
+pre-click notice both said *"parameter width already exists
+(**Length**)"* — a Rust variant identifier where a person reads prose,
+against a rule whose home is `Dimension`'s own `Display`. Four sites.
+
+**Why both instruments were green over it, and this is the part worth
+keeping.** Two independent failures. `prose_census` scans
+`impl Display` bodies, and these three sentences are composed in an
+INHERENT impl **on purpose** — each is "its one home" so the pre-click
+notice cannot drift from the status line — with `Display` delegating
+through a bare `{}`. A delegated wording is invisible to it. And had it
+seen the site the verdict would still have been `Prose`: the census
+asks about BRACES, never about whether a `Debug` spells an identifier a
+person then reads.
+
+The item's own ask was answered **no**: extending the census to the
+quoting question would enforce an unratified rule against deliberate
+prose, since `EditError` quotes a user's key on purpose.
+
+### The finding that is the orchestrator's as much as the lane's
+
+`work/fix/verb-and-dimension-render-through-debug.md` — **open, on
+FIX's slate since 2026-09-04** — already enumerated, at pre-split
+paths, the exact four `Dimension` sites this unit fixed, PLUS a fifth
+it did not: `profile::path::Verb` rendered `{verb:?}` at
+`crates/viewer/src/sketch.rs:663`, which `pane/create.rs:581-585` puts
+on screen.
+
+**The sweep read the tree and not the board.** The dispatch that
+briefed it did not say to check the tracker either, so this is the
+dispatcher's miss as much as the lane's, and it is recorded that way.
+Every sweep this program runs from here owes a tracker pass: an
+instance already filed on another slate is one a tree-grep cannot tell
+you about, and half-completing another program's item without saying so
+is how two programs come to disagree about what is done.
+
+Handled by REPORTING, not by acting: the `Verb` fix is
+`impl Display for Verb` in `crates/profile`, which is not VIEW's
+territory, and rendering the verb in prose from the viewer would mint a
+fourth spelling — the defect one of the review's own findings is about.
+The PR body names FIX's item, says its `Dimension` half is complete and
+by which PR, says its `Verb` half is untouched, and says it should not
+be closed on the `Dimension` half alone.
+
+### What the review caught in the unit's own instruments
+
+**The test lost the clause that caught its own defect.**
+`panel_edits.rs` traded `!contains('"')` for two prefix checks, and the
+dropped clause is the only one that catches the row's founding case: a
+`{:?}` over a `ParamName` renders `"width"` — no brace, no field
+punctuation — and the identifier it leaks is the PAYLOAD's, not the
+arm's, so `contains(arm)` misses it and `assert_ne!` against the whole
+dump cannot see a `Debug` fragment inside prose. The lane restored it
+and wrote down the distinction it had got wrong: **a tripwire over
+named samples may be stricter than the ratified contract; a claim over
+a vocabulary may not.**
+
+**`Refusal::rank` wildcarded its payload** — `Self::Display(_) => 1`
+beside two `DisplayFault` arms hand-listed at rank 2 — which was the
+one place the closure's "no wildcard" argument did not reach. The lane
+fixed it rather than qualifying the closure, on the argument that a
+closure needing a caveat is worse than one made true, and labelled the
+two arms that legitimately default (`Edit`, `SlotUnit`) with the reason
+they may.
+
+**The PR's own CI worry was false.** It said `prose_census` did not run
+hosted because the `python suite` job was skipped. `prose_census` is a
+Rust `#[cfg(test)]` module in `crates/pncad-py/src/`; `ci-filter.py`
+puts `pncad-py` in `CARGO_SCOPE` via the read reach, so it ran in all
+twelve `test (…)` jobs, and the skipped job is the maturin suite over a
+different directory. Removed rather than restated — a false gap in a
+merged PR body is the same defect as false prose in a doc comment.
+
+### One judgement taken against the dispatch, and accepted
+
+The dispatch said to file the two `prose_census` findings as two items
+in `work/issues/`. The lane filed **one**, arguing that neither half
+alone catches the founding defect — widening the scan set leaves
+`Dimension` a `Prose` verdict, and adding a bypass verdict leaves
+`exists_wording` unread — so a lane taking one would ship a guard that
+still passes over the case and reasonably believe the class closed. It
+stated that as a decision and invited a split. **Accepted**: the
+argument is right, and it is the same "instance versus shape"
+distinction this program applies to code.

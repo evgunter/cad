@@ -123,10 +123,22 @@ should be visible on its own.
 | `view/axes-and-badges` (Ev's provenance rule, made structural) | #1957 | style |
 | `view/status-line-sweep` (seventeen of eighteen writers) | #2026 | style + fix pass |
 | `view/const-all` (the `vocabulary!` declaration) | #2046 | style + fix pass |
+| `view/refusal-all` (`Refusal` has no `ALL`) | #2053 | style + fix pass |
+| `view/progress` (the swappable bool pair) | #2055 | style — **fix pass in flight** |
 
 **Twelve units on main. The wave produced nineteen new items** — ten
 from the sweep and its review, nine from `const-all` and its review —
 every one a file rather than a sentence in a merged PR body.
+
+**Every sweep this program runs owes a TRACKER pass as well as a tree
+pass.** #2053's sweep fixed four sites that
+`work/fix/verb-and-dimension-render-through-debug.md` — open on FIX's
+slate — had already enumerated, and missed the fifth that item names,
+because a tree-grep cannot tell you an instance is already filed
+somewhere else. Half-completing another program's item without saying
+so is how two programs come to disagree about what is done. The
+dispatch did not ask for a tracker pass either, so this is the
+orchestrator's rule now, not the lane's mistake.
 
 **The census failure has three distinct members now**, and they are
 three different mistakes: a count inherited stale from another program,
