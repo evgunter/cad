@@ -185,6 +185,25 @@ debug_only_report() {
         # end and every later use read as gated, silently, so it is not
         # tolerated: brackets still open at the body brace is reported
         # as a reader desync and reds the gate.
+        #
+        # WHERE ONE COMES FROM, now that the shared lexer nests block
+        # comments: not from a nested `/* /* */ */`, which it reads
+        # whole. Three sources are left.
+        #
+        #   * Source that is genuinely unbalanced, which does not
+        #     compile and so should not reach a gate. The fixtures plant
+        #     this shape, because it is the one that needs no gap.
+        #   * A lexer blind spot yet to be found.
+        #   * BALANCED, COMPILING SOURCE THIS READING CANNOT PLACE: a
+        #     STATEMENT-POSITION `#[cfg(debug_assertions)]` over a
+        #     multi-line call whose arguments carry a brace — twelve
+        #     live sites in `topo`, all of the shape
+        #     `self.assert_euler_postcondition(before, if … { ArenaDelta
+        #     { … } }, "kfmrh");`. The row is
+        #     `debug-only-reader-cannot-place-a-statement-attribute-over-a-braced-call`.
+        #
+        # The guard is defensive across all three: it does not diagnose
+        # the cause, only that this gate cannot place a use.
         t = piece; bdepth += gsub(/[[(]/, "", t)
         t = piece; bdepth -= gsub(/[])]/, "", t)
         if (cut == 0) break
@@ -408,16 +427,25 @@ plant_permitted_shapes() {
     '}'
 }
 
-# A LOST BRACKET DEPTH IS REPORTED, NOT PASSED. `lib.sh`'s reader does
-# not nest block comments, so the first `*/` closes the outer one and
-# `/* outer /* inner */ ( */` leaves a stray `(` in the code view.
-# Bracket depth then never returns to zero, the item never reads as
-# entered, and every use to the end of the file would read as gated.
-plant_desync_nested_block_comment() {
+# A LOST BRACKET DEPTH IS REPORTED, NOT PASSED. A bracket left open in
+# the code view — for any reason — means depth never returns to zero,
+# the gated item never reads as entered, and every use to the end of
+# the file would read as gated. That is the silent direction, so it is
+# reported instead.
+#
+# THE STRAY BRACKET IS PLANTED AS CODE, not smuggled through a gap in
+# the reader. It used to arrive as `/* outer /* inner */ ( */`, which
+# worked only while `lib.sh`'s lexer closed a block comment at the
+# FIRST `*/` and read the tail as code; the lexer nests now, so that
+# line is a comment and reaches nothing. Planting the bracket directly
+# keeps the whole path proved — this arm, the marker it writes, and
+# `gate_ok`'s refusal to print over it — which a fixture that fed the
+# awk a synthetic view could not.
+plant_desync_open_bracket() {
   local path=$1 expr=$3 root=$4
   plant_source "$path" "$root" \
     '#[cfg(debug_assertions)]' \
-    '/* outer /* inner */ ( */' \
+    '(' \
     "pub fn agree(a: f64, b: f64) -> bool { $expr }" \
     "pub fn leak(a: f64, b: f64) -> bool { $expr }"
 }
@@ -426,7 +454,34 @@ plant_desync_nested_block_comment() {
 # bracket, so the body-brace arm is never reached and the end of the
 # file is where the reader has to say so. Every use here is gated, so
 # only the desync can red this fixture.
-plant_desync_at_end_of_file() {
+plant_desync_open_bracket_at_end_of_file() {
+  local path=$1 expr=$3 root=$4
+  plant_source "$path" "$root" \
+    '#[cfg(debug_assertions)]' \
+    "pub fn agree(a: f64, b: f64) -> bool { $expr }" \
+    '#[cfg(debug_assertions)]' \
+    '('
+}
+
+# AND THE SHAPE THAT USED TO DESYNC, KEPT AS THE CONTROL THAT SAYS IT NO
+# LONGER DOES. The reader nests block comments, so the whole line is a
+# comment: the attribute gates `agree`, and `leak` below it is an
+# ORDINARY ungated use. This case fires on the leak, not on a desync —
+# which is the difference between a reader that lost its place and one
+# that did not.
+plant_nested_block_comment_then_a_leak() {
+  local path=$1 expr=$3 root=$4
+  plant_source "$path" "$root" \
+    '#[cfg(debug_assertions)]' \
+    '/* outer /* inner */ ( */' \
+    "pub fn agree(a: f64, b: f64) -> bool { $expr }" \
+    "pub fn leak(a: f64, b: f64) -> bool { $expr }"
+}
+
+# The same comment closing the file, where every use IS gated: nothing
+# is left over, so this must PASS. Its twin above fires; between them
+# the nested comment is pinned in both directions.
+plant_nested_block_comment_closing_the_file() {
   local path=$1 expr=$3 root=$4
   plant_source "$path" "$root" \
     '#[cfg(debug_assertions)]' \
@@ -466,9 +521,11 @@ gate_selftest() {
     gate_selftest_case "$want" plant_not_cfg "$path" "$sym" "$expr"
     gate_selftest_case "$want" plant_leak_after_debug_assert "$path" "$sym" "$expr"
     gate_selftest_case "the reader lost bracket depth" \
-      plant_desync_nested_block_comment "$path" "$sym" "$expr"
+      plant_desync_open_bracket "$path" "$sym" "$expr"
     gate_selftest_case "the reader lost bracket depth" \
-      plant_desync_at_end_of_file "$path" "$sym" "$expr"
+      plant_desync_open_bracket_at_end_of_file "$path" "$sym" "$expr"
+    gate_selftest_case "$want" \
+      plant_nested_block_comment_then_a_leak "$path" "$sym" "$expr"
     gate_selftest_case "the gate's subject is gone" plant_subject_gone "$path"
     gate_selftest_passes "a debug_assert!, prose, a string literal and a gated inner module" \
       plant_permitted_shapes "$path" "$sym" "$expr"
@@ -476,12 +533,14 @@ gate_selftest() {
       plant_wrapped_debug_assert "$path" "$sym" "$expr"
     gate_selftest_passes "cfg(all(…)) with debug_assertions as the SECOND operand" \
       plant_all_cfg_swapped "$path" "$sym" "$expr"
+    gate_selftest_passes "a nested block comment closing the file, whose stray bracket is comment and not code" \
+      plant_nested_block_comment_closing_the_file "$path" "$sym" "$expr"
     gate_selftest_passes 'a `;` inside a gated signature' \
       plant_semicolon_in_signature "$path" "$sym" "$expr"
     gate_selftest_passes "a longer identifier that merely contains the symbol" \
       plant_near_miss_identifier "$path" "$sym" "$expr"
   done
-  printf '%s selftest OK, over %s subjects, each proved on its own: enclosure by brace depth and by `debug_assert!` statement (rustfmt-wrapped or not); `all(…)` gates in either operand order while `any(…)` and `not(…)` do not; prose, string literals and a longer identifier that merely contains the symbol are not uses; an item ends at a `;` only at bracket depth zero; and a lost bracket depth, a missing subject and a `grep` that cannot run are each a loud failure\n' \
+  printf '%s selftest OK, over %s subjects, each proved on its own: enclosure by brace depth and by `debug_assert!` statement (rustfmt-wrapped or not); `all(…)` gates in either operand order while `any(…)` and `not(…)` do not; prose, string literals and a longer identifier that merely contains the symbol are not uses; an item ends at a `;` only at bracket depth zero; a NESTED block comment is comment to its balancing `*/`, so the stray bracket in one is not code — pinned both ways, the leak after one firing as the ordinary leak it is and the same comment closing a file passing; and a lost bracket depth (planted as code, at the body brace and at end of file), a missing subject and a `grep` that cannot run are each a loud failure\n' \
     "$(gate_name)" "${#SUBJECTS[@]}"
 }
 
