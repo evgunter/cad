@@ -227,3 +227,17 @@ which predates MSOLVE-2's move of the count check to
 `check_reference`; the lane reads the tree as it is. Slate after it:
 the gate's `Vanished` below a pattern, the lever's extent (`[ev]`),
 the remap-inference record correction.
+
+## MSOLVE-3 landed, in review (2026-09-06)
+
+PR 2081 green on the full matrix at `885d257` (one red on the way: a
+`rotate_then_translate` caller in `demos/tour`, outside the first
+sweep's `crates/` scope — the repo's four workspaces have no local
+script that builds them all, stated in the PR). What the build
+measured: `check_reference` keeps `eval_count` for its two counts
+because the whole-node door would refuse a mate onto copy 0 of a
+broken pattern (a change to admission, out of scope); the carried
+refusal is an `Arc`-newtype over `NodeErrorKind` because the fault
+types derive `Clone`+`PartialEq` and the kernel error type cannot; the
+rider reaches no viewer call site at all. Style review and
+correctness arm dispatched on that head.
