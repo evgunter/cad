@@ -265,3 +265,54 @@ bracket's whole-certifying ceiling moves 10.4× (`3.7e1 · ε` →
 at 229 s per leaf against 5.9 s — coefficient growth, not the ring's
 heap traffic, which the `i128`-inline integer removed. The bound is the
 measured trade (`geom_core::sym::COEFF_BITS`).
+
+## The registered bucket (M10-9): what a constructor's axiom discharges
+
+M10-9 opened the registered-identity door (ERROR-DESIGN E12's
+provenance reserve; `geom_core::sym::Sym::register_equal`) and gave the
+receipt a third discharge column beside `symbolic_zero` and
+`sign_gated`. A row lands in **registered** when the plain form and the
+early form both declined and the same walk with the session's registry
+applied answers — necessity, not contact, so no row moved out of the
+columns above.
+
+**One registrant ships**: the swept arc's rim identity `‖q − c‖ = r`,
+stated at `sweep::swept::register_rim_identity` and called from the two
+sites that build a circular carrier from a lamina vertex and an
+extruded centre (`swept.rs`'s bottom rim edge, `extrude.rs`'s cylinder
+wall). Its proof is the sagitta closed form and is in its doc comment.
+
+The counts, at each document's nominal, theorem/gated/**registered**/
+numeric, door OFF against door ON
+(`editor-core/tests/m10_9_evidence_interval::m10_9_per_predicate_split_at_the_nominal`):
+
+| document | predicate | door OFF | door ON |
+| --- | --- | --- | --- |
+| plate | `carrier_endpoint_start` | 32/0/**0**/16 | 32/0/**16**/0 |
+| plate | `carrier_matches_mapped_source` | 180/0/**0**/72 | 180/0/**8**/64 |
+| R2 bracket | `carrier_endpoint_start` | 44/0/**0**/22 | 44/0/**20**/2 |
+| R2 bracket | `carrier_matches_mapped_source` | 234/0/**0**/99 | 234/0/**8**/91 |
+| R1 annulus | `carrier_endpoint_start` | 8/0/**0**/16 | 8/0/**16**/0 |
+| R1 annulus | `carrier_matches_mapped_source` | 72/0/**0**/72 | 72/0/**8**/64 |
+| R2 pad | `carrier_endpoint_start` | 28/0/**0**/32 | 28/0/**24**/8 |
+| R2 pad | `carrier_matches_mapped_source` | 144/0/**0**/144 | 144/0/**12**/132 |
+
+Every other row is unchanged on every document, and `symbolic_zero` is
+identical door on and off (plate 723, bracket 790, annulus 248, pad
+368). Three rows are worth naming because they are the ones the door
+was expected to reach and does not:
+
+- **`carrier_on_surface_1` / `_2`** — unchanged. These rest on
+  `u_ref·u_ref = 1`, which needs the SQUARED identity `v·v = r²`; the
+  door states the unsquared one and the two are different nodes.
+- **`carrier_endpoint_end`** — unchanged, and it is what bounds the
+  plate now. The far endpoint's residual is the arc's SPAN identity
+  `carrier.eval(θ) = q_to` with `θ = 4·atan|b|`, so its form carries a
+  `cos(4·atan(|b|))` atom; that is a different theorem of the sagitta
+  construction and no `‖q − c‖ = r` registration reaches it
+  (`work/m10/plate-ceiling-is-now-the-arc-span-identity`).
+- **`carrier_line_circle`** — unchanged (R2's pad, 24 numeric at the
+  nominal, door on or off). The `Fillet(r)` step declares the tangency,
+  but the node the constructor could register is not the node the joint
+  classifier builds
+  (`work/m10/fillet-tangency-is-not-the-constructors-node`).

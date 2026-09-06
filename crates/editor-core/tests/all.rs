@@ -441,6 +441,8 @@ mod m10_8_r2_probes_interval;
 
 #[path = "m10_9_evidence_interval.rs"]
 mod m10_9_evidence_interval;
+#[path = "m10_9_pins_interval.rs"]
+mod m10_9_pins_interval;
 
 #[path = "kstats_bracket_rows.rs"]
 mod kstats_bracket_rows;
