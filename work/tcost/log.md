@@ -1425,3 +1425,12 @@ orchestrator).
 so `reader_census.rs` gained one `Shared` line for it, forced by the
 census's own arrival detector; `UNCONVERTED_TODAY` untouched. Landed
 with PR 1949.
+
+## Seam announced by TOPO (2026-09-06): the Euler-counts door
+
+Ev ratified `readback::euler_counts` / `genus()` (PR 2010). The unit
+converts the hand-written identity in `crates/topo/tests/*` (four
+files) and `crates/sweep/tests/*` (ten files) to the door — test rows
+as ordinary tests, one call replacing five `.count()`s and a sum per
+site; nothing else in those files moves. Lands on
+`topo/census-door`; say here if a TCOST lane is live on any of them.

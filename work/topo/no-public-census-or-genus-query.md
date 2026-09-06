@@ -1,12 +1,12 @@
 ---
 id: no-public-census-or-genus-query
-kind: issue
+kind: unit
 title: API gap — no public census/genus query, so the Euler-Poincare identity is hand-written about 13 times
-status: open
+status: spec
 opened: 2026-08-20
 github: 758
 refs: [S79]
-needs_ev: true
+branch: topo/census-door
 ---
 
 ## From GitHub issue 758
@@ -115,3 +115,18 @@ the same PR with the demo-purpose rule kept (the demo calls the public
 door, which is exactly the "real usage" the demos exist to show). The
 class receipt: every site converted or listed with its owner.
 Code-quality's `S79` parks on this item and closes with it.
+
+## Ruled (2026-09-06, PR 2010)
+
+Ev: "sounds good!" — (A) ratified. The item is now a unit:
+`readback::euler_counts(body) -> EulerCounts { v, e, f, r, s }` with
+`s` = shells, `EulerCounts::genus(self) -> Result<i64, EulerParityError>`
+refusing typed on a parity violation; whole body only. Scope as the
+proposal states: the door and its rows in `readback.rs`; `topo`'s own
+sites converted; `topo/tests/*` and `sweep/tests/*` by announced seam
+to S-TCOST; the demos' copies by announced seam to `demos/`' owner,
+else in the same PR under the demo-purpose rule. Branch
+`topo/census-door`. Dispatches when a lane frees (two are running);
+single style review plus a correctness arm on the door's refusal —
+the door is a new public answer, so it draws a dual at block TOPO-B1
+slot 2. Code-quality's `S79` closes with it.

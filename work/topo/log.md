@@ -367,3 +367,11 @@ on paper; the API shape is a design question by the item's own words,
 so it goes out as an `[ev]` PR. Re-measured at 26 sites in 22 files,
 and the ledger's solids-for-shells slip (`S69`'s lane) is the row's
 cost already realised.
+
+## Census door ruled (2026-09-06)
+
+PR 2010: Ev ratified (A). `no-public-census-or-genus-query` is a unit
+in `spec`, branch `topo/census-door`, queued behind the two running
+lanes; it draws block TOPO-B1 slot 2 (a new public answer). Seams
+announced: S-TCOST for the fourteen test files; the demos' owner at
+dispatch once `paths` say who that is.
