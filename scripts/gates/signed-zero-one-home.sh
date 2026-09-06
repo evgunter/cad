@@ -105,8 +105,12 @@ gate() {
     gate_error "$(gate_name): no .rs files under ${SCAN_DIRS[*]} in $PWD — the gate scanned nothing, which is not a pass"
     exit 1
   fi
+  # THE HOME'S EXEMPTION IS ONE PATH, by construction rather than by
+  # coincidence: `gate_record_anchor` escapes the path and pins the
+  # `FILE:LINE:` shape, so `signed_zero.rs` cannot also read as
+  # `signed_zero?rs`. Planted at `plant_sibling_the_raw_anchor_exempted`.
   hits=$(gate_rust_code --window 6 "${files[@]}" \
-    | gate_grep -vE "^$HOME_FILE:" \
+    | gate_grep -vE "$(gate_record_anchor "$HOME_FILE")" \
     | gate_grep -E "$PAT_BRANCH|$PAT_ADD|$PAT_ADD_REVERSED" \
     | cut -c1-140)
   if [ -n "$hits" ]; then
@@ -217,6 +221,50 @@ plant_home_symlinked_out_of_the_scan() {
   ln -s "$1/vendor/signed_zero.rs" "$1/$HOME_FILE"
 }
 
+# THE SKIP IS A PATTERN, NOT A PATH, and this is the fixture that holds
+# it to one path. The home's `.` is an ERE metacharacter, so the skip
+# interpolated raw read `signed_zero?rs:` and exempted a sibling that
+# differs from the home only where the metacharacter sits.
+#
+# WHY THE PLANTED PATH CARRIES A COLON, rather than being the flat
+# `signed_zeroXrs` the widening is usually described by. That file is
+# not a fixture at all: `find ... -name '*.rs'` never returns it, so the
+# gate passes green on it whether the skip is escaped or not — a case
+# that proves the SCAN's glob and says nothing about the anchor. To
+# reach the widening through this gate's own scan a path must end in
+# `.rs` AND put a `:` where the anchor's `:` sits, which means the colon
+# is inside the path. That the two coincidences did not line up in this
+# tree is why the population is zero; it is not why the skip is right,
+# and a skip that is right by coincidence is one glob away from being
+# wrong.
+#
+# WHY `:9:` AND NOT `:x`. It makes the case discriminate the ESCAPING
+# alone: with the `FILE:LINE:` shape pinned but the path still
+# interpolated raw, `...signed_zero_rs:9:x.rs:1:` matches and the flush
+# is still exempt, so this case can only go green on an anchor that
+# escapes. The home's own exemption is the clean fixture's job — it
+# plants the home in the wrapped flush form, so an anchor that
+# over-narrows reds `gate_selftest_clean` rather than waiting to be
+# noticed.
+plant_sibling_the_raw_anchor_exempted() {
+  printf 'fn flush(x: f64) -> f64 { x + 0.0 }\n' \
+    > "$1/crates/step-import/src/signed_zero_rs:9:x.rs"
+}
+
+# THE ANCHOR'S OTHER HALF, and until this case it was unwitnessed —
+# `gate_record_anchor`'s `^` could be deleted with every `--selftest` in
+# this directory still green, including the shared escaping case, whose
+# four hand-built records all begin at the path. A skip is a claim about
+# ONE path, so an unanchored one exempts every path that ENDS in the
+# home, and this is the nearest such path a real tree could grow: a
+# vendored or generated sub-tree under `src` whose tail repeats the
+# crate layout. The gate must read it as an ordinary file.
+plant_nested_path_ending_in_the_home() {
+  mkdir -p "$1/crates/step-import/src/crates/step-import/src"
+  printf 'fn flush(x: f64) -> f64 { x + 0.0 }\n' \
+    > "$1/crates/step-import/src/crates/step-import/src/signed_zero.rs"
+}
+
 # A suite is where a copy gets written to avoid touching `src`.
 plant_in_tests() {
   printf 'fn flush(x: f64) -> f64 { x + 0.0 }\n' \
@@ -281,10 +329,12 @@ gate_selftest() {
   gate_selftest_case "$want" plant_deref_add
   gate_selftest_case "$want" plant_reversed_add
   gate_selftest_case "$want" plant_in_tests
+  gate_selftest_case "$want" plant_sibling_the_raw_anchor_exempted
+  gate_selftest_case "$want" plant_nested_path_ending_in_the_home
   gate_selftest_case "no .rs files under" plant_home_symlinked_out_of_the_scan
   gate_selftest_passes "innocent literals" plant_innocent_literals
   gate_selftest_passes "a comment-only mention" plant_comment_only
-  printf '%s selftest OK: 7 planted spellings fire (rustfmt-wrapped, one-line, add, deref-add, reversed, in tests/, and after a string literal containing `//`); clean fixture, innocent literals and comment-only mentions stay green; fires on the empty scan a home file symlinked out of SCAN_DIRS produces, which `[ -f ]` clears and `find -type f` does not; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' \
+  printf '%s selftest OK: 9 planted spellings fire (rustfmt-wrapped, one-line, add, deref-add, reversed, in tests/, after a string literal containing `//`, at a sibling path an unescaped home skip exempts, and at a nested path an unanchored one exempts); clean fixture, innocent literals and comment-only mentions stay green; fires on the empty scan a home file symlinked out of SCAN_DIRS produces, which `[ -f ]` clears and `find -type f` does not; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' \
     "$(gate_name)"
 }
 
