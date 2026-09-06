@@ -114,6 +114,10 @@ Node.fillet(solid, 1.0, [])  # ty: error
 Node.chamfer(solid, 1.0, [])  # ty: error
 Node.chamfer(solid, 1 * m, [solid])  # ty: error
 
+# The shell's wall is a Length too, and its open list is names as text.
+Node.shell(solid, 1.0, [])  # ty: error
+Node.shell(solid, 0.01 * m, [solid])  # ty: error
+
 # A tube's radii are Lengths, its window is a `TubeWindow` and never a
 # pair of raw angles, and the hollow kind's WALL IS REQUIRED — the
 # three ways a caller reaches for the shape this vocabulary refuses to

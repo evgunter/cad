@@ -1260,6 +1260,21 @@ class Node:
         """
 
     @staticmethod
+    def shell(target: NodeId, thickness: Length, open: list[str]) -> Node:
+        """Hollow `target` to a wall of `thickness`, opening the faces in
+        `open` into rims.
+
+        `open` is face names as TEXT, IN THE ORDER GIVEN: a chart's
+        rim is its FIRST designated face, so name first the face that
+        should carry the rim's identity. A repeat keeps its first
+        occurrence; an EMPTY list is the SEALED hollow, which is legal.
+        Every face on a chart is named together (a full revolve's cap
+        is two half-faces). An unresolvable name, a name that is not a
+        face, a non-positive or unaffordable wall, or a curved
+        designated face refuses typed at `evaluate`.
+        """
+
+    @staticmethod
     def datum_axis(
         origin: tuple[Length, Length, Length],
         direction: tuple[float, float, float],
@@ -1941,6 +1956,9 @@ class SegTag:
     BandCross: Final[SegTag]
     BandCut: Final[SegTag]
     BandSlit: Final[SegTag]
+    Inner: Final[SegTag]
+    Rim: Final[SegTag]
+    HoleRim: Final[SegTag]
     Instance: Final[SegTag]
     InPart: Final[SegTag]
 
@@ -1955,6 +1973,7 @@ class OpGroup:
     Fillet: Final[OpGroup]
     Pattern: Final[OpGroup]
     InstantiatePart: Final[OpGroup]
+    Shell: Final[OpGroup]
 
 class CapEnd:
     """Which end of the sweep vector a cap face closes (`SegPat.side`)."""

@@ -410,6 +410,14 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
             BlendKind::Fillet => "fillet_selection_empty",
             BlendKind::Chamfer => "chamfer_selection_empty",
         },
+        // The shell: ONE tag for the op's refusal family (the
+        // `revolve`/`tube` treatment — the kernel's `ShellError` arms
+        // are prose in the message), the two open-list refusals in the
+        // `chamfer_selection_*` spelling, and the lane refusal.
+        NodeErrorKind::Shell(_) => "shell",
+        NodeErrorKind::ShellOpenResolve { .. } => "shell_open_resolve",
+        NodeErrorKind::ShellOpenKind { .. } => "shell_open_kind",
+        NodeErrorKind::ShellLaneUnsupported { .. } => "shell_lane_unsupported",
         // The derived sketch frame's refusals (DOCM-1): the fillet's
         // ladder and kind refusals, one carrier-kind refusal, one
         // read-back refusal, and the section refusal DM1c adds.

@@ -2860,7 +2860,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
                 "datum_axis_in_plane", "datum_plane", "declare",
                 "extrude", "fillet", "hollow_tube", "instantiate_part",
                 "loft", "mate", "placed_union", "placed_union_at",
-                "polygon", "profile", "revolve", "sketch_frame",
+                "polygon", "profile", "revolve", "shell", "sketch_frame",
                 "split", "transform", "tube",
             ],
         )
@@ -2949,7 +2949,10 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             # (LIB-G16): the recipe door crossed as `Node.chamfer`, the
             # plain-body kernel verb did not, exactly as `fillet_edges`
             # has never crossed beside `Node.fillet`. That is the
-            # binding shape, not a gap.
+            # binding shape, not a gap — and `shell`/`shell_open`
+            # joined it at LIB-G17 for the same reason: the recipe door
+            # crossed as `Node.shell` (`tests/test_shell.py` is the
+            # positive form), the two plain-body kernel verbs did not.
             "chamfer_edges", "shell", "shell_open",
         ]:
             with self.subTest(door=door):
@@ -3040,9 +3043,17 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # and `set_placement` with them — it was never a `Node` at
         # all, it is `DocEdit.set_placement`, which is where the A11
         # rule that placement is the CLUSTER's puts it.
+        #
+        # `shell` LEFT this list at LIB-G17: `Node::Shell` landed and
+        # `Node.shell` binds it, with the open faces as ORDERED names
+        # (`tests/test_shell.py` is the positive form). `shell_open`
+        # was never a second node to leave — an empty designation IS
+        # the sealed hollow, one node kind and one door — so the one
+        # name below it is what a caller would look for and must not
+        # find.
         for node_kind in [
             "sweep", "pattern",
-            "shell", "shell_open",
+            "shell_open",
         ]:
             with self.subTest(node=node_kind):
                 self.assertFalse(hasattr(Node, node_kind), f"Node.{node_kind} exists")
