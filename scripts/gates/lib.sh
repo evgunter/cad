@@ -624,10 +624,21 @@ gate_selftest_clean() {
   # always writes a source file, so no fixture ever asked. `lib.sh` says a
   # guard never shown to fire is not a guard; that sentence had not been
   # applied inside this file. The two cases below are the rest of it, and
-  # the way to check the claim is the trace, not this comment: instrument
-  # `gate_error` with `BASH_SOURCE`/`BASH_LINENO`, run every `--selftest`,
-  # and diff what fired against what is written. `D109(d)` carries the
-  # standing count and the guards that remain.
+  # the way to check the claim is the trace, not this comment:
+  # instrument `gate_error` to record `BASH_SOURCE`/`BASH_LINENO` AND
+  # THE MESSAGE, run every `--selftest`, and diff what fired against the
+  # declared population, `grep -nE '(^|[[:space:];&|])gate_error "'
+  # scripts/gates/*.sh`.
+  #
+  # THE MESSAGE IS NOT BELT AND BRACES. A site inside a command
+  # substitution reports the line of the ENCLOSING FUNCTION CALL, not
+  # its own: bash resets the call stack in the subshell, so
+  # `BASH_LINENO` names a line that holds no `gate_error` at all. A
+  # line-only trace therefore reports such a site as unreached however
+  # many fixtures fire it — and this directory has one, the census's
+  # nested-suite refusal. Match a fired message to a site by ALL of the
+  # site's literal fragments in ONE message: two sites here share a
+  # fragment, so any-of scores one of the pair reached for free.
   tmp=$(mktemp -d)
   if out=$("$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1); then
     rm -rf "$tmp"

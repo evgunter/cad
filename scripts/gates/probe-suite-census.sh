@@ -914,6 +914,23 @@ plant_disposition_not_a_doc_comment() {
     > "$1/crates/topo/tests/probe_0.rs"
 }
 plant_step_renamed() { printf 'jobs: {}\n' > "$1/.github/workflows/ci.yml"; }
+# THE PRODUCER OF THE EXECUTED-SET FLOOR, GONE. Distinct from a sweep
+# that stopped calling `--check-executed`: there the wiring is false and
+# here there is no file to read, and the second is what a moved or
+# renamed script looks like.
+plant_sweep_gone() { rm -f "$1/$SWEEP_SCRIPT"; }
+# AND THE FILE BOTH CI-FACING CHECKS READ. A census whose ci.yml is not
+# there cannot decide the clippy row that turns a misspelt gate into an
+# error, and undecided is not clean.
+plant_ci_yml_gone() { rm -f "$1/.github/workflows/ci.yml"; }
+# A PROBE SUITE NESTED UNDER tests/. The module a `--list` listing names
+# is the file stem alone, so a nested suite cannot be matched against one
+# — the gate refuses it rather than reporting it missing. Reached only in
+# the modes that derive module names, which is why the case runs there.
+plant_nested_suite() {
+  mkdir -p "$1/crates/topo/tests/nested"
+  printf '#![cfg(feature = "probe")]\n' > "$1/crates/topo/tests/nested/probe_deep.rs"
+}
 # The clippy row loses the flag that promotes `unexpected_cfgs`.
 plant_clippy_undenied() { sed -i 's/ -- -D warnings//' "$1/.github/workflows/ci.yml"; }
 # The lint silenced at the site instead.
@@ -1194,6 +1211,18 @@ gate_selftest() {
   gate_selftest_case 'no such probe-gated file is censused' plant_roster_orphan
   gate_selftest_case 'no longer feeds its executed-set tally' plant_sweep_unwired
   gate_selftest_case 'no longer feeds its executed-set tally' plant_sweep_commented_out
+  gate_selftest_case 'the executed-set floor has no producer' plant_sweep_gone
+  gate_selftest_case 'the clippy row that reports a misspelt cfg gate cannot be checked' \
+    plant_ci_yml_gone
+
+  # THE MODULE-NAME DERIVATION's own refusal, in the mode that reaches
+  # it: the nested-suite diagnosis lives inside the command substitution
+  # that builds `<crate><TAB><module>` rows, which only `--suites` and
+  # `--check-listing` enter. A case in the default mode cannot reach it,
+  # and that is why it had none.
+  GATE_SELFTEST_ARGS=(--suites)
+  gate_selftest_case 'nested under tests/' plant_nested_suite
+  GATE_SELFTEST_ARGS=()
 
   # THE CITATION HALF's cases, selected through ARGV. The old harness
   # ran the gate in a command substitution, and a subshell inherits a
@@ -1220,7 +1249,7 @@ gate_selftest() {
 exec "$GATE_REAL_TOOL" "$@"'
   GATE_SELFTEST_ARGS=()
 
-  printf '%s selftest OK: passes a clean fixture, one with a ci.yml long enough to race, one whose census is long enough to race the roster-listing check, a compound gate, a complete listing, a tally meeting every rostered execution, and every gate line in the tree carrying a TRAILING COMMENT (which the whole-line anchor this predicate used to need could not see); fires on a listing missing a counted suite, on an empty one, and on an absent tests/ tree, a renamed gate spelling, every gate in one crate re-spelt onto a misspelt feature, every gate line in another COMMENTED OUT inside a `/* */` block (which that anchor counted) and again inside a NESTED one (which a reader ending a comment at the first `*/` counts), a clippy row that stopped denying warnings, the cfg lint silenced at the site, a suite with no declared disposition, the disposition sentence written as an ordinary comment rather than a doc comment, the blanket sentence over a partly-gated file and the partial one over a wholly-gated file, a rostered suite claiming it is not run, a roster row naming no censused file, and a sweep that stopped feeding --check-executed or commented the call out, and — matcher-death, both ends — on grep vanishing out from under the gate, on awk vanishing with it (the shared reader is this census'"'"'s first matcher now) and on the real grep rejecting a live matcher'"'"'s pattern (an invalid backreference riding the -rlE scan), each ending in a diagnosis rather than a green — and in --check-executed mode, on a suite SELECTED that executed nothing, a dropped invocation, an empty tally, an unrostered execution, a malformed row, an `#[ignore]`d test no selection runs, and a suite rostered under `--ignored` alone; and in --citations mode, on a dropped citation, a deleted citing file, a renamed CI step, and an undeclared new citation, on its completeness scan dying inside its process substitution (the marker path through gate_ok), while PASSING the same citation in a declared-history file\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, one with a ci.yml long enough to race, one whose census is long enough to race the roster-listing check, a compound gate, a complete listing, a tally meeting every rostered execution, and every gate line in the tree carrying a TRAILING COMMENT (which the whole-line anchor this predicate used to need could not see); fires on a listing missing a counted suite, on an empty one, and on an absent tests/ tree, a renamed gate spelling, every gate in one crate re-spelt onto a misspelt feature, every gate line in another COMMENTED OUT inside a `/* */` block (which that anchor counted) and again inside a NESTED one (which a reader ending a comment at the first `*/` counts), a clippy row that stopped denying warnings, the cfg lint silenced at the site, a suite with no declared disposition, the disposition sentence written as an ordinary comment rather than a doc comment, the blanket sentence over a partly-gated file and the partial one over a wholly-gated file, a rostered suite claiming it is not run, a roster row naming no censused file, a sweep that stopped feeding --check-executed or commented the call out, a sweep script that is not there at all, a ci.yml that is not there at all, and — in --suites mode, the only one that derives module names — a probe suite nested under tests/, whose module a listing cannot name, and — matcher-death, both ends — on grep vanishing out from under the gate, on awk vanishing with it (the shared reader is this census'"'"'s first matcher now) and on the real grep rejecting a live matcher'"'"'s pattern (an invalid backreference riding the -rlE scan), each ending in a diagnosis rather than a green — and in --check-executed mode, on a suite SELECTED that executed nothing, a dropped invocation, an empty tally, an unrostered execution, a malformed row, an `#[ignore]`d test no selection runs, and a suite rostered under `--ignored` alone; and in --citations mode, on a dropped citation, a deleted citing file, a renamed CI step, and an undeclared new citation, on its completeness scan dying inside its process substitution (the marker path through gate_ok), while PASSING the same citation in a declared-history file\n' "$(gate_name)"
 }
 
 # The negative control for the completeness check: the same planted
