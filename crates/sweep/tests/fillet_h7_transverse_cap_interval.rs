@@ -24,7 +24,7 @@
 
 use geom::Curve3;
 use geom_brep::EdgeDescription;
-use geom_core::k_stats::{start_verdict_log, take_verdict_log};
+use geom_core::k_stats::Bracket;
 use geom_core::{Band, Bounds, Interval, Real, Sign, Tol, Vec3};
 use sweep::blend::BlendError;
 use sweep::blend::battery::cap_transverse;
@@ -76,10 +76,10 @@ fn the_rod_carves_at_the_certified_scalar_and_brackets_the_prism_closed_form() {
         p0.volume.hi() - p0.volume.lo()
     );
 
-    start_verdict_log();
+    let bracket = Bracket::open();
     let out = fillet_edges(&source, &creases, iv(r), tol)
         .unwrap_or_else(|e| panic!("the ruled band carves at Interval, got {e:?}"));
-    let log = take_verdict_log();
+    let log = bracket.finish().verdicts;
     let caps: Vec<_> = log
         .iter()
         .filter(|v| v.predicate == "fillet3_cap_transverse")

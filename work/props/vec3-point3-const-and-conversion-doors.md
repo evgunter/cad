@@ -1,9 +1,12 @@
 ---
 id: vec3-point3-const-and-conversion-doors
-kind: issue
+kind: unit
 title: Vec3::new/Point3::new are not const fn and there is no Vec→Point conversion door — the two spellings the lily rewrite could not route through a door
-status: open
+status: closed
 opened: 2026-09-05
+closed: 2026-09-05
+pr: 1977
+branch: props/vec3-doors
 ---
 
 
@@ -31,3 +34,26 @@ Both are small E decisions; neither blocks anything.
   three times. Both are the same door-shaped hole as the first bullet:
   the frame-from-three-vectors constructor, and the lift of the type
   that carries it.
+
+## Closed
+
+Landed as PR #1977 (an E rider, single style review, outside the A/B
+experiment). `Vec2/Vec3/Point2/Point3::new` are `const fn`, generic as
+they are — the bodies are struct literals and call nothing on `T`, so
+the `T: Real` bound costs nothing at 1.97.0; the doctest at
+`Point3::new` reads a constant of each of the four types. The frame
+constructor has one home, `Affine3::from_frame(origin, u, v)`, with
+`SketchPlane::from_frame` delegating to it bit-identically
+(`crates/profile/tests/sketch_plane.rs`, twelve components by bits
+over a corpus including signed zeros); `SketchPlane::map` lifts a
+stored frame once through `Affine3::map`, its doc naming the two lift
+spellings; `demos/tour/src/skinned.rs::normal_start_place` reads the
+door. `lily.rs`'s two `from_frame(…).placement` sites and its three
+struct-literal constants are the tour-wide layer-rule sweep's
+(`work/issues/tour-scenes-lift-componentwise-not-through-map.md`), not
+this unit's; `teapot.rs`'s three constants are named in PR 1977's sweep
+for the orchestrator to place.
+
+**Ruling (not to be re-asked): there is no `From<Vec3<T>> for
+Point3<T>`, nor the 2-D twin — `Point3::origin() + v` is the spelling,
+and the reason is written once, at `Point3`'s type doc.**

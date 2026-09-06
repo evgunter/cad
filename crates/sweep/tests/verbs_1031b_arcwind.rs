@@ -26,7 +26,6 @@ use profile::{Open, Profile, ProfileLoop, SketchPlane, Start};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, Surface};
 
-const FIT_TOL: f64 = 1e-6;
 const TOP: f64 = 8.0 / 64.0;
 
 fn revolved(lp: ProfileLoop<f64>, tol: Tol) -> Body<f64> {
@@ -86,7 +85,7 @@ fn teapot_cup(tol: Tol) -> Body<f64> {
     let body = teapot_pot(tol);
     let chart = plane_chart_at(&body, TOP);
     assert_eq!(chart.len(), 2, "a full revolve's cap is two half-discs");
-    topo::shell_open(&body, 1.0 / 128.0, &chart, FIT_TOL, tol)
+    topo::shell_open(&body, 1.0 / 128.0, &chart, tol)
         .expect("the cup opens")
         .body
 }

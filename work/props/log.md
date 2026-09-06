@@ -392,3 +392,398 @@ half of `work/issues/tour-scenes-lift-componentwise-not-through-map`;
 (3) the python-suite closure skip is the CIW finding already filed
 (`closure-tier-skips-python-suite-on-geom-core-changes`, also carried
 to main only now). Lane reclaimed. Live: the k-stats bracket (slot 2).
+
+**k-stats bracket delivered (2026-09-05)** as
+[#1969](https://github.com/evgunter/cad/pull/1969), head `e832a1fc2`,
+green on the full matrix (run 33958408008, 37 jobs; the python suite
+RAN this time — the closure tier reached it through `editor-core`).
+The returned-value alternative measured and declined in writing (530
+`decide*` call sites, 261 enclosing functions, 104 public signatures);
+the bracket with a stack, `!Send`, `Drop`-popped; escalations recorded
+beside verdicts on both `NodeValue` and `NodeError` (deviation 1) and
+read first by `drive::classify_replay`; both red-first rows quoted
+(0-vs-724 nesting on the instantiate fixture; `Budget`→`SliverTerminal`
+on `slab(20ε, 40ε)`); witness-vector keys byte-identical, the accounting
+goldens re-blessed as the acceptance's own move. Five argued deviations
+including one hunk in `eval/parts.rs` outside the fence (the part-cache
+miss path shielded by its own discarded frame) and a bless arm on
+M10-7's tier-off differential. Dual review dispatched on the frozen head
+at 09:57Z: ordinal 2402 claimed (#1972 carries it — committed on THIS
+branch), byte 200 ⇒ R1 opus, R2 fable; briefs stored on `props/b1-block`
+with sha256 (`kstats-review-brief-{r1,r2}.md`). The reviewers' first
+targets are the spec's: the nesting fix under memo reuse and
+cancellation; the channel's completeness. Four findings the lane left
+for filing wait on the dual (the pre-bracket decisions of the profile
+pre-pass and the mate solve; a part's per-node logs dropped with its
+nested evaluation; the coincidence zone priced `Budget` at the floor —
+M10's; `refuse_non_finite`'s out-of-funnel `sign_within`).
+
+**k-stats dual adjudicated (2026-09-05).** R1 A-W-F 1/7/7 (idiom 4 /
+tests 3 / docs 3); R2 A-W-F 0/6/8 (4 / 4 / 3). Held under both by
+execution: the bracket-with-a-stack, the nesting fix under memo reuse,
+cancellation, the parallel schedule (×8 and ×12 runs), part-in-part
+(922/922); the 530 / 261 / 104 measurement reproduced to the digit by
+both (the ruling's support is honest); the accounting move is entirely
+`classify`'s (R2: main's `drive.rs` on this head's eval reproduces
+main's bytes); no witness-vector key moved. **Converged, with a
+severity divergence**: the escalation channel misses the family of
+eight shipped sites that mint their own `Indeterminate` after a
+definite sign, while `drive.rs` and the body say "none is known" (R1
+MAJOR, executed on `enters_material`; R2 MINOR) — the same substance,
+calibration data, NOT a tally candidate. Also converged: the
+mis-nesting D2 row is wrong in every profile (R2: the repo's release
+profile keeps debug assertions, so the discard arm is dead and the
+assert leaks the outer frame; R1: with assertions off a stale guard at a
+reused index STEALS — executed); the escalation-first read preempts the
+box-independent terminal classes; territory 30/31 not 23; the spec's
+"file it" not carried out; the m10_7 row's name now false; no
+parallel-schedule row; `seqgen.rs:641` a second raw `sign_within`.
+Unilateral, all MINOR/NOTE: R1's unpinned `!Send` doctest (E0277
+measured by both); R2's missing "not persisted" sentence on
+`NodeError`; R2's mate-solve escalations on no node's log. **No
+unilateral MAJOR — no tally candidate.** Silent deviations: R1 counts 2
+(two tcost test paths; the un-filed sweep), R2 0 silent / 5 body
+inaccuracies. Ruling for the fix pass (items A–K, implementer-inherited):
+frame ids make mis-nesting defined and non-stealing in every profile
+with no assert; the box-independent classes read before the channel;
+the completeness claim restated and guarded by R1's probe as a row, the
+family filed (not routed — the spec's separate unit); `compile_fail,E0277`
+with a twin; six issues filed (the arms sweep, the bracket's scope, the
+part's dropped logs, M10's coincidence zone, the op-minted family, the
+bare `compile_fail` class); the schedule rows adopted with literal
+counts. **Orchestrator error disclosed**: reclaiming the reviewer lanes,
+my copy clobbered R2's editor-core probe file (same basename as its
+geom-core one); the rows are rebuilt from R2's report, R1's schedule
+probe covering three of the six. Reviewer lanes reclaimed; the
+implementer runs the fix pass.
+
+**Two E riders dispatched (2026-09-05)** while the k-stats fix pass runs
+and the sphere lane waits on #1924 and MESH-12 (#1617, still open on
+`props/curved.rs`; CERT-M3 #1877 and CERT-N3 #1879 both merged this
+morning, so the exit walk is the inheritance's only gate).
+`docs/PROPS-VEC3-DOORS-SPEC.md`: `const fn new` on the four vector
+types, `Affine3::from_frame` as the one home (the `SketchPlane` body
+moved down, bit-identical), `SketchPlane::map`, `skinned.rs` on the
+door; the `Vec → Point` conversion REFUSED as a ruling written at the
+type (a point is not a vector); `lily.rs` left to the tour-wide sweep.
+`docs/PROPS-ROTATION-FLOOR-SPEC.md`: ruled NO RESPELL on the item's own
+numbers (≤ 17 % at a start sample, 0 % at full period; the floor is the
+backend's `cos` at exact angles) — a present-tense paragraph at
+`rotation_about` with the pair re-verified, the composition rider filed
+at its own home, the item closed with the ruling. One lane, two PRs in
+sequence, single style reviews, outside the experiment. Seam posted to
+BOOL for `SketchPlane`.
+
+**vec3-doors LANDED (2026-09-05)** —
+[#1977](https://github.com/evgunter/cad/pull/1977). `const fn new` on
+the four vector types (generic; the bound costs nothing), one home for
+the frame constructor (`Affine3::from_frame`, `SketchPlane::from_frame`
+delegating bit-identically), `SketchPlane::map` with the two lift
+spellings written at the door, `skinned.rs` reading the door; the
+`Vec → Point` conversion refused as a ruling at `Point3`'s type doc and
+in the item's `## Closed`. `lily.rs` untouched (the tour-wide sweep's
+sites); `teapot.rs`'s three struct-literal constants named in the PR's
+sweep for placing. Item closed; spec deleted and ledgered in the
+per-merge form.
+**k-stats fix pass (2026-09-05)** — on
+[#1969](https://github.com/evgunter/cad/pull/1969), the dual's eleven
+items A–K all taken (one refuted by measurement inside C: 8 bare
+`compile_fail` fences on this head, not 16, all in
+`quantity/src/units.rs`). The mis-nesting rule was wrong in every
+profile the repo builds (`debug-assertions = true` everywhere; the
+assert fired before the truncate and leaked a frame; with assertions
+off a stale guard stole a later bracket's decision) — frames now carry
+per-thread ids and an out-of-order close is defined and pinned in the
+default profile. The channel's completeness claim was false and is
+restated where it was made: the log carries the funnel's escalations;
+eight op-minted `Indeterminate`s, two raw `sign_within` calls and the
+unbracketed mate solve reach a consumer through the error enums, whose
+arms in `classify_replay` are load-bearing; `classify_replay` now reads
+a definite box-independent refusal first, the log second, the arms
+third. Rows adopted: r1's steal probe, escalation-channel probe and
+parts/schedule rows; r2's release and geom-core rows and, rebuilt from
+description, the outside-bracket counts (0 assembly / 75 part) and the
+mate-solve escalation in an outer frame. Six issues filed
+(`escalation-channel-misses-op-minted-indeterminates`,
+`indeterminate-error-arms-sweep`,
+`part-per-node-logs-dropped-with-nested-evaluation` here;
+`bracket-scope-is-run-op-not-the-node`,
+`compile-fail-blocks-without-error-codes` in `work/issues/`;
+`coincidence-zone-priced-budget-at-the-floor` on M10's slate). The
+item is closed; the spec deleted and ledgered.
+
+**k-stats bracket MERGED (2026-09-05)** —
+[#1969](https://github.com/evgunter/cad/pull/1969), head `692141c5d`,
+merge `3f8a91ff3`, green on the full matrix (run 33962252657, python
+suite included). Fix pass A–K all taken; one sub-claim refuted by
+measurement (the bare `compile_fail` class is eight fences, all in
+`quantity/src/units.rs`, not sixteen — filed with the measured list).
+Frames carry ids, so mis-nesting is defined and non-stealing in every
+profile with no assert; the channel's gap is stated at three sites and
+guarded by R1's probe as a row; the box-independent classes read before
+the log; `Escalation.predicate` reads through `source`; the schedule,
+part-in-part, memo, cancel, pre-pass and mate-solve rows adopted with
+literal counts (mid-run cancel not adopted — not deterministically
+reachable, stated). Territory measured at 35 paths; seams posted to
+DOCM (`eval/parts.rs`) and TCOST (the new test files) beside M10 and
+BOOL. A/B row recorded: ordinal 2402, **sample #142**, no tally
+candidate. **Block PROPS-B1 concluded** — its record and the six stored
+briefs merged with #1978; the next kernel unit draws PROPS-B2. Lane
+reclaimed. Live: the linalg riders lane.
+
+**rotation-floor LANDED (2026-09-05)** —
+[#1980](https://github.com/evgunter/cad/pull/1980). Ruled NO RESPELL on
+the item's own numbers, re-taken at the head by the `cert3_evidence`
+rows and unmoved (`t` alone 100 % / 133 %; `t` and `c` 83 % at the
+start sample, 100 % at full period): a present-tense paragraph at
+`Mat3::rotation_about` states the floor as the sum of the two
+enclosures, what each respell recovers, why `identity_minus_rotation_about`
+differs, and that the floor is the backend's. The composition rider is
+its own file in `work/issues/` (`mapped.rs` is in no program's paths),
+with the composition-side fix named: compose in the parameter, keep one
+placement. Item closed; spec deleted and ledgered in the per-merge form.
+**vec3-doors reviewed (2026-09-05).** Style review on `1e168c607`
+(#1977): APPROVE-WITH-FIXES, MAJOR 0 / MINOR 2 / NOTE 6 / style 6;
+rubric 4 / 4 / 4. Every executable claim held — bit identity of the
+frame over 2535 frames at `f64` and `Interval` (sign patterns, NaN,
+±inf, non-orthogonal pairs), the `const` doctest red on main with
+`E0015` ×4, the `map` doc's normal widths measured as written. Fixes:
+the deferral's carrier issue does not cover `lily.rs`'s sites as
+written (extend it); the profile TEST file is a fence deviation to
+disclose (BOOL's seam amended); `Mat3::from_cols` and
+`Affine3::from_parts` are literal bodies and go `const` too; two doc
+overstatements ("transcribed", "not the same plane"); the signed-zero
+corpus widened to its prose; the duplicated test helpers given one
+home; the obligation rule one home; `Point2` points at the ruling. A
+non-tour consumer of the lift found by the review
+(`eval/wire.rs:1132` through `anchor::embed_affine`) is filed, not
+fixed — editor-core is outside the fence. Fix pass implementer-inherited,
+sequenced after the rotation-floor unit's PR opens.
+
+**Check-in (2026-09-05, 11:54Z).** #1944 (sign-hull ruling): no answer
+yet. #1924 (S-CERT exit walk): still open, but its 10:40Z update takes
+every PROPS re-point — the offset_fit, rational-quad and linalg-lane
+items (`budgetexhausted…`, `offset-fit-mignitude…`, `patch-bound…`,
+`refine-dir…`, `quad2-rational…`, `normalize-overflow…`,
+`orthonormal-basis…`, `pole-branch…`) now move INTO `work/props/` in
+that PR, nothing goes to `work/issues/`, and PROPS' territory paths
+(`geom-brep/src/props/*`, `offset_fit.rs`, `patch_bound.rs`,
+`geom-core/src/*`, `geom/src/*`) join `program.md` there. So the
+post-ratification plan is no longer a `git mv` sweep: retire the
+header's successor clause, update the plan's §Opening condition and
+§Early lanes, and dispatch the offset_fit lane (E→H→D) and the sphere
+lane (still behind MESH-12, #1617). Riders: #1977 (vec3-doors) reviewed,
+fix pass queued behind #1980 (rotation-floor), whose head is on CI.
+
+**rotation-floor reviewed (2026-09-05).** Style review on `f02fce570`
+(#1980): MERGEABLE, MAJOR 0 / MINOR 3 / NOTE 4; rubric 4 / 5 / 4. The
+instrument reproduced line for line and the decomposition checked by
+hand (the axis entry's width is EXACTLY the sum of the two enclosures;
+`t` from the half angle is exact at θ = 0, what remains is `c`). Fixes,
+all prose: the paragraph omits `t`-alone's 133 % regression at full
+period; one cite off by six lines in the re-homed issue; the body's
+territory sentence contradicts the tool (`DOC-LEDGER.md` is META's);
+a test-file sentence this unit rotted (`revolved_point_anchor.rs:95`);
+the "different reason" wording reconciled across the paragraph, the
+neighbour's bullet and the item; the three homes of the decomposition's
+digits pointed at the one paragraph. Fix pass implementer-inherited,
+sequenced after the vec3-doors fix pass in the same lane.
+
+**rotation-floor MERGED (2026-09-05)** —
+[#1980](https://github.com/evgunter/cad/pull/1980), head `2c42a8bff`,
+merge `5a483b12a`, green on the full matrix (run 33966034494). The
+ruling stands as landed: no respell; the diagonal's floor documented
+once at `rotation_about` with the re-verified pair and the 133 %
+regression; the two operators' reasons reconciled; the law row and the
+audit item point at the one home; the composition rider filed as
+`work/issues/mapped-curve-restrict-composes-placements-per-split`
+(`mapped.rs` is in no program's paths). Fix pass all taken. One
+disclosed fence deviation (a doc block in `revolved_point_anchor.rs`,
+tcost's — rot this unit created). E rider: no A/B row.
+
+**vec3-doors MERGED (2026-09-05)** —
+[#1977](https://github.com/evgunter/cad/pull/1977), head `cfd272ce7`,
+merge `db07a1641`, green on the full matrix (run 33966064457). Landed:
+`const fn` on the four vector constructors and on `Mat3::from_cols` /
+`Affine3::from_parts` (a `const` placement reads through them);
+`Affine3::from_frame` as the one home with the 2535-frame bit-identity
+corpus beside it; `SketchPlane::map` with the conditional two-spellings
+doc; `skinned.rs` on the door; the `Vec → Point` conversion refused as a
+ruling at `Point3` (`Point2` points there). Fix pass all taken; the
+lift's non-tour consumer (`eval/wire.rs` through
+`anchor::embed_affine`) filed as
+`work/issues/affine-lift-has-a-second-home-in-anchor-embed-affine`;
+`lily.rs`'s sites and constants named on the tour-wide sweep's carrier.
+E rider: no A/B row. Both riders landed; the lane is reclaimed.
+
+**coeffs-window dispatched (2026-09-05)** — the Span sweep's residue,
+`coefficients-carry-their-knot-vector`, as the first kernel unit of
+**block PROPS-B2** (drawn: byte 87 ⇒ fable at slot 0; record branch-side
+on `props/b2-block`). Ruling: option (a) in the structural form the
+curve half took — `SplineCoeffs<'a, E>` minted only by
+`KnotVector::coeffs*` (the length check once, at the mint),
+`CoeffWindow` carrying the pair, every free `hull` door a method on one
+of the two so no free function takes a coefficient array; the three
+residue shapes become `compile_fail` rows with twins; a bit-identity
+digest captured at the merge base through the retired spellings.
+Spec `docs/PROPS-COEFFS-SPEC.md`; L / STRUCTURAL; seams posted to TRIM
+(`ssi.rs`, `ssi/certify.rs`) and MESH (`chords.rs`). The riders lane's
+one finding for CIW filed
+(`no-ci-run-on-a-conflicting-pr`); `teapot.rs`'s three struct-literal
+constants (const-convertible, the tour's) stay with the tour-wide
+sweep's carrier.
+
+**coeffs-window landed** — PR
+[#1985](https://github.com/evgunter/cad/pull/1985), branch
+`props/coeffs-window`. `SplineCoeffs<'a, E>` borrows the `KnotVector`
+its array was fitted against (weights optional), minted only by
+`KnotVector::{coeffs, coeffs_rational}` with the count checked once;
+`CoeffWindow<'a, E>` is the pair beside a `Span` of its own vector;
+every `hull` door is a method on one of the two and no free function
+in `hull.rs` takes a coefficient array. The three residue shapes are
+`compile_fail` rows with twins; the 960/480-row coefficient digest and
+`geom`'s 1001/11,151-row span digests are unchanged across both lanes.
+Consumers in `ssi.rs`, `ssi/certify.rs`, `props/quad.rs`,
+`spline/net.rs`, `curves/nurbs.rs` and `mesh/chords.rs` on the pair,
+none mis-paired. Sweep residue (the `quad.rs` evaluators, `TensorNet`
+and `to_bezier_spans` carrying the same shape) reported in the PR body
+for placing. Item closed; spec deleted and ledgered.
+
+**coeffs-window LANDED BEFORE ITS REVIEW (2026-09-05) — orchestrator
+brief defect, disclosed.** The implementer lane opened
+[#1985](https://github.com/evgunter/cad/pull/1985), polled it green
+(run 33969355105, full matrix; one red on the interval-cfg gate,
+root-caused and fixed by the lane) and MERGED it (`55d541ae5`) before
+the dual was dispatched. The cause is mine: the spec's §Landing said
+"the item `status: closed` … the spec deleted at merge", the landing
+wording of a rider, where the k-stats and Span specs said `status:
+review` and left the close to the fix pass. The unit stays merged
+(merge-only); the dual runs on the merged head `4521bd658` as if the PR
+were open — ordinal 2403 claimed, byte 25 ⇒ R1 fable, R2 opus, briefs
+stored on `props/b2-block` — and its findings land as a fix-pass PR.
+The A/B row will carry the deviation. Sample #144 (CURVED's C5ARMS took
+#143 minutes earlier). Every future kernel spec's §Landing says `status:
+review` and "do not merge; the orchestrator lands after the dual" in
+those words. The lane's three findings for placement (the
+`bspline_eval_ring*` evaluators, the tensor grids, `to_bezier_spans`)
+wait on the dual.
+
+**coeffs-window dual adjudicated (2026-09-05).** R1 A-W-F 0/4/4 (idiom
+4 / tests 4 / docs 3); R2 A-W-F 1/5/4 (4 / 5 / 3). Held under both by
+execution: the bit-identity digests are REAL — each reviewer rebuilt the
+merge base in a scratch tree and re-ran them through the retired free
+functions (R1 over 10 556 + 2 639 rows, R2 over 3 403; no ulp
+anywhere); the three `compile_fail` codes compiled at 1.97.0; the
+replacement rows mutation-tested; no live consumer mis-pairs. The one
+MAJOR (R2) is the territory section: three paths listed against 23
+reported — shell's `offset_meters.rs` and mesh's `nurbs_cert.rs` touched
+by doc-link edits unannounced, and `quad.rs`/`patch_bound.rs` called
+PROPS' where they are cert's until #1924 merges (my spec said the same;
+disclosed) — converged with R1's MINOR 3, a severity divergence, **no
+tally candidate**. Converged besides: one mint-or-poison helper in three
+byte-identical copies across three crates; the one-type-with-`Option`-
+weights design leaves a weighted pair answering the non-rational doors
+and vice versa (both arms, opposite directions); the sweep residue
+unscheduled; the `docs/DESIGN.md` row edit undisclosed; stale doc
+sentences. Unilateral (all MINOR/NOTE): R2's false assertion message ×13
+and the `pub bspline_green_integral` door; R1's spline-module header and
+the dangling test doc. Ruling for the fix pass (its own PR, items A–J):
+two types so both directions are unrepresentable; one home for the
+helper beside the mint; mints renamed as verbs; silent accessors pruned;
+the residue filed as `coefficient-vector-pairing-survivors`; the
+reviewers' rows adopted. Seams posted to SHELL and MESH for the doc-link
+edits. A/B row recorded: ordinal 2403, **sample #144**, no tally
+candidate; block PROPS-B2 slot 0 concluded (fix-pass usage at its merge).
+
+**coeffs-window fix pass (2026-09-05)** — PR
+[#1992](https://github.com/evgunter/cad/pull/1992), branch `props/coeffs-fixpass`,
+the dual's APPROVE-WITH-FIXES (0/4/4 and 1/5/4) on the merged head
+`4521bd658`. Taken in full: the pair split into `SplineCoeffs` /
+`RationalCoeffs` with the rational and nonrational doors partitioned by
+type (both directions D2 row 0, `compile_fail` rows (d)/(e)); the
+triplicated differencing helper folded to `KnotVector::difference_coeffs`
+and `quad.rs`'s two range-hull spellings to one; the mints renamed
+`with_coeffs` / `with_rational_coeffs`, the pair accessor `pair()`, four
+silent accessors deleted; doc rot at `spline/mod.rs`, `hull.rs`,
+`spline_hull.rs`, `span_window_pairing.rs` fixed; the three dead
+refusal arms annotated; the sweep residue filed
+(`coefficient-vector-pairing-survivors`, with the reviewers' additions
+and the blind spot); the dual's 3,403-row corpus and type rows adopted.
+All four digests unchanged. The territory tool's full 40-path output is
+in the PR body (the unit's body listed three). Item stays closed; no
+ledger line.
+
+**coeffs fix pass MERGED (2026-09-05)** —
+[#1992](https://github.com/evgunter/cad/pull/1992), head `16d2a3cf8`,
+merge `55954a432`, green on the full matrix (run 33973104802). Items
+A–J all taken, none refuted: the pair is two types (`SplineCoeffs` with
+the non-rational doors, minted by `KnotVector::with_coeffs`;
+`RationalCoeffs` + `RationalWindow` with the rational doors, minted by
+`with_rational_coeffs`) so both mis-directions are D2 row 0, pinned by
+two more `compile_fail` rows (E0599) with twins; the triplicated
+differencing helper has one home, `KnotVector::difference_coeffs`;
+mints are verbs, the pair accessor is `pair()`, five silent accessors
+deleted; every stale sentence and the misapplied assertion messages
+fixed; the three dead mint-refusal arms documented; the sweep residue
+filed as `coefficient-vector-pairing-survivors`; the reviewers' rows
+adopted (`coeffs_pair_identity.rs`, the 3 403-row `coeffs_bit_identity_ext.rs`,
+unchanged with no re-capture — the receipt that B and C move no
+arithmetic). The unit's false territory sentence and the undisclosed
+`docs/DESIGN.md` edit are corrected on the record in #1992's body.
+Seams: TRIM (`ssi.rs`, `ssi/certify.rs` — the mint rename and two
+comments), MESH (`chords.rs` — the helper fold). The fix-pass usage is
+in the row. Lane reclaimed. No lane live; the sphere lane waits on
+#1924 and MESH-12 (#1617); the sign-hull unit waits on #1944.
+
+**OPENED (2026-09-06).** Ev ratified S-CERT's exit walk in chat ("1924
+is good"); merged at `c7b0014de` on that sign-off. The eight charter
+items arrived in this directory with the PR and the territory joined
+the header; the header's successor clause is retired and the plan's
+§Opening condition reads MET. First dispatch of the inherited slate:
+the offset_fit lane's `budgetexhausted-conflates-three-terminations`
+(E rider; `docs/PROPS-BUDGET-FACES-SPEC.md` — the four faces of one
+refusal, row-1 refinement; §Landing says `status: review`, do not
+merge). Still waiting: the sign-hull unit on #1944 (the PR body now
+defines (c)/(c′) in place at Ev's request); the sphere lane on MESH-12
+(#1617 — S-MESH's own log shows it dispatched and never reviewed; the
+question of who finishes or abandons it is put to Ev).
+
+**Sign-hull RULED (c′) (2026-09-06).** Ev on PR 1944: "c′ seems fine",
+with a question about the hull answered on the PR (the hulled quantity
+is the unit sign `s`, not `n.z`; `[0, 0]` would be an enclosure of the
+wrong thing). The item records the ruling; #1944 lands when green.
+Spec `docs/PROPS-SIGN-HULL-SPEC.md`: one new `Real` door
+(`copysign` with the zero read as `+0`) on every impl so
+`Interval::copysign`'s hull stays correct for every other caller; the
+`Interval` point-zero arm narrows because the door's own f64 semantics
+canonicalise; the `b2` rider measured on the same golden pass; the
+eight STEP records re-derived with reasons (EXCH's fixtures — seam);
+the `FaceFrame` doc line (DOCM/SEAT — seam); the M10 workaround's
+retirement filed, not done. M / NUMERIC, block PROPS-B2 slot 1 (opus),
+dual review; §Landing says `status: review`, do not merge.
+
+**Sign-hull ruling RETRACTED (2026-09-06).** Ev's follow-ups on #1944
+("c′ does not seem good then"; "isn't option 1 the only one that's
+actually correct?") arrived after the orchestrator had merged the
+ruling PR and dispatched the (c′) unit — an orchestrator error: a
+ruling PR is merged on an unambiguous answer, not on "seems fine" with
+a question attached. Undone: the lane stopped before any push and
+reclaimed, `docs/PROPS-SIGN-HULL-SPEC.md` withdrawn, the item's RULED
+section replaced by the retraction with `needs_ev` restored, the M10 /
+EXCH / DOCM seam notes withdrawn, block PROPS-B2 slot 1 freed. The
+orchestrator's answer to Ev is on the PR: option 1 is the principled
+fix (the seam moves from the equator to the diagonals; M10-5's
+workaround is its existing measurement), with two costs named — the
+tie rule at `Interval` and the one-time re-bless of every stored
+`u_ref`. Awaiting confirmation.
+
+**Sign-hull RULED option 1 (2026-09-06).** Ev on #1944: "we need to do
+option 1 to be correct"; and on the re-bless of every stored `u_ref`
+named as a cost: "(2) is not a cost" — the instruction is
+`docs/prompts/implementer-discipline.md` §3 (a changed golden is the
+kernel changing; if the new output is right, re-baseline and say what
+moved). The orchestrator had read that file as implementer-facing and
+did not apply it to its own adjudication; at Ev's direction CLAUDE.md's
+reading list now names both `docs/prompts/` files as orchestrator
+reading. The item records the ruling with `needs_ev` cleared; the
+unit is `docs/PROPS-SIGN-HULL-SPEC.md` (block PROPS-B2 slot 1, dual).
