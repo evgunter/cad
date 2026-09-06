@@ -1229,6 +1229,15 @@ jobs:
         run: |
           scripts/gates/panic-free-macro-bodies.sh --selftest
           scripts/gates/panic-free-macro-bodies.sh
+      # A `continue` carrying a paragraph of justification and one
+      # carrying none are the same six characters, so the deferral
+      # register is what tells them apart: every place a LoopBoundary
+      # value is discarded is an entry, and the entry says whether the
+      # arm has been named.
+      - name: LoopBoundary deferral register
+        run: |
+          scripts/gates/loop-boundary-discards.sh --selftest
+          scripts/gates/loop-boundary-discards.sh
       # Test-aggregation discipline: one [[test]] target per crate. Each
       # extra one is a full codegen+link of the ~40-rlib graph — 96% of
       # this workflow's build job, measured (bazel-verdict report).
