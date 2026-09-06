@@ -228,6 +228,7 @@ gate_ok() {
 # may hand on changed; `ENVIRON` carries the bytes.
 GATE_CFG_TEST_RE='#\[cfg\(([^]]*[(,][[:space:]]*)?test[,)]'
 GATE_CFG_TEST_NOT_RE='#\[cfg\([^]]*(any|not)\('
+
 # --- THE SHARED RUST READER -------------------------------------------
 #
 # WHY THIS IS HERE. Every grep gate in this directory carried its own
@@ -306,7 +307,7 @@ GATE_CFG_TEST_NOT_RE='#\[cfg\([^]]*(any|not)\('
 # under `scripts/gates/` is how the leading-`//` strip came to be
 # copied into every grep gate in this directory:
 #
-#   (default)      one record per source line
+#   (default)      one record per CODE line
 #   --statements   one record per STATEMENT, cut at `{`, `}` and `;`,
 #                  whitespace collapsed. `rustfmt` wraps a long bound
 #                  list as `T: Real\n    + PartialOrd,`, so a matcher
@@ -314,10 +315,18 @@ GATE_CFG_TEST_NOT_RE='#\[cfg\([^]]*(any|not)\('
 #                  converges on (S158's ruling). `{}`/`;` is where a
 #                  generic list and its `where` clause end, so the
 #                  statement is the unit those matchers actually mean.
-#   --window N     one record per source line, joined with the next N-1
-#                  code lines, whitespace collapsed — for a needle that
-#                  spans a construct rather than ending at a delimiter
+#   --window N     one record per CODE line, joined with the next N-1 of
+#                  them, whitespace collapsed — for a needle that spans
+#                  a construct rather than ending at a delimiter
 #                  (`signed-zero-one-home.sh`'s `== 0.0 { 0.0 }`).
+#
+# A LINE THAT CARRIES NO CODE IS NOT A RECORD, in any of the three, and
+# a line holding only a comment is such a line: what survives the strip
+# is its own indentation. Emitted, it would start a window over the code
+# BELOW it and report that site twice, once at a line that holds none of
+# it — so a matcher counting sites counts one too many, one line early.
+# A blank line and a comment-only line are the same line to every needle
+# here, and the reader says so.
 #
 # All three emit `FILE:LINE:TEXT`, the shape `grep -rn` emits, so a
 # gate's downstream pipeline (its allowlist filters, its message) is
@@ -369,7 +378,7 @@ GATE_CFG_TEST_NOT_RE='#\[cfg\([^]]*(any|not)\('
 #     it is right and skipping it would be blind exactly where a gate
 #     is load-bearing. Even the `test` skip is opt-in per caller
 #     (`--skip-cfg-test`) and refuses `any(…)`/`not(…)` for the reason
-#     the SKIPTEST block below gives. The residue is one-directional:
+#     the attribute's own block above gives. The residue is one-directional:
 #     an item behind a cfg that is false everywhere is still scanned,
 #     which cries wolf and cannot go blind.
 #
@@ -543,7 +552,11 @@ gate_rust_code() {
         }
         depth += opens - closes
       }
-      if (out == "") next
+      # A line whose code content is whitespace is not a record: the
+      # indentation of a comment-only line is all that survives the
+      # strip, and a record made of it starts a window one line above
+      # the code that window carries.
+      if (out ~ /^[ \t]*$/) next
       if (MODE == "lines") { print FILENAME ":" FNR ":" out; next }
       if (MODE == "window") {
         # Buffered per file, flushed when the file changes: a window
@@ -1051,6 +1064,24 @@ gate_selftest_clean() {
   fi
   rm -rf "$tmp"
   gate_selftest_assert_diagnosed "a crates/ tree with no files in it" "$out"
+  # THE WINDOW VIEW STARTS AT CODE, proved on every gate rather than
+  # asserted in the reader's comment. This one is an assertion about the
+  # READER and not about the gate around it, because that is where the
+  # defect is: every gate reads through this function, and a comment-only
+  # line emitted as a record makes the window view report the site below
+  # it a second time, one line early. The fixture pins the whole view of
+  # a four-line file, so it fails in both directions — a record for the
+  # comment line, and a join that stops at it.
+  tmp=$(mktemp -d)
+  printf 'fn f() {\n    // a comment-only line\n    let x = 1;\n}\n' > "$tmp/win.rs"
+  out=$(gate_rust_code --window 2 "$tmp/win.rs" | sed "s#^$tmp/##")
+  rm -rf "$tmp"
+  if [ "$out" != "win.rs:1: fn f() { let x = 1;
+win.rs:3: let x = 1; }
+win.rs:4: }" ]; then
+    printf 'SELFTEST FAILED: the --window view over a file whose second line holds only a comment is not what the reader claims — a comment-only line is not a record, and a window joins the CODE lines after it:\n%s\n' "$out" >&2
+    exit 1
+  fi
   # THE MARKER'S OWN GUARD, proved on every gate rather than asserted in
   # its comment. `gate_main` refuses to scan when it cannot create
   # `$GATE_MATCHER_FAILED`, because a marker that cannot be written
