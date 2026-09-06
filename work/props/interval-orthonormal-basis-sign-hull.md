@@ -5,7 +5,6 @@ title: Vec3::orthonormal_basis returns a sign-hulled frame at Interval when n.z 
 status: open
 opened: 2026-09-03
 refs: [1191, 1939]
-needs_ev: false
 pr: 1939
 ---
 
