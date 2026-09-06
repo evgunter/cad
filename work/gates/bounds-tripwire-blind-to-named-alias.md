@@ -125,3 +125,18 @@ as far as `crates/pncad/src/profile.rs:54`.
 ## Claimed by GATES (2026-09-06)
 
 Moved from `work/code-quality/` to `work/gates/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, `track:` letter and body unchanged. Unlettered; its live residue is one paragraph in `crates/geom-core/src/real.rs` (PROPS' file, edited by announced seam) and it closes with `D102`, the survey's routing.
+
+## Closed with D102
+
+The live residue — ask 2 — is landed: `crates/geom-core/src/real.rs`'s
+`Bounds` scope rule now says that a NAMED compound bound is the same
+obligation as the literal `+ Bounds` spelling, naming both live aliases
+(`ArcCarrierScalar`, `EvalScalar`), so the ratified text covers the
+named form and not only the literal one. One paragraph, in PROPS' file,
+announced in the PR.
+
+Ask 1 stays argued against (S63: the roster-keyed matcher reds two files
+whose every use is the sole bracket bound `plant_sole_bracket_bounds`
+pins as must-NOT-fire). Ask 3 is D102 and is landed with it. The uses of
+both aliases remain capability rather than evasion and remain invisible
+to this matcher — KNOWN GAP 3, registered on the roster, not discharged.

@@ -445,6 +445,16 @@ pub trait Real:
 /// `scripts/gates/bounds-allowlist.sh` exists to catch, and the compound
 /// form is what that gate greps for.
 ///
+/// **A NAMED compound bound is the same obligation as the literal
+/// spelling.** A trait that gathers a decision door and a bracket door
+/// under one name — `trait ArcCarrierScalar: Decide + Bounds`,
+/// `trait EvalScalar: Decide + … + Bounds` — hands every `T: ThatName`
+/// exactly the parameter this rule refuses, written so that no
+/// `+ Bounds` appears at the use site. The rule reads through the name:
+/// declaring one IS writing a compound bound, it is ratified here like
+/// any other, and every use of the name carries the obligation the name
+/// gathers.
+///
 /// **Brackets never decide**, and that is checked before any necessity
 /// argument is weighed. Every topology-determining branch stays a
 /// [`Decide`](crate::predicate::Decide) call site — a trilean, with its
