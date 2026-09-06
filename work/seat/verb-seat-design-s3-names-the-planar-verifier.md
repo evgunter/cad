@@ -2,9 +2,9 @@
 id: verb-seat-design-s3-names-the-planar-verifier
 kind: issue
 title: VERB-SEAT-DESIGN S3 names the planar verifier the detector no longer runs (Ev-gated)
-status: open
+status: closed
 opened: 2026-09-05
-needs_ev: true
+closed: 2026-09-06
 ---
 
 
@@ -71,3 +71,13 @@ revision; the stale `flush.rs:187` line citation in the same clause is
 replaced by the door's name. Nothing else in the doc moves. If you
 would rather the charter keep its 2026-08-31 wording with a dated
 note, say so and the edit becomes a footnote instead.
+
+## Closed (2026-09-06)
+
+Ev ratified both corrections as proposed ("1983 looks good too", in
+session, 2026-09-06): VERB-SEAT-DESIGN §1 S3's parenthetical names
+`carrier_pair_relation` with the `Rest` ladder's scope, and its
+acceptance bullet says the lily's three declarations. The doc is
+edited in place on `[ev]` PR 1983; the SEAT program's exit walk
+(ratified at PR 1997) carried this item as the one open text
+correction, and the closing sweep retires it with the program.
