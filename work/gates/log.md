@@ -56,3 +56,21 @@ Two more lanes on files the first wave does not hold:
 
 `S49` waits for the first wave's reviews; `S13`, `D211`, `D103` and
 `D102` queue behind `gates/bounds-small` on the same file.
+
+## trait-generic-sole-bracket + unanchored-definition-skip landed (2026-09-06)
+
+PR 2029, `gates/bounds-small`, one style review (MERGEABLE-WITH-FIXES,
+fix pass landed). The third matcher alternative became a reader
+(`gate_trait_declarations`, one function in two modes for the scan and
+the alias census) that skips a balanced `<…>` after the trait name and
+consumes `->` as two characters; the definition skip is anchored to
+`real.rs` with the at-home passes-case the twin already had. Hit-set
+diff on the live tree: 163 records / 26 files, identical before and
+after, measured twice by two methods. The review corrected the dispatch
+brief (a single-line `where` fires either side; the multi-line block is
+`D102`'s gap), found the `->` order dependence and the missing
+positive-direction fixture, and named the anchored-skip idiom as
+hand-copied three times — filed as
+`anchored-exact-text-skip-has-three-homes`. The out-of-fence
+`interval-square-allowlist.sh:203` note was withdrawn as vacuous; the
+real defect there is PR 2033's.
