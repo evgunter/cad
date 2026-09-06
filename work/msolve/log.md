@@ -139,3 +139,20 @@ the key's format tag untouched by main — and re-greened PR 1960 at
 `4ea542d` on the full matrix. Style review and correctness arm
 re-dispatched on that head, reviewing the tree that will merge rather
 than the one that would not.
+
+## MSOLVE-4 reviews adjudicated, fix pass dispatched (2026-09-06)
+
+Correctness arm MERGEABLE: C1–C4 confirmed on CHROME's bench through
+the viewer's own doors (blame and row agree at every step, two
+different faults in succession never stale, a stale prior still reused
+right by content), keys measured bit-identical on the corpus before
+and after, the merge's one adjacency intact. Style: no MAJOR. Ruled
+for the fix pass: the key format tag BUMPS to v6 and the prose
+exception goes (the block's own purpose is an honest input-set version
+for a future persistence; the spec's bit-for-bit clause is withdrawn);
+one solve answer read once and fed per arm; the redundant-bit and
+`None` docs corrected; the viewer row's assertion tightened; a
+per-mate reuse row; the correctness probes adopted; the resolver stub
+hoisted into the shared fixture. Filed: two tag functions for
+`ContactClass` in the content key, and the eleven resolver-stub copies
+(`work/issues/`).
