@@ -1,7 +1,7 @@
 ---
 id: facade-guard-file-keeps-two-line-local-readers
 kind: issue
-title: Two readers in the façade's guard file still read a statement through a line
+title: Three readers in the façade's guard file still read a statement through a line
 status: open
 opened: 2026-09-06
 ---
@@ -9,10 +9,19 @@ opened: 2026-09-06
 
 Swept out of `lb13-guards-are-line-local`'s class — "every future
 scanner in this file that reads a statement instead of a line" — while
-LIB-MECH2 converted that issue's two named guards. Two readers in
-`crates/pncad/tests/all.rs` are still line-local, and neither was
-converted because neither conversion is mechanical the way the guards'
-was.
+LIB-MECH2 converted that issue's two named guards. Three readers in
+`crates/pncad/tests/all.rs` are still line-local, and none was
+converted because none of the three conversions is mechanical the way
+the guards' was.
+
+The sweep that found them: every `.lines()` in the file (nine sites),
+each read for whether the thing it is reading is a Rust STATEMENT. The
+blind spot of that pattern is a reader that splits on `\n` by hand or
+walks bytes counting newlines — there is none in this file today, and
+nothing stops one arriving.
+
+(The id says "two" and the item names three: the third was found on a
+re-sweep after the file was filed, and ids are stable.)
 
 ## 1. The U1 guard's check 1 reads the crate root off the `use` line
 
@@ -55,10 +64,22 @@ re-deciding how the scope test is made. No live instance: rustfmt does
 not write that shape, and both roots this reader is applied to are
 plain.
 
+## 3. `code_without_cfg_gated` detects the attribute on one line
+
+It treats a line whose trimmed start is `#[cfg(` as the opening of a
+gated item, so a `#[cfg(…)]` whose own parenthesis list wrapped is not
+seen as a gate at all and the item it guards survives into the view.
+Unlike 1 and 2 this limit is DECLARED at the site — its doc says
+"Line-based and deliberately shallow … exactly the shape both roots
+use" — so it is recorded here for completeness of the class rather
+than as a hidden blind spot. rustfmt does not wrap the two short
+`#[cfg(feature = "…")]` attributes the two roots actually carry.
+
 ## Disposition
 
-Neither has a live vehicle today and both are negative-claim readers,
-so both are false-GREEN risks rather than false-alarm ones — which is
-why they are written down rather than left to a sweep. Item 1 is best
-taken with the Track E conversion of this file; item 2 is worth
-re-deciding only if the column-0 rule is ever relaxed.
+None has a live vehicle today and all three are negative-claim
+readers, so they are false-GREEN risks rather than false-alarm ones —
+which is why they are written down rather than left to a sweep. Item 1
+is best taken with the Track E conversion of this file; item 2 is
+worth re-deciding only if the column-0 rule is ever relaxed; item 3
+would follow item 1's reader for free and is not worth its own pass.

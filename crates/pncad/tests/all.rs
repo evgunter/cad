@@ -3557,22 +3557,6 @@ fn assert_layer_root_exports_are_carried_or_listed(
 // claim that there are only two.
 // ---------------------------------------------------------------
 
-/// Every `pub` item a crate root DECLARES rather than re-exports:
-/// `pub struct`/`enum`/`fn`/`trait`/`type`/`const`/`static`/`union`,
-/// plus the `pub mod` declarations, written at column 0.
-///
-/// Column 0 is the whole scope rule — an item inside a `mod` block in
-/// the same file is indented, and is not a root export.
-///
-/// [`module_pub_use_names`] alone misses all of these. For the
-/// document layer that costs nothing today, which is why its guard
-/// records it as a blind spot rather than closing it: that root is a
-/// module tree, its declarations are its interior modules — every one
-/// of them, whatever the count is on any given day — and the façade
-/// curates ACROSS them rather than carrying them. The profile layer's root is the opposite shape — a presented
-/// surface that declares five of the types the façade carries and one
-/// it deliberately does not — so for that layer the same omission
-/// would be a hole, and this closes it.
 /// The source with every `#[cfg(…)]`-gated item removed, attribute and
 /// all.
 ///
@@ -3618,6 +3602,23 @@ fn code_without_cfg_gated(src: &str) -> String {
     out
 }
 
+/// Every `pub` item a crate root DECLARES rather than re-exports:
+/// `pub struct`/`enum`/`fn`/`trait`/`type`/`const`/`static`/`union`,
+/// plus the `pub mod` declarations, written at column 0.
+///
+/// Column 0 is the whole scope rule — an item inside a `mod` block in
+/// the same file is indented, and is not a root export.
+///
+/// [`module_pub_use_names`] alone misses all of these. For the
+/// document layer that costs nothing today, which is why its guard
+/// records it as a blind spot rather than closing it: that root is a
+/// module tree, its declarations are its interior modules — every one
+/// of them, whatever the count is on any given day — and the façade
+/// curates ACROSS them rather than carrying them. The profile layer's
+/// root is the opposite shape — a presented surface that declares
+/// five of the types the façade carries and one it deliberately does
+/// not — so for that layer the same omission would be a hole, and
+/// this closes it.
 fn root_declared_pub_names(src: &str) -> std::collections::BTreeSet<String> {
     let code = code_without_comments(src);
     let mut names = std::collections::BTreeSet::new();

@@ -165,6 +165,13 @@ inherited: 75 `pub use` statements across the eleven `FACADE_SOURCES`
 17 of those 33 naming an `editor_core::` path. The shape's dominance
 is unchanged.
 
+**The sentence also moved to the function it describes.** The three
+paragraphs about root-declared names — the one carrying the count
+included — were glued to the TOP of `code_without_cfg_gated`'s doc
+block, two functions above `root_declared_pub_names`, which carried no
+doc at all. Editing a claim in place would have left it attached to
+the wrong reader, so it was moved.
+
 **The second instance is closed by deletion, not by a new count.**
 `root_declared_pub_names`'s doc no longer says how many interior
 modules `editor-core`'s root declares; it says the declarations ARE
@@ -190,15 +197,16 @@ for carrying no number at all.)
   the key name in the statement and never reads the path root. The
   `pub_use_names` restriction itself is unchanged and still correct:
   its question is "which of that layer's names does this file carry".
-- **Two line-local readers remain in the same file**, both negative
+- **Three line-local readers remain in the same file**, all negative
   claims, filed as
   `work/lib/facade-guard-file-keeps-two-line-local-readers.md`: the U1
-  guard's check 1, and `root_declared_pub_names`. The third instance
-  the sweep found — the authoring-seam roster's chain check, which
-  matched `).validate(` and so could not see a chain rustfmt wrapped —
-  was fixed here, since relaxing the needle to `.validate(` costs one
-  line and keeps the enclosing-`pub fn` attribution the line walk
-  provides.
+  guard's check 1, `root_declared_pub_names`, and
+  `code_without_cfg_gated`'s attribute detection (the last DECLARED at
+  its own site). The fourth instance the sweep found — the
+  authoring-seam roster's chain check, which matched `).validate(` and
+  so could not see a chain rustfmt wrapped — was fixed here, since
+  relaxing the needle to `.validate(` costs one line and keeps the
+  enclosing-`pub fn` attribution the line walk provides.
 - **`crates/test-utils/tests/reader_census.rs` still carries this file
   as** `Unconverted("Track E, issue #763 — code_without_comments,
   line-based")`, unchanged. The disposition's claim — a hand-rolled
