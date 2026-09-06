@@ -364,16 +364,16 @@
 # THE FIRST THREE ARE IN THE RULE'S CLASS -- a value that decides and
 # reads brackets, handed over as a `dyn`/`impl` type or given a name --
 # so this is a hole and not a definitional exclusion; the fourth is the
-# same thing spelled with a nightly feature this tree does not use. The
-# ARGUMENT
-# position still fires: `fn f(x: impl Decide + Bounds)` is a bound on
-# the target `x` and is a hit; `-> impl Decide + Bounds` is not.
+# same thing spelled with a nightly feature this tree does not use.
+# THE ARGUMENT POSITION STILL FIRES: `fn f(x: impl Decide + Bounds)` is
+# a bound on the target `x` and is a hit; `-> impl Decide + Bounds` is
+# not.
 #
-# THE POPULATION IS ZERO TODAY. This is the check, one ERE that fires on
-# every shape above, does NOT fire on the argument position, and finds
-# nothing in `crates/*/src`:
-#
-# ONE LINE, and it is one line because a continuation inside the quoted ERE would put the indent of the next line INTO an alternative:
+# THE POPULATION IS ZERO TODAY. This is the check -- one ERE, written on
+# ONE LINE because a continuation inside the quoted string would put the
+# next line's indent INTO an alternative. It fires on every spelling
+# above, does NOT fire on the argument position, and finds nothing in
+# `crates/*/src`:
 #     grep -rnE "(\bdyn\b|->[[:space:]]*impl\b|\btype\b[^;=]*=|\btrait\b[^;{]*=)[^;{}]*\+[^;{}]*[A-Za-z0-9_]*(Bounds|Enclosure)([^A-Za-z0-9_]|$)|'[A-Za-z0-9_]+[[:space:]]*\+[^;{}]*[A-Za-z0-9_]*(Bounds|Enclosure)([^A-Za-z0-9_]|$)|[A-Za-z0-9_]*(Bounds|Enclosure)[[:space:]]*\+[[:space:]]*'|[<[][^]<>]*[;{][^]<>]*[]>][^;{]*[A-Za-z0-9_]*(Bounds|Enclosure)" --include=*.rs crates/*/src
 #
 # WIDENING THE READER TO CATCH THEM IS A NEW UNIT, not a fix withheld:
