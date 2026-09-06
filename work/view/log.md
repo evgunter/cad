@@ -3472,3 +3472,67 @@ having.
 `IndexRequest`/`IndexInputs` filed as VIEW's residue rather than left
 in a merged PR body. CI running on the new head. That is the last thing
 either of these two units owed.
+
+## #1953 MERGED, and two working-style findings worth keeping (2026-09-06)
+
+Merged at `44192896`. Ev's #1883 hoist is on main: the boundary rule
+stays **unqualified**, `pick.rs` and `parts.rs` take values, and the
+gate's two site-granular exemptions retired with the sites they
+described. Board: 40 open, 22 closed.
+
+The owed file landed with it —
+`index-request-and-index-inputs-are-one-concept-twice` — carrying the
+part that is hard to rediscover: **`build` must not take
+`IndexInputs`** because `PickIndex::build` is the pure function the
+worker runs off an `IndexRequest` that **owns its copies**, and that
+ownership is the seam's contract — it is what lets the session go on
+being edited while a build is out. A session-borrowed value on the far
+side either fails at the lifetime or forces the seam to hold a borrow
+across the thread boundary it exists to avoid.
+
+The file's job, in the lane's own words, is to make the next reader
+**meet the seam before the duplication**: anyone seeing `IndexInputs::of`
+beside `IndexRequest`'s five fields sees two names for one shape, and
+the collapse that looks like a simplification is the one thing that
+must not happen. Its recommendation — two types with the relationship
+written down, rather than one parameterised over ownership — is right
+for two: a relationship is worth stating at two, and a mechanism does
+not pay for itself until more.
+
+### Two findings about how the work is done, not what it produced
+
+**The `grep -q` catch, and why its framing matters.** The lane did the
+mechanical thing the review asked — *write `gate_grep` everywhere you
+wrote `grep`* — and then asked **what that broke**, not what it fixed.
+`gate_grep` folds exit 1 to 0, which is right for a filter and
+**inverts a predicate**; the tell was a *new* check passing on a
+fixture that lacked its subject, a green that should have been
+impossible. `lib.sh` had already carved the case out by name, so the
+rule was there to be read; what was missing was reading it before
+applying its sibling.
+
+That is a better account than "made a mistake and caught it", and it
+generalises: **after applying a review's rule mechanically, ask what
+the application broke.** A review says what is wrong; it does not say
+what obeying it costs.
+
+**The silent partial apply.** A multi-edit python heredoc that raises
+mid-script leaves every write after the raise undone **with nothing on
+screen saying so** — which is how the one genuinely missed item in that
+unit was missed. The cheap countermeasure, which found it: **re-verify
+every owed item by `grep` against the tree, never against your own
+transcript.**
+
+That is this program's own prose discipline pointed at one's own work,
+and it is the same shape as the citation-staleness class: a record of
+what you did is not evidence of what is there. Recorded here rather
+than filed, since it is about how a lane works rather than about this
+codebase — a `memories/` amendment if it proves to recur, and that is
+Ev's call.
+
+### Standing down the lane
+
+Told not to start new work. The sweep wants #1957 on main first: it
+holds `frame.rs`, `app.rs` and `pane/*`, which the sweep rewrites, and
+merging a twenty-site sweep against a moving version of the rule it
+sorts on is the one avoidable mess left.
