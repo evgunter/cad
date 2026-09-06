@@ -5,7 +5,7 @@
 #
 # A SUBJECT LIST, NOT A FILE. `SUBJECTS` carries one row per file that
 # owes a symbol to `cfg(debug_assertions)`: the path, the spellings
-# whose uses are gated, and the text the fixtures write.
+# whose uses are gated, and the count of uses this tree carries.
 # The enclosure analysis below is the part worth getting right, so it
 # exists exactly once and a second debug-only mechanism is a row here
 # rather than a second gate with a second reader.
@@ -21,6 +21,22 @@
 #     `gathers_on_this_thread`. A fourth site without the attribute, or
 #     the attribute dropped from one of the three, compiles and passes
 #     every test.
+#   * `crates/mesh/src/curved.rs` — the sphere/torus lane's
+#     identified-vertex census: `identified_ids` re-derives the set of
+#     mesh ids the boundary walk placed at two UV locations, and
+#     `overused_identified_edge` re-derives, over the emitted triangles,
+#     the fan edge that census forbids.
+#   * `crates/mesh/src/tessellate.rs` — `unpaired_chord_segment`, the
+#     re-derivation over the assembled mesh of the chord segment used by
+#     other than two face triangles.
+#   * `crates/mesh/src/walk.rs` — `overused_identified_edge_in`, the one
+#     home of the identified-vertex fan census both surface lanes call.
+#   * `crates/mesh/src/trimmed.rs` — the trimmed lane's call of
+#     `overused_identified_edge_in`. A SUBJECT IS A FILE, so a symbol
+#     whose uses cross files owes a row per file that uses it; a row
+#     covering the definition alone pins the attribute on the definition
+#     and nothing about the call sites (KNOWN GAP 7 for what that
+#     design still cannot see).
 #
 # WHAT IS PINNED IS THE SOURCE SHAPE. This workspace's
 # `[profile.release]` sets `debug-assertions = true` until publish, so a
@@ -85,7 +101,7 @@
 # KNOWN GAP 3: a symbol is matched at identifier boundaries, so a longer
 # name that merely contains it is not a use. What the reader cannot tell
 # apart is a WHOLE-identifier collision — the same spelling naming
-# something that is not the mechanism. Neither row has one; a row that
+# something that is not the mechanism. No row has one; a row that
 # would is one this reader cannot serve.
 #
 # KNOWN GAP 4: a rustfmt-wrapped attribute — `#[cfg(` and
@@ -97,13 +113,37 @@
 # marks the item entered at that brace, so the item reads as closed at
 # the matching `}` and a use in the real body fires. Cry-wolf again, in
 # the same direction.
+#
+# KNOWN GAP 6: an attribute in STATEMENT position over a multi-line call
+# whose ARGUMENTS contain a brace — a struct literal or an `if` arm
+# handed to the call — is not servable at all. The first `{` the reader
+# meets is inside the still-open `(`, which is the positive desync the
+# body-brace arm refuses to tolerate, so every such site is reported and
+# the gate reds. That is the safe direction and it is also a CEILING on
+# the subject list: a mechanism whose sites take that shape cannot be a
+# row here until the reader can say where a statement-position item
+# ends. `crates/topo/src/euler.rs`'s `ArenaDelta` — the per-operator
+# arena shift `assert_euler_postcondition` checks — is the live one:
+# twelve of its sites take that shape, in five of the seven `topo` files
+# whose CODE names it (an eighth names it in a doc comment only).
+#
+# KNOWN GAP 7: A SUBJECT IS A FILE, so a symbol whose uses cross files
+# owes a row per file that uses it, and a NEW file that calls one is
+# caught by nothing here. Nothing else catches it either: such a call
+# compiles in every configuration this repo builds — the workspace's
+# `[profile.release]` keeps debug assertions on, and the one
+# debug-assertions-off job never compiles `mesh` — so the first build
+# that would refuse it is a consumer's, after publish. The rows below
+# say where the gated symbols are used TODAY; a fifth caller of the
+# identified-vertex census is a row this file does not have yet, and
+# adding the caller is what has to add it.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-# PATH, the symbol spellings, a bare SYM the fixtures name, one EXPR
-# that uses it, and the noun the diagnosis calls the mechanism by. Only
-# the noun may carry spaces, and it is last for that reason.
+# PATH, the symbol spellings, the PINNED USE COUNT this tree carries,
+# and the noun the diagnosis calls the mechanism by. Only the noun may
+# carry spaces, and it is last for that reason.
 #
 # The symbol field is a `|`-SEPARATED LIST of spellings, each matched at
 # identifier boundaries, and not a general ERE: the reader splits on
@@ -111,11 +151,50 @@ set -euo pipefail
 # awk through `-v`, which processes backslash escapes, so `foo\.bar`
 # would arrive as `foo.bar` — a spelling needing a literal backslash
 # cannot be written here.
+#
+# NO ROW NAMES A FIXTURE SYMBOL, and it used to name two. A row carried
+# a bare SYM and one EXPR beside its spelling list, the self-test
+# planted those two fields, and a row's SECOND and later spellings were
+# therefore held by nothing: misspell one and the live scan quietly
+# stops counting its uses while every fixture stays green. The fixtures
+# now DERIVE a symbol and a use from each spelling in turn
+# (`spelling_sym`, `spelling_use`), so what the list holds is what the
+# list plants — and fixture text is read as text and never compiled, so
+# a derived `GATHERS(a)` carries the same shape a hand-written
+# `GATHERS.with(get)` did.
+#
+# THE PIN IS THE OTHER HALF OF THAT, because deriving the fixtures
+# proves each spelling is READ and not that it is USED. A row pins the
+# number of uses its file carries and `gate` re-derives it every run, so
+# a spelling that stops matching — misspelt, renamed under it, or moved
+# to a file with no row — reds with the row named rather than lowering
+# the total in silence.
 SUBJECTS=(
-  'crates/topo/src/source.rs bit_identity::|eq_bits eq_bits eq_bits(a,b) the bit channel'
-  'crates/editor-core/src/product.rs GATHERS|gathers_on_this_thread GATHERS GATHERS.with(get) the debug-only gather counter'
+  'crates/topo/src/source.rs bit_identity::|eq_bits 1 the bit channel'
+  'crates/editor-core/src/product.rs GATHERS|gathers_on_this_thread 4 the debug-only gather counter'
+  'crates/mesh/src/curved.rs identified_ids|overused_identified_edge|overused_identified_edge_in 13 the identified-vertex census the sphere/torus emit pass re-derives'
+  'crates/mesh/src/tessellate.rs unpaired_chord_segment 8 the chord-segment pairing census'
+  'crates/mesh/src/walk.rs overused_identified_edge_in 1 the shared identified-vertex fan census'
+  'crates/mesh/src/trimmed.rs overused_identified_edge_in 1 the trimmed lane call of the identified-vertex fan census'
 )
 GATE_SCAN_NOUN='debug-only symbol use'
+
+# `--pin-shift N` shifts every row's pinned count by N. It exists for
+# the self-test and for nothing else: a pin is a reading of THIS tree,
+# so the case that proves the comparison fires perturbs the PIN against
+# the real tree rather than perturbing a fixture tree against the pin.
+GATE_PIN_SHIFT=0
+
+# A bare symbol, and one use of it, derived from a spelling. A trailing
+# `::` is a path prefix rather than a name, so the symbol drops it and
+# the use completes it into a call.
+spelling_sym() { printf '%s' "${1%::}"; }
+spelling_use() {
+  case "$1" in
+    *::) printf '%scall(a)' "$1" ;;
+    *) printf '%s(a)' "$1" ;;
+  esac
+}
 
 # Emits `USE` for every use of PATTERN and `UNGATED` for every one of
 # them not enclosed by a `cfg(debug_assertions)` item. Enclosure is
@@ -185,6 +264,25 @@ debug_only_report() {
         # end and every later use read as gated, silently, so it is not
         # tolerated: brackets still open at the body brace is reported
         # as a reader desync and reds the gate.
+        #
+        # WHERE ONE COMES FROM, now that the shared lexer nests block
+        # comments: not from a nested `/* /* */ */`, which it reads
+        # whole. Three sources are left.
+        #
+        #   * Source that is genuinely unbalanced, which does not
+        #     compile and so should not reach a gate. The fixtures plant
+        #     this shape, because it is the one that needs no gap.
+        #   * A lexer blind spot yet to be found.
+        #   * BALANCED, COMPILING SOURCE THIS READING CANNOT PLACE: a
+        #     STATEMENT-POSITION `#[cfg(debug_assertions)]` over a
+        #     multi-line call whose arguments carry a brace — twelve
+        #     live sites in `topo`, all of the shape
+        #     `self.assert_euler_postcondition(before, if … { ArenaDelta
+        #     { … } }, "kfmrh");`. The row is
+        #     `debug-only-reader-cannot-place-a-statement-attribute-over-a-braced-call`.
+        #
+        # The guard is defensive across all three: it does not diagnose
+        # the cause, only that this gate cannot place a use.
         t = piece; bdepth += gsub(/[[(]/, "", t)
         t = piece; bdepth -= gsub(/[])]/, "", t)
         if (cut == 0) break
@@ -213,18 +311,27 @@ debug_only_report() {
 }
 
 gate() {
-  local row path pat sym expr noun
-  local report ungated desynced uses total=0 proved= failures=0
+  local row path pat count noun
+  local report ungated desynced uses pinned total=0 proved= failures=0
+  # THE PIN IS CHECKED AGAINST THE TREE IT WAS READ FROM. A row pins how
+  # many uses ITS file carries here, so the comparison is meaningful
+  # exactly when the gate is reading this repo and not a fixture tree —
+  # a fixture carries whatever its planter wrote, and several planters
+  # cannot write a row's count at all (a `pin 1` row has no room for a
+  # gated use and a leaked one). What proves the comparison fires is
+  # `--pin-shift`, which perturbs the pin against the real tree.
+  local pins_live=false
+  [ "$GATE_ROOT" = "$GATE_REPO_ROOT" ] && pins_live=true
   # EVERY subject is proved present before ANY is scanned, so a subject
   # that moved out from under the gate cannot be masked by a clean scan
   # of the ones that stayed. `gate_require_file` ends the gate at the
   # FIRST missing subject, so two missing subjects name one.
   for row in "${SUBJECTS[@]}"; do
-    read -r path pat sym expr noun <<< "$row"
+    read -r path pat count noun <<< "$row"
     gate_require_file "$path"
   done
   for row in "${SUBJECTS[@]}"; do
-    read -r path pat sym expr noun <<< "$row"
+    read -r path pat count noun <<< "$row"
     report=$(gate_rust_code "$path" | debug_only_report "$pat")
     desynced=$(printf '%s\n' "$report" | gate_grep '^DESYNC ' | sed 's/^DESYNC //')
     if [ -n "$desynced" ]; then
@@ -246,23 +353,45 @@ gate() {
       failures=$((failures + 1))
       continue
     fi
+    # AFTER the two checks above, so a planted leak reds as a leak: a
+    # fixture that moves the count moves it for a reason the enclosure
+    # checks have already named.
+    if [ "$pins_live" = true ]; then
+      pinned=$((count + GATE_PIN_SHIFT))
+      if [ "$uses" -ne "$pinned" ]; then
+        gate_error "$path carries $uses uses of $noun where its row pins $pinned. A row pins its file's use count so that a spelling which stops matching — misspelt in the list, renamed under it, or moved to a file with no row — reds here instead of lowering the total in silence. A count that FELL means the gate is holding less than the row claims; one that ROSE means the mechanism grew where nobody re-read the enclosure argument. Neither is repaired by editing the number on its own"
+        failures=$((failures + 1))
+        continue
+      fi
+    fi
     proved="$proved${proved:+ and of }$noun in $path"
   done
   # Every subject is SCANNED before the gate fails, so one red run names
   # every subject that has an ungated use rather than one per run.
   [ "$failures" -eq 0 ] || exit 1
   GATE_SCAN_FILES=$total
-  gate_ok "every use of $proved is inside a cfg(debug_assertions) item or a debug_assert!"
+  if [ "$pins_live" = true ]; then
+    gate_ok "every use of $proved is inside a cfg(debug_assertions) item or a debug_assert!, and every row carries the use count it pins"
+  else
+    gate_ok "every use of $proved is inside a cfg(debug_assertions) item or a debug_assert!"
+  fi
 }
 
 # --- THE FIXTURES ------------------------------------------------------
 #
 # Every planter takes the subject row it writes — its PATH, a bare SYM
-# the row's pattern matches, and EXPR, one use of that symbol — and then
-# the fixture root, so each case runs once per subject rather than once
-# for the subject the matcher was written against. Fixture text is read
-# as text and never compiled: it carries the SHAPE the reader decides
-# on, not a type-correct program.
+# and one USE of that symbol, both DERIVED from one of the row's
+# spellings — and then the fixture root, so each case runs once per
+# subject rather than once for the subject the matcher was written
+# against. Fixture text is read as text and never compiled: it carries
+# the SHAPE the reader decides on, not a type-correct program.
+#
+# EVERY SPELLING OF A ROW IS PLANTED, and that is the whole reason the
+# symbol is derived. The clean tree gives each spelling its own gated
+# item, and the basic must-fire case runs once per spelling, so a
+# spelling that the reader cannot match fails the self-test in both
+# directions: the clean tree loses a use, and the leak planted with that
+# spelling is not seen.
 plant_source() {
   local path=$1 root=$2
   shift 2
@@ -270,14 +399,20 @@ plant_source() {
   printf '%s\n' "$@" > "$root/$path"
 }
 
-# The clean tree is every subject, gated.
+# The clean tree is every subject, gated, with one item per SPELLING.
 gate_plant_clean() {
-  local row path pat sym expr noun
+  local row path pat count noun alt i lines spelling
   for row in "${SUBJECTS[@]}"; do
-    read -r path pat sym expr noun <<< "$row"
-    plant_source "$path" "$1" \
-      '#[cfg(debug_assertions)]' \
-      "pub fn agree(a: f64, b: f64) -> bool { $expr }"
+    read -r path pat count noun <<< "$row"
+    lines=()
+    i=0
+    IFS='|' read -r -a alt <<< "$pat"
+    for spelling in "${alt[@]}"; do
+      i=$((i + 1))
+      lines+=('#[cfg(debug_assertions)]' \
+        "pub fn agree_$i(a: f64, b: f64) -> bool { $(spelling_use "$spelling") }")
+    done
+    plant_source "$path" "$1" "${lines[@]}"
   done
 }
 
@@ -408,16 +543,25 @@ plant_permitted_shapes() {
     '}'
 }
 
-# A LOST BRACKET DEPTH IS REPORTED, NOT PASSED. `lib.sh`'s reader does
-# not nest block comments, so the first `*/` closes the outer one and
-# `/* outer /* inner */ ( */` leaves a stray `(` in the code view.
-# Bracket depth then never returns to zero, the item never reads as
-# entered, and every use to the end of the file would read as gated.
-plant_desync_nested_block_comment() {
+# A LOST BRACKET DEPTH IS REPORTED, NOT PASSED. A bracket left open in
+# the code view — for any reason — means depth never returns to zero,
+# the gated item never reads as entered, and every use to the end of
+# the file would read as gated. That is the silent direction, so it is
+# reported instead.
+#
+# THE STRAY BRACKET IS PLANTED AS CODE, not smuggled through a gap in
+# the reader. It used to arrive as `/* outer /* inner */ ( */`, which
+# worked only while `lib.sh`'s lexer closed a block comment at the
+# FIRST `*/` and read the tail as code; the lexer nests now, so that
+# line is a comment and reaches nothing. Planting the bracket directly
+# keeps the whole path proved — this arm, the marker it writes, and
+# `gate_ok`'s refusal to print over it — which a fixture that fed the
+# awk a synthetic view could not.
+plant_desync_open_bracket() {
   local path=$1 expr=$3 root=$4
   plant_source "$path" "$root" \
     '#[cfg(debug_assertions)]' \
-    '/* outer /* inner */ ( */' \
+    '(' \
     "pub fn agree(a: f64, b: f64) -> bool { $expr }" \
     "pub fn leak(a: f64, b: f64) -> bool { $expr }"
 }
@@ -426,7 +570,34 @@ plant_desync_nested_block_comment() {
 # bracket, so the body-brace arm is never reached and the end of the
 # file is where the reader has to say so. Every use here is gated, so
 # only the desync can red this fixture.
-plant_desync_at_end_of_file() {
+plant_desync_open_bracket_at_end_of_file() {
+  local path=$1 expr=$3 root=$4
+  plant_source "$path" "$root" \
+    '#[cfg(debug_assertions)]' \
+    "pub fn agree(a: f64, b: f64) -> bool { $expr }" \
+    '#[cfg(debug_assertions)]' \
+    '('
+}
+
+# AND THE SHAPE THAT USED TO DESYNC, KEPT AS THE CONTROL THAT SAYS IT NO
+# LONGER DOES. The reader nests block comments, so the whole line is a
+# comment: the attribute gates `agree`, and `leak` below it is an
+# ORDINARY ungated use. This case fires on the leak, not on a desync —
+# which is the difference between a reader that lost its place and one
+# that did not.
+plant_nested_block_comment_then_a_leak() {
+  local path=$1 expr=$3 root=$4
+  plant_source "$path" "$root" \
+    '#[cfg(debug_assertions)]' \
+    '/* outer /* inner */ ( */' \
+    "pub fn agree(a: f64, b: f64) -> bool { $expr }" \
+    "pub fn leak(a: f64, b: f64) -> bool { $expr }"
+}
+
+# The same comment closing the file, where every use IS gated: nothing
+# is left over, so this must PASS. Its twin above fires; between them
+# the nested comment is pinned in both directions.
+plant_nested_block_comment_closing_the_file() {
   local path=$1 expr=$3 root=$4
   plant_source "$path" "$root" \
     '#[cfg(debug_assertions)]' \
@@ -447,6 +618,30 @@ plant_near_miss_identifier() {
 # the other subjects are clean and only the missing one can fail it.
 plant_subject_gone() { rm -f "$2/$1"; }
 
+# THE PIN, PROVED AGAINST THE TREE IT IS A READING OF. No fixture can
+# carry a row's pinned count — a `pin 1` row has no room for a gated use
+# and a leaked one in the same file — so the case that proves the
+# comparison fires perturbs the PIN instead, over the real subjects, and
+# must red naming every row. Run in both directions, because `-ne`
+# written as `-lt` would pass a count that ROSE.
+gate_selftest_pin() {
+  local shift_by=$1 out row path pat count noun
+  if out=$("$0" --pin-shift "$shift_by" 2>&1); then
+    printf 'SELFTEST FAILED: the gate PASSED with every pin shifted by %s — the pinned use counts are not being compared\n%s\n' \
+      "$shift_by" "$out" >&2
+    exit 1
+  fi
+  for row in "${SUBJECTS[@]}"; do
+    read -r path pat count noun <<< "$row"
+    case "$out" in
+      *"$path carries $count uses"*) ;;
+      *) printf 'SELFTEST FAILED: a pin shifted by %s did not red for %s, so that row is pinned by nothing:\n%s\n' \
+           "$shift_by" "$path" "$out" >&2
+         exit 1 ;;
+    esac
+  done
+}
+
 gate_selftest() {
   local want="outside any cfg(debug_assertions) item"
   gate_selftest_clean
@@ -455,10 +650,23 @@ gate_selftest() {
   # produces. Proved here rather than asserted, because before
   # `gate_grep` this exact fixture printed OK and exited 0.
   gate_selftest_without_tool grep "it is grep saying it could not search"
-  local row path pat sym expr noun
+  local row path pat count noun alt spelling sym expr spellings=0
   for row in "${SUBJECTS[@]}"; do
-    read -r path pat sym expr noun <<< "$row"
-    gate_selftest_case "$want" plant "$path" "$sym" "$expr"
+    read -r path pat count noun <<< "$row"
+    # THE BASIC MUST-FIRE CASE RUNS ONCE PER SPELLING. A row's second
+    # and later spellings are exactly what the old fixtures held
+    # nothing against, so each of them plants its own leak and each has
+    # to be caught on its own.
+    IFS='|' read -r -a alt <<< "$pat"
+    for spelling in "${alt[@]}"; do
+      spellings=$((spellings + 1))
+      gate_selftest_case "$want" plant \
+        "$path" "$(spelling_sym "$spelling")" "$(spelling_use "$spelling")"
+    done
+    # The rest of the shapes are about ENCLOSURE, which is a property of
+    # the reader and not of the spelling, so they run once per row on
+    # the row's first spelling.
+    sym=$(spelling_sym "${alt[0]}"); expr=$(spelling_use "${alt[0]}")
     gate_selftest_case "$want" plant_one_gated_one_leaked "$path" "$sym" "$expr"
     gate_selftest_case "$want" plant_after_the_gated_item "$path" "$sym" "$expr"
     gate_selftest_case "$want" plant_after_the_gated_use "$path" "$sym" "$expr"
@@ -466,9 +674,11 @@ gate_selftest() {
     gate_selftest_case "$want" plant_not_cfg "$path" "$sym" "$expr"
     gate_selftest_case "$want" plant_leak_after_debug_assert "$path" "$sym" "$expr"
     gate_selftest_case "the reader lost bracket depth" \
-      plant_desync_nested_block_comment "$path" "$sym" "$expr"
+      plant_desync_open_bracket "$path" "$sym" "$expr"
     gate_selftest_case "the reader lost bracket depth" \
-      plant_desync_at_end_of_file "$path" "$sym" "$expr"
+      plant_desync_open_bracket_at_end_of_file "$path" "$sym" "$expr"
+    gate_selftest_case "$want" \
+      plant_nested_block_comment_then_a_leak "$path" "$sym" "$expr"
     gate_selftest_case "the gate's subject is gone" plant_subject_gone "$path"
     gate_selftest_passes "a debug_assert!, prose, a string literal and a gated inner module" \
       plant_permitted_shapes "$path" "$sym" "$expr"
@@ -476,14 +686,28 @@ gate_selftest() {
       plant_wrapped_debug_assert "$path" "$sym" "$expr"
     gate_selftest_passes "cfg(all(…)) with debug_assertions as the SECOND operand" \
       plant_all_cfg_swapped "$path" "$sym" "$expr"
+    gate_selftest_passes "a nested block comment closing the file, whose stray bracket is comment and not code" \
+      plant_nested_block_comment_closing_the_file "$path" "$sym" "$expr"
     gate_selftest_passes 'a `;` inside a gated signature' \
       plant_semicolon_in_signature "$path" "$sym" "$expr"
     gate_selftest_passes "a longer identifier that merely contains the symbol" \
       plant_near_miss_identifier "$path" "$sym" "$expr"
   done
-  printf '%s selftest OK, over %s subjects, each proved on its own: enclosure by brace depth and by `debug_assert!` statement (rustfmt-wrapped or not); `all(…)` gates in either operand order while `any(…)` and `not(…)` do not; prose, string literals and a longer identifier that merely contains the symbol are not uses; an item ends at a `;` only at bracket depth zero; and a lost bracket depth, a missing subject and a `grep` that cannot run are each a loud failure\n' \
-    "$(gate_name)" "${#SUBJECTS[@]}"
+  gate_selftest_pin 1
+  gate_selftest_pin -1
+  printf '%s selftest OK, over %s subjects and the %s spellings they carry, each proved on its own: every spelling plants its own leak, so a spelling the reader cannot match fails here; enclosure by brace depth and by `debug_assert!` statement (rustfmt-wrapped or not); `all(…)` gates in either operand order while `any(…)` and `not(…)` do not; prose, string literals and a longer identifier that merely contains the symbol are not uses; an item ends at a `;` only at bracket depth zero; a NESTED block comment is comment to its balancing `*/`, so the stray bracket in one is not code — pinned both ways, the leak after one firing as the ordinary leak it is and the same comment closing a file passing; each row carries the use count it pins, proved against this tree in both directions; and a lost bracket depth (planted as code, at the body brace and at end of file), a missing subject and a `grep` that cannot run are each a loud failure\n' \
+    "$(gate_name)" "${#SUBJECTS[@]}" "$spellings"
 }
 
-gate_parse_args "$@"
+# `--pin-shift` is taken out of argv here rather than in `lib.sh`, which
+# rejects a flag it does not know: it is this gate's own, and every
+# other argument reaches the shared parser unchanged.
+GATE_ARGV=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --pin-shift) GATE_PIN_SHIFT=$2; shift 2 ;;
+    *) GATE_ARGV+=("$1"); shift ;;
+  esac
+done
+gate_parse_args ${GATE_ARGV[@]+"${GATE_ARGV[@]}"}
 gate_main

@@ -248,9 +248,18 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission};
 // holds — the canonical door, of which `assemble` is the gather plus a
 // call to it. A caller with several consumers of one product gathers
 // once and finishes here, since this door CONSUMES the product.
+// A declaration a document BELOW this one authored crosses the
+// instantiation seam with its records: `CarriedDeclaration` is the row
+// that says whose mate it was, `Route` is by what path this document
+// reached it (one type, on every carrier of that fact), `Relation` is
+// what a finding says about a declaration it names — this document's
+// own or a part's — and `CarriedDeclarations` is what an instantiated
+// value carries up. `AssemblyError::CarriedMintRefusal` is the
+// outermost gate's refusal over an inner mate that could not be minted
+// at all.
 pub use editor_core::{
-    Assembly, AssemblyError, AtRestFinding, Attribution, MintedDeclaration, RefusedRef, assemble,
-    assemble_gathered,
+    Assembly, AssemblyError, AtRestFinding, Attribution, CarriedDeclaration, CarriedDeclarations,
+    MintedDeclaration, RefusedRef, Relation, Route, assemble, assemble_gathered,
 };
 
 // Split and inline: the first-class

@@ -157,6 +157,32 @@ rival-name shapes; one renders a real struct-variant value and asserts
 `reads_as_prose` rejects it, pinning the static verdict to the runtime
 gate.
 
+### A fourth instance, and it is a SHAPE the census cannot see
+
+Found at DOCM-6 (2026-09-06), measured through the Python `assemble`
+door: `topo::FIT_DEFERRAL` (`crates/topo/src/contact.rs:123`) is a
+`const &str` reading *"a designed nonzero clearance is `Fit { gap }`,
+whose variant is specified but not yet built…"*, appended to the
+`ContactContradicted` steer. It carries the field-brace fingerprint in
+PROSE — a Rust type spelled inside a sentence, not a `Debug` rendering
+— so any `assemble` refusal whose findings include an offset-shaped
+contradicted contact fails `reads_as_prose` (`errors.rs:~380`) and
+panics `typed_err` (`py/mod.rs:~456`) instead of raising the typed
+`AssemblyError`.
+
+It is live on a public door and it is NOT in `KNOWN_BRACED`, because
+the census reads `{binding:?}` sites and resolves their field types:
+a literal that spells `{ gap }` inside its own text has no binding to
+resolve and is invisible to that method. So the class has a second
+member shape — **the fingerprint written by hand, not rendered** — and
+the guard as built cannot see it. DOCM-6 shaped its Python row around
+the panic (an ANGULAR contradiction carries no `FIT_DEFERRAL` steer,
+so its message reads as prose) rather than changing either side.
+
+Whether the fix is a narrower fingerprint (`" { "` also matches
+ordinary prose), an escape at the one literal, or a census arm over
+string literals reaching a raise, is this item's to decide.
+
 ### What the guard cannot see
 
 - **Reachability.** It over-approximates to every `Display` in the tree

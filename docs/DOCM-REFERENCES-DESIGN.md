@@ -219,6 +219,16 @@ So the chain goes, not the link:
   evaluation as a vanished name does (N5), never silently. The
   "disjoint-only" reading is not taken: the common modelling case (a
   boss on a plate) would keep the pairwise chain alive.
+  **Measured limit (DOCM-7, 2026-09-06; ruling pending):** a
+  member-space name resolves at its step only while the face it names
+  is still an operand-table row there. Across a CHAIN of contacts a
+  declared merge consumes the middle member's face at an earlier step,
+  so the same member-space declaration set fuses in one member order
+  and refuses in another, and the recourse (the accumulation's
+  `Merged` row) nests by fold order. Whether the door looks through
+  to a merged face's constituents, flattens nested `Merged` names, or
+  this bullet is narrowed, is
+  `work/docm/member-space-declarations-are-order-shaped-across-a-chain.md`.
 
 ## DM5 — A node's inputs are pairwise distinct
 

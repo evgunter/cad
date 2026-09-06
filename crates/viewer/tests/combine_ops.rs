@@ -2019,6 +2019,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             "union",
             Node::Union {
                 members: vec![body, body_b],
+                declare: None,
             },
         ),
         (
