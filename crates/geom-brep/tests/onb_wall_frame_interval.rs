@@ -110,7 +110,6 @@ fn cell_z_width(surface: &Surface<Interval>, u: (f64, f64), v: (f64, f64)) -> f6
     width(p.z)
 }
 
-
 /// The walls whose axis choice is UNDECIDED over the enclosure, and
 /// why: `newell_plane`'s cross-sum cannot cancel exactly on the two
 /// rings whose `y` is `0.8` and `1.2`, so their normals come back with
