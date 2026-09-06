@@ -1324,3 +1324,17 @@ its MERGED entry in `work/msolve/log.md` (no A/B row: the program runs
 none).
 
 - `MSOLVE-4-SPEC.md` — MSOLVE-4, a mate's memo key carries the solve's answer (#1960)
+
+## Per-merge deletion — DOCM-7's spec (2026-09-06)
+
+Recoverable at `git show 1f566daa82b616655cacb91bb7c9f886109df89f:docs/DOCM-7-SPEC.md`
+(the DOCM-7 unit head, before the state-sync commit that deleted it;
+unamended — no stop clause fired). Its D9 sentence ("the order is the
+list's, the result is not") is measured false at the B-rep and name
+level by both reviews (the pair verb is asymmetric in its operands)
+and across a chain of contacts by acceptance (the chained-order gap);
+both are the unit's own filed issues, and DM4 carries the measured
+limit. The rule above; the unit's record is its row in
+`MODEL-AB-LOG.md` and its MERGED entry in `work/docm/log.md`.
+
+- `DOCM-7-SPEC.md` — DOCM-7, `Node::Union`'s declaration channel in member space (#2028)
