@@ -318,3 +318,16 @@ longer exists; the moved guard's "only place it can be answered"
 overstates its constraint; the forbidden-path guard prevents a
 wrong-file red, not a vacuous pass, and its planter says vacuity;
 one ordering-dependent sentence in the fixture prose.
+
+## PR 2058 opened (2026-09-06)
+
+`gates/reader-homes` reported: PR 2058 (the resolver, its path filter
+and the window view's comment-line record with one home in `lib.sh`).
+Ten reader views over 433 files byte-identical across the resolver
+move under mawk and gawk; the window fix moves no gate's output; two
+textual gates' scanned set corrected by one file each way (a test
+module declared from a non-root file that the sibling rule missed).
+Sent back before review: the branch predates PR 2044's merge, so the
+dead line-view filter it measured in `loop-boundary-discards.sh` is
+retired in this PR rather than filed as residue. Reviewer dispatched
+once that lands.
