@@ -776,3 +776,14 @@ fix (the seam moves from the equator to the diagonals; M10-5's
 workaround is its existing measurement), with two costs named — the
 tie rule at `Interval` and the one-time re-bless of every stored
 `u_ref`. Awaiting confirmation.
+
+**Sign-hull RULED option 1 (2026-09-06).** Ev on #1944: "we need to do
+option 1 to be correct"; and on the re-bless of every stored `u_ref`
+named as a cost: "(2) is not a cost" — the instruction is
+`docs/prompts/implementer-discipline.md` §3 (a changed golden is the
+kernel changing; if the new output is right, re-baseline and say what
+moved). The orchestrator had read that file as implementer-facing and
+did not apply it to its own adjudication; at Ev's direction CLAUDE.md's
+reading list now names both `docs/prompts/` files as orchestrator
+reading. The item records the ruling with `needs_ev` cleared; the
+unit is `docs/PROPS-SIGN-HULL-SPEC.md` (block PROPS-B2 slot 1, dual).
