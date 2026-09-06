@@ -734,3 +734,16 @@ Seams: TRIM (`ssi.rs`, `ssi/certify.rs` — the mint rename and two
 comments), MESH (`chords.rs` — the helper fold). The fix-pass usage is
 in the row. Lane reclaimed. No lane live; the sphere lane waits on
 #1924 and MESH-12 (#1617); the sign-hull unit waits on #1944.
+
+**OPENED (2026-09-06).** Ev ratified S-CERT's exit walk in chat ("1924
+is good"); merged at `c7b0014de` on that sign-off. The eight charter
+items arrived in this directory with the PR and the territory joined
+the header; the header's successor clause is retired and the plan's
+§Opening condition reads MET. First dispatch of the inherited slate:
+the offset_fit lane's `budgetexhausted-conflates-three-terminations`
+(E rider; `docs/PROPS-BUDGET-FACES-SPEC.md` — the four faces of one
+refusal, row-1 refinement; §Landing says `status: review`, do not
+merge). Still waiting: the sign-hull unit on #1944 (the PR body now
+defines (c)/(c′) in place at Ev's request); the sphere lane on MESH-12
+(#1617 — S-MESH's own log shows it dispatched and never reviewed; the
+question of who finishes or abandons it is put to Ev).
