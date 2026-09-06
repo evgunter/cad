@@ -204,6 +204,8 @@ mod rim_dim_review_probes;
 mod seat3_flush_detector;
 #[path = "shell_roles.rs"]
 mod shell_roles;
+#[path = "shell_tolerance_chain.rs"]
+mod shell_tolerance_chain;
 #[path = "solid_separation.rs"]
 mod solid_separation;
 #[path = "void_door.rs"]
@@ -233,3 +235,12 @@ mod verbs_cylsph_tangent_residuals;
 mod verbs_f7_collinear_seam;
 #[path = "verbs_f7_r2_probes.rs"]
 mod verbs_f7_r2_probes;
+
+#[path = "rim_of.rs"]
+mod rim_of;
+
+#[path = "rim_of_r1_probes.rs"]
+mod rim_of_r1_probes;
+
+#[path = "r2_rim_probes.rs"]
+mod r2_rim_probes;

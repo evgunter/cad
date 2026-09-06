@@ -2,7 +2,8 @@
 id: check-registry-gathers-product-twice
 kind: issue
 title: The check registry derives its own subject, so the viewer gathers the product twice per landing
-status: open
+status: closed
+closed: 2026-09-04
 opened: 2026-08-29
 github: 1181
 refs: [1162]
@@ -69,3 +70,10 @@ It is deliberately unguarded **for now** because the number moves when this issu
 ## Home
 
 The registry, `product.rs` and `DocSession::land` sit in `crates/editor-core/src` outside every open program's territory (M10 owns only the analysis lane and the Dual arms in `product.rs`), so it lands unowned under `work/issues/`.
+
+## Closed (2026-09-04)
+
+Built as DOCM-5 (PR 1871): one gather per landing, the registry over a
+`Subject`, `assemble_gathered` over a gathered product, the measurement
+re-taken with all four terms separated and registered nightly. The
+Python doors' double gather is its own LIB item.

@@ -194,11 +194,6 @@ const Y_MOUTH: f64 = 8.0 / 64.0;
 /// than by a hair.
 const WALL: f64 = 1.0 / 128.0;
 
-/// The NURBS fit tolerance `shell` would hand its approximating lane.
-/// Unread here: every wall of this pot is analytic, so the offsets are
-/// closed forms and nothing is fitted.
-const FIT_TOL: f64 = 1e-6;
-
 // ---------------------------------------------------------------------
 // The lid: a second solid of revolution, lifted.
 // ---------------------------------------------------------------------
@@ -487,7 +482,20 @@ fn rim_at(body: &Body<f64>, y: f64, r: f64) -> EdgeKey {
         1,
         "the description (station {y}, radius {r}) names exactly one rim"
     );
-    hits[0]
+    // The description names an ARC; the query seat says which rim it
+    // belongs to, and on this body that rim is the arc itself.
+    //
+    // These five lines are a STRUCTURAL copy of
+    // `sweep::test_support::one_edge_rim`, not a drifted one: the tour
+    // is a detached workspace that reaches the kernel through the
+    // `pncad` façade, and `test_support` is a test-vocabulary module
+    // the façade does not carry. Sharing it would put the kernel's test
+    // vocabulary on a demo's dependency path to save five lines. What
+    // is shared is the door under both.
+    match query::rim_of(body, hits[0]).expect("the description names a whole rim")[..] {
+        [only] => only,
+        ref many => panic!("this rim is one closed edge, got {many:?}"),
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -708,7 +716,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
 
     // ---- the sealed hollow: the body the scene SHIPS ----
-    let pot = pncad::topo::shell(&bellied, WALL, FIT_TOL, tol)
+    let pot = pncad::topo::shell(&bellied, WALL, tol)
         .unwrap_or_else(|e| panic!("the pot hollows, got {e}"))
         .body;
     let (pv, pe, pf) = (
@@ -783,7 +791,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // role and the capacity are read. What the montage draws is the
     // OPENED pot, because a teapot has a mouth.
     let mouth = plane_chart_at(&bellied, Y_MOUTH);
-    let cup = pncad::topo::shell_open(&bellied, WALL, &mouth, FIT_TOL, tol)
+    let cup = pncad::topo::shell_open(&bellied, WALL, &mouth, tol)
         .unwrap_or_else(|e| panic!("the pot opens at its mouth, got {e}"))
         .body;
 
@@ -1105,7 +1113,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             .into(),
         tol,
     );
-    let torus_pot = pncad::topo::shell(&torus_belly, WALL, FIT_TOL, tol)
+    let torus_pot = pncad::topo::shell(&torus_belly, WALL, tol)
         .expect("a pot bellied about a centre off the axis hollows through the axial door")
         .body;
     assert_eq!(

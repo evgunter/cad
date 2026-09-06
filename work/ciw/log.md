@@ -432,7 +432,7 @@ What landed on PR 1841 beyond the record: all three guard doc comments
 rewritten so they describe the permanent mechanism with its limits
 named, instead of pointing at a check nobody will build — a sanctioned
 drive-by into LIB's file, announced in the PR, doc comments only. The
-logic half is filed as `work/issues/lb13-guards-are-line-local` for LIB,
+logic half is filed as `work/lib/lb13-guards-are-line-local` for LIB,
 carrying the line-locality hole and the stale `root_declared_pub_names`
 module count.
 
@@ -545,3 +545,357 @@ its **own** row: a PR green on row X can be ejected by row Y, the author
 cannot reproduce it by re-running, and re-queueing draws again. Ev has
 authorised un-sampling k-lint; that lands first
 (`klint-row-still-sampled`), then the switch.
+
+## 2026-09-04 — the `CI-Config:` trailer deleted (`delete-config-trailer`)
+
+**Ev, reading PR 1855:** *"i see in 1855 it's still talking about the ci
+config trailer; that code should be deleted since it's no longer live"*. He
+is right, and the reason is arithmetic rather than taste. `WHOLE_BY_DEFAULT`
+gained `klint` in PR 1850, so it carried all three dimensions; `parse_config`'s
+`additive_only` arm red any trailer value that was not the whole-dimension
+value. That leaves a trailer exactly two possible effects — name the value
+that is already the default and change nothing, or name anything else and red
+the classify step. **There is no input that makes it useful**, which is
+different from an input nobody happens to use.
+
+The entry above (`reinstate-full-configuration-runs`) called the two
+spellings *opposites* and kept the trailer as the half that can be read back
+off the commit. That reading survived until the k-lint row went. Once every
+dimension ran whole, "readable back off the commit" had nothing left to read:
+the only thing a trailer could legally record is that its author asked for
+what the run was already doing.
+
+**What went.** `config_from_message`, `CONFIG_TRAILER`, `additive_only`, the
+`WHOLE_BY_DEFAULT` table (nothing else read it), `--config-from-message` and
+its call site; ci.yml's `HEAD_COMMIT` env and the `git log -1 --format=%B`
+line that fed it; and every selftest case that exercised the trailer — the
+regex near-misses, the case-insensitivity, the precedence pair, the
+additive-only refusal loop and the CLI round-trip — **with the `--selftest`
+prose that claimed them**, because a coverage sentence outliving its
+assertions is the failure this program keeps meeting in other people's files.
+Two assertions replaced them: `--config-from-message` reds rather than being
+ignored (the `--seed` precedent, one lane over), and the invocation-narrows
+loop that already walked every legal value of every dimension.
+
+**`CONFIG_SOURCE` now has two words, not three.** `unsampled` and
+`requested`. `commit-trailer` joins `sampled` and `pinned` as a value no run
+can print, and both prose sites say so out loud — a source vocabulary that
+names a thing that cannot happen is a reader's wrong turn.
+
+**Nothing about what runs changed.** `LANE=both`, `EPS=all`,
+`KLINT_ROW=all`, and `workflow_dispatch` still narrows.
+
+**The sweep was most of the work.** `grep -rn "CI-Config"` found the spelling
+taught as live in `memories/agent-lane-operations.md` (Ev's message is the
+`CLAUDE.md` sign-off for that one bullet, and it is deleted rather than
+rewritten — PR 1855 trimmed it once already and Ev's point is that the whole
+thing goes), `docs/prompts/implementer-discipline.md`, `docs/K-REPORT.md`,
+`local-scripts/ci-local.sh`, this program's merge-queue runbook, and **five
+live specs** across FILLET, PCURVE, EXCH and TRIM. `work/issues/`'s
+`fillet-specs-require-a-narrowing-ci-config` is closed by the same sweep,
+with the correction that its central sentence — a narrowing trailer REDS the
+classify step — is now false in the quieter direction: the line is inert, so
+an implementer obeying a stale spec gets no error and no interval lane
+either. Logs, `docs/CI-MINUTES-2026-08.md` and `docs/MODEL-AB-LOG.md` keep
+their mentions: those are dated records of what was true, not instructions.
+
+## 2026-09-05 — the merge queue is not available to this repository, and the unit closes (`merge-queue-trial`)
+
+**The entry above this one is the story of a design that could never
+have been enabled.** Ev went to turn the queue on after PR 1845 landed
+and found no toggle. It is not a misconfiguration and not a plan tier:
+`github/docs@main`, `data/reusables/gated-features/merge-queue.md`, says
+in full that *"Pull request merge queues are available in any public
+repository owned by an organization, or in private repositories owned by
+organizations using GitHub Enterprise Cloud"* — and `evgunter/cad`
+(repository id 1302372371) reports `"visibility": "public"` with
+`"type": "User"` on its owner. A personal-account repository is outside
+both arms of the grant.
+
+**Going public on 2026-09-03 removed the BILLING gate on Actions
+minutes. Merge queue is gated on OWNERSHIP.** Two different gates, and
+this program conflated them — the whole re-costing arc was built on the
+first and the queue needed the second.
+
+**Ev has ruled** (2026-09-05): *"ok i don't plan to move this to an
+organization"*. So the avenue is closed rather than blocked, and
+`merge-queue-trial` is `closed`, not parked and not deferred: nothing is
+waiting on anything.
+
+**The process failure, named, because this program has been filing this
+exact shape all day.** The unit costed the queue to two decimals — 99.5
+job-min/h, ρ = 0.39, a latency simulation over 138 observed merge
+arrivals — argued the required-check design, shipped a nine-setting
+runbook, and wrote a section listing six things it could not
+demonstrate. **Nobody, at any point — not the unit, not its style
+review, not the orchestrator — asked whether the feature was available.**
+It is a true mechanism carrying an unchecked premise, arriving at the
+program that has been filing that pattern in other people's work.
+**The lesson, actionable and one sentence: an availability/entitlement
+check belongs BEFORE the costing, not after the design.**
+
+**What survives and must not be swept up as residue.** `gate ok` is
+live, green on every pull request run, and has nothing to do with a
+queue; requiring it as a status check is still available, because branch
+protection with required status checks works fine on a public
+personal-account repository — a different feature from a merge queue.
+`scripts/check-run-jobs.py` and its `--selftest` (in `discipline` and in
+`ci-local.sh`), and the `page_is_whole` paging guard PR 1845 also put
+into `scripts/opt-level-calibrate.py`, are all unaffected. Two facts
+from the dead design are durable and should be quoted forward: GitHub
+builds one merge group **per queued pull request**, so merge limits and
+batch size are not a CI-cost lever (the mechanism error under PR 1796's
+44 job-min/h figure — do not quote that number again), and the
+2026-09-04 post-un-sampling measurements (44.8 job-min and 528 s wall
+per code-tier run, 5.76 merges/h, 41 % code-tier) are real and reusable.
+
+**The dead wiring in `ci.yml` is left in place and is not this unit's
+call.** `on: merge_group` and the `merge_group` exclusion on `renders`
+can never fire here; they cost no run and no minute, and removing them is
+a workflow edit on a file several lanes touch. The trade is written up
+for the orchestrator rather than acted on.
+
+**The fallback for the defect class the queue was chosen over is open
+again** — the full push job set plus the per-SHA concurrency design pass,
+48 job-min/h, named in `work/ciw/f3-recosting-on-a-public-repo`. That is
+not reopened here; it is a ruling for Ev whenever CIW asks it.
+
+## 2026-09-05 — F3's residue, measured twice, and the mechanism is scope not event
+
+`reader_census`'s tree-wide row
+(`crates/test-utils/tests/reader_census.rs:538`) reddened `main` twice on
+2026-09-04 — `fde85c50` (PR 1829) held for **3 h 00 m 50 s** until
+`5a1317e5` (PR 1859); `2a924eb2` (PR 1871) held for **47 m 26 s** until
+`5d711eea` (PR 1884). **5 red `pull_request` runs, 35 failed jobs, 4
+innocent branches**, and two CIW lanes spent repairing it. Filed as
+`tree-wide-guards-outside-the-change-closure`, `needs_ev`.
+
+**The reading this was opened on is false and the item says so.** PR
+1871 did not go green *on the census*: run **33927923370** was green on
+all 37 checks and **never built the census**. Its job **101201002362**
+logs `Extracting 8 binaries` / `808 tests run` where the red runs log 35
+binaries and 3017 tests, and the real classifier
+(`scripts/ci-filter.py --files` over `2a924eb2^1...2a924eb2`) returns
+`CARGO_SCOPE=-p editor-core -p pncad -p pncad-py -p viewer`.
+`test-utils` is scoped out of both breaking merges.
+
+The closure is over **dependents**, so a crate is reachable only from
+itself and what it depends on. `test-utils` has zero dependencies by
+design (`crates/test-utils/Cargo.toml:10`), which makes it **1 of 18**
+members — the repository's most tree-wide guard housed in its least
+reachable crate. Four more rows share the shape; `geom-core`'s two are
+at **2 of 18**.
+
+**What that does to the F3 question.** `ci.yml:582` bases a push run on
+`HEAD^1` and diffs `HEAD^1...HEAD`, so a restored `build` + `test` on
+push re-draws the merge's own closure — **it would have caught neither
+break**. Measured against that: a `test-utils`-only guard row forces no
+workspace build at all (cold from an empty target dir: **2.69 s** to
+compile, **4.86 s** end-to-end, 3.65 s to run; 0.477 s inside CI's
+archive), because the crate depends on nothing. `main`'s push run today
+compiles nothing either — `cache-prime`'s only build step is gated on a
+cache miss (`ci.yml:2230`) — so the row is additive at ~40 s, not a new
+build.
+
+Three options are put to Ev with their real costs and no thumb on the
+scale: add a row to the push run (measured ineffective for this class
+without `--force-all`), leave F3 and price the fleet as the detector
+(tonight's numbers), or a narrow unscoped guard row — which on the
+**pull-request** side would have red both PRs before they merged.
+Nothing about F3 was touched.
+
+## 2026-09-05 — the change closure reaches tree-wide guards
+
+Ev, in chat: *"oh yeah the closure should reach tree wide guards"*, and
+*"don't hand the unit to tcost; you can take it"*. The measurement it rules
+on is `work/ciw/tree-wide-guards-outside-the-change-closure.md` (PR #1889):
+`scripts/ci-filter.py`'s TIER=closure scope is the dependent closure, so
+`crates/test-utils/tests/reader_census.rs` — whose subject is every `.rs` file
+in the repository — is in scope for 1 of 18 members, and reddened `main` twice
+on 2026-09-04 from PRs that were fully green because the guard was never built
+in them. Unit: `work/ciw/closure-reaches-tree-wide-guards.md`.
+
+**Nothing is listed.** `PKGS` is now the dependent closure plus a READ REACH
+derived from what each crate's sources open: a path that lands at the
+repository root or at `crates/` pins its crate into every non-docs closure, a
+path that lands in another member is a read edge keyed on that member's seeds,
+and a `.md` a Rust suite opens joins `_consumed_markdown` and leaves the docs
+tier. A hand-maintained roster was the alternative and is the one shape the
+ruling exists to remove — the sweep in #1889 found five guards, the scanner
+found a sixth (`crates/bvh/tests/aggregator_headers.rs`, whose own header says
+*"its subject is workspace-wide, so no crate owns it and any home is
+arbitrary"*) and a seventh instance one tier over
+(`crates/geom-core/tests/flagged_census.rs` reading
+`docs/predicate-dimension-audit.md`, which a docs-only PR could break and
+never run).
+
+**Derived here**: `bvh, editor-core, geom-core, pncad-py, test-utils`.
+
+**Measured cost, cold, on a 4 vCPU / 16 GB box — the hosted runner's shape.**
+The pins add almost no COMPILE, because a dependent closure already drags the
+whole graph: 17 of 18 single-seed closures gain zero new crate builds and only
+extra test BINARIES. `cargo nextest archive` on PR 1829's real diff: 145.4 s /
+22 binaries -> 164.1 s / 28 binaries (**+18.7 s, +13 %**). The worst case is a
+viewer-only change, the one closure that gains a compile (`pncad-py`): 43.1 s /
+2 binaries -> 73.9 s / 14 (**+30.8 s**). The classifier itself: 0.99 s ->
+1.82 s on a code diff, 0.86 s -> 1.70 s on a docs one. **A docs-tier PR run
+still compiles nothing** — the reach is read in the closure branch and in
+`_consumed_markdown`, both of which are python over `crates/**/*.rs`, and no
+cargo invocation was added to the docs path.
+
+**F3 is untouched**, and so is what a `main` push re-gates. `JOB_ROOTS` is
+keyed on the dependent closure with the reach subtracted again, so pinning
+`editor-core` does not silently switch four named job rows permanently on.
+
+**Announced cross-fence change.** `scripts/ci-filter.py` is in S-TCOST's
+`paths` and in CIW's `keep_out`; S-TCOST is open, no `program.md` was edited,
+and the PR names it and invites S-TCOST to own the result. Residue:
+`work/ciw/reach-cannot-follow-every-ascent.md`.
+
+## 2026-09-06 — the orchestrator changed hands, and the slate was two days stale
+
+CIW's previous orchestrator stopped after PR 1909 (merged 2026-09-05
+04:06Z) without a handoff. Nothing was wrong with the work: **all ten
+units of `plan.md`'s order had landed**, and unit 11 was closed on
+2026-09-04 as an avenue that does not exist. What stopped was the
+bookkeeping, and from outside the program that reads as a closed
+program with files left behind — which is how the gap was found.
+
+**Thirteen rows sat at `review` with their PRs merged.** Every one was
+checked against `main` rather than against its PR body before being
+closed, because a merged PR is evidence the diff landed and not that the
+item is discharged:
+
+| item | PR | what carries it on `main` |
+| --- | --- | --- |
+| `perf-history-cannot-identify-its-host` | 1722 | `criterion-emit.py:139` `cpu_identity()`, and the two copies |
+| `nightly-pin-reading-idiom-four-copies` | 1723 | `nightly.yml:659`, `:660`, `:1091` call `scripts/ci-pin.py` |
+| `hosted-renderer-announces-itself-preview-only` | 1739 | `hosted-render-guard.sh:56` |
+| `retire-render-automatic-matplotlib-fallback` | 1745 | `render.sh:792` refuses and exits 1 |
+| `mirror-parity-never-compares-flags` | 1759 | `check-ci-mirror-parity.py:284` `FLAG_EXEMPT` |
+| `geom-brep-test-unused-edgedescription-import` | 1795 | `ci.yml:2109` `clippy-all-features` |
+| `reinstate-full-configuration-runs` | 1823 | twelve `test (…)` jobs; `--selftest` asserts it |
+| `doc-gate-two-unread-axes` | 1847 | `doc-gate.sh:348` and its two self-test arms |
+| `klint-row-still-sampled` | 1850 | `ci.yml:460` fans five legs |
+| `klint-memory-false-after-unsampling` | 1855 | `memories/agent-lane-operations.md` |
+| `delete-config-trailer` | 1868 | no `CI-Config` reader survives |
+| `closure-reaches-tree-wide-guards` | 1909 | `ci-filter.py:988` `_read_reach()` |
+| `tree-wide-guards-outside-the-change-closure` | — | closed by 1909 under Ev's 2026-09-05 ruling |
+
+`delete-config-trailer` carried no `pr:` at all; it has 1868 now.
+
+**One row does not close, and it is the one the board was hiding.**
+`f3-recosting-on-a-public-repo` delivered its measurement and merged
+(PR 1796), and the three options it recommends were put to Ev on PR
+1889 — which was then **merged, unanswered**. Ev does not scan merged
+PRs (`memories/orchestration-model.md`), and the item never set
+`needs_ev`, so the question is absent from `STATUS.md`'s needs-Ev queue
+as well: asked in a place nobody reads, and invisible in the place that
+lists what is waiting. It is `open` with `needs_ev: true` as of this
+entry, and the question needs re-asking somewhere it can be answered.
+
+**A finding, in passing.** `rustdoc-d-warnings-breakages-outside-the-doc-gate`
+opens by saying `SweepStrategy::Idealized` "is gone or renamed". It is
+not: it is at `reduce.rs:84` behind `#[cfg(feature = "sweep-testing")]`,
+which makes both of its sites instances of the in-half broken link unit
+9 accepted permanently, not documentation rot. The bullet list also
+missed `reduce.rs:18`. Corrected in the item; six sites survive there as
+a real `--document-private-items` question.
+
+**Review posture is unchanged** (Ev, 2026-09-06, restating 2026-09-04):
+no A/B protocol, one subagent style review per unit, and a correctness
+reviewer only where a unit earns one — named in its PR with the reason.
+
+## 2026-09-06 — the second slate, re-read against the tree
+
+The 2026-09-04 re-read moved six rows by auditing them against the tree
+rather than inheriting them. The same pass over the 21 rows the first
+slate's own lanes filed moves four, and the reason is the same one every
+time: the units landed **after** most of these were written, and an item
+does not notice when its premise is fixed.
+
+**Two are already discharged.**
+
+- `closure-tier-scope-hides-whole-tree-census-tests` asked for exactly
+  what PR 1909 built (its option (c)). Measured, not inferred: a
+  `crates/profile/src/path/arc_fillet.rs` change now scopes in
+  `geom-core` and `test-utils`, so `bounds_census.rs` builds and runs;
+  the smallest closure in the tree (`crates/viewer/src/tree.rs` alone)
+  still pins `bvh, editor-core, geom-core, pncad-py, test-utils`.
+- `probe-interval-lane-has-no-clippy-row` asked for a clippy row over
+  `--features probe,interval`. `clippy-all-features` (`ci.yml:2109`) is
+  a superset of that point, `geom-brep` declares both features
+  (`Cargo.toml:15,22`), and PR 1795 trimmed the same four imports this
+  item names. **It and `geom-brep-test-unused-edgedescription-import`
+  are one finding filed twice**, by two lanes that could not see each
+  other — the duplicate shape `implementer-discipline.md` §6 describes,
+  landing inside a single program's own slate. Unit 6 was dispatched
+  from one of them and nobody noticed the other was discharged too. It
+  cost two days of a phantom row; it could as easily have cost a second
+  implementation.
+
+**Two lost half their premise to the un-sampling**, which is the
+un-sampling working. `ci-draw-can-hide-a-compile-break-on-main` is named
+for a draw that no longer exists — PR 1823 and PR 1850 made both lanes,
+all three eps rows and all five k-lint unifications unconditional, so
+the instance it was filed on cannot recur on a PR run. What survives is
+that a `main` push still compiles nothing, which is F3 and is Ev's.
+`detached-demo-workspaces-are-gated-only-by-a-sampled-row` keeps half 1
+(a detached root is invisible to the `--workspace` check a lane runs
+locally) and loses half 2 (the demos step rides `dev-default`, which now
+runs on every code-tier run). Both parked or re-scoped rather than
+closed: a stale title is not a discharged finding.
+
+**The nightly reading is taken, and nothing is red.** Ev's direction on
+2026-09-04 was to read the scheduled run rather than force a dispatch.
+Run `33957138686` (2026-09-05 09:07Z, `success`) executed all three
+demoted rows, read at the STEP level because a green job over a skipped
+step is this class's whole failure mode: `corrupt input (release
+profile)` 09:08:40→09:09:38, `rustdoc (gate, every root)`
+09:08:42→09:12:53, `python suite (ungated re-take)` 09:09:55→09:10:21.
+No repair jumps the queue. What the item is actually for — a demotion
+verified AT the demotion — is untouched and is now better evidenced:
+three rows ran unattended two nights late and happened to be correct,
+and nothing in the tree would have said so if they had not been.
+
+**One live defect confirmed by measurement rather than by reading.** A
+`crates/geom-core/src/lib.rs` change classifies `RUN_PNCAD_PY=false`
+while `pncad-py` is in `PKGS` — the crate is built as a cargo target and
+the suite that exercises it is skipped. This is not something 1909
+changed: `JOB_ROOTS` is keyed on the dependent closure with the reach
+subtracted again, deliberately, so the reach never switches a named job
+row on. `implementer-discipline.md` §2 tells implementers the python
+suite runs on every code-tier run. One of the two is wrong.
+
+The second slate and its order are in `plan.md`. Seven units, the
+posture unchanged, and units 2 and 4 are the two that look likely to
+earn a correctness reviewer beside the style one.
+
+**Addendum, same day.** `main` moved 74 commits under this re-read: Ev's
+tracker-wide cut of 2026-09-06 routed `work/issues/` and opened BLEND,
+EVAL, GATES and METER. Two of those touch CIW.
+
+- **GATES takes `scripts/gates/*`**, and its `keep_out` leaves
+  `.github/workflows/*` and `local-scripts/*` here, with a new gate's
+  wiring row as one announced line. That changes unit 3's shape:
+  `opt-level-selftest-runs-nowhere`'s fix is a widening of
+  `gate-roster.sh`'s scope, which is now GATES' file and an announced
+  seam rather than a CIW edit.
+- **METER takes `tools/*` and the two instrument documents**, leaving
+  `tess_budget_cut.sh`, `tess_budget_sweep.sh` and `k_probe_sweep.sh`
+  here — all three are already in CIW's `paths`.
+
+The cut also delivered **a third instance of today's duplicate class,
+and this one crossed programs**: `dirty-pr-gets-no-actions-run` (SEAT,
+from PR 1910) and `no-ci-run-on-a-conflicting-pr` (PROPS, from the
+riders lane) are one finding, filed on 2026-09-05 by two orchestrators
+who could not see each other, and routed onto one slate a day later.
+Merged: SEAT's survives because it carries the measurement, PROPS' two
+instances fold into it, and the population is now three occurrences in
+one day — none of them a code conflict. All three were tail-append
+conflicts in a `log.md` or `DOC-LEDGER.md`, which is the shape this
+repository generates by construction, which is why the class recurs.
+
+Three duplicate pairs in one day (two within CIW's own slate, one
+across three programs) is not three accidents. The board is the only
+instrument that can see them and only an orchestrator reads it whole.

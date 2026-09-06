@@ -17,6 +17,7 @@ the one channel to Ev (below).
 work/
   README.md            this contract
   STATUS.md            GENERATED on main by CI — never hand-edited
+  issues/README.md     this directory's signpost (unparsed)
   issues/<name>.md     issues no program owns yet (kind: issue)
   <program>/
     program.md         the program: charter, prefix, band, territory
@@ -121,15 +122,28 @@ only closed items.
   `program.md`, `plan.md` and `log.md` go, and so does the ratified
   exit walk; the deletion is recorded in `docs/DOC-LEDGER.md` with the
   SHA they are recoverable at, and that ledger entry is the program's
-  done-state of record. Residue is re-homed to a live program or to
-  `work/issues/` before the sweep, not left behind in the closed
-  directory. **That sweep sees items, not sentences**: a residue a
+  done-state of record. Residue is re-homed before the sweep, never
+  left behind in the closed directory: to a live program whose charter
+  it fits, or to a new program opened for it when the residue coheres
+  into a track of its own (a dozen items on one territory are a
+  successor's opening slate, and the closing program opens it).
+  `work/issues/` is the last resort, for residue that genuinely
+  coheres with no live or new track — an unsorted pile of related
+  items there is what the sweep exists to prevent. (Ev, 2026-09-06.)
+  **That sweep sees items, not sentences**: a residue a
   lane discloses inside its own item's `## Closed` prose reads as a
   record of work done, not as an open thread, so it is invisible to
   the re-homing and dies with the directory. Disclosing a residue is
   therefore not scheduling it — **give it its own file at the moment
   you disclose it**, on this program's slate or in `work/issues/`, and
   let the Closed section point at that file.
+- **`work/issues/` is for issues with no home yet, not a waiting room.**
+  When the owning program is clear, file the item straight onto that
+  program's slate — a lane does not need the owner's permission to put
+  a finding where it belongs, and routing it through `issues/` only
+  delays the owner seeing it. `issues/` is for the genuine case: a
+  finding whose owner is undecided or disputed. Claiming one MOVES the
+  file (header edit and `git mv`), never copies it. (Ev, 2026-09-04.)
 - **A rides-along is its own file** with `rides_with:` naming its
   carrier. Closing the carrier does not close the passenger; lint
   refuses a live passenger on a closed carrier.

@@ -473,7 +473,9 @@ at three ε cells and two scalar lanes; the structural edits serve them.
 A3's fixture through `mint_pcurves` before any edit and quote the
 `16v1` payload and raising site in the PR body. Own `CARGO_TARGET_DIR`
 outside the worktree. Hosted CI at all twelve `test (…)` jobs is the
-verification of record — no `CI-Config` lane/eps trailer. The census
+verification of record, and no narrowing dispatch. (This clause used to
+forbid a `CI-Config` lane/eps trailer; that spelling was deleted on
+2026-09-04.) The census
 above is as of `f23d373d5`: re-sweep the SHAPE at the merge base and
 put the hit list in the PR body (§5). Findings outside the fence go in
 the PR body, not another program's slate; the residue above gets its

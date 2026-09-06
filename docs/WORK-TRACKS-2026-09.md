@@ -535,9 +535,9 @@ with S-CERT) → `tier3-approx-regrid-per-face-cost` stays parked on an
 Every S-CERT issue is residue: its slate is CERT-M3/N3 then exit, and
 none of the 20 is on a unit. Territory is S-CERT's today
 (`geom-brep/props/*`, `offset_fit.rs`, `patch_bound.rs`,
-`geom-core/src/*`) plus `geom-core/k_stats.rs` (Track M) and the R and
-N rows on the same files (`C3`/`D30` takeable since CERT-10; `D244`,
-`D31`, `S235`, `C24`). If S-CERT prefers, this is its own second slate.
+`geom-core/src/*`) plus `geom-core/k_stats.rs` (Track M) and the R
+rows on the same files (`C3`/`D30` takeable since CERT-10). If S-CERT
+prefers, this is its own second slate.
 
 - *offset_fit*: `budgetexhausted-conflates-three-terminations` (E) →
   `offset-fit-mignitude-floor-on-norm-e` (H; the micron row is the
@@ -726,3 +726,284 @@ CURVED, SHELL or EXCH above except `c5-plane-torus-cone-cylinder-arms`
   conversations but not resolve one by implementing.
 - Every item keeps its id; re-homing is a header edit
   (`work/README.md`), never a copy.
+
+---
+
+# Addendum — the 2026-09-04 re-home sweep and two more tracks
+
+Non-binding like the survey above, and written into this file because
+this is where a reader looks for how the tree was divided. **Executed
+on Ev's direction (in-chat, 2026-09-04)**; `work/<id>/plan.md`
+supersedes it as each track's charter.
+
+## What the measurement found, one day later
+
+`work/issues/` held **44 open files, 38 of them opened on 09-03 or
+09-04** — after this document's cut. So the pile was fresh inflow, not
+residue, and most of it already named its owner in its own `## Home`
+section. **Re-homing, not a cut, was the bulk of the work**: 43 of the
+44 moved onto an existing or new program's board, and `work/issues/`
+now holds only four closed files and one item already being re-homed on
+another branch (`lb13-guards-are-line-local`, on `ciw/rehome-lb13`).
+
+Two things the cut left open did surface as tracks.
+
+## TOPO — the topology core (`topo/`) — 17 items (3 issues + Track P's 14 rows)
+
+**GRADUATED (2026-09-04): opened as `work/topo/`, A/B band 2700–2799.**
+
+This document recorded that "no program owns … 37 `crates/topo/src`
+files" and then cut eleven tracks without closing that gap. Re-measured
+2026-09-05 against merged main: **55 of the 102 `.rs` files under
+`crates/topo/src/` were in no open program's `paths`**, 35 of them
+still (this section first said 47, off by two subdirectories a
+directory-grouped scan dropped; corrected by re-derivation). Two `work/issues/` files name that ground as unowned in
+their own `## Home` sections
+(`validate-tier3-curved-boundary-containment`,
+`no-public-census-or-genus-query`), and **code-quality Track P — whose
+fence is exactly this territory — had never had a lane**: `smell/k-*`,
+`smell/x-*` and `smell/t-*` branches exist, `smell/p-*` never has. The
+rows were waiting on an owner.
+
+Territory: an **enumerated** twenty-path list, not a glob, because
+`crates/topo/src/*` crosses `/` under `fnmatch` and would double-claim
+five programs' ground — and `scripts/work.py territory` is blind to a
+double claim (see META below). Claims **Track P whole**, its
+three-sub-lane partition inherited unchanged. Opener: `S331`
+(`validate_pcurves` answers a clean bill on a body whose pcurve mint
+just failed — a vacuous green through a public door).
+
+The 35 remaining `topo/src` files (`body.rs`, `entity.rs`,
+`contact.rs`, `separation.rs`, the chart, `sector_*` and `review_m1_*`
+readers, and `param_source.rs`) are recorded as **unowned and not
+finished**, in the sense the
+`geom-brep` seam gives that phrase: a row landing on one draws the
+fence in the PR that mints it.
+
+## META — the tracker and the process instruments (`meta/`) — 6 items (4 items + 2 registers custodied)
+
+**GRADUATED (2026-09-04): opened as `work/meta/`, A/B band 2800–2899.**
+
+The cut above divided the tree by territory and did not divide the
+**instruments it used to do it**. `scripts/work.py`, `docs/prompts/`,
+`docs/MODEL-AB-LOG.md` and `docs/DOC-LEDGER.md` are in no program's
+`paths`; CIW's `keep_out` already ceded `scripts/work.py` to "the
+tracker's own", naming an owner that did not exist. Three findings on
+file are the cost: a `territory` check blind to the exact collision it
+exists to catch, a **pre-registered A/B stopping rule passed about nine
+times unnoticed** (109 v6 dual rows against a twelve-pair rule), and
+two live FILLET spec acceptance clauses that instructed a coverage
+reduction and red the gate if obeyed (that third one was closed by
+CIW's `delete-config-trailer` hours before this program opened, and
+stays closed in `work/issues/` — the class stays META's, with a worked
+instance to point at).
+
+**Checked against CIW first and there is no conflict**: CIW owns the
+*runs*, META owns the *tracker and the briefs*, and the one touching
+surface — `implementer-discipline.md` §2, what a run gates — is written
+into META's `keep_out` as CIW's to amend without waiting. The fence
+reads the same from both sides.
+
+META also **custodies the two cross-program registers** this document
+called "register-shaped, not programs" (`m6-carried-items-register`,
+`decide-flagged-dimensional-debt-inventory`): it keeps them accurate
+and routes their rows, and never executes one.
+
+## Track W → S-TCOST
+
+`work/code-quality/plan.md` recorded Track W's claimant as "ground is
+`tcost`'s" and the seventeen rows never moved; no `smell/w-*` lane ever
+ran. W's fence (`crates/*/tests/`, `crates/test-utils/`) and S-TCOST's
+`paths` (`crates/*/tests/*`, `crates/test-utils/*`) are an exact match,
+so the letter went to the program whole. **The claim was made on Ev's
+direction rather than by the S-TCOST orchestrator**, which is not how
+`work/README.md` expects a claim to happen; every row carries a
+`## Claimed by` section saying so, and moving one back is a `git mv`.
+
+## What this addendum does NOT cut, and why
+
+- **The instrument-blindness theme** (11 issues: two `gated-marker-*`,
+  `bit-identity-debug-only-gate-…`, `source-scanning-censuses-…`,
+  `ci-draw-can-hide-a-compile-break`, `gui-wasm-build-is-not-gated`,
+  `probe-interval-lane-has-no-clippy-row`, `rustdoc-d-warnings-…`,
+  `detached-demo-workspaces-…`, `body-hash-census-…`,
+  `clippy-panic-gate-blind-in-macros`) is the strongest single theme in
+  the pile — every one is "a gate we built is blind and reports green" —
+  and it is **not** a program: its territory is CIW *and* Track K *and*
+  `crates/*/tests/` at once, which is what the K–X partition refuses.
+  Split by fence: five to CIW, two to code-quality Track K, four to
+  S-TCOST.
+- **The error-payload honesty class**, which the survey above declined
+  to cut and distributed by territory. That still holds, but it is
+  worth recording that **five more instances arrived in a single day**
+  (`clearance-refusal-names-one-face-twice`,
+  `point-in-solid-refusal-names-faces-zero`,
+  `debug-in-prose-at-blend-and-step-import` — split in two, both halves
+  live panics — `run-on-whitespace-in-message-literals`,
+  `mate-fault-accessors-wildcard-into-silence`). If Ev prefers one
+  owner for the class, the survey's answer stands: a code-quality track
+  with a stated seam, not a program.
+- **The "one rule, two homes" class** (`nobodyroots-…`,
+  `emit-blend-restates-…`, `mate-member-vocabulary-…`,
+  `face-kind-read-…`, `loud-skip-marker-…`,
+  `geom-brep-inline-canonical-frame-surfaces`) — same shape, same
+  answer, distributed by fence.
+- **Track J's ground stays a seam.** CIW's opening took most of it
+  (`.github/workflows/`, `local-scripts/`) without claiming the letter,
+  so `scripts/doc-gate.sh`, `gate-roster.sh`, `probe-suite-census.sh`
+  and root `[workspace.lints]` are still "unowned, not finished".
+  `rustdoc-d-warnings-breakages-outside-the-doc-gate` lands exactly
+  there and went to CIW because `doc-gate.sh` is in CIW's `paths`.
+- **Letters M, N, Q, R, U and V stayed in `work/code-quality/`.** Their
+  claimants (`cert`, `bool`/`trim`, `mesh`, `exch`/`lib`, `docm` and
+  seven others) claim them **through a unit that cites the letter**
+  — `CERT-M3`, `CERT-N3`, `BOOL-Q`, `MESH-R` — rather than by moving
+  rows, and V is explicitly shared by eight. P and W were different:
+  both were single-owner by fence and neither had ever been worked.
+
+## What arrived during the sweep, and how it was routed
+
+Three issues landed in `work/issues/` on main while this sweep was on a
+branch, and they are a fair test of whether the cut helps:
+
+- **`perf-plan-is-cited-by-twenty-nine-files-and-absent-from-tree-and-ledger`
+  → META.** `docs/PERF-PLAN.md` is cited by path from 29 tracked files,
+  is not in the tree, and `docs/DOC-LEDGER.md` — the one document whose
+  job is to say where deleted docs went — records no deletion of it.
+  The item's own closing line reads *"Not a program's slate: the ledger
+  is the repo's"*, naming a home that did not exist when it was filed.
+- **`debug-only-counters-have-no-gate` → code-quality Track K.** It
+  wants `scripts/gates/bit-identity-debug-only.sh` rewritten as a
+  subject-list gate; K's fence is `scripts/gates/` less two. It is the
+  **second** row on that one script, joining
+  `bit-identity-debug-only-gate-ends-an-item-at-a-semicolon` — the two
+  want the same file open at once and are one lane, which is the
+  argument for the fence more than for either row.
+- **`axis-flavoured-declarations-have-no-channel` stays in
+  `work/issues/`, correctly.** Its fix is a new declaration source that
+  is either placement-level (`BooleanDeclarations` — CURVED's) or
+  frame-level identity through `GeomSource` (`topo/src/source.rs` —
+  TOPO's), and choosing between them is the `[ev]` question. SEAT's own
+  filing says it "sits outside SEAT's fence". This is what the
+  directory is for under its new README: *issues that do not have a
+  home yet, not a waiting room for issues whose owner is obvious.*
+
+That README (Ev, 2026-09-04, `work/issues/README.md`) landed on main
+independently of this sweep and states the rule the sweep executed.
+
+## Programs that were unclaimed at this sweep
+
+Recorded because the sweep had to check it and the answer should not
+have to be re-derived. `git branch -r` per program prefix, 2026-09-04:
+
+- **`props`** — 9 open items, opened 09-03, **zero branches**; its log
+  still reads "No unit is cut and no branch exists yet." It opens at
+  S-CERT's exit and S-CERT is down to `CERT-N3`.
+- **`msolve`** — 5 open items (now 7), opened 09-04 by the FIX
+  orchestrator on Ev's steer, **zero branches**. It holds the one live
+  known-wrong answer in the tree (`mate-solve-is-transform-blind`, with
+  characterization rows already on main written to go red when it is
+  fixed).
+- **`perf`** — zero branches **by charter**; a register with no
+  orchestrator and no units. Not a gap.
+
+Everything else has a branch dated 09-03 or 09-04. `bool`, `mesh` and
+`lib` are quiet but **blocked rather than unclaimed** — `BOOL-12` is in
+review on Ev, S-MESH's next unit is a slate decision put to Ev, and
+LIB's log says its mechanical feedstock is spent.
+
+---
+
+# Addendum 2 — the 2026-09-06 cut: four programs from the pile
+
+Non-binding like the survey and the first addendum, and written here
+for the same reason. **Executed on Ev's direction (in-chat,
+2026-09-06)**; `work/<id>/plan.md` supersedes it as each program's
+charter.
+
+## What the measurement found
+
+Three programs closed in two days — FILLET (sweep 7), S-CERT (sweep 7)
+and SEAT (sweep 8) — and `work/issues/` held **29 open files**, twenty
+of them opened on 09-04 or 09-05. Unlike the 09-04 sweep, most did NOT
+name an owner that existed: fourteen were FILLET's residue, parked
+there by its sweep with the note "the next blend program's opening
+slate"; six were SEAT's, on ground no program's `paths` covered once
+SEAT left; the rest were single findings whose `## Home` named a
+program by prose. Code-quality held **101 open rows**, of which Track
+K's nineteen had `smell/k-*` branches dated 09-03 and no PR on any,
+and Track V's rows on the eval seat had no program since SEAT's sweep.
+
+`work/README.md`'s re-home rule was amended the same day (Ev, PR
+#2022): residue goes to a fitting live program or to a new program
+opened for it, and `work/issues/` only when it coheres with nothing.
+This addendum is that rule applied.
+
+## The four programs
+
+Every path each claims was in no live program's `paths` at this cut,
+measured by `fnmatch` over every `work/*/program.md`.
+
+| program | ground | items | class | band |
+|---|---|---|---|---|
+| **BLEND** (`blend/`) | `crates/sweep/src/*` less `loft.rs`; the profile fillet door by announced seam with S-BOOL | 13 issues + 2 rows (1 closed as a record) | H core, 5 E openers, 1 `[ev]` | 2900–2999 |
+| **EVAL** (`eval/`) | `editor-core/src/eval/{mod,wire,anchor,schedule,slots}.rs`, `verbs/*`, `names/*` less `role.rs`, `crates/verbs/*`, `topo/src/{query,flush}.rs` | 6 issues (1 deferred) + 4 V rows | E, 2 `[ev]` shared with DOCM | 3000–3099 |
+| **GATES** (`gates/`) | `scripts/gates/*` whole | 10 K rows + 4 unlettered | E throughout, no ruling | 3100–3199 |
+| **METER** (`meter/`) | `tools/*`, `docs/{K-REPORT,TESS-BUDGET}.md` and their data | 8 K rows + 3 unlettered | E, one design question first | 3200–3299 |
+
+BLEND is FILLET's successor and inherits its posture and its seam on
+`crates/profile`. EVAL is the ground SEAT held plus Track V's rows on
+it; it is not DOCM (custody of the document model) and says why in its
+plan. GATES and METER are the two halves of Track K, split at the one
+line — `scripts/gates/` versus `tools/` — where two orchestrators can
+run without touching one file; a single K program would have been
+twenty-five rows.
+
+## The routings
+
+The other twelve open `work/issues/` files and two more code-quality
+rows went to a live program's slate by the README rule, each with a
+`## Re-homed` record naming why:
+
+- **PROPS** (4): `approx-surface-tolerance-is-now-always-the-runs-eps`,
+  `offset-fit-at-tight-eps-refuses-every-curved-nurbs-chart` (names
+  PROPS itself), `mapped-curve-restrict-composes-placements-per-split`
+  and `tangent-parallel-certifier-passes-a-transverse-arc` — the last
+  two on `geom-brep/src/{mapped,certify}.rs`, in no program's `paths`;
+  PROPS draws that fence when it takes them.
+- **DOCM** (1): `product-refuses-naming-when-one-instance-is-placed-under-two-roots`.
+- **CIW** (1): `dirty-pr-gets-no-actions-run`.
+- **FIX** (1): `compile-fail-blocks-without-error-codes`.
+- **code-quality** (2): `tour-scenes-lift-componentwise-not-through-map`
+  as a Track X row, and
+  `described-net-two-state-reads-hand-a-poisoned-net-the-described-arm`
+  as the cross-fence class it is.
+- **Stays in `work/issues/`** (1): `axis-flavoured-declarations-have-no-channel`
+  — the `[ev]`-shaped choice between a placement-level declaration
+  (CURVED's) and frame-level identity (TOPO's), which the first
+  addendum already judged correctly parked.
+
+## Surveyed and deliberately not cut
+
+- **Track X** (`demos/`): three rows (`D403`, the new tour sweep, `D79`
+  parked on `L2`). Too thin for an orchestrator; stays code-quality's.
+- **The certifier remainder** (`geom-brep/src/{certify,dihedral,mapped}.rs`,
+  three issues): PROPS' charter is enclosure certificates, so its
+  slate rather than a fourth kernel program.
+- **The error-payload honesty and one-rule-two-homes classes** and the
+  five `L` sweeps: the first addendum's answer stands.
+- **The nine rulings on Ev** (`D6`, `S14`, `S65`, `S70`, `S82`, `S107`,
+  `S116p`, `C-namespace`, `D283`) plus BLEND's and EVAL's three: never
+  work; a single `[ev]` sitting when Ev is next available would clear
+  most of them, and that is a suggestion, not a track.
+- **Stale parks, noticed and left for their owners**: `G4` on merged
+  #1647 (dispatchable; `D212` rides it), `S190` on fired #855
+  (verify-and-close, DOCM's file), `S66` on #862 (the deviation terms
+  are gone from `boxes.rs`; verify-and-close, CURVED's file).
+
+## Overlap rules this cut respects
+
+The first addendum's, unchanged: one file territory per program, a
+claimed letter taken whole (K split at a file boundary so both halves
+are still whole letters' worth of fence), rulings stay with Ev, ids
+stable, re-homing by header and `git mv` and never by copy.

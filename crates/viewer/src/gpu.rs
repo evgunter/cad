@@ -11,7 +11,7 @@
 //!
 //! GQ6-RESURVEY §3's picking strategy is a GPU id buffer for
 //! hover/click exactness beside a CPU ray cast. Both are here: the ray
-//! cast is `crate::pick`, entirely headless and entirely tested, and
+//! cast is `crate::pickindex`, entirely headless and entirely tested, and
 //! the id pass is [`ViewportRenderer::read_id_at`] below.
 //!
 //! **The id pass renders into a 1×1 target, not into a pane-sized
@@ -24,7 +24,7 @@
 //! vertex stage still runs over the whole scene, because a pick has to
 //! consider every triangle that could be under the cursor.
 //!
-//! Ids are the values `crate::pick::IdMap` assigns, and the target is
+//! Ids are the values `crate::pickindex::IdMap` assigns, and the target is
 //! CLEARED to `IdMap::NOTHING` — so "the cursor is over nothing" is a
 //! value the pass produces rather than a case the reader infers.
 //!
@@ -77,7 +77,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use eframe::wgpu;
 
-use crate::pick::{EdgeOverlay, Highlight, IdMap, cursor_projection};
+use crate::camera::cursor_projection;
+use crate::marks::{EdgeOverlay, Highlight};
+use crate::pickindex::IdMap;
 use crate::scene::SceneMesh;
 use crate::theme::{Mark, Theme};
 
@@ -91,7 +93,7 @@ pub(crate) const DEPTH_BITS: u8 = 32;
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
 /// The id buffer's texel format: one unsigned 32-bit id per pixel,
-/// which is what `crate::pick::IdMap` assigns. Not a colour format —
+/// which is what `crate::pickindex::IdMap` assigns. Not a colour format —
 /// nothing blends, filters or gamma-corrects an identity.
 const ID_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R32Uint;
 
@@ -203,7 +205,7 @@ struct IdPass {
 /// **Marks that cannot be a tint.** A face mark is a patch the shaded
 /// pass recognises by id; an edge has no patch, so its mark is
 /// geometry — the drawn polyline, handed over as a line list by
-/// `crate::pick::edge_overlay`. The colour is not a new palette entry:
+/// `crate::marks::edge_overlay`. The colour is not a new palette entry:
 /// it is the theme's OWN selected/hovered mark composited over the
 /// same base the shaded pass composites over (`Mark::over`'s mix, run
 /// on the same probe/focus-tinted body), drawn UNSHADED. The line is
@@ -363,7 +365,7 @@ const QUAD_CORNERS: [u32; 6] = [0, 2, 1, 1, 2, 3];
 /// should not — which is the reason to keep it minimal rather than to
 /// tune it.
 ///
-/// `crate::pick`'s `OCCLUSION_SLACK_REL` plays the same
+/// `crate::pickindex`'s `OCCLUSION_SLACK_REL` plays the same
 /// coincident-edge-over-its-own-face role on the CPU pick lane, in a
 /// different numeric domain (f64 world-depth comparison there, f32
 /// clip z here) — a pointer each way, deliberately not one shared
@@ -1026,12 +1028,12 @@ pub(crate) struct ViewportCallback {
     /// The frame's device pixel ratio; see
     /// [`ViewportCallback::viewport_px`].
     pub(crate) pixels_per_point: f32,
-    /// Which patch ids to mark, from `crate::pick::highlight` — a
+    /// Which patch ids to mark, from `crate::marks::highlight` — a
     /// value computed from (index, selection, hover) and handed
     /// straight through. **No highlight decision is taken here**; this
     /// pass paints what the pure function said.
     pub(crate) highlight: Highlight,
-    /// Which edges to mark, from `crate::pick::edge_overlay` — the
+    /// Which edges to mark, from `crate::marks::edge_overlay` — the
     /// same shape of value as `highlight` and handed through the same
     /// way: **no marking decision is taken here**.
     pub(crate) edges: EdgeOverlay,

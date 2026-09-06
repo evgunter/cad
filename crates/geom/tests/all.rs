@@ -136,6 +136,10 @@ mod n2r1_probes;
 mod net_placeholder_width;
 #[path = "net_placeholder_width_interval.rs"]
 mod net_placeholder_width_interval;
+#[path = "span_bit_identity.rs"]
+mod span_bit_identity;
+#[path = "span_bit_identity_ext.rs"]
+mod span_bit_identity_ext;
 
 // ---- surfaces ----
 #[path = "surfaces/boxes.rs"]
@@ -171,3 +175,9 @@ fn every_suite_file_is_aggregated() {
     let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
     assert!(violations.is_empty(), "{}", violations.join("\n"));
 }
+#[path = "curves/n3r2_c24_meter.rs"]
+mod curves_n3r2_c24_meter;
+#[path = "curves/n3r2_probes.rs"]
+mod curves_n3r2_probes;
+#[path = "n3r1_probes.rs"]
+mod n3r1_probes;

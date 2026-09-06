@@ -65,12 +65,20 @@
 //! the census reaches the touching/overlap space and nothing in it
 //! validates silently). The gather stays on the local battery because
 //! tier 3′ is quadratic in the aggregate's entities, which a caller
-//! gathering on every edit cannot afford: the heatsink at 160 fins
-//! (966 faces) costs ~1.1 s there, against ~28 ms for the whole check
-//! registry over the same product (gather included). The per-call
-//! split between this gather and the resident above it was never
-//! measured separately and no number for it is stated here. What the
-//! gather
+//! gathering on every edit cannot afford: the heat sink at 160 fins
+//! (161 solids / 991 faces) costs ~11.4 s there — refusing, with 125
+//! findings — where THIS gather costs ~250 ms and the whole check
+//! registry over a subject already gathered costs ~8 ms. The split is
+//! the reason a caller gathers ONCE: the gather, not the resident
+//! above it, is what a landing pays for. (That the doubled gather was
+//! therefore most of the doubled cost is an INFERENCE from those three
+//! numbers, not a fourth measurement: nothing here has timed a landing
+//! before and after.) The figures are a dev-profile wall clock and
+//! machine-dependent; the ones of record are hosted, re-taken by the
+//! `registry split` row of
+//! `crates/editor-core/tests/m4_pr8_latency.rs` on a nightly cron
+//! gated on `main` having moved, and appended to
+//! `docs/perf-data/rebuild-latency/`. What the gather
 //! DOES owe — [`topo::graft_disjoint_all_keyed`] asserts nothing about
 //! its operands, so every caller of it must establish disjointness —
 //! is discharged by [`crate::checks`]'s separation resident, which
@@ -277,10 +285,17 @@ impl core::error::Error for ProductError {}
 pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<T>>> {
     let carried = || Arc::clone(&value.contacts);
     let none = || Arc::new(ContactRecords::default());
+    // The DECLARATION rows ride the value's own channel, filled at the
+    // instantiate op alone. They are keyed in the same arena as
+    // `value.contacts`, so they travel with exactly the arm that
+    // travels those records — and nowhere else, because a body 0 that
+    // is not the instantiated one has no declaration to carry.
+    let rows = || Arc::clone(&value.carried);
+    let norows = || Arc::new(crate::assembly::CarriedDeclarations::default());
     match &value.payload {
-        ValuePayload::Body(body) => Some(vec![(0, Arc::clone(body), carried())]),
+        ValuePayload::Body(body) => Some(vec![(0, Arc::clone(body), carried(), rows())]),
         ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) => {
-            Some(vec![(0, Arc::clone(body), Arc::clone(contacts))])
+            Some(vec![(0, Arc::clone(body), Arc::clone(contacts), norows())])
         }
         ValuePayload::Boolean(BooleanValue::Empty) => Some(Vec::new()),
         // Multi-output ops carry no records (the `OpOut` invariant):
@@ -295,6 +310,7 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
                         u32::try_from(i).unwrap_or(u32::MAX),
                         Arc::clone(body),
                         none(),
+                        norows(),
                     )
                 })
                 .collect(),
@@ -308,7 +324,9 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
             [(SplitHalf::Above, above), (SplitHalf::Below, below)]
                 .into_iter()
                 .filter_map(|(half, side)| match side {
-                    SplitSide::Body(body) => Some((half.output_body(), Arc::clone(body), none())),
+                    SplitSide::Body(body) => {
+                        Some((half.output_body(), Arc::clone(body), none(), norows()))
+                    }
                     SplitSide::Empty => None,
                 })
                 .collect(),
@@ -327,6 +345,37 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
         | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => None,
     }
+}
+
+// Gathers this thread has performed, the debug-only witness of the
+// one-gather-per-landing invariant. Thread-local rather than global: a
+// witness two tests running in one process can both read is a witness
+// neither can trust.
+#[cfg(debug_assertions)]
+thread_local! {
+    static GATHERS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// How many times [`product_recorded`] has run on THIS thread — every
+/// call, refusals included, since a refused gather is still a gather
+/// paid for.
+///
+/// `cfg(debug_assertions)`-gated, the shape `topo::source`'s bit
+/// witnesses use. **That is not the same as "absent from a release
+/// build" here**: this workspace's `[profile.release]` sets
+/// `debug-assertions = true` deliberately (and says so, and says it
+/// comes out before publish), so every build this repo produces today
+/// carries the counter and the increment. What the gate buys is that
+/// cargo's OWN release defaults strip both, which is what a consumer
+/// building this crate normally gets — and that the day the stanza
+/// comes out, nothing here has to change.
+///
+/// It counts, and a caller reads a DIFFERENCE across the operation it
+/// is asking about; the absolute value means nothing.
+#[cfg(debug_assertions)]
+#[must_use]
+pub fn gathers_on_this_thread() -> u64 {
+    GATHERS.with(std::cell::Cell::get)
 }
 
 /// The document's product: every body-denoting root's solids gathered,
@@ -361,6 +410,16 @@ pub fn product<P, T: Decide + AtRestPolicy>(
 /// them would be a second truth about what a document's product is.
 #[derive(Debug)]
 pub struct Product<T: Decide> {
+    /// The document this product is OF (DI3).
+    ///
+    /// A gather is a statement about one document, and the doors that
+    /// take a gathered product rather than gathering for themselves
+    /// have no other way to check that it is the one they were asked
+    /// about — `crate::run_checks_on` refuses a product from another
+    /// document exactly as this gather refuses a foreign evaluation.
+    /// Written from `doc.id()` after the pairing door below, so it is
+    /// the identity BOTH arguments agreed on.
+    pub document: crate::ident::DocumentId,
     /// The gathered aggregate.
     pub body: Body<T>,
     /// Its stable names, re-keyed onto the aggregate ([`product_named`]).
@@ -383,9 +442,9 @@ pub struct Product<T: Decide> {
     /// The rows are the attribution channel and nothing else: the
     /// records themselves carry arena keys, so a finding against one
     /// needs this list to say which mate authored it. A declaration
-    /// that arrived from a sub-assembly has no row here — its mate
-    /// belongs to another document, whose bookkeeping does not cross
-    /// the seam even though its record does.
+    /// that arrived from a sub-assembly has no row HERE — its mate
+    /// belongs to another document, so it rides `carried` below, which
+    /// keeps that document and the route with it.
     pub minted: Vec<crate::assembly::MintedDeclaration>,
     /// One row per live mate the gather could NOT mint, in document
     /// order ([`crate::MintRefusal`]).
@@ -395,6 +454,22 @@ pub struct Product<T: Decide> {
     /// [`crate::assemble`] is the door that turns the first row into
     /// its typed refusal.
     pub unminted: Vec<crate::assembly::MintRefusal>,
+    /// One row per declaration a document BELOW this one minted,
+    /// re-keyed onto the aggregate through the graft's descendant map
+    /// and tagged with the route it arrived by
+    /// ([`crate::CarriedDeclaration`]).
+    ///
+    /// The records themselves already crossed the seam on `contacts`;
+    /// these are the rows that say WHOSE mate authored each of them,
+    /// so a finding against a carried record names a mate and a file
+    /// instead of nobody. A sub-assembly's own carried rows carry up
+    /// again, their route extended.
+    pub carried: Vec<crate::assembly::CarriedDeclaration>,
+    /// One row per mate a document below this one could NOT mint
+    /// ([`crate::CarriedRefusal`]), carried verbatim: inner mint
+    /// health is what the outermost gate refuses over, and the gather
+    /// is where it arrives.
+    pub carried_unminted: Vec<crate::assembly::CarriedRefusal>,
 }
 
 /// One gathered solid's origin: the root that contributed it, that
@@ -463,6 +538,8 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     evaluation: &Evaluation<T>,
     tol: Tol,
 ) -> Result<Product<T>, ProductError> {
+    #[cfg(debug_assertions)]
+    GATHERS.with(|gathers| gathers.set(gathers.get().saturating_add(1)));
     // The pairing door (DI3), before the first root is read: this
     // gather is a statement about `doc`, and an evaluation of another
     // document answers about other geometry — silently, whenever the
@@ -498,11 +575,16 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
             continue;
         };
         any_body_denoting = true;
-        sources.extend(
-            bodies.into_iter().map(|(ix, body, contacts)| {
-                (node, ix, body, Arc::clone(&value.name_table), contacts)
-            }),
-        );
+        sources.extend(bodies.into_iter().map(|(ix, body, contacts, rows)| {
+            (
+                node,
+                ix,
+                body,
+                Arc::clone(&value.name_table),
+                contacts,
+                rows,
+            )
+        }));
     }
     if !any_body_denoting {
         return Err(ProductError::NoBodyRoots);
@@ -515,10 +597,10 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     // count the rule speaks about.
     let total_solids: usize = sources
         .iter()
-        .map(|(_, _, b, _, _)| b.solids().count())
+        .map(|(_, _, b, _, _, _)| b.solids().count())
         .sum();
     if total_solids > 1 {
-        for (node, _, body, _, _) in &sources {
+        for (node, _, body, _, _, _) in &sources {
             T::gate_at_rest(body.as_ref(), tol).map_err(|errors| ProductError::SolidInvalid {
                 node: *node,
                 errors,
@@ -536,7 +618,9 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     let mut names = NameTable::new();
     let mut contacts = ContactRecords::default();
     let mut solid_roots: Vec<SolidOrigin> = Vec::new();
-    for (node, ix, body, table, records) in &sources {
+    let mut carried: Vec<crate::assembly::CarriedDeclaration> = Vec::new();
+    let mut carried_unminted: Vec<crate::assembly::CarriedRefusal> = Vec::new();
+    for (node, ix, body, table, records, rows) in &sources {
         // An empty source contributes nothing; the graft door refuses a
         // solidless body, so the skip is here rather than there.
         if body.solids().next().is_none() {
@@ -557,6 +641,11 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
             .map_err(|name| ProductError::Naming { node: *node, name })?;
         carry_contacts(&mut contacts, records, &keys)
             .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
+        carry_declarations(&mut carried, &rows.minted, &keys)
+            .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
+        // A refusal names no entity — it is a mate that produced NO
+        // record — so it carries with nothing to re-key.
+        carried_unminted.extend(rows.unminted.iter().cloned());
     }
     T::gate_at_rest(&aggregate, tol).map_err(|errors| ProductError::ProductInvalid { errors })?;
     // Pass 4: MINTING (A3's "Declaration minting"). Every evaluated
@@ -573,30 +662,41 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     // refuses before any mate is read.
     let (minted, unminted) = crate::assembly::mint(doc, evaluation, &names, &mut contacts);
     Ok(Product {
+        document: doc.id(),
         body: aggregate,
         names,
         contacts,
         solid_roots,
         minted,
         unminted,
+        carried,
+        carried_unminted,
     })
 }
 
 /// One body the gather will graft: which root contributed it, which
 /// OUTPUT-BODY index it occupies in that root's value (the index its
-/// name rows are keyed by), the body, the root's name table, and the
-/// body's declared contact records.
+/// name rows are keyed by), the body, the root's name table, the
+/// body's declared contact records, and the declaration rows that say
+/// whose mate authored each carried record.
 type Source<T> = (
     RecipeNodeId,
     u32,
     Arc<Body<T>>,
     Arc<NameTable>,
     Arc<ContactRecords>,
+    Arc<crate::assembly::CarriedDeclarations>,
 );
 
 /// One body-denoting source as [`sources_of`] hands it back: output
-/// index, body, and the records keyed in that body's arena.
-pub(crate) type Source0<T> = (u32, Arc<Body<T>>, Arc<ContactRecords>);
+/// index, body, the records keyed in that body's arena, and the
+/// declaration rows keyed in the same arena.
+pub(crate) type Source0<T> = (
+    u32,
+    Arc<Body<T>>,
+    Arc<ContactRecords>,
+    Arc<crate::assembly::CarriedDeclarations>,
+);
 
 /// Re-keys one grafted body's contact records onto the aggregate,
 /// through the graft's DESCENDANT MAP (`product_recorded`'s contacts
@@ -651,6 +751,30 @@ fn carry_contacts(
         into.patches.push(topo::PatchContact {
             face_a: face(c.face_a)?,
             face_b: face(c.face_b)?,
+        });
+    }
+    Ok(())
+}
+
+/// Re-keys one grafted body's carried DECLARATION rows onto the
+/// aggregate — [`carry_contacts`]'s twin, under its lineage rule and
+/// its refusal, for the bookkeeping that says whose mate authored each
+/// record. Dropping a row here would leave its RECORD in the set with
+/// nothing to attribute it to, which is the anonymity this channel
+/// exists to end.
+fn carry_declarations(
+    into: &mut Vec<crate::assembly::CarriedDeclaration>,
+    from: &[crate::assembly::CarriedDeclaration],
+    keys: &topo::GraftKeys,
+) -> Result<(), &'static str> {
+    for row in from {
+        let (a, b) = row.declaration.faces;
+        into.push(crate::assembly::CarriedDeclaration {
+            declaration: crate::assembly::MintedDeclaration {
+                faces: (keys.face(a).ok_or("face")?, keys.face(b).ok_or("face")?),
+                ..row.declaration.clone()
+            },
+            ..row.clone()
         });
     }
     Ok(())

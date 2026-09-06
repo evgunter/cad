@@ -20,8 +20,8 @@ use std::collections::BTreeSet;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EntityKind, Expr,
-    MateFrame, MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
-    content_pin, derivation_nodes, split,
+    MateFrame, MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef,
+    StableName, content_pin, derivation_nodes, split,
 };
 use fixture::{insert, len, on_frame, scl, step};
 use geom_core::Tol;
@@ -88,8 +88,8 @@ fn mate_frame(origin: [f64; 3]) -> MateFrame {
 
 fn seat(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a,
-        b,
+        a: SitedRef::at_mint(a),
+        b: SitedRef::at_mint(b),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: mate_frame([0.0, 0.0, 1.0]),
@@ -172,7 +172,7 @@ fn sweep_every_cut(doc: &ProfileDoc, label: &str) -> Sweep {
                 continue;
             };
             let inside = |n: &StableName| derivation_nodes(n).is_subset(&cut);
-            if inside(a) != inside(b) {
+            if inside(&a.name) != inside(&b.name) {
                 seen.straddling_mates += 1;
                 assert_ne!(
                     edge_count(id),
@@ -187,7 +187,8 @@ fn sweep_every_cut(doc: &ProfileDoc, label: &str) -> Sweep {
 }
 
 /// Three head shapes in one recipe: a PATTERN-PLACED head (a member,
-/// so an edge), a NESTED pattern head (not a member, so not an edge),
+/// so an edge), a nested pattern head its name UNDERQUALIFIES (not a
+/// member, so not an edge — a nested copy under its own name IS one),
 /// and plain instance heads.
 fn three_shapes() -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive("rev-xs-shapes"), Tol::witness());
@@ -228,12 +229,14 @@ fn three_shapes() -> ProfileDoc {
             ),
         },
     );
-    // Nested head onto a plain one: NOT an edge, welds nothing.
+    // A head the name UNDERQUALIFIES — one `Instance(i)` over a
+    // two-level nest, which is the name such a table never mints:
+    // NOT an edge, welds nothing.
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
             node: seat(
-                in_copy(npc, 1, in_copy(pc, 1, in_part(c, CapEnd::End))),
+                in_copy(npc, 1, in_part(c, CapEnd::End)),
                 in_part(b, CapEnd::End),
             ),
         },
@@ -286,7 +289,7 @@ fn no_cut_whatsoever_severs_a_mate_edge_or_mints_a_crossing() {
     assert!(
         seen.straddling_mates > 0,
         "no accepted cut ever put a mate's ends on opposite sides — the row \
-         cannot go red, and the nested-head seam is unexercised"
+         cannot go red, and the non-member seam is unexercised"
     );
     eprintln!(
         "shapes: {} accepted, {} refused, {} straddling remainder mates",

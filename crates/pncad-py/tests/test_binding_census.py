@@ -1283,6 +1283,13 @@ NOT_BOUND = {
     # `DocParam.__repr__` prints.
     "UnitSym": SHAPE,
     "PartialPath": SHAPE,
+    # The fillet refusal envelope's entry types. A Python caller reads
+    # the same content off `PathError.corners` — one `(x, y, reason)`
+    # row per refusing corner, the reason its stable tag — so the Rust
+    # enums have no Python spelling of their own.
+    "CornerReason": SHAPE,
+    "CornerRefusal": SHAPE,
+    "CornerWindow": SHAPE,
     "PathNoCornerReason": SHAPE,
     "Point2": SHAPE,
     "Point3": SHAPE,
@@ -1402,6 +1409,19 @@ NOT_BOUND = {
     # .md`), so inventing a second vocabulary at the boundary would
     # fork a diagnosis the kernel already words.
     "CensusContact": INTERIOR,
+    # The instantiation seam's declaration bookkeeping. `Relation` and
+    # `Route` are the two halves of what a carried finding says, and
+    # Python reads both without holding either type:
+    # `Attribution.relation` is `carried_refuted` / `carried_declined`
+    # for a declaration a document below authored, and
+    # `Attribution.of` / `.via` are its route. The same pair rides
+    # `AssemblyError` with `variant == "carried_mint_refusal"` and
+    # `Assembly.carried`'s rows. `CarriedDeclarations` is the
+    # evaluation VALUE channel's bundle, behind `Product` and
+    # `NodeValue`, both interior.
+    "CarriedDeclarations": INTERIOR,
+    "Relation": INTERIOR,
+    "Route": INTERIOR,
     "Chamfered": INTERIOR,
     "ContactRecords": INTERIOR,
     "ContactRefusal": INTERIOR,
@@ -1438,6 +1458,22 @@ NOT_BOUND = {
     # neighbouring door whose opening would make this disposition stop
     # being honest, in exactly the shape `EvalOutcome`'s entry records.
     "Member": INTERIOR,
+    # The one thing `Frame::rotate_then_translate` refuses, and the
+    # only thing `EditError::PlacementAxis` converts from — a type so
+    # that no other node refusal can reach a caller wearing the axis's
+    # words. Python never holds one: the constructor raises EditError
+    # with variant `placement_axis` and the axis's own prose, which is
+    # the whole of what the type carries.
+    "AxisRefusal": INTERIOR,
+    # The wrapper `MateFault::PlacerRefused` and
+    # `EditError::PlacementAxis` carry an evaluation refusal in, so the
+    # document layer's two error enums can hold one unaltered. Python
+    # never holds the wrapper: both doors project the refusal as the
+    # SAME tag word a node failure crosses with — `MateFault.error`
+    # and `EvaluationError.kind` are one vocabulary — and the prose is
+    # the fault's own `str()`. Nothing in Python hands one out and no
+    # bound door takes one.
+    "NodeRefusal": INTERIOR,
     # DI3's pairing payload: the two document ids behind a refused
     # pair — a prior the memo dropped (`Evaluation.prior_refused` on
     # the Rust side), a gather handed the wrong evaluation, a solve
@@ -1496,6 +1532,41 @@ NOT_BOUND = {
     # The predicate; `Member` above carries the argument for both.
     "member_of": INTERIOR,
     "validated": INTERIOR,
+    # **The gathered-product doors, one family.** `Product` is the
+    # document's product with everything the gather knows about it,
+    # `product_recorded` is the gather that builds one, `Subject` is
+    # what the check registry runs over, and `run_checks_on` /
+    # `assemble_gathered` are the two doors that take a product a
+    # caller already holds. Python binds the WRAPPERS of both —
+    # `run_checks` and `assemble` — and each gathers for itself, so
+    # there is nothing here a Python caller cannot ASK: every question
+    # these five answer is answered by a door already bound, and
+    # `product` / `product_named` are the curated gathers for a caller
+    # who wants the body or the table.
+    #
+    # What Python cannot do through them is ask both questions on ONE
+    # gather, which is a COST rather than an unsayable question — and
+    # it is a cost with a Rust-side reason: `assemble_gathered`
+    # CONSUMES the product, so sharing one is an ownership order, and
+    # an ownership order is exactly what does not cross this boundary.
+    # `resolve_loops` above is the same disposition for the same
+    # reason.
+    "Product": INTERIOR,
+    "Subject": INTERIOR,
+    "assemble_gathered": INTERIOR,
+    "product_recorded": INTERIOR,
+    "run_checks_on": INTERIOR,
+    # The gather's debug-only witness: how many products this thread
+    # has gathered, for a consumer asserting it gathers once per
+    # operation. Not a question about a document at all.
+    #
+    # `cfg(debug_assertions)` gates the counter, the increment and this
+    # reader alike — which is NOT the same as "absent from a release
+    # build" in this workspace, whose `[profile.release]` keeps
+    # `debug-assertions` on until publish. Every binary this repo
+    # produces carries it; cargo's own release defaults are what strip
+    # it. Either way it is not a Python door.
+    "gathers_on_this_thread": INTERIOR,
     # --- gap: the SWEEP half of G2, still banked -------------------
     # The tube half closed at LIB-TUBE; `sweep_body` did not, and the
     # reason is not "no binding was written" — `wire_sweep` refuses
@@ -1509,8 +1580,12 @@ NOT_BOUND = {
     # is listed here is the authoring vocabulary alone.
     "AssertionDir": f"{GAP}: B-MEASURES measurement authoring",
     "MeasureExpr": f"{GAP}: B-MEASURES measurement authoring",
-    "MeasureRef": f"{GAP}: B-MEASURES measurement authoring",
     "MeasureNodeFault": f"{GAP}: B-MEASURES measurement authoring",
+    # `SitedRef` is bound where a MATE reference is authored
+    # (`Node.mate` takes each side as a node and a name), so the type
+    # itself is never handed across; the measure half that would hand
+    # one over is the gap above.
+    "SitedRef": f"{GAP}: B-MEASURES measurement authoring",
     "MeasurePrimitive": f"{GAP}: B-MEASURES measurement authoring",
     # The two M10-6 added with the fourth verb. They are READING
     # names — a caller dispatches on them after an evaluation, not

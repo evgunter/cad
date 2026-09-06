@@ -2,8 +2,11 @@
 id: prune-discards-the-fault-that-explains-the-supersession
 kind: issue
 title: prune tests the free-move fault with is_ok and drops it, so the supersession notice names the instance but not the cause
-status: open
+status: closed
 opened: 2026-09-04
+branch: view/prune-report
+pr: 1886
+closed: 2026-09-05
 refs: [opoutcome-superseded-has-no-production-reader, prune-drops-a-hidden-instance-silently]
 ---
 
@@ -77,3 +80,25 @@ gains a notice producer that looks like the other three.
 spot: `free_move_check` fails through `display_check` when the instance
 is GONE, and today the sentence names an id the tree no longer draws
 without saying that is why.
+
+## Closed by PR #1886
+
+`prune` returns a `PruneReport` whose entries are
+`display::Withdrawn { instance, cause }`; `OpOutcome::superseded`
+carries them; `frame::supersession_notice` counts and lets each fault
+render itself, so the mates and the remedy reach the line. The delete
+arm is fixed by splitting `DisplayFault::NoSuchNode` off
+`NotAnInstance` in `drawn_targets` — an id the tree no longer draws
+says *node 4 is not in the document* rather than being named as if it
+were still there.
+
+**Corrected in place**: the blast radius above names the right files,
+but "nine assertion sites across seven test files, all spelled
+`vec![bench.post_b]`" was inherited from
+`opoutcome-superseded-has-no-production-reader`'s own correction
+against a pre-#1872 tree. At the merge base there are **eleven**
+assertion sites across **eight** test files, plus one non-assertion use
+in `frame_policy`, in six spellings — `vec![bench.post_b]` five times,
+`vec![shelf_i]`, `vec![hub_i]`, `vec![sail_a]`, `vec![sail_b]`, and
+`superseded.is_empty()` twice. The two `is_empty` rows are
+type-agnostic and did not move.

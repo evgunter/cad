@@ -28,7 +28,7 @@ use sweep::Revolution;
 use sweep::blend::battery::{BlendRequest, run_battery};
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, Convexity};
-use sweep::test_support::revolved_about_y;
+use sweep::test_support::{one_edge_rim, revolved_about_y};
 use topo::{Body, EdgeKey};
 
 fn tol() -> Tol {
@@ -96,7 +96,14 @@ fn find_rim(
         1,
         "exactly one rim at radius {rim_r} matches the requested supports"
     );
-    hits[0]
+    // A CLOSED hit is a whole rim, and the door is what says so; an
+    // open arc is deliberately not one, and this fixture selects those
+    // too — they are what the open-chain rows refuse on.
+    if closed {
+        one_edge_rim(body, hits[0])
+    } else {
+        hits[0]
+    }
 }
 
 /// A neck-and-flare ring: a cylinder wall meeting a cone wall at a

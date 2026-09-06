@@ -20,26 +20,46 @@
 //! them — the drive's own receipt says how many — and the box still
 //! refuses on ONE: an arc rim's endpoint pinning. A swept arc's carrier
 //! is `Circle { u_ref: (q − c).normalize(), radius: r }`, so the
-//! endpoint residual is zero iff `‖q − c‖ = r`, which is true of the
-//! geometry and is not a rational-function identity — it needs the sign
-//! of the radius, not algebra. MEASURED: the widest box of this plate
-//! that certifies whole is 7.81e-7 of the real study with the tier on
-//! and 7.81e-7 with it off, unmoved, and the first refusal beyond it is
-//! `carrier_endpoint_start`. On a straight-walled extrude, where no
-//! normalization stands between a carrier and its endpoint, the same
-//! measurement moves by a factor of about 3.9·10^9 (measured at the
-//! default ε; the slab's ceiling is ε-dependent and the factor with it).
+//! endpoint residual is zero iff `‖q − c‖ = r`, whose normal form is an
+//! outer `sqrt` over nested `sqrt(…)²` atoms that no shipped rule
+//! reaches. M10-9 gave the tier a door for exactly that residual — a
+//! constructor can REGISTER an identity it guarantees — and the swept
+//! arc carrier's builder registers both of the ones it guarantees: the
+//! rim `‖q − c‖ = r` and the span `carrier.eval(param_end) = q_to`.
+//! BOTH endpoint pinnings are discharged on this plate (16 of 16
+//! numeric decisions each, at the nominal). The ceiling did not move —
+//! and neither did what BOUNDS it. MEASURED: the widest box of this
+//! plate that certifies whole is `7.81e2 · ε` of the real study
+//! (`7.81e-7` at the default ε) under M10-7's tier, M10-8's shipped
+//! tier and M10-9's door alike; and just past it exactly one predicate
+//! is over the band, door open and door SHUT alike —
+//! `carrier_matches_mapped_source`, the carrier against the scaffold
+//! pushforward, enclosure `[0, 1.0001e-9]` against a band of
+//! `zero = 1e-9`. Two independently built objects, which is not
+//! something a node alias reaches. So the identities the door
+//! discharges were never what bounded this plate. On a
+//! straight-walled
+//! extrude, where no normalization stands between a carrier and its
+//! endpoint, the same measurement moves by a factor of about 3.9·10^9
+//! (at the default ε; the slab's ceiling is ε-dependent and the factor
+//! with it).
 //!
-//! **And the family is wider than this plate's rim.** M10-7's two
-//! reviews took the tier to a filleted L-bracket with bores — the
-//! ordinary shape of a machined part, where an arc stands between the
-//! profile and its walls — and it certifies NOTHING at any scale, with
-//! the tier on or off, a factor of exactly 1.0. Per-predicate,
-//! `carrier_on_surface_1/2` and `witness_on_surface_1/2` decide zero
-//! symbolically there, where they discharge freely on the slab. So the
-//! honest general statement is: **a real study on curved geometry gets
-//! the pre-E12 answer today**, and the plate is the mild case rather
-//! than the hard one. `work/m10/M10-8.md` carries the measurement.
+//! **And the family is wider than this plate's rim — and M10-8 moved
+//! part of it.** M10-7's two reviews took the tier to a filleted
+//! L-bracket with bores — the ordinary shape of a machined part, where
+//! an arc stands between the profile and its walls — and it certified
+//! whole only below `3.7e1 · ε` of its study, the same with the tier on
+//! or off ("factor 1.0"). M10-8 measured WHY: the rim forms froze on
+//! constant `sqrt` atoms and `i128` coefficient overflow, not on the
+//! rim identity itself. Its shipped constant fold lifts the bracket to
+//! `3.9e2 · ε` (10.4×) and an annulus to `7.8e2 · ε` (39×), and a real
+//! ±0.1 study on M10-4's stepped shaft now certifies whole; the plate
+//! is the case it does NOT move. So the honest general statement is:
+//! **a real study on curved geometry still gets an ε-scale answer,
+//! an order of magnitude wider than before on the shapes measured,
+//! and this plate is the hard case rather than the mild one.**
+//! `work/m10/plate-rim-residual-needs-the-wide-coefficient-ring`
+//! carries what bounds it next, with numbers.
 //!
 //! So the ε-scale ceiling is not gone from THIS document, and the cell
 //! says so rather than reporting a win it did not get. E12's reserved
@@ -93,7 +113,7 @@
 //!    order across four calls. There is no "analyse this document"
 //!    door, and every one of these four takes the run's `Tol` again.
 //! 2. **The measure's references are POSITIONAL node ids.** A
-//!    `MeasureRef` names the node it reads at, so authoring one means
+//!    `SitedRef` names the node it reads at, so authoring one means
 //!    keeping the extrude's id in a local — and the primitive then
 //!    indexes the reference LIST by number (`Distance { a: 0, b: 1 }`),
 //!    so a reader checks the vector's order to know what is being
@@ -129,8 +149,8 @@ use pncad::analysis::{
 };
 use pncad::document::{
     AssertionDir, CancelToken, Dimension, Distribution, DocEdit, DocParam, DocumentId, EvalOptions,
-    Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureRef, Node, ParamName,
-    ProfileDoc, ProfileProgram, RecipeNodeId, UnitSym, apply, evaluate,
+    Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamName, ProfileDoc,
+    ProfileProgram, RecipeNodeId, SitedRef, UnitSym, apply, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::select::{EntityKind, GeomPred, NamePat, Selector, SurfaceKindSet, select_where};
@@ -309,7 +329,7 @@ fn plate(
         .expect("the surface-kind atom is exact");
         faces.sort();
         assert!(!faces.is_empty(), "a hole extrude has a cylindrical wall");
-        MeasureRef::new(node, faces.remove(0))
+        SitedRef::new(node, faces.remove(0))
     };
 
     // web = distance(wall_a, wall_b) − r_a − r_b. The distance between
@@ -421,13 +441,25 @@ fn real_study(tol: Tol) {
                  plate's certification identities, and one it cannot reach — an arc \
                  rim's endpoint pinning, whose residual is zero because ‖q − c‖ = r \
                  rather than by algebra — still widens with the box. At ±0.05 mm no \
-                 leaf replays. MEASURED: the widest whole-certifying box is 7.81e-7 of \
-                 this study with the tier on AND off; on a straight-walled extrude the \
-                 same measurement moves by ~3.9e9. And WIDER than this plate: a \
-                 filleted L-bracket with bores certifies nothing at any scale either \
-                 way (factor 1.0), so a real study on CURVED geometry gets the pre-E12 \
-                 answer today. The ceiling is a named family now, not a property of \
-                 the plate."
+                 leaf replays. MEASURED: the widest whole-certifying box is 7.81e2·ε of \
+                 this study (7.81e-7 at the default ε), the same under M10-7's tier, \
+                 under M10-8's shipped one and under M10-9's registered-identity door; \
+                 on a straight-walled extrude the same measurement moves by ~3.9e9. \
+                 WIDER than this plate, M10-8 moved the family: its constant fold lifts \
+                 a filleted L-bracket with bores from 3.7e1·ε to 3.9e2·ε (10.4x) and an \
+                 annulus from 2.0e1·ε to 7.8e2·ε (39x), and a ±0.1 study on a stepped \
+                 shaft certifies whole. M10-9 then DISCHARGED both of this plate's \
+                 endpoint identities outright — the swept arc carrier's builder \
+                 registers the rim ‖q − c‖ = r and the span carrier.eval(4·atan|b|) = \
+                 q_to, and carrier_endpoint_start and _end each go 16-of-16 from \
+                 numeric to registered at the nominal — and the ceiling still did not \
+                 move. Nor did the bound: just past the ceiling exactly one predicate \
+                 is over the band with the door open and with it SHUT, \
+                 carrier_matches_mapped_source, the carrier against the scaffold \
+                 pushforward, enclosure [0, 1.0001e-9] against a band of zero = 1e-9. \
+                 An identity between two INDEPENDENTLY BUILT objects, which a \
+                 node-aliasing door does not reach; filed as \
+                 work/m10/plate-ceiling-is-now-the-scaffold-pushforward."
             );
         }
         Err(other) => panic!("unexpected stackup refusal: {other}"),

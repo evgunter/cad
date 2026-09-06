@@ -42,8 +42,8 @@ use std::f64::consts::FRAC_PI_2;
 use common::asm;
 use pncad::document::{
     AxisSense, ClassAdmission, DocEdit, DocumentId, Frame, MatePrimitive, Node, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, apply, assemble, class_admission, parse_expr,
-    solve_document,
+    ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, apply, assemble, class_admission,
+    parse_expr, solve_document,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{ContactClass, Ray, face_frame};
@@ -113,7 +113,7 @@ fn close(got: [f64; 3], want: [f64; 3], eps: f64, what: &str) {
 
 /// Pick one face through the real cursor path under the session's
 /// display view.
-fn pick(session: &DocSession, index: &viewer::pick::PickIndex, ray: &Ray) -> FaceSelection {
+fn pick(session: &DocSession, index: &viewer::pickindex::PickIndex, ray: &Ray) -> FaceSelection {
     let (_, eval) = session.landed_pair().expect("a landed evaluation");
     index
         .face_at_for(eval, ray, &session.display_view())
@@ -145,7 +145,13 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     // a mate solves, so a rotated instance can only be arranged from
     // outside. (A finding in its own right; here it is just why this
     // fixture exists.)
-    let rotated = Frame::rotate_then_translate([0.0, 0.0, 1.0], FRAC_PI_2, [-0.05, 0.04, 0.0]);
+    let rotated = Frame::rotate_then_translate(
+        [0.0, 0.0, 1.0],
+        FRAC_PI_2,
+        [-0.05, 0.04, 0.0],
+        common::band(),
+    )
+    .expect("a literal axis has a definite direction");
     let mut ws = Workspace::open(&bench.dir).expect("the store opens");
     let mut doc = ProfileDoc::empty(DocumentId::derive("r1-rotated-bench"), tol);
     let insert = |doc: &mut ProfileDoc, node: Node<ProfileProgram>| {
@@ -295,7 +301,8 @@ fn r1_a_rotated_probe_is_drawn_picked_and_reported_in_world() {
     // world x ∈ [0.06, 0.08], y ∈ [0, 0.02] before the probe; the turn
     // sends (x, y) ↦ (−y, x), and the shift moves it to a fresh spot.
     let shift = [0.20, -0.10, 0.0];
-    let probe = Frame::rotate_then_translate([0.0, 0.0, 1.0], FRAC_PI_2, shift);
+    let probe = Frame::rotate_then_translate([0.0, 0.0, 1.0], FRAC_PI_2, shift, common::band())
+        .expect("a literal axis has a definite direction");
     session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
     });
@@ -436,14 +443,31 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
 
     // Mate it: the probe is discarded and reported in the same outcome.
     let first = session.perform(SessionOp::AddMate {
-        a: asm::in_part(bench.post_b, &bench.post_top),
-        b: asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        a: SitedRef::at_mint(asm::in_part(bench.post_b, &bench.post_top)),
+        b: SitedRef::at_mint(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Rest,
         alignment: seat(),
     });
     assert!(first.refusal.is_none(), "{:?}", first.refusal);
     assert_eq!(first.committed.len(), 1);
-    assert_eq!(first.superseded, vec![bench.post_b]);
+    let [superseded] = &first.superseded[..] else {
+        panic!(
+            "exactly one placement is superseded: {:?}",
+            first.superseded
+        )
+    };
+    assert_eq!(superseded.instance, bench.post_b);
+    assert!(
+        matches!(
+            &superseded.cause,
+            DisplayFault::MateConstrained { instance, mates }
+                if *instance == bench.post_b && !mates.is_empty()
+        ),
+        "and the outcome carries WHY it went, not only which went — the \
+         fault's own PAYLOAD, which is what would go red if the prune paired \
+         the right fault with the wrong instance: {}",
+        superseded.cause
+    );
     assert!(session.display().free_move_of(bench.post_b).is_none());
     session.pump();
 
@@ -452,8 +476,8 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     // a refusal. Both outcomes are acceptable; a green tree over a
     // second unresolved constraint is not.
     let second = session.perform(SessionOp::AddMate {
-        a: asm::in_part(bench.post_b, &bench.post_top),
-        b: asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        a: SitedRef::at_mint(asm::in_part(bench.post_b, &bench.post_top)),
+        b: SitedRef::at_mint(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Rest,
         alignment: seat(),
     });
@@ -701,8 +725,8 @@ fn r1_every_offered_class_is_executable_and_a_tangent_commit_is_unassemblable() 
     let bench = asm::bench("r1tangent", tol);
     let mut session = asm::open_bench(&bench, tol);
     let outcome = session.perform(SessionOp::AddMate {
-        a: asm::in_part(bench.post_b, &bench.post_top),
-        b: asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        a: SitedRef::at_mint(asm::in_part(bench.post_b, &bench.post_top)),
+        b: SitedRef::at_mint(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Tangent,
         alignment: seat(),
     });
@@ -806,8 +830,8 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
         frame: Frame::translation([0.03, 0.0, 0.0]),
     });
     let outcome = session.perform(SessionOp::AddMate {
-        a: asm::in_part(bench.post_b, &bench.post_top),
-        b: asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        a: SitedRef::at_mint(asm::in_part(bench.post_b, &bench.post_top)),
+        b: SitedRef::at_mint(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Rest,
         alignment: seat(),
     });

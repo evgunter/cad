@@ -401,6 +401,7 @@ fn class(e: &BlendError) -> &'static str {
         BlendError::UnsupportedRunOut { .. } => "UnsupportedRunOut(row 2)",
         BlendError::UnsupportedGeometry { .. } => "UnsupportedGeometry(row 2)",
         BlendError::BodyNotIntact { .. } => "BodyNotIntact(row 1)",
+        BlendError::SurgeryInvariant { .. } => "SurgeryInvariant(row 4)",
         BlendError::RingClearance { .. } => "RingClearance",
         BlendError::Certify { .. } => "Certify",
         BlendError::Op { .. } => "Op",
@@ -535,15 +536,16 @@ fn d2_reached_variants() {
 }
 
 /// **The row-1 refutation's witness, attacked at the door.** The PR
-/// classifies 46 sites as `BodyNotIntact` — reachable-but-invalid
+/// classifies the surgery's `BodyNotIntact` sites as reachable-but-invalid
 /// rather than kernel bug — on the strength of ONE named public door:
 /// `topo::instance::graft_disjoint_all`, whose docs say a refusal
 /// raised mid-transplant leaves the destination *spent, never
 /// resumable*, so a caller who discards the `Err` hands `fillet_edges`
 /// a tier-1-invalid body with no kernel bug in the trace.
 ///
-/// All 46 sites sit BELOW `blend_surgery`'s entry gate
-/// (`solids != 1 || shells != 1` — `surgery.rs:212`). This row pins
+/// Every such site sits BELOW `blend_surgery`'s entry gate
+/// (`solids != 1 || shells != 1` — `blend_surgery`'s entry gate in
+/// `blend/surgery.rs`). This row pins
 /// the arithmetic that decides whether the witness can get there in
 /// the scenario the refutation describes — *a caller keeps the body it
 /// already had*: a graft ADDS a solid (`graft_disjoint_all_keyed`
@@ -589,8 +591,8 @@ fn d2_a_grafted_destination_is_stopped_at_the_entry_gate() {
         Err(BlendError::UnsupportedBody { solids, shells }) => {
             println!(
                 "d2_a_grafted_destination_is_stopped_at_the_entry_gate: \
-                 {solids} solid(s), {shells} shell(s) — refused at surgery.rs:212, \
-                 above all 46 `BodyNotIntact` sites"
+                 {solids} solid(s), {shells} shell(s) — refused at `blend_surgery`'s entry gate, \
+                 above every `BodyNotIntact` site"
             );
         }
         other => panic!("a grafted destination must be refused at the entry gate, got {other:?}"),

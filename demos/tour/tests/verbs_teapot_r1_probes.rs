@@ -18,8 +18,6 @@ use pncad::profile::{ProfileLoop, SketchPlane};
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use pncad::topo::{Body, FaceKey, LoopBoundary};
 
-const FIT_TOL: f64 = 1e-6;
-
 fn revolved(lp: ProfileLoop<f64>, tol: Tol) -> Body<f64> {
     revolve(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("the meridian validates"),
@@ -162,7 +160,7 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
         .collect();
     assert_eq!(mouth.len(), 2, "a full revolve's cap is two half-discs");
 
-    let cup = pncad::topo::shell_open(&body, t, &mouth, FIT_TOL, tol)
+    let cup = pncad::topo::shell_open(&body, t, &mouth, tol)
         .expect("the opened arm returns a body on my vase too")
         .body;
 
@@ -326,7 +324,7 @@ fn p2_the_oblique_class_hollows_outside_the_enumeration() {
         ),
         ("a box with one beveled side", beveled_box, None),
     ] {
-        let hollow = pncad::topo::shell(&body, t, FIT_TOL, tol)
+        let hollow = pncad::topo::shell(&body, t, tol)
             .unwrap_or_else(|e| panic!("{what}: an oblique all-plane junction hollows now: {e}"))
             .body;
         assert_eq!(
@@ -383,7 +381,7 @@ fn p2b_an_all_square_plus_prism_still_hollows() {
         0.25,
         tol,
     );
-    let hollow = pncad::topo::shell(&plus, 0.02, FIT_TOL, tol)
+    let hollow = pncad::topo::shell(&plus, 0.02, tol)
         .expect("an all-square nonconvex prism is inside the surviving class")
         .body;
     assert_eq!(hollow.shells().count(), 2, "outer + cavity");
@@ -437,7 +435,7 @@ fn p3_wall1_hollows_to_its_closed_form() {
             .into(),
         tol,
     );
-    let pot = pncad::topo::shell(&bellied, t, FIT_TOL, tol)
+    let pot = pncad::topo::shell(&bellied, t, tol)
         .expect("the bellied pot hollows now — wall 1 retired")
         .body;
     assert_eq!(

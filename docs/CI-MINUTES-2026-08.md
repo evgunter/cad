@@ -1128,7 +1128,13 @@ free on the strength of the overlap when the overlap was never the question.
 
 **One consequence beyond coverage**: a GitHub merge queue's required checks
 are named, so un-sampling is a precondition for the queue PR 1796 recommends
-trialling.
+trialling. (**2026-09-05: there is no queue and there will not be one** —
+GitHub offers merge queues only on organization-owned repositories and
+`evgunter/cad` is personal-account-owned; `work/ciw/merge-queue-trial` is
+closed on that finding. Un-sampling is unaffected: it landed, it is right on
+its own coverage argument, and *named required checks* remain reachable
+through ordinary branch protection, which a personal-account public
+repository does have.)
 
 **`local-scripts/ci-local.sh` is no longer "the only lane that runs every
 point on one tree"** — the sentence below saying so was true for thirteen

@@ -347,12 +347,15 @@ pub(crate) fn classify_shared_rim<T: Decide>(
             geom_brep::MaterialPairing::Aligned => opposed = false,
             geom_brep::MaterialPairing::Opposed => aligned = false,
         }
-        let jet = geom_brep::tangent_jet(s_plus, s_minus, p, dir);
-        match crate::validate::decide(
-            "tangent_second_order",
-            Margin::sagitta(jet.kappa_rel.abs(), arm),
-            band,
-        )? {
+        // The must-carry rule's one spelling: this wedge and the
+        // constructors that mint the descriptions it judges read the
+        // same sagitta under the same predicate name. `arm` above is
+        // the same `folded_lever_arm` the helper folds, recomputed for
+        // the pairing gate that runs first — pure, so identical bits,
+        // and keeping the pairing's escalation ahead of this one.
+        let so = geom_brep::tangent_second_order(s_plus, s_minus, p, dir, extent, band);
+        let jet = so.jet;
+        match so.verdict? {
             geom_core::Sign::Positive => {}
             geom_core::Sign::Zero | geom_core::Sign::Negative => {
                 jet_determinate = false;

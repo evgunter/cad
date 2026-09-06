@@ -27,19 +27,18 @@ are unchanged and still run on every code-tier run. Three things follow for you:
   unifications.** That is what the job list shows: if you cannot see twelve
   test jobs and five `k-lint (gate, …)` jobs on a code-tier run, something
   narrowed it and you should find out what.
-- **Do NOT put a `CI-Config:` trailer on your head commit at all.** Between
-  2026-08-22 and 2026-09-04 the run drew one point per dimension and the
-  trailer was how you ASKED for the one your change was about. Nothing is drawn
-  now, so a trailer could only NARROW — and since 2026-09-04 a narrowing
-  trailer is REFUSED: `CI-Config: lane=interval`, `eps=1e-12` and
-  `klint=dev-probe` all red the classify step, naming the dispatch input
-  instead. The only values it accepts are `lane=both`, `eps=all` and
-  `klint=all`, none of which changes anything. Several specs and older briefs
-  still instruct the narrowing spelling; the run is the authority, not the
-  spec, and the fix is to delete the line. **To narrow deliberately, dispatch
-  the workflow** with the `lane` / `eps` / `klint` inputs — and say in the PR
-  that you narrowed it, because a reader counting six test jobs where there
-  should be twelve cannot tell a narrowing from a broken matrix.
+- **A commit trailer cannot configure a run, and nothing in CI reads one.**
+  Between 2026-08-22 and 2026-09-04 the run drew one point per dimension and a
+  `CI-Config:` trailer on the head commit was how you ASKED for the one your
+  change was about. Nothing is drawn now, so that spelling was deleted on
+  2026-09-04 — the flag, the workflow plumbing and the parser are gone, and a
+  trailer line in a commit message is inert text. Several specs and older
+  briefs still instruct it; the run is the authority, not the spec, and the fix
+  is to delete the line and, if the spec really wanted one configuration
+  proved, dispatch the workflow instead. **To narrow deliberately, dispatch the
+  workflow** with the `lane` / `eps` / `klint` inputs — and say in the PR that
+  you narrowed it, because a reader counting six test jobs where there should
+  be twelve cannot tell a narrowing from a broken matrix.
 - **The k-lint row is not drawn either, since 2026-09-04.** `k-lint (gate)`'s
   five feature unifications run as five jobs — `k-lint (gate, dev-default)`,
   `(release-default)`, `(release-budget)`, `(dev-budget)`, `(dev-probe)` — on
@@ -47,8 +46,8 @@ are unchanged and still run on every code-tier run. Three things follow for you:
   green over a skipped step is no longer the thing to check for there. Until
   that day one row was drawn from your head SHA and the other four did not
   execute under a single green `k-lint (gate)`; `#1756` -> `#1775` is what that
-  cost, and any brief telling you to say `CI-Config: klint=<row>` predates the
-  change and now names a value that reds.
+  cost, and any brief telling you to name one row on the head commit predates
+  the change and names a spelling that no longer exists.
 
   A filename decides nothing (Ev's ruling, 2026-08-29, on #1122).
   `scripts/ci-filter.py` used to pin `LANE=interval` whenever any changed

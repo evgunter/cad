@@ -79,15 +79,25 @@ fn lily_lantern(tol: Tol) -> Body<f64> {
     .body
 }
 
-/// Circular edges at carrier radius `r` whose two supports are
-/// DISTINCT surfaces (excludes the chart seams).
+/// **The rim at carrier radius `r`.** The scan finds ONE arc — a
+/// circular edge at that radius whose two supports are DISTINCT
+/// surfaces, so a chart seam is never the seed — and
+/// `query::rim_of` hands back the rim it belongs to.
+///
+/// The `5e-4` is this probe's inherited slack and not a property of the
+/// rims: both reviewers measured the lily's rims bit-exact at their
+/// analytic radii, so the loose window admits nothing the exact one
+/// would miss here. It stays because narrowing it is a sweep over four
+/// disagreeing seed-finder tolerances across this tree, which is issue
+/// `rim-seed-finders-disagree-on-at-this-radius` and not this PR.
 fn rims_of_radius(body: &Body<f64>, r: f64) -> Vec<EdgeKey> {
     let face_of = |he| {
         body.get_loop(body.get_half_edge(he).unwrap().parent_loop)
             .unwrap()
             .face
     };
-    body.edges()
+    let seed = body
+        .edges()
         .filter_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
             match *c.carrier() {
@@ -95,12 +105,15 @@ fn rims_of_radius(body: &Body<f64>, r: f64) -> Vec<EdgeKey> {
                 _ => None,
             }
         })
-        .filter(|k| {
+        .find(|k| {
             let ed = body.get_edge(*k).unwrap();
             let (a, b) = (face_of(ed.he_plus), face_of(ed.he_minus));
             a != b && body.get_face(a).unwrap().surface != body.get_face(b).unwrap().surface
-        })
-        .collect()
+        });
+    seed.map_or_else(Vec::new, |seed| {
+        pncad::prelude::query::rim_of(body, seed)
+            .unwrap_or_else(|e| panic!("the rim at radius {r} is one rim, got {e}"))
+    })
 }
 
 /// Wall 6 as authored: every edge, one call — the battery refuses the

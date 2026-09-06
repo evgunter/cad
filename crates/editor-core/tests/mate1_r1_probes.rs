@@ -19,7 +19,7 @@ use editor_core::{
     Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocRef, DocumentId,
     EntityKind, EvalOptions, Evaluation, Expr, Frame, MateFrame, MatePrimitive, MateRole, Node,
     PartResolver, PatternKind, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg,
-    StableName, clusters, content_pin, evaluate, solve_document,
+    SitedRef, StableName, clusters, content_pin, evaluate, solve_document,
 };
 use fixture::{insert, len, on_frame, scl, step};
 use geom_core::Tol;
@@ -132,8 +132,8 @@ fn seat_mate(
     sense: AxisSense,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a,
-        b,
+        a: SitedRef::at_mint(a),
+        b: SitedRef::at_mint(b),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: mate_frame(origin, [0.0, 0.0, 1.0]),
@@ -673,13 +673,23 @@ fn r1_which_branch_does_the_consistent_loop_row_take() {
 // suite does not build: a NESTED pattern and a pattern of a TRANSFORM.
 // ---------------------------------------------------------------
 
-/// The PR body discloses that "nested patterns and pattern-of-transform
-/// refuse `DanglingHead`". The committed fence row builds neither — it
-/// builds an out-of-range copy index and a pattern of an EXTRUDE. These
-/// two rows build the disclosed shapes, so the disclosure is checked
-/// rather than taken on trust.
+/// The two shapes the member vocabulary is asked about by name, built
+/// rather than taken on trust: a pattern of a PATTERN under a name
+/// that carries ONE `Instance(i)` qualifier, which refuses
+/// `DanglingHead`, and a pattern of a TRANSFORM, which places. The
+/// fence row beside this one builds neither — it builds an
+/// out-of-range copy index and a pattern of an EXTRUDE.
+///
+/// **The first half is a NAME row, not a nesting row.** A nested copy
+/// is a member: the walk consumes one `Instance(i)` qualifier per
+/// pattern level and a two-level nest wears two. This name wears one,
+/// which is the name a nested pattern's table never mints, so the
+/// walk consumes the outer level and then meets the inner pattern
+/// where the name has already said its head is the instance. The
+/// nested copy under its OWN name is `mate1r2_probes`' P5 and
+/// `msolve2_member_chain`'s ground.
 #[test]
-fn r1_nested_pattern_and_pattern_of_transform_refuse_dangling() {
+fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() {
     // (a) a pattern OF A PATTERN of an instance.
     let mut store = StubStore::default();
     let leg_ref = store.insert(leg_part("r1-nested-leg"), Tol::witness());
@@ -722,13 +732,20 @@ fn r1_nested_pattern_and_pattern_of_transform_refuse_dangling() {
     );
     let m = m.expect("the mate mints");
     let poses = solve_document(&doc, Tol::witness());
-    let fault = poses.fault(m).expect("a nested pattern head refuses");
+    let fault = poses
+        .fault(m)
+        .expect("a one-level name over a nest refuses");
     assert!(
         matches!(
             fault,
-            editor_core::MateFault::DanglingHead { head, .. } if *head == outer
+            // The walk consumes the outer pattern's qualifier, which
+            // leaves it at the inner pattern under a name whose head
+            // is the INSTANCE — so the inner pattern is a node the
+            // name does not say a copy of, and no member stands there.
+            editor_core::MateFault::DanglingHead { head, .. } if *head == inner
         ),
-        "a nested pattern refuses DanglingHead at the OUTER pattern: {fault:?}"
+        "a one-level name over a nested pattern refuses at the inner \
+         pattern: {fault:?}"
     );
     let _ = store;
 
@@ -772,38 +789,44 @@ fn r1_nested_pattern_and_pattern_of_transform_refuse_dangling() {
     );
     let m2 = m2.expect("the mate mints");
     let poses2 = solve_document(&doc2, Tol::witness());
-    let fault2 = poses2
-        .fault(m2)
-        .expect("a pattern-of-transform head refuses");
+    // A pattern OF A TRANSFORM resolves: the walk goes from the
+    // operand through the pattern's `Instance(i)` and on through the
+    // transform to the minting instance, and the offset composes
+    // `M(i) ∘ T`. Both nodes place a body; only the pattern renames
+    // one, and admission is decided on POSE transparency, not on
+    // naming transparency.
     assert!(
-        matches!(
-            fault2,
-            editor_core::MateFault::DanglingHead { head, .. } if *head == pat
-        ),
-        "a pattern of a transform refuses DanglingHead at the pattern: {fault2:?}"
+        poses2.fault(m2).is_none(),
+        "a pattern of a transform resolves: {:?}",
+        poses2.fault(m2)
     );
-    let _ = store2;
+    assert_eq!(
+        poses2.role(m2),
+        Some(editor_core::MateRole::Determining),
+        "and it places its pair"
+    );
+    let _ = (store2, pat);
 }
 
 // ---------------------------------------------------------------
-// PROBE 7 — the fence is position-dependent: an out-of-range copy
-// index refuses as a TREE edge but not as a DECLARING one.
+// PROBE 7 — the fence is NOT position-dependent: an out-of-range copy
+// index refuses whether its pair is a tree edge or a declaring one.
 // ---------------------------------------------------------------
 
-/// `derived_offset` — the door that rejects an index at or past the
-/// count, an unevaluable slot, a degenerate direction and an explicit
-/// rule — is reached ONLY from `pair_left_factor`, which
-/// `solve_cluster` calls only on TREE edges. A non-tree (declaring)
-/// mate never has its member's offset derived, so the same malformed
-/// head that refuses `DanglingHead` in the committed fence row goes
-/// unrefused when a sibling seat gets the tree edge first.
+/// The index-against-the-count check runs where the solve READS each
+/// reference — once per side of every live mate — so a malformed head
+/// refuses in either position.
 ///
-/// The committed row `out_of_vocabulary_pattern_heads_still_refuse_
-/// dangling` builds the copy-5-of-2 head as the document's ONLY mate,
-/// i.e. exactly in the position where the check runs. This row builds
-/// the same malformed head in the other position.
+/// It used to live in `derived_offset`, which is reached only from
+/// `pair_left_factor`, which `solve_cluster` calls only on TREE
+/// edges: the same malformed head that refused `DanglingHead` as a
+/// document's only mate went unrefused when a well-formed sibling
+/// took the tree edge first. The committed row
+/// `out_of_vocabulary_pattern_heads_still_refuse_dangling` builds it
+/// in the first position; this row builds it in the second, and the
+/// two now agree.
 #[test]
-fn r1_an_out_of_range_copy_escapes_the_fence_on_a_declaring_mate() {
+fn r1_an_out_of_range_copy_refuses_on_a_declaring_mate_too() {
     let mut store = StubStore::default();
     let leg_ref = store.insert(leg_part("r1-escape-leg"), Tol::witness());
     let top_ref = store.insert(leg_part("r1-escape-top"), Tol::witness());
@@ -852,31 +875,23 @@ fn r1_an_out_of_range_copy_escapes_the_fence_on_a_declaring_mate() {
     let poses = solve_document(&doc, Tol::witness());
     assert_eq!(poses.role(good), Some(MateRole::Determining));
 
-    // The observation: in the committed row this exact head refuses
-    // `DanglingHead`. Here it does not — it is recorded as a healthy
-    // DECLARING mate and carried to the gate as a real declaration.
-    let fault = poses.fault(bad);
-    let role = poses.role(bad);
-    println!("R1-OBSERVED malformed declaring head: fault={fault:?} role={role:?}");
-    assert_eq!(
-        fault, None,
-        "documenting the asymmetry: the out-of-range copy is NOT refused here"
+    let fault = poses
+        .fault(bad)
+        .cloned()
+        .expect("the out-of-range copy refuses in this position too");
+    assert!(
+        matches!(
+            fault,
+            editor_core::MateFault::DanglingHead { head, .. } if head == pattern
+        ),
+        "the refusal names the pattern whose count the index is past: {fault:?}"
     );
     assert_eq!(
-        role,
-        Some(MateRole::Declaring),
-        "and it is carried as a live declaration"
+        poses.role(bad),
+        Some(MateRole::Refused),
+        "and it is not carried to the gate as a live declaration"
     );
-
-    // What the downstream gate makes of it — the question that decides
-    // whether the escape is merely a misplaced fence or a real hole.
-    let ev = run(&doc, &opts(store));
-    let at_gate = editor_core::assemble(&doc, &ev, Tol::witness());
-    let summary = match &at_gate {
-        Ok(a) => format!("Ok(minted = {})", a.minted.len()),
-        Err(e) => format!("Err({e})"),
-    };
-    println!("R1-OBSERVED escaped head at the gate: {summary}");
+    let _ = store;
 }
 
 // ---------------------------------------------------------------

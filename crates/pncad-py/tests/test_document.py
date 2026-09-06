@@ -677,8 +677,9 @@ class TestBooleanDeclareArgument(unittest.TestCase):
     """LIB-PYBUNDLE rider (c): `Node.boolean` grew `declare=`, the
     DATA door for a declared contact. The protocol that BUILDS a
     declaration is still unbound, so the only thing the argument can
-    be handed today is another node — and the kernel refuses one that
-    is not a `Declare`, typed, rather than ignoring it."""
+    be handed today is another node — and the EDIT door refuses one
+    that is not a `Declare`, typed, rather than ignoring it or letting
+    a document carry the mis-wire to its evaluation."""
 
     def test_the_default_is_the_undeclared_lane(self):
         doc = Doc()
@@ -697,7 +698,7 @@ class TestBooleanDeclareArgument(unittest.TestCase):
         # evaluation this row is about. Any live non-`Declare` node
         # makes the same point.
         c = slab(doc, (5 * m, 6 * m), (5 * m, 6 * m), (5 * m, 6 * m))
-        fused = doc.insert(Node.boolean(BooleanOp.Union, a, b, declare=c))
-        with self.assertRaises(EvaluationError) as caught:
-            evaluate(doc).value(fused)
-        self.assertEqual(caught.exception.kind, "wrong_operand")
+        with self.assertRaises(EditError) as caught:
+            doc.insert(Node.boolean(BooleanOp.Union, a, b, declare=c))
+        self.assertEqual(caught.exception.variant, "declare_input_not_declare")
+        self.assertIn("is not a declaration", str(caught.exception))

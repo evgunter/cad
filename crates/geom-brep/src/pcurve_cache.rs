@@ -1132,9 +1132,10 @@ pub trait PcurveFittedLane: Decide {
     /// the derivation and the certificate are the same static split —
     /// both need the C9 ring, both are absent at [`geom_core::Dual`] —
     /// and a mint that had to name two lane traits for one image would
-    /// carry the split twice. `edge_nurbs::EdgeNurbsLane` keeps its own
-    /// door for the ADOPT path, which certifies the same image with the
-    /// plane operand's limbs beside it.
+    /// carry the split twice. The plane × NURBS lane
+    /// ([`crate::plane_nurbs_limbs`]) keeps its own door for the ADOPT
+    /// path, which certifies the same image with the plane operand's
+    /// limbs beside it.
     ///
     /// # Errors
     ///
@@ -1583,7 +1584,13 @@ impl PcurveFittedLane for f64 {
         // The window rule and the derivation behind it live in one
         // place, so this door, the storage mint and the validator's
         // re-derivation cannot disagree about the same surface.
-        Some(crate::offset_fit::certify_offset_over(
+        // The `_at` form, deliberately: this door classifies against
+        // the tolerance the SURFACE's claim was made at — a stored
+        // datum, not the run's ε — which is what keeps the map and the
+        // validator agreeing about a given surface (`topo::transform`'s
+        // `map_approx` argues it). It is the one production caller of a
+        // numeric-target routine, named at that routine's own door.
+        Some(crate::offset_fit::certify_offset_over_at(
             base, fit, *d, window, tolerance, band,
         ))
     }

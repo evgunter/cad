@@ -467,7 +467,7 @@ impl ChecksReport {
 /// Every attribute is set on every arm, `None` where the arm does not
 /// carry it — the `WorkspaceError` posture: handling reads `err.node`
 /// without first branching on `err.variant`.
-fn checks_err(py: Python<'_>, err: &d::ChecksError) -> PyErr {
+pub(crate) fn checks_err(py: Python<'_>, err: &d::ChecksError) -> PyErr {
     let none = || py.None();
     // Exhaustive on purpose, no wildcard: an arm added kernel-side
     // arrives here as a compile error rather than as a silently
@@ -476,10 +476,12 @@ fn checks_err(py: Python<'_>, err: &d::ChecksError) -> PyErr {
         d::ChecksError::Root { node } => Py::new(py, NodeId(*node))
             .map(|v| v.into_any())
             .unwrap_or_else(|_| py.None()),
-        // A tolerance that forms no band and a gather that yields no
-        // product are both refusals about the WHOLE document; neither
-        // has a node to name.
-        d::ChecksError::Band { .. } | d::ChecksError::Product { .. } => none(),
+        // A tolerance that forms no band, a gather that yields no
+        // product and a pair that is not a pair are all refusals about
+        // the WHOLE document; none has a node to name.
+        d::ChecksError::Band { .. }
+        | d::ChecksError::EvaluationOfAnotherDocument { .. }
+        | d::ChecksError::Product { .. } => none(),
     };
     typed_err(
         py,

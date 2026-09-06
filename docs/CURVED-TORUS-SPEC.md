@@ -55,7 +55,7 @@ against each other (they touch at the weld plane). `Torus` is not on
 `boolean_arm_exists` (`reduce.rs:172-180`), so `first_unsupported_pair`
 (`reduce.rs:280`) refuses on the first overlapping pair in arena
 order; today that is the far cap (2.08 m away — a real box artifact,
-`lily.rs:4074-4130`), and after PR-1 it is the next overlapping arch
+`lily.rs:3931-4018`), and after PR-1 it is the next overlapping arch
 face in arena order. **PR-1's honest acceptance is a RE-AIM of wall 1
 from the far cap to a weld pair, not a retirement.** Retiring the gate
 refusal needs `Torus` on the roster, which is a gate-policy change
@@ -260,7 +260,7 @@ torus patch (two parallels, two meridians, `mint_pcurves`) beside
    slack, not `chart_box`'s `p0 ± 22°`. Kills: reading `chart_box`.
 5. **Lanes agree**: `the_two_box_lanes_agree_face_for_face` gains a
    windowed torus case.
-6. **Lily wall 1 re-aims** (`lily.rs:4074-4130`): the refusal no longer
+6. **Lily wall 1 re-aims** (`lily.rs:3931-4018`): the refusal no longer
    names the far cap; the pair it names is measured and pinned by
    payload (§Lily), and its true separation is stated in the row.
 7. **The MATE-7a socket row** (`a_partly_covered_torus_pair_still_gates_on_the_uncovered_one`,
@@ -441,8 +441,10 @@ clearance. Both **NUMERIC** (certified enclosures, no topology).
 
 ## Lane obligations (both PRs)
 
-`docs/prompts/implementer-discipline.md` binds; no `CI-Config` trailer
-(the run gates the full matrix); measure-first checkpoint before code
+`docs/prompts/implementer-discipline.md` binds; the run gates the full
+matrix (this clause used to forbid a `CI-Config` trailer; that spelling
+was deleted on 2026-09-04 and nothing in CI reads one); measure-first
+checkpoint before code
 (`memories/refusal-text-is-not-cause.md` — R3 is exactly that shape,
 and the lily row is the instrument); lane-private `CARGO_TARGET_DIR`
 outside the worktree; merge origin/main before opening; confirm the

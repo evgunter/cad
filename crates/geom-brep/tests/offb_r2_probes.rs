@@ -31,7 +31,7 @@ use core::f64::consts::FRAC_PI_2;
 
 use geom::NurbsSurface;
 use geom::curves::fit::interpolate_columns;
-use geom_brep::offset_fit::{OffsetFitError, certify_offset, fit_offset};
+use geom_brep::offset_fit::{OffsetFitError, certify_offset_at, fit_offset_at};
 use geom_brep::offset_meters::{OFFSET_METER_LADDER, patch_collapse};
 use geom_brep::patch_bound::patch_cells_refined;
 use geom_core::Point3;
@@ -241,7 +241,7 @@ fn torus_patch(major: f64, minor: f64) -> NurbsSurface<f64> {
 }
 
 fn contains_dense_sample(name: &str, base: &NurbsSurface<f64>, d: f64, tol: f64) {
-    let (fit, cert) = fit_offset(base, d, tol, band())
+    let (fit, cert) = fit_offset_at(base, d, tol, band())
         .unwrap_or_else(|e| panic!("{name}: fit_offset refused at d = {d}: {e}"));
     assert!(
         cert.hull_sup <= tol,
@@ -302,7 +302,7 @@ fn p3_offset_just_inside_the_certified_reach_still_bounds_the_sample() {
     // 90% of the certified reach: the door must either certify with a
     // bound that still contains a dense sample, or refuse LOUD.
     let d = -0.9 * coll.reach;
-    match fit_offset(&base, d, 1e-2, band()) {
+    match fit_offset_at(&base, d, 1e-2, band()) {
         Ok((fit, cert)) => {
             let worst = worst_offset_residual(&base, &fit, d, &grid(41, 37)).unwrap();
             assert!(
@@ -352,7 +352,7 @@ fn p6b_a_near_degenerate_chart_passes_the_floor_at_large_d_and_fails_at_small_d(
     );
     let verdict = |d: f64| {
         !matches!(
-            fit_offset(&base, d, 1e-3, band()),
+            fit_offset_at(&base, d, 1e-3, band()),
             Err(OffsetFitError::Meter(
                 geom_brep::offset_meters::MeterError::NormalFloor { .. }
                     | geom_brep::offset_meters::MeterError::Escalated { .. }
@@ -388,7 +388,7 @@ fn p6b_a_near_degenerate_chart_passes_the_floor_at_large_d_and_fails_at_small_d(
 fn p4_certify_offset_on_a_rational_fit() {
     let base = quarter_cylinder(1.0, 1.0);
     let d = 0.25;
-    let (fit, _) = fit_offset(&base, d, 1e-3, band()).unwrap();
+    let (fit, _) = fit_offset_at(&base, d, 1e-3, band()).unwrap();
     let (cu, cv) = fit.control_counts();
     // Same control points and knots; weights perturbed. In ℝ this is
     // a DIFFERENT surface, and the composite's `Ẽ = F̃·w − A·w_fit` is
@@ -413,7 +413,7 @@ fn p4_certify_offset_on_a_rational_fit() {
     // it that the door's own `≤ tolerance` test is not what caps the
     // ratio below. The ceiling is this row's, and it is re-taken.
     let tol = worst * 8.0;
-    let cert = certify_offset(&base, &rational_fit, d, tol, band()).unwrap_or_else(|e| {
+    let cert = certify_offset_at(&base, &rational_fit, d, tol, band()).unwrap_or_else(|e| {
         panic!("P4: certify_offset refused a rational fit it can now bound (residual {worst}): {e}")
     });
     assert!(
@@ -464,7 +464,7 @@ fn p6_a_regular_patch_is_refused_when_d_is_small() {
         reg.sine_floor, reg.floor
     );
     for d in [1e-3_f64, 1e-6, 1e-9] {
-        let r = fit_offset(&base, d, 1e-3, band());
+        let r = fit_offset_at(&base, d, 1e-3, band());
         let refused_at_the_floor = matches!(
             r,
             Err(OffsetFitError::Meter(
@@ -496,7 +496,7 @@ fn p6_a_regular_patch_is_refused_when_d_is_small() {
 fn p5_budget_refusal_payload_is_the_bound_the_door_re_derives() {
     let base = skinned_loft();
     let d = 0.08;
-    match fit_offset(&base, d, 1e-14, band()) {
+    match fit_offset_at(&base, d, 1e-14, band()) {
         Err(OffsetFitError::BudgetExhausted {
             achieved,
             tolerance,
@@ -511,7 +511,7 @@ fn p5_budget_refusal_payload_is_the_bound_the_door_re_derives() {
             // The same base at a tolerance the achieved bound clears
             // must now certify — i.e. `achieved` is a real bound the
             // loop reached, not a number it printed.
-            let (_, cert) = fit_offset(&base, d, achieved * 1.5, band()).unwrap_or_else(|e| {
+            let (_, cert) = fit_offset_at(&base, d, achieved * 1.5, band()).unwrap_or_else(|e| {
                 panic!("the achieved bound {achieved} is not reachable by the same door: {e}")
             });
             assert!(cert.hull_sup <= achieved * 1.5);

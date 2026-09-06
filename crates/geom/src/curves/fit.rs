@@ -228,7 +228,7 @@ pub struct FitOutcome<C> {
 /// ascending `j` (D9).
 fn rational_row(kv: &KnotVector, weights: &[f64], t: f64) -> (usize, Vec<f64>) {
     let span = kv.span_at(t);
-    let n = basis::basis_funs(kv, span, t);
+    let n = basis::basis_funs(span, t);
     let first = span.first_control();
     let mut den = 0.0f64;
     for (j, nj) in n.iter().enumerate() {
@@ -699,40 +699,22 @@ macro_rules! nurbs_fit {
             }
 
             /// The direct certified deviation bound vs `reference`
-            /// (same degree): union-refine both onto the shared knot
-            /// vector (exact in ℝ), then the partition-of-unity
-            /// control-difference bound. `f64` structure arithmetic
-            /// throughout (steering grade — module docs).
+            /// (same degree): both onto the union knot vector
+            /// ([`Self::refine_to_union`] — exact in ℝ; the interior
+            /// values are exact `f64` structure shared by construction,
+            /// both descending from the same chord params), then the
+            /// partition-of-unity control-difference bound. `f64`
+            /// structure arithmetic throughout (steering grade — module
+            /// docs).
             fn deviation_from(&self, reference: &Self) -> Result<f64, FitError> {
-                // Union interior multiplicities (values are exact f64
-                // structure shared by construction: both curves'
-                // interior knots descend from the same chord params).
-                let mut need: Vec<(f64, usize)> = Vec::new();
-                for kv in [self.knots(), reference.knots()] {
-                    for (u, m) in kv.interior_knots() {
-                        match need.iter_mut().find(|(v, _)| *v == u) {
-                            Some(entry) => entry.1 = entry.1.max(m),
-                            None => need.push((u, m)),
-                        }
-                    }
-                }
-                let refine_to = |c: &Self| -> Result<Self, FitError> {
-                    let own: Vec<(f64, usize)> = c.knots().interior_knots().collect();
-                    let mut add: Vec<f64> = Vec::new();
-                    for (u, m) in &need {
-                        let have = own.iter().find(|(v, _)| *v == *u).map_or(0, |(_, s)| *s);
-                        for _ in have..*m {
-                            add.push(*u);
-                        }
-                    }
-                    if add.is_empty() {
-                        Ok(c.clone())
-                    } else {
-                        c.refine_knots(&add).map_err(FitError::KnotAlgebra)
-                    }
+                let mut shared = Self::refine_to_union([self, reference])
+                    .map_err(FitError::KnotAlgebra)?
+                    .into_iter();
+                let (Some(a), Some(b)) = (shared.next(), shared.next()) else {
+                    unreachable!(
+                        "refine_to_union returns one curve per input and two went in"
+                    );
                 };
-                let a = refine_to(self)?;
-                let b = refine_to(reference)?;
                 Ok(a.same_structure_deviation_bound(&b))
             }
 
@@ -756,7 +738,11 @@ macro_rules! nurbs_fit {
                 if n_ctrl > n_data || n_ctrl < 3 || n_data < 3 {
                     return Ok((cur, bound, Some(RefitSkip::StructureRicherThanData)));
                 }
-                let kv = cur.knots().clone();
+                // Borrowed, not cloned: `rational_row` locates a span
+                // in this vector and evaluates the basis through it, so
+                // the vector the span names should be the curve's own
+                // rather than a copy of it.
+                let kv = cur.knots();
                 let weights = cur.weights().to_vec();
                 let q0 = points[0];
                 let qm = points[n_data - 1];
@@ -802,7 +788,8 @@ macro_rules! nurbs_fit {
                 // Endpoints re-pinned to the exact end samples.
                 control[0] = q0;
                 control[n_ctrl - 1] = qm;
-                let refit = Self::new(kv, control, weights).map_err(FitError::Structure)?;
+                let refit =
+                    Self::new(kv.clone(), control, weights).map_err(FitError::Structure)?;
                 let refit_bound = refit.deviation_from(reference)?;
                 // `!(≤)` is NaN-catching: a poisoned refit bound keeps
                 // the certified pipeline curve.

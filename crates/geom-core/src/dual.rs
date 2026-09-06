@@ -441,6 +441,21 @@ impl<T: KinkJacobian> Real for Dual<T> {
         Self::constant(T::zero())
     }
 
+    /// **The witness is the VALUE channel's** — a registered identity
+    /// is a claim about the two reals, and the dual's value channel is
+    /// bit-identical to the plain-`T` computation of the same recipe
+    /// (the module-level contract), so `T`'s own witness is the honest
+    /// one. The derivative channel is deliberately not consulted:
+    /// equal values with unequal derivatives would be a claim the door
+    /// does not make, and refusing on it would refuse registrations
+    /// that are true.
+    ///
+    /// Nothing is recorded — a `Dual` tracks no expression
+    /// ([`Real::register_equal`]).
+    fn register_equal(self, other: Self) -> crate::sym::SymRegistration {
+        self.value.register_equal(other.value)
+    }
+
     /// `(1, 0)`.
     fn one() -> Self {
         Self::constant(T::one())
@@ -696,7 +711,7 @@ impl<T> crate::spline::SpanLocate for Dual<T>
 where
     T: crate::spline::SpanLocate + KinkJacobian,
 {
-    fn locate_spans(self, knots: &crate::spline::KnotVector) -> crate::spline::SpanSet {
+    fn locate_spans<'a>(self, knots: &'a crate::spline::KnotVector) -> crate::spline::SpanSet<'a> {
         self.value.locate_spans(knots)
     }
 

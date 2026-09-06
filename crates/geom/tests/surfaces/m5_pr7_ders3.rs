@@ -205,11 +205,11 @@ fn window_at_is_total_and_evaluation_stays_finite_in_domain() {
                 w.row(w.span_u().degree()) + w.span_v().degree() < nu * nv,
                 "window at ({u}, {v}) escapes the control net"
             );
-            let _ = s.ders3_in_span(w, u, v);
+            let _ = w.ders3_in_span(u, v);
         }
     }
     // In the domain the answer is genuinely finite — the totality above
     // is not being bought with universal poison.
-    let j = s.ders3_in_span(s.window_at(0.3, 0.6), 0.3, 0.6);
+    let j = s.window_at(0.3, 0.6).ders3_in_span(0.3, 0.6);
     assert!(j.jet.point.x.is_finite() && j.duuu.z.is_finite());
 }

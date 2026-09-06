@@ -173,6 +173,66 @@ impl<T: Decide> Body<T> {
         self.set_edge_curve_via(edge, curve, Self::certify_edge_spec, tol)
     }
 
+    /// Re-states `edge` as an image in `chart`, keeping its carrier,
+    /// its parameter interval and — through `at_rest_in_chart` — the
+    /// pushforward that scaffolded it, as its authority record.
+    ///
+    /// This is D2's **conventional split**, at rest: where two
+    /// surfaces under-determine an edge's locus (one surface on both
+    /// sides, or a smooth pair whose jet is zero), the description
+    /// stays conventional rather than intrinsic — but the edge is
+    /// between two real faces now, so it is an image in a chart and
+    /// not the scaffolding the mint left (D3's transience fence; the
+    /// scaffolding door is for edges whose surfaces do not exist yet).
+    ///
+    /// **The carrier is RESTATED, never rebuilt.** Re-deriving it from
+    /// the endpoints recomputes the direction and the interval from a
+    /// sum that need not be bitwise what the edge was minted with,
+    /// which silently moves geometry in a pass whose whole contract is
+    /// that only the DESCRIPTION moves. Through `at_rest_in_chart` the
+    /// pushforward that scaffolded the edge stays beside it as the
+    /// authority record, which is what keeps tier 3's prefer-intrinsic
+    /// reading unchanged.
+    ///
+    /// One home for a rule three sweep lanes read: `extrude`'s strut
+    /// join, `revolve::upgrade`'s join lanes, and `swept`'s
+    /// scaffold-retirement pass each spelled these two lines
+    /// themselves. It lives here, beside [`Body::set_edge_curve`],
+    /// because that is the certified mutation it performs and because
+    /// `topo` is the crate both callers already depend on.
+    ///
+    /// # Errors
+    ///
+    /// [`EulerOpError::StaleKey`] / [`EulerOpError::StaleGeometry`] on
+    /// unresolvable topology or geometry;
+    /// [`EulerOpError::NullScaffoldCurve`] on an edge whose curve
+    /// carries no certified geometry to re-state; and whatever
+    /// [`Body::set_edge_curve`] raises on the re-attachment.
+    pub fn describe_at_rest(
+        &mut self,
+        edge: EdgeKey,
+        chart: SurfaceKey,
+        tol: Tol,
+    ) -> Result<(), EulerOpError> {
+        let curve_key = self
+            .get_edge(edge)
+            .ok_or(EulerOpError::StaleKey {
+                key: EntityId::Edge(edge),
+            })?
+            .curve;
+        let spec = self
+            .get_curve_geom(curve_key)
+            .ok_or(EulerOpError::StaleGeometry {
+                key: crate::GeomRef::Curve(curve_key),
+            })?
+            .certified()
+            .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?
+            .restated_spec()
+            .at_rest_in_chart(chart, false);
+        self.set_edge_curve(edge, spec, tol)?;
+        Ok(())
+    }
+
     /// [`Body::set_edge_curve`] with the certification door supplied by
     /// the caller — the one axis on which the two attach doors differ
     /// (the plane × NURBS lane, M7-8). Every precondition, every

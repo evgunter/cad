@@ -9,8 +9,8 @@
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId,
-    EntityKind, MateFrame, MatePrimitive, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
-    apply, load, save,
+    EntityKind, MateFrame, MatePrimitive, Node, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef,
+    StableName, apply, load, save,
 };
 use geom_core::Tol;
 
@@ -57,8 +57,8 @@ fn a_mate_bearing_document_round_trips() {
         &doc,
         &DocEdit::InsertNode {
             node: Node::Mate {
-                a: name(ids[0]),
-                b: name(ids[1]),
+                a: SitedRef::at_mint(name(ids[0])),
+                b: SitedRef::at_mint(name(ids[1])),
                 class: ContactClass::Rest,
                 alignment: Alignment {
                     a: f,

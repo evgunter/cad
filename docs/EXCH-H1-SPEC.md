@@ -174,10 +174,11 @@ values by convexity (INV-C4's shape) without sampling.
   except the named flips.
 - tier_gate and wild counts unchanged, or every change named and
   argued in the PR.
-- Hosted CI green at the drawn point; if the drawn point does not
-  exercise the coarse-band gap, ask for the point that does
-  (`CI-Config` trailer or workflow input) and say in the PR which
-  gated, drawn or asked (discipline §2).
+- Hosted CI green. Nothing is drawn any more (2026-09-04): an ordinary
+  run gates every lane, every eps row and every k-lint unification, so
+  the coarse-band gap is covered without asking. The `CI-Config` trailer
+  this clause offered is deleted; `workflow_dispatch` is the only way to
+  aim a run, and it can only NARROW one (discipline §2).
 
 ## Out of scope
 

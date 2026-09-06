@@ -35,7 +35,7 @@ use super::axis::{AxisFrame, AxisRun, LoopClasses};
 use super::chain::build_chain;
 use super::partial::{he_edge, sweep_loop};
 use super::surfaces::{revolved_strut_spec, wall_surface};
-use super::upgrade::{describe_at_rest, upgrade_intersection, upgrade_meridian_seam};
+use super::upgrade::{upgrade_intersection, upgrade_meridian_seam};
 use super::{RevolveError, Revolved, RevolvedKind, SweptSeg, WALL_COSURFACE};
 use crate::swept::{cosurface, face_surface_key, placed_segment_spec, turn_axis};
 use geom_core::Tol;
@@ -472,7 +472,7 @@ fn build_wire<T: Decide>(
         let k_prev = face_surface_key(&body, faces[i - 1])?;
         let k_next = face_surface_key(&body, faces[i])?;
         if k_prev == k_next {
-            describe_at_rest(&mut body, strut.edge, k_prev, tol)?;
+            body.describe_at_rest(strut.edge, k_prev, tol)?;
             continue;
         }
         let vertex_index = segs[wseg(i)].canonical_vertex;
@@ -511,6 +511,10 @@ fn build_wire<T: Decide>(
             })?
             .he_minus;
         let center = frame.foot3(segs[wseg(i)].a);
+        let rim = qpi[i] - center;
+        // The same rim identity as `revolve::surfaces`', at the same
+        // guarantee (its comment carries the argument).
+        crate::swept::register_rim_identity(rim, cls.verts[wseg(i)].r);
         let spec = EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Scaffold(
                 geom_brep::MappedCurve::RevolvedPoint {
@@ -525,7 +529,7 @@ fn build_wire<T: Decide>(
                 center,
                 axis: axis_c,
                 radius: cls.verts[wseg(i)].r,
-                u_ref: (qpi[i] - center).normalize(),
+                u_ref: rim.normalize(),
             },
             param_start: T::zero(),
             param_end: half.abs(),
@@ -558,7 +562,7 @@ fn build_wire<T: Decide>(
         let k_prev = face_surface_key(&body, band2_faces[i - 1])?;
         let k_next = face_surface_key(&body, band2_faces[i])?;
         if k_prev == k_next {
-            describe_at_rest(&mut body, rim2, k_prev, tol)?;
+            body.describe_at_rest(rim2, k_prev, tol)?;
             continue;
         }
         let vertex_index = segs[wseg(i)].canonical_vertex;
@@ -588,7 +592,7 @@ fn build_wire<T: Decide>(
         let edge = he_edge(&body, hes[i])?;
         upgrade_meridian_seam(&mut body, edge, wall, tol)?;
         if body.get_edge(tops[i]).is_some() {
-            describe_at_rest(&mut body, tops[i], wall, tol)?;
+            body.describe_at_rest(tops[i], wall, tol)?;
         }
     }
 

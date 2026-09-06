@@ -18,10 +18,10 @@ use editor_core::UnitSym;
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, DocEdit, DocParam, DocParamValue,
     DocumentId, EditError, EntityKind, EvalOptions, Evaluation, Expr, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, MeasureRef, NamePat, Node, NodeErrorKind, NodeResult, ParamName,
+    MeasureExpr, MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, ParamName,
     PersistError, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, Selector, SnapshotError, StableName, SurfaceKindSet, ValuePayload, apply,
-    evaluate, face_frame, load, save, select_where, vertex_position,
+    RecipeNodeId, Selector, SitedRef, SnapshotError, StableName, SurfaceKindSet, ValuePayload,
+    apply, evaluate, face_frame, load, save, select_where, vertex_position,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -516,10 +516,10 @@ fn cylinders(bore_r: f64, pin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, Re
 /// means throughout, because none of these fixtures places the
 /// geometry it measures (the one that does builds its refs by hand).
 ///
-/// Adapting these probes to the `MeasureRef` shape the fix pass
+/// Adapting these probes to the `SitedRef` shape the fix pass
 /// introduced for MAJ-2; the rows and their oracles are unchanged.
-fn at_mint<const N: usize>(names: [StableName; N]) -> Vec<MeasureRef> {
-    names.into_iter().map(MeasureRef::at_mint).collect()
+fn at_mint<const N: usize>(names: [StableName; N]) -> Vec<SitedRef> {
+    names.into_iter().map(SitedRef::at_mint).collect()
 }
 
 fn wall(ev: &Evaluation<f64>, node: RecipeNodeId) -> StableName {

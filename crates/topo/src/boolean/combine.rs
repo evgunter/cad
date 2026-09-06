@@ -179,6 +179,13 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
         if let Some(gs) = src.surface_sources.get(k) {
             dst.surface_sources.insert(dk, gs.clone());
         }
+        // The per-FIELD ParamSource rows ride the graft for the same
+        // reason and by the same rule: a description's parameter
+        // identity is carried with the description, never re-derived
+        // from the transplanted values.
+        if let Some(fields) = src.surface_field_sources.get(k) {
+            dst.surface_field_sources.insert(dk, fields.clone());
+        }
     }
 
     // ---- Topology arenas, pass 1: clone with source-internal keys

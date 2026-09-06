@@ -8,6 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use core::num::NonZeroUsize;
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom_core::spline::KnotVector;
 use geom_core::{Point2, Point3};
@@ -211,8 +212,12 @@ fn an_overflowing_residual_refuses_rather_than_reporting_an_infinite_foot() {
         Point3::new(huge, huge, huge),
         Point3::new(2.0 * huge, huge, huge),
     ];
-    let curve = NurbsCurve3::new(KnotVector::unit_segment(1), control, vec![1.0, 1.0])
-        .expect("a degree-1 segment with unit weights is a valid curve");
+    let curve = NurbsCurve3::new(
+        KnotVector::unit_segment(NonZeroUsize::MIN),
+        control,
+        vec![1.0, 1.0],
+    )
+    .expect("a degree-1 segment with unit weights is a valid curve");
 
     // Finite inputs throughout: the curve's own coordinates and the
     // query point are all representable.

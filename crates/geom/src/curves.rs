@@ -56,7 +56,7 @@ use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::azimuth;
-pub use nurbs::{NurbsCurve2, NurbsCurve3};
+pub use nurbs::{CurveWindow2, CurveWindow3, NurbsCurve2, NurbsCurve3};
 pub use projection::{Projection2, Projection3, ProjectionInconclusive};
 
 /// An analytic 3-D curve — a **complete locus**. Units, the
@@ -287,6 +287,36 @@ impl<T: Decide> Curve3<T> {
     }
 }
 
+impl<T: Real> Curve3<T> {
+    /// **A circle carrier's point at parameter `t`**, as
+    /// [`Curve3::eval`] builds it — `(s, c) = t.sin_cos()`,
+    /// `radial = u_ref·c + v_ref·s` with `v_ref = axis × u_ref`, result
+    /// `center + radial·radius`, exactly as parenthesized (D9).
+    ///
+    /// It is a door rather than a copy: `eval`'s `Circle` arm CALLS
+    /// this, so there is one expression and a caller that builds a
+    /// point here builds the very node `eval` would. That is what
+    /// `sweep::swept::register_span_identity` rests on — node ids are
+    /// content hashes, so "the constructor states the identity about
+    /// the node the certifier will ask about" is a fact of this
+    /// delegation and not a transcription anyone has to keep in step.
+    ///
+    /// Its own bound is [`Real`] alone, and that is the point:
+    /// `eval` carries [`SpanLocate`] for its `Nurbs` arm's sealed span
+    /// selection, and evaluation-code discipline forbids a generic
+    /// caller from carrying a second bound beside `Real` to reach it.
+    pub fn circle_at(
+        center: Point3<T>,
+        axis: Vec3<T>,
+        radius: T,
+        u_ref: Vec3<T>,
+        t: T,
+    ) -> Point3<T> {
+        let radial = azimuth::frame(axis, u_ref, t).radial.0;
+        center + radial * radius
+    }
+}
+
 impl<T: SpanLocate> Curve3<T> {
     /// The point at parameter `t` (see the variant docs for each
     /// parameterization; the crate docs for units and periodicity).
@@ -311,10 +341,7 @@ impl<T: SpanLocate> Curve3<T> {
                 axis,
                 radius,
                 u_ref,
-            } => {
-                let radial = azimuth::frame(*axis, *u_ref, t).radial.0;
-                *center + radial * *radius
-            }
+            } => Self::circle_at(*center, *axis, *radius, *u_ref, t),
             Curve3::Ellipse {
                 center,
                 axis,
@@ -340,6 +367,13 @@ impl<T: SpanLocate> Curve3<T> {
     ///   `|dP/dθ|` varies in `[minor, major]` (θ is the eccentric
     ///   anomaly, not arc length).
     /// - Nurbs: the payload’s derivative (all-poison for the placeholder).
+    ///
+    /// There is no jet door: a caller wanting `deriv` and [`Self::deriv2`]
+    /// at one `t` pays two frames. Measured at release, that is 19 ns
+    /// per pair against a fused jet on the conic arms, and the one
+    /// consumer that asks for both (the splitting orbit's conic arm)
+    /// evaluated it 0 times on the boolean corpus — so no `CurveJet` is
+    /// minted for it.
     pub fn deriv(&self, t: T) -> Vec3<T> {
         match self {
             Curve3::Line { dir, .. } => *dir,
@@ -480,7 +514,7 @@ impl<T: SpanLocate> Curve3<T> {
     /// because two orderings of the same operations have to agree
     /// bitwise — must anchor at something the CARRIER owns, and the
     /// circle's own such anchor is its SEAM, `near = 0`.
-    /// `sweep::fillet::surgery::seam_split_param` is that caller and
+    /// `sweep::blend::surgery::seam_split_param` is that caller and
     /// carries the measurement that made it one; its period guard is
     /// what makes the principal branch the in-window one.
     ///
@@ -1114,10 +1148,10 @@ mod tests {
             panic!("fixture is a NURBS");
         };
         for t in knot_and_span_params(&c) {
-            let span = n.knots().span_at(t);
-            let (p, d) = n.ders1_in_span(span, t);
-            let q = n.eval_in_span(span, t);
-            let e = n.deriv_in_span(span, t);
+            let span = n.span_at(t);
+            let (p, d) = span.ders1_in_span(t);
+            let q = span.eval_in_span(t);
+            let e = span.deriv_in_span(t);
             for (name, a, b) in [
                 ("x", p.x, q.x),
                 ("y", p.y, q.y),

@@ -337,6 +337,34 @@ class TestRefusalsFireAtTheCallSite(unittest.TestCase):
             .to((0 * m, 3 * m)),
         )
 
+    def test_a_fillet_refusal_names_every_corner_it_tried(self):
+        # The envelope: a refusal about a carrier PAIR reports every
+        # corner that refused at the answering stage, each with its own
+        # reason and its own point. A straight pair derives one corner,
+        # so the list is one row; the reason is reachable without
+        # parsing the sentence.
+        with self.assertRaises(pncad.PathError) as caught:
+            (
+                Open.at(ORIGIN)
+                .toward(1.0, 0.0)
+                .fillet(2.5 * m)
+                .toward(0.0, 1.0)
+                .to((3 * m, 2 * m))
+            )
+        err = caught.exception
+        self.assertEqual(err.variant, "no_corner_of_pair")
+        self.assertEqual(len(err.corners), 1)
+        (x, y, reason) = err.corners[0]
+        self.assertEqual(reason, "anchor_outside_trimmed_extent")
+        self.assertAlmostEqual(x, 3.0)
+        self.assertAlmostEqual(y, 0.0)
+        # The sentence names the corner it is about.
+        self.assertIn("at the corner near", str(err))
+        # Every other refusal carries the attribute too, empty.
+        with self.assertRaises(pncad.PathError) as other:
+            circle(ORIGIN, 0 * m)
+        self.assertIsNone(other.exception.corners)
+
     def test_the_sign_gates(self):
         self.refuses("nonpositive_circle_radius", lambda: circle(ORIGIN, 0 * m))
         self.refuses("circle_split_count", lambda: circle_split(ORIGIN, 1 * m, 1, 0 * rad))

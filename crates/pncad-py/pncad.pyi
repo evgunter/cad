@@ -288,9 +288,19 @@ class StepImportError(PncadError):
 
 class PathError(PncadError):
     """The PATHS authoring algebra refused the geometry, at the call
-    site of the verb that wrote it."""
+    site of the verb that wrote it.
+
+    `corners` is the `no_corner_of_pair` envelope: one
+    `(x, y, reason)` row per REFUSING corner — not per derived corner,
+    since a carrier pair derives up to two and most refusals list only
+    one of them — nearest the bracketing anchors first, with `reason`
+    one of `behind_incoming_ray`, `behind_arrival_anchor`,
+    `offset_carriers_disjoint`, `no_corner_side_candidate`,
+    `anchor_outside_trimmed_extent` or `encloses_leg_carrier`. It is
+    `None` on every refusal that names no corner."""
 
     variant: str
+    corners: list[tuple[float, float, str]] | None
 
 class SelectRefusal(PncadError):
     """`Evaluation.select_where` could not answer — the Rust door's
@@ -343,7 +353,15 @@ class AssemblyError(PncadError):
     FRONTIER: nothing refuted, nothing undeclared, the census simply
     declined to certify, so nothing was decided about the geometry
     either way. A gather refusal arrives under the GATHER's own tag
-    (`no_body_roots`, `root_failed`, ...), not a wrapper tag."""
+    (`no_body_roots`, `root_failed`, ...), not a wrapper tag.
+
+    `carried_mint_refusal` is an inner part's own mate that could not
+    be minted at all: an outer assembly is not at rest over a part
+    whose contact nothing verified. It carries a FOREIGN mate, so it
+    carries the route with it — `of` is the document to open, `via`
+    the instances this document reached it through (nearest first,
+    starting at `through`), and `mate` is a node of `of`, not of the
+    document that was gathered."""
 
     variant: str
     mate: Optional[NodeId]
@@ -353,6 +371,8 @@ class AssemblyError(PncadError):
     class_: Optional[ContactClass]
     findings: Optional[list[AtRestFinding]]
     node: Optional[NodeId]
+    of: Optional[str]
+    via: Optional[list[NodeId]]
     through: Optional[NodeId]
 
 class ProductError(PncadError):
@@ -509,10 +529,12 @@ class ChecksError(PncadError):
     `variant` is `root_without_value` (a root produced no value in this
     evaluation — checks are defined over roots that evaluated, and a
     report over a partial one would claim more than was checked),
-    `band` (the tolerance forms no band) or `product_unavailable` (the
-    roots gather into no product, so the separation resident has no
-    subject). `node` names the root on the first arm and is `None` on
-    the others.
+    `band` (the tolerance forms no band), `evaluation_of_another
+    _document` (the evaluation is not an evaluation of this document —
+    DI3, refused before any check runs) or `product_unavailable` (the
+    roots gather into no product, so the registry has no subject for a
+    check that reads one). `node` names the root on the first arm and
+    is `None` on the others.
 
     NOT a finding. A check that ran and disagreed is a value in the
     report; this class means nothing was checked."""
@@ -1076,9 +1098,13 @@ class Frame:
     ) -> Frame:
         """Rotate about `axis` through the WORLD ORIGIN, THEN
         translate — `Node.transform`'s own order, so a placement and a
-        modeled transform of the same part agree BIT FOR BIT. A
-        zero-length axis yields a non-finite frame, refused typed at
-        the edit door."""
+        modeled transform of the same part agree BIT FOR BIT.
+
+        The axis is DECIDED here, the way a transform node's is: an
+        axis of no definite direction raises EditError with tag
+        `placement_axis`, naming the axis and its role, rather than
+        building a frame that is refused later for not being
+        finite."""
 
     @staticmethod
     def point_at(
@@ -1357,7 +1383,9 @@ class Node:
 
     @staticmethod
     def mate(
+        a_at: NodeId,
         a: str,
+        b_at: NodeId,
         b: str,
         class_: ContactClass,
         alignment: Alignment,
@@ -1365,11 +1393,16 @@ class Node:
         """A mate between two instances: ONE node carrying both the
         placement constraint and the contact declaration.
 
-        `a` and `b` are instance-qualified names — an entity of one
-        instance's product and an entity of the other's, the text
-        `Evaluation.select` answers with when queried on an
-        instantiate node. They are name REFERENCES, not recipe edges:
-        inserting a mate transfers no root.
+        Each side is a node and a name, mirroring the kernel type.
+        `a_at` / `b_at` is the OPERAND — the node the reference is
+        read at, whose geometry the mate speaks about — and `a` / `b`
+        is the instance-qualified name text of an entity of that
+        node's product, what `Evaluation.select` answers with. They
+        coincide for a mate authored on an instance directly and
+        diverge the moment a transform places it; there is no
+        default, because a transform mints no name and the operand is
+        the only thing that tells the two apart. Neither half is a
+        recipe edge: inserting a mate transfers no root.
 
         `class_` is the declared contact class; ask `class_admission`
         BEFORE authoring, because a class the solve folds may still
@@ -1377,8 +1410,12 @@ class Node:
         data — nothing checks it against the faces `a` and `b` name,
         so a mate can solve cleanly and still be refuted at the gate.
 
-        A dangling reference head is not refused here: the solve
-        refuses typed naming it (`mate_dangling_head`)."""
+        A dangling reference is not refused here: the solve refuses
+        typed naming its head (`mate_dangling_head`) — or, where the
+        head resolves and a pattern or transform placing it could not
+        derive a pose, naming that placer and carrying the
+        evaluation's own cause (`mate_placer_refused`, whose `error`
+        is the node-failure tag)."""
 
 class Expr:
     """A dimension-checked expression — the recipe's arithmetic, as a
@@ -2265,9 +2302,11 @@ class PlaneRelation:
     Distinct: Final[PlaneRelation]
 
 class ContactClass:
-    """The contact class a declaration asserts. `Rest` (coincident
-    planes) is the only class the flush DETECTOR mints, so it is the
-    only one a `FlushFinding` from `find_flush_candidates` carries;
+    """The contact class a declaration asserts. `Rest` (cosurface
+    contact, on any carrier the verify ladder names — plane, sphere,
+    cylinder, torus) is the only class the flush DETECTOR mints, so
+    it is the only one a `FlushFinding` from
+    `find_flush_candidates` carries;
     `Tangent` crossed the mirror with M9-1 and is nameable here
     because a class the binding cannot name would refuse typed at the
     crossing instead."""
@@ -2284,11 +2323,13 @@ class FlushRung:
     DecidedCoincident: Final[FlushRung]
 
 class FlushFinding:
-    """One flush-plane finding: "this face pair would verify as
-    declared contact" — a VALUE to inspect and declare, never itself
-    a declaration. `a`/`b` are the pair's names in the same OPAQUE
-    text alphabet every materializer speaks (store them, hand them
-    back; never parse). `class_` spells `class` (a Python keyword)
+    """One flush finding: "this face pair would verify as declared
+    contact" — a VALUE to inspect and declare, never itself a
+    declaration. The detector's reach is the `Rest` ladder's, so a
+    pair may be cosurface on a plane, a sphere, a cylinder or a
+    torus. `a`/`b` are the pair's names in the same OPAQUE text
+    alphabet every materializer speaks (store them, hand them back;
+    never parse). `class_` spells `class` (a Python keyword)
     with the `or_` trailing-underscore precedent."""
 
     @property
@@ -2715,8 +2756,8 @@ class Evaluation:
         name."""
 
     def find_flush_candidates(self, a: NodeId, b: NodeId) -> list[FlushFinding]:
-        """The cross-body flush-plane candidates between `a`'s and
-        `b`'s outputs, as of THIS evaluation — the detect arm of the
+        """The cross-body flush candidates between `a`'s and `b`'s
+        outputs, as of THIS evaluation — the detect arm of the
         detect/declare protocol, run by the C4 verifier itself (a
         finding cannot disagree with the boolean's verify-at-use).
         Findings are DEFINITE and canonically ordered; empty when
@@ -3072,6 +3113,10 @@ class MateFault:
     @property
     def head(self) -> Optional[NodeId]: ...
     @property
+    def placer(self) -> Optional[NodeId]: ...
+    @property
+    def error(self) -> Optional[str]: ...
+    @property
     def instance(self) -> Optional[NodeId]: ...
     @property
     def parent(self) -> Optional[NodeId]: ...
@@ -3087,6 +3132,12 @@ class MateFault:
     def predicate(self) -> Optional[str]: ...
     @property
     def clash(self) -> Optional[Length]: ...
+    @property
+    def part(self) -> Optional[NodeId]: ...
+    @property
+    def named(self) -> Optional[int]: ...
+    @property
+    def selected(self) -> Optional[int]: ...
     @property
     def what(self) -> Optional[str]: ...
 
@@ -3210,12 +3261,23 @@ def product_named(doc: Doc, evaluation: Evaluation) -> tuple[Body, list[str]]:
     coordinate. Raises ProductError, typed."""
 
 class RefusedRef:
-    """Why a mate reference named no product face."""
+    """Why a mate reference named no product face.
+
+    The gate asks two tables in order: the product's, then — when it
+    is silent — the operand's own. `ref_vanished` is a name neither
+    spells; `ref_read_below_a_root` is a name the operand spells at a
+    node the product does not list as a root."""
 
     @property
     def variant(self) -> str:
-        """`ref_node_gone`, `ref_vanished`, `ref_ambiguous`, or
-        `ref_not_a_face`."""
+        """`ref_vanished`, `ref_read_below_a_root`, `ref_ambiguous`,
+        or `ref_not_a_face`."""
+
+    @property
+    def at(self) -> Optional[NodeId]:
+        """The operand the reference is read at, for
+        `ref_read_below_a_root`: its own table spells the name, and
+        it is not a root of the product."""
 
     @property
     def width(self) -> Optional[int]:
@@ -3254,11 +3316,45 @@ class Attribution:
         """`refuted` (the faces do not meet as declared — a finding
         against the document), `declined` (the census has no certifier
         lane for a face the declaration names, so nothing was decided
-        either way), or `unattributed` (no declaration answers — an
-        UNDECLARED contact, the hard error by definition)."""
+        either way), or `unattributed` (no declaration of ANY document
+        in the tree answers — an UNDECLARED contact, the hard error by
+        definition).
+
+        A declaration a document BELOW this one authored answers under
+        `carried_refuted` and `carried_declined`: the same two
+        relations, and a separate pair of tags because
+        `declaration.mate` is then a node of THAT document — `of` and
+        `via` are what say which document and by what path."""
 
     @property
-    def declaration(self) -> Optional[MintedDeclaration]: ...
+    def declaration(self) -> Optional[MintedDeclaration]:
+        """The declaration named, `None` for `unattributed`. Under a
+        `carried_*` relation its `mate` is a node of `of`."""
+
+    @property
+    def of(self) -> Optional[str]:
+        """The document whose mate authored it, as opaque id text.
+        `None` where the declaration is the gathered document's own."""
+
+    @property
+    def via(self) -> Optional[list[NodeId]]:
+        """The instances this document reached it through, nearest
+        first. `None` where `of` is."""
+
+
+class CarriedDeclaration:
+    """One declaration a document BELOW this one authored, certified
+    here with everything else the gate was given.
+
+    Same rule as every other foreign-mate value: the mate is a node of
+    `of`, so `of` and `via` travel with it."""
+
+    @property
+    def declaration(self) -> MintedDeclaration: ...
+    @property
+    def of(self) -> str: ...
+    @property
+    def via(self) -> list[NodeId]: ...
 
 class AtRestFinding:
     """One at-rest refusal. `str(finding)` composes it the way the
@@ -3269,11 +3365,14 @@ class AtRestFinding:
     def attribution(self) -> Attribution: ...
 
 class Assembly:
-    """A validated assembly: the gathered body, its product names, and
-    one minted declaration per solved mate.
+    """A validated assembly: the gathered body, its product names, one
+    minted declaration per solved mate of THIS document, and one
+    carried row per declaration a document below it authored.
 
     Reaching one means the kernel's at-rest door PASSED over the
-    product and its records together."""
+    product and its records together — over the carried declarations
+    as much as over this document's own, which is what `carried`
+    lets a caller say."""
 
     @property
     def body(self) -> Body: ...
@@ -3283,6 +3382,11 @@ class Assembly:
     def minted(self) -> list[MintedDeclaration]:
         """Empty for a mate-less assembly, which is what a disjoint
         layout is."""
+
+    @property
+    def carried(self) -> list[CarriedDeclaration]:
+        """Which inner mates this verdict answered for. Empty for a
+        document that instantiates nothing with mates."""
 
 def assemble(doc: Doc, evaluation: Evaluation) -> Assembly:
     """The AT-REST ASSEMBLY GATE: gather the product, mint every
@@ -3297,8 +3401,9 @@ def assemble(doc: Doc, evaluation: Evaluation) -> Assembly:
     Raises AssemblyError, typed. Read `variant` first: `at_rest` is a
     verdict AGAINST the document, `uncertified` is the declared
     direction's FRONTIER where nothing was decided either way, and the
-    remaining arms (`mate_reference_refused`, `no_at_rest_record`, the
-    gather's own tags) refuse before any verdict."""
+    remaining arms (`mate_reference_refused`, `no_at_rest_record`,
+    `carried_mint_refusal`, the gather's own tags) refuse before any
+    verdict."""
 
 # --- the recorded refactorings ----------------------------------------
 # Both are PURE: they hand back the new document VALUES plus the

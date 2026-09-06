@@ -19,13 +19,14 @@
 #
 # WHY THIS GATE IS SITED IN THE `mirror` JOB. *A gate must be sited
 # where it can fire on its own inputs* (Ev, 2026-08-20, on S61;
-# `.github/workflows/ci.yml` states it above that job). Check 5's
-# subject is `crates/viewer/README.md` and checks 6-7's are that file
-# and `crates/viewer/Cargo.toml`. A change set of only the README
-# classifies TIER=docs, `RUN_BUILD=false`, and every `if: run_build`
-# job — `discipline` included — is skipped. Sited there, a docs-only PR
-# renaming a table heading, adding a ghost row or deleting a table
-# would merge with every arm of check 5 unrun. `scripts/check-ci-mirror
+# `.github/workflows/ci.yml` states it above that job).
+# `crates/viewer/README.md` is the subject of the table parse above
+# check 1 and of checks 3, 4, 6 and 6b; `crates/viewer/Cargo.toml` is
+# check 5's. A change set of only the README classifies TIER=docs,
+# `RUN_BUILD=false`, and every `if: run_build` job — `discipline`
+# included — is skipped. Sited there, a docs-only PR renaming a table
+# heading, adding a ghost row or deleting a table would merge with the
+# table parse and checks 3-4 unrun. `scripts/check-ci-mirror
 # -parity.py`'s TIER_BLIND names this gate, so the siting is enforced
 # rather than remembered.
 #
@@ -65,40 +66,46 @@
 #     `crate::app::…` reds — and which modules those are is read off
 #     the same tables rather than carved out by hand.
 #
-# The two hand-kept things: FORBIDDEN_TYPES (two names, cross-checked
+# The two hand-kept things: FORBIDDEN_TYPE_NAMES (two names, cross-checked
 # against the README's own rule text by check 6) and VOCAB_EXCEPTIONS
 # (below).
 #
-# THE EXCEPTIONS ARE SITE-GRANULAR, AND THAT IS D103's CLASS. `pick.rs`
-# and `parts.rs` take a `&DocSession` as a read-only argument, so the
-# rule as ratified is already false of the tree at five sites across
-# two files. An entry here is `FILE|NEEDLE|COUNT`, and all three parts
-# are load-bearing:
+# THE EXCEPTION LIST IS EMPTY, AND IT RETIRED THE WAY IT WAS BUILT TO.
+# It held two entries — `pick.rs|DocSession|2` and
+# `parts.rs|DocSession|3` — for the five read-only `&DocSession`
+# arguments that made the README's rule false of the tree before this
+# gate existed. Ev ruled on `#1883` to HOIST the read rather than widen
+# the rule: the session hands out `pick::IndexInputs` and
+# `parts::PartCensus`, the two vocabularies take those, and the rule
+# stays unqualified. The count is what made the retirement mechanical —
+# fixing a site without lowering it REDS, so the entries could not be
+# left behind as a ratification for whatever the files gained next.
 #
-#   * NEEDLE: the exemption covers the reason it was granted and
-#     nothing else, so an exempted file that gains `use eframe::egui;`
-#     or `use crate::app::…` still reds;
-#   * COUNT: the exemption covers the sites that were argued for and
-#     no more, so a SIXTH `&DocSession` reds. A file-granular entry
-#     would ratify every line later added to the file — which is
-#     exactly `work/code-quality/D103.md` (unruled, track K, and its
-#     fence is this directory): *"the allowlist is file-granular while
-#     its justifications are per-seam, so later bounds inherit
-#     ratification"*. D103 lists "a count pinned per file" as one of the
-#     three shapes a taker should weigh; this is that shape, applied in
-#     the fence D103 names, and it is offered as evidence for the
-#     ruling rather than as a substitute for one.
-#   * The count also RETIRES the entry: fix a site and the count no
-#     longer matches, so the exemption cannot outlive its reason the
-#     way `interval-square-allowlist.sh:125-133` records its own
-#     entries doing (*"an allowlist entry with nothing behind it is a
-#     ratification waiting to be inherited by the next line added to
-#     the file"*).
+# THE EVIDENCE THIS OFFERED TO D103 STANDS, AND IS NOT WITHDRAWN BY THE
+# ENTRIES GOING. `work/gates/D103.md` (unruled, track K, fenced
+# to this directory) asks whether an allowlist should be file-granular
+# or per-seam: *"the allowlist is file-granular while its
+# justifications are per-seam, so later bounds inherit ratification"*.
+# D103 lists "a count pinned per file" as one of three shapes a taker
+# should weigh, and this was that shape, built inside D103's fence. Its
+# RETIREMENT is evidence about the shape rather than a reason to stop
+# offering it: the per-seam entry ended when its seam did, in the same
+# PR, without anyone having to notice — which is the property a
+# file-granular entry does not have.
+# `interval-square-allowlist.sh:125-133` argues the same about its own
+# retired entries (*"an allowlist entry with nothing behind it is a
+# ratification waiting to be inherited by the next line added to the
+# file"*).
 #
-# The exempted files say so in their own headers, and check 2 requires
-# it: a module whose header denies naming a driver type nine lines
-# above naming one is the defect this whole unit is about, published
-# through rustdoc.
+# The machinery stays, empty, for the next seam that needs it. An entry
+# is `FILE|NEEDLE|COUNT` and all three parts are load-bearing: the
+# NEEDLE covers the reason the exemption was granted and nothing else
+# (an exempted file that gains `use eframe::egui;` still reds); the
+# COUNT covers the sites argued for and no more (a further one reds);
+# and the count is also what retires the entry. An exempted file must
+# say so in its own header, and check 2 requires it: a module whose
+# header denies naming a driver type nine lines above naming one is
+# false, and rustdoc publishes it.
 #
 # WHAT IT CANNOT CATCH (stated because a sweep whose blind spot is
 # unstated is an unverified claim):
@@ -146,6 +153,14 @@ VOCAB_TABLES=(
   "### The app's vocabularies"
 )
 
+# The README section two diagnoses send a reader to. Named once and
+# CHECKED to exist (check 6b): a gate whose thesis is that hand-kept
+# cross-references rot must not carry one itself. Both diagnoses used
+# to spell this heading into their message text, and both had to be
+# hand-edited when #1883 renamed the section — the demonstration, not
+# the counterexample.
+CITED_SECTION='### What a vocabulary reads, it is handed'
+
 # The driver types, by name. The only needle set not derived, and check
 # 6 holds it against the README's rule text so deleting one there
 # cannot silently narrow this.
@@ -153,10 +168,23 @@ FORBIDDEN_TYPE_NAMES=(DocSession ViewerApp)
 
 # FILE|NEEDLE|COUNT. See the header: the needle is what the exemption
 # is FOR and the count is how many sites it covers.
-VOCAB_EXCEPTIONS=(
-  "pick.rs|DocSession|2"
-  "parts.rs|DocSession|3"
-)
+VOCAB_EXCEPTIONS=()
+
+# THE LIST IS OVERRIDABLE FOR A PLANTED TREE, AND ONLY FOR ONE. The
+# self-test's exception arms need an entry to aim at and the tree has
+# none, so they supply their own; the zero-hit control needs to be sure
+# there is none, whatever the tree currently carries. Both read this.
+#
+# It is honoured only when `GATE_ROOT` is set, which happens only via
+# `--root`, which only the self-test passes — so no environment can
+# exempt the REPO from this gate, which is the reason an env-var
+# override would otherwise be a bad idea in a file whose job is to
+# refuse.
+vocab_exceptions_from_env() {
+  [ -n "${GATE_ROOT:-}" ] || return 0
+  [ -n "${GATE_SELFTEST_VOCAB_EXCEPTIONS+x}" ] || return 0
+  read -r -a VOCAB_EXCEPTIONS <<< "$GATE_SELFTEST_VOCAB_EXCEPTIONS"
+}
 
 # LIST MEMBERSHIP IN BASH, not `printf … | grep -qxF`. `grep -q` as a
 # predicate is sanctioned by `lib.sh`, but only where exit 1 IS the
@@ -281,6 +309,21 @@ gate() {
   done
   [ "$rc" -eq 0 ] || exit 1
 
+  # CHECK 7 HAS A SUBJECT, and the constraint on where this is asked is
+  # check 4's exit. Below that exit every row of the README's
+  # vocabulary tables has been matched to a module declaring
+  # `vocabulary`, over tables proved non-empty, so an empty vocabulary
+  # set is unreachable there and a guard against it decides nothing. It
+  # is asked under check 1 because that is where the kinds are read and
+  # `vocab` — which check 7's `scanned` is built from — is complete.
+  # The answer is the tree's own, not the README's: every module
+  # declared itself a driver, so the import scan would read no file and
+  # the gate would report green over a scan of nothing.
+  if [ "${#vocab[@]}" -eq 0 ]; then
+    gate_error "$(gate_name): no vocabulary modules under $SRC — every module declares itself a driver, which is not a pass"
+    exit 1
+  fi
+
   # --- 2. THE EXEMPTED MODULES SAY SO IN THEIR OWN HEADERS ------------
   # A header that denies naming a driver type above a line that names
   # one is the defect this unit is about, and rustdoc publishes it.
@@ -292,9 +335,9 @@ gate() {
   for rel in "${modules[@]}"; do
     f=$SRC/$rel
     n=$(gate_grep -cE "$EXCEPTION_MARK" "$f")
-    if contains "$rel" "${exception_files[@]}"; then
+    if contains "$rel" ${exception_files[@]+"${exception_files[@]}"}; then
       if [ "$n" -eq 0 ]; then
-        gate_error "$SRC/$rel is on this gate's exception list and its doc header does not say so. A module header that reads \"names no driver type\" nine lines above naming one is false, and rustdoc publishes it — state the exception in the \`Module kind:\` declaration and point at $README's \"Two vocabularies that read the session\""
+        gate_error "$SRC/$rel is on this gate's exception list and its doc header does not say so. A module header that reads \"names no driver type\" nine lines above naming one is false, and rustdoc publishes it — state the exception in the \`Module kind:\` declaration and point at $README's \"${CITED_SECTION#\#\#\# }\""
         rc=1
       fi
     elif [ "$n" -gt 0 ]; then
@@ -308,7 +351,7 @@ gate() {
   local d
   for rel in ${driver[@]+"${driver[@]}"}; do
     if ! contains "$rel" "${driver_roster[@]}"; then
-      gate_error "$SRC/$rel declares itself a DRIVER and $README's \"$DRIVER_TABLE\" table does not list it. The README says there are exactly two drivers and that table is the roster — a third one is a README amendment, not a header edit, because a module that declares \`driver\` is exempt from every import check below"
+      gate_error "$SRC/$rel declares itself a DRIVER and $README's \"$DRIVER_TABLE\" table does not list it. That table IS the roster and not a summary of one — $README says so, and it lists ${#driver_roster[@]} modules — so a further driver is an amendment there and not a header edit, because a module that declares \`driver\` is exempt from every import check below"
       rc=1
     fi
   done
@@ -352,8 +395,15 @@ gate() {
     contains "$d" ${vocab_heads[@]+"${vocab_heads[@]}"} && continue
     path_mods+=("$d")
   done
+  # AN EMPTY SET IS NOT A NARROWER PATTERN, IT IS A DIFFERENT ONE. With
+  # no driver module path left, `join_alt` yields the empty string and
+  # the path arm below reads `crate::()\b`, which matches ANY
+  # `crate::` import — so without this the gate does not fall quiet, it
+  # reds on the first vocabulary that imports a vocabulary under a
+  # driver, naming a file that broke nothing. What is wrong is the
+  # roster the needles came from, and that is what this says.
   if [ "${#path_mods[@]}" -eq 0 ]; then
-    gate_error "$(gate_name): every driver in $README's table also hosts a vocabulary, so no driver module path is forbidden and check 6's path arm matches nothing — that is not a pass"
+    gate_error "$(gate_name): every driver in $README's table also hosts a vocabulary, so no driver module path is forbidden and check 7's path arm matches nothing — that is not a pass"
     exit 1
   fi
 
@@ -396,10 +446,6 @@ gate() {
   # it either.
   local -a scanned=()
   for rel in ${vocab[@]+"${vocab[@]}"}; do scanned+=("$SRC/$rel"); done
-  if [ "${#scanned[@]}" -eq 0 ]; then
-    gate_error "$(gate_name): no vocabulary modules under $SRC — every module declares itself a driver, which is not a pass"
-    exit 1
-  fi
   local lines_hits tree_hits hits
   lines_hits=$(gate_rust_code "${scanned[@]}" | gate_grep -E "$pat_all")
   tree_hits=$(gate_rust_code --window 12 "${scanned[@]}" | gate_grep -E "$pat_tree")
@@ -407,15 +453,40 @@ gate() {
   # may already have matched, and both spell the site `FILE:LINE:`, so
   # the union is deduplicated on that key — otherwise an exception's
   # site count would depend on which arms fired.
-  hits=$(printf '%s\n%s\n' "$lines_hits" "$tree_hits" | grep -v '^[[:space:]]*$' |
+  #
+  # `gate_grep` ON THE FILTER, NOT `|| true` ON THE PIPELINE. With no
+  # vocabulary naming anything forbidden — the tree since #1883 hoisted
+  # the last two reads — both arms are empty, the blank-line filter
+  # matches nothing and exits 1, and under `set -euo pipefail` a plain
+  # `grep` here takes the ASSIGNMENT and the gate with it: exit 1, no
+  # diagnosis, indistinguishable on CI from a real finding. The fix is
+  # `lib.sh`'s and it is not `|| true`: that spelling folds exit 2
+  # (could not search) and 127 (no `grep` at all) into "nothing
+  # matched" and greens over a scan that never ran. `gate_grep` draws
+  # the distinction per stage — 1 becomes 0, anything else is diagnosed
+  # and marks `GATE_MATCHER_FAILED` so `gate_ok` refuses to print.
+  hits=$(printf '%s\n%s\n' "$lines_hits" "$tree_hits" | gate_grep -v '^[[:space:]]*$' |
     awk -F: '{ k = $1 ":" $2 } !(k in seen) { seen[k] = 1; print }' | sort)
 
   # --- 8. THE EXCEPTIONS, SITE BY SITE -------------------------------
-  local found kept
+  local found kept exre
   for spec in "${VOCAB_EXCEPTIONS[@]}"; do
     exfile=${spec%%|*}
     excount=${spec##*|}
     exneedle=${spec#*|}; exneedle=${exneedle%|*}
+    # THE ANCHOR IS `lib.sh`'s, and it is the ONE property this gate
+    # shares with the skips built on `gate_exact_skip`: the exemption
+    # applies to sites in the entry's own file and nowhere else. Built
+    # once and read three times below, so the three cannot disagree, and
+    # ESCAPED there — exactly, not because `formsXrs` is reachable,
+    # since every module scanned here is a `.rs` file this gate found
+    # by name.
+    # THE NEEDLE IS NOT EXACT TEXT and is not escaped: an entry's needle
+    # is a pattern by design (see the entry format above), which is why
+    # this gate keeps its own exemption rather than calling
+    # `gate_exact_skip_filter` — that mechanism drops a whole record it
+    # can name in full, and this one counts SITES a pattern names.
+    exre="$(gate_record_anchor "$SRC/$exfile").*$exneedle"
     if [ ! -f "$SRC/$exfile" ]; then
       gate_error "$(gate_name): the exception list names $SRC/$exfile, which is not a file under $PWD — drop the entry"
       rc=1
@@ -426,10 +497,15 @@ gate() {
       rc=1
       continue
     fi
-    found=$(printf '%s\n' "$hits" | grep -c -E "^$SRC/$exfile:[0-9]+:.*$exneedle" || true)
+    # `gate_grep`, and this one is the sharpest of the three: the
+    # pattern is INTERPOLATED from an exception entry, so a malformed
+    # needle is a grep that cannot search. Under `|| true` that read as
+    # a count of zero and the gate went green over an exemption whose
+    # own pattern was broken.
+    found=$(printf '%s\n' "$hits" | gate_grep -c -E "$exre")
     if [ "$found" -gt "$excount" ]; then
-      printf '%s\n' "$hits" | grep -E "^$SRC/$exfile:[0-9]+:.*$exneedle" | cut -c1-160
-      gate_error "$SRC/$exfile names $exneedle at $found sites and its recorded exception covers $excount. The exception is SITE-granular on purpose ($README, Two vocabularies that read the session): the sites that were argued for are exempt and a new one is not, so a later unit cannot inherit the ratification by adding a line to an allowlisted file (work/code-quality/D103.md's class). Take the driver's answer as a value, or argue the new site and raise the count with it"
+      printf '%s\n' "$hits" | grep -E "$exre" | cut -c1-160
+      gate_error "$SRC/$exfile names $exneedle at $found sites and its recorded exception covers $excount. The exception is SITE-granular on purpose ($README, ${CITED_SECTION#\#\#\# }): the sites that were argued for are exempt and a new one is not, so a later unit cannot inherit the ratification by adding a line to an allowlisted file (work/gates/D103.md's class). Take the driver's answer as a value, or argue the new site and raise the count with it"
       rc=1
       continue
     fi
@@ -438,11 +514,21 @@ gate() {
       rc=1
       continue
     fi
-    hits=$(printf '%s\n' "$hits" | grep -v -E "^$SRC/$exfile:[0-9]+:.*$exneedle" || true)
+    hits=$(printf '%s\n' "$hits" | gate_grep -v -E "$exre")
   done
   [ "$rc" -eq 0 ] || exit 1
 
-  kept=$(printf '%s\n' "$hits" | grep -v '^[[:space:]]*$' || true)
+  # --- 6b. THE SECTION THE DIAGNOSES CITE ----------------------------
+  # PLAIN `grep -q`, NOT `gate_grep`: this is a predicate where exit 1
+  # IS the answer, and `gate_grep` folds 1 to 0 — which would invert it
+  # into "always present". `lib.sh` carves that case out by name, and an
+  # unsearchable README fails RED here, which is the right direction.
+  if ! grep -qxF "$CITED_SECTION" "$README"; then
+    gate_error "$(gate_name): two of this gate's diagnoses send a reader to $README's \"${CITED_SECTION#\#\#\# }\" and the README no longer carries that heading. A gate whose subject is hand-kept cross-references rotting must not ship one — rename CITED_SECTION with the section, or restore the heading"
+    exit 1
+  fi
+
+  kept=$(printf '%s\n' "$hits" | gate_grep -v '^[[:space:]]*$')
   if [ -n "$kept" ]; then
     printf '%s\n' "$kept" | cut -c1-160
     gate_error "a vocabulary module names a driver type, a driver module, or a crate that only exists behind the \`app\` feature. $README's rule: a vocabulary holds values, their wording and pure functions over them, and can be read and tested without a session or a window existing. Move the code to the driver, or take the driver's answer as a value — do not reclassify the module to silence this"
@@ -537,6 +623,9 @@ fixture_readme() {
   printf '## Module boundaries\n\n'
   printf 'Every module is a vocabulary or a driver. A vocabulary names\n'
   printf 'no `DocSession`, no `ViewerApp` and no `egui`.\n\n'
+  # The section two diagnoses cite, so the cross-reference is asserted
+  # by the fixture rather than trusted.
+  printf '%s\n\nProse the diagnoses send a reader to.\n\n' "$CITED_SECTION"
   printf '%s\n\n' "$DRIVER_TABLE"
   printf '| Module | Is |\n|---|---|\n'
   for d in "${FIXTURE_DRIVERS[@]}"; do
@@ -551,10 +640,57 @@ fixture_readme() {
   printf '| Module | Holds |\n|---|---|\n'
   printf '| `forms` | what the panels offer |\n'
   printf '| `drafts` | in-flight form state |\n\n'
-  printf '### Two vocabularies that read the session\n\nProse.\n'
+  printf '### What a vocabulary reads, it is handed\n\nProse.\n'
 }
 
 # --- planters -------------------------------------------------------
+
+# THE EMPTY-SET PLANTERS. Each of the four below empties a set this
+# gate derives, and a matcher over an empty set decides nothing about
+# the tree: three of them leave a green that says the tree is clean
+# when the gate never read it, and the fourth leaves a red against the
+# wrong file (see its planter). `lib.sh` states the rule for the file
+# set; these are it for the rosters this gate derives.
+
+plant_src_tree_gone() { rm -rf "$1/$SRC"; }
+
+# lib.rs and bin/ are the two exclusions the clean fixture asserts. A
+# tree holding ONLY those has no module to classify, and the scan set
+# is empty for a reason no later check can see.
+plant_only_lib_and_bin() {
+  find "$1/$SRC" -type f -name '*.rs' ! -name lib.rs ! -path "$1/$SRC/bin/*" -delete
+}
+
+# Every module promotes itself out of the rule. Derived from the
+# declaration rather than from a list of the fixture's files, so a
+# vocabulary added to the fixture is converted too.
+plant_every_module_is_a_driver() {
+  local f
+  while IFS= read -r f; do
+    sed -i 's|^//! Module kind: \*\*vocabulary\*\*.*$|//! Module kind: **driver** (README, Module boundaries).|' "$f"
+  done < <(grep -rlE "$KIND_LINE" "$1/$SRC" | sort)
+}
+
+# The driver roster reduced to the one driver that HOSTS a vocabulary,
+# in the README and in the tree at once, so the derived forbidden-path
+# set is empty and check 7's path arm has no alternate to match.
+# `session` is that driver in the fixture as it is in the crate.
+#
+# WHAT THIS CASE HOLDS is the guard and not a silence: with the guard
+# backed out the empty alternation reds on `camera.rs`'s
+# `use crate::session::SessionOp;`, an import that breaks no rule. The
+# case says the gate names the roster that came out empty rather than
+# the first file the degenerate pattern happens to hit.
+plant_every_driver_hosts_a_vocabulary() {
+  local root=$1 d m
+  for d in "${FIXTURE_DRIVERS[@]}"; do
+    if [ "$d" = session.rs ]; then continue; fi
+    rm -f "$root/$SRC/$d"
+    m=${d%.rs}; m=${m////::}
+    grep -vxF "| \`$m\` | a driver |" "$root/$README" > "$root/$README.new"
+    mv "$root/$README.new" "$root/$README"
+  done
+}
 
 plant_undeclared_module() {
   printf '//! A new module with no kind.\npub struct Thing;\n' > "$1/$SRC/thing.rs"
@@ -706,12 +842,29 @@ plant_exception_file_gains_another_needle() {
   printf 'use eframe::egui;\nuse crate::app::ViewerApp;\n' >> "$1/$SRC/$exfile"
 }
 
+# AN ENTRY NAMING A DRIVER. The header mark is what makes this case the
+# check-8 guard's and not check 2's: without it the module is on the
+# list and denies it, which a different arm already covers.
+plant_exception_names_a_driver() {
+  sed -i 's|^//! Module kind: \*\*driver\*\* (README, Module boundaries).$|//! Module kind: **driver**, with a recorded exception.|' \
+    "$2/$SRC/$1"
+}
+
 plant_exception_header_denies_it() {
   local spec=${VOCAB_EXCEPTIONS[0]}
   local exfile=${spec%%|*}
   sed -i 's|^//! Module kind: \*\*vocabulary\*\*, with a recorded exception.$|//! Module kind: **vocabulary** — it names no driver type.|' \
     "$1/$SRC/$exfile"
 }
+
+# The zero-hit control's planter: the clean fixture, unaltered.
+plant_nothing() { :; }
+
+# THE ENTRY IS THE PLANT. The tree is the clean fixture untouched — the
+# exception list reaches the gate through the environment and names a
+# file the fixture never writes, which is the one way a `--root` tree
+# can carry an entry pointing outside itself.
+plant_entry_names_no_file() { :; }
 
 plant_unexempted_module_claims_an_exception() {
   cat > "$1/$SRC/thing.rs" <<'RS'
@@ -721,6 +874,13 @@ plant_unexempted_module_claims_an_exception() {
 //! session read below.
 pub fn go() {}
 RS
+}
+
+# The cross-reference two diagnoses carry, deleted from the README the
+# way #1883 deleted the section they used to name.
+plant_readme_drops_the_cited_section() {
+  grep -vxF "$CITED_SECTION" "$1/$README" > "$1/$README.new"
+  mv "$1/$README.new" "$1/$README"
 }
 
 plant_readme_drops_a_type_name() {
@@ -773,8 +933,20 @@ gate_selftest() {
   gate_selftest_clean
   gate_selftest_without_tool grep "it is grep saying it could not search"
 
+  # NOTHING TO DECIDE OVER IS NOT A PASS, four times.
+  # `plant_src_tree_gone` empties the subject, `plant_only_lib_and_bin`
+  # the module roster, `plant_every_module_is_a_driver` the vocabulary
+  # set and `plant_every_driver_hosts_a_vocabulary` the forbidden-path
+  # set; each case stands beside the arm that fills the set it empties.
+  # An empty set matches nothing, so the gate would otherwise print OK
+  # having read no module or no vocabulary — or red against a file that
+  # broke nothing, which is the fourth.
+  gate_selftest_case "the gate's subject is gone, so it scanned nothing" plant_src_tree_gone
+  gate_selftest_case "besides lib.rs and bin/ — the gate scanned nothing" plant_only_lib_and_bin
+
   gate_selftest_case "declares no module kind" plant_undeclared_module
   gate_selftest_case "declares 2 module kinds" plant_two_kinds
+  gate_selftest_case "every module declares itself a driver" plant_every_module_is_a_driver
 
   # NEEDLE COVERAGE, derived from the same sets the matcher is built
   # from, so a name added to the `app` feature or to the driver table
@@ -804,14 +976,63 @@ gate_selftest() {
   gate_selftest_case "is not a module in the tree" plant_vocab_row_is_a_ghost
   gate_selftest_case "declares itself a DRIVER — the README and the module disagree" \
     plant_readme_calls_a_driver_a_vocabulary
+  gate_selftest_case "so no driver module path is forbidden" \
+    plant_every_driver_hosts_a_vocabulary
 
+  # THE EXCEPTION ARMS PLANT THEIR OWN ENTRY. They used to read
+  # `VOCAB_EXCEPTIONS[0]` — whatever the tree was currently wrong about
+  # — so when #1883's hoist retired the last entry they lost their
+  # subject and would have stopped running. Borrowing a live defect was
+  # the defect: the coverage of the exemption machinery depended on the
+  # tree still needing an exemption. They now supply one, and are
+  # exercised whether or not the tree carries any.
+  local -a live_exceptions=(${VOCAB_EXCEPTIONS[@]+"${VOCAB_EXCEPTIONS[@]}"})
+  export GATE_SELFTEST_VOCAB_EXCEPTIONS='forms.rs|DocSession|2'
+  VOCAB_EXCEPTIONS=('forms.rs|DocSession|2')
   spec=${VOCAB_EXCEPTIONS[0]}; exfile=${spec%%|*}
   gate_selftest_case "and its recorded exception covers" plant_exception_gains_a_site
   gate_selftest_case "has outlived part of its reason" plant_exception_loses_a_site
   gate_selftest_case "$want" plant_exception_file_gains_another_needle
   gate_selftest_case "its doc header does not say so" plant_exception_header_denies_it
+  # This one needs no entry: it is a module writing ITSELF a permission,
+  # which an empty list must still refuse.
+  export GATE_SELFTEST_VOCAB_EXCEPTIONS=''
+  VOCAB_EXCEPTIONS=()
   gate_selftest_case "this gate grants it none" plant_unexempted_module_claims_an_exception
 
+  # THE LIST'S OWN TWO BOUNDS. An entry naming a path the tree does not
+  # hold, or a module that is not a vocabulary, exempts nothing and
+  # hides its module from every check here — and an exception list
+  # bounded by a check that has never been shown to fire is bounded by
+  # nothing, which is this gate's own thesis turned on itself. Both
+  # cases plant the ENTRY rather than a file: it reaches the gate
+  # through the environment while `gate_plant_clean` plants from the
+  # in-process list, which is empty, so the entry can name a file the
+  # fixture never writes.
+  export GATE_SELFTEST_VOCAB_EXCEPTIONS='ghost.rs|DocSession|1'
+  gate_selftest_case "which is not a file under" plant_entry_names_no_file
+  # `gpu.rs` is one of FIXTURE_DRIVERS, so the tree writes it as a
+  # driver; the planter gives its header the mark check 2 wants, which
+  # is what leaves this case to the entry's own guard.
+  export GATE_SELFTEST_VOCAB_EXCEPTIONS='gpu.rs|DocSession|1'
+  gate_selftest_case "exempts nothing and hides the module" \
+    plant_exception_names_a_driver gpu.rs
+  export GATE_SELFTEST_VOCAB_EXCEPTIONS=''
+
+  # THE ZERO-HIT CONTROL, and it is a control rather than an accident.
+  # With no entry the clean fixture plants no exempted file, so nothing
+  # in the tree names anything forbidden and every filter in the union
+  # pipeline matches NOTHING. That is the path a plain `grep` turned
+  # into exit 1 with no diagnosis, and the path a `|| true` would green
+  # over even when the matcher had died. It is asserted here with the
+  # list forced empty, so it stays exercised the day an entry comes
+  # back — which is exactly what stopped being true of the four arms
+  # above.
+  gate_selftest_passes "a tree with nothing forbidden in it at all" plant_nothing
+  unset GATE_SELFTEST_VOCAB_EXCEPTIONS
+  VOCAB_EXCEPTIONS=(${live_exceptions[@]+"${live_exceptions[@]}"})
+
+  gate_selftest_case "no longer carries that heading" plant_readme_drops_the_cited_section
   gate_selftest_case "no longer names" plant_readme_drops_a_type_name
   gate_selftest_case "yielded no \`dep:\` entries" plant_manifest_app_feature_renamed
 
@@ -822,9 +1043,10 @@ gate_selftest() {
   gate_selftest_passes "a default-feature dependency (pollster)" \
     plant_names_a_default_feature_dependency
 
-  printf '%s selftest OK: every forbidden name has its own fixture, and the fixture LIST is derived from the same two documents the matcher is — one case per driver type, one per `dep:` in %s'"'"'s `app` feature, and five per driver module path — an ISOLATING fixture for each of the three spellings the matcher has (aliased bare import, `self::`-qualified segment, wrapped use tree, one-line use tree) plus the realistic child path that trips two arms at once, so deleting any one arm turns this self-test red. The clean fixture proves lib.rs and bin/ are excluded on purpose and that a site-granular exception suppresses exactly its recorded sites; the exception fires on a SIXTH site, on a lost site, on a different forbidden name in the same file, on a header that denies the exception, and on a module writing itself one. The README arms fire on a ghost driver row, a demoted driver, either table heading renamed, a ghost vocabulary row, a driver listed as a vocabulary, and the rule text losing a type name; the manifest arm fires when the `app` feature can no longer be read. Prose, string literals, an import under `session::`, an innocent nested use tree and a default-feature dependency stay green; and the gate stays RED, with a diagnosis, when `grep` itself cannot run\n' \
+  printf '%s selftest OK: every forbidden name has its own fixture, and the fixture LIST is derived from the same two documents the matcher is — one case per driver type, one per `dep:` in %s'"'"'s `app` feature, and five per driver module path — an ISOLATING fixture for each of the three spellings the matcher has (aliased bare import, `self::`-qualified segment, wrapped use tree, one-line use tree) plus the realistic child path that trips two arms at once, so deleting any one arm turns this self-test red. The clean fixture proves lib.rs and bin/ are excluded on purpose, and four cases leave the gate nothing to decide over — the src tree gone, a tree holding only lib.rs and bin/, every module declaring itself a driver, and a driver roster whose every entry hosts a vocabulary — each of which the gate REFUSES rather than reporting green over an empty set. The exception list is EMPTY since #1883 hoisted the last two reads, so every arm that needs an entry to aim at supplies its own: four over an entry the fixture honours (a SIXTH site, a lost site, a different forbidden name in the same file, a header that denies the exception) and two over one it deliberately does not — an entry naming a file outside the tree and one naming a module the tree writes as a driver, which are the two bounds on the list itself. A seventh, a module writing ITSELF a permission, needs no entry — and every driver-name case above is a vocabulary naming a driver with no exemption in force at all. The README arms fire on a ghost driver row, a demoted driver, either table heading renamed, a ghost vocabulary row, a driver listed as a vocabulary, and the rule text losing a type name; the manifest arm fires when the `app` feature can no longer be read. Prose, string literals, an import under `session::`, an innocent nested use tree and a default-feature dependency stay green; and the gate stays RED, with a diagnosis, when `grep` itself cannot run\n' \
     "$(gate_name)" "$MANIFEST"
 }
 
 gate_parse_args "$@"
+vocab_exceptions_from_env
 gate_main

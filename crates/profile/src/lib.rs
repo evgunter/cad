@@ -123,7 +123,7 @@ pub mod structure;
 mod sugar;
 mod validate;
 
-use geom_core::{Affine3, Mat3, Point2, Point3, Real, Vec3};
+use geom_core::{Affine3, Point2, Point3, Real, Vec3};
 
 pub use lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 pub use path::program::{
@@ -131,9 +131,10 @@ pub use path::program::{
     replay, replay_guided, replay_recording,
 };
 pub use path::{
-    ArcCarrierScalar, ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ContinueTarget, LineTarget,
-    Open, PartialPath, PathError, PathErrorKind, PathNoCornerReason, PointLeg, Radius, Start,
-    Sweep, TangentArcTarget, Via, circle, circle_split,
+    ArcCarrierScalar, ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ContinueTarget, CornerReason,
+    CornerRefusal, CornerWindow, LineTarget, Open, PartialPath, PathError, PathErrorKind,
+    PathNoCornerReason, PointLeg, Radius, Start, Sweep, TangentArcTarget, Via, circle,
+    circle_split,
 };
 pub use structure::{
     CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision, LoopCanonical,
@@ -408,12 +409,10 @@ impl<T: Real> ProfileLoop<T> {
 /// plane normal are the columns of the placement's linear part
 /// (`linear.c0`, `linear.c1`, `linear.c2`).
 ///
-/// Rigidity — u, v, normal orthonormal and right-handed
-/// (normal = u × v) — is **conventional data, unchecked** (the crate
-/// docs' plane convention; the same posture as `geom`'s unit
-/// `dir`/`u_ref` fields). Tier-3 geometric validation certifies it at
-/// rest; a non-rigid placement yields a well-defined skewed sketch, not
-/// poison.
+/// Rigidity — u, v, normal orthonormal and right-handed — is
+/// conventional data: the caller's obligation and what it leaves
+/// unchecked are stated once, at [`Affine3::from_frame`]. Tier-3
+/// geometric validation certifies it at rest.
 #[derive(Clone, Copy, Debug)]
 pub struct SketchPlane<T: Real> {
     /// The placement map (rigid by convention).
@@ -453,15 +452,39 @@ impl<T: Real> SketchPlane<T> {
         Self::from_frame(Point3::origin(), Vec3::unit_z(), Vec3::unit_x())
     }
 
-    /// The plane through `origin` spanned by `u` and `v`, with
-    /// normal = u × v (computed, keeping the frame right-handed by
-    /// construction when u ⊥ v are unit — which is the caller's
-    /// conventional obligation, unchecked).
+    /// The plane whose placement is [`Affine3::from_frame`]`(origin, u,
+    /// v)`: the normal is computed there as `u × v`, and the caller's
+    /// obligation on `u` and `v` is stated there, once.
     pub fn from_frame(origin: Point3<T>, u: Vec3<T>, v: Vec3<T>) -> Self {
-        Self::new(Affine3::from_parts(
-            Mat3::from_cols(u, v, u.cross(v)),
-            origin - Point3::origin(),
-        ))
+        Self::new(Affine3::from_frame(origin, u, v))
+    }
+
+    /// The same plane read at another scalar: the stored placement
+    /// through [`Affine3::map`] — twelve components, no arithmetic, so
+    /// exact whenever `f` is (`Real::from_f64` carries an `f64` frame
+    /// to any evaluation scalar).
+    ///
+    /// **What the lift means.** The stored normal was computed at the
+    /// SOURCE scalar — `u × v` at the scalar [`Self::from_frame`] ran
+    /// at — and is lifted here as a value. That is the same plane as
+    /// the frame constructed at the target scalar exactly where the
+    /// cross product's products and differences are exact (the
+    /// canonical axes; any frame whose components multiply and
+    /// subtract without rounding), and a different one wherever they
+    /// round. The two spellings, and a caller chooses:
+    ///
+    /// - `plane.map(S::from_f64)` — the `f64` frame lifted whole. At
+    ///   `Interval` every component is a point interval, the normal
+    ///   included: the `f64` rounding of the cross product is carried
+    ///   as if exact.
+    /// - `SketchPlane::from_frame(o.map(S::from_f64), u.map(S::from_f64),
+    ///   v.map(S::from_f64))` — the frame constructed at `S`. Bit-
+    ///   identical to the lift on exact axes; at `Interval` on a general
+    ///   frame the cross product of point intervals rounds outward, so
+    ///   the stored normal carries the width of that arithmetic.
+    #[must_use]
+    pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> SketchPlane<U> {
+        SketchPlane::new(self.placement.map(f))
     }
 
     /// Maps a sketch point to world space: `placement`·(x, y, 0),
