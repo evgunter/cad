@@ -241,3 +241,19 @@ refusal is an `Arc`-newtype over `NodeErrorKind` because the fault
 types derive `Clone`+`PartialEq` and the kernel error type cannot; the
 rider reaches no viewer call site at all. Style review and
 correctness arm dispatched on that head.
+
+## MSOLVE-3 reviews adjudicated, fix pass dispatched (2026-09-06)
+
+Correctness arm APPROVE-WITH-FIXES: C1–C5 confirmed with the carried
+kinds byte-identical to the placer's own on eight probes; three
+MINORs — the datum road attributed the datum's slot refusal to the
+pattern (ruled: `placer` names the refusing node, the datum when its
+slots refuse), a blanket `From<NodeErrorKind> for EditError` that
+turned any node error into "the placement axis is unusable" (the
+catch-all shape reopened one door over; ruled out), and no Python row
+for the carried error. Style: no MAJOR; the `need_*` slot readers
+copied into `mate/`, a hand-spelled `WrongOperand` payload the one
+row that could catch it did not compare, the untested explicit-rule
+arm, doc rot in `topo/src/query.rs` and the role lists. Filed: the
+four-workspace build hazard (CIW) and the `names/{flush,select}.rs`
+`map_err(|_| ..)` discards (SEAT), `work/issues/`.
