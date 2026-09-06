@@ -24,9 +24,9 @@
 #  - `#[cfg(test)]` blocks (via --skip-cfg-test) and whole modules
 #    declared `#[cfg(test)] mod x;` — a test IS an entry point, and
 #    the suite's discipline is already one process per eps. WHERE such
-#    a module lives is `lib.sh`'s, resolved the way rustc mounts it —
-#    the sibling `dir/x.rs` only from a crate root or a `mod.rs`, and
-#    `dir/foo/x.rs` from any other declarer `dir/foo.rs`.
+#    a module lives is not decided here: `gate_test_only_mounts` places
+#    it and `gate_filter_test_only_paths` takes it out of the scan,
+#    under `lib.sh`'s §"WHERE A TEST-ONLY MODULE LIVES".
 #  - crates/geom-core/src/tolerance.rs — it DEFINES `witness`.
 #  - crates/pncad/src — the curated document/authoring door, whose
 #    whole job is to be the place a program starts.

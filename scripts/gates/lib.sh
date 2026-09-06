@@ -226,6 +226,13 @@ gate_ok() {
 # processed for escape sequences before it is a regex, so `\(` in one is
 # an unknown escape the hosted runner's `awk` warns about and a value it
 # may hand on changed; `ENVIRON` carries the bytes.
+#
+# ONE TEXT IS READ AS TWO EREs — `grep -E`'s and `awk`'s — so it may use
+# only what both spell the same way. `[^]]` (a `]` first in a bracket
+# expression is a literal) and `[[:space:]]` agree in GNU grep, gawk and
+# mawk; a GNU-only escape such as `\s` or `\b` does not, and a
+# perl-regexp spelling would not be an ERE at all. Anything added here is
+# checked against both readers, not against the one at hand.
 GATE_CFG_TEST_RE='#\[cfg\(([^]]*[(,][[:space:]]*)?test[,)]'
 GATE_CFG_TEST_NOT_RE='#\[cfg\([^]]*(any|not)\('
 
@@ -909,7 +916,13 @@ gate_test_only_mounts() {
 }
 
 # gate_filter_test_only_paths PATH... — the paths `GATE_TEST_ONLY_MOUNTS`
-# does not name, in the order given.
+# does not name, in the order given. THE MOUNTS COME THROUGH THE GLOBAL
+# AND THE PATHS AS ARGUMENTS, which is not the shape of the resolver
+# above it: two lists cannot both be argv, and a shell separator between
+# them is one more thing to get wrong at the two call sites there are.
+# The asymmetry is real, so it is named: the mounts are ONE answer per
+# gate run, resolved once by `gate_production_sources` and left in the
+# global; the paths are the caller's question, and vary per call.
 #
 # AN EXCLUSION IS A PATH, NOT A SUBSTRING, and that is why this is a
 # comparison rather than a `grep -F` over the list: `-F` matches anywhere
@@ -1346,6 +1359,23 @@ gate_plant_home_in_declarer_directory() {
   "$1" "$2/crates/planted/src/foo/bar.rs"
 }
 
+# `all(test, …)` IS TEST-ONLY, and this is the case the two-stage
+# narrowing can lose. The first stage reads whole files to find the
+# handful worth reading properly, and a stage that looked for the
+# LITERAL `#[cfg(test)]` never offers this declarer to the second: the
+# file drops out before anything places its module, and the module is
+# scanned as production. Both stages ask the one question
+# `GATE_CFG_TEST_RE` spells, and this is where that is proved — the
+# declarer is a non-root, so the breach also has to be found at
+# `dir/foo/m.rs` rather than beside it.
+gate_plant_home_all_gated_in_declarer_directory() {
+  mkdir -p "$2/crates/planted/src/foo"
+  printf 'mod foo;\n' > "$2/crates/planted/src/lib.rs"
+  printf '#[cfg(all(test, feature = "probe"))]\nmod m;\n' \
+    > "$2/crates/planted/src/foo.rs"
+  "$1" "$2/crates/planted/src/foo/m.rs"
+}
+
 # A `#[path]` MOUNT overrides both positional rules, relative to the
 # declaring file's own directory — and the tree has live ones, so a
 # resolver without it re-mints the over-scan it just fixed. The dead
@@ -1425,6 +1455,8 @@ gate_selftest_test_module_homes() {
     gate_plant_home_gated_one_line "$plant"
   gate_selftest_passes "a breach in the module file a non-root declarer actually names" \
     gate_plant_home_in_declarer_directory "$plant"
+  gate_selftest_passes "a breach in the module file an all(test, …) declaration names, which the raw narrowing must offer the resolver" \
+    gate_plant_home_all_gated_in_declarer_directory "$plant"
   gate_selftest_passes "a breach in the module file a #[path] attribute mounts" \
     gate_plant_home_path_attribute "$plant"
   gate_selftest_passes "a breach in the mod.rs of a resolved module directory" \
@@ -1433,7 +1465,7 @@ gate_selftest_test_module_homes() {
     gate_plant_home_nested_target "$plant"
   gate_selftest_passes "a gated declaration near the top of a file longer than a pipe buffer" \
     gate_plant_home_early_declaration_in_a_long_file "$plant"
-  printf '%s selftest OK (test-module homes): places a cfg(test) declaration where rustc mounts it, so a production sibling, a production file under an inline module, a file whose path merely extends an exclusion, an ungated declaration and an any(test, …) one all stay in the scan and red, while the file the declaration names — positional, one-line or two, #[path]-mounted, directory-form or nested in an inline module — does not; and it REFUSES, with its own diagnosis and never a second false one, a declaration it cannot place, while a declaration it CAN place stays placed however long the file under it runs and a tree whose sources exclude each other is not a clean tree\n' "$(gate_name)"
+  printf '%s selftest OK (test-module homes): places a cfg(test) declaration where rustc mounts it, so a production sibling, a production file under an inline module, a file whose path merely extends an exclusion, an ungated declaration and an any(test, …) one all stay in the scan and red, while the file the declaration names — positional, one-line or two, gated on `test` alone or inside an all(…), #[path]-mounted, directory-form or nested in an inline module — does not; and it REFUSES, with its own diagnosis and never a second false one, a declaration it cannot place, while a declaration it CAN place stays placed however long the file under it runs and a tree whose sources exclude each other is not a clean tree\n' "$(gate_name)"
 }
 # gate_selftest_without_tool TOOL WANT — for a gate that shells out. A
 # reader that fails is the SECOND half of S157: the gate dies at the

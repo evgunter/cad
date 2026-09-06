@@ -96,9 +96,9 @@
 #     `.unwrap()` inside a `#[test] fn`, and the file carries no `cfg`
 #     of its own because its `mod` line in `lib.rs` carries it.
 #
-# WHERE that file lives is `lib.sh`'s answer, resolved the way rustc
-# mounts a module, and the exclusion is a whole path or a directory
-# prefix rather than a substring of one.
+# WHERE that file lives is not decided here: `gate_test_only_mounts`
+# places it and `gate_filter_test_only_paths` takes it out of the scan,
+# under `lib.sh`'s §"WHERE A TEST-ONLY MODULE LIVES".
 #
 # Panicking IS a test's failure mechanism, which is why the stanza lets
 # test code allow the family per-module; a gate that fired there would

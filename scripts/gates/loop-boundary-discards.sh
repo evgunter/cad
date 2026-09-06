@@ -400,7 +400,7 @@ gate_plant_site() {
   {
     printf 'fn %s() {\n' "$item"
     printf '    for lk in loops {\n'
-    printf '        // the comment-only line whose record repeats the window\n'
+    printf '        // a comment-only line, which is not a record at all\n'
     case "$form" in
       wrapped-continue)
         printf '        let LoopBoundary::Cycle { first } = body\n'

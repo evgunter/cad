@@ -57,13 +57,12 @@
 # KNOWN GAP 1: the scan is PRODUCTION CODE ONLY — a `#[cfg(test)]` item
 # is dropped, and so is a module file whose `mod` declaration is one. A
 # `x * x` inside a test cannot poison a shipped enclosure, and scanning
-# them is what produced the false positives above. **Only a TEST-ONLY
-# attribute counts**: `any(test, …)` and `not(test)` are both scanned,
-# because an `any(debug_assertions, test, …)` module is every debug
-# build — `topo`'s `test_support_impl` is exactly that, and an earlier
-# draft skipped it. The cost is that a test-only helper later promoted
-# to production arrives unscanned; the promotion is a diff a human
-# reads.
+# them is what produced the false positives above. WHICH attribute is
+# test-only — and which, being true under some other configuration, is
+# not — is `lib.sh`'s §"THE TEST-ONLY `cfg` ATTRIBUTE", and is not
+# restated here. The COST is this gate's: a test-only helper later
+# promoted to production arrives unscanned, and the promotion is a diff
+# a human reads.
 #
 # KNOWN GAP 2: an operand starting with an uppercase letter is invisible
 # (`SOME_CONST * SOME_CONST`). Deliberate: the ALL-CAPS population in
