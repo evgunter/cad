@@ -93,7 +93,9 @@
 #     helpers today. Matching them needs the arm the source does not
 #     write, which is a different instrument.
 #   * A NO-BINDING ARM THAT PRODUCES A VALUE rather than transferring
-#     control — `=> None`, `=> Err(…)`, `=> true`. Six live sites. An
+#     control — `=> None`, `=> Err(…)`, `=> true`. Six live no-binding
+#     arms are neither empty nor a control transfer: five produce a
+#     value, one panics (and a panic is out of scope above). An
 #     UNDER-count, and deliberate: the class is a deferral, and an arm
 #     whose value flows on is a decision its caller consumes.
 #   * A `;` INSIDE THE SCRUTINEE (`let … = [x; 3] else`), a TUPLE
