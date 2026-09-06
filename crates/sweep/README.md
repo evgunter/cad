@@ -33,7 +33,8 @@ chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
 | Analytic arms: sheet derivation, `BlendArm`, chamfer strip, corner ball | `crates/sweep/src/blend/arms.rs` |
 | Admission tokens (holding the value is the fact) | `crates/sweep/src/blend/admit.rs` |
 | Assembly front doors, `Blended` result type, octant charts | `crates/sweep/src/blend/build.rs` |
-| In-place composition surgery; open chains, ladder rims, annulus rims across seams | `crates/sweep/src/blend/surgery.rs` |
+| In-place composition surgery: the door, the plans, the ring check, the description pass, the one `kef` door; the closed-rim walks (ladder rims, annulus rims across seams) | `crates/sweep/src/blend/surgery.rs` |
+| The open bands: the plane–plane band with its trihedral corners, the ruled band with its transverse cut-off | `crates/sweep/src/blend/open/planar.rs`, `crates/sweep/src/blend/open/ruled.rs` |
 | Birth records (`BlendNaming`) the document layer turns into names | `crates/sweep/src/blend/naming.rs` |
 
 ## Blend vocabulary (BLEND-VOCAB-DESIGN V1–V4)
@@ -158,8 +159,9 @@ own extent, the lever the shared-ruling hypothesis is metered at). The
 band ends in that plane's section of it, an exact stored arc of the
 band's radius about the spine's crossing
 (`RunOutPolicy::CutOffAtTransverseCap`; `CornerConfig::policy` maps
-the tag). The carve (the ruled-band section of `blend/surgery.rs`,
-beside the blank and rim phases) mints no strut: the cap's two
+the tag). The carve (`blend/open/ruled.rs`, beside the planar band's
+`blend/open/planar.rs`; the rim phases stay in `blend/surgery.rs`)
+mints no strut: the cap's two
 rim edges are split at the trimlines' feet, the arc is `mef`'d across
 the cap, one trimline `mef` per support carves its strip along the
 ruling, and the crease's `kef` with two `kef`/`kev` pairs folds the

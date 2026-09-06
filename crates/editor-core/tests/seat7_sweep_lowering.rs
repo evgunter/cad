@@ -60,6 +60,7 @@ use editor_core::{
     LoopProgram, Node, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, StepArg,
     evaluate, persist,
 };
+use fixture::digest::digest;
 use fixture::{ang, axis_in_plane, insert, len, scl, square, step};
 use geom_brep::RadiusEvidence;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
@@ -257,83 +258,10 @@ fn both_sweeps_evaluate_in_one_document() {
     }
 }
 
-/// FNV-1a 64 over a document's evaluated name tables and values — the
-/// SEAT-4 feed, byte for byte, so a red here is comparable with that
-/// unit's rows.
-///
-/// The channels it covers were enumerated off `wire_blend`'s body
-/// there; `wire_swept` writes the same four — the emitted table, the
-/// body the kernel verb returned, the `stamp_minted` provenance on that
-/// body, and (on the refusal path) a typed error — so the same feed is
-/// the right one here. The refusal path is NOT covered, exactly as it
-/// was not there.
-///
-/// **What it deliberately does NOT feed: the per-field parameter
-/// sources.** They are the channel this unit ADDS, so feeding them
-/// would move every constant below and make the differential against
-/// the merge base impossible to state. They are pinned in their own
-/// rows, through the kernel's evidence door, where a red says what
-/// actually broke.
-fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    let mut feed = |bytes: &[u8]| {
-        for b in bytes {
-            h ^= u64::from(*b);
-            h = h.wrapping_mul(0x1000_0000_01b3);
-        }
-    };
-    for id in &ev.order {
-        feed(format!("#{id:?}").as_bytes());
-        let Some(value) = ev.value(*id) else { continue };
-        for (name, entry) in value.name_table.iter() {
-            feed(format!("{name:?}={entry:?}").as_bytes());
-        }
-        feed(value.payload.kind_name().as_bytes());
-        if let editor_core::ValuePayload::Body(body) = &value.payload {
-            feed_body(&mut feed, body);
-        }
-    }
-    h
-}
-
-/// The body half of [`digest`], byte-for-byte the SEAT-4 feed: points
-/// with their provenance stamps, the curve and surface arenas with
-/// theirs, the topology's attachment both ways, and the entity census.
-fn feed_body(feed: &mut impl FnMut(&[u8]), body: &Body<f64>) {
-    for (key, p) in body.points() {
-        for c in [p.x, p.y, p.z] {
-            feed(&c.to_bits().to_be_bytes());
-        }
-        feed(format!("{key:?}<-{:?}", body.point_source(key)).as_bytes());
-    }
-    for (key, curve) in body.curves() {
-        feed(format!("{key:?}{curve:?}<-{:?}", body.curve_source(key)).as_bytes());
-    }
-    for (key, surface) in body.surfaces() {
-        feed(format!("{key:?}{surface:?}<-{:?}", body.surface_source(key)).as_bytes());
-    }
-    for (key, face) in body.faces() {
-        let surface = body
-            .get_surface(face.surface)
-            .expect("a face has a carrier");
-        feed(format!("{key:?}{surface:?}").as_bytes());
-    }
-    for (key, edge) in body.edges() {
-        let curve = body
-            .get_curve_geom(edge.curve)
-            .expect("an edge has a curve");
-        feed(format!("{key:?}{curve:?}").as_bytes());
-    }
-    feed(
-        format!(
-            "V{}E{}F{}",
-            body.vertices().count(),
-            body.edges().count(),
-            body.faces().count()
-        )
-        .as_bytes(),
-    );
-}
+// The digest these rows pin with is `fixture::digest::digest` — ONE feed
+// for every verb-migration suite, stated at that home. It deliberately
+// does NOT feed the per-field parameter sources this unit adds: those
+// are pinned in their own rows through the kernel's evidence door.
 
 /// **The sweep-carrying corpus documents' evaluations are
 /// bit-identical**, body and name table, one committed number each.
@@ -348,17 +276,28 @@ fn feed_body(feed: &mut impl FnMut(&[u8]), body: &Body<f64>) {
 /// the digest must STILL be untouched, since a field source is not in
 /// this feed), and `kitchen_sink` is the registry's revolve.
 ///
+/// RE-MINTED when the digest moved to its one home
+/// (`fixture::digest`) and gained the boolean and split arms every
+/// suite now shares: each of these five documents carries a boolean
+/// (the die's pip subtracts, the table's and the boss's unions) or a
+/// split (the cut cylinder, the kitchen sink) that this suite's own
+/// copy of the feed never read, so the numbers moved with the FEED
+/// and not with any evaluation. The differential was re-taken on the
+/// extracted merge base with the shared feed: all five reproduce
+/// there, and `cut_cylinder`'s and `kitchen_sink`'s are now the same
+/// numbers the split suite pins — one feed, one number per document.
+///
 /// They are goldens in the ordinary sense — when one moves the question
 /// is whether the new behaviour is right, never how to restore the old
 /// number.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x328a_2ed2_c90b_2a5a),
-        ("corner_table", 0x9dca_7d2f_110c_aeb1),
-        ("cut_cylinder", 0xde55_26db_e3da_32c4),
-        ("boss_union", 0x837b_32e6_3076_79f1),
-        ("kitchen_sink", 0xb068_5374_fa2e_2b3e),
+        ("die", 0x6049_75e9_75f5_d9ed),
+        ("corner_table", 0xc8b5_844d_cf13_f03b),
+        ("cut_cylinder", 0xeaea_81fa_b3df_29e3),
+        ("boss_union", 0x519a_7998_6394_49a3),
+        ("kitchen_sink", 0x8826_0b67_1ded_0c08),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

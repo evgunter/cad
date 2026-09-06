@@ -30,8 +30,10 @@ pub struct Vec3<T: Real> {
 }
 
 impl<T: Real> Vec2<T> {
-    /// Builds a vector from its components.
-    pub fn new(x: T, y: T) -> Self {
+    /// Builds a vector from its components. A `const fn` (the doctest
+    /// at [`super::Point3::new`] reads a constant of each of the four
+    /// types).
+    pub const fn new(x: T, y: T) -> Self {
         Self { x, y }
     }
 
@@ -136,8 +138,10 @@ impl<T: Real> Vec2<T> {
 }
 
 impl<T: Real> Vec3<T> {
-    /// Builds a vector from its components.
-    pub fn new(x: T, y: T, z: T) -> Self {
+    /// Builds a vector from its components. A `const fn` (the doctest
+    /// at [`super::Point3::new`] reads a constant of each of the four
+    /// types).
+    pub const fn new(x: T, y: T, z: T) -> Self {
         Self { x, y, z }
     }
 

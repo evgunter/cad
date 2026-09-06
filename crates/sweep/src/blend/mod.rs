@@ -127,6 +127,7 @@ pub mod arms;
 pub mod battery;
 pub mod build;
 pub mod naming;
+mod open;
 pub mod surgery;
 
 use core::fmt;
@@ -151,10 +152,10 @@ pub use naming::{BlendNaming, RimSide};
 /// rather than counted here (a count in this doc has already gone
 /// stale once): the analytic arm a link resolves to and which of
 /// C8's predicates are facts about the request at all
-/// ([`battery::run_battery_for`]), the corner geometry the surgery
-/// grafts and its face-sense fold, the closed-chain arm (the
-/// fillet's alone), and the carve's contact-carrier kind
-/// ([`surgery`]).
+/// ([`battery::run_battery_for`]), the corner geometry the planar
+/// open band grafts ([`open::planar`]) and its face-sense fold, the
+/// closed-chain arm (the fillet's alone), and the carve's
+/// contact-carrier kind ([`surgery`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BlendKind {
     /// The constant-radius rolling ball: cylinder/torus bands and

@@ -458,7 +458,7 @@ fn a_record_from_another_program_refuses_at_its_shape() {
 /// luck on inputs that happen to be easy.
 #[test]
 fn guided_validation_runs_no_canonicalization_decide() {
-    use geom_core::k_stats::{start_verdict_log, take_verdict_log};
+    use geom_core::k_stats::Bracket;
     const PINNED: [&str; 3] = ["canonical_order_x", "canonical_order_y", "loop_orientation"];
     // A rectangle, so that the control genuinely reaches all three: two
     // of its vertices share an x, which is the only way the y rung of
@@ -466,9 +466,9 @@ fn guided_validation_runs_no_canonicalization_decide() {
     let p = profile(vec![rect(0.0, 0.0, 3.0, 2.0)]);
     let (_, canonical) = p.validate_recording(tol()).expect("records");
 
-    start_verdict_log();
+    let bracket = Bracket::open();
     let _ = p.validate(tol()).expect("validates");
-    let plain = take_verdict_log();
+    let plain = bracket.finish().verdicts;
     let ran: Vec<&str> = PINNED
         .into_iter()
         .filter(|n| plain.iter().any(|v| v.predicate == *n))
@@ -479,12 +479,16 @@ fn guided_validation_runs_no_canonicalization_decide() {
         "the unguided validation is the control and must run all three; it ran {ran:?}"
     );
 
-    start_verdict_log();
+    let bracket = Bracket::open();
     let _ = p.validate_guided(tol(), &canonical).expect("is guided");
-    let guided = take_verdict_log();
+    let recorded = bracket.finish();
+    let guided = recorded.verdicts;
+    // Both channels: a pinned predicate that ESCALATED rather than
+    // decided would still have been asked, and asking is the leak.
     let leaked: Vec<&'static str> = guided
         .iter()
         .map(|v| v.predicate)
+        .chain(recorded.escalations.iter().map(|e| e.predicate()))
         .filter(|n| PINNED.contains(n))
         .collect();
     assert!(
@@ -510,19 +514,21 @@ fn guided_validation_at_interval_certifies_without_the_pinned_decides() {
     // than at module scope, where the default build carries them unused.
     use common::lift;
     use geom_core::Interval;
-    use geom_core::k_stats::{start_verdict_log, take_verdict_log};
+    use geom_core::k_stats::Bracket;
     use profile::Profile;
     let p = annulus();
     let (_, canonical) = p.validate_recording(tol()).expect("records at f64");
     let lifted: Profile<Interval> = lift(&p);
-    start_verdict_log();
+    let bracket = Bracket::open();
     let vp = lifted
         .validate_guided(tol(), &canonical)
         .expect("the interval lane certifies the pinned canonical form");
-    let log = take_verdict_log();
+    let recorded = bracket.finish();
+    let log = recorded.verdicts;
     for name in ["canonical_order_x", "canonical_order_y", "loop_orientation"] {
         assert!(
-            !log.iter().any(|v| v.predicate == name),
+            !log.iter().any(|v| v.predicate == name)
+                && !recorded.escalations.iter().any(|e| e.predicate() == name),
             "the interval lane reached {name}, which it is not supposed to be asked"
         );
     }
