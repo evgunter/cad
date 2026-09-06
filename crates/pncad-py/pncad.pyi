@@ -3261,12 +3261,23 @@ def product_named(doc: Doc, evaluation: Evaluation) -> tuple[Body, list[str]]:
     coordinate. Raises ProductError, typed."""
 
 class RefusedRef:
-    """Why a mate reference named no product face."""
+    """Why a mate reference named no product face.
+
+    The gate asks two tables in order: the product's, then — when it
+    is silent — the operand's own. `ref_vanished` is a name neither
+    spells; `ref_read_below_a_root` is a name the operand spells at a
+    node the product does not list as a root."""
 
     @property
     def variant(self) -> str:
-        """`ref_node_gone`, `ref_vanished`, `ref_ambiguous`, or
-        `ref_not_a_face`."""
+        """`ref_vanished`, `ref_read_below_a_root`, `ref_ambiguous`,
+        or `ref_not_a_face`."""
+
+    @property
+    def at(self) -> Optional[NodeId]:
+        """The operand the reference is read at, for
+        `ref_read_below_a_root`: its own table spells the name, and
+        it is not a root of the product."""
 
     @property
     def width(self) -> Optional[int]:

@@ -1909,8 +1909,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "refused_ref_tag",
         values: &[
             "ref_ambiguous",
-            "ref_node_gone",
             "ref_not_a_face",
+            "ref_read_below_a_root",
             "ref_vanished",
         ],
         delegates: &[],

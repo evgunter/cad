@@ -293,3 +293,11 @@ PR 2081 merged at `4568d7d` on a full green matrix. The lane clone
 cut `msolve/5-read-below-a-root` from main against `docs/MSOLVE-5-
 SPEC.md` (read from this branch until it lands; the lane merges main
 before its first push). The lever's extent is up on `[ev]` PR 2086.
+
+## MSOLVE-5 MERGED (2026-09-06, PR 2090)
+
+Fix pass green on the full matrix at `ae78e6e` (one run, no cancelled
+twin). Item closed, spec deleted into the ledger, the gate issue
+closed. Filed on the way: the tie-before-kind asymmetry between the
+product's own rows and the operand's (`work/issues/`). The slate that
+remains: the lever's extent, asked on `[ev]` PR 2086.
