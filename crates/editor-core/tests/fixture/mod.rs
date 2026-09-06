@@ -33,12 +33,67 @@ pub mod digest;
 /// names an instantiated part's faces are spelled with.
 pub mod resolver;
 
+/// The whole-frame product oracle a mate suite measures a seat with.
+pub mod seat;
+
 use editor_core::{
-    CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKind, Expr, LoopProgram, Node, ParamName,
-    ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg,
-    StableName,
+    AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKind,
+    EvalOptions, Evaluation, Expr, LoopProgram, Node, ParamName, ProfileDoc, ProfileEdgeRef,
+    ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, assemble, evaluate,
 };
 use geom_core::Tol;
+
+/// **The evaluation, through the ordinary door** — `evaluate` at
+/// `f64` with a fresh cancel token and the witness tolerance, which
+/// is what every suite here wants and what none of them should spell
+/// for itself.
+pub fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
+    evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
+}
+
+/// **The at-rest gate's verdict**, as a mate row wants to read it:
+/// whether the assembly mints, with the minted records dropped.
+///
+/// # Errors
+///
+/// The gate's own refusal, unaltered.
+pub fn gate(doc: &ProfileDoc, ev: &Evaluation<f64>) -> Result<(), AssemblyError> {
+    assemble(doc, ev, Tol::witness()).map(|_| ())
+}
+
+/// **A name worn as copy `i` of `pattern`** — one `Instance(i)`
+/// wrapper, the segment a pattern's table puts round every master
+/// name it emits. Nest the calls for a nested copy.
+pub fn in_copy(pattern: RecipeNodeId, i: u32, of: StableName) -> StableName {
+    StableName {
+        kind: of.kind,
+        node: pattern,
+        path: vec![RoleSeg::Instance {
+            i,
+            of: Box::new(of),
+        }],
+    }
+}
+
+/// A `Transform` over `input`: a translation, and `angle` about
+/// `axis`.
+///
+/// # Panics
+///
+/// If `angle` is not a finite angle literal.
+pub fn xform(
+    input: RecipeNodeId,
+    translation: [f64; 3],
+    axis: [f64; 3],
+    angle: f64,
+) -> Node<ProfileProgram> {
+    Node::Transform {
+        input,
+        translation: translation.map(len),
+        rotation_axis: axis.map(scl),
+        rotation_angle: Expr::literal(angle, Dimension::Angle).expect("an angle literal"),
+    }
+}
 
 /// The pip depth the document's `pip_depth` parameter starts at.
 pub const DEPTH: f64 = 0.125;

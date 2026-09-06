@@ -174,3 +174,13 @@ Instance(i) }`, sibling distinctness at every level, one walk per
 reference, `mate/member.rs` split out. (The preceding merge commit on
 this branch carried the log's conflict markers; this commit resolves
 them — merge-only, nothing rewritten.)
+## MSOLVE-2 MERGED (2026-09-06, PR 2039)
+
+Fix pass green on the full matrix at `ef8926c`. Item closed, spec
+deleted into the ledger, `nested-pattern-mate-heads-refuse` closed —
+the PR 1731 ruling is fully landed. One consequence the fix pass
+stated: a mate the per-reference checks refuse still welds its
+cluster (the partition is structural), so an instance no pair reaches
+rides its cluster's recorded frame with the mate's row red, as a
+dangling head already does. Next: MSOLVE-3 on
+`msolve/3-placer-refused`.
