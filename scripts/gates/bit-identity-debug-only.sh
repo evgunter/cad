@@ -21,6 +21,21 @@
 #     `gathers_on_this_thread`. A fourth site without the attribute, or
 #     the attribute dropped from one of the three, compiles and passes
 #     every test.
+#   * `crates/mesh/src/curved.rs` — the sphere/torus lane's
+#     identified-vertex census: `identified_ids` re-derives the set of
+#     mesh ids the boundary walk placed at two UV locations, and
+#     `overused_identified_edge` re-derives, over the emitted triangles,
+#     the fan edge that census forbids.
+#   * `crates/mesh/src/tessellate.rs` — `unpaired_chord_segment`, the
+#     re-derivation over the assembled mesh of the chord segment used by
+#     other than two face triangles.
+#   * `crates/mesh/src/walk.rs` — `overused_identified_edge_in`, the one
+#     home of the identified-vertex fan census both surface lanes call.
+#   * `crates/mesh/src/trimmed.rs` — the trimmed lane's call of that same
+#     census. A SUBJECT IS A FILE, so a symbol whose uses cross files
+#     owes a row per file that uses it; a row covering the definition
+#     alone pins the attribute on the definition and nothing about the
+#     call sites.
 #
 # WHAT IS PINNED IS THE SOURCE SHAPE. This workspace's
 # `[profile.release]` sets `debug-assertions = true` until publish, so a
@@ -85,7 +100,7 @@
 # KNOWN GAP 3: a symbol is matched at identifier boundaries, so a longer
 # name that merely contains it is not a use. What the reader cannot tell
 # apart is a WHOLE-identifier collision — the same spelling naming
-# something that is not the mechanism. Neither row has one; a row that
+# something that is not the mechanism. No row has one; a row that
 # would is one this reader cannot serve.
 #
 # KNOWN GAP 4: a rustfmt-wrapped attribute — `#[cfg(` and
@@ -97,6 +112,19 @@
 # marks the item entered at that brace, so the item reads as closed at
 # the matching `}` and a use in the real body fires. Cry-wolf again, in
 # the same direction.
+#
+# KNOWN GAP 6: an attribute in STATEMENT position over a multi-line call
+# whose ARGUMENTS contain a brace — a struct literal or an `if` arm
+# handed to the call — is not servable at all. The first `{` the reader
+# meets is inside the still-open `(`, which is the positive desync the
+# body-brace arm refuses to tolerate, so every such site is reported and
+# the gate reds. That is the safe direction and it is also a CEILING on
+# the subject list: a mechanism whose sites take that shape cannot be a
+# row here until the reader can say where a statement-position item
+# ends. `crates/topo/src/euler.rs`'s `ArenaDelta` — the per-operator
+# arena shift `assert_euler_postcondition` checks — is the live one:
+# twelve of its sites take that shape, in five of the eight `topo` files
+# that name it.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -114,6 +142,10 @@ set -euo pipefail
 SUBJECTS=(
   'crates/topo/src/source.rs bit_identity::|eq_bits eq_bits eq_bits(a,b) the bit channel'
   'crates/editor-core/src/product.rs GATHERS|gathers_on_this_thread GATHERS GATHERS.with(get) the debug-only gather counter'
+  'crates/mesh/src/curved.rs identified_ids|overused_identified_edge|overused_identified_edge_in identified_ids identified_ids(a) the identified-vertex census the sphere/torus emit pass re-derives'
+  'crates/mesh/src/tessellate.rs unpaired_chord_segment unpaired_chord_segment unpaired_chord_segment(a) the chord-segment pairing census'
+  'crates/mesh/src/walk.rs overused_identified_edge_in overused_identified_edge_in overused_identified_edge_in(a) the shared identified-vertex fan census'
+  'crates/mesh/src/trimmed.rs overused_identified_edge_in overused_identified_edge_in overused_identified_edge_in(a) the trimmed lane call of that fan census'
 )
 GATE_SCAN_NOUN='debug-only symbol use'
 
