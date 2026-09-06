@@ -105,3 +105,20 @@ closed here: hosted CI deletes `.claude/` at checkout, so a claim about them
 would pass hosted and red only locally. They are filed on their own, with the
 argument a fix there has to settle, as
 `work/ciw/session-start-hook-restates-ci-pins`.
+
+### Fix pass (both reviews, 2026-09-06)
+
+Two escapes were found in the reconciler and both were this item's own subject.
+`NEXTEST_VERSION=0.16.0` — the pin's own key glued to another pin's value —
+passed both arms, as did `# Nextest 0.16.0`; arm B now derives every
+underscore-separated part of a pin's key, matches case-insensitively, and
+treats `_` as a boundary. The population is `git ls-files -- local-scripts`
+rather than a directory walk, so a developer's own `*.local.*` file (which this
+repo's `.gitignore` invites) cannot red their gate over a file hosted never
+sees. `PIN_FREE` gained an inversion guard and now excuses arm B as well as
+arm A, so a declared literal beside a tool name has a declaration path.
+
+The blind-spot list at `PIN_FREE` no longer states a COUNT: a review planted
+four shapes it did not contain and one it described wrongly (`v1.2.3-rc1` is
+not invisible to the literal regex — the `1.2.3` inside it matches). Three of
+the four are now fixed rather than listed.

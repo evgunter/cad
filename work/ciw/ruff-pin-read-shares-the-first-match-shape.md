@@ -103,3 +103,15 @@ with a message naming `RUFF_VERSION`. Two cases were ADDED, so what this item
 is about is now checked at this caller and not only in `ci-pin.py`'s own tests:
 a second `RUFF_VERSION` under a job (refused, both lines named) and a pin that
 exists only under a job (refused as out of scope).
+
+### Fix pass (both reviews, 2026-09-06)
+
+`read_pins` inherited `read_pin`'s per-key refusals but not its refusal about
+the BLOCK: a flush-left `#` inside `env:` ended the scan, so `read_pin` refused
+loudly and `read_pins` silently returned a short block. `block_bounds` now ends
+the block only at the next column-0 KEY, which is what YAML does. Five
+mutations of that anchoring survived both self-tests — one of them returning a
+JOB-LEVEL pin as the workflow's, the exact defect this line of work exists to
+kill — and each now has a fixture. `check-python-lint.py`'s pin cases run
+BEFORE `resolve_ruff`, because below it they were skipped on every box whose
+ruff is not the pinned one, which is every box this row is about.

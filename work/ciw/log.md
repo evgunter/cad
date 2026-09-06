@@ -980,3 +980,59 @@ provenance prose in `scripts/` and the workflows ("verified against the pinned
 0.9.140") was found and deliberately left alone: those sentences record what
 was measured, and making them track a bump would falsify the record. That is
 why claim 11's tree is `local-scripts/` and not `scripts/`.
+
+## 2026-09-06 — unit 1's fix pass: the reconciler's own subject was escaping it
+
+PR #2070 head `a08b32462`, code-tier run green (37 jobs, 12 `test (…)`, five
+`k-lint (gate, …)`), verified at step level: `pin reader selftest`, `CI half
+parity`, and `python lint` all green in the `mirror` job.
+
+**No MAJOR from either review, and four MINORs that were all real.** Two of
+them are worth keeping.
+
+*The most literal restatement possible was escaping the check written to catch
+restatements.* `NEXTEST_VERSION=0.16.0` in a local script passed arm A (0.16.0
+is sccache's pin) and passed arm B (the derived token `nextest` was matched
+with `_` as a word CHARACTER, so it did not match inside the key). Both
+reviewers reached it independently from different directions. The fix is small
+— every underscore-separated part of the key, case-insensitive, `_` a boundary
+— and the lesson is not: the shape a check is written for is the shape its
+author has stopped looking at.
+
+*A silent truncation under a loud refusal.* `read_pins` was documented as
+inheriting every refusal `read_pin` carries. It inherits the per-KEY ones; the
+BLOCK's own edge was a flush-left `#`, where `read_pin` refuses and `read_pins`
+just returned the entries above it — and claim 11 then issues a confident,
+wrong arm-A red for every restatement of the dropped pin. The correctness lane
+found five mutations of that anchoring surviving both self-tests, one of them
+returning a job-level pin as the workflow's. Every fixture's block happened to
+end at a blank line or EOF, so the edge was never exercised. **A fixture set
+that agrees with itself about where the interesting line is will agree with the
+code about it too.**
+
+**Also done:** the population is git's index rather than a directory walk
+(`*.local.*` is in this repo's `.gitignore` — a walk reds a developer's gate
+over a file the repo told them was theirs); `PIN_FREE` gained an inversion
+guard and now excuses arm B; the loader is one documented idiom with both
+callers catching every exception; `check-python-lint.py`'s pin cases run before
+`resolve_ruff` (below it they never ran on any box whose ruff differs from the
+pin — which is the box this row exists for); `ci.yml:313` stops restating the
+pin's value in the comment above it.
+
+**The blind-spot list lost its count.** It said FIVE; a style lane planted ten
+shapes and found four it did not contain, plus one it described wrongly. A
+stated blind spot is a work order; a COUNTED one reads as completeness and is
+worse than silence when it is short. It is now uncounted, corrected, longer,
+and says so.
+
+**Residues filed rather than mentioned:** `session-start-hook-restates-ci-pins`,
+`seal-oracle-toolchain-read-first-match`, and now
+`pinned-version-named-in-present-tense-prose` — the review was right that
+"measured against THE PINNED 0.9.140" asserts what is pinned now, which is a
+different sentence from a record of what was measured, and only the second is
+correct to leave alone.
+
+**One fence to route:** `scripts/ci-pin.py` is in `work/meta/program.md`'s
+`paths` (META opened 2026-09-04, after this unit was dispatched). This PR
+changes it, because a shared enumerating reader is what the reconciler stands
+on. Announced in the PR body and named to the orchestrator; the file is META's.
