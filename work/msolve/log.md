@@ -127,3 +127,15 @@ CHROME row's PREMISE was rewritten (it asserted the memo hazard as
 its precondition and said so); the guard in `tree.rs` is gone with no
 row needing it. Style review and correctness arm dispatched on that
 head.
+
+## MSOLVE-4: reviews re-dispatched on the integrated head (2026-09-06)
+
+The two reviews dispatched on `b4764ea` died at their first tool call
+on a session limit, and a day passed. Main moved 369 commits meanwhile
+(among them the escalations channel beside verdicts in `eval/mod.rs`),
+so the lane merged main first — one adjacency conflict beside
+`verb_content_tag`, both sides kept verbatim, the memo reuse site and
+the key's format tag untouched by main — and re-greened PR 1960 at
+`4ea542d` on the full matrix. Style review and correctness arm
+re-dispatched on that head, reviewing the tree that will merge rather
+than the one that would not.
