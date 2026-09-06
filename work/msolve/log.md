@@ -294,6 +294,52 @@ cut `msolve/5-read-below-a-root` from main against `docs/MSOLVE-5-
 SPEC.md` (read from this branch until it lands; the lane merges main
 before its first push). The lever's extent is up on `[ev]` PR 2086.
 
+## MSOLVE-5 stop clause hit and ruled (2026-09-06)
+
+The lane (PR 2090, draft) reached the spec's third bullet with a real
+document: a mate reference naming a root instance's BODY is admitted
+at the door, placed by the walk, and at the gate the operand's table
+answers, `at` is a root, and the product is silent — because
+`carry_names` drops body rows. Ruled: the operand's entry decides its
+kind before the root question is asked — a non-face entry refuses
+`NotAFace { kind }` wherever it is read (the product's own answer for
+a non-face row it holds; a body never mints), a face entry at a
+non-root refuses `ReadBelowARoot { at }`, and a face entry at a root
+with the product silent is unreachable by construction and says so
+at the arm. Inside the fence; `NotAFace`'s meaning unchanged. The
+lane un-drafts and drives CI.
+
+## MSOLVE-5 landed, in review (2026-09-06)
+
+PR 2090 green at job level on `bc8a1ab` (the first run on that head
+was cancelled by the un-draft's concurrency rule; its `gate ok` reads
+failure for that reason only). What the build measured: the operand's
+table is read through the same door the interrogation functions use;
+`NodeGone` had no constructing site; the arm is authorable from
+Python through `placed_union(transform(...))`, so the Python row is
+real. Style review and correctness arm dispatched on that head.
+
+## MSOLVE-5 reviews adjudicated, fix pass dispatched (2026-09-06)
+
+Correctness arm APPROVE-WITH-FIXES: C1, C3, C4 confirmed (the solve
+and the product bit-identical to main on the issue's document — the
+one differing line is the unminted row's `why`); C2 PARTIAL, one
+MAJOR: a TIED non-face entry at the operand skips the kind question
+and answers `ReadBelowARoot` where the ruling says `NotAFace`
+(reachable through a split part's `TieRows`). Ruled: the kind comes
+from `name.kind`, which the table enforces for every candidate. Style:
+no MAJOR; the operand's table read by a hand match instead of
+`interrogate::value_of`; `Vanished`'s sentence not moved with its
+meaning; `ReadBelowARoot`'s sentence claiming a spelling the code
+never computed (the correctness arm's empty-boolean and discarded-half
+probes show the product may hold no trace at all); arm 4 and the
+not-live arm held by sentence, the latter with the wrong reason (the
+gather's Pass 1 refuses a poisoned root, not the solve); message
+substrings copied four times. Probes adopted: P1, P4, P6, P9b. Filed
+(`work/issues/`): the split root whose tie spans both halves refuses
+the gather (`carry_names` `DuplicateName`), and the assembly door's
+"only the head is raised" follow-up that lived in a comment.
+
 ## MSOLVE-5 MERGED (2026-09-06, PR 2090)
 
 Fix pass green on the full matrix at `ae78e6e` (one run, no cancelled
