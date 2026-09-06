@@ -2,11 +2,12 @@
 id: bit-identity-debug-only-gate-ends-an-item-at-a-semicolon
 kind: issue
 title: scripts/gates/bit-identity-debug-only.sh ends a gated item's read at the first ';' before its brace, so a correctly gated fn with an array type in its signature is reported ungated
-status: review
+status: closed
 opened: 2026-09-04
 track: K
 branch: gates/debug-only-subjects
 pr: 2030
+closed: 2026-09-06
 ---
 
 ## What

@@ -74,3 +74,22 @@ hand-copied three times — filed as
 `anchored-exact-text-skip-has-three-homes`. The out-of-fence
 `interval-square-allowlist.sh:203` note was withdrawn as vacuous; the
 real defect there is PR 2033's.
+
+## bit-identity-debug-only-gate-ends-an-item-at-a-semicolon + debug-only-counters-have-no-gate landed (2026-09-06)
+
+PR 2030, `gates/debug-only-subjects`, one style review
+(MERGEABLE-WITH-FIXES, fix pass landed). The awk ends an attribute's
+item at a `;` only at round/square bracket depth zero, and a lost
+bracket depth is now a loud red (a `DESYNC` record, the
+`GATE_MATCHER_FAILED` marker) rather than every later use reading as
+gated — the review found that silent direction through the reader's
+nested-comment gap. The gate scans a (subject, symbol) list with the
+enclosure analysis written once; `product.rs`'s gather counter is the
+second subject (1 → 5 uses scanned, 0 ungated). Symbol matches are
+anchored on identifier boundaries; 15 cases per subject. The lane
+declined one arm of the fix pass correctly (a `;` at open bracket
+depth is exactly the signature shape row 1 exists to allow). Filed from
+it: `debug-only-helpers-outside-the-subject-list` (five more
+candidates), and on their owners' slates the `bits_witness` slice
+workaround (TOPO), the `ci.yml` step title (CIW) and the
+`landing_gathers.rs` source-text row (S-TCOST).

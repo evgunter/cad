@@ -2,11 +2,12 @@
 id: debug-only-counters-have-no-gate
 kind: issue
 title: The debug-only gather counter has no CI gate; the one debug-only gate names a single file by path
-status: review
+status: closed
 opened: 2026-09-04
 track: K
 branch: gates/debug-only-subjects
 pr: 2030
+closed: 2026-09-06
 ---
 
 
