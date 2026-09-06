@@ -2477,18 +2477,10 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     // they are taken once here rather than re-fetched per reader.
     let a_table = Arc::clone(&value_of(results, a)?.name_table);
     let b_table = Arc::clone(&value_of(results, b)?.name_table);
-    let mut kernel_decls = BooleanDeclarations::none();
-    if let Some(d) = declare {
-        let dv = value_of(results, d)?;
-        let ValuePayload::Declarations(pairs) = &dv.payload else {
-            return Err(NodeErrorKind::WrongOperand {
-                input: d,
-                expected: "declarations",
-                found: dv.payload.kind_name(),
-            });
-        };
-        kernel_decls = resolve_declarations(pairs, doc, &a_table, &b_table)?;
-    }
+    let kernel_decls = match declare {
+        None => BooleanDeclarations::none(),
+        Some(d) => resolve_declarations(declared_pairs(results, d)?, doc, &a_table, &b_table)?,
+    };
     let body_a = body_operand(results, a)?;
     let body_b = body_operand(results, b)?;
     match (verb.build)(op, kernel_decls)
@@ -2573,7 +2565,9 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
 /// and refuses the same way, naming the member the fold had reached;
 /// at the LAST step it is the typed empty success a pair union already
 /// has.
-#[allow(clippy::too_many_arguments)] // one parameter per named input; strategy is the §4.4 door
+// The allow is `wire_boolean`'s, for its reason: one parameter per
+// named input, and the declare edge is one of them.
+#[allow(clippy::too_many_arguments)]
 fn wire_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
@@ -2608,18 +2602,10 @@ fn wire_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     // the member ids its names carry (`route_declarations`). One bucket
     // per step, so a step with no declared pair runs exactly as it did
     // without the input.
-    let mut buckets: Vec<Vec<DeclaredPair>> = vec![Vec::new(); rest.len()];
-    if let Some(d) = declare {
-        let dv = value_of(results, d)?;
-        let ValuePayload::Declarations(pairs) = &dv.payload else {
-            return Err(NodeErrorKind::WrongOperand {
-                input: d,
-                expected: "declarations",
-                found: dv.payload.kind_name(),
-            });
-        };
-        buckets = route_declarations(id, members, pairs, doc)?;
-    }
+    let buckets: Vec<Vec<DeclaredPair>> = match declare {
+        None => vec![Vec::new(); rest.len()],
+        Some(d) => route_declarations(id, members, declared_pairs(results, d)?, doc)?,
+    };
     let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;
     for (step, member) in rest.iter().enumerate() {
         let member_body = body_operand(results, *member)?;
@@ -2642,7 +2628,8 @@ fn wire_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
             BooleanDeclarations::none()
         } else {
             let acc_view = names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
-            resolve_declarations(&buckets[step], doc, &acc_view, &member_table)?
+            resolve_declarations(&buckets[step], doc, &acc_view, &member_table)
+                .map_err(|err| step_diagnosis(err, id, members, &buckets[step]))?
         };
         match (verb.build)(BooleanOp::Union, decls)
             .run_pair(&acc_body, &member_body, boolean_sweep, tol)
@@ -2717,6 +2704,14 @@ fn wire_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     // that step's. Its contacts are that step's too — the contacts a
     // step discovers or a declaration carried into it — and the absent
     // case is the arity refusal above.
+    //
+    // So a contact fed at a step BEFORE the last does not reach the
+    // value: it is threaded into that step's verb and consumed there,
+    // and the record the next step returns is its own. The pairwise
+    // chain this node replaces loses it identically — `wire_boolean`
+    // publishes the outer boolean's record and drops the inner one's —
+    // so this is the pair verb's carry rule showing through a fold,
+    // not a rule the fold adds.
     let Some((kind, contacts)) = last else {
         return Err(NodeErrorKind::VerbArity {
             verb: verbs::VerbKind::Boolean(BooleanOp::Union),
@@ -2737,6 +2732,31 @@ fn wire_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
 /// contact class the author claimed for them.
 type DeclaredPair = ((names::StableName, names::StableName), ContactClass);
 
+/// The pairs a `Declare` input carries, or the typed refusal for a
+/// node wired at a declare seat that is not a `Declare`.
+///
+/// ONE definition, two callers ([`wire_boolean`] and [`wire_union`]):
+/// the seat is the same seat, so its refusal is the same refusal. Both
+/// edit doors refuse this shape before a document can hold it
+/// (`Node::declare_input`), which makes this the evaluation's
+/// defensive answer rather than its first line of defence — and a
+/// defence that is written once cannot drift between the two nodes
+/// that have the seat.
+fn declared_pairs<T: Decide>(
+    results: &Results<T>,
+    declare: RecipeNodeId,
+) -> Result<&[DeclaredPair], NodeErrorKind> {
+    let value = value_of(results, declare)?;
+    let ValuePayload::Declarations(pairs) = &value.payload else {
+        return Err(NodeErrorKind::WrongOperand {
+            input: declare,
+            expected: "declarations",
+            found: value.payload.kind_name(),
+        });
+    };
+    Ok(pairs)
+}
+
 /// **Where one declared name sits in a union's own name space.**
 ///
 /// The two cases are told apart by SHAPE, not by a stored position:
@@ -2751,32 +2771,66 @@ enum DeclSite {
     /// index of the LATEST member it mentions — which bounds the step
     /// that could first have produced it.
     Accumulated(usize),
+    /// A row of this node's space that names NO member: the
+    /// accumulated body's own [`names::RoleSeg::OutputBody`] row, or a
+    /// name discriminated only by an ordinal fragment rank.
+    ///
+    /// Its own case, and not folded into "denotes nothing here",
+    /// because the two answers are different and a caller acts on
+    /// them differently: such a row IS in this node's published space
+    /// (the finished table carries it), it is simply a row no fold
+    /// step has as one of its two OPERANDS — a step's output body is
+    /// not one of that step's inputs.
+    Unkeyed,
 }
 
 impl DeclSite {
-    /// The first fold step (as a bucket index) whose two operands
-    /// carry this name.
+    /// The first fold step (as a bucket index) at which this name is a
+    /// row of one of the step's two operand tables, or `None` for a
+    /// name that is a row of neither operand at any step.
     ///
     /// Member 0 is operand A of step 1 and member `i` is operand B of
     /// step `i`, so a member arrives at bucket `i - 1` and member 0 at
     /// bucket 0. A fold row is PRODUCED by a step, so the earliest it
     /// can be an operand is the step after — bucket 1 at the earliest,
     /// whichever member it mentions.
-    fn arrival(self) -> usize {
+    fn arrival(self) -> Option<usize> {
         match self {
-            DeclSite::Member(i) => i.saturating_sub(1),
-            DeclSite::Accumulated(d) => d.max(1),
+            DeclSite::Member(i) => Some(i.saturating_sub(1)),
+            DeclSite::Accumulated(d) => Some(d.max(1)),
+            DeclSite::Unkeyed => None,
         }
     }
 }
 
-/// The later of two member indices, either of which may be absent.
-fn later(a: Option<usize>, b: Option<usize>) -> Option<usize> {
-    match (a, b) {
-        (Some(x), Some(y)) => Some(x.max(y)),
-        (x, None) => x,
-        (None, y) => y,
+/// **The step a declared pair is fed at**, as a bucket index — the
+/// bucket rule, in one place.
+///
+/// The rule is the LATER of the two names' arrivals: both have to be
+/// operand rows for the step to be able to join them, and each is one
+/// from its arrival on. What arrival alone cannot say is the one
+/// asymmetry between the two kinds of name — a member is the JOINING
+/// operand at exactly its own step and is inside the ACCUMULATION at
+/// every step after, so a member paired with a fold row minted later
+/// than the member's own step is two rows of one operand there, which
+/// is a different claim (a carried contact, not a contact between the
+/// two things the step joins). That pair has no step, and says so
+/// rather than being re-read as the other claim.
+///
+/// `None` means no step has both names as its two operands.
+fn declared_bucket(s1: DeclSite, s2: DeclSite) -> Option<usize> {
+    let bucket = s1.arrival()?.max(s2.arrival()?);
+    for (site, other) in [(s1, s2), (s2, s1)] {
+        if let (DeclSite::Member(n), DeclSite::Accumulated(_)) = (site, other) {
+            // Member 0 is never the joining operand — it is where the
+            // accumulation starts — so it is never the counterpart of
+            // a fold row.
+            if n == 0 || n - 1 != bucket {
+                return None;
+            }
+        }
     }
+    Some(bucket)
 }
 
 /// The index of the LATEST member of `members` this path mentions,
@@ -2798,21 +2852,20 @@ fn latest_member(members: &[RecipeNodeId], path: &[names::RoleSeg]) -> Option<Op
             // The embedded names of a fold row are in this node's own
             // space — that is what the member-keying rule guarantees —
             // so they are walked by this same rule.
-            RoleSeg::Seam { a, b } => later(
-                latest_member(members, &a.path)?,
-                latest_member(members, &b.path)?,
-            ),
+            RoleSeg::Seam { a, b } => {
+                latest_member(members, &a.path)?.max(latest_member(members, &b.path)?)
+            }
             RoleSeg::Merged(constituents) => {
                 let mut acc = None;
                 for c in constituents {
-                    acc = later(acc, latest_member(members, &c.path)?);
+                    acc = acc.max(latest_member(members, &c.path)?);
                 }
                 acc
             }
             RoleSeg::Fragment(Qualifier::SideOf(partners)) => {
                 let mut acc = None;
                 for (n, _) in partners {
-                    acc = later(acc, latest_member(members, &n.path)?);
+                    acc = acc.max(latest_member(members, &n.path)?);
                 }
                 acc
             }
@@ -2820,59 +2873,35 @@ fn latest_member(members: &[RecipeNodeId], path: &[names::RoleSeg]) -> Option<Op
             // member: the accumulated body's own row, and the ordinal
             // fragment discriminator, whose ranks are numbers.
             RoleSeg::OutputBody | RoleSeg::Fragment(Qualifier::OrderAlong { .. }) => None,
-            // Everything else is a segment the member-keying rule
-            // never mints, so a name carrying one is not in this
-            // node's published space and denotes nothing here — the
-            // `FromA`/`FromB` pair included, which is the fold's
-            // INTERNAL space and is exactly what `collapse` takes out.
-            // Named one by one rather than caught by a wildcard, for
-            // the reason `collapse`'s own match names them: a new
-            // `RoleSeg` stops the compiler here and is decided.
-            RoleSeg::FromA(_)
-            | RoleSeg::FromB(_)
-            | RoleSeg::Cap(_)
-            | RoleSeg::Lateral(_)
-            | RoleSeg::RimEdge(_, _)
-            | RoleSeg::LateralEdge(_)
-            | RoleSeg::CapVertex(_, _)
-            | RoleSeg::Band(_)
-            | RoleSeg::BandRim(_)
-            | RoleSeg::BandRimPi(_)
-            | RoleSeg::BandPi(_)
-            | RoleSeg::Meridian(_, _)
-            | RoleSeg::MeridianVertex(_, _)
-            | RoleSeg::RevolveCap(_)
-            | RoleSeg::Pole(_)
-            | RoleSeg::AxisEdge(_)
-            | RoleSeg::SplitBody(_)
-            | RoleSeg::SectionFace { .. }
-            | RoleSeg::SectionEdge { .. }
-            | RoleSeg::SplitFragment { .. }
-            | RoleSeg::CrossingVertex { .. }
-            | RoleSeg::OnToolVertex { .. }
-            | RoleSeg::FromTarget(_)
-            | RoleSeg::BlendFace(_)
-            | RoleSeg::CornerFace(_)
-            | RoleSeg::TrimEdge { .. }
-            | RoleSeg::FootVertex { .. }
-            | RoleSeg::CornerArc { .. }
-            | RoleSeg::BandFace(_)
-            | RoleSeg::BandTrim { .. }
-            | RoleSeg::BandFoot(_)
-            | RoleSeg::BandCross(_)
-            | RoleSeg::BandCut(_)
-            | RoleSeg::BandSlit(_)
-            | RoleSeg::InPart { .. }
-            | RoleSeg::Instance { .. } => return None,
+            // `FromA`/`FromB` are the fold's INTERNAL space — exactly
+            // what `collapse` takes out — and everything after them is
+            // a segment the boolean emitter never mints at all. A name
+            // carrying either is not in this node's published space
+            // and denotes nothing here. The long half is
+            // [`names::never_in_a_boolean_table`], the one place a new
+            // `RoleSeg` is classified; this match still stops the
+            // compiler if one is added and not classified there.
+            RoleSeg::FromA(_) | RoleSeg::FromB(_) | names::never_in_a_boolean_table!() => {
+                return None;
+            }
         };
-        best = later(best, here);
+        // `Option::max` IS "the later of two, either of which may be
+        // absent": `None` orders below every `Some`.
+        best = best.max(here);
     }
     Some(best)
 }
 
-/// Which of [`DeclSite`]'s two cases a declared name is, or `None` if
-/// it is neither — a name from another node's space, or one naming a
-/// member the list no longer holds.
+/// Which of [`DeclSite`]'s three cases a declared name is, or `None`
+/// if it is none of them — a name from another node's space, or one
+/// naming a member the list no longer holds.
+///
+/// The `None` answer and [`DeclSite::Unkeyed`] are kept apart on
+/// purpose: `None` is a name this node does not denote at all, which
+/// is the vanished class, and `Unkeyed` is a name this node DOES
+/// denote that no step has as an operand, which is the unroutable
+/// class. Flattening the two would answer a caller's "why" with the
+/// wrong sentence.
 fn decl_site(
     id: RecipeNodeId,
     members: &[RecipeNodeId],
@@ -2891,19 +2920,20 @@ fn decl_site(
             .position(|m| m == member)
             .map(DeclSite::Member);
     }
-    latest_member(members, &name.path)
-        .flatten()
-        .map(DeclSite::Accumulated)
+    Some(match latest_member(members, &name.path)? {
+        Some(d) => DeclSite::Accumulated(d),
+        None => DeclSite::Unkeyed,
+    })
 }
 
 /// **Routing a union's declared pairs to their fold steps** (DM4 as
 /// amended): one bucket per step, filled from the MEMBER IDS the two
 /// names carry and from nothing else.
 ///
-/// No position is read and none is recorded. A pair says "this entity
-/// meets that one"; which step joins the two is a consequence of where
-/// their members sit in the list, so reordering the list re-derives the
-/// routing instead of invalidating the declaration.
+/// No fold position is read and none is recorded. A pair says "this
+/// entity meets that one"; which step joins the two is a consequence
+/// of where their members sit in the list, and [`declared_bucket`] is
+/// that consequence.
 ///
 /// - Two names in ONE member are that member's CARRIED contact, at its
 ///   own step — operand B's carry there, or operand A's for the first
@@ -2918,9 +2948,37 @@ fn decl_site(
 /// - Two fold rows are the accumulation's own carried contact, at the
 ///   first step that has both.
 ///
-/// Every other name refuses through the N5 ladder as a vanished name
-/// does — a member the list no longer holds, a name from another
-/// node's space — and nothing is dropped.
+/// # What a member-space declaration survives, and what it does not
+///
+/// A declaration is routed, so a pair of MEMBER names outlives any
+/// reordering or dropping of the list: the two ids still say which
+/// step joins them, wherever they sit. What it does not outlive is a
+/// reordering that takes one of the two faces OUT of the operand
+/// tables — a declared merge consumes its two faces and publishes a
+/// `Merged` row in their place, so a face merged at an earlier step is
+/// no longer an operand row later on, and a pair naming it there is
+/// refused — as a member's own name that no longer resolves, since the
+/// face was consumed rather than never minted. Chained contacts are
+/// where this bites: with `a` touching `c` and `c` touching `d`, the
+/// orders that fold `c` in LAST fuse and the orders that fold it in
+/// second refuse, because `c`'s face was merged away before `d`
+/// arrived. The recourse — spell the accumulation's `Merged` row
+/// instead of the member's face — is itself order-shaped, since which
+/// faces are in that row depends on the order.
+///
+/// So: a member-space declaration resolves at its step only while the
+/// face it names is still an operand-table row there. That is the
+/// measured limit, pinned by
+/// `member_space_declarations_across_a_chain_are_order_shaped` and
+/// filed as
+/// `work/docm/member-space-declarations-are-order-shaped-across-a-chain.md`
+/// — the semantics that would remove it (constituent look-through,
+/// flattening nested `Merged`, or a narrowed contract) is a design
+/// ruling and not this node's to take.
+///
+/// Every name this node does not denote at all refuses through the N5
+/// ladder as a vanished name does — a member the list no longer holds,
+/// a name from another node's space — and nothing is dropped.
 fn route_declarations(
     id: RecipeNodeId,
     members: &[RecipeNodeId],
@@ -2935,6 +2993,16 @@ fn route_declarations(
             // Rung 1 first, as at every other door: a name whose
             // minting node is gone says THAT, before anything is said
             // about which step it would have belonged to.
+            //
+            // [`resolve_declarations`] pays rung 1 again, per bucket,
+            // when the step it was routed to runs. That is two calls
+            // for one name, and deliberately: this is the ROUTING
+            // door, which must rank `NodeGone` above "no step joins
+            // these", and that one is the pair boolean's own door,
+            // which cannot assume a caller routed anything. Neither
+            // can be dropped without one of them answering a name it
+            // has not checked; the cost is a document lookup on a path
+            // that already refuses.
             ladder::live(name, doc).map_err(|error| NodeErrorKind::DeclareResolve { error })?;
             decl_site(id, members, name).ok_or_else(|| NodeErrorKind::DeclareResolve {
                 error: Box::new(crate::resolve::ResolveError::vanished_fallback(name)),
@@ -2944,27 +3012,62 @@ fn route_declarations(
         let unroutable = || NodeErrorKind::UnionDeclareStep {
             pair: Box::new((n1.clone(), n2.clone())),
         };
-        let bucket = match (s1, s2) {
-            (DeclSite::Member(i), DeclSite::Member(j)) => i.max(j).saturating_sub(1),
-            (acc @ DeclSite::Accumulated(_), DeclSite::Member(n))
-            | (DeclSite::Member(n), acc @ DeclSite::Accumulated(_)) => {
-                if n == 0 || n - 1 < acc.arrival() {
-                    return Err(unroutable());
-                }
-                n - 1
-            }
-            (a @ DeclSite::Accumulated(_), b @ DeclSite::Accumulated(_)) => {
-                a.arrival().max(b.arrival())
-            }
-        };
-        // A pair whose step is past the last one has no step at all:
-        // the fold is over before both its names are operands together.
-        if bucket >= steps {
+        // One rule, one home ([`declared_bucket`]) — and a step past
+        // the last one is no step at all: the fold is over before both
+        // names are operands together.
+        let Some(bucket) = declared_bucket(s1, s2).filter(|b| *b < steps) else {
             return Err(unroutable());
-        }
+        };
         buckets[bucket].push(pair.clone());
     }
     Ok(buckets)
+}
+
+/// **A routed FOLD ROW that is not an operand row at the step it was
+/// sent to** — said as the routing failure it is.
+///
+/// [`resolve_declarations`] answers for the pair boolean too, where a
+/// name absent from both operand tables has genuinely vanished: no
+/// table in the evaluation derives it any more. Under a union that
+/// reading survives for a MEMBER's own row — its absence is the
+/// member's table not deriving it (a name written against an entity
+/// the member does not have), or the fold having consumed it, which is
+/// the vanished class either way and is diagnosed as one.
+///
+/// A row the FOLD minted is different. Its bucket is bounded by the
+/// latest member it mentions, and that bound is not tight: a row can be
+/// minted at a step LATER than the member index alone implies, in which
+/// case the step it was routed to does not have it. Nothing vanished
+/// there — the name is this node's, and the fold does mint it — the
+/// pair simply has no step that holds both its names, which is
+/// [`NodeErrorKind::UnionDeclareStep`] and is what the author acts on.
+///
+/// Only the vanished rung is re-said. `NodeGone` cannot occur here —
+/// routing paid rung 1 already — and a tie
+/// ([`crate::resolve::ResolveError::Ambiguous`]),
+/// `DeclareBothOperands` and `DeclareUnsupportedPair` are answers about
+/// the name itself that a step index would not improve.
+fn step_diagnosis(
+    err: NodeErrorKind,
+    id: RecipeNodeId,
+    members: &[RecipeNodeId],
+    bucket: &[DeclaredPair],
+) -> NodeErrorKind {
+    let NodeErrorKind::DeclareResolve { error } = &err else {
+        return err;
+    };
+    let crate::resolve::ResolveError::Vanished { name, .. } = &**error else {
+        return err;
+    };
+    if !matches!(decl_site(id, members, name), Some(DeclSite::Accumulated(_))) {
+        return err;
+    }
+    let Some(((n1, n2), _)) = bucket.iter().find(|((a, b), _)| a == name || b == name) else {
+        return err;
+    };
+    NodeErrorKind::UnionDeclareStep {
+        pair: Box::new((n1.clone(), n2.clone())),
+    }
 }
 
 /// A union fold step returned the typed empty from two real bodies.
@@ -3181,6 +3284,9 @@ fn resolve_declarations(
         // Rung 1 first, and not by convention: reading either table
         // needs the token `live` returns, so a dead minting node
         // refuses NodeGone before the side-picking below can run.
+        // `route_declarations` has already paid this for a union's
+        // names, one bucket earlier; it stays here because this door
+        // is also the pair boolean's, where nothing routed first.
         let live = ladder::live(name, doc).map_err(refused)?;
         // Side-picking is this door's own. A name PRESENT in both
         // operands (unique or tied, either counts as present) is not
@@ -3799,4 +3905,192 @@ fn wire_sweep<T: Decide + geom_core::Bounds + super::SectionScalar>(
     Err(NodeErrorKind::CurvedSolidFrontier {
         what: SWEEP_FRONTIER,
     })
+}
+
+/// **The union's declaration routing, read directly.**
+///
+/// The buckets [`route_declarations`] fills are not visible in a
+/// finished evaluation — a document only shows which pairs RESOLVED —
+/// so the rule is read here, where the answer is the bucket list
+/// itself. What a document row cannot pin and this can: that a step
+/// with no declared pair receives NOTHING, and that a pair is fed at
+/// exactly one step rather than tried at several.
+#[cfg(test)]
+mod route_tests {
+    use super::{DeclaredPair, NodeErrorKind, RecipeNodeId, route_declarations};
+    use crate::names::{CapEnd, EntityKind, RoleSeg, StableName};
+    use crate::node::Node;
+    use crate::{DocEdit, ProfileDoc};
+    use geom_core::Tol;
+    use topo::ContactClass;
+
+    /// A live document holding one node, whose id stands in for the
+    /// union's: routing reads the document for rung 1 only (is the
+    /// minting node live), and every member-space name carries the
+    /// union's own id, so one live node is the whole dependency.
+    fn doc_with_one_node() -> (ProfileDoc, RecipeNodeId) {
+        let doc = ProfileDoc::empty_derived("union declare routing", Tol::witness());
+        let applied = doc
+            .apply(
+                &DocEdit::InsertNode {
+                    node: Node::declare_rest(Vec::new()),
+                },
+                Tol::witness(),
+            )
+            .expect("an empty Declare inserts");
+        let id = applied.record.minted.expect("the insert minted an id");
+        (applied.doc, id)
+    }
+
+    /// One member's own face, as `member_view` spells it: a one-segment
+    /// `FromMember` path under the union's id.
+    fn member_face(union: RecipeNodeId, member: RecipeNodeId) -> StableName {
+        StableName {
+            kind: EntityKind::Face,
+            node: union,
+            path: vec![RoleSeg::FromMember {
+                member,
+                of: Box::new(StableName {
+                    kind: EntityKind::Face,
+                    node: member,
+                    path: vec![RoleSeg::Cap(CapEnd::Start)],
+                }),
+            }],
+        }
+    }
+
+    /// A row the fold mints: the merge of two members' faces.
+    fn merged(union: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId) -> StableName {
+        StableName {
+            kind: EntityKind::Face,
+            node: union,
+            path: vec![RoleSeg::Merged(vec![
+                member_face(union, a),
+                member_face(union, b),
+            ])],
+        }
+    }
+
+    /// The union's own body row — this node's space, and no step's
+    /// operand.
+    fn output_body(union: RecipeNodeId) -> StableName {
+        StableName {
+            kind: EntityKind::Body,
+            node: union,
+            path: vec![RoleSeg::OutputBody],
+        }
+    }
+
+    fn pair(a: StableName, b: StableName) -> DeclaredPair {
+        ((a, b), ContactClass::Rest)
+    }
+
+    /// The bucket of each pair on a FOUR-member document, read out of
+    /// the routing itself.
+    #[test]
+    fn each_pair_is_routed_to_the_one_step_that_joins_its_two_names() {
+        let (doc, union) = doc_with_one_node();
+        let members: Vec<RecipeNodeId> = (100..104).map(RecipeNodeId).collect();
+        let (m0, m1, m2, m3) = (members[0], members[1], members[2], members[3]);
+        let face = |m| member_face(union, m);
+
+        let cases: Vec<(&str, DeclaredPair, usize)> = vec![
+            // Two members meet at the LATER one's step.
+            ("members 0 and 1", pair(face(m0), face(m1)), 0),
+            ("members 1 and 2", pair(face(m1), face(m2)), 1),
+            // The list's own gap: (1, 3) is fed at step 3 and step 2
+            // receives nothing, which is the half a resolved-or-not
+            // document cannot show.
+            ("members 1 and 3", pair(face(m1), face(m3)), 2),
+            // Two names in ONE member are that member's carried
+            // contact, at its own step — member 0's at step 1, where it
+            // is operand A, exactly as in the pair chain.
+            ("member 2 with itself", pair(face(m2), face(m2)), 1),
+            ("member 0 with itself", pair(face(m0), face(m0)), 0),
+            // A fold row meets a member that joins after it was minted.
+            (
+                "the 0-1 merge and member 2",
+                pair(merged(union, m0, m1), face(m2)),
+                1,
+            ),
+            // Two fold rows are the accumulation's own carried contact,
+            // at the first step that has both.
+            (
+                "the 0-1 merge and the 0-2 merge",
+                pair(merged(union, m0, m1), merged(union, m0, m2)),
+                2,
+            ),
+        ];
+
+        for (what, p, want) in cases {
+            let buckets = route_declarations(union, &members, std::slice::from_ref(&p), &doc)
+                .unwrap_or_else(|e| panic!("{what} routed nowhere: {e:?}"));
+            let filled: Vec<usize> = buckets
+                .iter()
+                .enumerate()
+                .filter(|(_, b)| !b.is_empty())
+                .map(|(i, _)| i)
+                .collect();
+            assert_eq!(filled, vec![want], "{what}");
+            assert_eq!(buckets[want].len(), 1, "{what}");
+        }
+
+        // All of them at once: three steps, and the pair that belongs
+        // to none of the first two leaves step 2 empty.
+        let all = vec![
+            pair(face(m0), face(m1)),
+            pair(face(m1), face(m3)),
+            pair(face(m2), face(m2)),
+        ];
+        let buckets = route_declarations(union, &members, &all, &doc).expect("all three route");
+        let sizes: Vec<usize> = buckets.iter().map(Vec::len).collect();
+        assert_eq!(sizes, vec![1, 1, 1]);
+    }
+
+    /// The arrival clamp: a member is the JOINING operand at exactly
+    /// its own step, so a fold row minted after that step is never that
+    /// member's counterpart — the two would be rows of one operand
+    /// there, a different claim.
+    #[test]
+    fn a_fold_row_paired_with_a_member_the_fold_already_swallowed_has_no_step() {
+        let (doc, union) = doc_with_one_node();
+        let members: Vec<RecipeNodeId> = (100..104).map(RecipeNodeId).collect();
+        let (m0, m1, m2) = (members[0], members[1], members[2]);
+        for (what, p) in [
+            // The 1-2 merge is minted at step 2; member 1 joined at
+            // step 1.
+            (
+                "a later merge with an earlier member",
+                pair(merged(union, m1, m2), member_face(union, m1)),
+            ),
+            // Member 0 is where the accumulation starts and is never a
+            // joining operand.
+            (
+                "any merge with member 0",
+                pair(merged(union, m0, m1), member_face(union, m0)),
+            ),
+        ] {
+            let refused = route_declarations(union, &members, std::slice::from_ref(&p), &doc);
+            assert!(
+                matches!(refused, Err(NodeErrorKind::UnionDeclareStep { .. })),
+                "{what}: {refused:?}",
+            );
+        }
+    }
+
+    /// A row of this node's space that names no member — the union's
+    /// own body — is a step's OUTPUT and never one of its two inputs.
+    /// It refuses as unroutable, not as vanished: the union publishes
+    /// that name, so "no table derives it any more" would be false.
+    #[test]
+    fn the_unions_own_body_row_is_no_steps_operand() {
+        let (doc, union) = doc_with_one_node();
+        let members: Vec<RecipeNodeId> = (100..103).map(RecipeNodeId).collect();
+        let p = pair(output_body(union), member_face(union, members[1]));
+        let refused = route_declarations(union, &members, std::slice::from_ref(&p), &doc);
+        assert!(
+            matches!(refused, Err(NodeErrorKind::UnionDeclareStep { .. })),
+            "{refused:?}",
+        );
+    }
 }

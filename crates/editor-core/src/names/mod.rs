@@ -60,6 +60,7 @@ pub use interrogate::{
 };
 pub(crate) use role::member_edge;
 pub(crate) use role::name_free_seg;
+pub(crate) use role::never_in_a_boolean_table;
 pub use role::{
     CapEnd, EntityKind, MeridianEnd, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport,
     RolePath, RoleSeg, SideVerdict, SplitHalf, StableName,

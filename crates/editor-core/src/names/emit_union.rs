@@ -16,8 +16,10 @@
 //! prototype carry N IDENTICAL tables and no inner name can tell them
 //! apart.
 //!
-//! **Coming out** ([`name_union`], and [`collapse_name`] for the
-//! refusal paths): a fold-table name is rewritten by descending its
+//! **Coming out** ([`name_union`] for the published table,
+//! [`collapse_table`] for the accumulation the declaration door
+//! reads, and [`collapse_name`] for the refusal paths — three
+//! consumers of one rewrite): a fold-table name is rewritten by descending its
 //! `FromA`/`FromB` chain to the [`RoleSeg::FromMember`] at its foot —
 //! one wrapper, whatever the depth. `Seam`, `Merged` and `Fragment`
 //! keep the shapes the pair emitter minted, with the names they embed
@@ -25,15 +27,24 @@
 //!
 //! # How an intermediate row is told from a member's row
 //!
-//! By the HEAD segment alone. Every row of every fold step is minted
-//! under the union's id, so the id separates nothing; what separates
-//! them is that a member-keyed row's head is `FromMember` and an
-//! intermediate row's is `FromA`/`FromB`, which is descended through.
+//! In a FOLD table, by the HEAD segment alone. Every row of every fold
+//! step is minted under the union's id, so the id separates nothing;
+//! what separates them is that a member-keyed row's head is
+//! `FromMember` and an intermediate row's is `FromA`/`FromB`, which is
+//! descended through.
+//!
+//! That is a statement about the fold's own tables and about nothing
+//! else. Once a name is COLLAPSED the `FromA`/`FromB` chain is gone,
+//! so a published row is told apart by its whole path and not by its
+//! head — a member's row is a one-segment `FromMember` path, and
+//! anything longer is a row the fold minted. That is the shape
+//! `eval::wire`'s `decl_site` reads, and it is the reason the two
+//! questions are asked in two places rather than shared.
 
 use std::sync::Arc;
 
 use crate::names::emit::{NamingError, check_total};
-use crate::names::role::{Qualifier, RoleSeg, StableName};
+use crate::names::role::{Qualifier, RoleSeg, StableName, never_in_a_boolean_table};
 use crate::names::table::{Entry, NameTable};
 use crate::node::RecipeNodeId;
 
@@ -201,46 +212,14 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
             set.dedup();
             vec![RoleSeg::Merged(set)]
         }
-        // Everything else is a segment the boolean emitter does not
-        // mint, so a fold table carrying one is an emission bug. Named
-        // one by one rather than caught by a wildcard, so a new
-        // `RoleSeg` stops the compiler here and is decided, instead of
-        // silently joining this list.
-        RoleSeg::Fragment(_)
-        | RoleSeg::Cap(_)
-        | RoleSeg::Lateral(_)
-        | RoleSeg::RimEdge(_, _)
-        | RoleSeg::LateralEdge(_)
-        | RoleSeg::CapVertex(_, _)
-        | RoleSeg::Band(_)
-        | RoleSeg::BandRim(_)
-        | RoleSeg::BandRimPi(_)
-        | RoleSeg::BandPi(_)
-        | RoleSeg::Meridian(_, _)
-        | RoleSeg::MeridianVertex(_, _)
-        | RoleSeg::RevolveCap(_)
-        | RoleSeg::Pole(_)
-        | RoleSeg::AxisEdge(_)
-        | RoleSeg::SplitBody(_)
-        | RoleSeg::SectionFace { .. }
-        | RoleSeg::SectionEdge { .. }
-        | RoleSeg::SplitFragment { .. }
-        | RoleSeg::CrossingVertex { .. }
-        | RoleSeg::OnToolVertex { .. }
-        | RoleSeg::FromTarget(_)
-        | RoleSeg::BlendFace(_)
-        | RoleSeg::CornerFace(_)
-        | RoleSeg::TrimEdge { .. }
-        | RoleSeg::FootVertex { .. }
-        | RoleSeg::CornerArc { .. }
-        | RoleSeg::BandFace(_)
-        | RoleSeg::BandTrim { .. }
-        | RoleSeg::BandFoot(_)
-        | RoleSeg::BandCross(_)
-        | RoleSeg::BandCut(_)
-        | RoleSeg::BandSlit(_)
-        | RoleSeg::InPart { .. }
-        | RoleSeg::Instance { .. } => return Err(bug(FOREIGN)),
+        // A `Fragment` is a TAIL segment — it discriminates a head,
+        // it is never one — and everything after it is a segment the
+        // boolean emitter does not mint at all, so a fold table
+        // carrying either is an emission bug. The long half is
+        // [`never_in_a_boolean_table`], which is where a new
+        // `RoleSeg` is classified; this match still stops the
+        // compiler if one is added and not classified there.
+        RoleSeg::Fragment(_) | never_in_a_boolean_table!() => return Err(bug(FOREIGN)),
     };
     for seg in tail {
         path.push(match seg {
@@ -258,48 +237,18 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
             }
             RoleSeg::Fragment(q @ Qualifier::OrderAlong { .. }) => RoleSeg::Fragment(q.clone()),
             // Only a `Fragment` follows a head segment in a boolean
-            // table; anything else in the tail is an emission bug.
-            // Spelled out for the same reason the head match is.
+            // table; anything else in the tail is an emission bug —
+            // the six head segments above included, which are heads
+            // and not discriminators. The long half is
+            // [`never_in_a_boolean_table`], for the reason the head
+            // match names.
             RoleSeg::OutputBody
             | RoleSeg::FromA(_)
             | RoleSeg::FromB(_)
             | RoleSeg::FromMember { .. }
             | RoleSeg::Seam { .. }
             | RoleSeg::Merged(_)
-            | RoleSeg::Cap(_)
-            | RoleSeg::Lateral(_)
-            | RoleSeg::RimEdge(_, _)
-            | RoleSeg::LateralEdge(_)
-            | RoleSeg::CapVertex(_, _)
-            | RoleSeg::Band(_)
-            | RoleSeg::BandRim(_)
-            | RoleSeg::BandRimPi(_)
-            | RoleSeg::BandPi(_)
-            | RoleSeg::Meridian(_, _)
-            | RoleSeg::MeridianVertex(_, _)
-            | RoleSeg::RevolveCap(_)
-            | RoleSeg::Pole(_)
-            | RoleSeg::AxisEdge(_)
-            | RoleSeg::SplitBody(_)
-            | RoleSeg::SectionFace { .. }
-            | RoleSeg::SectionEdge { .. }
-            | RoleSeg::SplitFragment { .. }
-            | RoleSeg::CrossingVertex { .. }
-            | RoleSeg::OnToolVertex { .. }
-            | RoleSeg::FromTarget(_)
-            | RoleSeg::BlendFace(_)
-            | RoleSeg::CornerFace(_)
-            | RoleSeg::TrimEdge { .. }
-            | RoleSeg::FootVertex { .. }
-            | RoleSeg::CornerArc { .. }
-            | RoleSeg::BandFace(_)
-            | RoleSeg::BandTrim { .. }
-            | RoleSeg::BandFoot(_)
-            | RoleSeg::BandCross(_)
-            | RoleSeg::BandCut(_)
-            | RoleSeg::BandSlit(_)
-            | RoleSeg::InPart { .. }
-            | RoleSeg::Instance { .. } => return Err(bug(FOREIGN)),
+            | never_in_a_boolean_table!() => return Err(bug(FOREIGN)),
         });
     }
     Ok(StableName {

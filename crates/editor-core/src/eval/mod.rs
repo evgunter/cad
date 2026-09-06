@@ -829,14 +829,20 @@ pub enum NodeErrorKind {
     /// A `Declare` pair wired to a [`crate::Node::Union`] names two
     /// entities that are never the two sides of ONE fold step: an
     /// entity of the accumulation paired with a member the fold had
-    /// already joined when that entity was minted, or two accumulation
-    /// entities with no step left after them.
+    /// already joined when that entity was minted, two accumulation
+    /// entities with no step left after them, a row this node publishes
+    /// that is the output of a step rather than an input to one (its
+    /// own body), or a face a step consumed — a declared merge
+    /// publishes a `Merged` row in place of the two faces it joins, so
+    /// a later pair naming one of them has no step.
     ///
     /// The step a pair is fed at is DERIVED from the member ids its two
     /// names carry (no fold position is recorded anywhere), so when
     /// that derivation has no answer the declaration is refused — never
     /// fed to a step where one of its names does not denote, and never
-    /// dropped.
+    /// dropped. This is the refusal for a name this node DOES denote:
+    /// one it does not denote at all is
+    /// [`Self::DeclareResolve`]'s vanished rung.
     UnionDeclareStep {
         /// The pair, as the recipe carries it.
         pair: Box<(crate::names::StableName, crate::names::StableName)>,
@@ -1393,8 +1399,8 @@ impl core::fmt::Display for NodeErrorKind {
             Self::UnionDeclareStep { pair } => write!(
                 f,
                 "the declared pair ({}, {}) names two entities of this union that no single \
-                 fold step joins — declare a pair of a member with something the fold has \
-                 already reached",
+                 fold step has as its two operands — declare the pair at a step that does: \
+                 one member against the accumulation of the members before it in the list",
                 pair.0, pair.1
             ),
             Self::DeclareUnsupportedPair { kinds, .. } => write!(
@@ -3214,6 +3220,20 @@ where
         // declaration at a body seat — so the member count is fed, and
         // it is the ONLY thing fed: the declaration's identity rides
         // its own upstream key like every other input's.
+        //
+        // This is D8 key hygiene — two different nodes must not share
+        // a content key — and NOT a guard against a reachable
+        // collision. No door can produce one. A memo is looked up by
+        // node ID first and only then compared by key, a prior from
+        // another document is dropped (DI3), and the one edit that
+        // could turn `Union{[m, n], declare: d}` into
+        // `Union{[m, n, d], declare: None}` under one id does not
+        // exist: no edit rewires a live node's inputs (DM6), and the
+        // shape itself is refused at both doors (DM5's
+        // `DuplicateInput`, since `d` would be reached twice). So the
+        // feed is unguardable BY CONSTRUCTION — there is no document a
+        // row could build to go red without it — which is why it is
+        // written here rather than pinned by one.
         Node::Union { members, .. } => h.write_u64(members.len() as u64),
     }
     // Evaluated slot values, in the node's deterministic slot order.

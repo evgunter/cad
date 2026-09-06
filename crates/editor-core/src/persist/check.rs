@@ -392,7 +392,7 @@ pub enum SnapshotError {
     },
     /// A node's `declare` input names a node that is not a
     /// `Node::Declare` — the edit door's rule, asked of file data
-    /// (`Node::declare_input`, one answer, both doors).
+    /// (`Node::bad_declare_input`, one predicate, both doors).
     DeclareInput {
         /// The consuming node.
         node: RecipeNodeId,
@@ -731,13 +731,13 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         if let Some(fault) = node.measure_fault() {
             return Err(SnapshotError::MeasureRefs { node: id, fault });
         }
-        // The declaration edge's kind rule (`Node::declare_input`),
-        // for the reason above it: the edit door refuses a `declare`
-        // input that is not a `Declare`, and a snapshot is the one way
-        // a node reaches a document without passing that door.
-        if let Some(input) = node.declare_input()
-            && !matches!(doc.nodes.get(&input), Some(Node::Declare { .. }))
-        {
+        // The declaration edge's kind rule
+        // (`Node::bad_declare_input`, the same answer the edit door
+        // asks of), for the reason above it: the edit door refuses a
+        // `declare` input that is not a `Declare`, and a snapshot is
+        // the one way a node reaches a document without passing that
+        // door.
+        if let Some(input) = node.bad_declare_input(doc) {
             return Err(SnapshotError::DeclareInput { node: id, input });
         }
         if let Node::Assertion { measure, bound, .. } = node {

@@ -1346,25 +1346,19 @@ fn check_node_inputs<P: crate::ProfilePayload>(
     }
 }
 
-/// The `declare` edge's kind rule, in this door's vocabulary: what a
-/// node's declaration input names must BE a [`Node::Declare`].
+/// The `declare` edge's kind rule, in this door's vocabulary.
 ///
-/// ONE definition over [`Node::declare_input`], so the boolean and the
-/// union are held to one rule rather than two, and the load door
-/// (`persist::check`) asks the same question of the same answer in its
-/// own vocabulary. The input's LIVENESS is not asked here — it is a
-/// DAG edge, so the caller's `inputs()` walk has already refused a
-/// dangling one.
+/// The rule itself is [`Node::bad_declare_input`], asked by this door
+/// and by the load door (`persist::check`) of one answer; what is here
+/// is only this door's word for the refusal.
 fn check_declare_input<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     id: RecipeNodeId,
     node: &Node<P>,
 ) -> Result<(), EditError> {
-    match node.declare_input() {
-        Some(input) if !matches!(doc.nodes.get(&input), Some(Node::Declare { .. })) => {
-            Err(EditError::DeclareInputNotDeclare { node: id, input })
-        }
-        _ => Ok(()),
+    match node.bad_declare_input(doc) {
+        Some(input) => Err(EditError::DeclareInputNotDeclare { node: id, input }),
+        None => Ok(()),
     }
 }
 

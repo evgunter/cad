@@ -1515,7 +1515,29 @@ pub enum Node<P> {
     /// `m` meets that face of member `n`" and records no fold position:
     /// the step each pair is fed at is DERIVED from the member ids its
     /// two names carry, so reordering or dropping a member re-derives
-    /// it rather than invalidating it.
+    /// the routing rather than invalidating the declaration.
+    ///
+    /// Two names in ONE member are that member's own CARRIED contact,
+    /// fed at the step that member joins at — member 0's at step 1,
+    /// where it is operand A — which is the pair chain's rule for a
+    /// carried contact, on a member instead of an operand.
+    ///
+    /// What re-deriving the routing does NOT do is make every order
+    /// resolve. A declared merge consumes the two faces it joins and
+    /// publishes a `Merged` row in their place, so a face declared at
+    /// one step is no longer an operand row at a later one: a
+    /// member-space declaration resolves at its step only while the
+    /// face it names is still an operand-table row there. A chain of
+    /// contacts (`a` to `c`, `c` to `d`) therefore fuses in the orders
+    /// that fold `c` in last, and in the orders that fold it in second
+    /// refuses the pair naming `c`'s face as a name that no longer
+    /// resolves — `c`'s face is inside a `Merged` row by then. The
+    /// recourse, declaring that `Merged` row instead, is itself
+    /// order-shaped, since which faces are in it depends on the order.
+    /// Measured by
+    /// `member_space_declarations_across_a_chain_are_order_shaped` and
+    /// filed as
+    /// `work/docm/member-space-declarations-are-order-shaped-across-a-chain.md`.
     Union {
         /// The member bodies, in fold order (D9: the order is the
         /// list's, and the list is data). Two or more, pairwise
@@ -2069,6 +2091,27 @@ impl<P> Node<P> {
             | Node::Measure { .. }
             | Node::Assertion { .. } => None,
         }
+    }
+
+    /// **The declaration edge's KIND rule, stated once**: the node a
+    /// `declare` input names must be a [`Node::Declare`]. `Some(input)`
+    /// is the offender; `None` is a node whose declare edge is fine or
+    /// absent.
+    ///
+    /// Two doors ask it — [`crate::DocEdit::InsertNode`] and the load
+    /// door (`persist::check`) — and each phrases the refusal in its
+    /// own vocabulary ([`crate::EditError::DeclareInputNotDeclare`],
+    /// `SnapshotError::DeclareInput`). The QUESTION is this one: a door
+    /// that admits one node's broken declare edge and refuses
+    /// another's is not a door, and two spellings of one predicate is
+    /// how that happens.
+    ///
+    /// The input's LIVENESS is not asked here — a declare edge is a DAG
+    /// edge, so each caller's `inputs()` walk has already refused a
+    /// dangling one.
+    pub(crate) fn bad_declare_input(&self, doc: &crate::doc::Doc<P>) -> Option<RecipeNodeId> {
+        self.declare_input()
+            .filter(|input| !matches!(doc.nodes.get(input), Some(Node::Declare { .. })))
     }
 
     /// **DM5, stated once**: what is wrong with this node's inputs, if
