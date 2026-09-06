@@ -174,3 +174,18 @@ Instance(i) }`, sibling distinctness at every level, one walk per
 reference, `mate/member.rs` split out. (The preceding merge commit on
 this branch carried the log's conflict markers; this commit resolves
 them — merge-only, nothing rewritten.)
+
+## MSOLVE-2 landed, in review (2026-09-06)
+
+The lane opened PR 2039 and was cut off by a session limit while
+polling; the one red was the Python mirror of the new
+`MateFault::PartSelectsAnotherCopy`, which it finished on resumption.
+Green on the full matrix at `75d975d`. What the build measured: two
+inner siblings under ONE outer pattern are unbuildable (a pattern takes
+one body), so A2(a) holds the outer index across two chains; an
+inconsistent loop is built by naming a sibling lifted clear, because
+the gate verifies geometry, not the folded frames; the gate's
+`Vanished` on a mate read below a pattern reproduces one level deeper,
+pinned. The viewer cannot author a `Part` node at all (no `AddPart`
+op) — CHROME's, to be filed. Style review and correctness arm
+dispatched on that head.
