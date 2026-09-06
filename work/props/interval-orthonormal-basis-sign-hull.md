@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-03
 refs: [1191, 1939]
 pr: 1939
+needs_ev: true
 ---
 
 ## What was measured
@@ -168,21 +169,25 @@ workaround retires for the point-zero class only (the two
 `[−2.2e-16, 2.2e-16]` walls keep needing it). If refused: the item
 records the hull as a decision and the workaround stays.
 
-## RULED (Ev, 2026-09-06, on PR 1944): (c′)
+## RULING RETRACTED (Ev, 2026-09-06, on PR 1944) — the question is open again
 
-Canonicalise the zero at f64 — `s = copysign(1, n.z + 0)` inside
-`orthonormal_basis` — and let the `Interval` point-zero arm answer
-`[+1, +1]`, which encloses the f64 program by construction once the
-f64 side no longer depends on the zero's sign. Ev's question, answered
-on the PR: the hulled quantity is the unit sign `s`, not `n.z`, so
-`[0, 0]` is not the sound alternative; `[−1, 1]` is the honest hull
-while f64 can answer either sign, and (c′) is what removes the "either".
-The cost accepted: the twelve boolean-reversed corpus walls' stored
-`u_ref` move (four by a half-turn), eight STEP `DIRECTION` records
-re-derive with the reason recorded, a doc line at `Datum::FaceFrame`
-names the class; M10-5's `chart_frame` workaround retires for the
-point-zero class only. The unit's spec follows
-(`docs/PROPS-SIGN-HULL-SPEC.md`).
+Ev first wrote "c′ seems fine", asked what the `[−1, 1]` hull was over,
+and on the answer (the hulled quantity is the unit sign `s`; (c′)
+canonicalises the zero at f64 so the `Interval` point-zero arm may
+answer `+1`) retracted: "c′ does not seem good then — isn't option 1
+the only one that's actually correct?" The orchestrator had merged the
+ruling PR and dispatched the (c′) unit on the first comment; both are
+undone (the lane stopped before any push; the spec withdrawn). The
+orchestrator's answer on the PR: yes — Duff's seam sits on the equator
+where every vertical wall lives, and (c′) only hides it at an exact
+zero; option 1 (cross with the world axis chosen by a total order on
+the normal's components, normalise; no sign transfer; the shape M10-5's
+`in_plane_axis`/`chart_frame` already uses) moves the seam to the
+diagonals. Its two costs, put to Ev: the `Interval` lane must hull (or
+refuse) at an enclosure straddling a tie rather than pick, and every
+stored `u_ref` changes — all STEP goldens re-bless once, any
+`FaceFrame` in a user document would rotate (none exists; pre-release).
+Awaiting Ev's confirmation of option 1 with that cost.
 
 ## Home
 
