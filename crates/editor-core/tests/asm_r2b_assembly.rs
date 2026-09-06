@@ -295,6 +295,20 @@ fn relations(findings: &[editor_core::AtRestFinding]) -> Vec<(RecipeNodeId, &'st
         .map(|f| match &f.attribution {
             editor_core::Attribution::Refuted(m) => (m.mate, "refuted"),
             editor_core::Attribution::Declined(m) => (m.mate, "declined"),
+            // A carried row's mate is a node of ANOTHER document, so
+            // it reports under its own words rather than joining the
+            // two above and reading as this document's.
+            editor_core::Attribution::Carried {
+                declaration,
+                relation,
+                ..
+            } => (
+                declaration.mate,
+                match relation {
+                    editor_core::CarriedRelation::Refuted => "carried_refuted",
+                    editor_core::CarriedRelation::Declined => "carried_declined",
+                },
+            ),
             editor_core::Attribution::Unattributed => (RecipeNodeId(u64::MAX), "unattributed"),
         })
         .collect()

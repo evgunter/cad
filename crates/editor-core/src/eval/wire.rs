@@ -52,6 +52,11 @@ pub(crate) struct OpOut<T: Decide> {
     pub payload: ValuePayload<T>,
     pub names: Arc<NameTable>,
     pub contacts: Arc<topo::ContactRecords>,
+    /// Whose mate authored each of those records, and which mates of
+    /// the documents below could not be minted at all — the same
+    /// channel's bookkeeping half, in the same arena and filled at the
+    /// same one op.
+    pub carried: Arc<crate::assembly::CarriedDeclarations>,
 }
 
 impl<T: Decide> OpOut<T> {
@@ -62,6 +67,7 @@ impl<T: Decide> OpOut<T> {
             payload,
             names,
             contacts: Arc::new(topo::ContactRecords::default()),
+            carried: Arc::new(crate::assembly::CarriedDeclarations::default()),
         }
     }
 }
@@ -379,10 +385,62 @@ where
     // identity fast path clones keys verbatim. Re-deriving them from
     // the placed geometry is exactly the scan-to-bless move F1 bans;
     // the declaration is inherited, never rediscovered.
+    // The bookkeeping half of the same channel, tagged with the route
+    // it arrived by: THIS node is `through`, the pinned document is
+    // `of` for its own rows, and a row that already came up from
+    // deeper keeps its own `of` with this instance prepended to its
+    // route. The face keys ride the placement unchanged for the same
+    // reason the records do, so the gather re-keys both alike.
+    let route = |inner: RecipeNodeId, via: &[RecipeNodeId]| {
+        core::iter::once(inner).chain(via.iter().copied()).collect()
+    };
+    let carried = crate::assembly::CarriedDeclarations {
+        minted: part
+            .minted
+            .iter()
+            .map(|declaration| crate::assembly::CarriedDeclaration {
+                through: id,
+                of: doc_ref.id,
+                via: Vec::new(),
+                declaration: declaration.clone(),
+            })
+            .chain(
+                part.carried
+                    .iter()
+                    .map(|row| crate::assembly::CarriedDeclaration {
+                        through: id,
+                        of: row.of,
+                        via: route(row.through, &row.via),
+                        declaration: row.declaration.clone(),
+                    }),
+            )
+            .collect(),
+        unminted: part
+            .unminted
+            .iter()
+            .map(|refusal| crate::assembly::CarriedRefusal {
+                through: id,
+                of: doc_ref.id,
+                via: Vec::new(),
+                refusal: refusal.clone(),
+            })
+            .chain(
+                part.carried_unminted
+                    .iter()
+                    .map(|row| crate::assembly::CarriedRefusal {
+                        through: id,
+                        of: row.of,
+                        via: route(row.through, &row.via),
+                        refusal: row.refusal.clone(),
+                    }),
+            )
+            .collect(),
+    };
     Ok(OpOut {
         payload: ValuePayload::Body(Arc::new(placed)),
         names: table,
         contacts: Arc::clone(&part.contacts),
+        carried: Arc::new(carried),
     })
 }
 

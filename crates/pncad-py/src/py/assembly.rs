@@ -282,20 +282,43 @@ impl MintedDeclaration {
 /// nothing was decided either way), or `"unattributed"` (no
 /// declaration answers for the finding — an UNDECLARED contact, which
 /// is by definition the hard error).
+///
+/// A declaration a document BELOW this one authored answers under
+/// `"carried_refuted"` and `"carried_declined"`: the same two
+/// relations, and a separate pair of tags because `declaration.mate`
+/// is then a node of THAT document, not of the one the caller
+/// gathered. Which document, and the route to it, are in `str(...)`.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Attribution(d::Attribution);
 
+/// The stable tag for one attribution — one definition, read by the
+/// getter and by both repr sites. Exhaustive over the kernel enum, so
+/// a relation added there stops this build.
+fn attribution_tag(attribution: &d::Attribution) -> &'static str {
+    use d::CarriedRelation as R;
+    match attribution {
+        d::Attribution::Refuted(_) => "refuted",
+        d::Attribution::Declined(_) => "declined",
+        d::Attribution::Carried {
+            relation: R::Refuted,
+            ..
+        } => "carried_refuted",
+        d::Attribution::Carried {
+            relation: R::Declined,
+            ..
+        } => "carried_declined",
+        d::Attribution::Unattributed => "unattributed",
+    }
+}
+
 #[pymethods]
 impl Attribution {
-    /// The stable tag: `refuted`, `declined`, `unattributed`.
+    /// The stable tag: `refuted`, `declined`, `carried_refuted`,
+    /// `carried_declined`, `unattributed`.
     #[getter]
     fn relation(&self) -> &'static str {
-        match self.0 {
-            d::Attribution::Refuted(_) => "refuted",
-            d::Attribution::Declined(_) => "declined",
-            d::Attribution::Unattributed => "unattributed",
-        }
+        attribution_tag(&self.0)
     }
 
     /// The declaration named, `None` for `unattributed`.
@@ -336,14 +359,7 @@ impl AtRestFinding {
     }
 
     fn __repr__(&self) -> String {
-        format!(
-            "AtRestFinding({:?})",
-            match self.0.attribution {
-                d::Attribution::Refuted(_) => "refuted",
-                d::Attribution::Declined(_) => "declined",
-                d::Attribution::Unattributed => "unattributed",
-            }
-        )
+        format!("AtRestFinding({:?})", attribution_tag(&self.0.attribution))
     }
 }
 
@@ -401,6 +417,38 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError) -> PyErr {
     let none = || py.None();
     let obj = |v: PyResult<Py<PyAny>>| v.unwrap_or_else(|_| py.None());
     let (mate, side, name, why, class_, findings) = match err {
+        // The carried arm's one projected row is `through`, the
+        // instantiating node — the only id in the refusal that is a
+        // node of the document the caller asked about. The inner
+        // document and its mate are named in the message and
+        // deliberately NOT projected as `mate`, which every other arm
+        // answers in THIS document's id space.
+        E::CarriedMintRefusal { through, .. } => {
+            return typed_err(
+                py,
+                ErrorClass::Assembly,
+                err.to_string(),
+                &[
+                    (
+                        "variant",
+                        PyString::new(py, assembly_error_tag(err))
+                            .unbind()
+                            .into_any(),
+                    ),
+                    ("node", none()),
+                    (
+                        "through",
+                        obj(Py::new(py, NodeId(*through)).map(|v| v.into_any())),
+                    ),
+                    ("name", none()),
+                    ("mate", none()),
+                    ("side", none()),
+                    ("why", none()),
+                    ("class_", none()),
+                    ("findings", none()),
+                ],
+            );
+        }
         E::Product(inner) => {
             let (node, through, name) = product_fields(py, inner);
             // The gather's payload rides under the gather's own

@@ -800,6 +800,7 @@ pub fn assembly_error_tag(err: &AssemblyError) -> &'static str {
         AssemblyError::Product(inner) => product_error_tag(inner),
         AssemblyError::Reference { .. } => "mate_reference_refused",
         AssemblyError::NoAtRestRecord { .. } => "no_at_rest_record",
+        AssemblyError::CarriedMintRefusal { .. } => "carried_mint_refusal",
         AssemblyError::AtRest { .. } => "at_rest",
         AssemblyError::Uncertified { .. } => "uncertified",
     }

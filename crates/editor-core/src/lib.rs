@@ -94,8 +94,9 @@ pub use appearance::{
     Attr, AttrKind, AttrSet, Rgba8,
 };
 pub use assembly::{
-    Assembly, AssemblyError, AtRestFinding, Attribution, MintRefusal, MintedDeclaration,
-    RefusedRef, assemble, assemble_gathered,
+    Assembly, AssemblyError, AtRestFinding, Attribution, CarriedDeclaration, CarriedDeclarations,
+    CarriedRefusal, CarriedRelation, MintRefusal, MintedDeclaration, RefusedRef, assemble,
+    assemble_gathered,
 };
 pub use checks::{
     Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,

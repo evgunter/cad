@@ -347,7 +347,7 @@ impl NodePick {
         let Some(sources) = sources_of(value) else {
             return Err(NodePickError::NotABody { node });
         };
-        let Some((_, body_arc, _)) = sources.into_iter().find(|(ix, _, _)| *ix == body) else {
+        let Some((_, body_arc, _, _)) = sources.into_iter().find(|(ix, _, _, _)| *ix == body) else {
             return Err(NodePickError::NoSuchBody { node, body });
         };
         let mesh = mesh::tessellate(&body_arc, delta, tol).map_err(NodePickError::Tessellate)?;
@@ -412,7 +412,7 @@ impl NodePick {
         };
         sources
             .into_iter()
-            .map(|(ix, _, _)| ix)
+            .map(|(ix, _, _, _)| ix)
             .collect::<Vec<_>>()
             .into_iter()
             .map(|body| Self::build(eval, node, body, delta, tol))

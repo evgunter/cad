@@ -51,15 +51,14 @@
 //!   from the verdicts against their own document. WHICH declared
 //!   pairs reach it narrowed when minting moved into the gather: the
 //!   arm requires EVERY finding to be `Declined`, and a finding is
-//!   `Declined` only when its own PAIR is a declaration THIS document
-//!   minted.
-//!   So the pairs that still land there are the ones this document's
-//!   own mates declared; a CARRIED declaration the census merely
-//!   declines attributes [`Attribution::Unattributed`] — its mate's
-//!   rows do not cross the instantiation seam — and routes to
-//!   [`AssemblyError::AtRest`] instead. Loud either way, and narrower
-//!   than the frontier arm says; issue 1429 is the seam channel that
-//!   would let a carried pair reach `Uncertified` under its own name.
+//!   `Declined` only when its own PAIR is a declaration SOME document
+//!   of this tree minted — this one's own mates, or a part's, which
+//!   ride up as [`CarriedDeclaration`]s and answer the same lookup.
+//!   A carried declaration the census merely declines therefore
+//!   reaches the frontier arm under its own name, naming the inner
+//!   document, the inner mate and the route this document reached it
+//!   by. [`Attribution::Unattributed`] is what it says: a finding no
+//!   declaration of ANY document in the tree answers for.
 //!
 //! Each says why at its own definition. The kernel's finding passes
 //! straight through either way — stated, never swallowed, never
@@ -96,6 +95,88 @@ pub struct MintedDeclaration {
     pub class: ContactClass,
     /// The product faces the two references resolved to.
     pub faces: (FaceKey, FaceKey),
+}
+
+/// One declaration minted by a document BELOW this one, arriving
+/// across the instantiation seam.
+///
+/// A part's RECORDS cross the seam with its geometry (A5); this is the
+/// bookkeeping that says which mate of which document authored one, so
+/// a finding against a carried record names its mate instead of
+/// nobody. `declaration.faces` are keyed in the product that HOLDS
+/// this row — re-keyed at each graft through the graft's own
+/// descendant map, exactly as the records are.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CarriedDeclaration {
+    /// The instantiating node OF THIS DOCUMENT the row came through.
+    pub through: RecipeNodeId,
+    /// The document whose mate authored the declaration — the file an
+    /// author opens to act on it.
+    pub of: crate::ident::DocumentId,
+    /// The further instantiating nodes between `through` and `of`,
+    /// nearest first, each in its own document's id space. Empty when
+    /// `through` instantiates `of` directly; one entry per intervening
+    /// sub-assembly, so a row three documents down names its whole
+    /// route.
+    pub via: Vec<RecipeNodeId>,
+    /// The declaration itself, its `mate` in `of`'s id space.
+    pub declaration: MintedDeclaration,
+}
+
+/// One mint refusal from a document BELOW this one, arriving across
+/// the instantiation seam — [`CarriedDeclaration`]'s twin for what the
+/// inner document could NOT mint.
+///
+/// The refusal is the inner document's own verdict, carried verbatim:
+/// no reference is re-resolved here and no class is re-read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CarriedRefusal {
+    /// The instantiating node OF THIS DOCUMENT the row came through.
+    pub through: RecipeNodeId,
+    /// The document whose mate could not be minted.
+    pub of: crate::ident::DocumentId,
+    /// The route below `through`, nearest first
+    /// ([`CarriedDeclaration::via`]).
+    pub via: Vec<RecipeNodeId>,
+    /// The inner document's own refusal, its ids in `of`'s id space.
+    pub refusal: MintRefusal,
+}
+
+/// What one instantiated value carries up from the documents below it:
+/// their declarations and their mint refusals, each already tagged
+/// with the route it arrived by.
+///
+/// Bundled because the two travel together and are filled at ONE site
+/// — the instantiate op — and are empty on every other op.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct CarriedDeclarations {
+    /// The declarations, in the inner documents' own order.
+    pub minted: Vec<CarriedDeclaration>,
+    /// The refusals, in the inner documents' own order.
+    pub unminted: Vec<CarriedRefusal>,
+}
+
+/// The two relations a finding can bear to a declaration — what
+/// [`Attribution`]'s own-minted arms spell as two variants, named once
+/// so the carried arm carries it as a FIELD instead of doubling the
+/// enum.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CarriedRelation {
+    /// The kernel REFUTED the declaration.
+    Refuted,
+    /// The census DECLINED to certify it.
+    Declined,
+}
+
+impl CarriedRelation {
+    /// The relation in the words [`Attribution`]'s rendering uses.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Refuted => "refuted",
+            Self::Declined => "uncertified",
+        }
+    }
 }
 
 /// A validated assembly: the gathered product, its names, the record
@@ -160,9 +241,29 @@ pub enum Attribution {
     /// same pair ([`attribute`] says how), so no arena ordering enters
     /// and no third face's declaration can answer here.
     Declined(MintedDeclaration),
-    /// The finding names no declaration. An UNDECLARED contact is
-    /// exactly this — by definition no mate authored it, which is what
-    /// makes it the F1 hard error.
+    /// The finding names a declaration a document BELOW this one
+    /// minted, reached across the instantiation seam. The relation is
+    /// the same pair of relations the two arms above spell, decided by
+    /// the same dispatch: which document authored the declaration
+    /// changes who the author must go and edit, not what the kernel
+    /// said about it.
+    Carried {
+        /// The instantiating node of THIS document the row came
+        /// through.
+        through: RecipeNodeId,
+        /// The document whose mate authored it.
+        of: crate::ident::DocumentId,
+        /// The route below `through`, nearest first.
+        via: Vec<RecipeNodeId>,
+        /// The declaration, its `mate` in `of`'s id space.
+        declaration: MintedDeclaration,
+        /// Refuted, or merely declined.
+        relation: CarriedRelation,
+    },
+    /// The finding names no declaration — of THIS document or of any
+    /// document in its tree. An UNDECLARED contact is exactly this: by
+    /// definition no mate authored it, which is what makes it the F1
+    /// hard error.
     Unattributed,
 }
 
@@ -170,7 +271,7 @@ impl Attribution {
     /// The declaration named, for a finding that names one.
     pub fn declaration(&self) -> Option<&MintedDeclaration> {
         match self {
-            Self::Refuted(m) | Self::Declined(m) => Some(m),
+            Self::Refuted(m) | Self::Declined(m) | Self::Carried { declaration: m, .. } => Some(m),
             Self::Unattributed => None,
         }
     }
@@ -196,6 +297,30 @@ impl core::fmt::Display for Attribution {
                 m.mate.0,
                 m.class.name()
             ),
+            // The subject is the mate an author can act on, which for
+            // a carried row is a mate of ANOTHER file: the route says
+            // which file and how this document reached it.
+            Self::Carried {
+                through,
+                of,
+                via,
+                declaration,
+                relation,
+            } => {
+                write!(
+                    f,
+                    "document {of}'s mate {}'s declared {} contact, {} (carried \
+                     through instance {}",
+                    declaration.mate.0,
+                    declaration.class.name(),
+                    relation.name(),
+                    through.0
+                )?;
+                for node in via {
+                    write!(f, " → instance {}", node.0)?;
+                }
+                f.write_str(")")
+            }
             Self::Unattributed => f.write_str("no declaration answers for this finding"),
         }
     }
@@ -288,6 +413,61 @@ impl MintRefusal {
     }
 }
 
+// One copy of each mint-refusal sentence, shared by the DATA
+// ([`MintRefusal`]) and by the two [`AssemblyError`] arms it becomes:
+// the same fact stated in one place, so a refusal raised at this
+// document's gate and one carried up from a part read alike.
+fn render_reference(
+    f: &mut core::fmt::Formatter<'_>,
+    mate: RecipeNodeId,
+    side: MateSide,
+    name: &StableName,
+    why: &RefusedRef,
+) -> core::fmt::Result {
+    // The name forwards `StableName`'s `Display` rather than
+    // re-spelling the kind-plus-minting-node phrase, and the article
+    // comes from the kind because the value decides it.
+    write!(
+        f,
+        "mate {}'s {} reference ({} {name}) does not name a face of the product: {why}",
+        mate.0,
+        side.name(),
+        name.kind.article(),
+    )
+}
+
+fn render_no_record(
+    f: &mut core::fmt::Formatter<'_>,
+    mate: RecipeNodeId,
+    class: ContactClass,
+    why: &str,
+) -> core::fmt::Result {
+    write!(
+        f,
+        "mate {}'s class {} has no at-rest kernel record — {why}; the record is \
+         not minted with an invented witness",
+        mate.0,
+        class.name()
+    )
+}
+
+// The refusal in its own words, without the gate's prefix: a carried
+// row renders the INNER document's verdict inside the outer gate's
+// sentence.
+impl core::fmt::Display for MintRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Reference {
+                mate,
+                side,
+                name,
+                why,
+            } => render_reference(f, *mate, *side, name, why),
+            Self::NoAtRestRecord { mate, class, why } => render_no_record(f, *mate, *class, why),
+        }
+    }
+}
+
 impl From<MintRefusal> for AssemblyError {
     fn from(refusal: MintRefusal) -> Self {
         match refusal {
@@ -336,6 +516,30 @@ pub enum AssemblyError {
         /// terms. Sourced from the table, never restated here, so a
         /// class admitted later cannot inherit another's reason.
         why: &'static str,
+    },
+    /// A document BELOW this one could not mint one of its own mates,
+    /// and an outer assembly is unusable while an inner part is
+    /// broken: an unminted mate is a contact nothing verified, and a
+    /// green badge over one is the thing this gate exists to deny.
+    ///
+    /// Raised for the FIRST carried refusal in gather order, before
+    /// this document's own `unminted` head and before the at-rest
+    /// gate, because the inner document is the file the author has to
+    /// open and the outer document's own verdicts are about a record
+    /// set that is already known to be short.
+    ///
+    /// Nothing is re-decided here: the inner document refused this
+    /// itself, and the row is that refusal carried up with the route
+    /// it arrived by.
+    CarriedMintRefusal {
+        /// The instantiating node of THIS document.
+        through: RecipeNodeId,
+        /// The document whose mate could not be minted.
+        of: crate::ident::DocumentId,
+        /// The route below `through`, nearest first.
+        via: Vec<RecipeNodeId>,
+        /// The inner document's own refusal, in its id space.
+        refusal: MintRefusal,
     },
     /// The kernel's tier-3′ door refused the assembled product with
     /// its records (A5): at least one finding is a verdict AGAINST the
@@ -421,31 +625,38 @@ impl core::fmt::Display for AssemblyError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Product(e) => f.write_str(&Self::product_refusal(e)),
-            // The name forwards `StableName`'s `Display` rather than
-            // re-spelling the kind-plus-minting-node phrase, and the
-            // article comes from the kind because the value decides
-            // it. The pin builds its expectation from the impl, so a
-            // copy that stops tracking it fails.
+            // The pin builds its expectation from the impl, so a copy
+            // that stops tracking it fails.
             Self::Reference {
                 mate,
                 side,
                 name,
                 why,
-            } => write!(
-                f,
-                "assembly: mate {}'s {} reference ({} {name}) does not name a face of \
-                 the product: {why}",
-                mate.0,
-                side.name(),
-                name.kind.article(),
-            ),
-            Self::NoAtRestRecord { mate, class, why } => write!(
-                f,
-                "assembly: mate {}'s class {} has no at-rest kernel record — \
-                 {why}; the record is not minted with an invented witness",
-                mate.0,
-                class.name()
-            ),
+            } => {
+                f.write_str("assembly: ")?;
+                render_reference(f, *mate, *side, name, why)
+            }
+            Self::NoAtRestRecord { mate, class, why } => {
+                f.write_str("assembly: ")?;
+                render_no_record(f, *mate, *class, why)
+            }
+            Self::CarriedMintRefusal {
+                through,
+                of,
+                via,
+                refusal,
+            } => {
+                write!(f, "assembly: document {of}, instantiated through instance {}", through.0)?;
+                for node in via {
+                    write!(f, " → instance {}", node.0)?;
+                }
+                write!(
+                    f,
+                    ", did not mint one of its own mates, so this assembly is not at \
+                     rest over it: {refusal} — open that document and repair the mate \
+                     there"
+                )
+            }
             Self::AtRest { findings } => {
                 write!(
                     f,
@@ -571,8 +782,24 @@ pub fn assemble_gathered<T: Decide + AtRestPolicy>(
         contacts,
         minted,
         unminted,
+        carried,
+        carried_unminted,
         ..
     } = product;
+    // Inner mint health, before this document's own: an outer assembly
+    // is unusable while an inner part is broken, and the file the
+    // author must open is the inner one. Verification still runs once
+    // — nothing is re-decided here, the row IS the inner document's
+    // own refusal — and the head is raised for the same reason the own
+    // `unminted` head is (below).
+    if let Some(row) = carried_unminted.into_iter().next() {
+        return Err(AssemblyError::CarriedMintRefusal {
+            through: row.through,
+            of: row.of,
+            via: row.via,
+            refusal: row.refusal,
+        });
+    }
     // The gather records what it could not mint; this door is where
     // that becomes a refusal, in document order, because an at-rest
     // verdict on a record set is only meaningful when the set is the
@@ -603,7 +830,7 @@ pub fn assemble_gathered<T: Decide + AtRestPolicy>(
             let findings: Vec<AtRestFinding> = errors
                 .into_iter()
                 .map(|error| AtRestFinding {
-                    attribution: attribute(&error, &minted),
+                    attribution: attribute(&error, &minted, &carried),
                     error,
                 })
                 .collect();
@@ -615,9 +842,16 @@ pub fn assemble_gathered<T: Decide + AtRestPolicy>(
             // (Non-empty because `Uncertified` promises at least one
             // declined pair; the kernel never refuses with no finding.)
             if !findings.is_empty()
-                && findings
-                    .iter()
-                    .all(|f| matches!(f.attribution, Attribution::Declined(_)))
+                && findings.iter().all(|f| {
+                    matches!(
+                        f.attribution,
+                        Attribution::Declined(_)
+                            | Attribution::Carried {
+                                relation: CarriedRelation::Declined,
+                                ..
+                            }
+                    )
+                })
             {
                 Err(AssemblyError::Uncertified {
                     contacts: Box::new(contacts),
@@ -785,23 +1019,64 @@ fn resolve_face(
 /// variant states something about the body's own structure or
 /// geometry, which no mate declared and none can answer for; sharing
 /// a face with a declaration is not being named by one.
-fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attribution {
+/// Which home of the declaration vocabulary answered the pair lookup —
+/// this document's own mates, or a part's carried up across the seam.
+/// The two differ in WHO must edit the mate, never in what the kernel
+/// decided about it.
+enum Found<'a> {
+    Own(&'a MintedDeclaration),
+    Carried(&'a CarriedDeclaration),
+}
+
+fn attribute(
+    error: &ValidationError,
+    minted: &[MintedDeclaration],
+    carried: &[CarriedDeclaration],
+) -> Attribution {
+    // ONE definition of the pair lookup, over both homes of a
+    // declaration: what this document minted, and what its parts
+    // carried up. Own rows answer first — a document's own mate is the
+    // one its author edits, and the two sets cannot name one pair
+    // twice unless this document declared a contact a part already
+    // declared, which is that author's own duplicate.
     let by_pair = |a: FaceKey, b: FaceKey| {
+        let hits = |faces: (FaceKey, FaceKey)| faces == (a, b) || faces == (b, a);
         minted
             .iter()
-            .find(|m| m.faces == (a, b) || m.faces == (b, a))
+            .find(|m| hits(m.faces))
+            .map(Found::Own)
+            .or_else(|| {
+                carried
+                    .iter()
+                    .find(|c| hits(c.declaration.faces))
+                    .map(Found::Carried)
+            })
     };
-    // A lookup that misses is a finding about a record no mate of THIS
-    // document minted.
-    let named = |m: Option<&MintedDeclaration>, relation: fn(MintedDeclaration) -> Attribution| {
-        m.map_or(Attribution::Unattributed, |m| relation(m.clone()))
+    // A lookup that misses is a finding about a record no mate of any
+    // document in this tree minted. The relation is the CALLER's — one
+    // dispatch decides it — and it is the same relation whichever home
+    // answered.
+    let named = |found: Option<Found<'_>>, relation: CarriedRelation| match found {
+        None => Attribution::Unattributed,
+        Some(Found::Own(m)) => match relation {
+            CarriedRelation::Refuted => Attribution::Refuted(m.clone()),
+            CarriedRelation::Declined => Attribution::Declined(m.clone()),
+        },
+        Some(Found::Carried(c)) => Attribution::Carried {
+            through: c.through,
+            of: c.of,
+            via: c.via.clone(),
+            declaration: c.declaration.clone(),
+            relation,
+        },
     };
     match error {
         // A declared pair the kernel CONTRADICTED: the declaration is
         // in the error, so the pair names its mate exactly.
-        ValidationError::ContactContradicted { declaration, .. } => {
-            named(by_pair(declaration.a, declaration.b), Attribution::Refuted)
-        }
+        ValidationError::ContactContradicted { declaration, .. } => named(
+            by_pair(declaration.a, declaration.b),
+            CarriedRelation::Refuted,
+        ),
         // A declared FACE-PAIR record the kernel could not confirm —
         // the other direction of the certification diff. The record's
         // own faces are in the error, so it names its mate exactly.
@@ -826,7 +1101,7 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
             declaration:
                 topo::StaleDeclaration::Patch { face_a, face_b }
                 | topo::StaleDeclaration::CurveLocus { face_a, face_b, .. },
-        } => named(by_pair(*face_a, *face_b), Attribution::Refuted),
+        } => named(by_pair(*face_a, *face_b), CarriedRelation::Refuted),
         // A carrier kind the census inventory cannot certify: it
         // neither certified nor contradicted the pair, which is the
         // decline relation exactly.
@@ -839,7 +1114,7 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
         // which face got to answer would be the arena's ordering.
         ValidationError::CensusUnsupported {
             subject: topo::CensusSubject::FacePair(a, b),
-        } => named(by_pair(*a, *b), Attribution::Declined),
+        } => named(by_pair(*a, *b), CarriedRelation::Declined),
         // A single FACE outside the inventory is a finding about that
         // face's own geometry, not about a candidate contact: the arm
         // that raises it is the census's face-bounding pass, which has
@@ -1031,7 +1306,7 @@ mod attribution {
     use geom_core::predicate::{Band, MarginDiag};
     use topo::{CensusContact, DeclaredContact, EntityId, StaleDeclaration, ValidationError};
 
-    use super::{Attribution, FaceKey, MintedDeclaration, attribute};
+    use super::{Attribution, FaceKey, MintedDeclaration};
     use crate::mate::ContactClass;
     use crate::names::{EntityKind, RoleSeg, StableName};
     use crate::node::RecipeNodeId;
@@ -1074,6 +1349,15 @@ mod attribution {
             faces: (a, b),
         }];
         (minted, a, b, odd, vertex)
+    }
+
+    /// [`super::attribute`] over a document with NO carried rows: this
+    /// module's subject is the classification, one row per arm, and a
+    /// tree of one document is where each arm is stated most plainly.
+    /// The carried half is driven end to end through [`assemble`] in
+    /// `tests/docm6_seam_declarations.rs`.
+    fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attribution {
+        super::attribute(error, minted, &[])
     }
 
     /// A census refusal about a candidate face PAIR.
