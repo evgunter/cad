@@ -452,3 +452,6 @@ mod m10_9_pins_interval;
 
 #[path = "kstats_bracket_rows.rs"]
 mod kstats_bracket_rows;
+
+#[path = "m10_9_r1_probes_interval.rs"]
+mod m10_9_r1_probes_interval;
