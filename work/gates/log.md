@@ -75,21 +75,6 @@ hand-copied three times — filed as
 `interval-square-allowlist.sh:203` note was withdrawn as vacuous; the
 real defect there is PR 2033's.
 
-<<<<<<< HEAD
-## Third wave dispatched (2026-09-06)
-
-With PR 2029 merged and `bounds-allowlist.sh` free: `gates/d103-pinned-counts`
-(`D103`, direction decided by the orchestrator — a per-file compound-bound
-count pinned beside each allowlist entry, the `UNCONVERTED_TODAY` shape
-per entry, so a file whose count moves in either direction reds and
-names the entry's ratification paragraph), and
-`gates/loop-boundary-discards` (`S49`, the deferral register as a
-derived-census gate keyed by file and enclosing item, two reds — an
-unregistered live discard and a registered site that is gone — with
-the audited/unaudited counts in the OK line; the audit of the
-unaudited sites is the owners' riders). `D211` waits on PRs 2033 and
-2038, which hold two of its three files.
-=======
 ## bit-identity-debug-only-gate-ends-an-item-at-a-semicolon + debug-only-counters-have-no-gate landed (2026-09-06)
 
 PR 2030, `gates/debug-only-subjects`, one style review
@@ -127,4 +112,17 @@ measured as parity with clippy, not a hole. One wiring step in
 `ci.yml`, announced to CIW; `ci-local.sh` globs the directory. 18
 cases. Its textual `mod` resolver is the third in the directory —
 `test-module-resolution-has-three-homes`.
->>>>>>> origin/main
+
+## Third wave dispatched (2026-09-06)
+
+With PR 2029 merged and `bounds-allowlist.sh` free: `gates/d103-pinned-counts`
+(`D103`, direction decided by the orchestrator — a per-file compound-bound
+count pinned beside each allowlist entry, the `UNCONVERTED_TODAY` shape
+per entry, so a file whose count moves in either direction reds and
+names the entry's ratification paragraph), and
+`gates/loop-boundary-discards` (`S49`, the deferral register as a
+derived-census gate keyed by file and enclosing item, two reds — an
+unregistered live discard and a registered site that is gone — with
+the audited/unaudited counts in the OK line; the audit of the
+unaudited sites is the owners' riders). `D211` waits on PRs 2033 and
+2038, which hold two of its three files.
