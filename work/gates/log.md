@@ -126,3 +126,28 @@ unregistered live discard and a registered site that is gone — with
 the audited/unaudited counts in the OK line; the audit of the
 unaudited sites is the owners' riders). `D211` waits on PRs 2033 and
 2038, which hold two of its three files.
+
+## gate-mod-path-resolved-textually landed (2026-09-06)
+
+PR 2033, `gates/mod-path-resolution`, one style review
+(MERGEABLE-WITH-FIXES with one MAJOR, fix pass landed).
+`interval-square-allowlist.sh` resolves `#[cfg(test)] mod x;` the way
+rustc does — `#[path]` wins, roots and `mod.rs` to the sibling, any
+other declarer to `dir/foo/x.rs`, an inline `mod x { … }` to no file,
+and (the review's MAJOR, implemented rather than refused) a
+declaration inside an inline module mounted under that module's
+directory; a declaration it cannot place is refused loudly with one
+diagnosis, checked before the every-source guard. The exclusion filter
+is a whole-path or prefix comparison, no longer a substring match.
+Population measured first: 54 gated declarations, 17 outside roots, 12
+inline and 5 real; live scan 397 → 395 files, the two leaving being the
+test modules their declarations actually name, nothing entering. 27
+cases, 11 of 12 mutations killed by their own fixture. The first
+fix-pass head went red on the hosted runner only: the reader `exit`ed
+with its answer while reading a pipe from `gate_rust_code`, and
+`pipefail` reported the shared reader's failed write as a refusal — a
+race this box won and the runner lost; fixed by consuming the whole
+input, planted with a 1.5 MB view. Reported from it, `lib.sh`'s ground:
+`gate_selftest_with_broken_tool` plants only the clean tree (a reader
+failure path is unreachable from any selftest), and a stubbed `awk`
+exits the gate with status 9 and no output — D109's class.
