@@ -78,3 +78,45 @@ Three candidates, in increasing order of surface:
 
 Filed by DOCM-5's fix pass on the dual review's finding; DOCM's fence
 does not reach `pncad-py`'s binding policy, which is LIB's.
+
+## Question for Ev (2026-09-06, LIB orchestrator; `[ev]` PR)
+
+What a Python `Product` is, which decides the shape of the fix. The
+three candidates in the body plus a fourth the orchestrator adds, with
+the recommendation first:
+
+- **(4) Bind `Product` as a plain value; the Python doors CLONE it.**
+  `pncad.gather(doc, ev) -> Product`, and `run_checks(doc, ev,
+  product=p)` / `assemble(doc, ev, product=p)` accept it. The kernel's
+  `assemble_gathered` consumes; the binding hands it a clone of the
+  product it holds, so Python never needs move semantics and a
+  `Product` can be used any number of times. Sound only if a clone is
+  cheap next to the gather it replaces (the gather is ~250 ms at the
+  heat sink's 160-fin point; the clone is a body copy) — the unit
+  measures that first and falls back to (1) if it is not.
+- **(1) One combined door** `checks_and_assembly(doc, ev)` that
+  gathers once and returns both answers. Smallest surface, least
+  general: a third consumer of the product needs a third door.
+- **(2) `Product` with a consumed flag.** Most faithful to the Rust
+  shape; a second use refuses typed. Simulates a linear type in a
+  language that has none, and the refusal is a new error arm for a
+  mistake Python callers will make often.
+- **(3) Nothing**, the cost written down in the census entry.
+
+Recommendation: (4), measured; (1) as the fallback. Either way the
+census's six `behind-a-door` entries for the gathered doors get a
+written reason that matches what ships.
+
+## Ruled (Ev, PR 2020, 2026-09-06): **(4) — a plain value the doors clone, measured; (1) if the clone is not cheap**
+
+Ev: "plain value doors clone sounds good". The tradeoffs (cost, surface,
+generality, staleness, faithfulness) are on the PR thread. The unit's
+first job is the measurement: the cost of cloning the product at the
+heat sink's 160-fin point against the ~250 ms gather it replaces; if
+the clone is not small the unit ships the combined door (1) instead and
+says so. Either way: `pncad.gather(doc, ev) -> Product` (or the
+combined door), `run_checks` / `assemble` accepting it, a typed refusal
+for a product that is not OF the evaluation given (the
+`EvaluationOfAnotherDocument` shape), a test pinning the gather count
+through `product::gathers_on_this_thread`, `pncad.pyi`, census re-cut of
+the six `behind-a-door` entries, stub test. Dispatchable as a LIB unit.
