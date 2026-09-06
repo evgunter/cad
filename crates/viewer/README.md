@@ -404,7 +404,7 @@ has its own item
 
 | Module | Holds |
 |---|---|
-| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `PathVerb`, `ArcMode`, `DatumKind`, `ShapeKind`, `PatternKindChoice`, `BOOLEAN_OPS`, `MATE_PRIMITIVES` — are hand-maintained mirrors of a kernel or sketch enum; the field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app`. The five enums declare themselves and their `ALL` together (**Closed vocabularies are declared once**, below); the two `const` tables mirror an enum in another crate and cannot, and say so |
+| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `PathVerb`, `ArcMode`, `DatumKind`, `ShapeKind`, `PatternKindChoice`, `BOOLEAN_OPS`, `MATE_PRIMITIVES` — mirror a kernel or sketch enum, and the MIRROR is what is hand-maintained: the five enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum, while the two `const` tables mirror an enum in another crate, cannot be projected from a declaration that is not here, and say so. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
 | `drafts` | `Drafts` and `CommitFault`: the in-flight form state, its defaults, and its lowering of typed field values to `Expr` and `LoopProgram` — the same layer as `session::author`, and today the larger half of it |
 | `frame` | The per-frame policies the viewport runs, as values: what the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `Badge`, the doors that build them, and the two that spend them — `apply` for a ranked verdict or a retirement, `deliver` for a policy that may or may not have news), what the id pass is asked this frame, and what the environment offers (`ChooserBackend`, the XDG preferences path, the WSL probe). The charter is that the frame loop still decides WHEN to call one and no longer decides what it MEANS — which argues for taking each out of `app` and **not** for their being one module. A new concern is written against this row; that the row cannot honestly cover the ones already here is `work/view/frame-module-has-eight-concerns-and-no-holds-row.md`, which owns the split |
 
@@ -690,13 +690,15 @@ copy would be the hand-written list again with nothing forcing it.
 
 ### Closed vocabularies are declared once
 
-A dozen enums here are **closed vocabularies**: a fixed set of choices
-the chrome offers, which something walks in order — a radio row, a
-combo's options, a suite's sweep. Each carried a hand-written
-`const ALL` beside it, and that second copy of the membership was free
-to fall behind the first: adding a variant compiled, the radio row
-silently lost a button, and every sweep keyed on the list quietly
-narrowed. Ten such tables existed; nine were of this kind.
+**Nine** enums here are closed vocabularies: a fixed set of choices the
+chrome offers, which something walks in order — a radio row, a combo's
+options, a suite's sweep. Each carried a hand-written `const ALL`
+beside it, and that second copy of the membership was free to fall
+behind the first: adding a variant compiled, the radio row silently
+lost a button, and every sweep keyed on the list quietly narrowed.
+(Ten `const ALL` tables existed under `src/`; nine were of this kind.
+The number is stated twice here because this program's counts have
+gone wrong before, and both figures are the same census.)
 
 **The enum and its `ALL` are now one declaration.** `src/vocab.rs`'s
 `vocabulary!` takes one list of variants and expands it into both, so a
@@ -707,9 +709,39 @@ new dependency in a crate whose default-feature graph is deliberately
 the kernel's. Order is the declaration's, because these lists are read
 in order and several say so in their own docs; where a form wants an
 order the type did not grow in, the **enum** is written in the form's
-order and says why. Two shapes: a bare vocabulary projects `[Self; N]`
-and keeps its wording in a `label` match, a labelled one writes each
-word in the declaration and projects `[(Self, &'static str); N]`.
+order and says why.
+
+**Two shapes, and a rule that says which.** A LABELLED vocabulary
+writes each variant's word in the declaration and projects
+`[(Self, &'static str); N]`; a BARE one projects `[Self; N]` and keeps
+its wording in a `label`/`name` method beside it. The rule is not
+taste: **a word goes in the table when the row that iterates the table
+is its only reader, and in a method when anything asks a single value
+for its word** — a method can be called on one value and a table can
+only be iterated. `PathVerb`, `ArcMode`, `ToolKind` and `Seat` are
+bare because their words are asked for one at a time (the combo's
+*current* verb, a refusal sentence naming one seat); the five labelled
+ones are labelled because their word appears nowhere but the radio row
+that draws them.
+
+That leaves the ordered word list declared twice in the four bare ones
+— the `ALL` order and the `label` match's arms. That is *not* the
+defect this section is about, because a match is exhaustiveness-forced
+and cannot silently miss a variant; it is a second ordered copy, and
+whether the labelled arm should absorb it is
+`work/view/bare-vocabularies-declare-their-words-a-second-time.md`.
+
+**What the macro cannot express**, stated because it is a one-way
+door: fieldless variants only, and no explicit discriminants — the
+labelled arm spends `= …` on the word, so `#[repr]` numbering means
+un-converting the enum. `src/vocab.rs`'s own doc carries both, and the
+rustfmt cost below.
+
+**rustfmt does not reach inside the invocation**, so the variants and
+variant docs of all nine are formatted by hand. Demonstrated rather
+than assumed, and not fixable by making the body parse: `src/vocab.rs`
+records the experiment and
+`work/view/vocabulary-macro-bodies-are-outside-rustfmt.md` tracks it.
 
 Three kinds of list stay hand-written, and each is a different answer
 rather than an exception:
@@ -726,12 +758,21 @@ rather than an exception:
   cannot be projected from a declaration that is not here. That is the
   neighbouring MIRROR question and has its own tracker item.
 
-There is no gate. A gate reading source for new hand-written `ALL`
-tables would be redundant for every converted one — the compiler owns
-those — and for the three kinds above it would be a checker of
-judgement, which is what this page is for. What a new hand-written list
-meets instead is this section and the neighbours it would be sitting
-among.
+**A gate is owed, and it is filed rather than written here.** The
+argument this section first gave — that a gate would be "redundant for
+every converted one" — was wrong and is withdrawn: a converted
+vocabulary has no array literal left, so it is not a hit, and
+redundancy was never the objection. The cheap gate is real and would
+work: hit on any new `const ALL: [Self; N] = [ … ]` under
+`crates/viewer/src`, allowlist the three kinds above. What it costs is
+not the scan but the siting — a gate must fire on its own inputs, so
+it needs a `ci.yml` step, a `gate-roster.sh` registration and a
+`check-ci-mirror-parity.py` tier decision, none of which is a question
+about `const ALL`. It is
+`work/view/a-new-hand-written-all-table-meets-no-gate.md`, which is a
+named schedule; a paragraph is not one, and this crate's own
+`scripts/gates/viewer-module-kinds.sh` exists because a rule sold as
+mechanically checkable went its first life with nothing reading it.
 
 ### What the boundary does not decide
 

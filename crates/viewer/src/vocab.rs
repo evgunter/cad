@@ -1,7 +1,7 @@
 //! **One declaration per closed vocabulary, and every list projected
 //! from it.**
 //!
-//! A dozen enums in this crate are *closed vocabularies*: a fixed set
+//! **Nine** enums in this crate are *closed vocabularies*: a fixed set
 //! of choices the chrome offers, which something has to be able to
 //! walk in order — a radio row, a combo's options, a suite's sweep.
 //! Each of them used to carry a hand-written `const ALL` beside the
@@ -36,17 +36,54 @@
 //! # What it does not cover
 //!
 //! A table mirroring an enum declared in ANOTHER crate
-//! ([`crate::forms::BOOLEAN_OPS`], [`crate::forms::MATE_PRIMITIVES`])
-//! cannot use this, because the declaration it would have to be
-//! projected from is not here. That is the neighbouring MIRROR
-//! question and has its own tracker item; it is not a hole in this
-//! one.
+//! (`forms::BOOLEAN_OPS`, `forms::MATE_PRIMITIVES` — plain code spans
+//! and not links, because `forms` is behind the `app` feature and a
+//! link to it does not resolve in a default-feature build) cannot use
+//! this, because the declaration it would have to be projected from is
+//! not here. That is the neighbouring MIRROR question and has its own
+//! tracker item; it is not a hole in this one.
 //!
 //! A DELIBERATELY PARTIAL list is not a vocabulary either
 //! ([`crate::frame::SUBJECTS_WITH_AN_EXPIRY_ISSUER`] names two of five
 //! `Subject`s on purpose, and each tool's own seat list names its own
 //! seats). Those stay hand-written, because completeness is exactly
 //! what they do not claim.
+//!
+//! # What this costs: rustfmt stops at the invocation
+//!
+//! **`rustfmt` does not reach inside a `macro_rules!` invocation in
+//! item position**, so the nine enums declared through
+//! [`vocabulary!`] — every variant and every variant doc of
+//! `PathVerb` (17), `Seat` (9), `ToolKind` (7), `ArcMode` (6) and five
+//! more — are no longer mechanically formatted. Indentation in these
+//! blocks is kept by hand.
+//!
+//! Demonstrated, not assumed: a variant re-indented to column 21
+//! inside `blend.rs`'s block leaves `cargo fmt --check` at exit 0,
+//! while the same mis-indent on the `BlendError` enum ten lines below
+//! it is caught. It is the invocation that stops rustfmt and not the
+//! body: the same test with the body rewritten so it parses as a
+//! single well-formed item (the `ALL` declaration moved onto the enum
+//! as an attribute), and again with the invocation delimited by `()`
+//! instead of `{}`, is still not reached.
+//!
+//! This is a real loss and it is the price of the mechanism, not an
+//! oversight — tracked as
+//! `work/view/vocabulary-macro-bodies-are-outside-rustfmt.md`.
+//!
+//! # What the macro cannot express
+//!
+//! **Fieldless variants only.** A variant with a payload
+//! (`Chamfer(u32)`) matches neither arm, and the error says
+//! `no rules expected '(' … note: while trying to match '='`, which
+//! reads as "you forgot a label" when the answer is that a vocabulary
+//! is a set of names and a variant carrying a value is not one.
+//!
+//! **No explicit discriminants.** The labelled arm spends `= …` on the
+//! variant's word, so `Mate = 3` and `#[repr(u8)]` numbering are not
+//! available to these nine enums without un-converting them. **This is
+//! a one-way door** and is the reason to state it here: an enum that
+//! later needs a wire number has to leave the macro to get one.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
@@ -108,10 +145,11 @@ macro_rules! vocabulary {
         impl $name {
             $(#[$ameta])*
             ///
-            /// Projected from this enum's declaration by
-            /// [`crate::vocab::vocabulary`], so it is the variant list
-            /// and not a copy of it: a variant cannot reach the enum
-            /// without reaching this array, in this order.
+            /// Projected from this enum's declaration by the crate's
+            /// `vocabulary!` macro (`crates/viewer/src/vocab.rs`), so
+            /// it is the variant list and not a copy of it: a variant
+            /// cannot reach the enum without reaching this array, in
+            /// this order.
             $avis const $all: [(Self, &'static str);
                 crate::vocab::vocabulary!(@count $($variant)+)] =
                 [$( (Self::$variant, $label), )+];
@@ -139,10 +177,11 @@ macro_rules! vocabulary {
         impl $name {
             $(#[$ameta])*
             ///
-            /// Projected from this enum's declaration by
-            /// [`crate::vocab::vocabulary`], so it is the variant list
-            /// and not a copy of it: a variant cannot reach the enum
-            /// without reaching this array, in this order.
+            /// Projected from this enum's declaration by the crate's
+            /// `vocabulary!` macro (`crates/viewer/src/vocab.rs`), so
+            /// it is the variant list and not a copy of it: a variant
+            /// cannot reach the enum without reaching this array, in
+            /// this order.
             $avis const $all: [Self; crate::vocab::vocabulary!(@count $($variant)+)] =
                 [$( Self::$variant, )+];
         }

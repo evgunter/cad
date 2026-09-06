@@ -4,7 +4,7 @@ kind: issue
 title: ToolKind::ALL and ToolKind::ordinal have no production reader — a pub pair kept for one test, whose doc names a chrome consumer that does not exist
 status: closed
 opened: 2026-09-04
-refs: [opoutcome-superseded-has-no-production-reader, viewer-session-god-module-split]
+refs: [opoutcome-superseded-has-no-production-reader, viewer-session-god-module-split, viewer-suites-hold-hand-written-complete-variant-lists]
 closed: 2026-09-06
 pr: 2046
 ---
@@ -153,9 +153,17 @@ left is a `pub` projection whose readers today are the suites. That is
 the right trade, and the alternatives are worse:
 
 - **Delete it and let the suite keep its own list** — the suite's list
-  would be hand-written, unforced, and invisible to the compiler. That
-  re-mints the exact defect the sibling item is about, one directory
-  over.
+  would be hand-written, unforced and invisible to the compiler.
+  (**Corrected after the style review**: this argument was first
+  written as if a suite-local list were hypothetical. It is not.
+  `crates/viewer/tests/` already holds four of them —
+  `chrome_labels.rs:64` over `Pane`, `review_gui0_r2.rs:303` over
+  `PointerButton`, `frame_policy.rs:775` over `ChooserBackend`,
+  `frame_policy.rs:484-489` over `IdStep` — filed by the reviewer as
+  `viewer-suites-hold-hand-written-complete-variant-lists`. The
+  conclusion stands and the reason is sharper for it: moving `ALL`
+  into the suite would make a fifth, and the four that are already
+  there are a defect to fix rather than a precedent to join.)
 - **Move it behind the suite** (`#[cfg(test)]`, or a test-local
   vocabulary) — not available. `crates/viewer/tests/*` are integration
   tests and see only this crate's public surface, so `pub(crate)` and
@@ -183,6 +191,14 @@ match kind { … })`) instead of leaving seven accessors in an order the
 reader had to check by eye.
 
 ### The sweep — run, and its pattern is too coarse
+
+**Scope, stated because it was not:** every sweep and census in this
+unit read `crates/viewer/src` only. `crates/viewer/tests/` was read
+for the four named call sites and for the rows this unit edited, and
+was NOT swept for the same shapes — which is how four hand-written
+complete variant lists sat there while this item's PR body called such
+a list hypothetical. They are
+`viewer-suites-hold-hand-written-complete-variant-lists`.
 
 The item's pattern is "`pub` items whose grep hits outside `src/` are
 all under `tests/`". Run over `crates/viewer/src` at `167dc4f84` it

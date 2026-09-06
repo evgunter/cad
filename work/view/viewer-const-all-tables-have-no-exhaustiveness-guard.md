@@ -177,3 +177,61 @@ Rejected:
 Nothing of this item. The neighbouring mirror question is
 `work/view/hand-maintained-mirrors-of-a-kernel-enum-are-unforced.md`,
 filed by this unit as its own file rather than left in a PR body.
+
+## Corrected after the style review (2026-09-06)
+
+**The census method above is described more strictly than what was
+run, and the difference lost a live instance.** Pass 2 is described as
+"an array literal holding two or more `Type::Variant` entries, anywhere
+in `crates/viewer/src`". It did run over the whole of `src`,
+`pane/` included — the omission was not a scope one. Its regex required
+the opening `[` to follow `=`, `[`, `(` or `,`, which excludes an array
+literal introduced by a keyword. So `for (dimension, label) in [ … ]`
+at `crates/viewer/src/pane/properties.rs:156` — a complete inline
+mirror of `editor-core`'s four-variant `Dimension`, in production,
+driving what a user can pick — was never a hit and therefore never
+dispositioned. The reviewer's identically-described scan returns it.
+Filed as
+`work/view/dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum.md`.
+
+Re-run without the anchor, pass 2 returns five hits the original
+missed. Their dispositions, so the next census does not re-derive them:
+
+- `pane/properties.rs:156` — `Dimension`, 4 of 4. **A member of the
+  mirror class**, filed above.
+- `pane/viewport.rs` — `egui::PointerButton` mapped to
+  `input::PointerButton`, 3 of 3 on both sides. **A member of the
+  mirror class**, with the mirrored enum in the toolkit rather than the
+  kernel; recorded on
+  `hand-maintained-mirrors-of-a-kernel-enum-are-unforced`.
+- `frame.rs`, `expiry_reaches_one_subject_and_no_other` — seven
+  `(held, event, survives)` triples over five `Subject`s. A case table
+  of chosen pairs, not a completeness claim. **Not a member.**
+- `frame.rs`, `product_badge`'s silent arms — four `ProductError`
+  variants out of more than four. A partial list of the arms that row
+  is about. **Not a member** of this class; it is the suites' class
+  (`viewer-suites-hold-hand-written-complete-variant-lists`).
+- `pane/properties.rs`, a `SessionOp` sequence in a closure — a script
+  of operations, not a registry. **Not a member.**
+
+The lesson is the one this item already carried, one level down: the
+membership test was written down and the SCAN that applies it was not,
+so the scan could be narrower than the test and nothing said so. A
+census owes both.
+
+**The `DatumKind` reorder has a consequence the PR did not name.**
+`crates/viewer/src/datums.rs` declares a second `pub enum DatumKind`
+with the same four members, re-exported at the crate root; reordering
+the `forms` one into form order made the two variant-for-variant
+identical in name, membership and order. The reorder is still inert
+(no `Ord`, no discriminant, no serde, `ALL`'s order unchanged), but the
+twin is now maximally confusable and nothing holds it there. Filed by
+the reviewer as
+`work/view/two-datumkind-enums-name-the-same-four-datum-kinds.md`.
+
+**Three costs this unit paid and did not disclose**, now filed:
+`vocabulary-macro-bodies-are-outside-rustfmt` (rustfmt reaches none of
+the nine),
+`a-new-hand-written-all-table-meets-no-gate` (the non-take the "no
+gate" argument owed a schedule for), and
+`bare-vocabularies-declare-their-words-a-second-time`.

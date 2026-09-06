@@ -23,9 +23,9 @@
 //! answers `None` to every other, so an eighth tool that never gets
 //! an accessor compiles clean. [`ToolKind::ALL`] is not a list a
 //! compiler has to be asked to force either: it is projected from the
-//! enum's own declaration ([`crate::vocab::vocabulary`]), so an eighth
-//! kind reaches it by construction. Nothing outside the test suites
-//! reads it.
+//! enum's own declaration by the crate's `vocabulary!` macro, so an
+//! eighth kind reaches it by construction. Nothing outside the test
+//! suites reads it.
 //!
 //! The value is renderer-free on purpose: the pick routing, the
 //! survival step and the exclusivity are all properties a headless row

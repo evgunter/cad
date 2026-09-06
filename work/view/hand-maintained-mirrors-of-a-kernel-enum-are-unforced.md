@@ -4,7 +4,7 @@ kind: issue
 title: forms::BOOLEAN_OPS mirrors a kernel enum declared in another crate, and no compiler forces the mirror
 status: open
 opened: 2026-09-06
-refs: [2046]
+refs: [2046, dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum, boolean-op-has-a-third-hand-written-complete-list]
 ---
 
 
@@ -76,3 +76,44 @@ the mirrored type, so a new step or mode fails to compile.
 Whichever answer is taken, `MATE_PRIMITIVES` takes the partial-mirror
 version of it: it wants to know when the mirrored enum grows, not to
 be regenerated from it.
+
+## Appended after PR 2046's style review (2026-09-06)
+
+**The first answer is cheaper than this item priced it.** "Export the
+vocabulary from the crate that owns it" was costed above as "a public
+list on a kernel type for a chrome's benefit". That cost has already
+been paid, once, for a neighbouring kernel vocabulary and for this very
+crate: `crates/topo/src/contact.rs:67` publishes
+`ContactClass::ALL`, `crates/viewer/src/matetool.rs:132` maps over it,
+and `contact.rs`'s own doc gives the argument for why — a planted third
+variant "failed this crate at its designed fences and left a downstream
+`[Rest, Tangent]` literal green", so the slice is "the fix at the
+source". That is the same shape, the same direction, and the same
+argument. The option is precedented, not novel.
+
+**And it buys two sites, not one.** `BooleanOp` has a THIRD complete
+hand-written list, in a different order, at
+`crates/editor-core/src/persist/kernel_wire/boolean_op.rs:35` — see
+`work/issues/boolean-op-has-a-third-hand-written-complete-list.md`,
+which also names eight unswept `const ALL` arrays of kernel enums
+elsewhere in the workspace. A published `BooleanOp::ALL` retires the
+`editor-core` copy as well as this one.
+
+**A third instance inside `crates/viewer/src`**, filed separately as
+`work/view/dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum.md`:
+`pane/properties.rs`'s new-parameter radio row is a complete inline
+mirror of `editor-core`'s `Dimension`. Whoever takes this item should
+take that one — three instances is what the class has in this crate,
+not two.
+
+**A fourth, found by re-running this unit's census pass with its
+anchoring bug removed** (see the closed item's method note):
+`crates/viewer/src/pane/viewport.rs` maps `egui::PointerButton`'s three
+buttons to `crate::input::PointerButton`'s three, by hand, in
+production. Both sides are complete at three and nothing forces either;
+a fourth button on either side is silently never produced. It is the
+same class with the mirrored enum in the TOOLKIT rather than the
+kernel, which is the one place a `pub` list cannot be asked for
+upstream — so it is the instance that most likely wants the "a row
+rather than a mechanism" answer. Not filed separately: it is this
+class, and the file is here.

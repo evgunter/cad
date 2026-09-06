@@ -3,10 +3,21 @@
 //!
 //! A VOCABULARY module (`crates/viewer/README.md`, Module boundaries):
 //! values, their wording, and pure functions over them. Each enum here
-//! is a hand-maintained mirror of a kernel or sketch enum, kept
-//! separate from it because what a form offers is a product decision
-//! and what the kernel accepts is not. Nothing here names `DocSession`,
-//! `ViewerApp` or `egui`.
+//! MIRRORS a kernel or sketch enum, kept separate from it because what
+//! a form offers is a product decision and what the kernel accepts is
+//! not. Nothing here names `DocSession`, `ViewerApp` or `egui`.
+//!
+//! **What is hand-maintained here is the mirror, not the membership.**
+//! The five enums declare themselves and their `ALL` in one
+//! declaration through the crate's `vocabulary!` macro
+//! (`crates/viewer/src/vocab.rs`), so no list on this page can fall
+//! behind the enum beside it. What no compiler holds is the mirror
+//! itself: whether `PathVerb` still names every `PathStep` is forced
+//! by `PathVerb::of`'s exhaustive match, and whether `BOOLEAN_OPS`
+//! still names every `topo::BooleanOp` is forced by nothing — that is
+//! the MIRROR question, and it has its own tracker item. (Code spans
+//! rather than links: everything on this page is `pub(crate)`, so an
+//! intra-doc link from a public module page does not resolve.)
 //!
 //! [`FieldWriting`] and the drag speeds are the same kind of decision
 //! one level down: how many of a unit one pixel of drag is worth.
@@ -60,10 +71,18 @@ pub(crate) const BOOLEAN_OPS: [(BooleanOp, &str); 3] = [
 ];
 
 vocabulary! {
-    /// The add-datum form's kind choice — one form, the three
-    /// [`crate::session::DatumSpec`] arms. An enum rather than an index into a label
-    /// list, so every consumer matches exhaustively and a fourth kind
-    /// cannot leave a silent wildcard arm behind.
+    /// The add-datum form's kind choice — one form, and **four of
+    /// [`crate::session::DatumSpec`]'s five arms**. An enum rather
+    /// than an index into a label list, so every consumer matches
+    /// exhaustively and a fifth kind cannot leave a silent wildcard
+    /// arm behind.
+    ///
+    /// The arm this does not offer is `AxisInPlane`, a sketch axis:
+    /// it needs a frame PICK before it has coordinates, which is not
+    /// what this form collects. So the mirror is deliberately partial
+    /// in one direction — every kind here lowers to a spec
+    /// (`pane::create`'s match is exhaustive over this enum), and not
+    /// every spec has a kind here.
     ///
     /// **Declared in FORM order**, which is the order [`DatumKind::ALL`]
     /// is projected in and therefore the order the radio row is drawn
