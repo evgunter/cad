@@ -185,3 +185,31 @@ the review: `pinned-count-re-derived-each-run-has-three-spellings`
 (`viewer-module-kinds.sh`'s `FILE|NEEDLE|COUNT`, `reader_census.rs`'s
 `UNCONVERTED_TODAY`, and `interval-square-allowlist.sh`'s allowlist
 with no pin at all). 38 cases.
+
+## D109 landed (2026-09-06)
+
+PR 2038, `gates/d109-reader-blind-spots`, one style review
+(MERGEABLE-WITH-FIXES with one MAJOR, fix pass landed). The shared
+reader gained the `code_and_literals` view (`--keep-literals`) and
+`probe-suite-census.sh` moved onto it off its column-zero anchor;
+nested block comments are lexed with a depth counter that is a state
+across lines (the review's MAJOR: the first cut counted an inner
+opener only when its closer sat on the same line); the reader's other
+blind spots are stated with their direction — `macro_rules!` and
+`include!` bodies, non-`test` `#[cfg]`, an unterminated `/*` at end of
+file, an awk that truncates with exit 0; an awk that dies is a loud
+red, and the broken-tool selftest can now plant a tree so a reader
+failure is reachable. Twelve `gate_error` sites were unreached at the
+merge base (the row said six of 82; the lane measured 12 of 105 with
+message-fragment scoring, since `BASH_LINENO` inside a command
+substitution names the enclosing call): six planted in the two roster
+gates, six in `viewer-module-kinds.sh` filed as
+`viewer-module-kinds-six-unreached-guards`. Byte identity of every view
+over every source file, before and after, under two awk
+implementations. Cost: the census real pass 0.29 → 2.2 s and its modes
+similarly, no job carrying a timeout. The nesting fix falsified PR
+2030's desync fixture (a stray `(` planted inside a nested comment) —
+the Q4 shape — so the desync arms are now proved by planting the stray
+bracket as code, and `panic-free-macro-bodies.sh`'s claim that a brace
+inside a nested comment reaches its tracker was corrected. Filed from
+it: `window-view-emits-a-record-for-a-comment-only-line`.
