@@ -5200,3 +5200,130 @@ Four review items stay open and are not this pass's:
 `the-point3-to-gpu-corner-cast-is-at-three-sites` and
 `highlight-and-edge-overlay-disagree-on-hover-equals-selected` — the
 last two pre-existing. `generation-get-has-no-reader` still untouched.
+
+## #2083 MERGED; the citation class caught by a method, not a grep (2026-09-06)
+
+**#2083 merged at `62a51835a`.** Seventeen units on main this session.
+CI: 37 jobs, twelve `test (…)`, five `k-lint (gate, …)`, `gate ok`
+success, zero non-green. `#[test]` 533 at merge base `2beeb0b` and 533
+at head — checked here, against the branch's own base.
+
+Two commits, deliberately separate: the eleven marks lifted into
+`marks.rs`, then `pick.rs` renamed to `pickcache.rs`. The move's receipt
+(34 removed / 75 added at `6702d15`, empty set after filtering doc
+comments, `use` and blanks) was re-derived by the reviewer, and the
+reviewer added a check the dispatch had not asked for: `pickindex`'s
+`mod tests` references none of the moved members, so the split orphaned
+no coverage.
+
+### The naming answer overturned what the previous unit predicted
+
+#2079's lane parked the rename on the theory that the marks coming off
+would narrow `pickindex` to "the index". **It did not** — `op_for`,
+`op_under`, the miss rule and the priority rule are all still there.
+What the split exposed is that the complaint was about **a type having
+methods**: everything left is `PickIndex`, its keys, machinery, errors,
+answers or a private helper, and the "policy" is inherent `impl` on the
+type the module is named for. So `pickindex` was right and `pick` was
+not, and the answer is a straight rename rather than the swap the
+earlier framing implied — *a swap would put `PickIndex::scene_focused`
+in a module called `pick`*.
+
+The `NotIndexed`/`unindexed` objection, which #2079's lane had named as
+the reason even the easy half was unclean, **dissolves**: `Building`
+IS `PickCache::indexing`, `Absent` is defined by `PickCache::error`,
+and `unindexed`'s doc names `PickCache::indexing` as "the one value
+that knows". The refusal exists because the cache can be empty.
+
+**The rule the closure first rested on was withdrawn**, correctly: *"a
+module named for the type whose inherent `impl` is its spine is named
+correctly"* cannot fail for any module built on one big type — it would
+have certified `session.rs` before the 1c split. The rename stands on
+the six items that left, not on a rule that cannot fail.
+`a-module-named-for-its-spine-type-is-unfalsifiable` carries it.
+
+### The citation class, and the method that finally caught it
+
+**#2083 caught #2079 for shifting a line number instead of re-deriving
+it, and then did the same thing.** It wrote `:910` where its own prose
+had just called `:928` wrong — `:928 − 18`, the wrong number moved by a
+delta computed correctly somewhere else. Its claim that "the numbers
+here were all re-read" was false; a re-read of `:910` returns
+`mesh: part.mesh(),`.
+
+Re-deriving it **split the citation in two**, because the single
+parenthetical had been hiding two subjects in two files since before
+the branch: `PickIndex::scene_focused` at `pickindex.rs:894` and
+`SceneMesh::build_parts_focused` at `scene.rs:410`. Both verified here
+by reading the lines.
+
+**The method, and it should be program practice**: enumerate every
+`file:line` in every row the branch touches, `sed -n Np` each one, and
+read whether the subject is there. **39 citations, 39 verified.** No
+grep finds this class — a citation pointing at the wrong line still
+parses — which is why five instances got through today before anyone
+looked properly.
+
+It then caught two more nobody had named:
+
+- **its own header rewrites, in this fix pass, invalidated five of the
+  reviewer's fresh citations** — the same failure #2079's fix pass
+  committed, caught this time before publication;
+- it had written the post-fix receipt as "38/89" **by projection**;
+  measured, it is 35/90.
+
+Four counts were wrong and are corrected: four merge-base-wrong rows
+(not three), four of four out-of-fence rows already wrong (not three),
+the receipt now names the commit `6702d15` rather than the tree, and
+the filed item is `renamed-module-leaves-citations-in-TWO-other-
+programs` (chrome ×3, code-quality ×1), renamed from "three". **The
+orchestrator propagated the original three-and-three into a check-in
+before the fix pass corrected them** — repeating a lane's arithmetic
+without checking it, which is the same defect one level up.
+
+One disclosure moved to where it belongs: `new-document-owes-the-
+reframe-open-gets:54` carries a range the lane could not re-derive, and
+now says "range unverified" **in the item** rather than only in a PR
+body, which `work/README.md` says is not a slate.
+
+### The header this unit wrote from scratch
+
+`marks.rs`'s first draft opened with three universals its own module
+falsified: *"Every door here takes a `PickIndex` as an ARGUMENT"*
+(false for `cursor_projection`, which the PR's own table records as
+taking none), a section titled *"The four marks"* counting that matrix
+as a mark, and a claim that `Theme::marks` names "the same four" when
+it names a different four sharing only `focus`. All three gone;
+`cursor_projection` now has its own section saying it *is not a mark,
+and is here for want of a home*.
+
+The lane also cut a per-door tally from its own fix draft on the
+grounds that it was an inference over `gpu.rs`'s uniform block and
+"this was not the item to over-claim on" — which is the right instinct
+in a fix pass about over-claiming.
+
+### The rename sweep had been described but not run over `crates/`
+
+Confirmed: `work/` and `docs/` only. Two live sites named by the
+reviewer plus **two more** the bare-word instrument found
+(`session.rs:1104`, `generation.rs:10`); three triaged and left with
+reasons. The full tree hit list is in the PR body, which
+`reviewer-style-lane` §5 asks for and the first pass had not given.
+
+### Left open
+
+`cursor-projection-landed-in-marks-for-want-of-a-home` — the reviewer
+argues `camera` is its home (no index, no selection, no document, one
+production consumer, and its stated reason for living in `marks` is
+testability rather than subject; its doc composes with
+`Camera::project`, the very link the move had to widen to a full path).
+**I agree**, and it stays filed: moving it would be a third move in a
+PR whose warrant is two clean ones, and it needs its own commit and its
+own re-verification. The header rewrite above is what keeps the item
+honest rather than a nag.
+
+Also open: `a-module-named-for-its-spine-type-is-unfalsifiable`, and
+the two pre-existing prose findings the review filed (three
+`Point3<f64>` cast sites against a doc sentence naming two;
+`highlight`/`edge_overlay` called "twins" while disagreeing on whether
+a hover that IS the selection is reported as hovered).

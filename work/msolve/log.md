@@ -258,6 +258,16 @@ arm, doc rot in `topo/src/query.rs` and the role lists. Filed: the
 four-workspace build hazard (CIW) and the `names/{flush,select}.rs`
 `map_err(|_| ..)` discards (SEAT), `work/issues/`.
 
+## MSOLVE-3 MERGED (2026-09-06, PR 2081)
+
+Fix pass green on the full matrix at `8a72887` (one red on the way:
+the rider row's axis-length probes assumed the default band; they come
+from the run's own band now). Item closed, spec deleted into the
+ledger, the catch-all finding and the placement rider closed. The
+slate that remains: the gate's `Vanished` on a mate read below a
+pattern, the lever's extent (`[ev]`), the remap-inference record
+correction.
+
 ## Remap-inference record correction closed (2026-09-06)
 
 `mate1-sweep-inferred-a-remap-from-a-refuted-reachability` closed as

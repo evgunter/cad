@@ -1381,3 +1381,20 @@ for every reference. The rule above; the unit's record is its item's
 A/B row: the program runs none).
 
 - `MSOLVE-2-SPEC.md` — MSOLVE-2, the member chain: nested copies through `Part`, sibling distinctness at every level (#2039)
+
+## Per-merge deletion — MSOLVE-3's spec (2026-09-06)
+
+Recoverable at `git show 8a7288747941ef53a8136f7fc98b89e8eb51c135:docs/MSOLVE-3-SPEC.md`
+(the MSOLVE-3 unit head, before the state-sync commit that deleted it;
+unamended — no stop clause fired). Written before MSOLVE-2 restructured
+the vocabulary, so its "what the tree says now" names a `head_of` and a
+count arm that had moved by dispatch; the unit applied its intent to
+the sites that exist and says so in its PR. Two of its clauses were
+corrected by the reviews rather than met: the carried refusal is an
+`Arc` newtype over `NodeErrorKind` (the fault types derive equality
+the kernel error type cannot), and the placer named is the refusing
+node, which for a circular rule's axis is the datum. The rule above;
+the unit's record is its item's `## Closed` section and its MERGED
+entry in `work/msolve/log.md` (no A/B row: the program runs none).
+
+- `MSOLVE-3-SPEC.md` — MSOLVE-3, the mate solve reports the evaluation's own refusal: `PlacerRefused`, and the placement axis decided (#2081)

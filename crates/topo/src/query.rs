@@ -496,12 +496,12 @@ impl std::error::Error for UnitVec3Error {}
 ///   predicate at all: `profile` depends on `geom-core` alone and
 ///   this crate sits above it.
 ///
-/// Two further sites normalize without deciding at all, which is a
+/// One further site normalizes without deciding at all, which is a
 /// different shape and the declined half of the direction family:
-/// `editor-core`'s `Frame::rotate_then_translate` (asks nothing;
-/// refused downstream on the non-finite frame it builds) and its
-/// `clearance::chart_frame` (a bracket read of the normalized
-/// OUTPUT).
+/// `editor-core`'s `clearance::chart_frame` (a bracket read of the
+/// normalized OUTPUT). Its `Frame::rotate_then_translate` used to be
+/// the other; it decides here now, under its own role word, and
+/// refuses on the AXIS rather than downstream on the frame it built.
 pub fn is_finite_length<T: Real>(x: T) -> bool {
     #[allow(clippy::eq_op)]
     let residual = x - x;

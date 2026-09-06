@@ -295,7 +295,12 @@ derives: the named copy must exist (its index against the pattern's
 evaluated count, else `MateFault::DanglingHead` at the pattern), and a
 `Part` directly above a pattern must select the copy the NAME names
 (else `MateFault::PartSelectsAnotherCopy`, which reports both). The
-name is the authority; the `Part` is checked against it.
+name is the authority; the `Part` is checked against it. A member's derived pose refuses in
+the PLACER's own voice: a pattern copy or a transform on the chain
+whose pose cannot be derived refuses `MateFault::PlacerRefused`,
+carrying the evaluation layer's own typed cause unaltered, because a
+mate fault poisons the document and the placer node never gets to
+state that cause itself.
 
 ## Open questions
 

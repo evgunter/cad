@@ -657,11 +657,21 @@ fn point3<T: Decide>(vals: &SlotValues<T>, f: fn(Axis3) -> SlotId) -> Option<Poi
     Some(Point3::new(v.x, v.y, v.z))
 }
 
-fn need_scalar<T: Decide>(vals: &SlotValues<T>, slot: SlotId) -> Result<T, NodeErrorKind> {
+/// A named scalar slot of an evaluated node, with the typed backstop
+/// for a slot the node does not carry. Shared with the mate solve's
+/// derived offset, which reads the same nodes' slots through the same
+/// door and must not spell the read a second way.
+pub(crate) fn need_scalar<T: Decide>(
+    vals: &SlotValues<T>,
+    slot: SlotId,
+) -> Result<T, NodeErrorKind> {
     slots::scalar(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })
 }
 
-fn need_vec3<T: Decide>(
+/// A named `[Expr; 3]` slot family of an evaluated node, as a vector
+/// ([`need_scalar`]'s backstop, on the family's x component). Shared
+/// with the mate solve for the same reason.
+pub(crate) fn need_vec3<T: Decide>(
     vals: &SlotValues<T>,
     f: fn(Axis3) -> SlotId,
 ) -> Result<Vec3<T>, NodeErrorKind> {
