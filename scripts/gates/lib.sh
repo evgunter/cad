@@ -204,6 +204,30 @@ gate_ok() {
     "$(gate_name)" "$1" "$GATE_SCAN_FILES" "$GATE_SCAN_NOUN" "$plural"
 }
 
+
+# --- THE TEST-ONLY `cfg` ATTRIBUTE ------------------------------------
+#
+# ONE SPELLING, read by the reader's `--skip-cfg-test` predicate and by
+# the module resolver below it. Both ask the same question — is this
+# item compiled ONLY under `cfg(test)` — and asking it in two dialects
+# is how a gate comes to skip an item its neighbour scans.
+#
+# ONLY A TEST-ONLY ATTRIBUTE COUNTS: `test` alone or inside an `all(…)`.
+# `not(test)` marks the most production code there is, and `any(test, …)`
+# marks an item that also exists under the other condition — in this tree
+# the topo crate has a `test_support_impl` module gated on
+# `any(debug_assertions, test, feature = "test-support")`, which is every
+# debug build. Dropping either would be blind in the one direction that
+# matters; scanning an item that could have been skipped only cries wolf.
+# The second pattern is a SUBTRACTION from the first, not an alternative
+# reading of it: a caller matches the first and refuses the second.
+#
+# THEY REACH `awk` THROUGH `ENVIRON`, NEVER `-v`. A `-v` assignment is
+# processed for escape sequences before it is a regex, so `\(` in one is
+# an unknown escape the hosted runner's `awk` warns about and a value it
+# may hand on changed; `ENVIRON` carries the bytes.
+GATE_CFG_TEST_RE='#\[cfg\(([^]]*[(,][[:space:]]*)?test[,)]'
+GATE_CFG_TEST_NOT_RE='#\[cfg\([^]]*(any|not)\('
 # --- THE SHARED RUST READER -------------------------------------------
 #
 # WHY THIS IS HERE. Every grep gate in this directory carried its own
@@ -367,6 +391,7 @@ gate_rust_code() {
     esac
   done
   [ $# -gt 0 ] || return 0
+  GATE_CFG_TEST_RE="$GATE_CFG_TEST_RE" GATE_CFG_TEST_NOT_RE="$GATE_CFG_TEST_NOT_RE" \
   awk -v SKIPTEST="$skip_cfg_test" -v MODE="$mode" -v WIN="$window" \
       -v KEEPLIT="$keep_literals" '
     # A single quote cannot be written inside this program, which is
@@ -495,15 +520,9 @@ gate_rust_code() {
       }
 
       # `#[cfg(test)]` items, dropped as whole brace-balanced blocks when
-      # the caller asks. ONLY A TEST-ONLY ATTRIBUTE COUNTS: `test` alone
-      # or inside an `all(…)`. `not(test)` marks the most production code
-      # there is, and `any(test, …)` marks an item that also exists under
-      # the other condition: in this tree the topo crate has a
-      # `test_support_impl` module gated on
-      # `any(debug_assertions, test, feature = test-support)`, which is
-      # every debug build. Dropping either would be blind in the one
-      # direction that matters; scanning an item that could have been
-      # skipped only cries wolf.
+      # the caller asks. WHICH attribute is test-only is `GATE_CFG_TEST_RE`
+      # and its subtraction, one spelling for this predicate and for the
+      # module resolver — see their block above for what each says.
       # BRACE COUNTING IS PAID FOR ONLY BY THE CALLER THAT ASKED. `gsub`
       # over every line of crates/*/src costs ~8 s on its own, so the
       # gates that do not skip test modules never run it.
@@ -511,8 +530,8 @@ gate_rust_code() {
         opens = 0; closes = 0
         if (index(out, "{") > 0) opens = gsub(/\{/, "{", out)
         if (index(out, "}") > 0) closes = gsub(/\}/, "}", out)
-        if (skipping == 0 && out ~ /#\[cfg\(([^]]*[(,][[:space:]]*)?test[,)]/ &&
-            out !~ /#\[cfg\([^]]*(any|not)\(/) {
+        if (skipping == 0 && out ~ ENVIRON["GATE_CFG_TEST_RE"] &&
+            out !~ ENVIRON["GATE_CFG_TEST_NOT_RE"]) {
           skipping = 1; seen_open = 0; skip_depth = depth
         }
         if (skipping == 1) {
@@ -598,6 +617,334 @@ gate_rust_code() {
   exit "$status"
 }
 
+# --- WHERE A TEST-ONLY MODULE LIVES -----------------------------------
+#
+# A module whose `mod` declaration is `#[cfg(test)]`-gated is test-only
+# code that happens to live in its own file, and the reader's per-item
+# skip cannot see across files. Resolved from the declaration rather
+# than from a list of names, so a new one needs no edit — and resolved
+# HERE, beside the reader, because three gates ask this question and a
+# resolution answered per caller drifts per caller: a textual reading
+# names the sibling `dir/x.rs` for every declarer, which is rustc's
+# answer only in a crate root or a `mod.rs`.
+#
+# THE RESOLUTION IS RUSTC'S, and nothing else resolves both directions at
+# once. `mod bar;` names the SIBLING `dir/bar.rs` (or `dir/bar/mod.rs`)
+# only when the declaring file is a crate root or a `mod.rs`; declared in
+# any other file `dir/foo.rs` it names `dir/foo/bar.rs` (or
+# `dir/foo/bar/mod.rs`); an enclosing inline `mod y { … }` adds `y/` to
+# whichever of those two the declarer chooses; and a `#[path = "P"]`
+# attribute overrides the file name with `P`, relative to the declaring
+# file's directory at top level and to the inline module's directory
+# inside one. Reading every declaration as a sibling drops the production
+# `dir/bar.rs` from the scan because an unrelated file declared a test
+# module of its name, and scans the test module that was actually
+# declared as production.
+#
+# ROOTNESS IS READ FROM THE BASENAME, which is a proxy for what Cargo
+# actually says: a `[[bin]]` or `[lib]` `path =` can make any name a
+# crate root. The tree's one root outside the three names —
+# `crates/viewer/src/bin/viewer.rs` — declares no module at all, so the
+# proxy decides nothing today; a root named otherwise that declares a
+# gated module would be resolved as a non-root and mount its module one
+# directory too deep.
+#
+# WHERE THIS READER IS BLIND, each with the direction it errs in:
+#
+#   * A DECLARATION SPLIT OVER LINES (`mod` and its name on separate
+#     ones) is not matched by the raw narrowing below, which is
+#     line-scoped, so a file whose only gated declaration takes that
+#     shape never becomes a candidate and its module file is scanned as
+#     production. OVER-SCAN — a false red, not a silent hole. Once the
+#     file IS a candidate the same spelling is refused loudly instead.
+#   * `#[cfg_attr(…, path = "…")]` is not read as a mount, so the
+#     declaration falls through to the positional rule. BOTH DIRECTIONS
+#     at once: the positional path is excluded though nothing mounts
+#     there (under-scan if production code sits at it) and the real
+#     target is scanned as production (over-scan).
+#   * A DECLARATION WRITTEN BY A MACRO or pulled in by `include!` is
+#     invisible to the shared reader, so its module file is scanned as
+#     production. OVER-SCAN.
+
+# A relative path with its `.` and `..` segments taken out. An exclusion
+# is matched against the scan set as text, so an unnormalised
+# `crates/mesh/src/../tests/common/x.rs` excludes nothing at all — a
+# silent no-op wearing the shape of an exclusion.
+gate_norm_path() {
+  printf '%s' "$1" | awk -F/ '
+    {
+      n = 0
+      for (i = 1; i <= NF; i++) {
+        if ($i == "" || $i == ".") continue
+        if ($i == ".." && n > 0 && seg[n] != "..") { n--; continue }
+        seg[++n] = $i
+      }
+      out = ""
+      for (i = 1; i <= n; i++) out = (i == 1) ? seg[i] : out "/" seg[i]
+      print out
+    }'
+}
+
+# WHERE A GATED DECLARATION MOUNTS, read from the CODE-ONLY view that
+# `gate_rust_code` already builds — comments and string bodies are gone
+# before this sees a line, so no comment rule is re-minted beside the
+# shared reader's. One pass over the declaring file carries the three
+# things the statement view drops:
+#
+#   * `{` VS `;`. An inline `mod x { … }` declares no file at all, and
+#     the statement view cuts at both delimiters, so an inline module and
+#     a file declaration arrive as the same record.
+#   * THE ENCLOSING INLINE-MODULE CHAIN. `mod y { #[cfg(test)] mod x; }`
+#     mounts at `y/x.rs`; read as top-level it excludes the unrelated
+#     production `x.rs` instead, which is the unsafe direction.
+#   * WHERE a `#[path]` attribute sits. Its payload is a string literal
+#     and this view blanks it, so only the raw line can supply it — the
+#     line, the occurrence on it and how many the code view sees there
+#     are named here, so the raw read is one line long and cannot pick up
+#     a mount the code view does not have.
+#
+# Prints `KIND|CHAIN|PATH_LINE|PATH_INDEX|PATH_COUNT` — `|` and not a
+# tab, because a tab is IFS whitespace and `read` folds a run of it, so
+# an empty CHAIN would shift every field after it by one.
+# KIND is `attr` (a `#[path]` mount), `default` (rustc's positional
+# rule), `inline` (no file) or `refuse` (an enclosing brace that is not a
+# module, where rustc mounts a non-inline module only through `#[path]`).
+# CHAIN is the enclosing module names, `/`-joined. NO OUTPUT means the
+# code view does not place the declaration the statement view reported —
+# also a refusal, and the caller says so.
+gate_declaration_shape() {
+  gate_rust_code "$1" | awk -v start="$2" -v name="$3" '
+    # THE ANSWER IS HELD TO `END`, NOT PRINTED AND EXITED ON. This `awk`
+    # reads a pipe, and exiting at the declaration closes it while the
+    # shared reader upstream is still writing: that write fails, the
+    # reader dies of it, and `pipefail` reports a pipeline that did its
+    # job as a pipeline that broke. Whether it lands is a race between
+    # two processes, which is the worst way for a gate to be wrong —
+    # green on one machine and red on the next over the same tree.
+    function emit(kind,   i, c) {
+      if (done) return
+      done = 1
+      c = ""
+      for (i = 1; i <= depth; i++) {
+        if (chain[i] == "") { out = "refuse||0|0|0"; return }
+        c = (c == "") ? chain[i] : c "/" chain[i]
+      }
+      out = sprintf("%s|%s|%d|%d|%d", kind, c, pline, pidx, pcount)
+    }
+    done { next }
+    {
+      s = $0
+      if (!match(s, /^[^:]*:[0-9]+:/)) next
+      ln = substr(s, RSTART, RLENGTH); sub(/^[^:]*:/, "", ln); sub(/:$/, "", ln)
+      s = substr(s, RSTART + RLENGTH)
+      ln += 0
+      if (ln >= start && pline == 0) {
+        k = 0; t = s
+        while (match(t, /#\[[ \t]*path[ \t]*=/)) { k++; t = substr(t, RSTART + RLENGTH) }
+        if (k > 0) { pline = ln; pidx = 1; pcount = k }
+      }
+      i = 1; L = length(s)
+      while (i <= L) {
+        c = substr(s, i, 1)
+        if (c == "{") {
+          if (want) { emit("inline"); next }
+          depth++; chain[depth] = pending; pending = ""; i++; continue
+        }
+        if (c == ";") {
+          if (want) { emit(pline > 0 ? "attr" : "default"); next }
+          pending = ""; i++; continue
+        }
+        if (c == "}") {
+          # The declaration was found and neither delimiter followed it —
+          # a shape this reader cannot place, so it says nothing and the
+          # caller refuses.
+          if (want) { done = 1; out = ""; next }
+          if (depth > 0) { chain[depth] = ""; depth-- }
+          pending = ""; i++; continue
+        }
+        r = substr(s, i)
+        if (match(r, /^mod[ \t]+[A-Za-z_][A-Za-z0-9_]*/) &&
+            (i == 1 || substr(s, i - 1, 1) !~ /[A-Za-z0-9_]/)) {
+          w = substr(r, RSTART, RLENGTH); sub(/^mod[ \t]+/, "", w)
+          i += RLENGTH
+          pending = w
+          if (ln >= start && w == name) want = 1
+          continue
+        }
+        i++
+      }
+    }
+    END { if (out != "") print out }'
+}
+
+# THE MOUNT'S PAYLOAD, from the one raw line the code view named. This
+# one reads the file directly rather than a pipe, so stopping at that
+# line closes nothing behind it. Prints
+# nothing when that line does not carry the same attributes the view saw
+# — a `#[path]` written inside a comment beside a live one, or a payload
+# that is not a string literal on that line — because a payload the two
+# views disagree about is not a decision.
+gate_path_payload() {
+  awk -v ln="$2" -v idx="$3" -v want="$4" '
+    NR == ln {
+      k = 0; s = $0; p = ""
+      while (match(s, /#\[[ \t]*path[ \t]*=[ \t]*"[^"]*"/)) {
+        k++
+        if (k == idx) {
+          p = substr(s, RSTART, RLENGTH)
+          sub(/^[^"]*"/, "", p); sub(/"$/, "", p)
+        }
+        s = substr(s, RSTART + RLENGTH)
+      }
+      if (k == want) print p
+      exit
+    }' "$1"
+}
+
+# A refusal, and it is loud in the one way that crosses the boundary it
+# is written behind: `gate_test_only_mounts` is read through a process
+# substitution, so an `exit` here cannot fail the caller and the list
+# printed so far would be read as the whole answer. The marker is what
+# `gate_production_sources` checks the moment the list is in.
+gate_refuse_declaration() {
+  gate_error "$(gate_name): $1 — that is not a pass"
+  : >> "$GATE_MATCHER_FAILED"
+  exit 1
+}
+
+# gate_test_only_mounts FILE... — the set of test-only files and
+# directories the given sources mount, one entry per line: a FILE entry
+# is a whole path, a DIRECTORY entry ends in `/` and is a path prefix.
+gate_test_only_mounts() {
+  local decl file rest line name shape kind chain pline pidx pcount
+  local base payload target narrowed=() cands=()
+  [ $# -gt 0 ] || return 0
+  # TWO STAGES, because reading every source twice costs more than any
+  # gate here is worth: raw `grep` narrows to the handful of files that
+  # carry both a test-only attribute and a `mod` declaration, and only
+  # those are read properly. A file that fails the raw narrowing carries
+  # no test-only `cfg` text at all, so it cannot carry a gated
+  # declaration.
+  #
+  # The declaration is matched over the STATEMENT view, which is what
+  # makes `#[cfg(test)] mod probes;` on ONE line and the same split over
+  # two the same record — a line-scoped narrowing sees only the split
+  # one, and cries wolf on the other.
+  #
+  # NO `xargs` BETWEEN THE STAGES. `xargs` reports 123 for any child that
+  # exited 1-125, which folds `grep`'s "nothing matched" and its "I could
+  # not search" into one status before anything here can tell them apart.
+  # The narrowed list is small by construction, so the second stage takes
+  # it as arguments.
+  mapfile -t narrowed < <(gate_grep -lE "$GATE_CFG_TEST_RE" "$@")
+  if [ "${#narrowed[@]}" -gt 0 ]; then
+    mapfile -t cands < <(gate_grep -lE '(^|[[:space:]])mod [a-z_][a-z0-9_]*;' "${narrowed[@]}")
+  fi
+  [ "${#cands[@]}" -gt 0 ] || return 0
+  while IFS= read -r decl; do
+    [ -n "$decl" ] || continue
+    file=${decl%%:*}; rest=${decl#*:}; line=${rest%%:*}; name=${rest#*:}
+    # A READER THAT DIED IS NOT AN ANSWER either, and captured in a
+    # command substitution it would otherwise die under errexit with
+    # its status thrown away and no diagnosis at all.
+    if ! shape=$(gate_declaration_shape "$file" "$line" "$name"); then
+      gate_refuse_declaration "reading $file to place its \`mod $name;\` failed, so where that module lives was not decided"
+    fi
+    IFS='|' read -r kind chain pline pidx pcount <<<"$shape"
+    case "$kind" in
+      inline) continue ;;
+      refuse)
+        gate_refuse_declaration "$file:$line declares mod $name inside a brace that is not a module, where rustc mounts a non-inline module only through #[path]; where that module lives was not decided" ;;
+      attr|default)
+        case "${file##*/}" in
+          mod.rs|lib.rs|main.rs) base=${file%/*} ;;
+          *) base=${file%.rs} ;;
+        esac
+        if [ "$kind" = attr ]; then
+          # A top-level `#[path]` is relative to the declaring file's
+          # DIRECTORY whatever the file is named; inside an inline
+          # module it is relative to that module's directory, which is
+          # the positional base plus the chain.
+          [ -n "$chain" ] || base=${file%/*}
+          [ -z "$chain" ] || base=$base/$chain
+          payload=$(gate_path_payload "$file" "$pline" "$pidx" "$pcount") || payload=
+          if [ -z "$payload" ]; then
+            gate_refuse_declaration "$file:$line mounts mod $name with a #[path] whose payload line $pline does not read back as the code view sees it, so where that module lives was not decided"
+          fi
+          target=$(gate_norm_path "$base/$payload")
+        else
+          [ -z "$chain" ] || base=$base/$chain
+          target=$base/$name.rs
+        fi ;;
+      *)
+        gate_refuse_declaration "$file:$line declares mod $name in the statement view and the code view does not place it, so where that module lives was not decided" ;;
+    esac
+    # A declaration resolving onto its own declarer (`mod lib;` in
+    # `lib.rs`) names no other file, and excluding the declarer takes
+    # the whole tree with it. The directory form stays: `dir/lib/mod.rs`
+    # is a different file and a real resolution of that declaration.
+    [ "$target" = "$file" ] || printf '%s\n' "$target"
+    printf '%s\n' "${target%.rs}/"
+  done < <(gate_rust_code --statements "${cands[@]}" \
+    | gate_grep -E "$GATE_CFG_TEST_RE" \
+    | gate_grep -vE "$GATE_CFG_TEST_NOT_RE" \
+    | gate_grep -oE '^[^:]*:[0-9]+:.*[[:space:]]mod [a-z_][a-z0-9_]*$' \
+    | sed -E 's/:([0-9]+):.*[[:space:]]mod /:\1:/')
+}
+
+# gate_filter_test_only_paths PATH... — the paths `GATE_TEST_ONLY_MOUNTS`
+# does not name, in the order given.
+#
+# AN EXCLUSION IS A PATH, NOT A SUBSTRING, and that is why this is a
+# comparison rather than a `grep -F` over the list: `-F` matches anywhere
+# in the line, so an excluded `foo/bar.rs` also takes `foo/bar.rs_old.rs`,
+# and an excluded `crates/p/src/foo/bar.rs` takes a
+# `crates/q/src/crates/p/src/foo/bar.rs` under another crate. A file
+# entry is the WHOLE path; a directory entry is a path PREFIX, which is
+# what its trailing `/` says. Nothing here can fail to run, so nothing
+# here needs the marker.
+gate_filter_test_only_paths() {
+  local f e skip keep=()
+  for f in "$@"; do
+    skip=false
+    for e in ${GATE_TEST_ONLY_MOUNTS[@]+"${GATE_TEST_ONLY_MOUNTS[@]}"}; do
+      if [ "${e%/}" != "$e" ]; then
+        if [ "${f#"$e"}" != "$f" ]; then skip=true; break; fi
+      elif [ "$f" = "$e" ]; then
+        skip=true; break
+      fi
+    done
+    [ "$skip" = true ] || keep+=("$f")
+  done
+  [ "${#keep[@]}" -eq 0 ] || printf '%s\n' "${keep[@]}"
+}
+
+# gate_production_sources — `GATE_SOURCE_FILES` less the test-only
+# mounts, in `GATE_PRODUCTION_FILES`, with `GATE_SCAN_FILES` counting
+# what the gate will actually read. Both refusals below are the caller's
+# boundary and not a convenience: a gate that does not know which files
+# are its subject has not cleared any of them.
+gate_production_sources() {
+  mapfile -t GATE_TEST_ONLY_MOUNTS < <(gate_test_only_mounts "${GATE_SOURCE_FILES[@]}")
+  # THE BOUNDARY, READ BEFORE ANY GUARD READS THE LIST. The resolver
+  # prints its answer only once it is complete, so a refusal inside it
+  # arrives here as an EMPTY list — the same shape a tree of nothing but
+  # test-only sources has, and the guard below would then answer a
+  # question nobody asked, with the true diagnosis scrolled off above it.
+  # The marker is what crosses the process substitution; the status
+  # cannot.
+  if [ -e "$GATE_MATCHER_FAILED" ]; then
+    rm -f "$GATE_MATCHER_FAILED"
+    gate_error "$(gate_name): the scan's file set was not decided (diagnosed above), so what it does not contain is unknown — that is not a pass"
+    exit 1
+  fi
+  mapfile -t GATE_PRODUCTION_FILES < <(gate_filter_test_only_paths "${GATE_SOURCE_FILES[@]}")
+  GATE_SCAN_FILES=${#GATE_PRODUCTION_FILES[@]}
+  if [ "$GATE_SCAN_FILES" -eq 0 ]; then
+    gate_error "$(gate_name): every source under crates/*/src in $PWD is test-only — the gate scanned no production code, which is not a pass"
+    exit 1
+  fi
+}
 # The clean fixture every self-test starts from. A gate whose subject is
 # not `crates/*/src` overrides this.
 gate_plant_clean() {
@@ -815,6 +1162,245 @@ gate_selftest_passes() {
   rm -rf "$tmp"
 }
 
+# --- THE RESOLVER'S OWN CASES -----------------------------------------
+#
+# WHY THEY LIVE HERE AND NOT IN ONE GATE. The resolution has one home,
+# so one gate's fixtures prove the RESOLVER; what no fixture of one
+# gate's can prove is that the gate BESIDE it is wired to the answer. A
+# gate whose exclusion could be deleted outright with its self-test
+# still green has no evidence for that exclusion — the sentence this
+# file keeps repeating at other people's guards — so every caller of
+# `gate_production_sources` runs these and carries all of them.
+#
+# THE GATE SUPPLIES ONE THING, its own breach: `PLANT FILE` APPENDS a
+# line the gate fires on to FILE, whose directory exists. Everything
+# else here is module plumbing, which is the same text for every caller.
+# A file that must be READ and stay quiet is planted EMPTY rather than
+# with benign code, so a case that fires can only have fired from the
+# file it is about.
+gate_plant_home_ungated() {
+  mkdir -p "$2/crates/planted/src"
+  printf 'mod probes;\n' > "$2/crates/planted/src/lib.rs"
+  "$1" "$2/crates/planted/src/probes.rs"
+}
+
+# `any(test, …)` is NOT test-only: an `any(debug_assertions, test, …)`
+# module is every debug build, so its code is production code.
+gate_plant_home_any_gated() {
+  mkdir -p "$2/crates/planted/src"
+  printf '#[cfg(any(debug_assertions, test))]\nmod probes;\n' \
+    > "$2/crates/planted/src/lib.rs"
+  "$1" "$2/crates/planted/src/probes.rs"
+}
+
+# A DECLARATION THAT RESOLVES ONTO ITS OWN DECLARER excludes nothing:
+# `mod lib;` in `lib.rs` names the file it is written in, and dropping
+# that file would take a whole crate out of the scan on the strength of
+# one line.
+gate_plant_home_self_naming() {
+  mkdir -p "$2/crates/planted/src"
+  printf '#[cfg(test)]\nmod lib;\n' > "$2/crates/planted/src/lib.rs"
+  "$1" "$2/crates/planted/src/lib.rs"
+}
+
+# THE UNDER-SCAN DIRECTION, and it is the silent one: `bar.rs` is
+# production code that no declaration gates, while the module `foo.rs`
+# declares lives at `foo/bar.rs`. Resolving the declaration to the
+# SIBLING drops this file from the scan entirely and its breach is never
+# read — the file at the resolved path is empty, so only the sibling can
+# decide this case.
+gate_plant_home_production_sibling() {
+  mkdir -p "$2/crates/planted/src/foo"
+  printf 'mod bar;\nmod foo;\n' > "$2/crates/planted/src/lib.rs"
+  printf '#[cfg(test)]\nmod bar;\n' > "$2/crates/planted/src/foo.rs"
+  : > "$2/crates/planted/src/foo/bar.rs"
+  "$1" "$2/crates/planted/src/bar.rs"
+}
+
+# AN INLINE `mod x { … }` DECLARES NO FILE. The statement view cuts at
+# `{` and `;` alike, so an inline test module reaches the matcher as the
+# same record a file declaration does — and read as one it excludes a
+# production file that has nothing to do with it.
+gate_plant_home_inline_beside_named_file() {
+  mkdir -p "$2/crates/planted/src/foo"
+  printf 'mod foo;\n' > "$2/crates/planted/src/lib.rs"
+  printf 'mod bar;\n#[cfg(test)]\nmod probes {\n    fn t() {}\n}\n' \
+    > "$2/crates/planted/src/foo.rs"
+  "$1" "$2/crates/planted/src/foo/probes.rs"
+}
+
+# AN INLINE MODULE IN A CRATE ROOT, which the non-root rule never
+# reaches: here the inline check is the only thing standing between
+# `mod probes { … }` and the production `probes.rs` beside it.
+gate_plant_home_inline_in_a_root() {
+  mkdir -p "$2/crates/planted/src"
+  printf 'mod other;\n#[cfg(test)]\nmod probes {\n    fn t() {}\n}\n' \
+    > "$2/crates/planted/src/lib.rs"
+  "$1" "$2/crates/planted/src/probes.rs"
+}
+
+# A GATED DECLARATION INSIDE AN INLINE MODULE mounts under that module:
+# `mod y { #[cfg(test)] mod x; }` in a crate root is `y/x.rs`, so the
+# top-level `x.rs` beside it is production code and has to be read.
+gate_plant_home_nested_sibling() {
+  mkdir -p "$2/crates/planted/src/y"
+  printf 'mod x;\npub mod y {\n    #[cfg(test)]\n    mod x;\n}\n' \
+    > "$2/crates/planted/src/lib.rs"
+  : > "$2/crates/planted/src/y/x.rs"
+  "$1" "$2/crates/planted/src/x.rs"
+}
+
+# AN EXCLUSION IS A PATH, NOT A SUBSTRING. `foo/bar.rs.rs` is a different
+# file from the excluded `foo/bar.rs` and it is production code; a
+# substring filter drops it with the module it merely starts with.
+gate_plant_home_extends_an_exclusion() {
+  mkdir -p "$2/crates/planted/src/foo"
+  printf 'mod foo;\n' > "$2/crates/planted/src/lib.rs"
+  printf '#[cfg(test)]\nmod bar;\n' > "$2/crates/planted/src/foo.rs"
+  : > "$2/crates/planted/src/foo/bar.rs"
+  "$1" "$2/crates/planted/src/foo/bar.rs.rs"
+}
+
+# EVERY SOURCE EXCLUDED, WITH NO CYCLE IN THE TREE ITSELF. A crate root
+# resolves its declarations as siblings, so two roots in one directory
+# each declaring a test module of the OTHER's name exclude each other:
+# the production list comes back empty and the guard fires. Neither
+# declaration names its own file, which is the case above it covers.
+# The one case that plants no breach: what it is about is the tree
+# having no production file left, so its argument is the root alone.
+gate_plant_home_every_source_excluded() {
+  mkdir -p "$1/crates/clean/src"
+  printf '#[cfg(test)]\nmod main;\n' > "$1/crates/clean/src/lib.rs"
+  printf '#[cfg(test)]\nmod lib;\n' > "$1/crates/clean/src/main.rs"
+}
+
+# WHERE THE RAW READER STOPS, and it stops LOUDLY. `mod` and its name on
+# separate lines are one statement to the code view and no `mod NAME;`
+# line to the raw one, so the mount point is not decided — and a gate
+# that cannot decide where a module lives has not cleared the tree.
+# (The file needs a `mod x;` of its own to reach this stage at all: the
+# raw narrowing is line-scoped, so a lone split declaration is invisible
+# and its file is scanned as production.)
+gate_plant_home_split_declaration() {
+  mkdir -p "$2/crates/planted/src"
+  printf 'mod other;\n#[cfg(test)]\nmod\nbar;\n' > "$2/crates/planted/src/lib.rs"
+  "$1" "$2/crates/planted/src/bar.rs"
+}
+
+# The module file a gated declaration in a ROOT names — the two-line
+# spelling and the one-line one, which are the same declaration and were
+# read as different ones by a line-scoped resolver.
+gate_plant_home_gated_two_line() {
+  mkdir -p "$2/crates/planted/src"
+  printf '#[cfg(test)]\nmod probes;\n' > "$2/crates/planted/src/lib.rs"
+  "$1" "$2/crates/planted/src/probes.rs"
+}
+
+gate_plant_home_gated_one_line() {
+  mkdir -p "$2/crates/planted/src"
+  printf '#[cfg(test)] mod probes;\n' > "$2/crates/planted/src/lib.rs"
+  "$1" "$2/crates/planted/src/probes.rs"
+}
+
+# THE OVER-SCAN DIRECTION: the file the declaration actually names.
+# `#[cfg(test)] mod bar;` inside `foo.rs` is `foo/bar.rs`, so this is
+# test-only code and reading it as production is crying wolf.
+gate_plant_home_in_declarer_directory() {
+  mkdir -p "$2/crates/planted/src/foo"
+  printf 'mod foo;\n' > "$2/crates/planted/src/lib.rs"
+  printf '#[cfg(test)]\nmod bar;\n' > "$2/crates/planted/src/foo.rs"
+  "$1" "$2/crates/planted/src/foo/bar.rs"
+}
+
+# A `#[path]` MOUNT overrides both positional rules, relative to the
+# declaring file's own directory — and the tree has live ones, so a
+# resolver without it re-mints the over-scan it just fixed. The dead
+# mount above the live one is why the attribute is LOCATED in the
+# code-only view and only its payload read from the raw line: a reader
+# that went to the raw text for both would follow `decoy.rs` and exclude
+# nothing that exists.
+gate_plant_home_path_attribute() {
+  mkdir -p "$2/crates/planted/src"
+  printf 'mod foo;\n' > "$2/crates/planted/src/lib.rs"
+  printf '#[cfg(test)]\n// #[path = "decoy.rs"]\n#[path = "bar_impl.rs"]\nmod bar;\n' \
+    > "$2/crates/planted/src/foo.rs"
+  "$1" "$2/crates/planted/src/bar_impl.rs"
+}
+
+# THE DIRECTORY FORM of the same resolution: `mod bar;` names
+# `foo/bar.rs` OR `foo/bar/mod.rs`, and a module big enough to be a
+# directory is exactly the test module a gate would otherwise scan whole.
+gate_plant_home_directory_form() {
+  mkdir -p "$2/crates/planted/src/foo/bar"
+  printf 'mod foo;\n' > "$2/crates/planted/src/lib.rs"
+  printf '#[cfg(test)]\nmod bar;\n' > "$2/crates/planted/src/foo.rs"
+  "$1" "$2/crates/planted/src/foo/bar/mod.rs"
+}
+
+# THE INLINE CHAIN, from the other side: the file that declaration really
+# mounts is test-only and must stay out of the scan.
+gate_plant_home_nested_target() {
+  mkdir -p "$2/crates/planted/src/y"
+  printf 'pub mod y {\n    #[cfg(test)]\n    mod x;\n}\n' \
+    > "$2/crates/planted/src/lib.rs"
+  "$1" "$2/crates/planted/src/y/x.rs"
+}
+
+# A DECLARATION NEAR THE TOP OF A LONG FILE, which is the shape that
+# catches a reader that stops reading once it has its answer: the shared
+# reader upstream is still writing, its write fails on the closed pipe,
+# and `pipefail` turns a declaration the gate DID place into a refusal.
+# The file is longer than a pipe buffer on purpose — that is the whole
+# difference between the two outcomes, and it is why the same tree could
+# pass here and fail on a runner.
+gate_plant_home_early_declaration_in_a_long_file() {
+  mkdir -p "$2/crates/planted/src"
+  {
+    printf '#[cfg(test)]\nmod probes;\n'
+    seq 4000 | awk '{ printf "pub fn f%s(x: f64) -> f64 { x + %s.0 }\n", $1, $1 }'
+  } > "$2/crates/planted/src/lib.rs"
+  "$1" "$2/crates/planted/src/probes.rs"
+}
+
+# gate_selftest_test_module_homes WANT PLANT — every case above, in both
+# directions, for one gate. WANT is the fragment that gate's own
+# diagnosis carries; PLANT appends its breach to a file.
+gate_selftest_test_module_homes() {
+  local want=$1 plant=$2
+  gate_selftest_case "$want" gate_plant_home_ungated "$plant"
+  gate_selftest_case "$want" gate_plant_home_any_gated "$plant"
+  gate_selftest_case "$want" gate_plant_home_self_naming "$plant"
+  gate_selftest_case "$want" gate_plant_home_production_sibling "$plant"
+  gate_selftest_case "$want" gate_plant_home_inline_beside_named_file "$plant"
+  gate_selftest_case "$want" gate_plant_home_inline_in_a_root "$plant"
+  gate_selftest_case "$want" gate_plant_home_nested_sibling "$plant"
+  gate_selftest_case "$want" gate_plant_home_extends_an_exclusion "$plant"
+  gate_selftest_case "is test-only — the gate scanned no production code" \
+    gate_plant_home_every_source_excluded
+  gate_selftest_case "where that module lives was not decided" \
+    gate_plant_home_split_declaration "$plant"
+  # THE SAME FIXTURE, ASSERTED ON THE OTHER HALF of the refusal: without
+  # the marker read in `gate_production_sources` the list arrives empty
+  # and the every-source guard answers instead, with a diagnosis that is
+  # false about the tree.
+  gate_selftest_case "the scan's file set was not decided" \
+    gate_plant_home_split_declaration "$plant"
+  gate_selftest_passes "a breach in the module file a gated declaration names" \
+    gate_plant_home_gated_two_line "$plant"
+  gate_selftest_passes "the same, declared on one line" \
+    gate_plant_home_gated_one_line "$plant"
+  gate_selftest_passes "a breach in the module file a non-root declarer actually names" \
+    gate_plant_home_in_declarer_directory "$plant"
+  gate_selftest_passes "a breach in the module file a #[path] attribute mounts" \
+    gate_plant_home_path_attribute "$plant"
+  gate_selftest_passes "a breach in the mod.rs of a resolved module directory" \
+    gate_plant_home_directory_form "$plant"
+  gate_selftest_passes "a breach in the file an inline module's own gated declaration mounts" \
+    gate_plant_home_nested_target "$plant"
+  gate_selftest_passes "a gated declaration near the top of a file longer than a pipe buffer" \
+    gate_plant_home_early_declaration_in_a_long_file "$plant"
+  printf '%s selftest OK (test-module homes): places a cfg(test) declaration where rustc mounts it, so a production sibling, a production file under an inline module, a file whose path merely extends an exclusion, an ungated declaration and an any(test, …) one all stay in the scan and red, while the file the declaration names — positional, one-line or two, #[path]-mounted, directory-form or nested in an inline module — does not; and it REFUSES, with its own diagnosis and never a second false one, a declaration it cannot place, while a declaration it CAN place stays placed however long the file under it runs and a tree whose sources exclude each other is not a clean tree\n' "$(gate_name)"
+}
 # gate_selftest_without_tool TOOL WANT — for a gate that shells out. A
 # reader that fails is the SECOND half of S157: the gate dies at the
 # assignment that captured it, so what a CI reader sees is whatever the
