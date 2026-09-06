@@ -201,6 +201,14 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/sweep/tests/review_fillet_split_r2_probes.rs",
+        disposition: Shared, // the seam's and open bands' visibility census, code view
+    },
+    Entry {
+        path: "crates/sweep/tests/review_fillet_t_r1_probes.rs",
+        disposition: Shared, // the blend surgery's one `kef` door, code view
+    },
+    Entry {
         path: "crates/test-utils/src/source.rs",
         disposition: Home,
     },
@@ -250,6 +258,10 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/topo/tests/quad_lane_is_the_certified_lane.rs",
         disposition: Shared, // the props.rs lane impls, code view: their bodies ARE the pin
+    },
+    Entry {
+        path: "crates/topo/tests/shell_tolerance_chain.rs",
+        disposition: Shared, // the shell offset chain's signatures, code view
     },
     Entry {
         path: "crates/verbs/tests/all.rs",

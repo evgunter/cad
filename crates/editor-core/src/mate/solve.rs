@@ -450,12 +450,27 @@ fn derived_offset<P>(
         // `datum_unit_norm`. So one datum direction is decided under
         // two predicate names depending on which road reaches it —
         // same arithmetic, same refusal shape, different name in the
-        // K census. The ROLE word is the one thing the two roads do
-        // agree on: each rule names the vector it actually
-        // normalized, so a circular rule's refusal says "datum axis
-        // direction" here exactly as it does on the eval road.
-        // Whether the two roads should meet is a family question,
-        // homed at issue 1570; nothing is migrated here.
+        // K census.
+        //
+        // THAT SPLIT IS RATIFIED, not tolerated: the layer that OWNS
+        // the value is the layer whose telemetry names its length
+        // decision, and on this road the value is a direction the
+        // evaluation layer derived from the recipe, not a
+        // `DatumValue` the kernel type holds. The two names are read
+        // per layer and stay put; what was collapsed instead is the
+        // BODY behind them — both doors are one call to
+        // `topo::query::unit_direction`, so the "same arithmetic,
+        // same refusal shape" above is a fact about one function
+        // rather than a claim about two copies. The ROLE word is what
+        // the two roads share INSIDE the evaluation layer's error:
+        // each rule names the vector it actually normalized, so the
+        // node error a circular rule builds says "datum axis
+        // direction" on either road. It does not survive the closure
+        // below — a degenerate or non-finite direction becomes
+        // `MateFault::DanglingHead`, which carries the head and no
+        // role at all, and that loss is the residue this door's own
+        // docs name (`mate-dangling-head-is-a-catch-all-that-reports-
+        // a-false-cause`).
         let unit = |v: Vec3<f64>, role: &'static str| -> Result<Vec3<f64>, Box<MateFault>> {
             crate::eval::unit_direction(v, role, band).map_err(|e| match e {
                 crate::eval::NodeErrorKind::Escalated { source, .. } => {

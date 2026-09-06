@@ -467,9 +467,12 @@ pub trait Real:
 /// obligation because it DELEGATES to already-listed doors
 /// (`sweep::blend::build`'s `fillet_edges`/`chamfer_edges`; since the
 /// boolean's migration also `topo::boolean_op_with`, itself listed
-/// under the M5 PR 8 BVH candidate-generation allowance), passing
-/// its operands and parameters through unchanged, and therefore
-/// inherits their signatures rather than widening the rule's reach.
+/// under the M5 PR 8 BVH candidate-generation allowance; since the
+/// sweeps' and the split's migrations also `sweep::extrude`,
+/// `sweep::revolve` and `topo::split`, the last of which asks for no
+/// [`Bounds`] at all), passing its operands and parameters through
+/// unchanged, and therefore inherits their signatures rather than
+/// widening the rule's reach.
 ///
 /// **It clears the first thing an entry owes** — that its reads stay
 /// on the prune/report side — vacuously and checkably: the file
@@ -508,6 +511,31 @@ pub trait Real:
 /// The seam did not widen here; it acquired a file. The refusing-lane
 /// question is answered where it was already answered: the PR 12 entry
 /// above, under the delegation rule, for the doors this one calls.
+///
+/// **The file now carries TWO compound headers, and the second is the
+/// answer to the paragraph above rather than an exception to it**
+/// (SEAT-9). `verbs::run`'s shell door delegates to `topo::shell_open`,
+/// which is `Decide + PropsQuadLane + `[`CertifiedBounds`] — already
+/// allowlisted, at `topo/src/shell.rs`, under the 2026-09-02 certified
+/// at-rest entry — so the delegation rule covers it on the same terms
+/// as the first header: the shell arm passes its operand, its thickness
+/// and its designation through unchanged, reads no bracket, and decides
+/// nothing in or out of the trilean. What it does NOT do is ride the
+/// first header, and that is the point of writing it separately: the
+/// paragraph above records that tightening `Decide + Bounds +
+/// PcurveFittedLane` to a certifying bound breaks
+/// `editor_core::eval::wire`'s `Dual`-instantiated blend lowering, so
+/// the two bounds cannot be merged. They are two `impl` blocks, each
+/// asking for exactly what its callee asks for, and the `Dual` caller
+/// stays green by construction — it names `Verb::run`, in the block
+/// that did not move. The WEAKEST-bound test is the callee's own
+/// signature: dropping any of the three does not compile, and there is
+/// no tighter one to show failing because this IS the tighter one, held
+/// away from the lane that cannot take it.
+///
+/// The "no bracket read at all" clearance above still describes the
+/// whole file, and it is still a review-time measurement rather than a
+/// guarded invariant, for the reason that paragraph gives.
 ///
 /// # Semantics
 ///
@@ -683,6 +711,12 @@ pub mod bounds_allowlist {
     //! VERBS-CHAMFER both edge-blend front doors sit here: `chamfer_edges` is
     //! written inside these same three files deliberately, so the
     //! ratification covers the shared lane rather than a fourth file.
+    //! Re-scoped 2026-09-05 (FILLET-SPLIT, under Ev's ruling on PR 1916 that
+    //! a move with no design implication needs no ask): the two open bands'
+    //! carves left `surgery.rs` for `blend/open/planar.rs` and
+    //! `blend/open/ruled.rs` unchanged, so this one seam is now spelled
+    //! over five files — the file list is the entry's spelling, the seam is
+    //! the ratified thing, and nothing about its scope was extended.
     //!
     //! It is the one allowlisted seam with **no refusing lane**, and the
     //! written reason it needs none is the delegation rule below: every

@@ -165,9 +165,9 @@ fn boolean_admissible_fixture_still_runs_no_crossing_machinery() {
     let h1 = ProfileLoop::polygon([p2(1.25, 0.5), p2(2.75, 0.5), p2(2.75, 1.0), p2(1.25, 1.0)]);
     let h2 = ProfileLoop::polygon([p2(1.25, 1.5), p2(2.0, 1.5), p2(2.0, 2.5), p2(1.25, 2.5)]);
     let vp = validated(vec![outer, h1, h2]);
-    geom_core::k_stats::start_verdict_log();
+    let bracket = geom_core::k_stats::Bracket::open();
     let t = revolve(&vp, axis_y(), Revolution::Full, tol).unwrap();
-    let verdicts = geom_core::k_stats::take_verdict_log();
+    let verdicts = bracket.finish().verdicts;
     assert!(!verdicts.is_empty());
     let crossing: Vec<_> = verdicts
         .iter()

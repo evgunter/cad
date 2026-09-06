@@ -14,13 +14,16 @@ track: V
 still carries its own derivation of both, and neither cites the type that now
 owns it:
 
-- `crates/editor-core/src/names/emit_blend.rs:263-267` restates *"Faces are
-  never retired — a support shrinks, it does not die"*. That claim now lives
-  at `sweep::blend::naming::Retired`, argued from the surgery's operator set
-  rather than from the consumer's expectation. The restatement is **already
-  narrower than its source**: it names `sweep/tests/m6_5_fillet_naming.rs` as
-  the check where the kernel names two fixtures, so the two homes disagreed
-  about their own coverage on the day the kernel side landed.
+- `crates/editor-core/src/names/emit_blend.rs:263-267` now says *"`Retired`
+  carries no face channel (the surgery's one `kef` door refuses a source face,
+  and states why), so a face key here is a real survivor"* — the restatement
+  this row was filed against (*"Faces are never retired — a support shrinks,
+  it does not die"*) was replaced by that pointer in PR 1943, which also made
+  the claim an enforced one at `sweep::blend::surgery`'s door rather than an
+  argument at the type. The **coverage half of the finding stands**: the
+  comment still names `sweep/tests/m6_5_fillet_naming.rs` as the check where
+  the kernel side names two fixtures, so the two homes still disagree about
+  their own coverage.
 - `crates/editor-core/src/names/emit_blend.rs:253-258` re-derives the slotmap
   versioned-key argument while citing *"(module docs)"* for it — the same
   citation that, before `D324`, pointed at a paragraph denying what the code

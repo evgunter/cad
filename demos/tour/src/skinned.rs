@@ -59,7 +59,6 @@
 
 use pncad::geom_core::{Affine3, Point2, Point3, Vec3};
 use pncad::prelude::{Open, Start, Via};
-use pncad::profile::SketchPlane;
 use pncad::sweep::skin::{Section, loft_geometry, sweep_geometry};
 use pncad::sweep::{SketchSegment, segment_curve};
 
@@ -254,7 +253,7 @@ fn normal_start_place(path: &pncad::geom::NurbsCurve3<f64>) -> Affine3<f64> {
     };
     let u = helper.cross(n);
     let u = u / u.norm();
-    SketchPlane::from_frame(path.eval(lo), u, n.cross(u)).placement
+    Affine3::from_frame(path.eval(lo), u, n.cross(u))
 }
 
 /// The prism's end sections (also `common/mod.rs::PRISM_SQUARE`).
