@@ -1,9 +1,11 @@
-//! MATE-6 R2 review probes — cross-tree diff rows.
+//! MATE-6 R2 probes — the refusal-precedence and seam rows that
+//! review left behind.
 //!
-//! These rows are written to COMPILE ON BOTH TREES (main and the
-//! MATE-6 head): they never touch `Product::minted` / `unminted`.
-//! Each prints a `P<n>:`-tagged line; the review runs the file on
-//! both trees with `--nocapture` and diffs the tagged lines.
+//! Each prints a `P<n>:`-tagged line; the rows were written to compile
+//! on the MATE-6 head AND on its merge base, so the review could diff
+//! the tagged lines. That property is spent: P8 asserts the outer
+//! gate's carried-mint refusal, an arm neither of those trees had.
+//! What the rows are FOR now is what each one says below.
 //!
 //! P1/P2 — refusal precedence and identity with MULTIPLE bad mates
 //!         (claims 2 and 3): first bad mate in document order wins,

@@ -1467,6 +1467,17 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["product_error_tag"],
     },
     TagEntry {
+        function: "attribution_tag",
+        values: &[
+            "carried_declined",
+            "carried_refuted",
+            "declined",
+            "refuted",
+            "unattributed",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "binary_header_error_tag",
         values: &["binary_header_sniffs_ascii", "binary_header_too_long"],
         delegates: &[],

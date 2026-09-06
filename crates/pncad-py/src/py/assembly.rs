@@ -38,7 +38,7 @@ use pyo3::types::PyString;
 
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
-use crate::tags::{assembly_error_tag, product_error_tag, refused_ref_tag};
+use crate::tags::{assembly_error_tag, attribution_tag, product_error_tag, refused_ref_tag};
 use pncad::document as d;
 use pncad::tolerance::Tol;
 
@@ -292,26 +292,6 @@ impl MintedDeclaration {
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Attribution(d::Attribution);
-
-/// The stable tag for one attribution — one definition, read by the
-/// getter and by both repr sites. Exhaustive over the kernel enum, so
-/// a relation added there stops this build.
-fn attribution_tag(attribution: &d::Attribution) -> &'static str {
-    use d::Relation as R;
-    match attribution {
-        d::Attribution::Refuted(_) => "refuted",
-        d::Attribution::Declined(_) => "declined",
-        d::Attribution::Carried {
-            relation: R::Refuted,
-            ..
-        } => "carried_refuted",
-        d::Attribution::Carried {
-            relation: R::Declined,
-            ..
-        } => "carried_declined",
-        d::Attribution::Unattributed => "unattributed",
-    }
-}
 
 /// The document a foreign row is of, and the instances this document
 /// reached it through — the two halves of a [`d::Route`], as the

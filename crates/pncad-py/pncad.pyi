@@ -357,10 +357,11 @@ class AssemblyError(PncadError):
 
     `carried_mint_refusal` is an inner part's own mate that could not
     be minted at all: an outer assembly is not at rest over a part
-    whose contact nothing verified. `through` is the instantiating
-    node; the inner document, its mate and the route are in the
-    message, and `mate` stays `None` because every other arm answers
-    it in THIS document's id space."""
+    whose contact nothing verified. It carries a FOREIGN mate, so it
+    carries the route with it — `of` is the document to open, `via`
+    the instances this document reached it through (nearest first,
+    starting at `through`), and `mate` is a node of `of`, not of the
+    document that was gathered."""
 
     variant: str
     mate: Optional[NodeId]
@@ -370,6 +371,8 @@ class AssemblyError(PncadError):
     class_: Optional[ContactClass]
     findings: Optional[list[AtRestFinding]]
     node: Optional[NodeId]
+    of: Optional[str]
+    via: Optional[list[NodeId]]
     through: Optional[NodeId]
 
 class ProductError(PncadError):
@@ -3291,11 +3294,38 @@ class Attribution:
         A declaration a document BELOW this one authored answers under
         `carried_refuted` and `carried_declined`: the same two
         relations, and a separate pair of tags because
-        `declaration.mate` is then a node of THAT document. Which
-        document, and the route to it, are in `str(...)`."""
+        `declaration.mate` is then a node of THAT document — `of` and
+        `via` are what say which document and by what path."""
 
     @property
-    def declaration(self) -> Optional[MintedDeclaration]: ...
+    def declaration(self) -> Optional[MintedDeclaration]:
+        """The declaration named, `None` for `unattributed`. Under a
+        `carried_*` relation its `mate` is a node of `of`."""
+
+    @property
+    def of(self) -> Optional[str]:
+        """The document whose mate authored it, as opaque id text.
+        `None` where the declaration is the gathered document's own."""
+
+    @property
+    def via(self) -> Optional[list[NodeId]]:
+        """The instances this document reached it through, nearest
+        first. `None` where `of` is."""
+
+
+class CarriedDeclaration:
+    """One declaration a document BELOW this one authored, certified
+    here with everything else the gate was given.
+
+    Same rule as every other foreign-mate value: the mate is a node of
+    `of`, so `of` and `via` travel with it."""
+
+    @property
+    def declaration(self) -> MintedDeclaration: ...
+    @property
+    def of(self) -> str: ...
+    @property
+    def via(self) -> list[NodeId]: ...
 
 class AtRestFinding:
     """One at-rest refusal. `str(finding)` composes it the way the
@@ -3306,11 +3336,14 @@ class AtRestFinding:
     def attribution(self) -> Attribution: ...
 
 class Assembly:
-    """A validated assembly: the gathered body, its product names, and
-    one minted declaration per solved mate.
+    """A validated assembly: the gathered body, its product names, one
+    minted declaration per solved mate of THIS document, and one
+    carried row per declaration a document below it authored.
 
     Reaching one means the kernel's at-rest door PASSED over the
-    product and its records together."""
+    product and its records together — over the carried declarations
+    as much as over this document's own, which is what `carried`
+    lets a caller say."""
 
     @property
     def body(self) -> Body: ...
@@ -3320,6 +3353,11 @@ class Assembly:
     def minted(self) -> list[MintedDeclaration]:
         """Empty for a mate-less assembly, which is what a disjoint
         layout is."""
+
+    @property
+    def carried(self) -> list[CarriedDeclaration]:
+        """Which inner mates this verdict answered for. Empty for a
+        document that instantiates nothing with mates."""
 
 def assemble(doc: Doc, evaluation: Evaluation) -> Assembly:
     """The AT-REST ASSEMBLY GATE: gather the product, mint every

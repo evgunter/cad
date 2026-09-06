@@ -57,8 +57,10 @@
 //!   A carried declaration the census merely declines therefore
 //!   reaches the frontier arm under its own name, naming the inner
 //!   document, the inner mate and the route this document reached it
-//!   by. [`Attribution::Unattributed`] is what it says: a finding no
-//!   declaration of ANY document in the tree answers for.
+//!   by. [`Attribution::Unattributed`] is then what it says: a
+//!   finding no declaration this document holds a row for answers
+//!   for — its own or a part's, which today is every declaration in
+//!   the tree (the arm states the bound).
 //!
 //! Each says why at its own definition. The kernel's finding passes
 //! straight through either way — stated, never swallowed, never
@@ -313,10 +315,22 @@ pub enum Attribution {
         /// Refuted, or merely declined.
         relation: Relation,
     },
-    /// The finding names no declaration — of THIS document or of any
-    /// document in its tree. An UNDECLARED contact is exactly this: by
-    /// definition no mate authored it, which is what makes it the F1
-    /// hard error.
+    /// The finding names no declaration this document holds a row for
+    /// — its own, or one a part carried up. An UNDECLARED contact is
+    /// exactly this: by definition no mate authored it, which is what
+    /// makes it the F1 hard error.
+    ///
+    /// **The bound on "no mate anywhere in the tree", stated where a
+    /// caller reads it.** Rows cross the seam at the INSTANTIATE op
+    /// and are re-keyed at each graft; a boolean over a source builds
+    /// its result's records through the kernel's own remap and carries
+    /// no rows, so a declaration reaching this product through a
+    /// boolean would be unattributed here. Today none can — an
+    /// instance carrying a declaration is a multi-solid product, which
+    /// the pair boolean refuses outright (the acceptance suite's
+    /// `no_carried_declaration_can_reach_a_boolean_operand`) — so the
+    /// two readings coincide, and this is the one that will still be
+    /// true if that ever changes.
     Unattributed,
 }
 

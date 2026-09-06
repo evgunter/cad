@@ -895,6 +895,61 @@ fn the_gate_has_no_success_arm_over_a_carried_mint_refusal() {
     ));
 }
 
+/// **What the channel does NOT reach, measured.** A boolean's value
+/// carries records (its own `Declare` pairs, remapped) and no
+/// declaration rows, so a finding against one of them is
+/// `Unattributed` — which is correct there, because no mate authored
+/// them. What could make it wrong is a declaration row reaching a
+/// boolean operand, and today nothing can: an instance that CARRIES a
+/// declaration is a product of at least two solids (a mate is between
+/// two members of the document that authored it), and the pair boolean
+/// refuses a multi-solid operand outright.
+///
+/// Every seat, so what refuses is the boolean's rule and not this
+/// geometry: penetrating, resting, gapped.
+#[test]
+fn no_carried_declaration_can_reach_a_boolean_operand() {
+    for (label, seat) in [("pen", 0.5), ("rest", 1.0), ("gap", 1.5)] {
+        let mut store = StubStore::default();
+        let (inner_ref, ..) = stand(
+            &mut store,
+            &format!("docm6-bool-{label}"),
+            ContactClass::Rest,
+            [0.0, 0.0, seat],
+            [0.0, 0.0, 1.0],
+        );
+        let cube = store.insert(
+            cube_part(&format!("docm6-bool-{label}-cube")),
+            Tol::witness(),
+        );
+        let doc = ProfileDoc::empty(
+            DocumentId::derive(&format!("docm6-bool-{label}-outer")),
+            Tol::witness(),
+        );
+        let (doc, instance) = insert(doc, Node::instantiate_part(inner_ref));
+        let (doc, far) = insert(doc, Node::instantiate_part(cube));
+        let doc = place(doc, far, [50.0, 0.0, 0.0]);
+        let (doc, union) = insert(
+            doc,
+            Node::Boolean {
+                op: editor_core::BooleanOp::Union,
+                a: instance,
+                b: far,
+                declare: None,
+            },
+        );
+        let ev = run(&doc, &opts(store));
+        let failure = ev
+            .node_error(union)
+            .expect("the boolean does not evaluate over a two-solid instance");
+        assert!(
+            format!("{:?}", failure.kind).contains("not one solid"),
+            "the boolean refuses the multi-solid instance: {:?}",
+            failure.kind
+        );
+    }
+}
+
 /// R-I: a CERTIFIED assembly keeps the carried rows, so it can say
 /// which inner mates its verdict answered for.
 #[test]
