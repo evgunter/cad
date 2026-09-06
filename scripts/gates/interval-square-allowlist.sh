@@ -35,11 +35,15 @@
 # `interval-transcendentals`, which a shell gate in the discipline
 # job has no means to do and no business doing. What is written down
 # instead is the re-run itself, so "anyone can re-run it in a line"
-# is a line rather than a promise — as a `#[test]` in that crate:
+# is a line rather than a promise — a `#[test]` under
+# `interval-transcendentals/tests/`, written in that crate's OWN public
+# API because it is its own workspace and cannot depend on geom-core:
 #
-#     let x = RingInterval::from_bounds(f64::from_bits(0x21E0_0000_0000_0000) * 1.5,
-#                                       f64::from_bits(0x21E0_0000_0000_0000) * 1.5);
-#     assert!(x.powi(2).width() > (x * x).width());   // 2^-481 * 1.5
+#     use interval_transcendentals::DInterval;
+#     let x = DInterval::point(f64::from_bits(0x21E0_0000_0000_0000) * 1.5);
+#     assert!(x.powi(2).lo() < (x * x).lo() && x.powi(2).hi() > (x * x).hi());
+#     let y = DInterval::point(1.5);   // a magnitude above the floor
+#     assert!(y.powi(2).lo() == (y * y).lo() && y.powi(2).hi() == (y * y).hi());
 #
 # and the FLOOR the derivation rests on has a home already —
 # `TWO_PROD_VALID_MIN` at `interval-transcendentals/src/round.rs`,
@@ -121,12 +125,12 @@
 # on every pass, its definition is `CENSUS_*_RE` and `two_statement_
 # candidates` — read those, not this — and its result is checked
 # against `CENSUS_REGISTER`, one entry per dispositioned site at a
-# pinned count. WHAT THE DISPOSITIONS SAY is in the register; the
-# classes they fall into are an already-allowlisted file, a `Mat3<f64>`
-# projector conjugation, and a Taylor term over an already-tight
-# `.sqr()` value. A hole this gate cannot see is still a hole, so it is
-# written down rather than closed — but it is now written down in a
-# form that reds when it moves.
+# pinned count. WHAT THE DISPOSITIONS SAY IS IN THE REGISTER and is not
+# summarised here: a summary is a second copy that goes stale in the
+# silent direction, which is the defect this whole block is a fix for.
+# A hole this gate cannot see is still a hole, so it is written down
+# rather than closed — but it is now written down in a form that reds
+# when it moves.
 #
 # THE CENSUS IS A SECOND MATCHER AND HAS ITS OWN BLIND SPOTS, which is
 # why it counts CANDIDATES and not violations. Each shape reads the
@@ -143,6 +147,12 @@
 #     through `+`, `,` or a paren counts arithmetic that is not one
 #     product. UNDER-count, deliberate, and the direction to widen in if
 #     a real instance ever arrives.
+#   * THE NESTED-PAREN SHAPE READS ONE NESTED GROUP AT ONE LEVEL, so
+#     `((a * (b + c)) * x) * x` is invisible to it: the pattern spells a
+#     single `(…)` inside the outer group and cannot count depth, which
+#     an ERE with a backreference cannot do at all. UNDER-count. It is
+#     left because the shape is empty in this tree and the instrument
+#     that would close it is a parser, not a wider pattern.
 #   * THE TWO-STATEMENT SHAPE FOLLOWS ONE BINDING HOP, not two: `let
 #     kx = k * x;` … `kx * x` is seen, `let kx = k * x; let m = kx * y;`
 #     … `m * x` is not. UNDER-count. It also requires the binding's RHS
@@ -218,9 +228,21 @@ SQUARE_RE="$SQUARE_RE|(?<!\w)\(\s*[^()]*?\*\s*($SQUARE_PATH)\s*\)\s*\*\s*\2(?![\
 # entries is the one whose matcher nothing exercises on a real tree, so
 # the self-test plants one of each and the register is what would have
 # to grow if the tree did.
+#
+# EVERY WEDGED FACTOR MUST DIFFER FROM THE OPERAND, and that guard is
+# what keeps this census about what the LIVE MATCHER CANNOT SEE. Without
+# it `h * h * h` is a three-factor candidate — and it is not: branch 1
+# already reads the adjacent `h * h` inside it, so the gate is quiet
+# there only because the file is allowlisted. Counting it here would
+# make the OK line's claim false for that candidate, and would put a
+# NEW adjacent square in an allowlisted file through the census as an
+# unregistered candidate — silently replacing KNOWN GAP 4's
+# file-granular ratification with a per-site one for that one spelling.
+# The two shapes are kept apart instead: adjacency is branch 1's, and a
+# genuinely wedged repeat is this one's.
 CENSUS_PAREN_FIRST_RE="(?<!\w)\(\s*($SQUARE_PATH)\s*\*\s*[^()]*\)\s*\*\s*\1(?![\w.(\[])"
 CENSUS_NESTED_PAREN_RE="(?<!\w)\(\s*[^()]*\([^()]*\)[^()]*\*\s*($SQUARE_PATH)\s*\)\s*\*\s*\1(?![\w.(\[])"
-CENSUS_THREE_FACTOR_RE="(?<![\w.])($SQUARE_PATH)(?:\s*\*\s*[A-Za-z0-9_.]+)+\s*\*\s*\1(?![\w.(\[])"
+CENSUS_THREE_FACTOR_RE="(?<![\w.])($SQUARE_PATH)(?:\s*\*\s*(?!\1(?![\w.]))[A-Za-z0-9_.]+)+\s*\*\s*\1(?![\w.(\[])"
 
 # THE REGISTER — `<shape>|<file>|<fragment>|<count>|<disposition>`, the
 # `S49` shape: the POPULATION is re-read out of the tree on every run
@@ -241,18 +263,15 @@ CENSUS_REGISTER=(
   # The projector conjugation: `free1` and `p2` are `Mat3<f64>`, so
   # there is no enclosure to straddle zero and no `powi` to reach for.
   "three-factor|crates/editor-core/src/mate/coset.rs|free1 * p2 * free1|1|not an enclosure: Mat3<f64> matrix arithmetic, and the repeated factor is a matrix rather than a scalar"
-  # Both marcher terms are inside an already-allowlisted file, so their
-  # disposition is that file's ratification and not a fresh one.
-  "three-factor|crates/geom-brep/src/ssi/march.rs|kappa3d * kappa3d * kappa3d|1|allowlisted file: f64-only marcher step control"
-  "three-factor|crates/geom-brep/src/ssi/march.rs|h * h * h|1|allowlisted file: f64-only marcher step control"
-  "three-factor|crates/geom-brep/src/ssi/system.rs|a * a * a|1|allowlisted file: f64-only jet numerics"
-  # The odd-power Taylor terms of `sin_step`. `a2` is `a1.sqr()` — the
-  # tight square already — and each later term multiplies a DISTINCT
-  # power by it, so no factor is ever paired with a fresh view of
-  # itself.
-  "two-statement|crates/geom-brep/src/props/quad.rs|let a3 = a1 * a2|1|Taylor term over an already-tight .sqr() value: a2 is a1.sqr(), and a3 is a distinct power"
-  "two-statement|crates/geom-brep/src/props/quad.rs|let a5 = a3 * a2|1|Taylor term over an already-tight .sqr() value: a2 is a1.sqr(), and a5 is a distinct power"
-  "two-statement|crates/geom-brep/src/props/quad.rs|let a7 = a5 * a2|1|Taylor term over an already-tight .sqr() value: a2 is a1.sqr(), and a7 is a distinct power"
+  # The odd-power Taylor terms of `sin_step`. What makes them safe is
+  # not that the powers differ but that every factor is NONNEGATIVE:
+  # `a1 = pt(s.abs())` and `a2 = a1.sqr()`, so no product here straddles
+  # zero and the plain product's four-corner minimum already IS the
+  # tight bound — which is this gate's own rule for a `lo >= 0`
+  # enclosure, stated at the top of this file.
+  "two-statement|crates/geom-brep/src/props/quad.rs|let a3 = a1 * a2|1|no factor straddles zero: a1 is pt(s.abs()) and a2 is a1.sqr(), both nonnegative, so the plain product is already the tight bound"
+  "two-statement|crates/geom-brep/src/props/quad.rs|let a5 = a3 * a2|1|no factor straddles zero: a1 is pt(s.abs()) and a2 is a1.sqr(), both nonnegative, so the plain product is already the tight bound"
+  "two-statement|crates/geom-brep/src/props/quad.rs|let a7 = a5 * a2|1|no factor straddles zero: a1 is pt(s.abs()) and a2 is a1.sqr(), both nonnegative, so the plain product is already the tight bound"
 )
 
 # Set by `--register FILE`, which replaces the array above. It exists so
@@ -269,6 +288,19 @@ GATE_CENSUS_REGISTER_FILE=
 # the square was split.
 two_statement_candidates() {
   awk '
+    # A REMEMBERED NAME IS DATA AND IT IS SPLICED INTO A REGEX, so it is
+    # escaped first. Both names come from the code, and the only
+    # metacharacter their character classes admit is a DOT: the operand
+    # may be a FIELD PATH (v.x), and unescaped that dot is a wildcard
+    # matching vax, a candidate the source does not contain. The escape
+    # is a one-member bracket expression and not a backslash, which is
+    # the ruling in loop-boundary-discards.sh and holds under every awk.
+    # Completeness is checkable rather than hoped for: the two classes
+    # are [a-z_][A-Za-z0-9_]* and [A-Za-z_][A-Za-z0-9_.]*, so the dot is
+    # the whole list, and widening either class means widening this.
+    # (No apostrophe appears in this program, which is itself
+    # single-quoted.)
+    function esc(s,   t) { t = s; gsub(/[.]/, "[.]", t); return t }
     {
       i = index($0, ":"); file = substr($0, 1, i - 1); rest = substr($0, i + 1)
       j = index(rest, ":"); line = substr(rest, 1, j - 1) + 0
@@ -276,8 +308,8 @@ two_statement_candidates() {
       if (file != cf) { cf = file; nb = 0 }
       for (k = 1; k <= nb; k++) {
         if (done[k]) continue
-        if (txt ~ ("(^|[^A-Za-z0-9_.])" bn[k] " [*] " bx[k] "([^A-Za-z0-9_.([]|$)") ||
-            txt ~ ("(^|[^A-Za-z0-9_.])" bx[k] " [*] " bn[k] "([^A-Za-z0-9_.([]|$)")) {
+        if (txt ~ ("(^|[^A-Za-z0-9_.])" en[k] " [*] " ex[k] "([^A-Za-z0-9_.([]|$)") ||
+            txt ~ ("(^|[^A-Za-z0-9_.])" ex[k] " [*] " en[k] "([^A-Za-z0-9_.([]|$)")) {
           done[k] = 1
           print bf[k] ":" bl[k] ": " bt[k]
         }
@@ -287,7 +319,7 @@ two_statement_candidates() {
         rhs = substr(txt, RLENGTH + 1)
         if (rhs !~ /[()]/ && match(rhs, /[*] [A-Za-z_][A-Za-z0-9_.]*$/)) {
           nb++
-          bn[nb] = nm; bx[nb] = substr(rhs, RSTART + 2)
+          en[nb] = esc(nm); ex[nb] = esc(substr(rhs, RSTART + 2))
           bf[nb] = file; bl[nb] = line; bt[nb] = txt; done[nb] = 0
         }
       }
@@ -305,8 +337,13 @@ CENSUS_SUMMARY=
 census() {
   local view=$1 entries cands report bad files
   if [ -n "$GATE_CENSUS_REGISTER_FILE" ]; then
+    # THE OS's REASON IS KEPT. `2>/dev/null` here would report "cannot
+    # read" for a missing file, an unreadable one and a directory alike,
+    # and the one thing a reader needs is which.
+    local why
+    why=$(cat "$GATE_CENSUS_REGISTER_FILE" 2>&1 >/dev/null) || true
     if ! entries=$(cat "$GATE_CENSUS_REGISTER_FILE" 2>/dev/null); then
-      gate_error "$(gate_name): cannot read the census register at $GATE_CENSUS_REGISTER_FILE, so the five shapes were counted against nothing"
+      gate_error "$(gate_name): cannot read the census register at $GATE_CENSUS_REGISTER_FILE, so the five shapes were counted against nothing — ${why:-no reason reported}"
       exit 1
     fi
   else
@@ -357,10 +394,14 @@ census() {
         if (index(txt, eg[k]) == 0) continue
         if (length(eg[k]) > best) { best = length(eg[k]); hit = k }
       }
-      if (hit == 0) {
-        if (length(txt) > 160) txt = substr(txt, 1, 160) "... (trimmed)"
-        print "UNREG|" shape "|" file "|" line "|" txt
-      } else matched[hit]++
+      # THE WHOLE RECORD, NOT A TRIMMED ONE. `gate_grep` trims its
+      # diagnosis because it echoes a few hundred file operands; a
+      # statement record is one statement, so there is nothing to trim
+      # and a width literal here would be an undisclosed second copy of
+      # that one. The record IS the evidence a reader needs to
+      # disposition the candidate.
+      if (hit == 0) print "UNREG|" shape "|" file "|" line "|" txt
+      else matched[hit]++
       next
     }
     END {
@@ -566,63 +607,162 @@ plant_undispositioned_two_statement() {
 # here rather than on a real tree. The three statement-scoped shapes
 # plant their fragment as a statement; the binding hop plants the
 # binding AND a use, because one statement of it is not the shape.
-plant_register_tree() {
-  local root=$1 e shape file frag count name x i
-  for e in "${CENSUS_REGISTER[@]}"; do
-    IFS='|' read -r shape file frag count _ <<<"$e"
-    mkdir -p "$root/${file%/*}"
-    i=0
-    while [ "$i" -lt "$count" ]; do
-      case "$shape" in
-        paren-first-factor|nested-paren|three-factor)
-          printf 'pub fn c() { %s; }\n' "$frag" >> "$root/$file" ;;
-        two-statement)
-          name=$(printf '%s\n' "$frag" | awk '{ print $2 }')
-          x=$(printf '%s\n' "$frag" | awk '{ print $NF }')
-          printf 'pub fn c() { %s; let use_%s = %s * %s; }\n' \
-            "$frag" "$name" "$name" "$x" >> "$root/$file" ;;
-        *)
-          printf 'SELFTEST FAILED: no planter for census shape %s\n' "$shape" >&2
-          exit 1 ;;
-      esac
-      i=$((i + 1))
-    done
+# census_plant_entry ROOT ENTRY — one entry's site(s), appended to the
+# file it names. Both directions of the register are written from THIS
+# function, so a fixture cannot pass by planting something the register
+# does not describe.
+census_plant_entry() {
+  local root=$1 shape file frag count name x i
+  IFS='|' read -r shape file frag count _ <<<"$2"
+  mkdir -p "$root/${file%/*}"
+  i=0
+  while [ "$i" -lt "$count" ]; do
+    case "$shape" in
+      paren-first-factor|nested-paren|three-factor)
+        printf 'pub fn c() { %s; }\n' "$frag" >> "$root/$file" ;;
+      two-statement)
+        name=$(printf '%s\n' "$frag" | awk '{ print $2 }')
+        x=$(printf '%s\n' "$frag" | awk '{ print $NF }')
+        printf 'pub fn c() { %s; let use_%s = %s * %s; }\n' \
+          "$frag" "$name" "$name" "$x" >> "$root/$file" ;;
+      *)
+        printf 'SELFTEST FAILED: no planter for census shape %s\n' "$shape" >&2
+        exit 1 ;;
+    esac
+    i=$((i + 1))
   done
 }
 
-# The register's first entry, which the three mutations below move. Read
-# from the array rather than written out, so a register that is
-# re-ordered or re-worded does not silently stop being tested.
-census_first_field() { printf '%s' "${CENSUS_REGISTER[0]}" | cut -d'|' -f"$1"; }
+plant_register_tree() {
+  local e
+  for e in "${CENSUS_REGISTER[@]}"; do census_plant_entry "$1" "$e"; done
+}
+
+# census_field INDEX FIELD — one field of one register entry, read from
+# the array rather than written out, so a register that is re-ordered or
+# re-worded does not silently stop being tested. EVERY MUTATION BELOW
+# TAKES AN INDEX: keyed on entry 0 alone they exercised the three-factor
+# shape only, and the binding hop's own MISCOUNT and ABSENT paths were
+# reached by nothing.
+census_field() { printf '%s' "${CENSUS_REGISTER[$1]}" | cut -d'|' -f"$2"; }
+
+# plant_register_tree_less INDEX ROOT — every entry but one. The file of
+# the omitted entry is created anyway if nothing else plants it, so the
+# case is "the SITE is gone" and not "the FILE is gone" — two different
+# reds, and a fixture that cannot tell them apart proves neither.
+plant_register_tree_less() {
+  local idx=$1 root=$2 i file
+  for i in "${!CENSUS_REGISTER[@]}"; do
+    [ "$i" = "$idx" ] || census_plant_entry "$root" "${CENSUS_REGISTER[$i]}"
+  done
+  file=$(census_field "$idx" 2)
+  mkdir -p "$root/${file%/*}"
+  [ -f "$root/$file" ] || printf 'pub fn benign(x: f64) -> f64 { x }\n' > "$root/$file"
+}
 
 # A SECOND CANDIDATE UNDER AN ENTRY THAT PINS ONE — what a register
 # without a count would absorb, taking that entry's disposition for a
 # square nobody has looked at.
 plant_register_extra() {
-  plant_register_tree "$1"
-  printf 'pub fn extra() { %s; }\n' "$(census_first_field 3)" \
-    >> "$1/$(census_first_field 2)"
+  plant_register_tree "$2"
+  census_plant_entry "$2" "${CENSUS_REGISTER[$1]}"
 }
 
 # AN ENTRY WHOSE SITE IS GONE while its file is still read: the
 # disposition now covers nothing, and an entry standing for nothing is a
 # ratification waiting to be inherited.
-plant_register_site_gone() {
-  plant_register_tree "$1"
-  printf 'pub fn benign(x: f64) -> f64 { x }\n' > "$1/$(census_first_field 2)"
-}
+plant_register_site_gone() { plant_register_tree_less "$1" "$2"; }
 
 # AN ENTRY WHOSE FILE HAS LEFT THE SCAN while the rest of the register
 # is still live — the other direction of the same question, and the one
-# the count check alone cannot tell from a site that moved.
+# the count check alone cannot tell from a site that moved. Every entry
+# sharing that file goes ABSENT with it.
 plant_register_file_gone() {
-  plant_register_tree "$1"
-  rm -f "$1/$(census_first_field 2)"
+  plant_register_tree "$2"
+  rm -f "$2/$(census_field "$1" 2)"
+}
+
+# --- THE (file, shape) KEY, ONE HALF EACH -----------------------------
+#
+# Both cases hand the gate a WRITTEN register rather than mutating a
+# tree, because what has to vary is the ENTRY and not the tree. A
+# fixture that can tell a missing check from a present one needs the
+# candidate the entry would WRONGLY claim to be the ONLY candidate there
+# is: with the right one also in the tree, dropping the check turns a
+# pass into a MISCOUNT and the case reds either way, proving nothing.
+census_written_register_case() {
+  local what=$1 want=$2 entry=$3 file=$4 body=$5
+  local tmp out reg
+  tmp=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  mkdir -p "$tmp/${file%/*}"
+  printf '%s\n' "$body" > "$tmp/$file"
+  reg=$tmp/planted-register.txt
+  printf '%s\n' "$entry" > "$reg"
+  if out=$("$0" --root "$tmp" --register "$reg" 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: the gate PASSED on %s\n%s\n' "$what" "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+  gate_selftest_assert_diagnosed "$what" "$out"
+  case "$out" in
+    *"$want"*) ;;
+    *) printf 'SELFTEST FAILED (%s): the gate fired with an unexpected message — wanted %s, got:\n%s\n' \
+         "$what" "$want" "$out" >&2
+       exit 1 ;;
+  esac
 }
 
 # THE MALFORMED RED, which no fixture tree can reach: the register it
 # guards is baked into this file, so the case hands the gate a written
 # one instead.
+# AN ADJACENT TRIPLE IN AN ALLOWLISTED FILE, and it is the fixture the
+# three-factor shape's wedge guard exists for. `h * h * h` contains the
+# adjacent `h * h` branch 1 already reads, so the gate is quiet here on
+# the allowlist's ratification and on nothing else. Counted as a census
+# candidate it would arrive UNREGISTERED — turning KNOWN GAP 4's
+# file-granular ratification into a per-site one for this one spelling,
+# through a pass whose whole subject is meant to be what the matcher
+# CANNOT see.
+plant_adjacent_triple_in_an_allowlisted_file() {
+  mkdir -p "$1/crates/geom-brep/src/ssi"
+  printf 'pub fn c<T: Real>(h: T) -> T { h * h * h }\n' \
+    > "$1/crates/geom-brep/src/ssi/march.rs"
+}
+
+# A BINDING HOP WHOSE OPERAND IS A FIELD PATH, beside the name its dot
+# would match as a wildcard. `v.x` unescaped is the regex `v.x`, which
+# matches `vax`, so the reader would report a two-statement candidate
+# the source does not contain — and this file has no entry for it, so it
+# would arrive as an unregistered candidate and red a correct tree.
+plant_field_path_binding_near_miss() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f<T: Real>(k: T, v: V<T>, vax: T) -> T { let kx = k * v.x; kx * vax }\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+# `--register` WITH NO ARGUMENT. Left to `shift 2` this ends the script
+# under errexit with nothing printed, which is the one failure a gate
+# must never have: it decided nothing and said so to nobody.
+gate_selftest_census_register_without_argument() {
+  local tmp out
+  tmp=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  if out=$("$0" --root "$tmp" --register 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: the gate PASSED with --register given no argument\n%s\n' "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+  gate_selftest_assert_diagnosed "--register with no argument" "$out"
+  case "$out" in
+    *"--register takes a FILE"*) ;;
+    *) printf 'SELFTEST FAILED (--register with no argument): the gate failed for some OTHER reason:\n%s\n' "$out" >&2
+       exit 1 ;;
+  esac
+}
+
 gate_selftest_census_malformed_register() {
   local tmp out reg
   tmp=$(mktemp -d)
@@ -670,21 +810,64 @@ gate_selftest() {
   gate_selftest_case "$cwant" plant_undispositioned_nested_paren
   gate_selftest_case "$cwant" plant_undispositioned_three_factor
   gate_selftest_case "$cwant" plant_undispositioned_two_statement
-  gate_selftest_case "matched 2" plant_register_extra
-  gate_selftest_case "matched 0" plant_register_site_gone
-  gate_selftest_case "ABSENT" plant_register_file_gone
+  # EVERY `want` BELOW IS A FRAGMENT OF THE OFFENDING LINE, never a word
+  # from the umbrella diagnosis. `lib.sh` warns that `$want` alone can
+  # be satisfied by text the gate prints for some other reason, and this
+  # gate is where that happened: `matched 0` and `ABSENT` both appear in
+  # the message that explains what those lines MEAN, so either case was
+  # satisfied by any census red at all — including one with the check it
+  # is about deleted. The register supplies the fragments, so a
+  # re-worded register does not silently stop testing.
+  local i e
+  for i in 0 1; do
+    e="$(census_field "$i" 1)|$(census_field "$i" 2)|$(census_field "$i" 3)"
+    gate_selftest_case "MISCOUNT|$e|pinned 1|matched 2" plant_register_extra "$i"
+    gate_selftest_case "MISCOUNT|$e|pinned 1|matched 0" plant_register_site_gone "$i"
+    gate_selftest_case "ABSENT|$e" plant_register_file_gone "$i"
+  done
+  # THE (file, shape) KEY. Each half is a written register whose single
+  # entry would wrongly claim the tree's single candidate if that half
+  # of the key were dropped — so the case reds ONLY because the check is
+  # there, which is what the two cases above cannot say for it.
+  census_written_register_case \
+    "a candidate in one file and an entry naming another" \
+    "UNREG|three-factor|crates/planted/src/here.rs" \
+    "three-factor|crates/planted/src/there.rs|free1 * p2 * free1|1|planted" \
+    "crates/planted/src/here.rs" \
+    "pub fn c() { free1 * p2 * free1; }"
+  census_written_register_case \
+    "a three-factor candidate and an entry of another shape naming its file and text" \
+    "UNREG|three-factor|crates/planted/src/one.rs" \
+    "two-statement|crates/planted/src/one.rs|let a3 = a1 * a2|1|planted" \
+    "crates/planted/src/one.rs" \
+    "pub fn c() { let a3 = a1 * a2 * b * a2; }"
   gate_selftest_census_malformed_register
+  gate_selftest_census_register_without_argument
   gate_selftest_passes "the tree the census register describes, every entry finding exactly the candidates it pins" plant_register_tree
-  printf '%s selftest OK: passes a clean fixture, and prose, string literals and near-miss products; fires on each square spelling the matcher claims — bare identifier, field path, `self.` field, nested path, rustfmt-wrapped product, behind a block comment, and the parenthesized scaled square in both forms; re-derives the five spellings it CANNOT see and passes the register'"'"'s own tree while firing on an undispositioned candidate of each of the four shapes, on a second candidate under a one-site entry, on an entry whose site is gone, on an entry whose file has left the scan and on a malformed entry; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  gate_selftest_passes "an adjacent triple in an allowlisted file, which branch 1 already reads and the census must not claim" plant_adjacent_triple_in_an_allowlisted_file
+  gate_selftest_passes "a binding hop whose operand is a FIELD PATH, beside a name the unescaped dot in it would match" plant_field_path_binding_near_miss
+  printf '%s selftest OK: passes a clean fixture, and prose, string literals and near-miss products; fires on each square spelling the matcher claims — bare identifier, field path, `self.` field, nested path, rustfmt-wrapped product, behind a block comment, and the parenthesized scaled square in both forms; re-derives the five spellings it CANNOT see and passes the register'"'"'s own tree while firing, on a fragment of the offending line rather than on the umbrella text, on an undispositioned candidate of each of the four shapes and — for a three-factor entry and a binding-hop one alike — on a second candidate under a one-site entry, an entry whose site is gone and an entry whose file has left the scan; holds BOTH halves of the (file, shape) key against a written register; refuses a --register with no argument and a malformed entry; keeps a field-path binding from matching a name its unescaped dot would, and an adjacent triple in an allowlisted file out of the census entirely; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
-# `--register` is this gate's own flag, so it is taken out of argv
+# `--register FILE` is this gate's own flag, so it is taken out of argv
 # before lib.sh's parser — which rejects what it does not know — sees
-# the rest.
+# the rest. It is NOT in that parser's usage line, and that line is
+# lib-wide: a per-gate flag added to it would be printed by every gate
+# that does not have it. So it is written here, which is where a reader
+# of this gate looks.
+#
+# THE MISSING ARGUMENT IS DIAGNOSED, not left to `shift 2`: under
+# errexit a short shift ends the script with nothing printed at all,
+# which is a gate that decided nothing and said so to nobody.
 GATE_ARGV=()
 while [ $# -gt 0 ]; do
   case "$1" in
-    --register) GATE_CENSUS_REGISTER_FILE=${2:-}; shift 2 ;;
+    --register)
+      if [ $# -lt 2 ]; then
+        gate_error "$(gate_name): --register takes a FILE holding the census register, one entry per line, and none was given"
+        exit 2
+      fi
+      GATE_CENSUS_REGISTER_FILE=$2; shift 2 ;;
     *) GATE_ARGV+=("$1"); shift ;;
   esac
 done

@@ -12,9 +12,11 @@ that gate's header.
 
 ## Why these rules are greps, and not lints or types
 
-The question is S13's, asked after the observation that the disciplines this
-design leans on hardest are text-matching CI steps. It is asked about four
-gates:
+The question is `S13`'s, and it is about four gates. The disciplines this
+design leans on hardest are text-matching CI steps, and this page says which of
+them are text-matching because text is the right instrument and which are not.
+It is an evaluation, not a ruling: what it recommends is marked as a
+recommendation, and ratifying or overruling it is Ev's.
 
 | Gate | The rule |
 | --- | --- |
@@ -57,7 +59,8 @@ multi-line generic lists and rustfmt's wrapping become structure rather than
 patterns. That is real, and it is also the part `lib.sh`'s statement view
 already buys — the reader cuts at `{`, `}` and `;`, which is where a generic
 list and its `where` clause end, so the formatter-produced spellings are
-already matched (S158's ruling). What it does **not** buy is name resolution:
+already matched — the ruling recorded in `scripts/gates/lib.sh`'s reader block,
+under "THREE RECORD SHAPES". What it does **not** buy is name resolution:
 `syn` parses one file at a time and resolves nothing, so the alias case below
 stays open and `include!`d text and macro bodies stay invisible, because both
 are resolved by the compiler and not by a parser. It costs a build in the
@@ -86,9 +89,10 @@ Its costs are three, and the third is the one that decides:
    are pinned to an exact nightly; the repo pins a stable toolchain in
    `rust-toolchain.toml`. The pin becomes a second toolchain to bump, and a
    driver that stops building on a bump takes the gate down with it.
-2. **A build in the `discipline` job.** That job is text scanning today — every
-   gate step is 0–1 s and the whole job is around 30 s on the hosted runner,
-   with no cargo invocation in it. A dylint row makes it a compile job.
+2. **A build in the `discipline` job.** That job invokes no cargo at all: it
+   reads text and matches it. What the job costs, and what it cost before the
+   gates moved onto a shared reader, is `work/gates/D109.md`(e) — a reading with
+   its own home, not restated here. A dylint row makes it a compile job.
 3. **The CI-half parity rule.** Both halves of CI run every gate, and
    `gate-roster.sh` holds that they run the same set by deriving the roster
    from this directory. A lint runs where cargo runs; a shell gate runs
@@ -117,27 +121,32 @@ is the appearance of a text, and the ban has a measured receipt.
 actually enforce.** That rule is *which files may name a bound*, which is not a
 type question and not a resolution question — it is a question about file
 paths, and a file path is exactly what a grep reads. `evalscalar-allowlist.sh`
-is the evidence that the encoded alternative was tried and needed **more** grep,
-not less: the trait is `pub`, so without that step any file in any crate could
-acquire a compound `Bounds` bound invisibly to the gate beside it.
+is what the encoded alternative costs: the trait is `pub`, so without that step
+any file in any crate acquires a compound `Bounds` bound invisibly to the gate
+beside it. Encoding the rule in the type needs MORE grep, not less.
 
 **`no-extra-real-bounds.sh` is**, on the same reading. Its four spellings are
 formatting variants of one construct, and a statement view matches all four.
 
-**Where the greps are not the right tool is one case, not four:** the compound
-bound reached through a NAME. It is the only place a lint buys a fact the text
-cannot supply, it is shared by `bounds-allowlist.sh` and
-`no-extra-real-bounds.sh`, and it is disclosed in both. It is not enough to buy
-a nightly toolchain, a compile step in the discipline job and a hole in the
-roster's parity, so the answer here is that the greps stay and the gap is
-registered where it lives.
+**Where a grep is not the right tool is one case, not four:** the compound bound
+reached through a NAME. It is the only place a lint buys a fact the text cannot
+supply, it is shared by `bounds-allowlist.sh` and `no-extra-real-bounds.sh`, and
+it is disclosed in both.
 
-**The standing rule that follows.** A gate's blind spot is closed by widening
-its matcher, by registering the population it cannot see, or by being written
-down with its direction of error — never by narrowing the rule until the
-matcher is right about it. A gate whose disclosed gap grows past what a register
-can carry is the one that reopens this question, and the argument to beat is the
-three costs above.
+### The recommendation, and what is a finding rather than a ruling
+
+Everything above is the evaluation `S13` commissioned, and it stands on its own:
+what each alternative catches and what it costs are facts about the tools and
+this tree. Weighing that one gap against those three costs is a JUDGEMENT, and
+this page records it as a recommendation rather than as settled:
+
+> **This page recommends that the four gates stay greps and that the alias gap
+> stay registered where it is disclosed, rather than buying a `dylint` row for
+> it.** Ratification is Ev's — the [ev] PR that lists this page in
+> `docs/DESIGN.md`'s companion table is where that decision is asked for.
+
+Until it is ratified, the recommendation is what a reader should weigh, not a
+rule they should apply.
 
 ## What a gate proves, and what it does not
 
