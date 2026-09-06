@@ -326,11 +326,19 @@ because they are the ones the door was expected to reach and does not:
   two registrants state the unsquared distance and the far endpoint,
   and the three are different nodes.
 - **`carrier_matches_mapped_source`** — only partly reached (8, 8, 8,
-  12), and it is what bounds the plate and the annulus now. It is the
+  12), and **it is what bounds all five measured documents, door open
+  and door SHUT** (read as the over-band set at ceiling + δ). It is the
   fenced SCAFFOLDING residual, the carrier against the `MappedCurve`
   pushforward at the certifier's own samples: an identity between two
   INDEPENDENTLY BUILT objects, which is not what a node alias can
   reach (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`).
+  The share the door DOES reach is one per curve — the `i = 0` sample
+  of the nine-sample schedule, where the mapped source evaluates to its
+  own start vertex verbatim. The other eight per curve are not reached:
+  the mapped source spells the arc through `atan`/`sin`/`cos` atoms
+  (`geom-brep`'s `SketchSegment::eval`, anchored on `a` rather than on
+  the centre) while the carrier spells it through the sagitta closed
+  form, so the two normal forms meet only where the trig collapses.
 - **`carrier_line_circle`** — unchanged (R2's pad, 24 numeric at the
   nominal, door on or off). The `Fillet(r)` step declares the tangency
   and the emitted VERTEX is the constructor's own node

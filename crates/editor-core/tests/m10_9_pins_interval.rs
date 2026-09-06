@@ -174,8 +174,10 @@ fn m10_9_the_door_is_inert_on_straight_geometry() {
 fn m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    // Just past the measured ceiling of `7.787e2 · ε` (both ends of
-    // that bracket are asserted by the ceiling row below).
+    // TWICE the measured ceiling (`[7.811e2, 7.814e2] · ε`, both ends
+    // asserted by the ceiling row below): the scale where the drive's
+    // reported refusal is visible, and — see this row's doc comment —
+    // deliberately NOT the scale a bound is read at.
     let doc = crate::m10_7_plate::plate(5.0e-5 * 1.6e3 * eps, 1.0e-5 * 1.6e3 * eps, tol).0;
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let box_ = ParamBox::of(&analyzed);

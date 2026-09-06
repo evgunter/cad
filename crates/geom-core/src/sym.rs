@@ -176,6 +176,20 @@
 //! so the node it states the identity about is the node the certifier
 //! asks about.
 //!
+//! The revolve's latitude carriers (`sweep::revolve::surfaces` and
+//! `::full`) mint the same circle under the same guarantee and state
+//! the RIM identity too — the same rule applied to the second
+//! constructor, not to the second identity. Rim only: neither builder
+//! is handed the far endpoint, so the span identity has nothing to be
+//! stated about (`work/m10/revolve-carriers-state-only-the-rim`).
+//!
+//! **Where the door may be called is an ALLOWLIST**, not a
+//! convention: `scripts/gates/register-equal-allowlist.sh` names the
+//! ratified constructor sites, because the method hands every generic
+//! `T: Real` body a value COMPARISON — the capability evaluation-code
+//! discipline exists to keep out of that position, and one that adds no
+//! bound for `no-extra-real-bounds` to see.
+//!
 //! **What they reach, measured** (M10-9, at the shipped set; the
 //! per-predicate tables are `editor-core/tests/m10_9_evidence_interval`
 //! and the pins `m10_9_pins_interval`). At each document's nominal both
