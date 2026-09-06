@@ -312,3 +312,12 @@ adds `crates/profile/tests/sketch_plane.rs` (the delegation and lift
 rows beside `SketchPlane`) — the review found "no other line of
 `profile/` moves" false for the tests; the door itself moves as
 announced. Signed (PROPS orchestrator).
+
+## Announced seam from PROPS (2026-09-06): `boolean/boxes.rs`'s four `orthonormal_basis` calls under the sign-hull unit
+
+`docs/PROPS-SIGN-HULL-SPEC.md` (branch `props/sign-hull`) changes the
+frame `Vec3::orthonormal_basis` returns (a vertical wall's `b1` is now
+horizontal in the plane, `b2` up). `boxes.rs:2512,2563,2634,3033` are
+re-read for an assumption about the old frame and not re-spelled; any
+golden they feed re-blesses with its reason. Announced by the spec
+§Seams. Signed (PROPS orchestrator).

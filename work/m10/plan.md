@@ -265,6 +265,17 @@ ERROR-DESIGN's own "Open after this doc" list.
   form; the validated arc registers, the sweep's carrier consumes.
   Acceptance is E12's: the plate's real study certifies. Plan
   approved by Ev in chat, 2026-09-04.
+- **M10-9 — the registered-identity door (E12's reserve, taken);
+  after M10-8, block M10-B4 slot 3.** Opened from M10-8's measured
+  miss: the plate's real study still bounded at `7.81e2 · ε` by the
+  arc rim's `‖q − c‖ = r`, whose expansion needs a coefficient ring
+  the bracket cannot afford. A constructor registers the identity it
+  guarantees (the sagitta arc, the fillet's tangency), verified at
+  the witness, refused typed when it lies, counted apart from the
+  tier's theorems; the numeric bits untouched; the ring width measured
+  in one table. Acceptance is E12's: the plate certifies, ε-free.
+  Option 1 of two put to Ev after M10-8; ruled in chat ("proceeding
+  with 1").
 
 Cross-program interfaces, named so "error" does not become a
 bucket: the PARAM-LINT unit (DISCIPLINES) is not ours and blocks

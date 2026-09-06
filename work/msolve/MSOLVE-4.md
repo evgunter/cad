@@ -7,6 +7,7 @@ opened: 2026-09-05
 refs: [mate-memo-key-does-not-carry-the-solve]
 branch: msolve/4-mate-memo-key
 closed: 2026-09-06
+pr: 1960
 ---
 
 

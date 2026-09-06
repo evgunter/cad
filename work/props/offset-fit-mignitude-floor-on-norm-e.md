@@ -23,3 +23,12 @@ S-CERT fence (`offset_fit.rs`); note CERT-10 edits this file later — sequence 
 ## Home
 
 `work/cert/` — `crates/geom-brep/src/offset_fit.rs` is an S-CERT territory glob and the issue names the S-CERT fence, filed from CERT-7.
+
+## Re-homed (2026-09-06)
+
+Moved from `work/cert/` to `work/props/` on S-CERT's exit walk PR
+(#1924, its handoffs ledger; merged by Ev 2026-09-06 = ratified), before
+`work/cert/` was deleted at sweep 7 of `docs/DOC-LEDGER.md`. Id, body
+and header are unchanged; the directory is the claim (`work/README.md`).
+The `## Home` section above naming `work/cert/` is superseded by this
+line and is kept as the record of why the file was filed there.

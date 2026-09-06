@@ -21,3 +21,12 @@ The question the retirement must answer is whether a missing chord should defaul
 ## Home
 
 `work/cert/` — filed by the S-CERT orchestrator out of CERT-8's sweep, and it is a scale-honesty defect on a `Margin::levered` arm owing a D2-addendum row, S-CERT's charter rather than S-BOOL's operand gates.
+
+## Re-homed (2026-09-06)
+
+Moved from `work/cert/` to `work/bool/` on S-CERT's exit walk PR
+(#1924, its handoffs ledger; merged by Ev 2026-09-06 = ratified), before
+`work/cert/` was deleted at sweep 7 of `docs/DOC-LEDGER.md`. Id, body
+and header are unchanged; the directory is the claim (`work/README.md`).
+The `## Home` section above naming `work/cert/` is superseded by this
+line and is kept as the record of why the file was filed there.
