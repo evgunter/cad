@@ -2,8 +2,9 @@
 id: shell-doors-take-tolerance-beside-tol
 kind: issue
 title: shell / shell_open take a raw tolerance: f64 beside tol: Tol, and the acceptance that no verb takes a Band beside a Tol has no mechanical guard
-status: spec
+status: closed
 opened: 2026-08-31
+closed: 2026-09-05
 github: 1409
 refs: [1399, LIB-G17, shell-needs-shellnaming-birth-channel]
 ---
@@ -38,3 +39,48 @@ into analytic offsets that ignore it) is in this file's history at the
 `[ev]` PR. Unit: SEAT-9 (`docs/SEAT-9-SPEC.md`), block SEAT-B3. The
 NURBS fit's COST at ε ≈ 1e-9 is the offset-fit owner's measurement,
 reported by the unit, not gated on.
+
+## Closed (2026-09-05, SEAT-9)
+
+**Half 1, the instance, is executed, and the ruling's letter is
+delivered.** `topo::shell` and `topo::shell_open` no longer take a
+`tolerance: f64`: the witness is the only tolerance either takes, and it
+travels the whole chain — `replace_face_offset`,
+`replace_faces_offset`, `mint_offset`, `offset_charts_together`,
+`PropsQuadLane::{approx_offset_surface, recertify_approx}` and
+`geom-brep`'s five production fit doors (`fit_offset`,
+`certify_offset`, `certify_offset_over`, `approx_offset_surface`,
+`recertify_approx`) — with the value read once, at
+`geom_brep::offset_fit::precision_target`. No signature between the
+shell door and the classification carries an `f64` epsilon.
+
+The fit ENGINE keeps a numeric-target form of each door, `#[doc(hidden)]`
+and suffixed `_at`, because the only way to measure a refinement loop,
+a round budget, a stall guard and a limb classification is to run them
+at targets chosen for the measurement (1e-2 through 1e-18, and bounds
+derived from a measured residual) — which one committed ε cannot
+express. Twenty-two of the twenty-four `FIT_TOL` constants retired with
+the parameter; the two that remain were renamed `ENGINE_FIT_TARGET` to
+say what they now are. One production caller reaches an `_at` routine —
+the transform lane's `remap_certificate`, which classifies a mapped pair
+against the tolerance the SURFACE's claim was made at — and that is
+censused by name rather than left to be discovered.
+
+**Half 2, the guard gap, is answered in kind rather than by the
+parameter lint.** `crates/topo/tests/shell_tolerance_chain.rs` is a
+source census over the chain in three rows: no signature on it may take
+an `f64` whose name reads as a tolerance (every `name: type` pair on a
+line, not just the first, so a one-line signature cannot hide one); the
+ε reads it holds must be exactly the ones it declares, per stretch,
+with what each is for; and no production file outside the transform
+lane may reach the numeric-target instrument. Each reds on its own
+planted defect (a one-line `fn f(d: f64, tolerance: f64)`; a second
+`let _ = tol.eps();`; `topo::props` calling `recertify_approx_at`).
+Its blind spots are stated in its own header, including the ones the
+first version of it hid. **The compiler is still the primary guard** —
+a caller has no number to pass — and these rows are future-edit
+coverage over a property the types already hold.
+`docs/PARAM-LINT-SPEC.md` / `tools/k-lint` still grow no signature
+rules, and this census is the narrower thing that exists instead — it
+guards the one chain the finding was about, not the invariant in
+general.
