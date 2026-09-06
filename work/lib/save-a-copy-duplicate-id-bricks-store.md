@@ -6,7 +6,6 @@ status: open
 opened: 2026-08-28
 github: 1117
 refs: [1113]
-needs_ev: true
 ---
 
 ## From GitHub issue 1117
@@ -68,3 +67,14 @@ Recommendation: (A). The library half (the save-door refusal and the
 fork act) is LIB's in `crates/pncad/src/workspace.rs`; the viewer half
 (spelling the second act in `SessionOp`) is a rider handed to the GUI
 programs after the ruling, in that order.
+
+## Ruled (Ev, PR 2016, 2026-09-06): **(A) — two acts**
+
+`Save(path)` keeps the document's identity and refuses typed at the
+save door when the target directory already holds this id under a
+different filename; a separate "save as new document" act writes the
+same content under a fresh id, an explicit fork. The library half
+(the save-door refusal and the fork act, `crates/pncad/src/workspace.rs`)
+is LIB's unit; the viewer spelling of the second act (`SessionOp`) is a
+rider handed to the GUI programs after it lands. Dispatchable as a LIB
+unit; the ruling is recorded here and at ASSEMBLY-DESIGN A4's clause.
