@@ -122,9 +122,15 @@ only closed items.
   `program.md`, `plan.md` and `log.md` go, and so does the ratified
   exit walk; the deletion is recorded in `docs/DOC-LEDGER.md` with the
   SHA they are recoverable at, and that ledger entry is the program's
-  done-state of record. Residue is re-homed to a live program or to
-  `work/issues/` before the sweep, not left behind in the closed
-  directory. **That sweep sees items, not sentences**: a residue a
+  done-state of record. Residue is re-homed before the sweep, never
+  left behind in the closed directory: to a live program whose charter
+  it fits, or to a new program opened for it when the residue coheres
+  into a track of its own (a dozen items on one territory are a
+  successor's opening slate, and the closing program opens it).
+  `work/issues/` is the last resort, for residue that genuinely
+  coheres with no live or new track — an unsorted pile of related
+  items there is what the sweep exists to prevent. (Ev, 2026-09-06.)
+  **That sweep sees items, not sentences**: a residue a
   lane discloses inside its own item's `## Closed` prose reads as a
   record of work done, not as an open thread, so it is invisible to
   the re-homing and dies with the directory. Disclosing a residue is

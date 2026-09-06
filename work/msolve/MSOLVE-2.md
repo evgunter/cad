@@ -2,7 +2,7 @@
 id: MSOLVE-2
 kind: unit
 title: The member chain: nested patterns and sibling distinctness at every level
-status: spec
+status: dispatched
 opened: 2026-09-05
 refs: [nested-pattern-mate-heads-refuse]
 branch: msolve/2-member-chain
