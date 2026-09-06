@@ -1,6 +1,5 @@
 //! The viewport camera: one state value, one typed operation
-//! vocabulary, one pure `apply`, and the projection algebra over
-//! what it produces.
+//! vocabulary, one pure `apply`, and the projection algebra over it.
 //!
 //! # The state
 //!
@@ -35,13 +34,11 @@
 //!
 //! # The one free transform
 //!
-//! [`cursor_projection`] is not about the camera's state at all: it
-//! takes a view-projection matrix, a cursor and a viewport size and
-//! returns another matrix. It is here because that matrix is the one
-//! [`Camera::view_projection`] produces and that cursor is in the
-//! frame [`Camera::project`] answers in — the projection algebra is
-//! this module's subject, and the id pass that consumes it is
-//! `gpu`'s.
+//! [`cursor_projection`] is about no camera state at all — a matrix, a
+//! cursor and a viewport in, a matrix out. It is here because
+//! projection algebra is this module's subject, not because the doors
+//! meet at the type: it takes `f32` and every matrix here is `f64`
+//! (`work/view/cursor-projection-is-f32-in-a-module-whose-matrices-are-f64`).
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
@@ -875,10 +872,7 @@ pub fn fold<'a>(
 /// [`Camera::project`] it says that the world point the ray path
 /// un-projects to is the point the id pass rasterizes at the centre of
 /// its target. That composition is the headless half of "both picking
-/// paths answer the same question". It is HERE because its subject is
-/// this module's — the matrix it transforms is the one
-/// [`Camera::view_projection`] produces, and the cursor it takes is in
-/// the frame [`Camera::project`] answers in.
+/// paths answer the same question".
 pub fn cursor_projection(
     view_projection: &[[f32; 4]; 4],
     cursor_ndc: [f32; 2],

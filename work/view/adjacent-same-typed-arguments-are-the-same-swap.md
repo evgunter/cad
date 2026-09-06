@@ -54,7 +54,7 @@ gradient and a fix pass should not treat it as flat:
   positionally the same way the chooser row does.
 - `pickindex.rs:422`/`459` `address(node, body: u32, position: usize,
   flat: usize)`, `bounds.rs:357` `midpoint(valid: f64, invalid: f64,
-  …)`, `camera.rs:954` `clamp_distance(distance: f64,
+  …)`, `camera.rs:948` `clamp_distance(distance: f64,
   scene_radius: f64)`, `sketch.rs:1000` `arc_points(radius: f64,
   theta: f64, chord: f64)`.
 

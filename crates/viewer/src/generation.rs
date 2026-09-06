@@ -24,12 +24,8 @@
 /// the request that asked for it, so a run canceled and then re-asked
 /// can never have its abandoned answer accepted for the new ask.
 ///
-/// **The counter itself is not readable.** Every consumer compares
-/// generations and none displays one, so there is no accessor and no
-/// `u64` constructor; `Debug` is what puts the number in a log or a
-/// debugger. An accessor here would be a door with nothing on the
-/// other side of it, and adding one when a display need arrives costs
-/// three lines.
+/// The counter is not readable: every consumer compares generations
+/// and none displays one, so `Debug` is the only door to the number.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Generation(u64);
 

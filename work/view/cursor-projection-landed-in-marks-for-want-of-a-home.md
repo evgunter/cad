@@ -53,11 +53,18 @@ damage is the evidence.
 `cursor_projection` moved to `crates/viewer/src/camera.rs` — the home
 the item proposed, verified before the move rather than assumed:
 
-- **`camera` already holds the projection algebra.** `view_projection`
-  builds the very matrix the function transforms, `project` answers in
-  the frame the function's `cursor_ndc` is in, and `ray_through` takes
-  a cursor and a viewport the same way. The function's subject is this
-  module's, which is the thing `marks` could never say.
+- **`camera` already holds the projection algebra.** The subject is
+  the same one — a view-projection, a cursor, a viewport — which is the
+  thing `marks` could never say. **The doors do not meet at the type**,
+  and the first version of this close said they did:
+  `Camera::view_projection` returns `[[f64; 4]; 4]` where
+  `cursor_projection` takes `&[[f32; 4]; 4]`, `Camera::project` answers
+  `Option<[f64; 3]>`, and `Camera::ray_through` takes PIXELS with `+y`
+  down against this function's `+y`-up NDC. The conversion happens two
+  modules away in a driver (`pane/viewport.rs:446`, `:423-424`), so
+  `camera` is the home of a function it cannot feed from its own doors;
+  `cursor-projection-is-f32-in-a-module-whose-matrices-are-f64` holds
+  that question. The move rests on the other three checks.
 - **It costs `camera` no import.** The signature is `[[f32; 4]; 4]`,
   `[f32; 2]`, `[f32; 2]` and nothing else, so the `use` block is
   untouched and the module-kind gate's answer is unchanged
@@ -73,9 +80,15 @@ the item proposed, verified before the move rather than assumed:
 only edits are prose. `crates/viewer/tests/*` needed no re-pointing
 because every suite already spelled it `viewer::cursor_projection`, the
 crate-root re-export, and that spelling is unchanged — it moved from
-the `pub use marks::{…}` list to the `pub use camera::{…}` one, so
-there is exactly one path to the function and **no `pub use` shim**
-(`session-shims-and-test-imports`'s hazard is not repeated). The one
+the `pub use marks::{…}` list to the `pub use camera::{…}` one, so the
+COUNT of public paths is unchanged and **no `pub use` shim** was left
+behind. It was never one path: `lib.rs:55` is `pub mod camera;`, so
+`viewer::camera::cursor_projection` resolves beside
+`viewer::cursor_projection`, exactly as both spellings resolved through
+`marks` before. `session-shims-and-test-imports`'s hazard is a `pub
+use` shim INSIDE a module — a lie about where an item lives — not a
+crate-root re-export, and this close first drew that contrast wrongly
+(`every-crate-root-reexport-is-a-second-path-not-the-only-one`). The one
 production consumer, `gpu.rs`, now imports `crate::camera::cursor_projection`.
 
 **Three structural sentences the move falsified, all fixed:**
@@ -90,7 +103,7 @@ listed `cursor_projection` among `marks.rs`'s members and now names
 than a mark.
 
 **Where it is now**, since the citations above name the pre-fix tree:
-`crates/viewer/src/camera.rs:863-896` (doc from `:863`, `pub fn` at
-`:882`), imported by `crates/viewer/src/gpu.rs:80` and called at
+`crates/viewer/src/camera.rs:860-890` (doc from `:860`, `pub fn` at
+`:876`), imported by `crates/viewer/src/gpu.rs:80` and called at
 `gpu.rs:595`; the doc link this item cited at `marks.rs:460` is
-`camera.rs:875`.
+`camera.rs:872`.
