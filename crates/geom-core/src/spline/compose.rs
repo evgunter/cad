@@ -1061,7 +1061,7 @@ mod tests {
     /// independent of every ring/decomposition code path.
     fn rat_eval(kv: &KnotVector, w: &[f64], coords: &[Vec<f64>], t: f64) -> Vec<f64> {
         let span = kv.span_at(t);
-        let n = basis::basis_funs(kv, span, t);
+        let n = basis::basis_funs(span, t);
         let mut den = 0.0;
         let mut num = vec![0.0; coords.len()];
         for (j, nj) in n.iter().enumerate() {

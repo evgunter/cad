@@ -1622,6 +1622,70 @@ fn row7d_an_in_band_case_split_escalates_typed() {
     );
 }
 
+/// **The mate solve's escalations are on no node's log.** The solve is
+/// a whole-document computation that runs BEFORE any node's verdict
+/// bracket opens, so the funnel's escalation on the in-band case split
+/// lands in whatever frame encloses the evaluation — visible to an
+/// outer bracket a caller holds, on no `NodeValue` and no `NodeError`
+/// — and reaches a consumer only as `NodeErrorKind::Mate` carrying
+/// `MateFault::Indeterminate`. Pinned so the gap is guarded: the item
+/// `work/props/escalation-channel-misses-op-minted-indeterminates.md`
+/// records it, and this row goes red when the solve is bracketed.
+#[test]
+fn row7e_a_mate_solve_escalation_is_on_no_nodes_log_but_visible_in_an_outer_frame() {
+    let eps = geom_core::Tol::witness().get().eps;
+    let tilt = 3.0 * eps;
+    let (doc, ids, store) = assembly("asm-r2a-row7e", 2);
+    let mut doc = doc;
+    let mut mates = Vec::new();
+    for axis in [[0.0, 0.0, 1.0], [tilt, 0.0, 1.0]] {
+        let (next, id) = mint(
+            doc,
+            DocEdit::InsertNode {
+                node: mate(
+                    ids[0],
+                    ids[1],
+                    MatePrimitive::PlanarRest { offset: 0.0 },
+                    AxisSense::Opposed,
+                    frame([0.0, 0.0, 0.0], axis, [0.0, 1.0, 0.0]),
+                    frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]),
+                    None,
+                ),
+            },
+        );
+        doc = next;
+        mates.push(id);
+    }
+    let outer = geom_core::k_stats::Bracket::open();
+    let ev = run(&doc, &opts(store));
+    let outside = outer.finish();
+    let named = |escalations: &[geom_core::k_stats::Escalation]| {
+        escalations
+            .iter()
+            .any(|e| e.predicate() == "mate_axes_parallel")
+    };
+    for (id, result) in &ev.nodes {
+        let on_node = match result {
+            NodeResult::Ok(v) => named(&v.escalations),
+            NodeResult::Failed(e) => named(&e.escalations),
+            NodeResult::Poisoned { .. } => false,
+        };
+        assert!(!on_node, "node {} carries the solve's escalation", id.0);
+    }
+    assert!(
+        matches!(
+            mate_fault(&ev, mates[1]),
+            editor_core::MateFault::Indeterminate { .. }
+        ),
+        "the mate node fails typed through the error enum"
+    );
+    assert!(
+        named(&outside.escalations),
+        "the outer frame saw the solve's escalation: {:?}",
+        outside.escalations
+    );
+}
+
 #[test]
 fn row7e_a_self_mate_refuses_naming_the_instance_it_names_twice() {
     let (doc, ids, _) = assembly("asm-r2a-row7e", 2);

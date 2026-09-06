@@ -89,3 +89,14 @@ wedged on an orphaned build; a fresh same-arm lane finished the
 takeover with the predecessor's uncommitted diff preserved as
 evidence (`exch-h1-predecessor-wip.patch`) — annotate on the A/B row
 at merge. Unit-2 spec recon runs in the background against main.
+
+## Announced seam from PROPS (2026-09-06): every STEP fixture's `DIRECTION` `u_ref` records re-bless with the sign-hull unit
+
+`docs/PROPS-SIGN-HULL-SPEC.md` (branch `props/sign-hull`) changes
+`Vec3::orthonormal_basis` to cross the normal with a decided world axis
+(Ev's option-1 ruling on #1944). Every stored `u_ref` changes, so every
+`u_ref` `DIRECTION` record in `crates/step-export/tests/fixtures/*.step`
+re-blesses once, each with a locus-invariance receipt (origin and
+normal bit-identical) in the PR; `step-import/src/recognize.rs:228`
+is re-read for an assumption about the old frame, not re-spelled.
+Announced by the spec §Seams. Signed (PROPS orchestrator).

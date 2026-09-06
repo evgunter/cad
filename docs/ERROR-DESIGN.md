@@ -557,10 +557,10 @@ in the parameters; its residual is a genuine numeric margin that
 widens with the box whatever the symbolic tier does. Over a box that
 is a parameter-dependent existence-and-uniqueness certificate per
 family (interval Newton / Krawczyk, uniform over p), a different
-deliverable: S-CERT's
-`work/cert/param-box-certification-of-implicit-quantities.md` (filed
-at this revision). The driver's refusal for such a residual stays
-typed and priced. The plate does not reach it (plane × cylinder is
+deliverable:
+`work/m10/param-box-certification-of-implicit-quantities.md` (filed
+at this revision by S-CERT; M10's since S-CERT's exit). The driver's
+refusal for such a residual stays typed and priced. The plate does not reach it (plane × cylinder is
 closed form); the E12 unit's census says which of the 57 do.
 
 **Acceptance for the unit that builds this (M10-7).** The two-hole
