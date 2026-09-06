@@ -5,6 +5,7 @@ title: interval-square-allowlist resolves mod declarations to a sibling path, so
 status: review
 opened: 2026-09-03
 branch: gates/mod-path-resolution
+pr: 2033
 ---
 
 
