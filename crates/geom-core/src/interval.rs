@@ -326,15 +326,16 @@ impl Real for Interval {
     /// sides are disjoint over this leaf's box is refused typed. An
     /// uncertified or empty enclosure witnesses nothing — the
     /// computation was not defined on the whole box, so there is no
-    /// real there to be equal to anything ([`CertifiedEnclosure`], and
-    /// clause 1 of the symbolic tier's own theorem).
+    /// real there to be equal to anything
+    /// ([`crate::real::CertifiedEnclosure`], and clause 1 of the
+    /// symbolic tier's own theorem).
     ///
     /// Nothing is recorded here: an `Interval` carries no expression.
     /// The recording half is [`crate::Sym::register_equal`], which asks
     /// this first.
     fn register_equal(self, other: Self) -> crate::sym::SymRegistration {
-        use crate::sym::SymRegistration;
         use crate::real::CertifiedEnclosure as _;
+        use crate::sym::SymRegistration;
         let (Some((a_lo, a_hi)), Some((b_lo, b_hi))) =
             (self.certified_bracket(), other.certified_bracket())
         else {

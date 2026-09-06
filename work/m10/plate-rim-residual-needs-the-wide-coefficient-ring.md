@@ -2,8 +2,9 @@
 id: plate-rim-residual-needs-the-wide-coefficient-ring
 kind: issue
 title: the plate's rim residual (carrier_endpoint_start) needs a coefficient ring wider than the shipped 256 bits, and rule C alone does not certify it
-status: open
+status: closed
 opened: 2026-09-05
+closed: 2026-09-06
 refs: [M10-8]
 ---
 
@@ -57,3 +58,41 @@ trade, taken on cost (`geom_core::sym::COEFF_BITS`).
   pass saw `sign_gated: 2` and no ceiling move at 4096 bits), and if
   not, which residual bounds it — with its rendered form.
 - The tour's stop 1 re-cut as the certified study if it certifies.
+
+## Closed by measurement (M10-9, 2026-09-06): the ring table
+
+M10-9's §4 asked for the table this row is owed, on the two documents
+the trade was argued over, at the DEFAULT ε with the shipped rule set
+and the registered-identity door open. One leaf, timed; the ceiling
+answered as a bracket (half the 256-bit ceiling must certify whole,
+twice it must refuse) rather than as a digit
+(`editor-core/tests/m10_9_evidence_interval::m10_9_ring_table`, run
+three times against three edited values of
+`geom_core::sym::COEFF_BITS`).
+
+| `COEFF_BITS` | plate, one leaf | plate ceiling | R2 bracket, one leaf | bracket ceiling |
+| --- | --- | --- | --- | --- |
+| **256 (shipped)** | 0.21 s | `[7.787e2, 7.817e2] · ε` | 0.65 s | `[3.865e2, 3.880e2] · ε` |
+| 1024 | 0.20 s | unmoved | 24.74 s (**38×**) | unmoved |
+| 4096 | 0.22 s | unmoved | 34.01 s (**52×**) | unmoved |
+
+("unmoved" is both ends asserted: half the 256-bit ceiling still
+certifies whole and twice it still refuses, at every bound.)
+
+**No bound change ships.** M10-9's rule was that one ships only if it
+MOVES a ceiling at no more than 2× the bracket's leaf cost; neither
+1024 nor 4096 moves a ceiling at all, and both cost the bracket 38×
+and 52×. The wide ring was the alternative to the door, and it was
+never affordable: what the ~640-bit expansion would have bought on the
+plate's rim residual, the door buys for nothing — and, as it turns
+out, the plate's ceiling does not move either way, because what bounds
+it is a different identity
+(`work/m10/plate-ceiling-is-now-the-arc-span-identity`).
+
+The first two bullets of "what is owed" above are therefore answered
+in the negative and by measurement: a small-integer fast path already
+exists (`Int::Small` inline, `BigInt` on demand — M10-8), the bound
+was raised twice with it in place, and the cost is coefficient GROWTH
+rather than heap traffic. The third — the tour's stop 1 as the
+certified study — is not reachable at this ceiling; the stop's caption
+now names the bounding predicate and its enclosure instead.

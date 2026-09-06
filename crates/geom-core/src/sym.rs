@@ -3676,11 +3676,12 @@ mod tests {
     /// columns, and a registration that records nothing and says so.
     #[test]
     fn the_door_off_records_nothing_and_reproduces_the_tier() {
-        let (rows, counts) = with_session_rules(budget(), SymRules::shipped_without_the_door(), || {
-            let (n, r, resid) = rim(3.0, 4.0, 5.0);
-            assert_eq!(n.register_equal(r), SymRegistration::Witnessed);
-            resid.map(how)
-        });
+        let (rows, counts) =
+            with_session_rules(budget(), SymRules::shipped_without_the_door(), || {
+                let (n, r, resid) = rim(3.0, 4.0, 5.0);
+                assert_eq!(n.register_equal(r), SymRegistration::Witnessed);
+                resid.map(how)
+            });
         assert_eq!(rows, ["numeric", "numeric"]);
         assert_eq!((counts.registered, counts.numeric), (0, 2));
     }

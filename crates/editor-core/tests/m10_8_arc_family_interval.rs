@@ -222,10 +222,7 @@ fn m10_8_table_per_predicate_under_each_rule_set() {
             for s in cols {
                 print!(
                     " {:>12}",
-                    format!(
-                        "{}/{}/{}/{}",
-                        s.theorem, s.gated, s.registered, s.numeric()
-                    )
+                    format!("{}/{}/{}/{}", s.theorem, s.gated, s.registered, s.numeric())
                 );
             }
             println!();
@@ -237,7 +234,7 @@ fn m10_8_table_per_predicate_under_each_rule_set() {
         // theorem lost (fewer theorems, or fewer discharged in all).
         for (i, (label, _)) in rule_sets().iter().enumerate().skip(1) {
             let cell =
-            |s: &Split| format!("{}/{}/{}/{}", s.theorem, s.gated, s.registered, s.numeric());
+                |s: &Split| format!("{}/{}/{}/{}", s.theorem, s.gated, s.registered, s.numeric());
             let helped: Vec<String> = table
                 .iter()
                 .filter(|(_, c)| c[i].discharged() > c[0].discharged())
@@ -246,8 +243,7 @@ fn m10_8_table_per_predicate_under_each_rule_set() {
             let hurt: Vec<String> = table
                 .iter()
                 .filter(|(_, c)| {
-                    c[i].theorem < c[0].theorem
-                        || c[i].discharged() < c[0].discharged()
+                    c[i].theorem < c[0].theorem || c[i].discharged() < c[0].discharged()
                 })
                 .map(|(p, c)| format!("{p}:{}->{}", cell(&c[0]), cell(&c[i])))
                 .collect();

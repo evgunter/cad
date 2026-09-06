@@ -26,6 +26,16 @@ use geom_core::{SymRules, Tol};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{certifies_whole, nominal_box};
 
+/// A document as a function of the SCALE of its real study — the shape
+/// every row here probes a ceiling with.
+type Study<'a> = &'a dyn Fn(f64) -> ProfileDoc;
+
+/// A named study, owned, so a list of them can be built in one place.
+type NamedStudy = (&'static str, Box<dyn Fn(f64) -> ProfileDoc>);
+
+/// A named study with the ceiling last measured for it.
+type StudyAtCeiling<'a> = (&'static str, f64, Study<'a>);
+
 /// The two rule sets this unit is a differential between: the shipped
 /// tier with the registered-identity door open, and M10-8's exactly
 /// (`SymRules::shipped_without_the_door`).
@@ -38,7 +48,7 @@ fn door_rows() -> [(&'static str, SymRules); 2] {
 
 /// The four documents, each as a function of the SCALE of its real
 /// study, so a ceiling is a multiple of the study a user would ask for.
-fn documents(tol: Tol) -> Vec<(&'static str, Box<dyn Fn(f64) -> ProfileDoc>)> {
+fn documents(tol: Tol) -> Vec<NamedStudy> {
     vec![
         (
             "two_hole_plate",
@@ -85,8 +95,7 @@ fn m10_9_ceilings_with_and_without_the_door() {
             if lo.is_finite() && !lo.is_nan() {
                 let doc = at(lo * 2.0);
                 let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-                let (shapes, refusal, counts) =
-                    replay(&doc, &ParamBox::of(&analyzed), rules, tol);
+                let (shapes, refusal, counts) = replay(&doc, &ParamBox::of(&analyzed), rules, tol);
                 println!("      beyond it: {refusal:?}; {counts:?}");
                 for s in shapes.iter().filter(|s| {
                     matches!(
@@ -142,7 +151,10 @@ fn m10_9_per_predicate_split_at_the_nominal() {
                 cols[0], cols[1]
             );
         }
-        println!("   {:<34} off: {:?}  on: {:?}", "TOTAL", totals[0], totals[1]);
+        println!(
+            "   {:<34} off: {:?}  on: {:?}",
+            "TOTAL", totals[0], totals[1]
+        );
     }
 }
 
@@ -324,17 +336,13 @@ fn the_two_fillet_forms() {
 fn m10_9_ring_table() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    let rows: [(&str, f64, &dyn Fn(f64) -> ProfileDoc); 2] = [
-        (
-            "two_hole_plate",
-            7.787e2 * eps,
-            &|s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0,
-        ),
-        (
-            "r2_filleted_bracket",
-            3.865e2 * eps,
-            &|s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0,
-        ),
+    let rows: [StudyAtCeiling<'_>; 2] = [
+        ("two_hole_plate", 7.787e2 * eps, &|s: f64| {
+            crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0
+        }),
+        ("r2_filleted_bracket", 3.865e2 * eps, &|s: f64| {
+            crate::m10_7_r2_probes_interval::bracket(s, tol).0
+        }),
     ];
     for (name, ceiling, at) in rows {
         for (label, scale) in [("0.5x ceiling", 0.5), ("2x ceiling", 2.0)] {

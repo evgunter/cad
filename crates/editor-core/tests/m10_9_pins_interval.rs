@@ -31,6 +31,10 @@ use geom_core::{SymRules, Tol};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{certifies_whole, dials};
 
+/// A named study, as a function of the SCALE of its real study, with the
+/// ceiling last measured for it.
+type StudyAtCeiling<'a> = (&'static str, f64, &'a dyn Fn(f64) -> ProfileDoc);
+
 /// M10-8's tier exactly — the shipped set with the door shut, and the
 /// differential every row here is taken against.
 fn closed() -> SymRules {
@@ -50,7 +54,10 @@ fn m10_9_the_shipped_set_carries_the_door() {
     let off = closed();
     assert!(!off.registered);
     assert_eq!(
-        SymRules { registered: true, ..off },
+        SymRules {
+            registered: true,
+            ..off
+        },
         s,
         "`shipped_without_the_door` differs from `shipped` in the door and in nothing else"
     );
@@ -109,7 +116,9 @@ fn m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity() {
     let box_ = ParamBox::of(&analyzed);
     let (_, shut_refusal, shut) = replay(&doc, &box_, closed(), tol);
     let (_, open_refusal, open) = replay(&doc, &box_, SymRules::shipped(), tol);
-    println!("   door shut {shut:?} -> {shut_refusal:?}\n   door open {open:?} -> {open_refusal:?}");
+    println!(
+        "   door shut {shut:?} -> {shut_refusal:?}\n   door open {open:?} -> {open_refusal:?}"
+    );
     assert_eq!(shut.registered, 0, "M10-8's tier registers nothing");
     assert!(
         open.registered > 0,
@@ -199,27 +208,19 @@ fn m10_9_the_value_channel_is_untouched_on_a_certifying_box() {
 fn m10_9_the_four_ceilings_are_unmoved_by_the_door() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    let docs: [(&str, f64, &dyn Fn(f64) -> ProfileDoc); 4] = [
-        (
-            "two_hole_plate",
-            7.787e2 * eps,
-            &|s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0,
-        ),
-        (
-            "r2_filleted_bracket",
-            3.865e2 * eps,
-            &|s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0,
-        ),
-        (
-            "r1_annulus",
-            7.787e2 * eps,
-            &|s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0,
-        ),
-        (
-            "r2_rounded_pad",
-            2.083e3 * eps,
-            &|s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0,
-        ),
+    let docs: [StudyAtCeiling<'_>; 4] = [
+        ("two_hole_plate", 7.787e2 * eps, &|s: f64| {
+            crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0
+        }),
+        ("r2_filleted_bracket", 3.865e2 * eps, &|s: f64| {
+            crate::m10_7_r2_probes_interval::bracket(s, tol).0
+        }),
+        ("r1_annulus", 7.787e2 * eps, &|s: f64| {
+            crate::m10_8_r1_probes_interval::annulus(s, tol).0
+        }),
+        ("r2_rounded_pad", 2.083e3 * eps, &|s: f64| {
+            crate::m10_8_r2_probes_interval::pad(s, tol).0
+        }),
     ];
     for (name, ceiling, at) in docs {
         for (rules, label) in [(SymRules::shipped(), "open"), (closed(), "shut")] {
