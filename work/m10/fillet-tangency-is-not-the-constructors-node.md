@@ -72,12 +72,22 @@ and `cos` atoms from the path algebra (the same probe prints it).
 
 - `carrier_line_circle` on the pad is 24 decisions at the nominal, all
   numeric, door open or shut.
-- R2's staged-ceiling walk PASSED `carrier_line_circle` outright — the
-  ceiling measured as if the tangency were discharged — and the pad did
-  not move: `2.0831e3 · ε`, the same bracket as with it blocked
-  (`k_stats::identity_pass`, the `identity-pass-probe` feature).
-- The pad's ceiling is `[2.083e3, 2.091e3] · ε` at ε = 1e-6, 1e-9 and
-  1e-12 alike, unmoved by the door.
+- The staged-ceiling dial settles it directly (`k_stats::identity_pass`,
+  the test-only `identity-pass-testing` feature): PASSING
+  `carrier_line_circle` — measuring the pad as if the tangency were
+  discharged — leaves the ceiling exactly where it was, and so does
+  passing `line_span`, and so does passing both.
+
+  | passed | pad's whole-certifying ceiling |
+  | --- | --- |
+  | — | `[2.0831e3, 2.0839e3] · ε` |
+  | `carrier_line_circle` | `[2.0831e3, 2.0839e3] · ε` — unmoved |
+  | `line_span` | `[2.0831e3, 2.0839e3] · ε` — unmoved |
+
+- The pad's ceiling is `[2.083e3, 2.084e3] · ε` at ε = 1e-6, 1e-9 and
+  1e-12 alike, unmoved by the door, and what is over the band at
+  ceiling + δ is `carrier_matches_mapped_source` — not this predicate
+  and not `line_span`.
 
 So the tangency is a real obstacle to the tier's REACH and not a
 constraint on this document's ceiling. **Do not build it for the
