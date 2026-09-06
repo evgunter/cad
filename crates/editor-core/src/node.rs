@@ -1559,6 +1559,14 @@ pub enum Node<P> {
     /// as it is ([`Node::PlacedUnion`]'s ruling). A bare split or
     /// pattern is still refused at a body seat; this node is how a
     /// user says which body they meant.
+    ///
+    /// Because it moves nothing and renames nothing, an `Instance`
+    /// selection is a pass-through of A11's member walk too
+    /// ([`crate::mate::member_of`]): a mate read at one, or below
+    /// one, stands on the same member the pattern's copy does. It is
+    /// also the only node a pattern of a pattern can be built
+    /// through, a pattern's own value being many bodies where a
+    /// pattern's input is one.
     Part {
         /// The split or pattern whose value is read.
         of: RecipeNodeId,
@@ -1678,7 +1686,10 @@ pub enum Node<P> {
     /// the solve composes the map of every pose-bearing node between
     /// the operand and the minting instance
     /// ([`crate::mate::member_of`]). Two mates from one instance
-    /// through two different transforms are two MEMBERS.
+    /// through two different transforms are two MEMBERS. So are two
+    /// mates onto two copies of one pattern, at any depth of nesting:
+    /// a member's identity is its instance, the chain of copies the
+    /// walk consumed, and the operand it was read at.
     ///
     /// The insert door checks both halves against the live document —
     /// a never-existed operand or name node is a typo. A later delete

@@ -14,8 +14,9 @@
 //! `Declare` established, extended to the node half by A12's reading
 //! rule). What A12 adds on top is the *reading* edge: the MEMBER
 //! instance each reference's OPERAND resolves through, walking down
-//! to the minting instance past any number of transforms and at most
-//! one pattern level (A11's member vocabulary) — RECOMPUTED from the
+//! to the minting instance past any number of transforms, `Part`
+//! instance selections and pattern levels (A11's member vocabulary,
+//! [`member`]) — RECOMPUTED from the
 //! recipe at need ([`reading_edges`]) and never stored beside it. The
 //! partitions
 //! divide on that distinction — A9's relative-freedom components and
@@ -64,12 +65,14 @@ use geom_core::linalg::{Affine3, Point3, Vec3};
 use geom_core::predicate::{BandError, Indeterminate};
 
 pub mod coset;
+pub mod member;
 pub mod solve;
 
 pub use coset::{Coset, Subgroup};
+pub use member::{Member, member_of};
 pub use solve::{
-    ClusterMaintenance, MateRole, Member, SolvedPoses, clusters, gauge_of, member_of,
-    reading_edges, relative_freedom_components, solve_document,
+    ClusterMaintenance, MateRole, SolvedPoses, clusters, gauge_of, reading_edges,
+    relative_freedom_components, solve_document,
 };
 
 /// The kernel's contact vocabulary, re-exported (M9-1 PR-1: one enum,
@@ -626,9 +629,9 @@ pub enum MateFault {
     },
     /// A mate's reference does not resolve to a live MEMBER — the
     /// walk from its operand down to its name's head found no live
-    /// instantiate node, reached through transforms and at most one
-    /// pattern level at a derivable pose (A11's member vocabulary) —
-    /// N5's dangling reference. It contributes no reading edge; the
+    /// instantiate node, reached through transforms, `Part` instance
+    /// selections and any number of pattern levels at a derivable
+    /// pose (A11's member vocabulary) — N5's dangling reference. It contributes no reading edge; the
     /// solve refuses typed rather than pretending the mate is absent.
     DanglingHead {
         /// The mate.
@@ -641,6 +644,26 @@ pub enum MateFault {
         /// the vocabulary otherwise. Not in general the reference's
         /// own head, which is often live and fine.
         head: RecipeNodeId,
+    },
+    /// **A `Node::Part` selects a copy the reference's NAME does not
+    /// name.** The name is the authority on which copy a mate speaks
+    /// about; a `Part` standing directly above a pattern in the walk
+    /// says which copy the body below it is. A document where those
+    /// disagree would be PLACED by the name and GATHERED by the
+    /// `Part` — two different bodies for one declaration — so the
+    /// solve refuses rather than choosing, and reports both indices.
+    PartSelectsAnotherCopy {
+        /// The mate.
+        mate: RecipeNodeId,
+        /// Which side.
+        side: MateSide,
+        /// The `Part` node whose index expression disagrees.
+        part: RecipeNodeId,
+        /// The copy the reference's name names.
+        named: u32,
+        /// What the `Part`'s index expression evaluates to at the
+        /// document's parameter bindings.
+        selected: i64,
     },
     /// A mate names ONE instance on both sides. A pair is two
     /// instances; a self-mate constrains nothing and is a recipe
@@ -781,6 +804,21 @@ impl core::fmt::Display for MateFault {
                 mate.0,
                 side.name(),
                 head.0
+            ),
+            Self::PartSelectsAnotherCopy {
+                mate,
+                side,
+                part,
+                named,
+                selected,
+            } => write!(
+                f,
+                "mate {}'s {} reference names copy {named}, but the part node {} above it \
+                 selects instance {selected} — the name says which copy a mate is about, and a \
+                 document that gathers another one is placed and gathered differently",
+                mate.0,
+                side.name(),
+                part.0
             ),
             Self::SelfMate { mate, instance } => write!(
                 f,

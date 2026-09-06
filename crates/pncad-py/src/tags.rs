@@ -452,6 +452,7 @@ pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
         MateFault::Contradictory { .. } => "mate_contradictory",
         MateFault::Under { .. } => "mate_under",
         MateFault::DanglingHead { .. } => "mate_dangling_head",
+        MateFault::PartSelectsAnotherCopy { .. } => "mate_part_selects_another_copy",
         MateFault::SelfMate { .. } => "mate_self",
         MateFault::Unleverable { .. } => "mate_datum_too_small_to_lever",
     }

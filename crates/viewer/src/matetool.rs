@@ -151,17 +151,19 @@ pub fn admitted_classes() -> Vec<MateAdmission> {
 ///
 /// The admission rule is A11's member vocabulary READ, not restated
 /// ([`pncad::document::member_of`]): the walk from the operand down to
-/// the name's head, through transforms and at most one pattern level,
-/// ending on a live `InstantiatePart`. The walk refuses a fused
-/// body's node because a boolean is not a pass-through: it mints its
-/// own geometry and its own names, and no member stands on it.
+/// the name's head, through transforms, `Part` instance selections
+/// and any number of pattern levels, ending on a live
+/// `InstantiatePart`. The walk refuses a fused body's node because a
+/// boolean is not a pass-through: it mints its own geometry and its
+/// own names, and no member stands on it.
 ///
-/// **A pattern copy's pose is read at the MASTER**, on the pattern's
-/// input instance. An alignment is authored in the member's part
-/// coordinates, every copy is a rigid image of the same part, and the
-/// static offset that separates the placed body from its master —
-/// the pattern's copy map, a transform's map, or both composed — is
-/// the SOLVE's, applied onto the alignment there. Reading the placed
+/// **A pattern copy's pose is read at the MASTER**, on the innermost
+/// pattern's input instance. An alignment is authored in the member's
+/// part coordinates, every copy at every level is a rigid image of
+/// the same part, and the static offset that separates the placed
+/// body from its master — the copy maps of the patterns the walk
+/// consumed, a transform's map, or all of them composed — is the
+/// SOLVE's, applied onto the alignment there. Reading the placed
 /// body's own world pose and dividing by the instance's placement
 /// would fold that offset into the authored numbers, where the solve
 /// would then apply it a second time.
@@ -184,21 +186,23 @@ fn picked_member(
     // pointing at.
     let reference = SitedRef::new(pick.node, pick.name.clone());
     let member = member_of(doc, &reference).ok_or_else(refused)?;
-    let read = match member.copy {
-        // A plain member's own name, headed at its instance.
-        None => pick.name.clone(),
-        // A copy reads its MASTER's entity: the name inside the
-        // `Instance(i)` qualifier, headed at the pattern's input.
-        //
-        // `member_of` admits a copy only on a name carrying that
-        // qualifier, so the refusal below cannot fire — it stands
-        // where a panic otherwise would, for an invariant this crate
-        // reads rather than owns.
-        Some(_) => match pick.name.path.first() {
-            Some(RoleSeg::Instance { of, .. }) => (**of).clone(),
-            _ => return Err(refused()),
-        },
-    };
+    // A copy reads its MASTER's entity: the name inside the
+    // `Instance(i)` qualifier, one qualifier per pattern level the
+    // walk consumed, so a nested copy descends to the INNERMOST name
+    // — the one headed at the instance the member stands on. A plain
+    // member consumes no level and keeps its own name.
+    //
+    // `member_of` admits a copy only on a name carrying that
+    // qualifier at each level, so the refusal below cannot fire — it
+    // stands where a panic otherwise would, for an invariant this
+    // crate reads rather than owns.
+    let mut read = pick.name.clone();
+    for _ in 0..member.copy.len() {
+        let Some(RoleSeg::Instance { of, .. }) = read.path.first() else {
+            return Err(refused());
+        };
+        read = (**of).clone();
+    }
     Ok((reference, member, read))
 }
 
@@ -210,10 +214,11 @@ pub enum MateToolError {
     /// The pick's reference is outside A11's member vocabulary, so
     /// there is no member to mate: the walk from the node the ray met
     /// down to the name's head runs through something that is not a
-    /// transform or the one admitted pattern level, or ends on
-    /// something that is not a live `InstantiatePart`
-    /// ([`pncad::document::member_of`]) — a fused body, a nested
-    /// pattern's copy.
+    /// transform, a `Part` instance selection or a pattern level the
+    /// name qualifies, or ends on something that is not a live
+    /// `InstantiatePart`
+    /// ([`pncad::document::member_of`]) — a fused body, a split
+    /// half.
     NotAnInstancePick {
         /// Which pick.
         side: MateSide,
@@ -523,7 +528,7 @@ impl MateTool {
         // that is its recorded (or identity) frame verbatim.
         let poses = solve_document(doc, tol);
         let frame_of = |side: MateSide,
-                        member: Member,
+                        member: &Member,
                         read: &StableName|
          -> Result<MateFrame, MateToolError> {
             // ONE node for both reads: the member's instance is the
@@ -550,8 +555,8 @@ impl MateTool {
                 reference: [reference.x, reference.y, reference.z],
             })
         };
-        let frame_a = frame_of(MateSide::A, member_a, &read_a)?;
-        let frame_b = frame_of(MateSide::B, member_b, &read_b)?;
+        let frame_a = frame_of(MateSide::A, &member_a, &read_a)?;
+        let frame_b = frame_of(MateSide::B, &member_b, &read_b)?;
         Ok(MateProposal {
             a: ref_a,
             b: ref_b,
