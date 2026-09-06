@@ -144,15 +144,13 @@ struct HalfEdgeFacts {
 /// whether its surface is curved.
 ///
 /// **The regime governs inventory failures and nothing else.** An
-/// inventory failure says *this group cannot be merged*; an arena
-/// fault says nothing about the group at all — either the variant's
-/// own line calls the body torn, or the refusal contradicts a fact
-/// the surgery established before the call it came back from
-/// ([`MergeCoplanarError::is_arena_fault`], [`OpPlacement`]). Either
-/// is a statement about the whole body, so it refuses the call under
-/// BOTH regimes and never becomes a skip record. The split is over
-/// inventory refusals; the escape is a class of refusal, not a third
-/// regime.
+/// arena fault says nothing about the group, so it refuses the call
+/// under BOTH regimes and never becomes a skip record. The split is
+/// over inventory refusals; the escape is a class of refusal, not a
+/// third regime. What puts a refusal in that class is stated once, in
+/// [`Body::merge_coplanar_faces_declared`]'s *Two failure regimes*
+/// section, and applied by
+/// [`MergeCoplanarError::is_arena_fault`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum GroupRegime {
     /// An inventory refusal is the CALL's refusal: nothing commits
@@ -177,9 +175,10 @@ impl GroupRegime {
     /// This is the whole of the regime split, in one place with one
     /// production call site, so the rule and the code that applies it
     /// cannot drift: a refusal is recorded only under
-    /// [`GroupRegime::RecordsASkip`] **and** only when it is an
-    /// inventory refusal rather than an arena fault
-    /// ([`MergeCoplanarError::is_arena_fault`]).
+    /// [`GroupRegime::RecordsASkip`] and only when it is an inventory
+    /// refusal rather than an arena fault
+    /// ([`MergeCoplanarError::is_arena_fault`], the class stated in
+    /// [`Body::merge_coplanar_faces_declared`]).
     fn records(self, reason: &MergeCoplanarError) -> bool {
         self == Self::RecordsASkip && !reason.is_arena_fault()
     }
@@ -270,10 +269,10 @@ pub enum MergeCoplanarError {
     /// [`EulerOpError::StaleKey`] / [`EulerOpError::StaleGeometry`],
     /// the state is the one the operators name and the caller's
     /// recourse is identical, so it is not given a second name here.
-    /// Those two are arena faults and escape [`GroupRegime`]'s split,
-    /// as does every other refusal the surgery's operator calls can
-    /// return — the class is [`MergeCoplanarError::is_arena_fault`]'s
-    /// and it is wider than a dangling reference.
+    /// Those two are arena faults and refuse the call under both
+    /// failure regimes, as do the other operator refusals the class
+    /// covers — which is wider than a dangling reference and is
+    /// stated in [`Body::merge_coplanar_faces_declared`].
     Op {
         /// The refusing operator's error.
         error: EulerOpError,
@@ -431,140 +430,300 @@ impl From<DanglingRef> for MergeCoplanarError {
     }
 }
 
-// Test-only tear point for the executed contradicted-fact case
-// (`a_contradicted_fact_escapes_the_recording_regime`): it puts the
-// dying face's own outer loop into its ring list, between the
-// absorption's ring drain and the `kef` that reads it.
+// ---- Test-only tear points -------------------------------------
 //
-// The door's entry gate refuses a torn body before any group is
-// staged, so no INPUT reaches a refusal that contradicts a fact the
-// surgery established — the only place to execute one is where the
-// door itself would observe it, between the fact and the call.
-// Nothing outside a test build reads this.
+// `merge_group` RE-CHECKS each fact it relies on immediately before
+// the operator call that could contradict it (the `debug_assert!`
+// rows in the surgery), so a refusal of a contradicted variant on a
+// production build means the arena moved in the instruction window
+// between the proof and the call. Nothing outside a test build can
+// reach that window — the door's entry gate refuses a torn INPUT
+// before any group is staged — so a test arms one of these points,
+// which sit AFTER the re-check and immediately before the call, and
+// mutate exactly the fact the re-check just proved. That placement is
+// the point: the tear models the window the re-check cannot cover.
+
+/// One falsifiable fact of `merge_group`'s surgery, named where it is
+/// established, re-checked and torn.
 #[cfg(test)]
-thread_local! {
-    static TEAR_THE_DRAINED_FACE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TearPoint {
+    /// Before `ring_move`: makes the ring its own face's outer loop.
+    RingBecomesItsFacesOuter,
+    /// Before `ring_move`: bends the ring's face onto a foreign shell.
+    RingsFaceLeavesTheShell,
+    /// Before `kef`: re-parents the dying half onto its mate's loop.
+    DyingHalfJoinsItsMatesLoop,
+    /// Before `kef`: puts a ring back onto the drained face.
+    DrainedFaceRegainsARing,
+    /// Before `kev`: collapses the strut edge onto one vertex.
+    StrutBecomesASelfLoop,
+    /// Before `kemr`: re-parents the duplicate's minus half elsewhere.
+    DuplicateHalvesPartCompany,
 }
 
-/// Applies the tear point above when a test has armed it.
 #[cfg(test)]
-fn tear_the_drained_face<T: geom_core::Real>(body: &mut Body<T>, dying: FaceKey) {
-    if !TEAR_THE_DRAINED_FACE.with(std::cell::Cell::get) {
-        return;
+thread_local! {
+    static ARMED_TEAR: std::cell::Cell<Option<TearPoint>> = const { std::cell::Cell::new(None) };
+}
+
+/// Arms one tear point for the guard's lifetime and disarms on drop,
+/// so a panic inside the door — an assertion in the row itself, or a
+/// `debug_assert!` in the surgery — cannot leave it armed for the
+/// next row on this thread.
+#[cfg(test)]
+pub(crate) struct ArmedTear;
+
+#[cfg(test)]
+impl ArmedTear {
+    fn at(point: TearPoint) -> Self {
+        ARMED_TEAR.with(|c| c.set(Some(point)));
+        Self
     }
-    let Some(outer) = body.get_face(dying).map(|f| f.outer) else {
+}
+
+#[cfg(test)]
+impl Drop for ArmedTear {
+    fn drop(&mut self) {
+        ARMED_TEAR.with(|c| c.set(None));
+    }
+}
+
+#[cfg(test)]
+fn armed_tear() -> Option<TearPoint> {
+    ARMED_TEAR.with(std::cell::Cell::get)
+}
+
+/// The tear points offered immediately before `ring_move`.
+#[cfg(test)]
+fn tear_before_ring_move<T: geom_core::Real>(body: &mut Body<T>, ring: LoopKey) {
+    let Some(point) = armed_tear() else { return };
+    let Some(face_key) = body.get_loop(ring).map(|l| l.face) else {
         return;
     };
-    if let Some(face) = body.faces.get_mut(dying) {
-        face.rings.push(outer);
+    let Some(face) = body.faces.get_mut(face_key) else {
+        return;
+    };
+    match point {
+        TearPoint::RingBecomesItsFacesOuter => face.outer = ring,
+        TearPoint::RingsFaceLeavesTheShell => face.shell = crate::entity::ShellKey::default(),
+        _ => {}
+    }
+}
+
+/// The tear points offered immediately before `kef`.
+#[cfg(test)]
+fn tear_before_kef<T: geom_core::Real>(
+    body: &mut Body<T>,
+    dying_he: crate::entity::HalfEdgeKey,
+    edge: EdgeKey,
+    dying_face: FaceKey,
+) {
+    match armed_tear() {
+        Some(TearPoint::DyingHalfJoinsItsMatesLoop) => {
+            let Some(e) = body.get_edge(edge).cloned() else {
+                return;
+            };
+            let mate = if e.he_plus == dying_he {
+                e.he_minus
+            } else {
+                e.he_plus
+            };
+            let Some(mates_loop) = body.get_half_edge(mate).map(|h| h.parent_loop) else {
+                return;
+            };
+            if let Some(h) = body.half_edges.get_mut(dying_he) {
+                h.parent_loop = mates_loop;
+            }
+        }
+        Some(TearPoint::DrainedFaceRegainsARing) => {
+            let Some(outer) = body.get_face(dying_face).map(|f| f.outer) else {
+                return;
+            };
+            if let Some(face) = body.faces.get_mut(dying_face) {
+                face.rings.push(outer);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// The tear point offered immediately before `kev`.
+#[cfg(test)]
+fn tear_before_kev<T: geom_core::Real>(
+    body: &mut Body<T>,
+    from_rim: crate::entity::HalfEdgeKey,
+    edge: EdgeKey,
+) {
+    if armed_tear() != Some(TearPoint::StrutBecomesASelfLoop) {
+        return;
+    }
+    let Some(e) = body.get_edge(edge).cloned() else {
+        return;
+    };
+    let mate = if e.he_plus == from_rim {
+        e.he_minus
+    } else {
+        e.he_plus
+    };
+    let Some(start) = body.get_half_edge(from_rim).map(|h| h.start) else {
+        return;
+    };
+    if let Some(h) = body.half_edges.get_mut(mate) {
+        h.start = start;
+    }
+}
+
+/// The tear point offered immediately before `kemr`.
+#[cfg(test)]
+fn tear_before_kemr<T: geom_core::Real>(body: &mut Body<T>, he_minus: crate::entity::HalfEdgeKey) {
+    if armed_tear() != Some(TearPoint::DuplicateHalvesPartCompany) {
+        return;
+    }
+    if let Some(h) = body.half_edges.get_mut(he_minus) {
+        h.parent_loop = LoopKey::default();
+    }
+}
+
+/// A fact `merge_group` establishes, **re-checks immediately before**
+/// the operator call that could contradict it, and therefore owns.
+///
+/// A fact the door merely read earlier is worth nothing here: the
+/// door's own mutations run in between, and a fact the surgery
+/// invalidates itself is not contradicted by an operator reporting
+/// it. `kef`'s [`EulerOpError::SameFace`] is the case that taught it —
+/// the absorption's `ring_move` drain re-homes the dying loop onto
+/// the survivor, so on a nested (membrane-in-a-ring) group the two
+/// halves legitimately end up in one face and `SameFace` is an
+/// INVENTORY refusal, not a contradiction. Each fact below is
+/// re-derived from the arena at the call, so a refusal naming it can
+/// only be a tear.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum EstablishedFact {
+    /// The ring being re-homed is not its own face's outer loop
+    /// (tier 1 keeps `outer` out of `rings`, and the ring came out of
+    /// `rings`).
+    RingIsNotItsFacesOuter,
+    /// The ring's face and the survivor lie in one shell (they were
+    /// found across one edge, and tier 1's edge-adjacency coherence
+    /// keeps an edge's two faces in one shell).
+    RingAndSurvivorShareAShell,
+    /// The absorbed face is ring-free: the drain above re-homed every
+    /// ring it had onto the survivor.
+    AbsorbedFaceIsRingFree,
+    /// The dying half-edge and its mate are in different loops.
+    DyingHalvesAreInDifferentLoops,
+    /// The strut edge's two halves start at distinct vertices, which
+    /// `strut_tip`'s valence-one answer established.
+    StrutHalvesHaveDistinctEnds,
+    /// The duplicate edge's two halves share a loop, which the
+    /// intra-face pass verified before choosing `kemr`.
+    DuplicateHalvesShareALoop,
+}
+
+impl EstablishedFact {
+    /// The sentence the re-check proves, for its assertion message.
+    fn what(self) -> &'static str {
+        match self {
+            Self::RingIsNotItsFacesOuter => {
+                "the ring being re-homed is not its own face's outer loop"
+            }
+            Self::RingAndSurvivorShareAShell => "the ring's face and the survivor lie in one shell",
+            Self::AbsorbedFaceIsRingFree => "the drain leaves the absorbed face ring-free",
+            Self::DyingHalvesAreInDifferentLoops => {
+                "the dying half-edge and its mate are in different loops"
+            }
+            Self::StrutHalvesHaveDistinctEnds => {
+                "the strut edge's two halves start at distinct vertices"
+            }
+            Self::DuplicateHalvesShareALoop => "the duplicate edge's two halves share a loop",
+        }
     }
 }
 
 /// Where one [`EulerOpError`] falls **at this door**.
 ///
-/// Two questions meet on an operator refusal that comes back to
-/// `Body::merge_group`, and they have different owners:
+/// The arena-fault rule ([`Body::merge_coplanar_faces_declared`]) has
+/// two halves with two owners, and this enum is the door's half. *Is
+/// the variant torn by its own line?* belongs to the operator layer
+/// ([`EulerOpError::reports_tier1_corruption`]) and
+/// [`OpPlacement::TheEnumsVerdict`] delegates it. *Does the refusal
+/// contradict a fact this door RE-CHECKS at the call?* no other
+/// caller of the operator can answer, so it is enumerated here, one
+/// arm per [`EstablishedFact`].
 ///
-/// - *Is the variant torn by its own line?* A property of the
-///   VARIANT, exhaustive and owned by the operator layer
-///   ([`EulerOpError::reports_tier1_corruption`]). Nothing here
-///   answers it: [`OpPlacement::Torn`] records only that this door
-///   reaches the variant, and the verdict is delegated.
-/// - *Does the refusal contradict a fact the surgery established
-///   before the call?* A property of THIS DOOR, which no other
-///   caller of the operator can answer. `kef` cannot report
-///   [`EulerOpError::SameFace`] about a pair the absorption scan has
-///   just read out of two different faces; if it does, the arena
-///   changed under the door's feet — a kernel bug, which is exactly
-///   what the arena-fault escape exists for.
+/// # Which site raises which
 ///
-/// The third column of that classification — a variant an operator
-/// can return at this door on a tier-1-VALID body, i.e. a genuine
-/// inventory refusal for [`GroupRegime`] to place — is **empty**.
-/// Every one of the fifteen variants `merge_group`'s operator calls
-/// and lookups can raise is either torn by the enum's line or
-/// contradicts an established fact. The regime places the merge's own
-/// refusals ([`MergeCoplanarError::PeriodClosure`] and its siblings),
-/// never an [`EulerOpError`].
+/// Nine sites in `merge_group` can return an [`EulerOpError`], and
+/// this is the whole of what they raise. `R` marks a refusal that is
+/// reachable on a tier-1-valid body — the regime's to place — and
+/// `C` one this door contradicts.
+///
+/// | site | can return |
+/// | --- | --- |
+/// | `edge_halves` | `StaleKey` |
+/// | `get_face` (the dying face) | `StaleKey` |
+/// | `face_is_planar` | `StaleKey`, `StaleGeometry` |
+/// | `strut_tip` | `OrbitBroken` |
+/// | `loop_winding`, through `merged_outline_ring` | `StaleKey` |
+/// | `ring_move` | `StaleKey`, `RingIsOuter` (C), `CrossShell` (C) |
+/// | `kef` | `StaleKey`, `UnclaimedHalfEdge`, `LoopCycleBroken`, `LoopNotCycle`, `SameLoop` (C), `SameFace` (**R**), `FaceHasRings` (C) |
+/// | `kev` | `StaleKey`, `UnclaimedHalfEdge`, `LoopNotCycle`, `OrbitBroken`, `SelfLoopEdge` (C) |
+/// | `kemr` | `StaleKey`, `NotSameEdge`, `LoopNotCycle`, `LoopCycleBroken`, `EmptyAnchorsCollide`, `NotSameLoop` (C) |
+///
+/// The remaining twelve variants belong to operators this door does
+/// not call — the attachment and split gates (`set_edge_curve`,
+/// `split_edge`), the make-side sites (`mev`, `mef`, `mekr`), `kvfs`,
+/// and `kfmrh`'s cross-solid form — and take the enum's verdict like
+/// any other variant this door does not contradict. That is not a
+/// third arm: an arm the door cannot reach cannot be pinned, and a
+/// classification nothing can distinguish is documentation, which is
+/// what this table is.
 ///
 /// The match producing this is exhaustive on purpose, like the enum's
 /// own: a new [`EulerOpError`] variant does not compile until someone
 /// places it here as well as on the operator layer's line.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum OpPlacement {
-    /// A call this door makes can return it, and the variant's own
-    /// documentation already says the body is torn.
-    Torn,
-    /// A call this door makes can return it on a tier-1-valid body
-    /// only by contradicting a fact `merge_group` established before
-    /// the call — carried here, with the check that established it.
-    Contradicts(&'static str),
-    /// No call this door makes returns it. Placed by the enum's line
-    /// if one ever arrives.
-    NotRaisedHere,
+    /// The operator layer's verdict, taken as it stands. The door
+    /// keeps no copy of that list and adds nothing to it.
+    TheEnumsVerdict,
+    /// The refusal contradicts a fact this door re-checks immediately
+    /// before the call it came back from, so it reports the arena
+    /// whatever the variant means elsewhere.
+    Contradicts(EstablishedFact),
 }
 
 impl OpPlacement {
     /// Places one operator refusal against the facts `merge_group`
-    /// establishes before the call that returned it.
-    ///
-    /// The sites that can raise one: the `edge_halves`, `get_face`,
-    /// `face_is_planar` and `strut_tip` lookups, and the four
-    /// operator calls `ring_move`, `kef`, `kev`, `kemr`.
+    /// re-checks at its calls (the table in [`OpPlacement`]).
     fn of(error: &EulerOpError) -> Self {
+        use EstablishedFact as F;
         use EulerOpError as E;
         match error {
-            // ---- Escape, this door's own: the refusal contradicts a
-            // fact established before the call it came back from. ----
-            E::NotSameLoop { .. } => Self::Contradicts(
-                "the intra-face pass verified the duplicate edge's two halves share a \
-                 loop — it refuses UnsupportedConfiguration where they do not — before \
-                 calling kemr",
-            ),
-            E::SelfLoopEdge { .. } => Self::Contradicts(
-                "the strut repair verified through `strut_tip` that the dying end's \
-                 vertex orbit holds ONE half-edge, which an edge whose two halves start \
-                 at one vertex cannot, before calling kev",
-            ),
-            E::SameLoop { .. } => Self::Contradicts(
-                "the absorption scan read the dying half-edge and its mate out of two \
-                 different FACES, and a loop belongs to one face",
-            ),
-            E::SameFace { .. } => Self::Contradicts(
-                "the absorption scan read the dying half-edge and its mate out of two \
-                 different faces — the survivor and the absorbed member — before \
-                 calling kef",
-            ),
-            E::FaceHasRings { .. } => Self::Contradicts(
-                "the absorption re-homed every ring of the dying face onto the survivor \
-                 through `ring_move` before calling kef",
-            ),
-            E::RingIsOuter { .. } => Self::Contradicts(
-                "the absorption took the ring out of the dying face's `rings` list, and \
-                 tier 1 keeps a face's outer loop out of that list",
-            ),
-            E::CrossShell { .. } => Self::Contradicts(
-                "the absorption scan found the two faces across ONE edge, and tier 1 \
-                 keeps an edge's two faces in one shell",
-            ),
-            // ---- Escape, delegated: torn by the variant's own line.
-            // Reachable here — the operators and the lookups beside
-            // them announce a failed lookup and a broken walk rather
-            // than answering — and what the state MEANS is the enum's
-            // to say, so this arm carries no verdict of its own. ----
-            E::StaleKey { .. }
+            // ---- This door's own half: contradicts a re-checked
+            // fact. Each arm's re-check is the `debug_assert!` that
+            // carries the same `EstablishedFact` in the surgery. ----
+            E::RingIsOuter { .. } => Self::Contradicts(F::RingIsNotItsFacesOuter),
+            E::CrossShell { .. } => Self::Contradicts(F::RingAndSurvivorShareAShell),
+            E::FaceHasRings { .. } => Self::Contradicts(F::AbsorbedFaceIsRingFree),
+            E::SameLoop { .. } => Self::Contradicts(F::DyingHalvesAreInDifferentLoops),
+            E::SelfLoopEdge { .. } => Self::Contradicts(F::StrutHalvesHaveDistinctEnds),
+            E::NotSameLoop { .. } => Self::Contradicts(F::DuplicateHalvesShareALoop),
+            // ---- The enum's half. `SameFace` is here and not above:
+            // the absorption's own drain re-homes the dying loop onto
+            // the survivor, so a nested group meets it on a body that
+            // was never torn and the regime places it. ----
+            E::SameFace { .. }
+            | E::StaleKey { .. }
             | E::StaleGeometry { .. }
             | E::LoopCycleBroken { .. }
             | E::LoopNotCycle { .. }
             | E::NotSameEdge { .. }
             | E::UnclaimedHalfEdge { .. }
             | E::OrbitBroken { .. }
-            | E::EmptyAnchorsCollide { .. } => Self::Torn,
-            // ---- Raised only by operators this door does not call:
-            // the attachment and split gates (`set_edge_curve`,
-            // `split_edge`), the make-side sites (`mev`, `mef`,
-            // `mekr`), `kvfs`, and `kfmrh`'s cross-solid form. ----
-            E::Certification { .. }
+            | E::EmptyAnchorsCollide { .. }
+            | E::Certification { .. }
             | E::DescriptionNotAdjacent { .. }
             | E::FanStartMismatch { .. }
             | E::FanOrbitBroken { .. }
@@ -575,7 +734,7 @@ impl OpPlacement {
             | E::NullScaffoldCurve { .. }
             | E::SplitParamNotInterior { .. }
             | E::SplitParamEscalated { .. }
-            | E::CrossSolid { .. } => Self::NotRaisedHere,
+            | E::CrossSolid { .. } => Self::TheEnumsVerdict,
         }
     }
 }
@@ -584,33 +743,19 @@ impl MergeCoplanarError {
     /// Whether this refusal reports a torn ARENA rather than a fact
     /// about the group's mergeability.
     ///
-    /// An arena fault is a statement about the whole body, so it
-    /// escapes [`GroupRegime`]'s split and refuses the call under
-    /// both regimes: recording one as a skip would return `Ok` from a
-    /// door that has just observed a kernel bug. Every other variant
-    /// — the inventory refusals — is the regime's to place.
-    ///
-    /// **The rule has two halves, because two questions meet here**
-    /// ([`OpPlacement`]). A refusal escapes when the variant is torn
-    /// by its own line — asked of the operator layer
-    /// ([`EulerOpError::reports_tier1_corruption`], whose exhaustive
-    /// match is what stops the two lists drifting apart) — **or**
-    /// when it contradicts a fact `merge_group` established before
-    /// the call it came back from.
-    ///
-    /// The second half is enumerated here because it is this door's
-    /// own question and nothing else can answer it; the first is
-    /// delegated because it is not. A second copy of the ENUM's list
-    /// in this file is what the door must not keep, and does not:
-    /// keeping one is how the door came to promise a rule it kept for
-    /// two variants out of nine, and asking the enum a question it
-    /// does not answer is how the promise stayed false for seven
-    /// more.
+    /// The rule is stated once, in [`GroupRegime`]'s header, and this
+    /// applies it: a refusal escapes when the variant is torn by the
+    /// operator layer's own line
+    /// ([`EulerOpError::reports_tier1_corruption`]), **or** when it
+    /// contradicts a fact this door re-checks at the call
+    /// ([`OpPlacement`], [`EstablishedFact`]). The second half is
+    /// enumerated here because it is this door's own question; the
+    /// first is delegated because it is not.
     fn is_arena_fault(&self) -> bool {
         match self {
             Self::Op { error } => match OpPlacement::of(error) {
                 OpPlacement::Contradicts(_) => true,
-                OpPlacement::Torn | OpPlacement::NotRaisedHere => error.reports_tier1_corruption(),
+                OpPlacement::TheEnumsVerdict => error.reports_tier1_corruption(),
             },
             _ => false,
         }
@@ -753,19 +898,34 @@ impl<T: Decide> Body<T> {
     /// refusal and never becomes a record**: it says nothing about
     /// the group, so it refuses the call under both regimes rather
     /// than returning `Ok` from a door that has just observed a
-    /// kernel bug. **Two things put a refusal in that class and this
-    /// door asks both** ([`MergeCoplanarError::is_arena_fault`]): the
-    /// operator layer's own line
-    /// ([`EulerOpError::reports_tier1_corruption`] — a dangling
-    /// reference and the walks and bijections that cannot fail on a
-    /// tier-1-valid body), and a refusal that CONTRADICTS a fact the
-    /// group's surgery established before the call it came back from.
-    /// `kef` reporting that the dying face still has rings, on a face
-    /// whose rings the surgery has just re-homed, reports the arena
-    /// and not the group's mergeability, whatever that variant means
-    /// at another door. The second class is enumerated here, since it
-    /// is this door's question; the first is the operator layer's and
-    /// is asked, not copied.
+    /// kernel bug. **This is the rule's one statement in this
+    /// module** — everything else that applies it points here.
+    ///
+    /// Two things put a refusal in that class and this door asks
+    /// both:
+    ///
+    /// 1. The **operator layer's own line**
+    ///    ([`EulerOpError::reports_tier1_corruption`]): a dangling
+    ///    reference, and the walks and bijections that cannot fail on
+    ///    a tier-1-valid body. A property of the variant, asked and
+    ///    never copied here.
+    /// 2. A refusal that **contradicts a fact the surgery re-checks
+    ///    at the call** it came back from. `kef` reporting that the
+    ///    dying face still has rings, on a face whose rings the
+    ///    surgery re-homed and re-checked a statement earlier,
+    ///    reports the arena and not the group's mergeability,
+    ///    whatever that variant means at another door.
+    ///
+    /// **Re-checked, not merely established.** A fact the door read
+    /// before its own next mutation says nothing about the call:
+    /// `kef`'s [`EulerOpError::SameFace`] is the case that settles
+    /// it. The absorption's ring drain re-homes the dying loop onto
+    /// the survivor, so on a nested group — a membrane face covering
+    /// a ring of its neighbour — the two halves legitimately end up
+    /// in one face, and `SameFace` there is an INVENTORY refusal on a
+    /// body that was never torn. Only the facts the surgery
+    /// re-derives from the arena immediately before the call are the
+    /// door's to contradict.
     ///
     /// [`MergeCoplanarError::GroupKindSplit`] also refuses under both
     /// regimes, but for a different reason and with a cost worth
@@ -958,6 +1118,27 @@ impl<T: Decide> Body<T> {
         }
         *self = work;
         Ok(outcome)
+    }
+
+    /// The other half of `edge`, resolved — the re-checks' shared
+    /// lookup. `None` when either key does not resolve, which the
+    /// re-checks read as "nothing to prove here": a dangling key is
+    /// the operator's own refusal to make, and it is torn by the
+    /// enum's line either way.
+    fn edge_mate(
+        &self,
+        he: crate::entity::HalfEdgeKey,
+        edge: EdgeKey,
+    ) -> Option<&crate::entity::HalfEdge> {
+        let e = self.get_edge(edge)?;
+        let mate = if e.he_plus == he {
+            e.he_minus
+        } else if e.he_minus == he {
+            e.he_plus
+        } else {
+            return None;
+        };
+        self.get_half_edge(mate)
     }
 
     /// Whether the group's face is planar, announcing both lookups.
@@ -1479,10 +1660,49 @@ impl<T: Decide> Body<T> {
                 .get_face(other)
                 .ok_or(DanglingRef::Entity(EntityId::Face(other)))?;
             for ring in dying.rings.clone() {
+                // The two facts `ring_move` could contradict, RE-READ
+                // from the arena here rather than carried down from
+                // the scan: the drain's own earlier iterations have
+                // mutated ring lists and loop back-pointers in
+                // between, and a fact from before a mutation proves
+                // nothing about this call.
+                debug_assert!(
+                    self.get_loop(ring)
+                        .and_then(|l| self.get_face(l.face))
+                        .is_none_or(|f| f.outer != ring),
+                    "merge_group: {}",
+                    EstablishedFact::RingIsNotItsFacesOuter.what()
+                );
+                debug_assert!(
+                    self.get_loop(ring)
+                        .and_then(|l| self.get_face(l.face))
+                        .zip(self.get_face(rep))
+                        .is_none_or(|(from, to)| from.shell == to.shell),
+                    "merge_group: {}",
+                    EstablishedFact::RingAndSurvivorShareAShell.what()
+                );
+                #[cfg(test)]
+                tear_before_ring_move(self, ring);
                 self.ring_move(ring, rep)?;
             }
+            // The two facts `kef` could contradict. The drain above is
+            // exactly the mutation that invalidates a fact read before
+            // it — it is why `SameFace` is NOT one of these — so both
+            // are re-derived here, after it.
+            debug_assert!(
+                self.get_half_edge(dying_he)
+                    .zip(self.edge_mate(dying_he, edge_key))
+                    .is_none_or(|(dying, mate)| dying.parent_loop != mate.parent_loop),
+                "merge_group: {}",
+                EstablishedFact::DyingHalvesAreInDifferentLoops.what()
+            );
+            debug_assert!(
+                self.get_face(other).is_none_or(|f| f.rings.is_empty()),
+                "merge_group: {}",
+                EstablishedFact::AbsorbedFaceIsRingFree.what()
+            );
             #[cfg(test)]
-            tear_the_drained_face(self, other);
+            tear_before_kef(self, dying_he, edge_key, other);
             self.kef(dying_he)?;
             group.absorbed.push(other);
             group.killed_edges.push(edge_key);
@@ -1557,11 +1777,34 @@ impl<T: Decide> Body<T> {
                 }
             }
             if let Some((from_rim, killed)) = tip {
+                // The fact `kev` could contradict, re-read at the
+                // call: `strut_tip` answered about a vertex orbit,
+                // and what `kev` refuses on is the derived fact that
+                // the edge's two ends are distinct.
+                debug_assert!(
+                    self.get_half_edge(from_rim)
+                        .zip(self.edge_mate(from_rim, edge_key))
+                        .is_none_or(|(rim, mate)| rim.start != mate.start),
+                    "merge_group: {}",
+                    EstablishedFact::StrutHalvesHaveDistinctEnds.what()
+                );
+                #[cfg(test)]
+                tear_before_kev(self, from_rim, edge_key);
                 self.kev(from_rim)?;
                 group.killed_edges.push(edge_key);
                 group.killed_vertices.push(killed);
                 continue;
             }
+            // The fact `kemr` could contradict, re-read at the call.
+            debug_assert!(
+                self.get_half_edge(he_plus)
+                    .zip(self.get_half_edge(he_minus))
+                    .is_none_or(|(a, b)| a.parent_loop == b.parent_loop),
+                "merge_group: {}",
+                EstablishedFact::DuplicateHalvesShareALoop.what()
+            );
+            #[cfg(test)]
+            tear_before_kemr(self, he_minus);
             let result = self.kemr(he_plus, he_minus)?;
             group.killed_edges.push(edge_key);
             group.rings_made.push(result.ring);
@@ -1921,184 +2164,476 @@ mod tests {
         assert_eq!(group.absorbed, vec![other]);
     }
 
-    /// **A refusal that contradicts a fact the surgery established
-    /// escapes the recording regime.** The executed case for the
-    /// door's own half of the arena-fault rule.
+    // ---- Fixtures whose REGIME is a property of the fixture ----
+    //
+    // A group's regime must be asserted, never inherited from an
+    // accident of the fixture: `ops_cube`'s faces sit on the `mvfs`
+    // NURBS placeholder, so the door reads the whole cube as one
+    // CURVED group and records — which is a defect's doing, not a
+    // property of the shape under test. These two build the regime
+    // deliberately, out of planes.
+
+    /// The unit cube with the `mvfs` placeholder overwritten IN PLACE
+    /// by a real plane, so every face shares one plane key: the
+    /// structural rung groups the whole cube and, being planar and
+    /// undeclared, it runs under [`GroupRegime::RefusesTheCall`].
     ///
-    /// The absorption re-homes every ring of the dying face onto the
-    /// survivor and then calls `kef`, which refuses a face that still
-    /// has rings. `kef` answering [`EulerOpError::FaceHasRings`]
-    /// about that face therefore reports the arena and not the
-    /// group — but the variant's own line calls it a legal fact about
-    /// the operation ([`EulerOpError::reports_tier1_corruption`] is
-    /// `false` for it, pinned below), so asking the enum alone placed
-    /// it as an inventory refusal: `Ok`, one recorded skip, from a
-    /// call that had just watched the arena change under its feet.
-    ///
-    /// The tear is applied at the door's own tear point rather than
-    /// to the input, because a torn INPUT cannot reach here at all:
-    /// the entry gate refuses it before any group is staged.
-    #[test]
-    fn a_contradicted_fact_escapes_the_recording_regime() {
-        let tol = Tol::witness();
+    /// The key is overwritten rather than replaced because a fresh
+    /// key would orphan the placeholder and the entry gate refuses an
+    /// orphaned surface.
+    fn structural_planar_cube(tol: Tol) -> Body<f64> {
         let mut body = ops_cube(tol).body;
-        TEAR_THE_DRAINED_FACE.with(|c| c.set(true));
-        let refused = body.merge_coplanar_faces(tol);
-        TEAR_THE_DRAINED_FACE.with(|c| c.set(false));
-        let Err(MergeCoplanarError::Op {
-            error: EulerOpError::FaceHasRings { face },
-        }) = refused
-        else {
-            panic!("a drained face that still has rings refuses the call: {refused:?}")
-        };
-        assert!(!EulerOpError::FaceHasRings { face }.reports_tier1_corruption());
+        let key = body.faces().next().expect("a cube has faces").1.surface;
+        *body
+            .surfaces
+            .get_mut(key)
+            .expect("the placeholder resolves") = flat_plane();
+        body
     }
 
-    /// The control: the same fixture, the same regime, no tear — the
-    /// door records its skip and returns `Ok`, so the row above pins
-    /// the escape and not the fixture. The recorded refusal is the
-    /// merge's OWN ([`MergeCoplanarError::PeriodClosure`]), which is
-    /// what the regime is there to place.
-    #[test]
-    fn the_same_group_records_its_own_refusal_untorn() {
-        let tol = Tol::witness();
+    /// One plane description, used for every face of the planar
+    /// fixtures: the merge's rungs never compare coordinates, so one
+    /// description on distinct keys is exactly the declared rung's
+    /// subject.
+    fn flat_plane() -> Surface<f64> {
+        Surface::Plane {
+            origin: geom_core::Point3::new(0.0, 0.0, 0.0),
+            normal: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// Gives every face of `body` its OWN plane key carrying one
+    /// description, and returns the declared pairs that glue them:
+    /// planar, licensed only by the declaration, so the group runs
+    /// under [`GroupRegime::RecordsASkip`] without depending on any
+    /// face being curved.
+    fn declare_planes_pairwise(body: &mut Body<f64>) -> Vec<(SurfaceKey, SurfaceKey)> {
+        let key = body.faces().next().expect("faces").1.surface;
+        *body
+            .surfaces
+            .get_mut(key)
+            .expect("the placeholder resolves") = flat_plane();
+        let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        let mut keys = vec![key];
+        for f in &faces[1..] {
+            let plane = body.surfaces.insert(flat_plane());
+            body.faces.get_mut(*f).expect("live").surface = plane;
+            keys.push(plane);
+        }
+        keys[1..].iter().map(|&k| (keys[0], k)).collect()
+    }
+
+    /// The declared planar cube: [`GroupRegime::RecordsASkip`] with
+    /// no curved face anywhere.
+    fn declared_planar_cube(tol: Tol) -> (Body<f64>, Vec<(SurfaceKey, SurfaceKey)>) {
         let mut body = ops_cube(tol).body;
+        let declared = declare_planes_pairwise(&mut body);
+        (body, declared)
+    }
+
+    /// The group's regime, asked the way the door asks it: every face
+    /// of these fixtures carries a declared key, so the door's own
+    /// `declared_faces` set is the whole body.
+    fn regime_of(body: &Body<f64>, declared: bool) -> GroupRegime {
+        let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        let declared_faces: std::collections::BTreeSet<FaceKey> = if declared {
+            faces.iter().copied().collect()
+        } else {
+            std::collections::BTreeSet::new()
+        };
+        body.group_regime(faces[0], &faces[1..], &declared_faces)
+            .expect("the fixture's faces resolve")
+    }
+
+    /// Runs the public door with one tear point armed, and returns
+    /// the operator refusal it escaped with. The guard disarms on
+    /// drop, so a failing assertion cannot leave the point armed.
+    fn escaped_refusal(
+        point: TearPoint,
+        body: &mut Body<f64>,
+        declared: &[(SurfaceKey, SurfaceKey)],
+        tol: Tol,
+    ) -> EulerOpError {
+        let outcome = {
+            let _armed = ArmedTear::at(point);
+            body.merge_coplanar_faces_declared(declared, tol)
+        };
+        match outcome {
+            Err(MergeCoplanarError::Op { error }) => error,
+            other => panic!("{point:?}: expected the refusal to escape as Err(Op), got {other:?}"),
+        }
+    }
+
+    /// **The two planar fixtures take the two regimes**, so every row
+    /// below states which regime it ran under instead of inheriting
+    /// one.
+    #[test]
+    fn the_planar_fixtures_take_the_two_regimes() {
+        let tol = Tol::witness();
+        assert_eq!(
+            regime_of(&structural_planar_cube(tol), false),
+            GroupRegime::RefusesTheCall
+        );
+        let (declared_body, declared) = declared_planar_cube(tol);
+        assert_eq!(regime_of(&declared_body, true), GroupRegime::RecordsASkip);
+        // ...and the recording fixture reaches the surgery untorn.
+        let mut untorn = declared_body;
+        let outcome = untorn.merge_coplanar_faces_declared(&declared, tol);
+        assert!(outcome.is_ok(), "{outcome:?}");
+    }
+
+    /// The fixture a tear point needs, given a plane recipe: the two
+    /// `ring_move` tears need a group whose absorption has a ring to
+    /// re-home, which a bare cube has not.
+    fn fixture_for(point: TearPoint, tol: Tol) -> Body<f64> {
+        match point {
+            TearPoint::RingBecomesItsFacesOuter | TearPoint::RingsFaceLeavesTheShell => {
+                crate::fixtures::ops_holed_box(tol).body
+            }
+            _ => ops_cube(tol).body,
+        }
+    }
+
+    /// The four facts whose tear reaches its operator on these
+    /// fixtures, each with the [`EstablishedFact`] the re-check
+    /// before that call proves.
+    ///
+    /// [`EstablishedFact::StrutHalvesHaveDistinctEnds`] is not among
+    /// them and is ARGUED, not executed: `kev` runs only on a
+    /// straight-seam strut, which needs a group whose two shared-edge
+    /// runs meet at a redundant subdivision vertex, and no fixture in
+    /// the crate's corpus both reaches that repair and admits a plane
+    /// recipe. Its re-check stands at the call like the others; what
+    /// is missing is a body that gets there, and saying so is the
+    /// honest state of the row rather than a claim of coverage.
+    const EXECUTED_FACTS: [(TearPoint, EstablishedFact); 5] = [
+        (
+            TearPoint::RingBecomesItsFacesOuter,
+            EstablishedFact::RingIsNotItsFacesOuter,
+        ),
+        (
+            TearPoint::RingsFaceLeavesTheShell,
+            EstablishedFact::RingAndSurvivorShareAShell,
+        ),
+        (
+            TearPoint::DyingHalfJoinsItsMatesLoop,
+            EstablishedFact::DyingHalvesAreInDifferentLoops,
+        ),
+        (
+            TearPoint::DrainedFaceRegainsARing,
+            EstablishedFact::AbsorbedFaceIsRingFree,
+        ),
+        (
+            TearPoint::DuplicateHalvesPartCompany,
+            EstablishedFact::DuplicateHalvesShareALoop,
+        ),
+    ];
+
+    /// **A refusal that contradicts a re-checked fact escapes under
+    /// the RECORDING regime.** One row-body per [`EstablishedFact`]
+    /// the surgery re-checks and a fixture can reach, driven through
+    /// the PUBLIC door with the matching tear point armed.
+    ///
+    /// Each tear sits immediately after the `debug_assert!` that
+    /// proves the fact and immediately before the operator call, so
+    /// it exercises exactly the window the re-check cannot cover —
+    /// which is the whole of what "contradicts a fact this door
+    /// re-checks" claims. A torn INPUT cannot reach any of these
+    /// arms: the entry gate refuses one before a group is staged.
+    ///
+    /// Reds against asking the enum alone: every variant here answers
+    /// `false` to [`EulerOpError::reports_tier1_corruption`], so
+    /// under [`GroupRegime::RecordsASkip`] the door returned `Ok`
+    /// with the corruption filed as an inventory skip.
+    #[test]
+    fn every_contradicted_fact_escapes_the_recording_regime() {
+        let tol = Tol::witness();
+        for (point, want) in EXECUTED_FACTS {
+            let mut body = fixture_for(point, tol);
+            let declared = declare_planes_pairwise(&mut body);
+            assert_eq!(
+                regime_of(&body, true),
+                GroupRegime::RecordsASkip,
+                "{point:?}"
+            );
+            let error = escaped_refusal(point, &mut body, &declared, tol);
+            assert!(
+                !error.reports_tier1_corruption(),
+                "{error} is the enum's already; this row would prove nothing"
+            );
+            assert_eq!(
+                OpPlacement::of(&error),
+                OpPlacement::Contradicts(want),
+                "{point:?} produced {error}"
+            );
+            assert!(MergeCoplanarError::Op { error }.is_arena_fault());
+        }
+    }
+
+    /// The same tears under [`GroupRegime::RefusesTheCall`], where
+    /// the escape changes no outcome and the row's value is that the
+    /// refusal still names the operator's own variant.
+    #[test]
+    fn every_contradicted_fact_refuses_the_refusing_regime() {
+        let tol = Tol::witness();
+        for (point, want) in EXECUTED_FACTS {
+            let mut body = fixture_for(point, tol);
+            let key = body.faces().next().expect("faces").1.surface;
+            *body
+                .surfaces
+                .get_mut(key)
+                .expect("the placeholder resolves") = flat_plane();
+            assert_eq!(
+                regime_of(&body, false),
+                GroupRegime::RefusesTheCall,
+                "{point:?}"
+            );
+            let error = escaped_refusal(point, &mut body, &[], tol);
+            assert_eq!(
+                OpPlacement::of(&error),
+                OpPlacement::Contradicts(want),
+                "{point:?} produced {error}"
+            );
+        }
+    }
+
+    // ---- The nested (membrane) group: `SameFace` is INVENTORY ----
+    //
+    // The reviewer's falsification, adopted. The absorption's own
+    // `ring_move` drain re-homes the dying loop onto the survivor, so
+    // a fact the scan read before it proves nothing at the `kef`
+    // after it — which is why `SameFace` is placed by the enum and
+    // not contradicted here.
+
+    /// The unit cube whose TOP face carries a square inner ring, with
+    /// a coplanar membrane face covering the opening — the holed
+    /// box's construction stopped one step before the tube is grown.
+    /// Built entirely by Euler operators, so it is a tier-1/tier-2
+    /// valid body.
+    ///
+    /// The shared rim edges have their top-face half in the top
+    /// face's RING and their membrane half in the membrane's outer
+    /// loop, which is the nesting the drain re-homes.
+    fn cube_with_membrane(tol: Tol) -> (Body<f64>, FaceKey, FaceKey) {
+        let pt = geom_core::Point3::new;
+        let crate::fixtures::OpsCube {
+            mut body,
+            seed,
+            mefs,
+            ..
+        } = ops_cube(tol);
+        let strut = |body: &mut Body<f64>, at, x, y, z| {
+            body.mev_line(
+                crate::euler::MevSite::Fan { he1: at, he2: at },
+                pt(x, y, z),
+                tol,
+            )
+            .expect("the fan strut grows")
+        };
+        let hole_strut = strut(&mut body, mefs[1].he_plus, 0.25, 0.25, 1.0);
+        let kill = body
+            .kemr(hole_strut.he_plus, hole_strut.he_minus)
+            .expect("the strut becomes a lone-vertex ring");
+        let s_pq = body
+            .mev_line(
+                crate::euler::MevSite::Lone { r#loop: kill.ring },
+                pt(0.75, 0.25, 1.0),
+                tol,
+            )
+            .expect("the ring grows its first edge");
+        let s_qr = strut(&mut body, s_pq.he_minus, 0.75, 0.75, 1.0);
+        let s_rs = strut(&mut body, s_qr.he_minus, 0.25, 0.75, 1.0);
+        let membrane = body
+            .mef_chord(
+                crate::euler::MefSite::Chords {
+                    he1: s_pq.he_plus,
+                    he2: s_rs.he_minus,
+                },
+                tol,
+            )
+            .expect("the rim closes into a membrane face");
+        (body, seed.face, membrane.face)
+    }
+
+    /// The membrane fixture is a valid closed body with the nesting
+    /// the row below depends on.
+    #[test]
+    fn the_membrane_fixture_is_valid_and_nested() {
+        let tol = Tol::witness();
+        let (body, top, membrane) = cube_with_membrane(tol);
+        assert_eq!(crate::validate::validate(&body), Ok(()));
+        assert_eq!(validate_closed(&body), Ok(()));
+        assert_eq!(body.get_face(top).expect("live").rings.len(), 1);
+        assert!(body.get_face(membrane).expect("live").rings.is_empty());
+        assert_eq!(
+            body.get_face(top).expect("live").surface,
+            body.get_face(membrane).expect("live").surface
+        );
+    }
+
+    /// **`kef` reports [`EulerOpError::SameFace`] on a body that was
+    /// never torn.** With the survivor the face INSIDE the ring, the
+    /// absorption's own drain re-homes the dying half-edge's parent
+    /// loop onto the survivor, and the `kef` that follows reads one
+    /// face on both sides.
+    ///
+    /// This is why the fact the scan reads is not the fact the call
+    /// can be held to: `SameFace` takes the enum's verdict and stays
+    /// an inventory refusal.
+    #[test]
+    fn kef_reports_same_face_on_an_untorn_nested_group() {
+        let tol = Tol::witness();
+        let (mut body, top, membrane) = cube_with_membrane(tol);
+        assert_eq!(
+            body.merge_group(membrane, &[top], tol),
+            Err(MergeCoplanarError::Op {
+                error: EulerOpError::SameFace { face: membrane },
+            }),
+        );
+        assert!(
+            !MergeCoplanarError::Op {
+                error: EulerOpError::SameFace { face: membrane },
+            }
+            .is_arena_fault(),
+            "an inventory refusal on an untorn body must not escape the regime"
+        );
+    }
+
+    /// The same nesting with the inner face arena-FIRST, so the
+    /// door's own group seed picks it as the survivor: the public
+    /// door records the refusal and returns `Ok`, which is the
+    /// outcome an escape would have taken away.
+    #[test]
+    fn the_door_records_same_face_as_a_skip() {
+        let tol = Tol::witness();
+        let (mut body, membrane) = cube_with_arena_first_membrane(tol);
+        assert_eq!(validate_closed(&body), Ok(()));
+        assert_eq!(regime_of(&body, false), GroupRegime::RecordsASkip);
         let outcome = body
             .merge_coplanar_faces(tol)
-            .expect("the untorn run records rather than refusing");
-        assert_eq!(outcome.groups, vec![]);
+            .expect("a legal nested group is recorded, not refused");
         let [skipped] = &outcome.skipped[..] else {
             panic!("one recorded skip: {:?}", outcome.skipped)
         };
         assert!(
-            matches!(skipped.reason, MergeCoplanarError::PeriodClosure { .. }),
+            matches!(
+                skipped.reason,
+                MergeCoplanarError::Op {
+                    error: EulerOpError::SameFace { .. }
+                }
+            ),
             "{:?}",
             skipped.reason
         );
+        let _ = membrane;
+    }
+
+    /// The membrane fixture with the inner face arena-first: a `kef`
+    /// before the rim is grown frees the seed face's slot, which the
+    /// membrane's `add_face` then reuses.
+    fn cube_with_arena_first_membrane(tol: Tol) -> (Body<f64>, FaceKey) {
+        let pt = geom_core::Point3::new;
+        let cube = ops_cube(tol);
+        let mut body = cube.body;
+        let seed_face = cube.seed.face;
+        let victim = body
+            .edges()
+            .find_map(|(_, e)| {
+                let (hp, hm) = body.edge_halves(e.he_plus, e.he_minus).ok()?;
+                if hp.face == seed_face && hm.face != seed_face {
+                    Some(e.he_plus)
+                } else if hm.face == seed_face && hp.face != seed_face {
+                    Some(e.he_minus)
+                } else {
+                    None
+                }
+            })
+            .expect("the seed face has a neighbour");
+        body.kef(victim).expect("the seed face is absorbed");
+        let host = body
+            .faces()
+            .map(|(k, _)| k)
+            .find(|&k| {
+                let outer = body.get_face(k).expect("live").outer;
+                body.get_loop(outer).expect("live").face == k && k != cube.mefs[0].face
+            })
+            .expect("a live face to host the ring");
+        let host_he = {
+            let outer = body.get_face(host).expect("live").outer;
+            let crate::entity::LoopBoundary::Cycle { first } =
+                body.get_loop(outer).expect("live").boundary
+            else {
+                panic!("an outer loop is a cycle")
+            };
+            first
+        };
+        let strut = |body: &mut Body<f64>, at, x, y, z| {
+            body.mev_line(
+                crate::euler::MevSite::Fan { he1: at, he2: at },
+                pt(x, y, z),
+                tol,
+            )
+            .expect("the fan strut grows")
+        };
+        let hole_strut = strut(&mut body, host_he, 0.25, 0.25, 1.0);
+        let kill = body
+            .kemr(hole_strut.he_plus, hole_strut.he_minus)
+            .expect("the strut becomes a lone-vertex ring");
+        let s_pq = body
+            .mev_line(
+                crate::euler::MevSite::Lone { r#loop: kill.ring },
+                pt(0.75, 0.25, 1.0),
+                tol,
+            )
+            .expect("the ring grows its first edge");
+        let s_qr = strut(&mut body, s_pq.he_minus, 0.75, 0.75, 1.0);
+        let s_rs = strut(&mut body, s_qr.he_minus, 0.25, 0.75, 1.0);
+        let membrane = body
+            .mef_chord(
+                crate::euler::MefSite::Chords {
+                    he1: s_pq.he_plus,
+                    he2: s_rs.he_minus,
+                },
+                tol,
+            )
+            .expect("the rim closes into a membrane face");
+        (body, membrane.face)
     }
 
     /// **The door's placement is exhaustive, and no arm of it
     /// contradicts the enum.**
     ///
-    /// One sample per [`EulerOpError`] variant, indexed by the
-    /// compiler's own discriminants, so a variant added without a
-    /// placement fails this row by name. Two directions are pinned:
-    /// a variant the door calls torn is torn on the enum's line
-    /// (the door never widens the enum's class), and a variant the
-    /// door calls CONTRADICTED is one the enum answers `false` for
-    /// (otherwise the arm would be dead and the door's own question
-    /// would have no content). And the third column is empty: every
-    /// variant the door places as reachable-here escapes, so no
-    /// [`EulerOpError`] is left for [`GroupRegime`] to record.
+    /// Over the crate's shared sample array
+    /// ([`crate::euler::every_euler_op_error_once`], which carries
+    /// the coverage and discriminant-order assertions), so a variant
+    /// added without a placement fails by name. The direction pinned
+    /// is the one the door owes the operator layer: a variant the
+    /// door CONTRADICTS is one the enum answers `false` for —
+    /// otherwise the arm is dead and the door's own question has no
+    /// content — and every contradicted variant escapes while the
+    /// delegated ones answer exactly as the enum does.
     #[test]
     fn the_doors_placement_is_exhaustive_and_agrees_with_the_enum() {
-        use strum::{EnumCount as _, IntoEnumIterator as _};
-        let he = crate::entity::HalfEdgeKey::default();
-        let lp = LoopKey::default();
-        let fc = FaceKey::default();
-        let ek = EdgeKey::default();
-        let vk = VertexKey::default();
-        let errors = [
-            EulerOpError::Certification {
-                error: geom_brep::CertifyError::Unimplemented,
-            },
-            EulerOpError::DescriptionNotAdjacent { edge: ek },
-            EulerOpError::StaleKey {
-                key: EntityId::HalfEdge(he),
-            },
-            EulerOpError::StaleGeometry {
-                key: GeomRef::Surface(SurfaceKey::default()),
-            },
-            EulerOpError::FanStartMismatch { he1: he, he2: he },
-            EulerOpError::FanOrbitBroken { he1: he, he2: he },
-            EulerOpError::NotSameLoop { he1: he, he2: he },
-            EulerOpError::LoopCycleBroken { r#loop: lp },
-            EulerOpError::LoopNotEmpty { r#loop: lp },
-            EulerOpError::LoopNotCycle { r#loop: lp },
-            EulerOpError::NotSameEdge { he1: he, he2: he },
-            EulerOpError::UnclaimedHalfEdge { he, edge: ek },
-            EulerOpError::SelfLoopEdge {
-                edge: ek,
-                vertex: vk,
-            },
-            EulerOpError::OrbitBroken { he },
-            EulerOpError::EmptyAnchorsCollide { vertex: vk },
-            EulerOpError::SameLoop { r#loop: lp },
-            EulerOpError::NotSameFace {
-                target: lp,
-                ring: lp,
-            },
-            EulerOpError::RingIsOuter { r#loop: lp },
-            EulerOpError::SameFace { face: fc },
-            EulerOpError::CrossShell { f1: fc, f2: fc },
-            EulerOpError::FaceHasRings { face: fc },
-            EulerOpError::SolidNotSingleShell {
-                solid: crate::entity::SolidKey::default(),
-                shells: 2,
-            },
-            EulerOpError::ShellNotSingleFace {
-                shell: crate::entity::ShellKey::default(),
-                faces: 2,
-            },
-            EulerOpError::NullScaffoldCurve {
-                curve: crate::geometry::CurveKey::default(),
-            },
-            EulerOpError::SplitParamNotInterior { edge: ek },
-            EulerOpError::SplitParamEscalated {
-                edge: ek,
-                diag: Indeterminate {
-                    margin: geom_core::MarginDiag::Value(5e-9),
-                    band: Band::new(1e-9, 1e-8).unwrap(),
-                    predicate: Some("split_edge_param_interior"),
-                },
-            },
-            EulerOpError::CrossSolid { f1: fc, f2: fc },
-        ];
-        let mut covered = [false; crate::euler::EulerOpErrorKind::COUNT];
-        for error in &errors {
-            covered[crate::euler::EulerOpErrorKind::from(error) as usize] = true;
+        for error in crate::euler::every_euler_op_error_once() {
             let escapes = MergeCoplanarError::Op {
                 error: error.clone(),
             }
             .is_arena_fault();
-            match OpPlacement::of(error) {
-                // Reachable at this door and torn by the enum's line:
-                // the door adds nothing and escapes on the delegated
-                // verdict.
-                OpPlacement::Torn => {
-                    assert!(
-                        error.reports_tier1_corruption(),
-                        "{error} is placed torn here but not on the enum's line"
-                    );
-                    assert!(escapes, "{error}");
-                }
-                // Reachable at this door and NOT the enum's: the
-                // door's own half, and the arm would be dead if the
-                // enum already claimed the variant.
+            match OpPlacement::of(&error) {
                 OpPlacement::Contradicts(fact) => {
                     assert!(
                         !error.reports_tier1_corruption(),
                         "{error} is the enum's already; the door's arm would be dead"
                     );
-                    assert!(!fact.is_empty());
+                    assert!(!fact.what().is_empty());
                     assert!(escapes, "{error}");
                 }
-                // Not reachable here: placed by the enum's line
-                // alone, exactly as before this classification
-                // existed.
-                OpPlacement::NotRaisedHere => {
+                OpPlacement::TheEnumsVerdict => {
                     assert_eq!(escapes, error.reports_tier1_corruption(), "{error}");
                 }
             }
         }
-        let missing: Vec<crate::euler::EulerOpErrorKind> = crate::euler::EulerOpErrorKind::iter()
-            .zip(covered)
-            .filter_map(|(kind, seen)| (!seen).then_some(kind))
-            .collect();
-        assert!(
-            missing.is_empty(),
-            "every EulerOpError variant needs a placement sample; missing {missing:?}",
-        );
     }
 
     /// **The regime split, wired.** `records` is the whole of it and
@@ -2106,12 +2641,14 @@ mod tests {
     /// conjunct is deleted from it — which pinning the classifier
     /// alone did not.
     ///
-    /// A behavioural pin through the public door is impossible and
-    /// that is the point of the escape: the door's tier-2 entry gate
-    /// refuses a torn body before any group is staged, so no valid
-    /// input reaches a corruption refusal under either regime. The
-    /// escape states what the door promises, and this states that the
-    /// promise is applied.
+    /// No INPUT can pin this behaviourally — the door's tier-2 entry
+    /// gate refuses a torn body before any group is staged, so no
+    /// valid input reaches a corruption refusal under either regime.
+    /// The behavioural pins go through the door's own tear points
+    /// instead ([`TearPoint`],
+    /// `every_contradicted_fact_escapes_the_recording_regime`); this
+    /// row states that the regime applies the rule, over a variant
+    /// the operator layer's own line places.
     #[test]
     fn only_inventory_refusals_are_ever_recorded() {
         let arena = MergeCoplanarError::Op {
@@ -2182,9 +2719,6 @@ mod tests {
             EulerOpError::FaceHasRings {
                 face: FaceKey::default(),
             },
-            EulerOpError::SameFace {
-                face: FaceKey::default(),
-            },
             EulerOpError::SameLoop {
                 r#loop: LoopKey::default(),
             },
@@ -2219,6 +2753,20 @@ mod tests {
                 OpPlacement::Contradicts(_)
             ));
         }
+        // `SameFace` is on neither list. The enum answers `false`
+        // for it and this door agrees, because the absorption's own
+        // drain can re-home the dying loop onto the survivor and
+        // leave `kef` reading one face on both sides — legally, on a
+        // body that was never torn
+        // (`kef_reports_same_face_on_an_untorn_nested_group`).
+        assert!(
+            !MergeCoplanarError::Op {
+                error: EulerOpError::SameFace {
+                    face: FaceKey::default()
+                }
+            }
+            .is_arena_fault()
+        );
         // A merge-local refusal is never an arena fault.
         assert!(!MergeCoplanarError::GroupNotClosed { errors: Vec::new() }.is_arena_fault());
         assert!(
@@ -2268,9 +2816,10 @@ mod tests {
     ///
     /// It pins `strut_tip` rather than the surgery: reaching the tip
     /// search with a broken orbit needs the arena torn BETWEEN the
-    /// straight-seam decision and the strut test, inside one call,
-    /// which no test can do. `strut_tip` is that decision and has one
-    /// production call site.
+    /// straight-seam decision and the strut test, and the surgery
+    /// offers no tear point there — its points sit at the operator
+    /// calls, which is where a contradicted fact is decided.
+    /// `strut_tip` is that decision and has one production call site.
     #[test]
     fn a_broken_vertex_orbit_refuses_rather_than_answering_no_tip() {
         let tol = Tol::witness();
