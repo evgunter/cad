@@ -37,6 +37,15 @@
 #     covering the definition alone pins the attribute on the definition
 #     and nothing about the call sites (KNOWN GAP 7 for what that
 #     design still cannot see).
+#   * `crates/topo/src/{euler,euler_ring,euler_kill,null,split,movefac}.rs`
+#     and `crates/topo/src/boolean/voids.rs` — `ArenaDelta`, the arena
+#     shift each euler operator declares and `assert_euler_postcondition`
+#     checks against the counts it took before the mutation. Seven rows,
+#     one per file whose CODE names it, per the rule above; an eighth
+#     `topo` file, `fixtures.rs`, names it in a doc comment only and
+#     therefore has no uses to pin. Most of the sites put the attribute
+#     in STATEMENT position over the multi-line call that reads the
+#     delta, which is what the third enclosure clause below places.
 #
 # WHAT IS PINNED IS THE SOURCE SHAPE. This workspace's
 # `[profile.release]` sets `debug-assertions = true` until publish, so a
@@ -77,6 +86,18 @@
 #     reaches the inside of a `<…>` only through a `[…]` or a `{…}`,
 #     which are, and reading `<`/`>` as brackets mistakes every
 #     comparison for one.
+#   * AN ITEM UNDER A STATEMENT-POSITION ATTRIBUTE HAS NO BODY BRACE,
+#     and that is the same depth test read at the `{` instead of at the
+#     `;`. Which delimiter arrives at bracket depth ZERO first says what
+#     the item is: a `{` there is the item entering, and the item then
+#     runs to the `}` that balances it; a `;` there ends an item that
+#     was never entered. A `{` met at bracket depth ABOVE zero is
+#     neither — it is argument text, a struct literal or a block
+#     expression inside a call's still-open `(` — so it moves brace
+#     depth and nothing else. `topo`'s twelve
+#     `self.assert_euler_postcondition(before, ArenaDelta { … }, "op");`
+#     sites are the live population: the item is the CALL, and it ends
+#     at the call's `;`.
 #   * A `debug_assert!` encloses by STATEMENT, and the statement ends at
 #     `;`, `{` or `}`. A per-line substring test gets this wrong in both
 #     directions and the first version of this rewrite did:
@@ -114,18 +135,12 @@
 # the matching `}` and a use in the real body fires. Cry-wolf again, in
 # the same direction.
 #
-# KNOWN GAP 6: an attribute in STATEMENT position over a multi-line call
-# whose ARGUMENTS contain a brace — a struct literal or an `if` arm
-# handed to the call — is not servable at all. The first `{` the reader
-# meets is inside the still-open `(`, which is the positive desync the
-# body-brace arm refuses to tolerate, so every such site is reported and
-# the gate reds. That is the safe direction and it is also a CEILING on
-# the subject list: a mechanism whose sites take that shape cannot be a
-# row here until the reader can say where a statement-position item
-# ends. `crates/topo/src/euler.rs`'s `ArenaDelta` — the per-operator
-# arena shift `assert_euler_postcondition` checks — is the live one:
-# twelve of its sites take that shape, in five of the seven `topo` files
-# whose CODE names it (an eighth names it in a doc comment only).
+# THE GAP NUMBERS ARE STABLE IDS, not a sequence, so a gap that is
+# closed leaves a hole rather than renumbering its neighbours. There is
+# no KNOWN GAP 6: an attribute in STATEMENT position over a multi-line
+# call whose arguments carry a brace is a shape the reader now places,
+# and the rule it places it by is the third enclosure clause above
+# rather than an entry here. Nothing is missing from the register.
 #
 # KNOWN GAP 7: A SUBJECT IS A FILE, so a symbol whose uses cross files
 # owes a row per file that uses it, and a NEW file that calls one is
@@ -176,6 +191,13 @@ SUBJECTS=(
   'crates/mesh/src/tessellate.rs unpaired_chord_segment 8 the chord-segment pairing census'
   'crates/mesh/src/walk.rs overused_identified_edge_in 1 the shared identified-vertex fan census'
   'crates/mesh/src/trimmed.rs overused_identified_edge_in 1 the trimmed lane call of the identified-vertex fan census'
+  'crates/topo/src/euler.rs ArenaDelta 10 the arena delta the euler operators declare'
+  'crates/topo/src/euler_ring.rs ArenaDelta 10 the arena delta the ring operators declare'
+  'crates/topo/src/euler_kill.rs ArenaDelta 9 the arena delta the kill-direction operators declare'
+  'crates/topo/src/null.rs ArenaDelta 3 the arena delta the null-entity operators declare'
+  'crates/topo/src/split.rs ArenaDelta 3 the arena delta the split operators declare'
+  'crates/topo/src/boolean/voids.rs ArenaDelta 1 the arena delta the void transplant declares'
+  'crates/topo/src/movefac.rs ArenaDelta 4 the arena delta the face-move operator declares'
 )
 GATE_SCAN_NOUN='debug-only symbol use'
 
@@ -262,38 +284,39 @@ debug_only_report() {
         # true, so an item ends early and a use after it FIRES, which is
         # the safe direction. A POSITIVE one would make the item never
         # end and every later use read as gated, silently, so it is not
-        # tolerated: brackets still open at the body brace is reported
-        # as a reader desync and reds the gate.
+        # tolerated: an attribute whose brackets are STILL OPEN when the
+        # file ends is reported as a reader desync and reds the gate.
+        #
+        # THE END OF THE FILE IS WHERE THAT IS ASKED, and it is the only
+        # place it can be asked, because a `{` inside an open bracket is
+        # ordinary argument text (the arm below) rather than evidence of
+        # anything. Depth that never returns to zero is what is left.
         #
         # WHERE ONE COMES FROM, now that the shared lexer nests block
         # comments: not from a nested `/* /* */ */`, which it reads
-        # whole. Three sources are left.
+        # whole. Two sources are left.
         #
         #   * Source that is genuinely unbalanced, which does not
         #     compile and so should not reach a gate. The fixtures plant
         #     this shape, because it is the one that needs no gap.
         #   * A lexer blind spot yet to be found.
-        #   * BALANCED, COMPILING SOURCE THIS READING CANNOT PLACE: a
-        #     STATEMENT-POSITION `#[cfg(debug_assertions)]` over a
-        #     multi-line call whose arguments carry a brace — twelve
-        #     live sites in `topo`, all of the shape
-        #     `self.assert_euler_postcondition(before, if … { ArenaDelta
-        #     { … } }, "kfmrh");`. The row is
-        #     `debug-only-reader-cannot-place-a-statement-attribute-over-a-braced-call`.
         #
-        # The guard is defensive across all three: it does not diagnose
-        # the cause, only that this gate cannot place a use.
+        # The guard is defensive across both: it does not diagnose the
+        # cause, only that this gate cannot place a use.
         t = piece; bdepth += gsub(/[[(]/, "", t)
         t = piece; bdepth -= gsub(/[])]/, "", t)
         if (cut == 0) break
         d = substr(code, cut, 1)
+        # ONLY A `{` AT BRACKET DEPTH ZERO IS THE ITEM ENTERING. A `{`
+        # met inside a still-open `(` or `[` is argument text — a struct
+        # literal or a block expression handed to a call — so the item
+        # has not been entered and `seen` does not move. What that item
+        # is, is decided by which delimiter arrives at depth zero first:
+        # a `{` enters a braced item, and a `;` (below) ends a
+        # statement-position one, which has no body brace at all.
         if (d == "{") {
           depth++
-          if (gated == 1 && seen == 0) {
-            if (bdepth <= 0) seen = 1
-            else if (dsync == 0)
-              report_desync(f ":" ln, "brackets are still open at the body brace of the cfg(debug_assertions) item at line " gln ", so the reader cannot say where that item ends")
-          }
+          if (gated == 1 && seen == 0 && bdepth <= 0) seen = 1
         }
         else if (d == "}") {
           depth--
@@ -469,6 +492,71 @@ plant_after_the_gated_use() {
     "pub fn later(a: f64, b: f64) -> bool { $expr }"
 }
 
+# THE STATEMENT-POSITION ATTRIBUTE, WHICH IS `topo`'s LIVE SHAPE: the
+# attribute gates ONE call, the call is wrapped over several lines, and
+# its arguments carry a struct literal. Every `{` here sits inside the
+# call's still-open `(`, so none of them is the item entering, and the
+# item ends at the `;` that ends the call. Both uses are inside it and
+# are gated, so this must PASS.
+#
+# THE SECOND USE SITS AFTER THE ARGUMENT BRACE CLOSES, and that is what
+# makes this case load-bearing rather than decorative. A reader that
+# took the argument `{` for the item's body brace would end the item at
+# the matching `}` — still inside the call — and report that second use
+# as a production leak.
+plant_statement_attribute_over_a_braced_call() {
+  local path=$1 expr=$3 root=$4
+  plant_source "$path" "$root" \
+    'pub fn op(a: f64, b: f64) -> Result<(), ()> {' \
+    '    #[cfg(debug_assertions)]' \
+    '    self.assert_shift(' \
+    '        before,' \
+    "        Shift { first: $expr, ..Shift::ZERO }," \
+    "        $expr," \
+    '    );' \
+    '    Ok(())' \
+    '}'
+}
+
+# AND THE SAME SHAPE WITH A USE BELOW IT, so that placing the statement
+# stays a PLACEMENT and not a licence: the attribute covers its own call
+# and stops at the call's `;`, so the next use is outside it and fires.
+# A reader that took the argument brace for the item's body would read
+# this leak as gated, which is exactly what the shape above must not
+# buy.
+plant_leak_after_a_statement_attribute() {
+  local path=$1 expr=$3 root=$4
+  plant_source "$path" "$root" \
+    'pub fn op(a: f64, b: f64) -> Result<(), ()> {' \
+    '    #[cfg(debug_assertions)]' \
+    '    self.assert_shift(' \
+    '        before,' \
+    "        Shift { first: $expr, ..Shift::ZERO }," \
+    '        "op",' \
+    '    );' \
+    "    let _ = $expr;" \
+    '    Ok(())' \
+    '}'
+}
+
+# THE SAME RULE WITH THE BRACES NESTED AND IN MORE THAN ONE ARGUMENT,
+# because one struct literal in one argument would be served by a reader
+# that merely skipped the FIRST brace. Bracket depth is a count, so two
+# arguments carrying braces — one of them a brace inside a brace — are
+# argument text on the same terms, and the trailing use after all of
+# them closes is still inside the gated statement.
+plant_statement_attribute_with_nested_braces() {
+  local path=$1 expr=$3 root=$4
+  plant_source "$path" "$root" \
+    'pub fn op(a: f64, b: f64) -> Result<(), ()> {' \
+    '    #[cfg(debug_assertions)]' \
+    "    self.assert_shift(Shift { first: $expr }, Shift { second: $expr }," \
+    "        Outer { inner: Shift { deep: $expr } }," \
+    "        $expr);" \
+    '    Ok(())' \
+    '}'
+}
+
 # THE SENTENCE THIS GATE EXISTS TO STOP PRINTING. A `debug_assert!`
 # earlier on the LINE is not an enclosure — the statement ended at the
 # `;` — and the per-line substring test that read it as one passed this
@@ -557,6 +645,11 @@ plant_permitted_shapes() {
 # keeps the whole path proved — this arm, the marker it writes, and
 # `gate_ok`'s refusal to print over it — which a fixture that fed the
 # awk a synthetic view could not.
+#
+# THE BRACES BELOW THE STRAY BRACKET DO NOT REPAIR IT, which is what
+# this case holds that its end-of-file twin does not: two whole braced
+# items follow, each opening and closing at brace depth, and the
+# BRACKET depth they sit inside is still one when the file ends.
 plant_desync_open_bracket() {
   local path=$1 expr=$3 root=$4
   plant_source "$path" "$root" \
@@ -566,10 +659,10 @@ plant_desync_open_bracket() {
     "pub fn leak(a: f64, b: f64) -> bool { $expr }"
 }
 
-# THE SAME LOSS WITH NO BRACE AFTER IT. The file ends inside the stray
-# bracket, so the body-brace arm is never reached and the end of the
-# file is where the reader has to say so. Every use here is gated, so
-# only the desync can red this fixture.
+# THE SAME LOSS WITH NOTHING AFTER IT. The attribute is the last thing
+# in the file, so no later delimiter could end its item even if the
+# depth were sound. Every use here is gated, so only the desync can red
+# this fixture.
 plant_desync_open_bracket_at_end_of_file() {
   local path=$1 expr=$3 root=$4
   plant_source "$path" "$root" \
@@ -673,6 +766,8 @@ gate_selftest() {
     gate_selftest_case "$want" plant_any_cfg "$path" "$sym" "$expr"
     gate_selftest_case "$want" plant_not_cfg "$path" "$sym" "$expr"
     gate_selftest_case "$want" plant_leak_after_debug_assert "$path" "$sym" "$expr"
+    gate_selftest_case "$want" \
+      plant_leak_after_a_statement_attribute "$path" "$sym" "$expr"
     gate_selftest_case "the reader lost bracket depth" \
       plant_desync_open_bracket "$path" "$sym" "$expr"
     gate_selftest_case "the reader lost bracket depth" \
@@ -690,12 +785,16 @@ gate_selftest() {
       plant_nested_block_comment_closing_the_file "$path" "$sym" "$expr"
     gate_selftest_passes 'a `;` inside a gated signature' \
       plant_semicolon_in_signature "$path" "$sym" "$expr"
+    gate_selftest_passes 'a statement-position attribute over a multi-line call whose argument carries a brace' \
+      plant_statement_attribute_over_a_braced_call "$path" "$sym" "$expr"
+    gate_selftest_passes 'the same with nested braces in two of the call arguments' \
+      plant_statement_attribute_with_nested_braces "$path" "$sym" "$expr"
     gate_selftest_passes "a longer identifier that merely contains the symbol" \
       plant_near_miss_identifier "$path" "$sym" "$expr"
   done
   gate_selftest_pin 1
   gate_selftest_pin -1
-  printf '%s selftest OK, over %s subjects and the %s spellings they carry, each proved on its own: every spelling plants its own leak, so a spelling the reader cannot match fails here; enclosure by brace depth and by `debug_assert!` statement (rustfmt-wrapped or not); `all(…)` gates in either operand order while `any(…)` and `not(…)` do not; prose, string literals and a longer identifier that merely contains the symbol are not uses; an item ends at a `;` only at bracket depth zero; a NESTED block comment is comment to its balancing `*/`, so the stray bracket in one is not code — pinned both ways, the leak after one firing as the ordinary leak it is and the same comment closing a file passing; each row carries the use count it pins, proved against this tree in both directions; and a lost bracket depth (planted as code, at the body brace and at end of file), a missing subject and a `grep` that cannot run are each a loud failure\n' \
+  printf '%s selftest OK, over %s subjects and the %s spellings they carry, each proved on its own: every spelling plants its own leak, so a spelling the reader cannot match fails here; enclosure by brace depth and by `debug_assert!` statement (rustfmt-wrapped or not); `all(…)` gates in either operand order while `any(…)` and `not(…)` do not; prose, string literals and a longer identifier that merely contains the symbol are not uses; an item ends at a `;` only at bracket depth zero, and only a `{` at bracket depth zero is the item ENTERING — so a statement-position attribute over a multi-line call whose arguments carry braces (nested, in more than one argument) covers that call and stops at its `;`, with a use below it firing as the ungated use it is; a NESTED block comment is comment to its balancing `*/`, so the stray bracket in one is not code — pinned both ways, the leak after one firing as the ordinary leak it is and the same comment closing a file passing; each row carries the use count it pins, proved against this tree in both directions; and a lost bracket depth (planted as code, both with braced items below the stray bracket and with nothing below it), a missing subject and a `grep` that cannot run are each a loud failure\n' \
     "$(gate_name)" "${#SUBJECTS[@]}" "$spellings"
 }
 
