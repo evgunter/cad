@@ -27,7 +27,10 @@ the gate is `ci.yml:1646`:
 cargo check --workspace --exclude pncad --exclude pncad-py --exclude viewer --target wasm32-unknown-unknown
 ```
 
-`viewer` is excluded, so nothing in CI compiles that block.
+`viewer` is excluded, so nothing in CI compiles that block. (Re-read
+2026-09-06: the row has moved to `ci.yml:1936` and now also carries
+`--features interval`; the `--exclude viewer` is unchanged and so is this
+finding.)
 
 ## The two facts that make this worse than a missing exclusion
 
