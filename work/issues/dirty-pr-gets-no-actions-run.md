@@ -4,7 +4,7 @@ kind: issue
 title: A PR that goes mergeable_state dirty against a moved main gets NO Actions run on its next push — an absence, not a red — and the lane cannot tell it from a queue
 status: open
 opened: 2026-09-05
-refs: [SEAT-7, 1910]
+refs: [1910]
 ---
 
 
