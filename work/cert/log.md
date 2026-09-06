@@ -1307,3 +1307,27 @@ comment explains. The fix pass replaces the one announced method with
 the state table, and rewords the two crate-doc sentences the arm made
 false (`crates/geom/src/lib.rs:77-88`, `crates/geom/src/net.rs:145-148`).
 Nothing else in `geom` moves.
+
+## Exit walk PROPOSED (2026-09-05)
+
+Both absorbed tracks done — CERT-M3 (#1877, ordinal 713, sample #133) and
+CERT-N3 (#1879, ordinal 714, sample #134) merged; Track N empty, Track M a
+schedule of three questions for Ev. `docs/S-CERT-EXIT-WALK.md` PROPOSED on
+an `[ev]` PR: eleven criteria walked verbatim against main 37eaf5b9b (nine
+MET / MET-WITH-RECORDED-HONESTY on delivered code, row 10 on the tracker's
+items, row 11 on the merge record); the A/B record 700–714; the v6 tally
+candidates queued for the blinded coding; the residue's proposed homes for
+the closing sweep. Merging the walk ratifies it (Ev's S-MATE convention);
+the sweep then re-homes the residue, deletes this directory and ledgers the
+deletion. `needs_ev` set on the program item.
+
+## Residue re-homed (2026-09-05, on the walk's PR)
+
+Ev on PR 1924: "as long as all residuals are filed appropriately then it
+looks good." Every open item under `work/cert/` is moved in that PR to the
+home the walk's handoffs ledger names — eight to `work/props/`, seven to
+`work/issues/`, H5 and its lane-keeping companion to `work/code-quality/`
+(H5's `parent` cleared), one each to `work/fillet/`, `work/bool/`,
+`work/trim/`, `work/tcost/`, `work/fix/`, two to `work/m10/`; D291/D292
+re-cited to PR 1879. Nothing open remains here; the sweep after
+ratification deletes this directory and the walk, and ledgers the SHA.
