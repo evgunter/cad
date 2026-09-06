@@ -500,3 +500,17 @@ class (DOCM), the prose-gate class's fourth instance (FIX). The spec
 is deleted into the ledger. Next: block B3's slots 1 (FABLE) and 2
 (OPUS) bank for the chained-order ruling's unit and the certified range
 query (waits on M10); the v6 readout stays owed.
+
+## 2026-09-06 — DOCM-8 ruled and dispatched (block DOCM-B3 slot 1, FABLE)
+
+Ev ruled the chained-order gap in chat: a nested `Merged` should never
+have existed — whatever mints a `Merged` mints it flat (N3's
+constituent set was already the contract), and `collapse` refuses the
+nested shape rather than flattening it. With flat sets the look-through
+is a membership test at the union's routing step before the shared
+resolver (the orchestrator's reading of DM4, stated in DM4 at the
+spec's commit). Spec `docs/DOCM-8-SPEC.md` (S/M / STRUCTURAL, logged
+before dispatch on `docm/b3-block` as slot 1's pre-draw fields; the arm
+was fixed by the block draw, byte 124 ⇒ fable at slot 1). Unit branch
+`docm/8-flat-merged` from main with the spec on it; spec PR #2068 to
+main. Lane running.
