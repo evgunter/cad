@@ -56,7 +56,7 @@ use eframe::egui;
 use egui_tiles::{ContainerKind, EditAction, Tile, TileId, Tiles, Tree, UiResponse};
 use pncad::geom_core::Tol;
 
-use crate::camera::{self, Camera};
+use crate::camera::{self, Camera, CameraError};
 use crate::display::DisplayView;
 use crate::drafts::Drafts;
 use crate::evalseam::Generation;
@@ -68,7 +68,7 @@ use crate::input::InputMap;
 use crate::parts::PartChooser;
 use crate::pick::{self, PickCache, PickIndex};
 use crate::prefs::{self, Prefs, PrefsStore};
-use crate::scene::{self, DisplayTolerance, SceneMesh};
+use crate::scene::{self, DisplayTolerance, SceneError, SceneMesh};
 use crate::session::{DocSession, Refusal, Selection, SessionOp};
 use crate::sketch::{self, PreviewError, ProfilePreview};
 use crate::theme::{Polarity, Theme};
@@ -302,6 +302,23 @@ pub struct ViewerApp {
     /// between two faces of the same feature leaves the set equal and
     /// correctly rebuilds nothing.
     scene_focus: BTreeSet<u32>,
+    /// **What the last scene rebuild refused**, held until one
+    /// succeeds — the state `frame::scene_badge` reads.
+    ///
+    /// Held rather than announced: the viewport keeps drawing the mesh
+    /// it already has, so "the picture is older than the document and
+    /// the rebuild will not run" is true on every frame until a
+    /// rebuild lands, and a badge is a read of exactly this.
+    scene_fault: Option<SceneError>,
+    /// **What the last projection refused**, written by the viewport
+    /// as it paints and read by `frame::projection_badge`.
+    ///
+    /// The toolbar draws before the panes, so the badge appears on the
+    /// frame after the refusal. A view matrix that cannot be formed is
+    /// not a one-frame condition — nothing is drawn until the camera
+    /// moves somewhere it can be — so a badge one frame behind is a
+    /// badge that appears.
+    projection_fault: Option<CameraError>,
     /// Whether the next scene to land should have its δ CHOSEN by the
     /// triangle budget, rather than drawn at the δ already in force.
     ///
@@ -621,6 +638,8 @@ impl ViewerApp {
             scene_generation: None,
             scene_display: None,
             scene_focus: BTreeSet::new(),
+            scene_fault: None,
+            projection_fault: None,
             // The startup document goes through the same door an
             // opened one does: it is small enough that the budget will
             // not move its δ, and a first picture that took a
@@ -707,17 +726,20 @@ impl ViewerApp {
         // installed or refused now, before the currency check below
         // reads the cache — so an index that landed for the picture on
         // screen is used on the frame it arrives rather than the next
-        // one. A refusal is this frame's news; a superseded answer is
-        // nothing to say (`pick::IndexLanding::Stale` is what
-        // restart-without-cancel produces, once per δ changed
-        // mid-build).
+        // one. A refusal is held by the cache and badged, not
+        // announced; a superseded answer is nothing to say
+        // (`pick::IndexLanding::Stale` is what restart-without-cancel
+        // produces, once per δ changed mid-build).
         let mut rebuilt = false;
         for landing in self.picks.pump() {
             match landing {
                 pick::IndexLanding::Built => rebuilt = true,
-                pick::IndexLanding::Refused => {
-                    self.status = self.picks.error().map(frame::index_refusal);
-                }
+                // Nothing to say here: the cache HOLDS the refusal
+                // under its one-attempt-per (generation, δ) policy,
+                // and `frame::index_badge` reads it every frame the
+                // toolbar draws. Announcing it once put a read on a
+                // line the next acting batch sweeps.
+                pick::IndexLanding::Refused => {}
                 pick::IndexLanding::Stale => {}
             }
         }
@@ -757,6 +779,9 @@ impl ViewerApp {
                 self.scene_focus = focus;
                 self.scene = Arc::new(mesh);
                 self.revision = self.revision.wrapping_add(1);
+                // The badge's read, ended by the rebuild it was
+                // waiting for.
+                self.scene_fault = None;
                 if self.fit_on_scene {
                     self.fit_on_scene = false;
                     self.pending_fit = true;
@@ -771,7 +796,10 @@ impl ViewerApp {
                 // read of held state and so cannot be stale here or
                 // erased by anything the rest of the frame does.
             }
-            Err(error) => self.status = Some(frame::scene_refusal(&error)),
+            // Held, not announced: this pair is deliberately left
+            // unmarked above so the rebuild is retried, and the fault
+            // is true of the picture on screen until one succeeds.
+            Err(error) => self.scene_fault = Some(error),
         }
     }
 
@@ -1239,9 +1267,9 @@ impl eframe::App for ViewerApp {
                     }
                     None => {}
                 }
-                // **The standing facts, one draw each.** Each is a
-                // function of the typed value it reads — including its
-                // silence, which is what lets a row assert the `None`
+                // **The reads, one draw each.** Each is a function of
+                // the typed value it reads — including its silence,
+                // which is what lets a row assert the `None`
                 // — and each states its own tone and affordance, so
                 // nothing about how a badge looks is decided here
                 // (`frame::Badge`).
@@ -1266,11 +1294,11 @@ impl eframe::App for ViewerApp {
                 {
                     self.checks_shown = !self.checks_shown;
                 }
-                // The gather's verdict, for the landed pair. **A
-                // standing fact, so a badge** — the status line beside
-                // it carries one frame's news and is cleared by the
-                // next acting batch, while "the product on screen does
-                // not gather" is true until another pair lands.
+                // The gather's verdict, for the landed pair. **A read
+                // a reader consults, so a badge** — the line beside it
+                // carries what just happened and is cleared by the next
+                // acting batch, while "the product on screen does not
+                // gather" is true until another pair lands.
                 //
                 // Which faults reach it is `frame::product_badge`'s,
                 // and it declines every state another channel carries:
@@ -1283,6 +1311,25 @@ impl eframe::App for ViewerApp {
                 // the one the budget CHOSE when the document opened,
                 // and gone the moment the user picks their own.
                 if let Some(badge) = frame::delta_badge(self.budget_delta.as_ref()) {
+                    draw_badge(ui, &self.theme, &badge);
+                }
+                // **The three display seams that hold a refusal.**
+                // Each is a read of held state — the scene fault kept
+                // until a rebuild lands, the pick cache's own held
+                // refusal, the projection the viewport could not form
+                // — so each stands for as long as the picture is stale
+                // rather than until the next acting batch sweeps a
+                // line. What a pick aimed at the missing index gets is
+                // still the line's, because that is an outcome
+                // (`frame::unindexed_refusal`).
+                for badge in [
+                    frame::scene_badge(self.scene_fault.as_ref()),
+                    frame::index_badge(self.picks.error()),
+                    frame::projection_badge(self.projection_fault.as_ref()),
+                ]
+                .into_iter()
+                .flatten()
+                {
                     draw_badge(ui, &self.theme, &badge);
                 }
                 ui.separator();
@@ -1377,6 +1424,7 @@ impl eframe::App for ViewerApp {
                     profile_preview: &profile_preview,
                     profile_form_drawn: &mut profile_form_drawn,
                     pending_fit: &mut self.pending_fit,
+                    projection_fault: &mut self.projection_fault,
                     status: &mut self.status,
                     id_answer: &self.id_answer,
                     id_log: &mut self.id_log,
@@ -1489,6 +1537,12 @@ pub(crate) struct ViewerBehavior<'a> {
     /// Set by the add-profile form while it draws; read next frame.
     pub(crate) profile_form_drawn: &'a mut bool,
     pub(crate) pending_fit: &'a mut bool,
+    /// Where the viewport leaves a view matrix it could not form, for
+    /// [`frame::projection_badge`] to read: a read of the camera, so
+    /// the pane holds it rather than writing a sentence the toolbar
+    /// had already painted past and the next accepted act would
+    /// sweep.
+    pub(crate) projection_fault: &'a mut Option<CameraError>,
     pub(crate) status: &'a mut Option<frame::Message>,
     pub(crate) id_answer: &'a Arc<AtomicU64>,
     pub(crate) id_log: &'a mut IdQueryLog,
