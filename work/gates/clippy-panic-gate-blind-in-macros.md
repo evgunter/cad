@@ -105,9 +105,15 @@ Moved from `work/code-quality/` to `work/gates/` in the tracker-wide cut of 2026
 Option (2), the token-grep gate, composed with option (1)'s audit:
 `scripts/gates/panic-free-macro-bodies.sh` reads `crates/*/src` through
 `lib.sh`'s code-only view, tracks each `macro_rules!` body by balanced
-`{}`/`()`/`[]` nesting, and reports `.unwrap`, `.expect`, `panic!`,
-`todo!` and `unimplemented!` inside one. Option (3) (`cargo expand`) and
-option (4) (thin macro bodies as a convention) are not taken.
+`{}`/`()`/`[]` nesting, and reports the stanza's six macro-blind lints
+inside one: `.unwrap`, `.expect`, `panic!`, `todo!`, `unimplemented!`
+and `dbg!`. Option (3) (`cargo expand`) and option (4) (thin macro
+bodies as a convention) are not taken.
+
+`dbg_macro` is not panic-family, but it is denied by the same stanza and
+invisible in the same place, so the sixth token replaces a measured "no
+macro body carries a `dbg!`" with a check that re-derives it. The live
+tree is green with it.
 
 `unreachable!` is NOT matched. It was in the family this row named on
 2026-08-13, and D9's D2 addendum removed it from
@@ -116,8 +122,10 @@ macro body stricter than the `fn` beside it and would red `nurbs_fit!`
 today. The gate is the stanza, reaching where clippy cannot.
 
 The allow is `#[cfg(test)]` — the attribute on the item or an enclosing
-module, and a file whose `mod` line is `#[cfg(test)] mod x;`. No path
-allowlist: nothing in the live tree needs grandfathering.
+module, and a file whose `mod` line is `#[cfg(test)] mod x;` in either
+spelling (attribute alone on its line, or the whole declaration on one;
+both planted). No path allowlist: nothing in the live tree needs
+grandfathering.
 
 ## The audit
 
@@ -145,8 +153,16 @@ grandfathered population.
 
 ## Residue
 
-The `#[cfg(test)] mod x;` resolution the gate needs is the textual,
-declaring-directory one the two gates that already do this use; it is
-not rustc's for a declaration outside a crate root, and the repair
-belongs to `gate-mod-path-resolved-textually`, whose population this
-gate joins.
+The `#[cfg(test)] mod x;` resolution the gate needs is
+`witness-not-ambient.sh`'s textual, declaring-directory one; it is not
+rustc's for a declaration outside a crate root, and it is kept
+identical so the class has one shape. The repair belongs to
+`test-module-resolution-has-three-homes`, whose population this gate
+joins as a third member.
+
+A blind spot the gate shares with clippy rather than opening: the UFCS
+form `Option::unwrap(v)` / `Option::expect(v, …)`. Measured on clippy
+0.1.94 with the stanza at `warn` — no diagnostic on the UFCS pair, one
+on the `.expect(…)` beside it — so `unwrap_used`/`expect_used` are
+method-call lints and the hole is the stanza's everywhere, not this
+gate's inside macros.
