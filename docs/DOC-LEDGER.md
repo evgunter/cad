@@ -1211,12 +1211,11 @@ Moved by `git mv` with ids kept (ownership is the directory):
 
 | item | to |
 | --- | --- |
-| `tangent-parallel-certifier-passes-a-transverse-arc` | `work/cert/` |
 | `rim-door-admits-a-double-cover` | `work/seat/` |
 | `cut-off-arc-persists-as-a-corner-arc` | `work/docm/` |
 | `debug-in-prose-at-blend-and-step-import` | `work/fix/` |
 | `blend-size-gate-unmetered-under-epsilon`, `blend-payloads-outside-the-margin-family` | `work/props/` |
-| `ambiguity-k-below-the-cap-rim-crossover`, `blend-recourses-under-describe-their-doors`, `curved-single-host-rim-refuses-at-the-half-band-gate`, `escalated-recourse-dispatch-has-no-coaxiality-arm`, `fillet-escalation-site-has-no-producer`, `hostless-rim-on-a-ringed-host-refuses`, `ladder-rim-phase-may-retire-a-new-split-key`, `overrun-attribution-picks-the-first-candidate`, `path-fillet-door-validator-tangency-disagree`, `rim-seed-finders-disagree-on-at-this-radius`, `ring-clearance-refuses-a-nested-trim-circle`, `smooth-arm-siblings-disagree-on-the-in-band-case`, `sweep-top-field-docs-make-the-spatial-claim-capend-shed` | `work/issues/` — the blend kernel and the profile fillet door have no live program; the next blend program's opening slate |
+| `ambiguity-k-below-the-cap-rim-crossover`, `blend-recourses-under-describe-their-doors`, `curved-single-host-rim-refuses-at-the-half-band-gate`, `escalated-recourse-dispatch-has-no-coaxiality-arm`, `fillet-escalation-site-has-no-producer`, `hostless-rim-on-a-ringed-host-refuses`, `ladder-rim-phase-may-retire-a-new-split-key`, `overrun-attribution-picks-the-first-candidate`, `path-fillet-door-validator-tangency-disagree`, `rim-seed-finders-disagree-on-at-this-radius`, `ring-clearance-refuses-a-nested-trim-circle`, `smooth-arm-siblings-disagree-on-the-in-band-case`, `sweep-top-field-docs-make-the-spatial-claim-capend-shed`, `tangent-parallel-certifier-passes-a-transverse-arc` | `work/issues/` — the blend kernel and the profile fillet door have no live program, and S-CERT (the certifier's owner) has already left the tracker; the next blend program's opening slate |
 
 Closed at the sweep as records, not work: `plane-hosted-rim-has-no-native-instance`
 (Phase 1's census, cited by the walk). The `corner-config-tag-all-concave-trihedron`
