@@ -6,6 +6,7 @@ status: open
 opened: 2026-08-28
 github: 1117
 refs: [1113]
+needs_ev: true
 ---
 
 ## From GitHub issue 1117
@@ -42,3 +43,28 @@ The viewer half is real but secondary: `SessionOp::Save`
 `keep_out` fences the viewer. So this item's landing needs a viewer
 rider once the identity question is ruled — which is a hand-off in the
 other direction, after the decision, not before it.
+
+## Question for Ev (2026-09-06, LIB orchestrator; `[ev]` PR)
+
+The fix is a design fork about what a save IS, so it is asked rather
+than dispatched. Three shapes, with the orchestrator's recommendation
+first:
+
+- **(A) Two acts.** `Save(path)` keeps the document's identity and,
+  when the target directory already holds this id under a DIFFERENT
+  filename, refuses typed at the save door (pre-empting the store's
+  own `DuplicateId` rather than letting the store discover it later
+  for every document). A second act, "save as new document", writes
+  the same content under a FRESH id at the new path — an explicit
+  fork, so every inbound `DocRef` pinning the old id keeps pointing
+  at the original, which is what a fork means.
+- **(B) Silent re-mint.** A save to a new path mints a fresh id.
+  Rejected by the issue's own argument: it forks the document without
+  saying so, and a backup and a fork are different acts.
+- **(C) Leave it.** Typed, recoverable, documented at `SessionOp::Save`.
+  The blast radius (the whole store refuses) is the cost.
+
+Recommendation: (A). The library half (the save-door refusal and the
+fork act) is LIB's in `crates/pncad/src/workspace.rs`; the viewer half
+(spelling the second act in `SessionOp`) is a rider handed to the GUI
+programs after the ruling, in that order.
