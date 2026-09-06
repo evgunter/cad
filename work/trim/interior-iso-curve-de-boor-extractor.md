@@ -7,6 +7,7 @@ opened: 2026-08-29
 github: 1195
 refs: [498]
 branch: trim/1-de-boor-extractor
+pr: 2095
 ---
 
 ## From GitHub issue 1195
