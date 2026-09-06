@@ -77,7 +77,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use eframe::wgpu;
 
-use crate::pickindex::{EdgeOverlay, Highlight, IdMap, cursor_projection};
+use crate::marks::{EdgeOverlay, Highlight, cursor_projection};
+use crate::pickindex::IdMap;
 use crate::scene::SceneMesh;
 use crate::theme::{Mark, Theme};
 
@@ -203,7 +204,7 @@ struct IdPass {
 /// **Marks that cannot be a tint.** A face mark is a patch the shaded
 /// pass recognises by id; an edge has no patch, so its mark is
 /// geometry — the drawn polyline, handed over as a line list by
-/// `crate::pickindex::edge_overlay`. The colour is not a new palette entry:
+/// `crate::marks::edge_overlay`. The colour is not a new palette entry:
 /// it is the theme's OWN selected/hovered mark composited over the
 /// same base the shaded pass composites over (`Mark::over`'s mix, run
 /// on the same probe/focus-tinted body), drawn UNSHADED. The line is
@@ -1026,12 +1027,12 @@ pub(crate) struct ViewportCallback {
     /// The frame's device pixel ratio; see
     /// [`ViewportCallback::viewport_px`].
     pub(crate) pixels_per_point: f32,
-    /// Which patch ids to mark, from `crate::pickindex::highlight` — a
+    /// Which patch ids to mark, from `crate::marks::highlight` — a
     /// value computed from (index, selection, hover) and handed
     /// straight through. **No highlight decision is taken here**; this
     /// pass paints what the pure function said.
     pub(crate) highlight: Highlight,
-    /// Which edges to mark, from `crate::pickindex::edge_overlay` — the
+    /// Which edges to mark, from `crate::marks::edge_overlay` — the
     /// same shape of value as `highlight` and handed through the same
     /// way: **no marking decision is taken here**.
     pub(crate) edges: EdgeOverlay,

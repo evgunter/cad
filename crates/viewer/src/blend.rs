@@ -358,7 +358,7 @@ impl BlendTool {
     ///
     /// **One pass over the target's drawn edges**, testing set
     /// membership per drawn edge, rather than one
-    /// `crate::pickindex::edge_segments` search per held name: the search
+    /// `crate::marks::edge_segments` search per held name: the search
     /// scans the body's whole edge run for each name, so the obvious
     /// spelling costs `O(E²)` name comparisons every frame on a body
     /// with `E` edges — fine for a cube, not for a real part. This is
@@ -383,7 +383,7 @@ impl BlendTool {
                 .edge_name_of(id)
                 .is_ok_and(|name| self.edges.contains(name))
             {
-                out.extend(crate::pickindex::edge_id_segments(index, display, id));
+                out.extend(crate::marks::edge_id_segments(index, display, id));
             }
         }
         out

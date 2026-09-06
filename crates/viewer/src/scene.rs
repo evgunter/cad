@@ -284,7 +284,7 @@ impl SceneMesh {
     pub const FLAG_PROBE: u32 = 1;
 
     /// The per-corner flag marking the corners of what the side panel
-    /// is currently showing (`crate::pickindex::focus`).
+    /// is currently showing (`crate::marks::focus`).
     ///
     /// A second BIT rather than a second field: the two facts are
     /// independent — a probed part can be the selected one — and the
