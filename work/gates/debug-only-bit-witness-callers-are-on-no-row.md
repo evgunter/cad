@@ -5,6 +5,7 @@ title: Two cfg(debug_assertions) callers of the bit-channel witnesses are in fil
 status: review
 opened: 2026-09-06
 branch: gates/bit-witness-callers
+pr: 2069
 ---
 
 
