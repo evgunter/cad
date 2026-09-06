@@ -277,10 +277,13 @@ ERROR-DESIGN's own "Open after this doc" list.
   Option 1 of two put to Ev after M10-8; ruled in chat ("proceeding
   with 1"). **MEASURED**: the door ships with one registrant (the
   swept arc's rim identity, at the sagitta construction's site) and
-  discharges `carrier_endpoint_start` outright on all four documents;
-  no ceiling moves and none stops scaling with ε. The plate's bound is
-  now `carrier_endpoint_end`, the arc's SPAN identity — a different
-  theorem (`plate-ceiling-is-now-the-arc-span-identity`) — and R2's
+  discharges `carrier_endpoint_start` outright on all four documents.
+  Amendment A1 (the unit of scope is the CONSTRUCTOR) added the SPAN
+  identity at the same builder, discharging `carrier_endpoint_end` too;
+  still no ceiling moves and none stops scaling with ε. The plate's and
+  the annulus's bound is now `carrier_matches_mapped_source` — the
+  carrier against the scaffold pushforward, two independently built
+  objects (`plate-ceiling-is-now-the-scaffold-pushforward`) — and R2's
   bracket and pad are bounded by `line_span`, the real-margin
   dependency-widening class. The fillet's declared tangency cannot be
   registered: the constructor's node is not the joint classifier's

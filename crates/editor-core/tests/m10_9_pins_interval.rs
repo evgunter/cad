@@ -16,10 +16,16 @@
 //! `2.083e-6` bounded by a declared tangency. The plate's NUMBER is
 //! unmoved — so `m10_8_pins_interval`'s ceiling rows still hold, and
 //! they are left standing rather than duplicated — but the PREDICATE
-//! that bounds it has changed, because the door discharges
-//! `carrier_endpoint_start` outright. That is the positive statement
-//! this file makes, and the reason the miss is a predicate rather than
-//! prose (`work/m10/plate-ceiling-is-now-the-arc-span-identity`).
+//! that bounds it has moved twice, because the arc carrier's builder
+//! registers BOTH of its same-object identities: the rim
+//! `‖q − c‖ = r` discharges `carrier_endpoint_start`, the span
+//! `carrier.eval(param_end) = q_to` discharges `carrier_endpoint_end`,
+//! and what bounds the plate now is `carrier_matches_mapped_source` —
+//! the carrier against the scaffold pushforward, an identity between
+//! two independently built objects
+//! (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`). That is
+//! the positive statement this file makes, and the reason the miss is
+//! a predicate rather than prose.
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -135,9 +141,14 @@ fn m10_9_the_door_is_inert_on_straight_geometry() {
 /// **THE MECHANISM, on the plate's own ceiling predicate.** Just past
 /// the widest whole-certifying box, a replay with the door SHUT refuses
 /// on `carrier_endpoint_start` — the rim identity `‖q − c‖ = r` — and
-/// the same replay with the door OPEN refuses on `carrier_endpoint_end`
-/// instead, because the rim identity is discharged and the arc's SPAN
-/// identity is a different theorem.
+/// the same replay with the door OPEN refuses on
+/// `carrier_matches_mapped_source` instead: BOTH endpoint pinnings are
+/// discharged (the rim identity and the span identity
+/// `carrier.eval(param_end) = q_to`, the arc carrier's two same-object
+/// identities), and what bounds the plate next is the carrier against
+/// the SCAFFOLD PUSHFORWARD — two independently built objects, so no
+/// registration of the arc carrier's own reaches it
+/// (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`).
 ///
 /// Three claims in one drive pair, and each is labelled: the door
 /// discharges (`registered > 0`), it discharges only out of `numeric`
@@ -186,9 +197,12 @@ fn m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity() {
         "M10-8's bound is the rim identity: {shut_refusal}"
     );
     assert!(
-        open_refusal.contains("carrier_endpoint_end"),
-        "with the rim identity registered, the bound is the arc's SPAN identity \
-         (work/m10/plate-ceiling-is-now-the-arc-span-identity): {open_refusal}"
+        open_refusal.contains("carrier_matches_mapped_source"),
+        "with the rim AND span identities registered, both endpoint pinnings are \
+         discharged and the bound is `carrier_matches_mapped_source` — the carrier \
+         against the scaffold pushforward, which is NOT a same-object identity of the \
+         arc carrier (work/m10/plate-ceiling-is-now-the-scaffold-pushforward): \
+         {open_refusal}"
     );
 }
 
@@ -256,7 +270,7 @@ fn m10_9_the_value_channel_is_untouched_on_a_certifying_box() {
 ///
 /// | document | ceiling | first refusal beyond it, door shut → open | enclosure |
 /// | --- | --- | --- | --- |
-/// | two-hole plate | `[7.787e2, 7.817e2] · ε` | `carrier_endpoint_start` → `carrier_endpoint_end` | `[0, 1.246 · ε]` |
+/// | two-hole plate | `[7.787e2, 7.817e2] · ε` | `carrier_endpoint_start` → `carrier_matches_mapped_source` | `[0, 1.246 · ε]` → `[0, 1.299 · ε]` |
 /// | R2 filleted bracket | `[3.865e2, 3.880e2] · ε` | `line_span` (both) | `[-1.095 · ε, 1.095 · ε]` |
 /// | R1 annulus | `[7.787e2, 7.817e2] · ε` | `carrier_matches_mapped_source` (both) | `[0, 1.050 · ε]` |
 /// | R2 rounded pad | `[2.083e3, 2.091e3] · ε` | `line_span` (both) | `[-1.666 · ε, 1.666 · ε]` |

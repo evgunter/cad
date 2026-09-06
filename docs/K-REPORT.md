@@ -1907,9 +1907,12 @@ M10-9 opened ERROR-DESIGN E12's reserve — **discharge by provenance** —
 as a session-level door in `geom_core::sym`
 (`Sym::register_equal`): a constructor states an identity it
 GUARANTEES, the lane scalar witnesses it, and a third normal-form walk
-consults the record. One registrant ships: the swept arc's rim identity
-`‖q − c‖ = r`, stated at `sweep::swept::register_rim_identity` where
-the sagitta closed form guarantees it.
+consults the record. One CONSTRUCTOR ships — the swept arc carrier's builder — with the
+two same-object identities it guarantees: the rim `‖q_from − c‖ = r`
+(`sweep::swept::register_rim_identity`) and the span
+`carrier.eval(param_end) = q_to`, componentwise
+(`register_span_identity`), each with its proof in its doc comment and
+its own planted lie pinned typed.
 
 ### The `registered` outcome
 
@@ -1942,14 +1945,15 @@ their nominals, door open or shut). The door moves decisions out of
 
 ### What it moved in the population
 
-At each document's nominal, the rim registrant discharges
-`carrier_endpoint_start` — the plate 16 of 16 numeric decisions, R1's
-annulus 16 of 16, R2's bracket 20 of 22, R2's pad 24 of 32 — and part
-of `carrier_matches_mapped_source` (8, 8, 8 and 12). It reaches
-`carrier_on_surface_*` not at all (those rest on `u_ref·u_ref = 1`,
-which needs the SQUARED identity `v·v = r²`, a different node) and
-`carrier_endpoint_end` not at all (the arc's SPAN identity, a
-different theorem).
+At each document's nominal the two registrants discharge BOTH
+endpoint pinnings: `carrier_endpoint_start` 16/16 on the plate, 16/16
+on R1's annulus, 20 of 22 on R2's bracket and 24 of 32 on R2's pad;
+`carrier_endpoint_end` 16/16, 16/16, 20/20 and 24 of 28 — plus part of
+`carrier_matches_mapped_source` (8, 8, 8 and 12). Totals door OFF → ON:
+plate 0 → 40 `registered`, bracket 0 → 48, annulus 0 → 40, pad 0 → 60.
+They reach `carrier_on_surface_*` not at all (those rest on
+`u_ref·u_ref = 1`, which needs the SQUARED identity `v·v = r²`, a
+different node again).
 
 ### And no ceiling moved
 
@@ -1960,20 +1964,25 @@ every bracket asserted
 
 | document | whole-certifying ceiling | first refusal beyond it (shut → open) | enclosure |
 | --- | --- | --- | --- |
-| two-hole plate | `[7.787e2, 7.817e2] · ε` | `carrier_endpoint_start` → `carrier_endpoint_end` | `[0, 1.246 · ε]` |
+| two-hole plate | `[7.787e2, 7.817e2] · ε` | `carrier_endpoint_start` → `carrier_matches_mapped_source` | `[0, 1.246 · ε]` → `[0, 1.299 · ε]` |
 | R2 filleted bracket | `[3.865e2, 3.880e2] · ε` | `line_span` (both) | `[-1.095 · ε, 1.095 · ε]` |
 | R1 annulus | `[7.787e2, 7.817e2] · ε` | `carrier_matches_mapped_source` (both) | `[0, 1.050 · ε]` |
 | R2 rounded pad | `[2.083e3, 2.091e3] · ε` | `line_span` (both) | `[-1.666 · ε, 1.666 · ε]` |
 
 Every ceiling scales EXACTLY with ε at all three rows — none of them
 stopped scaling, which is the E12 claim this unit does not get to make.
-The plate's bounding PREDICATE moved and its width did not: with the
-rim identity discharged, `carrier_endpoint_end` bounds it at the same
-enclosure (`work/m10/plate-ceiling-is-now-the-arc-span-identity`). Two
-of the four are now bounded by `line_span`, the real-margin
-dependency-widening class (`work/m10/real-margin-dependency-widening`),
-which is the class E12's own "what opens" paragraph predicted would be
-next.
+The plate's bounding PREDICATE walked two predicates and its width did
+not: `carrier_endpoint_start` → `carrier_endpoint_end` →
+`carrier_matches_mapped_source`, stopping on the fenced scaffolding
+residual — the carrier against the `MappedCurve` pushforward, an
+identity between two independently built objects and therefore outside
+a node-aliasing door
+(`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`; the span
+identity's own row closed with the amendment,
+`plate-ceiling-is-now-the-arc-span-identity`). Two of the four are now
+bounded by `line_span`, the real-margin dependency-widening class
+(`work/m10/real-margin-dependency-widening`), which is the class E12's
+own "what opens" paragraph predicted would be next.
 
 ### The driver row
 

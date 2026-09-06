@@ -2,8 +2,9 @@
 id: plate-ceiling-is-now-the-arc-span-identity
 kind: issue
 title: with the rim identity registered, the plate's ceiling is bounded by carrier_endpoint_end — the arc's SPAN identity, a different theorem
-status: open
+status: closed
 opened: 2026-09-06
+closed: 2026-09-06
 ---
 
 
@@ -66,3 +67,36 @@ The two endpoint predicates are NOT the same identity.
 - With it, the plate re-measured: whether the ceiling then moves, or
   whether `carrier_on_surface_*` (which needs the SQUARED identity
   `v·v = r²`, a third node) is next.
+
+## Closed by amendment A1 (2026-09-06): the span identity IS registered
+
+The spec's §2 was amended after this row was filed — its "any
+registrant outside these two" had counted IDENTITIES where the unit of
+scope is the CONSTRUCTOR — and the swept arc carrier's builder now
+registers every same-object identity it guarantees whose consumer node
+it can build identically. The span identity is the second of them:
+`crates/sweep/src/swept.rs`, `register_span_identity`, which evaluates
+`Curve3::circle_at(centre, axis, radius, u_ref, param_end)` — the very
+node the certifier builds, because `Curve3::eval`'s `Circle` arm now
+DELEGATES to that door and node ids are content hashes — and registers
+it componentwise against `q_to`.
+
+The proof is in its doc comment: the stored bulge is `tan(θ/4)` by
+definition, so `param_end = 4·atan|b|` is the arc's turned angle, and
+rotating the first radius vector by it about the turn-signed normal
+lands on the second.
+
+**Measured**: `carrier_endpoint_end` is discharged. Past the plate's
+ceiling the first refusal moves from `carrier_endpoint_end`
+(`[0, 1.2466e-9]`) to `carrier_matches_mapped_source`
+(`[0, 1.2986e-9]`), and the ceiling itself is unmoved at
+`[7.787e2, 7.817e2] · ε` at all three ε rows. Both the discharge and
+the new bound are pinned
+(`editor-core/tests/m10_9_pins_interval::m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity`),
+and the planted lie for this registrant is pinned typed at the scalar
+(`geom_core::sym`'s `the_span_identity_discharges_and_its_planted_lie_is_refused`).
+
+What bounds the plate now is filed as
+`work/m10/plate-ceiling-is-now-the-scaffold-pushforward` — an identity
+between two INDEPENDENTLY BUILT objects, which is the line E12's
+reserve draws and the point at which amendment A1 says to stop.

@@ -276,11 +276,23 @@ early form both declined and the same walk with the session's registry
 applied answers — necessity, not contact, so no row moved out of the
 columns above.
 
-**One registrant ships**: the swept arc's rim identity `‖q − c‖ = r`,
-stated at `sweep::swept::register_rim_identity` and called from the two
-sites that build a circular carrier from a lamina vertex and an
-extruded centre (`swept.rs`'s bottom rim edge, `extrude.rs`'s cylinder
-wall). Its proof is the sagitta closed form and is in its doc comment.
+**One CONSTRUCTOR ships, with the two same-object identities it
+guarantees** (spec §2 amendment A1: the unit of scope is the
+constructor, not the identity) — the swept arc carrier's builder:
+
+- the RIM identity `‖q_from − c‖ = r`
+  (`sweep::swept::register_rim_identity`), called from the two sites
+  that build a circular carrier from a lamina vertex and an extruded
+  centre (`swept.rs`'s bottom rim edge, `extrude.rs`'s cylinder wall);
+- the SPAN identity `carrier.eval(param_end) = q_to`, componentwise
+  (`sweep::swept::register_span_identity`) — E12's reserve's own
+  example, same-object because `Curve3::eval`'s `Circle` arm delegates
+  to `Curve3::circle_at`, the `Real`-bounded door the constructor calls
+  too.
+
+Each proof is in its doc comment (the sagitta closed form; the bulge is
+`tan(θ/4)` by definition), each is counted in `registered`, and each
+has a planted lie pinned typed at the scalar.
 
 The counts, at each document's nominal, theorem/gated/**registered**/
 numeric, door OFF against door ON
@@ -289,28 +301,34 @@ numeric, door OFF against door ON
 | document | predicate | door OFF | door ON |
 | --- | --- | --- | --- |
 | plate | `carrier_endpoint_start` | 32/0/**0**/16 | 32/0/**16**/0 |
+| plate | `carrier_endpoint_end` | 32/0/**0**/16 | 32/0/**16**/0 |
 | plate | `carrier_matches_mapped_source` | 180/0/**0**/72 | 180/0/**8**/64 |
 | R2 bracket | `carrier_endpoint_start` | 44/0/**0**/22 | 44/0/**20**/2 |
+| R2 bracket | `carrier_endpoint_end` | 46/0/**0**/20 | 46/0/**20**/0 |
 | R2 bracket | `carrier_matches_mapped_source` | 234/0/**0**/99 | 234/0/**8**/91 |
 | R1 annulus | `carrier_endpoint_start` | 8/0/**0**/16 | 8/0/**16**/0 |
+| R1 annulus | `carrier_endpoint_end` | 8/0/**0**/16 | 8/0/**16**/0 |
 | R1 annulus | `carrier_matches_mapped_source` | 72/0/**0**/72 | 72/0/**8**/64 |
 | R2 pad | `carrier_endpoint_start` | 28/0/**0**/32 | 28/0/**24**/8 |
+| R2 pad | `carrier_endpoint_end` | 32/0/**0**/28 | 32/0/**24**/4 |
 | R2 pad | `carrier_matches_mapped_source` | 144/0/**0**/144 | 144/0/**12**/132 |
 
-Every other row is unchanged on every document, and `symbolic_zero` is
-identical door on and off (plate 723, bracket 790, annulus 248, pad
-368). Three rows are worth naming because they are the ones the door
-was expected to reach and does not:
+Totals, door OFF → ON: plate `registered` 0 → **40**, bracket 0 → **48**,
+annulus 0 → **40**, pad 0 → **60**. Every other row is unchanged on
+every document, and `symbolic_zero` is identical door on and off (plate
+723, bracket 790, annulus 248, pad 368). Three rows are worth naming
+because they are the ones the door was expected to reach and does not:
 
 - **`carrier_on_surface_1` / `_2`** — unchanged. These rest on
   `u_ref·u_ref = 1`, which needs the SQUARED identity `v·v = r²`; the
-  door states the unsquared one and the two are different nodes.
-- **`carrier_endpoint_end`** — unchanged, and it is what bounds the
-  plate now. The far endpoint's residual is the arc's SPAN identity
-  `carrier.eval(θ) = q_to` with `θ = 4·atan|b|`, so its form carries a
-  `cos(4·atan(|b|))` atom; that is a different theorem of the sagitta
-  construction and no `‖q − c‖ = r` registration reaches it
-  (`work/m10/plate-ceiling-is-now-the-arc-span-identity`).
+  two registrants state the unsquared distance and the far endpoint,
+  and the three are different nodes.
+- **`carrier_matches_mapped_source`** — only partly reached (8, 8, 8,
+  12), and it is what bounds the plate and the annulus now. It is the
+  fenced SCAFFOLDING residual, the carrier against the `MappedCurve`
+  pushforward at the certifier's own samples: an identity between two
+  INDEPENDENTLY BUILT objects, which is not what a node alias can
+  reach (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`).
 - **`carrier_line_circle`** — unchanged (R2's pad, 24 numeric at the
   nominal, door on or off). The `Fillet(r)` step declares the tangency,
   but the node the constructor could register is not the node the joint

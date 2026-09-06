@@ -23,18 +23,21 @@
 //! endpoint residual is zero iff `‖q − c‖ = r`, whose normal form is an
 //! outer `sqrt` over nested `sqrt(…)²` atoms that no shipped rule
 //! reaches. M10-9 gave the tier a door for exactly that residual — a
-//! constructor can REGISTER an identity it guarantees, and the swept
-//! arc's rim identity is registered where the sagitta construction
-//! guarantees it — and `carrier_endpoint_start` is discharged by it on
-//! this plate (16 of 16 numeric decisions at the nominal). The ceiling
-//! did not move: the next refusal is `carrier_endpoint_end`, the arc's
-//! SPAN identity `carrier.eval(θ) = q_to`, at the same width.
-//! MEASURED: the widest box of this plate that certifies whole is
-//! `7.81e2 · ε` of the real study (`7.81e-7` at the default ε) under
-//! M10-7's tier, M10-8's shipped tier and M10-9's door alike, and the
-//! first refusal beyond it is `carrier_endpoint_start` without the door
-//! and `carrier_endpoint_end` with it, enclosure `[0, 1.25e-9]` either
-//! way against a band of `zero = 1e-9`. On a straight-walled
+//! constructor can REGISTER an identity it guarantees — and the swept
+//! arc carrier's builder registers both of the ones it guarantees: the
+//! rim `‖q − c‖ = r` and the span `carrier.eval(param_end) = q_to`.
+//! BOTH endpoint pinnings are discharged on this plate (16 of 16
+//! numeric decisions each, at the nominal). The ceiling did not move:
+//! the next refusal is `carrier_matches_mapped_source`, the carrier
+//! against the scaffold pushforward — two independently built objects,
+//! which is not something a node alias reaches. MEASURED: the widest
+//! box of this plate that certifies whole is `7.81e2 · ε` of the real
+//! study (`7.81e-7` at the default ε) under M10-7's tier, M10-8's
+//! shipped tier and M10-9's door alike, and the first refusal beyond it
+//! is `carrier_endpoint_start` without the door, enclosure
+//! `[0, 1.25e-9]`, and `carrier_matches_mapped_source` with it,
+//! enclosure `[0, 1.30e-9]`, against a band of `zero = 1e-9`. On a
+//! straight-walled
 //! extrude, where no normalization stands between a carrier and its
 //! endpoint, the same measurement moves by a factor of about 3.9·10^9
 //! (at the default ε; the slab's ceiling is ε-dependent and the factor
@@ -444,14 +447,16 @@ fn real_study(tol: Tol) {
                  WIDER than this plate, M10-8 moved the family: its constant fold lifts \
                  a filleted L-bracket with bores from 3.7e1·ε to 3.9e2·ε (10.4x) and an \
                  annulus from 2.0e1·ε to 7.8e2·ε (39x), and a ±0.1 study on a stepped \
-                 shaft certifies whole. M10-9 then DISCHARGED this plate's rim identity \
-                 outright — a constructor registers ‖q − c‖ = r where the sagitta form \
-                 guarantees it, and carrier_endpoint_start goes 16-of-16 from numeric to \
-                 registered at the nominal — and the ceiling still did not move: the \
-                 bound is now carrier_endpoint_end, the arc's SPAN identity \
-                 carrier.eval(4·atan|b|) = q_to, enclosure [0, 1.25e-9] against a band \
-                 of zero = 1e-9. A different theorem, filed as \
-                 work/m10/plate-ceiling-is-now-the-arc-span-identity."
+                 shaft certifies whole. M10-9 then DISCHARGED both of this plate's \
+                 endpoint identities outright — the swept arc carrier's builder \
+                 registers the rim ‖q − c‖ = r and the span carrier.eval(4·atan|b|) = \
+                 q_to, and carrier_endpoint_start and _end each go 16-of-16 from \
+                 numeric to registered at the nominal — and the ceiling still did not \
+                 move: the bound is now carrier_matches_mapped_source, the carrier \
+                 against the scaffold pushforward, enclosure [0, 1.30e-9] against a \
+                 band of zero = 1e-9. An identity between two INDEPENDENTLY BUILT \
+                 objects, which a node-aliasing door does not reach; filed as \
+                 work/m10/plate-ceiling-is-now-the-scaffold-pushforward."
             );
         }
         Err(other) => panic!("unexpected stackup refusal: {other}"),

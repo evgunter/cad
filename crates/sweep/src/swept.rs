@@ -372,6 +372,59 @@ pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T) {
     rim.norm().register_equal(radius);
 }
 
+/// **The swept arc's SPAN identity, registered** (M10-9 amendment A1;
+/// ERROR-DESIGN E12's reserve names this one by hand — "a typed
+/// 'built as `carrier.eval(t0)`' token"): the carrier evaluated at its
+/// own `param_end` IS the segment's far vertex, componentwise, and
+/// this is the site that guarantees it.
+///
+/// **The proof, and it is two lines.** The stored bulge is
+/// `b = tan(θ/4)` BY DEFINITION of the sketch representation, so the
+/// span `param_end = 4·atan|b|` is exactly the arc's turned angle θ
+/// (`arc_span`). The sagitta closed forms put the centre on the chord's
+/// perpendicular bisector at the apothem (`profile::seg`), so `q_from`
+/// and `q_to` are both at `radius` from it — the rim identity above —
+/// and the angle from `q_from − c` to `q_to − c`, measured about the
+/// turn-signed plane normal, is that same θ. Rotating the first radius
+/// vector by θ about the axis therefore lands on the second: for a
+/// circle carrier `eval(t) = c + frame(axis, u_ref, t).radial · r`
+/// with `u_ref = (q_from − c)/‖q_from − c‖`, so `eval(θ) = q_to`.
+///
+/// **Why the tier cannot prove it for itself.** `θ = 4·atan|b|` reaches
+/// the normal form as the opaque atom `atan(|b|)` inside `cos` and
+/// `sin` atoms; the tier holds no functional identity of any atom (its
+/// module docs say so), so `cos(4·atan|b|)` and the polynomial in `b`
+/// that `q_to − c` is are two unrelated indeterminates. Measured:
+/// with the rim identity registered and this one not, the residual
+/// `carrier_endpoint_end` is what bounds the two-hole plate, its
+/// rendered form carrying `cos(4·atan(1·abs(1)))` verbatim
+/// (`work/m10/plate-ceiling-is-now-the-arc-span-identity`).
+///
+/// **What it touches: nothing.** `carrier.eval(param_end)` is
+/// evaluated here and thrown away; node ids are content hashes, so the
+/// point the certifier builds from the same carrier and the same
+/// `param_end` IS this node, and no value the spec carries is derived
+/// from it. Registered PER COMPONENT because that is what the consumer
+/// asks: `carrier.eval(t1).distance(end)` is the `sqrt` of a sum of
+/// squares, zero as a form exactly when each component's difference is.
+pub(crate) fn register_span_identity<T: Real>(carrier: &Curve3<T>, param_end: T, q_to: Point3<T>) {
+    let Curve3::Circle {
+        center,
+        axis,
+        radius,
+        u_ref,
+    } = *carrier
+    else {
+        // Only the arc carrier guarantees this. Every other kind is
+        // built elsewhere and states nothing here.
+        return;
+    };
+    let p = Curve3::circle_at(center, axis, radius, u_ref, param_end);
+    p.x.register_equal(q_to.x);
+    p.y.register_equal(q_to.y);
+    p.z.register_equal(q_to.z);
+}
+
 /// The edge spec of a profile segment carried into 3-space by one
 /// placement: `PlacedSegment` description, line or circle carrier per
 /// the crate docs' carrier conventions (arc axis = turn-signed plane
@@ -413,16 +466,25 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
             // the expression below rather than spelled twice: one
             // subtraction, one node, one set of bits.
             register_rim_identity(rim, radius);
+            let carrier = Curve3::Circle {
+                center: c_world,
+                axis: turn_axis(turn, normal),
+                radius,
+                u_ref: rim.normalize(),
+            };
+            let param_end = arc_span(seg.bulge());
+            // The SPAN identity, at the same guarantee
+            // (`register_span_identity` carries the proof). The
+            // carrier and the span are bound out first so the
+            // registrant states them about the very nodes the spec
+            // carries — which is the whole of the same-object
+            // condition.
+            register_span_identity(&carrier, param_end, q_to);
             EdgeCurveSpec {
                 description,
-                carrier: Curve3::Circle {
-                    center: c_world,
-                    axis: turn_axis(turn, normal),
-                    radius,
-                    u_ref: rim.normalize(),
-                },
+                carrier,
                 param_start: T::zero(),
-                param_end: arc_span(seg.bulge()),
+                param_end,
             }
         }
     }

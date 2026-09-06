@@ -163,25 +163,43 @@
 //! the registry answers, so `symbolic_zero` is M10-8's on every
 //! document, to the decision.
 //!
-//! **What it reaches, measured** (M10-9, at the shipped set; the
-//! per-predicate tables are `editor-core/tests/m10_9_evidence_interval`
-//! and the pins `m10_9_pins_interval`). At each document's nominal the
-//! rim registrant discharges `carrier_endpoint_start` outright — the
-//! plate 16 of 16 numeric decisions, R1's annulus 16 of 16, R2's
-//! bracket 20 of 22, R2's pad 24 of 32 — and part of
-//! `carrier_matches_mapped_source` (8, 8 and 12). It reaches
-//! `carrier_on_surface_*` not at all: those rest on `u_ref·u_ref = 1`,
-//! which needs the SQUARED identity `v·v = r²` rather than the
-//! unsquared one, and the two are different nodes.
+//! **The unit of scope is the CONSTRUCTOR, not the identity.** The
+//! swept arc carrier's builder registers EVERY same-object identity it
+//! guarantees whose consumer node it can build identically, and it
+//! guarantees two: the RIM identity `‖q_from − c‖ = r` and the SPAN
+//! identity `carrier.eval(param_end) = q_to`, registered componentwise
+//! (`sweep::swept::register_rim_identity` and `register_span_identity`,
+//! each with its proof). The span registrant is E12's reserve's own
+//! example — "a typed 'built as `carrier.eval(t0)`' token" — and it is
+//! same-object because `Curve3::eval`'s `Circle` arm DELEGATES to a
+//! `Real`-bounded door (`Curve3::circle_at`) the constructor calls too,
+//! so the node it states the identity about is the node the certifier
+//! asks about.
 //!
-//! **What it does NOT move, and this is the unit's finding.** No
-//! ceiling on any of the four documents changes by a digit. With
-//! `carrier_endpoint_start` discharged, the plate is bounded by
-//! `carrier_endpoint_end` at the same width — the arc's SPAN identity
-//! `carrier.eval(θ) = q_to`, whose residual carries a
-//! `cos(4·atan|b|)` atom and is a different theorem from `‖q − c‖ = r`
-//! — and R2's bracket and pad are bounded by `line_span`, a real
-//! margin of the dependency-widening class
+//! **What they reach, measured** (M10-9, at the shipped set; the
+//! per-predicate tables are `editor-core/tests/m10_9_evidence_interval`
+//! and the pins `m10_9_pins_interval`). At each document's nominal both
+//! endpoint pinnings go from numeric to registered outright —
+//! `carrier_endpoint_start` 16/16 on the plate, 16/16 on R1's annulus,
+//! 20 of 22 on R2's bracket, 24 of 32 on R2's pad; `carrier_endpoint_end`
+//! 16/16, 16/16, 20/20 and 24 of 28 — plus part of
+//! `carrier_matches_mapped_source` (8, 8, 8 and 12). They reach
+//! `carrier_on_surface_*` not at all: those rest on `u_ref·u_ref = 1`,
+//! which needs the SQUARED identity `v·v = r²` rather than either of
+//! these, and the three are different nodes.
+//!
+//! **What they do NOT move, and this is the unit's finding.** No
+//! ceiling on any of the four documents changes by a digit. The
+//! predicate that bounds the plate walks one further with each
+//! registrant — `carrier_endpoint_start` → `carrier_endpoint_end` →
+//! `carrier_matches_mapped_source` — and stops on the scaffolding
+//! residual, the carrier against the `MappedCurve` pushforward: an
+//! identity between two INDEPENDENTLY BUILT objects, which is the line
+//! E12's reserve draws, and which no node alias reaches without
+//! carrying the certifier's sampling schedule into a construction site
+//! (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`). R2's
+//! bracket and pad are bounded by `line_span`, a real margin of the
+//! dependency-widening class
 //! (`work/m10/real-margin-dependency-widening`). The door works and the
 //! family it discharges is no longer the family that bounds a document.
 //!
@@ -3734,6 +3752,68 @@ mod tests {
             row, "numeric",
             "through the root it is not: rule A is off and the atom is opaque"
         );
+    }
+
+    /// The arc carrier's SECOND same-object identity, in miniature —
+    /// the SPAN identity `carrier.eval(θ) = q_to` (M10-9 amendment A1;
+    /// `sweep::swept::register_span_identity`). The far endpoint is
+    /// reached by rotating the rim vector through the span, so the
+    /// residual carries `cos`/`sin` atoms of `4·atan|b|` that no rule
+    /// relates to the polynomial `q_to − c` is: it is registered per
+    /// COMPONENT, because the consumer asks
+    /// `carrier.eval(t1).distance(end)`.
+    ///
+    /// `(px, py)` stands for `eval(θ)`, `(qx, qy)` for `q_to`.
+    fn span(theta: f64, off: f64) -> ([Sym<f64>; 2], [Sym<f64>; 2], [Sym<f64>; 2]) {
+        let (vx, vy) = (p("vx", 3.0), p("vy", 4.0));
+        let b = p("b", theta);
+        let (sn, cs) = (Sym::from_f64(4.0) * b.abs().atan()).sin_cos();
+        // The rotated rim vector, as a circle carrier's `eval` builds
+        // it, plus the centre.
+        let (cx, cy) = (p("cx", 1.0), p("cy", -2.0));
+        let (px, py) = (cx + (vx * cs - vy * sn), cy + (vx * sn + vy * cs));
+        // The far vertex the construction actually holds, and it is
+        // built INDEPENDENTLY — a lamina vertex, not a function of the
+        // carrier — which is what makes the registration an axiom
+        // rather than a tautology, and what keeps it out of the cyclic
+        // arm. Its value is the same real, computed the same way;
+        // `off` displaces it into a claim that is FALSE.
+        let (s0, c0) = (4.0 * theta.abs().atan()).sin_cos();
+        let (qx, qy) = (
+            p("qx", 1.0 + (3.0 * c0 - 4.0 * s0) + off),
+            p("qy", -2.0 + (3.0 * s0 + 4.0 * c0) + off),
+        );
+        ([px, py], [qx, qy], [px - qx, py - qy])
+    }
+
+    /// **The span identity discharges the far endpoint's residual, per
+    /// component, and a planted lie about it is refused typed.**
+    #[test]
+    fn the_span_identity_discharges_and_its_planted_lie_is_refused() {
+        let (rows, counts) = with_session(budget(), || {
+            let (p_end, q_to, resid) = span(0.4, 0.0);
+            for (a, b) in p_end.into_iter().zip(q_to) {
+                assert_eq!(a.register_equal(b), SymRegistration::Recorded);
+            }
+            resid.map(how)
+        });
+        assert_eq!(rows, ["registered", "registered"], "{counts:?}");
+        assert_eq!(counts.symbolic_zero, 0, "no rule reaches this one");
+        // The planted lie: the same registration against a far vertex
+        // displaced by a geometric amount.
+        let (rows, counts) = with_session(budget(), || {
+            let (p_end, q_to, resid) = span(0.4, 1.0e-3);
+            for (a, b) in p_end.into_iter().zip(q_to) {
+                assert_eq!(
+                    a.register_equal(b),
+                    SymRegistration::Contradicted,
+                    "the witness separates a displaced far vertex"
+                );
+            }
+            resid.map(how)
+        });
+        assert_eq!(rows, ["numeric", "numeric"]);
+        assert_eq!(counts.registered, 0, "nothing recorded: {counts:?}");
     }
 
     /// **D9**: the registry is content-hash keyed, so two runs of the
