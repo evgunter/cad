@@ -177,6 +177,8 @@ mod m10_4_seed;
 mod msolve1_transform_aware;
 #[path = "msolve2_member_chain.rs"]
 mod msolve2_member_chain;
+#[path = "msolve3_placer_refused.rs"]
+mod msolve3_placer_refused;
 #[path = "msolve4_mate_memo.rs"]
 mod msolve4_mate_memo;
 #[path = "onb_wall_normal_census.rs"]

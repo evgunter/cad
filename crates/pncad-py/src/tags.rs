@@ -254,6 +254,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::EmptyPlacementList { .. } => "empty_placement_list",
         EditError::ImproperPlacement { .. } => "improper_placement",
         EditError::NonFinitePlacement { .. } => "non_finite_placement",
+        EditError::PlacementAxis { .. } => "placement_axis",
         EditError::UpdateOnNonInstance { .. } => "update_on_non_instance",
         EditError::PinUnchanged { .. } => "pin_unchanged",
         // A mate's alignment is authored geometry, so the non-finite
@@ -454,6 +455,7 @@ pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
         MateFault::Contradictory { .. } => "mate_contradictory",
         MateFault::Under { .. } => "mate_under",
         MateFault::DanglingHead { .. } => "mate_dangling_head",
+        MateFault::PlacerRefused { .. } => "mate_placer_refused",
         MateFault::PartSelectsAnotherCopy { .. } => "mate_part_selects_another_copy",
         MateFault::SelfMate { .. } => "mate_self",
         MateFault::Unleverable { .. } => "mate_datum_too_small_to_lever",

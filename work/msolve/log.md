@@ -227,3 +227,13 @@ which predates MSOLVE-2's move of the count check to
 `check_reference`; the lane reads the tree as it is. Slate after it:
 the gate's `Vanished` below a pattern, the lever's extent (`[ev]`),
 the remap-inference record correction.
+
+## MSOLVE-3 MERGED (2026-09-06, PR 2081)
+
+Fix pass green on the full matrix at `8a72887` (one red on the way:
+the rider row's axis-length probes assumed the default band; they come
+from the run's own band now). Item closed, spec deleted into the
+ledger, the catch-all finding and the placement rider closed. The
+slate that remains: the gate's `Vanished` on a mate read below a
+pattern, the lever's extent (`[ev]`), the remap-inference record
+correction.

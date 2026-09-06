@@ -1098,9 +1098,13 @@ class Frame:
     ) -> Frame:
         """Rotate about `axis` through the WORLD ORIGIN, THEN
         translate — `Node.transform`'s own order, so a placement and a
-        modeled transform of the same part agree BIT FOR BIT. A
-        zero-length axis yields a non-finite frame, refused typed at
-        the edit door."""
+        modeled transform of the same part agree BIT FOR BIT.
+
+        The axis is DECIDED here, the way a transform node's is: an
+        axis of no definite direction raises EditError with tag
+        `placement_axis`, naming the axis and its role, rather than
+        building a frame that is refused later for not being
+        finite."""
 
     @staticmethod
     def point_at(
@@ -1407,7 +1411,11 @@ class Node:
         so a mate can solve cleanly and still be refuted at the gate.
 
         A dangling reference is not refused here: the solve refuses
-        typed naming its head (`mate_dangling_head`)."""
+        typed naming its head (`mate_dangling_head`) — or, where the
+        head resolves and a pattern or transform placing it could not
+        derive a pose, naming that placer and carrying the
+        evaluation's own cause (`mate_placer_refused`, whose `error`
+        is the node-failure tag)."""
 
 class Expr:
     """A dimension-checked expression — the recipe's arithmetic, as a
@@ -3104,6 +3112,10 @@ class MateFault:
     def side(self) -> Optional[MateSide]: ...
     @property
     def head(self) -> Optional[NodeId]: ...
+    @property
+    def placer(self) -> Optional[NodeId]: ...
+    @property
+    def error(self) -> Optional[str]: ...
     @property
     def instance(self) -> Optional[NodeId]: ...
     @property

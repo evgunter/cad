@@ -100,6 +100,14 @@ pub const DEPTH: f64 = 0.125;
 /// The exact die volume oracle at `DEPTH` (M3).
 pub const DIE_VOLUME: f64 = 7.8359375;
 
+/// **The witnessed band a placement axis is decided under** — what
+/// `Frame::rotate_then_translate` asks the direction door with. Rows
+/// whose axis is a literal pass this and unwrap; a row whose SUBJECT
+/// is the axis decision reads the refusal instead.
+pub fn band() -> geom_core::Band {
+    geom_core::Band::linear(Tol::witness()).expect("the witnessed band")
+}
+
 pub fn len(v: f64) -> Expr {
     Expr::literal(v, Dimension::Length).unwrap()
 }
