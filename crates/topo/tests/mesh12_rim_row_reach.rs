@@ -8,10 +8,14 @@
 //! latitudes `v` and `v + Δv`, both circles exactly on the sphere, the
 //! two junction vertices at the mean latitude. Certification pins each
 //! junction to each carrier within ε, so the row constructs while
-//! `R·Δv/2` is definitely inside the endpoint band (at `R·Δv = 2ε`
-//! the pin already escalates), and the condition measures the gap
-//! `R·Δv`: the window `[ε, 2ε)` is where a certifying door hands the
-//! examination a finding. MESH-8's argument that a rim through two points is unique
+//! `R·Δv/2` is inside the endpoint band, and the condition measures
+//! the gap `R·Δv`: the window `ε ≤ R·Δv ≤ 2ε` is where a certifying
+//! door hands the examination a finding. Both edges are decided by
+//! rounding at the band's own boundary — at `R·Δv = 2ε` each junction
+//! sits exactly `ε` off its carriers, which the endpoint pin escalates
+//! at the default ε and admits at `ε = 1e-6` (residual
+//! `9.999999995839272e-7`) — so the rows pin the interior of the
+//! window and the escalation past it, never the edges. MESH-8's argument that a rim through two points is unique
 //! holds for exact incidence; the endpoint band is what opens this
 //! window.
 //!
@@ -115,11 +119,11 @@ fn two_level_rim_cap(dv: f64) -> Result<Body<f64>, EulerOpError> {
 /// finding**: at `R·Δv = 1.5ε` and `1.9ε` the body constructs and the
 /// report carries one `RimContinuation` per face, `gap = Δv`,
 /// `lever = R`, `metres = R·Δv`. Below the band (`0.5ε`) the same
-/// construction is quiet; from `2ε` (each junction `ε` off its
-/// carriers, the endpoint pin's own ambiguity band) the door
+/// construction is quiet; past it (`3ε`, each junction `1.5ε` off its
+/// carriers, inside the endpoint pin's ambiguity band) the door
 /// ESCALATES at `EndpointStart` before any body exists — a typed
-/// `Escalated`, not a refusal, and the reason the window is
-/// half-open.
+/// `Escalated`, not a refusal. The `2ε` edge is rounding-decided
+/// (module docs) and is not pinned.
 #[test]
 fn a_two_level_rim_row_from_the_certifying_doors_reports_its_gap() {
     let tol = Tol::witness();
@@ -152,22 +156,19 @@ fn a_two_level_rim_row_from_the_certifying_doors_reports_its_gap() {
     }
     let quiet = topo::examine_chart_coherence(&two_level_rim_cap(0.5 * eps / RS).unwrap(), tol);
     assert!(quiet.findings.is_empty(), "{:?}", quiet.findings);
-    for f in [2.0, 3.0] {
-        let escalated = two_level_rim_cap(f * eps / RS);
-        assert!(
-            matches!(
-                &escalated,
-                Err(EulerOpError::Certification {
-                    error: CertifyError::Escalated {
-                        check: CertCheck::EndpointStart,
-                        ..
-                    }
-                })
-            ),
-            "a junction {}ε off both carriers is the endpoint pin's to escalate: {escalated:?}",
-            f / 2.0
-        );
-    }
+    let escalated = two_level_rim_cap(3.0 * eps / RS);
+    assert!(
+        matches!(
+            &escalated,
+            Err(EulerOpError::Certification {
+                error: CertifyError::Escalated {
+                    check: CertCheck::EndpointStart,
+                    ..
+                }
+            })
+        ),
+        "a junction 1.5ε off both carriers is the endpoint pin's to escalate: {escalated:?}"
+    );
 }
 
 /// **The re-mint admits no gap the examination reports — the record,
