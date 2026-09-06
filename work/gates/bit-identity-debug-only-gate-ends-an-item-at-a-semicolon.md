@@ -80,6 +80,15 @@ through a `[…]` or a `{…}`, both of which are, and reading `<`/`>` as
 brackets mistakes every comparison for one. The `{` that marks the item
 entered is held to depth zero too, for the same reason.
 
+The count is safe in one direction only, so the other is made loud: a
+negative desync ends an item early and fires, while a positive one —
+brackets left open in the code view — would leave the item never entered
+and every later use reading as gated. Brackets still open at the body
+brace, or a file that ends inside them, are reported as a reader desync
+that reds the gate; a `;` at open bracket depth is not one, since that
+is the signature shape this row exists to allow. Both arms have a
+fixture.
+
 Two fixtures, both directions: `plant_semicolon_in_signature` (a gated
 `fn` whose parameter is `[(f64, f64); N]`) must PASS, and
 `plant_after_the_gated_use` (a gated `use … ;` followed by an ungated
