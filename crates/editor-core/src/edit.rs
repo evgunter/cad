@@ -439,6 +439,17 @@ pub enum EditError {
         /// What it references.
         measure: RecipeNodeId,
     },
+    /// A node's `declare` input names a node that is not a
+    /// [`Node::Declare`]. The slot carries coincidence INTENT, which
+    /// only a `Declare` holds; a body or a datum wired there is a
+    /// mis-wire, refused where it is authored rather than at the
+    /// evaluation that would have found nothing to resolve.
+    DeclareInputNotDeclare {
+        /// The consuming node (the boolean or the union).
+        node: RecipeNodeId,
+        /// What its `declare` input names.
+        input: RecipeNodeId,
+    },
     /// A [`Node::Assertion`]'s bound is dimensioned differently from
     /// the measure it constrains — refused at the edit door, so a
     /// document never carries a comparison of metres with radians.
@@ -901,6 +912,12 @@ impl core::fmt::Display for EditError {
                  assertion constrains a measurement",
                 node.0, measure.0
             ),
+            Self::DeclareInputNotDeclare { node, input } => write!(
+                f,
+                "node {}'s declare input names node {}, which is not a declaration — \
+                 wire a Declare node there, or leave the input empty",
+                node.0, input.0
+            ),
             Self::AssertionDimension {
                 node,
                 measure,
@@ -1329,6 +1346,28 @@ fn check_node_inputs<P: crate::ProfilePayload>(
     }
 }
 
+/// The `declare` edge's kind rule, in this door's vocabulary: what a
+/// node's declaration input names must BE a [`Node::Declare`].
+///
+/// ONE definition over [`Node::declare_input`], so the boolean and the
+/// union are held to one rule rather than two, and the load door
+/// (`persist::check`) asks the same question of the same answer in its
+/// own vocabulary. The input's LIVENESS is not asked here — it is a
+/// DAG edge, so the caller's `inputs()` walk has already refused a
+/// dangling one.
+fn check_declare_input<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    id: RecipeNodeId,
+    node: &Node<P>,
+) -> Result<(), EditError> {
+    match node.declare_input() {
+        Some(input) if !matches!(doc.nodes.get(&input), Some(Node::Declare { .. })) => {
+            Err(EditError::DeclareInputNotDeclare { node: id, input })
+        }
+        _ => Ok(()),
+    }
+}
+
 /// Reject cycles in the recipe DAG (spec D3/D6). Defensive: insertion
 /// referencing only existing nodes cannot cycle, but the invariant is
 /// checked. Iterative DFS, three-color, deterministic order.
@@ -1464,6 +1503,7 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             }
             let id = RecipeNodeId(new.next_id);
             check_node_inputs(id, node)?;
+            check_declare_input(&new, id, node)?;
             if let Node::Mate { alignment, .. } = node
                 && !alignment.is_finite()
             {

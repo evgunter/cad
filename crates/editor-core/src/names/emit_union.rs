@@ -80,6 +80,26 @@ pub(crate) fn name_union<T: geom_core::Decide>(
     body: &topo::Body<T>,
     folded: &NameTable,
 ) -> Result<Arc<NameTable>, NamingError> {
+    let t = collapse_table(node, folded)?;
+    check_total(&t, body, 0)?;
+    Ok(Arc::new(t))
+}
+
+/// A whole fold table in the union's published space — the rewrite
+/// [`name_union`] publishes, without the totality check.
+///
+/// Two callers, and the split is what tells them apart. [`name_union`]
+/// rewrites the LAST step's table, which names a finished body and is
+/// held to totality. The declaration door rewrites an INTERMEDIATE
+/// step's, and for a different purpose: a declared pair is written
+/// against what this node's refusals name (`collapse_name`), so the
+/// door that resolves one has to read the accumulation in that same
+/// space. The entities are untouched — same keys, same ties — so the
+/// keys a lookup returns are the accumulation's own.
+pub(crate) fn collapse_table(
+    node: RecipeNodeId,
+    folded: &NameTable,
+) -> Result<NameTable, NamingError> {
     let mut t = NameTable::new();
     for (name, entry) in folded.iter() {
         let keyed = collapse(node, name)?;
@@ -88,8 +108,7 @@ pub(crate) fn name_union<T: geom_core::Decide>(
             Entry::Tied(es) => t.insert_tied(keyed, es.clone()),
         }?;
     }
-    check_total(&t, body, 0)?;
-    Ok(Arc::new(t))
+    Ok(t)
 }
 
 /// One fold-table name in the union's published space.
@@ -161,16 +180,11 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
         // the minting node's space (N3), so they stay in this union's
         // space, each collapsed by this same rule.
         //
-        // UNREACHABLE as the fold is built today, and stated so rather
-        // than left to look exercised: the pair emitter mints `Merged`
-        // only for a DECLARED contact's merge groups, and a union
-        // carries no declaration channel, so every step runs with
-        // `BooleanDeclarations::none()`. No row in this suite reaches
-        // this arm. The channel is a live design question
-        // (`work/docm/n-ary-union-has-no-declaration-channel`); the arm
-        // is written because the rule it states is the one every other
-        // embedded-name arm here states, so leaving it out would make
-        // the descent partial for a reason that is not a design one.
+        // The pair emitter mints `Merged` for a DECLARED contact's
+        // merge groups, and a union carries a declaration channel of
+        // its own (`Node::Union`'s `declare` input), so a step whose
+        // bucket holds a coincident pair produces these rows and a
+        // union's published table carries them.
         //
         // The sort-and-dedup makes the constituent SET the name, the
         // same choice the pair emitter's twin makes (`emit_topo.rs`,

@@ -826,6 +826,21 @@ pub enum NodeErrorKind {
         /// The ambiguous name.
         name: Box<crate::names::StableName>,
     },
+    /// A `Declare` pair wired to a [`crate::Node::Union`] names two
+    /// entities that are never the two sides of ONE fold step: an
+    /// entity of the accumulation paired with a member the fold had
+    /// already joined when that entity was minted, or two accumulation
+    /// entities with no step left after them.
+    ///
+    /// The step a pair is fed at is DERIVED from the member ids its two
+    /// names carry (no fold position is recorded anywhere), so when
+    /// that derivation has no answer the declaration is refused — never
+    /// fed to a step where one of its names does not denote, and never
+    /// dropped.
+    UnionDeclareStep {
+        /// The pair, as the recipe carries it.
+        pair: Box<(crate::names::StableName, crate::names::StableName)>,
+    },
     /// A `Declare` pair outside the v1 threading vocabulary
     /// (supported: cross-operand Face–Face; same-operand
     /// Vertex–Vertex and Vertex–Face).
@@ -1374,6 +1389,13 @@ impl core::fmt::Display for NodeErrorKind {
                 f,
                 "the declared {name} resolves in BOTH operands — the declaration cannot \
                  pick a side"
+            ),
+            Self::UnionDeclareStep { pair } => write!(
+                f,
+                "the declared pair ({}, {}) names two entities of this union that no single \
+                 fold step joins — declare a pair of a member with something the fold has \
+                 already reached",
+                pair.0, pair.1
             ),
             Self::DeclareUnsupportedPair { kinds, .. } => write!(
                 f,
@@ -3180,11 +3202,19 @@ where
         | Node::Sweep { .. }
         | Node::Split { .. }
         | Node::Boolean { .. }
-        // The member list is edges, so the upstream keys carry it — in
-        // list order, and prefixed by its length, so neither a
-        // reordering nor a dropped member can alias another list.
-        | Node::Union { .. }
         | Node::Transform { .. } => {}
+        // The member list is edges, so the upstream keys carry it — in
+        // list order, and prefixed by their total length, so neither a
+        // reordering nor a dropped member can alias another list. What
+        // that total cannot say is where the list ENDS, because the
+        // optional `declare` edge follows it: members `[m, n]` with a
+        // declaration `d` and members `[m, n, d]` with none present the
+        // same three upstream keys in the same order. The two are
+        // different nodes — one fuses two bodies, the other refuses a
+        // declaration at a body seat — so the member count is fed, and
+        // it is the ONLY thing fed: the declaration's identity rides
+        // its own upstream key like every other input's.
+        Node::Union { members, .. } => h.write_u64(members.len() as u64),
     }
     // Evaluated slot values, in the node's deterministic slot order.
     for (i, (_slot, val)) in slot_values.iter().enumerate() {

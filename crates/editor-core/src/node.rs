@@ -1503,13 +1503,19 @@ pub enum Node<P> {
     /// members precede it, and [`crate::DocEdit::SetMembers`] can drop
     /// one without disturbing the rest.
     ///
-    /// # No `declare` field
+    /// # The `declare` field, and why it records no position
     ///
-    /// A declared-contact union is spelled with [`Node::Boolean`],
-    /// which carries the `Declare` input, and stays so: a declaration
-    /// is a statement about ONE pair of operands, and a field here
-    /// would have to say which fold step it applies to — a position,
-    /// which is the one thing this node exists not to record.
+    /// Members that touch refuse `UndeclaredContact` exactly as a pair
+    /// boolean's operands do, and the recourse is the same one: a
+    /// [`Node::Declare`] input. Its pairs name entities in THIS node's
+    /// own name space — [`crate::RoleSeg::FromMember`] rows for a
+    /// member's entity, and the `Seam`/`Merged`/`Fragment` rows this
+    /// node minted at an earlier fold step for an entity of the
+    /// accumulation. A declaration therefore says "this face of member
+    /// `m` meets that face of member `n`" and records no fold position:
+    /// the step each pair is fed at is DERIVED from the member ids its
+    /// two names carry, so reordering or dropping a member re-derives
+    /// it rather than invalidating it.
     Union {
         /// The member bodies, in fold order (D9: the order is the
         /// list's, and the list is data). Two or more, pairwise
@@ -1517,6 +1523,11 @@ pub enum Node<P> {
         /// ([`crate::EditError::TooFewMembers`],
         /// [`crate::EditError::DuplicateInput`]).
         members: Vec<RecipeNodeId>,
+        /// Optional coincidence-intent input (a `Declare` node), the
+        /// same slot [`Node::Boolean`] carries and the same edit-door
+        /// check ([`crate::EditError::DeclareInputNotDeclare`]).
+        /// [`crate::DocEdit::SetMembers`] leaves it as it was.
+        declare: Option<RecipeNodeId>,
     },
     /// A rigid placement of an upstream body (F4: Transform).
     Transform {
@@ -1956,7 +1967,14 @@ impl<P> Node<P> {
             // In LIST ORDER, not sorted: the order is the fold's (D9),
             // so it is what the DAG edge list has to report. The list
             // is pairwise distinct at the edit door, so no edge repeats.
-            Node::Union { members } => members.clone(),
+            // The declaration input follows the members, the pair
+            // boolean's precedent: this order is the memo's and the
+            // content key's.
+            Node::Union { members, declare } => {
+                let mut v = members.clone();
+                v.extend(declare.iter().copied());
+                v
+            }
             Node::Transform { input, .. } => vec![*input],
             Node::Part { of, .. } => vec![*of],
             // The two placement-rule nodes take the same edges: the
@@ -1989,7 +2007,7 @@ impl<P> Node<P> {
     /// from the edit that exists for exactly it.
     pub fn list_input(&self) -> Option<&[RecipeNodeId]> {
         match self {
-            Node::Union { members } => Some(members),
+            Node::Union { members, .. } => Some(members),
             Node::Loft { profiles, .. } => Some(profiles),
             Node::Datum(_)
             | Node::Profile(_)
@@ -2002,6 +2020,45 @@ impl<P> Node<P> {
             | Node::Chamfer { .. }
             | Node::Split { .. }
             | Node::Boolean { .. }
+            | Node::Transform { .. }
+            | Node::Pattern { .. }
+            | Node::Part { .. }
+            | Node::PlacedUnion { .. }
+            | Node::Declare { .. }
+            | Node::InstantiatePart { .. }
+            | Node::Mate { .. }
+            | Node::Measure { .. }
+            | Node::Assertion { .. } => None,
+        }
+    }
+
+    /// **The node's DECLARATION input**, where it has one — the edge a
+    /// [`Node::Declare`] is wired to.
+    ///
+    /// Two node kinds carry one: the pair boolean and the n-ary union.
+    /// Both mean the same thing by it (coincidence intent the verb
+    /// verifies) and both are held to the same rule — the node it names
+    /// must BE a `Declare` — so the rule is asked of this one answer at
+    /// the edit door and at the load door rather than written per kind.
+    ///
+    /// The match is EXHAUSTIVE on purpose: a future node that consumes
+    /// declarations is classified here or the compile breaks, rather
+    /// than defaulting to "declares nothing" and slipping past both
+    /// doors.
+    pub fn declare_input(&self) -> Option<RecipeNodeId> {
+        match self {
+            Node::Boolean { declare, .. } | Node::Union { declare, .. } => *declare,
+            Node::Datum(_)
+            | Node::Profile(_)
+            | Node::Extrude { .. }
+            | Node::Revolve { .. }
+            | Node::Tube { .. }
+            | Node::HollowTube { .. }
+            | Node::Loft { .. }
+            | Node::Sweep { .. }
+            | Node::Fillet { .. }
+            | Node::Chamfer { .. }
+            | Node::Split { .. }
             | Node::Transform { .. }
             | Node::Pattern { .. }
             | Node::Part { .. }
@@ -2081,7 +2138,7 @@ impl<P> Node<P> {
     /// share `InsertNode`'s checks rather than mirror them.
     pub(crate) fn set_list_input(&mut self, list: Vec<RecipeNodeId>) -> bool {
         match self {
-            Node::Union { members } => {
+            Node::Union { members, .. } => {
                 *members = list;
                 true
             }
