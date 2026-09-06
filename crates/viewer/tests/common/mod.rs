@@ -140,7 +140,6 @@ pub fn framed_square(
     inserted(&doc, square(plane, side), tol)
 }
 
-/// A length literal.
 /// **The witnessed band a placement axis is decided under** — what
 /// `Frame::rotate_then_translate` asks the direction door with. Rows
 /// whose axis is a literal pass this and unwrap; a row whose SUBJECT
@@ -149,6 +148,7 @@ pub fn band() -> pncad::geom_core::Band {
     pncad::geom_core::Band::linear(Tol::witness()).expect("the witnessed band")
 }
 
+/// A length literal.
 pub fn len(metres: f64) -> Expr {
     Expr::literal(metres, Dimension::Length).expect("a finite length")
 }
