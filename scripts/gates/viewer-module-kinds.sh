@@ -19,13 +19,14 @@
 #
 # WHY THIS GATE IS SITED IN THE `mirror` JOB. *A gate must be sited
 # where it can fire on its own inputs* (Ev, 2026-08-20, on S61;
-# `.github/workflows/ci.yml` states it above that job). Check 5's
-# subject is `crates/viewer/README.md` and checks 6-7's are that file
-# and `crates/viewer/Cargo.toml`. A change set of only the README
-# classifies TIER=docs, `RUN_BUILD=false`, and every `if: run_build`
-# job — `discipline` included — is skipped. Sited there, a docs-only PR
-# renaming a table heading, adding a ghost row or deleting a table
-# would merge with every arm of check 5 unrun. `scripts/check-ci-mirror
+# `.github/workflows/ci.yml` states it above that job).
+# `crates/viewer/README.md` is the subject of the table parse above
+# check 1 and of checks 3, 4, 6 and 6b; `crates/viewer/Cargo.toml` is
+# check 5's. A change set of only the README classifies TIER=docs,
+# `RUN_BUILD=false`, and every `if: run_build` job — `discipline`
+# included — is skipped. Sited there, a docs-only PR renaming a table
+# heading, adding a ghost row or deleting a table would merge with the
+# table parse and checks 3-4 unrun. `scripts/check-ci-mirror
 # -parity.py`'s TIER_BLIND names this gate, so the siting is enforced
 # rather than remembered.
 #
@@ -65,7 +66,7 @@
 #     `crate::app::…` reds — and which modules those are is read off
 #     the same tables rather than carved out by hand.
 #
-# The two hand-kept things: FORBIDDEN_TYPES (two names, cross-checked
+# The two hand-kept things: FORBIDDEN_TYPE_NAMES (two names, cross-checked
 # against the README's own rule text by check 6) and VOCAB_EXCEPTIONS
 # (below).
 #
@@ -308,15 +309,16 @@ gate() {
   done
   [ "$rc" -eq 0 ] || exit 1
 
-  # CHECK 7 HAS A SUBJECT, asked HERE because this is the only place it
-  # can be answered. Check 4 requires every row of the README's
-  # vocabulary tables to name a module that declares `vocabulary`, and
-  # those tables are proved non-empty above it, so anywhere BELOW check
-  # 4 an empty vocabulary set is unreachable and the same guard sited
-  # there decides nothing — which is what it did. Sited here it is the
-  # tree's own answer: every module declared itself a driver, so the
-  # import scan would read no file and the gate would report green over
-  # a scan of nothing.
+  # CHECK 7 HAS A SUBJECT, and the constraint on where this is asked is
+  # check 4's exit. Below that exit every row of the README's
+  # vocabulary tables has been matched to a module declaring
+  # `vocabulary`, over tables proved non-empty, so an empty vocabulary
+  # set is unreachable there and a guard against it decides nothing. It
+  # is asked under check 1 because that is where the kinds are read and
+  # `vocab` — which check 7's `scanned` is built from — is complete.
+  # The answer is the tree's own, not the README's: every module
+  # declared itself a driver, so the import scan would read no file and
+  # the gate would report green over a scan of nothing.
   if [ "${#vocab[@]}" -eq 0 ]; then
     gate_error "$(gate_name): no vocabulary modules under $SRC — every module declares itself a driver, which is not a pass"
     exit 1
@@ -349,7 +351,7 @@ gate() {
   local d
   for rel in ${driver[@]+"${driver[@]}"}; do
     if ! contains "$rel" "${driver_roster[@]}"; then
-      gate_error "$SRC/$rel declares itself a DRIVER and $README's \"$DRIVER_TABLE\" table does not list it. The README says there are exactly two drivers and that table is the roster — a third one is a README amendment, not a header edit, because a module that declares \`driver\` is exempt from every import check below"
+      gate_error "$SRC/$rel declares itself a DRIVER and $README's \"$DRIVER_TABLE\" table does not list it. That table IS the roster and not a summary of one — $README says so, and it lists ${#driver_roster[@]} modules — so a further driver is an amendment there and not a header edit, because a module that declares \`driver\` is exempt from every import check below"
       rc=1
     fi
   done
@@ -393,6 +395,13 @@ gate() {
     contains "$d" ${vocab_heads[@]+"${vocab_heads[@]}"} && continue
     path_mods+=("$d")
   done
+  # AN EMPTY SET IS NOT A NARROWER PATTERN, IT IS A DIFFERENT ONE. With
+  # no driver module path left, `join_alt` yields the empty string and
+  # the path arm below reads `crate::()\b`, which matches ANY
+  # `crate::` import — so without this the gate does not fall quiet, it
+  # reds on the first vocabulary that imports a vocabulary under a
+  # driver, naming a file that broke nothing. What is wrong is the
+  # roster the needles came from, and that is what this says.
   if [ "${#path_mods[@]}" -eq 0 ]; then
     gate_error "$(gate_name): every driver in $README's table also hosts a vocabulary, so no driver module path is forbidden and check 7's path arm matches nothing — that is not a pass"
     exit 1
@@ -623,11 +632,12 @@ fixture_readme() {
 
 # --- planters -------------------------------------------------------
 
-# THE VACUITY PLANTERS. Each of the four below leaves the gate with
-# nothing to decide over, which is the one shape a matcher cannot
-# report: a green that says the tree is clean when the gate never read
-# it. `lib.sh` states the rule for the file set; these are it for the
-# rosters this gate derives.
+# THE EMPTY-SET PLANTERS. Each of the four below empties a set this
+# gate derives, and a matcher over an empty set decides nothing about
+# the tree: three of them leave a green that says the tree is clean
+# when the gate never read it, and the fourth leaves a red against the
+# wrong file (see its planter). `lib.sh` states the rule for the file
+# set; these are it for the rosters this gate derives.
 
 plant_src_tree_gone() { rm -rf "$1/$SRC"; }
 
@@ -652,6 +662,12 @@ plant_every_module_is_a_driver() {
 # in the README and in the tree at once, so the derived forbidden-path
 # set is empty and check 7's path arm has no alternate to match.
 # `session` is that driver in the fixture as it is in the crate.
+#
+# WHAT THIS CASE HOLDS is the guard and not a silence: with the guard
+# backed out the empty alternation reds on `camera.rs`'s
+# `use crate::session::SessionOp;`, an import that breaks no rule. The
+# case says the gate names the roster that came out empty rather than
+# the first file the degenerate pattern happens to hit.
 plant_every_driver_hosts_a_vocabulary() {
   local root=$1 d m
   for d in "${FIXTURE_DRIVERS[@]}"; do
@@ -904,14 +920,14 @@ gate_selftest() {
   gate_selftest_clean
   gate_selftest_without_tool grep "it is grep saying it could not search"
 
-  # NOTHING TO DECIDE OVER IS NOT A PASS, four times: the subject gone,
-  # a tree holding only the two exclusions, a tree with no vocabulary in
-  # it, and a driver roster whose every entry hosts one. Each of those
-  # empties a set this gate derives, and an empty set matches nothing —
-  # so the gate would print OK having read no module, no vocabulary or
-  # no forbidden path. The first two are here; the third is below with
-  # the kind cases that fill the vocabulary set, the fourth with the
-  # README arms that fill the driver roster.
+  # NOTHING TO DECIDE OVER IS NOT A PASS, four times.
+  # `plant_src_tree_gone` empties the subject, `plant_only_lib_and_bin`
+  # the module roster, `plant_every_module_is_a_driver` the vocabulary
+  # set and `plant_every_driver_hosts_a_vocabulary` the forbidden-path
+  # set; each case stands beside the arm that fills the set it empties.
+  # An empty set matches nothing, so the gate would otherwise print OK
+  # having read no module or no vocabulary — or red against a file that
+  # broke nothing, which is the fourth.
   gate_selftest_case "the gate's subject is gone, so it scanned nothing" plant_src_tree_gone
   gate_selftest_case "besides lib.rs and bin/ — the gate scanned nothing" plant_only_lib_and_bin
 
