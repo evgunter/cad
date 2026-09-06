@@ -1229,11 +1229,8 @@ jobs:
         run: |
           scripts/gates/panic-free-macro-bodies.sh --selftest
           scripts/gates/panic-free-macro-bodies.sh
-      # A `continue` carrying a paragraph of justification and one
-      # carrying none are the same six characters, so the deferral
-      # register is what tells them apart: every place a LoopBoundary
-      # value is discarded is an entry, and the entry says whether the
-      # arm has been named.
+      # Every LoopBoundary discard is a register entry at a pinned
+      # count, and the entry says whether its arm has been named.
       - name: LoopBoundary deferral register
         run: |
           scripts/gates/loop-boundary-discards.sh --selftest
