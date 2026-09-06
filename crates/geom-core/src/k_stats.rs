@@ -996,7 +996,8 @@ mod tests {
                 | SampleOutcome::Indeterminate
                 | SampleOutcome::Invalid
                 | SampleOutcome::SymbolicZero
-                | SampleOutcome::SignGated => true,
+                | SampleOutcome::SignGated
+                | SampleOutcome::Registered => true,
             };
             assert!(seen, "{o:?} is listed in ALL");
         }

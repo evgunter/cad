@@ -131,17 +131,59 @@
 //! while costing 2× per leaf for the walk it rides.
 //!
 //! **What still bounds the plate.** The tour's two-hole plate certifies
-//! whole below `7.81e2 · ε` of its real study under every rule set,
-//! bounded by `carrier_endpoint_start`: a rim residual whose plain form
-//! is an outer `sqrt` over a degree-12 polynomial in the radius with
+//! whole below `7.79e2 · ε` of its real study under every rule set,
+//! and through M10-8 the predicate that bounded it was
+//! `carrier_endpoint_start`: a rim residual whose plain form is an
+//! outer `sqrt` over a degree-12 polynomial in the radius with
 //! `sqrt((a + 2r)²)²`-shaped atoms nested inside — reachable only by
 //! the per-node reduction, and only at a coefficient bound (~640 bits
 //! and up) the shipped ring does not afford. The numbers, the rendered
 //! residual and what is owed are on
-//! `work/m10/plate-rim-residual-needs-the-wide-coefficient-ring`; the
-//! recourse E12 names — a provenance token, "built as the arc's far
-//! endpoint" — has its first live consumer on
-//! `work/m10/declared-tangency-needs-the-registered-identity-door`.
+//! `work/m10/plate-rim-residual-needs-the-wide-coefficient-ring`.
+//!
+//! # The registered-identity door (M10-9)
+//!
+//! **What the tier cannot prove, a constructor can state.** E12 keeps
+//! a recourse in reserve for exactly the rim residual above —
+//! discharge by PROVENANCE — and [`Sym::register_equal`] is it: a
+//! session-level record that two DAG nodes denote one function of the
+//! parameters, made by the site that GUARANTEES it
+//! (`sweep::swept::register_rim_identity`, whose doc comment carries
+//! the proof), verified in the lane scalar at the moment it is made,
+//! refused typed when it lies, and consulted by a THIRD normal-form
+//! walk beside the plain one and the early one.
+//!
+//! A registered `Zero` is not a theorem and is never counted as one.
+//! The tier's own zeros rest on exact rational arithmetic and nothing
+//! else; this one rests additionally on the registrant's argument, so
+//! it has its own column ([`SymCounts::registered`]), its own K token
+//! (`registered`) and its own line in the driver's receipt. The
+//! attribution is NECESSITY: a decision counts there only when the
+//! plain form and the early form have both declined and the walk with
+//! the registry answers, so `symbolic_zero` is M10-8's on every
+//! document, to the decision.
+//!
+//! **What it reaches, measured** (M10-9, at the shipped set; the
+//! per-predicate tables are `editor-core/tests/m10_9_evidence_interval`
+//! and the pins `m10_9_pins_interval`). At each document's nominal the
+//! rim registrant discharges `carrier_endpoint_start` outright — the
+//! plate 16 of 16 numeric decisions, R1's annulus 16 of 16, R2's
+//! bracket 20 of 22, R2's pad 24 of 32 — and part of
+//! `carrier_matches_mapped_source` (8, 8 and 12). It reaches
+//! `carrier_on_surface_*` not at all: those rest on `u_ref·u_ref = 1`,
+//! which needs the SQUARED identity `v·v = r²` rather than the
+//! unsquared one, and the two are different nodes.
+//!
+//! **What it does NOT move, and this is the unit's finding.** No
+//! ceiling on any of the four documents changes by a digit. With
+//! `carrier_endpoint_start` discharged, the plate is bounded by
+//! `carrier_endpoint_end` at the same width — the arc's SPAN identity
+//! `carrier.eval(θ) = q_to`, whose residual carries a
+//! `cos(4·atan|b|)` atom and is a different theorem from `‖q − c‖ = r`
+//! — and R2's bracket and pad are bounded by `line_span`, a real
+//! margin of the dependency-widening class
+//! (`work/m10/real-margin-dependency-widening`). The door works and the
+//! family it discharges is no longer the family that bounds a document.
 //!
 //! # Node ids are CONTENT HASHES (D9)
 //!
@@ -1244,12 +1286,12 @@ pub struct SymCounts {
     /// argument (`sweep::swept`'s arc carrier carries its proof in its
     /// doc comment). The matching K token is `registered`.
     ///
-    /// The attribution is the WEAKEST claim the form rests on: the
-    /// flag is sticky through every combinator, so a form that touched
-    /// a registered node at all counts here even where the fold that
-    /// finished it was A0's. Never the other way round — the plain
-    /// walk never consults the registry, so a decision the plain form
-    /// answers is `symbolic_zero` exactly as it was before this door.
+    /// The attribution is NECESSITY, not contact: a decision counts
+    /// here only when the plain form and the early form have BOTH
+    /// declined and the same walk with the registry applied answers
+    /// (`Session::forms_door`). So the door can only ever move
+    /// decisions out of `numeric` — never out of `symbolic_zero` or
+    /// `sign_gated`, whose counts are M10-8's on every document.
     pub registered: u64,
     /// Decisions handed to the numeric channel.
     pub numeric: u64,
@@ -1499,6 +1541,22 @@ struct Session {
     /// The EARLY-reduced forms (`SymRules::early`), a second memo
     /// beside the plain one.
     forms_early: IdMap<Rc<Form>>,
+    /// **The DOOR-reduced forms** ([`SymRules::registered`]): the early
+    /// walk again, this time with the session's registry applied — a
+    /// THIRD memo, beside the plain one and the early one, and the
+    /// reason the receipt can say which decisions actually NEEDED the
+    /// door. A zero found here that the early memo did not find is one
+    /// the registration was necessary for; asking the two in order is
+    /// what makes `registered` an honest column instead of "every form
+    /// that happened to touch a registered node". Measured, that
+    /// distinction is most of the column: on R2's pad at its nominal
+    /// the sticky-flag attribution moved 40 of 368 theorems into it
+    /// that A0 had already proved.
+    ///
+    /// Built lazily like the others, and never at all while the
+    /// registry is empty — so a document with no registrants (all of
+    /// straight geometry) pays nothing and serializes M10-8's bytes.
+    forms_door: IdMap<Rc<Form>>,
     /// The `f64` bracket of each document parameter this leaf was
     /// evaluated over, by the parameter's indeterminate id — recorded
     /// by [`Sym::param_over`], read only by rule C ([`signed`]).
@@ -1698,6 +1756,7 @@ pub fn with_session_rules<R>(
             nodes: IdMap::default(),
             forms: IdMap::default(),
             forms_early: IdMap::default(),
+            forms_door: IdMap::default(),
             params: IndetMap::default(),
             atoms: IndetMap::default(),
             registry: IdMap::default(),
@@ -1846,24 +1905,6 @@ struct Form {
     /// reached through it is `sign_gated`, not `symbolic_zero`. Sticky
     /// through every combinator, like the poison flag.
     gated: bool,
-    /// **This form was built through a REGISTERED IDENTITY**
-    /// ([`Sym::register_equal`]): somewhere under it a node took
-    /// another node's form because a constructor said the two denote
-    /// one real. A zero reached through it is `registered` — an axiom
-    /// about the construction, verified at the leaf's witness — and
-    /// not a theorem the tier proved. Sticky through every combinator,
-    /// like the poison and the gate.
-    ///
-    /// It is deliberately NOT part of [`Form::digest`], unlike `gated`.
-    /// The registration claims the two nodes are the same real
-    /// UNCONDITIONALLY, so two forms that agree as rational functions
-    /// denote the same real whether or not a registration got one of
-    /// them there, and an atom over either is one indeterminate;
-    /// keying the flag into the digest would split that indeterminate
-    /// in two and cost the cancellations the door exists to buy. A
-    /// gated form, by contrast, is only equal to its expression over
-    /// THIS box, which is a different claim and stays in the key.
-    registered: bool,
 }
 
 impl Form {
@@ -1877,7 +1918,6 @@ impl Form {
             den,
             poisoned: false,
             gated: false,
-            registered: false,
         }
     }
 
@@ -1894,7 +1934,6 @@ impl Form {
             den: Poly::one(),
             poisoned: true,
             gated: false,
-            registered: false,
         }
     }
 
@@ -1921,7 +1960,6 @@ impl Form {
                 den: self.den.clone(),
                 poisoned: false,
                 gated: self.gated || other.gated,
-                registered: self.registered || other.registered,
             });
         }
         Some(Self {
@@ -1932,7 +1970,6 @@ impl Form {
             den: self.den.mul(&other.den, budget)?,
             poisoned: false,
             gated: self.gated || other.gated,
-            registered: self.registered || other.registered,
         })
     }
 
@@ -1945,7 +1982,6 @@ impl Form {
             den: self.den.clone(),
             poisoned: false,
             gated: self.gated,
-            registered: self.registered,
         })
     }
 
@@ -1958,7 +1994,6 @@ impl Form {
             den: self.den.mul(&other.den, budget)?,
             poisoned: false,
             gated: self.gated || other.gated,
-            registered: self.registered || other.registered,
         })
     }
 
@@ -1973,7 +2008,6 @@ impl Form {
             den: self.num.clone(),
             poisoned: false,
             gated: self.gated,
-            registered: self.registered,
         })
     }
 
@@ -2073,7 +2107,6 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
     // of a form that is only box-wise equal to the expression.
     let gate = |mut f: Form| {
         f.gated |= a.gated;
-        f.registered |= a.registered;
         f
     };
     let atom1 = |op: SymOp, sess: &mut Session| {
@@ -2169,7 +2202,6 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
             if folds {
                 let mut z = Form::zero();
                 z.gated = a.gated || b.gated;
-                z.registered = a.registered || b.registered;
                 return Some(z);
             }
             let id = indet_atom(node.op.tag(), node.payload, &[a.digest(), b.digest()]);
@@ -2180,7 +2212,6 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
             });
             let mut f = Form::poly(Poly::indet(id));
             f.gated = a.gated || b.gated;
-            f.registered = a.registered || b.registered;
             Some(f)
         }
         // Keyed by the CHILD IDS, never by their forms (the op's docs).
@@ -2196,7 +2227,6 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
                     .finish(),
             ));
             f.gated = a.gated || b.gated;
-            f.registered = a.registered || b.registered;
             Some(f)
         }
     }
@@ -2227,7 +2257,13 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
 /// is the O(dag) construction; the early walk's per-node reduction is
 /// bounded by its step cap, so its cost is a constant factor over the
 /// plain walk, measured per document in `SymRules::shipped`'s docs.
-fn form_in(sess: &mut Session, memo: &mut IdMap<Rc<Form>>, root: SymId, early: bool) -> Rc<Form> {
+fn form_in(
+    sess: &mut Session,
+    memo: &mut IdMap<Rc<Form>>,
+    root: SymId,
+    early: bool,
+    registry: bool,
+) -> Rc<Form> {
     let frozen = |sess: &mut Session, id: SymId| -> Rc<Form> {
         if !early {
             sess.counts.frozen += 1;
@@ -2246,13 +2282,11 @@ fn form_in(sess: &mut Session, memo: &mut IdMap<Rc<Form>>, root: SymId, early: b
         // axiom it is. Consulted in the EARLY walk only, so the plain
         // form — the one a decision is asked of first — is M10-8's
         // exactly and no theorem is ever re-labelled.
-        if early && sess.rules.registered {
+        if registry {
             let to = sess.alias(id);
             if to != id {
                 if let Some(f) = memo.get(&to).cloned() {
-                    let mut g = (*f).clone();
-                    g.registered = true;
-                    memo.insert(id, Rc::new(g));
+                    memo.insert(id, f);
                 } else {
                     stack.push((id, false));
                     stack.push((to, false));
@@ -2307,15 +2341,14 @@ fn form_in(sess: &mut Session, memo: &mut IdMap<Rc<Form>>, root: SymId, early: b
                     algebra::reduce_steps(&f, sess.rules, budget, &sess.atoms, EARLY_STEPS)
                         .filter(|g| within(budget, g))
                         // The reduction rebuilds the quotient out of
-                        // polynomial pieces, so the STICKY flags are
-                        // carried across by hand: a reduced form is
-                        // gated or registered if what it reduced was.
-                        // Dropping either would report a weaker claim
-                        // as a stronger one, which is the one direction
-                        // the receipt may never move in.
+                        // polynomial pieces, so the gate is carried
+                        // across by hand: a reduced form is gated if
+                        // what it reduced was. Dropping it would report
+                        // a weaker claim as a stronger one, which is
+                        // the one direction the receipt may never move
+                        // in.
                         .map(|g| Form {
                             gated: g.gated || f.gated,
-                            registered: g.registered || f.registered,
                             ..g
                         })
                         .unwrap_or(f)
@@ -2341,7 +2374,7 @@ fn form_in(sess: &mut Session, memo: &mut IdMap<Rc<Form>>, root: SymId, early: b
 /// applied, no value read. Memoized in the session's persistent table.
 fn plain_form(sess: &mut Session, root: SymId) -> Rc<Form> {
     let mut memo = core::mem::take(&mut sess.forms);
-    let out = form_in(sess, &mut memo, root, false);
+    let out = form_in(sess, &mut memo, root, false, false);
     sess.forms = memo;
     out
 }
@@ -2357,8 +2390,20 @@ const EARLY_STEPS: usize = 8;
 /// [`EARLY_STEPS`] and rule C's fold at each `sqrt`/`abs`.
 fn early_form(sess: &mut Session, root: SymId) -> Rc<Form> {
     let mut memo = core::mem::take(&mut sess.forms_early);
-    let out = form_in(sess, &mut memo, root, true);
+    let out = form_in(sess, &mut memo, root, true, false);
     sess.forms_early = memo;
+    out
+}
+
+/// The DOOR form of `root` — [`early_form`]'s walk with the session's
+/// registry applied ([`Sym::register_equal`]), memoized in its own
+/// third table. Asked only after the plain and the early forms have
+/// both declined, so a zero it finds is one the registration was
+/// needed for.
+fn door_form(sess: &mut Session, root: SymId) -> Rc<Form> {
+    let mut memo = core::mem::take(&mut sess.forms_door);
+    let out = form_in(sess, &mut memo, root, true, true);
+    sess.forms_door = memo;
     out
 }
 
@@ -2409,18 +2454,25 @@ fn discharge(id: SymId) -> Option<Discharge> {
         if rules.early {
             let e = early_form(sess, id);
             if e.is_zero() {
-                // The WEAKEST claim any part of the form rests on:
-                // an axiom outranks a box-wise fold outranks a theorem,
-                // because reporting a weaker claim as a stronger one is
-                // the direction the receipt may never move in.
-                return Some(if e.registered {
-                    Discharge::Registered
-                } else if e.gated {
+                return Some(if e.gated {
                     Discharge::SignGated
                 } else {
                     Discharge::Theorem
                 });
             }
+        }
+        // THE DOOR, asked LAST and only where there is a registration
+        // to ask about ([`Sym::register_equal`]). Last because a zero
+        // either walk above already found is a THEOREM, and labelling
+        // one an axiom would understate what the tier proved; only
+        // where both declined is the registration what answered, and
+        // that is exactly the claim `SymCounts::registered` makes.
+        if rules.registered
+            && rules.early
+            && !sess.registry.is_empty()
+            && door_form(sess, id).is_zero()
+        {
+            return Some(Discharge::Registered);
         }
         if !(rules.sqrt_square || rules.pythagoras) {
             return None;
@@ -2643,7 +2695,7 @@ impl<T: Real> Sym<T> {
     ///
     /// # Order against memoization
     ///
-    /// A registration INVALIDATES the early memo — `forms_early` is
+    /// A registration INVALIDATES the door memo — `forms_door` is
     /// cleared — so a registrant may register after a consumer has
     /// already decided, and the next decision sees the record. The
     /// alternative (refusing a late registration) was rejected: the
@@ -2688,7 +2740,10 @@ impl<T: Real> Sym<T> {
                 return SymRegistration::Cyclic;
             }
             sess.registry.insert(a, b);
-            sess.forms_early.clear();
+            // Only the DOOR memo can hold a form the new record would
+            // have changed; the plain and early memos never consult the
+            // registry, so they stay whole (and M10-8's, bit for bit).
+            sess.forms_door.clear();
             SymRegistration::Recorded
         })
     }
@@ -3452,5 +3507,257 @@ mod tests {
         }
         assert!(Rat::of_f64(f64::NAN).is_none());
         assert!(Rat::of_f64(f64::INFINITY).is_none());
+    }
+
+    // ------------------------------------------- the registered door
+
+    /// The arc-rim SHAPE the door exists for, in miniature: a "radius"
+    /// `r`, a "rim vector" `v` whose norm the construction guarantees
+    /// is `r`, and the residual a carrier's endpoint pinning produces —
+    /// `v·(r/‖v‖ − 1)`, componentwise zero exactly when `‖v‖ = r`.
+    ///
+    /// `v` is built from parameters so its norm is a genuine `sqrt`
+    /// atom, and `r` an `abs` atom, so the two are unrelated
+    /// indeterminates to every rule the tier ships — which is the whole
+    /// point: this residual is no theorem the tier can reach, and it is
+    /// the plate's ceiling.
+    fn rim(vx: f64, vy: f64, rv: f64) -> (Sym<f64>, Sym<f64>, [Sym<f64>; 2]) {
+        let (x, y) = (p("vx", vx), p("vy", vy));
+        let r = p("r", rv).abs();
+        let n = (x * x + y * y).sqrt();
+        let one = Sym::from_f64(1.0);
+        let scale = r / n - one;
+        (n, r, [x * scale, y * scale])
+    }
+
+    /// **How one margin was answered, read from the RECEIPT** — because
+    /// the answer cannot say. At a point scalar the residual of a true
+    /// identity is numerically zero as well, so every row below decides
+    /// `Zero` whatever the tier does; what separates a theorem, an
+    /// axiom and a band decision is which column the decision landed
+    /// in, and that is what these rows read.
+    fn how(m: Sym<f64>) -> &'static str {
+        let before = session_counts().expect("inside a session");
+        let _ = decides_zero(m);
+        let after = session_counts().expect("inside a session");
+        if after.registered > before.registered {
+            "registered"
+        } else if after.sign_gated > before.sign_gated {
+            "sign_gated"
+        } else if after.symbolic_zero > before.symbolic_zero {
+            "theorem"
+        } else {
+            "numeric"
+        }
+    }
+
+    /// **The door discharges the rim residual, and counts it apart.**
+    /// Without the registration every component is a numeric decision;
+    /// with it every one is `registered`, and `symbolic_zero` does not
+    /// move by one.
+    #[test]
+    fn a_registered_identity_decides_zero_and_is_counted_apart() {
+        let run = |register: bool| {
+            with_session(budget(), || {
+                let (n, r, resid) = rim(3.0, 4.0, 5.0);
+                if register {
+                    assert_eq!(n.register_equal(r), SymRegistration::Recorded);
+                }
+                resid.map(how)
+            })
+        };
+        let (how_off, off) = run(false);
+        assert_eq!(how_off, ["numeric", "numeric"], "{off:?}");
+        assert_eq!(off.registered, 0);
+        let (how_on, on) = run(true);
+        assert_eq!(how_on, ["registered", "registered"], "{on:?}");
+        assert_eq!(on.registered, 2);
+        assert_eq!(
+            on.symbolic_zero, off.symbolic_zero,
+            "the door moves decisions out of `numeric` and out of nothing else"
+        );
+        assert_eq!(on.numeric + 2, off.numeric);
+    }
+
+    /// **The value channel is untouched**: every value in the residual
+    /// is bit-identical with the registration and without it, so
+    /// `u_ref` is still `v / ‖v‖`. The rejected cheaper spelling is the
+    /// third row, and it differs in the bits — which is why it is
+    /// rejected.
+    #[test]
+    fn a_registration_changes_no_value_and_the_cheap_spelling_would() {
+        let bits = |register: bool| {
+            with_session(budget(), || {
+                let (n, r, resid) = rim(0.3, 0.4, 0.5000000001);
+                if register {
+                    let _ = n.register_equal(r);
+                }
+                [resid[0].value.to_bits(), resid[1].value.to_bits()]
+            })
+            .0
+        };
+        assert_eq!(bits(false), bits(true), "no value moves");
+        // The rejected spelling, at the same numbers: normalizing by the
+        // DECLARED radius instead of by the computed norm.
+        let cheap = with_session(budget(), || {
+            let (x, y) = (p("vx", 0.3), p("vy", 0.4));
+            let r = p("r", 0.5000000001).abs();
+            let one = Sym::from_f64(1.0);
+            let scale = r / r - one;
+            [(x * scale).value.to_bits(), (y * scale).value.to_bits()]
+        })
+        .0;
+        assert_ne!(
+            cheap,
+            bits(true),
+            "the `(q - c) / r` spelling changes the numeric channel's bits, which is the \
+             whole reason the door exists instead of it"
+        );
+    }
+
+    /// **A lying registration is refused, typed, and the decisions stay
+    /// numeric** — the planted `‖q − c‖ ≡ 2r`.
+    #[test]
+    fn a_lying_registration_is_refused_typed() {
+        let (how_, counts) = with_session(budget(), || {
+            let (n, r, resid) = rim(3.0, 4.0, 5.0);
+            let two_r = Sym::from_f64(2.0) * r;
+            assert_eq!(
+                n.register_equal(two_r),
+                SymRegistration::Contradicted,
+                "5 is not 10, and the witness says so at the point"
+            );
+            resid.map(how)
+        });
+        assert_eq!(how_, ["numeric", "numeric"]);
+        assert_eq!(counts.registered, 0, "nothing was recorded: {counts:?}");
+        assert_eq!(counts.numeric, 2);
+    }
+
+    /// **A registration made AFTER a consumer decided still discharges
+    /// the next one** — the door invalidates the memo rather than
+    /// silently missing (the order clause of `Sym::register_equal`).
+    #[test]
+    fn a_registration_after_a_decision_discharges_the_next_one() {
+        let (rows, counts) = with_session(budget(), || {
+            let (n, r, resid) = rim(3.0, 4.0, 5.0);
+            let first = how(resid[0]);
+            assert_eq!(n.register_equal(r), SymRegistration::Recorded);
+            let second = how(resid[0]);
+            // Idempotent, and a repeat invalidates nothing.
+            assert_eq!(n.register_equal(r), SymRegistration::Already);
+            [first, second]
+        });
+        assert_eq!(
+            rows,
+            ["numeric", "registered"],
+            "asked before the registration and asked again after it: {counts:?}"
+        );
+        assert_eq!((counts.registered, counts.numeric), (1, 1));
+    }
+
+    /// **A registration that would close a cycle is refused, typed** —
+    /// the property `form_in`'s termination argument rests on. `x·x`
+    /// at `x = 1` has the same VALUE as `x`, so the witness passes and
+    /// the cycle test is what refuses.
+    #[test]
+    fn a_cyclic_registration_is_refused_typed() {
+        with_session(budget(), || {
+            let x = p("w", 1.0);
+            let bigger = x * x;
+            assert_eq!(x.register_equal(bigger), SymRegistration::Cyclic);
+            // The other direction is not a cycle: `bigger` contains
+            // `x`, `x` does not contain `bigger`.
+            assert_eq!(bigger.register_equal(x), SymRegistration::Recorded);
+        });
+    }
+
+    /// **The door OFF is M10-8's tier**: the same decisions in the same
+    /// columns, and a registration that records nothing and says so.
+    #[test]
+    fn the_door_off_records_nothing_and_reproduces_the_tier() {
+        let (rows, counts) = with_session_rules(budget(), SymRules::shipped_without_the_door(), || {
+            let (n, r, resid) = rim(3.0, 4.0, 5.0);
+            assert_eq!(n.register_equal(r), SymRegistration::Witnessed);
+            resid.map(how)
+        });
+        assert_eq!(rows, ["numeric", "numeric"]);
+        assert_eq!((counts.registered, counts.numeric), (0, 2));
+    }
+
+    /// **Outside a session the claim is witnessed and nothing is
+    /// recorded**, and at a bare scalar the door is a no-op that still
+    /// answers — the `Real`-level hook's default and its overrides.
+    #[test]
+    fn the_hook_is_a_no_op_off_the_symbolic_scalar() {
+        assert_eq!(
+            <f64 as Real>::register_equal(1.0, 1.0 + 1e-15),
+            SymRegistration::Witnessed
+        );
+        assert_eq!(
+            <f64 as Real>::register_equal(1.0, 2.0),
+            SymRegistration::Contradicted
+        );
+        assert_eq!(
+            <f64 as Real>::register_equal(f64::NAN, 1.0),
+            SymRegistration::Unwitnessed
+        );
+        // Outside `with_session` there is no table to record in.
+        let a = Sym::<f64>::from_f64(2.0);
+        let b = Sym::<f64>::from_f64(2.0);
+        assert_eq!(a.register_equal(b), SymRegistration::Witnessed);
+    }
+
+    /// **Claim 9 — the axiom agrees with the tier where the tier can
+    /// reach it.** Written as polynomials the squared identity
+    /// `‖v‖² − r²` IS a plain-form theorem, with no registration
+    /// anywhere; written through the root — `sqrt(X)·sqrt(X) − X`, the
+    /// shape the construction actually produces — it is not, because
+    /// rule A is off and the atom is opaque. That gap is exactly what
+    /// the door states, and the two rows here are what make the axiom
+    /// consistent with the tier rather than merely asserted.
+    #[test]
+    fn the_squared_identity_is_a_plain_form_theorem() {
+        let (row, _) = with_session(budget(), || {
+            let (x, y) = (p("vx", 3.0), p("vy", 4.0));
+            how((x * x + y * y) - (x * x + y * y))
+        });
+        assert_eq!(row, "theorem", "the squared identity, as polynomials");
+        let (row, _) = with_session(budget(), || {
+            let (x, y) = (p("vx", 3.0), p("vy", 4.0));
+            let n2 = x * x + y * y;
+            let root = n2.sqrt();
+            how(n2 - root * root)
+        });
+        assert_eq!(
+            row, "numeric",
+            "through the root it is not: rule A is off and the atom is opaque"
+        );
+    }
+
+    /// **D9**: the registry is content-hash keyed, so two runs of the
+    /// same leaf register the same ids and count the same — and the
+    /// node the registrant registers IS the node the consumer built
+    /// (the same-object condition, testable because ids are content
+    /// hashes).
+    #[test]
+    fn the_registration_is_deterministic_and_the_ids_are_the_consumers() {
+        let run = || {
+            with_session(budget(), || {
+                let (n, r, resid) = rim(3.0, 4.0, 5.0);
+                let _ = n.register_equal(r);
+                // The registrant's node, recomputed: `Vec3::norm` is
+                // `norm_squared().sqrt()` and ids are content hashes, so
+                // the consumer's divisor is the very node registered.
+                let (x, y) = (p("vx", 3.0), p("vy", 4.0));
+                let again = (x * x + y * y).sqrt();
+                assert_eq!(again.node().bits(), n.node().bits());
+                (resid.map(how), n.node().bits())
+            })
+        };
+        let a = run();
+        let b = run();
+        assert_eq!(a, b, "identical across repeats");
+        assert_eq!(a.0.0, ["registered", "registered"]);
     }
 }

@@ -334,6 +334,7 @@ impl Real for Interval {
     /// this first.
     fn register_equal(self, other: Self) -> crate::sym::SymRegistration {
         use crate::sym::SymRegistration;
+        use crate::real::CertifiedEnclosure as _;
         let (Some((a_lo, a_hi)), Some((b_lo, b_hi))) =
             (self.certified_bracket(), other.certified_bracket())
         else {

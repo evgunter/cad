@@ -247,7 +247,8 @@ pub struct SymbolicDials {
     pub max_terms: usize,
     /// The largest total degree one normal form may reach.
     pub max_degree: u32,
-    /// The atom-algebra rules the normal form applies
+    /// The atom-algebra rules the normal form applies, and the
+    /// registered-identity door beside them
     /// ([`geom_core::SymRules`]): the shipped set by default
     /// ([`geom_core::SymRules::shipped`], chosen by measurement); each
     /// switchable alone, and [`geom_core::SymRules::none`] is the
@@ -783,6 +784,13 @@ impl ParamBoxVerdict {
             if self.decisions.sign_gated != 0 {
                 let _ = write!(s, " sign_gated={}", self.decisions.sign_gated);
             }
+            // And the registered-identity count (M10-9) by the same
+            // rule again, so a drive over straight geometry — where no
+            // constructor registers anything — serializes M10-8's line
+            // byte for byte.
+            if self.decisions.registered != 0 {
+                let _ = write!(s, " registered={}", self.decisions.registered);
+            }
             let _ = writeln!(s);
         }
         let _ = write!(s, "{}", self.accounting.serialize());
@@ -836,6 +844,17 @@ impl ParamBoxVerdict {
             // nothing folded, prints the pre-algebra line).
             if d.sign_gated != 0 {
                 let _ = write!(s, ", {} more by a certified sign", d.sign_gated);
+            }
+            // The registered identities (M10-9), by the same rule and
+            // named for what they are: not identities the tier PROVED
+            // but identities a constructor STATED and the leaf's
+            // witness checked.
+            if d.registered != 0 {
+                let _ = write!(
+                    s,
+                    ", {} more by a constructor's registered identity",
+                    d.registered
+                );
             }
             let _ = writeln!(s, "; {} form(s) frozen", d.frozen);
         }

@@ -134,6 +134,22 @@ pub(super) fn render_node(id: SymId) -> Option<String> {
     })
 }
 
+/// **The rendered plain normal form of any node**, for evidence that
+/// has to quote TWO forms side by side — a registrant's expression
+/// against its intended consumer's, when a registered identity does not
+/// reach the consumer because the two are not the same node
+/// (`Sym::register_equal`'s same-object clause). `None` outside a
+/// session, or with the tier off.
+///
+/// The public half of [`render_node`], which the `Decide` impl uses for
+/// the residual that BLOCKED; this one names its node, because the
+/// interesting pair is usually two nodes no decide site ever asked
+/// about together.
+#[must_use]
+pub fn render_of(node: SymId) -> Option<String> {
+    render_node(node)
+}
+
 /// Nested atoms render to this depth, then `…`.
 const DEPTH: usize = 4;
 
