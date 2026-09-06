@@ -3676,6 +3676,58 @@ mod tests {
         assert_eq!(on.numeric + 2, off.numeric);
     }
 
+    /// **A GATED door form does not discharge**, and this is its pin.
+    ///
+    /// The door is asked LAST — plain form, early walk, the A/B
+    /// reduction of the top residual, then the registry. But the walk
+    /// the door runs is the EARLY one, and with rule C on
+    /// (`SymRules::signed_root`) that walk can reach zero through a
+    /// clause-3 SIGN READ, which is a conditional claim rather than an
+    /// identity. A zero resting BOTH on a constructor's axiom and on a
+    /// box-wise sign read is two weakenings at once, and the receipt
+    /// has a column for each and none for the pair — so it falls to the
+    /// numeric channel, which is the conservative direction.
+    ///
+    /// The pair below is one shape, twice. `z` and `y` are independent
+    /// parameters of equal value. Registering `z = sqrt(y·y)` makes
+    /// `z − y` reach zero only under rule C's fold, and the decision
+    /// must stay NUMERIC; registering `z = y` makes the same margin the
+    /// zero form outright, and it is `registered`. Same door, same
+    /// registry, same margin — the gate is the only difference.
+    #[test]
+    fn a_gated_door_form_does_not_discharge() {
+        let rules = SymRules {
+            signed_root: true,
+            ..SymRules::shipped()
+        };
+        let run = |gated: bool| {
+            with_session_rules(budget(), rules, || {
+                let y = p("y", 2.0);
+                let z = p("z", 2.0);
+                let to = if gated { (y * y).sqrt() } else { y };
+                assert_eq!(
+                    z.register_equal(to),
+                    SymRegistration::Recorded,
+                    "both registrations are witnessed at the point"
+                );
+                how(z - y)
+            })
+        };
+        let (gated, gc) = run(true);
+        assert_eq!(
+            gated, "numeric",
+            "a door form that is zero only under a clause-3 sign read is not a \
+             discharge: {gc:?}"
+        );
+        assert_eq!(gc.registered, 0, "{gc:?}");
+        let (plain, pc) = run(false);
+        assert_eq!(
+            plain, "registered",
+            "and the same margin through an UNGATED registry is: {pc:?}"
+        );
+        assert_eq!(pc.registered, 1, "{pc:?}");
+    }
+
     /// **The value channel is untouched**: every value in the residual
     /// is bit-identical with the registration and without it, so
     /// `u_ref` is still `v / ‖v‖`. The rejected cheaper spelling is the
