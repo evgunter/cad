@@ -57,6 +57,11 @@ slotmap = { workspace = true }
 # what keeps it off every shipped build path.
 test-utils = { path = "../test-utils" }
 proptest = { workspace = true }
+# The compiler-derived variant count behind the two Display-coverage
+# rows (`ValidationError`, `EulerOpError`). The derives are applied
+# under `cfg(test)` only, so nothing production-facing names strum and
+# no consumer's build graph carries it.
+strum = { version = "0.28", features = ["derive"] }
 # Self dev-dependency: turns `sweep-testing` and `test-support` on for
 # THIS crate's own integration tests without exposing either to
 # production dependents. A dev-dependency is in no consumer's build

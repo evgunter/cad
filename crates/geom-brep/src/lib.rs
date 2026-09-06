@@ -94,11 +94,11 @@ pub use implicit::{
     implicit_gradient, implicit_hessian_form, implicit_max_normal_curvature, implicit_residual,
 };
 pub use intersect::{
-    CoaxialEvidence, CylinderSphereSection, EqualCylinderSection, PairRoute, PlaneConeSection,
-    PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection, RadiusEvidence, Rung,
-    SectionError, SphereSphereSection, SurfaceKind, cylinder_cylinder_section,
-    cylinder_sphere_section, plane_cone_section, plane_cylinder_section, plane_sphere_section,
-    plane_torus_section, route, sphere_sphere_section,
+    CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, PairRoute,
+    PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection, RadiusEvidence,
+    Rung, SectionError, SphereSphereSection, SurfaceKind, cone_cylinder_section,
+    cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section, plane_cylinder_section,
+    plane_sphere_section, plane_torus_section, route, sphere_sphere_section,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use mapped::{MappedCurve, SketchSegment};
@@ -106,8 +106,9 @@ pub use newell::{NewellError, newell_plane};
 pub use nurbs_iso::{IsoRowError, boundary_iso_u, boundary_iso_v, iso_boundary_row};
 pub use offset::{ConeOffset, OffsetError, offset_surface};
 pub use offset_fit::{
-    OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface, certify_offset,
-    certify_offset_over, fit_offset, recertify_approx,
+    OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface, approx_offset_surface_at,
+    certify_offset, certify_offset_at, certify_offset_over, certify_offset_over_at, fit_offset,
+    fit_offset_at, recertify_approx, recertify_approx_at,
 };
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,

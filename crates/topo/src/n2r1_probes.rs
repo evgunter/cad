@@ -96,13 +96,14 @@ fn probe_s350_a_margin_against_the_partial_box_clears_a_pair() {
     );
 }
 
-/// **Class 9 falsified.** The PR body says tier-3 validation "refuses
-/// either way; the variant changes from `UncertifiableSurface` to the
-/// described arm's own refusal". `validate.rs`'s surface match has NO
-/// described-NURBS arm — it falls to `_ => {}` — so the widening turns
-/// a tier-3 REFUSAL into SILENCE at this door. Executed: the same body
-/// with the placeholder reports `UncertifiableSurface`; with the
-/// masquerade it reports nothing at all.
+/// **`UncertifiableSurface` is the placeholder state's verdict and no
+/// other state's.** Check 1 reads a `Nurbs` payload's `NetState` and
+/// answers each state on its own: the placeholder reports
+/// `UncertifiableSurface`, and the masquerading net — poison in one
+/// channel of every point, so described rather than the placeholder —
+/// reports `PoisonedSurfaceDescription`. What this row pins is the
+/// negative half: the masquerade never draws the PLACEHOLDER's verdict,
+/// whatever else it draws.
 #[test]
 fn probe_class9_tier3_stops_refusing_the_poisoned_face() {
     // Adoption note (orchestrator, at the merge with CERT-M2): the
@@ -157,9 +158,7 @@ fn probe_class9_tier3_stops_refusing_the_poisoned_face() {
     );
     assert!(
         !named(&with_masquerade),
-        "PROBE: tier-3 check 1 no longer names the poisoned face at all — \
-         the surface match has no described-NURBS arm, so the body's class-9 \
-         'refuses either way' is false at this door (the one error left is the \
-         mvfs fixture's empty loop, not a verdict on the surface)"
+        "the masquerading net is DESCRIBED, so the placeholder's verdict is \
+         not its answer — check 1 names it as the poisoned state instead"
     );
 }

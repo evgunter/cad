@@ -2,9 +2,10 @@
 id: mate-memo-key-does-not-carry-the-solve
 kind: issue
 title: A mate's memo key omits the solve, so a mate can read Ok in the evaluation that blames it
-status: open
+status: closed
 opened: 2026-09-04
 refs: [1461]
+closed: 2026-09-06
 ---
 
 Found by CHROME's badge-attribution lane, which hit it hard enough to
@@ -59,3 +60,9 @@ against the code-quality K–X fences. Id, body and header are unchanged;
 the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
+
+## Closed (2026-09-06, PR 1960)
+
+Fixed by MSOLVE-4: a mate's key carries the solve's answer, so a
+blamed mate reads `Failed` in the evaluation whose fault names it, and
+the viewer's corroboration guard is gone.

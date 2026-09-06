@@ -92,6 +92,16 @@ interval-transcendentals = { path = "interval-transcendentals" }
 # crates/geom-core/src/dual.rs module docs. MIT OR Apache-2.0; 0.14.1
 # released 2026-06-14, past the 2-week age policy.
 num-dual = "0.14.1"
+# Arbitrary-precision integers for the symbolic tier's coefficient ring
+# (M10-8, `geom_core::sym::Rat`): the normal form's coefficients are exact
+# dyadic rationals built from f64 literals — 53-bit mantissas — and an
+# `i128` overflows at the THIRD power of one, which was measured to be
+# where the arc family's forms froze. Pure Rust, MIT OR Apache-2.0,
+# already in the graph through num-dual's num-rational; 0.4.8 released
+# 2025-11-14, past the 2-week age policy.
+num-bigint = { version = "0.4.8", default-features = false, features = ["std"] }
+num-integer = { version = "0.1.46", default-features = false }
+num-traits = { version = "0.2.19", default-features = false }
 # Constrained Delaunay triangulation for tessellation (M2 PR 6; ratified
 # crate table). MIT OR Apache-2.0. 2.15.1 released 2026-03-24, well past the
 # 2-week age policy.

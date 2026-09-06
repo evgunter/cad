@@ -30,6 +30,18 @@ Raised by lane T-1 (code-quality, Track T) during its closing citation sweep
 and routed here rather than edited, per `docs/prompts/implementer-discipline.md`
 §6. The citations are accurate as of 2026-09-04; re-derive before acting.
 
+## FILLET's half (2026-09-05, PR 1964)
+
+`work/fillet/program.md`'s `keep_out` clause naming Track T's rows is deleted:
+`D322`, `D325` and `D326` are all closed, so nothing it kept out is live.
+`work/fillet/plan.md:71` is left as written — the exit walk quotes it verbatim.
+
+## CERT's half (2026-09-06, sweep 7)
+
+`work/cert/plan.md` was deleted whole at S-CERT's closing sweep
+(`docs/DOC-LEDGER.md`, sweep 7) and the spent sentence went with it,
+recoverable at the sweep SHA. Nothing remains for CERT to strike.
+
 ## Was
 
 `unrowed` — raised by lane T-1 (code-quality, Track T).

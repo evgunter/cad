@@ -54,9 +54,9 @@
 //! diff that teaches the reader too, never a silent hole.
 
 use pncad::document::{
-    AssemblyError, CheckEvidence, ChecksError, DimensionError, EditError, EvalError, InlineError,
-    MateFault, NodeErrorKind, ParseError, PersistError, PlacementRuleFault, RecordedProgramError,
-    RefusedRef, RootFault, SplitError, UpdateError,
+    AssemblyError, Attribution, CheckEvidence, ChecksError, DimensionError, EditError, EvalError,
+    InlineError, MateFault, NodeErrorKind, ParseError, PersistError, PlacementRuleFault,
+    RecordedProgramError, RefusedRef, Relation, RootFault, SplitError, UpdateError,
 };
 use pncad::geom_core::{FrameError, FrameInput};
 use pncad::mesh::TessellateError;
@@ -215,6 +215,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::PayloadParamDimensionMismatch { .. } => "payload_param_dimension_mismatch",
         EditError::MeasureMalformed { .. } => "measure_malformed",
         EditError::AssertionTarget { .. } => "assertion_target",
+        EditError::DeclareInputNotDeclare { .. } => "declare_input_not_declare",
         EditError::AssertionDimension { .. } => "assertion_dimension",
         EditError::DocParamDimensionMismatch { .. } => "doc_param_dimension_mismatch",
         EditError::ContinuousParamCannotBeCount { .. } => "continuous_param_cannot_be_count",
@@ -223,6 +224,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::PathOffTree { .. } => "path_off_tree",
         EditError::Dimension { .. } => "dimension",
         EditError::DeclareNamesMissingNode { .. } => "declare_names_missing_node",
+        EditError::ReadSiteMissingNode { .. } => "read_site_missing_node",
         EditError::NonFiniteDocParam { .. } => "non_finite_doc_param",
         EditError::InvalidDistribution { .. } => "invalid_distribution",
         EditError::RebindTargetMissingNode { .. } => "rebind_target_missing_node",
@@ -390,6 +392,7 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::DeclareResolve { .. } => "declare_resolve",
         NodeErrorKind::DeclareBothOperands { .. } => "declare_both_operands",
         NodeErrorKind::DeclareUnsupportedPair { .. } => "declare_unsupported_pair",
+        NodeErrorKind::UnionDeclareStep { .. } => "union_declare_step",
         // The refusal MENU: the boolean's
         // undeclared-contact refusal carrying the candidate
         // declaration; the `finding` payload crosses as a typed
@@ -451,6 +454,7 @@ pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
         MateFault::Contradictory { .. } => "mate_contradictory",
         MateFault::Under { .. } => "mate_under",
         MateFault::DanglingHead { .. } => "mate_dangling_head",
+        MateFault::PartSelectsAnotherCopy { .. } => "mate_part_selects_another_copy",
         MateFault::SelfMate { .. } => "mate_self",
         MateFault::Unleverable { .. } => "mate_datum_too_small_to_lever",
     }
@@ -799,8 +803,40 @@ pub fn assembly_error_tag(err: &AssemblyError) -> &'static str {
         AssemblyError::Product(inner) => product_error_tag(inner),
         AssemblyError::Reference { .. } => "mate_reference_refused",
         AssemblyError::NoAtRestRecord { .. } => "no_at_rest_record",
+        AssemblyError::CarriedMintRefusal { .. } => "carried_mint_refusal",
         AssemblyError::AtRest { .. } => "at_rest",
         AssemblyError::Uncertified { .. } => "uncertified",
+    }
+}
+
+/// **The stable tag for one at-rest attribution** — what a finding
+/// says about a declaration it names, and whose declaration it is.
+///
+/// Four words rather than two, because a caller must be able to tell a
+/// refutation from a decline (relabelling the first as the second
+/// promotes a verdict against the document into the unrefuted
+/// frontier) AND a declaration this document authored from one a part
+/// did (`declaration.mate` is then a node of another document, and
+/// `of`/`via` are what make that id usable). It lives here, with the
+/// refusal tags, so this crate's `TAG_INVENTORY` guards it — that
+/// roster reads THIS file — because these words are as much a public
+/// Python contract as any tag below.
+///
+/// Exhaustive over both enums, so a relation or an attribution arm
+/// added in the kernel stops this build.
+pub fn attribution_tag(attribution: &Attribution) -> &'static str {
+    match attribution {
+        Attribution::Refuted(_) => "refuted",
+        Attribution::Declined(_) => "declined",
+        Attribution::Carried {
+            relation: Relation::Refuted,
+            ..
+        } => "carried_refuted",
+        Attribution::Carried {
+            relation: Relation::Declined,
+            ..
+        } => "carried_declined",
+        Attribution::Unattributed => "unattributed",
     }
 }
 
@@ -811,6 +847,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::UnknownCutNode { .. } => "unknown_cut_node",
         SplitError::PartIdCollides { .. } => "part_id_collides",
         SplitError::SeveredEdge { .. } => "severed_edge",
+        SplitError::OperandSeveredFromMate { .. } => "operand_severed_from_mate",
         SplitError::TornCluster { .. } => "torn_cluster",
         SplitError::UncutParamReference { .. } => "uncut_param_reference",
         SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",

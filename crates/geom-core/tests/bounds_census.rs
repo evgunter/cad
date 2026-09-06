@@ -238,6 +238,17 @@ const ROSTER: &[Site] = &[
         why: HandedOff("Track V's; a refusal-payload door S88's handoff names"),
     },
     Site {
+        path: "crates/profile/src/path/arc_fillet.rs",
+        subject: "anchor_span",
+        why: Payload(
+            "the corner-outcome PRESENTATION sort key: the two bracketing anchors' span, read \
+             as an `f64` enclosure lower bound off the diagnostic channel. A sort key and \
+             nothing else — the sort is stable, so the order is a function of the inputs \
+             (D9), and the permuted entries carry identical payloads, so nothing downstream \
+             branches on it",
+        ),
+    },
+    Site {
         path: "crates/sweep/src/blend/battery.rs",
         subject: "classified",
         why: Payload(
@@ -576,6 +587,26 @@ fn is_ident(b: u8) -> bool {
 /// is written or removed — which is the whole instrument: the rule that
 /// prescribes the sole bound now has something that watches the class,
 /// and it is not the gate (which cannot see this form by construction).
+/// The roster names each `(path, subject)` ONCE. Two rows for one door with
+/// two dispositions are not a stronger census but a contradiction it cannot
+/// see — measured 2026-09-05, when two lanes fixed one red in parallel and
+/// `anchor_span` sat in the roster as both `HandedOff` and `Payload` while
+/// this file stayed green.
+#[test]
+fn the_roster_names_each_door_once() {
+    let mut seen: BTreeSet<(&str, &str)> = BTreeSet::new();
+    let mut dup: Vec<(&str, &str)> = Vec::new();
+    for site in ROSTER {
+        if !seen.insert((site.path, site.subject)) {
+            dup.push((site.path, site.subject));
+        }
+    }
+    assert!(
+        dup.is_empty(),
+        "the roster lists these doors more than once (one door, one disposition): {dup:?}"
+    );
+}
+
 #[test]
 fn every_sole_bracket_bound_door_is_in_the_roster() {
     let root = repo_root();

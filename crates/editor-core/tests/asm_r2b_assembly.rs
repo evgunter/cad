@@ -35,10 +35,10 @@ use editor_core::{
     Alignment, AssemblyError, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocRef,
     DocumentId, EntityKey, EntityKind, EntityRef, Entry, EvalOptions, Evaluation,
     InterfaceCrossing, MateFrame, MatePrimitive, Node, NodeErrorKind, ProfileDoc, RecipeNodeId,
-    ResolveFailure, ResolveFault, RoleSeg, StableName, assemble, content_pin, evaluate, inline,
-    product_recorded, split,
+    ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName, assemble, content_pin, evaluate,
+    inline, product_recorded, split,
 };
-use fixture::{insert, len, on_frame, step};
+use fixture::{insert, len, on_frame, relations, step};
 use geom_core::Tol;
 
 // ---- The stub store (the ASM-2A/R2a shape, verbatim in spirit) ----
@@ -186,8 +186,8 @@ fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
 /// is z ∈ [0,1]); anything larger leaves a definite gap.
 fn rest_mate(a: RecipeNodeId, b: RecipeNodeId, seat: f64) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: in_part(a, CapEnd::End),
-        b: in_part(b, CapEnd::Start),
+        a: SitedRef::at_mint(in_part(a, CapEnd::End)),
+        b: SitedRef::at_mint(in_part(b, CapEnd::Start)),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),
@@ -209,8 +209,8 @@ fn rest_mate_at(
     origin: [f64; 3],
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: in_part(a, CapEnd::End),
-        b: in_part(b, CapEnd::Start),
+        a: SitedRef::at_mint(in_part(a, CapEnd::End)),
+        b: SitedRef::at_mint(in_part(b, CapEnd::Start)),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame(origin, [0.0, 0.0, 1.0]),
@@ -286,18 +286,6 @@ fn gate_records(
              geometry: {other}"
         ),
     }
-}
-
-/// Every declaration the findings name, and in what relation.
-fn relations(findings: &[editor_core::AtRestFinding]) -> Vec<(RecipeNodeId, &'static str)> {
-    findings
-        .iter()
-        .map(|f| match &f.attribution {
-            editor_core::Attribution::Refuted(m) => (m.mate, "refuted"),
-            editor_core::Attribution::Declined(m) => (m.mate, "declined"),
-            editor_core::Attribution::Unattributed => (RecipeNodeId(u64::MAX), "unattributed"),
-        })
-        .collect()
 }
 
 fn names_of(table: &editor_core::NameTable, key: EntityKey) -> Option<StableName> {
@@ -951,11 +939,11 @@ fn row5_d_a_dangling_head_mate_contributes_no_crossing() {
     let (doc, local) = block(doc, (0.0, 1.0), (0.0, 1.0), 5.0, 1.0);
     let mut node = rest_mate(instance, instance, 1.0);
     if let Node::Mate { b, .. } = &mut node {
-        *b = StableName {
+        *b = SitedRef::at_mint(StableName {
             kind: EntityKind::Face,
             node: local,
             path: vec![RoleSeg::Cap(CapEnd::Start)],
-        };
+        });
     }
     let (doc, mate) = step(doc, DocEdit::InsertNode { node });
     let mate = mate.expect("the mate mints");
@@ -1480,7 +1468,7 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
     let (doc, ids, _, store) = stacked("asm-r2b-vanish", 1.0);
     let mut node = rest_mate(ids[0], ids[1], 1.0);
     if let Node::Mate { a, .. } = &mut node {
-        a.path = vec![RoleSeg::InPart {
+        a.name.path = vec![RoleSeg::InPart {
             of: Box::new(StableName {
                 kind: EntityKind::Face,
                 node: RecipeNodeId(99),
@@ -1564,8 +1552,8 @@ fn flush_seat(label: &str) -> (ProfileDoc, RecipeNodeId, StubStore) {
         doc,
         DocEdit::InsertNode {
             node: Node::Mate {
-                a: in_part(post_id, CapEnd::End),
-                b: in_part(shelf_id, CapEnd::Start),
+                a: SitedRef::at_mint(in_part(post_id, CapEnd::End)),
+                b: SitedRef::at_mint(in_part(shelf_id, CapEnd::Start)),
                 class: ContactClass::Rest,
                 alignment: Alignment {
                     a: frame([0.0, 0.0, 0.5], [0.0, 0.0, 1.0]),
@@ -1694,7 +1682,7 @@ fn the_refusal_renders_attribution_prose_never_debug_guts() {
         "{msg}"
     );
     assert!(
-        msg.contains("mate 4's declared Rest contact, uncertified:"),
+        msg.contains("mate 4's declared Rest contact, declined:"),
         "{msg}"
     );
     assert!(

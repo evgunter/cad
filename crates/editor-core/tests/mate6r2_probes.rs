@@ -1,9 +1,11 @@
-//! MATE-6 R2 review probes — cross-tree diff rows.
+//! MATE-6 R2 probes — the refusal-precedence and seam rows that
+//! review left behind.
 //!
-//! These rows are written to COMPILE ON BOTH TREES (main and the
-//! MATE-6 head): they never touch `Product::minted` / `unminted`.
-//! Each prints a `P<n>:`-tagged line; the review runs the file on
-//! both trees with `--nocapture` and diffs the tagged lines.
+//! Each prints a `P<n>:`-tagged line; the rows were written to compile
+//! on the MATE-6 head AND on its merge base, so the review could diff
+//! the tagged lines. That property is spent: P8 asserts the outer
+//! gate's carried-mint refusal, an arm neither of those trees had.
+//! What the rows are FOR now is what each one says below.
 //!
 //! P1/P2 — refusal precedence and identity with MULTIPLE bad mates
 //!         (claims 2 and 3): first bad mate in document order wins,
@@ -26,8 +28,8 @@ use std::sync::Arc;
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CancelToken, CapEnd, ChecksConfig, ContactClass, DocEdit,
     DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive, Node,
-    ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, StableName, assemble,
-    content_pin, evaluate, run_checks,
+    ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName,
+    assemble, content_pin, evaluate, run_checks,
 };
 use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
@@ -158,8 +160,8 @@ fn mate_node(
     seat: f64,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a,
-        b,
+        a: SitedRef::at_mint(a),
+        b: SitedRef::at_mint(b),
         class,
         alignment: Alignment {
             a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),
@@ -447,16 +449,16 @@ fn p7_seam_gate_by_arm() {
     }
 }
 
-/// P8: the seam drops the inner document's UNMINTED rows too. An inner
+/// P8: an inner document's UNMINTED rows cross the seam. An inner
 /// stand whose only mate is an unmintable Tangent over a GAP (seat
-/// 5.0): the inner document's own `assemble` refuses `NoAtRestRecord`,
-/// but instantiated into an outer document the outer gate has nothing
-/// to see — no contact, no declaration, no carried refusal — and
-/// passes. Identical to main by construction (main carried nothing
-/// either); printed here to bound "verification runs once at the
-/// outermost gate": inner MINT REFUSALS do not reach the outer gate.
+/// 5.0) refuses its own `assemble` with `NoAtRestRecord`, and
+/// instantiated into an outer document that refusal reaches the outer
+/// gate as `CarriedMintRefusal`: an outer assembly is not at rest over
+/// a part whose contact nothing verified. "Verification runs once at
+/// the outermost gate" bounds where the KERNEL is asked, not which
+/// documents' mint health the gate reads.
 #[test]
-fn p8_inner_mint_refusals_stop_at_the_seam() {
+fn p8_inner_mint_refusals_reach_the_outer_gate() {
     let mut store = StubStore::default();
     let part = store.insert(cube_part("m6r2-p8-cube"), Tol::witness());
     let mut inner = ProfileDoc::empty(DocumentId::derive("m6r2-p8-stand"), Tol::witness());
@@ -488,4 +490,8 @@ fn p8_inner_mint_refusals_stop_at_the_seam() {
         headline(&inner_result),
         headline(&outer_result)
     );
+    assert!(matches!(
+        outer_result,
+        Err(AssemblyError::CarriedMintRefusal { .. })
+    ));
 }

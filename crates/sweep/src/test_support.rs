@@ -618,45 +618,128 @@ pub fn faces_around<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<FaceKey> {
     out
 }
 
-/// **Naming totality on a closed-rim band, in all three directions.**
-/// (a) Every output entity is a recorded mint or a survivor of the
-/// source; (b) every recorded retirement names a SOURCE key that did not
-/// survive; (c) every source entity ABSENT from the output is a recorded
-/// retirement — a dead edge or vertex, or a rim arc a band row replaced.
-/// (c) is the direction the first two do not imply: a retirement the
-/// surgery forgets to record is invisible to (a) and (b) and to the
-/// census delta alike. Also: the band rows name exactly `requested`.
-/// The per-row COUNTS (feet, splits, retired seam vertices) stay in the
+/// **Naming totality on any blend result — open bands, corners and
+/// closed-rim bands — in every direction the birth records owe.**
+///
+/// (a) Every output face, edge and vertex is a recorded mint or a
+/// survivor of the source; (b) every recorded retirement names a SOURCE
+/// key that did not survive; (c) every source entity ABSENT from the
+/// output is a recorded retirement — a dead edge or vertex, or an edge a
+/// band or blend row replaced; (d) every recorded mint is PRESENT in the
+/// output (a stale row naming an entity a later split subdivided away
+/// is the shape this direction exists for); (e) no mint is recorded
+/// twice, and no mint reuses a source key — except a split FRAGMENT
+/// (`meridian_remnants`, `slits`), whose key may be its own parent's,
+/// because `split_edge` hands the parent key to one child. (c) is the
+/// direction (a) and (b) do not imply: a retirement the surgery forgets
+/// to record is invisible to both and to the census delta alike. Also:
+/// the band and blend rows together name exactly `requested`. The
+/// per-row COUNTS (feet, splits, retired seam vertices) stay in the
 /// rows, because they are the fixture's, not the walk's.
-pub fn assert_naming_totality(
-    source: &Body<f64>,
-    out: &Blended<f64>,
+pub fn assert_naming_totality<T: Real>(
+    source: &Body<T>,
+    out: &Blended<T>,
     requested: &[EdgeKey],
     what: &str,
 ) {
     let rec = out
         .naming
         .as_ref()
-        .unwrap_or_else(|| panic!("{what}: the rim phase records its births"));
-    let minted_edges: Vec<EdgeKey> = rec
+        .unwrap_or_else(|| panic!("{what}: the surgery records its births"));
+    // Every birth row of every band — the blank phase's, the ruled
+    // band's and the rim phase's — so the walk is total over whatever
+    // the request carved.
+    let mut minted_faces: Vec<FaceKey> = rec
+        .blends
+        .iter()
+        .map(|(f, _)| *f)
+        .chain(rec.corners.iter().map(|(f, _)| *f))
+        .chain(rec.bands.iter().map(|(f, _)| *f))
+        .collect();
+    let mut minted_edges: Vec<EdgeKey> = rec
         .rim_trims
         .iter()
         .map(|(e, _, _)| *e)
         .chain(rec.meridian_remnants.iter().map(|(e, _)| *e))
         .chain(rec.slits.iter().map(|(e, _)| *e))
+        .chain(rec.trims.iter().map(|(e, _, _)| *e))
+        .chain(rec.arcs.iter().map(|(e, _, _)| *e))
         .collect();
-    let minted_vertices: Vec<topo::VertexKey> = rec
+    let mut minted_vertices: Vec<topo::VertexKey> = rec
         .rim_feet
         .iter()
         .map(|(v, _)| *v)
         .chain(rec.meridian_splits.iter().map(|(v, _)| *v))
+        .chain(rec.feet.iter().map(|(v, _, _)| *v))
         .collect();
-    let mut banded: Vec<EdgeKey> = rec
-        .bands
+    // (e) recorded once each.
+    fn once<K: Ord + Copy>(v: &mut Vec<K>, what: &str, kind: &str) {
+        let n = v.len();
+        v.sort_unstable();
+        v.dedup();
+        assert_eq!(n, v.len(), "{what}: a {kind} mint was recorded twice");
+    }
+    once(&mut minted_faces, what, "face");
+    once(&mut minted_edges, what, "edge");
+    once(&mut minted_vertices, what, "vertex");
+    // (e) no mint reuses a key — the split fragments excepted, whose
+    // key may be their own parent's and never an unrelated survivor's.
+    for f in &minted_faces {
+        assert!(
+            source.get_face(*f).is_none(),
+            "{what}: a minted face reused a key: {f:?}"
+        );
+    }
+    let fragments: Vec<(EdgeKey, EdgeKey)> = rec
+        .meridian_remnants
         .iter()
-        .flat_map(|(_, edges)| edges.iter().copied())
+        .chain(rec.slits.iter())
+        .copied()
         .collect();
+    for e in &minted_edges {
+        match fragments.iter().find(|(k, _)| k == e) {
+            Some((_, parent)) => assert!(
+                e == parent || source.get_edge(*e).is_none(),
+                "{what}: a split fragment carries a key that is neither its parent's nor fresh: {e:?}"
+            ),
+            None => assert!(
+                source.get_edge(*e).is_none(),
+                "{what}: a minted edge reused a key: {e:?}"
+            ),
+        }
+    }
+    for v in &minted_vertices {
+        assert!(
+            source.get_vertex(*v).is_none(),
+            "{what}: a minted vertex reused a key: {v:?}"
+        );
+    }
+    // (d) every mint is present.
+    for f in &minted_faces {
+        assert!(
+            out.body.get_face(*f).is_some(),
+            "{what}: a recorded face mint is absent: {f:?}"
+        );
+    }
+    for e in &minted_edges {
+        assert!(
+            out.body.get_edge(*e).is_some(),
+            "{what}: a recorded edge mint is absent from the output (a superseded row survived): {e:?}"
+        );
+    }
+    for v in &minted_vertices {
+        assert!(
+            out.body.get_vertex(*v).is_some(),
+            "{what}: a recorded vertex mint is absent: {v:?}"
+        );
+    }
     // (a)
+    for (k, _) in out.body.faces() {
+        assert!(
+            minted_faces.contains(&k) || source.get_face(k).is_some(),
+            "{what}: output face {k:?} is neither minted nor a survivor"
+        );
+    }
     for (k, _) in out.body.edges() {
         assert!(
             minted_edges.contains(&k) || source.get_edge(k).is_some(),
@@ -690,6 +773,14 @@ pub fn assert_naming_totality(
             "{what}: a retired vertex does not survive: {v:?}"
         );
     }
+    // The edges a band replaced: a closed chain's arcs (`bands`) or an
+    // open link's edge (`blends`) — together, exactly the request.
+    let mut banded: Vec<EdgeKey> = rec
+        .bands
+        .iter()
+        .flat_map(|(_, edges)| edges.iter().copied())
+        .chain(rec.blends.iter().map(|(_, e)| *e))
+        .collect();
     // (c)
     for (k, _) in source.edges() {
         if out.body.get_edge(k).is_none() {
@@ -707,12 +798,18 @@ pub fn assert_naming_totality(
             );
         }
     }
+    for (k, _) in source.faces() {
+        assert!(
+            out.body.get_face(k).is_some(),
+            "{what}: source face {k:?} vanished — a support shrinks, it does not die"
+        );
+    }
     banded.sort_unstable();
     let mut want = requested.to_vec();
     want.sort_unstable();
     assert_eq!(
         banded, want,
-        "{what}: the band rows name exactly the requested arcs"
+        "{what}: the band and blend rows name exactly the requested edges"
     );
 }
 
@@ -964,4 +1061,155 @@ pub fn plane_sphere_cut(big_r: f64, r: f64) -> f64 {
         (1.0, pappus::segment((0.0, 0.0), big_r, k, fb)),
         (-1.0, pappus::sector(c, r, fa, fb)),
     ])
+}
+
+/// The rod's radius, meters.
+pub const ROD_R: f64 = 0.5;
+/// The flat's distance from the rod's axis, meters.
+pub const ROD_FLAT: f64 = 0.3;
+/// The rod's length, meters. **Unity**, so `A_section · L` and
+/// `A_section` coincide on this fixture; the factor is pinned by the
+/// `L = 2.5` rod in `tests/review_fillet_h7_r2_probes.rs`.
+pub const ROD_L: f64 = 1.0;
+/// The fillet radius the rod rows carve at, meters — one home for the
+/// rod's four numbers.
+pub const ROD_FILLET: f64 = 0.1;
+
+/// **The rod with a flat milled along it** — the `CylinderPlaneCylinder`
+/// consumer: a cylinder of radius [`ROD_R`] about `z` over
+/// `z ∈ [0, ROD_L]`, minus a box whose face at `x = ROD_FLAT` planes the
+/// flat. Two straight creases (cylinder–plane, along the ruling), each
+/// ending in the two caps — planes perpendicular to the ruling, the
+/// transverse caps the ruled band is cut off at. Built through the
+/// public boolean door, as a user would mill it.
+///
+/// `f64` only: the boolean door's scalar bound is `Decide + Bounds`, a
+/// compound this file is not ratified to spell (the bracket-bound
+/// allowlist is per file). The interval twin takes the same body through
+/// the extrude door instead — [`rod_d_profile_at`].
+pub fn rod_with_flat(tol: Tol) -> Body<f64> {
+    let disc =
+        profile::circle(Point2::new(0.0, 0.0), ROD_R, tol).expect("the rod's disc is a valid loop");
+    let rod = Profile::new(SketchPlane::xy(), vec![disc.into()])
+        .validate(tol)
+        .expect("the rod's profile validates");
+    let rod = extrude(&rod, Extrusion::Distance(ROD_L), tol)
+        .expect("the rod extrudes")
+        .body;
+    let square = ProfileLoop::new(
+        [(ROD_FLAT, -1.0), (1.0, -1.0), (1.0, 1.0), (ROD_FLAT, 1.0)]
+            .into_iter()
+            .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
+            .collect(),
+    );
+    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.5)));
+    let cutter = Profile::new(plane, vec![square])
+        .validate(tol)
+        .expect("the cutter's profile validates");
+    let cutter = extrude(&cutter, Extrusion::Distance(ROD_L + 1.0), tol)
+        .expect("the cutter extrudes")
+        .body;
+    topo::subtract(&rod, &cutter, tol)
+        .expect("the flat mills")
+        .body()
+        .expect("a body remains")
+        .body
+        .clone()
+}
+
+/// **The same rod with a flat, spelled as a D-profile extrude**: the
+/// chord at `x = ROD_FLAT` and the major arc of the `ROD_R` circle — ONE
+/// cap arc, sweeping past π, so the cap's rim is split nowhere and the
+/// far foot's split parameter lies a turn off the carrier's principal
+/// branch. Same creases, same caps, same closed form as
+/// [`rod_with_flat`]; generic over the scalar for the interval twin
+/// (the extrude door's bound is `Decide + PcurveFittedLane`, no bracket).
+pub fn rod_d_profile_at<T: Decide + PcurveFittedLane>(tol: Tol) -> Body<T> {
+    rod_d_profile_of_length_at(ROD_L, tol)
+}
+
+/// [`rod_d_profile_at`] at any length — the one home for the D-rod of
+/// a length other than [`ROD_L`], which the prism factor `A · L` and
+/// the cap lever are pinned on.
+pub fn rod_d_profile_of_length_at<T: Decide + PcurveFittedLane>(len: f64, tol: Tol) -> Body<T> {
+    let f = T::from_f64;
+    let y = (ROD_R * ROD_R - ROD_FLAT * ROD_FLAT).sqrt();
+    let theta = 2.0 * (core::f64::consts::PI - y.atan2(ROD_FLAT));
+    let bulge = (theta / 4.0).tan();
+    let lp = ProfileLoop::new(vec![
+        ProfileVertex::new(Point2::new(f(ROD_FLAT), f(y)), f(bulge)),
+        ProfileVertex::new(Point2::new(f(ROD_FLAT), f(-y)), f(0.0)),
+    ]);
+    let profile = Profile::new(SketchPlane::<T>::xy(), vec![lp])
+        .validate(tol)
+        .expect("the D validates");
+    extrude(&profile, Extrusion::Distance(f(len)), tol)
+        .expect("the D extrudes")
+        .body
+}
+
+/// **The creases of a rod with a flat**: every straight edge whose two
+/// supports are a cylinder and a plane — the ruling edges the band is
+/// asked for.
+pub fn rod_creases<T: Real>(body: &Body<T>) -> Vec<EdgeKey> {
+    use topo::query::{self, CurveKind, CurveKindSet, SurfaceKindSet};
+    query::all_edges(body)
+        .into_iter()
+        .filter(|&k| {
+            query::edge_carrier_matches(body, k, CurveKindSet::just(CurveKind::Line))
+                && query::edge_adjacent_matches(
+                    body,
+                    k,
+                    SurfaceKindSet::just(geom_brep::SurfaceKind::Cylinder),
+                    SurfaceKindSet::just(geom_brep::SurfaceKind::Plane),
+                )
+        })
+        .collect()
+}
+
+/// **The cross-section area a ruled band removes at one cylinder–plane
+/// crease** — the prism closed form's `A_section`, so a row can derive
+/// `ΔV = A_section · L` by hand and compare it to the measured volume.
+///
+/// In the section normal to the ruling: a circle of radius `R` about
+/// the origin (the rod) cut by the line `x = flat` (the flat), the
+/// crease at `V = (flat, √(R² − flat²))` on the upper side. The rolling
+/// ball of radius `r` rests inside the material at distance `r` from
+/// both, so its centre is `c = (flat − r, h)` with
+/// `h = √((R − r)² − (flat − r)²)` — the crossing of the offset line
+/// and the offset circle, which is the arm's own sheet crossing. Its
+/// feet are `f_b = (flat, h)` on the flat and `f_a = c · R/(R − r)` on
+/// the rod. The region the band removes is the curvilinear triangle
+/// `f_b → V` (along the flat), `V → f_a` (along the rod's circle) and
+/// `f_a → f_b` (along the fillet arc, concave toward `c`):
+///
+/// ```text
+/// A = area(quad c, f_b, V, f_a)     the straight-sided hull
+///   − ½ r² θ                         minus the fillet sector at c
+///   + ½ R² (φ − sin φ)               plus the rod's circular segment
+///                                    between chord V–f_a and its arc
+/// θ = acos((flat − r)/(R − r))       the sector angle at c
+/// φ = θ − acos(flat/R)               the rod arc's sweep V → f_a
+/// ```
+///
+/// (`f_a` lies along `c` from the origin, so `angle(f_a) = θ`.) The
+/// quad is traversed counter-clockwise in `(x, y)`, so its shoelace sum
+/// is positive as written.
+#[must_use]
+pub fn rod_section_cut(big_r: f64, flat: f64, r: f64) -> f64 {
+    let h = ((big_r - r).powi(2) - (flat - r).powi(2)).sqrt();
+    let c = (flat - r, h);
+    let f_b = (flat, h);
+    let v = (flat, (big_r.powi(2) - flat.powi(2)).sqrt());
+    let scale = big_r / (big_r - r);
+    let f_a = (c.0 * scale, c.1 * scale);
+    let quad = [c, f_b, v, f_a];
+    let mut twice = 0.0;
+    for i in 0..4 {
+        let (p, q) = (quad[i], quad[(i + 1) % 4]);
+        twice += p.0 * q.1 - q.0 * p.1;
+    }
+    let theta = ((flat - r) / (big_r - r)).acos();
+    let phi = theta - (flat / big_r).acos();
+    0.5 * twice - 0.5 * r.powi(2) * theta + 0.5 * big_r.powi(2) * (phi - phi.sin())
 }

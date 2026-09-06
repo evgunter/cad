@@ -388,10 +388,10 @@ class TestBenchStand(BenchWorkspace):
         b_top = self.instance_face(doc, post_b, CapEnd.End)
         s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
         mate_1 = doc.insert(
-            Node.mate(a_top, s_bottom, class_, seat(POST_SEAT, SEAT_A, primitive))
+            Node.mate(post_a, a_top, shelf_i, s_bottom, class_, seat(POST_SEAT, SEAT_A, primitive))
         )
         mate_2 = doc.insert(
-            Node.mate(s_bottom, b_top, class_, seat(SEAT_B, POST_SEAT, primitive))
+            Node.mate(shelf_i, s_bottom, post_b, b_top, class_, seat(SEAT_B, POST_SEAT, primitive))
         )
         return doc, (post_a, shelf_i, post_b), (mate_1, mate_2)
 
@@ -578,13 +578,79 @@ class TestAssemblyRefusals(BenchWorkspace):
         doc = Doc("self-mate")
         post_i = doc.insert(Node.instantiate_part(self.post_ref))
         face = self.instance_face(doc, post_i, CapEnd.End)
-        mate = doc.insert(Node.mate(face, face, ContactClass.Rest, seat(POST_SEAT, POST_SEAT)))
+        mate = doc.insert(Node.mate(post_i, face, post_i, face, ContactClass.Rest, seat(POST_SEAT, POST_SEAT)))
         fault = solve_document(doc).fault(mate)
         # A pair is two instances; a self-mate constrains nothing and
         # is a recipe mistake, refused rather than folded into a
         # tautology.
         self.assertEqual(fault.variant, "mate_self")
         self.assertEqual(fault.instance, post_i)
+
+    def test_a_mate_on_a_transformed_instance_is_read_at_the_transform(self):
+        """A mate's reference is a NODE and a NAME. Wrap an instance in
+        a transform and the name is unchanged — a transform mints no
+        name — so the operand is the only thing that says which
+        geometry the mate is about. Read at the transform, the solve
+        composes the transform's map and the seat holds where the
+        transformed body actually is."""
+        doc = Doc("pncad-mate-operand")
+        post_a = doc.insert(Node.instantiate_part(self.post_ref))
+        shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
+        lifted = doc.insert(
+            Node.transform(
+                shelf_i,
+                (0 * m, 0 * m, 0.25 * m),
+                (0.0, 0.0, 1.0),
+                0.0 * pncad.rad,
+            )
+        )
+        a_top = self.instance_face(doc, post_a, CapEnd.End)
+        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
+        mate = doc.insert(
+            Node.mate(
+                post_a,
+                a_top,
+                lifted,
+                s_bottom,
+                ContactClass.Rest,
+                seat(POST_SEAT, SEAT_A),
+            )
+        )
+        # The transform is invisible to NAMING (the reference resolves
+        # through it to the minting instance) and visible to the SOLVE
+        # (which walks from the operand and composes its map).
+        self.assertIsNone(solve_document(doc).fault(mate))
+        self.assertEqual(pncad.clusters(doc), [[post_a, shelf_i]])
+        # Read at the instance instead and it is a different node: the
+        # operand is part of what a mate says.
+        at_mint = Node.mate(
+            post_a, a_top, shelf_i, s_bottom, ContactClass.Rest, seat(POST_SEAT, SEAT_A)
+        )
+        other = doc.insert(at_mint)
+        self.assertNotEqual(other, mate)
+
+    def test_a_mate_whose_operand_is_not_live_refuses_at_the_door(self):
+        """The operand is checked at the edit door exactly as the
+        name's head is: an operand that is not a live node at insert
+        is a typo, refused there rather than discovered as a dangling
+        reference at the solve."""
+        doc, post_i, shelf_i = self.two_instances()
+        top = self.instance_face(doc, post_i, CapEnd.End)
+        bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
+        dead = doc.insert(Node.instantiate_part(self.post_ref))
+        doc.apply(DocEdit.delete_node(dead))
+        with self.assertRaises(pncad.EditError) as caught:
+            doc.insert(
+                Node.mate(
+                    dead,
+                    top,
+                    shelf_i,
+                    bottom,
+                    ContactClass.Rest,
+                    seat(POST_SEAT, SEAT_A),
+                )
+            )
+        self.assertEqual(caught.exception.variant, "read_site_missing_node")
 
     def test_a_class_the_gate_cannot_mint_refuses_at_the_gate(self):
         doc, _, (mate_1, _) = TestBenchStand.stand(self, class_=ContactClass.Tangent)
@@ -616,7 +682,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         edge = sorted(ev.all_edges(post_i))[0]
         bottom = one(ev.select(shelf_i, cap_selector(CapEnd.Start, [SegTag.InPart])))
         mate = doc.insert(
-            Node.mate(edge, bottom, ContactClass.Rest, seat(POST_SEAT, SEAT_A))
+            Node.mate(post_i, edge, shelf_i, bottom, ContactClass.Rest, seat(POST_SEAT, SEAT_A))
         )
         with self.assertRaises(pncad.AssemblyError) as caught:
             assemble(doc, evaluate(doc, resolver=self.ws))
@@ -912,6 +978,161 @@ class TestProductRoots(BenchWorkspace):
         with self.assertRaises(pncad.ProductError) as caught:
             product(doc, evaluate(doc))
         self.assertEqual(caught.exception.variant, "no_body_roots")
+
+
+class TestCarriedAcrossTheSeam(BenchWorkspace):
+    """What an inner document's mates say, at the OUTER document's
+    gate.
+
+    A part's declared contacts cross the instantiation seam with its
+    geometry, and so does the bookkeeping that names them. Three things
+    a Python author sees because of that: a refuted carried declaration
+    names the mate that authored it, a declined one reaches the
+    frontier arm under the same name, and an inner part whose own mate
+    could not be minted refuses the OUTER gate rather than passing
+    silently.
+
+    ONE RULE at every door here: where a value carries a FOREIGN mate,
+    it carries `of` (the document that mate is in) and `via` (the
+    instances this document reached it through), and its `mate` is an
+    id in `of`'s space. A bare node id with no document is not
+    something a caller can look up."""
+
+    def stand_doc(self, label, class_=ContactClass.Rest, axis=None, b_seat=None):
+        """The bench stand as its OWN document, so it can be
+        instantiated.
+
+        A tilted `axis` on the post's mate frame is an ANGULAR
+        contradiction: the shelf seats where the mate says and the
+        declared rest is counter-evidence. A `b_seat` moved out to the
+        shelf's edge is the GRAZING case: the post's top square lies
+        outside the shelf's footprint and shares one edge with it, so
+        the census can decide the pair in neither direction."""
+        doc = Doc(label)
+        post_a = doc.insert(Node.instantiate_part(self.post_ref))
+        doc.apply(
+            DocEdit.set_placement(
+                post_a,
+                Frame.translation(
+                    (0 * m, (SHELF_DEPTH - POST_SECTION) / 2 * m, 0 * m)
+                ),
+            )
+        )
+        shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
+        a_top = self.instance_face(doc, post_a, CapEnd.End)
+        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
+        alignment = Alignment(
+            MateFrame(
+                origin=tuple(v * m for v in POST_SEAT),
+                axis=axis or (0.0, 0.0, 1.0),
+                reference=(1.0, 0.0, 0.0),
+            ),
+            mate_frame(b_seat or SEAT_A),
+            MatePrimitive.frame_coincidence(),
+            AxisSense.Aligned,
+        )
+        mate = doc.insert(
+            Node.mate(post_a, a_top, shelf_i, s_bottom, class_, alignment)
+        )
+        self.ws.create(doc)
+        return doc, mate, DocRef(doc.id, content_pin(doc))
+
+    def instantiated(self, label, ref):
+        doc = Doc(label)
+        return doc, doc.insert(Node.instantiate_part(ref))
+
+    def carried(self, findings, relation):
+        return [f for f in findings if f.attribution.relation == relation]
+
+    def test_a_refuted_carried_declaration_names_its_mate_and_route(self):
+        # The post's mate frame is TILTED 30°, so the shelf seats at an
+        # angle and the declared rest is definite counter-evidence. An
+        # angular contradiction rather than an offset one on purpose:
+        # the offset steer carries a struct spelling that the façade's
+        # prose gate rejects (see the PR, and
+        # `work/fix/prose-gate-has-no-mechanical-guard`).
+        inner, inner_mate, ref = self.stand_doc(
+            "carried-refuted", axis=(0.0, 0.5, 0.8660254037844386)
+        )
+        outer, instance = self.instantiated("carried-refuted-outer", ref)
+        with self.assertRaises(pncad.AssemblyError) as caught:
+            assemble(outer, evaluate(outer, resolver=self.ws))
+        err = caught.exception
+        # A refuted declaration is a verdict against the document,
+        # whichever document authored it.
+        self.assertEqual(err.variant, "at_rest")
+        refuted = self.carried(err.findings, "carried_refuted")
+        self.assertTrue(refuted, [str(f) for f in err.findings])
+        for finding in refuted:
+            a = finding.attribution
+            # The mate is a node of the INNER document, and `of` and
+            # `via` are what make that id usable.
+            self.assertEqual(a.declaration.mate, inner_mate)
+            self.assertEqual(a.of, str(inner.id))
+            self.assertEqual(a.via, [instance])
+
+    def test_a_carried_decline_reaches_the_frontier_arm(self):
+        # The post moved out to the shelf's end: its top square lies
+        # beside the shelf's footprint and shares one edge with it, so
+        # the declared rest is decidable in neither direction —
+        # nothing refuted, nothing undeclared, nothing decided.
+        inner, inner_mate, ref = self.stand_doc(
+            "carried-declined", b_seat=(-POST_SECTION / 2, SEAT_A[1], 0.0)
+        )
+        outer, instance = self.instantiated("carried-declined-outer", ref)
+        with self.assertRaises(pncad.AssemblyError) as caught:
+            assemble(outer, evaluate(outer, resolver=self.ws))
+        err = caught.exception
+        self.assertEqual(err.variant, "uncertified")
+        declined = self.carried(err.findings, "carried_declined")
+        self.assertTrue(declined, [str(f) for f in err.findings])
+        for finding in declined:
+            a = finding.attribution
+            self.assertEqual(a.declaration.mate, inner_mate)
+            self.assertEqual(a.of, str(inner.id))
+            self.assertEqual(a.via, [instance])
+
+    def test_an_inner_mate_that_cannot_be_minted_refuses_the_outer_gate(self):
+        # A `Tangent` mate solves and mints no record at rest, so the
+        # stand refuses its own gate — and an outer document is not at
+        # rest over a part whose contact nothing verified.
+        inner, inner_mate, ref = self.stand_doc(
+            "carried-unmintable", class_=ContactClass.Tangent
+        )
+        outer, instance = self.instantiated("carried-unmintable-outer", ref)
+        with self.assertRaises(pncad.AssemblyError) as caught:
+            assemble(outer, evaluate(outer, resolver=self.ws))
+        err = caught.exception
+        self.assertEqual(err.variant, "carried_mint_refusal")
+        # `through` is the instantiating node of the document that was
+        # asked about; `mate` is the inner document's, and `of` and
+        # `via` are what make it a mate a caller can go and find.
+        self.assertEqual(err.through, instance)
+        self.assertEqual(err.mate, inner_mate)
+        self.assertEqual(err.of, str(inner.id))
+        self.assertEqual(err.via, [instance])
+        self.assertIn("at rest", str(err))
+
+    def test_a_certified_assembly_names_the_carried_mates_it_certified_over(self):
+        # Two stands side by side, each certifying: the assembly keeps
+        # the rows, so it can say which inner mates its verdict
+        # answered for.
+        inner, inner_mate, ref = self.stand_doc("carried-certified")
+        outer = Doc("carried-certified-outer")
+        first = outer.insert(Node.instantiate_part(ref))
+        second = outer.insert(Node.instantiate_part(ref))
+        outer.apply(
+            DocEdit.set_placement(second, Frame.translation((5 * m, 0 * m, 0 * m)))
+        )
+        assembly = assemble(outer, evaluate(outer, resolver=self.ws))
+        self.assertEqual(assembly.minted, [])
+        self.assertEqual(
+            [(c.declaration.mate, c.of, c.via) for c in assembly.carried],
+            [
+                (inner_mate, str(inner.id), [first]),
+                (inner_mate, str(inner.id), [second]),
+            ],
+        )
 
 
 if __name__ == "__main__":

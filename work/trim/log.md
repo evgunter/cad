@@ -79,3 +79,23 @@ programs decide then whether the row moves here or lands by seam.
 Superseding the heads-up above: with Ev's concurrence TOPO moved
 `S331` onto this slate (`git mv`, id and body kept; the direction TOPO
 proposes is in the item's tail). It is TRIM's to sequence, beside `D36`.
+
+## Announced seam from PROPS (2026-09-05): `ssi.rs` and `ssi/certify.rs`, the free hull doors' consumers
+
+The coeffs-window unit (`docs/PROPS-COEFFS-SPEC.md`, item
+`work/props/coefficients-carry-their-knot-vector.md` — ruling A of the
+Span sweep applied one level down) moves `geom-core`'s free `hull`
+doors onto a `CoeffWindow` minted from `(KnotVector, coeffs)`. Three
+consumers are on Track Q's ground: `ssi.rs::pcurve_windows` and the two
+span loops in `ssi/certify.rs` — each mints one `SplineCoeffs` per
+coordinate channel from the `kv` it already holds and takes the span
+from it; the arithmetic is unchanged and pinned by a bit-identity
+digest captured at the merge base. Mechanical, disclosed in the PR
+body with the territory list. Signed (PROPS orchestrator).
+
+Addendum (2026-09-05, PROPS orchestrator): the coeffs fix pass (#1992)
+renames the mint the two `ssi` consumers call (`kv.coeffs(..)` →
+`kv.with_coeffs(..)`) and adds one sentence at each mint-refusal arm
+(`ssi/certify.rs` `box_chain`, `probe_tube_chart`) saying what the arm
+returns and that it is unreachable by construction. No arithmetic.
+Signed (PROPS orchestrator).

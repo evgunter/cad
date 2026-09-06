@@ -7,7 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::curves::NurbsCurve3;
-use geom_brep::offset_fit::fit_offset;
+use geom_brep::offset_fit::fit_offset_at;
 use geom_brep::offset_fit::offset_point;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Tol};
@@ -58,7 +58,7 @@ fn r1_skinned_loft_offset_certificate_contains_dense_sample() {
     // tolerance the cap can reach.
     let tol = 2e-3;
     for d in [0.06_f64, -0.05] {
-        let (fit, cert) = fit_offset(&base, d, tol, band())
+        let (fit, cert) = fit_offset_at(&base, d, tol, band())
             .unwrap_or_else(|e| panic!("fit_offset refused the skinned loft at d = {d}: {e}"));
         assert!(cert.hull_sup <= tol);
         let (nu, nv) = (43usize, 41usize);

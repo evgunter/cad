@@ -61,7 +61,8 @@ fn the_loft_produces_one_real_nurbs_wall_per_profile_segment() {
 /// S9 FLIP (M6-3) of `tier_three_refuses_a_real_nurbs_wall_by_kind`:
 /// the same construction — a tier-3-valid extruded box with one side
 /// wall's surface replaced by a genuine skinned NURBS — now draws NO
-/// `UncertifiableSurface` (check 1 refuses only the placeholder).
+/// `UncertifiableSurface` (that verdict is check 1's answer to the
+/// placeholder state alone; a described net of finite data passes it).
 /// Tier 3 still refuses the BODY, for the honest geometric reason:
 /// the box's rim/strut carriers do not lie on the swapped wall, so
 /// re-certification and the +V lane report the mismatch. Kind-refusal

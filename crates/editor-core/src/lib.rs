@@ -94,8 +94,9 @@ pub use appearance::{
     Attr, AttrKind, AttrSet, Rgba8,
 };
 pub use assembly::{
-    Assembly, AssemblyError, AtRestFinding, Attribution, MintRefusal, MintedDeclaration,
-    RefusedRef, assemble, assemble_gathered,
+    Assembly, AssemblyError, AtRestFinding, Attribution, CarriedDeclaration, CarriedDeclarations,
+    CarriedRefusal, MintRefusal, MintedDeclaration, RefusedRef, Relation, Route, assemble,
+    assemble_gathered,
 };
 pub use checks::{
     Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,
@@ -109,8 +110,7 @@ pub use doc::{Doc, DocParam, DocParamValue, ParamName};
 pub use drive::{
     BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig, DriveRefusal,
     FlipEvidence, LeafResults, MeasureAccounting, ParamBoxVerdict, ReasonClass, Receipt,
-    RefusalReason, RefusedLeaf, ReplayOutcome, StructureFlip, VerdictRow, VerdictVector,
-    VerdictVectorKey, drive,
+    RefusalReason, RefusedLeaf, StructureFlip, drive,
 };
 pub use edit::{Applied, DocEdit, EditError, EditRecord, apply, cascade_delete_order};
 pub use eval::{
@@ -153,7 +153,7 @@ pub use names::{
 };
 pub use node::{
     Axis3, BooleanOp, Datum, InputFault, InterfaceCrossing, InterfaceRecord, MeasureNodeFault,
-    MeasureRef, Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, SlotId, StepArg,
+    Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, SitedRef, SlotId, StepArg,
     TubeWindow, VectorSlot,
 };
 pub use parse::{ParseError, parse_expr};
@@ -185,8 +185,8 @@ pub use resolve::{
     rebind_suggestions, resolve, resolve_with_prior, vertex_name,
 };
 pub use resolve::{
-    NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictSummary,
-    diff_summaries, verdict_summary,
+    NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictRow,
+    VerdictSummary, VerdictVector, VerdictVectorKey, diff_summaries, verdict_summary,
 };
 // GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray
 // vocabulary re-exported from `bvh` so a layer-3 consumer needs no

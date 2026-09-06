@@ -960,24 +960,54 @@ pub fn payload_exprs<P>(node: &Node<P>) -> Option<Vec<&Expr>> {
     }
 }
 
-/// **A measured entity reference: a name, and the node to read it at.**
+/// **An entity reference: a name, and the node it is read at.**
 ///
 /// Both halves are load-bearing and they are not the same node.
 /// `name` says WHICH entity (N1: the name embeds the node that minted
-/// it); `at` says which evaluated value to read its carrier out of.
-/// They coincide for a reference to a body's own minting node and
-/// diverge the moment anything places that body — which is the case
-/// this type exists for, because a transform is identity-preserving
-/// and mints no name of its own.
+/// it); `at` says which node's geometry that entity is being spoken
+/// about. They coincide for a reference to a body's own minting node
+/// and diverge the moment anything PLACES that body — a transform is
+/// identity-preserving, so it mints no name of its own and a name
+/// resolved through it still points at the minting node while the
+/// geometry has moved.
 ///
-/// `at` is an ordinary DAG edge ([`Node::inputs`]); `name` resolves
-/// against `at`'s table through the same N5 ladder every other
-/// authored name takes.
+/// One type, two readers, and what `at` means to each is the same
+/// question answered at different layers:
+///
+/// - a [`Node::Measure`]'s reference reads the carrier out of `at`'s
+///   evaluated value, and `at` is therefore an ordinary DAG edge
+///   ([`Node::inputs`]);
+/// - a [`Node::Mate`]'s reference names the OPERAND the mate is
+///   authored against, and `at` is an A12 reading edge — never
+///   consuming, or the mated bodies would leave A10's root set. The
+///   solve walks from `at` down to the name's head and composes every
+///   pose-bearing node it passes ([`crate::mate::member_of`]).
+///
+/// **Where `name` resolves differs with the reader, and that is not a
+/// contradiction.** A measure's name resolves against `at`'s own
+/// evaluated name table, through the N5 ladder every other authored
+/// name takes — the carrier has to be findable there or the measure
+/// has nothing to read. A mate's name resolves nowhere at the solve:
+/// the solve is structural and inspects no geometry, so it reads the
+/// name's HEAD and its `Instance(i)` qualifiers as recipe data and
+/// nothing more. The mate's name is resolved later, against the
+/// PRODUCT's table, by the at-rest gate that mints its declaration.
+///
+/// There is no `Option` on `at`: "as authored" is spelled
+/// [`SitedRef::at_mint`].
+///
+/// **`Rebind` moves a mate's at-mint operand and never a measure's.**
+/// One repair, two shapes, because the two `at`s are different kinds
+/// of fact: a mate's at-mint operand is the reference saying "read me
+/// where I was minted", so it follows the name it was authored to
+/// coincide with; a measure's `at` is a DAG edge the author chose, and
+/// an edit that rewrote it would be re-pointing a dependency behind
+/// the author's back.
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(deny_unknown_fields)]
-pub struct MeasureRef {
+pub struct SitedRef {
     /// The node whose evaluated value the carrier is read at — the
     /// PLACED geometry, when that node placed it.
     pub at: RecipeNodeId,
@@ -985,7 +1015,7 @@ pub struct MeasureRef {
     pub name: StableName,
 }
 
-impl MeasureRef {
+impl SitedRef {
     /// A reference read at the node that minted the name — the
     /// degenerate case, and the honest spelling of "as authored".
     pub fn at_mint(name: StableName) -> Self {
@@ -1473,13 +1503,41 @@ pub enum Node<P> {
     /// members precede it, and [`crate::DocEdit::SetMembers`] can drop
     /// one without disturbing the rest.
     ///
-    /// # No `declare` field
+    /// # The `declare` field, and why it records no position
     ///
-    /// A declared-contact union is spelled with [`Node::Boolean`],
-    /// which carries the `Declare` input, and stays so: a declaration
-    /// is a statement about ONE pair of operands, and a field here
-    /// would have to say which fold step it applies to — a position,
-    /// which is the one thing this node exists not to record.
+    /// Members that touch refuse `UndeclaredContact` exactly as a pair
+    /// boolean's operands do, and the recourse is the same one: a
+    /// [`Node::Declare`] input. Its pairs name entities in THIS node's
+    /// own name space — [`crate::RoleSeg::FromMember`] rows for a
+    /// member's entity, and the `Seam`/`Merged`/`Fragment` rows this
+    /// node minted at an earlier fold step for an entity of the
+    /// accumulation. A declaration therefore says "this face of member
+    /// `m` meets that face of member `n`" and records no fold position:
+    /// the step each pair is fed at is DERIVED from the member ids its
+    /// two names carry, so reordering or dropping a member re-derives
+    /// the routing rather than invalidating the declaration.
+    ///
+    /// Two names in ONE member are that member's own CARRIED contact,
+    /// fed at the step that member joins at — member 0's at step 1,
+    /// where it is operand A — which is the pair chain's rule for a
+    /// carried contact, on a member instead of an operand.
+    ///
+    /// What re-deriving the routing does NOT do is make every order
+    /// resolve. A declared merge consumes the two faces it joins and
+    /// publishes a `Merged` row in their place, so a face declared at
+    /// one step is no longer an operand row at a later one: a
+    /// member-space declaration resolves at its step only while the
+    /// face it names is still an operand-table row there. A chain of
+    /// contacts (`a` to `c`, `c` to `d`) therefore fuses in the orders
+    /// that fold `c` in last, and in the orders that fold it in second
+    /// refuses the pair naming `c`'s face as a name that no longer
+    /// resolves — `c`'s face is inside a `Merged` row by then. The
+    /// recourse, declaring that `Merged` row instead, is itself
+    /// order-shaped, since which faces are in it depends on the order.
+    /// Measured by
+    /// `member_space_declarations_across_a_chain_are_order_shaped` and
+    /// filed as
+    /// `work/docm/member-space-declarations-are-order-shaped-across-a-chain.md`.
     Union {
         /// The member bodies, in fold order (D9: the order is the
         /// list's, and the list is data). Two or more, pairwise
@@ -1487,6 +1545,11 @@ pub enum Node<P> {
         /// ([`crate::EditError::TooFewMembers`],
         /// [`crate::EditError::DuplicateInput`]).
         members: Vec<RecipeNodeId>,
+        /// Optional coincidence-intent input (a `Declare` node), the
+        /// same slot [`Node::Boolean`] carries and the same edit-door
+        /// check ([`crate::EditError::DeclareInputNotDeclare`]).
+        /// [`crate::DocEdit::SetMembers`] leaves it as it was.
+        declare: Option<RecipeNodeId>,
     },
     /// A rigid placement of an upstream body (F4: Transform).
     Transform {
@@ -1529,6 +1592,14 @@ pub enum Node<P> {
     /// as it is ([`Node::PlacedUnion`]'s ruling). A bare split or
     /// pattern is still refused at a body seat; this node is how a
     /// user says which body they meant.
+    ///
+    /// Because it moves nothing and renames nothing, an `Instance`
+    /// selection is a pass-through of A11's member walk too
+    /// ([`crate::mate::member_of`]): a mate read at one, or below
+    /// one, stands on the same member the pattern's copy does. It is
+    /// also the only node a pattern of a pattern can be built
+    /// through, a pattern's own value being many bodies where a
+    /// pattern's input is one.
     Part {
         /// The split or pattern whose value is read.
         of: RecipeNodeId,
@@ -1627,25 +1698,49 @@ pub enum Node<P> {
     /// and the contact declaration, so there is no second vocabulary
     /// to keep synced.
     ///
-    /// **A leaf.** `a`/`b` are instance-qualified stable references,
-    /// and name references are not DAG edges — the shipped D3
-    /// carve-out `Declare` established — so [`Node::inputs`] is empty
-    /// and inserting a mate transfers no root. A12 adds *reading*
-    /// edges on top: the instantiate node each reference's head
-    /// resolves through, RECOMPUTED at need
-    /// ([`crate::mate::reading_edges`]) and never stored. A9's
-    /// relative-freedom partition and A11's placement clusters read
-    /// consuming ∪ reading edges; A10's invariants, maintenance and
-    /// product gather read consuming edges only. Under consuming edges
-    /// a mate is an isolated sink, so it is an ordinary NON-BODY root:
-    /// listed like any other, denoting no body, ignored by the gather.
-    /// A dangling head is N5's ratified semantics — no edge until
-    /// `Rebind`, and the solve refuses typed naming it.
+    /// **A leaf.** `a`/`b` are [`SitedRef`]s — each an
+    /// instance-qualified stable name plus the OPERAND node it is
+    /// read at — and neither half is a consuming edge, so
+    /// [`Node::inputs`] is empty and inserting a mate transfers no
+    /// root. A12 adds *reading* edges on top: the walk from each
+    /// operand down to its name's head yields the member the edge
+    /// lands on, RECOMPUTED at need ([`crate::mate::reading_edges`])
+    /// and never stored. A9's relative-freedom partition and A11's
+    /// placement clusters read consuming ∪ reading edges; A10's
+    /// invariants, maintenance and product gather read consuming
+    /// edges only. Under consuming edges a mate is an isolated sink,
+    /// so it is an ordinary NON-BODY root: listed like any other,
+    /// denoting no body, ignored by the gather.
+    ///
+    /// **The operand is why a mate on placed geometry means what it
+    /// says.** A transform mints no name (N1), so a reference read at
+    /// the transform and one read at the instance carry the same
+    /// name; the operand is the only thing that tells them apart, and
+    /// the solve composes the map of every pose-bearing node between
+    /// the operand and the minting instance
+    /// ([`crate::mate::member_of`]). Two mates from one instance
+    /// through two different transforms are two MEMBERS. So are two
+    /// mates onto two copies of one pattern, at any depth of nesting:
+    /// a member's identity is its instance, the chain of copies the
+    /// walk consumed, and the operand it was read at.
+    ///
+    /// The insert door checks both halves against the live document —
+    /// a never-existed operand or name node is a typo. A later delete
+    /// may strand either, which is N5's ratified semantics: no edge
+    /// until the mate is re-authored, and the solve refuses typed
+    /// naming the head.
+    ///
+    /// **A mate's VALUE is the solve's answer for it** — its role when
+    /// the solve placed it, a typed refusal when the solve faulted it
+    /// — so that answer is one of the node's inputs and its content
+    /// key feeds it beside this payload (`eval`'s `SolveAnswer` is the
+    /// one home for why).
     Mate {
-        /// The `a` reference: an entity of one instance's product.
-        a: StableName,
+        /// The `a` reference: an entity of one instance's product,
+        /// read at the operand the mate is authored against.
+        a: SitedRef,
         /// The `b` reference: an entity of the other's.
-        b: StableName,
+        b: SitedRef,
         /// The declared contact class — the KERNEL vocabulary (M9-1),
         /// re-exported rather than re-minted, so a mate's declaration
         /// is already the currency the boolean wrapper's records
@@ -1701,7 +1796,7 @@ pub enum Node<P> {
     ///
     /// # What a reference denotes: the carrier AT a named node
     ///
-    /// A [`MeasureRef`] is a pair — the entity's [`StableName`], and
+    /// A [`SitedRef`] is a pair — the entity's [`StableName`], and
     /// the node its carrier is READ AT. The second half is what makes
     /// a measure report placed geometry.
     ///
@@ -1725,7 +1820,7 @@ pub enum Node<P> {
         expr: crate::measure::MeasureExpr,
         /// The referenced entities, in argument order, frozen at
         /// authoring time.
-        refs: Vec<MeasureRef>,
+        refs: Vec<SitedRef>,
     },
     /// **A recorded tolerance requirement** (ERROR-DESIGN E10): design
     /// intent as document data — "this web is at least 0.5 mm" lives
@@ -1911,7 +2006,14 @@ impl<P> Node<P> {
             // In LIST ORDER, not sorted: the order is the fold's (D9),
             // so it is what the DAG edge list has to report. The list
             // is pairwise distinct at the edit door, so no edge repeats.
-            Node::Union { members } => members.clone(),
+            // The declaration input follows the members, the pair
+            // boolean's precedent: this order is the memo's and the
+            // content key's.
+            Node::Union { members, declare } => {
+                let mut v = members.clone();
+                v.extend(declare.iter().copied());
+                v
+            }
             Node::Transform { input, .. } => vec![*input],
             Node::Part { of, .. } => vec![*of],
             // The two placement-rule nodes take the same edges: the
@@ -1944,7 +2046,7 @@ impl<P> Node<P> {
     /// from the edit that exists for exactly it.
     pub fn list_input(&self) -> Option<&[RecipeNodeId]> {
         match self {
-            Node::Union { members } => Some(members),
+            Node::Union { members, .. } => Some(members),
             Node::Loft { profiles, .. } => Some(profiles),
             Node::Datum(_)
             | Node::Profile(_)
@@ -1967,6 +2069,66 @@ impl<P> Node<P> {
             | Node::Measure { .. }
             | Node::Assertion { .. } => None,
         }
+    }
+
+    /// **The node's DECLARATION input**, where it has one — the edge a
+    /// [`Node::Declare`] is wired to.
+    ///
+    /// Two node kinds carry one: the pair boolean and the n-ary union.
+    /// Both mean the same thing by it (coincidence intent the verb
+    /// verifies) and both are held to the same rule — the node it names
+    /// must BE a `Declare` — so the rule is asked of this one answer at
+    /// the edit door and at the load door rather than written per kind.
+    ///
+    /// The match is EXHAUSTIVE on purpose: a future node that consumes
+    /// declarations is classified here or the compile breaks, rather
+    /// than defaulting to "declares nothing" and slipping past both
+    /// doors.
+    pub fn declare_input(&self) -> Option<RecipeNodeId> {
+        match self {
+            Node::Boolean { declare, .. } | Node::Union { declare, .. } => *declare,
+            Node::Datum(_)
+            | Node::Profile(_)
+            | Node::Extrude { .. }
+            | Node::Revolve { .. }
+            | Node::Tube { .. }
+            | Node::HollowTube { .. }
+            | Node::Loft { .. }
+            | Node::Sweep { .. }
+            | Node::Fillet { .. }
+            | Node::Chamfer { .. }
+            | Node::Split { .. }
+            | Node::Transform { .. }
+            | Node::Pattern { .. }
+            | Node::Part { .. }
+            | Node::PlacedUnion { .. }
+            | Node::Declare { .. }
+            | Node::InstantiatePart { .. }
+            | Node::Mate { .. }
+            | Node::Measure { .. }
+            | Node::Assertion { .. } => None,
+        }
+    }
+
+    /// **The declaration edge's KIND rule, stated once**: the node a
+    /// `declare` input names must be a [`Node::Declare`]. `Some(input)`
+    /// is the offender; `None` is a node whose declare edge is fine or
+    /// absent.
+    ///
+    /// Two doors ask it — [`crate::DocEdit::InsertNode`] and the load
+    /// door (`persist::check`) — and each phrases the refusal in its
+    /// own vocabulary ([`crate::EditError::DeclareInputNotDeclare`],
+    /// `SnapshotError::DeclareInput`). The QUESTION is this one: a door
+    /// that admits one node's broken declare edge and refuses
+    /// another's is not a door, and two spellings of one predicate is
+    /// how that happens.
+    ///
+    /// The input's LIVENESS is not asked here — a declare edge is a DAG
+    /// edge, so each caller's `inputs()` walk has already refused a
+    /// dangling one.
+    pub(crate) fn bad_declare_input(&self, doc: &crate::doc::Doc<P>) -> Option<RecipeNodeId> {
+        self.declare_input()
+            .filter(|input| !matches!(doc.nodes.get(input), Some(Node::Declare { .. })))
     }
 
     /// **DM5, stated once**: what is wrong with this node's inputs, if
@@ -2036,7 +2198,7 @@ impl<P> Node<P> {
     /// share `InsertNode`'s checks rather than mirror them.
     pub(crate) fn set_list_input(&mut self, list: Vec<RecipeNodeId>) -> bool {
         match self {
-            Node::Union { members } => {
+            Node::Union { members, .. } => {
                 *members = list;
                 true
             }
@@ -2390,8 +2552,10 @@ impl<P> Node<P> {
             // `Rebind` is its repair.
             Node::Datum(Datum::FaceFrame { face, .. }) => vec![face],
             // A12: a mate's two heads are the instance-qualified
-            // references its reading edges are recomputed from.
-            Node::Mate { a, b, .. } => vec![a, b],
+            // names its reading edges are recomputed from. The
+            // operands they are read at are node ids, not names, and
+            // are listed by [`Node::payload_read_sites`].
+            Node::Mate { a, b, .. } => vec![&a.name, &b.name],
             // A measure's references are argument-ORDERED, so they are
             // listed in that order rather than a canonical one.
             Node::Measure { refs, .. } => refs.iter().map(|r| &r.name).collect(),
@@ -2433,9 +2597,22 @@ impl<P> Node<P> {
                     selection.dedup();
                 }
             }
+            // A mate's two references: the NAME rewrites like any
+            // other, and a reference read AT ITS OWN MINT stays read
+            // at its own mint — the operand follows the name it was
+            // authored to coincide with. A reference read somewhere
+            // ELSE keeps its operand: that node is an authored fact
+            // this edit knows nothing about, and re-targeting it is
+            // re-authoring the mate.
             Node::Mate { a, b, .. } => {
-                hits += rewrite(a, from, to);
-                hits += rewrite(b, from, to);
+                for r in [a, b] {
+                    let at_mint = r.at == r.name.node;
+                    let moved = rewrite(&mut r.name, from, to);
+                    if moved > 0 && at_mint {
+                        r.at = r.name.node;
+                    }
+                    hits += moved;
+                }
             }
             // One name, no set to re-canonicalize.
             Node::Datum(Datum::FaceFrame { face, .. }) => {
@@ -2459,6 +2636,26 @@ impl<P> Node<P> {
     /// existence the insert door checks.
     pub fn named_nodes(&self) -> Vec<RecipeNodeId> {
         self.payload_names().iter().map(|name| name.node).collect()
+    }
+
+    /// **The nodes a payload's references are READ AT that are not
+    /// also DAG inputs** — today, a mate's two operands.
+    ///
+    /// The insert door checks these are live exactly as it checks a
+    /// payload name's head, and for the same reason: a never-existed
+    /// id is a typo, and a later delete stranding one is N5's
+    /// dangling case, refused at the solve rather than at the edit.
+    ///
+    /// A measure's `at` is absent here because it is an ordinary
+    /// input ([`Node::inputs`] reports it), and the input check
+    /// already covers it. A mate's is not: an operand is an A12
+    /// READING edge, and making it consuming would take the mated
+    /// bodies out of A10's root set.
+    pub fn payload_read_sites(&self) -> Vec<RecipeNodeId> {
+        match self {
+            Node::Mate { a, b, .. } => vec![a.at, b.at],
+            _ => Vec::new(),
+        }
     }
 
     /// Builds a [`Node::InstantiatePart`] with the EMPTY interface
@@ -2602,7 +2799,7 @@ impl<P> Node<P> {
     /// ([`Node::measure_fault`]).
     pub fn measure(
         expr: crate::measure::MeasureExpr,
-        refs: Vec<MeasureRef>,
+        refs: Vec<SitedRef>,
     ) -> Result<Self, MeasureNodeFault> {
         let node = Node::Measure { expr, refs };
         match node.measure_fault() {

@@ -49,9 +49,9 @@ use editor_core::stackup::{
 };
 use editor_core::{
     CancelToken, CapEnd, Dimension, Distribution, DocEdit, DocParam, DocParamValue, EvalOptions,
-    Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureRef, Node, NodeResult,
-    ParamName, ParamValue, ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget,
-    RecipeNodeId, RoleSeg, ValuePayload, evaluate, seed_env,
+    Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult, ParamName,
+    ParamValue, ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId,
+    RoleSeg, SitedRef, ValuePayload, evaluate, seed_env,
 };
 use geom_core::interval::Interval;
 use geom_core::{CertifiedEnclosure, Dual64, Tol};
@@ -167,7 +167,7 @@ fn contains_nominal(chamber: &Chamber) -> bool {
     }
 }
 
-fn cyl_wall(ev: &Evaluation<f64>, doc: &ProfileDoc, node: RecipeNodeId) -> MeasureRef {
+fn cyl_wall(ev: &Evaluation<f64>, doc: &ProfileDoc, node: RecipeNodeId) -> SitedRef {
     let mut faces = editor_core::select_where(
         ev,
         node,
@@ -180,10 +180,10 @@ fn cyl_wall(ev: &Evaluation<f64>, doc: &ProfileDoc, node: RecipeNodeId) -> Measu
     )
     .expect("the surface-kind atom is exact");
     faces.sort();
-    MeasureRef::new(node, faces.remove(0))
+    SitedRef::new(node, faces.remove(0))
 }
 
-fn vertex_at(ev: &Evaluation<f64>, node: RecipeNodeId, at: [f64; 3]) -> MeasureRef {
+fn vertex_at(ev: &Evaluation<f64>, node: RecipeNodeId, at: [f64; 3]) -> SitedRef {
     let v = editor_core::all_vertices(ev, node)
         .into_iter()
         .find(|v| {
@@ -191,7 +191,7 @@ fn vertex_at(ev: &Evaluation<f64>, node: RecipeNodeId, at: [f64; 3]) -> MeasureR
             p.x == at[0] && p.y == at[1] && p.z == at[2]
         })
         .unwrap_or_else(|| panic!("node {node:?} has a vertex at {at:?}"));
-    MeasureRef::new(node, v)
+    SitedRef::new(node, v)
 }
 
 // ------------------------------------------------------------ fixtures
@@ -262,10 +262,10 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
         distance: len(1.0),
     });
     let refs = vec![
-        MeasureRef::new(block, fname(block, wall(3))),
-        MeasureRef::new(block, fname(block, wall(1))),
-        MeasureRef::new(block, fname(block, RoleSeg::Cap(CapEnd::Start))),
-        MeasureRef::new(block, fname(block, RoleSeg::Cap(CapEnd::End))),
+        SitedRef::new(block, fname(block, wall(3))),
+        SitedRef::new(block, fname(block, wall(1))),
+        SitedRef::new(block, fname(block, RoleSeg::Cap(CapEnd::Start))),
+        SitedRef::new(block, fname(block, RoleSeg::Cap(CapEnd::End))),
     ];
     let expr = MeasureExpr::add(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
@@ -374,8 +374,8 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId
         distance: param("h", Dimension::Length),
     });
     let refs = vec![
-        MeasureRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
-        MeasureRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
+        SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
+        SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
     ];
     let angle = r.insert(
         Node::measure(

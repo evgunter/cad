@@ -11,7 +11,7 @@ Away-channel tag `(PROPS orchestrator)`. A/B ordinal band
 **PROPS = 2400–2499**, claimed in `docs/MODEL-AB-LOG.md`'s banding
 entry in the opening commit, per that entry's rule.
 
-**Opens at S-CERT's exit.** See §Opening condition.
+**Opened 2026-09-06** at S-CERT's exit walk (#1924). See §Opening condition.
 
 ## Charter
 
@@ -24,9 +24,13 @@ instead of exiting, this program folds into it.
 
 ## Opening condition
 
-A successor: dispatches when S-CERT's exit walk is ratified and its
-issue files re-home here. Until then this directory holds M10's four
-certification items and the four unowned ones.
+MET 2026-09-06: S-CERT's exit walk (#1924) was ratified by Ev and its
+eight charter items re-homed here in that PR (the three offset_fit
+items, `refine-dir…`, `quad2-rational…`, `normalize-overflow…`,
+`orthonormal-basis-poisons…`, `pole-branch…`), with the territory
+(`geom-brep/src/props/*`, `offset_fit.rs`, `patch_bound.rs`,
+`geom-core/src/*`, `geom/src/*`) joining the program header. Before the
+gate the lanes that overlapped no live PR ran under §Early lanes.
 
 ## Lanes (at opening)
 
@@ -36,7 +40,11 @@ certification items and the four unowned ones.
   measure first).
 - **Sphere polar extent**: `rimless-polar-cap-refuses-degenerateface`
   → `two-face-sphere-split-measures-zero-volume` (both H; CERT-1's
-  three exact pole rows stay green).
+  three exact pole rows stay green) →
+  `sphere-flux-arm-refuses-partial-bands` (H; two extensions of the
+  same sphere arm — the two-meridian band with `Δu` derived from the
+  arcs, and the general-circle boundary, which is a design
+  conversation; arrived from VERBS' sweep, same `fn sphere`).
 - **Rational quad lane**: `quad-face-extent-trusts-caller-perimeter`
   (E) → `refine-dir-hairline-knot-insertion` (H; before the dial so
   the floors are stable; its knot-slice-copy half is Track R's C3/D30)
@@ -46,10 +54,14 @@ certification items and the four unowned ones.
   `props-refusal-cannot-carry-measured-overshoot` (a ruling on the
   bounds allowlist).
 - **Linalg interval honesty** (an audit; DL6 is ratified):
-  `normalize-overflow-yields-zero-axis` (D→E) →
-  `certified-lane-non-real-contract-audit` (H, L; member by member,
-  `mirror_across_plane` first) → `interval-orthonormal-basis-sign-hull`
-  (D→H; M10-5's clearance workaround retires after) →
+  `certified-lane-non-real-contract-audit` (H, L; member by member —
+  **PROPS-1** takes `mirror_across_plane` and `reject_from` with the
+  one re-baseline pass both owe, `lerp` decided and left; member 5 is
+  its own item `rotation-about-diagonal-width-floor`, a D) →
+  `interval-orthonormal-basis-sign-hull` (D→H; the next unit on
+  `vec.rs`; M10-5's clearance workaround retires after) →
+  `normalize-overflow-yields-zero-axis` (D→E; S-CERT's item until the
+  inheritance, or handed over early) →
   `pole-branch-pick-two-integer-shift` (D→E; `chord_join.rs` is Track
   Q's / CURVED's — by note).
 - **Verdict recording**: `three-per-node-verdict-shapes` (D→E, first)
@@ -70,6 +82,34 @@ at S-CERT's sweep; `edge-chord-len-defaults-to-one-metre` is S-BOOL's
 ground; `loft-seam-carrier-exact-knot-compare` and
 `unify-edge-descriptions-on-pcurves` are TRIM's; `ssi-chart-speed-usability-boundary`
 is CURVED's.
+
+## Early lanes (before the inheritance — what ran, 2026-09-05)
+
+Ev's direction (in-chat, 2026-09-05): start the work that does not
+overlap S-CERT's live PRs. The gate for the inheritance is unchanged —
+S-CERT's exit walk ratified, its issue files re-homed here — but a lane
+whose files no live PR touches may run now with a territory notice to
+the S-CERT orchestrator. Measured against the changed-file lists of
+#1877 (CERT-M3), #1879 (CERT-N3), #1828 (M10-8) and #1617 (MESH-12):
+
+- **runs now**: the linalg interval-honesty lane (`linalg/frame.rs`,
+  `vec.rs`, `point.rs`, `mat.rs` — none in any live PR) and the Span
+  `[ev]` ruling (tracker file only; its sweep waits for CERT-N3's
+  `spline/` edits);
+- **design now, code after M10-8 merges**: the verdict-recording lane
+  (`drive.rs`, `k_stats.rs`, `eval/mod.rs` are in #1828, small);
+- **waits**: `m6-sense-gate-recorded-residuals` (`validate.rs` is in
+  #1877), the sphere lane (`props/curved.rs` is in #1617 and carries
+  S-CERT's two pole items), `contribution-bounds-via-dual-interval`
+  (certification widths).
+
+Landed under this section before the gate (all in the log): PROPS-1
+(#1918), verdict-shapes (#1920), ONB-measure (#1939), lily-vec3
+(#1954), the Span sweep (#1952), the k-stats bracket (#1969), the
+rotation-floor and vec3-doors riders (#1980, #1977), the coeffs window
+and its fix pass (#1985, #1992). Still waiting at the opening: the
+sphere lane on MESH-12 (#1617, unanswered), the sign-hull unit on the
+`[ev]` ruling #1944.
 
 ## Review posture
 

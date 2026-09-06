@@ -353,7 +353,15 @@ class AssemblyError(PncadError):
     FRONTIER: nothing refuted, nothing undeclared, the census simply
     declined to certify, so nothing was decided about the geometry
     either way. A gather refusal arrives under the GATHER's own tag
-    (`no_body_roots`, `root_failed`, ...), not a wrapper tag."""
+    (`no_body_roots`, `root_failed`, ...), not a wrapper tag.
+
+    `carried_mint_refusal` is an inner part's own mate that could not
+    be minted at all: an outer assembly is not at rest over a part
+    whose contact nothing verified. It carries a FOREIGN mate, so it
+    carries the route with it — `of` is the document to open, `via`
+    the instances this document reached it through (nearest first,
+    starting at `through`), and `mate` is a node of `of`, not of the
+    document that was gathered."""
 
     variant: str
     mate: Optional[NodeId]
@@ -363,6 +371,8 @@ class AssemblyError(PncadError):
     class_: Optional[ContactClass]
     findings: Optional[list[AtRestFinding]]
     node: Optional[NodeId]
+    of: Optional[str]
+    via: Optional[list[NodeId]]
     through: Optional[NodeId]
 
 class ProductError(PncadError):
@@ -1369,7 +1379,9 @@ class Node:
 
     @staticmethod
     def mate(
+        a_at: NodeId,
         a: str,
+        b_at: NodeId,
         b: str,
         class_: ContactClass,
         alignment: Alignment,
@@ -1377,11 +1389,16 @@ class Node:
         """A mate between two instances: ONE node carrying both the
         placement constraint and the contact declaration.
 
-        `a` and `b` are instance-qualified names — an entity of one
-        instance's product and an entity of the other's, the text
-        `Evaluation.select` answers with when queried on an
-        instantiate node. They are name REFERENCES, not recipe edges:
-        inserting a mate transfers no root.
+        Each side is a node and a name, mirroring the kernel type.
+        `a_at` / `b_at` is the OPERAND — the node the reference is
+        read at, whose geometry the mate speaks about — and `a` / `b`
+        is the instance-qualified name text of an entity of that
+        node's product, what `Evaluation.select` answers with. They
+        coincide for a mate authored on an instance directly and
+        diverge the moment a transform places it; there is no
+        default, because a transform mints no name and the operand is
+        the only thing that tells the two apart. Neither half is a
+        recipe edge: inserting a mate transfers no root.
 
         `class_` is the declared contact class; ask `class_admission`
         BEFORE authoring, because a class the solve folds may still
@@ -1389,8 +1406,8 @@ class Node:
         data — nothing checks it against the faces `a` and `b` name,
         so a mate can solve cleanly and still be refuted at the gate.
 
-        A dangling reference head is not refused here: the solve
-        refuses typed naming it (`mate_dangling_head`)."""
+        A dangling reference is not refused here: the solve refuses
+        typed naming its head (`mate_dangling_head`)."""
 
 class Expr:
     """A dimension-checked expression — the recipe's arithmetic, as a
@@ -2277,9 +2294,11 @@ class PlaneRelation:
     Distinct: Final[PlaneRelation]
 
 class ContactClass:
-    """The contact class a declaration asserts. `Rest` (coincident
-    planes) is the only class the flush DETECTOR mints, so it is the
-    only one a `FlushFinding` from `find_flush_candidates` carries;
+    """The contact class a declaration asserts. `Rest` (cosurface
+    contact, on any carrier the verify ladder names — plane, sphere,
+    cylinder, torus) is the only class the flush DETECTOR mints, so
+    it is the only one a `FlushFinding` from
+    `find_flush_candidates` carries;
     `Tangent` crossed the mirror with M9-1 and is nameable here
     because a class the binding cannot name would refuse typed at the
     crossing instead."""
@@ -2296,11 +2315,13 @@ class FlushRung:
     DecidedCoincident: Final[FlushRung]
 
 class FlushFinding:
-    """One flush-plane finding: "this face pair would verify as
-    declared contact" — a VALUE to inspect and declare, never itself
-    a declaration. `a`/`b` are the pair's names in the same OPAQUE
-    text alphabet every materializer speaks (store them, hand them
-    back; never parse). `class_` spells `class` (a Python keyword)
+    """One flush finding: "this face pair would verify as declared
+    contact" — a VALUE to inspect and declare, never itself a
+    declaration. The detector's reach is the `Rest` ladder's, so a
+    pair may be cosurface on a plane, a sphere, a cylinder or a
+    torus. `a`/`b` are the pair's names in the same OPAQUE text
+    alphabet every materializer speaks (store them, hand them back;
+    never parse). `class_` spells `class` (a Python keyword)
     with the `or_` trailing-underscore precedent."""
 
     @property
@@ -2727,8 +2748,8 @@ class Evaluation:
         name."""
 
     def find_flush_candidates(self, a: NodeId, b: NodeId) -> list[FlushFinding]:
-        """The cross-body flush-plane candidates between `a`'s and
-        `b`'s outputs, as of THIS evaluation — the detect arm of the
+        """The cross-body flush candidates between `a`'s and `b`'s
+        outputs, as of THIS evaluation — the detect arm of the
         detect/declare protocol, run by the C4 verifier itself (a
         finding cannot disagree with the boolean's verify-at-use).
         Findings are DEFINITE and canonically ordered; empty when
@@ -3100,6 +3121,12 @@ class MateFault:
     @property
     def clash(self) -> Optional[Length]: ...
     @property
+    def part(self) -> Optional[NodeId]: ...
+    @property
+    def named(self) -> Optional[int]: ...
+    @property
+    def selected(self) -> Optional[int]: ...
+    @property
     def what(self) -> Optional[str]: ...
 
 class SolvedPoses:
@@ -3266,11 +3293,45 @@ class Attribution:
         """`refuted` (the faces do not meet as declared — a finding
         against the document), `declined` (the census has no certifier
         lane for a face the declaration names, so nothing was decided
-        either way), or `unattributed` (no declaration answers — an
-        UNDECLARED contact, the hard error by definition)."""
+        either way), or `unattributed` (no declaration of ANY document
+        in the tree answers — an UNDECLARED contact, the hard error by
+        definition).
+
+        A declaration a document BELOW this one authored answers under
+        `carried_refuted` and `carried_declined`: the same two
+        relations, and a separate pair of tags because
+        `declaration.mate` is then a node of THAT document — `of` and
+        `via` are what say which document and by what path."""
 
     @property
-    def declaration(self) -> Optional[MintedDeclaration]: ...
+    def declaration(self) -> Optional[MintedDeclaration]:
+        """The declaration named, `None` for `unattributed`. Under a
+        `carried_*` relation its `mate` is a node of `of`."""
+
+    @property
+    def of(self) -> Optional[str]:
+        """The document whose mate authored it, as opaque id text.
+        `None` where the declaration is the gathered document's own."""
+
+    @property
+    def via(self) -> Optional[list[NodeId]]:
+        """The instances this document reached it through, nearest
+        first. `None` where `of` is."""
+
+
+class CarriedDeclaration:
+    """One declaration a document BELOW this one authored, certified
+    here with everything else the gate was given.
+
+    Same rule as every other foreign-mate value: the mate is a node of
+    `of`, so `of` and `via` travel with it."""
+
+    @property
+    def declaration(self) -> MintedDeclaration: ...
+    @property
+    def of(self) -> str: ...
+    @property
+    def via(self) -> list[NodeId]: ...
 
 class AtRestFinding:
     """One at-rest refusal. `str(finding)` composes it the way the
@@ -3281,11 +3342,14 @@ class AtRestFinding:
     def attribution(self) -> Attribution: ...
 
 class Assembly:
-    """A validated assembly: the gathered body, its product names, and
-    one minted declaration per solved mate.
+    """A validated assembly: the gathered body, its product names, one
+    minted declaration per solved mate of THIS document, and one
+    carried row per declaration a document below it authored.
 
     Reaching one means the kernel's at-rest door PASSED over the
-    product and its records together."""
+    product and its records together — over the carried declarations
+    as much as over this document's own, which is what `carried`
+    lets a caller say."""
 
     @property
     def body(self) -> Body: ...
@@ -3295,6 +3359,11 @@ class Assembly:
     def minted(self) -> list[MintedDeclaration]:
         """Empty for a mate-less assembly, which is what a disjoint
         layout is."""
+
+    @property
+    def carried(self) -> list[CarriedDeclaration]:
+        """Which inner mates this verdict answered for. Empty for a
+        document that instantiates nothing with mates."""
 
 def assemble(doc: Doc, evaluation: Evaluation) -> Assembly:
     """The AT-REST ASSEMBLY GATE: gather the product, mint every
@@ -3309,8 +3378,9 @@ def assemble(doc: Doc, evaluation: Evaluation) -> Assembly:
     Raises AssemblyError, typed. Read `variant` first: `at_rest` is a
     verdict AGAINST the document, `uncertified` is the declared
     direction's FRONTIER where nothing was decided either way, and the
-    remaining arms (`mate_reference_refused`, `no_at_rest_record`, the
-    gather's own tags) refuse before any verdict."""
+    remaining arms (`mate_reference_refused`, `no_at_rest_record`,
+    `carried_mint_refusal`, the gather's own tags) refuse before any
+    verdict."""
 
 # --- the recorded refactorings ----------------------------------------
 # Both are PURE: they hand back the new document VALUES plus the

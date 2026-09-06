@@ -51,7 +51,9 @@ use geom_core::Tol;
 use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::build::{Filleted, fillet_edges};
-use sweep::test_support::{lantern as test_support_lantern, rim_arcs_at, sphere_zone};
+use sweep::test_support::{
+    assert_naming_totality, lantern as test_support_lantern, rim_arcs_at, sphere_zone,
+};
 use topo::{Body, EdgeKey, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
@@ -228,7 +230,7 @@ fn a_shared_wall_carve_records_every_birth_and_every_death_once() {
         one_rim(&zone_body, ZONE_SPHERE_HI),
     );
     let zone_out = fillet_edges(&zone_body, &[lo, hi], 0.08, tol()).expect("the zone pair builds");
-    partition_check(&zone_body, &zone_out);
+    partition_check(&zone_body, &zone_out, &[lo, hi]);
 
     let lantern_body = lantern();
     let mut all: Vec<EdgeKey> = Vec::new();
@@ -237,130 +239,24 @@ fn a_shared_wall_carve_records_every_birth_and_every_death_once() {
     }
     let lantern_out =
         fillet_edges(&lantern_body, &all, 0.05, tol()).expect("the lantern triple builds");
-    partition_check(&lantern_body, &lantern_out);
+    partition_check(&lantern_body, &lantern_out, &all);
 }
 
-/// The rim-phase half of `m6_5_fillet_naming`'s partition identity,
-/// applied to a shared-wall result (no open chains here, so the blank
-/// phase's channels are empty and asserted so), in BOTH directions:
-/// every output entity is a mint or a survivor, and every recorded
-/// mint is present in the output. The end-to-end drive of these
-/// records through `editor-core`'s `emit_fillet` on an annulus body
-/// is `editor-core/tests/blend5_rim_support.rs`.
-fn partition_check(src: &Body<f64>, out: &Filleted<f64>) {
+/// The partition identity on a shared-wall result (no open chains
+/// here, so the blank phase's channels are empty and asserted so), in
+/// every direction `test_support::assert_naming_totality` walks — the
+/// one home of the walk, which this suite used to spell inline. The
+/// end-to-end drive of these records through `editor-core`'s
+/// `emit_fillet` on an annulus body is
+/// `editor-core/tests/blend5_rim_support.rs`.
+fn partition_check(src: &Body<f64>, out: &Filleted<f64>, requested: &[EdgeKey]) {
     let rec = out.naming.as_ref().expect("the surgery keeps its records");
     assert!(
         rec.blends.is_empty() && rec.corners.is_empty() && rec.trims.is_empty(),
         "a rim-only request fills the rim channels only"
     );
 
-    let mut minted_f: Vec<_> = rec.bands.iter().map(|(f, _)| *f).collect();
-    let mut minted_e: Vec<EdgeKey> = rec
-        .rim_trims
-        .iter()
-        .map(|(e, _, _)| *e)
-        .chain(rec.meridian_remnants.iter().map(|(e, _)| *e))
-        .chain(rec.slits.iter().map(|(e, _)| *e))
-        .collect();
-    let mut minted_v: Vec<_> = rec
-        .rim_feet
-        .iter()
-        .map(|(v, _)| *v)
-        .chain(rec.meridian_splits.iter().map(|(v, _)| *v))
-        .collect();
-    fn dedup<K: Ord + Copy>(v: &mut Vec<K>) {
-        let n = v.len();
-        v.sort_unstable();
-        v.dedup();
-        assert_eq!(n, v.len(), "a mint was recorded twice");
-    }
-    dedup(&mut minted_f);
-    dedup(&mut minted_e);
-    dedup(&mut minted_v);
-
-    // No mint is a survivor — except a split FRAGMENT, whose key may
-    // be its own parent's (`split_edge` hands the parent key to one
-    // child), never an unrelated survivor's.
-    for f in &minted_f {
-        assert!(src.get_face(*f).is_none(), "a minted face reused a key");
-    }
-    let fragments: Vec<_> = rec
-        .meridian_remnants
-        .iter()
-        .chain(rec.slits.iter())
-        .collect();
-    for e in &minted_e {
-        match fragments.iter().find(|(k, _)| k == e) {
-            Some((_, parent)) => assert!(
-                e == parent || src.get_edge(*e).is_none(),
-                "a split fragment carries a key that is neither its parent's nor fresh"
-            ),
-            None => assert!(src.get_edge(*e).is_none(), "a minted edge reused a key"),
-        }
-    }
-    for v in &minted_v {
-        assert!(src.get_vertex(*v).is_none(), "a minted vertex reused a key");
-    }
-
-    // Every recorded mint is PRESENT in the output — the direction the
-    // retire-superseded-remnant machinery exists for: a stale row
-    // names an entity a later split subdivided away.
-    for f in &minted_f {
-        assert!(
-            out.body.get_face(*f).is_some(),
-            "a recorded face mint is absent from the output"
-        );
-    }
-    for e in &minted_e {
-        assert!(
-            out.body.get_edge(*e).is_some(),
-            "a recorded edge mint is absent from the output (a superseded row survived)"
-        );
-    }
-    for v in &minted_v {
-        assert!(
-            out.body.get_vertex(*v).is_some(),
-            "a recorded vertex mint is absent from the output"
-        );
-    }
-
-    // Every output entity is a recorded mint or a survivor; every
-    // retirement is a source key that is really gone.
-    for (f, _) in out.body.faces() {
-        assert!(
-            minted_f.contains(&f) || src.get_face(f).is_some(),
-            "an output face is neither minted nor a survivor"
-        );
-    }
-    for (e, _) in out.body.edges() {
-        assert!(
-            minted_e.contains(&e) || src.get_edge(e).is_some(),
-            "an output edge is neither minted nor a survivor"
-        );
-    }
-    for (v, _) in out.body.vertices() {
-        assert!(
-            minted_v.contains(&v) || src.get_vertex(v).is_some(),
-            "an output vertex is neither minted nor a survivor"
-        );
-    }
-    for e in &rec.dead.edges {
-        assert!(
-            src.get_edge(*e).is_some(),
-            "a retired edge is not a source key"
-        );
-        assert!(out.body.get_edge(*e).is_none(), "a retired edge survived");
-    }
-    for v in &rec.dead.vertices {
-        assert!(
-            src.get_vertex(*v).is_some(),
-            "a retired vertex is not a source key"
-        );
-        assert!(
-            out.body.get_vertex(*v).is_none(),
-            "a retired vertex survived"
-        );
-    }
+    assert_naming_totality(src, out, requested, "a shared-wall rim carve");
 }
 
 /// **Bands that would collide on the shared wall refuse UPFRONT, the

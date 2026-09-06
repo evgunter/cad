@@ -423,23 +423,21 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
         sweep::Revolution::Partial(core::f64::consts::FRAC_PI_2),
         tol(),
     );
+    // The plane–SPHERE edge specifically: the wedge's bore is a
+    // cylinder, and its edge against a wedge wall is a RULED crease
+    // ending in the two transverse caps — a chain the open door now
+    // carves — so "any plane–curved edge" no longer names a refusal.
     let open_curved = query::all_edges(&wedge)
         .into_iter()
         .find(|&e| {
-            let ed = wedge.get_edge(e).unwrap();
-            let kind = |he| {
-                let l = wedge.get_half_edge(he).unwrap().parent_loop;
-                let f = wedge.get_loop(l).unwrap().face;
-                matches!(
-                    wedge
-                        .get_surface(wedge.get_face(f).unwrap().surface)
-                        .unwrap(),
-                    geom::Surface::Plane { .. }
-                )
-            };
-            kind(ed.he_plus) != kind(ed.he_minus)
+            query::edge_adjacent_matches(
+                &wedge,
+                e,
+                query::SurfaceKindSet::just(geom_brep::SurfaceKind::Plane),
+                query::SurfaceKindSet::just(geom_brep::SurfaceKind::Sphere),
+            )
         })
-        .expect("a wedge has an edge between a flat wall and the curved zone");
+        .expect("a wedge has an edge between a flat wall and the sphere zone");
     let err = refusal(
         &wedge,
         &[open_curved],
@@ -451,9 +449,11 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
     // several other `UnsupportedChain` arms also satisfy.
     assert!(
         matches!(&err, BlendError::UnsupportedChain { detail, .. }
-            if *detail == "an open chain's supports are not plane–plane (the trivalent \
-                 corner patch is the only termination built)"),
-        "an open chain whose supports are not plane–plane has no built termination: {err:?}"
+            if *detail == "an open chain's supports are neither plane–plane nor a ruled cylinder \
+                 pair (the trivalent corner patch and the transverse cut-off are the only \
+                 terminations built)"),
+        "an open chain whose supports are neither plane–plane nor ruled has no built \
+         termination: {err:?}"
     );
     carries(&err, FILLET3_ASSEMBLY_RECOURSE, "unsupported chain");
 

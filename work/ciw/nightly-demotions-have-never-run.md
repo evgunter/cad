@@ -1,7 +1,7 @@
 ---
 id: nightly-demotions-have-never-run
 kind: issue
-title: Three jobs demoted to nightly.yml on 2026-09-03 have never executed; a fourth was found broken and never run the same day
+title: A row demoted to the nightly is not verified at the demotion - the three from 2026-09-03 first ran two nights later, unwatched
 status: open
 opened: 2026-09-04
 refs: [1650, 1654, 1655]
@@ -73,3 +73,43 @@ Ev's direction, 2026-09-04: do not force a dispatch now — read
 tonight's scheduled run. This item carries the reading and the
 convention; if tonight's run reds on any of the three, the repair is
 CIW's and lands ahead of it.
+
+## The reading, taken 2026-09-06 (CIW orchestrator)
+
+Ev's direction was to read the scheduled run rather than force a dispatch.
+Two scheduled nightlies have fired since this item was filed, and the second
+carries the answer.
+
+**Run 15** (`33957138686`, `schedule`, head `1817d8c2`, 2026-09-05
+09:07:47Z → 09:33:14Z, conclusion `success`) executed **all three** demoted
+rows. Read at the STEP level, not off the job name, because a green job over
+a skipped step is exactly what this class does:
+
+| row | job | the step that did the work | outcome |
+| --- | --- | --- | --- |
+| `corrupt input (release profile)` | `101282457535` | "corrupt-input suites, release profile" 09:08:40→09:09:38 | success |
+| `rustdoc (gate, every root)` | `101282457521` | "rustdoc (gate, every root)" 09:08:42→09:12:53 | success |
+| `python suite (ungated re-take)` | `101282457513` | "run the Python suite (unittest discover)" 09:09:55→09:10:21 | success |
+
+**None of the three reds.** The repair this item reserved a place in the
+queue for is not needed, and no figure here is inferred from a job name.
+
+One row in the same run does sit green over skipped steps —
+`nightly-only tests (demoted)` (`101282457492`), whose gate step "are any
+tests demoted at all?" passed and whose four working steps skipped. That is
+the gate doing its job when the demoted set is empty, not an instance of this
+defect; it is noted so the next reader does not have to re-derive it.
+
+## What is left, which is the whole point of the item
+
+The reading is the check, not the fix. What is still owed is unchanged and is
+stated above: **a demotion verified at the demotion** — a `workflow_dispatch`
+of the demoted job on the demoting PR's head, its run id in the PR body,
+before the per-PR copy is deleted — and the question of whether
+`scripts/check-ci-mirror-parity.py` can refuse a row no schedule has ever
+fired, the same absence one level out from the one it already refuses.
+
+The evidence for the convention is now stronger rather than weaker: three
+rows ran unattended two nights after their demotion and happened to be
+correct, and nothing in the tree would have said otherwise if they had not
+been. `c5263958` is the case where one was not.
