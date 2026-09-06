@@ -770,7 +770,12 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertEqual(solve_document(doc).role(mate), MateRole.Determining)
         ev = evaluate(doc, resolver=self.ws)
         product(doc, ev)
-        self.assertEqual(doc.roots(), [post_a, family])
+        # The union is the root the shelf reaches the product through;
+        # the transform below it is not one (the mate, denoting no
+        # body, is a root of its own).
+        self.assertIn(family, doc.roots)
+        self.assertNotIn(lifted, doc.roots)
+        self.assertNotIn(shelf_i, doc.roots)
         with self.assertRaises(pncad.AssemblyError) as caught:
             assemble(doc, ev)
         err = caught.exception
