@@ -99,6 +99,46 @@ outward normal), and `py/value.rs::Value::datum` already projects
 reads back through the door an authored one does, by construction, and
 the sweep asserts that rather than adding a projection.
 
+## Outcome
+
+All three doors bound, at these spellings:
+
+- `Node.datum_face_frame(at, face, spin)` — a DAG input, an opaque
+  face name and an `Angle` with no default. `datum_face_frame`, not
+  `face_frame`, because the sibling constructors are `datum_plane` /
+  `datum_axis` / `datum_axis_in_plane` and the prefix is what says
+  which arm of the authoring enum a `Node` constructor makes.
+- `Evaluation.face_carrier_kind(node, name) -> SurfaceKind` — the
+  fifth read-back door, beside the three frames and `denotation`, for
+  the reason the others hang there: a name is only meaningful against
+  the run that minted it.
+- `Pose.sense -> bool`, beside `axis`, with the `repr` carrying it.
+
+`SurfaceKind` crosses OUT for the first time through a new
+`py/select.rs::surface_kind`, written as `entity_kind` is — an
+exhaustive kernel-side match with a caller, which retires the dead
+twin in the growth tripwire rather than adding a second one.
+
+`crates/pncad-py/tests/test_face_frame.py` is the positive form: 26
+tests whose numbers are all oracles against the pose the read door
+answers with (origin, `sense * axis`, `u_ref` turned by the spin), a
+sketch-on-a-face scene that extrudes a boss out of a plate, the three
+constructible refusal arms, and the DAG edge shown by the delete
+refusal. Two ty fixtures in each direction. The census delta is
+exactly the one predicted above: `face_carrier_kind` to `BOUND_AS`,
+the charter deleted, the closure paragraph recording why a
+three-door family had a one-row roster.
+
+Three findings banked:
+`work/lib/datum-crosses-name-for-name-as-two-types.md` (the census
+blind spot this unit's scope argument uncovered),
+`work/lib/pncad-py-comparable-enums-do-not-hash.md` (23 of 23, hit
+writing a tally by carrier kind), and one fix taken rather than
+banked: `crates/pncad-py/run-python-tests.sh` read a hardcoded
+`$root/target` and so exited 1 on a successful build for every lane
+that sets `CARGO_TARGET_DIR`, which the implementer discipline
+requires of all of them.
+
 ## Home
 
 LIB's, filed by DOCM at DOCM-1's merge (the Python surface is outside
