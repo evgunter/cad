@@ -38,7 +38,7 @@ use pyo3::types::PyString;
 
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
-use crate::tags::{assembly_error_tag, product_error_tag, refused_ref_tag};
+use crate::tags::{assembly_error_tag, attribution_tag, product_error_tag, refused_ref_tag};
 use pncad::document as d;
 use pncad::tolerance::Tol;
 
@@ -282,26 +282,71 @@ impl MintedDeclaration {
 /// nothing was decided either way), or `"unattributed"` (no
 /// declaration answers for the finding — an UNDECLARED contact, which
 /// is by definition the hard error).
+///
+/// A declaration a document BELOW this one authored answers under
+/// `"carried_refuted"` and `"carried_declined"`: the same two
+/// relations, and a separate pair of tags because `declaration.mate`
+/// is then a node of THAT document, not of the one the caller
+/// gathered. `of` and `via` are what say which document and by what
+/// path, so the file to open is readable and not just printable.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Attribution(d::Attribution);
 
+/// The document a foreign row is of, and the instances this document
+/// reached it through — the two halves of a [`d::Route`], as the
+/// Python surface spells them.
+///
+/// ONE rule at every door that carries a foreign mate: `of` and `via`
+/// travel with it. A bare node id in another document's space is not
+/// something a caller can look up, so a door that hands one over
+/// without the document has not answered the question.
+/// `via` is the WHOLE route, nearest first: the instantiating node of
+/// the document that was gathered, then one per intervening
+/// sub-assembly in its own document's id space. One list rather than a
+/// head plus a tail, because a caller walking it walks one thing.
+fn route_fields(py: Python<'_>, route: &d::Route) -> (Py<PyAny>, Py<PyAny>) {
+    let of = PyString::new(py, &route.of.to_string()).unbind().into_any();
+    let via = core::iter::once(route.through)
+        .chain(route.via.iter().copied())
+        .map(NodeId)
+        .collect::<Vec<_>>()
+        .into_pyobject(py)
+        .map(|v| v.unbind().into_any())
+        .unwrap_or_else(|_| py.None());
+    (of, via)
+}
+
 #[pymethods]
 impl Attribution {
-    /// The stable tag: `refuted`, `declined`, `unattributed`.
+    /// The stable tag: `refuted`, `declined`, `carried_refuted`,
+    /// `carried_declined`, `unattributed`.
     #[getter]
     fn relation(&self) -> &'static str {
-        match self.0 {
-            d::Attribution::Refuted(_) => "refuted",
-            d::Attribution::Declined(_) => "declined",
-            d::Attribution::Unattributed => "unattributed",
-        }
+        attribution_tag(&self.0)
     }
 
-    /// The declaration named, `None` for `unattributed`.
+    /// The declaration named, `None` for `unattributed`. Under a
+    /// `carried_*` relation its `mate` is a node of `of`, not of the
+    /// document that was gathered.
     #[getter]
     fn declaration(&self) -> Option<MintedDeclaration> {
         self.0.declaration().cloned().map(MintedDeclaration)
+    }
+
+    /// The document whose mate authored the declaration, as opaque
+    /// id text. `None` where the declaration is the gathered
+    /// document's own, and `None` for `unattributed`.
+    #[getter]
+    fn of(&self, py: Python<'_>) -> Option<Py<PyAny>> {
+        self.0.route().map(|r| route_fields(py, r).0)
+    }
+
+    /// The instances this document reached it through, nearest first
+    /// (`route_fields`). `None` where `of` is.
+    #[getter]
+    fn via(&self, py: Python<'_>) -> Option<Py<PyAny>> {
+        self.0.route().map(|r| route_fields(py, r).1)
     }
 
     fn __str__(&self) -> String {
@@ -336,14 +381,7 @@ impl AtRestFinding {
     }
 
     fn __repr__(&self) -> String {
-        format!(
-            "AtRestFinding({:?})",
-            match self.0.attribution {
-                d::Attribution::Refuted(_) => "refuted",
-                d::Attribution::Declined(_) => "declined",
-                d::Attribution::Unattributed => "unattributed",
-            }
-        )
+        format!("AtRestFinding({:?})", attribution_tag(&self.0.attribution))
     }
 }
 
@@ -359,6 +397,44 @@ pub(crate) struct Assembly {
     body: Body,
     names: Vec<String>,
     minted: Vec<MintedDeclaration>,
+    carried: Vec<CarriedDeclaration>,
+}
+
+/// One declaration a document BELOW this one authored, certified here
+/// with everything else the gate was given.
+///
+/// The same rule as the foreign-mate arms above: the mate is a node of
+/// `of`, so `of` and `via` travel with it.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct CarriedDeclaration(d::CarriedDeclaration);
+
+#[pymethods]
+impl CarriedDeclaration {
+    /// The declaration, its `mate` a node of `of`.
+    #[getter]
+    fn declaration(&self) -> MintedDeclaration {
+        MintedDeclaration(self.0.declaration.clone())
+    }
+
+    /// The document whose mate authored it, as opaque id text.
+    #[getter]
+    fn of(&self, py: Python<'_>) -> Py<PyAny> {
+        route_fields(py, &self.0.route).0
+    }
+
+    /// The instances this document reached it through, nearest first.
+    #[getter]
+    fn via(&self, py: Python<'_>) -> Py<PyAny> {
+        route_fields(py, &self.0.route).1
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "CarriedDeclaration(mate={}, of={})",
+            self.0.declaration.mate.0, self.0.route.of
+        )
+    }
 }
 
 #[pymethods]
@@ -375,18 +451,27 @@ impl Assembly {
         self.names.clone()
     }
 
-    /// One declaration per mate the gate minted. Empty for a
-    /// mate-less assembly, which is what a disjoint layout is.
+    /// One declaration per mate THIS document's gate minted. Empty for
+    /// a mate-less assembly, which is what a disjoint layout is.
     #[getter]
     fn minted(&self) -> Vec<MintedDeclaration> {
         self.minted.clone()
     }
 
+    /// One row per declaration a document BELOW this one authored, so
+    /// a certified assembly can say which inner mates its verdict
+    /// answered for.
+    #[getter]
+    fn carried(&self) -> Vec<CarriedDeclaration> {
+        self.carried.clone()
+    }
+
     fn __repr__(&self) -> String {
         format!(
-            "Assembly({} names, {} minted declaration(s))",
+            "Assembly({} names, {} minted declaration(s), {} carried)",
             self.names.len(),
-            self.minted.len()
+            self.minted.len(),
+            self.carried.len()
         )
     }
 }
@@ -401,6 +486,44 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError) -> PyErr {
     let none = || py.None();
     let obj = |v: PyResult<Py<PyAny>>| v.unwrap_or_else(|_| py.None());
     let (mate, side, name, why, class_, findings) = match err {
+        // The carried arm carries a FOREIGN mate, so it carries the
+        // route with it: `of` is the document to open and `via` the
+        // instances this document reached it through. `mate` is that
+        // document's node, documented as such — a bare id with no
+        // document is not something a caller can look up, and the
+        // route is what makes it one.
+        E::CarriedMintRefusal { route, refusal } => {
+            let (of, via) = route_fields(py, route);
+            return typed_err(
+                py,
+                ErrorClass::Assembly,
+                err.to_string(),
+                &[
+                    (
+                        "variant",
+                        PyString::new(py, assembly_error_tag(err))
+                            .unbind()
+                            .into_any(),
+                    ),
+                    ("node", none()),
+                    (
+                        "through",
+                        obj(Py::new(py, NodeId(route.through)).map(|v| v.into_any())),
+                    ),
+                    ("of", of),
+                    ("via", via),
+                    ("name", none()),
+                    (
+                        "mate",
+                        obj(Py::new(py, NodeId(refusal.mate())).map(|v| v.into_any())),
+                    ),
+                    ("side", none()),
+                    ("why", none()),
+                    ("class_", none()),
+                    ("findings", none()),
+                ],
+            );
+        }
         E::Product(inner) => {
             let (node, through, name) = product_fields(py, inner);
             // The gather's payload rides under the gather's own
@@ -420,6 +543,8 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError) -> PyErr {
                     ),
                     ("node", node),
                     ("through", through),
+                    ("of", none()),
+                    ("via", none()),
                     ("name", name),
                     ("mate", none()),
                     ("side", none()),
@@ -478,6 +603,8 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError) -> PyErr {
             ),
             ("node", none()),
             ("through", none()),
+            ("of", none()),
+            ("via", none()),
             ("name", name),
             ("mate", mate),
             ("side", side),
@@ -541,6 +668,11 @@ pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> Py
         body: Body::declared(Arc::new(assembly.body), Arc::new(assembly.contacts)),
         names,
         minted: assembly.minted.into_iter().map(MintedDeclaration).collect(),
+        carried: assembly
+            .carried
+            .into_iter()
+            .map(CarriedDeclaration)
+            .collect(),
     })
 }
 
@@ -548,6 +680,7 @@ pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> Py
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Assembly>()?;
     m.add_class::<MintedDeclaration>()?;
+    m.add_class::<CarriedDeclaration>()?;
     m.add_class::<Attribution>()?;
     m.add_class::<AtRestFinding>()?;
     m.add_class::<RefusedRef>()?;
