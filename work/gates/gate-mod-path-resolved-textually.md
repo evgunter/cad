@@ -2,8 +2,9 @@
 id: gate-mod-path-resolved-textually
 kind: issue
 title: interval-square-allowlist resolves mod declarations to a sibling path, so it drops production files and scans test-only ones
-status: open
+status: review
 opened: 2026-09-03
+branch: gates/mod-path-resolution
 ---
 
 
