@@ -406,7 +406,7 @@ has its own item
 |---|---|
 | `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `PathVerb`, `ArcMode`, `DatumKind`, `ShapeKind`, `PatternKindChoice`, `BOOLEAN_OPS`, `MATE_PRIMITIVES` — are hand-maintained mirrors of a kernel or sketch enum; the field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app`. The five enums declare themselves and their `ALL` together (**Closed vocabularies are declared once**, below); the two `const` tables mirror an enum in another crate and cannot, and say so |
 | `drafts` | `Drafts` and `CommitFault`: the in-flight form state, its defaults, and its lowering of typed field values to `Expr` and `LoopProgram` — the same layer as `session::author`, and today the larger half of it |
-| `frame` | The per-frame policies the viewport runs, as values: what the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `Badge` and the doors that build them), what the id pass is asked this frame, and what the environment offers (`ChooserBackend`, the XDG preferences path, the WSL probe). The charter is that the frame loop still decides WHEN to call one and no longer decides what it MEANS — which argues for taking each out of `app` and **not** for their being one module. A new concern is written against this row; that the row cannot honestly cover the ones already here is `work/view/frame-module-has-eight-concerns-and-no-holds-row.md`, which owns the split |
+| `frame` | The per-frame policies the viewport runs, as values: what the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `Badge`, the doors that build them, and the two that spend them — `apply` for a ranked verdict or a retirement, `deliver` for a policy that may or may not have news), what the id pass is asked this frame, and what the environment offers (`ChooserBackend`, the XDG preferences path, the WSL probe). The charter is that the frame loop still decides WHEN to call one and no longer decides what it MEANS — which argues for taking each out of `app` and **not** for their being one module. A new concern is written against this row; that the row cannot honestly cover the ones already here is `work/view/frame-module-has-eight-concerns-and-no-holds-row.md`, which owns the split |
 
 ### Two axes: which channel, and what retires it
 
@@ -426,8 +426,8 @@ provenance wins because it is the only one a reader can SEE, in whether
 the sentence exists on a frame where nobody acted.
 
 **"Held state" is the mechanical shadow of that, a strong indicator and
-not a decision procedure**, and the sweep that sorts twenty writers on
-this rule needs the three ways it falls short. It is a property of the FACT and not of a
+not a decision procedure**, and the sweep that sorted eighteen writers
+on this rule needed the three ways it falls short. It is a property of the FACT and not of a
 signature — `frame::unindexed_refusal` takes a `&NotIndexed`, and what
 makes it an outcome is that `pick::unindexed` raises it for a `Select`
 and nothing else. Tracing to the raiser does not settle it either:
@@ -466,13 +466,34 @@ rebuild lands, `pane::viewport` clears `projection_fault` where a
 matrix forms); that is work about the seam, not about the chrome, and
 no writer decides the fate of anyone else's sentence.
 
-Twenty writers still assign the message field rather than answering
-`frame::frame_status`'s ranking, and two more — `frame::fold_status`
-and `frame::cursor_status` — answer in the vocabulary and apply it at
-`pane::viewport` without asking it. Each of the twenty names its
-subject — `Message` is the only spelling there is — but naming a
-subject is not asking the ranking, and routing them through it is
-tracked as its own item.
+**Seventeen of the eighteen writers that can put a sentence on the line
+now come through the ranking.** All eighteen used to reach the field
+without it —
+sixteen assignments, one struct-literal initializer at startup, and
+`frame::fold_status`, which answers in the vocabulary and applied its
+verdict at `pane::viewport` without asking. Each named its subject —
+`Message` is the only spelling there is — but naming a subject is not
+asking the ranking. Seventeen now push onto the frame's `notices`,
+which is why `ViewerBehavior` carries that field.
+
+**The eighteenth is the startup initializer**, `app::ViewerApp::new`'s
+`status: frame::startup_notices(…)`: the preferences file's complaints
+written into the field before the first frame, where the session's
+first accepted act silently deletes them. Joining the notices is not
+the fix — a complaint about the file as it stands is a read of held
+state, so it wants a badge, and badging it means holding it and
+deciding what retires it. That is
+`work/view/startup-notices-need-holding-to-badge.md`.
+
+**Applying a verdict outside the ranking is not the same as writing
+one**, and the difference is what the count turns on. A retirement has
+nothing to say and must NOT be ranked: `frame::cursor_status` returns
+only `Keep` or `Expire`, so it can never put a sentence on the line and
+was never one of these writers, and `frame::dialog_status`'s one
+`Show` arm is unreachable behind a disabled button at both of its call
+sites. `frame::deliver` is the door that splits the two: news to the
+notices, retirement to the field; `frame::apply` stays the door a
+retirement belongs at.
 
 **The badges.** A `frame::Badge` carries its subject, a `frame::Tone`
 (`Advisory` for a report, `Actionable` for a verdict a reader may need
