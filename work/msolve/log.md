@@ -127,14 +127,53 @@ CHROME row's PREMISE was rewritten (it asserted the memo hazard as
 its precondition and said so); the guard in `tree.rs` is gone with no
 row needing it. Style review and correctness arm dispatched on that
 head.
+
+## MSOLVE-4: reviews re-dispatched on the integrated head (2026-09-06)
+
+The two reviews dispatched on `b4764ea` died at their first tool call
+on a session limit, and a day passed. Main moved 369 commits meanwhile
+(among them the escalations channel beside verdicts in `eval/mod.rs`),
+so the lane merged main first — one adjacency conflict beside
+`verb_content_tag`, both sides kept verbatim, the memo reuse site and
+the key's format tag untouched by main — and re-greened PR 1960 at
+`4ea542d` on the full matrix. Style review and correctness arm
+re-dispatched on that head, reviewing the tree that will merge rather
+than the one that would not.
+
+## MSOLVE-4 reviews adjudicated, fix pass dispatched (2026-09-06)
+
+Correctness arm MERGEABLE: C1–C4 confirmed on CHROME's bench through
+the viewer's own doors (blame and row agree at every step, two
+different faults in succession never stale, a stale prior still reused
+right by content), keys measured bit-identical on the corpus before
+and after, the merge's one adjacency intact. Style: no MAJOR. Ruled
+for the fix pass: the key format tag BUMPS to v6 and the prose
+exception goes (the block's own purpose is an honest input-set version
+for a future persistence; the spec's bit-for-bit clause is withdrawn);
+one solve answer read once and fed per arm; the redundant-bit and
+`None` docs corrected; the viewer row's assertion tightened; a
+per-mate reuse row; the correctness probes adopted; the resolver stub
+hoisted into the shared fixture. Filed: two tag functions for
+`ContactClass` in the content key, and the eleven resolver-stub copies
+(`work/issues/`).
+
 ## MSOLVE-4 MERGED (2026-09-06, PR 1960)
 
-Fix pass green on the full matrix at `e1ede48`; merged on the
-state-sync commit without a fresh run (docs and tracker only). Item
+Fix pass green on the full matrix at `e1ede48`; a merge of main on
+the state-sync commit re-ran the matrix green at `9885443` before the
+merge. Item
 closed, spec deleted into the ledger, `mate-memo-key-does-not-carry-
 the-solve` closed. Next: MSOLVE-2 dispatched on `msolve/2-member-chain`
 against the spec on main; MSOLVE-3 after it.
 
+## MSOLVE-2 dispatched (2026-09-06)
+
+`msolve/2-member-chain` cut from main in the same lane clone against
+`docs/MSOLVE-2-SPEC.md`: the member chain through `Part {
+Instance(i) }`, sibling distinctness at every level, one walk per
+reference, `mate/member.rs` split out. (The preceding merge commit on
+this branch carried the log's conflict markers; this commit resolves
+them — merge-only, nothing rewritten.)
 ## MSOLVE-2 MERGED (2026-09-06, PR 2039)
 
 Fix pass green on the full matrix at `ef8926c`. Item closed, spec

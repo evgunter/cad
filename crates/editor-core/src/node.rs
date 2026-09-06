@@ -1503,13 +1503,41 @@ pub enum Node<P> {
     /// members precede it, and [`crate::DocEdit::SetMembers`] can drop
     /// one without disturbing the rest.
     ///
-    /// # No `declare` field
+    /// # The `declare` field, and why it records no position
     ///
-    /// A declared-contact union is spelled with [`Node::Boolean`],
-    /// which carries the `Declare` input, and stays so: a declaration
-    /// is a statement about ONE pair of operands, and a field here
-    /// would have to say which fold step it applies to — a position,
-    /// which is the one thing this node exists not to record.
+    /// Members that touch refuse `UndeclaredContact` exactly as a pair
+    /// boolean's operands do, and the recourse is the same one: a
+    /// [`Node::Declare`] input. Its pairs name entities in THIS node's
+    /// own name space — [`crate::RoleSeg::FromMember`] rows for a
+    /// member's entity, and the `Seam`/`Merged`/`Fragment` rows this
+    /// node minted at an earlier fold step for an entity of the
+    /// accumulation. A declaration therefore says "this face of member
+    /// `m` meets that face of member `n`" and records no fold position:
+    /// the step each pair is fed at is DERIVED from the member ids its
+    /// two names carry, so reordering or dropping a member re-derives
+    /// the routing rather than invalidating the declaration.
+    ///
+    /// Two names in ONE member are that member's own CARRIED contact,
+    /// fed at the step that member joins at — member 0's at step 1,
+    /// where it is operand A — which is the pair chain's rule for a
+    /// carried contact, on a member instead of an operand.
+    ///
+    /// What re-deriving the routing does NOT do is make every order
+    /// resolve. A declared merge consumes the two faces it joins and
+    /// publishes a `Merged` row in their place, so a face declared at
+    /// one step is no longer an operand row at a later one: a
+    /// member-space declaration resolves at its step only while the
+    /// face it names is still an operand-table row there. A chain of
+    /// contacts (`a` to `c`, `c` to `d`) therefore fuses in the orders
+    /// that fold `c` in last, and in the orders that fold it in second
+    /// refuses the pair naming `c`'s face as a name that no longer
+    /// resolves — `c`'s face is inside a `Merged` row by then. The
+    /// recourse, declaring that `Merged` row instead, is itself
+    /// order-shaped, since which faces are in it depends on the order.
+    /// Measured by
+    /// `member_space_declarations_across_a_chain_are_order_shaped` and
+    /// filed as
+    /// `work/docm/member-space-declarations-are-order-shaped-across-a-chain.md`.
     Union {
         /// The member bodies, in fold order (D9: the order is the
         /// list's, and the list is data). Two or more, pairwise
@@ -1517,6 +1545,11 @@ pub enum Node<P> {
         /// ([`crate::EditError::TooFewMembers`],
         /// [`crate::EditError::DuplicateInput`]).
         members: Vec<RecipeNodeId>,
+        /// Optional coincidence-intent input (a `Declare` node), the
+        /// same slot [`Node::Boolean`] carries and the same edit-door
+        /// check ([`crate::EditError::DeclareInputNotDeclare`]).
+        /// [`crate::DocEdit::SetMembers`] leaves it as it was.
+        declare: Option<RecipeNodeId>,
     },
     /// A rigid placement of an upstream body (F4: Transform).
     Transform {
@@ -1973,7 +2006,14 @@ impl<P> Node<P> {
             // In LIST ORDER, not sorted: the order is the fold's (D9),
             // so it is what the DAG edge list has to report. The list
             // is pairwise distinct at the edit door, so no edge repeats.
-            Node::Union { members } => members.clone(),
+            // The declaration input follows the members, the pair
+            // boolean's precedent: this order is the memo's and the
+            // content key's.
+            Node::Union { members, declare } => {
+                let mut v = members.clone();
+                v.extend(declare.iter().copied());
+                v
+            }
             Node::Transform { input, .. } => vec![*input],
             Node::Part { of, .. } => vec![*of],
             // The two placement-rule nodes take the same edges: the
@@ -2006,7 +2046,7 @@ impl<P> Node<P> {
     /// from the edit that exists for exactly it.
     pub fn list_input(&self) -> Option<&[RecipeNodeId]> {
         match self {
-            Node::Union { members } => Some(members),
+            Node::Union { members, .. } => Some(members),
             Node::Loft { profiles, .. } => Some(profiles),
             Node::Datum(_)
             | Node::Profile(_)
@@ -2029,6 +2069,66 @@ impl<P> Node<P> {
             | Node::Measure { .. }
             | Node::Assertion { .. } => None,
         }
+    }
+
+    /// **The node's DECLARATION input**, where it has one — the edge a
+    /// [`Node::Declare`] is wired to.
+    ///
+    /// Two node kinds carry one: the pair boolean and the n-ary union.
+    /// Both mean the same thing by it (coincidence intent the verb
+    /// verifies) and both are held to the same rule — the node it names
+    /// must BE a `Declare` — so the rule is asked of this one answer at
+    /// the edit door and at the load door rather than written per kind.
+    ///
+    /// The match is EXHAUSTIVE on purpose: a future node that consumes
+    /// declarations is classified here or the compile breaks, rather
+    /// than defaulting to "declares nothing" and slipping past both
+    /// doors.
+    pub fn declare_input(&self) -> Option<RecipeNodeId> {
+        match self {
+            Node::Boolean { declare, .. } | Node::Union { declare, .. } => *declare,
+            Node::Datum(_)
+            | Node::Profile(_)
+            | Node::Extrude { .. }
+            | Node::Revolve { .. }
+            | Node::Tube { .. }
+            | Node::HollowTube { .. }
+            | Node::Loft { .. }
+            | Node::Sweep { .. }
+            | Node::Fillet { .. }
+            | Node::Chamfer { .. }
+            | Node::Split { .. }
+            | Node::Transform { .. }
+            | Node::Pattern { .. }
+            | Node::Part { .. }
+            | Node::PlacedUnion { .. }
+            | Node::Declare { .. }
+            | Node::InstantiatePart { .. }
+            | Node::Mate { .. }
+            | Node::Measure { .. }
+            | Node::Assertion { .. } => None,
+        }
+    }
+
+    /// **The declaration edge's KIND rule, stated once**: the node a
+    /// `declare` input names must be a [`Node::Declare`]. `Some(input)`
+    /// is the offender; `None` is a node whose declare edge is fine or
+    /// absent.
+    ///
+    /// Two doors ask it — [`crate::DocEdit::InsertNode`] and the load
+    /// door (`persist::check`) — and each phrases the refusal in its
+    /// own vocabulary ([`crate::EditError::DeclareInputNotDeclare`],
+    /// `SnapshotError::DeclareInput`). The QUESTION is this one: a door
+    /// that admits one node's broken declare edge and refuses
+    /// another's is not a door, and two spellings of one predicate is
+    /// how that happens.
+    ///
+    /// The input's LIVENESS is not asked here — a declare edge is a DAG
+    /// edge, so each caller's `inputs()` walk has already refused a
+    /// dangling one.
+    pub(crate) fn bad_declare_input(&self, doc: &crate::doc::Doc<P>) -> Option<RecipeNodeId> {
+        self.declare_input()
+            .filter(|input| !matches!(doc.nodes.get(input), Some(Node::Declare { .. })))
     }
 
     /// **DM5, stated once**: what is wrong with this node's inputs, if
@@ -2098,7 +2198,7 @@ impl<P> Node<P> {
     /// share `InsertNode`'s checks rather than mirror them.
     pub(crate) fn set_list_input(&mut self, list: Vec<RecipeNodeId>) -> bool {
         match self {
-            Node::Union { members } => {
+            Node::Union { members, .. } => {
                 *members = list;
                 true
             }

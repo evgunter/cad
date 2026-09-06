@@ -1,6 +1,6 @@
 # M10-9 — the registered-identity door: discharge by provenance (E12's reserve, taken)
 
-STATUS: BINDING (dispatched 2026-09-06; opened from M10-8's measured
+STATUS: BINDING (dispatched 2026-09-06; amended A1 the same day, §2; opened from M10-8's measured
 miss — the plate's real study unmoved at `7.81e2 · ε` under every rule
 the atom algebra can afford — on Ev's ruling in chat:
 "proceeding with 1"). Unit branch `m10/m10-9-registered-identity`.
@@ -139,8 +139,35 @@ parameters, and the normal form consults the record so that
   re-measured. If the node-identity condition of §1 fails here, the
   unit ships the arc registrant, files the fillet's exact obstacle
   with the two rendered forms, and does not build a form-level store.
-- **Not shipped**: any registrant outside these two; a registration
-  the f64 witness cannot check; edits at any `decide` site.
+- **Amendment A1 (orchestrator, 2026-09-06, after the implementer's
+  report and before the review freeze).** The arc registrant above
+  discharged `carrier_endpoint_start` completely and moved no ceiling:
+  the plate is now bounded, at the same width, by
+  `carrier_endpoint_end` — the arc's SPAN identity
+  `carrier.eval(param_end) = q_to`, `param_end = 4·atan|b|` — which is
+  E12's reserve's own example ("built as `carrier.eval(t0)`") and a
+  theorem of the same sagitta construction (the bulge is `tan(θ/4)` by
+  definition). §2's "any registrant outside these two" was written
+  against the wrong count: the unit of scope is the CONSTRUCTOR, not
+  the identity. The swept arc carrier's builder (`swept.rs`,
+  `register_rim_identity`'s home) registers EVERY same-object identity
+  it guarantees whose consumer node it can build identically — the
+  span identity per component against `q_to` (the node the constructor
+  would produce at `param_end`, content-hash equal to the consumer's;
+  pin it), and, if the plate is then bounded by `carrier_on_surface_*`,
+  the squared identity `(q_from − c)·(q_from − c) = r²` or
+  `u_ref·u_ref = 1` on the same condition — each with its proof in the
+  doc comment, each counted in `registered`, each with a planted lie.
+  Stop at the first bound that is NOT a same-object identity of the
+  arc carrier (a `line_span` or a Newell residual is the dependency-
+  widening class — name it, do not widen into it), and re-cut the
+  ceilings table. The filed item
+  `plate-ceiling-is-now-the-arc-span-identity` is this amendment's
+  input and closes with it.
+- **Not shipped**: any registrant outside the arc carrier's builder
+  and the fillet (the fillet's obstacle stands as filed —
+  `fillet-tangency-is-not-the-constructors-node`); a registration the
+  f64 witness cannot check; edits at any `decide` site.
 
 ### 3. Honesty instruments
 

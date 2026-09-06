@@ -123,7 +123,7 @@ and is the SHA-256 of the canonical semantic bytes
 (`persist::canonical_bytes`); `DocRef` pairs them. Edits to a referenced
 document never retarget a reference: the resolver returns a document
 only when its bytes hash to the pin, else `ResolveFault::PinMismatch`;
-moving a pin is a recorded edit (A13). That refusal is the SEAM's, and
+moving a pin is a recorded edit (A13). A save is two acts (Ev, PR 2016): saving a document at a path keeps its identity, and refuses typed when the target directory already holds that id under another filename; saving it AS A NEW DOCUMENT mints a fresh id, an explicit fork that leaves every inbound `DocRef` pointing at the original. That refusal is the SEAM's, and
 only the seam's (DI2): an evaluation that crosses the seam refuses a
 moved pin, and an evaluation served from a prior serves what the
 document pins — the memo is a pure function of the document, since for
@@ -171,9 +171,35 @@ never blessed. `AssemblyError::AtRest` is a verdict against the
 document; `AssemblyError::Uncertified` is the declared direction's
 frontier (every finding declined, none refuted). A disjoint assembly
 certifies as a multi-solid tier-3 body. A sub-assembly's declarations
-ride through the seam as records (`PartValue::contacts`), but
-attribution stops at the seam. Interference fits through recorded
-gate-skips are not implemented.
+ride through the seam as records (`PartValue::contacts`) **and so does
+the bookkeeping that names them**: `PartValue::minted`/`unminted` carry
+each inner mate's declaration and each mate the inner document could
+not mint, into `Product::carried`/`carried_unminted`, each tagged with
+the `Route` it arrived by — the instantiating node, the document that
+minted it, and the instances below. A DECLARATION's faces are re-keyed
+at every graft through the graft's own descendant map, exactly as its
+record is; a mint REFUSAL names no entity, so it carries verbatim. A
+finding against a carried declaration attributes
+`Attribution::Carried`, naming that mate, that document and that
+route, in the same `Relation` — `refuted` or `declined` — the
+own-minted arms use. A carried DECLINE therefore reaches
+`AssemblyError::Uncertified` under its own name, which is what that
+arm has always meant (nothing refuted, nothing undeclared, nothing
+decided) and what the seam previously hid: before the rows crossed,
+such a finding was `Unattributed` and the whole refusal fell through
+to `AtRest`. `Attribution::Unattributed` is now a finding no
+declaration this document holds a row for answers for — its own or a
+part's, which today is every declaration in the tree, since the only
+path a record can take without its row (a boolean over a source) is
+one no instance carrying a declaration can reach: such an instance is
+a multi-solid product, which the pair boolean refuses. An inner mate
+that could not be minted refuses the outer gate
+(`AssemblyError::CarriedMintRefusal`), on the head row in gather order,
+before this document's own unminted head and before the at-rest gate —
+an outer assembly is unusable while an inner part's contact is
+unverified. Nothing is re-verified or re-minted across the seam:
+verification runs once, at the outermost gate. Interference fits
+through recorded gate-skips are not implemented.
 
 ## Mirror
 

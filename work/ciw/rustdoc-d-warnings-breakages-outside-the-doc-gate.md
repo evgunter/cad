@@ -39,3 +39,20 @@ against the code-quality K–X fences. Id, body and header are unchanged;
 the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
+
+## Correction to the first bullet (2026-09-06, CIW orchestrator)
+
+`SweepStrategy::Idealized` is **not** gone or renamed. It is at
+`crates/topo/src/boolean/reduce.rs:84`, carrying
+`#[cfg(feature = "sweep-testing")]`, so the link resolves with that feature
+on and is unresolved with it off. That makes both of its sites — the one
+above and `crates/topo/src/boolean/reduce.rs:18`, which the bullet list
+missed — instances of the in-half broken link that
+`doc-gate-two-unread-axes` accepted permanently on 2026-09-04, not
+documentation rot. The differential run that would have caught them is not
+implementable, for the reason recorded there: the two runs never see the
+same site.
+
+Neither is a link-rewrite. What is left for this item is the other six
+sites, which are public docs linking to private items and are a real
+question about `--document-private-items` rather than a feature axis.

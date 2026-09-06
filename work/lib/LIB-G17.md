@@ -2,9 +2,10 @@
 id: LIB-G17
 kind: unit
 title: Node::Shell, the shell recipe door
-status: open
+status: spec
 opened: 2026-08-29
 refs: [LIB-TUBE]
+branch: lib/g17-shell
 ---
 
 RECIPE-DOORS unit 3 of 3 (D5): `Node::Shell { target, thickness, open }` with
