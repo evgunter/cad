@@ -269,3 +269,99 @@ field was the only one proved), and every row pins its use count, the
 program's shape since PR 2042, proved by perturbing the pin in both
 directions; two miscounted sentences in the row corrected. 98 gate
 invocations in the selftest.
+
+## Seventh wave dispatched (2026-09-06)
+
+With PR 2049 merged and `bit-identity-debug-only.sh` free:
+`gates/statement-attribute-items`
+(`debug-only-reader-cannot-place-a-statement-attribute-over-a-braced-call`
+— the rule that an item under a statement-position attribute has no
+body brace, then the `ArenaDelta` rows the previous lane could not
+add). In flight: PR 2056 (`D102`) under review; `gates/reader-homes`
+and `gates/viewer-module-kinds-guards` building. Landed today so far:
+ten rows over eight PRs (2029, 2030, 2032, 2033, 2038, 2042, 2044,
+2049).
+
+## PR 2056 reviewed (2026-09-06)
+
+Style review of `D102` + `bounds-tripwire-blind-to-named-alias`:
+mergeable with fixes. The bijection holds (183 old line-records map
+one-to-one onto 183 statement records; per-file pins identical), the
+four silent spellings fire and the three near misses do not, the
+mutations flip exactly the fixtures that guard them. Findings, all
+minor, sent back as a fix pass: shapes `main`'s regex caught that the
+parameter-keyed reader is silent on (`dyn A + B`, `-> impl A + B`,
+`type S = dyn A + B;`, lifetimes, `;` inside a generic list — zero
+population, undisclosed at the claim site); `?Sized` and a lifetime
+treated oppositely; the reader's own paragraph carried over from the
+line reader and false under statements; the `EvalScalar` roster entry
+saying its uses are unchecked when `evalscalar-allowlist.sh` checks
+them (and that gate's header listing six supertraits of ten); a stale
+example in the `D102` row; the `real.rs` paragraph's "ratified here";
+three stale comments and a duplicated header sentence; the OK line's
+count wording. Out of fence, filed: three bracket-depth bound-list
+readers (`bounds-allowlist.sh`'s awk, `bounds_census.rs`, `test_utils`)
+none citing the others — `code-quality/bound-list-readers-have-three-homes`.
+
+## PR 2057 reviewed (2026-09-06)
+
+Style review of `viewer-module-kinds-six-unreached-guards`: mergeable.
+The reviewer reproduced the reading independently (instrumented
+`gate_error` with `BASH_SOURCE`/`BASH_LINENO`, all 18 self-tests, 113
+sites in 19 files): base unreached exactly the row's six, head zero;
+each of the six mutations reds on its own case only; live output
+byte-identical; fence clean. Style findings sent back as a fix pass,
+same class as the "check 7" message the PR corrected: the header's
+check numbering (`:22-28`) has never matched the banners; check 3's
+message quotes a README sentence ("exactly two drivers") that no
+longer exists; the moved guard's "only place it can be answered"
+overstates its constraint; the forbidden-path guard prevents a
+wrong-file red, not a vacuous pass, and its planter says vacuity;
+one ordering-dependent sentence in the fixture prose.
+
+## PR 2058 opened (2026-09-06)
+
+`gates/reader-homes` reported: PR 2058 (the resolver, its path filter
+and the window view's comment-line record with one home in `lib.sh`).
+Ten reader views over 433 files byte-identical across the resolver
+move under mawk and gawk; the window fix moves no gate's output; two
+textual gates' scanned set corrected by one file each way (a test
+module declared from a non-root file that the sibling rule missed).
+Sent back before review: the branch predates PR 2044's merge, so the
+dead line-view filter it measured in `loop-boundary-discards.sh` is
+retired in this PR rather than filed as residue. Reviewer dispatched
+once that lands.
+
+## PR 2059 opened (2026-09-06)
+
+`gates/statement-attribute-items` reported: PR 2059 (the
+statement-attribute rule — an item under one has no body brace — and
+the seven `ArenaDelta` rows PR 2049 could not add; uses scanned 28 →
+68, the body-brace desync arm deleted). Residue filed on this slate:
+`assert_euler_postcondition` on no row. Reviewer dispatched. Note for
+the record: the row it closes was created in this PR — PR 2049
+disclosed it in prose and the file never reached `main`.
+## Landed: PR 2057 (2026-09-06)
+
+`viewer-module-kinds-six-unreached-guards` closed. The six `gate_error`
+sites in `viewer-module-kinds.sh` that D109's reading found no
+self-test fires (`:251 :263 :383 :427 :459 :464`) each have a `--root`
+fixture now, mutation-proven one at a time (backing out a guard reds
+exactly its case); directory-wide unreached count 6 → 0 over a
+population of 113 sites in 19 files. The empty-vocabulary guard moved
+from below check 4 (unreachable there: check 4 exits on empty tables)
+to directly under check 1, with the position stated as load-bearing;
+one message that named check 6 for check 7's path arm corrected; the
+self-test's stale closing summary rewritten. Live run byte-identical.
+Out of fence: `scripts/doc-gate.sh` sources `lib.sh` and carries 14
+`gate_error` sites the population never reads — filed on CIW's slate
+as `doc-gate-error-sites-outside-the-gate-population`.
+Fix pass from the review: the header's check numbering (never in step
+with the banners since the gate was written) corrected and every check
+citation swept; check 3's message reads the driver count from the
+roster it built instead of quoting a README sentence that no longer
+exists; the moved guard's comment states its constraint (above check
+4's exit) rather than "the only place"; the forbidden-path guard is
+described as preventing a wrong-file red, not a vacuous pass, at the
+guard and its planter; one ordering-dependent sentence in the
+self-test prose replaced by the planters' names.

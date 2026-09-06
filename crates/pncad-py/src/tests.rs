@@ -1459,11 +1459,23 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "assembly_error_tag",
         values: &[
             "at_rest",
+            "carried_mint_refusal",
             "mate_reference_refused",
             "no_at_rest_record",
             "uncertified",
         ],
         delegates: &["product_error_tag"],
+    },
+    TagEntry {
+        function: "attribution_tag",
+        values: &[
+            "carried_declined",
+            "carried_refuted",
+            "declined",
+            "refuted",
+            "unattributed",
+        ],
+        delegates: &[],
     },
     TagEntry {
         function: "binary_header_error_tag",
