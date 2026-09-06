@@ -714,18 +714,19 @@ pub(crate) fn harmonic_extent<T: Real>(
             p0.y + pa.y * c + pb.y * s + pl.y * t,
         )
     };
-    let (a, b) = (at(t0), at(t1));
-    let channel = |x: T, y: T, ca: T, cb: T| {
+    let _ = (at(t0), at(t1));
+    let reach = t0.abs().max(t1.abs());
+    let channel = |p: T, ca: T, cb: T, cl: T| {
+        let d = ca.abs() + cb.abs() + cl.abs() * reach;
         Span {
-            lo: x.min(y),
-            hi: x.max(y),
+            lo: p - d,
+            hi: p + d,
         }
-        .widen(subdivision_charge(
-            (ca.powi(2) + cb.powi(2)).sqrt(),
-            t1 - t0,
-        ))
     };
-    Some((channel(a.0, b.0, pa.x, pb.x), channel(a.1, b.1, pa.y, pb.y)))
+    Some((
+        channel(p0.x, pa.x, pb.x, pl.x),
+        channel(p0.y, pa.y, pb.y, pl.y),
+    ))
 }
 
 /// **A torus face's chart window, accumulated over its boundary's
