@@ -330,7 +330,10 @@ GATE_CFG_TEST_NOT_RE='#\[cfg\([^]]*(any|not)\('
 #
 # All three emit `FILE:LINE:TEXT`, the shape `grep -rn` emits, so a
 # gate's downstream pipeline (its allowlist filters, its message) is
-# unchanged by the swap. LINE is the real line the record starts at.
+# unchanged by the swap. LINE is the line the record's own first CODE
+# sits on: a statement or a window opening under a comment is reported
+# at the code, never at the comment above it, so a hit a gate prints
+# names a line that holds what it matched.
 #
 # WHAT IT KNOWS. `//`, `/* */` INCLUDING NESTING TO ANY DEPTH AND ACROSS
 # ANY NUMBER OF LINES (Rust allows nested block comments; the `*/` that

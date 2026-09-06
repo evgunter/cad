@@ -58,16 +58,29 @@ win.rs:3: let x = 1; }
 win.rs:4: }
 ```
 
-**What moved in the views** over `crates/*/src` (433 files), before and
-after, under both `mawk` and `gawk`: the line view loses 68,583
-whitespace-only records and gains none (269,422 → 200,839); the
-literal-keeping line view the same; `--skip-cfg-test` loses 57,967. The
-two statement views are byte-identical. The window views change by
-construction — at window 16, 174,506 records out and 113,610 in, the
-difference being both the duplicates that leave and the joins that now
-reach one code line further. **No gate's output moves**: every gate in
-`scripts/gates/`, self-test and real pass, prints byte-identically
-before and after, under both awks.
+**What moved in the views** over `crates/*/src`, before and after,
+under both `mawk` and `gawk` (counts on the merged head, 433 files):
+the line view loses 68,792 whitespace-only records and gains none
+(270,009 → 201,217), and every removed record matches
+`^[^:]*:[0-9]+:[ \t]*$` — 0 exceptions, 0 additions; the
+literal-keeping line view the same; `--skip-cfg-test` loses 58,169.
+
+**The statement views are NOT byte-identical, and the reason is the
+same defect.** Their record count and every record's TEXT are unchanged
+— identical once the `LINE` field is removed — but 12,266 of 113,112
+records move their reported line. `sline` was set by the first record
+of a statement whatever it held, so a statement opening under a doc
+comment was reported AT THE COMMENT: `crates/bvh/src/aabb.rs:26` (`///
+The x axis.`) for the statement whose code is at 27. It is reported at
+27 now. The window views change by construction — at window 16, 174,936
+records out and 113,841 in, the difference being both the duplicates
+that leave and the joins that now reach one code line further.
+
+**No gate's output moves**: every gate in `scripts/gates/`, self-test
+and real pass, prints byte-identically before and after, under both
+awks. The moved statement lines are invisible today because a line
+number only reaches a reader when a gate FIRES, and none does; the line
+a firing gate prints is now the code it matched.
 
 **The gate that filtered the duplicate is retired with it.** PR 2044
 merged while this branch was open, so `loop-boundary-discards.sh`'s
