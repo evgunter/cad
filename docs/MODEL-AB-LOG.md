@@ -4030,6 +4030,7 @@ review dispatch goes to main on its own.
 Block FILLET-B3 slot record (branch-side, appended as each slot concludes):
 slot 0 = FILLET-T (OPUS) — concluded 2026-09-05 at merge b1cc95604, ordinal 2006, sample #139 (no tally candidate; pair FAIR). Slot 1 = FILLET-SPLIT (FABLE) opens on Ev's ruling (PR 1916); slot 2 waits on PR 1935. (The draw commit's session trailer carries a typo in its URL; the record is unaffected.)
 slot 1 = FILLET-SPLIT (FABLE) — concluded 2026-09-05 at merge 71cce611d, ordinal 2007, sample #141 (renumbered at the post-merge sync: PROPS's Span row took #140 first by merge order; no tally candidate; pair FAIR). Slot 2 waits on PR 1935 and closes EMPTY if Ev's answer is not "mint" — the block then closes short with the program's exit.
+slot 2 = banked for the `ThreeConcaveEdges` mint — CLOSED EMPTY: Ev ruled the all-concave trihedron ruling closed with no tag (PR 1935, 2026-09-06), so no unit takes the slot. **Block FILLET-B3 concluded SHORT at two of three slots** (slot 0 OPUS executed, slot 1 FABLE executed, slot 2 OPUS unexecuted); the program closed 2026-09-06 (`docs/DOC-LEDGER.md`, sweep 7). The record reaches main with this line.
 
 ## FILLET-RIM review ordinal fixed at dispatch (2026-09-04)
 
