@@ -393,3 +393,19 @@ OPUS; briefs hashed and diff-identical modulo lane names; private
 build and scratch directories per lane. Both lanes running. The box's
 disk hit 100% during the lane's run; the finished lanes' build
 directories are freed.
+
+## 2026-09-06 — DOCM-6 dual review dispatched
+
+DOCM-6's lane reported: PR #2035 (`docm/6-seam`) non-draft, full
+code-tier CI green at head `0b240444`; no stop clause fired; seven
+deviations disclosed (two files past the fence for the value channel,
+four `PartValue` fields, a `MintRefusal` `Display`, the `Uncertified`
+predicate widened to a carried decline, Python rows past "forced only",
+two baselines moved, one Python row unwritable behind a pre-existing
+`reads_as_prose` panic) and three findings outside the fence (the
+panic, the boolean asymmetry in the carry, the relation tags with no
+inventory row). v6 dual dispatched: ordinal 1806 claimed on main at
+dispatch; parity byte 76 ⇒ R1 = OPUS, R2 = FABLE; briefs hashed and
+diff-identical modulo lane names; private build and scratch
+directories per lane. Both lanes running. Block DOCM-B2's last slot:
+its record reaches main when this dual concludes.
