@@ -8,6 +8,7 @@ github: 454
 refs: [447]
 track: K
 branch: gates/panic-free-macro-bodies
+pr: 2032
 ---
 
 ## From GitHub issue 454
