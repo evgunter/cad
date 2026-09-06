@@ -74,6 +74,7 @@ pub mod sketch;
 pub mod theme;
 pub mod tools;
 pub mod tree;
+mod vocab;
 
 #[cfg(feature = "app")]
 pub mod app;

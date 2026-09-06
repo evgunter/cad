@@ -1,10 +1,12 @@
 ---
 id: status-line-writers-bypass-the-ranking
 kind: issue
-title: Nineteen writers reach the status line without the frame's ranking, so it decides nothing they say
-status: open
+title: Eighteen writers reach the status line without the frame's ranking, so it decides nothing they say
+status: closed
 opened: 2026-09-04
-refs: [camera-fold-clears-status-line, the-news-vocabulary-has-no-expiry, stale-file-citations-after-the-split]
+closed: 2026-09-06
+pr: 2026
+refs: [camera-fold-clears-status-line, the-news-vocabulary-has-no-expiry, stale-file-citations-after-the-split, startup-notices-need-holding-to-badge, ranked-and-unranked-verdicts-are-one-type, a-fold-row-composes-a-producer-with-a-dead-door, one-line-one-subject-loses-a-mixed-frames-expiry]
 ---
 
 ## What this is
@@ -132,3 +134,99 @@ moves with the sweep. Each standing fact gets a badge function in
 badges — see `four-badges-five-spellings` for what that family should
 look like before four more members are added to it. The pane sites are
 the bulk and are independent of each other, so this splits cleanly.
+
+## Closed
+
+**Seventeen of the eighteen** now come through the ranking. Sixteen
+assignments and `frame::fold_status` push onto the frame's `notices`
+instead of writing the field, so they meet `frame_status`'s rank 2 and
+the same frame's accepted batch can no longer erase them before they
+are painted.
+
+**The eighteenth is still open and is the struct-literal initializer**,
+`crates/viewer/src/app.rs`'s `status: frame::startup_notices(&notices)`
+— the writer the original `status = ` grep could not see, and the one
+this unit did not take. It badges under the ruled rule and cannot badge
+without being HELD, which is a design question:
+`startup-notices-need-holding-to-badge`. Everything in this section
+that says "every" said it about seventeen; the count is the honest
+claim and is the one `crates/viewer/README.md` and `frame.rs`'s header
+now carry (corrected in this PR's fix pass, on the style review's
+finding). `ViewerBehavior` carries
+`notices`, which is the one structural change; it also keeps `status`,
+because a RETIREMENT is the one thing a notice cannot express.
+
+`frame::deliver` is the new door for a policy that may or may not have
+something to say: a `Show` joins the notices, a `Keep`/`Expire`/`Clear`
+reaches the field. `fold_status` needed exactly that — its refusal is
+news and its clean arm retires the camera sentence — and
+`ViewerApp::deliver_status` is the `&mut self` shorthand beside
+`apply_status`, which stays for the RANKED verdict.
+
+## The census, re-derived — and it is eighteen, not twenty
+
+The number has now been wrong four times, and the reason is the same
+each time: the membership test was "reaches the field outside the
+ranking" when it should have been **"can put a SENTENCE on the line
+that the ranking never saw"**. Applying a verdict outside the ranking
+is not the same as writing one, and a retirement must not be ranked.
+
+The eighteen: sixteen direct assignments (`app.rs` ×2, `pane/create.rs`
+×10, `pane/view.rs` ×1, `pane/viewport.rs` ×3), one struct-literal
+initializer (`app.rs`'s `status: frame::startup_notices(...)`, the site
+the `status = ` grep could not see), and `frame::fold_status`, whose
+`Show` arm reached the field through `apply`.
+
+**Two the previous counts included and should not have:**
+
+- `frame::cursor_status` returns only `Keep` or `Expire`. It can never
+  put a sentence on the line, so it was never one of these writers —
+  it is the well-behaved shape the item is asking every writer to
+  become. The README counted it as one of "two more".
+- `frame::dialog_status` has a `Show` arm, and it is **unreachable at
+  both call sites**: the Open… and Save As… buttons are
+  `add_enabled(chooser.usable(), …)`, and the `Show` arm is
+  `(chose: false, usable: false)`. A click implies usable. It is
+  latent, not live; it now goes through `deliver` anyway, so if the
+  guard is ever removed the sentence lands in the notices.
+
+`crates/viewer/README.md` and `frame.rs`'s header are corrected to
+eighteen with the distinction stated, so the next reader inherits the
+test rather than the number.
+
+## What the pattern could not match
+
+The census was derived by shape over `crates/viewer/src/**`: assignment
+to any binding ending in `status` (`X.status =`, `*self.status =`,
+bare `status =`), struct-literal `status:`, every `frame::apply(` and
+`apply_status(` call, and `status.take()/replace()/insert()`. What it
+still cannot see: a writer that reaches the field through a helper
+taking `&mut Option<Message>` under another parameter name (only
+`land` does today, and it is in the list by hand); a field reached
+through a `struct` update syntax (`..other`); and — the blind spot that
+matters — **reachability**, which is why `dialog_status` needed reading
+rather than counting. A grep can find every site that CAN write; only
+reading says which ones can be reached.
+
+## Not taken, and filed
+
+`app.rs`'s startup notices badge under the rule but cannot badge
+without being HELD, and what retires them is a design question:
+`startup-notices-need-holding-to-badge`. That is the eighteenth writer
+and the reason this item's claim is seventeen-of-eighteen.
+
+Three more from the style review's fix pass, each with its own file
+because a residue disclosed only in this section dies with the
+directory (`work/README.md`):
+
+- `ranked-and-unranked-verdicts-are-one-type` — the sweep's own fix
+  leaves one site where a writer can still skip the ranking, because
+  `frame::apply` and `frame::deliver` take the same type and the rule
+  for choosing lives in prose. This item's defect class, one level up.
+- `a-fold-row-composes-a-producer-with-a-dead-door` — the class sweep
+  over `frame.rs`'s rows composing a `*_status` producer with `apply`:
+  five rows, six compositions, two of them no longer mirroring any
+  caller.
+- `loud-skip-row-did-not-stop-a-lane-verifying-the-wrong-build` — this
+  lane verified an entirely `app`-gated diff with a default-feature
+  run, past the row that exists to make that gap visible.

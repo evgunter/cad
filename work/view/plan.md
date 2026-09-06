@@ -73,8 +73,12 @@ section, written after the fact from `git log`.
    clearing, its refusal reaches the line through `frame_status`'s
    ranking, the product fault became a badge. The census of the other
    writers was filed, not swept: `status-line-writers-bypass-the-
-   ranking` (19 sites) and `four-badges-five-spellings` are its
-   residue, both open.
+   ranking` and `four-badges-five-spellings` were its residue. Both are
+   now **closed** — the badge family at #1957, and the sweep at #2026,
+   which routed seventeen of the eighteen writers through the ranking
+   and added `frame::deliver` as the door for a policy that may or may
+   not have news. The eighteenth is the startup initializer and has its
+   own file, `startup-notices-need-holding-to-badge`, open.
 
 4. `focus-marking-is-per-node-not-per-segment` — **blocked, and the
    blocker is not this program's to clear.** The authored-step to
@@ -86,44 +90,61 @@ section, written after the fact from `git log`.
    **Parked** on `next-id-has-no-layer3-door`, which is DOCM's door to
    shape. Announce standing; nothing in VIEW clears it.
 
-6. `pick-index-built-on-ui-thread` — **6a is RULED (Ev, #1843)**: the
-   frame-state inventory gains no third shape, a pick with no index
-   refuses visibly rather than silently, and a δ change restarts
-   without cancel. 6c collapsed into 6b under that ruling.
-   **6b is dispatched 2026-09-04** on `view/pick-index-offthread` —
-   the only unit in this program's history to carry a second
-   correctness reviewer.
+6. `pick-index-built-on-ui-thread` — **DONE, #1888, merged 2026-09-05.**
+   6a was ruled by Ev at #1843; **6c collapsed into 6b** under that
+   ruling, as the item predicted. The index and its tessellation are on
+   their own seam, keyed by `(Generation, DisplayTolerance)`, with no
+   `cancel` door at all — Ev's restart-without-cancel answer made
+   structural so a later lane cannot wire a token through without
+   meeting the argument. Three reviews: correctness, a delta round, and
+   style. The correctness lane found a **MAJOR** the whole 483-row
+   suite was green over, and the fix removed the shape rather than the
+   instance. Seven residues filed as items, none left in prose.
 
-### The 2026-09-04 evening wave
+### The 2026-09-04/05 wave — all four units landed
 
-Three lanes out. Style review each except where named.
+| unit | PR | reviews |
+|---|---|---|
+| `view/prune-report` (both `prune` discards) | #1886 | style |
+| `view/clearing-walk` (the four-site reset) | #1885 | style |
+| `view/pick-index-offthread` (6b) | #1888 | correctness + delta + style |
+| `view/scene-gathers` (the double gather) | #1908 | style |
 
-- **`view/prune-report`** — `prune-discards-the-fault-that-explains-
-  the-supersession` carrying `prune-drops-a-hidden-instance-silently`.
-  One function computes two reports and drops both; they are one
-  change to `prune`'s signature and would be one merge conflict if
-  taken twice.
-- **`view/clearing-walk`** —
-  `session-clearing-walk-is-hand-maintained-three-times`. Four hand-
-  maintained copies of one reset, and two fields already outside it.
-- **`view/pick-index-offthread`** — 6b, above. Style **and**
-  correctness: the failure mode is a confident wrong answer (a pick
-  answered against an index built for another generation) rather than
-  a refusal, which is the posture's own test for a second reviewer.
+Plus #1912, that session's orchestrator state-sync, merged separately
+because it is a session's worth of adjudication across five units and
+should be visible on its own.
 
-Held for the next wave, and why they are held rather than open-ended:
+### The 2026-09-06 wave
 
-- `scene-gathers-the-landed-product-twice-more` waits for
-  `view/clearing-walk`, because it adds a field beside `landed_checks`
-  and that lane is collapsing the walk those fields are reset by.
-  Taking both at once is one file, two authors.
-- `refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake` and
-  `self-boolean-precheck-duplicates-the-doors-duplicate-input` are one
-  unit under the `EditError`-wording amendment above, and it touches
-  `session.rs` and `session/op.rs`, which `view/prune-report` holds.
-- `session-shims-and-test-imports` is now inside this program's glob
-  and is a 32-file sweep; it lands after the lanes that add test rows,
-  not before them.
+| unit | PR | reviews |
+|---|---|---|
+| `view/edit-door-wording` (`EditError`'s `Display`) | #1932 | style |
+| `view/module-kind-gate` (the gate's own clean-tree bug) | #1953 | style |
+| `view/axes-and-badges` (Ev's provenance rule, made structural) | #1957 | style |
+| `view/status-line-sweep` (seventeen of eighteen writers) | #2026 | style + fix pass |
+| `view/const-all` (the `vocabulary!` declaration) | #2046 | style + fix pass |
+
+**Twelve units on main. The wave produced nineteen new items** — ten
+from the sweep and its review, nine from `const-all` and its review —
+every one a file rather than a sentence in a merged PR body.
+
+**The census failure has three distinct members now**, and they are
+three different mistakes: a count inherited stale from another program,
+a membership test that admitted the wrong things (#2026), and a scan
+narrower than the test it claimed to implement (#2046, where the regex
+required `[` to follow `=[(,` and so could never see an array literal
+introduced by a keyword). A census owes BOTH halves in writing — the
+test and the method — and the closed items say so.
+
+Plus the `[ev]` PR carrying the three design forks, and this session's
+orchestrator state-sync — which had again gone 32 commits behind main
+before it was merged, the same failure #1912 repaired. See the log's
+2026-09-06 tail.
+
+**What the wave produced beyond its four diffs: eighteen new items**,
+every one of them a file rather than a sentence in a merged PR body.
+That is the rule `work/README.md` states and the thing this program had
+been failing at; it is now the wave's largest single output.
 
 ### Beside the numbered order
 
@@ -156,22 +177,30 @@ Held for the next wave, and why they are held rather than open-ended:
   `two-hand-written-copies-of-the-g1-gesture-machine` waits on).
 - Open and undispatched:
   `revolve-tool-unreachable-no-axisinplane-form`,
-  `save-is-not-gesture-guarded`, `stale-file-citations-after-the-split`
-  (general case only), `sweep-blind-spots-...`,
-  `gesture-drags-have-no-cancel-door`,
+  `stale-file-citations-after-the-split` (general case only),
+  `sweep-blind-spots-...`, `gesture-drags-have-no-cancel-door`,
   `two-hand-written-copies-of-the-g1-gesture-machine`.
+  **`save-is-not-gesture-guarded` was on this list and is CLOSED** —
+  answered rather than fixed, 2026-09-04, with its one residue filed
+  as `save-permitted-row-argues-only-half-of-save` and taken by #1932.
+  It was still listed here two days later, which is this section's own
+  instance of `stale-file-citations-after-the-split`'s expensive half:
+  the CLAIM going stale rather than the number. Read `scripts/work.py
+  status --program view` before believing any list in this file.
 
 ### The three design forks, going to Ev as one PR
 
 `the-news-vocabulary-has-no-expiry`,
 `pick-and-parts-name-the-session-driver` and
-`four-badges-five-spellings` are decisions, not builds, and they
-interlock: the news vocabulary decides what
-`status-line-writers-bypass-the-ranking` sweeps *to*, the badge family
-decides what its standing-fact half sweeps to, and the boundary rule is
+`four-badges-five-spellings` were decisions, not builds, and they
+interlocked: the news vocabulary decided what
+`status-line-writers-bypass-the-ranking` swept *to*, the badge family
+decided what its standing-fact half swept to, and the boundary rule is
 ratified text of Ev's that #1848 proved false of the tree. One `[ev]`
-decision document carries all three while the build lanes run
-(Ev, in-chat, 2026-09-04).
+decision document carried all three while the build lanes ran
+(Ev, in-chat, 2026-09-04). **All three are answered**, and the sweep
+they gated closed at #2026; the boundary rule's mechanical half is
+still `boundary-rule-has-no-mechanical-check`.
 
 ### The standing hazard this program keeps hitting
 

@@ -767,10 +767,14 @@ fn an_empty_set_refuses_at_the_tool_and_at_evaluation() {
 /// **The blend tool is one of the modal tools**: it narrows the cursor
 /// to edges, it closes whatever was open, and whatever it opens over
 /// is closed.
+///
+/// It no longer asserts that `ToolKind::ALL` contains `Blend`. That
+/// line rested on `ALL` being a hand-written list a kind could be
+/// missing from; `ALL` is projected from `ToolKind`'s own declaration,
+/// so the assertion cannot fail and says nothing.
 #[test]
 fn the_blend_tool_takes_its_place_among_the_modal_tools() {
     assert_eq!(ToolKind::Blend.pick_kinds(), PickKinds::EdgesOnly);
-    assert!(ToolKind::ALL.contains(&ToolKind::Blend));
 
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);

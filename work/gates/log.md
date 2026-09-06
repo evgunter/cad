@@ -93,3 +93,73 @@ it: `debug-only-helpers-outside-the-subject-list` (five more
 candidates), and on their owners' slates the `bits_witness` slice
 workaround (TOPO), the `ci.yml` step title (CIW) and the
 `landing_gathers.rs` source-text row (S-TCOST).
+
+## clippy-panic-gate-blind-in-macros landed (2026-09-06)
+
+PR 2032, `gates/panic-free-macro-bodies`, one style review
+(MERGEABLE-WITH-FIXES, fix pass landed). A new gate,
+`panic-free-macro-bodies.sh`: the stanza's six macro-blind lints
+(`.unwrap`, `.expect`, `panic!`, `todo!`, `unimplemented!`, `dbg!`)
+inside every `macro_rules!` body in the three delimiter forms, through
+the code-only view, matched on the body field only; `unreachable!`
+excluded because the D2 addendum removed it from the stanza — the
+lane's deviation, an improvement. Allow: `#[cfg(test)]` on the item,
+an enclosing module, or a file declared by `#[cfg(test)] mod x;` in
+either spelling. The one-time audit: 24 bodies in 15 files, two carry a
+token (`fit.rs:714`'s sanctioned `unreachable!`,
+`review_m1_pr5_internal.rs:116` under test). UFCS `Option::unwrap(v)`
+measured as parity with clippy, not a hole. One wiring step in
+`ci.yml`, announced to CIW; `ci-local.sh` globs the directory. 18
+cases. Its textual `mod` resolver is the third in the directory —
+`test-module-resolution-has-three-homes`.
+
+## Third wave dispatched (2026-09-06)
+
+With PR 2029 merged and `bounds-allowlist.sh` free: `gates/d103-pinned-counts`
+(`D103`, direction decided by the orchestrator — a per-file compound-bound
+count pinned beside each allowlist entry, the `UNCONVERTED_TODAY` shape
+per entry, so a file whose count moves in either direction reds and
+names the entry's ratification paragraph), and
+`gates/loop-boundary-discards` (`S49`, the deferral register as a
+derived-census gate keyed by file and enclosing item, two reds — an
+unregistered live discard and a registered site that is gone — with
+the audited/unaudited counts in the OK line; the audit of the
+unaudited sites is the owners' riders). `D211` waits on PRs 2033 and
+2038, which hold two of its three files.
+
+## gate-mod-path-resolved-textually landed (2026-09-06)
+
+PR 2033, `gates/mod-path-resolution`, one style review
+(MERGEABLE-WITH-FIXES with one MAJOR, fix pass landed).
+`interval-square-allowlist.sh` resolves `#[cfg(test)] mod x;` the way
+rustc does — `#[path]` wins, roots and `mod.rs` to the sibling, any
+other declarer to `dir/foo/x.rs`, an inline `mod x { … }` to no file,
+and (the review's MAJOR, implemented rather than refused) a
+declaration inside an inline module mounted under that module's
+directory; a declaration it cannot place is refused loudly with one
+diagnosis, checked before the every-source guard. The exclusion filter
+is a whole-path or prefix comparison, no longer a substring match.
+Population measured first: 54 gated declarations, 17 outside roots, 12
+inline and 5 real; live scan 397 → 395 files, the two leaving being the
+test modules their declarations actually name, nothing entering. 27
+cases, 11 of 12 mutations killed by their own fixture. The first
+fix-pass head went red on the hosted runner only: the reader `exit`ed
+with its answer while reading a pipe from `gate_rust_code`, and
+`pipefail` reported the shared reader's failed write as a refusal — a
+race this box won and the runner lost; fixed by consuming the whole
+input, planted with a 1.5 MB view. Reported from it, `lib.sh`'s ground:
+`gate_selftest_with_broken_tool` plants only the clean tree (a reader
+failure path is unreachable from any selftest), and a stubbed `awk`
+exits the gate with status 9 and no output — D109's class.
+
+## Fourth wave dispatched (2026-09-06)
+
+With PR 2030 merged and `bit-identity-debug-only.sh` free:
+`gates/debug-only-subjects-2` (`debug-only-helpers-outside-the-subject-list`
+— a per-helper decision on the five mesh and topo candidates, rows for
+the ones that want a source-shape pin). Behind PR 2038 (`lib.sh`):
+`D211`, `test-module-resolution-has-three-homes`,
+`window-view-emits-a-record-for-a-comment-only-line`,
+`viewer-module-kinds-six-unreached-guards`. Behind PR 2042
+(`bounds-allowlist.sh`): `D102`, `S13`,
+`anchored-exact-text-skip-has-three-homes`.
