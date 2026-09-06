@@ -404,7 +404,7 @@ has its own item
 
 | Module | Holds |
 |---|---|
-| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `PathVerb`, `ArcMode`, `DatumKind`, `ShapeKind`, `PatternKindChoice`, `BOOLEAN_OPS`, `MATE_PRIMITIVES` — are hand-maintained mirrors of a kernel or sketch enum; the field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
+| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `PathVerb`, `ArcMode`, `DatumKind`, `ShapeKind`, `PatternKindChoice`, `BOOLEAN_OPS`, `MATE_PRIMITIVES` — are hand-maintained mirrors of a kernel or sketch enum; the field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app`. The five enums declare themselves and their `ALL` together (**Closed vocabularies are declared once**, below); the two `const` tables mirror an enum in another crate and cannot, and say so |
 | `drafts` | `Drafts` and `CommitFault`: the in-flight form state, its defaults, and its lowering of typed field values to `Expr` and `LoopProgram` — the same layer as `session::author`, and today the larger half of it |
 | `frame` | The per-frame policies the viewport runs, as values: what the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `Badge` and the doors that build them), what the id pass is asked this frame, and what the environment offers (`ChooserBackend`, the XDG preferences path, the WSL probe). The charter is that the frame loop still decides WHEN to call one and no longer decides what it MEANS — which argues for taking each out of `app` and **not** for their being one module. A new concern is written against this row; that the row cannot honestly cover the ones already here is `work/view/frame-module-has-eight-concerns-and-no-holds-row.md`, which owns the split |
 
@@ -655,13 +655,62 @@ which named five tool types by hand to erase them again, are gone with
 the erasure they existed for.
 
 `ToolKind::ALL` remains for the test suites that sweep the kinds, which
-are now its only readers: `Tools::open_kind` asks the open value which
-kind it is instead of scanning the list for the first field that is set,
-and the chrome names each kind it offers literally rather than
-iterating. A kind missing from `ALL` therefore narrows those sweeps
-rather than making its tool permanently unreachable. `ALL` is still the
-one list a compiler cannot force, and `ToolKind::ordinal` is still what
-makes its completeness checkable by a row.
+are its only readers: `Tools::open_kind` asks the open value which kind
+it is instead of scanning the list for the first field that is set, and
+the chrome names each kind it offers literally rather than iterating. A
+kind missing from `ALL` would narrow those sweeps rather than make its
+tool unreachable — and a kind cannot be missing from it, because `ALL`
+is projected from `ToolKind`'s own declaration (**Closed vocabularies
+are declared once**, below). `ToolKind::ordinal` and the row that read
+it against the list are gone with the hand-written list they existed to
+check. `ALL` stays `pub`: the suites that read it are integration
+tests, which see only this crate's public surface, and a suite-local
+copy would be the hand-written list again with nothing forcing it.
+
+### Closed vocabularies are declared once
+
+A dozen enums here are **closed vocabularies**: a fixed set of choices
+the chrome offers, which something walks in order — a radio row, a
+combo's options, a suite's sweep. Each carried a hand-written
+`const ALL` beside it, and that second copy of the membership was free
+to fall behind the first: adding a variant compiled, the radio row
+silently lost a button, and every sweep keyed on the list quietly
+narrowed. Ten such tables existed; nine were of this kind.
+
+**The enum and its `ALL` are now one declaration.** `src/vocab.rs`'s
+`vocabulary!` takes one list of variants and expands it into both, so a
+variant cannot reach the enum without reaching the list — the same
+construction `crates/profile/src/path/program.rs` uses for the arc-mode
+and verb vocabularies ("ONE declaration, THREE projections"), and no
+new dependency in a crate whose default-feature graph is deliberately
+the kernel's. Order is the declaration's, because these lists are read
+in order and several say so in their own docs; where a form wants an
+order the type did not grow in, the **enum** is written in the form's
+order and says why. Two shapes: a bare vocabulary projects `[Self; N]`
+and keeps its wording in a `label` match, a labelled one writes each
+word in the declaration and projects `[(Self, &'static str); N]`.
+
+Three kinds of list stay hand-written, and each is a different answer
+rather than an exception:
+
+- **A registry of struct constants** (`Theme::ALL`) is not an
+  enumeration of variants at all — there is no exhaustiveness for a
+  match to borrow, and its doc already argues it is the single list.
+- **A deliberately partial list** claims no completeness, so forcing it
+  would force the wrong thing: `SUBJECTS_WITH_AN_EXPIRY_ISSUER` names
+  two of five `Subject`s, each tool's seat list names its own seats,
+  and `MATE_PRIMITIVES` offers three of four mate primitives because
+  the fourth exists to be refused. Each says why in its own doc.
+- **A mirror of an enum declared in another crate** (`BOOLEAN_OPS`)
+  cannot be projected from a declaration that is not here. That is the
+  neighbouring MIRROR question and has its own tracker item.
+
+There is no gate. A gate reading source for new hand-written `ALL`
+tables would be redundant for every converted one — the compiler owns
+those — and for the three kinds above it would be a checker of
+judgement, which is what this page is for. What a new hand-written list
+meets instead is this section and the neighbours it would be sitting
+among.
 
 ### What the boundary does not decide
 

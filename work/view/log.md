@@ -1999,3 +1999,84 @@ not the wrong-answer story.
 
 That makes eleven corrections in this program's history, and the first
 a reviewer made against itself.
+
+## The `const ALL` class: ten tables, nine members, and the third wrong census (2026-09-06)
+
+`view/const-all` took
+`viewer-const-all-tables-have-no-exhaustiveness-guard` and
+`tool-kind-all-and-ordinal-have-no-production-reader` together, because
+both said they had to be: one asks whether these tables should exist
+and the other how to force them, and answering them apart answers one
+question twice.
+
+**The count in the item was five. The tree had ten, and the class is
+nine.** That is the second census in this program to be wrong because
+the MEMBERSHIP TEST was wrong rather than the counting. `grep "const ALL"` is a name test; the class is a shape. The
+corrected census was derived in two passes — the name grep, then a
+structural scan for array literals holding two or more
+`Type::Variant` entries anywhere under `crates/viewer/src` — and the
+second pass is what turned up the members that are not called `ALL`
+(`forms::BOOLEAN_OPS`, `forms::MATE_PRIMITIVES`) and the near-members
+that are (`Theme::ALL`). Both passes and the membership test are
+written into the closed item so the next census does not have to
+re-derive them.
+
+`Theme::ALL` is confirmed out: `Theme` is a struct and `ALL` is a
+registry of three struct constants, so there are no variants and no
+exhaustiveness for a match to borrow. The dispatcher's belief was
+right.
+
+**The mechanism is the repo's, not a new one.**
+`crates/profile/src/path/program.rs`'s `arc_modes!` and
+`transition_table!` already declare an enum and its `ALL` from one list
+("ONE declaration, THREE projections"); `crates/viewer/src/vocab.rs` is
+the viewer's two-projection case. It gives more than the property the
+dispatch asked for: adding a variant without extending the list is not
+a compile error but unwriteable, because they are the same tokens. A
+derive crate was rejected (a dependency in a crate whose default-feature
+graph is deliberately the kernel's, to save fifty lines), a successor
+walk was rejected (satisfies both properties and spreads a
+seventeen-verb order across seventeen arms), and `fn all()` from a
+match was rejected as the item's own proposal that fails its own second
+property.
+
+**No gate, and the reasoning is the interesting part.** The claiming
+note named `scripts/gates/viewer-module-kinds.sh` as the machinery a
+fix would use, and it would have worked. But once the compiler owns the
+property, a gate can only catch a NEW hand-written list — and the three
+kinds of list that legitimately stay hand-written (a struct registry, a
+deliberately partial list, a mirror of another crate's enum) are told
+apart by judgement, not by a scan. A gate over them would be a checker
+of judgement. The answer is a sentence, and the sentence is
+`crates/viewer/README.md`'s new **Closed vocabularies are declared
+once**, which is where a new hand-written list meets its three
+neighbours and has to say which it is.
+
+**The reader-count sweep the second item asked for was run and its
+pattern is too coarse to be the class.** "`pub` items whose grep hits
+outside `src/` are all under `tests/`" returns twenty names on
+`167dc4f84` and finds no new instance: eighteen are read-back doors
+whose docs describe what they answer, which is the crate's stated
+headless posture rather than a defect. The discriminator that makes an
+instance is the second half of the item's own title — the doc naming a
+production consumer that does not exist — and the reader count alone
+over-collects by roughly ten to one. It also under-collects: `ALL`
+never appears in the sweep's output, because the sweep keys on a bare
+name and `Theme::ALL` shares it and has production readers. **The
+item's own class was invisible to the item's own sweep**, which is the
+named blind spot (a name grep does not resolve a name to a definition)
+biting at home rather than at the re-export case the item predicted.
+
+`ToolKind::ordinal` and `Seat::ordinal` are deleted: each existed to be
+the compiler-forced half of a hand-written list's completeness, and
+there is no hand-written list left for them to be read against.
+`ToolKind::ALL` and `Seat::ALL` stay `pub` — the suites that read them
+are integration tests and see only the public surface, so every
+"move it behind the suite" answer puts a hand-written list in a test
+file with nothing forcing it.
+
+The mirror residue (`BOOLEAN_OPS`, `MATE_PRIMITIVES` — tables whose
+enum is declared in another crate, so nothing here can project them)
+was filed as its own item at the moment it was disclosed, per
+`work/README.md`: a residue named only in a PR body dies with the
+directory.
