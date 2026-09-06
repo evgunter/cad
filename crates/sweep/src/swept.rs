@@ -369,21 +369,25 @@ pub(crate) fn turn_axis<T: Real>(turn: Sign, normal: Vec3<T>) -> Vec3<T> {
 /// `v / radius`, which would buy the same cancellation by changing the
 /// `f64` lane's bits.
 pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T) {
-    // The typed answer is HANDLED, not dropped: a `Contradicted` here
-    // means the lane scalar separated `‖q − c‖` from `r` over this box,
-    // which for a construction that satisfies the proof above cannot
-    // happen — so it is a defect, loud in debug and counted in the
-    // session's receipt either way
-    // (`SymCounts::registrations_refused`). `Unwitnessed` is ordinary:
-    // a leaf too wide to certify the norm's enclosure records nothing,
-    // which is the safe direction.
-    let stated = rim.norm().register_equal(radius);
-    debug_assert!(
-        stated != geom_core::sym::SymRegistration::Contradicted,
-        "the arc rim identity is a theorem of the sagitta construction, and this box \
-         separates its two sides: the placement is not rigid, or the carrier is not the \
-         one the profile built"
-    );
+    // THE TYPED ANSWER IS HANDLED, and handling it is not asserting on
+    // it. A `Contradicted` means the lane scalar separated `‖q − c‖`
+    // from `r`; the registration is then REFUSED — nothing is recorded,
+    // every decision that would have rested on it stays numeric, and
+    // inside a session the refusal is counted
+    // (`SymCounts::registrations_refused`, which the drive's receipt
+    // reports). That is the whole of what a registrant owes.
+    //
+    // **And it is deliberately not a `debug_assert!`.** The proof above
+    // is a theorem of the REALS; a constructor can be handed a
+    // configuration at the edge of `f64` representability where it is
+    // not a theorem of the floats, and refusing to register there is
+    // correct rather than a defect. Measured, not supposed: an
+    // adversarial probe that sweeps a torus's minor radius to 1e18 with
+    // wall widths below one ULP reaches exactly that
+    // (`work/m10/the-span-identity-is-not-a-theorem-of-the-floats`), and
+    // an assertion there turns a door that correctly REFUSES into a
+    // panic.
+    let _refused_registrations_are_counted_not_asserted = rim.norm().register_equal(radius);
 }
 
 /// **The swept arc's SPAN identity, registered** (M10-9 amendment A1;
@@ -434,17 +438,11 @@ pub(crate) fn register_span_identity<T: Real>(carrier: &Curve3<T>, param_end: T,
         return;
     };
     let p = Curve3::circle_at(center, axis, radius, u_ref, param_end);
-    // Per component, and each answer handled (see
-    // `register_rim_identity` for why a `Contradicted` is a defect and
-    // an `Unwitnessed` is not).
+    // Per component, each answer handled — and, as at the rim, handled
+    // is not asserted on (`register_rim_identity` carries the
+    // argument and the measurement).
     for (built, held) in [(p.x, q_to.x), (p.y, q_to.y), (p.z, q_to.z)] {
-        let stated = built.register_equal(held);
-        debug_assert!(
-            stated != geom_core::sym::SymRegistration::Contradicted,
-            "the arc span identity is a theorem of the sagitta construction, and this box \
-             separates the carrier's far endpoint from the segment's: the stored bulge is \
-             not tan(theta/4) for this carrier"
-        );
+        let _refused_registrations_are_counted_not_asserted = built.register_equal(held);
     }
 }
 

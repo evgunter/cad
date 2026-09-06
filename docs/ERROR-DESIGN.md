@@ -623,6 +623,14 @@ number.
   capability evaluation-code discipline exists to keep out of that
   position.
 
+  The point witness is also ε-INDEPENDENT: a relative constant
+  (`geom_core::real::WITNESS_REL`), not the run's tolerance, because a
+  library body may not mint one and the door takes no `tol`. At a tight
+  ε row it is many band-widths loose. Filed with the two routes out
+  (`work/m10/the-witness-slack-is-eps-independent`); the `Interval`
+  refusal, which is the one that matters over a box, carries no
+  tolerance at all.
+
   The "same-OBJECT" limit in this bullet is exactly what M10-9
   measured, and it BINDS: the swept arc's rim and span identities
   discharge because the registrant builds the very nodes the consumer

@@ -25,7 +25,11 @@
 #     argument;
 #   * a planted lie pinned typed, so the refusal path is exercised;
 #   * the typed answer HANDLED — the method is `#[must_use]`, and a
-#     refusal is counted in the session's receipt.
+#     refusal is counted in the session's receipt. HANDLED, and not
+#     ASSERTED on: a registrant's proof is a theorem of the reals, and
+#     a configuration at the edge of `f64` representability can
+#     contradict it without anything being wrong
+#     (`work/m10/the-span-identity-is-not-a-theorem-of-the-floats`).
 #
 # THE RATIFIED SITES (M10-9, the swept arc carrier's builder — spec §2
 # and its amendment A1: the unit of scope is the CONSTRUCTOR, so one

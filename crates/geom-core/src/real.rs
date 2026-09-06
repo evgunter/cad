@@ -99,7 +99,7 @@ pub enum SymRegistration {
     /// **REFUSED, typed: the two values are not one real.** The lane
     /// scalar's own witness said so — certified enclosures that do not
     /// MEET at [`crate::Interval`], `f64` values apart by more than
-    /// the funnel's own coincidence threshold ([`Real::register_equal`]) — so the constructor did not
+    /// [`WITNESS_REL`] of the larger magnitude — so the constructor did not
     /// build what it claims. Nothing is recorded, the registry is
     /// unchanged, and every decision that would have rested on the
     /// record stays numeric.
@@ -127,26 +127,40 @@ pub enum SymRegistration {
     Unwitnessed,
 }
 
-/// **The `f64` witness's slack, and it is the FUNNEL's own.**
+/// **The `f64` witness's slack: RELATIVE to the larger magnitude,
+/// floored at one — and DELIBERATELY not the run's ε.**
 ///
-/// Two values a constructor calls one real must agree to the
-/// coincidence threshold the predicate layer would use to call a margin
-/// zero — `Tol`'s ε at the witness tolerance, in the same units
-/// (metres) the shipped registrants compare. That is the two-tolerance
-/// principle applied where it belongs: the door declares two lengths
-/// one length by the same rule the funnel declares a length zero, so
-/// the witness tightens with `CAD_TOLERANCE_EPS` instead of standing at
-/// a constant a tight ε row would make a thousand band-widths loose
-/// (R1 m2, against the first cut's ε-independent `1e-9`).
+/// It gates whether a registration is RECORDED and nothing else:
+/// nothing is certified by it, no margin is classified against it, and
+/// a registration it admits is still an axiom whose soundness rests on
+/// the registrant's proof ([`Real::register_equal`]).
 ///
-/// **The limit, stated**: it is an ABSOLUTE length comparison, so a
-/// registrant of quantities that are not lengths — a dimensionless
-/// ratio, an angle — must not use this door without saying what its
-/// units are. Both shipped registrants compare metres.
-#[must_use]
-pub fn witness_slack() -> f64 {
-    crate::tolerance::Tol::witness().eps()
-}
+/// **Why it is not `Tol`'s ε, which a review asked for and this pass
+/// tried.** Two reasons, and the second is measured:
+///
+/// 1. **`Tol::witness()` in library code is an ambient read**, and
+///    `scripts/gates/witness-not-ambient.sh` forbids it for a reason
+///    that outranks this preference: the run's ε is an entry-point
+///    commitment, taken as a `tol: Tol` parameter and passed down. The
+///    door has no tolerance parameter — `Real::register_equal(self,
+///    other)` is called from generic constructor code that has none
+///    either — so making the slack ε-derived means threading `Tol`
+///    through the swept/revolve pipeline or putting one on the
+///    symbolic session. Both are real changes and neither belongs in a
+///    fix pass.
+/// 2. **An ABSOLUTE slack is wrong far from the origin.** ε is a length
+///    in metres; a rim at coordinates of 10⁹ carries `f64` rounding of
+///    ~10⁻⁷, so an absolute ε refuses a true identity and the
+///    registrants' `debug_assert!`s fire. Measured, not reasoned: the
+///    absolute spelling turned `mesh`'s far-placement ball probe and
+///    `sweep`'s tube-wall radii probe red in the `f64` lane.
+///
+/// So the slack stays relative and ε-independent, and the limit is
+/// FILED rather than hidden
+/// (`work/m10/the-witness-slack-is-eps-independent`): at a tight ε row
+/// this threshold is many band-widths loose, which weakens the witness
+/// exactly where the review said it does.
+pub const WITNESS_REL: f64 = 1e-9;
 
 /// The scalar type the geometry evaluation layer is generic over.
 ///
@@ -243,7 +257,7 @@ pub trait Real:
     ///   values are not the same real,
     ///   [`crate::sym::SymRegistration::Contradicted`] — `f64` and
     ///   [`crate::Probe`] by a point tolerance
-    ///   ([`witness_slack`]), [`crate::Interval`] by whether
+    ///   ([`WITNESS_REL`]), [`crate::Interval`] by whether
     ///   the two certified enclosures MEET. Neither records anything:
     ///   there is no expression at a bare scalar to record it about;
     /// - [`crate::Sym`] asks its own lane scalar that question first
@@ -1349,10 +1363,10 @@ impl Real for f64 {
     /// the half of the door's contract that keeps a constructor from
     /// stating something it did not build.
     ///
-    /// The comparison is the funnel's own coincidence threshold
-    /// ([`witness_slack`]), absolute and in metres. A poisoned value
-    /// witnesses nothing: NaN is not a real, so no claim about it is
-    /// checkable.
+    /// The comparison is relative to the larger magnitude, floored at
+    /// one, at [`WITNESS_REL`] (whose docs argue the number and say why
+    /// it is not the run's ε). A poisoned value witnesses nothing: NaN
+    /// is not a real, so no claim about it is checkable.
     ///
     /// It catches a lie AT THE POINT and nothing else — a claim true at
     /// the nominal and false elsewhere passes here as it passes at
@@ -1361,7 +1375,8 @@ impl Real for f64 {
         if self.is_nan() || other.is_nan() {
             return SymRegistration::Unwitnessed;
         }
-        if (self - other).abs() <= witness_slack() {
+        let scale = self.abs().max(other.abs()).max(1.0);
+        if (self - other).abs() <= WITNESS_REL * scale {
             SymRegistration::Witnessed
         } else {
             SymRegistration::Contradicted
