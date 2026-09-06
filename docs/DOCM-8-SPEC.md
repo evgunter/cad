@@ -37,17 +37,24 @@ contract violated, and the order-dependence follows from it.
 ## What the unit builds
 
 **1. The flat mint** (`crates/editor-core/src/names/emit_topo.rs`, the
-merge-group loop at ~531–565). When a merge group's constituent
-descends to an operand face whose name is itself `Merged(cs)`, the
-group's constituents are `cs`'s members (each wrapped by that
-constituent's descent side, exactly as the single name is wrapped
-today), never the `Merged` name. A published `Merged`'s constituent set
-therefore never contains a `Merged`; sort and dedup as today (R8's
-loud collision unchanged). This is the ONE place the flatness is
-decided — it is the mint site's rule for every consumer: the pair
-boolean over a boolean (constituents `FromA(x1), FromA(x2), FromB(y)`)
-and the union's fold (constituents that `collapse` reduces to
-member-space names) alike.
+merge-group loop at ~531–565). A merge group's constituent descends to
+an operand face whose name is read THROUGH its descent wrappers: peel
+the `FromA`/`FromB` chain to the name's foot. If the foot is
+`Merged(cs)`, the group's constituents are `cs`'s members, each
+re-wrapped by the SAME chain (and then by this step's own side, as the
+single name is wrapped today); otherwise the constituent is the name
+as today. A published `Merged`'s constituent set therefore never
+contains a `Merged` at any depth of wrapping; sort and dedup as today
+(R8's loud collision unchanged). This is the ONE place the flatness is
+decided — the mint site's rule for every consumer: the pair boolean
+over a boolean, a merged face carried through untouched steps
+(`[FromA([FromA([Merged(cs)])])]` is the shape the stop clause
+measured), and the union's fold alike. *Amended 2026-09-06 at the stop
+clause:* the first cut read only a foot-less `[Merged(cs)]`, so a
+merged face that had passed through one untouched step nested again;
+re-wrapping each constituent by the chain the whole name carried is
+not a crossing of spaces — every constituent stays a face name of the
+table the chain descends into, exactly as the wrapped `Merged` was.
 
 **2. `collapse` refuses a nested `Merged`** (`names/emit_union.rs`,
 the `Merged` arm). The arm keeps its sort-and-dedup over collapsed
@@ -98,9 +105,15 @@ this spec's commit); do not edit it.
   on `docm/7-review-r1`) as the row.
 - **A2 — no nested `Merged` is ever published.** Over every fixture in
   `docm7_union_declare.rs`, `docm3_union.rs`, the pair-boolean naming
-  suites and the die corpus, no published `Merged` has a `Merged`
-  constituent (one helper walks every table); and a synthetic nested
-  name handed to `collapse` refuses `NamingError::Emission` (a row).
+  suites and the die corpus, no published `Merged` has a constituent
+  whose name, read through any `FromA`/`FromB` chain, is a `Merged`
+  (one helper walks every table and peels wrappers — the head-only
+  walk of the first cut missed the pass-through shape); and a
+  synthetic nested name handed to `collapse` refuses
+  `NamingError::Emission` (a row). A constituent that is a `Fragment`
+  of a merged face is a fragment, not a merge: it is a legitimate
+  constituent and no walker or arm treats its carrier as nesting (row
+  it only if an existing suite reaches the shape; otherwise note it).
 - **A3 — the pair boolean's own mint is flat.** A boolean over a
   boolean that declared a merge: the outer merged face's constituents
   are the inner merge's constituents each wrapped `FromA`/`FromB`, plus
@@ -137,12 +150,14 @@ this spec's commit); do not edit it.
 - A golden or stored bit that changes is never a cost to weigh against
   the change that makes the names right: re-baseline and say what
   moved.
-- **Stop clause.** If a merge group's constituent descends to an
-  operand face whose `Merged` constituents are not face names of that
-  operand's own table (the flat mint would cross a space), or if the
-  look-through cannot be expressed without changing
-  `resolve_declarations`, STOP: write what you measured in the PR as a
-  draft and end your turn.
+- **Stop clause.** FIRED 2026-09-06 on the pass-through shape and
+  resolved by the amendment to item 1 above (the mint reads through
+  descent wrappers; re-wrapping is not a space crossing). It fires
+  again only if a constituent's foot, after peeling, is a `Merged`
+  whose members are not face names of the table the chain descends
+  into, or if the look-through cannot be expressed without changing
+  `resolve_declarations`: STOP, write what you measured in the PR as a
+  draft, end your turn.
 
 ## Out of scope
 
