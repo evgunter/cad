@@ -252,3 +252,20 @@ the hazard PR 2030's header names; the patterns now travel through
 `ENVIRON` with every metacharacter a bracket expression. The reader
 artifact it found — a `--window` record for a comment-only line — is
 `window-view-emits-a-record-for-a-comment-only-line`.
+
+## debug-only-helpers-outside-the-subject-list landed (2026-09-06)
+
+PR 2049, `gates/debug-only-subjects-2`, one style review
+(MERGEABLE-WITH-FIXES, fix pass landed). Four of the five candidates
+got rows — mesh's `identified_ids`, `overused_identified_edge`,
+`unpaired_chord_segment` and `overused_identified_edge_in` (a row per
+file whose uses it crosses) — taking the gate from 5 to 28 uses
+scanned, none ungated. `ArenaDelta` was refused: twelve of its sites
+put a statement-position attribute over a multi-line braced call the
+reader cannot place — filed as
+`debug-only-reader-cannot-place-a-statement-attribute-over-a-braced-call`.
+From the review: every spelling of a row is now planted (the third
+field was the only one proved), and every row pins its use count, the
+program's shape since PR 2042, proved by perturbing the pin in both
+directions; two miscounted sentences in the row corrected. 98 gate
+invocations in the selftest.
