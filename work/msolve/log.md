@@ -127,7 +127,6 @@ CHROME row's PREMISE was rewritten (it asserted the memo hazard as
 its precondition and said so); the guard in `tree.rs` is gone with no
 row needing it. Style review and correctness arm dispatched on that
 head.
-<<<<<<< HEAD
 
 ## MSOLVE-4: reviews re-dispatched on the integrated head (2026-09-06)
 
@@ -157,12 +156,21 @@ per-mate reuse row; the correctness probes adopted; the resolver stub
 hoisted into the shared fixture. Filed: two tag functions for
 `ContactClass` in the content key, and the eleven resolver-stub copies
 (`work/issues/`).
-=======
+
 ## MSOLVE-4 MERGED (2026-09-06, PR 1960)
 
-Fix pass green on the full matrix at `e1ede48`; merged on the
-state-sync commit without a fresh run (docs and tracker only). Item
+Fix pass green on the full matrix at `e1ede48`; a merge of main on
+the state-sync commit re-ran the matrix green at `9885443` before the
+merge. Item
 closed, spec deleted into the ledger, `mate-memo-key-does-not-carry-
 the-solve` closed. Next: MSOLVE-2 dispatched on `msolve/2-member-chain`
 against the spec on main; MSOLVE-3 after it.
->>>>>>> origin/main
+
+## MSOLVE-2 dispatched (2026-09-06)
+
+`msolve/2-member-chain` cut from main in the same lane clone against
+`docs/MSOLVE-2-SPEC.md`: the member chain through `Part {
+Instance(i) }`, sibling distinctness at every level, one walk per
+reference, `mate/member.rs` split out. (The preceding merge commit on
+this branch carried the log's conflict markers; this commit resolves
+them — merge-only, nothing rewritten.)
