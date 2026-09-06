@@ -11,7 +11,7 @@ Away-channel tag `(PROPS orchestrator)`. A/B ordinal band
 **PROPS = 2400–2499**, claimed in `docs/MODEL-AB-LOG.md`'s banding
 entry in the opening commit, per that entry's rule.
 
-**Opens at S-CERT's exit.** See §Opening condition.
+**Opened 2026-09-06** at S-CERT's exit walk (#1924). See §Opening condition.
 
 ## Charter
 
@@ -24,9 +24,13 @@ instead of exiting, this program folds into it.
 
 ## Opening condition
 
-A successor: dispatches when S-CERT's exit walk is ratified and its
-issue files re-home here. Until then this directory holds M10's four
-certification items and the four unowned ones.
+MET 2026-09-06: S-CERT's exit walk (#1924) was ratified by Ev and its
+eight charter items re-homed here in that PR (the three offset_fit
+items, `refine-dir…`, `quad2-rational…`, `normalize-overflow…`,
+`orthonormal-basis-poisons…`, `pole-branch…`), with the territory
+(`geom-brep/src/props/*`, `offset_fit.rs`, `patch_bound.rs`,
+`geom-core/src/*`, `geom/src/*`) joining the program header. Before the
+gate the lanes that overlapped no live PR ran under §Early lanes.
 
 ## Lanes (at opening)
 
@@ -79,7 +83,7 @@ ground; `loft-seam-carrier-exact-knot-compare` and
 `unify-edge-descriptions-on-pcurves` are TRIM's; `ssi-chart-speed-usability-boundary`
 is CURVED's.
 
-## Early lanes (before the inheritance)
+## Early lanes (before the inheritance — what ran, 2026-09-05)
 
 Ev's direction (in-chat, 2026-09-05): start the work that does not
 overlap S-CERT's live PRs. The gate for the inheritance is unchanged —
@@ -98,6 +102,14 @@ the S-CERT orchestrator. Measured against the changed-file lists of
   #1877), the sphere lane (`props/curved.rs` is in #1617 and carries
   S-CERT's two pole items), `contribution-bounds-via-dual-interval`
   (certification widths).
+
+Landed under this section before the gate (all in the log): PROPS-1
+(#1918), verdict-shapes (#1920), ONB-measure (#1939), lily-vec3
+(#1954), the Span sweep (#1952), the k-stats bracket (#1969), the
+rotation-floor and vec3-doors riders (#1980, #1977), the coeffs window
+and its fix pass (#1985, #1992). Still waiting at the opening: the
+sphere lane on MESH-12 (#1617, unanswered), the sign-hull unit on the
+`[ev]` ruling #1944.
 
 ## Review posture
 
