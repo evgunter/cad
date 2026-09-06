@@ -321,3 +321,24 @@ seat reads the face kind through the typed readback door and flattens;
 `query.rs` edited by announced seam, two function bodies. Fifteen
 items remain on the slate; six closed since opening (`S330`, `S94`,
 `D261`, `D264`, this one, and `D50`/`D260` in fix pass).
+
+## D50 merged (2026-09-06)
+
+PR 1949 merged at `368089da` (green run 34015295339 on `57244699`,
+full matrix). `D50` and `D260` closed; the residue
+`live-guard-proves-ordering-not-identity` narrowed at the fix pass to
+the two gaps that survive the argument check. The ten-item fix pass
+landed whole, the cheap argument-spelling partial included; the
+reviewer's `-> Self`-in-`impl Body` mutant is now correctly green
+because the `Self` check is scoped to the `impl Live` block. One
+census line noted on S-TCOST's board. Two notes for the next briefs:
+a reviewer's probe script that ends in `git checkout --` against a
+hard-coded worktree path discarded a lane's uncommitted fix edits
+when re-run there (lanes commit before running foreign probes;
+reviewer probes must not reset files); and the lane found a stale
+count in prose ("two `macro_rules!`", it was three) — the prose now
+carries the claim without the number. Slate: thirteen open items.
+The liveness-and-generator sub-lane is empty except `D20` (queues on
+the lane budget); the reader sub-lane is `D107` only; the Euler
+sub-lane holds `S93`, `D265`, `D262`, `D263`, `S69`, the H item, the
+census door, and two residues.
