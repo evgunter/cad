@@ -6,7 +6,7 @@ status: closed
 opened: 2026-09-04
 closed: 2026-09-06
 pr: 2026
-refs: [camera-fold-clears-status-line, the-news-vocabulary-has-no-expiry, stale-file-citations-after-the-split, startup-notices-need-holding-to-badge]
+refs: [camera-fold-clears-status-line, the-news-vocabulary-has-no-expiry, stale-file-citations-after-the-split, startup-notices-need-holding-to-badge, ranked-and-unranked-verdicts-are-one-type, a-fold-row-composes-a-producer-with-a-dead-door, one-line-one-subject-loses-a-mixed-frames-expiry]
 ---
 
 ## What this is
@@ -137,11 +137,22 @@ the bulk and are independent of each other, so this splits cleanly.
 
 ## Closed
 
-Every sentence the line can hold now comes through the ranking.
-Sixteen assignments and `frame::fold_status` push onto the frame's
-`notices` instead of writing the field, so they meet
-`frame_status`'s rank 2 and the same frame's accepted batch can no
-longer erase them before they are painted. `ViewerBehavior` carries
+**Seventeen of the eighteen** now come through the ranking. Sixteen
+assignments and `frame::fold_status` push onto the frame's `notices`
+instead of writing the field, so they meet `frame_status`'s rank 2 and
+the same frame's accepted batch can no longer erase them before they
+are painted.
+
+**The eighteenth is still open and is the struct-literal initializer**,
+`crates/viewer/src/app.rs`'s `status: frame::startup_notices(&notices)`
+— the writer the original `status = ` grep could not see, and the one
+this unit did not take. It badges under the ruled rule and cannot badge
+without being HELD, which is a design question:
+`startup-notices-need-holding-to-badge`. Everything in this section
+that says "every" said it about seventeen; the count is the honest
+claim and is the one `crates/viewer/README.md` and `frame.rs`'s header
+now carry (corrected in this PR's fix pass, on the style review's
+finding). `ViewerBehavior` carries
 `notices`, which is the one structural change; it also keeps `status`,
 because a RETIREMENT is the one thing a notice cannot express.
 
@@ -201,4 +212,21 @@ reading says which ones can be reached.
 
 `app.rs`'s startup notices badge under the rule but cannot badge
 without being HELD, and what retires them is a design question:
-`startup-notices-need-holding-to-badge`.
+`startup-notices-need-holding-to-badge`. That is the eighteenth writer
+and the reason this item's claim is seventeen-of-eighteen.
+
+Three more from the style review's fix pass, each with its own file
+because a residue disclosed only in this section dies with the
+directory (`work/README.md`):
+
+- `ranked-and-unranked-verdicts-are-one-type` — the sweep's own fix
+  leaves one site where a writer can still skip the ranking, because
+  `frame::apply` and `frame::deliver` take the same type and the rule
+  for choosing lives in prose. This item's defect class, one level up.
+- `a-fold-row-composes-a-producer-with-a-dead-door` — the class sweep
+  over `frame.rs`'s rows composing a `*_status` producer with `apply`:
+  five rows, six compositions, two of them no longer mirroring any
+  caller.
+- `loud-skip-row-did-not-stop-a-lane-verifying-the-wrong-build` — this
+  lane verified an entirely `app`-gated diff with a default-feature
+  run, past the row that exists to make that gap visible.

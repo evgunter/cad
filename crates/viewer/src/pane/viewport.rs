@@ -554,6 +554,20 @@ mod tests {
         );
     }
 
+    /// **The refusal is put on the line by the RANKING, not by hand.**
+    ///
+    /// The two frames are composed the way the frame loop composes
+    /// them: `land` on the first, then `frame::frame_status` over the
+    /// notices it produced and `frame::apply` for the verdict — which
+    /// is `perform_batch`'s own pair, with an empty batch because
+    /// navigating acts on nothing. Reaching into `notices` for the
+    /// message would assert the retirement against a sentence this row
+    /// placed rather than one the frame landed, and the subject is
+    /// exactly what the ranking decides: `frame::joined_subject`
+    /// answers `Document` for two notices that disagree, and the
+    /// `Expire(Camera)` below would then retire nothing. One notice is
+    /// the case where the two answers coincide, and that coincidence
+    /// is the row's premise rather than a step it skips.
     #[test]
     fn landing_a_clean_fold_retires_the_camera_refusal_it_landed_before() {
         // The item's own reproduction, through the driver: refuse a
@@ -567,9 +581,17 @@ mod tests {
         let mut notices = Vec::new();
         land(&mut camera, &mut notices, &mut status, &folded);
         assert_eq!(notices.len(), 1, "the refusal is news the frame carries");
-        // The line as the ranking would have left it, so the retiring
-        // half below is asked the question it is actually about.
-        status = notices.pop();
+
+        // The end of that frame: the ranking weighs what the frame
+        // said against a batch that did nothing, and the winner
+        // becomes the line.
+        frame::apply(&mut status, frame::frame_status(&notices, &[], None));
+        let landed = status.clone().expect("the ranking put the refusal up");
+        assert_eq!(
+            landed.subject(),
+            frame::Subject::Camera,
+            "and it is the RANKING that says what the line is about: {landed}"
+        );
 
         let orbit = CameraOp::Orbit {
             yaw: 0.2,
@@ -579,6 +601,10 @@ mod tests {
         assert!(folded.refused.is_none(), "the orbit applies");
         let mut notices = Vec::new();
         land(&mut camera, &mut notices, &mut status, &folded);
+        assert!(
+            notices.is_empty(),
+            "a clean fold has nothing to say: {notices:?}"
+        );
         assert_eq!(
             status, None,
             "and the next camera event retires it, whatever that event says"
