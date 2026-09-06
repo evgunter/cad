@@ -751,3 +751,57 @@ keyed on the dependent closure with the reach subtracted again, so pinning
 `paths` and in CIW's `keep_out`; S-TCOST is open, no `program.md` was edited,
 and the PR names it and invites S-TCOST to own the result. Residue:
 `work/ciw/reach-cannot-follow-every-ascent.md`.
+
+## 2026-09-06 — the orchestrator changed hands, and the slate was two days stale
+
+CIW's previous orchestrator stopped after PR 1909 (merged 2026-09-05
+04:06Z) without a handoff. Nothing was wrong with the work: **all ten
+units of `plan.md`'s order had landed**, and unit 11 was closed on
+2026-09-04 as an avenue that does not exist. What stopped was the
+bookkeeping, and from outside the program that reads as a closed
+program with files left behind — which is how the gap was found.
+
+**Thirteen rows sat at `review` with their PRs merged.** Every one was
+checked against `main` rather than against its PR body before being
+closed, because a merged PR is evidence the diff landed and not that the
+item is discharged:
+
+| item | PR | what carries it on `main` |
+| --- | --- | --- |
+| `perf-history-cannot-identify-its-host` | 1722 | `criterion-emit.py:139` `cpu_identity()`, and the two copies |
+| `nightly-pin-reading-idiom-four-copies` | 1723 | `nightly.yml:659`, `:660`, `:1091` call `scripts/ci-pin.py` |
+| `hosted-renderer-announces-itself-preview-only` | 1739 | `hosted-render-guard.sh:56` |
+| `retire-render-automatic-matplotlib-fallback` | 1745 | `render.sh:792` refuses and exits 1 |
+| `mirror-parity-never-compares-flags` | 1759 | `check-ci-mirror-parity.py:284` `FLAG_EXEMPT` |
+| `geom-brep-test-unused-edgedescription-import` | 1795 | `ci.yml:2109` `clippy-all-features` |
+| `reinstate-full-configuration-runs` | 1823 | twelve `test (…)` jobs; `--selftest` asserts it |
+| `doc-gate-two-unread-axes` | 1847 | `doc-gate.sh:348` and its two self-test arms |
+| `klint-row-still-sampled` | 1850 | `ci.yml:460` fans five legs |
+| `klint-memory-false-after-unsampling` | 1855 | `memories/agent-lane-operations.md` |
+| `delete-config-trailer` | 1868 | no `CI-Config` reader survives |
+| `closure-reaches-tree-wide-guards` | 1909 | `ci-filter.py:988` `_read_reach()` |
+| `tree-wide-guards-outside-the-change-closure` | — | closed by 1909 under Ev's 2026-09-05 ruling |
+
+`delete-config-trailer` carried no `pr:` at all; it has 1868 now.
+
+**One row does not close, and it is the one the board was hiding.**
+`f3-recosting-on-a-public-repo` delivered its measurement and merged
+(PR 1796), and the three options it recommends were put to Ev on PR
+1889 — which was then **merged, unanswered**. Ev does not scan merged
+PRs (`memories/orchestration-model.md`), and the item never set
+`needs_ev`, so the question is absent from `STATUS.md`'s needs-Ev queue
+as well: asked in a place nobody reads, and invisible in the place that
+lists what is waiting. It is `open` with `needs_ev: true` as of this
+entry, and the question needs re-asking somewhere it can be answered.
+
+**A finding, in passing.** `rustdoc-d-warnings-breakages-outside-the-doc-gate`
+opens by saying `SweepStrategy::Idealized` "is gone or renamed". It is
+not: it is at `reduce.rs:84` behind `#[cfg(feature = "sweep-testing")]`,
+which makes both of its sites instances of the in-half broken link unit
+9 accepted permanently, not documentation rot. The bullet list also
+missed `reduce.rs:18`. Corrected in the item; six sites survive there as
+a real `--document-private-items` question.
+
+**Review posture is unchanged** (Ev, 2026-09-06, restating 2026-09-04):
+no A/B protocol, one subagent style review per unit, and a correctness
+reviewer only where a unit earns one — named in its PR with the reason.
