@@ -117,3 +117,113 @@ Python `split_err` match the new variant exposed. Item closed, spec
 deleted into the ledger, `mate-solve-is-transform-blind` closed;
 MSOLVE-2 and MSOLVE-4 un-parked. Next: dispatch MSOLVE-4 (spec on
 main), write MSOLVE-2's spec against the walk as landed.
+
+## MSOLVE-4 landed, in review (2026-09-05)
+
+PR 1960 green on the full matrix at `b4764ea`. The spec's premise
+verified on the tree: the memo has one reuse site and it matches only
+`NodeResult::Ok`, so the fault's content does not feed the key. One
+CHROME row's PREMISE was rewritten (it asserted the memo hazard as
+its precondition and said so); the guard in `tree.rs` is gone with no
+row needing it. Style review and correctness arm dispatched on that
+head.
+
+## MSOLVE-4: reviews re-dispatched on the integrated head (2026-09-06)
+
+The two reviews dispatched on `b4764ea` died at their first tool call
+on a session limit, and a day passed. Main moved 369 commits meanwhile
+(among them the escalations channel beside verdicts in `eval/mod.rs`),
+so the lane merged main first — one adjacency conflict beside
+`verb_content_tag`, both sides kept verbatim, the memo reuse site and
+the key's format tag untouched by main — and re-greened PR 1960 at
+`4ea542d` on the full matrix. Style review and correctness arm
+re-dispatched on that head, reviewing the tree that will merge rather
+than the one that would not.
+
+## MSOLVE-4 reviews adjudicated, fix pass dispatched (2026-09-06)
+
+Correctness arm MERGEABLE: C1–C4 confirmed on CHROME's bench through
+the viewer's own doors (blame and row agree at every step, two
+different faults in succession never stale, a stale prior still reused
+right by content), keys measured bit-identical on the corpus before
+and after, the merge's one adjacency intact. Style: no MAJOR. Ruled
+for the fix pass: the key format tag BUMPS to v6 and the prose
+exception goes (the block's own purpose is an honest input-set version
+for a future persistence; the spec's bit-for-bit clause is withdrawn);
+one solve answer read once and fed per arm; the redundant-bit and
+`None` docs corrected; the viewer row's assertion tightened; a
+per-mate reuse row; the correctness probes adopted; the resolver stub
+hoisted into the shared fixture. Filed: two tag functions for
+`ContactClass` in the content key, and the eleven resolver-stub copies
+(`work/issues/`).
+
+## MSOLVE-4 MERGED (2026-09-06, PR 1960)
+
+Fix pass green on the full matrix at `e1ede48`; a merge of main on
+the state-sync commit re-ran the matrix green at `9885443` before the
+merge. Item
+closed, spec deleted into the ledger, `mate-memo-key-does-not-carry-
+the-solve` closed. Next: MSOLVE-2 dispatched on `msolve/2-member-chain`
+against the spec on main; MSOLVE-3 after it.
+
+## MSOLVE-2 dispatched (2026-09-06)
+
+`msolve/2-member-chain` cut from main in the same lane clone against
+`docs/MSOLVE-2-SPEC.md`: the member chain through `Part {
+Instance(i) }`, sibling distinctness at every level, one walk per
+reference, `mate/member.rs` split out. (The preceding merge commit on
+this branch carried the log's conflict markers; this commit resolves
+them — merge-only, nothing rewritten.)
+
+## MSOLVE-2 landed, in review (2026-09-06)
+
+The lane opened PR 2039 and was cut off by a session limit while
+polling; the one red was the Python mirror of the new
+`MateFault::PartSelectsAnotherCopy`, which it finished on resumption.
+Green on the full matrix at `75d975d`. What the build measured: two
+inner siblings under ONE outer pattern are unbuildable (a pattern takes
+one body), so A2(a) holds the outer index across two chains; an
+inconsistent loop is built by naming a sibling lifted clear, because
+the gate verifies geometry, not the folded frames; the gate's
+`Vanished` on a mate read below a pattern reproduces one level deeper,
+pinned. The viewer cannot author a `Part` node at all (no `AddPart`
+op) — CHROME's, to be filed. Style review and correctness arm
+dispatched on that head.
+
+## MSOLVE-2 reviews adjudicated, fix pass dispatched (2026-09-06)
+
+Correctness arm APPROVE-WITH-FIXES: C1–C5 confirmed on documents of
+its own (two and three levels deep, transforms between and above,
+circular and linear rules at non-identity indices, the viewer's real
+rays), with one MAJOR the spec itself placed wrong: the `Part`-index
+check lived in the offset, which runs only for a tree edge's first
+mate, so a DECLARING mate whose `Part` gathers a different copy than
+its name names was silently green — and the gate did not catch it,
+because it looks the NAMED copy up and finds it seated while the body
+the `Part` gathers floats. Ruled: the per-reference checks that need
+evaluation (the `Part`'s index against the name, the index against
+the count) move to the solve's own walk site, for every reference of
+every mate, refusing typed there; the offset keeps the arithmetic.
+Style: no MAJOR; the loop rows never folded a non-identity outer map
+(fixed with the reviewer's rows), two spellings of "which mates weld"
+collapsed, the copied test helpers hoisted beside the shared oracle.
+
+## MSOLVE-2 MERGED (2026-09-06, PR 2039)
+
+Fix pass green on the full matrix at `ef8926c`. Item closed, spec
+deleted into the ledger, `nested-pattern-mate-heads-refuse` closed —
+the PR 1731 ruling is fully landed. One consequence the fix pass
+stated: a mate the per-reference checks refuse still welds its
+cluster (the partition is structural), so an instance no pair reaches
+rides its cluster's recorded frame with the mate's row red, as a
+dangling head already does. Next: MSOLVE-3 on
+`msolve/3-placer-refused`.
+
+## MSOLVE-3 dispatched (2026-09-06)
+
+MSOLVE-2 merged (PR 2039, `6dff151`). `msolve/3-placer-refused` cut
+from main in the same lane clone against `docs/MSOLVE-3-SPEC.md`,
+which predates MSOLVE-2's move of the count check to
+`check_reference`; the lane reads the tree as it is. Slate after it:
+the gate's `Vanished` below a pattern, the lever's extent (`[ev]`),
+the remap-inference record correction.

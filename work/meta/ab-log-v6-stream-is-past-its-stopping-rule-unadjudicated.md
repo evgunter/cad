@@ -70,3 +70,9 @@ against the code-quality K–X fences. Id, body and header are unchanged;
 the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
+
+## Ruled in part (2026-09-06)
+
+Ev, in chat: keep the duals for the moment. Recorded in the log's
+protocol list. The readout over the candidates is still owed; this
+item stays open for it.

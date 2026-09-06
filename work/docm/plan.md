@@ -47,7 +47,8 @@ companion docs:
 - **`docs/DOCM-REFERENCES-DESIGN.md`** (DM1–DM6): what a recipe
   reference may be. Builds that stay here: `DOCM-1` (the derived
   sketch frame, the sense beside the pose, the carrier-kind read),
-  `DOCM-2` (`Node::Part`), `DOCM-3` (`Node::Union` n-ary,
+  `DOCM-2` (`Node::Part`), `DOCM-7` (the union's declaration channel in
+  member space, DM4 as amended 2026-09-06), `DOCM-3` (`Node::Union` n-ary,
   `DocEdit::SetMembers`, pairwise-distinct inputs).
   `no-docedit-splices-a-deleted-node` is parked on `DOCM-3` (DM6).
 - **`docs/DOCM-IDENTITY-DESIGN.md`** (DI1–DI5): a held value names
@@ -67,12 +68,12 @@ place (ids kept); so are `D365`'s census, `C6`'s `WireStep` member,
 
 ## The questions still open, in order
 
-1. **The instantiation seam** — `instantiation-seam-drops-mate-identity`:
+1. **DONE (DOCM-6, PR 2035) — the instantiation seam** — `instantiation-seam-drops-mate-identity`:
    carry `MintedDeclaration` (and `unminted`) across `PartValue` so a
    carried refutation names its mate and the outermost gate sees
    inner mint health; whether an inner mint refusal is the outer
    document's error reads the Q1 ruling's letter and is put to Ev.
-2. **The check registry's subject** — `check-registry-gathers-product-twice`:
+2. **DONE (DOCM-5, PR 1871) — the check registry's subject** — `check-registry-gathers-product-twice`:
    `run_checks` computes the product once and hands residents a
    subject; `assemble` takes a pre-gathered product; the `product.rs`
    Dual arms are edited by announced seam to M10.
@@ -82,6 +83,13 @@ place (ids kept); so are `D365`'s census, `C6`'s `WireStep` member,
    `EvalOptions::param_box`), the indeterminate-means-subdivide
    verdict contract, and pacing; the build reuses M10-3's driver.
    Waits on M10's parameter-aware certification settling.
+4. **RULED (Ev, 2026-09-06) → `DOCM-8` — the chained-order gap in the
+   union's declaration channel** —
+   `member-space-declarations-are-order-shaped-across-a-chain`: a
+   merged face's name is minted FLAT (N3's constituent set; a nested
+   `Merged` is an emission bug), and a member-space name resolves
+   through the fold's merges at the union's routing step; block
+   DOCM-B3 slot 1 (FABLE).
 
 Riders: half (2) of `mate-clocking-has-no-gui-path` (FIX has half
 (1)); `unify-discipline-machinery-onto-registry` step 2 once the

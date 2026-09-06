@@ -353,7 +353,15 @@ class AssemblyError(PncadError):
     FRONTIER: nothing refuted, nothing undeclared, the census simply
     declined to certify, so nothing was decided about the geometry
     either way. A gather refusal arrives under the GATHER's own tag
-    (`no_body_roots`, `root_failed`, ...), not a wrapper tag."""
+    (`no_body_roots`, `root_failed`, ...), not a wrapper tag.
+
+    `carried_mint_refusal` is an inner part's own mate that could not
+    be minted at all: an outer assembly is not at rest over a part
+    whose contact nothing verified. It carries a FOREIGN mate, so it
+    carries the route with it — `of` is the document to open, `via`
+    the instances this document reached it through (nearest first,
+    starting at `through`), and `mate` is a node of `of`, not of the
+    document that was gathered."""
 
     variant: str
     mate: Optional[NodeId]
@@ -363,6 +371,8 @@ class AssemblyError(PncadError):
     class_: Optional[ContactClass]
     findings: Optional[list[AtRestFinding]]
     node: Optional[NodeId]
+    of: Optional[str]
+    via: Optional[list[NodeId]]
     through: Optional[NodeId]
 
 class ProductError(PncadError):
@@ -3111,6 +3121,12 @@ class MateFault:
     @property
     def clash(self) -> Optional[Length]: ...
     @property
+    def part(self) -> Optional[NodeId]: ...
+    @property
+    def named(self) -> Optional[int]: ...
+    @property
+    def selected(self) -> Optional[int]: ...
+    @property
     def what(self) -> Optional[str]: ...
 
 class SolvedPoses:
@@ -3277,11 +3293,45 @@ class Attribution:
         """`refuted` (the faces do not meet as declared — a finding
         against the document), `declined` (the census has no certifier
         lane for a face the declaration names, so nothing was decided
-        either way), or `unattributed` (no declaration answers — an
-        UNDECLARED contact, the hard error by definition)."""
+        either way), or `unattributed` (no declaration of ANY document
+        in the tree answers — an UNDECLARED contact, the hard error by
+        definition).
+
+        A declaration a document BELOW this one authored answers under
+        `carried_refuted` and `carried_declined`: the same two
+        relations, and a separate pair of tags because
+        `declaration.mate` is then a node of THAT document — `of` and
+        `via` are what say which document and by what path."""
 
     @property
-    def declaration(self) -> Optional[MintedDeclaration]: ...
+    def declaration(self) -> Optional[MintedDeclaration]:
+        """The declaration named, `None` for `unattributed`. Under a
+        `carried_*` relation its `mate` is a node of `of`."""
+
+    @property
+    def of(self) -> Optional[str]:
+        """The document whose mate authored it, as opaque id text.
+        `None` where the declaration is the gathered document's own."""
+
+    @property
+    def via(self) -> Optional[list[NodeId]]:
+        """The instances this document reached it through, nearest
+        first. `None` where `of` is."""
+
+
+class CarriedDeclaration:
+    """One declaration a document BELOW this one authored, certified
+    here with everything else the gate was given.
+
+    Same rule as every other foreign-mate value: the mate is a node of
+    `of`, so `of` and `via` travel with it."""
+
+    @property
+    def declaration(self) -> MintedDeclaration: ...
+    @property
+    def of(self) -> str: ...
+    @property
+    def via(self) -> list[NodeId]: ...
 
 class AtRestFinding:
     """One at-rest refusal. `str(finding)` composes it the way the
@@ -3292,11 +3342,14 @@ class AtRestFinding:
     def attribution(self) -> Attribution: ...
 
 class Assembly:
-    """A validated assembly: the gathered body, its product names, and
-    one minted declaration per solved mate.
+    """A validated assembly: the gathered body, its product names, one
+    minted declaration per solved mate of THIS document, and one
+    carried row per declaration a document below it authored.
 
     Reaching one means the kernel's at-rest door PASSED over the
-    product and its records together."""
+    product and its records together — over the carried declarations
+    as much as over this document's own, which is what `carried`
+    lets a caller say."""
 
     @property
     def body(self) -> Body: ...
@@ -3306,6 +3359,11 @@ class Assembly:
     def minted(self) -> list[MintedDeclaration]:
         """Empty for a mate-less assembly, which is what a disjoint
         layout is."""
+
+    @property
+    def carried(self) -> list[CarriedDeclaration]:
+        """Which inner mates this verdict answered for. Empty for a
+        document that instantiates nothing with mates."""
 
 def assemble(doc: Doc, evaluation: Evaluation) -> Assembly:
     """The AT-REST ASSEMBLY GATE: gather the product, mint every
@@ -3320,8 +3378,9 @@ def assemble(doc: Doc, evaluation: Evaluation) -> Assembly:
     Raises AssemblyError, typed. Read `variant` first: `at_rest` is a
     verdict AGAINST the document, `uncertified` is the declared
     direction's FRONTIER where nothing was decided either way, and the
-    remaining arms (`mate_reference_refused`, `no_at_rest_record`, the
-    gather's own tags) refuse before any verdict."""
+    remaining arms (`mate_reference_refused`, `no_at_rest_record`,
+    `carried_mint_refusal`, the gather's own tags) refuse before any
+    verdict."""
 
 # --- the recorded refactorings ----------------------------------------
 # Both are PURE: they hand back the new document VALUES plus the

@@ -1240,3 +1240,71 @@ bracket; the silent deviations disclosed. Durable homes: the
 form-identity tail (an M10 item naming the three residuals and the
 form-level mechanism, for the exit conversation); `line_span` as an
 identity (census); the five spellings of `Registered` (class).
+## Announced seam from PROPS (2026-09-06): M10-5's planar re-chart retires with the sign-hull unit (`clearance.rs`)
+
+The sign-hull unit (`docs/PROPS-SIGN-HULL-SPEC.md`, branch
+`props/sign-hull`, Ev's option-1 ruling on #1944) replaces
+`Vec3::orthonormal_basis`'s construction so a planar carrier's stored
+`u_ref` refines at `Interval`. M10-5's workaround for the old frame —
+`editor_core::clearance::{in_plane_axis, chart_frame}` and their two
+call sites — retires; the `refines` refusal door stays. The
+`m10_5_*_interval` and `r2_m10_di_*` rows re-derive on the stored
+frame. Announced by the spec §Seams. Signed (PROPS orchestrator).
+
+## M10-9 MERGED (2026-09-06)
+
+PR #2048 merged, sample #150 (ordinal 510). Block M10-B4 concludes.
+E12's reserve is taken and built honestly: a constructor registers a
+same-object identity it guarantees, the value channel never moves, a
+registered zero against a definite numeric sign is a typed
+contradiction, the count is its own, and the K row lints it. The arc
+carrier's rim and span identities discharge their predicates wholly
+at every nominal. And the result the unit ends on is not the one it
+was opened for, nor the one it first reported: the fix pass measured
+the over-band set at ceiling + δ on five documents at three ε rows,
+door on and off, and found one predicate over the band every time —
+`carrier_matches_mapped_source`, the scaffold pushforward, an
+identity between two independently built objects. The identities the
+door discharges were never what bounded a document. Every "what
+bounds this" sentence since M10-7 had been read at twice the ceiling,
+where evaluation order picks the name (filed against the instrument).
+So the spec's §2 sentence naming `line_span` as the dependency-
+widening class was wrong twice over: `line_span` is an identity of
+the fillet construction, and it was never the bound. What the staged
+walk past the scaffold residual shows is the shape of what remains:
+three identity residuals worth 2× together, then a fourth worth
+1.68e5× that lands the plate at 0.263 of its real study against
+`assert_bound` — the real flip E12 predicts. A per-identity door is on
+the wrong side of that cliff; the three past the scaffold residual
+are FORM identities, and the mechanism that reaches them is
+form-level — the early A/B walk that M10-8 built and dialled off, or
+the ring — which no unit in this block was allowed to ship. Both
+reviews found the door's contract overstated (the interval witness
+accepts any coincidence whose enclosures meet; the assert that would
+catch a false axiom had been exempted) and one found the diagnosis
+wrong; the fix pass found the diagnosis wrong one level further up.
+Two review fixes were built, measured and reverted with the argument
+filed. Thirty-one deviations. The spec leaves `docs/` with this merge;
+the exit walk (#1700) is re-cut against these numbers, and whether
+the form-level unit is owed before M10 closes goes to Ev.
+
+## Block M10-B4 concludes; the exit question to Ev (2026-09-06)
+
+#2048 merged at 4d47f6679 (sample #150, ordinal 510). Three units,
+three dual reviews, one implementer death per two units on Fable
+limits and none on Opus; the block's records (the draw, three
+dispatches, three dual draws, three adjudications, A1) go to main as
+one docs PR now that the block is done. The orchestrator's own
+record for the block: the M10-9 spec counted identities where it
+should have counted constructors (A1), and its §2 named `line_span`
+as the dependency-widening class on a reading taken at twice the
+ceiling — the same instrument artefact every "what bounds this"
+sentence since M10-7 rested on, found only when a review disputed
+the diagnosis and the fix pass measured the over-band set instead of
+the first name. Put to Ev with the numbers: the plate is four form
+identities from certifying 0.263 of its real study; the mechanism
+that reaches them is the early A/B walk M10-8 built and dialled off
+(at whatever ring it needs), or the ring itself; no unit in this
+block was allowed to ship it. Either a form-level unit (a new block,
+M10-B5) before the exit walk is re-cut, or the walk re-cut now with
+the plate's four-identity distance stated as the frontier.

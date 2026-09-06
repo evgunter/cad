@@ -21,6 +21,13 @@ client over the API), functional style, fail-loud.
   their clause ids kept; DESIGN.md's companion table lists them.
 - `memories/MEMORY.md` — memory index; read it, follow pointers as
   relevant.
+- `docs/prompts/implementer-discipline.md` and
+  `docs/prompts/reviewer-style-lane.md` — the standing discipline
+  handed to every implementer and reviewer lane by path. **Orchestrators
+  read both in full**: they are the rules the orchestrator adjudicates
+  against, and they bind the orchestrator's own judgement too (e.g. a
+  golden or stored bit that changes is never a cost to weigh against a
+  change that makes the code right — re-baseline and say what moved).
 
 ## Memory convention (important)
 

@@ -93,7 +93,8 @@ impl ViewerBehavior<'_> {
                 // door, wherever it came from.
                 Ok(mm) => *self.delta_request = Some(mm * 1.0e-3),
                 Err(error) => {
-                    *self.status = Some(frame::delta_not_a_number(typed.trim(), &error));
+                    self.notices
+                        .push(frame::delta_not_a_number(typed.trim(), &error));
                 }
             }
         }

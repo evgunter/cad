@@ -2,10 +2,11 @@
 id: perf-history-cannot-identify-its-host
 kind: issue
 title: perf histories cannot identify the box that produced a sample - the environment block records nproc/mem/toolchain and nothing that distinguishes two ubuntu-latest hosts
-status: review
+status: closed
 opened: 2026-09-03
 pr: 1722
 branch: ciw/perf-host-identity
+closed: 2026-09-06
 ---
 
 
@@ -143,3 +144,14 @@ Unchanged and still the fix: `scripts/criterion-emit.py:126`
 `environment()` plus the same block in the rebuild-latency and
 opt-level emitters. Nothing here revises the shape proposed above; it
 raises the priority.
+
+## Closed 2026-09-06
+
+PR 1722. `cpu_identity()` at `scripts/criterion-emit.py:139` reads
+`/proc/cpuinfo` for the model name and the `HOST_CPU_FLAGS` subset, with
+`(None, None)` and `[]` distinguishable; the same block is copied into
+`scripts/opt-level-calibrate.py` and
+`crates/editor-core/tests/m4_pr8_latency.rs` under the parity obligation
+stated at the docstring, and the three `docs/perf-data/` READMEs say what
+the field means. Samples written before the merge stay unattributable, as
+the item said they would.

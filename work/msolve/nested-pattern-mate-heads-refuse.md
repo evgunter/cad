@@ -2,11 +2,11 @@
 id: nested-pattern-mate-heads-refuse
 kind: issue
 title: Nested patterns and pattern-of-transform mate heads refuse DanglingHead — narrower than the A11 rider's literal text
-status: parked
+status: closed
 opened: 2026-08-31
 github: 1411
 refs: [1400]
-blocked_on: [MSOLVE-2]
+closed: 2026-09-06
 ---
 
 ## From GitHub issue 1411
@@ -169,3 +169,8 @@ at that exit rather than this class of question. Ev's steer
 The pattern-of-transform half places since MSOLVE-1 (the row's
 expectation moved with the ruling). The nested-pattern half still
 refuses and waits on MSOLVE-2.
+
+## Closed (2026-09-06, PR 2039)
+
+Both halves of the ruling are landed: pattern-of-transform by
+MSOLVE-1, the nested copy by MSOLVE-2.

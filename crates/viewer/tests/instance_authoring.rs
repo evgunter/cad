@@ -251,7 +251,7 @@ fn a_session_with_no_backing_file_refuses_and_names_the_recourse() {
 
     // The chooser opens anyway and shows that refusal where the list
     // would be — a door that cannot open says so.
-    let chooser = PartChooser::opened(&session);
+    let chooser = PartChooser::opened(session.part_census());
     assert!(chooser.dir().is_none());
     match chooser.offered() {
         Err(Refusal::NoDocumentDirectory) => {}
@@ -439,7 +439,7 @@ fn a_directory_that_lost_the_open_documents_own_file_lists_nothing() {
         entries.is_empty(),
         "nothing on offer, not even the open document: {entries:?}"
     );
-    let chooser = PartChooser::opened(&session);
+    let chooser = PartChooser::opened(session.part_census());
     assert_eq!(chooser.offered().expect("the scan succeeds").len(), 0);
 }
 
@@ -510,7 +510,7 @@ fn a_duplicate_id_refuses_at_the_chooser_and_at_the_op() {
     );
 
     // At the chooser: no list, the store's sentence in its place.
-    let chooser = PartChooser::opened(&session);
+    let chooser = PartChooser::opened(session.part_census());
     match chooser.offered() {
         Err(refusal @ Refusal::Workspace(_)) => {
             assert_eq!(refusal.to_string(), expected.to_string());
@@ -535,7 +535,7 @@ fn the_chooser_holds_a_snapshot_and_rescan_re_reads_it() {
     let bench = asm::bench("gauth3-snapshot", tol);
     let (session, _) = authored_session(&bench, "gauth3-snapshot-asm", tol);
 
-    let mut chooser = PartChooser::opened(&session);
+    let mut chooser = PartChooser::opened(session.part_census());
     let before = chooser.offered().expect("the directory scans").len();
     assert_eq!(chooser.dir(), Some(bench.dir.as_path()));
 
@@ -549,7 +549,7 @@ fn the_chooser_holds_a_snapshot_and_rescan_re_reads_it() {
         "the held listing is the scan it was taken from"
     );
 
-    chooser.rescan(&session);
+    chooser.rescan(session.part_census());
     let after = chooser.offered().expect("the directory scans").len();
     assert_eq!(after, before + 1, "rescan re-reads the directory");
 }

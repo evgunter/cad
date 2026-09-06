@@ -112,7 +112,8 @@ fn boolean_record<T: geom_core::Real>(record: VerbRecord<T>) -> Option<BooleanRe
         VerbRecord::Blend(_)
         | VerbRecord::Extrude(_)
         | VerbRecord::Revolve(_)
-        | VerbRecord::Split(_) => None,
+        | VerbRecord::Split(_)
+        | VerbRecord::Shell(_) => None,
     }
 }
 

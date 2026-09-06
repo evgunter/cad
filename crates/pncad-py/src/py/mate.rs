@@ -559,8 +559,8 @@ impl Subgroup {
 /// Every payload attribute is present on every arm, `None` where the
 /// arm does not carry it: `mate`, `side`, `head`, `instance`,
 /// `parent`, `child`, `residual`, `held`, `added`, `predicate`,
-/// `clash`, `what`. The human message is the kernel's own prose,
-/// available as `str(fault)`.
+/// `clash`, `what`, `part`, `named`, `selected`. The human message is
+/// the kernel's own prose, available as `str(fault)`.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct MateFault(pub(crate) d::MateFault);
@@ -589,6 +589,7 @@ impl MateFault {
             | F::Under { mate, .. }
             | F::DanglingHead { mate, .. }
             | F::SelfMate { mate, .. }
+            | F::PartSelectsAnotherCopy { mate, .. }
             | F::Unleverable { mate, .. } => Some(NodeId(*mate)),
             F::Band { .. } | F::Contradictory { .. } | F::PosesOfAnotherDocument { .. } => None,
         }
@@ -599,9 +600,9 @@ impl MateFault {
     fn side(&self) -> Option<MateSide> {
         use d::MateFault as F;
         match &self.0 {
-            F::Frame { side, .. } | F::DanglingHead { side, .. } => {
-                Some(MateSide::from_kernel(*side))
-            }
+            F::Frame { side, .. }
+            | F::DanglingHead { side, .. }
+            | F::PartSelectsAnotherCopy { side, .. } => Some(MateSide::from_kernel(*side)),
             _ => None,
         }
     }
@@ -686,6 +687,36 @@ impl MateFault {
             d::MateFault::Contradictory { clash, .. } => {
                 Some(Length(pncad::quantity::Length::from_meters(*clash)))
             }
+            _ => None,
+        }
+    }
+
+    /// The `Part` node whose index expression disagrees with the copy
+    /// the reference's name names.
+    #[getter]
+    fn part(&self) -> Option<NodeId> {
+        match &self.0 {
+            d::MateFault::PartSelectsAnotherCopy { part, .. } => Some(NodeId(*part)),
+            _ => None,
+        }
+    }
+
+    /// The copy that reference's NAME names — the authority on which
+    /// copy a mate is about.
+    #[getter]
+    fn named(&self) -> Option<u32> {
+        match &self.0 {
+            d::MateFault::PartSelectsAnotherCopy { named, .. } => Some(*named),
+            _ => None,
+        }
+    }
+
+    /// What the `Part`'s index expression evaluates to instead, at the
+    /// document's own parameter bindings.
+    #[getter]
+    fn selected(&self) -> Option<i64> {
+        match &self.0 {
+            d::MateFault::PartSelectsAnotherCopy { selected, .. } => Some(*selected),
             _ => None,
         }
     }

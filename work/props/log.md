@@ -734,3 +734,125 @@ Seams: TRIM (`ssi.rs`, `ssi/certify.rs` — the mint rename and two
 comments), MESH (`chords.rs` — the helper fold). The fix-pass usage is
 in the row. Lane reclaimed. No lane live; the sphere lane waits on
 #1924 and MESH-12 (#1617); the sign-hull unit waits on #1944.
+
+**OPENED (2026-09-06).** Ev ratified S-CERT's exit walk in chat ("1924
+is good"); merged at `c7b0014de` on that sign-off. The eight charter
+items arrived in this directory with the PR and the territory joined
+the header; the header's successor clause is retired and the plan's
+§Opening condition reads MET. First dispatch of the inherited slate:
+the offset_fit lane's `budgetexhausted-conflates-three-terminations`
+(E rider; `docs/PROPS-BUDGET-FACES-SPEC.md` — the four faces of one
+refusal, row-1 refinement; §Landing says `status: review`, do not
+merge). Still waiting: the sign-hull unit on #1944 (the PR body now
+defines (c)/(c′) in place at Ev's request); the sphere lane on MESH-12
+(#1617 — S-MESH's own log shows it dispatched and never reviewed; the
+question of who finishes or abandons it is put to Ev).
+
+**Sign-hull RULED (c′) (2026-09-06).** Ev on PR 1944: "c′ seems fine",
+with a question about the hull answered on the PR (the hulled quantity
+is the unit sign `s`, not `n.z`; `[0, 0]` would be an enclosure of the
+wrong thing). The item records the ruling; #1944 lands when green.
+Spec `docs/PROPS-SIGN-HULL-SPEC.md`: one new `Real` door
+(`copysign` with the zero read as `+0`) on every impl so
+`Interval::copysign`'s hull stays correct for every other caller; the
+`Interval` point-zero arm narrows because the door's own f64 semantics
+canonicalise; the `b2` rider measured on the same golden pass; the
+eight STEP records re-derived with reasons (EXCH's fixtures — seam);
+the `FaceFrame` doc line (DOCM/SEAT — seam); the M10 workaround's
+retirement filed, not done. M / NUMERIC, block PROPS-B2 slot 1 (opus),
+dual review; §Landing says `status: review`, do not merge.
+
+**Sign-hull ruling RETRACTED (2026-09-06).** Ev's follow-ups on #1944
+("c′ does not seem good then"; "isn't option 1 the only one that's
+actually correct?") arrived after the orchestrator had merged the
+ruling PR and dispatched the (c′) unit — an orchestrator error: a
+ruling PR is merged on an unambiguous answer, not on "seems fine" with
+a question attached. Undone: the lane stopped before any push and
+reclaimed, `docs/PROPS-SIGN-HULL-SPEC.md` withdrawn, the item's RULED
+section replaced by the retraction with `needs_ev` restored, the M10 /
+EXCH / DOCM seam notes withdrawn, block PROPS-B2 slot 1 freed. The
+orchestrator's answer to Ev is on the PR: option 1 is the principled
+fix (the seam moves from the equator to the diagonals; M10-5's
+workaround is its existing measurement), with two costs named — the
+tie rule at `Interval` and the one-time re-bless of every stored
+`u_ref`. Awaiting confirmation.
+
+**Sign-hull RULED option 1 (2026-09-06).** Ev on #1944: "we need to do
+option 1 to be correct"; and on the re-bless of every stored `u_ref`
+named as a cost: "(2) is not a cost" — the instruction is
+`docs/prompts/implementer-discipline.md` §3 (a changed golden is the
+kernel changing; if the new output is right, re-baseline and say what
+moved). The orchestrator had read that file as implementer-facing and
+did not apply it to its own adjudication; at Ev's direction CLAUDE.md's
+reading list now names both `docs/prompts/` files as orchestrator
+reading. The item records the ruling with `needs_ev` cleared; the
+unit is `docs/PROPS-SIGN-HULL-SPEC.md` (block PROPS-B2 slot 1, dual).
+
+**Sign-hull unit dispatched (2026-09-06).** `docs/PROPS-SIGN-HULL-SPEC.md`
+on main (#2004): option 1 — `b1 = normalize(e_k × n)`, `k` the
+smallest-magnitude component with ties to the highest index, the choice
+through one value-level `Real` door (decided or point-tie selects;
+a straddled tie hulls at `Def`); every stored `u_ref` re-blesses with
+a locus receipt; M10-5's re-chart retires. M / NUMERIC, block PROPS-B2
+slot 1, dual review; branch `props/sign-hull`. Seam notes to M10, EXCH,
+DOCM, BOOL in the same PR.
+
+**MESH-12 taken over (2026-09-06).** Ev, in chat: "you can take over
+1617". S-MESH's unit (`work/mesh/MESH-12.md`, PR 1617, branch
+`mesh/12-saturated-span`, frozen 0e053a727, never reviewed; its A/B
+claim is ordinal 1210 in S-MESH's band, parity byte 40 ⇒ R1 opus /
+R2 fable, implementer fable) is finished here because the sphere lane
+needs `props/curved.rs`. A merge-forward lane (the unit's own arm) is
+merging main into the branch — one conflict, `mesh11r2_base_probes.rs`
+— getting CI green and self-auditing the unit against
+`docs/MESH-12-SPEC.md`; then the dual under the claimed ordinal, the
+fix pass, and the landing. Recorded in `work/mesh/log.md` too.
+
+**MESH-12 dual dispatched (2026-09-06).** The merge-forward lane
+(the unit's own arm) merged main into `mesh/12-saturated-span` — one
+textual conflict (`mesh11r2_base_probes.rs`, both sides kept) and one
+semantic one (`cert1_sphere_polar.rs:177`, main's `band()` helper) —
+and reported green locally on both lanes (geom-brep/mesh/topo 1942 and
+2046 rows; three-ε 51/51; clippy, fmt, lint; D9 digests identical to
+main at three ε rows) with every spec deliverable delivered; its one
+caveat: the import-door rim-continuation measurement is prose only,
+pinned by no row (it is claim C5 of the briefs). Frozen head
+`3daab7d80` (the last commit is trailer-only, `CI-Config:
+lane=interval eps=default` — noted for the reviewers). Dual under the
+ordinal S-MESH claimed at its dispatch (1210, parity byte 40 ⇒ R1 opus
+/ R2 fable), concurrent, R2 isolated; briefs symmetric, stored on
+`props/b2-block` as `mesh12-review-brief-{r1,r2}.md` (sha256 r1
+03d5d5d2…, r2 071d199c…) before dispatch; hosted run 34016450337 on
+the head at dispatch.
+
+**MESH-12 dual adjudicated (2026-09-06).** Both lanes APPROVE-WITH-FIXES
+on `3daab7d80`. R1 1 MAJOR / 6 MINOR / 3 NOTE, rubric 4/4/3; R2 0 / 3 /
+6, rubric 4/4/4. Correspondence: the one MAJOR — the parse re-decides
+only the upper half of certification's `0 < Δt ≤ τ`, so a hand-built
+REVERSED span (`t0 = 3π, t1 = 0`) is admitted and folds at half the
+area — is BILATERAL (R1 MAJOR 1 ≡ R2 MINOR-1, same site, both
+executed); the import-door rim-continuation record unpinned by any
+row bilateral (R1 MINOR 2 ≡ R2 MINOR-2 — R1 bisected it through
+`mint_pcurves`, R2 through 801 generated STEP files: the intersection
+is EMPTY at all three ε rows, stronger than the PR's "one point"); the
+weak control row bilateral (R2 MINOR-3 ≡ R1 S4); two homes for the
+decide bilateral (S2 both); the period-headroom margin spelled ~18
+times under ~12 names bilateral (S1 both — filed by the fix pass).
+Unilateral: R1's sweep-currency (chart_region +359 lines at the
+merge), inert-trailer, gate-record-per-head and the 3ε-row substring
+findings; R2's §4 history in test docs. **No unilateral MAJOR → v6
+tally +0.** Every headline claim survived both lanes' execution (C1
+ladder on both scalar lanes, C2 algebra and 20–105 pole placements,
+C3 no fifth door, C4 the 36/400 and the `+0.0` residual, C7 D9
+re-taken at the true base by both). Fix pass dispatched to the unit's
+own arm on the PR branch; the ten items are in its brief; state-sync
+(A/B row, item closures) rides last.
+
+**Orchestrator error, disclosed (2026-09-06).** The `CI-Config:`
+trailer is inert text (implementer-discipline §2, 2026-09-04; both
+lanes run on every hosted run). The MESH-12 merge-forward brief and
+`docs/PROPS-SIGN-HULL-SPEC.md` §Posture both asked for it, and the
+merge-forward lane pushed an EMPTY commit to carry it (R1 MINOR 4 /
+N3). Corrected by message to the sign-hull lane; no spec on main asks
+for it after the sign-hull spec's deletion at landing; no empty commit
+is ever pushed for it again.

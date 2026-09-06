@@ -232,6 +232,10 @@ const LEDGER: &[Entry] = &[
         disposition: Unconverted("Track Q — raw text"),
     },
     Entry {
+        path: "crates/topo/src/live.rs",
+        disposition: Shared, // the `Live` door guard, code view carved by `balanced_end`
+    },
+    Entry {
         path: "crates/topo/src/review_d18.rs",
         disposition: Shared, // the announcing body, code view carved by `balanced_end`
     },
@@ -254,6 +258,10 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/topo/tests/quad_lane_is_the_certified_lane.rs",
         disposition: Shared, // the props.rs lane impls, code view: their bodies ARE the pin
+    },
+    Entry {
+        path: "crates/topo/tests/shell_tolerance_chain.rs",
+        disposition: Shared, // the shell offset chain's signatures, code view
     },
     Entry {
         path: "crates/verbs/tests/all.rs",

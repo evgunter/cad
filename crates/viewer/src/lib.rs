@@ -59,11 +59,13 @@ pub mod display;
 pub mod docio;
 pub mod evalseam;
 pub mod frame;
+pub mod generation;
 pub mod history;
 pub mod input;
 pub mod matetool;
 pub mod parts;
 pub mod pick;
+pub mod pickindex;
 pub mod prefs;
 pub mod props;
 pub mod revolvetool;
@@ -74,6 +76,7 @@ pub mod sketch;
 pub mod theme;
 pub mod tools;
 pub mod tree;
+mod vocab;
 
 #[cfg(feature = "app")]
 pub mod app;
@@ -124,8 +127,8 @@ pub use camera::{Camera, CameraError, CameraOp, CameraOpError};
 pub use datums::{DatumDraw, DatumKind};
 pub use docio::DocIoError;
 pub use evalseam::{
-    EvalDone, EvalRequest, EvalService, Generation, IndexDone, IndexRequest, IndexService,
-    InlineEvaluator, InlineIndexer,
+    EvalDone, EvalRequest, EvalService, IndexDone, IndexRequest, IndexService, InlineEvaluator,
+    InlineIndexer,
 };
 // The two seam lanes are meant to be interchangeable, so they are named
 // the same way. `ThreadEvaluator` carries the `cfg` its module does.
@@ -134,6 +137,7 @@ pub use display::{
 };
 #[cfg(not(target_family = "wasm"))]
 pub use evalseam::{SpawnError, ThreadEvaluator, ThreadIndexer, Worker};
+pub use generation::Generation;
 pub use history::{History, HistoryId};
 pub use input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
 pub use matetool::{
@@ -141,10 +145,11 @@ pub use matetool::{
     admitted_classes,
 };
 pub use parts::{PartChooser, PartEntry};
-pub use pick::{
+pub use pick::{NotIndexed, unindexed};
+pub use pickindex::{
     EDGE_PICK_RADIUS_PX, EdgeId, EdgeNameFault, EdgeOverlay, EdgePick, Highlight, IdMap,
-    IdMapError, NotIndexed, PatchId, PickError, PickIndex, PickIndexError, PickKinds,
-    cursor_projection, edge_id_segments, edge_overlay, edge_segments, highlight, unindexed,
+    IdMapError, PatchId, PickError, PickIndex, PickIndexError, PickKinds, cursor_projection,
+    edge_id_segments, edge_overlay, edge_segments, highlight,
 };
 pub use prefs::{Notice, Prefs, PrefsError, PrefsStore, StoreError};
 pub use props::{SlotDriver, SlotFault, SlotRow, SlotValue};

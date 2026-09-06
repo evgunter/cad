@@ -29,12 +29,71 @@
 /// pin their documents with — one feed, per-suite constants.
 pub mod digest;
 
+/// The part store an assembly suite instantiates through, and the
+/// names an instantiated part's faces are spelled with.
+pub mod resolver;
+
+/// The whole-frame product oracle a mate suite measures a seat with.
+pub mod seat;
+
 use editor_core::{
-    CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKind, Expr, LoopProgram, Node, ParamName,
-    ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg,
-    StableName,
+    AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKind,
+    EvalOptions, Evaluation, Expr, LoopProgram, Node, ParamName, ProfileDoc, ProfileEdgeRef,
+    ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, assemble, evaluate,
 };
 use geom_core::Tol;
+
+/// **The evaluation, through the ordinary door** — `evaluate` at
+/// `f64` with a fresh cancel token and the witness tolerance, which
+/// is what every suite here wants and what none of them should spell
+/// for itself.
+pub fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
+    evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
+}
+
+/// **The at-rest gate's verdict**, as a mate row wants to read it:
+/// whether the assembly mints, with the minted records dropped.
+///
+/// # Errors
+///
+/// The gate's own refusal, unaltered.
+pub fn gate(doc: &ProfileDoc, ev: &Evaluation<f64>) -> Result<(), AssemblyError> {
+    assemble(doc, ev, Tol::witness()).map(|_| ())
+}
+
+/// **A name worn as copy `i` of `pattern`** — one `Instance(i)`
+/// wrapper, the segment a pattern's table puts round every master
+/// name it emits. Nest the calls for a nested copy.
+pub fn in_copy(pattern: RecipeNodeId, i: u32, of: StableName) -> StableName {
+    StableName {
+        kind: of.kind,
+        node: pattern,
+        path: vec![RoleSeg::Instance {
+            i,
+            of: Box::new(of),
+        }],
+    }
+}
+
+/// A `Transform` over `input`: a translation, and `angle` about
+/// `axis`.
+///
+/// # Panics
+///
+/// If `angle` is not a finite angle literal.
+pub fn xform(
+    input: RecipeNodeId,
+    translation: [f64; 3],
+    axis: [f64; 3],
+    angle: f64,
+) -> Node<ProfileProgram> {
+    Node::Transform {
+        input,
+        translation: translation.map(len),
+        rotation_axis: axis.map(scl),
+        rotation_angle: Expr::literal(angle, Dimension::Angle).expect("an angle literal"),
+    }
+}
 
 /// The pip depth the document's `pip_depth` parameter starts at.
 pub const DEPTH: f64 = 0.125;
@@ -543,4 +602,34 @@ pub fn declare_x_offset_flush(
         ),
     ];
     insert(doc, Node::declare_rest(pairs))
+}
+
+/// **What every at-rest finding says about a declaration, in one
+/// vocabulary** — the mate it names and the relation it bears, for a
+/// row that wants to compare a whole finding list at once.
+///
+/// One definition for every suite that asks the question. A CARRIED
+/// row's mate is a node of ANOTHER document, so it reports under its
+/// own words rather than joining the own-minted ones and reading as
+/// this document's.
+pub fn relations(findings: &[editor_core::AtRestFinding]) -> Vec<(RecipeNodeId, &'static str)> {
+    findings
+        .iter()
+        .map(|f| match &f.attribution {
+            editor_core::Attribution::Refuted(m) => (m.mate, "refuted"),
+            editor_core::Attribution::Declined(m) => (m.mate, "declined"),
+            editor_core::Attribution::Carried {
+                declaration,
+                relation,
+                ..
+            } => (
+                declaration.mate,
+                match relation {
+                    editor_core::Relation::Refuted => "carried_refuted",
+                    editor_core::Relation::Declined => "carried_declined",
+                },
+            ),
+            editor_core::Attribution::Unattributed => (RecipeNodeId(u64::MAX), "unattributed"),
+        })
+        .collect()
 }

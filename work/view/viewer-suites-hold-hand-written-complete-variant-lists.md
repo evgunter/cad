@@ -1,0 +1,65 @@
+---
+id: viewer-suites-hold-hand-written-complete-variant-lists
+kind: issue
+title: the viewer suites hold hand-written complete variant lists nothing forces
+status: open
+opened: 2026-09-06
+---
+
+
+Found by the style review of PR 2046 (`view/const-all`), which
+projected nine `const ALL` tables in `crates/viewer/src` from their
+enums' own declarations. That unit's census swept
+`crates/viewer/src` only. `crates/viewer/tests/*` is VIEW's territory
+too (Ev, in-chat, 2026-09-04), and the same shape lives there.
+
+## The class
+
+**A hand-written array of every variant of an enum, in a suite, whose
+completeness the row's claim depends on.** PR 2046's own PR body
+rejects exactly this shape as an answer for `ToolKind::ALL`: a
+suite-local list "would be hand-written, unforced and invisible to the
+compiler — the same defect one directory over". It is already there.
+
+## The instances
+
+- `crates/viewer/tests/chrome_labels.rs:64` —
+  `for pane in [Pane::Viewport, Pane::Features, Pane::Properties,
+  Pane::View]`, asserting each has a tile. `Pane`
+  (`crates/viewer/src/app.rs:259`) has exactly those four variants. A
+  fifth pane added with no tile leaves this row green.
+- `crates/viewer/tests/review_gui0_r2.rs:303` — `buttons = [Primary,
+  Secondary, Middle]`, the whole of `PointerButton`
+  (`crates/viewer/src/input.rs:63`), driving the `map_stream`
+  consistency fuzz. A fourth button is silently never fuzzed.
+- `crates/viewer/tests/frame_policy.rs:775` — all three
+  `ChooserBackend`s (`crates/viewer/src/frame.rs:1440`) under "a chosen
+  path is never this policy's business", which is a claim about the
+  whole vocabulary.
+- `crates/viewer/tests/frame_policy.rs:484-489` — one
+  `frame::cursor_status` call per `IdStep`
+  (`crates/viewer/src/frame.rs:1652`), all three, written out. The
+  weakest of the four: it is a list of calls rather than a list of
+  variants, but the row's claim is still about the whole vocabulary and
+  a fourth step would not be asked.
+
+None of these enums carries an `ALL`, so `vocabulary!` does not reach
+them as they stand: taking this means deciding, per enum, whether the
+vocabulary earns a projected `ALL` on the type or whether the row
+should be re-expressed so completeness is not what it rests on.
+
+## Not the same as, and adjacent to
+
+`work/view/hand-maintained-mirrors-of-a-kernel-enum-are-unforced.md`
+is about a viewer table mirroring ANOTHER crate's enum. This is the
+viewer's own enums, listed by hand in the viewer's own suites.
+
+## The sweep that found these, and its blind spot
+
+A structural scan over `crates/viewer/**/*.rs` for array literals
+holding two or more distinct `Type::Variant` entries of one type, then
+each hit read against that enum's variant count. It cannot match: a
+list built with `vec!`, an iterator chain or a `matches!` ladder; a
+list written after `use Enum::*` so the type prefix is absent; a list
+containing a nested bracket; and an enumeration spelled as match arms
+rather than as an array.

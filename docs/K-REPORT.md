@@ -499,7 +499,7 @@ because one parameterised site carries many names: **83 of the 233
 names in the committed M7 baseline have no `decide("<name>"` site
 anywhere in the tree.**
 
-Five ways a name escapes the old pattern, all live today:
+Six ways a name escapes the old pattern, all live today:
 
 1. **A different funnel entry — the sharpest instance, because the
    site satisfies the method's own criterion.** `decide("` does not
@@ -514,26 +514,54 @@ Five ways a name escapes the old pattern, all live today:
    least `check_residual`, `classify`, `require_zero`, `coincident`,
    `zero`, `gap_is_zero` and `signed_is_zero`. The old method named the
    last two.
-3. **A named `const &str` rather than a literal at the site.** Six,
-   not the three previously recorded: `sector_shape.rs`'s
+3. **A named `const &str` rather than a literal at the site.** Seven,
+   not the three originally recorded: `sector_shape.rs`'s
    module-private `SECTOR_{ARM,REFLEX,STRAIGHT}`, plus
    `SEL_DATUM_DISTANCE` (`sel_datum_distance` — since SEAT-2 a `pub`
    const in `topo/src/query.rs`, re-exported by `editor-core`),
-   `DATUM_UNIT_NORM` (`datum_unit_norm` — since SEAT-DV a `pub` const
-   beside it, the length decision inside `UnitVec3::new`; the datum
-   arms of `editor-core`'s evaluation reach the funnel through that
-   constructor rather than through their own `eval_direction_norm`
-   site, which stays for the directions the evaluation layer owns —
-   note that `mate/solve.rs` re-derives a circular pattern's DATUM axis
-   from the recipe and decides it under `eval_direction_norm`, so one
-   datum direction carries two names by road, issue 1570) and
    `sweep/src/fillet/surgery.rs`'s module-private `RING_CLEARANCE`
-   (`fillet3_ring_clearance`).
-4. **A struct field or a local table.** `ray_parity::ParityRows` (the
+   (`fillet3_ring_clearance`), and the direction-length pair —
+   `DATUM_UNIT_NORM` (`datum_unit_norm`, a `pub` const in
+   `topo/src/query.rs`) and `EVAL_DIRECTION_NORM`
+   (`eval_direction_norm`, `editor-core`'s `eval/wire.rs`), which are
+   the same shape for the same reason and are described together
+   below.
+4. **A name PASSED to the deciding body by its caller** — the pair
+   just named, and the reason they are also a separate way of
+   escaping the pattern. Since SEAT-DN one function decides
+   direction length for the whole workspace
+   (`topo::query::decide_unit_direction`: finiteness, then the sign
+   of the norm, then normalize or refuse) and it takes the funnel site
+   as a `&'static str` PARAMETER, because the layer that owns a value
+   is the layer whose telemetry names its length decision. So
+   `decide(` at that site names a variable: `datum_unit_norm` is
+   passed by `UnitVec3::new` a few dozen lines below for a datum's
+   normal or axis direction, and `eval_direction_norm` by
+   `editor-core`'s `unit()`, a crate away, for the directions the
+   evaluation layer owns (a transform's rotation axis, a pattern's
+   direction, and the mate solve's re-derivation of both from the
+   recipe). Two names, one body — Ev's ratified answer to the
+   direction-family question, executed by SEAT-DN. The consequence
+   for a name roster is the one this section is about: a scan for
+   `decide("<name>"` finds NEITHER of these two live names, and only
+   a reader following the parameter does.
+
+   **And this route accepts names nobody registered.** The door is
+   `pub` in a `pub mod` and its site is a bare `&'static str`, so any
+   crate in the workspace can pass a literal of its own and mint a K
+   name that appears in the emitted stream and in no document —
+   executed: `decide_unit_direction(v, "rev_probe_site", band)`
+   escalates carrying `predicate: Some("rev_probe_site")`. Nothing
+   mechanical catches it, because nothing mechanical reads this
+   roster at all (see "Maintenance: this roster is a RECORD" below).
+   That is this document's standing hole made one route wider, not a
+   new one: a third caller of the shared body owes an entry here, by
+   hand, exactly as a new `decide("literal")` site does.
+5. **A struct field or a local table.** `ray_parity::ParityRows` (the
    one carrier this document already listed), `swept.rs`'s
    `CosurfaceNames`, and `transform.rs:129`'s seven-element
    `[(&'static str, T); 7]` array consumed by a loop variable.
-5. **The scan root — a scope error in the method, not a missed site.**
+6. **The scan root — a scope error in the method, not a missed site.**
    The pattern greps `crates/*/src`, while the corpus the gate is fed
    from is not confined to it: `demos/tour/src/booleans.rs` decided
    `demo_flush_{offset,orient,parallel}` through the same funnel, and
@@ -633,7 +661,7 @@ nothing computes with it:
   merge in `target/k-fresh`, one `cut -d, -f2 | sort -u` away.
 
 So: **stated criterion, disclosed residue, no CI row.** What a future
-reader is owed instead is above — the rule, the five escape routes, the
+reader is owed instead is above — the rule, the six escape routes, the
 two blind spots, and the seven names measured outside both documents.
 Adding a name carrier without recording it here still silently drops
 its rows from the roster; that is now a disclosed cost rather than an
@@ -1461,13 +1489,50 @@ names depending on the road**: `mate/solve.rs`'s derived-offset
 derivation re-reads a circular pattern's datum-axis node from the
 recipe and normalizes that same direction through `eval_direction_norm`
 (same arithmetic, same refusal shape, different name in this census).
-That is a family question, not a defect of either site, and it is homed
-at issue **1570** — this paragraph is the census-side record of it, and
-neither road was migrated.
 
-**Effect on the emitted stream.** Margins, order, bands and outcomes are
-bit-identical; only the `predicate` column changes, and only for these
-six values. Reproduced with the probe #647 left for exactly this —
+**And the mate road is not the only place one triple carries two
+names.** `DatumValue::AxisInPlane` is decided twice by design: the
+evaluation layer lifts the authored sketch direction and decides the
+lifted 3-D vector under `datum_unit_norm` (`wire.rs`'s
+`datum_unit(lift(plane_dir), …)`), while `sweep`'s revolve takes the
+UNLIFTED sketch pair and decides it again under
+`revolve_axis_direction` (`revolve/axis.rs`) — same authored numbers,
+two names, because the frame's axes are orthonormal and
+`|lift(d)| = |d|`. The variant's own doc says why it carries both
+spellings. So "one length, two funnel names, split by road" is a
+SHAPE in this workspace rather than a one-off, and the ruling below is
+about which layer names a decision, not about ever having only one
+name for a value.
+
+**Both facts are RATIFIED, and SEAT-DN is where they were answered**
+(Ev's ruling (B), 2026-09-05, on the `[ev]` PR that put the options).
+The two names stay exactly where they are read, because the layer that
+OWNS a value is the layer whose telemetry names its length decision: a
+`DatumValue` has no unnormalized spelling, so its normal is the kernel
+type's to decide, while a transform axis and a pattern direction are
+the evaluation layer's — and collapsing the two names would erase
+which layer a decision came from, in the one column this census has to
+say it in. So **no row here moves**, the count is unchanged, and the
+one triple under two names by road is a property of the roads, not a
+defect of either site.
+
+What SEAT-DN did collapse is the BODY: both names are now passed as a
+parameter to `topo::query::decide_unit_direction`, the workspace's only
+decide/normalize/refuse for a 3-D direction length. The census
+consequence is nil (same names, same margins, same order, same
+outcomes); the roster consequence is that neither name is a literal at
+its `decide` site any more, recorded as escape route 4 in the
+inventory method above. The population under each name is unchanged —
+`datum_unit_norm` for the datum arms of `wire_datum`,
+`eval_direction_norm` for the evaluation layer's own directions and
+for the mate solve's re-derivation of both rule kinds from the
+recipe.
+
+**Effect on the emitted stream** (the SECTOR rename above — the SEAT-DV
+and SEAT-DN paragraphs between are later additions to this section, and
+move nothing in this stream). Margins, order, bands and outcomes are
+bit-identical; only the `predicate` column changes, and only for the six
+sector names. Reproduced with the probe #647 left for exactly this —
 `cargo test -p topo --features probe --test all -- --nocapture
 probe_s5_sectors::sector_margin_stream | grep '^K '` on merge base
 (`17b077f7`) and tip:
@@ -1833,5 +1898,124 @@ Rules A/B over the top residual add no discharge on any document once
 A0 has run; per node (`SymRules::early_ab`) they reach the plate's
 nested `sqrt(…)²` at minutes per replay (138 s for the plate's
 nominal). Both stay dial-selectable and off; the census's rule column
-(`work/cert/symbolic-tier-census.md`) records which mechanism
+(`work/m10/symbolic-tier-census.md`) records which mechanism
 discharges each row.
+
+## M10-9 addendum (2026-09-06): the `registered` outcome — a constructor's axiom, counted apart
+
+M10-9 opened ERROR-DESIGN E12's reserve — **discharge by provenance** —
+as a session-level door in `geom_core::sym`
+(`Sym::register_equal`): a constructor states an identity it
+GUARANTEES, the lane scalar witnesses it, and a third normal-form walk
+consults the record. One CONSTRUCTOR ships — the swept arc carrier's builder — with the
+two same-object identities it guarantees: the rim `‖q_from − c‖ = r`
+(`sweep::swept::register_rim_identity`) and the span
+`carrier.eval(param_end) = q_to`, componentwise
+(`register_span_identity`), each with its proof in its doc comment and
+its own planted lie pinned typed.
+
+### The `registered` outcome
+
+`geom_core::k_stats::SampleOutcome::Registered` (serialized
+`registered`) joins `SymbolicZero` and `SignGated` as the K
+vocabulary's **eighth** token, through the same one home
+(`SampleOutcome::ALL` / `token()`, the cross-workspace pin in
+`k-lint`'s `tests/outcome_vocabulary.rs`, and `k-lint`'s own column
+`Scan::registered` with its per-file and TOTAL lines).
+
+It is its own column and not a third name for `symbolic_zero`, because
+the claim differs in kind. A symbolic `Zero` is a THEOREM: exact
+rational arithmetic from the parameter symbols down, nothing read. A
+registered `Zero` is an AXIOM about the construction — it rests
+additionally on the registrant's own argument, which is why the
+registrant carries that argument in its doc comment and why the door
+refuses a registration the lane scalar's value channel contradicts
+(`SymRegistration::Contradicted`, typed). Like both of the others it is
+NEVER a rule sample: the margin was never classified against the band,
+so rule 1 cannot fire on it and rules 2 and 3 have no threshold
+comparison to make.
+
+**The attribution is NECESSITY, not contact.** A decision counts
+`registered` only where the plain form and the early form have both
+declined and the same walk with the registry applied answers, so
+`symbolic_zero` and `sign_gated` are M10-8's on every document, to the
+decision (plate 723, R2 bracket 790, R1 annulus 248, R2 pad 368 at
+their nominals, door open or shut). The door moves decisions out of
+`numeric` and out of nothing else.
+
+### What it moved in the population
+
+At each document's nominal the two registrants discharge BOTH
+endpoint pinnings: `carrier_endpoint_start` 16/16 on the plate, 16/16
+on R1's annulus, 20 of 22 on R2's bracket and 24 of 32 on R2's pad;
+`carrier_endpoint_end` 16/16, 16/16, 20/20 and 24 of 28 — plus part of
+`carrier_matches_mapped_source` (8, 8, 8 and 12). Totals door OFF → ON:
+plate 0 → 40 `registered`, bracket 0 → 48, annulus 0 → 40, pad 0 → 60.
+They reach `carrier_on_surface_*` not at all (those rest on
+`u_ref·u_ref = 1`, which needs the SQUARED identity `v·v = r²`, a
+different node again).
+
+The `carrier_matches_mapped_source` share is 8, 8, 8 and 12 out of 72,
+72, 99 and 144 — **one per curve**, and it is the `i = 0` sample of the
+nine-sample certification schedule, where the mapped source evaluates
+to its own start vertex verbatim and the span identity supplies the
+other side. The other eight samples per curve are not reached: the
+mapped source spells the arc through `atan(bulge)` and `sin`/`cos`
+atoms (`geom-brep`'s `SketchSegment::eval`, anchored on `a` rather than
+on the centre) while the carrier spells it through the sagitta closed
+form, and the two normal forms meet only where the trig collapses.
+
+### And no ceiling moved — and neither did the BOUND
+
+Measured at ε = 1e-6, 1e-9 and 1e-12, door open and shut, both ends of
+every bracket asserted
+(`editor-core/tests/m10_9_pins_interval`, evidence in
+`m10_9_evidence_interval`). **A bound here is the SET of predicates
+over the band at the refusing end of a 16-step bisection**, not the one
+name a drive reports when it stops: a drive stops at its FIRST refusal,
+and at a scale well past the ceiling several predicates are over the
+band at once, so which name comes back is evaluation ORDER (validation
+before certification). M10-9's first cut read the refusal at twice the
+ceiling and reported a bound that moved with each registrant; it does
+not.
+
+| document | whole-certifying ceiling (bracket, all three ε rows) | over-band set at ceiling + δ, door open AND shut | enclosure |
+| --- | --- | --- | --- |
+| two-hole plate | `[7.811e2, 7.814e2] · ε` | `{carrier_matches_mapped_source}` | `[0, 1.0001 · ε]` |
+| R1 annulus | `[7.805e2, 7.810e2] · ε` | `{carrier_matches_mapped_source}` | `[0, 1.0001 · ε]` |
+| R2 link | `[4.930e2, 4.934e2] · ε` | `{carrier_matches_mapped_source}` | `[0, 1.0002 · ε]` |
+| R2 filleted bracket | `[3.871e2, 3.873e2] · ε` | `{carrier_matches_mapped_source}` | `[0, 1.0001 · ε]` |
+| R2 rounded pad | `[2.083e3, 2.084e3] · ε` | `{carrier_matches_mapped_source}` | `[0, 1.0001 · ε]` |
+
+Every ceiling scales with ε to within one bisection step at all three
+rows — none of them stopped scaling, which is the E12 claim this unit
+does not get to make. And **one predicate bounds all five, door open
+and door SHUT**: the fenced scaffolding residual, the carrier against
+the `MappedCurve` pushforward at the certifier's own samples, an
+identity between two independently built objects and therefore outside
+a node-aliasing door
+(`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`; the span
+identity's own row closed with the amendment,
+`plate-ceiling-is-now-the-arc-span-identity`). The door discharges
+40–60 decisions per document, and the identities it discharges were
+never what bounded one — which is a sharper result than "the ceiling
+did not move", and the one the unit reports.
+
+What DOES move with the registrants is the name a drive reports at
+twice the ceiling: `carrier_endpoint_start` → `carrier_endpoint_end` →
+`carrier_matches_mapped_source` on the plate. That is the mechanism
+working, pinned as such
+(`m10_9_pins_interval::m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity`),
+and it is not a bound. `line_span`, which the first cut named as the
+bracket's and the pad's bound, is itself an identity residual of the
+fillet construction and is recorded as one in the census.
+
+### The driver row
+
+`m10_3_driver_k_probe_interval`'s `two_hole_plate_narrow` is the
+fixture that carries arc geometry, so it is where the token has to
+LINT. The final head's per-file and TOTAL lines are quoted from the
+hosted log in the PR body; the `registered` column is non-zero there
+and zero on every straight-walled fixture, which is the same fact the
+inertness pin makes locally
+(`m10_9_pins_interval::m10_9_the_door_is_inert_on_straight_geometry`).

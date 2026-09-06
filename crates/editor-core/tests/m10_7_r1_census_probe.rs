@@ -10,7 +10,7 @@
 //! the three are `#[ignore]`d besides. They are a reviewer's
 //! counter-fixture: a profile the unit never built, run to check what
 //! the census claims about it. The claim they check is recorded in
-//! `work/cert/symbolic-tier-census.md`; the rows are how it was
+//! `work/m10/symbolic-tier-census.md`; the rows are how it was
 //! reached, kept so the next lane can re-run them rather than re-derive
 //! them.
 #![cfg(all(feature = "interval", feature = "probe"))]
