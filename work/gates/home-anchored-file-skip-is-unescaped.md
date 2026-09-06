@@ -2,10 +2,11 @@
 id: home-anchored-file-skip-is-unescaped
 kind: issue
 title: signed-zero-one-home.sh's home-anchored file skip interpolates the path unescaped, so the anchor is exact only by accident
-status: review
+status: closed
 branch: gates/file-skip-anchor
 pr: 2065
 opened: 2026-09-06
+closed: 2026-09-06
 ---
 
 ## Finding
