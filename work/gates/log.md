@@ -228,3 +228,27 @@ retired), and `gates/viewer-module-kinds-guards`
 PR 2044 waits on its run; PR 2049 merges main behind 2038; `D102` is
 in flight on `bounds-allowlist.sh`, with `D211`, `S13` and
 `anchored-exact-text-skip-has-three-homes` behind it.
+
+## S49 landed (2026-09-06)
+
+PR 2044, `gates/loop-boundary-discards`, one style review
+(MERGEABLE-WITH-FIXES with two MAJORs, fix pass landed). A new
+derived-census gate, `loop-boundary-discards.sh`: every discarded
+`LoopBoundary::Cycle`/`Empty` under `crates/*/src` — let-else with
+`continue`/`break`/`return`, including one wrapping pattern layer
+(`Some(…)`, the review's second MAJOR: three live sites missed), and
+no-binding match arms in the spellings that compile — must match a
+register entry `<file>|<fn>|<fragment>|<count>|<disposition>`, keyed by
+the brace-aware ENCLOSING fn (the review found one live key naming a
+neighbouring helper) and pinned at a count so a second discard in a
+registered fn reds rather than inheriting its audit (the first MAJOR,
+D103's shape one level down). 80 sites in 40 files under 75 entries, 2
+marked audited (`census.rs`'s `sweep_cross_solid_backstop`, split by
+fragment) and 73 unaudited — the audit is the owners' riders; the
+`snapshot` discard is filed on TOPO. `#[cfg(test)]` skipped. The runner
+red on the fix pass was `awk -v` processing backslash escapes in the
+regexes (mawk tolerated the mangled pattern; the runner's awk died) —
+the hazard PR 2030's header names; the patterns now travel through
+`ENVIRON` with every metacharacter a bracket expression. The reader
+artifact it found — a `--window` record for a comment-only line — is
+`window-view-emits-a-record-for-a-comment-only-line`.
