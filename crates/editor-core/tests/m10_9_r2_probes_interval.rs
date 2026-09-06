@@ -676,7 +676,7 @@ fn staged_ceilings(name: &str, at: &dyn Fn(f64) -> ProfileDoc, stages: &[&str], 
     let eps = tol.eps();
     for pass in stages {
         // Single-threaded evidence run (`--test-threads 1`).
-        geom_core::k_stats::r2_pass_indeterminate_set(pass);
+        geom_core::k_stats::identity_pass_set(pass);
         let (lo, hi, per) = ceiling(at, SymRules::shipped(), tol, 1.0e-1 * eps, hi_scale, 16);
         println!(
             "== {name}, passing [{pass}]: certifies x{lo:e}, refuses x{hi:e} ({per:.2}s/probe) [= {:.3e}·eps .. {:.3e}·eps] = {:.3e} of the real study",
@@ -697,7 +697,7 @@ fn staged_ceilings(name: &str, at: &dyn Fn(f64) -> ProfileDoc, stages: &[&str], 
             }
         }
     }
-    geom_core::k_stats::r2_pass_indeterminate_set("");
+    geom_core::k_stats::identity_pass_set("");
 }
 
 /// **The plate's ceiling with its identity residuals passed, one at a

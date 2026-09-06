@@ -129,22 +129,25 @@ fn r1_the_registry_stores_a_pair_the_witness_never_compared() {
     assert_eq!(rows.2, Ok(Sign::Zero), "a² ≡ a³ decided by transitivity");
 }
 
-/// **TWO REGISTRATIONS PUT THE TWO CHANNELS IN CONTRADICTION, AND
-/// NOTHING SAYS SO.** Before M10-9 the `Decide` impl asserted (in debug)
-/// that a form could never be zero while the numeric channel proved the
-/// margin non-zero — "a soundness bug in one of them, not a fast path to
-/// take quietly", as its doc comment still says. M10-9 exempted the
-/// door's arm from that assertion, and this is the state the exemption
-/// covers: `b = a − 0.2` and `c = a + 0.2` each MEET `a`'s enclosure at
-/// an endpoint, so both registrations are witnessed, and the registry
-/// then makes `b − c` the zero form while its enclosure is
+/// **TWO REGISTRATIONS PUT THE TWO CHANNELS IN CONTRADICTION, AND THE
+/// RUN NOW SAYS SO.** `b = a − 0.2` and `c = a + 0.2` each MEET `a`'s
+/// enclosure at an endpoint, so both registrations are witnessed, and
+/// the registry then makes `b − c` the zero form while its enclosure is
 /// `[-0.6, -0.2]` — definite, and nowhere near zero.
 ///
-/// The numeric channel wins the answer (so no false `Zero` is
-/// returned), but the contradiction is silent: no counter, no
-/// diagnostic, no assertion.
+/// R1 found this state SILENT: M10-9's first cut exempted the door's
+/// arm from the `Decide` impl's debug assertion and counted nothing, so
+/// the one state that assertion exists to catch was the one state it no
+/// longer covered. The fix moved the check to decide time and out of
+/// `debug_assert!`: the numeric channel still wins the answer (no false
+/// `Zero` is ever returned), and the contradiction is COUNTED, so the
+/// drive's receipt reports that a stated identity is false over this
+/// box (`SymCounts::registrations_contradicted`, and
+/// `ParamBoxVerdict`'s serialize/render lines).
+///
+/// This row is R1's, re-cut as the positive pin of the fix it forced.
 #[test]
-fn r1_two_registrations_make_the_two_channels_contradict_silently() {
+fn r1_two_registrations_make_the_two_channels_contradict_and_it_is_counted() {
     let (out, counts) = with_session_rules(budget(), SymRules::shipped(), || {
         let a = pi("a", 0.9, 1.1);
         let lo = a - <Sym<Interval> as Real>::from_f64(0.2);
@@ -166,18 +169,24 @@ fn r1_two_registrations_make_the_two_channels_contradict_silently() {
     );
     assert_eq!(
         counts.registered, 0,
-        "and the decision is counted numeric — the contradiction is invisible"
+        "the decision is not a registered discharge — the numeric answer stands"
+    );
+    assert_eq!(
+        counts.registrations_contradicted, 1,
+        "and the contradiction is COUNTED rather than silent: {counts:?}"
     );
 }
 
-/// **The typed refusal is DROPPED at every shipping registrant.**
-/// `Real::register_equal` is deliberately not `#[must_use]` and both
-/// registrants ignore its answer, and nothing counts a refusal — so a
-/// constructor that registers a lie in a real document produces no
-/// column, no flag and no receipt line. This row records the absence:
-/// `SymCounts` has a `registered` field and no `refused` one.
+/// **A refused registration IS a trace in the counts.** R1 found the
+/// typed refusal dropped at every shipping registrant —
+/// `Real::register_equal` was not `#[must_use]`, both registrants
+/// ignored its answer, and nothing counted a refusal, so a constructor
+/// registering a lie in a real document produced no column, no flag and
+/// no receipt line. The fix made the method `#[must_use]`, made both
+/// registrants handle the typed answer (loud in debug), and gave the
+/// session a column. This row is R1's, re-cut as the positive pin.
 #[test]
-fn r1_a_refused_registration_leaves_no_trace_in_the_counts() {
+fn r1_a_refused_registration_is_counted_in_the_receipt() {
     let (_, counts) = with_session_rules(budget(), SymRules::shipped(), || {
         let x = pi("x", 1.0, 1.0);
         let y = pi("y", 5.0, 5.0);
@@ -187,12 +196,10 @@ fn r1_a_refused_registration_leaves_no_trace_in_the_counts() {
             "the enclosures are disjoint"
         );
     });
-    // Everything the receipt could report about that refusal:
     println!("   after a refused registration: {counts:?}");
-    assert_eq!(counts.registered, 0);
+    assert_eq!(counts.registered, 0, "nothing was recorded");
     assert_eq!(
-        format!("{counts:?}").contains("refus"),
-        false,
-        "no refusal column exists"
+        counts.registrations_refused, 1,
+        "and the refusal is counted: {counts:?}"
     );
 }

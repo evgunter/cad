@@ -202,19 +202,37 @@ fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign
     classify_in(name, margin, band, true)
 }
 
-/// R2 PROBE INSTRUMENT: the comma-separated predicate names whose
-/// indeterminate answers pass as `Zero` (process-global, set by an
-/// evidence row).
-static R2_PASS: std::sync::RwLock<String> = std::sync::RwLock::new(String::new());
+/// **THE STAGED-CEILING DIAL** (`identity-pass-probe`, a test-only
+/// cargo feature — see this crate's manifest for why it is a feature
+/// and not a flag): the comma-separated predicate names whose
+/// INDETERMINATE answers pass as `Zero`.
+///
+/// It exists for one measurement and is worth stating plainly because
+/// it is the one thing this funnel must never do in a run that decides
+/// anything: it lets a document be driven AS IF a named identity
+/// residual were discharged, so "what would bound this document next"
+/// is a measurement instead of a guess. M10-9's reviews used it to walk
+/// the two-hole plate from `7.787e2 · ε` to `2.630e8 · ε` — four
+/// identity residuals, then a real assertion margin — which is the
+/// finding that says what the next unit is
+/// (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`).
+///
+/// Process-global and empty by default. An evidence row sets it, reads
+/// its ceiling, and clears it; it is never set in a gating run, and
+/// with the feature off none of this compiles.
+#[cfg(feature = "identity-pass-probe")]
+static IDENTITY_PASS: std::sync::RwLock<String> = std::sync::RwLock::new(String::new());
 
-/// R2 PROBE INSTRUMENT: sets the pass list (empty clears it).
-pub fn r2_pass_indeterminate_set(list: &str) {
-    *R2_PASS.write().expect("r2 pass list") = list.to_owned();
+/// Sets [`IDENTITY_PASS`] (empty clears it). Test-only.
+#[cfg(feature = "identity-pass-probe")]
+pub fn identity_pass_set(list: &str) {
+    *IDENTITY_PASS.write().expect("the identity-pass list") = list.to_owned();
 }
 
-/// R2 PROBE INSTRUMENT: whether the pass list names this predicate.
-fn r2_pass_indeterminate(name: &str) -> bool {
-    let list = R2_PASS.read().expect("r2 pass list");
+/// Whether the pass list names this predicate. Test-only.
+#[cfg(feature = "identity-pass-probe")]
+fn identity_pass(name: &str) -> bool {
+    let list = IDENTITY_PASS.read().expect("the identity-pass list");
     !list.is_empty() && list.split(',').any(|n| n.trim() == name)
 }
 
@@ -240,14 +258,13 @@ fn classify_in<T: Decide>(
     let prev = CURRENT.with(|c| c.replace(name));
     let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
     CURRENT.with(|c| c.set(prev));
-    // R2 PROBE INSTRUMENT (branch m10/m10-9-r2-probes only, NEVER for
-    // merge): an evidence dial that lets a named identity residual's
-    // INDETERMINATE answer pass as `Zero`, so a ceiling can be measured
-    // "as if" that identity were discharged. Reads an env var at the
-    // one funnel seam, which is exactly what this seam must never do;
-    // it answers one review question and is deleted with the branch.
+    // THE STAGED-CEILING DIAL, and it exists only under the test-only
+    // `identity-pass-probe` feature ([`IDENTITY_PASS`]): with the
+    // feature off there is no branch here at all, which is the whole
+    // reason it is a cargo feature rather than a runtime flag.
+    #[cfg(feature = "identity-pass-probe")]
     let outcome = match outcome {
-        Err(_) if r2_pass_indeterminate(name) => Ok(Sign::Zero),
+        Err(_) if identity_pass(name) => Ok(Sign::Zero),
         o => o,
     };
     // Both channels of the innermost open bracket — a definite sign as
