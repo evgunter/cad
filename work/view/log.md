@@ -3536,3 +3536,39 @@ Told not to start new work. The sweep wants #1957 on main first: it
 holds `frame.rs`, `app.rs` and `pane/*`, which the sweep rewrites, and
 merging a twenty-site sweep against a moving version of the rule it
 sorts on is the one avoidable mess left.
+
+## The sweep's brief, drafted from a lane's own two conditions (2026-09-06)
+
+The hoist lane stood down clean and left two conditions for the
+twenty-writer sweep's dispatch. Both are right and both go into that
+brief rather than being rediscovered:
+
+**Merge `origin/main` before starting, not only before pushing.** Its
+last two units each found that a day-old branch point turns a
+mechanical pass into a conflict resolution, and the merge is cheaper
+before the edits than after. The sweep lands in files #1957 rewrites,
+so this is not hypothetical.
+
+**Derive the inventory BY SHAPE, not by the count the brief gives.**
+This program has now been wrong about that count three times — the item
+said nineteen, the README and `frame.rs` said eighteen, the true figure
+is twenty, and the extra one (`viewport.rs:205`, the `unindexed`
+refusal) was absent from the item's own hit list at its own merge base.
+A sweep that trusts a handed-down census inherits its errors; one that
+re-derives by pattern and **reports what the pattern could not match**
+does not. The lane's claim 3 in the hoist was false as worded and only
+turned up because the sweep was run rather than trusted.
+
+Recording them here so the brief carries them whoever writes it.
+
+## #1957 took the cheap arm (2026-09-06)
+
+`d6e53420` — *"a pane with no extent holds no projection refusal"*. The
+title is the argument: a pane that is not projecting holds no
+projection refusal, so clearing at the zero-aspect return is the honest
+read rather than the convenient one. The tabbed-away arm stays filed;
+it needs the "did not draw this frame" latch, which is app-gated state
+`frame.rs`'s own header condemns.
+
+49 commits behind main after #1953 landed, so another merge is owed
+before it can go.
