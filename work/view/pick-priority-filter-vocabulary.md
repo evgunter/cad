@@ -14,7 +14,7 @@ Opened 2026-08-31; 1 comment.
 
 **Corrected 2026-08-31 after review measured the original claim and found it understated. The mate-tool instance is now FIXED in the GAUTH-2 PR; what stays open is the vocabulary.**
 
-GAUTH-2 gave edges pick priority: a cursor within `viewer::pick::EDGE_PICK_RADIUS_PX` (6 physical pixels) of a drawn edge of the body under the cursor selects the EDGE rather than the face behind it. The rule lives in `PickIndex::hovered_for`, the one place hovering and clicking both read, deliberately so they cannot disagree.
+GAUTH-2 gave edges pick priority: a cursor within `viewer::pickindex::EDGE_PICK_RADIUS_PX` (6 physical pixels) of a drawn edge of the body under the cursor selects the EDGE rather than the face behind it. The rule lives in `PickIndex::hovered_for`, the one place hovering and clicking both read, deliberately so they cannot disagree.
 
 ### What the original text of this issue got wrong
 

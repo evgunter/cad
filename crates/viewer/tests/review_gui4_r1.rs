@@ -113,7 +113,7 @@ fn close(got: [f64; 3], want: [f64; 3], eps: f64, what: &str) {
 
 /// Pick one face through the real cursor path under the session's
 /// display view.
-fn pick(session: &DocSession, index: &viewer::pick::PickIndex, ray: &Ray) -> FaceSelection {
+fn pick(session: &DocSession, index: &viewer::pickindex::PickIndex, ray: &Ray) -> FaceSelection {
     let (_, eval) = session.landed_pair().expect("a landed evaluation");
     index
         .face_at_for(eval, ray, &session.display_view())

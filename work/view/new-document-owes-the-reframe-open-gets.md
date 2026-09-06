@@ -51,7 +51,7 @@ coincidence about the fixture, not a property.
 The same shape — a viewer-side value derived from the document and
 reset (or not) by an op match rather than by the session — should be
 swept at least at `crates/viewer/src/tools.rs:487`,
-`crates/viewer/src/pick.rs:2270-2288` and
+`crates/viewer/src/pick.rs:103-121` and
 `crates/viewer/src/pane/create.rs:141,415`. Cite what the sweep could
 not match when it is done.
 

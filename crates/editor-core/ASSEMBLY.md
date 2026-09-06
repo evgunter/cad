@@ -98,8 +98,9 @@ refuses at the solve door.
 
 **A12 — Mate edges and roots.** A mate's two references are `SitedRef`s
 — a name, and the OPERAND node it is read at — and each contributes a
-*reading edge* to the member that operand resolves to, recomputed by
-`reading_edges`, never stored. `inputs()` stays empty because a reading
+*reading edge* to the member that operand resolves to — the walk's
+minting instance, whatever the depth of the copy chain above it —
+recomputed by `reading_edges`, never stored. `inputs()` stays empty because a reading
 edge is not consuming: making an operand consuming would take the mated
 bodies out of A10's root set. A9's partition and A11's clusters run over
 consuming ∪ reading edges; A10's invariants, maintenance and gather run
@@ -277,12 +278,24 @@ cluster returns its recorded frame bit for bit. It is one of A2a's
 pairing doors: the document it is handed must be the one solved, else
 `MateFault::PosesOfAnotherDocument` before any frame is read. A
 reference resolves by walking from its OPERAND down to a live
-`InstantiatePart`, through any number of `Transform`s and at most one
-`Pattern` level (which the name qualifies `Instance(i)`); the member's
-frame is the composed static offset of every node that walk passed, on
-that instance's pose, so mates never solve pattern or transform
-parameters or give one placed body its own pose. Two references to one
-instance read at different operands are two members.
+`InstantiatePart`, through any number of `Transform`s and `Part`
+instance selections and any number of `Pattern` levels (each of which
+the name qualifies `Instance(i)`); the member's frame is the composed
+static offset of every node that walk passed, on that instance's pose,
+so mates never solve pattern or transform parameters or give one
+placed body its own pose. A member's identity is its instance, the
+CHAIN of copies the walk consumed (outermost first) and the operand it
+was read at: two references to one instance read at different operands
+are two members, and so are two references to sibling copies at any
+level. Nothing in the walk is evaluated, so the partitions never
+depend on a slot value. The two questions that DO need a number are
+asked once per reference, where the solve reads it — for every
+reference of every live mate, not only the ones a tree edge's offset
+derives: the named copy must exist (its index against the pattern's
+evaluated count, else `MateFault::DanglingHead` at the pattern), and a
+`Part` directly above a pattern must select the copy the NAME names
+(else `MateFault::PartSelectsAnotherCopy`, which reports both). The
+name is the authority; the `Part` is checked against it.
 
 ## Open questions
 
