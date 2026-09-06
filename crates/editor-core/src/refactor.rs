@@ -872,8 +872,9 @@ fn remap_node(
             b: id(*b)?,
             declare: declare.map(id).transpose()?,
         },
-        Node::Union { members } => Node::Union {
+        Node::Union { members, declare } => Node::Union {
             members: members.iter().map(|&m| id(m)).collect::<Result<_, _>>()?,
+            declare: declare.map(id).transpose()?,
         },
         Node::Transform {
             input,

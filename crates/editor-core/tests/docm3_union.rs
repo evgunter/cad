@@ -54,6 +54,7 @@ fn three_boxes(order: [usize; 3]) -> (ProfileDoc, [RecipeNodeId; 3], RecipeNodeI
         doc,
         Node::Union {
             members: order.map(|i| boxes[i]).to_vec(),
+            declare: None,
         },
     );
     (doc, boxes, u)
@@ -238,6 +239,7 @@ fn insert_refuses_a_node_that_takes_one_input_twice() {
         },
         Node::Union {
             members: vec![x, x],
+            declare: None,
         },
         Node::Split { target: x, tool: x },
     ];
@@ -440,7 +442,7 @@ fn a_union_and_a_set_members_replay_bit_identically() {
     );
     assert_eq!(loaded.edits.len(), edits.len());
     // And the surviving union is the two-member one the log states.
-    let Some(Node::Union { members }) = loaded.doc.node(u) else {
+    let Some(Node::Union { members, .. }) = loaded.doc.node(u) else {
         panic!("the union survived as something else")
     };
     assert_eq!(members, &vec![boxes[2], boxes[0]]);
@@ -520,6 +522,7 @@ fn two_placements_of_one_prototype_are_two_members() {
         doc,
         Node::Union {
             members: vec![left, right],
+            declare: None,
         },
     );
     let ev = run(&doc);
@@ -591,7 +594,7 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
         .copied()
         .find(|id| matches!(doc.node(*id), Some(Node::Union { .. })))
         .expect("the die fuses its pips with one union");
-    let Some(Node::Union { members }) = doc.node(union) else {
+    let Some(Node::Union { members, .. }) = doc.node(union) else {
         panic!("the union is a union")
     };
     let members = members.clone();
@@ -732,7 +735,7 @@ fn the_dies_union_is_the_chain_it_replaced() {
         .copied()
         .find(|id| matches!(doc.node(*id), Some(Node::Union { .. })))
         .expect("the die fuses its pips with one union");
-    let Some(Node::Union { members }) = doc.node(union) else {
+    let Some(Node::Union { members, .. }) = doc.node(union) else {
         panic!("the union is a union")
     };
     let members = members.clone();
@@ -910,11 +913,9 @@ fn failure(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<String> {
 /// PAIR spelling of that same contact refuses identically, which is
 /// what says the fold added no refusal, only a name space.
 ///
-/// A union carries no `declare` edge, so the recourse for a caller
-/// whose members touch is to spell that pair as a `Node::Boolean`
-/// union, where the `Declare` input lives; whether the n-ary node
-/// should have a declaration channel of its own is filed as
-/// `work/docm/n-ary-union-has-no-declaration-channel`.
+/// The recourse a caller whose members touch has is this node's own
+/// `declare` input, whose pairs name entities in exactly the space
+/// this refusal names them in (`docm7_union_declare`).
 #[test]
 fn a_refusal_at_a_later_fold_step_names_member_space_entities() {
     let doc = ProfileDoc::empty_derived("docm3_union_menu", Tol::witness());
@@ -925,6 +926,7 @@ fn a_refusal_at_a_later_fold_step_names_member_space_entities() {
         doc,
         Node::Union {
             members: vec![a, b, d],
+            declare: None,
         },
     );
     let (doc, pair) = insert(
@@ -1158,12 +1160,14 @@ fn set_members_keeps_root_order_and_appends_orphans_last() {
         doc,
         Node::Union {
             members: vec![a, b],
+            declare: None,
         },
     );
     let (doc, second) = insert(
         doc,
         Node::Union {
             members: vec![c, d],
+            declare: None,
         },
     );
     assert_eq!(
