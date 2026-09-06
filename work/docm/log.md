@@ -372,3 +372,24 @@ DOCM-7 = OPUS; branch `docm/7-union-declare`; record branch-side on
 `docm/b3-block`. Disjoint files (the assembly seam against the union's
 fold and naming); each lane's brief names the other's fence. Both
 lanes running.
+
+## DOCM-7 dual review dispatched (2026-09-06, PR 2028 frozen at 723c0f9f)
+
+The lane reported the PR non-draft and green across the full matrix at
+`723c0f9f` (19 files, +1316/−95; one earlier red Python leg fixed and
+pushed). No stop clause; eight measured deviations reported, among
+them: the pair boolean cannot declare between two placements of one
+prototype (`DeclareBothOperands`), so A1's `bit_eq` half moved to two
+distinct blocks; a declared merge is asymmetric in the operand roles
+(A2's reordered-list `bit_eq` is false — the pair verb's, inherited);
+the edit-door check for a non-`Declare` on a `declare` edge did not
+exist and was built for both nodes; the member count is fed to the
+key. Findings for placement at merge: a union's declaration is
+authorable only in two passes (a `Declare` in the union's own space
+cannot precede the union — a seat or an attach edit fixes it); DM4's
+"the result is not the order's" is narrower than it reads. Ordinal
+1805 claimed on main at dispatch; parity byte 165 ⇒ R1 = FABLE, R2 =
+OPUS; briefs hashed and diff-identical modulo lane names; private
+build and scratch directories per lane. Both lanes running. The box's
+disk hit 100% during the lane's run; the finished lanes' build
+directories are freed.
