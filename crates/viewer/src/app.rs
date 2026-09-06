@@ -410,11 +410,23 @@ pub struct ViewerApp {
     /// the next event about that subject can retire it
     /// (`frame::Subject`).
     status: Option<frame::Message>,
-    /// **What THIS frame has to say that is not a refusal** — the open
-    /// tool's declined picks and survival drops, and the display state
-    /// the frame's own operations withdrew (the free-move placements
-    /// superseded and the hides dropped) — collected as they happen
-    /// and applied with the batch verdict rather than before it.
+    /// **Everything THIS frame has to say**, collected as it happens
+    /// and ranked with the batch verdict rather than before it. It was
+    /// the open tool's declined picks and survival drops plus the
+    /// display state the frame's own operations withdrew; the sweep
+    /// that routed every writer through the ranking made it the whole
+    /// list, refusals included — the δ the display budget declined,
+    /// the preferences store that would not write, the δ field's
+    /// unparseable text, ten tool refusals from the create pane, the
+    /// pick refusal, the unindexed-click refusal, the two picking
+    /// paths' disagreement, and a camera fold's refusal through
+    /// [`frame::deliver`].
+    ///
+    /// A refusal is not a special case here and never was: what makes
+    /// it belong is that it HAPPENED on this frame, which is the whole
+    /// test. What it is not is a RETIREMENT — nothing on this list
+    /// takes a sentence away — which is why [`ViewerApp::status`]
+    /// survives beside it.
     ///
     /// They cannot be written straight to [`ViewerApp::status`] —
     /// `frame::frame_status` carries that argument, and it is the one
@@ -822,7 +834,7 @@ impl ViewerApp {
                 self.budget_delta = None;
                 self.sync_scene();
             }
-            Err(error) => self.status = Some(frame::delta_refusal(&error)),
+            Err(error) => self.notices.push(frame::delta_refusal(&error)),
         }
     }
 
@@ -999,20 +1011,58 @@ impl ViewerApp {
             keys: self.keys_pref.clone(),
         };
         if let Err(error) = self.store.save(&prefs.to_toml()) {
-            self.status = Some(frame::store_refusal(&error));
+            self.notices.push(frame::store_refusal(&error));
         }
     }
 
-    /// This application's door onto [`frame::apply`]: the batch policy
-    /// and the dialog policy hand their verdict here rather than
-    /// assigning the field.
+    /// This application's door onto [`frame::apply`], for the verdict
+    /// the ranking has ALREADY WEIGHED: `perform_batch` hands
+    /// `frame::frame_status`'s answer here rather than assigning the
+    /// field. Its one live caller, and deliberately so — a `Show` that
+    /// has been through the ranking must reach the field, and handing
+    /// it to [`ViewerApp::deliver_status`] instead would loop it back
+    /// onto `notices` to be ranked a second time.
     ///
     /// **Not the one place a [`StatusUpdate`] becomes the field** —
-    /// that is `frame::apply`, and `pane::viewport::land` reaches it
-    /// directly, having a `&mut Option<String>` and no `&mut self` to
-    /// come through. This is the `&mut self` shorthand, nothing more.
+    /// that is `frame::apply`, which `pane::viewport` reaches directly
+    /// at both of its doors: `land` through [`frame::deliver`], and the
+    /// cursor's retirement through `frame::apply` itself. Neither has a
+    /// `&mut self` to come through; both take the `&mut
+    /// Option<frame::Message>` this is shorthand for. This is the
+    /// `&mut self` shorthand, nothing more.
     fn apply_status(&mut self, update: StatusUpdate) {
         frame::apply(&mut self.status, update);
+    }
+
+    /// The `&mut self` shorthand onto [`frame::deliver`], for a policy
+    /// whose verdict has NOT been through the ranking.
+    ///
+    /// [`ViewerApp::apply_status`] is for the ranked verdict — what
+    /// [`frame::frame_status`] already weighed — and applying an
+    /// unranked `Show` there is the defect this door exists to stop: a
+    /// sentence written straight to the field on a frame whose batch
+    /// then clears it, before the toolbar that would have painted it
+    /// runs again.
+    ///
+    /// **No `Show` reaches this today, at either call site.** Both are
+    /// `frame::dialog_status`, and its `Show` arm is
+    /// `(chose: false, usable: false)` while the Open… and Save As…
+    /// buttons are `add_enabled(chooser.usable(), …)` over one copy of
+    /// `self.chooser` — so a click implies usable and every reachable
+    /// verdict here is `Keep`. The arm is latent, not dead: it is the
+    /// belt to that disabling's braces, and `frame::chooser_backend`
+    /// can only be confident about `Absent`.
+    ///
+    /// **The door is still the right one, and that is the point of
+    /// saying the traffic is empty.** The alternative is
+    /// `apply_status`, which is correct for exactly as long as the
+    /// guard above holds — and the day the guard is loosened, or a
+    /// second policy with a `Show` arm is routed here, the defect
+    /// comes back at a diff where nothing looks wrong. Insurance whose
+    /// premium is one call is not worth removing because the claim has
+    /// not been made.
+    fn deliver_status(&mut self, update: StatusUpdate) {
+        frame::deliver(&mut self.notices, &mut self.status, update);
     }
 
     /// **The advisory-check findings, in a window a reader can keep
@@ -1164,7 +1214,7 @@ impl eframe::App for ViewerApp {
                         if let Some(path) = path {
                             ops.push(SessionOp::Open(path));
                         }
-                        self.apply_status(update);
+                        self.deliver_status(update);
                     }
                 }
                 if ui
@@ -1181,7 +1231,7 @@ impl eframe::App for ViewerApp {
                         if let Some(path) = path {
                             ops.push(SessionOp::Save(path));
                         }
-                        self.apply_status(update);
+                        self.deliver_status(update);
                     }
                 }
                 ui.separator();
@@ -1425,6 +1475,7 @@ impl eframe::App for ViewerApp {
                     profile_form_drawn: &mut profile_form_drawn,
                     pending_fit: &mut self.pending_fit,
                     projection_fault: &mut self.projection_fault,
+                    notices: &mut self.notices,
                     status: &mut self.status,
                     id_answer: &self.id_answer,
                     id_log: &mut self.id_log,
@@ -1543,6 +1594,23 @@ pub(crate) struct ViewerBehavior<'a> {
     /// had already painted past and the next accepted act would
     /// sweep.
     pub(crate) projection_fault: &'a mut Option<CameraError>,
+    /// **What this frame's panes have to SAY**, joined and ranked by
+    /// [`frame::frame_status`] with everything else the frame
+    /// produced. A pane that assigned `status` instead had no way to
+    /// say "I have nothing to add", and its sentence was erased by the
+    /// batch this frame accepted before it was ever painted —
+    /// `perform_batch` runs after the panes have drawn.
+    pub(crate) notices: &'a mut Vec<frame::Message>,
+    /// The line itself, for the one thing a notice cannot do: RETIRE a
+    /// sentence. `frame::cursor_status` and a clean camera fold expire
+    /// what they last said and add nothing, so both reach the field
+    /// directly — by different doors, because the two policies are not
+    /// the same shape. `cursor_status` answers only `Keep` or `Expire`,
+    /// so it can never have news and goes straight through
+    /// `frame::apply` (`pane::viewport`, the id pass). `fold_status`
+    /// can answer either way, so `land` hands it to
+    /// [`frame::deliver`], which routes the refusal to `notices` above
+    /// and the clean fold's retirement here.
     pub(crate) status: &'a mut Option<frame::Message>,
     pub(crate) id_answer: &'a Arc<AtomicU64>,
     pub(crate) id_log: &'a mut IdQueryLog,

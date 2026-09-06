@@ -151,3 +151,65 @@ input, planted with a 1.5 MB view. Reported from it, `lib.sh`'s ground:
 `gate_selftest_with_broken_tool` plants only the clean tree (a reader
 failure path is unreachable from any selftest), and a stubbed `awk`
 exits the gate with status 9 and no output — D109's class.
+
+## Fourth wave dispatched (2026-09-06)
+
+With PR 2030 merged and `bit-identity-debug-only.sh` free:
+`gates/debug-only-subjects-2` (`debug-only-helpers-outside-the-subject-list`
+— a per-helper decision on the five mesh and topo candidates, rows for
+the ones that want a source-shape pin). Behind PR 2038 (`lib.sh`):
+`D211`, `test-module-resolution-has-three-homes`,
+`window-view-emits-a-record-for-a-comment-only-line`,
+`viewer-module-kinds-six-unreached-guards`. Behind PR 2042
+(`bounds-allowlist.sh`): `D102`, `S13`,
+`anchored-exact-text-skip-has-three-homes`.
+
+## D103 landed (2026-09-06)
+
+PR 2042, `gates/d103-pinned-counts`, one style review
+(MERGEABLE-WITH-FIXES, fix pass landed). Every `bounds-allowlist.sh`
+entry is `PATH COUNT RULING`, one literal path per file (the
+alternation regexes expanded; exclusion set proved identical over a
+451-path universe), the count re-derived every run as compound-bound
+OCCURRENCES per record — the review showed a record pin took a second
+bound on the same line for free — and red in either direction with the
+entry's ruling named; malformed entries (no ruling, a non-integer or
+duplicate, a path with a space) refused before any scan. Live: 26 files,
+163 records, 183 occurrences, survivors 0 both sides. The
+`separation.rs` pin of four is stated as three by the M5 PR 8 ruling
+plus one resting on `SolidSeparation`'s own doc and owing a ledger row
+— filed on PROPS as
+`separation-of-fourth-compound-bound-rides-the-module-admission`. The
+same-count substitution stays KNOWN GAP 6, a stated cost. Filed from
+the review: `pinned-count-re-derived-each-run-has-three-spellings`
+(`viewer-module-kinds.sh`'s `FILE|NEEDLE|COUNT`, `reader_census.rs`'s
+`UNCONVERTED_TODAY`, and `interval-square-allowlist.sh`'s allowlist
+with no pin at all). 38 cases.
+
+## D109 landed (2026-09-06)
+
+PR 2038, `gates/d109-reader-blind-spots`, one style review
+(MERGEABLE-WITH-FIXES with one MAJOR, fix pass landed). The shared
+reader gained the `code_and_literals` view (`--keep-literals`) and
+`probe-suite-census.sh` moved onto it off its column-zero anchor;
+nested block comments are lexed with a depth counter that is a state
+across lines (the review's MAJOR: the first cut counted an inner
+opener only when its closer sat on the same line); the reader's other
+blind spots are stated with their direction — `macro_rules!` and
+`include!` bodies, non-`test` `#[cfg]`, an unterminated `/*` at end of
+file, an awk that truncates with exit 0; an awk that dies is a loud
+red, and the broken-tool selftest can now plant a tree so a reader
+failure is reachable. Twelve `gate_error` sites were unreached at the
+merge base (the row said six of 82; the lane measured 12 of 105 with
+message-fragment scoring, since `BASH_LINENO` inside a command
+substitution names the enclosing call): six planted in the two roster
+gates, six in `viewer-module-kinds.sh` filed as
+`viewer-module-kinds-six-unreached-guards`. Byte identity of every view
+over every source file, before and after, under two awk
+implementations. Cost: the census real pass 0.29 → 2.2 s and its modes
+similarly, no job carrying a timeout. The nesting fix falsified PR
+2030's desync fixture (a stray `(` planted inside a nested comment) —
+the Q4 shape — so the desync arms are now proved by planting the stray
+bracket as code, and `panic-free-macro-bodies.sh`'s claim that a brace
+inside a nested comment reaches its tracker was corrected. Filed from
+it: `window-view-emits-a-record-for-a-comment-only-line`.
