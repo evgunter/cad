@@ -613,6 +613,11 @@ impl crate::spline::SpanLocate for Interval {
 /// subdivision — the violating sub-box shrinks away — while a NaI
 /// `Invalid` never cures.
 impl Decide for Interval {
+    fn enclosure_probe(self) -> Option<(f64, f64)> {
+        use crate::real::CertifiedEnclosure as _;
+        self.certified_bracket()
+    }
+
     fn sign_within(self, band: Band) -> Result<Sign, Indeterminate> {
         if !self.is_certified() {
             return Err(Indeterminate {

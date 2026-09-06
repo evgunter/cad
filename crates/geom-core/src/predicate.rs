@@ -822,6 +822,14 @@ pub trait Decide: SpanLocate {
     /// band; callers attach their predicate name via
     /// [`Indeterminate::with_predicate`].
     fn sign_within(self, band: Band) -> Result<Sign, Indeterminate>;
+
+    /// R2 PROBE INSTRUMENT (branch m10/m10-9-r2-probes only, never for
+    /// merge): the certified enclosure this value would be classified
+    /// on, for the shape report's tail table. `None` at every scalar
+    /// that has no enclosure.
+    fn enclosure_probe(self) -> Option<(f64, f64)> {
+        None
+    }
 }
 
 /// `f64` classification: |m| ≤ `zero` ⇒ `Zero`; |m| ≥ `escalate` ⇒ the

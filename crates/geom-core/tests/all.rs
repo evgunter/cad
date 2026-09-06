@@ -182,3 +182,6 @@ mod m10_8_r2_sym_probes;
 
 #[path = "m10_9_r1_sym_probes.rs"]
 mod m10_9_r1_sym_probes;
+
+#[path = "m10_9_r2_sym_probes.rs"]
+mod m10_9_r2_sym_probes;

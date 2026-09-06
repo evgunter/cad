@@ -3082,7 +3082,7 @@ impl<T: Decide> Decide for Sym<T> {
                 "the numeric channel proved this margin nonzero and the form says it is                  identically zero: the two channels contradict each other"
             );
             count_decision(None);
-            report::record(&numeric, None, None);
+            report::record(&numeric, None, None, self.value.enclosure_probe());
             return numeric;
         }
         let symbolic = if domain_violation {
@@ -3101,7 +3101,7 @@ impl<T: Decide> Decide for Sym<T> {
                     Discharge::Registered => crate::k_stats::SampleOutcome::Registered,
                 },
             );
-            report::record(&numeric, Some(how), None);
+            report::record(&numeric, Some(how), None, self.value.enclosure_probe());
             return Ok(Sign::Zero);
         }
         // The shape report wants the residual that BLOCKED — rendered
@@ -3109,7 +3109,7 @@ impl<T: Decide> Decide for Sym<T> {
         // never pays for it.
         if report::active() {
             let text = report::render_node(self.node);
-            report::record(&numeric, None, text);
+            report::record(&numeric, None, text, self.value.enclosure_probe());
         }
         numeric
     }
