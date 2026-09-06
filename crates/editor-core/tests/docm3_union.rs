@@ -913,11 +913,9 @@ fn failure(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<String> {
 /// PAIR spelling of that same contact refuses identically, which is
 /// what says the fold added no refusal, only a name space.
 ///
-/// A union carries no `declare` edge, so the recourse for a caller
-/// whose members touch is to spell that pair as a `Node::Boolean`
-/// union, where the `Declare` input lives; whether the n-ary node
-/// should have a declaration channel of its own is filed as
-/// `work/docm/n-ary-union-has-no-declaration-channel`.
+/// The recourse a caller whose members touch has is this node's own
+/// `declare` input, whose pairs name entities in exactly the space
+/// this refusal names them in (`docm7_union_declare`).
 #[test]
 fn a_refusal_at_a_later_fold_step_names_member_space_entities() {
     let doc = ProfileDoc::empty_derived("docm3_union_menu", Tol::witness());
