@@ -30,7 +30,7 @@
 
 use geom::Surface;
 use geom_brep::newell_plane;
-use geom_core::{Band, Bounds, Interval, Point3, Real, Tol, Vec3};
+use geom_core::{Band, Bounds, Interval, Point3, Real, Tol};
 
 /// THE CORPUS, written down: M10-5's dumbbell — a 12-gon whose prism
 /// walls run every wall orientation the rule can meet (`n.x = 0`,
@@ -56,11 +56,6 @@ const DUMBBELL: [(f64, f64); 12] = [
 const HEIGHT: f64 = 2.0;
 const WINDOW: (f64, f64) = (0.0, 1.0);
 const EPS_WINDOW: (f64, f64) = (0.0, 1e-9);
-
-/// The frame is a point enclosure to within this — the walls are
-/// axis-aligned or exactly diagonal, so the true widths are 0 and this
-/// is headroom, not a tolerance anything is tuned to.
-const EXACT: f64 = 1e-15;
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
