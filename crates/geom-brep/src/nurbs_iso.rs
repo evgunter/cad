@@ -1,5 +1,5 @@
-//! **Boundary iso-curve extraction** for tensor-product NURBS
-//! surfaces (M6-3, the loft/sweep assembly's seam substrate).
+//! **Iso-curve extraction** for tensor-product NURBS surfaces (M6-3,
+//! the loft/sweep assembly's seam substrate).
 //!
 //! A *clamped* surface's boundary iso-curves are **rows of its own
 //! control net, verbatim**: `S(0, v)` is the spline over `knots_v`
@@ -10,11 +10,13 @@
 //! extracted curve is exact structure (C6), not an approximation, and
 //! two walls that share a control row share the curve bit for bit.
 //!
-//! Interior iso-curves (`u = c`, `0 < c < 1`) need a de Boor collapse
-//! and are deliberately NOT here: nothing in the loft assembly mints
-//! one (walls meet at their u-boundaries by construction), and an
-//! unconsumed general extractor would be untested machinery. The
-//! function that first needs it brings it.
+//! An INTERIOR iso-curve `u = u*` is the **de Boor collapse** of the
+//! net at `u*` ([`interior_iso_u`]): the same curve in the same `v`
+//! space, whose control polygon is a convex combination of the net's
+//! u-rows rather than one of them. It is exact in ℝ and computed at
+//! the caller's scalar, so at the interval scalar each control point
+//! ENCLOSES the exact one — the collapse's rounding lives inside the
+//! enclosure the caller certifies, never in a separate term.
 //!
 //! # Why this lives in `geom-brep` and not beside the payloads
 //!
@@ -32,8 +34,9 @@
 use geom::NurbsCurve3;
 use geom::NurbsSurface;
 use geom_core::k_stats::decide;
-use geom_core::spline::SplineError;
-use geom_core::{Band, Decide, Indeterminate, Margin, Real, Sign};
+use geom_core::spline::basis::basis_funs;
+use geom_core::spline::{SpanLocate, SplineError};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign};
 
 /// The `u = 0` (`end = false`) or `u = 1` (`end = true`) boundary
 /// iso-curve of a clamped surface: the first/last u-row of the control
@@ -77,13 +80,130 @@ pub fn boundary_iso_v<T: Real>(
     NurbsCurve3::new(s.knots_u().clone(), control, weights)
 }
 
-/// Why [`iso_boundary_row`] could not hand back a row.
+/// **The interior iso-curve `u = u*` of a clamped surface, by de Boor
+/// collapse** — the curve `S(u*, ·)` in the surface's own `v` spline
+/// space (`knots_v`, degree `q`), with control polygon
+///
+/// ```text
+/// Q_j = Σᵢ λᵢ(j)·P_ij,   λᵢ(j) = Nᵢ(u*)·wᵢⱼ / Σₖ Nₖ(u*)·wₖⱼ
+/// ```
+///
+/// (a convex combination of the net's u-rows at each `j`) and the
+/// weights `W_j = Σᵢ Nᵢ(u*)·wᵢⱼ`. Exact in ℝ: it is the row that
+/// inserting `u*` to multiplicity `p` would expose as a control-net
+/// copy, which is why [`boundary_iso_u`] (multiplicity already `p+1`)
+/// is a copy with no arithmetic.
+///
+/// **Weights are structure (C6), so the row's weight vector must be
+/// structure too.** A carrier compared against this row in the same
+/// rational space needs `W` as stored `f64`s, which holds exactly when
+/// the net's weights factor in a way an exact `f64` test can see:
+///
+/// - **constant along `u`** (`wᵢⱼ == w₀ⱼ` for every `i`, bitwise):
+///   `W_j = w₀ⱼ` in ℝ and `λᵢ = Nᵢ(u*) / Σₖ Nₖ(u*)`; the row carries
+///   row 0's weights;
+/// - **constant along `v`** (`wᵢⱼ == wᵢ₀` for every `j`, bitwise):
+///   `W_j` is the same number at every `j` and cancels, so the curve
+///   is the polynomial `Σⱼ Nⱼ(v)·Q_j` with
+///   `λᵢ = Nᵢ(u*)·wᵢ₀ / Σₖ Nₖ(u*)·wₖ₀`; the row carries weights `1.0`
+///   (every arc-profile loft/sweep wall and every imported cylinder
+///   wall is this case).
+///
+/// A polynomial net is both at once; any other net refuses
+/// [`IsoRowError::WeightsNotSeparable`]. The tests are bitwise on
+/// stored structure, never a banded compare.
+///
+/// **At the interval scalar** `u*` may straddle a knot: every span it
+/// overlaps is collapsed on its own polynomial and the rows are hulled
+/// per coordinate ([`SpanLocate::enclosure_hull`], the evaluator's own
+/// idiom), so each `Q_j` encloses the exact one. Total on the
+/// arithmetic — a poisoned `u*` poisons the row (D4) — and
+/// comparison-free on `T`: the only comparisons are the weight tests
+/// on `f64` structure and the sealed locator.
+///
+/// # Errors
+///
+/// [`IsoRowError::WeightsNotSeparable`] for a net that factors neither
+/// way; [`IsoRowError::Structure`] if the row is not valid spline
+/// structure — unreachable for a surface that already validated,
+/// surfaced rather than swallowed (D4 ¶2).
+pub fn interior_iso_u<T: SpanLocate>(
+    s: &NurbsSurface<T>,
+    u: T,
+) -> Result<NurbsCurve3<T>, IsoRowError<T>> {
+    let (nu, nv) = s.control_counts();
+    let w = s.weights();
+    let along_u_constant = (0..nu).all(|i| (0..nv).all(|j| w[i * nv + j] == w[j]));
+    let along_v_constant = (0..nu).all(|i| (0..nv).all(|j| w[i * nv + j] == w[i * nv]));
+    // The per-row factor `ωᵢ` of `λᵢ ∝ Nᵢ(u*)·ωᵢ`, and the weights the
+    // row is wrapped with (module docs: the two separable cases).
+    let (omega, weights): (Vec<f64>, Vec<f64>) = if along_u_constant {
+        (vec![1.0; nu], w[..nv].to_vec())
+    } else if along_v_constant {
+        ((0..nu).map(|i| w[i * nv]).collect(), vec![1.0; nv])
+    } else {
+        return Err(IsoRowError::WeightsNotSeparable {
+            control_counts: (nu, nv),
+        });
+    };
+    let ku = s.knots_u();
+    let spans = u.locate_spans(ku);
+    let mut hulled: Option<Vec<Point3<T>>> = None;
+    for index in spans.first.index()..=spans.last.index() {
+        // The locator's range may cross an EMPTY span (interior knot
+        // multiplicity); the evaluators skip those the same way.
+        let Some(span) = ku.span(index) else {
+            continue;
+        };
+        let n = basis_funs(ku, span, u);
+        let base = span.first_control();
+        let row: Vec<Point3<T>> = (0..nv)
+            .map(|j| {
+                let (mut x, mut y, mut z, mut den) = (T::zero(), T::zero(), T::zero(), T::zero());
+                for (r, nr) in n.iter().enumerate() {
+                    let i = base + r;
+                    let lam = *nr * T::from_f64(omega[i]);
+                    let p = s.control()[i * nv + j];
+                    x = x + lam * p.x;
+                    y = y + lam * p.y;
+                    z = z + lam * p.z;
+                    den = den + lam;
+                }
+                Point3::new(x / den, y / den, z / den)
+            })
+            .collect();
+        hulled = Some(match hulled {
+            None => row,
+            Some(acc) => acc
+                .iter()
+                .zip(&row)
+                .map(|(a, b)| {
+                    Point3::new(
+                        a.x.enclosure_hull(b.x),
+                        a.y.enclosure_hull(b.y),
+                        a.z.enclosure_hull(b.z),
+                    )
+                })
+                .collect(),
+        });
+    }
+    // The locator's range is inclusive and its ends are validated
+    // spans, so at least one iteration produced a row.
+    let Some(control) = hulled else {
+        unreachable!("locate_spans returned no nonempty span")
+    };
+    NurbsCurve3::new(s.knots_v().clone(), control, weights)
+        .map_err(|source| IsoRowError::Structure { source })
+}
+
+/// Why [`iso_boundary_row`] or [`interior_iso_u`] could not hand back
+/// a row.
 #[derive(Clone, Debug)]
 pub enum IsoRowError<T: Real> {
-    /// `u` is not either end of the surface's own `u` domain. Interior
-    /// iso-curves need a de Boor collapse, which this module does not
-    /// build (module docs: the function that first needs one brings
-    /// it).
+    /// `u` is not either end of the surface's own `u` domain, so there
+    /// is no domain-end float to re-state the description at
+    /// ([`iso_boundary_row`]'s contract; the collapse itself is
+    /// [`interior_iso_u`]).
     Interior {
         /// The `u` asked for, echoed as data.
         u: T,
@@ -102,6 +222,14 @@ pub enum IsoRowError<T: Real> {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
+    /// The weight net varies along BOTH parameters, so the collapsed
+    /// row's weights `W_j = Σᵢ Nᵢ(u*)·wᵢⱼ` are computed, not structure:
+    /// no stored carrier can share the row's rational space, which is
+    /// the seam class's whole hypothesis ([`interior_iso_u`]).
+    WeightsNotSeparable {
+        /// The net's `(nu, nv)` control counts.
+        control_counts: (usize, usize),
+    },
 }
 
 impl<T: Real> core::fmt::Display for IsoRowError<T> {
@@ -109,7 +237,8 @@ impl<T: Real> core::fmt::Display for IsoRowError<T> {
         match self {
             Self::Interior { u, domain } => write!(
                 f,
-                "iso_boundary_row: u = {u:?} is interior to the chart's u domain {domain:?} —                  only the boundary rows extract, and an interior iso-curve needs a de Boor                  collapse this module does not build"
+                "iso_boundary_row: u = {u:?} is interior to the chart's u domain {domain:?} — \
+                 only a boundary row has a domain-end float to re-state the description at"
             ),
             Self::Structure { source } => {
                 write!(
@@ -118,6 +247,12 @@ impl<T: Real> core::fmt::Display for IsoRowError<T> {
                 )
             }
             Self::Escalated { source } => write!(f, "iso_boundary_row escalated: {source}"),
+            Self::WeightsNotSeparable { control_counts } => write!(
+                f,
+                "interior_iso_u: the {control_counts:?} weight net varies along both u and v, \
+                 so the collapsed row's weights are computed rather than structure and no \
+                 carrier can share its rational space"
+            ),
         }
     }
 }
@@ -238,6 +373,81 @@ mod tests {
         assert!(
             matches!(e, IsoRowError::Interior { u, domain } if u == mid && domain == (u0, u1)),
             "expected the interior refusal echoing the ask, got {e}"
+        );
+    }
+
+    /// The collapse IS `S(u*, ·)`: on the 3×2 fixture, at a mid-span
+    /// `u*` and at the interior knot, the extracted curve matches dense
+    /// evaluation; at a domain end it is the boundary row bit for bit.
+    #[test]
+    fn interior_iso_matches_surface_evaluation() {
+        let s = surface();
+        for u in [0.25, 0.5, 0.8] {
+            let c = interior_iso_u(&s, u).unwrap();
+            assert_eq!(c.knots().knots(), s.knots_v().knots());
+            for i in 0..=8 {
+                let t = f64::from(i) / 8.0;
+                assert!(
+                    c.eval(t).distance(s.eval(u, t)) < 1e-15,
+                    "u* = {u}, v = {t}"
+                );
+            }
+        }
+        let end = interior_iso_u(&s, 1.0).unwrap();
+        let copy = boundary_iso_u(&s, true).unwrap();
+        assert!(
+            end.control()
+                .iter()
+                .zip(copy.control())
+                .all(|(a, b)| a.distance(*b) == 0.0),
+            "at a domain end the collapse is the boundary row's copy"
+        );
+    }
+
+    /// A rational net whose weights vary along `u` only (a quarter
+    /// circle swept in `v`): the collapse carries the weights through
+    /// `λ`, the row is wrapped polynomial, and a net varying both ways
+    /// refuses typed.
+    #[test]
+    fn interior_iso_rational_cases() {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::unit_segment(1);
+        let h = core::f64::consts::FRAC_1_SQRT_2;
+        let mut control = Vec::new();
+        let mut weights = Vec::new();
+        for (x, y, w) in [(1.0, 0.0, 1.0), (1.0, 1.0, h), (0.0, 1.0, 1.0)] {
+            for z in [0.0, 2.0] {
+                control.push(Point3::new(x, y, z));
+                weights.push(w);
+            }
+        }
+        let s = NurbsSurface::<f64>::new(ku.clone(), kv.clone(), control.clone(), weights.clone())
+            .unwrap();
+        let c = interior_iso_u(&s, 0.3).unwrap();
+        assert!(
+            c.weights().iter().all(|w| *w == 1.0),
+            "case (b) wraps polynomial"
+        );
+        for i in 0..=4 {
+            let t = f64::from(i) / 4.0;
+            let p = c.eval(t);
+            assert!(p.distance(s.eval(0.3, t)) < 1e-14);
+            assert!(
+                (p.x.hypot(p.y) - 1.0).abs() < 1e-14,
+                "on the cylinder: {p:?}"
+            );
+        }
+        weights[3] = 0.9;
+        let s = NurbsSurface::<f64>::new(ku, kv, control, weights).unwrap();
+        let e = interior_iso_u(&s, 0.3).expect_err("a net varying both ways has no shared space");
+        assert!(
+            matches!(
+                e,
+                IsoRowError::WeightsNotSeparable {
+                    control_counts: (3, 2)
+                }
+            ),
+            "{e}"
         );
     }
 
