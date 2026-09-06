@@ -4,7 +4,6 @@ kind: issue
 title: pncad-py's run_checks and assemble each gather the product, so a Python caller asking both pays twice
 status: open
 opened: 2026-09-04
-needs_ev: true
 ---
 
 
@@ -107,3 +106,17 @@ the recommendation first:
 Recommendation: (4), measured; (1) as the fallback. Either way the
 census's six `behind-a-door` entries for the gathered doors get a
 written reason that matches what ships.
+
+## Ruled (Ev, PR 2020, 2026-09-06): **(4) — a plain value the doors clone, measured; (1) if the clone is not cheap**
+
+Ev: "plain value doors clone sounds good". The tradeoffs (cost, surface,
+generality, staleness, faithfulness) are on the PR thread. The unit's
+first job is the measurement: the cost of cloning the product at the
+heat sink's 160-fin point against the ~250 ms gather it replaces; if
+the clone is not small the unit ships the combined door (1) instead and
+says so. Either way: `pncad.gather(doc, ev) -> Product` (or the
+combined door), `run_checks` / `assemble` accepting it, a typed refusal
+for a product that is not OF the evaluation given (the
+`EvaluationOfAnotherDocument` shape), a test pinning the gather count
+through `product::gathers_on_this_thread`, `pncad.pyi`, census re-cut of
+the six `behind-a-door` entries, stub test. Dispatchable as a LIB unit.
