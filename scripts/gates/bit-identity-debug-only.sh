@@ -21,6 +21,19 @@
 #     own gated `fn` heads name the channel nowhere. A ROW HOLDS THE
 #     ATTRIBUTES ON THE STATEMENTS THAT NAME ITS SPELLINGS AND NO
 #     OTHERS, so a mechanism's every spelling belongs on its row.
+#   * `crates/topo/src/boolean/plane_eq.rs` and
+#     `crates/topo/src/merge_faces.rs` — the witnesses' CALLERS, a row
+#     each, because A SUBJECT IS A FILE and the row above pins the
+#     attributes on the DEFINITIONS only. Each caller stands under a
+#     STATEMENT-POSITION attribute over an `if let`, and names the
+#     witnesses its own file calls: `plane_bits_witness` at the
+#     same-source plane assertion, and both `plane_bits_witness` and
+#     `vec3_bits_witness` where the face merge compares two plane
+#     surfaces with their `u_ref`. Dropping either attribute compiles
+#     and passes every test HERE — the workspace's `[profile.release]`
+#     keeps debug assertions on — and the first build that refuses it
+#     is a consumer's, because the witnesses do not exist without
+#     `debug_assertions`.
 #   * `crates/editor-core/src/product.rs` — the gather counter: the
 #     `GATHERS` cell, the increment in `product_recorded`, and
 #     `gathers_on_this_thread`. A fourth site without the attribute, or
@@ -231,6 +244,8 @@ set -euo pipefail
 # the total in silence.
 SUBJECTS=(
   'crates/topo/src/source.rs bit_identity::|eq_bits|plane_bits_witness|vec3_bits_witness|bits_witness 6 the bit channel'
+  'crates/topo/src/boolean/plane_eq.rs plane_bits_witness 1 the same-source plane witness on the bit channel'
+  'crates/topo/src/merge_faces.rs plane_bits_witness|vec3_bits_witness 2 the plane and u_ref witnesses on the bit channel'
   'crates/editor-core/src/product.rs GATHERS|gathers_on_this_thread 4 the debug-only gather counter'
   'crates/mesh/src/curved.rs identified_ids|overused_identified_edge|overused_identified_edge_in 5 the identified-vertex census the sphere/torus emit pass re-derives'
   'crates/mesh/src/tessellate.rs unpaired_chord_segment 2 the chord-segment pairing census'
