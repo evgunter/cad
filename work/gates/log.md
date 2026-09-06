@@ -302,3 +302,19 @@ three stale comments and a duplicated header sentence; the OK line's
 count wording. Out of fence, filed: three bracket-depth bound-list
 readers (`bounds-allowlist.sh`'s awk, `bounds_census.rs`, `test_utils`)
 none citing the others — `code-quality/bound-list-readers-have-three-homes`.
+
+## PR 2057 reviewed (2026-09-06)
+
+Style review of `viewer-module-kinds-six-unreached-guards`: mergeable.
+The reviewer reproduced the reading independently (instrumented
+`gate_error` with `BASH_SOURCE`/`BASH_LINENO`, all 18 self-tests, 113
+sites in 19 files): base unreached exactly the row's six, head zero;
+each of the six mutations reds on its own case only; live output
+byte-identical; fence clean. Style findings sent back as a fix pass,
+same class as the "check 7" message the PR corrected: the header's
+check numbering (`:22-28`) has never matched the banners; check 3's
+message quotes a README sentence ("exactly two drivers") that no
+longer exists; the moved guard's "only place it can be answered"
+overstates its constraint; the forbidden-path guard prevents a
+wrong-file red, not a vacuous pass, and its planter says vacuity;
+one ordering-dependent sentence in the fixture prose.
