@@ -2,12 +2,13 @@
 id: hosted-renderer-announces-itself-preview-only
 kind: issue
 title: hosted-render-guard — the canonical renderer announces itself as PREVIEW ONLY, do NOT commit what this pass draws
-status: review
+status: closed
 opened: 2026-08-19
 github: 630
 refs: [626]
 pr: 1739
 branch: ciw/hosted-render-sentence
+closed: 2026-09-06
 ---
 
 ## From GitHub issue 630
@@ -66,3 +67,12 @@ Filed from the SMELL-SCAN wave-1b lane; found while diagnosing a red on #626, no
 ## Home
 
 `work/issues/`: `demos/hosted-render-guard.sh` plus the three workflow files are S-QA's ground and S-QA is closed.
+
+## Closed 2026-09-06
+
+PR 1739. `demos/hosted-render-guard.sh:56` adds
+`CAD_RENDER_HOSTED_SENTENCE='i-am-the-hosted-renderer'` beside the local
+override sentence, and `require_hosted_render()` prints the message that
+matches the one it was given. The variable name is left as it was — the
+second of the two spellings Ev sanctioned on 2026-08-19 — with the header
+saying why it outlived its adjective.
