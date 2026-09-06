@@ -227,3 +227,15 @@ which predates MSOLVE-2's move of the count check to
 `check_reference`; the lane reads the tree as it is. Slate after it:
 the gate's `Vanished` below a pattern, the lever's extent (`[ev]`),
 the remap-inference record correction.
+
+## The lever's extent asked (2026-09-06)
+
+`mate-lever-needs-the-parts-extent` is next in line and is a schema
+question before it is a unit, so it goes to Ev as an `[ev]` PR with
+three shapes weighed — the extent authored beside the datum, the
+extent resolved from the mated part's own body, or E3's amendment
+revised to keep the session box at the mate site — and the second
+recommended: `InstantiatePart` is a leaf whose body is
+placement-independent, so its reach from the part-local origin is a
+function of pinned content and reaches the solve without a
+wire-format change. `needs_ev: true` on the item.
