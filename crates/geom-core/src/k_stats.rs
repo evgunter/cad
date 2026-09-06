@@ -235,13 +235,20 @@ static IDENTITY_PASS: std::sync::RwLock<String> = std::sync::RwLock::new(String:
 #[doc(hidden)]
 #[cfg(feature = "identity-pass-testing")]
 pub fn identity_pass_set(list: &str) {
-    *IDENTITY_PASS.write().expect("the identity-pass list") = list.to_owned();
+    // A poisoned lock is recovered rather than re-panicked: this is
+    // an evidence dial, and a test that panicked while holding it has
+    // already reported its own failure.
+    *IDENTITY_PASS
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = list.to_owned();
 }
 
 /// Whether the pass list names this predicate. Test-only.
 #[cfg(feature = "identity-pass-testing")]
 fn identity_pass(name: &str) -> bool {
-    let list = IDENTITY_PASS.read().expect("the identity-pass list");
+    let list = IDENTITY_PASS
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     !list.is_empty() && list.split(',').any(|n| n.trim() == name)
 }
 

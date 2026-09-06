@@ -2494,10 +2494,7 @@ fn discharge(id: SymId) -> Option<Discharge> {
         // channel — the conservative direction, and unreachable in a
         // shipped run because `signed_root` is dial-off
         // (`SymRules::shipped`). Pinned rather than assumed.
-        if rules.registered
-            && rules.early
-            && !sess.registry.is_empty()
-        {
+        if rules.registered && rules.early && !sess.registry.is_empty() {
             let d = door_form(sess, id);
             if d.is_zero() && !d.gated {
                 return Some(Discharge::Registered);

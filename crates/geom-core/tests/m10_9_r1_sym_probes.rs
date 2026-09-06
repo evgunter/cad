@@ -84,7 +84,11 @@ fn r1_a_coincidence_at_one_point_of_the_box_registers_and_decides_zero() {
 #[test]
 fn r1_a_geometric_lie_the_f64_witness_refuses_is_recorded_at_interval() {
     let f64_says = <f64 as Real>::register_equal(1.0, 1.001);
-    assert_eq!(f64_says, SymRegistration::Contradicted, "at a point: caught");
+    assert_eq!(
+        f64_says,
+        SymRegistration::Contradicted,
+        "at a point: caught"
+    );
     let (out, counts) = with_session_rules(budget(), SymRules::shipped(), || {
         // ‖v‖ over a box, against a radius parameter 0.1% too large.
         let (vx, vy) = (pi("vx", 2.97, 3.03), pi("vy", 3.96, 4.04));

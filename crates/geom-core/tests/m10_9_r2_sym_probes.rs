@@ -19,7 +19,12 @@
 //! `geom_core::sym::report` (the enclosure column).
 
 #![cfg(feature = "interval")]
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::float_cmp)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::float_cmp
+)]
 
 use geom_core::interval::Interval;
 use geom_core::predicate::{Band, Sign};
@@ -111,11 +116,7 @@ fn r2_the_interval_witness_lets_a_geometric_lie_through_over_a_wide_box() {
         (x + lit(0.5)).register_equal(x)
     })
     .0;
-    assert_eq!(
-        narrow,
-        SymRegistration::Contradicted,
-        "narrow box: refused"
-    );
+    assert_eq!(narrow, SymRegistration::Contradicted, "narrow box: refused");
     let ((wide, decided), counts) = shipped(|| {
         let x = p("x", 0.0, 1.0);
         let y = p("y", -1.0, 1.0);
@@ -149,10 +150,7 @@ fn r2_the_interval_witness_lets_a_geometric_lie_through_over_a_wide_box() {
 fn r2_the_numeric_shield_does_not_reach_a_dependency_widened_lie() {
     let (decided, counts) = shipped(|| {
         let x = p("x", 0.0, 1.0);
-        assert_eq!(
-            (x + lit(0.5)).register_equal(x),
-            SymRegistration::Recorded
-        );
+        assert_eq!((x + lit(0.5)).register_equal(x), SymRegistration::Recorded);
         sign_of(x - (x + lit(0.5)))
     });
     assert_eq!(
@@ -165,21 +163,23 @@ fn r2_the_numeric_shield_does_not_reach_a_dependency_widened_lie() {
 
 // ------------------------------------------- claim 9: the theorems
 
+/// What [`sagitta`] answers: `(‖a − c‖, radius, a − c, c)`.
+type Sagitta = (
+    Sym<Interval>,
+    Sym<Interval>,
+    [Sym<Interval>; 2],
+    [Sym<Interval>; 2],
+);
+
 /// The sagitta construction as `profile::seg` spells it, at the lane
-/// scalar over a box: chord `a → b`, bulge `bulge`; answers
-/// `(‖a − c‖, radius, a − c, c)`.
+/// scalar over a box: chord `a → b`, bulge `bulge`.
 fn sagitta(
     ax: Sym<Interval>,
     ay: Sym<Interval>,
     bx: Sym<Interval>,
     by: Sym<Interval>,
     bulge: Sym<Interval>,
-) -> (
-    Sym<Interval>,
-    Sym<Interval>,
-    [Sym<Interval>; 2],
-    [Sym<Interval>; 2],
-) {
+) -> Sagitta {
     let half = lit(0.5);
     let (dx, dy) = (bx - ax, by - ay);
     let len = (dx * dx + dy * dy).sqrt();
@@ -216,7 +216,10 @@ fn r2_the_rim_identity_holds_at_the_semicircle_the_major_arc_and_a_clockwise_tur
             // records nothing — the safe direction, and a fact worth
             // knowing: the door is inert on a leaf too wide to certify.)
             let (ax, ay) = (p("ax", 0.0, 1e-7), p("ay", 0.0, 1e-7));
-            let (bx, by) = (p("bx", 4.0e-3, 4.0e-3 + 1e-7), p("by", 3.0e-3, 3.0e-3 + 1e-7));
+            let (bx, by) = (
+                p("bx", 4.0e-3, 4.0e-3 + 1e-7),
+                p("by", 3.0e-3, 3.0e-3 + 1e-7),
+            );
             let b = p("b", blo, bhi);
             let (norm, radius, [vx, vy], _) = sagitta(ax, ay, bx, by, b);
             let reg = norm.register_equal(radius);
@@ -246,7 +249,12 @@ fn r2_evidence_how_loose_is_the_interval_witness_at_the_ceiling_scale() {
             let (bx, by) = (p("bx", 4.0e-3, 4.0e-3 + w), p("by", 3.0e-3, 3.0e-3 + w));
             let b = p("b", 0.4, 0.4 + w);
             let (norm, radius, _, _) = sagitta(ax, ay, bx, by, b);
-            let bo = |v: Sym<Interval>| (geom_core::Bounds::lo(v.value), geom_core::Bounds::hi(v.value));
+            let bo = |v: Sym<Interval>| {
+                (
+                    geom_core::Bounds::lo(v.value),
+                    geom_core::Bounds::hi(v.value),
+                )
+            };
             let (nl, nh) = bo(norm);
             let (rl, rh) = bo(radius);
             println!(

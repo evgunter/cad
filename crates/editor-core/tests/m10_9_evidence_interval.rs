@@ -89,10 +89,11 @@ fn documents(tol: Tol) -> Vec<NamedStudy> {
 /// question. A drive stops at its first refusal, and evaluation ORDER —
 /// validation before certification — picks which of several
 /// simultaneously-over-band predicates that is. M10-9's first cut read
-/// the refusal at twice the ceiling and reported `line_span`; at ceiling
-/// + δ the same documents are bounded by other predicates entirely, with
-/// `line_span` over the band as well. The bound is the SET, and it is
-/// read at the tightest refusing scale the bisection found.
+/// the refusal at twice the ceiling and reported `line_span`; at
+/// ceiling + δ the same documents are bounded by other predicates
+/// entirely, with `line_span` over the band as well. The bound is the
+/// SET, and it is read at the tightest refusing scale the bisection
+/// found.
 ///
 /// Sorted widest-band first: the predicate furthest over the band is the
 /// one a slightly narrower study would still be stopped by.

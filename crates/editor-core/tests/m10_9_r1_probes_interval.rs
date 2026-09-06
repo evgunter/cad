@@ -41,13 +41,15 @@ fn rows() -> [(&'static str, SymRules); 2] {
 /// Just the predicate name out of a refusal message.
 fn pred(msg: &str) -> String {
     msg.split_once("predicate '")
-        .and_then(|(_, r)| r.split_once('\'').map(|(p, rest)| {
-            let encl = rest
-                .split_once("enclosure ")
-                .and_then(|(_, e)| e.split_once(')').map(|(v, _)| v.to_owned()))
-                .unwrap_or_default();
-            format!("{p} {encl}")
-        }))
+        .and_then(|(_, r)| {
+            r.split_once('\'').map(|(p, rest)| {
+                let encl = rest
+                    .split_once("enclosure ")
+                    .and_then(|(_, e)| e.split_once(')').map(|(v, _)| v.to_owned()))
+                    .unwrap_or_default();
+                format!("{p} {encl}")
+            })
+        })
         .unwrap_or_else(|| msg.chars().take(90).collect())
 }
 
@@ -57,13 +59,27 @@ fn pred(msg: &str) -> String {
 /// `Interval`.
 #[test]
 fn r1_circle_at_and_eval_agree_bit_for_bit() {
-    use geom_core::interval::Interval;
     use geom::Curve3;
+    use geom_core::interval::Interval;
     use geom_core::{Point3, Vec3};
     let cases = [
-        (0.3_f64, 0.7, -1.1, 0.0, 0.0, 1.0, 2.75, 0.6, 0.8, 0.0, 1.234),
+        (
+            0.3_f64, 0.7, -1.1, 0.0, 0.0, 1.0, 2.75, 0.6, 0.8, 0.0, 1.234,
+        ),
         (-3.5, 0.25, 7.0, 0.0, 1.0, 0.0, 0.125, 0.0, 0.0, 1.0, -0.77),
-        (1e3, -1e-3, 5.0, 0.0, 0.0, -1.0, 1e-4, 1.0, 0.0, 0.0, 3.14159),
+        (
+            1e3,
+            -1e-3,
+            5.0,
+            0.0,
+            0.0,
+            -1.0,
+            1e-4,
+            1.0,
+            0.0,
+            0.0,
+            core::f64::consts::PI,
+        ),
     ];
     for (cx, cy, cz, ax, ay, az, r, ux, uy, uz, t) in cases {
         let c = Point3::new(cx, cy, cz);
@@ -318,23 +334,13 @@ fn r1_split_bore_disc_end_to_end() {
                         &doc, measure, &analyzed, &v, None, false, tol,
                     );
                     println!("      stackup {stack:?}");
-                    let a = editor_core::drive::assertion_at(
-                        &doc,
-                        assertion,
-                        v.root(),
-                        dials(r),
-                        tol,
-                    );
+                    let a =
+                        editor_core::drive::assertion_at(&doc, assertion, v.root(), dials(r), tol);
                     println!("      assertion {a:?}");
                 }
             }
         }
-        let (_, refusal, counts) = replay(
-            &doc,
-            &ParamBox::of(&analyzed),
-            SymRules::shipped(),
-            tol,
-        );
+        let (_, refusal, counts) = replay(&doc, &ParamBox::of(&analyzed), SymRules::shipped(), tol);
         println!(
             "   whole-box replay (door ON): {counts:?}; first refusal {}",
             refusal.as_deref().map(pred).unwrap_or_else(|| "-".into())
@@ -376,7 +382,10 @@ fn r1_the_door_moves_no_bit_on_r1s_document() {
             )
             .map(|v| v.serialize())
         };
-        let (open, shut) = (run(SymRules::shipped()), run(SymRules::shipped_without_the_door()));
+        let (open, shut) = (
+            run(SymRules::shipped()),
+            run(SymRules::shipped_without_the_door()),
+        );
         match (open, shut) {
             (Ok(o), Ok(s)) => {
                 let strip = |t: &str| {
@@ -425,8 +434,7 @@ fn r1_the_pads_over_band_set_at_multiples_of_its_ceiling() {
         let doc = crate::m10_8_r2_probes_interval::pad(2.083e3 * eps * mult, tol).0;
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         for (label, r) in rows() {
-            let (shapes, refusal, counts) =
-                replay(&doc, &ParamBox::of(&analyzed), r, tol);
+            let (shapes, refusal, counts) = replay(&doc, &ParamBox::of(&analyzed), r, tol);
             let mut blocked: BTreeMap<&'static str, usize> = BTreeMap::new();
             for sh in shapes.iter().filter(|sh| {
                 matches!(

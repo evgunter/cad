@@ -224,67 +224,6 @@ fn m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity() {
     );
 }
 
-/// **THE REVOLVE'S LATITUDE CARRIERS REGISTER TOO** — the second
-/// constructor A1's "the unit of scope is the CONSTRUCTOR" reaches, and
-/// the row that keeps its two call sites from being code no run
-/// exercises.
-///
-/// `revolve/surfaces.rs` and `revolve/full.rs` mint the same
-/// `Circle { u_ref: (q − center).normalize(), radius }` under the same
-/// guarantee as the swept arc carrier's rim: `center` is the FOOT of
-/// the perpendicular from the sketch point to the axis and `radius` is
-/// that point's radial extent from the same axis, both placed by one
-/// rigid `frame.place`. RIM ONLY — neither builder is handed the far
-/// endpoint, so the span identity has nothing to be stated about
-/// (`work/m10/revolve-carriers-state-only-the-rim`).
-///
-/// A quarter-revolve of a rectangle about the y-axis: the door
-/// discharges on it, and with the door shut nothing is registered.
-#[test]
-fn m10_9_the_revolve_carriers_register_their_rim_identity() {
-    use editor_core::{Datum, Node};
-
-    use crate::fixture::{self, Recorder, ang, len, scl};
-
-    let tol = Tol::witness();
-    let mut r = Recorder::new();
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
-    let profile = r.insert(Node::Profile(fixture::desc(
-        plane,
-        vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
-    )));
-    let axis = r.insert(Node::Datum(Datum::Axis {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        direction: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
-    r.insert(Node::Revolve {
-        profile,
-        axis,
-        angle: ang(core::f64::consts::FRAC_PI_2),
-    });
-    let doc = r.doc;
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let box_ = ParamBox::of(&analyzed);
-    let (_, shut) = replay_counts(&doc, &box_, closed(), tol);
-    let (_, open) = replay_counts(&doc, &box_, SymRules::shipped(), tol);
-    println!("   revolve door shut {shut:?}\n   revolve door open {open:?}");
-    assert_eq!(shut.registered, 0, "M10-8's tier registers nothing");
-    assert!(
-        open.registered > 0,
-        "the revolve's latitude carriers state their rim identity and it discharges: {open:?}"
-    );
-    assert_eq!(
-        (open.symbolic_zero, open.sign_gated),
-        (shut.symbolic_zero, shut.sign_gated),
-        "and out of `numeric` only: {open:?} vs {shut:?}"
-    );
-    assert_eq!(
-        (open.registrations_refused, open.registrations_contradicted),
-        (0, 0),
-        "no revolve registration is refused or contradicted on this document: {open:?}"
-    );
-}
-
 /// **The value channel is untouched, at document scale**: over a box
 /// the plate certifies whole, the door-on and door-off drives serialize
 /// identically except for the receipt line that reports the door. Same

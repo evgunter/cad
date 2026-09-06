@@ -37,8 +37,8 @@ use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
     Datum, Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
     MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
-    ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef,
-    SurfaceKindSet, UnitSym, select_where,
+    ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym,
+    select_where,
 };
 use geom_core::sym::report::ShapeOutcome;
 use geom_core::{SymRules, Tol};
@@ -198,7 +198,10 @@ fn fixtures(tol: Tol) -> Vec<(&'static str, ProfileDoc)> {
     let eps = tol.eps();
     vec![
         ("m10_3 slab", crate::m10_3_driver_interval::slab(1.0, 0.25)),
-        ("m10_3 sliver_axis", crate::m10_3_driver_interval::sliver_axis()),
+        (
+            "m10_3 sliver_axis",
+            crate::m10_3_driver_interval::sliver_axis(),
+        ),
         (
             "plate @ 1e2·eps",
             crate::m10_7_plate::plate(5.0e-5 * 1.0e2 * eps, 1.0e-5 * 1.0e2 * eps, tol).0,
@@ -301,9 +304,17 @@ fn r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture() {
         };
         let (fon, foff) = (fields(&on_dec), fields(&off_dec));
         let g = |m: &BTreeMap<String, u64>, k: &str| m.get(k).copied().unwrap_or(0);
-        assert_eq!(g(&foff, "registered"), 0, "{name}: the door-off receipt registers nothing");
+        assert_eq!(
+            g(&foff, "registered"),
+            0,
+            "{name}: the door-off receipt registers nothing"
+        );
         for k in ["symbolic_zero", "sign_gated"] {
-            assert_eq!(g(&fon, k), g(&foff, k), "{name}: `{k}` is the door-off count");
+            assert_eq!(
+                g(&fon, k),
+                g(&foff, k),
+                "{name}: `{k}` is the door-off count"
+            );
         }
         // `frozen` is a plain-walk count and the two replays decide the
         // same population only when every leaf certifies (below).
@@ -368,7 +379,13 @@ fn r2_circle_at_is_bit_identical_to_the_old_arm() {
     let u0 = Vec3::new(0.8_f64, 0.6, 0.0);
     let u_ref = (u0 - axis * u0.dot(axis)).normalize();
     let center = Point3::new(1.0e-3_f64, -2.0e-3, 0.5e-3);
-    for t in [0.0_f64, 0.7, 1.9, core::f64::consts::PI, 4.0 * (2.5_f64).atan()] {
+    for t in [
+        0.0_f64,
+        0.7,
+        1.9,
+        core::f64::consts::PI,
+        4.0 * (2.5_f64).atan(),
+    ] {
         let a = Curve3::circle_at(center, axis, 0.8e-3, u_ref, t);
         let b = old_arm(center, axis, 0.8e-3, u_ref, t);
         assert_eq!(
@@ -384,11 +401,10 @@ fn r2_circle_at_is_bit_identical_to_the_old_arm() {
             u_ref,
         }
         .eval(t);
-        assert_eq!([c.x.to_bits(), c.y.to_bits(), c.z.to_bits()], [
-            b.x.to_bits(),
-            b.y.to_bits(),
-            b.z.to_bits()
-        ]);
+        assert_eq!(
+            [c.x.to_bits(), c.y.to_bits(), c.z.to_bits()],
+            [b.x.to_bits(), b.y.to_bits(), b.z.to_bits()]
+        );
     }
     let iv = |x: f64| Interval::from_bounds(x - 1e-7, x + 1e-7);
     let axis = Vec3::new(iv(0.3), iv(-0.4), iv(0.866)).normalize();
@@ -442,7 +458,10 @@ fn r2_link_end_to_end_with_and_without_the_door() {
 
     // The ceiling, both ways.
     let mut lows = Vec::new();
-    for (label, rules) in [("door OFF (M10-8)", shut()), ("door ON  (M10-9)", SymRules::shipped())] {
+    for (label, rules) in [
+        ("door OFF (M10-8)", shut()),
+        ("door ON  (M10-9)", SymRules::shipped()),
+    ] {
         let (lo, hi, per) = ceiling(&at, rules, tol, 1.0e-1 * eps, 1.0e6 * eps, 12);
         println!(
             "   link {label}: certifies x{lo:e}, refuses x{hi:e} ({per:.2}s/probe) [= {:.3e}·eps .. {:.3e}·eps]",
@@ -460,15 +479,24 @@ fn r2_link_end_to_end_with_and_without_the_door() {
                 ShapeOutcome::Indeterminate | ShapeOutcome::Invalid
             )
         }) {
-            println!("      [{:?}] {} enclosure {:?}", s.outcome, s.predicate, s.enclosure);
+            println!(
+                "      [{:?}] {} enclosure {:?}",
+                s.outcome, s.predicate, s.enclosure
+            );
         }
         lows.push(lo);
     }
     let [off_lo, on_lo]: [f64; 2] = lows.try_into().unwrap();
     // Both ends, both ways.
     for (label, rules) in [("OFF", shut()), ("ON", SymRules::shipped())] {
-        assert!(certifies_whole(&at(0.5 * on_lo), rules, tol), "{label}: 0.5x certifies");
-        assert!(!certifies_whole(&at(2.0 * on_lo), rules, tol), "{label}: 2x refuses");
+        assert!(
+            certifies_whole(&at(0.5 * on_lo), rules, tol),
+            "{label}: 0.5x certifies"
+        );
+        assert!(
+            !certifies_whole(&at(2.0 * on_lo), rules, tol),
+            "{label}: 2x refuses"
+        );
     }
     println!(
         "   link ceiling: door off {:.4e}·eps, door on {:.4e}·eps (ratio {:.6})",
@@ -479,9 +507,17 @@ fn r2_link_end_to_end_with_and_without_the_door() {
     // The door registers on the link.
     let certifying = at(0.5 * on_lo);
     let analyzed = analyzed_box(&certifying, &AnalysisPolicy::default());
-    let (_, refusal, counts) = replay(&certifying, &ParamBox::of(&analyzed), SymRules::shipped(), tol);
+    let (_, refusal, counts) = replay(
+        &certifying,
+        &ParamBox::of(&analyzed),
+        SymRules::shipped(),
+        tol,
+    );
     assert!(refusal.is_none(), "{refusal:?}");
-    assert!(counts.registered > 0, "the door registers on the link: {counts:?}");
+    assert!(
+        counts.registered > 0,
+        "the door registers on the link: {counts:?}"
+    );
     println!("   link at 0.5x its ceiling, door on: {counts:?}");
 }
 
@@ -519,7 +555,9 @@ fn envelopes(shapes: &[geom_core::sym::report::DecisionShape]) -> BTreeMap<&'sta
             continue;
         }
         e.numeric += 1;
-        let Some((lo, hi)) = s.enclosure else { continue };
+        let Some((lo, hi)) = s.enclosure else {
+            continue;
+        };
         if lo < e.lo {
             e.lo = lo;
         }
@@ -558,15 +596,31 @@ fn refusal_at(
     };
     let s = match e2.outcome {
         ShapeOutcome::NumericZero => {
-            let up = if dhi > 0.0 { hit(e2.hi, dhi, zero) } else { f64::INFINITY };
-            let dn = if dlo < 0.0 { hit(e2.lo, dlo, -zero) } else { f64::INFINITY };
+            let up = if dhi > 0.0 {
+                hit(e2.hi, dhi, zero)
+            } else {
+                f64::INFINITY
+            };
+            let dn = if dlo < 0.0 {
+                hit(e2.lo, dlo, -zero)
+            } else {
+                f64::INFINITY
+            };
             up.min(dn)
         }
         ShapeOutcome::Definite(geom_core::Sign::Positive) => {
-            if dlo < 0.0 { hit(e2.lo, dlo, escalate) } else { f64::INFINITY }
+            if dlo < 0.0 {
+                hit(e2.lo, dlo, escalate)
+            } else {
+                f64::INFINITY
+            }
         }
         ShapeOutcome::Definite(geom_core::Sign::Negative) => {
-            if dhi > 0.0 { hit(e2.hi, dhi, -escalate) } else { f64::INFINITY }
+            if dhi > 0.0 {
+                hit(e2.hi, dhi, -escalate)
+            } else {
+                f64::INFINITY
+            }
         }
         ShapeOutcome::Indeterminate | ShapeOutcome::Invalid => s2,
         _ => f64::INFINITY,
@@ -574,8 +628,12 @@ fn refusal_at(
     s / ceiling
 }
 
+/// A named document with its measured ceiling, as a function of the
+/// SCALE of its real study.
+type TailDocument = (&'static str, f64, Box<dyn Fn(f64) -> ProfileDoc>);
+
 /// The four documents plus the link, each with its measured ceiling.
-fn tail_documents(tol: Tol) -> Vec<(&'static str, f64, Box<dyn Fn(f64) -> ProfileDoc>)> {
+fn tail_documents(tol: Tol) -> Vec<TailDocument> {
     let eps = tol.eps();
     vec![
         (
@@ -632,8 +690,7 @@ fn r2_evidence_the_refusal_tail() {
             for frac in [0.25_f64, 0.5] {
                 let doc = at(frac * ceil);
                 let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-                let (shapes, refusal, counts) =
-                    replay(&doc, &ParamBox::of(&analyzed), rules, tol);
+                let (shapes, refusal, counts) = replay(&doc, &ParamBox::of(&analyzed), rules, tol);
                 println!(
                     "== {name} {label} at {frac}x ceiling ({:.3e}·eps): refusal {refusal:?}; {counts:?}",
                     frac * ceil / eps
@@ -645,9 +702,9 @@ fn r2_evidence_the_refusal_tail() {
             let mut rows: Vec<(&&str, f64, &Envelope)> = h
                 .iter()
                 .map(|(p, e)| {
-                    let at = q
-                        .get(p)
-                        .map_or(f64::NAN, |e1| refusal_at((*s1, *e1), (*s2, *e), zero, escalate, *ceil));
+                    let at = q.get(p).map_or(f64::NAN, |e1| {
+                        refusal_at((*s1, *e1), (*s2, *e), zero, escalate, *ceil)
+                    });
                     (p, at, e)
                 })
                 .collect();
@@ -691,9 +748,15 @@ fn staged_ceilings(name: &str, at: &dyn Fn(f64) -> ProfileDoc, stages: &[&str], 
                 replay(&doc, &ParamBox::of(&analyzed), SymRules::shipped(), tol);
             println!("   beyond it: {refusal:?}\n   {counts:?}");
             for s in shapes.iter().filter(|s| {
-                matches!(s.outcome, ShapeOutcome::Indeterminate | ShapeOutcome::Invalid)
+                matches!(
+                    s.outcome,
+                    ShapeOutcome::Indeterminate | ShapeOutcome::Invalid
+                )
             }) {
-                println!("   [{:?}] {} enclosure {:?}", s.outcome, s.predicate, s.enclosure);
+                println!(
+                    "   [{:?}] {} enclosure {:?}",
+                    s.outcome, s.predicate, s.enclosure
+                );
             }
         }
     }
@@ -734,7 +797,12 @@ fn r2_evidence_pad_ceiling_with_the_tangency_passed() {
     staged_ceilings(
         "pad",
         &at,
-        &["", "carrier_line_circle", "line_span", "line_span,carrier_line_circle"],
+        &[
+            "",
+            "carrier_line_circle",
+            "line_span",
+            "line_span,carrier_line_circle",
+        ],
         2.0,
     );
 }
@@ -764,12 +832,13 @@ fn r2_evidence_plate_enclosure_vs_scale() {
                 pick("carrier_endpoint_start"),
                 pick("carrier_endpoint_end"),
                 pick("carrier_matches_mapped_source"),
-                refusal.as_deref().map_or("none", |r| if r.len() > 90 { &r[..90] } else { r })
+                refusal
+                    .as_deref()
+                    .map_or("none", |r| if r.len() > 90 { &r[..90] } else { r })
             );
         }
     }
 }
-
 
 /// **Evidence** — why `frozen` moved with the door on R1's bracket at
 /// 0.5 mm (a refusing drive): one whole-box replay each way, the first
@@ -787,10 +856,19 @@ fn r2_evidence_r1_bracket_frozen_moves_with_the_door() {
             *split.entry(format!("{:?}", s.outcome)).or_default() += 1;
         }
         println!("== r1 bracket 0.5mm {label}: {counts:?}\n   refusal {refusal:?}\n   {split:?}");
-        for s in shapes.iter().filter(|s| matches!(s.outcome, ShapeOutcome::Registered)).take(3) {
+        for s in shapes
+            .iter()
+            .filter(|s| matches!(s.outcome, ShapeOutcome::Registered))
+            .take(3)
+        {
             println!("   registered: {}", s.predicate);
         }
-        let last: Vec<String> = shapes.iter().rev().take(4).map(|s| format!("{} {:?} {:?}", s.predicate, s.outcome, s.enclosure)).collect();
+        let last: Vec<String> = shapes
+            .iter()
+            .rev()
+            .take(4)
+            .map(|s| format!("{} {:?} {:?}", s.predicate, s.outcome, s.enclosure))
+            .collect();
         println!("   last decisions: {last:?}");
     }
 }
