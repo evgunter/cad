@@ -17,11 +17,11 @@ Found by the `gates/debug-only-topo-class` lane's class sweep over
 row of `scripts/gates/bit-identity-debug-only.sh`).
 
 `crates/topo/src/source.rs` defines three debug-only witnesses on the
-bit channel — `plane_bits_witness` (`:172`), `vec3_bits_witness`
-(`:195`) and `bits_witness` (`:211`), each a `#[cfg(debug_assertions)]`
-`pub(crate) fn`. That lane put all three on the `source.rs` row, so the
-DEFINITIONS are pinned. Their callers are not, because a subject is a
-file and neither caller's file has a row:
+bit channel, each a `#[cfg(debug_assertions)]` `fn`: `plane_bits_witness`
+(`:173`, `pub(crate)`), `vec3_bits_witness` (`:196`, `pub(crate)`) and
+`bits_witness` (`:212`, private). That lane put all three on the
+`source.rs` row, so the DEFINITIONS are pinned. Their callers are not,
+because a subject is a file and neither caller's file has a row:
 
 - `crates/topo/src/boolean/plane_eq.rs:173-175` — a statement-position
   `#[cfg(debug_assertions)]` over `if let Some(agree) =
@@ -35,6 +35,19 @@ Both are live hazards on the terms the rows exist for: this workspace's
 attribute compiles and passes every test here, and the first build that
 refuses it is a consumer's after publish — the witnesses do not exist
 without `debug_assertions`.
+
+**Reproduced**, not argued (PR 2066's style review, re-run by the lane).
+With `plane_eq.rs:173`'s attribute deleted and nothing else changed:
+
+```
+$ cargo check -p topo --release --config 'profile.release.debug-assertions=false'
+error[E0425]: cannot find function `plane_bits_witness` in module `crate::source`
+   --> crates/topo/src/boolean/plane_eq.rs:174:28
+note: found an item that was configured out
+   --> crates/topo/src/source.rs:173:15
+```
+
+That is the consumer's build, and nothing in CI refuses it today.
 
 Neither was reachable by the sweep that filed
 `debug-only-helpers-outside-the-subject-list`: that one swept for
@@ -52,8 +65,8 @@ file) worked one population at a time, not a change to the reader.
 ## What it costs
 
 Two more subjects on the largest subject list in the directory, and the
-self-test is quadratic in subject count: 13 subjects take ~82 s on the
-lane's box, so 15 take roughly 110 s. If that is judged too much, the
+self-test is quadratic in subject count: 13 subjects take ~87 s on the
+lane's box, so 15 take roughly 115 s. If that is judged too much, the
 per-case loop is where to look first — each case plants every subject
 and runs the gate once over all of them, so a case could run once over
 all subjects rather than once per subject per case.
