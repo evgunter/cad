@@ -367,6 +367,16 @@ pub enum SnapshotError {
         /// The offending fillet or chamfer node.
         node: RecipeNodeId,
     },
+    /// A shell node's `open` list names one face twice — a corrupt
+    /// file, refused rather than repaired. The list is ORDERED (the
+    /// first designated face of a chart carries its rim), so its
+    /// canonical form is "no repeats", not "sorted"; the construction
+    /// door drops a repeat keeping the first occurrence, and a repeat
+    /// on the wire is a file no door wrote.
+    ShellOpenRepeated {
+        /// The offending shell node.
+        node: RecipeNodeId,
+    },
     /// An id at or beyond the mint counter appears in the document.
     IdBeyondCounter {
         /// The offending id.
@@ -527,6 +537,12 @@ impl core::fmt::Display for SnapshotError {
                 f,
                 "blend node {}'s selection is not sorted and deduplicated — a corrupt \
                  selection is refused, never repaired",
+                node.0
+            ),
+            Self::ShellOpenRepeated { node } => write!(
+                f,
+                "shell node {}'s open list names a face twice — a corrupt designation is \
+                 refused, never repaired",
                 node.0
             ),
             Self::IdBeyondCounter { id, next_id } => write!(
@@ -707,6 +723,20 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             && selection.windows(2).any(|w| w[0] >= w[1])
         {
             return Err(SnapshotError::BlendSelectionNotCanonical { node: id });
+        }
+        // A shell's open list carries the ordered form's one check: no
+        // face named twice. `Node::shell` is the only construction door
+        // and it drops repeats keeping the first, so a repeat on the
+        // wire is a CORRUPT file — refused, never quietly deduplicated
+        // (a repair would change the node's content key behind the
+        // caller's back).
+        if let Node::Shell { open, .. } = node
+            && open
+                .iter()
+                .enumerate()
+                .any(|(i, n)| open[..i].contains(n))
+        {
+            return Err(SnapshotError::ShellOpenRepeated { node: id });
         }
         // The placement RULE (GROUP-BOOLEAN-DESIGN), re-checked for the
         // same reason the A11 registry is below: a saved file is DATA,

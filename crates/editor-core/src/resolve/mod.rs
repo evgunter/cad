@@ -1253,7 +1253,14 @@ fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&
             | RoleSeg::BandFoot(n)
             | RoleSeg::BandCross(n)
             | RoleSeg::BandCut(n)
-            | RoleSeg::BandSlit(n) => visit(n, partners, f),
+            | RoleSeg::BandSlit(n)
+            // The shell vocabulary: each argument is the SOURCE entity
+            // the twin or rim was born for — derivation, not
+            // discrimination (a hole rim's index discriminates, and is
+            // not a name).
+            | RoleSeg::Inner(n)
+            | RoleSeg::Rim(n)
+            | RoleSeg::HoleRim { of: n, .. } => visit(n, partners, f),
             // ASM-2A: the DOCUMENT SEAM. An `InPart` argument is a name
             // in ANOTHER document's id space — its `RecipeNodeId`s name
             // that document's nodes, not this one's — so no local walk

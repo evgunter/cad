@@ -278,6 +278,13 @@ pub enum SlotId {
     /// along each support face from the source edge, and a panel that
     /// spelled both "radius" would be lying about one of them.
     ChamferDistance,
+    /// A shell's wall thickness (Length) — the magnitude every boundary
+    /// face is offset inward by. Named apart from [`SlotId::Radius`]
+    /// and [`SlotId::ChamferDistance`] for the reason those two are
+    /// named apart from each other: a wall thickness is neither a
+    /// rolling ball's radius nor a setback along a support, and a
+    /// panel that spelled it as either would be lying about it.
+    ShellThickness,
     /// A revolve's sweep angle (Angle).
     RevolveAngle,
     /// A derived frame's SPIN — the authored rotation of sketch +x
@@ -467,6 +474,7 @@ impl SlotId {
             | Self::Distance
             | Self::Radius
             | Self::ChamferDistance
+            | Self::ShellThickness
             | Self::TubeMajorRadius
             | Self::TubeMinorRadius
             | Self::TubeWall
@@ -516,6 +524,7 @@ impl SlotId {
             Self::Distance => "distance".to_owned(),
             Self::Radius => "radius".to_owned(),
             Self::ChamferDistance => "chamfer distance".to_owned(),
+            Self::ShellThickness => "shell thickness".to_owned(),
             Self::RevolveAngle => "revolve angle".to_owned(),
             Self::Spin => "spin".to_owned(),
             Self::TubeMajorRadius => "tube major radius".to_owned(),
@@ -565,6 +574,7 @@ impl SlotId {
             Self::Distance
             | Self::Radius
             | Self::ChamferDistance
+            | Self::ShellThickness
             | Self::RevolveAngle
             | Self::Spin
             | Self::TubeMajorRadius
@@ -947,6 +957,7 @@ pub fn payload_exprs<P>(node: &Node<P>) -> Option<Vec<&Expr>> {
         | Node::Sweep { .. }
         | Node::Fillet { .. }
         | Node::Chamfer { .. }
+        | Node::Shell { .. }
         | Node::Split { .. }
         | Node::Boolean { .. }
         | Node::Union { .. }
@@ -1460,6 +1471,59 @@ pub enum Node<P> {
         /// The edges to chamfer, by stable name — canonical (sorted,
         /// deduplicated), frozen at authoring time.
         selection: Vec<StableName>,
+    },
+    /// **Hollow `target` into a thin solid** of wall `thickness`, with
+    /// the faces in `open` re-authored as annular RIMS.
+    ///
+    /// The op is the verb seat's `Verb::Shell` over `topo::shell_open`:
+    /// every boundary face is replaced by its inward offset and the
+    /// offset boundary inserted as a cavity, then each designated
+    /// chart is lifted into a rim. Every check — the thickness gate,
+    /// the wall-clearance gate, the per-face offset refusals, the
+    /// designation gates, the validation of the result — is the
+    /// kernel's, carried unaltered as
+    /// [`crate::eval::NodeErrorKind::Shell`]; the node never passes
+    /// its input body through.
+    ///
+    /// # `open` is ORDERED, not canonical
+    ///
+    /// This is the one place the blend selection's canonical form does
+    /// not transfer, and the reason is the kernel's own record: a
+    /// designated chart's rim IS its first designated face
+    /// (`RimNaming::rim` is `sources[0]`), so a caller that wants a
+    /// particular face to carry the rim's identity names it first.
+    /// Sorting would silently change which face the rim inherits.
+    /// [`Node::shell`], the one construction door, therefore keeps the
+    /// order it is given and DEDUPLICATES keeping the first occurrence;
+    /// a repeated name on the wire is a corrupt file, refused at load
+    /// (`SnapshotError::ShellOpenRepeated`) exactly as a non-canonical
+    /// blend selection is, never quietly repaired.
+    ///
+    /// # Empty `open` is the sealed hollow
+    ///
+    /// Legal, and not a refusal: an empty designation IS the sealed
+    /// form (`topo::shell`), which has no node of its own because the
+    /// seat's own contract says "empty is the sealed hollow". A blend
+    /// of nothing is an unfinished recipe; a shell of nothing opened
+    /// is a closed thin solid, which is a body.
+    ///
+    /// # The freeze
+    ///
+    /// `open` is a set of stable names and nothing else — no "the top
+    /// face" spelling and no filter — frozen at authoring time, with
+    /// [`crate::DocEdit::Rebind`] the one repair, exactly as
+    /// [`Node::Fillet`] states it for its selection. A name resolves
+    /// through the target's table to a FACE; anything else refuses
+    /// typed ([`crate::eval::NodeErrorKind::ShellOpenKind`]).
+    Shell {
+        /// The body hollowed.
+        target: RecipeNodeId,
+        /// The wall thickness — a magnitude
+        /// ([`SlotId::ShellThickness`], Length).
+        thickness: Expr,
+        /// The faces opened into rims, by stable name, IN DESIGNATION
+        /// ORDER (first occurrence kept; see the variant docs).
+        open: Vec<StableName>,
     },
     /// Split a target body by a tool.
     Split {
@@ -1986,6 +2050,7 @@ impl<P> Node<P> {
             Node::Loft { profiles, .. } => profiles.clone(),
             Node::Sweep { profile, path, .. } => vec![*profile, *path],
             Node::Fillet { target, .. } | Node::Chamfer { target, .. } => vec![*target],
+            Node::Shell { target, .. } => vec![*target],
             Node::Split { target, tool } => vec![*target, *tool],
             Node::Boolean { a, b, declare, .. } => {
                 let mut v = vec![*a, *b];
@@ -2046,6 +2111,7 @@ impl<P> Node<P> {
             | Node::Sweep { .. }
             | Node::Fillet { .. }
             | Node::Chamfer { .. }
+            | Node::Shell { .. }
             | Node::Split { .. }
             | Node::Boolean { .. }
             | Node::Transform { .. }
@@ -2086,6 +2152,7 @@ impl<P> Node<P> {
             | Node::Sweep { .. }
             | Node::Fillet { .. }
             | Node::Chamfer { .. }
+            | Node::Shell { .. }
             | Node::Split { .. }
             | Node::Transform { .. }
             | Node::Pattern { .. }
@@ -2209,6 +2276,7 @@ impl<P> Node<P> {
             | Node::Sweep { .. }
             | Node::Fillet { .. }
             | Node::Chamfer { .. }
+            | Node::Shell { .. }
             | Node::Split { .. }
             | Node::Boolean { .. }
             | Node::Transform { .. }
@@ -2287,6 +2355,7 @@ impl<P> Node<P> {
             Node::Extrude { .. } => vec![SlotId::Distance],
             Node::Fillet { .. } => vec![SlotId::Radius],
             Node::Chamfer { .. } => vec![SlotId::ChamferDistance],
+            Node::Shell { .. } => vec![SlotId::ShellThickness],
             Node::Revolve { .. } => vec![SlotId::RevolveAngle],
             // The two kinds enumerate the SAME shared head — the
             // reference direction, then the two radii, then whatever
@@ -2365,6 +2434,7 @@ impl<P> Node<P> {
             (Node::Extrude { distance, .. }, S::Distance) => Some(distance),
             (Node::Fillet { radius, .. }, S::Radius) => Some(radius),
             (Node::Chamfer { distance, .. }, S::ChamferDistance) => Some(distance),
+            (Node::Shell { thickness, .. }, S::ShellThickness) => Some(thickness),
             (Node::Revolve { angle, .. }, S::RevolveAngle) => Some(angle),
             (Node::Tube { u_ref, .. } | Node::HollowTube { u_ref, .. }, S::Direction(ax)) => {
                 Some(comp(u_ref, ax))
@@ -2415,6 +2485,7 @@ impl<P> Node<P> {
                 | Node::Sweep { .. }
                 | Node::Fillet { .. }
                 | Node::Chamfer { .. }
+                | Node::Shell { .. }
                 | Node::Split { .. }
                 | Node::Boolean { .. }
                 | Node::Union { .. }
@@ -2461,6 +2532,7 @@ impl<P> Node<P> {
             (Node::Extrude { distance, .. }, S::Distance) => Some(distance),
             (Node::Fillet { radius, .. }, S::Radius) => Some(radius),
             (Node::Chamfer { distance, .. }, S::ChamferDistance) => Some(distance),
+            (Node::Shell { thickness, .. }, S::ShellThickness) => Some(thickness),
             (Node::Revolve { angle, .. }, S::RevolveAngle) => Some(angle),
             (Node::Tube { u_ref, .. } | Node::HollowTube { u_ref, .. }, S::Direction(ax)) => {
                 Some(comp_mut(u_ref, ax))
@@ -2505,6 +2577,7 @@ impl<P> Node<P> {
                 | Node::Sweep { .. }
                 | Node::Fillet { .. }
                 | Node::Chamfer { .. }
+                | Node::Shell { .. }
                 | Node::Split { .. }
                 | Node::Boolean { .. }
                 | Node::Union { .. }
@@ -2536,6 +2609,9 @@ impl<P> Node<P> {
             Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => {
                 selection.iter().collect()
             }
+            // Designation order, which is meaning here (the first
+            // named face carries the rim), not a click sequence.
+            Node::Shell { open, .. } => open.iter().collect(),
             // The derived frame's face is a frozen name like a blend's
             // selection: the insert door checks its node is live, and
             // `Rebind` is its repair.
@@ -2584,6 +2660,20 @@ impl<P> Node<P> {
                 if hits > 0 {
                     selection.sort();
                     selection.dedup();
+                }
+            }
+            // An ORDERED payload re-canonicalizes to its own form: the
+            // order stays, and a rebind onto a face already designated
+            // keeps the EARLIER occurrence — the one whose position
+            // decides which face carries the rim — and drops the later,
+            // so the list shrinks by one rather than naming one face
+            // twice (which the load door refuses as corrupt).
+            Node::Shell { open, .. } => {
+                for name in open.iter_mut() {
+                    hits += rewrite(name, from, to);
+                }
+                if hits > 0 {
+                    dedup_keeping_first(open);
                 }
             }
             // A mate's two references: the NAME rewrites like any
@@ -2722,6 +2812,7 @@ impl<P> Node<P> {
             | Node::Sweep { .. }
             | Node::Fillet { .. }
             | Node::Chamfer { .. }
+            | Node::Shell { .. }
             | Node::Split { .. }
             | Node::Boolean { .. }
             | Node::Union { .. }
@@ -2850,6 +2941,39 @@ impl<P> Node<P> {
             selection,
         }
     }
+
+    /// Builds a [`Node::Shell`] with `open` in DESIGNATION ORDER,
+    /// deduplicated keeping each name's first occurrence — the one
+    /// construction door, and deliberately not [`Node::fillet`]'s
+    /// sort: the first designated face of a chart is the one that
+    /// carries the rim's identity (the variant docs), so the order is
+    /// authored data the kernel reads, and sorting it would silently
+    /// move a rim from one face to another.
+    pub fn shell(target: RecipeNodeId, thickness: Expr, open: Vec<StableName>) -> Self {
+        let mut open = open;
+        dedup_keeping_first(&mut open);
+        Node::Shell {
+            target,
+            thickness,
+            open,
+        }
+    }
+}
+
+/// Drops every repeat of a name, keeping the FIRST occurrence and the
+/// order of what remains — the canonical form of an ordered
+/// designation, shared by the construction door and the rebind
+/// rewrite so the two cannot disagree about it.
+fn dedup_keeping_first(names: &mut Vec<StableName>) {
+    let mut seen: Vec<StableName> = Vec::with_capacity(names.len());
+    names.retain(|n| {
+        if seen.contains(n) {
+            false
+        } else {
+            seen.push(n.clone());
+            true
+        }
+    });
 }
 
 impl<P: PartialEq> Node<P> {

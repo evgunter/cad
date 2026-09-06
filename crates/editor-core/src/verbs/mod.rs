@@ -15,7 +15,8 @@
 //! lowering in [`mod@crate::eval`] is generic over it — one body of
 //! code per declared door (`wire_blend` for the one-body verbs,
 //! `wire_boolean` for the pair family, `wire_swept` for the profile
-//! family, `wire_split` for the two-sided split), each driven by the
+//! family, `wire_split` for the two-sided split, `wire_shell` for the
+//! hollowing verb), each driven by the
 //! declarations here rather than matching a verb vocabulary of its
 //! own.
 //!
@@ -25,6 +26,7 @@
 
 pub(crate) mod blend;
 pub(crate) mod boolean;
+pub(crate) mod shell;
 pub(crate) mod split;
 pub(crate) mod sweep;
 

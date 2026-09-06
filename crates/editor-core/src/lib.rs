@@ -140,6 +140,7 @@ pub use measure::{
     UnevaluatedReason, WINDOW_TIGHTENING,
 };
 pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
+pub use verbs::shell::ShellLane;
 pub use names::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKey,

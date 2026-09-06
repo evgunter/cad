@@ -137,6 +137,8 @@ mod lib_g14_split_walls;
 mod lib_g16_blend_messages;
 #[path = "lib_g16_chamfer_node.rs"]
 mod lib_g16_chamfer_node;
+#[path = "lib_g17_shell_node.rs"]
+mod lib_g17_shell_node;
 #[path = "lib_g16_corpus_name_digests.rs"]
 mod lib_g16_corpus_name_digests;
 #[path = "lib_placedunion.rs"]

@@ -150,7 +150,8 @@ where
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
-        + super::SectionScalar,
+        + super::SectionScalar
+        + crate::verbs::shell::ShellLane,
 {
     match node {
         Node::Datum(d) => Ok(OpOut::plain(
@@ -196,6 +197,17 @@ where
             id,
             *target,
             selection,
+            doc,
+            results,
+            vals,
+            env,
+            tol,
+        ),
+        Node::Shell { target, open, .. } => wire_shell(
+            &crate::verbs::shell::shell(),
+            id,
+            *target,
+            open,
             doc,
             results,
             vals,
@@ -334,7 +346,8 @@ where
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
-        + super::SectionScalar,
+        + super::SectionScalar
+        + crate::verbs::shell::ShellLane,
 {
     let part = env
         .parts
@@ -1666,13 +1679,12 @@ fn wire_hollow_tube<T: Decide + geom_brep::PcurveFittedLane>(
 ///
 /// Exhaustive over [`verbs::VerbError`] with no wildcard arm, so a
 /// verb family with a new refusal shape breaks here rather than
-/// arriving as another's — including a family this layer cannot
-/// produce, which is routed rather than skipped (the shell's arm).
+/// arriving as another's.
 /// One boolean refusal does NOT come through this door: the
 /// undeclared-coincidence menu lift needs the operands'
 /// naming context, so [`refusal_menu`] intercepts it and delegates
 /// everything else here.
-fn verb_refused<T: geom_core::Real>(refusal: verbs::VerbError<T>) -> NodeErrorKind {
+fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeErrorKind {
     match refusal {
         verbs::VerbError::Blend(sweep::blend::BlendRefusal { verb, error }) => {
             NodeErrorKind::Blend { verb, error }
@@ -1682,32 +1694,16 @@ fn verb_refused<T: geom_core::Real>(refusal: verbs::VerbError<T>) -> NodeErrorKi
         verbs::VerbError::Revolve(error) => NodeErrorKind::Revolve(error),
         verbs::VerbError::Split(error) => NodeErrorKind::Split(error),
         verbs::VerbError::Arity { verb, given } => NodeErrorKind::VerbArity { verb, given },
-        // **A kernel-only verb refused, and no lowering can reach this
-        // arm.** The vocabulary carries verbs the document layer has no
-        // `Node` for — the shell is the first — so nothing here ever
-        // calls their doors and nothing here holds their refusals. The
-        // arm exists because the channel is closed with no wildcard
-        // (D3), and it refuses through the same door a foreign-family
-        // RECORD does, being the same class of kernel bug: a result
-        // arriving at a lowering that cannot have produced it. The
-        // scalar payload is dropped rather than rendered, because
-        // `NodeErrorKind` is scalar-free by construction and inventing
-        // a shell arm for it would be document vocabulary for a node
-        // that does not exist. When one does, this arm is where its
-        // refusal gets routed.
-        //
-        // **What that costs, said rather than left to be discovered**:
-        // the `ShellError<T>` this arm holds — the thickness it
-        // refused, the measured wall gap, the width two offsets needed,
-        // the nested face-replacement refusal — does not reach the
-        // document layer. The sentence below names the CLASS ("a
-        // kernel-only verb's refusal reached a document lowering") and
-        // nothing about the shell. That is right while the arm is
-        // unreachable and would be a real loss the moment it is not,
-        // which is the same moment `Node::Shell` gives it a home.
-        verbs::VerbError::Shell(_) => NodeErrorKind::Naming(names::NamingError::Emission {
-            what: "a kernel-only verb's refusal reached a document lowering",
-        }),
+        // **The shell's refusal crosses at its `f64` witness.** The
+        // kernel's error is generic over the lane scalar and this enum
+        // is scalar-free, so the carriage is a TOTAL fold — every arm,
+        // every nested payload, every number — rather than a rendering
+        // or a drop. This is the one arm of the door that needs a
+        // bracket, and it reads one only to REPORT: nothing here
+        // decides on it.
+        verbs::VerbError::Shell(error) => NodeErrorKind::Shell(Box::new(
+            crate::verbs::shell::fold_shell_error(*error),
+        )),
     }
 }
 
@@ -1841,9 +1837,134 @@ fn wire_blend<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     Ok(OpOut::plain(ValuePayload::Body(Arc::new(body)), table))
 }
 
+/// **The shell's lowering**, driven by the verb's correspondence
+/// ([`crate::verbs::shell`]): resolve the frozen, ORDERED list of open
+/// faces through the target's name table into face keys, evaluate the
+/// thickness slot to `T`, build the kernel verb, run it through the
+/// seat's lane door, emit names from the birth record under THIS
+/// node's id.
+///
+/// # Refusals
+///
+/// The open list resolves through the TARGET's name table into face
+/// keys, through the same N5 [`ladder`] a blend's selection takes;
+/// a name that stopped resolving is [`NodeErrorKind::ShellOpenResolve`]
+/// and a name of another kind [`NodeErrorKind::ShellOpenKind`]. An
+/// EMPTY list is not a refusal: it is the sealed hollow, the kernel
+/// door's own contract.
+///
+/// Failure of the op itself is a TYPED refusal ([`NodeErrorKind::Shell`])
+/// carrying the kernel's own error through the total fold
+/// [`verb_refused`] applies. The input body is never passed through: a
+/// hollow that did not happen must read as a failed node, not as a
+/// silently solid one. A scalar that cannot form the door's call at
+/// all — a dual — refuses [`NodeErrorKind::ShellLaneUnsupported`].
+///
+/// # Naming
+///
+/// The record is written by the doors themselves as they act, so it is
+/// not an `Option` and there is no "no records" sentence: the emitter
+/// translates every row, and the totality check closes the other
+/// direction. Nothing here calls `topo::shell_open` — the seat is the
+/// door, and the seat's record channel is read through the
+/// correspondence's own projection.
+// The 9 arguments are the blend lowering's: the correspondence, the
+// node and its operand, the payload, and the evaluation environment.
+#[allow(clippy::too_many_arguments)]
+fn wire_shell<T: Decide + geom_core::Bounds + crate::verbs::shell::ShellLane>(
+    verb: &crate::verbs::shell::ShellVerb<T>,
+    id: RecipeNodeId,
+    target: RecipeNodeId,
+    open: &[names::StableName],
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
+    vals: &SlotValues<T>,
+    env: &OpEnv<'_, T>,
+    tol: Tol,
+) -> OpResult<T> {
+    let body = body_operand(results, target)?;
+    let thickness = need_scalar(vals, verb.slots.size_slot)?;
+    let target_table = Arc::clone(&value_of(results, target)?.name_table);
+    let faces = resolve_open_faces(open, doc, &target_table)?;
+    let built = (verb.build)(faces, thickness);
+    // The verb's own declaration of where its scalar lands, read off
+    // the value the correspondence just built (VERB-SEAT-DESIGN V1).
+    let flow = built.param_flow();
+    let out = T::run_shell(&built, &body, tol)
+        .ok_or(NodeErrorKind::ShellLaneUnsupported { lane: T::LANE })?
+        .map_err(verb_refused)?;
+    let rec = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
+    let table = (verb.emitter)(id, target, &target_table, &out.body, &rec)
+        .map_err(NodeErrorKind::Naming)?;
+    let mut body = out.body;
+    // The cavity's surfaces, curves and points and the rims' rings are
+    // minted HERE (D1/N6); the outer wall's pass-through descriptions
+    // keep the source they arrived with.
+    stamp_minted(&mut body, id);
+    // **Attach-at-mint for the lowered parameter-identity channel**
+    // (VERB-SEAT-DESIGN P2), through the shell's own attach door: the
+    // thickness slot's expression lowers to a token under THIS
+    // evaluation's scope, and the verb's DECLARED flow says which
+    // stored fields of which minted carriers it reached. The shell's
+    // row is declared EMPTY (its thickness becomes `r − t`, the
+    // identity of neither), so the door attaches nothing today — the
+    // declaration obeyed, never a case skipped; the day the flow names
+    // a field, this is where the token lands. The slot's absence is a
+    // lookup, not a case, and the attach's own refusals are surfaced
+    // typed if they ever fire.
+    if let Some(expr) = doc.node(id).and_then(|n| n.expr(verb.slots.size_slot)) {
+        let scope = crate::param_source::ParamScope::of(doc.id(), env.parts.chain());
+        crate::param_source::attach_shell(
+            &mut body,
+            flow,
+            verb.slots.size_param,
+            &crate::param_source::lower(scope, expr),
+            &rec,
+        )
+        .map_err(NodeErrorKind::ParamSourceAttach)?;
+    }
+    Ok(OpOut::plain(ValuePayload::Body(Arc::new(body)), table))
+}
+
+/// Resolves a shell's open-face designation against the target's name
+/// table — [`resolve_selection`]'s twin over FACES, through the same
+/// [`ladder`], with two differences that are the door's own arity: an
+/// empty list is legal (the sealed hollow), and the keys come back in
+/// DESIGNATION ORDER rather than arena order. D9's arena-order rule is
+/// for DERIVED lists; here the order is authored data the kernel reads
+/// (the first designated face of a chart carries its rim), so
+/// re-sorting it would silently move a rim.
+///
+/// A repeated designation cannot arrive here — the construction door
+/// deduplicates and the load door refuses a repeat as corrupt — and if
+/// one did, the kernel refuses it itself (`OpenFaceRepeated`).
+fn resolve_open_faces(
+    open: &[names::StableName],
+    doc: &crate::doc::Doc<ProfileProgram>,
+    target: &NameTable,
+) -> Result<Vec<topo::FaceKey>, NodeErrorKind> {
+    use crate::names::EntityKey;
+
+    let mut keys = Vec::with_capacity(open.len());
+    for name in open {
+        let ent = ladder::resolve_in(name, doc, target, |error| {
+            NodeErrorKind::ShellOpenResolve { error }
+        })?;
+        let EntityKey::Face(k) = ent.key else {
+            return Err(NodeErrorKind::ShellOpenKind {
+                name: Box::new(name.clone()),
+                found: ent.key.kind(),
+            });
+        };
+        keys.push(k);
+    }
+    Ok(keys)
+}
+
 /// The mid-evaluation N5 refusal ladder, shared by every door that
 /// resolves an AUTHORED name against the tables the run has built so
-/// far ([`resolve_selection`], [`resolve_declarations`]).
+/// far ([`resolve_selection`], [`resolve_open_faces`],
+/// [`resolve_declarations`]).
 ///
 /// Mid-evaluation there is no prior run and no whole-evaluation
 /// index, so [`mod@crate::resolve`]'s full ladder does not apply:
@@ -3160,7 +3281,7 @@ const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-em
 /// union's own `declare` input. The names it carries are the ones this
 /// refusal carries — member-space rows of this node — and the step the
 /// pair is fed at is derived from them ([`route_declarations`]).
-fn union_refusal<T: geom_core::Real>(
+fn union_refusal<T: geom_core::Bounds>(
     id: RecipeNodeId,
     a_table: &crate::names::NameTable,
     b_table: &crate::names::NameTable,
@@ -3217,7 +3338,7 @@ const UNION_REFUSAL_FOREIGN: &str =
 /// ids: the n-ary union folds the same verb over an ACCUMULATION that
 /// is no node's result, and the menu reads nothing else about an
 /// operand.
-fn refusal_menu<T: geom_core::Real>(
+fn refusal_menu<T: geom_core::Bounds>(
     a_table: &crate::names::NameTable,
     b_table: &crate::names::NameTable,
     err: verbs::VerbError<T>,
