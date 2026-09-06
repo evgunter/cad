@@ -26,23 +26,26 @@ hand, in six gates, none of them going through `lib.sh`'s builder:
     scripts/gates/bit-identity-consumer.sh:38-41      (4 homes)
     scripts/gates/bit-identity-punning.sh:23
     scripts/gates/evalscalar-allowlist.sh:42
-    scripts/gates/interval-square-allowlist.sh:168-170
+    scripts/gates/interval-square-allowlist.sh:464-466
     scripts/gates/no-ambient-env.sh:108-110
     scripts/gates/witness-not-ambient.sh:90
 
-each spelled `gate_grep -vE '^<path>\.rs:'`. Three more sites are
+each spelled `gate_grep -vE '^<path>\.rs:'` (line numbers as of
+`ff90daf22`, the merge of the anchored-skip unit). Two more sites are
 adjacent but different questions:
 
   * `witness-not-ambient.sh:91-93` skip DIRECTORY prefixes and a path
     class (`^crates/[^/]+/src/bin/`), which is not a file skip and has
     no `FILE:LINE:` shape to pin;
-  * `bounds-allowlist.sh:554` SELECTS one allowlisted file's records
-    with `gate_grep -E "^$path_re:"`, `$path_re` already through
-    `gate_ere_escape`;
   * `gate-roster.sh:238` escapes an outlier gate's path by hand with
     `esc=${outlier//./\\.}` — dots only — where `gate_ere_escape` is
     the whole set, and matches it against ci.yml command text rather
     than against records.
+
+`bounds-allowlist.sh`'s per-file SELECT was on this list when the row
+was written and is not any more: the anchored-skip unit converted it to
+`gate_grep -E "$(gate_record_anchor "$path")"` at `:553`. It is the one
+worked example of what the conversion looks like.
 
 ## Why it is worth a row
 
@@ -87,10 +90,8 @@ claims:
     longer path.
   * `witness-not-ambient.sh:91-93` are prefix skips on purpose; there
     is no over-match to reach.
-  * `bounds-allowlist.sh:554` selects rather than skips, so its
-    over-match over-COUNTS an allowlisted file's occurrences instead of
-    exempting anything — a cry-wolf direction, reachable by the same
-    colon-carrying path.
+  * `bounds-allowlist.sh:553` is converted already and is the shape the
+    rest should take.
   * `gate-roster.sh:238`'s under-escape is reachable only by adding a
     path carrying `+`, `(`, `[` or `{` to `OUTLIER_GATES`, which is a
     hand-maintained list; the reachable set is "the next entry", not
