@@ -3331,3 +3331,76 @@ Each time the ruling was sound and the example was the casualty —
 which is an argument for worked examples being checked against the
 tree at the moment a ruling is written, not a reason to stop giving
 them.
+
+## #1953's fix pass: the `|| true` class was three sites older than its fix (2026-09-06)
+
+Green on the merged head after **386 commits of `origin/main`** — gate
+and `--selftest` re-run against the merged tree rather than the branch
+point, and the roster absorbed a day of other programs' work (31
+vocabularies, 10 drivers, 41 modules).
+
+### Corrected me twice, both about state rather than judgement
+
+The whole fix pass had **already landed** before the rate limit; I
+resumed it believing it had stopped early. And its earlier head had
+**already gone green** — the lane was mid-poll when it was cut off, so
+the result existed and neither of us had seen it. Exactly one item was
+genuinely missing.
+
+**The cause of that one is worth recording**: a python heredoc edit
+block raised on an earlier substitution, so the write that followed it
+never ran — **a silent partial apply with no error surfaced**. The lane
+re-verified every owed item by grep rather than by its own transcript,
+which is the right response and the one that found it.
+
+### The class was older and wider than I framed it
+
+I sent one instance and named three more as a sweep. **All four were
+live, three of them predating this unit's fix**, and the worst — the
+exception filter, whose pattern is interpolated from an entry — could
+have greened the gate over a malformed needle indefinitely. All four
+now use `gate_grep`. The lane swept the whole `scripts/gates/`
+directory rather than the file I named: **no other live instance**.
+
+### It caught itself making the opposite mistake
+
+Folding `grep -q` into `gate_grep` where **exit 1 *is* the answer**
+would have turned a predicate always-true. It found that because a new
+check then **passed on a fixture that lacked its subject** — not "did I
+do what the review said" but "did doing it break something the review
+did not mention". `lib.sh` carves that case out by name, which is the
+confirmation.
+
+That is the second time in two units a lane has been caught out by a
+fix that reproduced the defect it closed, and the first time a lane
+caught itself.
+
+### Two negative controls, neither an accident
+
+The zero-hit control forces the list empty so the gate must still print
+OK — it stays exercised the day an entry returns. And the four
+exception arms **stopped borrowing a live defect**: they used to aim at
+whatever `VOCAB_EXCEPTIONS[0]` happened to be, so retiring the last
+entry retired their coverage. They now plant their own, via an override
+honoured **only when `GATE_ROOT` is set** — under `--root`, which only
+the self-test passes, so no environment can exempt the repo.
+
+**That closed the residue the lane had filed, and its file was deleted
+rather than left scheduled.** Right: a residue closed in the PR that
+filed it should not survive as an open row. Asked for the PR body to
+say so, since a deletion is otherwise indistinguishable from an
+oversight.
+
+### One file owed before merge
+
+The lane answered the `select_pick.rs` question well — **`build` must
+not take `IndexInputs`**, because `build` is the pure function the
+worker runs off a request that *owns* its copies, and a session-borrowed
+value on the far side of that seam contradicts a contract saying the
+worker owns everything it reads. Its reading is that **`IndexRequest`
+is already the concept** and `IndexInputs` is its borrowed counterpart
+at the one door that mints it.
+
+That is a residue inside VIEW's own fence and it is in a PR body rather
+than a file. Asked for the file before merge — merging without it
+repeats exactly the failure this program has spent the session fixing.
