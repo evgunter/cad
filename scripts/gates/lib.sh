@@ -723,6 +723,7 @@ gate_ere_escape() {
 # is exempted — planted, and confirmed exempt before the escaping, at
 # `signed-zero-one-home.sh`'s `plant_sibling_the_raw_anchor_exempted`.
 # The reachable set is narrow, not empty.
+#
 # The escaping is one rule over path and text alike — the TEXT half is
 # where it bites, since a ratified line carries `+`, `.` and brackets —
 # and a reader should not have to case-split it to know the anchor is
