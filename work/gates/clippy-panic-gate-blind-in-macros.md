@@ -2,13 +2,14 @@
 id: clippy-panic-gate-blind-in-macros
 kind: issue
 title: clippy's panic-family gate is blind inside every macro_rules! body
-status: review
+status: closed
 opened: 2026-08-13
 github: 454
 refs: [447]
 track: K
 branch: gates/panic-free-macro-bodies
 pr: 2032
+closed: 2026-09-06
 ---
 
 ## From GitHub issue 454
