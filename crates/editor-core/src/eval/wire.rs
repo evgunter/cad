@@ -2641,8 +2641,7 @@ fn wire_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
         let decls = if buckets[step].is_empty() {
             BooleanDeclarations::none()
         } else {
-            let acc_view =
-                names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
+            let acc_view = names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
             resolve_declarations(&buckets[step], doc, &acc_view, &member_table)?
         };
         match (verb.build)(BooleanOp::Union, decls)

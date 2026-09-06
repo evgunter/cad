@@ -188,7 +188,10 @@ fn a_union_of_two_flush_placements_of_one_prototype_fuses_when_declared() {
     );
     let ev = run(&bare);
     let Some(NodeErrorKind::UndeclaredContact { finding, .. }) = failure(&ev, plain) else {
-        panic!("expected the undeclared contact, got {:?}", failure(&ev, plain));
+        panic!(
+            "expected the undeclared contact, got {:?}",
+            failure(&ev, plain)
+        );
     };
     let member_of = |n: &StableName| match n.path.first() {
         Some(RoleSeg::FromMember { member, .. }) => Some(*member),
@@ -201,9 +204,8 @@ fn a_union_of_two_flush_placements_of_one_prototype_fuses_when_declared() {
         "the refusal names both members: {named:?}"
     );
     // Declared in member space: the same two placements fuse.
-    let (doc, union, _) = declared_union(doc, &[m1, m2], |u| {
-        flush_pairs(u, (m1, proto), (m2, proto))
-    });
+    let (doc, union, _) =
+        declared_union(doc, &[m1, m2], |u| flush_pairs(u, (m1, proto), (m2, proto)));
     let ev = run(&doc);
     assert!(
         failure(&ev, union).is_none(),
@@ -232,10 +234,7 @@ fn the_pair_boolean_cannot_declare_between_two_placements_of_one_prototype() {
     let (doc, m2) = placed(doc, proto, 0.5);
     let (doc, decl) = insert(
         doc,
-        Node::declare_rest(vec![(
-            fname(proto, wall(0)),
-            fname(proto, wall(0)),
-        )]),
+        Node::declare_rest(vec![(fname(proto, wall(0)), fname(proto, wall(0)))]),
     );
     let (doc, pair) = insert(
         doc,
@@ -318,9 +317,8 @@ fn a_declaration_mints_merged_rows_and_renames_nothing_else() {
     let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, m1) = placed(doc, proto, 0.0);
     let (doc, m2) = placed(doc, proto, 0.5);
-    let (doc, union, _) = declared_union(doc, &[m1, m2], |u| {
-        flush_pairs(u, (m1, proto), (m2, proto))
-    });
+    let (doc, union, _) =
+        declared_union(doc, &[m1, m2], |u| flush_pairs(u, (m1, proto), (m2, proto)));
     let ev = run(&doc);
     let t = table(&ev, union);
     // Four merged faces: the two y-walls and the two caps.
@@ -329,7 +327,11 @@ fn a_declaration_mints_merged_rows_and_renames_nothing_else() {
         .map(|(n, _)| n)
         .filter(|n| matches!(n.path.first(), Some(RoleSeg::Merged(_))))
         .collect();
-    assert_eq!(merged.len(), 4, "the four declared contacts merged: {merged:?}");
+    assert_eq!(
+        merged.len(),
+        4,
+        "the four declared contacts merged: {merged:?}"
+    );
     // And each merged row's constituents are the declared names, as a
     // sorted set — so a selector spelled against the merged face is
     // exactly this name, and it resolves.
@@ -389,8 +391,7 @@ fn a_declared_pair_routes_by_member_id_and_survives_a_reorder() {
         let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
         let all = [a, far, b];
         let members: Vec<RecipeNodeId> = order.iter().map(|i| all[*i]).collect();
-        let (doc, union, _) =
-            declared_union(doc, &members, |u| flush_pairs(u, (a, a), (b, b)));
+        let (doc, union, _) = declared_union(doc, &members, |u| flush_pairs(u, (a, a), (b, b)));
         (doc, union)
     };
     // Members (a, far, b): the declared pair belongs to step 3.
@@ -466,7 +467,10 @@ fn a_declared_name_that_denotes_nothing_refuses() {
     });
     let ev = run(&doc);
     assert!(
-        matches!(failure(&ev, union), Some(NodeErrorKind::DeclareResolve { .. })),
+        matches!(
+            failure(&ev, union),
+            Some(NodeErrorKind::DeclareResolve { .. })
+        ),
         "expected the N5 refusal, got {:?}",
         failure(&ev, union)
     );
@@ -492,7 +496,10 @@ fn a_declared_member_removed_by_set_members_refuses() {
     );
     let ev = run(&doc);
     assert!(
-        matches!(failure(&ev, union), Some(NodeErrorKind::DeclareResolve { .. })),
+        matches!(
+            failure(&ev, union),
+            Some(NodeErrorKind::DeclareResolve { .. })
+        ),
         "expected the N5 refusal, got {:?}",
         failure(&ev, union)
     );
@@ -526,7 +533,10 @@ fn an_accumulation_entity_paired_with_an_earlier_member_refuses() {
     });
     let ev = run(&doc);
     assert!(
-        matches!(failure(&ev, union), Some(NodeErrorKind::UnionDeclareStep { .. })),
+        matches!(
+            failure(&ev, union),
+            Some(NodeErrorKind::UnionDeclareStep { .. })
+        ),
         "expected the unroutable-pair refusal, got {:?}",
         failure(&ev, union)
     );
@@ -731,5 +741,8 @@ fn a_declared_union_replays_bit_identically() {
     let Some(Node::Union { declare, .. }) = loaded.doc.node(union) else {
         panic!("the union survived as something else")
     };
-    assert!(declare.is_some(), "the declare edge did not survive the wire");
+    assert!(
+        declare.is_some(),
+        "the declare edge did not survive the wire"
+    );
 }
