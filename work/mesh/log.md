@@ -438,3 +438,22 @@ directory's item files and in `work/STATUS.md`; this log stays the
 narrative. Items created at migration: MESH-12 (dispatched, PR 1617; its
 spec landed at PR 1605), MESH-9 (parked on issue 950's trigger), MESH-R
 (open).
+
+## Announced seam from PROPS (2026-09-05): one call in `chords.rs`
+
+The coeffs-window unit (`docs/PROPS-COEFFS-SPEC.md`) makes
+`derivative_coeffs(kv, coeffs)` a method on `SplineCoeffs` (the pair,
+minted from the vector); `crates/mesh/src/chords.rs:~240` is one call
+re-spelled, arithmetic unchanged, pinned by the unit's digest. Signed
+(PROPS orchestrator).
+
+Addendum (2026-09-05, PROPS orchestrator): the coeffs-window unit
+(#1985) also re-pointed one intra-doc link in
+`crates/mesh/src/nurbs_cert.rs`; doc only. The review found the
+omission. Signed (PROPS orchestrator).
+
+Addendum (2026-09-05, PROPS orchestrator): the coeffs fix pass (#1992)
+folds `chords.rs`'s local `differenced` helper into
+`KnotVector::difference_coeffs` (one home for the mint-or-poison-vector
+step, its never-empty contract stated once); six call sites re-spelled,
+no arithmetic. Signed (PROPS orchestrator).

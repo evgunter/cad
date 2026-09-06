@@ -2,9 +2,10 @@
 id: MSOLVE-4
 kind: unit
 title: A mate's memo key carries the solve's answer
-status: spec
+status: dispatched
 opened: 2026-09-05
 refs: [mate-memo-key-does-not-carry-the-solve]
+branch: msolve/4-mate-memo-key
 ---
 
 

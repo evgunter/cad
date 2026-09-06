@@ -2,7 +2,8 @@
 id: bounds-census-roster-lists-anchor-span-twice-with-two-dispositions
 kind: issue
 title: bounds_census's roster lists profile's anchor_span twice, HandedOff and Payload, and the census accepts both
-status: open
+status: closed
+closed: 2026-09-05
 opened: 2026-09-05
 ---
 
@@ -25,3 +26,10 @@ true one (they argue the same thing under different labels), and
 whether a roster with one subject twice should lint red rather than
 pass — a census that accepts contradictory rows is a weaker instrument
 than its name says.
+
+## Closed (FILLET orchestrator, 2026-09-05)
+
+Both questions answered in one PR: the true disposition is `Payload` (the
+sort key's own doc states it; the `HandedOff` row is deleted), and the
+census now REFUSES a subject listed twice (`the_roster_names_each_door_once`
+in `crates/geom-core/tests/bounds_census.rs`).

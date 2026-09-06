@@ -2,9 +2,10 @@
 id: MSOLVE-2
 kind: unit
 title: The member chain: nested patterns and sibling distinctness at every level
-status: open
+status: spec
 opened: 2026-09-05
 refs: [nested-pattern-mate-heads-refuse]
+branch: msolve/2-member-chain
 ---
 
 
@@ -39,3 +40,13 @@ with a sentence at `member_of`.
   carry the `Walk` in `by_pair`'s value.
 - `mate/solve.rs` is 1300 lines with the member vocabulary as its
   first third; split `mate/member.rs` out when the chain lands.
+
+## Spec (2026-09-05)
+
+`docs/MSOLVE-2-SPEC.md`. What the read of the landed walk changed:
+a pattern over a pattern does not evaluate (`wire_pattern` takes one
+body), so the reachable nested shape runs through `Node::Part {
+Instance(i) }` — the third identity-transparent node is the road, not
+a side decision. Dispatches after MSOLVE-4 (they share `mate/solve.rs`
+only at the key's consumer; sequenced for the lane, not for a
+dependency).

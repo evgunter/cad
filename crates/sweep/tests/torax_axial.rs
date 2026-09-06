@@ -53,8 +53,6 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-const FIT_TOL: f64 = 1e-6;
-
 /// The wall thickness every accepting row here hollows by — the tour's
 /// own.
 const T: f64 = 1.0 / 128.0;
@@ -142,7 +140,7 @@ fn has_corner(body: &Body<f64>, rho: f64, h: f64, what: &str) {
 
 /// The sealed hollow, with tier 3 and the two-shell shape first.
 fn hollowed(what: &str, body: &Body<f64>) -> Body<f64> {
-    let out = topo::shell(body, T, FIT_TOL, tol())
+    let out = topo::shell(body, T, tol())
         .unwrap_or_else(|e| panic!("{what}: the axial door must hollow this, got {e}"))
         .body;
     assert_eq!(
@@ -371,7 +369,7 @@ fn torax_the_torus_corners_survive_a_rigid_re_pose() {
             .unwrap_or_else(|e| panic!("{what}: the hollow re-poses, got {e}"));
         let posed_first = transform_rigid(&body, &map, tol())
             .unwrap_or_else(|e| panic!("{what}: the operand re-poses, got {e}"));
-        let hollow_after = topo::shell(&posed_first, T, FIT_TOL, tol())
+        let hollow_after = topo::shell(&posed_first, T, tol())
             .unwrap_or_else(|e| panic!("{what}, re-posed: {e}"))
             .body;
         let want: Vec<Point3<f64>> = posed_after
@@ -417,7 +415,7 @@ fn torax_the_torus_corners_survive_a_rigid_re_pose() {
 /// below.
 #[test]
 fn torax_a_wall_thicker_than_the_tube_refuses_typed() {
-    let e = topo::shell(&torus_barrel(), 6.0 / 64.0, FIT_TOL, tol())
+    let e = topo::shell(&torus_barrel(), 6.0 / 64.0, tol())
         .expect_err("a wall thicker than the tube has no cavity");
     println!("[torax] the over-thick wall refuses: {e}");
     let ShellError::WallClearance {
@@ -464,7 +462,7 @@ fn torax_the_torus_arms_floor_is_the_ring_closing() {
 
     // At it. `r + t` reaches `R`, so the offset tube would swallow its
     // own hole.
-    let e = topo::shell(&torus_barrel(), 2.0 / 128.0, FIT_TOL, tol())
+    let e = topo::shell(&torus_barrel(), 2.0 / 128.0, tol())
         .expect_err("an offset tube that reaches the major radius has no ring left");
     println!("[torax] the closed ring refuses: {e:?}");
     let ShellError::Face { error, .. } = e else {
@@ -585,7 +583,7 @@ fn torax_the_klein_elbow_rim_refuses_at_the_carrier_mint() {
         .expect("the elbow revolves")
         .body
     };
-    let e = topo::shell(&elbow, 0.05, FIT_TOL, tol())
+    let e = topo::shell(&elbow, 0.05, tol())
         .expect_err("the elbow's rim circle is a quartic section away from a carrier");
     let ShellError::Face { error, .. } = e else {
         panic!("not the offset door's refusal: {e}");
@@ -844,7 +842,7 @@ fn torax_the_sphere_lune_next_door_is_the_props_inventory() {
 
     // And shell walks the WHOLE hollow — corners, carriers, pcurves,
     // containment — before the same premise refuses its closing gate.
-    let e = topo::shell(&body, 0.05, FIT_TOL, tol())
+    let e = topo::shell(&body, 0.05, tol())
         .expect_err("shell's +V invariant needs the volume the flux arm cannot yet give");
     println!("[torax] the lune's next door: {e}");
     let ShellError::NotValid { errors } = e else {
@@ -875,7 +873,7 @@ fn torax_the_sphere_lune_next_door_is_the_props_inventory() {
 /// family's refusal REACHABLE now that the quarter lune solves.
 #[test]
 fn torax_the_half_turn_lune_refuses_the_parallel_cap_pair() {
-    let e = topo::shell(&lune(0.3, core::f64::consts::PI), 0.05, FIT_TOL, tol())
+    let e = topo::shell(&lune(0.3, core::f64::consts::PI), 0.05, tol())
         .expect_err("parallel moved caps leave the rim corner under-determined");
     println!("[torax] the half-turn lune: {e}");
     let ShellError::Face { error, .. } = e else {

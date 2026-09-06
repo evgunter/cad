@@ -244,3 +244,22 @@ The survey corrected the row's premise: the compiler already makes
 door INSIDE the file looks up before it hands a token out — and that
 is what the row builds, on the shared lexer and item carve `D261`
 landed.
+
+## The two-homes ruling goes to Ev (2026-09-05)
+
+`face-kind-read-has-two-homes`: recommendation (a) — the predicate
+seat reads through the typed readback door and flattens; the
+readback header's "one reading, not two" is the ratified rule this
+elaborates. Three viable answers on paper, one dominant argument, so
+it goes out as an `[ev]` PR rather than self-merging, per the
+"when unsure, treat it as a fork" rule; `needs_ev: true` on the item,
+the seam announced on SEAT's board as a heads-up.
+
+## Two-homes ruled (2026-09-05)
+
+PR 1948: Ev asked whether SEAT's PR 1902 had just ruled the same
+question the other way; it had not (a decide site under two funnel
+names versus a tag read, and #1902's "one kernel door, callers keep
+their names" is this item's (a)). Ratified (a). The item is a unit,
+dispatched on `topo/two-homes-face-kind` as a one-door seam on SEAT's
+`query.rs`, announced; single style review, no row.
