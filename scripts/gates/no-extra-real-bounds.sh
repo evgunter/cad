@@ -65,28 +65,25 @@
 # same declaration copied anywhere in the tree, and would turn
 # `locate.rs` being renamed into a quiet no-op. Anchored, a moved file
 # carries the declaration to a path the skip does not match and the gate
-# reds on it. The subject check below is the other half: it fires when
-# the file is still there and the text is not.
+# reds on it. The subject check is the other half, and it speaks in both
+# of the remaining directions: the file still there with the text gone,
+# and the file gone from the tree — which is a red and not an
+# abstention, for the reasons `lib.sh` states at `gate_exact_skip`.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 SEALED_HOME=crates/geom-core/src/spline/locate.rs
 SEALED_DECL='pub trait SpanLocate: sealed::Sealed + Real {'
-# The same declaration as `lib.sh`'s statement view renders it (the `{`
-# is the cut), and both halves anchored: the skip applies to this text
-# in this file and nowhere else.
-SEALED_HOME_RE='crates/geom-core/src/spline/locate\.rs'
-SEALED_DECL_RE='pub trait SpanLocate: sealed::Sealed \+ Real'
-
-# The skip's subject, proved before the scan that depends on it.
-gate_sealed_skip_subject() {
-  [ -f "$SEALED_HOME" ] || return 0
-  if ! grep -qxF "$SEALED_DECL" "$SEALED_HOME"; then
-    gate_error "$(gate_name): the SpanLocate declaration this gate skips by exact text is no longer in $SEALED_HOME verbatim. It may have been reformatted or renamed — or given a bound that is NOT the empty sealing marker, which would make \`T: SpanLocate\` an extra-bounds parameter at every use site in the kernel. Re-derive the skip against what the file now says; do NOT allowlist the file"
-    exit 1
-  fi
-}
+# THE SKIP IS `lib.sh`'s, declared and never spelled: the anchored
+# filter, the subject check and the fixtures on both sides of the anchor
+# are one mechanism, and the pattern is derived from the plain
+# declaration above through the same statement view the scan reads — so
+# there is no hand-escaped twin of this line to drift from it.
+gate_exact_skip --statements \
+  --subject 'the SpanLocate declaration this gate skips by exact text is' \
+  --repair "It may have been reformatted or renamed — or given a bound that is NOT the empty sealing marker, which would make \`T: SpanLocate\` an extra-bounds parameter at every use site in the kernel. Re-derive the skip against what the file now says; do NOT allowlist the file" \
+  "$SEALED_HOME" "$SEALED_DECL"
 
 # A type parameter bounded TWICE inside one statement, at least one of
 # those bounds naming `Real`. `IDENT:` introduces a predicate; `IDENT::`
@@ -120,7 +117,7 @@ compound_without_plus() {
 
 gate() {
   gate_require_crate_sources
-  gate_sealed_skip_subject
+  gate_exact_skip_subject
   local near plus twice hits
   # THE PREFILTER IS A FIXED STRING over STATEMENTS, and it is why this
   # gate costs seconds rather than a minute: every spelling below needs
@@ -130,7 +127,7 @@ gate() {
   near=$(gate_rust_code --statements "${GATE_SOURCE_FILES[@]}" | gate_grep -F Real)
   plus=$(printf '%s\n' "$near" \
     | gate_grep -E '(\+[[:space:]]*([A-Za-z0-9_]+::)*Real([^A-Za-z0-9_]|$))|((^|[^A-Za-z0-9_])Real[[:space:]]*\+)' \
-    | gate_grep -vE "^$SEALED_HOME_RE:[0-9]+: $SEALED_DECL_RE\$")
+    | gate_exact_skip_filter)
   # `compound_without_plus` is awk, which has no "no match" status: it
   # exits 0 having printed nothing. A non-zero from it is a reader that
   # died, so it is NOT tolerated here either.
@@ -283,18 +280,14 @@ plant_sealed_decl_changed() {
   printf 'pub trait SpanLocate: PartialOrd + Real {\n}\n' > "$1/$SEALED_HOME"
 }
 
-plant_sealed_home_clean() {
-  mkdir -p "$1/crates/geom-core/src/spline"
-  printf '%s\n}\n' "$SEALED_DECL" > "$1/$SEALED_HOME"
-}
-
-# THE SKIP IS ANCHORED, and this case is what holds it anchored: the
-# ratified declaration copied into a file that is not its home is not
-# ratified, and an unanchored `grep -vF` would exempt it. It is also the
-# case that makes `locate.rs` MOVING loud — a moved file is this fixture.
-plant_sealed_decl_elsewhere() {
-  mkdir -p "$1/crates/planted/src"
-  printf '%s\n}\n' "$SEALED_DECL" > "$1/crates/planted/src/lib.rs"
+# THE CLEAN TREE CARRIES THE SKIP'S OWN SUBJECT, because a home that is
+# not there is a red (`lib.sh`, gate_exact_skip): the ratified
+# declaration is planted in every fixture, so the skip is LIVE in all of
+# them and an anchor that over-narrowed would red the clean case rather
+# than wait for the one fixture written to notice.
+gate_plant_clean() {
+  gate_plant_clean_sources "$1"
+  gate_exact_skip_plant_home "$1"
 }
 
 gate_selftest() {
@@ -313,14 +306,13 @@ gate_selftest() {
   gate_selftest_case "$want" plant_wrapped_with_blank_line
   gate_selftest_case "$want" plant_plus_wrapped_where
   gate_selftest_case "$want" plant_plus_wrapped_generics
-  gate_selftest_case "$want" plant_sealed_decl_elsewhere
   gate_selftest_case "$want" plant_split_predicate
   gate_selftest_case "$want" plant_after_block_comment
   gate_selftest_case "$want" plant_sealed_home_violation
   gate_selftest_case "no longer in crates/geom-core/src/spline/locate.rs verbatim" plant_sealed_decl_changed
   gate_selftest_passes "prose, string literals and sole Real bounds" plant_prose_and_sole_bounds
-  gate_selftest_passes "the ratified SpanLocate declaration" plant_sealed_home_clean
-  printf '%s selftest OK: passes a clean fixture, prose/strings/sole bounds, and the ratified SpanLocate line in its own file; fires on both operand orders, on a path-qualified Real after the plus, on rustfmt-wrapped plus in the where clause AND in the generic list, on the one-line and wrapped two-predicate spellings, across a blank line inside a where clause, on a predicate split between the generic list and the where clause, on a bound hidden behind a block comment, on the ratified declaration copied into another file, on a violation beside the skipped declaration, and on that declaration being given a bound with a surface; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  gate_exact_skip_selftest "$want"
+  printf '%s selftest OK: passes a clean fixture and prose/strings/sole bounds; fires on both operand orders, on a path-qualified Real after the plus, on rustfmt-wrapped plus in the where clause AND in the generic list, on the one-line and wrapped two-predicate spellings, across a blank line inside a where clause, on a predicate split between the generic list and the where clause, on a bound hidden behind a block comment, on a violation beside the skipped declaration, and on that declaration being given a bound with a surface; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

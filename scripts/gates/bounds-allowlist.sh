@@ -79,8 +79,10 @@
 #    own anchor: the two `CertifiedBounds` definition lines are exempt
 #    in `real.rs` and nowhere else, so the same definition written into
 #    any other crate is an ordinary scan hit and a moved `real.rs` reds
-#    on arrival. The TEXT is `gate_definition_skip_subject`'s: it fires
-#    when the file is still there and the lines are not.
+#    on arrival. The TEXT is `gate_exact_skip_subject`'s: it fires when
+#    the file is still there and the lines are not, and when the file
+#    itself is gone — a home the tree does not have is a red and not an
+#    abstention (`lib.sh`, gate_exact_skip).
 #
 #    THE SKIP AND THE CHECK OVERLAP, and the overlap is worth knowing
 #    rather than hiding: with the check in place, reverting the skip to
@@ -388,55 +390,26 @@ set -euo pipefail
 DEFINITION_HOME=crates/geom-core/src/real.rs
 DEFINITION_TRAIT='pub trait CertifiedBounds: Bounds + CertifiedEnclosure {}'
 DEFINITION_IMPL='impl<T: Bounds + CertifiedEnclosure> CertifiedBounds for T {}'
-# The same two lines as a STATEMENT RECORD renders them -- `{`, `}` and
-# `;` are where a statement is cut, so the trailing `{}` is not part of
-# the record and one space follows the line number -- and BOTH halves
-# anchored: the skip applies to this text in this file and nowhere else.
-DEFINITION_HOME_RE='crates/geom-core/src/real\.rs'
-DEFINITION_TRAIT_RE='pub trait CertifiedBounds: Bounds \+ CertifiedEnclosure'
-DEFINITION_IMPL_RE='impl<T: Bounds \+ CertifiedEnclosure> CertifiedBounds for T'
 
-# THE SKIP'S SUBJECT, proved before the scan that depends on it. The two
-# definition lines below are skipped as EXACT TEXT, which is deliberate --
-# a skip keyed on the name would exempt the alias being GIVEN `Decide` --
-# but exact text is brittle in the other direction: a reformat, a rename or
-# a retirement makes the skip stop matching, and the tempting repairs are
-# both wrong (widen the skip back to a name; allowlist real.rs). So the
-# gate proves its own assumption instead of discovering it as a confusing
-# red on the file that defines the rule, and says which repair is meant.
+# THE SKIP IS `lib.sh`'s, DECLARED AND NEVER SPELLED. The two definition
+# lines are skipped as EXACT TEXT, which is deliberate -- a skip keyed on
+# the name would exempt the alias being GIVEN `Decide` -- but exact text
+# is brittle in the other direction: a reformat, a rename or a retirement
+# makes the skip stop matching, and the tempting repairs are both wrong
+# (widen the skip back to a name; allowlist real.rs). So the gate proves
+# its own assumption instead of discovering it as a confusing red on the
+# file that defines the rule, and `--repair` says which repair is meant.
 #
-# IT ABSTAINS WHEN THE FILE IS GONE, and that costs nothing now: the
-# skip is anchored to the same path, so a moved `real.rs` carries the
-# two lines to a path the skip does not match and the SCAN reds on them.
-# Before the anchor this abstention was the silent half of the failure.
-gate_definition_skip_subject() {
-  local f=$DEFINITION_HOME
-  [ -f "$f" ] || return 0
-  if ! grep -qxF "$DEFINITION_TRAIT" "$f" || ! grep -qxF "$DEFINITION_IMPL" "$f"; then
-    gate_error "$(gate_name): the CertifiedBounds definition lines this gate skips by exact text are no longer in $f verbatim. The alias may have been reformatted, renamed, retired -- or GIVEN a decision bound, which would make every sole \`T: CertifiedBounds\` in the tree a decide-and-bracket parameter. Re-derive the two skip patterns against what real.rs now says; do NOT widen them to a name and do NOT allowlist real.rs"
-    exit 1
-  fi
-}
-
-# `CertifiedBounds`'s two DEFINITION lines, dropped by EXACT TEXT (the
-# reasoning is at `gate_definition_skip_subject` above). ONE HOME for the
-# two patterns, because two readers need them now: the scan below and the
-# alias census. A second copy would be a second thing to keep in step with
-# real.rs, which is the drift the subject check exists to catch.
-#
-# THE PATTERNS ARE ANCHORED TO THEIR HOME, and that is what makes the
-# file MOVING loud rather than silent. Unanchored, the two lines were
-# exempt wherever under `crates/*/src` they were written -- so the same
-# definition copied into any crate rode the skip, and a renamed `real.rs`
-# carried it along while the subject check above abstained on the file it
-# could no longer find. Anchored, both halves speak: the text at the
-# wrong path is an ordinary scan hit, and the text gone from the right
-# path is the subject check's red. Planted as
-# `plant_definition_lines_elsewhere`.
-gate_definition_skip() {
-  gate_grep -vE "^$DEFINITION_HOME_RE:[0-9]+: $DEFINITION_TRAIT_RE\$" |
-    gate_grep -vE "^$DEFINITION_HOME_RE:[0-9]+: $DEFINITION_IMPL_RE\$"
-}
+# The anchored filter is derived from the two plain lines above through
+# the same statement view the scan reads, so the trailing `{}` the cut
+# drops and the `+` a pattern would read as a repeat are the reader's
+# business and not a hand-escaped twin's. ONE declaration serves both
+# readers of these lines -- the scan and the alias census, which sees the
+# records only after `gate_exact_skip_filter` has taken them out.
+gate_exact_skip --statements \
+  --subject 'the CertifiedBounds definition lines this gate skips by exact text are' \
+  --repair "The alias may have been reformatted, renamed, retired -- or GIVEN a decision bound, which would make every sole \`T: CertifiedBounds\` in the tree a decide-and-bracket parameter. Re-derive the two skip patterns against what real.rs now says; do NOT widen them to a name and do NOT allowlist real.rs" \
+  "$DEFINITION_HOME" "$DEFINITION_TRAIT" "$DEFINITION_IMPL"
 
 # THE FILE LIST, one entry per ratified file: PATH, the COUNT of
 # matcher OCCURRENCES that file carries, and the RULING that ratified
@@ -661,7 +634,7 @@ gate_allowlist_counts() {
 # `plant_roster_file_gone`.
 #
 # `CertifiedBounds` IS DELIBERATELY NOT HERE. Its two definition lines are
-# dropped by `gate_definition_skip`, and `gate_definition_skip_subject`
+# dropped by the anchored skip declared above, whose subject check
 # already watches the same property for it — by exact text, in its own
 # file. A second watcher would be a second thing to keep in step.
 BOUNDS_ALIAS_ROSTER=(
@@ -896,7 +869,7 @@ gate_bound_reader() {
 # `Bounds` or `Enclosure` in the record, so the reader — the expensive
 # half, an awk walk per record — only ever sees records that carry one.
 gate_matcher() {
-  gate_grep -E 'Bounds|Enclosure' | gate_bound_reader records | gate_definition_skip
+  gate_grep -E 'Bounds|Enclosure' | gate_bound_reader records | gate_exact_skip_filter
 }
 
 # The census. It runs AFTER the scan, and the order is the argument: a new
@@ -954,7 +927,7 @@ gate_alias_roster_census() {
 gate() {
   gate_allowlist_wellformed "${BOUNDS_ALLOWLIST[@]}"
   gate_require_crate_sources
-  gate_definition_skip_subject
+  gate_exact_skip_subject
   local records hits
   # The shared CODE-ONLY view in its STATEMENT record shape, so comment
   # text and literal bodies never reach the matcher and a declaration
@@ -995,8 +968,11 @@ gate() {
 gate_plant_clean() {
   local entry path name n i decl
   local -A rostered_decl=()
-  mkdir -p "$1/crates/clean/src"
-  printf 'pub fn identity(x: f64) -> f64 { x }\n' > "$1/crates/clean/src/lib.rs"
+  gate_plant_clean_sources "$1"
+  # The anchored skip's home is one more of this gate's own subjects: a
+  # home that is not in the tree is a red, so the clean tree carries it
+  # and the skip is live in every fixture below.
+  gate_exact_skip_plant_home "$1"
   for entry in ${BOUNDS_ALIAS_ROSTER[@]+"${BOUNDS_ALIAS_ROSTER[@]}"}; do
     path=${entry%% *}; name=${entry##* }
     rostered_decl["$path"]="pub trait $name: Decide + Bounds {}"
@@ -1326,35 +1302,6 @@ plant_real_rs_alias_redefined() {
     > "$1/crates/geom-core/src/real.rs"
 }
 
-# THE SKIP IS ANCHORED, and this case is what holds it anchored: the two
-# definition lines at a path that is not their home are not exempt, and
-# an unanchored skip would exempt them. It is also the case that makes
-# `real.rs` MOVING loud -- a moved file IS this fixture, and there the
-# subject check abstains on the file it cannot find, so the skip is the
-# only guard left.
-plant_definition_lines_elsewhere() {
-  mkdir -p "$1/crates/planted/src"
-  {
-    printf '%s\n' "$DEFINITION_TRAIT"
-    printf '%s\n' "$DEFINITION_IMPL"
-  } > "$1/crates/planted/src/lib.rs"
-}
-
-# THE ANCHOR'S POSITIVE DIRECTION, and without it the self-test only ever
-# proved the skip does not apply. `real.rs` carrying the two definition
-# lines AND NOTHING ELSE must PASS: over-narrow the anchor -- a path that
-# never matches, or a `_RE` twin whose escaping drifted from the text
-# beside it -- and the two lines the rule DEFINES become a red on the
-# file that defines it. Its sibling `plant_real_rs_signature` cannot say
-# this, because the compound line it adds fires either way.
-plant_definition_lines_at_home() {
-  mkdir -p "$1/crates/geom-core/src"
-  {
-    printf '%s\n' "$DEFINITION_TRAIT"
-    printf '%s\n' "$DEFINITION_IMPL"
-  } > "$1/$DEFINITION_HOME"
-}
-
 # THE ALIAS-ROSTER CASES. Each plants ONE edit that the SCAN lets through,
 # because an edit the scan already reds says nothing about this check.
 #
@@ -1586,8 +1533,8 @@ gate_selftest() {
   gate_selftest_case "$want" plant_lifetime_beside_compound
   gate_selftest_case "$want" plant_relaxed_beside_compound
   gate_selftest_case "$want" plant_real_rs_signature
+  gate_exact_skip_selftest "$want"
   gate_selftest_case "no longer in crates/geom-core/src/real.rs verbatim" plant_real_rs_alias_redefined
-  gate_selftest_case "$want" plant_definition_lines_elsewhere
   gate_selftest_case "$want" plant_dual_equivalent_spelling
   gate_selftest_case "can no longer see the roster entry" plant_alias_declaration_gone_silent
   gate_selftest_case "is not on this gate's alias roster" plant_alias_renamed
@@ -1609,8 +1556,6 @@ gate_selftest() {
     plant_relaxed_bound_sole
   gate_selftest_passes "a rostered declaration in the multi-line where block rustfmt converges on, which the census reads" \
     plant_alias_declaration_rustfmt_block
-  gate_selftest_passes "the two CertifiedBounds definition lines in real.rs, which is their home" \
-    plant_definition_lines_at_home
   gate_selftest_passes "the spelling in a trailing comment, a block comment and a string literal" \
     plant_spelling_in_comments_and_literals
   gate_selftest_passes "an alias DECLARATION in its ratified home plus its uses in a file that is not ratified (KNOWN GAP 3, measured)" \
@@ -1619,7 +1564,7 @@ gate_selftest() {
     plant_trait_generic_sole_bracket_ratified
   gate_selftest_passes "one ratified compound bound replaced by another at the same count" \
     plant_ratified_file_swaps_a_bound
-  printf '%s selftest OK: passes a clean fixture and a sole bracket bound as a fn, a path-qualified fn, a struct, and a trait generic over one -- bare, nested two deep, and beside an `Fn(..) -> ..` parameter in both orders -- and the two CertifiedBounds definition lines at home in real.rs, which is the anchored skip proved in its positive direction; fires on both operand orders of Decide+Bounds, of Decide+CertifiedBounds and of Decide+Enclosure, on the same obligation spelled with no plus at all -- repeated on one parameter in a where clause, split between the generic list and the where clause, and broken across lines -- on a wrapper type that decides and reads brackets in its own where clause, on that same obligation written beside a lifetime and beside a relaxed ?Sized bound, neither of which is a bound term, on a path-qualified alias after the plus, on Bounds- and Enclosure-shaped alias names not in the tree today, on all three one-line spellings of a non-Bounds-named alias DECLARATION (pair, sole supertrait, where-clause) and on the multi-line `where` block rustfmt converges on from the third, which no line-based reader sees, on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through the definition-skip subject check), on the two definition lines written at a path that is not their home, which is the moved real.rs the skip is anchored against, and on the equivalent spelling of dual.rs Bounds impl (GAP 2); fires, through the ALIAS ROSTER, on a rostered declaration going quiet where it stands (its name pasted by a macro, which is what GAP 4 keeps), on the same declaration renamed (both halves of one diagnosis), and on a new alias -- compound OR bracket-only -- minted inside a file the list already ratifies, where the scan is silent, and on a roster entry whose file is no longer in the tree, which is the retirement the roster claims to make loud; fires, through the PINNED OCCURRENCE COUNT each allowlist entry carries, on a ratified file that has gained a compound bound, which is the silent inheritance S159 names, on one that has gained a SECOND bound inside a signature that already held one, which is that inheritance arriving where a record count cannot see it, on one that has LOST an occurrence, and on one that is gone entirely with its entry still standing; refuses, before any scan runs, an allowlist entry with no fields after its path, one with no ruling after its count, one whose count is not a positive decimal integer -- spelled out, zero-padded, or shifted off the end by a path carrying a space -- and a second entry for a path that already has one; passes the spelling written into a trailing comment, a block comment and a string literal, which the leading-`//` strip this gate carried fired on, a bracket bound beside a lifetime and one beside a ?Sized, which are SOLE bounds because neither is a bound term, a trait generic over a sole bracket bound inside a ratified file, a sole bracket bound in a where clause, two parameters bounded one each, a wrapper type bounded beside its own parameter (the near miss the grouping owes, and the shape three ratified files write), a rostered declaration reformatted into the rustfmt where block, which the census still reads, one ratified compound bound swapped for another at the SAME occurrence count, which is what a per-file count cannot see (KNOWN GAP 6), and KNOWN GAP 3 itself -- the alias declaration in its ratified home beside its uses in a file that is not, which this gate cannot see and does not claim to; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture and a sole bracket bound as a fn, a path-qualified fn, a struct, and a trait generic over one -- bare, nested two deep, and beside an `Fn(..) -> ..` parameter in both orders; fires on both operand orders of Decide+Bounds, of Decide+CertifiedBounds and of Decide+Enclosure, on the same obligation spelled with no plus at all -- repeated on one parameter in a where clause, split between the generic list and the where clause, and broken across lines -- on a wrapper type that decides and reads brackets in its own where clause, on that same obligation written beside a lifetime and beside a relaxed ?Sized bound, neither of which is a bound term, on a path-qualified alias after the plus, on Bounds- and Enclosure-shaped alias names not in the tree today, on all three one-line spellings of a non-Bounds-named alias DECLARATION (pair, sole supertrait, where-clause) and on the multi-line `where` block rustfmt converges on from the third, which no line-based reader sees, on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through the definition-skip subject check), and on the equivalent spelling of dual.rs Bounds impl (GAP 2); fires, through the ALIAS ROSTER, on a rostered declaration going quiet where it stands (its name pasted by a macro, which is what GAP 4 keeps), on the same declaration renamed (both halves of one diagnosis), and on a new alias -- compound OR bracket-only -- minted inside a file the list already ratifies, where the scan is silent, and on a roster entry whose file is no longer in the tree, which is the retirement the roster claims to make loud; fires, through the PINNED OCCURRENCE COUNT each allowlist entry carries, on a ratified file that has gained a compound bound, which is the silent inheritance S159 names, on one that has gained a SECOND bound inside a signature that already held one, which is that inheritance arriving where a record count cannot see it, on one that has LOST an occurrence, and on one that is gone entirely with its entry still standing; refuses, before any scan runs, an allowlist entry with no fields after its path, one with no ruling after its count, one whose count is not a positive decimal integer -- spelled out, zero-padded, or shifted off the end by a path carrying a space -- and a second entry for a path that already has one; passes the spelling written into a trailing comment, a block comment and a string literal, which the leading-`//` strip this gate carried fired on, a bracket bound beside a lifetime and one beside a ?Sized, which are SOLE bounds because neither is a bound term, a trait generic over a sole bracket bound inside a ratified file, a sole bracket bound in a where clause, two parameters bounded one each, a wrapper type bounded beside its own parameter (the near miss the grouping owes, and the shape three ratified files write), a rostered declaration reformatted into the rustfmt where block, which the census still reads, one ratified compound bound swapped for another at the SAME occurrence count, which is what a per-file count cannot see (KNOWN GAP 6), and KNOWN GAP 3 itself -- the alias declaration in its ratified home beside its uses in a file that is not, which this gate cannot see and does not claim to; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
