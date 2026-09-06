@@ -473,3 +473,30 @@ stranded payload name, the pair verb's operand asymmetry (DOCM), the
 one-pass authoring hole (CHROME). The spec is deleted into the ledger;
 DM4 carries the measured limit pending the ruling. Next: DOCM-6's dual
 concludes block B2; the certified range query waits on M10.
+
+## DOCM-6 MERGED (2026-09-06, PR 2035, ordinal 1806, sample #149)
+
+Block DOCM-B2 slot 2 (OPUS), concluded — the block is complete (slot 0
+DOCM-2 fable, slot 1 DOCM-5 opus, slot 2 DOCM-6 opus) and its record
+reaches main with this sync. No stop; the v6 dual (R1 opus
+APPROVE-WITH-FIXES 1/8/4, R2 fable APPROVE-WITH-FIXES 0/5/3) and its
+union fix pass. Adjudicated: no bilateral MAJOR and one unilateral
+MAJOR, R1's — the widened `Uncertified` predicate moves the outermost
+gate's verdict on a grazing part instantiated once (`AtRest` on the
+base, `Uncertified` naming the carried mate on the head), unrowed and
+unsaid. Ruled: the widening stands as the contract's ("nothing
+refuted, nothing undeclared"), rowed and stated in `ASSEMBLY.md`;
+A1's any-recorded-pair oracle replaced by R2's name-table oracle
+(three surviving mutants die at the A1 row now); both carried
+relations rowed from Python (the panic blocks only offset-shaped
+contradictions); the boolean "asymmetry" corrected to what is true
+(the pair boolean refuses a multi-solid operand) and its class filed;
+one `Route`, one relation vocabulary; `of`/`via` at both Python
+foreign-mate doors; `carried` on the success arm. Unbuildable as
+ruled, pinned instead: the own-before-carried precedence fixture
+(`SelfMate` refuses first). Enters the tally as one candidate. Closed:
+`instantiation-seam-drops-mate-identity`. Filed: the boolean-remap
+class (DOCM), the prose-gate class's fourth instance (FIX). The spec
+is deleted into the ledger. Next: block B3's slots 1 (FABLE) and 2
+(OPUS) bank for the chained-order ruling's unit and the certified range
+query (waits on M10); the v6 readout stays owed.

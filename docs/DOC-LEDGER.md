@@ -1338,3 +1338,18 @@ limit. The rule above; the unit's record is its row in
 `MODEL-AB-LOG.md` and its MERGED entry in `work/docm/log.md`.
 
 - `DOCM-7-SPEC.md` — DOCM-7, `Node::Union`'s declaration channel in member space (#2028)
+
+## Per-merge deletion — DOCM-6's spec (2026-09-06)
+
+Recoverable at `git show aaf013910bfa7cc01b1a925c0f7e4de88eb60dab:docs/DOCM-6-SPEC.md`
+(the DOCM-6 unit head, before the state-sync commit that deleted it;
+§Ruling carried Ev's 2026-09-06 inner-mint-refusal ruling; no stop
+clause fired). Two of its letters are corrected in the unit's record:
+its fence's "not the at-rest gate's verdicts" and A5's "unchanged on
+every fixture" — the `Uncertified` predicate accepting a carried
+decline moves one verdict, ruled the contract's and rowed; and its
+"`ASSEMBLY.md` D-1 paragraph" — the clause is A5 (D-1 is ASM-R2b's
+id). The rule above; the unit's record is its row in `MODEL-AB-LOG.md`
+and its MERGED entry in `work/docm/log.md`.
+
+- `DOCM-6-SPEC.md` — DOCM-6, the instantiation seam carries mate identity and mint health (#2035)
