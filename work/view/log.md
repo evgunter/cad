@@ -1999,3 +1999,146 @@ not the wrong-answer story.
 
 That makes eleven corrections in this program's history, and the first
 a reviewer made against itself.
+
+## #2026's style review: the sweep's own doc-comments described the world it had just removed (2026-09-06)
+
+`status-line-writers-bypass-the-ranking` landed on `view/status-line-sweep`:
+seventeen of eighteen writers routed onto the frame's `notices`, and
+`frame::deliver` added as the door for a policy that may or may not
+have news. The review returned two dispatch-level corrections and nine
+findings; this is the fix pass.
+
+### What the review caught, and the shape of it
+
+**Every finding but two was a doc comment describing the tree as it
+stood BEFORE the diff in the same file the diff was in.** That is worth
+naming as a class, because it is not carelessness about prose — it is
+what a sweep does. A sweep touches every writer and no reader, and a
+doc comment eighty lines from the nearest changed line is a reader.
+
+- `frame.rs`'s module header said *"It does not yet reach the line
+  through the ranking for every writer"* and named `cursor_status` as
+  one of two that bypass it. Every clause false. The lane's only edit
+  to that header was `twenty` → `eighteen`, seventy lines earlier, so
+  one doc comment said the sweep was done in one paragraph and open in
+  another.
+- `joined_subject`'s doc said *"Every notice a frame produces today
+  agrees, and agrees on `Document` ... the disagreeing case is
+  reachable only by a writer that does not exist yet."* The diff put
+  four more subjects on that list.
+- `ViewerBehavior::notices`' doc enumerated its contents as *"what
+  THIS frame has to say that is NOT a refusal"*. The diff filled it
+  with refusals.
+- `apply_status`'s doc named the dialog policy as one of its two
+  callers; the diff moved the dialog policy to `deliver_status`.
+
+### The correction that is not a doc fix
+
+**"Every sentence the line can hold now comes through the ranking" was
+false, in `crates/viewer/README.md` and in the item's own `## Closed`.**
+`app.rs`'s `status: frame::startup_notices(&notices)` still builds the
+field directly, and it is one of the eighteen the next sentence
+enumerates. Seventeen-of-eighteen is the honest claim and is now what
+both carry, with `startup-notices-need-holding-to-badge` named at the
+README and not only in the item. The census has now been wrong five
+times and the reason has been the same every time: a count is a claim
+about a membership test, and the test — **"can this writer put a
+SENTENCE on the line the ranking never saw"** — is what the header now
+states instead.
+
+### Taken
+
+`deliver`'s catch-all arm (`retirement => apply(...)`) was the one
+finding that was a defect rather than a description: it routed any
+future `Show`-shaped variant to the field by default, which is exactly
+the door's reason for existing, unguarded by the compiler. All four
+arms are written out now, which also disposed of the binding named
+`retirement` that was catching `Clear`.
+
+The `deliver` row gained a `Clear` block and a pre-seeded notice, so it
+asserts APPEND rather than arrival — `frame_status`'s rank 2 joins
+*"in the order they happened"*, which a `Vec` seeded empty cannot see.
+`pane/viewport.rs`'s moved row stopped hand-simulating the ranking with
+`status = notices.pop()` and now runs `frame_status` + `apply`, which
+is `perform_batch`'s own pair; the row's name claims the camera refusal
+was one `land` landed, and now it is.
+
+### The S7 census, since it was asked for
+
+Every `frame.rs` row composing a `*_status` producer with `frame::apply`:
+**five rows, six compositions, two of them dead** — both
+`apply(status, fold_status(refused))`, a shape no caller performs since
+a refused fold goes through `deliver`. One is the row the review named
+(renamed to say what it pins). The other,
+`a_clean_fold_retires_the_camera_refusal_it_did_write`, uses it only to
+build a fixture and its name overclaims nothing, so it is filed rather
+than fixed: `a-fold-row-composes-a-producer-with-a-dead-door`.
+
+### Filed
+
+- `ranked-and-unranked-verdicts-are-one-type` — the reviewer's, and the
+  sharpest thing in the report. `frame::apply` and `frame::deliver` take
+  the same type, and `pane/viewport.rs` calls both, ten lines apart, in
+  one file. The rule for choosing is *"can this policy ever answer
+  `Show`?"*, a fact about the callee invisible at the call site. Give
+  `cursor_status` a `Show` arm and `:178` reintroduces the swept defect
+  with **no diff at which it looks wrong**. The sweep's own fix left one
+  instance of the class the sweep was about, one level up. A ranked
+  verdict should be a different TYPE from a policy's verdict.
+- `a-fold-row-composes-a-producer-with-a-dead-door` — above.
+- `loud-skip-row-did-not-stop-a-lane-verifying-the-wrong-build` — the
+  lane verified a diff that is `app`-gated in every file but one with a
+  default-feature `cargo test -p viewer`, which compiles none of them.
+  `lib.rs`'s loud-skip row exists to make that absence visible and it
+  printed into a green run nobody read. The closed
+  `loud-skip-marker-says-two-modules-and-there-are-six` is about the
+  marker going stale; this is the marker being accurate and read past,
+  which its own fix does not touch.
+
+### Appended
+
+`one-line-one-subject-loses-a-mixed-frames-expiry` — the item predicted
+this unit would make its fallback reachable and named the Cursor arm.
+**The Camera arm is new and worse**: a frame carrying a camera refusal
+and a tool notice joins to `Subject::Document`, and `fold_status`'s next
+`Expire(Camera)` then retires nothing — `camera-fold-clears-status-line`'s
+defect reappearing through the join instead of through `land`. Its
+*"Why it is not reachable yet"* heading was falsified by the diff and is
+corrected; `SUBJECTS_WITH_AN_EXPIRY_ISSUER` is the assertion that says
+why it matters.
+
+`joined-notices-nest-their-own-separator` — notice producers went from
+four to eighteen, so multi-notice frames went from unusual to routine
+(a create-pane refusal plus a camera fold refusal is one drag).
+
+`frame-module-has-eight-concerns-and-no-holds-row` — the accumulation
+ledger stopped being written two units ago: 984 → 1,131 (#1886) → 2,037
+(#1933) → 2,298 (#1957) → **2,475** here, a second door and a 45-line
+row into the concern that was already the largest. Recorded on it as
+evidence and not as work: `chooser_backend`/`zenity_on_path`/
+`session_bus_hinted`/`prefs_path`/`prefs_path_in`/`running_under_wsl`
+is ~165 lines of startup environment probing in a module whose first
+line is *"The per-frame policies the viewport runs — as values, so they
+are replayable."* Neither per-frame nor replayable — and the
+`no-ambient-env` ruling that put them here settles WHERE the ambient
+door is, not whether the charter sentence covers it.
+
+`stale-file-citations-after-the-split` — **seven sibling files cited the
+now-closed sweep as live**, and not one of them by a `file:line`. The
+item's thesis arriving from the other side: `work.py lint` resolved the
+id perfectly and the prose around it had gone false. Live rows
+corrected (`plan.md`, `news-and-standing-facts-are-orthogonal-axes`,
+`one-line-one-subject-...`); closed rows left as written, because
+editing a closed item to agree with a later tree destroys the only
+thing it is for; this entry is the log's correction, since the log is
+not rewritten.
+
+### The count that is worth carrying forward
+
+The nineteen/twenty/eighteen churn was never an arithmetic problem. It
+was five successive attempts to count a set nobody had defined, and it
+stopped when the test was written down instead of the number. The same
+lesson is what the review's dispatch-level findings are: a doc comment
+that states a COUNT goes stale silently; one that states a TEST goes
+stale loudly, because the next reader can apply it.
+
