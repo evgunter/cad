@@ -58,7 +58,7 @@ fn probe_records_margin_distributions_without_changing_decisions() {
             // inside `geom_core::Sym`, which this suite never
             // instantiates: it records at bare `Probe`, so no sample
             // here can carry that outcome.
-            SampleOutcome::SymbolicZero => {
+            SampleOutcome::SymbolicZero | SampleOutcome::SignGated => {
                 panic!("no symbolic tier is installed on this path: {s:?}")
             }
         }

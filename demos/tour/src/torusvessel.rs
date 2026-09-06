@@ -145,11 +145,6 @@ const R_WAISTED: f64 = 12.0 / 64.0;
 /// a hair, and the clearance gate is nowhere near it.
 const WALL: f64 = 1.0 / 128.0;
 
-/// The NURBS fit tolerance `shell` would hand its approximating lane.
-/// Unread here: every wall of this vessel is analytic, so the offsets
-/// are closed forms and nothing is fitted.
-const FIT_TOL: f64 = 1e-6;
-
 /// The chord budget: an absolute sagitta, half the hollow ring's on a
 /// body of about the ring's size. The vessel is `3/8` m tall and its
 /// belly reaches `11/64` m, and the wall this scene is about is
@@ -426,7 +421,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // no torus arm, so this body fell to the per-chart loop and the C5
     // table refused its plane x torus pair. It is ATTEMPTED live on
     // every pass, exactly as the wall it replaced was.
-    let sealed = pncad::topo::shell(&body, WALL, FIT_TOL, tol)
+    let sealed = pncad::topo::shell(&body, WALL, tol)
         .expect("a torus-walled vessel hollows through the axial door's torus arm")
         .body;
     assert_eq!(
@@ -514,7 +509,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // ---- THE SENSE TWIN: the same stations, the other centre ----
     let twin = waisted(tol);
     assert_eq!(census(&twin), (14, 26, 14), "the twin's operand census");
-    let twin_hollow = pncad::topo::shell(&twin, WALL, FIT_TOL, tol)
+    let twin_hollow = pncad::topo::shell(&twin, WALL, tol)
         .expect("the waisted twin hollows through the same arm")
         .body;
     assert_eq!(
@@ -556,9 +551,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // operand's own clearance gate on the two SHOULDER annuli, which
     // face each other across the belly at Y_SHOULDER - Y_FOOT.
     let below = Y_SHOULDER - Y_FOOT - WALL;
-    pncad::topo::shell(&body, below / 2.0, FIT_TOL, tol)
+    pncad::topo::shell(&body, below / 2.0, tol)
         .expect("a wall just under half the shoulders' clearance hollows");
-    let at = pncad::topo::shell(&body, (Y_SHOULDER - Y_FOOT) / 2.0, FIT_TOL, tol)
+    let at = pncad::topo::shell(&body, (Y_SHOULDER - Y_FOOT) / 2.0, tol)
         .expect_err("two walls that consume the shoulders' whole clearance leave no cavity");
     let ShellError::WallClearance {
         gap,
@@ -586,7 +581,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "the mouth is ONE plane worn by two half-discs — a full revolve's seam cut — \
          and the rim lift moves a chart as one"
     );
-    let mut cup = pncad::topo::shell_open(&body, WALL, &mouth, FIT_TOL, tol)
+    let mut cup = pncad::topo::shell_open(&body, WALL, &mouth, tol)
         .expect("the vessel opens at its mouth")
         .body;
     assert_eq!(
@@ -698,7 +693,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         Ok(()),
         "the sectioned vessel is a valid body — it is the HOLLOW that has no carrier"
     );
-    let sectioned = pncad::topo::shell(&quarter, WALL, FIT_TOL, tol);
+    let sectioned = pncad::topo::shell(&quarter, WALL, tol);
     crate::walls::wall(
         "torus-walled vessel",
         1,

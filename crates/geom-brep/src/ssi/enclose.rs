@@ -410,13 +410,19 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
 
     /// The hull of the Cartesian control block of one span cell.
     ///
-    /// The cell is a [`SurfaceWindow`], so the `su < pu || sv < pv`
-    /// refusal this used to open with is gone: the window's two `Span`s
-    /// carry `index ≥ degree` from their construction. What remains is
-    /// the length check the window cannot make — `ctl.get`, below,
-    /// against the caller's control array.
-    fn cell_point_box(&self, win: SurfaceWindow) -> Box3 {
-        let ctl = self.surface.control();
+    /// The cell is a [`SurfaceWindow`]: its two `Span`s carry
+    /// `index ≥ degree` and `index ≤ last_span()` from their
+    /// construction, and the net below is the window's OWN surface, so
+    /// every `row(i) + j` is in range. The `ctl.get` arm is therefore
+    /// unreachable — it is kept as the total spelling (D9: an
+    /// out-of-range read is a poison box, never an index panic), not as
+    /// a refusal any input can reach.
+    fn cell_point_box(&self, win: SurfaceWindow<'_, T>) -> Box3 {
+        // The net comes from the window's own surface, not from
+        // `self.surface` beside it: the window is a borrow of the
+        // surface it indexes, so reading through it is what keeps the
+        // two from being two.
+        let ctl = win.surface().control();
         let mut out: Option<Box3> = None;
         // Same ascending walk as the open-coded `(su − pu)..=su` pair
         // (D9): `row(i) + j` IS `iu·nv + iv` over the same indices.
@@ -440,19 +446,21 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// weight and weight-derivative hulls, over one span cell:
     /// `(A_d hull, w_d hull, w hull)`.
     ///
-    /// Both the range refusal (`su < pu`) and the degree-0 one this
-    /// used to open with are gone with the [`SurfaceWindow`]: the
-    /// former is the `Span` invariant, and `KnotVector::clamped`
-    /// refuses degree 0 outright, so `pu == 0 || pv == 0` named a state
-    /// no constructible window can reach. The remaining `.get`
-    /// refusals — against `ctl`, `wts` and the raw knot slices — are
-    /// the ones a window cannot make.
+    /// The window's invariants carry the range (`index ≥ degree`,
+    /// `index ≤ last_span()`) and `KnotVector::clamped` refuses degree
+    /// 0, so no constructible window reaches `pu == 0 || pv == 0`. The
+    /// `.get` arms below — against `ctl`, `wts` and the raw knot
+    /// slices — are the total spelling for reads the differencing
+    /// ladder shifts by one index, where the shift, not the window,
+    /// decides the bound.
     fn cell_homogeneous_deriv(
         &self,
-        win: SurfaceWindow,
+        win: SurfaceWindow<'_, T>,
         along_u: bool,
     ) -> (Box3, RingInterval, RingInterval) {
-        let s = self.surface;
+        // As in `cell_point_box`: everything is read through the
+        // window's own borrow.
+        let s = win.surface();
         let (pu, pv) = (win.span_u().degree(), win.span_v().degree());
         let nv = win.stride();
         let ctl = s.control();
@@ -635,11 +643,10 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         // `eval_in_span` at the midpoint's own span rather than `eval`:
         // the parameter is a thin `f64` structure value, so its span is
         // unique and no `SpanLocate` hull is needed.
-        let c = self.surface.eval_in_span(
-            self.surface.window_at(um, vm),
-            T::from_f64(um),
-            T::from_f64(vm),
-        );
+        let c = self
+            .surface
+            .window_at(um, vm)
+            .eval_in_span(T::from_f64(um), T::from_f64(vm));
         let du = self.deriv_box(u0, u1, v0, v1, true);
         let dv = self.deriv_box(u0, u1, v0, v1, false);
         let ru = RingInterval::from_bounds(-hu, hu);

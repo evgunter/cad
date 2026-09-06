@@ -253,13 +253,13 @@ pub fn pulled_back(wall: &NurbsSurface<f64>, d: f64) -> NurbsSurface<f64> {
 /// in a refusal would be a fixture whose last step failed; the caches
 /// are what check 7 wants and what the seam class cannot mint, and
 /// that is one wall, recorded once.
-pub fn box_with_approx_cap(d: f64, tolerance: f64) -> (Body<f64>, FaceKey) {
+pub fn box_with_approx_cap(d: f64, target: f64) -> (Body<f64>, FaceKey) {
     let mut body = unit_box();
     let face = top_face(&body);
-    let approx = geom_brep::approx_offset_surface(
+    let approx = geom_brep::approx_offset_surface_at(
         Arc::new(pulled_back(&planar_patch(1.0), d)),
         d,
-        tolerance,
+        target,
         band(),
     )
     .unwrap_or_else(|e| panic!("d = {d}: the cap's offset must fit: {e}"));
@@ -407,10 +407,15 @@ fn iso_residual(body: &Body<f64>, spec: &EdgeCurveSpec<f64>) -> Option<f64> {
 ///
 /// [`ReattachRefusal`] naming the first edge that did not certify, and
 /// the measured residual that explains it.
+///
+/// `target` is the fit ENGINE's, not a door's: the kernel doors take the
+/// `Tol` witness and no number, so a fixture that wants a chosen one
+/// reaches `geom-brep`'s `_at` instrument, which is what this helper
+/// does.
 pub fn try_approx_walls(
     body: &mut Body<f64>,
     d: f64,
-    tolerance: f64,
+    target: f64,
 ) -> Result<Vec<FaceKey>, ReattachRefusal> {
     let walls = nurbs_walls(body);
     assert!(!walls.is_empty(), "the fixture has spline walls to convert");
@@ -423,7 +428,7 @@ pub fn try_approx_walls(
     for (face, wall) in walls {
         let old = body.get_face(face).unwrap().surface;
         let base = Arc::new(pulled_back(&wall, d));
-        let approx = geom_brep::approx_offset_surface(base, d, tolerance, band())
+        let approx = geom_brep::approx_offset_surface_at(base, d, target, band())
             .unwrap_or_else(|e| panic!("d = {d}: the wall's offset must fit: {e}"));
         if let Surface::Approx(a) = &approx {
             let kv = a.fit().knots_v().knots();
@@ -498,8 +503,8 @@ pub fn try_approx_walls(
 /// [`try_approx_walls`] for the fixtures whose re-attach cannot
 /// honestly refuse — the PLANAR pull-backs, where `Δn = 0` and the
 /// `IsoCurve` residual is f64 dust at every ε the suite runs at.
-pub fn approx_walls(body: &mut Body<f64>, d: f64, tolerance: f64) -> Vec<FaceKey> {
-    try_approx_walls(body, d, tolerance)
+pub fn approx_walls(body: &mut Body<f64>, d: f64, target: f64) -> Vec<FaceKey> {
+    try_approx_walls(body, d, target)
         .unwrap_or_else(|r| panic!("edge {:?} re-attach: {}", r.edge, r.error))
 }
 

@@ -31,7 +31,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsSurface;
-use geom_brep::offset_fit::{OffsetFitError, OffsetLimb, certify_offset, fit_offset};
+use geom_brep::offset_fit::{OffsetFitError, OffsetLimb, certify_offset_at, fit_offset_at};
 use geom_brep::offset_meters::{OFFSET_METER_LADDER, patch_collapse};
 use geom_brep::patch_bound::patch_cells_refined;
 use geom_core::Point3;
@@ -59,7 +59,7 @@ fn sampled_residual(base: &NurbsSurface<f64>, candidate: &NurbsSurface<f64>, d: 
 fn r1_certify_offset_on_a_rational_fit_never_under_reports() {
     let base = quarter_cylinder(1.0, 1.0);
     let d = 0.3;
-    let (fit, _) = fit_offset(&base, d, 1e-4, band()).unwrap();
+    let (fit, _) = fit_offset_at(&base, d, 1e-4, band()).unwrap();
     // Perturb one interior weight: the surface moves, and so does the
     // homogeneous net the hull limb reads, which is what makes the
     // certificate below a claim about the surface actually supplied.
@@ -80,7 +80,7 @@ fn r1_certify_offset_on_a_rational_fit_never_under_reports() {
     // what caps the ratio below. The CEILING is this row's, asserted,
     // and re-taken on every run.
     let tol = true_residual * 8.0;
-    let cert = certify_offset(&base, &warped, d, tol, band()).unwrap_or_else(|e| {
+    let cert = certify_offset_at(&base, &warped, d, tol, band()).unwrap_or_else(|e| {
         panic!(
             "certify_offset refused a rational fit it can now bound \
              (true residual {true_residual}): {e}"
@@ -120,8 +120,8 @@ fn r1_certify_offset_on_a_rational_fit_never_under_reports() {
 #[test]
 fn r1_a_fit_for_the_wrong_sign_refuses() {
     let base = quarter_cylinder(1.25, 0.75);
-    let (fit_neg, _) = fit_offset(&base, -0.3, 1e-3, band()).unwrap();
-    match certify_offset(&base, &fit_neg, 0.3, 10.0, band()) {
+    let (fit_neg, _) = fit_offset_at(&base, -0.3, 1e-3, band()).unwrap();
+    match certify_offset_at(&base, &fit_neg, 0.3, 10.0, band()) {
         Ok(cert) => panic!(
             "a fit of the OPPOSITE offset certified against +d with hull_sup {}",
             cert.hull_sup
@@ -153,7 +153,7 @@ fn r1_a_fit_for_the_wrong_sign_refuses() {
 fn r1_a_slid_fit_s_tau_limb_never_under_reports() {
     let base = quarter_cylinder(1.0, 1.0);
     let d = 0.25;
-    let (fit, _) = fit_offset(&base, d, 1e-4, band()).unwrap();
+    let (fit, _) = fit_offset_at(&base, d, 1e-4, band()).unwrap();
     // Slide the whole net along +z: on a cylinder about z this is
     // purely tangential, so ‖E‖ barely moves while E × m grows.
     let slid_control: Vec<Point3<f64>> = fit
@@ -173,7 +173,7 @@ fn r1_a_slid_fit_s_tau_limb_never_under_reports() {
         true_residual >= 4e-4,
         "the slide did not register: {true_residual}"
     );
-    match certify_offset(&base, &slid, d, true_residual * 3.0, band()) {
+    match certify_offset_at(&base, &slid, d, true_residual * 3.0, band()) {
         Err(_) => {}
         Ok(cert) => assert!(
             cert.hull_sup >= true_residual,
@@ -197,7 +197,7 @@ fn r1_extreme_d_near_the_collapse_bound_certifies_and_contains() {
     assert!(reach > 0.0 && reach.is_finite());
     for d in [-0.9 * reach, 5.0] {
         let tol = 2e-3;
-        let (fit, cert) = fit_offset(&base, d, tol, band())
+        let (fit, cert) = fit_offset_at(&base, d, tol, band())
             .unwrap_or_else(|e| panic!("fit_offset refused at d = {d} (reach {reach}): {e}"));
         let mut worst = 0.0f64;
         for (u, v) in grid(41, 37) {
@@ -237,7 +237,7 @@ fn r1_an_extreme_weight_rational_base_refuses_or_contains() {
     let weights = vec![1.0, 0.05, 1.0, 0.4, 1.0, 0.4, 1.0, 0.05, 1.0];
     let base = NurbsSurface::new(kv2(), kv2(), control, weights).unwrap();
     let d = 0.05;
-    match fit_offset(&base, d, 5e-4, band()) {
+    match fit_offset_at(&base, d, 5e-4, band()) {
         Err(e) => eprintln!("extreme-weight base refused (sound): {e}"),
         Ok((fit, cert)) => {
             let worst = sampled_residual(&base, &fit, d);

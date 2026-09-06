@@ -42,7 +42,7 @@ use verbs::{
     Arity, EdgeScalar, FlowSource, PairOut, RoleFamily, ScalarParam, Verb, VerbKind, VerbRecord,
 };
 
-use crate::fixture::{disc, offset_disc, tol, x_axis};
+use crate::fixture::{disc, offset_disc, tol, x_axis, z_plane};
 
 /// Every scalar parameter in the vocabulary is named by exactly one
 /// flow row, on the verb it belongs to.
@@ -264,6 +264,83 @@ fn the_booleans_flow_is_empty_beside_a_real_record() {
             "the boolean has no scalar parameters; a row appeared with nothing to declare"
         );
     }
+}
+
+/// **The split's flow has no rows, and that is a claim beside a real
+/// record.** A cube is parted through its middle and the record read
+/// back — non-trivial (a section face on each side) — so "no scalar
+/// parameter lands in anything this record names" is a statement
+/// about an actual result. The split HAS no scalar parameter: its
+/// payload is a plane, a placement read off a datum, and the faces it
+/// mints are planes with no stored scalar field for anything to land
+/// in — so, like the boolean, the emptiness is one level up from the
+/// chamfer's, and the census above is what proves nothing was skipped.
+#[test]
+fn the_splits_flow_is_empty_beside_a_real_record() {
+    let cube = sweep::test_support::cube(1.0, tol());
+    let out = Verb::Split {
+        plane: z_plane(0.5),
+    }
+    .run_split(&cube, tol())
+    .expect("the mid-plane cut is inside the door");
+    let VerbRecord::Split(naming) = out.record else {
+        panic!("a split run produced another family's record");
+    };
+    assert_eq!(
+        naming.sections.len(),
+        2,
+        "the mid-plane cut minted a section face per side; the fixture no longer exercises the record"
+    );
+    assert!(
+        VerbKind::Split.param_flow().is_empty(),
+        "the split has no scalar parameters; a row appeared with nothing to declare"
+    );
+}
+
+/// **The shell's thickness row is empty beside a real record**, and
+/// the emptiness is the chamfer's shape rather than the boolean's: the
+/// verb HAS a scalar parameter, so the row exists, and what it reaches
+/// is nothing this declaration can name.
+///
+/// The record is produced here so the claim is made about a run: a cube
+/// is hollowed, and the cavity twins it lists are the faces whose
+/// carriers store `r − t` where anything stores the thickness at all.
+/// That derived number is why the row is empty — VS-Q3 gives v1 no
+/// source for a field that is the operand's own minus the parameter —
+/// and a run is what makes "the record names no family the thickness
+/// reaches" a statement rather than a constant.
+#[test]
+fn the_shells_flow_is_empty_beside_a_real_record() {
+    let cube = sweep::test_support::cube(1.0, tol());
+    let out = Verb::Shell {
+        thickness: 0.1,
+        open: Vec::new(),
+    }
+    .run_shell(&cube, tol())
+    .expect("the sealed cube is inside the door");
+    let VerbRecord::Shell(naming) = out.record else {
+        panic!("a shell run produced another family's record");
+    };
+    assert_eq!(
+        naming.inner.len(),
+        6,
+        "the sealed cube minted a cavity twin per face; the fixture no longer exercises the record"
+    );
+
+    let rows = VerbKind::Shell.param_flow();
+    assert_eq!(
+        rows.len(),
+        1,
+        "the thickness's row must be present, not absent"
+    );
+    assert_eq!(
+        rows[0].source,
+        FlowSource::Param(ScalarParam::ShellThickness)
+    );
+    assert!(
+        rows[0].fields.is_empty(),
+        "the thickness reaches only derived cavity fields, which v1 has no source for"
+    );
 }
 
 /// **A profile-edge source may be declared only by a verb whose

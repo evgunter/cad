@@ -14,7 +14,7 @@
 use core::f64::consts::FRAC_PI_2;
 
 use geom::NurbsSurface;
-use geom_brep::offset_fit::{approx_offset_surface, certify_offset, fit_offset};
+use geom_brep::offset_fit::{approx_offset_surface_at, certify_offset_at, fit_offset_at};
 use geom_core::Point3;
 
 use crate::shared::fixture::{arc_weight, kv1, kv2};
@@ -112,7 +112,7 @@ fn e2e_rational_bases_through_the_storage_and_recertify_doors() {
         ),
     ];
     for (name, base, d, tol) in cases {
-        match approx_offset_surface(std::sync::Arc::new(base.clone()), d, tol, band()) {
+        match approx_offset_surface_at(std::sync::Arc::new(base.clone()), d, tol, band()) {
             Ok(geom::Surface::Approx(a)) => {
                 let cert = a.certificate();
                 let worst = sampled(&base, a.fit(), d);
@@ -122,7 +122,7 @@ fn e2e_rational_bases_through_the_storage_and_recertify_doors() {
                     cert.hull_sup
                 );
                 // Hand the minted fit back through the re-derivation door.
-                let again = certify_offset(&base, a.fit(), d, tol, band()).unwrap();
+                let again = certify_offset_at(&base, a.fit(), d, tol, band()).unwrap();
                 assert!(
                     (again.hull_sup - cert.hull_sup).abs() <= 0.0,
                     "{name}: re-derivation moved"
@@ -150,7 +150,7 @@ fn e2e_rational_bases_through_the_storage_and_recertify_doors() {
 fn a_global_weight_scale_does_not_move_the_certificate() {
     let base = elliptic_wall(1.0, 1.0, 1.0);
     let d = 0.2;
-    let (fit, _) = fit_offset(&base, d, 1e-4, band()).unwrap();
+    let (fit, _) = fit_offset_at(&base, d, 1e-4, band()).unwrap();
     let worst = sampled(&base, &fit, d);
     let tol = worst * 8.0;
     let mut first = f64::NAN;
@@ -167,7 +167,7 @@ fn a_global_weight_scale_does_not_move_the_certificate() {
             (s - worst).abs() <= 1e-12 * worst.max(1.0),
             "k={k}: the scaled surface is not the same surface ({s} vs {worst})"
         );
-        match certify_offset(&base, &scaled, d, tol, band()) {
+        match certify_offset_at(&base, &scaled, d, tol, band()) {
             Ok(c) => {
                 assert!(
                     c.hull_sup >= s,
@@ -195,7 +195,7 @@ fn a_global_weight_scale_does_not_move_the_certificate() {
 fn a_hostile_weight_spread_never_yields_a_finite_wrong_bound() {
     let base = elliptic_wall(1.0, 1.0, 1.0);
     let d = 0.2;
-    let (fit, _) = fit_offset(&base, d, 1e-4, band()).unwrap();
+    let (fit, _) = fit_offset_at(&base, d, 1e-4, band()).unwrap();
     let n = fit.weights().len();
     let spreads: Vec<(&str, Vec<f64>)> = vec![
         (
@@ -234,7 +234,7 @@ fn a_hostile_weight_spread_never_yields_a_finite_wrong_bound() {
         };
         let s = sampled(&base, &hostile, d);
         let tol = if s.is_finite() { s * 4.0 } else { 1e9 };
-        match certify_offset(&base, &hostile, d, tol, band()) {
+        match certify_offset_at(&base, &hostile, d, tol, band()) {
             Ok(c) => {
                 assert!(
                     c.hull_sup >= s,
@@ -262,7 +262,7 @@ fn a_hostile_weight_spread_never_yields_a_finite_wrong_bound() {
 fn the_elliptic_wall_certifies_at_the_tolerance_the_probes_ask_of_it() {
     let base = elliptic_wall(2.0, 1.0, 1.0);
     let (d, tol) = (0.1, 1e-3);
-    let (fit, cert) = fit_offset(&base, d, tol, band()).unwrap_or_else(|e| {
+    let (fit, cert) = fit_offset_at(&base, d, tol, band()).unwrap_or_else(|e| {
         panic!("LIVENESS: the elliptic wall refused at d = {d}, tol = {tol}: {e}")
     });
     assert!(

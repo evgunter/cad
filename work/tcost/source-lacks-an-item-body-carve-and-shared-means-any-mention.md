@@ -69,3 +69,19 @@ A corollary the same review raised: `crates/topo/src/boolean/boxes.rs`
 reads the shared lexer through `source_walk::CodeOnly` (a one-line
 adapter after D261) yet stays `Unconverted`, because `Shared` would
 fail the text check — a disposition chosen for what the check can see.
+
+## Widened from D50's review (2026-09-06)
+
+The shared home owns every operation over a blanked view EXCEPT
+"find the next `fn` item": `topo/src/source_walk.rs`'s `fns` /
+`ident_after` / `param_list_start` scan stays in `topo` (D50 widened it
+from `pub fn` to every named `fn` rather than moving it), and the tree
+carries at least three weaker `pub fn` scans —
+`crates/editor-core/tests/gui1_pick_r2.rs:617`,
+`crates/pncad/tests/all.rs:3747`, `crates/pncad-py/src/tests.rs:2422`.
+Two smaller siblings, same home: the identifier-boundary predicate has
+four spellings (`live.rs identish`, `source_walk.rs is_token`,
+`source.rs token_start`, `pncad/tests/all.rs token_starts_at`), and
+`source.rs:113` promises callers can report a line number and offers
+no `line_of` — `live.rs`, `source_walk.rs`'s `gave_up` and
+`gui1_pick_r2.rs` each re-derive it.

@@ -121,7 +121,7 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
     };
     let geom::SurfaceDescription::Offset { base, .. } = live.description();
     let base = Arc::clone(base);
-    let honest = geom_brep::approx_offset_surface(Arc::clone(&base), d, 1e-9, band()).unwrap();
+    let honest = geom_brep::approx_offset_surface_at(Arc::clone(&base), d, 1e-9, band()).unwrap();
     let Surface::Approx(good) = &honest else {
         panic!("the door mints the variant")
     };
@@ -461,7 +461,7 @@ fn the_mapped_face_is_a_certified_fit_of_the_mapped_description() {
         let after = approx_face_surface(&moved, face);
         let geom::SurfaceDescription::Offset { base, .. } = after.description();
         let fresh =
-            geom_brep::approx_offset_surface(Arc::clone(base), d, after.tolerance(), band())
+            geom_brep::approx_offset_surface_at(Arc::clone(base), d, after.tolerance(), band())
                 .unwrap_or_else(|e| panic!("d = {d}: the mapped description must still fit: {e}"));
         let Surface::Approx(fresh) = &fresh else {
             panic!("the door mints the variant")
@@ -628,7 +628,7 @@ fn bowed() -> NurbsSurface<f64> {
 /// reads a certificate needs a body that moves, not a body that
 /// validates.
 fn box_with_curved_approx_cap(d: f64) -> (Body<f64>, FaceKey, Surface<f64>) {
-    let honest = geom_brep::approx_offset_surface(Arc::new(bowed()), d, 1e-6, band())
+    let honest = geom_brep::approx_offset_surface_at(Arc::new(bowed()), d, 1e-6, band())
         .expect("the bowed base's offset fits at 1e-6");
     let mut body = unit_box();
     let face = common::approx::top_face(&body);
@@ -858,7 +858,7 @@ fn a_planted_certificate_is_replaced_by_the_re_derivation_field_by_field() {
     let after = approx_face_surface(&moved, face);
     let c = after.certificate();
     let geom::SurfaceDescription::Offset { base, .. } = after.description();
-    let fresh = geom_brep::certify_offset(base, after.fit(), d, 1e-9, band())
+    let fresh = geom_brep::certify_offset_at(base, after.fit(), d, 1e-9, band())
         .expect("the mapped pair certifies independently");
     assert_eq!(
         c.distance, d,
@@ -902,7 +902,7 @@ fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
     use geom_core::{Bounds, Interval, Real};
     use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 
-    let approx_f64 = geom_brep::approx_offset_surface(
+    let approx_f64 = geom_brep::approx_offset_surface_at(
         Arc::new(pulled_back(&planar_patch(1.0), 0.05)),
         0.05,
         1e-9,

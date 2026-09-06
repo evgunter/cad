@@ -1388,3 +1388,33 @@ this slate from D261's style review. The seam already announced widens
 by ONE function: D261's fix pass adds an item-body carve beside
 `balanced_end` in `crates/test-utils/src/source.rs`, with its rows, and
 converts its own caller; the other four copies are this item's.
+
+## Announced seam from PROPS (2026-09-05): two editor-core test files
+
+The k-stats unit (PR #1969, `work/props/k-stats-escalation-channel-and-redo.md`)
+converts every caller of the retired `start_verdict_log`/`take_verdict_log`
+pair to the new `k_stats::Bracket`, and two of them are TCOST's:
+`crates/editor-core/tests/m4_pr4_resolve.rs` (mechanical) and
+`crates/editor-core/tests/asm2a_instantiate.rs`, which also gains the
+unit's red-first nesting row (an instantiate node records its own op's
+decisions whichever instance ran the part) and the parallel-schedule rows
+adopted from the review. The spec's fence named the callers as a class;
+the review found these two unlisted in the body and the fix pass lists
+them. Signed (PROPS orchestrator).
+
+Addendum (2026-09-05, PROPS orchestrator): the k-stats bracket also
+adds `crates/editor-core/tests/kstats_bracket_rows.rs` (the
+schedule-independence, part-in-part, memo, cancel and pre-pass rows the
+review adopted) and one row in `tests/asm_r2a_mate_solve.rs` (a
+mate-solve escalation sits on no node's log), and registers both in
+`tests/all.rs`; `m10_7_r2_probes_interval.rs` and its goldens are M10's
+by that program's own seam note. Signed (PROPS orchestrator).
+
+Addendum (2026-09-05, PROPS orchestrator): the rotation-floor rider
+(#1980) rewrote one doc block in
+`crates/geom-brep/tests/revolved_point_anchor.rs` — a sentence that
+unit itself made false ("still recorded as an audit member … a sixth")
+now points at the paragraph at `Mat3::rotation_about`; no assertion
+moved. The vec3-doors rider (#1977) adds `crates/profile/tests/sketch_plane.rs`,
+which the tool lists as tcost's as well as bool's. Signed (PROPS
+orchestrator).
