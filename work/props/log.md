@@ -747,3 +747,17 @@ merge). Still waiting: the sign-hull unit on #1944 (the PR body now
 defines (c)/(c′) in place at Ev's request); the sphere lane on MESH-12
 (#1617 — S-MESH's own log shows it dispatched and never reviewed; the
 question of who finishes or abandons it is put to Ev).
+
+**Sign-hull RULED (c′) (2026-09-06).** Ev on PR 1944: "c′ seems fine",
+with a question about the hull answered on the PR (the hulled quantity
+is the unit sign `s`, not `n.z`; `[0, 0]` would be an enclosure of the
+wrong thing). The item records the ruling; #1944 lands when green.
+Spec `docs/PROPS-SIGN-HULL-SPEC.md`: one new `Real` door
+(`copysign` with the zero read as `+0`) on every impl so
+`Interval::copysign`'s hull stays correct for every other caller; the
+`Interval` point-zero arm narrows because the door's own f64 semantics
+canonicalise; the `b2` rider measured on the same golden pass; the
+eight STEP records re-derived with reasons (EXCH's fixtures — seam);
+the `FaceFrame` doc line (DOCM/SEAT — seam); the M10 workaround's
+retirement filed, not done. M / NUMERIC, block PROPS-B2 slot 1 (opus),
+dual review; §Landing says `status: review`, do not merge.
