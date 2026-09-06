@@ -11,9 +11,9 @@
 //! The vocabulary below is drawn from ONE `match` over the kernel's
 //! [`Node`] with **no wildcard arm**. A node kind added kernel-side
 //! and given no Python word therefore does not compile, which is the
-//! same device [`crate::surface_census`] uses one layer up: the
-//! witness is a match on the kernel tag, never a hand-kept list that
-//! compiles green while short.
+//! same device this crate's `surface_census` test module uses one
+//! layer up: the witness is a match on the kernel tag, never a
+//! hand-kept list that compiles green while short.
 //!
 //! # The words are not the wire's words
 //!
