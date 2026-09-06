@@ -310,11 +310,28 @@ class TestTheDieTool(unittest.TestCase):
         # pairwise tool this replaces spends the same seven upstream
         # and then six transforms, five unions and the subtract, so
         # the group's saving is the eleven it collapses into one.
-        # Which of the nine is the group is not asserted by counting
-        # kinds here (the document layer exposes no node-kind read
-        # door); it is settled outright by the byte pin below, whose
-        # text names every node's kind.
         self.assertEqual(len(doc), 9)
+
+        # The claim itself, counted BY KIND — the mirror of
+        # `crates/editor-core/tests/lib_placedunion.rs`'s
+        # `the_die_tool_is_one_node_and_still_cuts`, which counts
+        # `Node::PlacedUnion` / `Node::Boolean{Union}` /
+        # `Node::Transform` over `doc.order()` and asserts (1, 0, 0).
+        # The byte pin below still holds and its text still names
+        # every node's kind; it is no longer what settles this, and a
+        # structural claim no longer routes through the persistence
+        # door.
+        kinds = [doc.node_kind(n) for n in doc.order()]
+        self.assertEqual(
+            (
+                kinds.count("placed_union"),
+                kinds.count("boolean_union"),
+                kinds.count("transform"),
+            ),
+            (1, 0, 0),
+        )
+        self.assertEqual(doc.node_kind(tool), "placed_union")
+        self.assertEqual(doc.node_kind(pipped), "boolean_subtract")
 
         # An ordinary BODY out of the group — the property that lets a
         # boolean consume it at all.

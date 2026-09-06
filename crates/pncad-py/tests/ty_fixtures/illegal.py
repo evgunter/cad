@@ -419,3 +419,10 @@ product(doc, evaluate(doc)).validate_pseudomanifold(doc)  # ty: error
 # And it answers nothing. A rung that returned a verdict would be a
 # gate a caller could pass without reading; every rung raises instead.
 verdict: bool = product(doc, evaluate(doc)).validate_pseudomanifold()  # ty: error
+
+# `node_kind` reads a document's node BY ID and answers TEXT. Both ends
+# invite the same confusion, because `Node` and `NodeId` are two types
+# one sentence apart: the constructor value is not a handle onto an
+# inserted node, and the word that comes back is not the node.
+doc.node_kind(Node.extrude(solid, 1 * m))  # ty: error
+which: Node = doc.node_kind(solid)  # ty: error

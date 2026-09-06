@@ -546,3 +546,8 @@ gathered.validate()
 gathered.validate_closed()
 gathered.validate_geometric()
 gathered.validate_pseudomanifold()
+
+# The node-kind read door: an id in, one stable word out. It is the
+# NODE's kind and not its value's, so it is answerable with no
+# evaluation in hand at all.
+which_kind: str = doc.node_kind(upright)

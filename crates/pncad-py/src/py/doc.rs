@@ -448,6 +448,39 @@ impl Doc {
         }
     }
 
+    /// **What KIND of node `node` is** — one stable word per recipe
+    /// node, and the read half of the `Node::*` constructor family.
+    ///
+    /// The vocabulary is [`crate::node_kind::node_kind`]'s, drawn from
+    /// one exhaustive `match` over the kernel's `Node` with no
+    /// wildcard arm, so a node kind added there and given no Python
+    /// word does not compile. The words are listed on that function
+    /// and, for callers, in `pncad.pyi`.
+    ///
+    /// This is the NODE's kind, never its VALUE's: an extrude, a
+    /// transform and a placed union all evaluate to a value whose
+    /// `kind` is `"body"`, because that tag is the PAYLOAD's shape.
+    /// Telling the recipes apart is the question this door exists to
+    /// answer, and it answers it with no evaluation in hand at all.
+    ///
+    /// **An id this document does not hold REFUSES** — `EditError`
+    /// carrying `unknown_node`, the word the document layer already
+    /// speaks for that state. The sibling reads on this class
+    /// ([`Self::reference`], [`Self::interface`]) answer `None`
+    /// instead, and the difference is not an inconsistency: their
+    /// `None` is a real answer about a real node — it carries no
+    /// reference, it carries no interface — so there is a live third
+    /// state for the refusal to be distinguished from. Every live
+    /// node HAS a kind, so a `None` here could only ever mean "no
+    /// such node", and answering that as a value rather than a
+    /// refusal is the fail-quiet this repo forbids.
+    fn node_kind(&self, py: Python<'_>, node: &NodeId) -> PyResult<&'static str> {
+        self.inner
+            .node(node.0)
+            .map(crate::node_kind::node_kind)
+            .ok_or_else(|| edit_err(py, &d::EditError::UnknownNode { id: node.0 }))
+    }
+
     /// Insert a node and return its minted id — the common case,
     /// spelled without the intermediate `DocEdit`.
     fn insert(&mut self, py: Python<'_>, node: &Node) -> PyResult<NodeId> {

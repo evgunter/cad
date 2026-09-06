@@ -1634,6 +1634,30 @@ class Doc:
         for any other node. Empty for a directly-authored instance;
         non-empty only on one a `split` minted."""
 
+    def node_kind(self, node: NodeId) -> str:
+        """What KIND of node `node` is: one stable word per recipe
+        node, and the read half of the `Node.*` constructor family.
+
+        The vocabulary, in full: `datum`, `profile`, `extrude`,
+        `revolve`, `tube`, `hollow_tube`, `loft`, `sweep`, `fillet`,
+        `chamfer`, `split`, `boolean_union`, `boolean_intersect`,
+        `boolean_subtract`, `union`, `transform`, `pattern`, `part`,
+        `placed_union`, `declare`, `instantiate_part`, `mate`,
+        `measure`, `assertion`. A Boolean answers a word per
+        OPERATION, because union, intersect and subtract are three
+        kernel operations sharing one payload shape; the unprefixed
+        `union` is the different node, the n-ary one that folds a
+        member list.
+
+        This is the NODE's kind, never its VALUE's: an extrude, a
+        transform and a placed union all evaluate to a value whose
+        `kind` is `"body"`, because that is the PAYLOAD's shape.
+        Telling the recipes apart is what this door is for, and it
+        answers with no evaluation in hand at all.
+
+        A node this document does not hold raises EditError
+        (`unknown_node`) rather than answering a word or `None`."""
+
     def insert(self, node: Node) -> NodeId: ...
     def sketch_frame(
         self,
