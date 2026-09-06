@@ -74,3 +74,17 @@ hand-copied three times — filed as
 `anchored-exact-text-skip-has-three-homes`. The out-of-fence
 `interval-square-allowlist.sh:203` note was withdrawn as vacuous; the
 real defect there is PR 2033's.
+
+## Third wave dispatched (2026-09-06)
+
+With PR 2029 merged and `bounds-allowlist.sh` free: `gates/d103-pinned-counts`
+(`D103`, direction decided by the orchestrator — a per-file compound-bound
+count pinned beside each allowlist entry, the `UNCONVERTED_TODAY` shape
+per entry, so a file whose count moves in either direction reds and
+names the entry's ratification paragraph), and
+`gates/loop-boundary-discards` (`S49`, the deferral register as a
+derived-census gate keyed by file and enclosing item, two reds — an
+unregistered live discard and a registered site that is gone — with
+the audited/unaudited counts in the OK line; the audit of the
+unaudited sites is the owners' riders). `D211` waits on PRs 2033 and
+2038, which hold two of its three files.
