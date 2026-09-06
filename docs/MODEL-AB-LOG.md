@@ -232,8 +232,15 @@ amended:
      2800–2899 (both claimed 2026-09-04 at their opening; TOPO draws
      from 2700 on and runs a full dual only where a unit moves a
      kernel answer, META is infra-and-prose and claims its band for
-     bookkeeping only, the CIW/CHROME posture),
-     with **2900+ unallocated** — the orchestrator opening the next
+     bookkeeping only, the CIW/CHROME posture) · BLEND 2900–2999 ·
+     EVAL 3000–3099 · GATES 3100–3199 · METER 3200–3299 (all four
+     claimed 2026-09-06 at the programs' joint opening from
+     `docs/WORK-TRACKS-2026-09.md` addendum 2; BLEND inherits FILLET's
+     full-dual posture and draws from 2900 on, EVAL runs style reviews
+     with a correctness arm where a unit moves what a document
+     evaluates to, GATES and METER are infra-only and claim their bands
+     for bookkeeping),
+     with **3300+ unallocated** — the orchestrator opening the next
      program takes the next free band and records it HERE in the
      same commit that opens the program. **1–99 is CLOSED
      HISTORY**: the pre-banding global sequence, which reached 85.
