@@ -227,3 +227,69 @@ which predates MSOLVE-2's move of the count check to
 `check_reference`; the lane reads the tree as it is. Slate after it:
 the gate's `Vanished` below a pattern, the lever's extent (`[ev]`),
 the remap-inference record correction.
+
+## MSOLVE-3 landed, in review (2026-09-06)
+
+PR 2081 green on the full matrix at `885d257` (one red on the way: a
+`rotate_then_translate` caller in `demos/tour`, outside the first
+sweep's `crates/` scope — the repo's four workspaces have no local
+script that builds them all, stated in the PR). What the build
+measured: `check_reference` keeps `eval_count` for its two counts
+because the whole-node door would refuse a mate onto copy 0 of a
+broken pattern (a change to admission, out of scope); the carried
+refusal is an `Arc`-newtype over `NodeErrorKind` because the fault
+types derive `Clone`+`PartialEq` and the kernel error type cannot; the
+rider reaches no viewer call site at all. Style review and
+correctness arm dispatched on that head.
+
+## MSOLVE-3 reviews adjudicated, fix pass dispatched (2026-09-06)
+
+Correctness arm APPROVE-WITH-FIXES: C1–C5 confirmed with the carried
+kinds byte-identical to the placer's own on eight probes; three
+MINORs — the datum road attributed the datum's slot refusal to the
+pattern (ruled: `placer` names the refusing node, the datum when its
+slots refuse), a blanket `From<NodeErrorKind> for EditError` that
+turned any node error into "the placement axis is unusable" (the
+catch-all shape reopened one door over; ruled out), and no Python row
+for the carried error. Style: no MAJOR; the `need_*` slot readers
+copied into `mate/`, a hand-spelled `WrongOperand` payload the one
+row that could catch it did not compare, the untested explicit-rule
+arm, doc rot in `topo/src/query.rs` and the role lists. Filed: the
+four-workspace build hazard (CIW) and the `names/{flush,select}.rs`
+`map_err(|_| ..)` discards (SEAT), `work/issues/`.
+
+## MSOLVE-3 MERGED (2026-09-06, PR 2081)
+
+Fix pass green on the full matrix at `8a72887` (one red on the way:
+the rider row's axis-length probes assumed the default band; they come
+from the run's own band now). Item closed, spec deleted into the
+ledger, the catch-all finding and the placement rider closed. The
+slate that remains: the gate's `Vanished` on a mate read below a
+pattern, the lever's extent (`[ev]`), the remap-inference record
+correction.
+
+## Remap-inference record correction closed (2026-09-06)
+
+`mate1-sweep-inferred-a-remap-from-a-refuted-reachability` closed as
+a record correction: the finding is the record, its (b)-SKIP premise
+is ratified since PR 1914, and no code moves. Slate after MSOLVE-3
+merges: the gate's `Vanished` below a pattern (next unit) and the
+lever's extent (`[ev]`).
+
+## MSOLVE-5 specified (2026-09-06)
+
+The gate's `Vanished` below a pattern is a unit: `docs/MSOLVE-5-
+SPEC.md`. Ruled as a change to what the refusal says, not to what is
+admitted — the master-spelling pin in `mate1_member_vocab.rs` is
+ratified and keeps refusing; the gate asks the operand's own table
+first, so `Vanished` means vanished and a name spelled at a non-root
+refuses `ReadBelowARoot { at }`. No consumer walk. The dead `NodeGone`
+arm goes with it. Minting on copy 0 instead would reopen the pin and
+is not asked. Dispatches from main once PR 2081 is in.
+
+## MSOLVE-3 merged; MSOLVE-5 dispatched (2026-09-06)
+
+PR 2081 merged at `4568d7d` on a full green matrix. The lane clone
+cut `msolve/5-read-below-a-root` from main against `docs/MSOLVE-5-
+SPEC.md` (read from this branch until it lands; the lane merges main
+before its first push). The lever's extent is up on `[ev]` PR 2086.

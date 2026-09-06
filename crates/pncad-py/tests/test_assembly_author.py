@@ -629,6 +629,56 @@ class TestAssemblyRefusals(BenchWorkspace):
         other = doc.insert(at_mint)
         self.assertNotEqual(other, mate)
 
+    def test_a_placer_that_cannot_derive_a_pose_names_its_own_cause(self):
+        """The mate's reference resolves and the transform placing it
+        exists; what does not exist is the transform's ROTATION, whose
+        axis has no measurable length. The solve carries the
+        evaluation's own refusal — `placer` names the node that raised
+        it and `error` is the very tag word a node failure crosses
+        with — instead of calling the head dangling."""
+        doc = Doc("pncad-placer-refused")
+        post_a = doc.insert(Node.instantiate_part(self.post_ref))
+        shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
+        lifted = doc.insert(
+            Node.transform(
+                shelf_i,
+                (0 * m, 0 * m, 0.25 * m),
+                (1e200, 0.0, 0.0),
+                0.5 * pncad.rad,
+            )
+        )
+        a_top = self.instance_face(doc, post_a, CapEnd.End)
+        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
+        mate = doc.insert(
+            Node.mate(
+                post_a,
+                a_top,
+                lifted,
+                s_bottom,
+                ContactClass.Rest,
+                seat(POST_SEAT, SEAT_A),
+            )
+        )
+        fault = solve_document(doc).fault(mate)
+        self.assertEqual(fault.variant, "mate_placer_refused")
+        self.assertEqual(fault.placer, lifted)
+        self.assertEqual(fault.error, "non_finite_direction")
+        self.assertIsNone(fault.head)
+        self.assertIn("transform rotation axis", str(fault))
+
+    def test_a_non_finite_frame_still_refuses_at_the_edit_door(self):
+        """The axis is decided at the constructor now, so the frame a
+        zero axis used to build never exists. A non-finite frame is
+        still REPRESENTABLE from Python — a translation may carry one —
+        so the edit door's own arm still has something to refuse, and
+        this row keeps it measured."""
+        doc = Doc("pncad-non-finite-frame")
+        post_i = doc.insert(Node.instantiate_part(self.post_ref))
+        poisoned = Frame.translation((float("inf") * m, 0 * m, 0 * m))
+        with self.assertRaises(pncad.EditError) as caught:
+            doc.apply(DocEdit.set_placement(post_i, poisoned))
+        self.assertEqual(caught.exception.variant, "non_finite_placement")
+
     def test_a_mate_whose_operand_is_not_live_refuses_at_the_door(self):
         """The operand is checked at the edit door exactly as the
         name's head is: an operand that is not a live node at insert

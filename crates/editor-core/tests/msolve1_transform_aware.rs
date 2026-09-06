@@ -695,7 +695,9 @@ fn a4_a_placed_gauge_cluster_seats_through_both_chains() {
                 [0.3, -0.2, 0.9],
                 0.8,
                 [2.0, -1.0, 3.0],
-            ),
+                fixture::band(),
+            )
+            .expect("a literal axis has a definite direction"),
         },
     );
     let placed = Scene { doc, ..s };
