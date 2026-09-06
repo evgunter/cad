@@ -5,6 +5,7 @@ title: Eighteen writers reach the status line without the frame's ranking, so it
 status: closed
 opened: 2026-09-04
 closed: 2026-09-06
+pr: 2026
 refs: [camera-fold-clears-status-line, the-news-vocabulary-has-no-expiry, stale-file-citations-after-the-split, startup-notices-need-holding-to-badge]
 ---
 
