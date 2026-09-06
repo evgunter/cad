@@ -79,7 +79,7 @@ fitted pcurve cache with no certificate) is `H5`'s other open question
 and is not asked here. A third question from the same unit — whether the
 certified form of the at-rest doors should become their DEFAULT name,
 evicting `Body<Dual64>` from `validate_pseudomanifold` — lives on
-`work/cert/lane-keeping-at-rest-doors-skip-the-m7-8-class.md` (PR #1877)
+`work/code-quality/lane-keeping-at-rest-doors-skip-the-m7-8-class.md` (PR #1877)
 and is not asked here either.
 
 ## Ruling — DEFERRED (Ev, 2026-09-05, on PR #1878)

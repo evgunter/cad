@@ -35,3 +35,12 @@ Reproduction: `r2_cert3_probes::r2_anchor_fixed_point_under_degenerate_normaliza
 ## Home
 
 `work/cert/` — `crates/geom-core/src/linalg/vec.rs` matches S-CERT's `crates/geom-core/src/*` territory glob, and the issue was filed by the S-CERT orchestrator from CERT-3's dual review.
+
+## Re-homed (2026-09-06)
+
+Moved from `work/cert/` to `work/props/` on S-CERT's exit walk PR
+(#1924, its handoffs ledger; merged by Ev 2026-09-06 = ratified), before
+`work/cert/` was deleted at sweep 7 of `docs/DOC-LEDGER.md`. Id, body
+and header are unchanged; the directory is the claim (`work/README.md`).
+The `## Home` section above naming `work/cert/` is superseded by this
+line and is kept as the record of why the file was filed there.

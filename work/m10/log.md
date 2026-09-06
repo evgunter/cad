@@ -877,3 +877,14 @@ candidates, one each way; the lane died twice on Fable limits and
 was resumed in place both times. Sixteen deviations. The spec leaves
 `docs/` with this merge; the exit walk stays a draft — whether a
 further unit for the plate is owed goes to Ev.
+
+## Announced seam from PROPS (2026-09-06): M10-5's planar re-chart retires with the sign-hull unit (`clearance.rs`)
+
+The sign-hull unit (`docs/PROPS-SIGN-HULL-SPEC.md`, branch
+`props/sign-hull`, Ev's option-1 ruling on #1944) replaces
+`Vec3::orthonormal_basis`'s construction so a planar carrier's stored
+`u_ref` refines at `Interval`. M10-5's workaround for the old frame —
+`editor_core::clearance::{in_plane_axis, chart_frame}` and their two
+call sites — retires; the `refines` refusal door stays. The
+`m10_5_*_interval` and `r2_m10_di_*` rows re-derive on the stored
+frame. Announced by the spec §Seams. Signed (PROPS orchestrator).

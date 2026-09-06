@@ -747,3 +747,43 @@ merge). Still waiting: the sign-hull unit on #1944 (the PR body now
 defines (c)/(c′) in place at Ev's request); the sphere lane on MESH-12
 (#1617 — S-MESH's own log shows it dispatched and never reviewed; the
 question of who finishes or abandons it is put to Ev).
+
+**Sign-hull RULED (c′) (2026-09-06).** Ev on PR 1944: "c′ seems fine",
+with a question about the hull answered on the PR (the hulled quantity
+is the unit sign `s`, not `n.z`; `[0, 0]` would be an enclosure of the
+wrong thing). The item records the ruling; #1944 lands when green.
+Spec `docs/PROPS-SIGN-HULL-SPEC.md`: one new `Real` door
+(`copysign` with the zero read as `+0`) on every impl so
+`Interval::copysign`'s hull stays correct for every other caller; the
+`Interval` point-zero arm narrows because the door's own f64 semantics
+canonicalise; the `b2` rider measured on the same golden pass; the
+eight STEP records re-derived with reasons (EXCH's fixtures — seam);
+the `FaceFrame` doc line (DOCM/SEAT — seam); the M10 workaround's
+retirement filed, not done. M / NUMERIC, block PROPS-B2 slot 1 (opus),
+dual review; §Landing says `status: review`, do not merge.
+
+**Sign-hull ruling RETRACTED (2026-09-06).** Ev's follow-ups on #1944
+("c′ does not seem good then"; "isn't option 1 the only one that's
+actually correct?") arrived after the orchestrator had merged the
+ruling PR and dispatched the (c′) unit — an orchestrator error: a
+ruling PR is merged on an unambiguous answer, not on "seems fine" with
+a question attached. Undone: the lane stopped before any push and
+reclaimed, `docs/PROPS-SIGN-HULL-SPEC.md` withdrawn, the item's RULED
+section replaced by the retraction with `needs_ev` restored, the M10 /
+EXCH / DOCM seam notes withdrawn, block PROPS-B2 slot 1 freed. The
+orchestrator's answer to Ev is on the PR: option 1 is the principled
+fix (the seam moves from the equator to the diagonals; M10-5's
+workaround is its existing measurement), with two costs named — the
+tie rule at `Interval` and the one-time re-bless of every stored
+`u_ref`. Awaiting confirmation.
+
+**Sign-hull RULED option 1 (2026-09-06).** Ev on #1944: "we need to do
+option 1 to be correct"; and on the re-bless of every stored `u_ref`
+named as a cost: "(2) is not a cost" — the instruction is
+`docs/prompts/implementer-discipline.md` §3 (a changed golden is the
+kernel changing; if the new output is right, re-baseline and say what
+moved). The orchestrator had read that file as implementer-facing and
+did not apply it to its own adjudication; at Ev's direction CLAUDE.md's
+reading list now names both `docs/prompts/` files as orchestrator
+reading. The item records the ruling with `needs_ev` cleared; the
+unit is `docs/PROPS-SIGN-HULL-SPEC.md` (block PROPS-B2 slot 1, dual).
