@@ -198,6 +198,37 @@ So the chain goes, not the link:
   is a list.
 - The viewer's combining doors gain a union seat that takes N body
   picks; that build is CHROME's.
+- **A declaration channel, in member space** (amended 2026-09-06,
+  Ev's ruling on `n-ary-union-has-no-declaration-channel`). Two
+  members that touch refuse `UndeclaredContact` exactly as a pair
+  boolean's operands do, and the union carries the same recourse:
+  `Node::Union { members, declare: Option<RecipeNodeId> }`, the
+  `Declare` node's pairs naming entities in the UNION's own name space
+  — `FromMember { member, of }` names, which the fold already presents
+  to every step through `member_view` — so a declaration says "this
+  face of member `m` meets that face of member `n`" and records no
+  fold position anywhere. Each pair is fed to the fold step at which
+  both its members are in the accumulation: the later member's step
+  in list order, the earlier side as the accumulator's operand, the
+  later as the joining member's; a pair whose two names lie in ONE
+  member is that member's carried contact at its own step. A name in
+  neither table, or in both, refuses typed through the pair boolean's
+  own resolver, which the union reuses (one definition of "resolve a
+  declared name against two tables"). `SetMembers` leaves `declare`
+  as it was; a pair whose member left the list refuses at the next
+  evaluation as a vanished name does (N5), never silently. The
+  "disjoint-only" reading is not taken: the common modelling case (a
+  boss on a plate) would keep the pairwise chain alive.
+  **Measured limit (DOCM-7, 2026-09-06; ruling pending):** a
+  member-space name resolves at its step only while the face it names
+  is still an operand-table row there. Across a CHAIN of contacts a
+  declared merge consumes the middle member's face at an earlier step,
+  so the same member-space declaration set fuses in one member order
+  and refuses in another, and the recourse (the accumulation's
+  `Merged` row) nests by fold order. Whether the door looks through
+  to a merged face's constituents, flattens nested `Merged` names, or
+  this bullet is narrowed, is
+  `work/docm/member-space-declarations-are-order-shaped-across-a-chain.md`.
 
 ## DM5 — A node's inputs are pairwise distinct
 

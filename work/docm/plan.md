@@ -47,7 +47,8 @@ companion docs:
 - **`docs/DOCM-REFERENCES-DESIGN.md`** (DM1–DM6): what a recipe
   reference may be. Builds that stay here: `DOCM-1` (the derived
   sketch frame, the sense beside the pose, the carrier-kind read),
-  `DOCM-2` (`Node::Part`), `DOCM-3` (`Node::Union` n-ary,
+  `DOCM-2` (`Node::Part`), `DOCM-7` (the union's declaration channel in
+  member space, DM4 as amended 2026-09-06), `DOCM-3` (`Node::Union` n-ary,
   `DocEdit::SetMembers`, pairwise-distinct inputs).
   `no-docedit-splices-a-deleted-node` is parked on `DOCM-3` (DM6).
 - **`docs/DOCM-IDENTITY-DESIGN.md`** (DI1–DI5): a held value names
@@ -82,6 +83,12 @@ place (ids kept); so are `D365`'s census, `C6`'s `WireStep` member,
    `EvalOptions::param_box`), the indeterminate-means-subdivide
    verdict contract, and pacing; the build reuses M10-3's driver.
    Waits on M10's parameter-aware certification settling.
+4. **The chained-order gap in the union's declaration channel** —
+   `member-space-declarations-are-order-shaped-across-a-chain` (DOCM-7's
+   review, 2026-09-06): whether the declaration door looks through to
+   a merged face's constituents, flattens nested `Merged` names, or
+   DM4's amended bullet is narrowed to the measured limit; Ev's ruling,
+   then a unit (DOCM-8) if it is one of the first two.
 
 Riders: half (2) of `mate-clocking-has-no-gui-path` (FIX has half
 (1)); `unify-discipline-machinery-onto-registry` step 2 once the

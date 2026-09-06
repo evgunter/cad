@@ -29,6 +29,10 @@
 /// pin their documents with — one feed, per-suite constants.
 pub mod digest;
 
+/// The part store an assembly suite instantiates through, and the
+/// names an instantiated part's faces are spelled with.
+pub mod resolver;
+
 use editor_core::{
     CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKind, Expr, LoopProgram, Node, ParamName,
     ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg,
