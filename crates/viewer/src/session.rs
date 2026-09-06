@@ -6,9 +6,12 @@
 //! The driver, and nothing else. `session` owns [`DocSession`] and
 //! dispatches [`SessionOp`]; what stays here is that state, its
 //! `Gesture`, its [`Derived`] block with the [`LandedRun`] inside it,
-//! [`Landing`], [`AtRestBadge`], [`DocSession::perform`]
+//! [`Landing`], [`AtRestBadge`], [`Outstanding`],
+//! [`DocSession::perform`]
 //! and the operation doors — every door mutates the session, and
 //! `perform`'s dispatch is the one place an operation becomes state.
+//! The three values are what the session says about itself and are
+//! minted nowhere else.
 //!
 //! The values those doors speak in are vocabularies beside it, six of
 //! them: what is selected is [`select`], the refusal ladder with its
@@ -423,6 +426,39 @@ pub enum Landing {
     Canceled,
 }
 
+/// What the session owes at one moment: the picture against the
+/// document, and the seam against the picture.
+///
+/// The session answers those two questions separately
+/// ([`DocSession::busy`], [`DocSession::running`]) because each is
+/// useful alone — a wait loop reads the first, and the second is a
+/// read of the seam. **Read together they are one three-state fact**,
+/// and this is that fact as a value, minted at the single site that
+/// consults both ([`DocSession::outstanding`]).
+///
+/// **It is a value rather than a pair because a pair does not survive
+/// being passed.** Two adjacent `bool`s that mean different things
+/// swap silently: the swap type-checks, the chrome it produces is
+/// plausible — a spinner where a cancel belongs — and a row that
+/// covers the consumer by repeating the same positional convention
+/// agrees with a swapped call site instead of contradicting it. These
+/// three states are what a consumer distinguishes anyway, so the pair
+/// is never handed to one: it is read here, by name, and folded.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Outstanding {
+    /// The picture answers the document the session holds: nothing is
+    /// owed and nothing is running.
+    Current,
+    /// The picture is older than the document and the seam is working
+    /// on it.
+    Evaluating,
+    /// The picture is older than the document and NOTHING is working
+    /// on it — a cancel. [`SessionOp::Reevaluate`] is what recovers
+    /// from it, and the state exists so the chrome does not spin over
+    /// an idle seam forever.
+    Canceled,
+}
+
 impl DocSession {
     /// A session over `doc`, evaluated through `eval`.
     ///
@@ -685,6 +721,30 @@ impl DocSession {
     /// [`SessionOp::Reevaluate`] recovers from.
     pub fn running(&self) -> bool {
         self.eval.busy()
+    }
+
+    /// The two reads above as [`Outstanding`] — the one value a
+    /// consumer of "is there work outstanding" is given.
+    ///
+    /// **This is the only place the two are read together**, and they
+    /// are read by NAME here rather than paired into an argument list,
+    /// so there is no position for either to be in and nothing to
+    /// swap. What a consumer receives is already folded, and the fold
+    /// is covered by driving a session into each of the three states
+    /// rather than by restating this ordering beside it.
+    ///
+    /// `!busy() && running()` is unreachable through a session — a
+    /// seam with work outstanding always has a generation the picture
+    /// has not caught up to — and it reads as [`Outstanding::Current`]
+    /// because the picture is what the chrome is describing.
+    pub fn outstanding(&self) -> Outstanding {
+        if !self.busy() {
+            Outstanding::Current
+        } else if self.running() {
+            Outstanding::Evaluating
+        } else {
+            Outstanding::Canceled
+        }
     }
 
     /// The feature tree's rows for the shown document.

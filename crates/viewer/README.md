@@ -326,10 +326,28 @@ vocabulary is not a forbidden import path.
 | `session::probe` | `BoundsTarget`, `BoundsReading` and the range probe |
 
 `session` itself keeps `DocSession`, its `Gesture`, `Landing`,
-`AtRestBadge`, `perform` and the operation doors. Those are the driver
-and cannot leave it: every door returns a `Refusal` and mutates the
-session, and `perform`'s dispatch is the one place an operation becomes
-state.
+`AtRestBadge`, `Outstanding`, `perform` and the operation doors. Those
+are the driver and cannot leave it: every door returns a `Refusal` and
+mutates the session, `perform`'s dispatch is the one place an operation
+becomes state, and the three values are what the session says about
+itself, minted nowhere else.
+
+`Outstanding` is the last of those and the one with a rule attached.
+The session answers two questions about work — is the picture older
+than the document (`busy`), and does the seam have work (`running`) —
+and each is useful alone, so both stay. **Read together they are one
+three-state fact, and a consumer is handed that fact and never the
+pair.** Two adjacent `bool`s that mean different things swap silently:
+the swap type-checks, the chrome it produces is plausible, and a row
+that covers the consumer by repeating the same positional convention
+agrees with a swapped call site rather than contradicting it. So
+`DocSession::outstanding` reads the two by name — there is no argument
+list for them to be positions in — and `frame::progress` takes the
+folded value beside the index seam's `bool`, two arguments of different
+types that no call site can transpose. The fold itself is covered by
+driving a session into each of the three states (`tests/eval_seam.rs`),
+because a row that names the states says nothing about which session
+state produces which.
 
 ### What the session knows because of the document is one value
 

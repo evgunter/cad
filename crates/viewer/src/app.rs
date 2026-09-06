@@ -1266,11 +1266,7 @@ impl eframe::App for ViewerApp {
                 // fourth thing to say: the picture is older than the
                 // document AND nothing is running. A spinner there
                 // would be a lie about work nobody is doing.
-                match frame::progress(
-                    self.session.busy(),
-                    self.session.running(),
-                    self.picks.indexing(),
-                ) {
+                match frame::progress(self.session.outstanding(), self.picks.indexing()) {
                     Some(frame::Progress::Evaluating) => {
                         ui.separator();
                         ui.spinner();

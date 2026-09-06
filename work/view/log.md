@@ -4307,3 +4307,42 @@ The board is now **48 open, 27 closed, nothing dispatched, nothing on
 Ev**, and no large item left: small units, two waiting on DOCM's
 `next_id` door, and the focus-map siting question no single program can
 answer.
+
+## `frame::progress`'s two swappable bools became one session value (2026-09-06)
+
+`progress(busy, running, indexing)` is closed by
+`session::Outstanding` — `Current | Evaluating | Canceled`, minted by
+`DocSession::outstanding()` — with the chrome door now
+`progress(Outstanding, bool)`.
+
+The interesting part was not the type, it was **where the pair stops
+existing**. A struct with `busy` and `running` fields types the
+signature and moves the swap into the constructor; three named types
+type the arguments and leave the caller assembling them in order. The
+enum is the only shape where the two reads are never a pair a caller
+holds: `outstanding()` consults each by name in an if/else chain, and
+the eighth combination the old function was total over
+(`!busy && running`, unreachable through a session) stops being
+expressible rather than staying documented.
+
+**The test was half the defect and got the other half of the fix.**
+The `frame_policy` row repeated the same positional convention as
+`app.rs`, so a swapped call site and a swapped test agreed; naming
+states instead of positions leaves nothing to mirror, and the swap is
+now a type error. But that row still says nothing about which SESSION
+state produces which chrome state, and `app.rs` is `app`-gated and
+untested, so the fold got coverage where it can execute without the
+feature: `tests/eval_seam.rs`'s cancel row now walks a real
+`DocSession` through `Evaluating` → `Canceled` → `Evaluating` →
+`Current`, asserting `outstanding()` at each. That mapping had no
+assertion anywhere before.
+
+`busy()` and `running()` both stay: nineteen and five readers use them
+singly, mostly as wait predicates. What is gone is any signature that
+takes both.
+
+The rule is in `crates/viewer/README.md`'s session paragraph, beside
+`Landing` and `AtRestBadge` — the other values the session mints for a
+vocabulary to consume, which is what settled where `Outstanding` lives
+rather than in `frame` (a per-frame policy module already carrying
+eight concerns).

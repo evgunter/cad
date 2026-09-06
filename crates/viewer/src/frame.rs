@@ -175,7 +175,7 @@ use crate::pick::{IdMap, NotIndexed, PickError, PickIndex, PickIndexError};
 use crate::prefs::StoreError;
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
-use crate::session::{AtRestBadge, Refusal, SessionOp};
+use crate::session::{AtRestBadge, Outstanding, Refusal, SessionOp};
 
 /// **What something the chrome shows is ABOUT** — carried by a
 /// [`Message`] on the line and by a [`Badge`] on the toolbar alike.
@@ -1408,8 +1408,8 @@ pub fn projection_badge(error: Option<&CameraError>) -> Option<Badge> {
 /// seam; expressing that as a second `if` beside the first would have
 /// given the toolbar two indicators that can both be lit, for one
 /// wait, with no rule anywhere saying which the reader should believe.
-/// The rule is here instead, and it is a total function of three
-/// booleans.
+/// The rule is here instead, and it is a total function of what the
+/// session owes and whether the index seam is busy.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Progress {
     /// A run is in flight: the picture is older than the document and
@@ -1439,7 +1439,8 @@ pub enum Progress {
     Indexing,
 }
 
-/// The one state, from the session's two answers and the pick cache's.
+/// The one state, from what the session owes and what the pick cache
+/// is doing.
 ///
 /// **Evaluation outranks indexing**, because an index built for a
 /// generation the session has already moved past is about to be
@@ -1447,12 +1448,17 @@ pub enum Progress {
 /// without cancel means both can be in flight at once, and naming the
 /// index build there would tell a reader the wait was nearly over when
 /// a whole evaluation is still ahead of it.
-pub fn progress(busy: bool, running: bool, indexing: bool) -> Option<Progress> {
-    match (busy, running, indexing) {
-        (true, true, _) => Some(Progress::Evaluating),
-        (true, false, indexing) => Some(Progress::Canceled { indexing }),
-        (false, _, true) => Some(Progress::Indexing),
-        (false, _, false) => None,
+///
+/// The two arguments are the two seams and they are different types,
+/// so neither can be given in the other's place: what the session owes
+/// arrives already folded ([`crate::session::DocSession::outstanding`])
+/// rather than as the pair of `bool`s it is read from.
+pub fn progress(outstanding: Outstanding, indexing: bool) -> Option<Progress> {
+    match outstanding {
+        Outstanding::Evaluating => Some(Progress::Evaluating),
+        Outstanding::Canceled => Some(Progress::Canceled { indexing }),
+        Outstanding::Current if indexing => Some(Progress::Indexing),
+        Outstanding::Current => None,
     }
 }
 
