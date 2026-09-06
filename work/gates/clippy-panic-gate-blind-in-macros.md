@@ -97,3 +97,54 @@ parked there.
 ## Claimed by GATES (2026-09-06)
 
 Moved from `work/code-quality/` to `work/gates/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, `track:` letter and body unchanged. Track K; the gate is GATES' to build, the ten macro bodies it audits are their owners' and are read only.
+
+## Direction taken (2026-09-06)
+
+Option (2), the token-grep gate, composed with option (1)'s audit:
+`scripts/gates/panic-free-macro-bodies.sh` reads `crates/*/src` through
+`lib.sh`'s code-only view, tracks each `macro_rules!` body by balanced
+`{}`/`()`/`[]` nesting, and reports `.unwrap`, `.expect`, `panic!`,
+`todo!` and `unimplemented!` inside one. Option (3) (`cargo expand`) and
+option (4) (thin macro bodies as a convention) are not taken.
+
+`unreachable!` is NOT matched. It was in the family this row named on
+2026-08-13, and D9's D2 addendum removed it from
+`[workspace.lints.clippy]` on 2026-08-19: matching it here would make a
+macro body stricter than the `fn` beside it and would red `nurbs_fit!`
+today. The gate is the stanza, reaching where clippy cannot.
+
+The allow is `#[cfg(test)]` — the attribute on the item or an enclosing
+module, and a file whose `mod` line is `#[cfg(test)] mod x;`. No path
+allowlist: nothing in the live tree needs grandfathering.
+
+## The audit
+
+Re-derived 2026-09-06: the surface has moved from this row's ten bodies
+in nine files to **24 bodies in 15 files** (`geom-curves` is now
+`geom/src/curves`; `editor-core/src/expr.rs`, `names/role.rs`,
+`node.rs`, `profile/src/path/program.rs`, `test-utils/src/lib.rs` and
+`topo/src/validate.rs` carry bodies this row did not list). Two bodies
+carry a panic-family token; the other 22 carry none:
+
+- `crates/geom/src/curves/fit.rs:376` `nurbs_fit!` (spans 376-804) —
+  one `unreachable!` at 714, on a `let-else` that observes a kernel-bug
+  state. Production, sanctioned, and out of the gate's family.
+- `crates/topo/src/review_m1_pr5_internal.rs:113` `leak_probe!` — one
+  `.unwrap()` at 116. **Test-only**: the file is reached only through
+  `#[cfg(test)] pub(crate) mod review_m1_pr5_internal;`
+  (`crates/topo/src/lib.rs:206`) and the macro sits inside a `#[test]
+  fn`. This row's file-level count of 16 for that file resolves to 1
+  inside the macro body and 15 in `#[test]` functions clippy already
+  sees.
+
+**No production instance.** The gate is green on the live tree at the
+merge base, so it lands without an allowlist and without a
+grandfathered population.
+
+## Residue
+
+The `#[cfg(test)] mod x;` resolution the gate needs is the textual,
+declaring-directory one the two gates that already do this use; it is
+not rustc's for a declaration outside a crate root, and the repair
+belongs to `gate-mod-path-resolved-textually`, whose population this
+gate joins.
