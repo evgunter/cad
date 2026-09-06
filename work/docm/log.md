@@ -336,3 +336,14 @@ making an instantiate node's log schedule-dependent. One binding
 site; nothing else in `eval/parts.rs` moves. The bracket at `run_op` in
 `eval/mod.rs` was announced to SEAT at the spec. Signed (PROPS
 orchestrator).
+
+## Announced seam from PROPS (2026-09-06): a doc line at `Datum::FaceFrame::spin` with the sign-hull unit
+
+`docs/PROPS-SIGN-HULL-SPEC.md` (branch `props/sign-hull`) changes the
+frame `Vec3::orthonormal_basis` makes, so what `spin = 0` means on a
+wall or a cap changes with it; the unit adds one doc line at
+`Datum::FaceFrame::spin` (`crates/editor-core/src/node.rs:~704`)
+naming the axis order and tie-break, and re-points
+`docm1_face_frame.rs` where it named M10-5's retired `chart_frame`.
+No committed document carries a `FaceFrame` (#1939 census). Announced
+by the spec §Seams. Signed (PROPS orchestrator).
