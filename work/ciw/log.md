@@ -966,3 +966,61 @@ half was "linted by NO row" (`clippy (--all-features)` lints it), and
 `work.py territory` reports zero cross-fence paths for a branch editing
 a file named in its own program's `keep_out`, because it reads `paths`
 only and `keep_out` is prose.
+
+### 2026-09-06 — unit 2, fix pass: the seed set comes off the graph, not the façade
+
+Both reviews landed the same MAJOR on the first attempt, and it was
+right: deriving the seed set from the members the façade NAMES at its
+top level shipped the original defect one re-export deeper. `bvh` is
+named nowhere in `crates/pncad/src/lib.rs` and reaches Python anyway —
+`crates/editor-core/src/lib.rs`'s `pub use bvh::Ray`,
+`crates/pncad/src/select.rs`'s re-export of it, a `#[pyclass] Ray` in
+`crates/pncad-py/src/py/pick.rs`, and 37 uses in
+`crates/pncad-py/tests/test_picking.py`. Worse, the premise selftest
+REQUIRED `bvh` to stay out, so the correction had to pay for the pin.
+Top-level naming is sufficient for reach and not necessary; the
+docstring promised reach and the code computed spelling.
+
+**The set is now `pncad-py`'s non-dev dependency closure**, from
+`cargo metadata`. No regex, no `FACADE_LIB`, no hand-list, and the
+`pub use X as Y` / `pub use X::{…}` blind spot the style review found
+disappears rather than being patched. `_member_graph` now returns two
+edge maps: the change closure walks upward where dev edges count
+(`cargo test -p X` builds them), and this walks downward where they do
+not (`maturin build` compiles no test target), which is what keeps
+`test-utils` out.
+
+**This is C3's closure condition restored**, up to dev edges — `seed
+under pncad-py` and `pncad-py in dependents(seed)` are one statement
+read from two ends — and every site that describes the axis now says
+so. The measurement is what licenses it and it has one home,
+`docs/CI-MINUTES-2026-08.md`'s entry of 2026-09-06; the other sites
+cite rather than restate.
+
+**The failure arm has a test now.** Both mutations the correctness lane
+found green — the arm answering `false`, and dropping the missing-member
+`Bail` — red the new case, which sits in the viewer fixture because that
+workspace has no `pncad-py` in it. The old blocks asserted only the
+other key there, which is why the hole existed.
+
+Verdicts after the fix: `geom-core`, `bvh`, `verbs`, `profile`,
+`quantity` true; `viewer`, `test-utils` false.
+
+Premise sweep (the class this repo keeps re-finding): the always-run
+verdict step in `ci.yml`, its `python-suite` job header and its
+clippy-siting note, two sites in `nightly.yml`, `ci-local.sh`, the
+discipline doc and `docs/CI-MINUTES-2026-08.md` all carried the
+three-name set or the "façade keeps `bvh` interior" reading. All
+rewritten; the minutes ledger gets a new dated entry rather than an
+edit to the 2026-09-03 one. `ci.yml`'s "that half was linted by NO row"
+was stale in the other direction — `clippy (--all-features)` reaches it
+— and now says what the `python`-alone row actually adds.
+
+**Retraction from the first pass of this unit.** The claim that
+`scripts/work.py territory` is blind to a `keep_out` fence is withdrawn:
+the zero it returned was taken on an UNCOMMITTED tree, and `territory`
+diffs `origin/main...HEAD`. On the committed branch it names both
+cross-fence paths — `scripts/ci-filter.py` (tcost) and
+`docs/prompts/implementer-discipline.md` (meta), the second of which the
+first pass never announced because of the same false reading. Run it
+after committing.

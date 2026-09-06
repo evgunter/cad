@@ -27,36 +27,48 @@ changing a re-exported crate must run it locally.
 
 **The filter was wrong**, and the doc was stale beside it; both moved.
 
-`RUN_PNCAD_PY` keeps the seed shape Ev ruled on — SEEDS, not the
-closure — and its seed set is widened from `{pncad-py, pncad,
-editor-core}` by every workspace member the façade names at the top
-level of `crates/pncad/src/lib.rs`, derived there rather than listed.
-On this tree that adds `geom, geom-brep, geom-core, mesh, profile,
-quantity, step-export, step-import, stl, sweep, topo`; it leaves out
-`bvh, test-utils, verbs, viewer`, the members the façade keeps
-interior. `profile` is in it because the façade narrowed
-`pub use profile` to a curated `pub mod profile` and the bindings still
-name `pncad::profile`, so the derivation reads `pub mod` as well as
-`pub use`.
+`RUN_PNCAD_PY` stays SEED-keyed and its set is now every member a BUILD
+OF THE WHEEL compiles — `pncad-py`'s non-dev dependency closure, read
+off `cargo metadata`. On this tree that is every workspace member except
+`viewer` (above the wheel) and `test-utils` (a dev edge `maturin build`
+does not follow). `crates/geom-core/src/lib.rs` now gives
+`RUN_PNCAD_PY=true`; so do `bvh` and `verbs`.
+
+**The first attempt derived the set from the façade's own text** — the
+members named by a top-level `pub use`/`pub mod` in
+`crates/pncad/src/lib.rs` — and both reviews landed the same MAJOR: that
+ships the defect one re-export deeper. `bvh` is named by no line of the
+façade and still reaches Python, through `editor-core`'s
+`pub use bvh::Ray`, `pncad::select`'s re-export, and a `#[pyclass] Ray`
+in `crates/pncad-py/src/py/pick.rs` that `tests/test_picking.py` drives
+in 37 places. Top-level naming is SUFFICIENT for reach, not necessary.
+The graph has no such gap and needs no regex.
 
 **What decided the direction.** The C3 argument for the small set held
 that a compile break reds the ordinary closure rows and that only
 NUMBERS wait for the nightly. The first half is true — `clippy
 (--all-features)` lints `-p pncad-py` at the `python` feature on every
 code-tier run — but the second is not a reason to skip: the
-`crates/pncad-py/tests/*.py` assertions run in no other job, and a
-re-exported crate is a crate those scripts call. And the skip bought
-nothing: measured over 35 code-tier runs on 2026-09-06, the `python
-suite` job takes 115–125 s, needs only `filter`, and finishes 692–917 s
-before the run ends (run wall clock 856–1302 s, set by the serial
-build → test chain). Zero added wall clock, which is the currency on a
-public repository.
+`crates/pncad-py/tests/*.py` assertions run in no other job. And the
+skip bought nothing: the job needs only `filter` and finishes far inside
+the run's serial build → test chain, so it adds zero wall clock. Figures
+and caveats: `docs/CI-MINUTES-2026-08.md`, entry of 2026-09-06.
 
-**Residue, disclosed and not scheduled here**: whether the axis should
-be a seed key at all now that its row is free is S-TCOST's question,
-raised in the PR for the owner of `scripts/ci-filter.py`. Two findings
-outside this unit's fence are reported in the PR body rather than filed:
-a stale "linted by NO row" claim on ci.yml's `python-suite` clippy step,
-and `work.py territory` being blind to a `keep_out` fence because it
-reads `paths` only.
+This makes the axis C3's closure condition again, up to dev edges, and
+that is deliberate and stated at every site that describes it.
 
+**Residue, filed rather than disclosed**:
+`work/ciw/python-suite-axis-skips-only-two-members.md` asks whether an
+exception covering two members still earns its machinery. Findings
+outside this unit's fence are named in the PR body: the viewer axis's
+"one direct non-façade edge" sentence
+(`scripts/ci-filter.py`, `RUN_VIEWER_TOOLKIT`) is false —
+`crates/viewer/Cargo.toml` also has `editor-core` — and two closed LIB
+items carry the moved seed-set premise in their prose.
+
+**Retracted from the first pass**: that `work.py territory` is blind to
+a `keep_out` fence. It is not. The zero it returned was read off an
+UNCOMMITTED tree — `territory` diffs `origin/main...HEAD` — and on the
+committed branch it names both cross-fence paths correctly,
+`scripts/ci-filter.py` (tcost) and `docs/prompts/implementer-discipline.md`
+(meta). The lesson is about when to run it, not about what it can see.

@@ -21,14 +21,14 @@ of {default features, `interval`} x {default eps, 1e-6, 1e-12} — twelve
 `test (…)` jobs, each naming its lane, its eps row and its shard — and all five
 `k-lint (gate, <row>)` feature unifications. **Nothing is sampled any more.**
 The gates, the discipline and parity rows and the render lanes are unchanged and
-still run on every code-tier run. **The python suite runs whenever the change
-can reach the wheel's Python surface**: its seeds are `pncad-py`, `pncad` and
-`editor-core` plus every workspace member the façade names in
-`crates/pncad/src/lib.rs`, which is every kernel crate the suite's own scripts
-can call. A closure seeded ONLY in a member the façade keeps interior — `bvh`,
-`verbs`, `viewer`, `test-utils` — skips it, and the `change filter` job's log
-prints both the seed set and `RUN_PNCAD_PY`, so a run says which way it went.
-Three things follow for you:
+still run on every code-tier run. **The python suite runs whenever a seed is a
+crate a build of the wheel compiles** — `pncad-py`'s non-dev dependency closure,
+which on this tree is every workspace member except two: `viewer`, which sits
+above the wheel, and `test-utils`, which reaches the bindings along a
+dev-dependency edge `maturin build` does not follow. A closure seeded only in
+one of those two skips it; everything else buys it. The `change filter` job's
+log prints both the seed set and `RUN_PNCAD_PY`, so a run says which way it
+went. Three things follow for you:
 
 - **A green run means green at all six lane/eps points and all five k-lint
   unifications.** That is what the job list shows: if you cannot see twelve

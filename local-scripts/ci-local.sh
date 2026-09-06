@@ -572,13 +572,12 @@ topo_release() {
 # ci-local's exclusive hold that acquisition is a no-op
 # (BUILD_SLOT_HELD).
 #
-# UNCONDITIONAL HERE, SEED-GATED HOSTED (2026-09-03), and it is the same
-# asymmetry the viewer toolkit rows below carry, for the same reason. The
-# hosted job runs only when the change filter's SEEDS intersect the
-# python-suite seed set — {pncad-py, pncad, editor-core} widened by every
-# member the façade names, derived from `crates/pncad/src/lib.rs`, so
-# every crate the suite's own Python can call is in it and a member the
-# façade keeps interior (`bvh`) is not. This half is billed in one
+# UNCONDITIONAL HERE, SEED-GATED HOSTED, and it is the same asymmetry the
+# viewer toolkit rows below carry, for the same reason. The hosted job
+# runs only when the change filter's SEEDS intersect the members a BUILD
+# OF THE WHEEL compiles — `pncad-py`'s non-dev dependency closure, so all
+# but `viewer` (above the wheel) and `test-utils` (a dev edge no wheel
+# build follows). This half is billed in one
 # developer's wall clock, on a run
 # they chose to make, and it is already the lane that runs every point of
 # every dimension: skipping work here would buy nothing
