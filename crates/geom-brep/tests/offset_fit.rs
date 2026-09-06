@@ -493,21 +493,65 @@ fn an_offset_past_the_curvature_reach_refuses_at_the_collapse_meter() {
     }
 }
 
+/// **The sample-cap face.** At 1e-15 the bumpy patch runs five of the
+/// six refinement rounds and is stopped by the per-direction sample
+/// cap — the sixth round's schedule would carry 66x67 samples against
+/// a cap of 48 — with a finite bound in hand. The refusal has to say
+/// so: a caller reading the round budget off it would raise the wrong
+/// knob, because the rounds were never what ran out.
 #[test]
-fn an_unreachable_tolerance_refuses_typed_at_the_budget() {
+fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
     let base = bumpy_patch();
-    match fit_offset_at(&base, 0.05, 1e-15, band()) {
-        Err(OffsetFitError::BudgetExhausted {
-            budget,
-            grid,
-            achieved,
-            tolerance,
-        }) => {
-            assert_eq!(budget, OFFSET_FIT_BUDGET);
-            assert!(grid.0 <= OFFSET_FIT_SAMPLE_CAP && grid.1 <= OFFSET_FIT_SAMPLE_CAP);
-            assert!(achieved.is_finite() && achieved > tolerance);
-        }
-        other => panic!("an unreachable tolerance did not refuse typed: {other:?}"),
+    let e = fit_offset_at(&base, 0.05, 1e-15, band())
+        .err()
+        .unwrap_or_else(|| panic!("1e-15 m on the bumpy patch was certified"));
+    let dbg = format!("{e:?}");
+    assert!(
+        dbg.starts_with("SampleCapReached"),
+        "the cap stop does not name the cap: {dbg}"
+    );
+    assert!(
+        dbg.contains("rounds: 5"),
+        "the cap stop does not say how many rounds ran: {dbg}"
+    );
+    assert!(
+        dbg.contains(&format!("cap: {OFFSET_FIT_SAMPLE_CAP}")),
+        "the cap stop does not carry the cap: {dbg}"
+    );
+    assert!(
+        !dbg.contains(&format!("budget: {OFFSET_FIT_BUDGET}")),
+        "the cap stop names the round budget: {dbg}"
+    );
+}
+
+/// **The never-finite face.** At `d = 1e-7` and `1e-8` on the quarter
+/// cylinder the certificate limb answers `+∞` on every grid the loop
+/// reaches — the small-`|d|` denominator's componentwise floor never
+/// clears zero — and the cap stops it after four refinement rounds
+/// with no finite bound ever produced. A refusal that "carries the
+/// achieved bound" must not carry `inf` there: the face says there is
+/// no number, and prints none.
+#[test]
+fn a_bound_that_never_became_finite_refuses_with_no_number() {
+    let base = quarter_cylinder(1.0, 1.0);
+    for d in [1e-7_f64, 1e-8] {
+        let e = fit_offset_at(&base, d, 1e-3, band())
+            .err()
+            .unwrap_or_else(|| panic!("d = {d}: a never-finite bound certified"));
+        let dbg = format!("{e:?}");
+        assert!(
+            dbg.starts_with("BoundNeverFinite"),
+            "d = {d}: the never-finite stop does not say so: {dbg}"
+        );
+        assert!(
+            !dbg.contains("achieved"),
+            "d = {d}: the never-finite stop carries an achieved bound: {dbg}"
+        );
+        let msg = e.to_string();
+        assert!(
+            !msg.contains("inf"),
+            "d = {d}: the message prints a number where there is none: {msg}"
+        );
     }
 }
 
