@@ -3572,3 +3572,58 @@ it needs the "did not draw this frame" latch, which is app-gated state
 
 49 commits behind main after #1953 landed, so another merge is owed
 before it can go.
+
+## #1957 MERGED; the sweep is out, and nothing is blocked (2026-09-06)
+
+Merged at `8fec47fb`. **Nine units on main this session** plus three
+tracker/ruling PRs. Board: 40 open, 23 closed, one dispatched.
+
+The cheap arm of the regression landed with a better argument than the
+one I sent. I gave three reasons; the lane found the one that decides
+it: **with no extent the pane never reaches `view_projection` at
+all**, so a held fault is not merely stale on that path — it is a claim
+about a computation that was not attempted. Clearing is the only honest
+read, not a cheaper approximation of one.
+
+And it re-derived what the field *means* as a consequence: **"what the
+viewport said the last time it could project"**, which is a statement
+the field can keep, where "the last time it drew" was one it could not.
+It also checked the risk I flagged rather than accepting my framing:
+one reader, `frame::projection_badge`, so the whole observable
+consequence is the badge going dark while the pane has no extent and
+returning a frame after the pane does.
+
+**It declined the other arm for the right reason** — taking it would
+have added the third piece of app-gated state that this unit's own
+header argues against, in the same diff that argues it.
+
+### The item closed on what the unit added to the ruling
+
+`news-and-standing-facts-are-orthogonal-axes` is closed, and what it
+records is that **the rule as built states its own limit**, which the
+ruling alone could not give the sweep: held-state is a property of the
+fact and not a signature; tracing to the raiser does not settle it
+either; and whether a fact is held is **a choice the author makes**,
+with the unit's own two new fields as the worked case. Ev's ruling then
+names the axis all three are shadows of — **provenance**.
+
+That is the third time this program has taken a ruling, built it, and
+had the building produce something the ruling needed and did not
+contain. Worth stating as the pattern it is: **a ruling is a
+hypothesis about a vocabulary that does not exist yet, and the unit
+that builds it is the first thing able to test it.**
+
+### The sweep is dispatched
+
+`view/status-line-sweep`, twenty writers, the largest item on this
+board and blocked since #1849 filed it. Both conditions the lane set
+when it stood down are in the brief: **merge main before starting, not
+only before pushing**, and **derive the census by shape rather than
+from the count I hand over** — with the count explicitly marked as the
+least trustworthy claim in the brief, because this program has been
+wrong about it three times.
+
+The brief also carries the rule's three limits as things to apply
+rather than skip, and the standing instruction that **a site the rule
+cannot sort outranks the sweep** — the same fence that has now produced
+a finding on each of the two units it was applied to.

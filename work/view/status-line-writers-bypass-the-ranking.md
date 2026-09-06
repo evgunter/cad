@@ -2,9 +2,10 @@
 id: status-line-writers-bypass-the-ranking
 kind: issue
 title: Nineteen writers reach the status line without the frame's ranking, so it decides nothing they say
-status: open
+status: dispatched
 opened: 2026-09-04
 refs: [camera-fold-clears-status-line, the-news-vocabulary-has-no-expiry, stale-file-citations-after-the-split]
+branch: view/status-line-sweep
 ---
 
 ## What this is

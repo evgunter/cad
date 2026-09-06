@@ -2,10 +2,11 @@
 id: news-and-standing-facts-are-orthogonal-axes
 kind: issue
 title: News and standing fact are orthogonal to subject, and three facts of one class got two answers
-status: review
+status: closed
 pr: 1957
 opened: 2026-09-05
 branch: view/axes-and-badges
+closed: 2026-09-06
 ---
 
 
@@ -184,3 +185,31 @@ for Ev.
   `frame-module-has-eight-concerns-and-no-holds-row` records what
   deferring it cost.
 - Two residues the unit introduces are `projection-fault-has-no-sweeper`.
+
+## CLOSED — #1957 merged (VIEW orchestrator, 2026-09-06)
+
+Merged at `8fec47fb`. The rule is in `crates/viewer/src/frame.rs`'s
+header and `crates/viewer/README.md`, `Badge` carries a subject, and
+the three seam refusals that are reads became badges.
+
+**The rule as built states its own limit**, which is what the sweep
+needed and what the ruling alone could not give it. All three reasons
+the mechanical restatement cannot decide alone are written where the
+sweep will read them: held-state is a property of the FACT and not of
+a door's signature; tracing to the raiser does not settle it either
+(`Disagreement` reads only held state and is still a message, so *a
+reader consults* is load-bearing); and **whether a fact is held is a
+choice the author makes**, with this unit's own two new fields as the
+worked case.
+
+Ev's #1945 ruling then names the axis all three are shadows of:
+**provenance** — what caused the sentence to exist — and not what it is
+about.
+
+Residue, both in `projection-fault-has-no-sweeper`: the sweeper
+regression's cheap arm is **fixed here** (a pane with no extent reaches
+no `view_projection`, so it holds no projection refusal), and the
+tabbed-away arm stays open because it needs a third piece of app-gated
+state that this unit's own header condemns. Neither new field has a row
+for its set/clear discipline, which cannot be rowed until that
+discipline is a value.
