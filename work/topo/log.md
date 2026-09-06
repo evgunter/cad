@@ -311,3 +311,13 @@ the edge side's absent readback door on this one
 (`edge-carrier-kind-has-no-readback-door`). The lane's one-word
 question in `readback.rs` ("twin" → "flattening") taken
 orchestrator-direct on the branch; merges on green.
+
+## Two-homes merged (2026-09-06)
+
+PR 1959 merged at `332bc981` (green run 34014916153 on `bf42c02a`,
+full matrix). `face-kind-read-has-two-homes` closed: the predicate
+seat reads the face kind through the typed readback door and flattens;
+`readback.rs`'s doc names the query seat as its flattening. SEAT's
+`query.rs` edited by announced seam, two function bodies. Fifteen
+items remain on the slate; six closed since opening (`S330`, `S94`,
+`D261`, `D264`, this one, and `D50`/`D260` in fix pass).
