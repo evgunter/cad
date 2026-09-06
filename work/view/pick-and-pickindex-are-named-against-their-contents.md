@@ -4,7 +4,7 @@ kind: issue
 title: the module called pick holds no picking, and the policy it claims is in pickindex
 status: open
 opened: 2026-09-06
-refs: [2079]
+refs: [2079, pickindex-holds-the-frames-marks-as-well-as-the-index]
 ---
 
 
@@ -46,3 +46,44 @@ is the index plus every decision taken over it.
 `pickindex` and not in `pick`. `likely` on the naming being worth
 revisiting — renaming a module twice in a week is its own cost, and
 re-wording both headers may be the whole fix.
+
+## The false sentence is fixed; the rename is DECLINED, and this row is the schedule (#2079 fix pass, 2026-09-06)
+
+The half that was owed is paid. `pick.rs:1-3` no longer claims to be
+*"the policy half of picking"*; it now opens *"The pick index's
+LIFECYCLE"* and says in its own words that it decides nothing about
+picking, that `op_for`, `hovered_for` and the priority rule are
+`pickindex`'s, and that **the boundary the split actually landed is
+stateful-against-pure**. `pickindex`'s header says the matching thing
+from the other side. So no header now asserts the mismatch this item
+found.
+
+The rename is declined here, for three reasons in descending weight.
+
+**1. A rename is not a move, and this PR's whole warrant is that it is
+a move.** The reviewer certified it with a whitespace-sensitive
+sorted-line diff — one line removed, 43 added, all headers and imports;
+no signature, `derive`, field or `impl` touched. Renaming `pick` and
+`pickindex` rewrites every call site in fifteen source files, twelve
+test files and two examples, and that diff is not certifiable the same
+way: the check that made this unit safe to read stops working on the
+change that would ride it.
+
+**2. The right names are not knowable yet, because the second split is
+not taken.** `pickindex-holds-the-frames-marks-as-well-as-the-index`
+names ~405 lines — `highlight`, `edge_overlay`, `focus`,
+`cursor_projection` and their companions — as a clean second boundary
+with a different consumer set. If that comes off, what is left is
+genuinely *the index and the cursor questions over it*, at which point
+`pickindex` may be the right name after all, and the third module needs
+one too. Naming these modules once, after the split that decides what
+they hold, is one decision; naming them now is two.
+
+**3. Even the easy half is not clean.** `pick.rs` → `pickcache` would
+leave `NotIndexed` and `unindexed` — a refusal vocabulary, not a cache
+— in a module named for a cache. The obvious rename does not survive
+its own contents either.
+
+**What this row is now**: the schedule, parked behind the second split
+rather than behind nothing. A taker should decide the names for both
+modules and the third at once.

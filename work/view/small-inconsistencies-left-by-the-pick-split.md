@@ -2,9 +2,11 @@
 id: small-inconsistencies-left-by-the-pick-split
 kind: issue
 title: six small inconsistencies the pick.rs split left in the two new modules and its own prose
-status: open
+status: closed
 opened: 2026-09-06
 refs: [2079]
+closed: 2026-09-06
+pr: 2079
 ---
 
 
@@ -58,3 +60,26 @@ Also worth recording without being a defect: `pick.rs` carries no
 unedited, as #2079 says; `PickCache`'s coverage is entirely in
 `crates/viewer/tests/frame_policy.rs` and `tests/eval_seam.rs`. That
 was true before the split too.
+
+## Closed
+
+All six.
+
+1. `pick.rs` is `core::fmt` at both sites (`:162-163` was `std::fmt`).
+2. `Generation`'s type doc no longer speaks from inside a seam — *"a
+   monotone counter minted by the session on every submit, and compared
+   by both seams"*.
+3. `pickindex`'s header links `crate::generation::Generation`, not the
+   façade.
+4. `BTreeSet` is imported beside `BTreeMap` and used bare at all nine
+   sites.
+5. *"Six readers"* is expanded as six in both places — `lib` dropped,
+   since it only re-exports.
+6. The counts are re-measured rather than repaired: after the two
+   header rewrites in this fix pass they are `pickindex.rs` 2,414 and
+   `pick.rs` 467 (`wc -l`), and the PR body carries those.
+
+The recorded non-defect — `pick.rs` carries no `mod tests`, because the
+four unit rows were `PartWindows`/`IdMap`'s and `PickCache`'s coverage
+is in `tests/frame_policy.rs` and `tests/eval_seam.rs` — is left as
+written; it was true before the split and is not this unit's to change.

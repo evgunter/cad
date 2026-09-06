@@ -13,8 +13,8 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-/// A request's identity: the seam's own monotone counter, minted by
-/// the session on every submit.
+/// A request's identity: a monotone counter minted by the session on
+/// every submit, and compared by both seams.
 ///
 /// Distinct from the shipped evaluation `Epoch`, which identifies the
 /// RUN. This identifies the REQUEST, and the session mints a fresh one

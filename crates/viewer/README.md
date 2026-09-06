@@ -320,7 +320,7 @@ vocabulary is not a forbidden import path.
 |---|---|
 | `session::select` | `Selection`, `FaceSelection`, `EdgeSelection`, `Hovered`, `Standing` — what is selected and whether it still denotes anything |
 | `session::refuse` | `Refusal` with its `rank`/`preferred` ladder, its `Display`, and the recourse composers `affordance`/`exists_wording`/`offer_wording`; `NodeKindWanted` and `admits`, since they are a `Refusal` payload and its predicate |
-| `session::op` | `SessionOp` and `OpOutcome` — already the crate's shared vocabulary, read by `tools`, `pick`, `frame`, `blend`, `combine`, `matetool`, `revolvetool` |
+| `session::op` | `SessionOp` and `OpOutcome` — already the crate's shared vocabulary, read by `tools`, `pickindex`, `frame`, `blend`, `combine`, `matetool`, `revolvetool` |
 | `session::author` | `DatumSpec`, `PatternRuleSpec`, `datum_node`, the `ProfileShape` re-export — the authoring specs and their lowering to nodes, which hold no session state at all |
 | `session::delete` | `DeleteAffordance` and `kind_census` — the cascade's wording |
 | `session::probe` | `BoundsTarget`, `BoundsReading` and the range probe |
@@ -617,7 +617,7 @@ the same change, which a file-granular one would not have. That
 argument is made where the entries were deleted, in
 `scripts/gates/viewer-module-kinds.sh`.
 
-### The seams' modules are a chain, not a ring
+### The seam modules are a chain; the crate is not acyclic
 
 The rule above is about what a module NAMES and says nothing about
 cycles between vocabularies, so a cycle here breaks no clause — and
@@ -648,6 +648,31 @@ The two moves only work together. `Generation` alone leaves
 `PickIndex` beside `PickCache`, so `evalseam → pick → evalseam`
 survives on the seam types; the split alone leaves `pickindex` needing
 `Generation` from `evalseam`, which needs `pickindex`. (Ev, 2026-09-06.)
+
+**The chain above is four modules, and the crate around them still
+holds a ring** — said here because a picture of a chain is exactly the
+sentence that stops the next reader looking:
+
+    pick.rs:44        use crate::pickindex::{PickIndex, PickIndexError}
+    pickindex.rs:64   use crate::session::{…, SessionOp}
+    session.rs:78     use crate::pick            (for `pick::IndexInputs`)
+
+`pick → pickindex → session → pick` is live, it predates this split —
+at the merge base the same ring was two modules long, `pick` naming
+`session` and `session` naming `pick` — and it is held open **on
+purpose**, by the hoist argued for in *What a vocabulary reads, it is
+handed* below: the session mints `pick::IndexInputs` so that the
+vocabulary names no driver, and the price of not widening the rule is
+that the driver's own module names the vocabulary back.
+
+So the two rings are different diagnoses and only the first is fixed
+here. `evalseam ↔ pick` was **one file holding two layers** with a seam
+running between them, which no placement of the seam could repair —
+that is what this section is about. `pick ↔ session` is **a vocabulary
+and its driver trading a minted value**, which is the boundary rule
+working rather than failing. Nothing in this section generalises to the
+second, and `work/view/seam-split-leaves-a-cycle-through-the-session`
+is where the question of whether it should be broken at all is kept.
 
 ### `Refusal`'s delegation discipline
 

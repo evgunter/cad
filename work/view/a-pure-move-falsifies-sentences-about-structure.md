@@ -2,9 +2,11 @@
 id: a-pure-move-falsifies-sentences-about-structure
 kind: issue
 title: the split's negative result generalises wrongly: a behaviour-preserving move falsifies sentences about structure, and it falsified three
-status: open
+status: closed
 opened: 2026-09-06
 refs: [2079, stale-file-citations-after-the-split]
+closed: 2026-09-06
+pr: 2079
 ---
 
 
@@ -56,3 +58,21 @@ two halves come apart on a different axis from the one it names.
 
 `sure` on the three sentences being false today. `likely` that the
 generalisation as written is the part worth fixing.
+
+## Closed
+
+All three sentences corrected — `crates/viewer/README.md:323`'s
+`session::op` reader list now names `pickindex` where it named `pick`;
+`the-picture-key-never-became-a-type.md:18` is a three-file list;
+`focus-marking-is-per-node-not-per-segment.md` is re-pointed at
+`pickindex.rs` in all four places.
+
+The generalisation is rewritten where it lives, in
+`stale-file-citations-after-the-split`'s third-member section, to the
+statement this item argues for: **a behaviour-preserving move cannot
+falsify a sentence about behaviour and reliably falsifies one about
+structure** — the half a behaviour-preserving unit is least primed to
+look for, since its whole discipline is aimed at the other one. That
+also relocates the parent item's two halves onto *what a machine can
+reach* rather than *numbers versus claims*, which is the axis this
+item found.

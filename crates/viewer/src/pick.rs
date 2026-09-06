@@ -1,12 +1,15 @@
-//! Keeping a pick index current with the session, and refusing a pick
-//! when there is none — the policy half of picking.
+//! The pick index's LIFECYCLE: asking the index seam for one, deciding
+//! what to do with the answer, and refusing a pick while there is
+//! none.
 //!
-//! # What this module decides
+//! # What this module decides, and what it does not
 //!
-//! [`PickIndex`] answers what is under the cursor;
-//! [`crate::pickindex`] holds it and every query over it. This module
-//! decides WHEN one is built, from WHAT, and what a pick means while
-//! there is none:
+//! **It decides nothing about picking.** What is under the cursor,
+//! what a click means, and whether an edge beats the face behind it
+//! are [`crate::pickindex`]'s — [`PickIndex::op_for`],
+//! [`PickIndex::hovered_for`] and the priority rule live there, in the
+//! one door hovering and clicking both read. This module never asks
+//! the index a question; it decides WHEN one exists:
 //!
 //! - [`IndexInputs`] — what a build is handed, minted by the session
 //!   as one landing's worth so a generation cannot travel without the
@@ -18,15 +21,28 @@
 //! - [`NotIndexed`] and [`unindexed`] — the typed refusal a pick
 //!   stream earns while no index describes the picture on screen.
 //!
+//! # The boundary is stateful against pure
+//!
+//! Everything here owns mutable state and drives the seam; everything
+//! in [`crate::pickindex`] is a value or a pure function over one. That
+//! is the line the split was cut on, and it is sharper than the
+//! subject line the two module NAMES suggest — a reader asking how a
+//! pick works wants `pickindex`, not this file.
+//! `work/view/pick-and-pickindex-are-named-against-their-contents`
+//! holds the question of whether the names should move to match, which
+//! is a rename and therefore not a move.
+//!
 //! # Why the index is not here
 //!
-//! The index and this policy are two layers with the index seam
-//! between them: the seam is built ABOVE the structure and BELOW the
-//! cache that drives it. Held in one module, an import of either half
-//! was an import of both, and `evalseam` — which names
-//! [`PickIndex`] as its payload — imported the module that names
-//! `evalseam`'s own seam. The layers now run one way:
-//! `generation ← pickindex ← evalseam ← pick`.
+//! The two are layers with the index seam between them: the seam is
+//! built ABOVE the structure and BELOW the cache that drives it. Held
+//! in one module, an import of either half was an import of both, and
+//! `evalseam` — which names [`PickIndex`] as its payload — imported the
+//! module that names `evalseam`'s own seam. The seam modules now run
+//! one way, `generation ← pickindex ← evalseam ← pick`; the crate
+//! around them is not acyclic, and `crates/viewer/README.md`'s *The
+//! seam modules are a chain; the crate is not acyclic* says which ring
+//! survives and why.
 //!
 //! Module kind: **vocabulary** (`crates/viewer/README.md`, Module
 //! boundaries). It names no driver type and no `app`-only crate: what
@@ -143,8 +159,8 @@ pub struct PickCache {
     seam: Box<dyn IndexService>,
 }
 
-impl std::fmt::Debug for PickCache {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for PickCache {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("PickCache")
             .field("index", &self.index.as_ref().map(PickIndex::generation))
             .field("attempted", &self.attempted)

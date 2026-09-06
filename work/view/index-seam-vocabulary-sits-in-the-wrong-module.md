@@ -222,19 +222,23 @@ inside a module with a manifest of dependencies. `scene`'s charter is
 also written down and does not cover it — *"what the viewport draws,
 tessellated at a display tolerance"* — so the README's own map row for
 `src/scene.rs` would have had to gain a request counter, and each of
-the six readers (`pick`, `pickindex`, `app`, `lib`, `frame`,
-`evalseam`, `session`) would import a display module to name one.
+the six modules that import `Generation` (`pick`, `pickindex`, `app`,
+`frame`, `evalseam`, `session`) would import a display module to name
+one.
 `DisplayTolerance` earns its place in `scene` because δ is what a
 tessellation is drawn at; a generation is not about drawing.
 
 **The boundary fell exactly where the analysis put it**, and it was
-verified rather than trusted: over `pick.rs:2213-2618` (the policy
-half) the only names reaching back into the other half are `PickIndex`
-and `PickIndexError`, and over `pick.rs:1-2211` (the index half) the
-only name reaching forward is one doc-comment mention of
-`IndexInputs`, in the module header sentence that belongs to the policy
-anyway. The in-file `mod tests` is `PartWindows`/`IdMap`'s and moved
-with the structure it checks, unedited.
+verified rather than trusted: over `pick.rs:2213-2618` (the cache half)
+the only names reaching back into the other half are `PickIndex` and
+`PickIndexError`, and the index half reaches forward **not at all** —
+the one mention of `IndexInputs` it appeared to carry was in the module
+header sentence, which the cache half took with it. The in-file
+`mod tests` is `PartWindows`/`IdMap`'s and moved with the structure it
+checks, unedited. #2079's style review put a whitespace-sensitive
+sorted-line diff over it: one line removed, 43 added, all doc-header
+and import lines; no visibility, signature, `derive`, field or `impl`
+changed; `#[test]` count 531 both sides; `Generation` byte-identical.
 
 So `crates/viewer/src/pickindex.rs` holds the index and every query
 over it (`PatchId`, `EdgeId`, `PickKinds`, `EDGE_PICK_RADIUS_PX`,
@@ -242,21 +246,35 @@ over it (`PatchId`, `EdgeId`, `PickKinds`, `EDGE_PICK_RADIUS_PX`,
 `PickIndex`, `EdgePick`, `PickError`, `EdgeNameFault`, `Highlight`,
 `highlight`, `EdgeOverlay`, `edge_overlay`, `edge_segments`,
 `edge_id_segments`, `focus`, `cursor_projection`) and `pick.rs` keeps
-the policy (`IndexInputs`, `PickCache`, `CacheStep`, `IndexLanding`,
-`NotIndexed`, `unindexed`). The chain is
+the index's LIFECYCLE (`IndexInputs`, `PickCache`, `CacheStep`,
+`IndexLanding`, `NotIndexed`, `unindexed`). The seam modules chain
 `generation ← pickindex ← evalseam ← pick`, and `generation.rs` has no
 `use crate::` line at all.
+
+**The boundary is stateful-against-pure, not index-against-policy**,
+and the first draft of both module headers said the second. The picking
+POLICY — `op_for`, `op_under`, `hovered_for`'s edge-beats-face rule,
+the miss rule — is in `pickindex`, so `pick.rs` calling itself *the
+policy half of picking* was false; what it holds is a cache. The
+headers now say so, and whether the two module NAMES should move to
+match is `pick-and-pickindex-are-named-against-their-contents`, which
+this unit declines: a rename is not a move, and the second split that
+item's answer depends on is not taken here either.
 
 **It is a move.** No test file changed except its import and path
 lines; no assertion was touched. Callers were re-pointed rather than
 shimmed — there is no `pub use` bridging the old spellings, so
 `session-shims-and-test-imports` gains nothing from this.
 
-The README's *Module boundaries* gained **The seams' modules are a
-chain, not a ring**, which is now the one home for why neither move
-works alone; its *Where in the code* rows for GQ7 picking and for the
-evaluation seam were false about where these types live and are
-corrected.
+The README's *Module boundaries* gained **The seam modules are a chain;
+the crate is not acyclic**, which is now the one home for why neither
+move works alone AND for the ring this unit does not break
+(`pick → pickindex → session → pick`, held open on purpose by the
+`IndexInputs` hoist —
+`seam-split-leaves-a-cycle-through-the-session`). Three *Where in the
+code* / vocabulary rows were false about where these types live and are
+corrected: GQ7 picking, the evaluation seam, and `session::op`'s reader
+list, which named `pick` for a `SessionOp` reader that is `pickindex`.
 
 Residue, filed rather than described: every tracker citation of
 `crates/viewer/src/pick.rs:NNNN` moved. VIEW's own live rows are
@@ -265,7 +283,13 @@ re-pointed and the other programs' are announced, on the existing
 keeps that class.
 
 Not taken, deliberately:
-`index-request-and-index-inputs-are-one-concept-twice`. The split does
-put the two types in different modules, which makes its cheap answer —
-state the relationship at each type — a one-line reach from either
-file; it is still that item's to take.
+`index-request-and-index-inputs-are-one-concept-twice`. Its own
+reasoning survives this unit untouched — `IndexRequest` owns its copies
+because the worker holds them across a thread, `IndexInputs` borrows a
+landing — and it is still that item's to take. **This unit changed
+nothing about it**: the two types were already in different modules at
+the merge base (`evalseam.rs` and `pick.rs`) and both stayed exactly
+where they were, so an earlier draft of this section claiming the split
+*"does put the two types in different modules"* was false and is struck
+rather than repaired (`the-split-did-not-separate-indexrequest-and-
+indexinputs`).

@@ -4802,3 +4802,76 @@ no behaviour cannot falsify a sentence about behaviour. So the item's
 two halves, "resolve the number" and "check the claim", come apart
 cleanly here, and a `<file>.rs:<line>` gate would have caught all of
 this member and none of the previous one.
+
+## #2079's style review: the move survived, the prose did not (2026-09-06)
+
+The reviewer could not break the split and said so with a measurement
+worth keeping: a whitespace-sensitive sorted-line diff of the merge
+base's `pick.rs` against `pick.rs + pickindex.rs` is **one line removed
+and 43 added**, all doc-header and import lines; no visibility,
+signature, `derive`, field or `impl` changed; `#[test]` 531 both sides;
+`Generation` byte-identical. That is the strongest form the "it is a
+move" claim has had in this program, and it is stronger than the claim
+the lane itself made — the boundary has ZERO back-references, not the
+one the PR conceded.
+
+Nine items came back. Six are closed by the fix pass, three stay open
+(the second `pickindex` split, `Generation::get`'s missing reader, and
+the naming question below). What follows is the two that generalise.
+
+### A pure move cannot falsify a sentence about behaviour, and reliably falsifies one about structure
+
+The lane's negative result was that this split produced no stale
+CLAIMS, only stale numbers, *"because a move that changes no behaviour
+cannot falsify a sentence about behaviour"*. True premise, false
+conclusion, and the reviewer produced three counterexamples — including
+`crates/viewer/README.md:323`, whose `session::op` row listed `pick` as
+a `SessionOp` reader when `pick.rs` has zero hits and `pickindex.rs`
+seven, **in a file the lane re-read and corrected two other rows of**.
+
+A tracker is not mostly sentences about behaviour. It is mostly
+sentences about where things are and what names what, which is exactly
+what a move falsifies. The corrected statement is on
+`stale-file-citations-after-the-split`, and it moves that item's two
+halves onto a better axis: not *numbers versus claims* but **what a
+machine can reach**. A `<file>.rs:<line>` gate resolves every numeric
+citation in this member and catches none of the three, the README row
+least of all — it names a module in prose and cites nothing.
+
+**The lesson for this program's move-shaped units** is that the
+discipline aimed at behaviour is aimed away from the failure a move
+actually causes.
+
+### A grep that cannot run reads exactly like a grep that found nothing
+
+The sweep missed two live VIEW rows that its own disclosed pattern
+matched. The PR blamed a pattern gap; the real cause was worse and has
+two halves: the first pass's `grep` over `work/view/*.md` was
+**malformed** — an unescaped `|` printed `command not found` above
+output the lane read as a result — and the disposition step then acted
+only on the `pick.rs:NNNN` hits, leaving bare paths and
+`module::symbol` citations matched but unhandled.
+
+So the honest statement is not "the pattern was too narrow". It is
+**the pattern was right and the reading of it was not**, which is the
+harder failure to catch because the output looks like a clean negative.
+The re-sweep ran three greps and checked each hit's status before
+deciding; it found a third out-of-fence row
+(`work/fix/error-types-with-no-display-class.md`) the first pass had
+missed.
+
+### The naming question, declined with a reason
+
+`pick.rs` claimed to be *"the policy half of picking"* and is not — the
+policy (`op_for`, `hovered_for`, the priority and miss rules) is in
+`pickindex`; `pick.rs` is a cache. The false sentence is fixed and both
+headers now say the real boundary, which is **stateful against pure**
+and is a better boundary than the one the first draft claimed.
+
+The rename is declined and the row parked behind the second split. A
+rename is not a move: it would rewrite call sites across twenty-nine
+files and destroy the sorted-line diff that made this unit certifiable,
+to reach names that are not knowable until
+`pickindex-holds-the-frames-marks-as-well-as-the-index` is decided —
+and `pick` → `pickcache` would strand `NotIndexed`/`unindexed` in a
+module named for a cache anyway.

@@ -1,10 +1,21 @@
-//! Turning a cursor into a selection: the per-generation pick index,
-//! the id↔patch mapping the GPU pass rides on, and the highlight.
+//! The pick index and every decision taken over it: what is under the
+//! cursor, and what the frame marks because of it.
 //!
-//! # One index, four consumers
+//! # Two subjects, and the second is why this file is long
 //!
-//! [`PickIndex`] is built once per evaluation generation and answers
-//! everything the viewport asks about what is under the cursor:
+//! [`PickIndex`] is built once per (evaluation generation, δ) and is
+//! the whole of the first: the tessellations the picture is drawn
+//! from, the addresses into them, and the queries that turn a cursor
+//! into a name. Everything below `Highlight` takes a built index **as
+//! an argument** and answers a different question — *what should be
+//! lit* — for a different set of consumers (`gpu`, `pane::viewport`,
+//! `blend`, `datums`, `app`, where the cursor paths are
+//! `pane::viewport`'s alone). That second half reads the index through
+//! its public doors only, which is what makes it liftable;
+//! `work/view/pickindex-holds-the-frames-marks-as-well-as-the-index`
+//! names the boundary and holds the question of whether to take it.
+//!
+//! # What is under the cursor
 //!
 //! - the **ray path** — [`PickIndex::pick_for`] (and its
 //!   display-view-less wrapper [`PickIndex::pick`]) un-projects
@@ -22,7 +33,29 @@
 //! - the **drawn mesh** — [`PickIndex::parts`] are the very
 //!   tessellations the picture is built from, so what is drawn and
 //!   what is picked are one tessellation rather than two that agree
-//!   most of the time.
+//!   most of the time;
+//! - **what a pick MEANS** — [`PickIndex::op_for`] and
+//!   [`PickIndex::op_under`] turn a [`PickAction`] into a
+//!   [`SessionOp`], including the miss rule, and
+//!   [`PickIndex::hovered_for`] carries the priority rule that an edge
+//!   within [`EDGE_PICK_RADIUS_PX`] beats the face behind it. **The
+//!   picking POLICY is here**, in the one door hovering and clicking
+//!   both read, so the two cannot disagree.
+//!
+//! # What the frame marks
+//!
+//! - [`highlight`] — the patch ids a selection and a hover light,
+//!   as a pure function of what is drawn and what is selected;
+//! - [`edge_overlay`], [`edge_segments`] and [`edge_id_segments`] —
+//!   the same question for edges, which have no area to shade, so the
+//!   answer is line geometry rather than a set of ids;
+//! - [`focus`] — **not a cursor question at all**: which drawn patches
+//!   the side panel's selection is responsible for, which for a
+//!   parameter means walking `doc.order()` for the nodes it drives. It
+//!   is here because `PickIndex` is where the ids live;
+//! - [`cursor_projection`] — the id pass's 1x1 target matrix, kept out
+//!   of the render module because it is the one part of that pass a
+//!   machine with no GPU can check.
 //!
 //! # Why the index holds `NodePick`s and not meshes
 //!
@@ -31,25 +64,27 @@
 //! confidently wrong name instead of an error (issue #1098, and
 //! `PickTarget`'s own contract). `NodePick` establishes that pairing
 //! by construction and offers no other constructor, so the pairing
-//! cannot drift as this cache grows a field. **Nothing here re-pairs a
-//! mesh with a node by hand, and this type offers no door through
-//! which it could** — said about `PickIndex` and about nothing else:
-//! whether the FAÇADE hands a consumer the raw-assembly lane is a
-//! separate question, answered in `pncad::select`'s own docs.
+//! cannot drift as this structure grows a field. **Nothing here
+//! re-pairs a mesh with a node by hand, and this type offers no door
+//! through which it could** — said about `PickIndex` and about nothing
+//! else: whether the FAÇADE hands a consumer the raw-assembly lane is
+//! a separate question, answered in `pncad::select`'s own docs.
 //!
 //! # Staleness is by generation, and it is a discard
 //!
-//! The key is [`crate::Generation`] — the session's evaluation
-//! generation. A [`PickIndex`] built under one generation is never
-//! repaired against another: [`PickIndex::current_for`] answers
-//! whether the index still describes the run on screen, and a stale
-//! one is dropped and rebuilt whole. Re-pairing by hand is the
-//! failure #1098 exists to name.
+//! The key is [`crate::generation::Generation`] — the session's
+//! evaluation generation. A [`PickIndex`] built under one generation
+//! is never repaired against another: [`PickIndex::current_for`]
+//! answers whether the index still describes the run on screen, and a
+//! stale one is dropped and rebuilt whole. Re-pairing by hand is the
+//! failure #1098 exists to name. WHEN a rebuild is asked for, and what
+//! is done with the answer, is not this module's: that is
+//! [`crate::pick::PickCache`] over the index seam.
 //!
 //! Module kind: **vocabulary** (`crates/viewer/README.md`, Module
 //! boundaries). It names no driver type and no `app`-only crate.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use pncad::document::{Doc, Evaluation, Frame, ParamName, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};
@@ -865,7 +900,7 @@ impl PickIndex {
     /// gives [`SceneMesh::nothing`], which has no extent to carry.
     /// Either way the picture is never left stale behind a refusal.
     pub fn scene_for(&self, display: &DisplayView) -> Result<SceneMesh, SceneError> {
-        self.scene_focused(display, &std::collections::BTreeSet::new())
+        self.scene_focused(display, &BTreeSet::new())
     }
 
     /// [`PickIndex::scene_for`], marking the patches in `focus` — what
@@ -877,7 +912,7 @@ impl PickIndex {
     pub fn scene_focused(
         &self,
         display: &DisplayView,
-        focus: &std::collections::BTreeSet<u32>,
+        focus: &BTreeSet<u32>,
     ) -> Result<SceneMesh, SceneError> {
         let mut parts: Vec<ScenePart<'_>> = Vec::with_capacity(self.parts.len());
         for part in &self.parts {
@@ -2073,11 +2108,7 @@ fn segments_of(polyline: &[Point3<f64>]) -> Vec<[f32; 3]> {
 /// hidden, or a feature that produces no body at all — answers the
 /// empty set, which is how "nothing lights up" falls out of the same
 /// rule rather than being a case.
-pub fn focus(
-    index: &PickIndex,
-    doc: &Doc<ProfileProgram>,
-    selection: &Selection,
-) -> std::collections::BTreeSet<u32> {
+pub fn focus(index: &PickIndex, doc: &Doc<ProfileProgram>, selection: &Selection) -> BTreeSet<u32> {
     let nodes: Vec<RecipeNodeId> = match selection {
         Selection::None => Vec::new(),
         Selection::Node(node) => vec![*node],
@@ -2101,7 +2132,7 @@ pub fn focus(
             .collect(),
     };
     if nodes.is_empty() {
-        return std::collections::BTreeSet::new();
+        return BTreeSet::new();
     }
     // One walk of the names per call, not one per selected node: a
     // parameter selection asks the same question of every node it
@@ -2111,7 +2142,7 @@ pub fn focus(
         .ids()
         .filter_map(|id| Some((id, attribute(index.name_of(id)?.as_ref().ok()?))))
         .collect();
-    let mut out = std::collections::BTreeSet::new();
+    let mut out = BTreeSet::new();
     for node in nodes {
         out.extend(marked_for(index, doc, &made, node));
     }
@@ -2125,8 +2156,8 @@ fn marked_for(
     doc: &Doc<ProfileProgram>,
     made: &[(u32, NameOrigin)],
     node: RecipeNodeId,
-) -> std::collections::BTreeSet<u32> {
-    let pick = |keep: &dyn Fn(&NameOrigin) -> bool| -> std::collections::BTreeSet<u32> {
+) -> BTreeSet<u32> {
+    let pick = |keep: &dyn Fn(&NameOrigin) -> bool| -> BTreeSet<u32> {
         made.iter()
             .filter(|(_, at)| keep(at))
             .map(|(id, _)| *id)
@@ -2140,10 +2171,10 @@ fn marked_for(
     // the ops that RE-NAMED the entity, so an op that contributes no
     // role segment — a `Transform` — is invisible to the walk; the
     // entities it carries are the ones minted anywhere below it.
-    let below: std::collections::BTreeSet<RecipeNodeId> = made
+    let below: BTreeSet<RecipeNodeId> = made
         .iter()
         .filter_map(|(_, at)| at.minted_by())
-        .collect::<std::collections::BTreeSet<_>>()
+        .collect::<BTreeSet<_>>()
         .into_iter()
         .filter(|&minter| crate::display::derives_from(doc, node, minter))
         .collect();

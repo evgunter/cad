@@ -2,9 +2,11 @@
 id: the-split-did-not-separate-indexrequest-and-indexinputs
 kind: issue
 title: PR 2079 and the closed item both say the split put IndexRequest and IndexInputs in different modules; they were already in different modules
-status: open
+status: closed
 opened: 2026-09-06
 refs: [2079, index-request-and-index-inputs-are-one-concept-twice]
+closed: 2026-09-06
+pr: 2079
 ---
 
 
@@ -48,3 +50,13 @@ premise that was never true.
 ## Confidence
 
 `sure`.
+
+## Closed
+
+Struck rather than repaired, in both places: the `## Closed` prose of
+`index-seam-vocabulary-sits-in-the-wrong-module` and the #2079 body.
+Neither now claims the split did anything to the two types. The
+decline stands on the reasoning that was always the real one —
+`IndexRequest` owns its copies because the worker holds them across a
+thread, `IndexInputs` borrows a landing — and the closed item now says
+explicitly that both types stayed where they were at the merge base.

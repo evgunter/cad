@@ -2,9 +2,11 @@
 id: pick-split-sweep-missed-two-live-view-rows
 kind: issue
 title: the pick.rs split's tracker sweep missed two open VIEW rows that its own stated pattern would have matched
-status: open
+status: closed
 opened: 2026-09-06
 refs: [2079, stale-file-citations-after-the-split]
+closed: 2026-09-06
+pr: 2079
 ---
 
 
@@ -49,3 +51,22 @@ symbol that moved: `focus`, `highlight`, `edge_overlay`,
 ## Confidence
 
 `sure`.
+
+## Closed
+
+Both rows corrected, and the class swept rather than the two instances:
+three separate greps — `pick::`-any-symbol, bare
+`crates/viewer/src/pick.rs`, and each of the sixteen moved type names —
+across `work/`, `docs/` and `memories/`, with every hit's item status
+checked before disposition. That turned up one further out-of-fence row
+the first pass missed, `work/fix/error-types-with-no-display-class.md`,
+now announced with the others.
+
+The blind spot is restated on
+`stale-file-citations-after-the-split`, and it is not a pattern gap:
+the first pass's `grep` over `work/view/*.md` was **malformed** (an
+unescaped `|`, printing `command not found` above output read as a
+result), and the disposition step then acted only on the
+`pick.rs:NNNN` shape. The pattern was right and the reading of it was
+not — which is a worse failure than a narrow pattern and worth the
+item.

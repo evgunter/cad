@@ -2,9 +2,11 @@
 id: seam-split-leaves-a-cycle-through-the-session
 kind: issue
 title: the seams' chain still closes into a ring through session, and the README's new section does not say so
-status: open
+status: closed
 opened: 2026-09-06
 refs: [2079]
+closed: 2026-09-06
+pr: 2079
 ---
 
 
@@ -53,3 +55,20 @@ one section further down the same file.
 
 `sure` on the three import lines and on the ring being pre-existing.
 `likely` that the section as written misleads.
+
+## Closed
+
+`crates/viewer/README.md`'s section is renamed **The seam modules are a
+chain; the crate is not acyclic** and now carries the three import
+lines of the surviving ring, the fact that it predates this split (two
+modules long at the merge base), and the reason it is held open — the
+`IndexInputs` hoist, argued one section further down the same file. It
+also separates the two diagnoses the old text conflated: `evalseam ↔
+pick` was one file holding two layers, `pick ↔ session` is a vocabulary
+and its driver trading a minted value, and nothing in the section
+generalises from the first to the second. `pick.rs`'s own header points
+at the section rather than restating it.
+
+Whether the surviving ring should be broken at all is not opened here
+and is not this item's question — it records that the ring is
+deliberate.
