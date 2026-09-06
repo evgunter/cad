@@ -15,8 +15,8 @@ that gate's header.
 The question is `S13`'s, and it is about four gates. The disciplines this
 design leans on hardest are text-matching CI steps, and this page says which of
 them are text-matching because text is the right instrument and which are not.
-It is an evaluation, not a ruling: what it recommends is marked as a
-recommendation, and ratifying or overruling it is Ev's.
+It is an evaluation whose conclusion Ev ratified (2026-09-06, PR 2067): the
+four gates stay greps.
 
 | Gate | The rule |
 | --- | --- |
@@ -133,20 +133,18 @@ reached through a NAME. It is the only place a lint buys a fact the text cannot
 supply, it is shared by `bounds-allowlist.sh` and `no-extra-real-bounds.sh`, and
 it is disclosed in both.
 
-### The recommendation, and what is a finding rather than a ruling
+### The ruling, and what is a finding rather than a ruling
 
 Everything above is the evaluation `S13` commissioned, and it stands on its own:
 what each alternative catches and what it costs are facts about the tools and
 this tree. Weighing that one gap against those three costs is a JUDGEMENT, and
-this page records it as a recommendation rather than as settled:
+Ev made it (2026-09-06, PR 2067):
 
-> **This page recommends that the four gates stay greps and that the alias gap
-> stay registered where it is disclosed, rather than buying a `dylint` row for
-> it.** Ratification is Ev's — the [ev] PR that lists this page in
-> `docs/DESIGN.md`'s companion table is where that decision is asked for.
+> **The four gates stay greps, and the alias gap stays registered where it is
+> disclosed rather than buying a `dylint` row for it.**
 
-Until it is ratified, the recommendation is what a reader should weigh, not a
-rule they should apply.
+A later reader who finds the weighing has changed — a second real gap, or
+`dylint` on stable — proposes a revision to this page, discussed with Ev first.
 
 ## What a gate proves, and what it does not
 
