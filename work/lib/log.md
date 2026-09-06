@@ -2844,3 +2844,13 @@ Mechanical under the 08-29 ruling (the CUR/CUR2/CUR3/CUR4 precedent).
 **Held until Wave 1 lands**: CUR5 edits the census, `tags.rs`,
 `pncad.pyi` and `all.rs`, the exact files B-FACE-FRAME and MECH2 are
 in, and a fourth build target on this box is past the disk budget.
+
+**RULED — save-a-copy is two acts (Ev, PR 2016, 2026-09-06: "A sounds
+good!").** Recorded on the item and as one sentence at ASSEMBLY-DESIGN
+A4 (`crates/editor-core/ASSEMBLY.md`). The library half — the save-door
+refusal when the directory already holds the id under another filename,
+and the fork act minting a fresh id — is a LIB unit, mechanical under
+the 08-29 ruling (the shape is fully specified by the ruling and the
+store's own `DuplicateId`); the viewer `SessionOp` spelling is a rider
+handed to the GUI programs after it lands. Queued behind Wave 1 for the
+box, not for any decision.
