@@ -81,3 +81,41 @@ one block and `:946-948` three more;
 be bookkept by hand". Whether those are the same class or an ordinary
 update is a judgement this file does not make — but they are the next
 place to look, and the sweep looked at neither.
+
+## `PickCache::forget` is taken on #2093; two of three remain, and five more are added
+
+**`forget` now destructures**, with `seam: _` as the arm that must
+stay, so a sixth `PickCache` field is E0027 there as well as in the
+walk eleven lines above it. That one was taken rather than filed
+because it is the instance with a live consequence — its own doc argues
+that a missed `attempted` is what lets a late build install an index of
+a document nobody is looking at — and because it sits in the file the
+sweep was reading.
+
+`impl PartialEq for Camera` and `DisplayState::clear` stay filed here.
+Neither is in the file #2093 edited, and `DisplayState::clear`'s
+deliberate `revision` exception means its `_` arm carries an argument
+that wants writing rather than a mechanical destructure.
+
+**Five more instances, from re-deriving that PR's false blind-spot
+claim** (`debug-sweep-display-blind-spot-claim-is-false`): of the 36
+`impl … Display for` under `crates/viewer/src`, five are over structs
+and read fields by hand —
+
+| site | value | reads | of |
+|---|---|---|---|
+| `crates/viewer/src/prefs.rs:304` | `StoreError` | `doing`, `because` | 2 |
+| `crates/viewer/src/frame.rs:320` | `Message` | `text` | 2 |
+| `crates/viewer/src/frame.rs:706` | `Withdrawal<'_>` | `kind`, `withdrawn` | 2 |
+| `crates/viewer/src/frame.rs:1847` | `Disagreement` | `from_gpu`, `from_ray` | 2 |
+| `crates/viewer/src/blend.rs:128` | `BlendTarget` | `node`, `body` | 2 |
+
+None is missing a field today; `Message`'s omission of `subject` is
+deliberate, since the subject routes the message rather than appearing
+in it. What none has is a compile-time tie, and `Disagreement`'s own
+doc argues that both halves it renders are load-bearing — the sentence
+a third field would falsify.
+
+So this row now carries seven instances across four hats — `PartialEq`,
+a clearing walk, and five `Display`s — which is the point the sweep's
+own greps could not reach.

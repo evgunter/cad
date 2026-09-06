@@ -5655,3 +5655,88 @@ render for the first time — those two are the fields this defect had
 already eaten. Nothing in the tree renders a `DocSession` or a
 `PickCache`, so no assertion moved; the rendering is unobserved and the
 PR says so rather than leaving a reader to find that out.
+
+## The fix pass for #2093: a receipt that carried a false negative, and the class sitting eleven lines away (2026-09-06)
+
+Seven items from the style review, five closed on the same branch, two
+annotated and left open. What the review proved and the lane had not:
+deleting both `session.rs` walks and running
+`cargo check --workspace --all-targets` gives zero errors, so the
+rendering change is unobserved by anything — mechanical where the lane
+offered a grep; and replacing both walks with `#[derive(Debug)]`
+compiles, so "the item was wrong about its blockers" is a fact and not
+a reading.
+
+**The receipt carried a false negative result.** It said *"every
+`impl Display` in `crates/viewer/src/` (20 of them) is a `match` over
+an enum's variants"*. The grep gives **36**, over 19 files, and **five**
+are over structs reading fields by hand — the three the review found
+plus `prefs.rs:304` and `blend.rs:128`. §5 makes the blind-spot
+sentence part of the receipt, so this was an unverified negative in the
+one place a reader trusts as verified: it told a reader that `Display`
+under `crates/viewer/src/` had been looked at and was clean. It had not
+been looked at. The re-derivation is under a stated rule with each
+subject resolved against its declaration, and the five go on
+`field-censuses-inside-view-survived-the-debug-sweep`.
+
+**Three miscounts.** "Seven outside it" over eight rows and nine
+concrete impls; `crates/topo/src/param_source.rs:84` carried under a
+sentence claiming every one ends in `finish()` when it is a `write!`
+over a one-field newtype; and
+"16; 15 resolve", which was neither reading of the lane's own rule
+(16 occurrences carry 14 resolutions, because the failing coordinate
+appears twice — the second time in the sentence saying it fails). The
+lane wrote a rule to avoid exactly this and then did not run it.
+
+**An instance of the item's own class sat eleven lines from the fix.**
+The item defines the class as *a hand-listed field census of any kind,
+not the `Debug` trait* — and the sweep grepped the trait.
+`PickCache::forget` cleared four of five fields by hand, eleven lines
+below the walk that was being fixed, in the file the sweep was reading,
+with a doc arguing that a missed field there installs an index of a
+document nobody is looking at. Taken. Two further in-fence instances
+(`impl PartialEq for Camera`, `DisplayState::clear`) stay filed; the
+lesson is that a grep over a trait is the wrong instrument for a class
+defined over a shape, and the item said so in its own text.
+
+**The lane's own argument cut against the walk it shipped.** It
+rejected the derive because *"a derive cannot summarise"* — and the
+walk inlined a whole unbounded `ChecksReport` into a dump that had
+carried `landed_generation` and nothing else, while printing
+`scratch: false` in place of a document. Both were fixed rather than
+either kept: `checks` is now its two counts, `resolver` is rendered as
+its presence like the three fields beside it, and the stated reason to
+reject the derive is DAG size, which is the reason that actually bites.
+The rule is now written down because it was being applied unevenly —
+**a `Vec`, a document or a DAG is summarised; a single value is
+printed.**
+
+**Prose that named an error and a door that do not exist.**
+`Derived::none` is a struct literal, so its error is E0063, not the
+E0027 the walks claimed by analogy; and there is no accessor for
+`resolver`, so the justification for omitting it covered two of its
+three subjects. The analogy is kept and made true; the `_`-arm
+justification is per field; `resolver` left the omitted list entirely.
+
+**One home plus pointers**, and one spelling. The argument lives in
+`crates/viewer/README.md` and the four doc comments state only their
+own `_` arms; all four walks are `core::fmt` now, including
+`DocSession`'s pre-existing `std::fmt` that the two new ones had
+matched.
+
+**Filed:** `work/issues/hand-listed-debug-censuses-in-geom-core-geom-and-topo.md`
+for the out-of-fence set, on the orchestrator's direction — nine impls
+across three crates, ending in `finish()`, which is a completeness
+claim over a hand-listed census and strictly worse than what #2093
+fixed. §6 makes the report the filing act outside the fence; this
+program established today that the report alone is not a durable
+artifact, and the orchestrator wrote the file rather than leaving the
+finding in a PR body. **Residue filed:**
+`finish-marker-cannot-say-summarised`, for `std`'s two-valued marker
+being asked to carry a three-way split.
+
+**Declined:** moving `DocSession`'s walk to its declaration, 1,779
+lines up. A pure move inside a mechanism PR is the mixing this program
+spent today learning not to do;
+`four-debug-walks-are-spelled-and-placed-two-ways` is retitled to that
+move and stays open for a pass allowed to make it.

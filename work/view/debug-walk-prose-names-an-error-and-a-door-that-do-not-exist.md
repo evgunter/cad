@@ -2,9 +2,11 @@
 id: debug-walk-prose-names-an-error-and-a-door-that-do-not-exist
 kind: issue
 title: the new Debug prose calls Derived::none an unbound-pattern error when it is E0063, and says resolver is dumped by asking the session when no door hands it back
-status: open
+status: closed
 opened: 2026-09-06
 refs: [2093]
+closed: 2026-09-06
+pr: 2093
 ---
 
 
@@ -60,3 +62,25 @@ third is simply dropped.
 `DirResolver` does derive `Debug` (`crates/viewer/src/docio.rs:58`),
 so nothing here is a compile problem — the reason given for the
 omission is just not a reason that applies to it.
+
+## Closed
+
+Both are right and both are taken, on #2093.
+
+**E0027 vs E0063.** The walks and the README now say that the walk's
+error is E0027 and `Derived::none`'s is E0063, and why the difference
+is worth naming: the property is the same at both sites, the error
+class is not, and a reader looking for one and finding the other
+concludes the mechanism is not there. The analogy is kept and made
+true rather than dropped.
+
+**`resolver` has no door, and no longer needs one.** The `_`-arm
+justification is now per field — `tol` is a ZST with no content, `eval`
+is a `dyn` service implementing no `Debug`, `requested_doc` is a whole
+recipe DAG, `display` is not derived from the document and is reachable
+through `DocSession::display`. `resolver` is off that list entirely: it
+is now RENDERED, as `resolver.is_some()`, which is the same judgement
+the walk already made three times for `gesture`, `scratch` and `body`
+and is what its own field doc says the bit means. That fix is the
+subject of
+`debug-walk-inlines-an-unbounded-report-while-summarising-a-bool`.

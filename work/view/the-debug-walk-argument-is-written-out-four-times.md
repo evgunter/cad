@@ -2,9 +2,11 @@
 id: the-debug-walk-argument-is-written-out-four-times
 kind: issue
 title: the exhaustive-destructure argument is restated in the README, in three doc comments, in the item and in the log with no single home
-status: open
+status: closed
 opened: 2026-09-06
 refs: [2093]
+closed: 2026-09-06
+pr: 2093
 ---
 
 
@@ -51,3 +53,29 @@ and rendered by the walk; `tol` is in neither struct-level grouping.
 Nothing is wrong — they answer different questions — but the same
 count-word over the same struct twice is the shape that makes a reader
 believe they have already read this.
+
+## Closed
+
+Taken on #2093. One home plus pointers.
+
+`crates/viewer/README.md`'s *The dump is held to the same declaration*
+is the home and says so in its first sentence. The four doc comments
+keep only what is true of their own value — which fields are `_` arms
+and why, and which carried fields are summarised — and point at the
+README for the rule. The general statement is off `Derived`'s comment,
+where it had been attached to the smallest of the four values for no
+reason a reader could see; the README's copy is no longer a fifth
+phrasing but the only one.
+
+**The two "three"s are gone by construction.** The walk's grouping was
+*"five `_` arms ... five for three reasons"*; `resolver` is now
+rendered rather than omitted, so there are four arms and the comment
+gives one reason each, in a table in the README. Nothing counts to
+three over `DocSession`'s fields twice any more.
+
+What is left in code is per-site and load-bearing: `Derived` says why
+`scratch` is a presence, `LandedRun` says which two arms are DAGs and
+why `checks` is counts, `DocSession` names its four arms one reason
+each, `PickCache` names its one, and `PickCache::forget` says why
+`seam` must be its `_` arm. That is the invariant at the site; the
+argument for it is in one place.

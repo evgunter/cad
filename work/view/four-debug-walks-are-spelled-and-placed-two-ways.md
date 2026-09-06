@@ -1,7 +1,7 @@
 ---
 id: four-debug-walks-are-spelled-and-placed-two-ways
 kind: issue
-title: the PR adds std::fmt walks to a crate whose other fmt impls are core::fmt, and leaves DocSession's walk 1750 lines from its declaration
+title: DocSession's Debug walk sits 1,779 lines below its declaration while the other three sit beside theirs
 status: open
 opened: 2026-09-06
 refs: [2093]
@@ -50,3 +50,20 @@ nothing is broken. But the whole point of moving from
 the decision visible at the moment it is made, and for the largest of
 the four values the decision lives at the far end of the file. The PR
 rewrote that impl; it did not move it.
+
+## The spelling half is answered on #2093; the placement half is this file's live subject
+
+All four walks are `core::fmt` now, the crate's majority spelling: the
+two the PR wrote from scratch in `session.rs` and `DocSession`'s
+pre-existing one, which is what they had matched. `session.rs` keeps
+`std::fmt` nowhere.
+
+**The placement is declined, deliberately.** `DocSession`'s walk still
+sits at the end of the file, 1,779 lines below its declaration, under
+three unrelated free functions. Moving it is a pure move inside a PR
+whose warrant is a mechanism change, and this program spent 2026-09-06
+learning what mixing those costs. Nothing is broken — the compiler
+enforces the visit for all four — so this is a readability row and it
+waits for a pass that is allowed to move code.
+
+That move is what this file is now about.

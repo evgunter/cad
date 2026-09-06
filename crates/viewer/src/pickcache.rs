@@ -160,13 +160,12 @@ pub struct PickCache {
     seam: Box<dyn IndexService>,
 }
 
-/// Exhaustive by destructuring: a field added to [`PickCache`] is an
-/// unbound-pattern error here, not a silent absence from every dump.
+/// Exhaustive by destructuring; the shared rule is
+/// `crates/viewer/README.md`'s.
 ///
-/// `finish_non_exhaustive` stands for the one `_` arm — `seam` is a
-/// service and has nothing to print. `index` is carried as the
-/// generation it describes rather than as the index itself, which is
-/// the fact a dump is asked for.
+/// The one `_` arm is `seam`, a `dyn` service implementing no `Debug`.
+/// `index` is carried as the generation it describes rather than as
+/// the index itself, which is the fact a dump is asked for.
 impl core::fmt::Debug for PickCache {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
@@ -332,11 +331,25 @@ impl PickCache {
     /// what turns that answer into [`IndexLanding::Stale`]; the other
     /// three fields go with it because all four describe the same
     /// vanished picture.
+    ///
+    /// **Exhaustive by destructuring, like the walk above.** A field
+    /// added to [`PickCache`] is an unbound-pattern error here, so a
+    /// fifth thing describing the picture cannot outlive the picture
+    /// by being forgotten at the declaration and not here. `seam` is
+    /// the one `_` arm and must be: it is the service, not the
+    /// picture.
     fn forget(&mut self) {
-        self.index = None;
-        self.attempted = None;
-        self.outstanding = None;
-        self.error = None;
+        let Self {
+            index,
+            attempted,
+            outstanding,
+            error,
+            seam: _,
+        } = self;
+        *index = None;
+        *attempted = None;
+        *outstanding = None;
+        *error = None;
     }
 
     /// Take whatever the seam has finished, discarding answers for

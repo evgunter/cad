@@ -2,9 +2,11 @@
 id: debug-sweep-display-blind-spot-claim-is-false
 kind: issue
 title: the Debug sweep's stated blind spot counts 20 Display impls where there are 36 and calls them all enum matches when three are over structs
-status: open
+status: closed
 opened: 2026-09-06
 refs: [2093]
+closed: 2026-09-06
+pr: 2093
 ---
 
 
@@ -53,3 +55,29 @@ false. A reader of that paragraph now believes `Display` under
 
 The same paragraph's second half is answered separately in
 `work/view/field-censuses-inside-view-survived-the-debug-sweep.md`.
+
+## Closed
+
+Both corrections are right and both are taken, on #2093.
+
+Re-derived under a stated rule
+(`grep -rnE "impl[^=]*\bDisplay\b for" crates/viewer/src`): **36**
+impls across 19 files, each subject resolved against its declaration in
+the crate. **31 over enums, five over structs** — the three named here
+(`frame.rs:320`, `:706`, `:1847`) plus `prefs.rs:304` (`StoreError`)
+and `blend.rs:128` (`BlendTarget`), which this file did not have.
+
+All five read every field they have except `Message`, which renders
+`text` and not `subject` — deliberately, since the subject routes the
+message rather than appearing in it. So none is broken today and all
+five are the class: no compile-time tie, so a third field is silently
+unrendered.
+
+The blind-spot paragraph in
+`debug-for-docsession-is-a-fourth-hand-maintained-walk` now carries
+that table, states what both greps cannot see (a census wearing any
+other hat — a serialiser, a panel inventory, a `PartialEq`, a clearing
+walk), and names the three found by reading rather than grepping as the
+measure of it. The five `Display` impls go on
+`field-censuses-inside-view-survived-the-debug-sweep` with the other
+in-fence instances.

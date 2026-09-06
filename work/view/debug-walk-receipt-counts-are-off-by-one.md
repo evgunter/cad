@@ -2,9 +2,11 @@
 id: debug-walk-receipt-counts-are-off-by-one
 kind: issue
 title: the out-of-fence hit list says seven and lists eight, and the citation receipt says 16 with 15 resolving where 16 occurrences carry 14 resolutions
-status: open
+status: closed
 opened: 2026-09-06
 refs: [2093]
+closed: 2026-09-06
+pr: 2093
 ---
 
 
@@ -74,3 +76,31 @@ line 1833 of this log"* — so the stated rule does not match it and it
 is outside the 16. A receipt that names its enumeration rule but not
 what the rule cannot see is the same unverified-negative shape as a
 sweep with an unstated blind spot.
+
+## Closed
+
+All three are right and all three are taken, on #2093.
+
+**Eight rows, nine concrete impls**, with the `nurbs_curve!` double
+invocation (`crates/geom/src/curves/nurbs.rs:1492`, `:1493`) named
+rather than left to the plural.
+
+**`crates/topo/src/param_source.rs:84` is not the shape** and the corrected list says
+so: a `write!` over a one-field newtype, no `debug_struct`, no
+`finish()`, no census. The sentence claiming "every one ends in
+`finish()`" now covers the seven rows it is true of.
+
+**The receipt reads 16 occurrences / 14 resolutions**, with the
+duplicate named: `crates/viewer/src/session.rs:1663-1674` appeared
+twice, once in `## The duplication` and once in `## Closed` quoting it
+in order to say it fails. That count was re-derived from scratch at the
+fix pass's head rather than adjusted, since the branch has moved.
+
+**The rule's blind spot is now stated in the receipt**: it matches a
+coordinate written as a coordinate, so `work/view/log.md:1833` reaching
+the log as prose ("the entry at line 1833 of this log") is outside it,
+and so is any citation by symbol name. A rule that names what it
+enumerates and not what it cannot see is the same unverified negative
+as a sweep with an unstated blind spot — which is the finding
+`debug-sweep-display-blind-spot-claim-is-false` made about the other
+half of the same PR.

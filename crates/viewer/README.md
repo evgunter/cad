@@ -428,23 +428,52 @@ says about the other. The behaviour is older than the block above and
 has its own item
 (`work/view/free-move-drag-dissolved-by-open.md`).
 
-**The dump is held to the same declaration.** `Debug` for `DocSession`,
-for `Derived` and for `LandedRun` destructures its own value
-exhaustively, so a new field is an unbound-pattern error in the
-rendering exactly as it is in `Derived::none` — a field silently absent
-from every dump is nobody's compile error and is visible only to a
-reader who wonders what is not there. `DocSession` renders `Derived` as
-one field rather than reaching through it, so those members travel with
-their declaration instead of being listed a second time. A field the
-dump will not carry is bound to `_` rather than left out of the
-pattern, which is what makes the omission a decision a reader can see,
-and those `_` arms are precisely what a `finish_non_exhaustive` here
-stands for: the result DAG and the document a landing answers, and the
-session's evaluation service, its outstanding document and the three
-values it owns rather than knows (`tol`, `display`, `resolver`).
-`Derived` has no such arm, so it `finish`es. `PickCache` is the same
-shape one seam away and takes the same destructuring, with its
-`IndexService` the one thing it cannot print.
+**The dump is held to the same declaration.** This paragraph is the one
+home for the rule; the four walks that follow it state their own `_`
+arms and point here rather than restating it.
+
+`Debug` for `DocSession`, for `Derived` and for `LandedRun`
+destructures its own value exhaustively, so a new field stops the
+rendering compiling. The error is E0027, pattern-does-not-mention-field
+— a *different* error from `Derived::none`'s, which is a struct literal
+and so raises E0063, missing-field-in-initializer. The property is the
+same at both sites and the two errors are not, which is worth saying
+because a reader looking for one and finding the other concludes the
+mechanism is not there. `DocSession` renders `Derived` as one field
+rather than reaching through it, so those members travel with their
+declaration instead of being listed a second time.
+
+**A field the walk will not carry is bound to `_` rather than left out
+of the pattern**, which is what makes the omission a decision a reader
+can see, and those `_` arms are precisely what a `finish_non_exhaustive`
+here stands for — one reason each, never a blanket one:
+
+| walk | `_` arms | why |
+|---|---|---|
+| `LandedRun` | `evaluation`, `doc` | the result DAG and the recipe DAG it answers |
+| `DocSession` | `tol` | `Tol(())`, a ZST with no content |
+| | `eval` | a `dyn` service implementing no `Debug` |
+| | `requested_doc` | a whole recipe DAG |
+| | `display` | not derived from the document, as large as its hidden and moved sets, and reachable through `DocSession::display` |
+| `PickCache` | `seam` | a `dyn` service implementing no `Debug` |
+| `Derived` | — | none, so it `finish`es |
+
+**A carried field may be summarised, and several are.** `states` is the
+history's length, `gesture`, `scratch`, `resolver` and `body` are their
+presence, `index` is the generation it describes, and `checks` is its
+two counts — `ChecksReport` is a `Vec` per finding with no bound, and a
+dump that inlined it would be the thing these walks exist to keep
+readable. Summarising is what a `#[derive(Debug)]` cannot do at all,
+which is the reason these are written out rather than derived; the
+recipe and result DAGs are what makes that reason bite. What
+`finish`/`finish_non_exhaustive` cannot express is the difference
+between summarised and not-carried, and it is not asked to —
+`work/view/finish-marker-cannot-say-summarised.md` carries that.
+
+`PickCache::forget` takes the same destructuring for the same reason
+one seam further: it clears the four fields that describe a picture and
+must not miss a fifth, since a missed `attempted` is what lets a late
+build install an index of a document nobody is looking at.
 
 ### The app's vocabularies
 

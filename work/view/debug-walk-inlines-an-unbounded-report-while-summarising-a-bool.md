@@ -2,9 +2,11 @@
 id: debug-walk-inlines-an-unbounded-report-while-summarising-a-bool
 kind: issue
 title: the new session dump inlines a whole ChecksReport and drops resolver, which is the summarise-or-print taste the derive was rejected for lacking
-status: open
+status: closed
 opened: 2026-09-06
-refs: [2093]
+refs: [2093, finish-marker-cannot-say-summarised]
+closed: 2026-09-06
+pr: 2093
 ---
 
 
@@ -74,3 +76,38 @@ complete rendering of a document-shaped field. The distinction the PR
 draws — summarised-and-rendered versus not-carried — is real and is
 the good part of the change; `finish`/`finish_non_exhaustive` is a
 two-valued marker being asked to carry it.
+
+## Closed
+
+Taken on #2093, three of four; the fourth has its own file.
+
+**`checks` is summarised.** It is now its two counts —
+`"{} finding(s), {} skipped"` — rather than an inlined
+`ChecksReport`. Not through `ChecksReport`'s `Display`, which is not a
+summary: its first line is, and then `render_list` prints every
+finding. `at_rest` is left printed, on a rule the walks now state
+because it was being applied unevenly: **a `Vec`, a document or a DAG
+is summarised; a single value is printed**, and a badge carrying at
+most one `String` is the same size as `path`, which the walk has always
+carried whole.
+
+**`resolver` is rendered**, as `resolver.is_some()`, which is the
+judgement the walk already made three times in the same function body.
+
+**The derive argument is corrected rather than kept.** "A derive cannot
+summarise" was true in the abstract and not honoured by the walk that
+shipped beside it. The stated reason to reject the derive is now DAG
+size: `Evaluation` is the result DAG and `Doc` the recipe DAG, and a
+derive prints them whole at every `{:?}` with no way to say otherwise.
+
+**`Gesture`'s derive is no longer read as the answer.** The sibling
+check now says what is true: no walk here reaches it — `DocSession`
+renders `gesture.is_some()` — and its derive would print a recipe DAG
+if anything ever dumped one, which is the outcome the same PR gives as
+the reason not to derive. Named, not fixed, because nothing renders it.
+
+**The `finish()` half is residue and has its own file**,
+`finish-marker-cannot-say-summarised`: `std`'s two-valued marker cannot
+express the three-way split these walks draw (printed, summarised, not
+carried), and that wants deciding once for all four walks rather than
+per walk.

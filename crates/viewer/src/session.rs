@@ -299,20 +299,16 @@ impl Derived {
     }
 }
 
-/// **Exhaustive by destructuring, so the dump cannot fall behind the
-/// declaration.** A field added to [`Derived`] is an unbound-pattern
-/// error here, exactly as it is in [`Derived::none`] — the property
-/// that makes a new field reset by being declared, given to the
-/// rendering as well, since a field silently absent from every dump is
-/// visible only to a reader who wonders what is not there.
+/// Exhaustive by destructuring; every field is carried, so this walk
+/// `finish`es. The rule the four walks share is one paragraph in
+/// `crates/viewer/README.md` ("The dump is held to the same
+/// declaration"), not restated here.
 ///
-/// A field the dump summarises rather than prints is still bound and
-/// still rendered; a field it deliberately does not carry at all is
-/// bound to `_`, which is a decision a reader can see and the compiler
-/// still forces. Those `_` arms are what a `finish_non_exhaustive` on
-/// one of these impls stands for. This one has none, so it `finish`es.
-impl std::fmt::Debug for Derived {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+/// `scratch` is carried as its presence: it is a whole `Doc`, and that
+/// one is in flight is the fact — it is `Some` exactly while
+/// [`DocSession::gesture`] is.
+impl core::fmt::Debug for Derived {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
             selection,
             hover,
@@ -323,8 +319,6 @@ impl std::fmt::Debug for Derived {
         f.debug_struct("Derived")
             .field("selection", selection)
             .field("hover", hover)
-            // A whole `Doc`; that one is in flight is the fact, and it
-            // is `Some` exactly while `DocSession::gesture` is.
             .field("scratch", &scratch.is_some())
             .field("landed", landed)
             .field("bounds", bounds)
@@ -418,16 +412,17 @@ struct LandedRun {
     body: Option<Arc<Body<f64>>>,
 }
 
-/// Exhaustive by destructuring, as [`Derived`]'s is.
+/// Exhaustive by destructuring; the shared rule is
+/// `crates/viewer/README.md`'s.
 ///
-/// `finish_non_exhaustive` stands for `evaluation` and `doc`: the
-/// result DAG and the document it answers are the run's DATA, printing
-/// to a dump nobody can read, while everything else here is a verdict
-/// ABOUT that pair and is what a session dump is asked for. `body` is
-/// carried as its presence — whether the landing's gather is still
-/// memoized, not the aggregate itself.
-impl std::fmt::Debug for LandedRun {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+/// The two `_` arms are the run's DATA — `evaluation` is the result
+/// DAG and `doc` is the recipe DAG it answers — and everything else
+/// here is a verdict ABOUT that pair. `checks` is a `Vec` per finding
+/// and is carried as its two counts; `body` is a gathered aggregate
+/// and is carried as its presence, which is whether the landing's
+/// gather is still memoized.
+impl core::fmt::Debug for LandedRun {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
             evaluation: _,
             doc: _,
@@ -437,13 +432,22 @@ impl std::fmt::Debug for LandedRun {
             checks,
             body,
         } = self;
-        f.debug_struct("LandedRun")
-            .field("generation", generation)
+        let mut out = f.debug_struct("LandedRun");
+        out.field("generation", generation)
             .field("fault", fault)
-            .field("at_rest", at_rest)
-            .field("checks", checks)
-            .field("body", &body.is_some())
-            .finish_non_exhaustive()
+            .field("at_rest", at_rest);
+        match checks {
+            Some(report) => out.field(
+                "checks",
+                &format_args!(
+                    "{} finding(s), {} skipped",
+                    report.findings.len(),
+                    report.skipped.len()
+                ),
+            ),
+            None => out.field("checks", &Option::<()>::None),
+        };
+        out.field("body", &body.is_some()).finish_non_exhaustive()
     }
 }
 
@@ -1938,19 +1942,19 @@ fn session_dir(path: &Path) -> PathBuf {
     }
 }
 
-/// Exhaustive by destructuring, as [`Derived`]'s is: a field added to
-/// [`DocSession`] is an unbound-pattern error here. The block the
-/// session knows because of its document renders as one field, so
-/// `Derived`'s members travel with their declaration rather than being
-/// listed a second time.
+/// Exhaustive by destructuring; the shared rule is
+/// `crates/viewer/README.md`'s. [`Derived`] renders as ONE field, so
+/// its members travel with their declaration rather than being listed
+/// a second time here.
 ///
-/// `finish_non_exhaustive` stands for the five `_` arms below, and they
-/// are five for three reasons: `eval` is a service and has nothing to
-/// print; `requested_doc` is a whole document; and `tol`, `display` and
-/// `resolver` are values the session OWNS rather than knows — each
-/// with its own `Debug`, dumped by asking it, not by inlining it here.
-impl std::fmt::Debug for DocSession {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+/// The four `_` arms, one reason each: `tol` is `Tol(())`, a ZST with
+/// no content to print; `eval` is a `dyn` service and implements no
+/// `Debug`; `requested_doc` is a whole recipe DAG; and `display` is
+/// not derived from the document, is as large as the document's hidden
+/// and moved sets, and has its own [`DocSession::display`] door to be
+/// dumped through.
+impl core::fmt::Debug for DocSession {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
             history,
             tol: _,
@@ -1961,13 +1965,14 @@ impl std::fmt::Debug for DocSession {
             derived,
             path,
             display: _,
-            resolver: _,
+            resolver,
         } = self;
         f.debug_struct("DocSession")
             .field("generation", generation)
             .field("states", &history.len())
             .field("gesture", &gesture.is_some())
             .field("path", path)
+            .field("resolver", &resolver.is_some())
             .field("derived", derived)
             .finish_non_exhaustive()
     }
