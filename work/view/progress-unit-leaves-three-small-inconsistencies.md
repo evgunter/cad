@@ -2,8 +2,11 @@
 id: progress-unit-leaves-three-small-inconsistencies
 kind: issue
 title: three small inconsistencies left by #2055: app.rs's THREE-states comment, the README's three-of-six values, and the item's missing pr field
-status: open
+status: closed
 opened: 2026-09-06
+closed: 2026-09-06
+pr: 2055
+branch: view/progress
 ---
 
 
@@ -66,3 +69,34 @@ its done-state does not name #2055. Two other closed items in the
 same directory (`blamed-mates-lost-its-exhaustive-arm.md`,
 `four-badges-five-spellings.md`) have the same gap, so it is a small
 class rather than one omission.
+
+## Closed (2026-09-06)
+
+All three taken on #2055's fix pass.
+
+**1.** `crates/viewer/src/app.rs`'s comment no longer counts anything.
+The "THREE states … a fourth thing" sentence is replaced by what the
+line beneath it actually needs a reader to know: *one indicator for one
+wait* — `progress` ranks what the session owes against what the index
+seam is doing, so the toolbar never lights two spinners for one moment.
+Neither three is named, so neither can be the wrong one.
+
+**2.** The README sentence is restructured rather than patched. It now
+names the driver's own members and the three values separately —
+*"`session` itself keeps `DocSession`, its `Gesture`, `perform` and the
+operation doors, plus the three values the session states about itself
+— `Landing`, `AtRestBadge` and `Outstanding`"* — so the count is
+attached to the list it counts. **"Minted nowhere else" is deleted**:
+the second-order point is right, the variants are `pub` and the rows
+construct them, and an unenforceable prose invariant beside an enforced
+one (the module tables, which a gate reads) is worse than no sentence.
+
+**3.** `pr: 2055` set on
+`work/view/progress-takes-three-positional-bools.md`.
+
+The small class the item ends on — two other closed `work/view/` items
+with the same gap — is left alone deliberately: back-filling `pr:` on
+`blamed-mates-lost-its-exhaustive-arm.md` and
+`four-badges-five-spellings.md` means editing two items this branch has
+no other business in, which is the merge-conflict surface
+`work/README.md`'s one-file-one-item rule exists to keep small.

@@ -69,3 +69,33 @@ argument, positional tuple-struct and struct-variant construction
 two same-typed fields is not), same-typed pairs behind differing
 generic spellings that resolve to one type, and pairs whose types
 differ but are freely inter-convertible.
+
+## Two of this item's own blind spots, checked (#2055's fix pass)
+
+Re-running the same parse with the gaps this item names, so that two of
+the four are negative results rather than open questions:
+
+- **Parameters separated by another argument.** One hit in
+  `crates/viewer/src` over `bool`: `bounds.rs:304`
+  `observe(&mut self, offset: f64, ok: bool, seed: f64, integral: bool)`
+  — which also pairs `offset`/`seed` as `f64` at the same gap. A
+  private method, and the two `bool`s are separated by an `f64`, so
+  transposing them is a deliberate reordering rather than the
+  adjacency slip this class is about. Recorded as a hit of the gradient's
+  low end, not fixed.
+- **Positional tuple-struct construction over same-typed fields.**
+  Zero hits: no tuple struct in `crates/viewer/src` has two adjacent
+  fields of the same type.
+
+The other two blind spots this item names — same-typed pairs behind
+differing generic spellings, and freely inter-convertible distinct
+types — are unexamined and stay as stated.
+
+Also, for the count: the full parse over `crates/viewer/src` reports 43
+adjacent same-typed pairs, against the "roughly a dozen" above. The
+difference is triage rather than disagreement — the extra hits are
+mostly pairs whose order is intrinsic to the operation and carried by
+their names (`segment_distance_px(a, b)`, `ray_segment_closest(a, b)`,
+the `[f64; 2]` and `Point3` geometry pairs), which is the gradient this
+item already says the class has. The dozen it lists are the hits where
+a transposition would produce a plausible wrong answer.

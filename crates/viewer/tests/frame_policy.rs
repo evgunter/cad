@@ -722,23 +722,23 @@ fn the_chooser_probe_is_confident_only_with_neither_backend_reading() {
     // nothing". The probe's decision logic is a pure function of the
     // two readings, so these rows hold whatever is on the CI box's
     // PATH.
-    use frame::ChooserBackend;
+    use frame::{ChooserBackend, SessionBus, Zenity};
     assert_eq!(
-        frame::chooser_backend_of(true, false),
+        frame::chooser_backend_of(Zenity::OnPath, SessionBus::NotAdvertised),
         ChooserBackend::ZenityPresent
     );
     assert_eq!(
-        frame::chooser_backend_of(true, true),
+        frame::chooser_backend_of(Zenity::OnPath, SessionBus::Advertised),
         ChooserBackend::ZenityPresent,
         "zenity needs no portal"
     );
     assert_eq!(
-        frame::chooser_backend_of(false, true),
+        frame::chooser_backend_of(Zenity::NotOnPath, SessionBus::Advertised),
         ChooserBackend::PortalPossible,
         "a session bus makes a portal POSSIBLE — a hint, never a verdict"
     );
     assert_eq!(
-        frame::chooser_backend_of(false, false),
+        frame::chooser_backend_of(Zenity::NotOnPath, SessionBus::NotAdvertised),
         ChooserBackend::Absent
     );
     assert!(ChooserBackend::ZenityPresent.usable());
@@ -1571,10 +1571,7 @@ fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
 /// One indicator for one wait, and the ranking that decides which.
 ///
 /// The six points are the whole domain: the three states a session can
-/// owe, times the index seam's two. Naming each state rather than
-/// spelling a position means this row cannot agree with a call site
-/// that has its arguments the wrong way round — that swap does not
-/// type-check, so there is no convention here for a caller to mirror.
+/// owe, times the index seam's two.
 #[test]
 fn the_chrome_has_one_progress_state_and_evaluation_outranks_indexing() {
     assert_eq!(frame::progress(Outstanding::Current, false), None);

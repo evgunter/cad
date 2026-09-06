@@ -2,8 +2,12 @@
 id: the-unreachable-eighth-combination-lost-its-only-assertion
 kind: issue
 title: #2055 deleted the only executable statement about !busy && running and moved the case into an unasserted branch of outstanding()
-status: open
+status: closed
 opened: 2026-09-06
+closed: 2026-09-06
+pr: 2055
+branch: view/progress
+refs: [evalservice-coalescing-rule-is-prose-no-implementor-is-held-to]
 ---
 
 
@@ -69,3 +73,36 @@ already departs from it: `HeldEvaluator`
 instead of replacing them and makes `cancel` a no-op. Nothing in the
 trait, and no test, holds an implementor to the rule the doc comment
 on `outstanding()` now leans on.
+
+## Closed (2026-09-06)
+
+The finding is accepted in full: the claim was false, and the diff
+that made it deleted the tree's only executable statement about the
+case. #2055's fix pass took all three parts.
+
+**The assertion is restored, one level down where the case now lives.**
+`a_current_picture_reads_current_even_when_the_seam_claims_work`
+(`crates/viewer/tests/eval_seam.rs`) hands `DocSession::new` a
+`NeverIdle` seam — an `InlineEvaluator` whose `busy()` is always true —
+lands the first result, and asserts `!busy() && running()` really holds
+and that `outstanding()` answers `Current`. It is a stronger row than
+the one that was deleted: the old one asserted at `frame::progress`,
+which no longer takes the pair, and this asserts at the function that
+now decides.
+
+**The claim is struck.** "Stops being expressible rather than staying
+documented" is gone from the PR body, the log entry and the item's
+Closed section. What is true is narrower and is what those now say: the
+combination stops being expressible at `frame::progress`'s signature,
+moves into `outstanding()`'s first arm, and is asserted there.
+
+**The reason is rewritten to the actual argument**, both mechanisms as
+this item states them — `request_eval` bumping the generation on every
+submit, and both shipped seams handing a result up only with nothing
+queued behind it — and the doc comment now says out loud that the
+second is a property of the two implementations and not of
+`EvalService`.
+
+That last point is the residue and it has its own file:
+`work/view/evalservice-coalescing-rule-is-prose-no-implementor-is-held-to.md`,
+carrying the `HeldEvaluator` departure and the missing conformance row.

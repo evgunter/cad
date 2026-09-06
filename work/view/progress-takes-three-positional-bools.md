@@ -6,6 +6,8 @@ status: closed
 opened: 2026-09-05
 closed: 2026-09-06
 branch: view/progress
+pr: 2055
+refs: [adjacent-bool-sweep-missed-chooser-backend-of, the-unreachable-eighth-combination-lost-its-only-assertion, one-argument-for-outstanding-restated-in-five-places, progress-unit-leaves-three-small-inconsistencies]
 ---
 
 
@@ -87,10 +89,20 @@ session state to chrome state was asserted by no one.
 **Rejected: three named types** (the item's first option). It types the
 signature but leaves the session minting three values a caller still
 assembles in order, and it says nothing about `busy`/`running` being
-one fact — the eighth combination (`!busy && running`) stays
-expressible and stays unreachable, so the function goes on being total
-over a domain wider than its subject. The enum makes the unreachable
-state unrepresentable instead of documented.
+one fact.
+
+**Corrected by the style review** (`the-unreachable-eighth-combination-
+lost-its-only-assertion`, closed on the same PR): this section first
+claimed the eighth combination `!busy && running` *"stops being
+expressible rather than staying documented"*. That was false and the
+first pass deleted the tree's only executable statement about it. What
+is true: the combination stops being expressible **at
+`frame::progress`'s signature**, and moves one level down into
+`outstanding()`'s first arm, where it is now asserted by
+`a_current_picture_reads_current_even_when_the_seam_claims_work`
+(`tests/eval_seam.rs`) driving a session over a seam that reports work
+while the picture is current. The mapping is total either way; what
+changed is that the answer is executed.
 
 **Rejected: putting `Outstanding` in `frame`.** `frame` is a
 vocabulary, so the session driver may name it; but the value is what
@@ -104,4 +116,27 @@ same thing — values the session mints and a vocabulary consumes — and
 **Rejected: `vocabulary!`.** Not a closed enumeration anything
 iterates; nothing here wants an `ALL`.
 
-No residue.
+## The sweep, corrected
+
+The first pass's receipt said the shape had one hit in
+`crates/viewer/src`. **It had two**, and the second was a hundred lines
+below the first in the same file: `frame::chooser_backend_of`. The
+`rg` that produced the receipt cannot match a multi-line signature.
+
+Re-run by parsing every `fn` header under `crates/viewer/src` and
+reporting each adjacent pair of identically-typed parameters. Over
+`bool`: exactly two hits, both now fixed — `frame::progress` (this
+item) and `frame::chooser_backend_of` (`Zenity`/`SessionBus`, closed as
+`adjacent-bool-sweep-missed-chooser-backend-of`). The crate holds no
+other adjacent `bool` pair.
+
+## Residue, filed
+
+The first pass said "no residue" over three disclosed blind spots. The
+reviewer filed six items; what remains open after this PR is
+`adjacent-same-typed-arguments-are-the-same-swap` (the class one type
+away, with two of its own blind spots now checked and recorded on it)
+and `outstanding-and-progress-are-two-three-state-enums-one-hop-apart`.
+Two more were split out at close:
+`evalservice-coalescing-rule-is-prose-no-implementor-is-held-to` and
+`readme-and-type-docs-restate-one-argument-for-landing-and-landedrun`.

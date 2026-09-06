@@ -2,8 +2,11 @@
 id: adjacent-bool-sweep-missed-chooser-backend-of
 kind: issue
 title: the two-adjacent-bools sweep on #2055 reports zero other hits and chooser_backend_of is one, in the same file
-status: open
+status: closed
 opened: 2026-09-06
+closed: 2026-09-06
+pr: 2055
+branch: view/progress
 ---
 
 
@@ -77,3 +80,37 @@ side_mixed)`), `crates/topo/src/boolean/carrier_eq.rs:374`,
 (`composed_direction(bound_orientation, oriented_edge_flag)` — an
 oracle, where a swap that agrees with the code under test is the worst
 case), and `crates/sweep/tests/r1_probes_m9_3.rs:106`.
+
+## Closed (2026-09-06)
+
+Both halves taken on #2055.
+
+**The receipt.** Re-run by parsing every `fn` header under
+`crates/viewer/src` — the parameter list split at top-level commas,
+every adjacent pair with textually identical types reported — which is
+the method that sees a multi-line signature. Over `crates/viewer/src`
+the `bool`/`bool` adjacencies were exactly the two this item names.
+The corrected receipt, its method and its blind spots are in #2055's
+body.
+
+**The second instance is fixed rather than scheduled.** `Zenity`
+(`OnPath | NotOnPath`) and `SessionBus` (`Advertised | NotAdvertised`)
+are named types now, returned by the two probe functions and taken by
+`chooser_backend_of`, so the bools are gone from the whole chain and a
+transposed call does not type-check; the row at
+`crates/viewer/tests/frame_policy.rs` names readings instead of
+positions. Two named types rather than the fold `Outstanding` got,
+because there is no third party minting these — they are two
+independent environment probes and `ChooserBackend` is already the
+value that ranks them.
+
+Taken here rather than left standing because the unit then removes the
+SHAPE from this crate instead of one instance of it, and because the
+site is a hundred lines from the one it fixed: a second lane arriving
+later would have re-derived the same argument to change fifteen lines.
+
+`crates/viewer/src/frame.rs` is now free of adjacent same-typed `bool`
+parameters, and `crates/viewer/README.md` says so beside the
+`Outstanding` rule. The wider class — same-typed adjacencies that are
+not `bool` — stays open as
+`work/view/adjacent-same-typed-arguments-are-the-same-swap.md`.

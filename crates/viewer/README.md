@@ -325,29 +325,39 @@ vocabulary is not a forbidden import path.
 | `session::delete` | `DeleteAffordance` and `kind_census` — the cascade's wording |
 | `session::probe` | `BoundsTarget`, `BoundsReading` and the range probe |
 
-`session` itself keeps `DocSession`, its `Gesture`, `Landing`,
-`AtRestBadge`, `Outstanding`, `perform` and the operation doors. Those
-are the driver and cannot leave it: every door returns a `Refusal` and
-mutates the session, `perform`'s dispatch is the one place an operation
-becomes state, and the three values are what the session says about
-itself, minted nowhere else.
+`session` itself keeps `DocSession`, its `Gesture`, `perform` and the
+operation doors, plus the three values the session states about itself
+— `Landing`, `AtRestBadge` and `Outstanding`. None of them can leave:
+every door returns a `Refusal` and mutates the session, and `perform`'s
+dispatch is the one place an operation becomes state.
 
-`Outstanding` is the last of those and the one with a rule attached.
-The session answers two questions about work — is the picture older
-than the document (`busy`), and does the seam have work (`running`) —
-and each is useful alone, so both stay. **Read together they are one
-three-state fact, and a consumer is handed that fact and never the
-pair.** Two adjacent `bool`s that mean different things swap silently:
-the swap type-checks, the chrome it produces is plausible, and a row
-that covers the consumer by repeating the same positional convention
-agrees with a swapped call site rather than contradicting it. So
-`DocSession::outstanding` reads the two by name — there is no argument
-list for them to be positions in — and `frame::progress` takes the
-folded value beside the index seam's `bool`, two arguments of different
-types that no call site can transpose. The fold itself is covered by
-driving a session into each of the three states (`tests/eval_seam.rs`),
-because a row that names the states says nothing about which session
-state produces which.
+**This page is the one home for the argument below.** The types
+themselves carry their invariant and a pointer here; the reasoning is
+written once.
+
+`Outstanding` is the third of those values and the one with a rule
+attached. The session answers two questions about work — is the picture
+older than the document (`busy`), and does the seam have work
+(`running`) — and each is useful alone, so both stay. **Read together
+they are one three-state fact, and a consumer is handed that fact and
+never the pair.** Two adjacent `bool`s that mean different things
+transpose silently: the swap type-checks, the chrome it produces is
+plausible, and a row that covers the consumer by repeating the same
+positional convention agrees with a transposed call site rather than
+contradicting it. So `DocSession::outstanding` reads the two by name —
+there is no argument list for them to be positions in — and
+`frame::progress` takes the folded value beside the index seam's
+`bool`, two arguments of different types that no call site can
+transpose. The fold itself is covered by driving a session into each of
+the three states (`tests/eval_seam.rs`), because a row that names the
+states says nothing about which session state produces which.
+
+`frame`'s `Zenity` and `SessionBus` are the same rule at the other end
+of that file: two independent environment readings that `ChooserBackend`
+ranks, named so the pair cannot be transposed either. That is the whole
+population of adjacent same-typed `bool` parameters in this crate;
+`work/view/adjacent-same-typed-arguments-are-the-same-swap.md` carries
+the wider class, where the types are not `bool`.
 
 ### What the session knows because of the document is one value
 

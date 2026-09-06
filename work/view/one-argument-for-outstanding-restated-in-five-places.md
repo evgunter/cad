@@ -2,8 +2,12 @@
 id: one-argument-for-outstanding-restated-in-five-places
 kind: issue
 title: #2055's argument for Outstanding is restated near-verbatim in five in-tree places, 68 lines of prose over 13 of code
-status: open
+status: closed
 opened: 2026-09-06
+closed: 2026-09-06
+pr: 2055
+branch: view/progress
+refs: [readme-and-type-docs-restate-one-argument-for-landing-and-landedrun]
 ---
 
 
@@ -70,3 +74,37 @@ sentence describing the signature printed directly beneath it.
 Filed as a class, not an instance: the same question should be asked
 of `Landing` and `AtRestBadge`, whose README paragraph and type docs
 sit in the same two files and were written the same way.
+
+## Closed (2026-09-06)
+
+Cut to one home plus pointers on #2055's fix pass.
+
+**The home is `crates/viewer/README.md`**, the session-vocabularies
+section, which says so in its own words — *"This page is the one home
+for the argument below"* — so the next editor is told where the
+argument lives rather than having to find four copies to learn it.
+
+What the four other sites now say:
+
+- `session::Outstanding`'s doc: the invariant only — two reads, one
+  three-state fact, the value is what a consumer is handed — and a
+  pointer to the README. **The defence against the `bool` pair is
+  deleted**, which is the part implementer-discipline §4 forbade: it
+  argued against a shape no signature in the tree takes.
+- `DocSession::outstanding`'s doc: no longer restates the fold at all.
+  What it keeps is the one thing written nowhere else — why
+  `!busy() && running()` is unreachable, in the two mechanisms that
+  actually produce it, rewritten under
+  `the-unreachable-eighth-combination-lost-its-only-assertion`.
+- `frame::progress`'s doc: the new paragraph is **deleted outright**.
+  It described the signature printed directly beneath it, which is the
+  clearest instance in the item and the cheapest to remove.
+- The two test-row headers: cut to what each row covers.
+
+Net: about fifty lines of prose out, one home, and the near-verbatim
+pair the item quotes no longer exists.
+
+The class question the item ends on — the same double statement for the
+session's other minted values — is checked and split out as
+`work/view/readme-and-type-docs-restate-one-argument-for-landing-and-landedrun.md`:
+true of `LandedRun`, not true of `AtRestBadge`.
