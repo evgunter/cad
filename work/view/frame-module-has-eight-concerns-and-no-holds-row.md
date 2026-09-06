@@ -112,3 +112,81 @@ The cheap half asked for *"before another lane touches this file"* has
 now been skipped twice. Whether to take the `Holds` row now — and
 whether that section collapses into it or stays beside it — is the
 orchestrator's call, not a lane's.
+
+## The row is taken (#1957, 2026-09-05)
+
+`crates/viewer/README.md`'s app-vocabularies table now has a `frame`
+row, written the way `forms`' row is: the argument for what the module
+is for, and an explicit statement that **the charter justifies taking
+each of these out of `app` and not their being one module.** A new
+concern now has a field to be written into, and the row points here for
+the split.
+
+**What deferring it three times cost, since the item asks.** `frame.rs`
+was 984 lines when this was filed, 1,131 at #1886, 2,037 at #1933 and
+**2,298** at this unit's head — so the row is taken and the file still
+grew — and each of the three took the expensive
+half. The specific cost is visible in this unit's own review: the
+README obligation was answered a second time as prose beneath the
+table, which grew that section from 29 lines to ~46 before the row
+existed to carry any of it. Prose beneath a table has no field to make
+longer, so there was no diff at which any of the three looked
+unreasonable — which is this item's thesis, reproduced a third time by
+the units that read it.
+
+**What the row does not do.** It does not split the module, and it does
+not pretend to cover the eight concerns honestly — it says so in the
+row itself. The second move above is still open and is still not a
+lane's call.
+
+## It grew again, and the ledger stopped being written (#2026, 2026-09-06)
+
+984 lines when this item was filed, 1,131 at #1886, 2,037 at #1933,
+2,298 at #1957 — and **2,475** at this unit's head. #2026 is the fourth
+unit in a row to grow the file and the first not to write the row at
+all: the count above stops at #1957 because the two units since simply
+did not add to it, which is the accumulation this item names arriving
+in the ledger kept to watch for it.
+
+**What #2026 added, and to which concern.** Concern 1, the status-line
+vocabulary — already the largest — gained a second DOOR (`frame::deliver`
+beside `frame::apply`, splitting a policy's verdict into news for the
+frame's notices and retirement for the field) and a 45-line row
+asserting the two halves against each other. Neither is a ninth concern
+and neither is unreasonable on its own; that is the point. The `Holds`
+row now exists to write it against, and this unit's first draft did not
+extend it — the row was extended in the fix pass, with `deliver`.
+
+## Evidence, not work: ~165 lines of environment probing in a per-frame module
+
+Recorded here because it belongs to the split this item owns and to
+nothing else on the board. `crates/viewer/src/frame.rs:1516-1680` —
+`ChooserBackend`, `chooser_backend_of`, `chooser_backend`,
+`zenity_on_path`, `session_bus_hinted`, `prefs_path`, `prefs_path_in`
+and `running_under_wsl` — is startup environment probing: a `PATH`
+walk for zenity, two `DBUS_SESSION_BUS_ADDRESS`/`XDG_*` reads, an XDG
+config-directory resolution and two `WSL_*` variable reads.
+
+The module's first line is **"The per-frame policies the viewport runs
+— as values, so they are replayable."** Environment probing is neither
+of those things: it runs once at startup rather than per frame, and it
+reads ambient process state, which is what not-replayable means.
+
+**This is not a proposal to move it, and the ruling it would fight is
+not the one it looks like.** `scripts/gates/no-ambient-env.sh` ratifies
+that the viewer's ambient reads have ONE home and names this file as
+that home, and `prefs_path`'s own doc argues it. That ruling settles
+*where the ambient door is*. What it does not do — and never claimed to
+— is make the charter sentence at the top of the module true of what
+sits under it. Being the sanctioned home for a concern is a reason the
+concern is here; it is not a reason the module is one module.
+
+So this is the cleanest available argument for the second move: two
+things co-located by two separate good reasons, with a header sentence
+that can only describe one of them. A split honours both — the ambient
+door stays one door and stops being filed under "per-frame policies,
+replayable".
+
+Evidence for the split, not a task. Nothing here asks a lane to move
+it.
+

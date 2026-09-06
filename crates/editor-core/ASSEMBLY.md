@@ -122,7 +122,7 @@ and is the SHA-256 of the canonical semantic bytes
 (`persist::canonical_bytes`); `DocRef` pairs them. Edits to a referenced
 document never retarget a reference: the resolver returns a document
 only when its bytes hash to the pin, else `ResolveFault::PinMismatch`;
-moving a pin is a recorded edit (A13). That refusal is the SEAM's, and
+moving a pin is a recorded edit (A13). A save is two acts (Ev, PR 2016): saving a document at a path keeps its identity, and refuses typed when the target directory already holds that id under another filename; saving it AS A NEW DOCUMENT mints a fresh id, an explicit fork that leaves every inbound `DocRef` pointing at the original. That refusal is the SEAM's, and
 only the seam's (DI2): an evaluation that crosses the seam refuses a
 moved pin, and an evaluation served from a prior serves what the
 document pins — the memo is a pure function of the document, since for

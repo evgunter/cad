@@ -112,6 +112,8 @@ mod docm4_evaluation_identity;
 mod docm5_subject;
 #[path = "docm6_seam_declarations.rs"]
 mod docm6_seam_declarations;
+#[path = "docm7_union_declare.rs"]
+mod docm7_union_declare;
 #[path = "dsc_checks.rs"]
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
@@ -173,6 +175,8 @@ mod m10_4_r1_probes_interval;
 mod m10_4_seed;
 #[path = "msolve1_transform_aware.rs"]
 mod msolve1_transform_aware;
+#[path = "msolve4_mate_memo.rs"]
+mod msolve4_mate_memo;
 #[path = "onb_wall_normal_census.rs"]
 mod onb_wall_normal_census;
 

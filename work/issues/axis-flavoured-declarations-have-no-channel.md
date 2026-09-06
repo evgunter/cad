@@ -4,7 +4,7 @@ kind: issue
 title: Axis-flavoured declarations (coaxial, structural-parallel) have no identity channel: ParamSource carries stored scalar fields only, so CoaxialEvidence and SPHSPH's option (a) cannot be served by it
 status: open
 opened: 2026-09-04
-refs: [SEAT-6, 1604, 1372]
+refs: [1593, 1604, 1372]
 ---
 
 

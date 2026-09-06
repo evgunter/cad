@@ -231,10 +231,12 @@ gate_ok() {
 # that read source text by which of `test_utils::source`'s three views
 # their needle wants — `code_only`, `code_and_literals` (comments
 # stripped, literals KEPT) and `comments_only` (the inverse view: the
-# needle is prose) — and this reader builds the CODE-ONLY view, because
-# that is what the gates converted to it need: their needles are
-# bounds, calls and operators. WHICH gates those are is DERIVED, not
-# copied — `grep -l gate_rust_code scripts/gates/*.sh | grep -v /lib.sh`,
+# needle is prose) — and this reader builds TWO of them: the CODE-ONLY
+# view by default, because that is what most gates converted to it need
+# (their needles are bounds, calls and operators), and
+# `code_and_literals` under `--keep-literals` for a needle that contains
+# a literal. WHICH gates take which is DERIVED, not copied —
+# `grep -l gate_rust_code scripts/gates/*.sh | grep -v /lib.sh`,
 # and the exclusion is part of the derivation rather than a subtraction
 # left to the reader: this file names the function because it DEFINES
 # it. For the same reason the paragraph below gives.
@@ -247,15 +249,34 @@ gate_ok() {
 # nowhere else: a count copied into prose goes stale in the silent
 # direction, because the population grows by a reader arriving.
 #
-# THAT IS A STATEMENT ABOUT THE CALLERS, NOT ABOUT THE DIRECTORY. There
-# IS a gate here whose needle contains a string literal —
-# `probe-suite-census.sh`'s probe-gate matcher looks for
-# `#[cfg(feature = "probe")]` — and it wants comments stripped and
-# literals KEPT, which is `code_and_literals`: the one of the three
-# views this reader does not build. It is not converted, its matcher is
-# anchored at column zero instead, and it carries a prose fixture
-# because of that. Naming it here rather than claiming the directory is
-# uniform: **S163(b)** is the row.
+# `--keep-literals` IS ONE VIEW OF THE THREE, NOT A FOURTH. A needle
+# whose own text contains a literal — `#[cfg(feature = "probe")]`, say —
+# is looking for `feature = ""` under the code-only view and matches
+# every cfg gate in the tree, so that view is not merely unhelpful for
+# it but wrong. WHICH gates take this view is derived the way the
+# paragraph above derives the rest, and is not named here. What keeping
+# literals costs is stated where the needle is, because it is a property
+# of the needle: a literal SPELLING the needle is indistinguishable from
+# the code, and only a raw literal can spell one whose own quotes are
+# unescaped.
+#
+# `--keep-literals` WITH `--skip-cfg-test` IS NOT REFUSED AND MEANS
+# SOMETHING PARTICULAR, so it is written down rather than left to be
+# discovered. The test-skip predicate and its brace counting run over
+# the RECORD, so with literals kept a string spelling `#[cfg(test)]`
+# opens a skip and braces inside literals count toward closing it — a
+# skip that starts and ends in the wrong places. No caller combines
+# them today. A caller that wants both owes the skip a literal-blind
+# view of the same line, which is a change to this function and not a
+# flag on it.
+#
+# THE THIRD VIEW IS NOT BUILT HERE. `comments_only` — the needle is
+# prose — is the inverse selection, and its one caller in this
+# directory (the census's `^//!` disposition sentences) reads the raw
+# file for it. Building it would mean emitting what this scanner
+# discards, which is a second traversal of the same lexer states rather
+# than a flag on this one; the row that wants it is the row that adds
+# a second such caller.
 #
 # THREE RECORD SHAPES, one lexer, because two hand-rolled Rust readers
 # under `scripts/gates/` is how the leading-`//` strip came to be
@@ -278,28 +299,80 @@ gate_ok() {
 # gate's downstream pipeline (its allowlist filters, its message) is
 # unchanged by the swap. LINE is the real line the record starts at.
 #
-# WHAT IT CANNOT DO. It is a lexer, not a parser: it knows `//`, `/* */`
-# (nesting NOT handled -- Rust allows nested block comments and the
-# first `*/` closes here), `"..."`, `r#"..."#`, `b"..."`, and char
-# literals as distinct from lifetimes. It does not know `macro_rules!`
-# bodies, `include!`d text, or code behind `#[cfg]` other than the
-# `test` skip below.
+# WHAT IT KNOWS. `//`, `/* */` INCLUDING NESTING TO ANY DEPTH AND ACROSS
+# ANY NUMBER OF LINES (Rust allows nested block comments; the `*/` that
+# BALANCES the opener closes here, as it does in rustc and in
+# `test_utils::source`), `"..."`, `r#"..."#`, `b"..."`, and char
+# literals as distinct from lifetimes.
+#
+# WHAT IT CANNOT DO, ONE BLIND SPOT AT A TIME, because a list of names
+# is not a statement of what each one is blind to. It is a lexer, not a
+# parser, and each of these is left rather than fixed:
+#
+#   * `macro_rules!` BODIES ARE ORDINARY CODE. A body is lexed and
+#     emitted like any other text, so every matcher reads what a macro
+#     is WRITTEN as and never what it EXPANDS to. Both directions are
+#     live: a forbidden spelling assembled from token fragments is
+#     invisible, and one written literally inside a body nothing
+#     invokes reds a gate. ACCEPTED because the fix is expanding Rust,
+#     which is a compiler and not a reader — and the one gate whose
+#     subject this actually is has its own row
+#     (`clippy-panic-gate-blind-in-macros`) rather than a flag here.
+#
+#   * `include!`d TEXT IS NOT FOLLOWED, and the reason is that this
+#     reader's unit is a file path its CALLER hands it. An included
+#     file inside the caller's scan set is read in its own right; one
+#     outside it is read by nothing. ACCEPTED because which files are
+#     the subject is the caller's decision — `gate_require_crate_sources`
+#     is where that set is fixed and proved non-empty — and a reader
+#     that followed `include!` would scan files its caller never
+#     counted, so the count a gate prints would stop naming what it
+#     read.
+#
+#   * AN UNTERMINATED `/*` SWALLOWS THE REST OF ITS FILE, silently and
+#     in the blind direction: from the opener to EOF nothing is
+#     emitted, so every matcher reads that file as empty while the
+#     count the gate prints — a FILE count, not a record count — does
+#     not move. ACCEPTED because `rustc` REFUSES such a file, so only
+#     source that does not compile can carry one and a gate is a claim
+#     about code that compiles. Worth writing down for its direction: a
+#     reader that force-closed the comment at EOF would cry wolf
+#     instead, and this one cannot.
+#
+#   * `#[cfg]` OTHER THAN THE `test` SKIP IS SCANNED AS LIVE CODE, and
+#     that is the deliberate half: an item behind `feature = "x"` or
+#     `target_os = "…"` compiles under some configuration, so reading
+#     it is right and skipping it would be blind exactly where a gate
+#     is load-bearing. Even the `test` skip is opt-in per caller
+#     (`--skip-cfg-test`) and refuses `any(…)`/`not(…)` for the reason
+#     the SKIPTEST block below gives. The residue is one-directional:
+#     an item behind a cfg that is false everywhere is still scanned,
+#     which cries wolf and cannot go blind.
+#
+# AND WHAT IS NOT THIS READER'S BLIND SPOT. A needle that cannot match
+# a shape the view faithfully carries is the MATCHER's blind spot, not
+# the lexer's: `v[i] * v[i]` reaches the code view exactly as written,
+# and a square matcher that only pairs bare identifiers is where that
+# gap is stated. Keeping the two apart is what stops a fix landing in
+# the wrong file.
 gate_rust_code() {
-  local skip_cfg_test=0 mode=lines window=0
+  local skip_cfg_test=0 mode=lines window=0 keep_literals=0 status=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --skip-cfg-test) skip_cfg_test=1; shift ;;
+      --keep-literals) keep_literals=1; shift ;;
       --statements) mode=statements; shift ;;
       --window) mode=window; window=$2; shift 2 ;;
       *) break ;;
     esac
   done
   [ $# -gt 0 ] || return 0
-  awk -v SKIPTEST="$skip_cfg_test" -v MODE="$mode" -v WIN="$window" '
+  awk -v SKIPTEST="$skip_cfg_test" -v MODE="$mode" -v WIN="$window" \
+      -v KEEPLIT="$keep_literals" '
     # A single quote cannot be written inside this program, which is
     # itself single-quoted; CODEBRK is built rather than spelled.
     BEGIN { Q = sprintf("%c", 39); CODEBRK = "[\"" Q "/]" }
-    FNR == 1 { state = 0; depth = 0; skipping = 0; seen_open = 0 }
+    FNR == 1 { state = 0; cdepth = 0; depth = 0; skipping = 0; seen_open = 0 }
     {
       s = $0; out = ""; i = 1; n = length(s)
       # THE FAST PATH, and it is worth its four lines: a line carrying no
@@ -327,21 +400,47 @@ gate_rust_code() {
       # run of the discipline row), not on either number staying true.
       while (i <= n) {
         rest = substr(s, i)
-        if (state == 1) {                      # inside /* ... */
-          p = index(rest, "*/")
-          if (p == 0) { i = n + 1 } else { state = 0; i += p + 1 }
+        if (state == 1) {                      # inside /* ... */, nested
+          # NESTING, the way rustc reads it and the way
+          # `test_utils::source` models it: a `/*` inside a block
+          # comment opens another, and the comment ends at the `*/` that
+          # balances them. The EARLIER of the two tokens decides, so
+          # `/*/` opens (its `/*` starts before its `*/`) and `*/*`
+          # closes. Reading the first `*/` as the end instead put the
+          # rest of an outer comment back into the code view — text a
+          # matcher then reads as live source.
+          #
+          # THE DEPTH IS A STATE, NOT A PER-LINE TALLY, and that is
+          # where this was wrong once: an opener was counted only when
+          # a closer sat on the SAME line, so `/* outer` / `/* inner` /
+          # `*/` left depth at one and the next `*/` ended the outer
+          # comment early — the multi-line inner comment being the
+          # ordinary way one is written. `cdepth` spans lines because
+          # every opener and every closer is counted as the scan
+          # reaches it, wherever it sits.
+          o = index(rest, "/*"); p = index(rest, "*/")
+          if (o > 0 && (p == 0 || o < p)) { cdepth++; i += o + 1; continue }
+          if (p == 0) { i = n + 1; continue }
+          cdepth--
+          if (cdepth <= 0) { cdepth = 0; state = 0 }
+          i += p + 1
           continue
         }
         if (state == 2) {                      # inside "..." (or b"...")
           p = match(rest, /["\\]/)
-          if (p == 0) { i = n + 1; continue }
-          if (substr(rest, p, 1) == "\\") { i += p + 1; continue }
+          if (p == 0) { if (KEEPLIT == 1) out = out rest; i = n + 1; continue }
+          if (substr(rest, p, 1) == "\\") {
+            if (KEEPLIT == 1) out = out substr(rest, 1, p + 1)
+            i += p + 1; continue
+          }
+          if (KEEPLIT == 1) out = out substr(rest, 1, p - 1)
           out = out "\""; state = 0; i += p
           continue
         }
         if (state == 3) {                      # inside r#*"..."#*
           p = index(rest, "\"" rawhashes)
-          if (p == 0) { i = n + 1; continue }
+          if (p == 0) { if (KEEPLIT == 1) out = out rest; i = n + 1; continue }
+          if (KEEPLIT == 1) out = out substr(rest, 1, p - 1)
           out = out "\"" rawhashes; state = 0; i += p + rawh
           continue
         }
@@ -352,7 +451,7 @@ gate_rust_code() {
         if (c == "/") {
           two = substr(s, i, 2)
           if (two == "//") { i = n + 1; continue }
-          if (two == "/*") { state = 1; i += 2; continue }
+          if (two == "/*") { state = 1; cdepth = 1; i += 2; continue }
           out = out "/"; i++
           continue
         }
@@ -383,9 +482,15 @@ gate_rust_code() {
         if (substr(s, i + 1, 1) == "\\") {
           j = i + 3          # the backslash escapes exactly one char
           while (j <= n && substr(s, j, 1) != Q) j++
-          out = out Q Q; i = j + 1; continue
+          if (KEEPLIT == 1) out = out substr(s, i, j - i + 1)
+          else out = out Q Q
+          i = j + 1; continue
         }
-        if (substr(s, i + 2, 1) == Q) { out = out Q Q; i += 3; continue }
+        if (substr(s, i + 2, 1) == Q) {
+          if (KEEPLIT == 1) out = out substr(s, i, 3)
+          else out = out Q Q
+          i += 3; continue
+        }
         out = out Q; i++
       }
 
@@ -470,7 +575,27 @@ gate_rust_code() {
       if (MODE == "statements") flushstmt()
       else if (MODE == "window") flushwin()
     }
-  ' "$@"
+  ' "$@" || status=$?
+  # A READER THAT DIED IS NOT AN EMPTY FILE SET — `gate_grep`'s rule,
+  # applied to the other half of the scan. Every gate that reads Rust
+  # through this function pipes its output into a matcher, so an `awk`
+  # that cannot open a file, or is not on PATH at all, delivers NO
+  # RECORDS and every matcher downstream then finds nothing: the gate
+  # reads a dead reader as a clean tree. The marker is what crosses the
+  # process substitutions and command substitutions the status cannot,
+  # and `gate_ok` refuses to print over it.
+  #
+  # WHAT THIS HOLDS IS A NON-ZERO STATUS, AND NOTHING MORE. An `awk`
+  # that writes half the view and exits 0 is not seen here: the caller
+  # gets a short view, its matchers find nothing in what is missing, and
+  # the count the gate prints comes from a different guard, so the green
+  # is exactly as reassuring as it was wrong. Nothing in this directory
+  # cross-checks record count against file count, and that is the shape
+  # of the guard that would.
+  [ "$status" -eq 0 ] && return 0
+  gate_error "$(gate_name): the shared Rust reader exited $status, so the code view it was asked for is short of what the caller handed it and every matcher reading it decided less than the gate claims — that is not a clean scan"
+  : >> "$GATE_MATCHER_FAILED"
+  exit "$status"
 }
 
 # The clean fixture every self-test starts from. A gate whose subject is
@@ -538,10 +663,21 @@ gate_selftest_clean() {
   # always writes a source file, so no fixture ever asked. `lib.sh` says a
   # guard never shown to fire is not a guard; that sentence had not been
   # applied inside this file. The two cases below are the rest of it, and
-  # the way to check the claim is the trace, not this comment: instrument
-  # `gate_error` with `BASH_SOURCE`/`BASH_LINENO`, run every `--selftest`,
-  # and diff what fired against what is written. `D109(d)` carries the
-  # standing count and the guards that remain.
+  # the way to check the claim is the trace, not this comment:
+  # instrument `gate_error` to record `BASH_SOURCE`/`BASH_LINENO` AND
+  # THE MESSAGE, run every `--selftest`, and diff what fired against the
+  # declared population, `grep -nE '(^|[[:space:];&|])gate_error "'
+  # scripts/gates/*.sh`.
+  #
+  # THE MESSAGE IS NOT BELT AND BRACES. A site inside a command
+  # substitution reports the line of the ENCLOSING FUNCTION CALL, not
+  # its own: bash resets the call stack in the subshell, so
+  # `BASH_LINENO` names a line that holds no `gate_error` at all. A
+  # line-only trace therefore reports such a site as unreached however
+  # many fixtures fire it — and this directory has one, the census's
+  # nested-suite refusal. Match a fired message to a site by ALL of the
+  # site's literal fragments in ONE message: two sites here share a
+  # fragment, so any-of scores one of the pair reached for free.
   tmp=$(mktemp -d)
   if out=$("$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1); then
     rm -rf "$tmp"
@@ -706,20 +842,33 @@ gate_selftest_without_tool() {
   esac
 }
 
-# gate_selftest_with_broken_tool TOOL WANT SHIM — gate_selftest_without_
-# tool's TARGETED twin. A stub that fails every call proves only that the
-# FIRST matcher cannot die silently; a matcher deeper in the gate — one
-# whose status a process substitution swallows, say — needs the calls
-# before it to succeed. SHIM is the body of a /bin/sh script that
-# shadows TOOL on PATH; it decides per call whether to pass through or
-# fail, and reaches the real tool as "$GATE_REAL_TOOL". The gate must
-# fail with a gate_error diagnosis containing WANT.
+# gate_selftest_with_broken_tool TOOL WANT SHIM [PLANTER [ARGS...]] —
+# gate_selftest_without_tool's TARGETED twin. A stub that fails every
+# call proves only that the FIRST matcher cannot die silently; a matcher
+# deeper in the gate — one whose status a process substitution swallows,
+# say — needs the calls before it to succeed. SHIM is the body of a
+# /bin/sh script that shadows TOOL on PATH; it decides per call whether
+# to pass through or fail, and reaches the real tool as
+# "$GATE_REAL_TOOL". The gate must fail with a gate_error diagnosis
+# containing WANT.
+#
+# THE PLANTER IS OPTIONAL AND IT IS NOT DECORATION. The clean fixture is
+# the only tree this helper had, so a failure path a gate reaches ONLY
+# on a non-empty or otherwise particular scan was unreachable from any
+# self-test — the same gap `gate_selftest_case` closes for matchers, one
+# layer down. With a planter the case says the stronger thing: the gate
+# fails with the DEAD TOOL's diagnosis and not with the planted breach's,
+# because a tool that died could not have seen the breach.
 gate_selftest_with_broken_tool() {
   local tool=$1 want=$2 shim=$3
+  shift 3
   local tmp bin out real
   real=$(command -v "$tool")
   tmp=$(mktemp -d); bin=$(mktemp -d)
   gate_plant_clean "$tmp"
+  # An `if`, not `[ … ] && …`: a false test is a failed statement and
+  # errexit would leave this function before it planted anything.
+  if [ $# -gt 0 ]; then "$@" "$tmp"; fi
   printf '#!/bin/sh\n%s\n' "$shim" > "$bin/$tool"
   chmod +x "$bin/$tool"
   if out=$(GATE_REAL_TOOL="$real" PATH="$bin:$PATH" "$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1); then
