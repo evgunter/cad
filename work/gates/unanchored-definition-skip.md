@@ -107,6 +107,14 @@ SCAN reds on them, so the abstention costs nothing.
 `plant_sealed_decl_elsewhere` does; reverting the anchor makes it fail
 (measured on a scratch copy of the gate).
 
+The anchor's POSITIVE direction is `plant_definition_lines_at_home` —
+`real.rs` carrying the two definition lines and nothing else, which must
+PASS. Without it `--selftest` stayed green under an anchor narrowed to a
+path that never matches, and only the live pass reds; it also covers an
+escaping drift between `DEFINITION_*` and its `_RE` twin. The twin's
+equivalent is `no-extra-real-bounds.sh`'s `plant_sealed_home_clean`.
+Measured: over-narrowing the anchor on a scratch copy fires it.
+
 Hit-set diff on the live tree: byte identical, 163 matcher records over
 26 files. The two definition lines are the only records the skip drops,
 and `real.rs` is where they are.
@@ -128,10 +136,10 @@ instrument and not this row's class: PATH filters, which are anchored by
 construction (`bit-identity-consumer.sh:38-41`,
 `bit-identity-punning.sh:23`, `evalscalar-allowlist.sh:34`,
 `interval-square-allowlist.sh:217-219`, `no-ambient-env.sh:108-110`,
-`witness-not-ambient.sh:114-118`, `signed-zero-one-home.sh:109`, whose
-home is proved by `gate_require_file`); path lists derived at runtime
-(`interval-square-allowlist.sh:203` filters FILE NAMES, not source
-text); SHAPE filters (`interval-square-allowlist.sh:194`); comment-line
+`witness-not-ambient.sh:114-117`, `signed-zero-one-home.sh:109`, whose
+home is proved by `gate_require_file`); path lists built at runtime
+(`interval-square-allowlist.sh:203` and `witness-not-ambient.sh:118`
+filter FILE NAMES, not source text); SHAPE filters (`interval-square-allowlist.sh:194`); comment-line
 strips over a script or workflow (`gate-roster.sh:121`,
 `probe-suite-census.sh:659,678`); blank-line strips
 (`no-extra-real-bounds.sh:138`, `viewer-module-kinds.sh:449,499`); a

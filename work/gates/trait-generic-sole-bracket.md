@@ -95,10 +95,21 @@ skip cannot be carried by one reader and not the other again — which is
 how the false positive arose. An ERE cannot express the skip, which is
 why the alternative left the regex.
 
-`plant_sole_bracket_bounds` gains the `trait` form and a depth-2 nested
-one (`trait Carrier<T: CertifiedBounds, P: ControlPoint<T>>`), the depth
-a regex approximation of the balanced scan gets wrong. Both fixtures were
-shown to red against the shipped matcher before the fix landed.
+It is **not** the same matcher either side of the skip, and the style
+review measured the two differences: `match()` takes the FIRST `trait`
+token on a line, so a second declaration written after a first on ONE
+line is no longer read; and a `;`/`{` inside the skipped generic list no
+longer stops the search, so `trait Arr<T: Array<[u8; 4]>>: Bounds {}` is
+read where the regex's `[^;{]*` could not cross it. Both have zero live
+population and both move toward the answer the rule wants; they are
+stated at the function rather than claimed away as identity.
+
+`plant_sole_bracket_bounds` gains four `trait` forms: bare, depth-2
+nested (`trait Carrier<T: CertifiedBounds, P: ControlPoint<T>>`), and an
+`Fn(u8) -> u8` parameter in both orders — the arrow's `>` closed the list
+early for the first depth counter, so the tail handed back carried the
+real parameter colons and the false positive survived. Every fixture was
+shown to red against the matcher without its fix.
 
 Hit-set diff on the live tree, matcher records surviving the definition
 skip and before the per-file filters: 163 records over 26 files, byte
