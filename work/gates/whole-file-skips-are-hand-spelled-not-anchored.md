@@ -167,5 +167,7 @@ which is what the directory loop twenty lines above already uses; over
 skip, and neither has a `FILE:LINE:` shape to pin.
 
 **The subject half of the finding is NOT closed** — none of the six
-checks that the file it exempts still exists — and it keeps this row's
-sibling, `unanchored-definition-skip`-style, open: see the PR body.
+checks that the file it exempts still exists — and it has its own row,
+`whole-file-skips-do-not-check-their-subject`, filed in this PR. That
+is the half with the live route: a rename is ordinary, a colon in a
+path is not.
