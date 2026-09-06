@@ -310,8 +310,11 @@ env:
   # sccache pin for the rig wired into the two build jobs below, which
   # is OFF: it runs only for the repo variable SCCACHE = "1". The
   # measurement that turned it off is docs/CI-MINUTES-2026-08.md F4.
-  # 0.16.0 is the version local-scripts/gate.sh already runs on the
-  # local gate box, so the rig and the local lane agree.
+  # This is the version local-scripts/gate.sh already runs on the local
+  # gate box, so the rig and the local lane agree — and that agreement is
+  # CHECKED: check-ci-mirror-parity.py's pin-literal claim reconciles
+  # gate.sh's sccache line against this value. The version is named once,
+  # here, rather than restated in the sentence about it.
   SCCACHE_VERSION: "0.16.0"
   NEXTEST_VERSION: "0.9.140"
   # maturin rides the same pattern as nextest: pinned here (single source

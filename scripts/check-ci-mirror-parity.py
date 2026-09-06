@@ -76,8 +76,8 @@ them as literals a human reads — the prereq note, the cargo-nextest failure
 text, gate.sh's sccache line. Nothing read those, so nothing checked them, and
 a bumped pin left the local half telling a developer to install a version
 hosted no longer runs. This claim reconciles them, deriving BOTH sides — the
-pins from the block through `scripts/ci-pin.py`, the literals from a walk of
-`local-scripts/`. The argument, the two arms and the five things it cannot see
+pins from the block through `scripts/ci-pin.py`, the literals from the tracked
+files under `local-scripts/`. The argument, the two arms and the five things it cannot see
 are at `PIN_FREE`.
 
 THAT SCOPE LINE IS A CHOICE, NOT AN ABSENCE OF TOOLING, and saying otherwise
@@ -105,6 +105,7 @@ import importlib.util
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -266,32 +267,56 @@ GATE_MODE_EXEMPT: dict[str, tuple[str, str]] = {}
 #   A. VALUE. Every literal in the tree either equals a value ci.yml pins
 #      today, or is declared in PIN_FREE. This is the arm that fires on a bump:
 #      the moment NEXTEST_VERSION moves, all six `0.9.140` sites stop naming a
-#      pin at once — including the ones no name-based scan can see, the URL
-#      `https://get.nexte.st/0.9.140/linux` and the bare "the pinned 0.9.140".
+#      pin at once — including the ones arm B cannot see, the URL
+#      `https://get.nexte.st/0.9.140/linux` (whose hostname is `nexte.st`, not
+#      the token `nextest`) and the bare "the pinned 0.9.140".
 #   B. NAME. A line that names a pinned tool AND carries a version must carry
 #      THAT tool's current pin among its literals. This is the arm that fires
 #      when a copy drifts onto some OTHER pin's value, which arm A would wave
-#      through. The tool token is derived from the pin's name (`NEXTEST_VERSION`
-#      -> `nextest`), matched on word boundaries.
+#      through. Every underscore-separated part of the pin's key is a spelling
+#      it looks for (`tool_names`), matched case-insensitively, with `_` a
+#      boundary — so `NEXTEST_VERSION=0.16.0` and `# Nextest 0.16.0` are both
+#      in its population, which they were not when this claim was written.
 #
-# FIVE THINGS THIS CANNOT SEE, all by construction:
-#   * A literal that drifts to a value ci.yml pins for a different tool, on a
-#     line that does not name its own tool, passes both arms. Arm B needs the
-#     tool named beside the version; `ci-local.sh:609`'s "against the pinned
-#     0.9.140" does not name it.
-#   * A version that is not three dot-separated numbers — `1.2`, `1.2.3.4`,
-#     `v1.2.3-rc1` — is not a literal here at all. Three components with no
-#     digit or dot on either side is the shape every pin in the block takes,
-#     and widening it to two would swallow `3.12`, `0.16` and every ratio in a
-#     comment.
-#   * The tree is `local-scripts/`. `.claude/hooks/session-start.sh` restates
-#     three pins the same way and is NOT reachable from here: every hosted job
-#     deletes `.claude/` at checkout, so a claim about it would pass hosted and
-#     red locally, which is worse than not making it.
-#     `work/ciw/session-start-hook-restates-ci-pins` carries that one.
-#   * A pin ci.yml sets that NOTHING in the local tree names is not an error.
+# WHAT THIS CANNOT SEE. The list is what has been looked for and found no way
+# to cover; IT IS NOT A COUNT AND NOT A PROOF OF COMPLETENESS. An earlier
+# version of this comment stated a number, which reads as completeness, and a
+# review then planted four shapes it did not contain and one it described
+# wrongly. Add to it when you find another; do not tally it.
+#   * TWO TOOLS ON ONE LINE WITH THEIR VALUES SWAPPED. Arm B asks whether a
+#     tool's pin is among the line's literals, not which literal belongs to
+#     which tool, so `nextest 0.16.0 sccache 0.9.140` satisfies both tools and
+#     arm A sees two pinned values. Deciding which version a line means for
+#     which tool is a parse of English, and a wrong answer there would red
+#     correct lines.
+#   * A LITERAL THAT DRIFTS ONTO ANOTHER PIN'S VALUE ON A LINE THAT NAMES NO
+#     TOOL. `ci-local.sh`'s "against the pinned 0.9.140" and the get.nexte.st
+#     URL are covered for a BUMP by arm A and NOT for a cross-pin drift, which
+#     needs a tool name arm B can see beside the version.
+#   * VERSION SHAPE, in both directions. A version that is not three
+#     dot-separated numbers is not a literal here — `1.2`, `1.2.3.4`, a value
+#     built at run time — and widening to two components would swallow `3.12`,
+#     `0.16` and every ratio in a comment. In the other direction the shape
+#     OVER-matches: any such run is a literal, so `3.12.4` inside
+#     `python3.12.4`, a date like `2026.08.22`, and the `1.2.3` inside
+#     `v1.2.3-rc1` all count and must be a pinned value or declared. (This
+#     comment used to claim `v1.2.3-rc1` was invisible here. It is not.)
+#   * A SHORT DERIVED TOKEN MATCHING AN UNRELATED WORD. `TY_VERSION` derives
+#     `ty`, and `_` is a boundary, so `my_ty_thing 1.2.3` is in arm B's
+#     population. That direction over-checks rather than under-checks — it can
+#     red a correct line, and the message tells the author to separate the two.
+#   * A PIN WHOSE KEY IS NOT HOW ANYONE SPELLS THE TOOL. Arm B is silently
+#     inert for it: nothing names it, so nothing is checked and nothing is
+#     said. Arm A still covers its value.
+#   * THE TREE IS `local-scripts/`, tracked files only.
+#     `.claude/hooks/session-start.sh` restates three pins the same way and is
+#     NOT reachable from here: every hosted job deletes `.claude/` at checkout,
+#     so a claim about it would pass hosted and red locally, which is worse
+#     than not making it. `work/ciw/session-start-hook-restates-ci-pins`
+#     carries that one.
+#   * A PIN ci.yml SETS THAT NOTHING IN THE LOCAL TREE NAMES is not an error.
 #     A tool the local half does not mention is not drift.
-#   * Arm B reads one LINE. A tool named in a sentence whose version sits on
+#   * ARM B READS ONE LINE. A tool named in a sentence whose version sits on
 #     the next line is arm A's business only.
 PIN_TREE = "local-scripts"
 
@@ -1308,27 +1333,29 @@ def marker_row(raw: list[str], at: int, funcs: dict[str, tuple[int, int]]) -> li
 
 
 def ci_pin_module():
-    """`scripts/ci-pin.py`, loaded from beside this file.
+    """`scripts/ci-pin.py`, imported by the one idiom its header documents.
 
     THE ANCHORING IS NOT REIMPLEMENTED HERE. Which lines are the workflow's own
     `env:` block — as against a block indented under a job — is exactly the
     question that script exists to answer, and a second answer to it living in
-    this file would be the defect this claim is about, one level up. Loaded by
-    path rather than imported by name because the file has a hyphen in it,
-    which is the name every caller spells on a command line.
+    this file would be the defect this claim is about, one level up.
 
-    Resolved against THIS FILE, never against `--root`: the self-test's
-    miniature repo has a ci.yml and no scripts/, and the reader it must be
-    checked with is this tree's.
+    The two lines are `sys.path` plus `import_module("ci-pin")`: the file's
+    name has a hyphen in it, because that is the name every caller spells on a
+    command line. Resolved against THIS FILE's directory, never against
+    `--root`: the self-test's miniature repo has a ci.yml and no scripts/, and
+    the reader it must be checked with is this tree's. EVERY FAILURE IS CAUGHT,
+    not just the import machinery's — a `SyntaxError` in the reader is the same
+    event to this row as a missing file, and a traceback would say so without
+    naming what went unchecked.
     """
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ci-pin.py")
-    spec = importlib.util.spec_from_file_location("ci_pin", path)
-    if spec is None or spec.loader is None:
-        raise Bail(f"cannot load {path}, which is this repo's one reader of ci.yml's tool pins and "
-                   "the source of claim 11's population. " + NO_TEACH)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    try:
+        return importlib.import_module("ci-pin")
+    except Exception as exc:
+        raise Bail(f"cannot import scripts/ci-pin.py ({exc.__class__.__name__}: {exc}), which is "
+                   "this repo's one reader of ci.yml's tool pins and the source of claim 11's "
+                   "population. " + NO_TEACH) from exc
 
 
 def workflow_pins() -> dict[str, str]:
@@ -1353,31 +1380,66 @@ def workflow_pins() -> dict[str, str]:
 def pin_literals(root: str) -> list[tuple[str, int, str, str]]:
     """Every version literal under PIN_TREE: `(path, line number, literal, line)`.
 
-    A WALK, NEVER A ROSTER. The point of this claim is that a hand-listed set of
-    sites falls behind the tree; a hand-listed set of sites to SCAN would fall
-    behind it in the same way, one level further out.
+    DERIVED, NEVER A ROSTER. The point of this claim is that a hand-listed set
+    of sites falls behind the tree; a hand-listed set of sites to SCAN would
+    fall behind it in the same way, one level further out.
+
+    THE POPULATION IS GIT'S INDEX, NOT THE FILESYSTEM, which is the same
+    answer `scripts/check-python-lint.py` gives to the same question one file
+    over — and for the sharper reason here. A directory walk reads whatever is
+    sitting in the tree: this repo's `.gitignore` carries `*.local.*`, which is
+    an INVITATION to keep personal files in place, and a developer's
+    `local-scripts/notes.local.md` mentioning a version would red their local
+    gate over a file the repo told them was theirs. It cannot red hosted (a
+    runner checks out a clean tree), which is exactly what would make it a
+    confusing, one-sided red.
     """
+    listed = subprocess.run(["git", "ls-files", "-z", "--", PIN_TREE], cwd=root,
+                            capture_output=True, text=True, check=False)
+    if listed.returncode != 0:
+        raise Bail(f"`git ls-files -- {PIN_TREE}` failed under {root} "
+                   f"({listed.stderr.strip() or 'no message'}). That listing IS claim 11's "
+                   "population — the tracked files of the local half — and this check will not "
+                   "fall back to a directory walk, because a walk reads a developer's own "
+                   "untracked files and reds their gate over them. " + NO_TEACH)
     out: list[tuple[str, int, str, str]] = []
-    for dirpath, _dirs, files in os.walk(os.path.join(root, PIN_TREE)):
-        for name in sorted(files):
-            full = os.path.join(dirpath, name)
-            rel = os.path.relpath(full, root)
-            try:
-                with open(full, encoding="utf-8", errors="replace") as fh:
-                    body = fh.read().splitlines()
-            except OSError:
-                continue
-            for i, line in enumerate(body, 1):
-                for lit in VERSION_LITERAL_RE.findall(line):
-                    out.append((rel, i, lit, line.strip()))
+    for rel in sorted(x for x in listed.stdout.split("\0") if x):
+        full = os.path.join(root, rel)
+        try:
+            with open(full, encoding="utf-8", errors="replace") as fh:
+                body = fh.read().splitlines()
+        except OSError:
+            # A tracked path that is not a readable file today — a symlink to
+            # nowhere, a submodule. Nothing to read is nothing to reconcile.
+            continue
+        for i, line in enumerate(body, 1):
+            for lit in VERSION_LITERAL_RE.findall(line):
+                out.append((rel, i, lit, line.strip()))
     return out
 
 
+def tool_names(pin_name: str) -> list[str]:
+    """Every spelling of a pin a line might name it by, derived from its key:
+    `NEXTEST_VERSION` -> `nextest`; `FREECAD_APPIMAGE_VERSION` -> `freecad`
+    and `appimage`.
+
+    EVERY UNDERSCORE-SEPARATED PART, not the key with `_VERSION` stripped,
+    because a token that is not the tool's spelling makes arm B silently inert
+    for that pin: `freecad_appimage` is a string no line in this repo writes,
+    so a claim resting on it would check nothing and say nothing. `VERSION`
+    itself is dropped — it is the key's suffix, not a tool.
+
+    THE PIN'S OWN KEY needs no entry of its own: arm B's boundary treats `_` as
+    a boundary character, so `nextest` matches inside `NEXTEST_VERSION=0.16.0`
+    — which is the most literal restatement a pin can have, and was escaping
+    this arm entirely while being exactly its subject.
+    """
+    return [w for w in pin_name.lower().split("_") if w and w != "version"]
+
+
 def tool_token(pin_name: str) -> str:
-    """The tool a pin names, derived from the pin's key: `NEXTEST_VERSION` ->
-    `nextest`. Derived and not tabulated, so a pin added to the block arrives
-    with its arm-B token already."""
-    return pin_name.lower().removesuffix("_version")
+    """The tool a pin names, for a message a human reads."""
+    return "_".join(w for w in pin_name.lower().split("_") if w and w != "version")
 
 
 def unconditional(jobs: dict[str, "Job"], name: str, seen: frozenset[str] = frozenset()) -> str | None:
@@ -1861,6 +1923,14 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
     values = set(pins.values())
     literals = pin_literals(root)
     declared: set[tuple[str, str]] = set()
+    for (path, lit), reason in sorted(PIN_FREE.items()):
+        if lit in values:
+            err(f"PIN_FREE declares {lit} in {path} as a non-pin — {reason} — and {HOSTED_HALF} now "
+                f"pins exactly {lit}. Whichever is true, arm A can no longer tell: a declared "
+                "non-pin that equals a live pin is the one way a copy of that pin hides inside its "
+                "own excuse. Rename the declaration's subject, or drop the entry if the literal was "
+                "a pin copy all along")
+
     for path, lineno, lit, line in sorted(set(literals)):
         if (path, lit) in PIN_FREE:
             declared.add((path, lit))
@@ -1881,12 +1951,24 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
     # same pin — and ci-local.sh's prereq note is exactly such a line.
     by_line = {(path, lineno): line for path, lineno, _lit, line in literals}
     for name, value in sorted(pins.items()):
-        token = re.compile(rf"(?<![A-Za-z0-9_]){re.escape(tool_token(name))}(?![A-Za-z0-9_])")
+        # CASE-INSENSITIVE, AND `_` IS A BOUNDARY. `# Nextest 0.16.0` names the
+        # tool as surely as `nextest` does, and `NEXTEST_VERSION=0.16.0` names
+        # it twice; a case-sensitive matcher whose word boundary treats `_` as
+        # a word character sees neither. Both were live escapes from this arm,
+        # of exactly the shape this claim exists to catch. What the boundary
+        # still refuses is a token INSIDE a longer word (`another` is not
+        # `other`) and `nexte.st`, which is a hostname and not this token.
+        named = re.compile("|".join(rf"(?<![A-Za-z0-9]){re.escape(n)}(?![A-Za-z0-9])"
+                                    for n in tool_names(name)), re.IGNORECASE)
         for (path, lineno), line in sorted(by_line.items()):
-            if not token.search(line):
+            if not named.search(line):
                 continue
-            here = VERSION_LITERAL_RE.findall(line)
-            if value in here:
+            # A DECLARED NON-PIN IS NOT EVIDENCE ABOUT A TOOL'S VERSION, so it
+            # is not counted here either. Without this, a PIN_FREE literal on a
+            # line that happens to name a pinned tool reds with no declaration
+            # path anywhere — arm A would excuse it and arm B could not.
+            here = [x for x in VERSION_LITERAL_RE.findall(line) if (path, x) not in PIN_FREE]
+            if not here or value in here:
                 continue
             err(f"{path}:{lineno} names {tool_token(name)} and the version(s) {', '.join(here)}, and "
                 f"none of them is {value} — the version {HOSTED_HALF} pins as {name} today. The line "
@@ -1957,8 +2039,10 @@ def _no_mirror_reasons(path: str, jobs: dict[str, "Job"]) -> dict[str, str]:
 # their arm-B tokens (`fixture`, `other`), and the values are chosen not to
 # collide with any PIN_FREE literal the clean fixture plants below.
 FIXTURE_PIN = ("FIXTURE_VERSION", "1.2.3")
-FIXTURE_PIN_OTHER = ("OTHER_VERSION", "4.5.6")
-FIXTURE_PIN_LINE = f"# the fixture tool, pinned {FIXTURE_PIN[1]} to match hosted"
+# TWO WORDS, on purpose: its parts are `other` and `tool`, so a case can name
+# it by its SECOND part and catch a derivation that only looks at the first.
+FIXTURE_PIN_OTHER = ("OTHER_TOOL_VERSION", "4.5.6")
+FIXTURE_PIN_LINE = f"# the fixture binary, pinned {FIXTURE_PIN[1]} to match hosted"
 
 
 def plant_clean(t: str) -> None:
@@ -2055,6 +2139,14 @@ def plant_clean(t: str) -> None:
     # CLAIM 11, the clean shape: one correctly-restated pin in the local half…
     with open(os.path.join(t, LOCAL_HALF), "a") as fh:
         fh.write(f"{FIXTURE_PIN_LINE}\n")
+        # …and the two shapes this claim must NOT read, planted in the CLEAN
+        # fixture because that is where an over-eager matcher shows up. An IP
+        # address is not three versions overlapping (drop the lookbehind on
+        # VERSION_LITERAL_RE and `127.0.0` becomes a literal naming no pin),
+        # and a token inside a longer word is not the token (`another` is not
+        # `other`, whose pin this line does not carry).
+        fh.write("# binds on 127.0.0.1, which is an address and not a version\n")
+        fh.write(f"# another restatement, of {FIXTURE_PIN[1]}\n")
     # …and every PIN_FREE literal where its entry says it is, DERIVED for the
     # reason `_exempt_side` is derived: an entry added to that table would
     # otherwise red the CLEAN fixture through its own expiry arm, reporting
@@ -2064,6 +2156,16 @@ def plant_clean(t: str) -> None:
         os.makedirs(os.path.dirname(full), exist_ok=True)
         with open(full, "a") as fh:
             fh.write(f"# {lit}\n")
+    # THE INDEX IS THE POPULATION, so the fixture needs a real one — the same
+    # thing `check-python-lint.py`'s end-to-end plants do, for the same reason.
+    # LAST in this builder: a file created after it would not be listed.
+    for argv in (["git", "init", "-q"], ["git", "add", "-A"]):
+        done = subprocess.run(argv, cwd=t, capture_output=True, text=True, check=False)
+        if done.returncode != 0:
+            raise SystemExit(f"SELFTEST BROKEN: `{' '.join(argv)}` failed in the fixture "
+                             f"({done.stderr.strip()}). Claim 11 reads `git ls-files`, so the "
+                             "fixture has to be a git repo; this is a broken harness, not a "
+                             "verdict on the tree.")
 
 
 def _flag_spelling(flag: str) -> str:
@@ -2380,9 +2482,52 @@ def selftest() -> None:
     def pin_free_expired(t):
         _sub(t, _pin_free_first[0], f"# {_pin_free_first[1]}\n", "#\n")
 
+    # THE MOST LITERAL RESTATEMENT THERE IS: the pin's own KEY, set to another
+    # pin's value. Arm A sees a value ci.yml really does pin; arm B saw nothing
+    # at all until the key itself joined the spellings it looks for.
+    def pin_key_restated(t):
+        _append(LOCAL_HALF, f"{FIXTURE_PIN[0]}={FIXTURE_PIN_OTHER[1]}\n")(t)
+
+    # …and the same escape through capitalisation alone.
+    def pin_capitalised_tool(t):
+        _append(LOCAL_HALF, f"# Fixture {FIXTURE_PIN_OTHER[1]}\n")(t)
+
+    # A DECLARED NON-PIN ON A LINE THAT NAMES A PINNED TOOL. Arm A excuses it;
+    # arm B must not then red it, because there would be no declaration path
+    # left anywhere for a line the author has already explained.
+    _pin_free_local = sorted(lit for (path, lit) in PIN_FREE if path == LOCAL_HALF)
+
+    def pin_free_beside_a_tool(t):
+        _append(LOCAL_HALF, f"# fixture, near {_pin_free_local[0]} which is declared\n")(t)
+
+    # A CONFESSION THAT BECAME A PIN. The declared non-pin and a live pinned
+    # value are the same string, so arm A excuses the very copy it exists to
+    # find. Derived from the table, like every other case here.
+    _pin_free_first_lit = sorted(PIN_FREE)[0][1]
+
+    def pin_free_inverted(t):
+        _sub(t, HOSTED_HALF, f'"{FIXTURE_PIN[1]}"', f'"{_pin_free_first_lit}"')
+
+    # A MULTIWORD PIN NAMED BY ONE OF ITS PARTS. Derive the token by stripping
+    # `_VERSION` alone and this line names nothing this arm looks for.
+    def pin_multiword_part(t):
+        _append(LOCAL_HALF, f"# tool {FIXTURE_PIN[1]}\n")(t)
+
+    # THE POPULATION IS GIT'S, AND ITS ABSENCE IS A REFUSAL. Silently reading
+    # an empty listing is a claim 11 that checks nothing and says OK.
+    def pin_population_unlistable(t):
+        shutil.rmtree(os.path.join(t, ".git"))
+
     _case("pins no such version", pin_bumped)
+    _case("as a non-pin", pin_free_inverted)
+    _case(f"none of them is {FIXTURE_PIN_OTHER[1]}", pin_multiword_part)
+    _case("git ls-files", pin_population_unlistable)
     _case(f"none of them is {FIXTURE_PIN[1]}", pin_on_wrong_tool)
+    _case(f"none of them is {FIXTURE_PIN[1]}", pin_key_restated)
+    _case(f"none of them is {FIXTURE_PIN[1]}", pin_capitalised_tool)
     _case("no longer names it", pin_free_expired)
+    if _pin_free_local:
+        _ok_case(pin_free_beside_a_tool)
 
     _flag_exempt = sorted(FLAG_EXEMPT)
     if _flag_exempt:
@@ -2598,9 +2743,10 @@ def main() -> int:
           f"workflow in {WORKFLOW_DIR}/, every job in every one of them is either cited by the local "
           "half or says at its own key, in a sentence, why it has no local half, and no mirrored pair "
           "passes an undeclared semantics-bearing flag on one half only, or on only some of one half's "
-          "invocations, of a cargo subcommand both halves run, and every version literal under "
-          f"{PIN_TREE}/ is a version {HOSTED_HALF} pins today or is declared in PIN_FREE as something "
-          "else")
+          "invocations, of a cargo subcommand both halves run, and every version literal in the "
+          f"tracked files under {PIN_TREE}/ is a version {HOSTED_HALF} pins today or is declared in "
+          "PIN_FREE as something else, with every line that names a pinned tool carrying that "
+          "tool\u2019s current pin")
     return 0
 
 
