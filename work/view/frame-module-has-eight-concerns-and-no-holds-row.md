@@ -112,3 +112,29 @@ The cheap half asked for *"before another lane touches this file"* has
 now been skipped twice. Whether to take the `Holds` row now — and
 whether that section collapses into it or stays beside it — is the
 orchestrator's call, not a lane's.
+
+## The row is taken (#1957, 2026-09-05)
+
+`crates/viewer/README.md`'s app-vocabularies table now has a `frame`
+row, written the way `forms`' row is: the argument for what the module
+is for, and an explicit statement that **the charter justifies taking
+each of these out of `app` and not their being one module.** A new
+concern now has a field to be written into, and the row points here for
+the split.
+
+**What deferring it three times cost, since the item asks.** `frame.rs`
+was 984 lines when this was filed, 1,131 at #1886, 2,037 at #1933 and
+**2,298** at this unit's head — so the row is taken and the file still
+grew — and each of the three took the expensive
+half. The specific cost is visible in this unit's own review: the
+README obligation was answered a second time as prose beneath the
+table, which grew that section from 29 lines to ~46 before the row
+existed to carry any of it. Prose beneath a table has no field to make
+longer, so there was no diff at which any of the three looked
+unreasonable — which is this item's thesis, reproduced a third time by
+the units that read it.
+
+**What the row does not do.** It does not split the module, and it does
+not pretend to cover the eight concerns honestly — it says so in the
+row itself. The second move above is still open and is still not a
+lane's call.
