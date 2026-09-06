@@ -3404,3 +3404,71 @@ at the one door that mints it.
 That is a residue inside VIEW's own fence and it is in a PR body rather
 than a file. Asked for the file before merge — merging without it
 repeats exactly the failure this program has spent the session fixing.
+
+## #1957's fix pass: the rule reads honestly, and a regression is confirmed (2026-09-06)
+
+Green on the merged head after 386 commits of `origin/main`. Ev's
+ruling recorded and the item closed.
+
+### The rule now says what it can and cannot do
+
+The header used to claim of its mechanical restatement *"that is the
+whole test."* All three reasons it is not are now written where the
+sweep will meet them:
+
+- **held-state is a property of the FACT, not of a signature** —
+  `unindexed_refusal` takes a `&NotIndexed`; what makes it an outcome
+  is that `pick::unindexed` raises it for a `Select` and nothing else;
+- **tracing to the raiser does not settle it either** — `Disagreement`
+  reads only held state and is recomputed every frame the cursor holds
+  still, so the mechanical form alone badges it; what sorts it is *a
+  reader consults*, which is load-bearing;
+- **whether a fact is held is a choice the author makes** — with this
+  unit's own two new fields as the worked case.
+
+That last sentence is uncomfortable to write about one's own diff and
+is the most useful one in the header. A rule that states its own limit
+is worth more to a twenty-site sweep than a crisper rule that does not.
+
+### S18 confirmed: a regression this unit introduces
+
+`projection_fault` is written in exactly one place, and `viewport_ui`
+returns before both writers when either extent is zero — and is not
+called at all when the pane is not drawn. **The old code had a sweeper
+and the new code does not**: the same condition used to leave a stale
+sentence that the next `Clear` took, and no `StatusUpdate` reaches a
+badge.
+
+Filed with both arms analysed. **The cheap arm — clearing at the
+zero-aspect return — is asked for before merge**, because it costs one
+line, adds no state, and closes the arm a user reaches by dragging a
+splitter. The tabbed-away arm needs a "the viewport did not draw this
+frame" latch, which is a **third** piece of app-gated state and so
+exactly what `frame.rs`'s header condemns; that is the sweep's or its
+own unit's.
+
+**Why the half rather than filing both and merging**:
+`docs/REVIEW-STYLE-DISPATCH.md` §4 says disclosure must not function as
+immunity, and this unit *introduces* the regression. A filed item is
+not a licence to ship the cheap arm of one. The lane is invited to
+push back if the one line is wrong.
+
+### The Holds row, taken — and the honest number
+
+`frame` has a row in the README's app-vocabularies table at last, after
+three units deferred it. The row argues, as `forms`' does, and says
+plainly that the charter justifies taking each concern **out of `app`**
+and not their being one module — pointing at the split item.
+
+And the lane reported that **the file still grew: 2,037 → 2,298.** The
+prose beneath the table shrank where the row took the load; the header
+grew more, because making the rule true cost more lines than the false
+version did. A lane that takes a deferred obligation and then reports
+its own headline metric getting worse is what makes the metric worth
+having.
+
+## #1953: the owed file landed (2026-09-06)
+
+`IndexRequest`/`IndexInputs` filed as VIEW's residue rather than left
+in a merged PR body. CI running on the new head. That is the last thing
+either of these two units owed.
