@@ -6,6 +6,7 @@ status: open
 opened: 2026-08-29
 github: 1186
 refs: [1176]
+needs_ev: true
 ---
 
 ## From GitHub issue 1186
@@ -46,3 +47,34 @@ Cited from the test header in `crates/pncad-py/tests/test_assembly_eval.py`.
 ## Home
 
 The corpus and its guard live in `crates/pncad-py/*`, LIB's `paths:` territory, and the census/audit gates on the bindings are its charter.
+
+## Question for Ev (2026-09-06, LIB orchestrator; `[ev]` PR)
+
+Which of the four options in this file's body closes the hole. The
+orchestrator's recommendation first:
+
+- **(A) A shared scene crate.** Lift the tour's assembly-authoring
+  functions (`demos/tour/src/assembly.rs`'s document builders, not the
+  rendering) into a small crate both `demo-tour` and a kernel-workspace
+  test depend on; a code-tier test then RE-AUTHORS the scene and pins
+  the saved text against `crates/pncad-py/tests/corpus/bench/`, the
+  `plate_param` pattern. Structure, derived constants and placement
+  literals all go red together. Cost: the tour's structure gains a
+  crate, and the demo-purpose rule (a demo is written the way a user
+  would write it) has to survive the move — the builders stay
+  user-shaped, only their home changes.
+- **(D) Narrow the claim.** Rewrite the corpus test's header so the
+  corpus claims only "the tour's scene as of its last regeneration,
+  with these five constants and these four post boxes pinned", and
+  delete the sentence that schedules a mechanism. Honest, cheap, and
+  the hole stays.
+- (B) building `demo-tour` in the code tier for one pin, and (C) a
+  render-lane diff that does not run on every PR, are listed in the
+  body and not recommended: (B) is a release build of the whole kernel
+  in a detached workspace for one text pin, (C) lands the check where
+  a PR cannot see it.
+
+Recommendation: (A) if the builders separate from the render deps
+cleanly (a read of `demos/tour/Cargo.toml` says they should: the scene
+functions use `pncad` only); (D) otherwise, with the header rewritten
+in the same PR that decides.
