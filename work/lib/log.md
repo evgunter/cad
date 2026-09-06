@@ -2891,3 +2891,11 @@ header claim with them. All four `[ev]` questions of the day are now
 ruled; the four units they produce (SAVEFORK, POLYGON, CORPUS, PRODUCT)
 queue behind Wave 1 for the box, each brief-as-spec off its item's
 "Ruled" section.
+
+**RULING REVISED — a Python `Product` is a memo on `Evaluation`, not a
+value (Ev, in chat, 2026-09-06: "sounds great!").** Ev asked on PR 2020
+whether an option with the good qualities of both the combined door and
+the clone-value door exists; it does: the gathered product memoized on
+the immutable Python `Evaluation`, keyed by tolerance — no new surface,
+no staleness, every consumer served. Recorded on the item as (5); the
+LIB-PRODUCT unit runs on it with the clone measurement kept.
