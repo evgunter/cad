@@ -130,7 +130,7 @@ should be visible on its own.
 | `view/homes` (`cursor_projection` to `camera`; `Generation::get` deleted) | #2089 | style + fix pass |
 | `view/debug-walk` (five field censuses made exhaustive) | #2093 | style + fix pass |
 | `view/censuses` (the remaining seven, in four hats) | #2103 | style — **in flight** |
-| `view/all-gate` (the `const ALL` gate, filed by #2046) | — | dispatched 2026-09-07 |
+| `view/all-gate` (the `const ALL` gate, filed by #2046) | #2106 | **correctness** — in flight |
 
 **Fifteen units on main. Two rules this wave earned**, both about
 evidence rather than code:
@@ -215,6 +215,18 @@ lane's miscount of the VIEW citations was propagated into a check-in
 before the fix pass established the real figure. A count is a claim
 like any other: it carries its enumeration rule, and it is re-derived
 rather than copied forward.
+
+**Operational, lane isolation**: `CARGO_TARGET_DIR` must be exported in
+EVERY command that can reach cargo, including one that only invokes a
+SCRIPT which shells out to it. Each Bash call is a fresh shell and
+inherits no earlier export, so a brief saying *before any cargo
+command* is read as being about the word `cargo` in the command line.
+`view/all-gate` reported this against itself: its `scripts/doc-gate.sh`
+run built into the worktree's own `target/` rather than the lane's
+private one. Harmless there — exclusive to that worktree, gitignored,
+nothing reached the branch — but the same slip under two lanes building
+at once is how disk reached 1.7G free on Sunday. Dispatches say
+*including a script that shells out to cargo* now.
 
 **Operational, for whoever reads the log's CI notes**: the slow interval
 shard is not a FIXED shard. `1/2` was slow on #2026/#2046 and `2/2` on
