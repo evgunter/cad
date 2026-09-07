@@ -546,3 +546,19 @@ unchanged. v6 dual dispatched: ordinal 1807 claimed on main at
 dispatch; parity byte 14 ⇒ R1 = OPUS, R2 = FABLE; briefs hashed and
 diff-identical modulo lane names; private build and scratch
 directories per lane. Both lanes running.
+
+## 2026-09-07 — DOCM-8 dual: R1 reported; R2 restarted after an API credit outage
+
+DOCM-8's dual dispatched 2026-09-06 15:33Z on frozen head 6d433b6f
+(ordinal 1807 claimed on main at dispatch, PR #2078; parity byte 14 ⇒
+R1 = OPUS, R2 = FABLE; briefs hashed and diff-identical modulo lane
+names). R1 reported (~55 min; APPROVE-WITH-FIXES with one MAJOR: the
+order-independence prose is false when a declared member face is
+SPLIT rather than merged away — a strict improvement over the base,
+where every such order refused, but the sentence and the missing
+issue file are the finding). R2 was terminated before its first
+action by the account's API usage credits running out; restarted
+2026-09-07 10:28Z on the same frozen head with the same brief. A
+wall-clock asymmetry between the arms (R2 ran ~19 h later), not an
+instrument one: the head, the brief and the isolation are unchanged,
+and R2 saw nothing of R1. Disclosed here and in the row at merge.
