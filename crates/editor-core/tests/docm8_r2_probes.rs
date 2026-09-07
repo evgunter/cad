@@ -588,3 +588,28 @@ fn r2_p4b_fragment_of_a_merged_face_via_pair_booleans() {
         }
     }
 }
+
+/// P7 (prose claim): the PR's own vanished fixture — `a`'s x = 1 wall
+/// inside `big`, declared against `far`'s wall — in every member
+/// order. Does "reordering the members changes nothing about whether
+/// it resolves" hold for a face consumed by containment?
+#[test]
+fn r2_p7_containment_consumed_face_by_order() {
+    let doc = ProfileDoc::empty_derived("r2_vanished_orders", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, big) = block(doc, (0.5, 3.0), (-1.0, 2.0), -1.0, 3.0);
+    let (doc, far) = block(doc, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
+    let mut outcomes = Vec::new();
+    for order in permutations(&[a, big, far]) {
+        let (docx, union, _) = declared_union(doc.clone(), &order, |u| {
+            vec![(
+                member_face(u, a, fname(a, wall(1))),
+                member_face(u, far, fname(far, wall(3))),
+            )]
+        });
+        let ev = run(&docx);
+        let s = format!("{:?}", failure(&ev, union));
+        outcomes.push(format!("{order:?}: {}", &s[..s.len().min(140)]));
+    }
+    eprintln!("P7 outcomes:\n{}", outcomes.join("\n"));
+}
