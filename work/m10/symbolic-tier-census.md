@@ -365,15 +365,15 @@ against ON (`m10_10_pins_interval`,
 | plate | `carrier_on_surface_2` | 108/0/0/72 | 180/0/0/0 | **D + early A/B** (theorem) |
 | plate | `witness_on_surface_2` | 12/0/0/8 | 20/0/0/0 | **D + early A/B** (theorem) |
 | plate | `carrier_matches_mapped_source` | 180/0/8/64 | 180/0/72/0 | **D + the door** (registered: rule D meets the trig, the rim identity closes it) |
-| plate | `pcurve_map_residual` | 0/0/0/36 | 0/0/0/36 | — (the chart's phase `atan2(0, ‖a_r‖)`: a sign; `work/m10/pcurve-chart-phase-is-atan2-of-the-start-radial`) |
+| plate | `pcurve_map_residual` | 0/0/0/36 | 0/0/36/0 | **D (A1's `atan2` and half-π folds) + the door** (registered: the chart's phase `atan2(0, r²/sqrt(r²))` folds to the zero form as a syntactic fact, `cos π` on the negative frame to −1, and the rim identity closes the rest; `work/m10/pcurve-chart-phase-is-atan2-of-the-start-radial`, closed) |
 
 The five ceilings under the shipped set (three ε rows, the over-band
 set at ceiling + δ; `m10_10_pins_interval`):
 
 | document | M10-9 | M10-10 | bounded by |
 | --- | --- | --- | --- |
-| two-hole plate | `7.81e2 · ε` | `[1.2496e3, 1.2506e3] · ε` | `pcurve_map_residual` (identity: the chart phase) |
-| R1 annulus | `7.81e2 · ε` | `[1.2455e3, 1.2470e3] · ε` | `pcurve_map_residual` |
+| two-hole plate | `7.81e2 · ε` | 0.2368 / 0.2631 / 0.2631 of its REAL study (ε = 1e-6 / 1e-9 / 1e-12) | `assert_bound` — the study's web assertion, a REAL margin (no identity residual bounds the plate any more) |
+| R1 annulus | `7.81e2 · ε` | 0.6963 / 0.8416 / 0.8415 of its real study | `dihedral_wedge` at `1e-6`, `arc_diameter_clearance` at the finer rows — real margins |
 | R2 link | `4.93e2 · ε` | unmoved | `carrier_matches_mapped_source` (the carrier frame's 1,020-term form past the per-node cap) |
 | R2 filleted bracket | `3.87e2 · ε` | unmoved | `carrier_matches_mapped_source` |
 | R2 rounded pad | `2.08e3 · ε` | `[2.4990e3, 2.5010e3] · ε` | `line_span` (identity-shaped, below) |

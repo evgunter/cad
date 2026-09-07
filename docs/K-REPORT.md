@@ -2073,9 +2073,15 @@ sample through the door, because rule D makes the two spellings' trig
 meet and the rim identity the registrant states is what closes it, so
 the count is `registered` (necessity, as M10-9 defined it, and this is
 what necessity looks like when the algebra reaches further than the
-door alone). `pcurve_map_residual` stays 0/0/0/36: the chart's phase
-`atan2(0, ‖a_r‖)`, a sign no value-free rule reads
-(`work/m10/pcurve-chart-phase-is-atan2-of-the-start-radial`).
+door alone). `pcurve_map_residual` 0/0/0/36 → 0/0/36/0 — the door
+again, once rule D's amendment-A1 folds take the chart's phase:
+`atan2(0, r²/sqrt(r²))` is `atan2` of the zero form over a form
+non-negative BY SYNTAX and folds to the zero form (no sign read; the
+`r² = 0` box is one clause 1 refuses first), and on the
+definitely-negative frame the azimuth's `+ π` leaves `cos π = −1`;
+the rim identity closes the rest. Still no new token: a fold that
+reads a syntactic class is a theorem, and what the door closes is
+`registered`.
 
 ### The ceilings
 
@@ -2084,31 +2090,36 @@ ceiling + δ (`m10_10_pins_interval`, both bracket ends asserted):
 
 | document | M10-9 | M10-10 | over the band at ceiling + δ |
 | --- | --- | --- | --- |
-| two-hole plate | `[7.811e2, 7.814e2] · ε` | `[1.2496e3, 1.2506e3] · ε` | `pcurve_map_residual` `[0, 1.0004 · ε]` |
-| R1 annulus | `[7.805e2, 7.810e2] · ε` | `[1.2455e3, 1.2470e3] · ε` | `pcurve_map_residual` `[0, 1.0002 · ε]` |
+| two-hole plate | `[7.811e2, 7.814e2] · ε` | **0.2368 / 0.2631 / 0.2631 of its REAL study** (`[2.3680e5, 2.3687e5] · ε`, `[2.6306e8, 2.6316e8] · ε`, `[2.6305e11, 2.6318e11] · ε`) | `assert_bound` `[9.99e-6, 1.90e-4]`, `[−2.09e-9, 2.00e-4]`, `[−9.12e-9, 2.00e-4]` — the web assertion |
+| R1 annulus | `[7.805e2, 7.810e2] · ε` | **0.6963 / 0.8416 / 0.8415 of its real study** | `dihedral_wedge` `[9.99e-6, 5.31e-2]`; `arc_diameter_clearance` `[−5.61e-8, 8.44e-4]`, `[−3.99e-8, 8.44e-4]` |
 | R2 link | `[4.930e2, 4.934e2] · ε` | unmoved | `carrier_matches_mapped_source` `[0, 1.0004 · ε]` |
 | R2 filleted bracket | `[3.871e2, 3.873e2] · ε` | `[3.870e2, 3.874e2] · ε` (unmoved) | `carrier_matches_mapped_source` `[0, 1.0003 · ε]` |
 | R2 rounded pad | `[2.083e3, 2.084e3] · ε` | `[2.4990e3, 2.5010e3] · ε` | `line_span` `[−1.0005 · ε, 1.0005 · ε]` |
 
-Every ceiling still scales with ε — each is bounded by an identity
-residual. With `pcurve_map_residual` passed by the staged dial the
-plate certifies 0.2368, 0.2630 and 0.2631 of its REAL study at the
-three rows and the first refusal beyond is `assert_bound` — a real
-margin, at `1e-12` a genuine flip (`[−4.1e-8, 2.0e-4]`): the ceiling
-stops scaling with ε there, one named residual away.
+The plate's and the annulus's ceilings stopped scaling with ε: each
+is a fraction of its real study, bounded by a real margin. The
+plate's rows are the staged walk's own end (0.2368, 0.2630, 0.2631
+with every identity residual passed) to the bisection step — the
+shipped tier is at the end of the walk with nothing passed, and
+passing residuals moves it by nothing. The other three still scale
+with ε, bounded by identity residuals.
 
 ### The driver row
 
-`m10_3_driver_k_probe_interval`'s `two_hole_plate_narrow` is
-re-scaled to `1.6e3 · ε` (just above the new ceiling, so the driver
-still splits once). Local driver K row, the sweep's own configuration
-(`--features probe,interval`, dev profile, three ε rows, `k-lint
---gate-rule-1-only`): per file `75836 samples (48842 symbolic_zero, 0
-sign_gated, 208 registered, 26786 classified)`, rule 1 `0` at every
-row; `TOTAL over 3 file(s): 227508 samples (146526 symbolic_zero, 0
-sign_gated, 624 registered, 80358 classified), rule 1 (undecided/invalid)
-0`. Against M10-9's 48,682 `symbolic_zero` per CSV that is +160 per
-row; the hosted log's lines are quoted in the PR body.
+`m10_3_driver_k_probe_interval`'s `two_hole_plate_narrow` stays at
+`1.6e3 · ε` — ε-relative like the slabs, and now far inside the
+plate's ceiling at every row, so it certifies whole in ONE leaf whose
+certified-midpoint replay carries the arc family. Local driver K row,
+the sweep's own configuration (`--features probe,interval`, dev
+profile, three ε rows, `k-lint --gate-rule-1-only`): per file `74423
+samples (48039 symbolic_zero, 0 sign_gated, 140 registered, 26244
+classified)`, rule 1 `0` at every row; `TOTAL over 3 file(s): 223269
+samples (144117 symbolic_zero, 0 sign_gated, 420 registered, 78732
+classified), rule 1 (undecided/invalid) 0`. Against the pre-A1 cut
+(two leaves at that scale: 208 registered, 26786 classified per file)
+the delta is exactly the fixture's second leaf gone and, per leaf, the
+36 `pcurve_map_residual` decisions moved numeric → registered (104 →
+140 per leaf); the hosted log's lines are quoted in the PR body.
 
 ### The stackup hull pads by the leaf
 

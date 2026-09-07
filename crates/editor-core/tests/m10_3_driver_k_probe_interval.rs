@@ -111,12 +111,14 @@ fn documents() -> Vec<(&'static str, ProfileDoc)> {
         ("slab_across_zero", slab(20.0 * eps, 40.0 * eps)),
         // **An ARC-bearing fixture**, so the driver population carries
         // the arc family: the tour's two-hole plate scaled to
-        // `1.6e3 * eps` of the real study — just ABOVE its
-        // whole-certifying ceiling, which is `1.25e3 * eps` at every
-        // epsilon row (`m10_10_pins_interval`), so the driver splits
-        // once and certifies two leaves whose certified-midpoint replays
-        // exercise the symbolic tier on the holes' cylindrical
-        // carriers. The slabs above contribute `symbolic_zero` samples
+        // `1.6e3 * eps` of the real study. That was just above its
+        // whole-certifying ceiling before amendment A1 (the driver
+        // split once); the ceiling is a fraction of the REAL study now
+        // (`m10_10_pins_interval`), so the box certifies whole in ONE
+        // leaf whose certified-midpoint replay exercises the symbolic
+        // tier on the holes' cylindrical carriers — the population
+        // wants the arc family present, not a split. The slabs above
+        // contribute `symbolic_zero` samples
         // too (their straight-walled identities discharge through the
         // plain form); what only this fixture contributes is the ARC
         // family's — the constant fold A0's, rule D's and the per-node

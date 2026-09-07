@@ -386,6 +386,127 @@ fn m10_10_the_stackup_hulls_under_both_rule_sets() {
             }
         }
     }
+    // With `CAD_M10_10_CEILINGS` set: each fixture's whole-certifying
+    // half-width under the shipped set, bisected between `ε/8` and the
+    // authored radius — the number M10-4's rows are scaled against.
+    if std::env::var("CAD_M10_10_CEILINGS").is_ok() {
+        let whole = |doc: &ProfileDoc| {
+            let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
+            let v = drive(
+                doc,
+                &analyzed,
+                &DriveConfig {
+                    max_leaves: 1,
+                    ..DriveConfig::default()
+                },
+                tol,
+            )
+            .expect("builds");
+            v.receipt().splits == 0 && v.receipt().certified == 1
+        };
+        let fixtures: [(&str, &dyn Fn(f64) -> ProfileDoc); 2] = [
+            ("two_hole_plate (m10_4)", &|h: f64| {
+                crate::m10_4_stackup_interval::plate(
+                    Some(crate::m10_4_stackup_interval::uniform(h)),
+                    Some(crate::m10_4_stackup_interval::uniform(h)),
+                )
+                .0
+            }),
+            ("bore_pin_fit", &|h: f64| {
+                crate::m10_4_r2_probes_interval::fit(Some(
+                    crate::m10_4_r2_probes_interval::uniform(-h, h),
+                ))
+                .0
+            }),
+        ];
+        for (name, at) in fixtures {
+            let (mut lo, mut hi) = (half, 0.1);
+            println!(
+                "   {name}: lo {lo:e} whole={} hi {hi:e} whole={}",
+                whole(&at(lo)),
+                whole(&at(hi))
+            );
+            for _ in 0..20 {
+                let mid = 0.5 * (lo + hi);
+                if whole(&at(mid)) {
+                    lo = mid;
+                } else {
+                    hi = mid;
+                }
+            }
+            println!(
+                "   {name}: whole-certifying half-width bracket [{lo:e}, {hi:e}] at eps {eps:e}"
+            );
+        }
+    }
+}
+
+/// **The plate's REAL study driven whole** — ±0.05 mm on the spacing,
+/// σ = 0.01 mm on each radius, the tour's own drive (1024 leaves):
+/// the receipt, the certified leaves, the refusals BY CLASS with the
+/// predicates they name, and the stackup's answer. `CAD_M10_10_SCALE`
+/// scales the study (default 1).
+#[test]
+#[ignore = "evidence-only: drives the plate's real study whole and prints the receipt"]
+fn m10_10_the_plates_real_study_driven_whole() {
+    use std::collections::BTreeMap;
+
+    use editor_core::drive::{DriveConfig, drive};
+    use editor_core::stackup::stackup;
+
+    let tol = Tol::witness();
+    let scale: f64 = std::env::var("CAD_M10_10_SCALE")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(1.0);
+    let max_leaves: usize = std::env::var("CAD_M10_10_LEAVES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(1024);
+    let (doc, measure, _) = crate::m10_7_plate::plate(5.0e-5 * scale, 1.0e-5 * scale, tol);
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let t = std::time::Instant::now();
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig {
+            max_leaves,
+            ..DriveConfig::default()
+        },
+        tol,
+    )
+    .expect("the nominal builds");
+    println!(
+        "== plate x{scale:e} at {max_leaves} leaves: {:?} in {:.2}s; {} certified, {} refused",
+        verdict.receipt(),
+        t.elapsed().as_secs_f64(),
+        verdict.certified().len(),
+        verdict.refused().len()
+    );
+    let mut classes: BTreeMap<String, usize> = BTreeMap::new();
+    for leaf in verdict.refused() {
+        let key = format!("{:?}", leaf.reason);
+        let key = key
+            .split(['{', '('])
+            .next()
+            .unwrap_or(&key)
+            .trim()
+            .to_owned();
+        *classes.entry(key).or_default() += 1;
+    }
+    println!("   refusals by class: {classes:?}");
+    let mut shown = 0;
+    for leaf in verdict.refused() {
+        if shown < 6 {
+            println!("   {:?}", leaf.reason);
+            shown += 1;
+        }
+    }
+    println!("{}", verdict.render(&analyzed));
+    match stackup(&doc, measure, &analyzed, &verdict, None, true, tol) {
+        Ok(report) => println!("   stackup OK:\n{}", report.render(&analyzed)),
+        Err(e) => println!("   stackup refused: {e}"),
+    }
 }
 
 /// **The cost per leaf** — one whole-box replay of each document at a

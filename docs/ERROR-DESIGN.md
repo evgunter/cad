@@ -651,19 +651,28 @@ number.
   rewrites `sin`/`cos` of `q · atan(X)` to rational functions of `X`
   and the atom `sqrt(1 + X²)` — multiples by angle addition, halves on
   the positive branch, which the RANGE of `atan` fixes and no value
-  reads — and rules A/B per node close the ring. Three of the plate's
-  four identity residuals go (two as theorems, the scaffold residual
-  through the door at every sample, since the rim identity the
-  registrant states is what closes it); the fourth is the chart's own
-  phase, `atan2(0, ‖a_r‖)` from the cylinder chart derivation, zero
-  because `‖a_r‖ > 0` — a sign, which is rule C's kind or the chart
-  derivation's to state structurally
-  (`work/m10/pcurve-chart-phase-is-atan2-of-the-start-radial`). The
-  plate's ceiling moves from `7.81e2 · ε` to `1.25e3 · ε` and is
-  bounded by that one residual at every ε row; with it passed the
-  plate certifies 0.24–0.26 of its REAL study and the first refusal
-  beyond is the assertion's own margin. The exit condition is one named
-  residual away.
+  reads — and rules A/B per node close the ring; and, under the same
+  dial (amendment A1), `atan2` of the zero form over a form
+  non-negative BY SYNTAX is the zero form, and `sin`/`cos` at an exact
+  half-multiple of π is its constant. All four of the plate's identity
+  residuals go: two as theorems, the scaffold residual through the door
+  at every sample (the rim identity the registrant states is what
+  closes it), and the chart's own phase — `atan2(0, r²/sqrt(r²))` from
+  the cylinder chart derivation, whose `u_ref` on the extrude's wall is
+  the start's own radial — folds as a fact about `atan2` on a syntactic
+  class (positive wherever the arc exists; the degenerate box is
+  clause 1's), with the rim identity closing the rest through the door.
+  No sign was read. The plate's whole-certifying box is 0.2368, 0.2631
+  and 0.2631 of its REAL study at ε = 1e-6, 1e-9, 1e-12 — the staged
+  walk's own end, and the ceiling stopped scaling with ε — bounded by
+  `assert_bound`, the study's web assertion (a genuine flip at the two
+  finer rows); driven whole at 1024 leaves the real study returns
+  certified leaves and refusals by real flips (the tour's stop 1). R1's
+  annulus likewise certifies 0.70–0.84 of its real study, bounded by
+  its own dihedral and arc-diameter margins. The link, the bracket and
+  the pad are still ε-scale, bounded by identity residuals whose
+  operands the per-node cap does not reach
+  (`work/m10/symbolic-tier-census`).
 
 Rationale: the driver's job is to certify over the STUDY's box; a
 certifier that can only certify boxes narrower than its own ε is

@@ -225,7 +225,12 @@
 //! positive branch (a theorem of `atan`'s RANGE: `φ/2ʲ ∈ (−π/4, π/4)`
 //! has a positive cosine, so `cos(θ/2) = +sqrt((1 + cos θ)/2)` and
 //! `sin(θ/2) = sin θ/(2·cos(θ/2))`, no sign read), multiples by angle
-//! addition. Nothing folds at any other argument shape. The two
+//! addition; and, under the same dial (amendment A1), `atan2(Z, N)` of
+//! the zero form over a form non-negative BY SYNTAX (`sqrt`/`abs`
+//! atoms, even powers, positive coefficients, perfect squares, and
+//! their products, quotients and sums — `trig::manifestly_nonneg`) is
+//! the zero form, and `sin`/`cos` at an exact half-multiple of π is
+//! its constant. Nothing folds at any other argument shape. The two
 //! spellings of an arc — the pushforward's `sin(s·θ)`, `−2·sin²(s·θ/2)`
 //! at `θ = 4·atan b` and the carrier's `cos t`, `sin t` at `t =
 //! (i/8)·4·atan|b|` — are then rational functions of the same atoms,
@@ -251,43 +256,58 @@
 //! 180/0/72/0, every sample through the DOOR — rule D makes the trig
 //! meet, and the rim identity `‖q − c‖ = r` the registrant states is
 //! what closes it, so the count is `registered`, honestly. The fourth
-//! residual the staged walk names, `pcurve_map_residual`, stays
-//! 0/0/0/36: it carries the chart's phase `atan2(0, ‖a_r‖)` from the
-//! cylinder chart derivation, and `atan2(0, X) = 0` needs the sign of
-//! `X` — rule C's kind, or a chart that states its phase structurally
-//! (`work/m10/pcurve-chart-phase-is-atan2-of-the-start-radial`).
+//! residual the staged walk names, `pcurve_map_residual`, 0/0/0/36 →
+//! 0/0/36/0 through the door as well: it carries the chart's phase
+//! `atan2(0, r²/sqrt(r²))` from the cylinder chart derivation
+//! (`pcurve_cache::stable_azimuth`, whose `u_ref` on the extrude's
+//! wall is the start's own radial), which the A1 fold takes as the
+//! zero form — `atan2` of the zero form over a form non-negative by
+//! syntax, positive wherever the arc exists, and the `r² = 0` box is
+//! one clause 1 refuses first — and on the definitely-negative frame
+//! the azimuth's `+ π` leaves `cos π = −1`; the rim identity closes
+//! what is left. Nothing read a sign: the fold is a fact about
+//! `atan2`'s value on a syntactic class, the same posture as the
+//! half-angle branch.
 //!
 //! **What it moves, measured at ε = 1e-6, 1e-9 and 1e-12** (the
-//! over-band set at ceiling + δ; `m10_10_evidence_interval`):
+//! over-band set at ceiling + δ; `m10_10_evidence_interval`, pinned in
+//! `m10_10_pins_interval`):
 //!
 //! | document | M10-9 | M10-10 | over the band at ceiling + δ |
 //! | --- | --- | --- | --- |
-//! | two-hole plate | `7.81e2 · ε` | `[1.2496e3, 1.2506e3] · ε` | `pcurve_map_residual` `[0, 1.0004 · ε]` |
-//! | R1 annulus | `7.81e2 · ε` | `[1.2455e3, 1.2470e3] · ε` | `pcurve_map_residual` |
+//! | two-hole plate | `7.81e2 · ε` | **0.2368 / 0.2631 / 0.2631 of its REAL study** (the three rows) | `assert_bound` — the web assertion, `[−2.1e-9, 2.0e-4]` at `1e-9` |
+//! | R1 annulus | `7.81e2 · ε` | **0.6963 / 0.8416 / 0.8415 of its real study** | `dihedral_wedge` `[1.0e-5, 5.3e-2]` at `1e-6`; `arc_diameter_clearance` `[−5.6e-8, 8.4e-4]` at the finer rows |
 //! | R2 link | `4.93e2 · ε` | unmoved | `carrier_matches_mapped_source` |
 //! | R2 filleted bracket | `3.87e2 · ε` | unmoved | `carrier_matches_mapped_source` |
 //! | R2 rounded pad | `2.08e3 · ε` | `[2.4990e3, 2.5010e3] · ε` | `line_span` (identity-shaped) |
 //!
-//! Every ceiling still scales with ε — each is bounded by an identity
-//! residual, not by a real margin. On the link and the bracket the
-//! scaffold residual stands because their arcs' carrier FRAMES do not
-//! fit: explained at the link's ceiling, the pushforward's component is
-//! a 3-term form and the carrier's a 1,020-term form over a 66-term
+//! The plate's and the annulus's ceilings STOPPED scaling with ε: each
+//! is a fraction of the document's real study, bounded by a real
+//! margin — on the plate the study's own web assertion, whose
+//! enclosure's lower end is past zero at `1e-9` and `1e-12` (a genuine
+//! flip) and at the band's floor at `1e-6`; the plate's rows are the
+//! staged walk's own end (0.2368, 0.2630, 0.2631 with every identity
+//! residual passed) to the bisection step, and passing further
+//! residuals moves nothing. Driven whole at 1024 leaves the plate's
+//! real study returns certified leaves and refusals by real flips
+//! (`m10_10_the_plates_real_study_driven_whole`, the tour's stop 1).
+//! The other three still scale with ε — each is bounded by an
+//! identity residual. On the link and the bracket the scaffold
+//! residual stands because their arcs' carrier FRAMES do not fit:
+//! explained at the link's ceiling, the pushforward's component is a
+//! 3-term form and the carrier's a 1,020-term form over a 66-term
 //! denominator (its `radial · ρ` alone 150 terms of degree 15), past
 //! the per-node cap, so nothing reduces it and the squared components
 //! freeze at the term budget — the trig meets, the frame does not; on
 //! the pad the fillet's identity-shaped `line_span`
-//! (`work/m10/symbolic-tier-census`). With
-//! `pcurve_map_residual` passed by the staged dial the plate certifies
-//! 0.237–0.263 of its REAL study at all three rows and the first
-//! refusal beyond it is the assertion's own margin — a real one, and
-//! at `1e-12` a genuine flip — so the exit condition is one residual
-//! away and that residual is named.
+//! (`work/m10/symbolic-tier-census`).
 //!
 //! **What it costs** (release, one whole-box leaf, algebra off → on):
-//! plate at `1e2 · ε` 0.20 s; plate at its REAL study 0.02 → 0.13 s
-//! (the affordability line is 1.6 s); bracket 0.57 → 0.64 s; annulus
-//! 0.09 → 0.18 s; pad 2.1 → 10.1 s; link 0.47 → 5.2 s. The ring stays
+//! plate at `1e2 · ε` 0.15 → 0.21 s; plate at its REAL study 0.02 →
+//! 0.20 s (the affordability line is 1.6 s; with A1 every residual is
+//! worked to the end, so the leaf costs what the whole walk costs);
+//! bracket 0.51 → 0.81 s; annulus 0.09 → 0.17 s; pad 2.2 → 10.1 s;
+//! link 0.42 → 5.0 s. The ring stays
 //! at [`COEFF_BITS`] = 256: the three residuals discharge there once
 //! the zero normalization is in, and 512 and 1024 add no discharge
 //! (measured before it: 512 moved nothing, 1024 reached two of the
@@ -1585,7 +1605,7 @@ impl SymRules {
     /// | A0 alongside (`const_fold` + `early`) | bracket 10.4×, annulus 39×, the shaft's ±0.1 study certifies whole; loses nothing | plate 0.35 → 0.65 s, bracket 1.47 → 2.7 s | **yes** |
     /// | A0 replacing (`const_fold` alone) | the same ceilings | plate 0.37 s, bracket 1.46 s | no: loses theorems to bound freezes |
     /// | the door (`registered`) | none alone; the `i = 0` sample of the scaffold residual and both endpoint pinnings | ~0 | **yes** |
-    /// | D + A/B per node (`trig_of_atan`, `early_ab`, `sqrt_square`, `pythagoras`) | plate 1.60× and annulus 1.60× (three of the plate's four identity residuals), pad 1.20× | plate 0.13 s at its real study, pad 2.1 → 10.1 s, link 0.47 → 5.2 s | **yes** |
+    /// | D + A/B per node (`trig_of_atan`, `early_ab`, `sqrt_square`, `pythagoras`), with A1's `atan2` and half-π folds under D's dial | the plate's four identity residuals all go: the plate certifies 0.24–0.26 and the annulus 0.70–0.84 of their REAL studies, bounded by real margins; pad 1.20× | plate 0.20 s at its real study, pad 2.2 → 10.1 s, link 0.42 → 5.0 s | **yes** |
     /// | C in the early walk (`signed_root`) | none; folds on no document at 256 bits | ~2× | no (inert; reads a value) |
     ///
     /// The pins in `m10_8_pins_interval.rs`, `m10_9_pins_interval.rs`
@@ -2348,9 +2368,18 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
             // whatever the sign argument does (±0 is one real).
             // atan2(0, x) is 0 or π depending on the sign of x — not a
             // fold the form can take without reading a value.
+            // atan2(0, N) with N non-negative BY SYNTAX is 0 — rule D's
+            // second fold, early walk only (`trig::manifestly_nonneg`
+            // carries the argument); any other atan2 stays an atom.
             let folds = match node.op {
                 SymOp::Min | SymOp::Max => a.is_zero() && b.is_zero(),
                 SymOp::Copysign => a.is_zero(),
+                SymOp::Atan2 => {
+                    early
+                        && sess.rules.trig_of_atan
+                        && a.is_zero()
+                        && trig::manifestly_nonneg(b, sess)
+                }
                 _ => false,
             };
             if folds {
@@ -4312,5 +4341,83 @@ mod tests {
         // here so the shapes are exercised, and what they pin is that
         // no fold PANICS or POISONS on them.
         assert_eq!(&rows[2..], ["theorem", "theorem"]);
+    }
+
+    /// **Rule D's second fold: `atan2(0, N) = 0` for an `N` non-negative
+    /// BY SYNTAX** — a `sqrt` atom, an even power, and the chart phase's
+    /// own `r²/sqrt(r²)` with `r = nominal + δ` (a perfect square over a
+    /// `sqrt` atom) decide `Zero` as theorems; and it NEVER folds at
+    /// `atan2(0, X)` for a plain parameter, at `atan2(Y, N)` with `Y` a
+    /// numeric zero that is not the zero form (a coincidence of two
+    /// parameters at one nominal), or at `atan2(0, 0)` as a form.
+    #[test]
+    fn rule_d_folds_atan2_of_the_zero_form_over_a_manifestly_nonnegative_form_and_nothing_else() {
+        let (rows, counts) = with_session(budget(), || {
+            let x = p("x", 0.37);
+            let d = p("delta", 1.0e-5);
+            let zero = Sym::zero();
+            let r = Sym::from_f64(1.25e-3) + d;
+            let r2 = r * r;
+            [
+                how(zero.atan2(x.sqrt())),
+                how(zero.atan2(x * x)),
+                how(zero.atan2(r2 / r2.sqrt())),
+                how(zero.atan2(x.abs() * x.sqrt() + x * x)),
+            ]
+        });
+        assert_eq!(rows, ["theorem"; 4], "{counts:?}");
+        assert_eq!((counts.sign_gated, counts.registered), (0, 0));
+        let (rows, _) = with_session(budget(), || {
+            let x = p("x", 0.37);
+            let y = p("y", 0.0);
+            let x2 = p("x2", 0.37);
+            let zero = Sym::zero();
+            [
+                // A plain parameter has no sign the form knows.
+                how(zero.atan2(x)),
+                // A numeric zero in the first slot is not the zero form.
+                how(y.atan2(x.sqrt())),
+                // Two parameters equal at the nominal: a coincidence.
+                how((x - x2).atan2(x.sqrt())),
+                // `atan2(0, 0)` as a form claims nothing.
+                how(zero.atan2(zero)),
+                // An odd power in a positive-coefficient sum.
+                how(zero.atan2(x * x + x)),
+            ]
+        });
+        assert_eq!(rows, ["numeric"; 5]);
+    }
+
+    /// **Rule D's third fold: `sin`/`cos` at an exact half-multiple of
+    /// π** — `cos π = −1`, `sin π = 0`, `cos(π/2) = 0`, `sin(3π/2) =
+    /// −1`, `cos(2π) = 1` decide as theorems; `cos(π/3)` and
+    /// `cos(π + atan X)` never fold.
+    #[test]
+    fn rule_d_folds_trig_at_half_multiples_of_pi_and_nothing_else() {
+        let (rows, counts) = with_session(budget(), || {
+            let pi = Sym::<f64>::pi();
+            let one = Sym::from_f64(1.0);
+            let half = Sym::from_f64(0.5);
+            [
+                how(pi.sin_cos().1 + one),
+                how(pi.sin_cos().0),
+                how((pi * half).sin_cos().1),
+                how((pi * Sym::from_f64(1.5)).sin_cos().0 + one),
+                how(Sym::tau().sin_cos().1 - one),
+            ]
+        });
+        assert_eq!(rows, ["theorem"; 5], "{counts:?}");
+        assert_eq!((counts.sign_gated, counts.registered), (0, 0));
+        let (rows, _) = with_session(budget(), || {
+            let pi = Sym::<f64>::pi();
+            let x = p("x", 0.3);
+            // A value-equal spelling on the other side keeps each row
+            // a genuine identity that must stay NUMERIC.
+            [
+                how((pi / Sym::from_f64(3.0)).sin_cos().1 - Sym::from_f64(0.5)),
+                how((pi + x.atan()).sin_cos().1 + x.atan().sin_cos().1),
+            ]
+        });
+        assert_eq!(rows, ["numeric"; 2]);
     }
 }

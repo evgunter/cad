@@ -216,10 +216,12 @@ fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign
 /// which the first three were worth 2× between them and the fourth
 /// 1.68·10⁵×, and then a REAL assertion margin
 /// (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`); with the
-/// form-level algebra three of the four are discharged and the walk is
-/// one residual long: the chart's phase, from `1.25e3 · ε` to 0.24–0.26
-/// of the real study at every ε row
-/// (`work/m10/pcurve-chart-phase-is-atan2-of-the-start-radial`).
+/// form-level algebra (rule D with A1's `atan2` fold for the chart's
+/// phase) all four are discharged and the shipped tier sits AT the
+/// walk's end — 0.2368, 0.2630, 0.2631 of the real study at the three
+/// ε rows with nothing passed, and passing any residual moves it by
+/// nothing (`m10_9_r2_probes_interval::r2_evidence_plate_ceiling_with_identities_passed`).
+/// The dial stays: it is how the NEXT document's walk is measured.
 ///
 /// Process-global and empty by default. An evidence row sets it, reads
 /// its ceiling, and clears it; it is never set in a gating run, and

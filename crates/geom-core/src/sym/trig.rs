@@ -63,10 +63,83 @@
 //! The `sqrt` atoms this module mints are recorded like every other
 //! atom, so rule A reaches their squares, and they are keyed by their
 //! argument's form, so the two spellings of one arc mint ONE atom each.
+//!
+//! **The second fold: `atan2(0, N) = 0` for an `N` non-negative by its
+//! syntax** (`manifestly_nonneg`) — the cylinder chart's phase,
+//! `atan2(a_r · v_ref, a_r · u_ref)` with `u_ref` the start's own
+//! radial, is `atan2(0, r²/sqrt(r²))`, and the arc exists only where
+//! that radial length is positive. Every other `atan2` stays an atom.
+//!
+//! **The third fold: `sin`/`cos` at an exact half-multiple of π**
+//! (`fold_at_half_pi`) — what the branch-stabilized azimuth leaves
+//! behind on a definitely-negative frame, where the phase is
+//! `atan2(−y, −x) + π` and, once the `atan2` has folded, `π` itself:
+//! `cos π = −1`, `sin π = 0`, and the other three quadrants likewise.
+//! `π` is the form's own indeterminate, so this is the value of a
+//! function at a known constant read off the form; `cos(π/3)` and
+//! `π` beside anything else stay atoms.
+//!
+//! Both A1 folds live under rule D's dial: they are the same rule's
+//! posture (a function's range or value at a form the rule can read,
+//! no value of any parameter read) and the same measurement's
+//! mechanism — the chart's phase is what stood between the plate and
+//! its real study, and the two folds together are what takes it.
 
 use std::rc::Rc;
 
-use super::{AtomInfo, Form, Poly, Rat, Session, SymBudget, SymOp, indet_atom, within};
+use super::{
+    AtomInfo, Form, INDET_PI, Mono, Poly, Rat, Session, SymBudget, SymOp, indet_atom, signed,
+    within,
+};
+
+/// **`atan2(0, N) = 0` for an `N` that is non-negative BY ITS SYNTAX**
+/// — the second fold of rule D, on the same posture as the half-angle
+/// branch: a fact about a function's range read off the form, never a
+/// value.
+///
+/// `atan2(z, n)` is the angle of the point `(n, z)`; with `z = 0` it is
+/// `0` for `n > 0` and `π` for `n < 0`. A form is manifestly
+/// non-negative when its numerator and denominator are each either
+/// (a) a polynomial every term of which has a positive coefficient and
+/// a monomial whose indeterminates are `sqrt` or `abs` atoms (to any
+/// power) or anything else to an EVEN power — every such term is a
+/// product of non-negative reals wherever it has a value — or (b) a
+/// PERFECT SQUARE of a polynomial (`signed::poly_sqrt`, an exact
+/// arithmetic test that reads no value): `(k + δ)²` is one, and the
+/// chart phase's `r²/sqrt(r²)` is `(b)` over `(a)`. Such an `N` is
+/// `> 0` at every parameter point where it is defined and not zero,
+/// so the fold is a theorem there; where `N = 0` the geometry it comes
+/// from is degenerate (a radial of length zero), clause 1 — the
+/// numeric channel's own domain answer — decides first, and IEEE's
+/// `atan2(0, 0) = 0` agrees with the fold wherever a value exists. The
+/// zero polynomial itself is refused (nothing is claimed about
+/// `atan2(0, 0)` as a form), and so is a poisoned operand.
+///
+/// What never folds: `atan2(0, X)` for a plain parameter `X` (an odd
+/// power, no sign known), `atan2(Y, N)` with `Y` not the zero form
+/// (a numeric zero is a coincidence, not a form), and any `N` that is
+/// non-negative only in value.
+pub(super) fn manifestly_nonneg(n: &Form, sess: &Session) -> bool {
+    if n.poisoned || n.num.is_zero() {
+        return false;
+    }
+    let nonneg_mono = |m: &Mono| {
+        m.iter().all(|&(id, e)| {
+            e % 2 == 0
+                || sess
+                    .atoms
+                    .get(&id)
+                    .is_some_and(|a| matches!(a.op, SymOp::Sqrt | SymOp::Abs))
+        })
+    };
+    let nonneg_poly = |p: &Poly| {
+        p.terms
+            .iter()
+            .all(|(m, c)| !c.is_negative() && nonneg_mono(m))
+            || signed::poly_sqrt(p, sess.budget).is_some()
+    };
+    nonneg_poly(&n.num) && nonneg_poly(&n.den)
+}
 
 /// The largest `|k|` in `q = k / 2ᵐ` this rule folds.
 pub(super) const MAX_MULTIPLE: i128 = 32;
@@ -116,6 +189,56 @@ fn read_argument(arg: &Form, sess: &Session) -> Option<(i128, u32, Rc<Form>)> {
     Some((k, m, x))
 }
 
+/// **`sin`/`cos` at an exact half-multiple of π** — the third fold of
+/// rule D: an argument form that is exactly `(k/2) · π`, `k` an
+/// integer, has `cos = 1, 0, −1, 0` and `sin = 0, 1, 0, −1` by `k mod
+/// 4`. The value of a function at a known constant, read off the form
+/// (π is the form's own indeterminate, [`INDET_PI`]); no value is
+/// read. It is what the branch-stabilized azimuth leaves behind: on a
+/// definitely-negative frame the chart's phase is `atan2(−y, −x) + π`,
+/// and once the `atan2` has folded to the zero form the phase IS `π`.
+/// Any other multiple (`π/3`), or a `π` beside anything else, stays an
+/// atom.
+fn fold_at_half_pi(op: SymOp, arg: &Form) -> Option<Form> {
+    if arg.poisoned {
+        return None;
+    }
+    let den = arg.den.as_constant()?;
+    if den.is_zero() || arg.num.terms.len() != 1 {
+        return None;
+    }
+    let (mono, coeff) = arg.num.terms.iter().next()?;
+    if mono.as_slice() != [(INDET_PI, 1)] {
+        return None;
+    }
+    // `q = k/2`: a dyadic with at most one halving.
+    let q = coeff.mul(&den.recip()?)?;
+    if !q.den.is_one() || q.exp2 < -1 {
+        return None;
+    }
+    let super::Int::Small(n) = q.num else {
+        return None;
+    };
+    let k = if q.exp2 >= 0 {
+        n.checked_shl(u32::try_from(q.exp2 + 1).ok()?)?
+    } else {
+        n
+    };
+    let (c, s) = match k.rem_euclid(4) {
+        0 => (1, 0),
+        1 => (0, 1),
+        2 => (-1, 0),
+        _ => (0, -1),
+    };
+    let v = match op {
+        SymOp::Sin => s,
+        _ => c,
+    };
+    let mut out = Form::poly(Poly::constant(Rat::new(v, 1, 0)?));
+    out.gated = arg.gated;
+    Some(out)
+}
+
 /// Mints (or finds) the `sqrt` atom over `arg`, recorded in the session
 /// so rule A can look its argument back up, and answers its
 /// indeterminate id. Payload zero, which is what every `sqrt` node the
@@ -160,6 +283,9 @@ fn scaled(p: &Poly, c: i128, budget: SymBudget) -> Option<Poly> {
 /// and a factor of two.
 pub(super) fn fold(op: SymOp, arg: &Form, sess: &mut Session) -> Option<Form> {
     debug_assert!(matches!(op, SymOp::Sin | SymOp::Cos));
+    if let Some(f) = fold_at_half_pi(op, arg) {
+        return Some(f);
+    }
     let (k, m, x) = read_argument(arg, sess)?;
     let budget = sess.budget;
     let one = Form::poly(Poly::one());
