@@ -47,13 +47,43 @@ unrowed — found by a sweep, not placed by a track.
 
 Moved from `work/code-quality/` to `work/meter/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, `track:` letter and body unchanged. Track K; `docs/TESS-BUDGET.md` is METER's territory.
 
-## Orchestrator note (2026-09-07): the item's own table has since drifted
 
-*(Superseded on its judgement by "Closed", below. Its arithmetic
-stands; its conclusion — "the block is stale against re-cuts" — is the
-mis-pairing the unit found, and the reconciliation it says the lane
-owes is the one the unit executed. Kept because the note is where the
-third instance of the mis-read is recorded.)*
+## Orchestrator note (2026-09-07) — RETRACTED 2026-09-07, it was wrong
+
+**The note below is kept as the record and its conclusion is false.**
+It read three of the block's cell lines against today's columns of the
+same NAME, concluded the block had drifted a second time, and told the
+lane the judgement was settled and the only open question was the form
+of the fix. The lane checked the premise instead of building on it and
+falsified it; `## Closed` below carries the real finding.
+
+**What the note missed, in one line:** the block has FOUR cell lines
+and the note (like the item's own table above it) compared only three.
+The fourth is `44,457 with both`, and today's `span_opt_cells` is
+**44,446** — a difference of 0.02%. `95,090 at the cheapest split`
+against today's `opt_cells` **94,154** is 1.0%. Those two are the
+schedule-INDEPENDENT optima, and they have not moved. The columns that
+moved several-fold are the schedule-DEPENDENT ones, which is what a
+change of SIZING RULE looks like — a re-cut driven by corpus growth or
+by a certificate change moves all four together. (That is as far as
+the tell reaches; it does not on its own separate the fix landing from
+a later unrecorded schedule change, since a re-cut taken after one and
+the change landing are the same event. `## Closed` says what does.)
+
+**The note's reasoning was also unsound where it was most confident.**
+"Stale against two successive re-cuts in the same direction" does not
+discriminate between the two hypotheses at all: under either one the
+gap grows monotonically as the corpus grows. It read like evidence and
+was not. What discriminates is WHICH columns moved, and the note never
+asked.
+
+The note is left standing rather than deleted because the item's own
+`## What` section above makes the same mis-mapping, and a reader who
+finds only the corrected text will not understand why two successive
+readers reached the wrong answer. Its retraction is the point.
+
+
+### The retracted note, as written
 
 Re-derived at this program's opening, against the baseline as committed
 today — cut `aba2625f8f84`, 2026-09-04, a re-cut later than the `a4eb03a`
@@ -118,7 +148,8 @@ gate's own fold), and independently in Python over the raw CSV:
 and 154,129 → 46,019 (3.35x) on the grid the lane builds. (The 8.5x
 that reads off these figures is 390,100 / 46,019, the pre-fix
 whole-patch numerator over today's per-cell denominator: the
-mis-pairing itself, not a factor.)
+mis-pairing itself, not a factor. "3–8x" over the pair, written here
+and in the census file until the fix pass, restated it.)
 
 **What that separates, exactly.** A change of SIZING RULE from
 everything else — and not a fix from a drift. Corpus growth and
@@ -174,11 +205,12 @@ ends up asserting is **triangles, NURBS triangles, the four cell sums
 and the two factors**, all folded through `SceneTotals` so the census
 counts what the gate counts. It asserts no row count, no sized-row
 count and neither triangle-share percentage: those are the
-neighbour's, and the dedupe that removed them from this file is the
-one-home rule applied to the pair. A re-cut that moves any of those
-figures fails it and names what moved; a re-cut that moves only the
-descriptive per-face columns fails neither census, and the runbook now
-says which is which rather than claiming both tests catch everything.
+neighbour's, and the dedupe that removed them from this file
+(`1e91d7c98`) is the one-home rule applied to the pair. A re-cut that
+moves any of those figures fails it and names what moved; a re-cut
+that moves only the descriptive per-face columns fails NEITHER census,
+and the runbook now says which is which rather than claiming both
+tests catch everything.
 
 **Residue:** the report header names its cell columns by phrase with
 no column name attached, which is the mis-read's actual source and is
