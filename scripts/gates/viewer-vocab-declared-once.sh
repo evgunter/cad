@@ -607,7 +607,7 @@ gate_selftest() {
   # module does not ratify the `ALL` next door.
   gate_selftest_case 'declares a hand-written `const ALL`' \
     plant_named_all_in_another_module
-  # THE README HALF OF THE SUBJECT, all four ways it can go wrong.
+  # THE README HALF OF THE SUBJECT, all five ways it can go wrong.
   gate_selftest_case "carries no \"$TABLE\" heading" plant_table_heading_gone
   gate_selftest_case "does not open with the header row" plant_table_header_reordered
   gate_selftest_case 'yielded no `- **kind**` bullets' plant_kind_bullets_gone
@@ -637,7 +637,7 @@ exec "$GATE_REAL_TOOL" "$@"' plant_named_all
   gate_selftest_passes "a membership list that is not a const" pass_not_a_const
   gate_selftest_passes "a const list under tests/, which is out of scope" \
     pass_tests_are_not_scanned
-  printf '%s selftest OK: passes a clean fixture and eight near misses, fires on both arms (one-line, multi-line and nested), on a ratified name in an unratified module, on all four ways the README half can go wrong, and on a reader that could not run — outright and mid-scan\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture and eight near misses, fires on both arms (one-line, multi-line and nested), on a ratified name in an unratified module, on all five ways the README half can go wrong, and on a reader that could not run — outright and mid-scan\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
