@@ -6,6 +6,7 @@ status: closed
 opened: 2026-09-06
 closed: 2026-09-07
 branch: view/all-gate
+pr: 2106
 ---
 
 
