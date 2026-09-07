@@ -98,12 +98,12 @@
 //! rim form, and the products of three 53-bit mantissas overflowed the
 //! `i128` the coefficients were kept in.
 //!
-//! **What ships, by measurement** ([`SymRules::shipped`]): the constant
-//! fold **A0** — `sqrt(c)` and `abs(c)` of a constant form fold to the
-//! exact rational — in a second walk ALONGSIDE the plain form (the
-//! plain form is asked first and stays M10-7's, so nothing it proves is
-//! lost), over an arbitrary-precision coefficient ring bounded at
-//! [`COEFF_BITS`]. That alone moves R2's
+//! **The constant fold, by measurement** (M10-8; the first rule of the
+//! shipped set, [`SymRules::shipped`]): **A0** — `sqrt(c)` and `abs(c)`
+//! of a constant form fold to the exact rational — in a second walk
+//! ALONGSIDE the plain form (the plain form is asked first and stays
+//! M10-7's, so nothing it proves is lost), over an arbitrary-precision
+//! coefficient ring bounded at [`COEFF_BITS`]. That alone moves R2's
 //! filleted bracket's whole-certifying box from `3.7e1 · ε` to
 //! `3.9e2 · ε` (10.4×) and R1's annulus from `2.0e1 · ε` to `7.8e2 · ε`
 //! (39×), at about 1.8× the cost per leaf of M10-7's tier where the
@@ -117,29 +117,16 @@
 //! 234 → 225) and M10-6's min-clearance boxes, to coefficient freezes at
 //! the bound — which is why it ships alongside.
 //!
-//! **What is built and does not ship, by measurement** — each behind
-//! its own [`SymRules`] dial, so a future document can be measured
-//! against it: rules **A** `sqrt(X)² = X` and **B** `sin² + cos² = 1`
-//! over the top residual (`algebra`), which add no discharge on any of
-//! the four documents; the same two PER NODE in the early walk
-//! ([`SymRules::early_ab`]), which reach the nested `sqrt(…)²` the top
-//! residual cannot but cost minutes per replay (138 s for the plate's
-//! nominal); and rule **C** — `sqrt(X) = R` where `X = R²` as forms and
-//! `R`'s sign is certified over the box, clause 3, the one fold that
-//! reads a value (`signed`) — which is sound, unit-pinned, folds on no
-//! document at the shipped bound and moves no ceiling at any bound
-//! while costing 2× per leaf for the walk it rides.
-//!
-//! **What still bounds the plate.** The tour's two-hole plate certifies
-//! whole below `7.79e2 · ε` of its real study under every rule set,
-//! and through M10-8 the predicate that bounded it was
-//! `carrier_endpoint_start`: a rim residual whose plain form is an
-//! outer `sqrt` over a degree-12 polynomial in the radius with
-//! `sqrt((a + 2r)²)²`-shaped atoms nested inside — reachable only by
-//! the per-node reduction, and only at a coefficient bound (~640 bits
-//! and up) the shipped ring does not afford. The numbers, the rendered
-//! residual and what is owed are on
-//! `work/m10/plate-rim-residual-needs-the-wide-coefficient-ring`.
+//! **Rules A and B** — `sqrt(X)² = X` and `sin² + cos² = 1`
+//! (`algebra`) — add no discharge over the top residual on any
+//! measured document, and PER NODE in the early walk they are what
+//! closes the ring behind rule D (the M10-10 section below); M10-8
+//! built them per node at 138 s per nominal plate replay and measured
+//! them off on cost, and M10-10 made them affordable. **Rule C** —
+//! `sqrt(X) = R` where `X = R²` as forms and `R`'s sign is certified
+//! over the box, clause 3, the one fold that reads a value (`signed`)
+//! — is sound, unit-pinned, folds on no document at the shipped bound,
+//! moves no ceiling at any bound, and stays dial-off.
 //!
 //! # The registered-identity door (M10-9)
 //!
@@ -202,31 +189,110 @@
 //! which needs the SQUARED identity `v·v = r²` rather than either of
 //! these, and the three are different nodes.
 //!
-//! **What they do NOT move, and this is the unit's finding.** No
-//! ceiling on any of the five measured documents changes by a digit —
-//! and the predicate that BOUNDS each of them does not move either.
-//! Read as the over-band SET at the refusing end of the bisection
-//! (`m10_9_evidence_interval`), exactly one predicate is over the band
-//! on all five documents, at all three ε rows, door open and door
-//! shut: `carrier_matches_mapped_source`, the carrier against the
-//! `MappedCurve` pushforward at the certifier's own samples. An
-//! identity between two INDEPENDENTLY BUILT objects, which is the line
-//! E12's reserve draws and which no node alias reaches without carrying
-//! the certifier's sampling schedule into a construction site
-//! (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`).
+//! **What the door alone does NOT move** (M10-9's finding): no
+//! ceiling on any of the five measured documents changes by a digit
+//! with the door alone — read as the over-band SET at the refusing end
+//! of the bisection, exactly one predicate is over the band on all five
+//! documents, at all three ε rows, door open and door shut:
+//! `carrier_matches_mapped_source`, the carrier against the
+//! `MappedCurve` pushforward at the certifier's own samples, an
+//! identity between two INDEPENDENTLY BUILT objects that meet only
+//! where their trig collapses
+//! (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`). The
+//! door reaches its `i = 0` sample and no other — until the trig is
+//! written in closed form, which is the section below: with rule D on,
+//! the door is what closes that residual at EVERY sample, and the two
+//! move the plate together where neither does alone
+//! (`m10_10_pins_interval`).
 //!
 //! **The bound is a SET at ceiling + δ, never one drive's first
-//! refusal**, and this unit learned it the hard way. A drive stops at
-//! the first predicate that refuses, and at a scale well past the
-//! ceiling several are over the band at once, so which name comes back
-//! is evaluation ORDER — validation before certification. Read at twice
-//! the plate's ceiling, the reported refusal walks with each registrant
-//! (`carrier_endpoint_start` → `carrier_endpoint_end` →
-//! `carrier_matches_mapped_source`), and M10-9's first cut reported
-//! that walk as the bound moving. It is not: at ceiling + δ the plate
-//! is bounded by `carrier_matches_mapped_source` with the door SHUT
-//! too. The door discharges 40–60 decisions per document, and the
-//! identities it discharges were never what bounded one.
+//! refusal.** A drive stops at the first predicate that refuses, and at
+//! a scale past the ceiling several are over the band at once, so which
+//! name comes back is evaluation ORDER — validation before
+//! certification. Read at twice the plate's ceiling, the reported
+//! refusal walks with each registrant, and M10-9's first cut reported
+//! that walk as the bound moving; it was not. The instrument is one
+//! home now — `editor-core/tests/m10_8_harness`'s `over_band_set` and
+//! `bound`, the bracket and the set at its refusing end — and nothing
+//! in the tree spells a bound any other way.
+//!
+//! # The form-level algebra (M10-10)
+//!
+//! **Rule D — trig of `atan`, exact** ([`SymRules::trig_of_atan`],
+//! `trig`): in the early walk a `sin`/`cos` node whose argument form is
+//! `q · atan(X)`, `q = k/2ᵐ`, rewrites to its closed form in `X` and the
+//! atom `sqrt(1 + X²)` — `cos φ = 1/S`, `sin φ = X/S`, halves on the
+//! positive branch (a theorem of `atan`'s RANGE: `φ/2ʲ ∈ (−π/4, π/4)`
+//! has a positive cosine, so `cos(θ/2) = +sqrt((1 + cos θ)/2)` and
+//! `sin(θ/2) = sin θ/(2·cos(θ/2))`, no sign read), multiples by angle
+//! addition. Nothing folds at any other argument shape. The two
+//! spellings of an arc — the pushforward's `sin(s·θ)`, `−2·sin²(s·θ/2)`
+//! at `θ = 4·atan b` and the carrier's `cos t`, `sin t` at `t =
+//! (i/8)·4·atan|b|` — are then rational functions of the same atoms,
+//! and **rules A/B per node** ([`SymRules::early_ab`]) close the ring:
+//! the substitution is linear (`algebra::poly_subst_square` accumulates
+//! one numerator over one common denominator), bounded by
+//! [`EARLY_STEPS`] and [`EARLY_AB_TERMS`], and skipped on a form past
+//! the size cap. With them, the early walk also takes the **zero
+//! normalization** `0/d + x = x`, `0/d · x = 0` (`combine`): the
+//! quotient form cancels no common factor, so a zero numerator dragged
+//! its denominator into every sum — an arc's `n̂ · apothem` at bulge one
+//! is `0/‖chord‖`, its centre became `mid·‖chord‖/‖chord‖`, and rule A
+//! expanded the `‖chord‖²` that rode along into polynomials of rising
+//! degree with 53-bit coefficients that froze at every ring width.
+//! All three are behind dials; [`SymRules::without_the_algebra`] is
+//! M10-9's tier bit for bit, and `m10_9_pins_interval` holds M10-9's
+//! rows under it.
+//!
+//! **What it reaches on the plate, at the nominal** (theorem / gated /
+//! registered / numeric, `m10_10_pins_interval`): `carrier_on_surface_2`
+//! 108/0/0/72 → 180/0/0/0 and `witness_on_surface_2` 12/0/0/8 →
+//! 20/0/0/0 as THEOREMS; `carrier_matches_mapped_source` 180/0/8/64 →
+//! 180/0/72/0, every sample through the DOOR — rule D makes the trig
+//! meet, and the rim identity `‖q − c‖ = r` the registrant states is
+//! what closes it, so the count is `registered`, honestly. The fourth
+//! residual the staged walk names, `pcurve_map_residual`, stays
+//! 0/0/0/36: it carries the chart's phase `atan2(0, ‖a_r‖)` from the
+//! cylinder chart derivation, and `atan2(0, X) = 0` needs the sign of
+//! `X` — rule C's kind, or a chart that states its phase structurally
+//! (`work/m10/pcurve-chart-phase-is-atan2-of-the-start-radial`).
+//!
+//! **What it moves, measured at ε = 1e-6, 1e-9 and 1e-12** (the
+//! over-band set at ceiling + δ; `m10_10_evidence_interval`):
+//!
+//! | document | M10-9 | M10-10 | over the band at ceiling + δ |
+//! | --- | --- | --- | --- |
+//! | two-hole plate | `7.81e2 · ε` | `[1.2496e3, 1.2506e3] · ε` | `pcurve_map_residual` `[0, 1.0004 · ε]` |
+//! | R1 annulus | `7.81e2 · ε` | `[1.2455e3, 1.2470e3] · ε` | `pcurve_map_residual` |
+//! | R2 link | `4.93e2 · ε` | unmoved | `carrier_matches_mapped_source` |
+//! | R2 filleted bracket | `3.87e2 · ε` | unmoved | `carrier_matches_mapped_source` |
+//! | R2 rounded pad | `2.08e3 · ε` | `[2.4990e3, 2.5010e3] · ε` | `line_span` (identity-shaped) |
+//!
+//! Every ceiling still scales with ε — each is bounded by an identity
+//! residual, not by a real margin. On the link and the bracket the
+//! scaffold residual stands because their arcs' carrier FRAMES do not
+//! fit: explained at the link's ceiling, the pushforward's component is
+//! a 3-term form and the carrier's a 1,020-term form over a 66-term
+//! denominator (its `radial · ρ` alone 150 terms of degree 15), past
+//! the per-node cap, so nothing reduces it and the squared components
+//! freeze at the term budget — the trig meets, the frame does not; on
+//! the pad the fillet's identity-shaped `line_span`
+//! (`work/m10/symbolic-tier-census`). With
+//! `pcurve_map_residual` passed by the staged dial the plate certifies
+//! 0.237–0.263 of its REAL study at all three rows and the first
+//! refusal beyond it is the assertion's own margin — a real one, and
+//! at `1e-12` a genuine flip — so the exit condition is one residual
+//! away and that residual is named.
+//!
+//! **What it costs** (release, one whole-box leaf, algebra off → on):
+//! plate at `1e2 · ε` 0.20 s; plate at its REAL study 0.02 → 0.13 s
+//! (the affordability line is 1.6 s); bracket 0.57 → 0.64 s; annulus
+//! 0.09 → 0.18 s; pad 2.1 → 9.7 s; link 0.47 → 2.5 s. The ring stays
+//! at [`COEFF_BITS`] = 256: the three residuals discharge there once
+//! the zero normalization is in, and 512 and 1024 add no discharge
+//! (measured before it: 512 moved nothing, 1024 reached two of the
+//! three at 12 s per nominal replay — the coefficient growth was the
+//! artefact, not the reach).
 //!
 //! # Node ids are CONTENT HASHES (D9)
 //!
@@ -1504,28 +1570,27 @@ impl SymRules {
         }
     }
 
-    /// **The shipped set: A0 alone, in the early walk ALONGSIDE the
-    /// plain form** — the constant fold over the bounded
-    /// arbitrary-precision coefficient ring, with M10-7's plain form
-    /// asked first and kept whole.
+    /// **The shipped set: the constant fold, the registered-identity
+    /// door, and the form-level algebra — rule D with rules A/B per
+    /// node — in the early walk ALONGSIDE the plain form**, over the
+    /// bounded arbitrary-precision coefficient ring, with M10-7's plain
+    /// form asked first and kept whole.
     ///
-    /// Chosen by measurement (M10-8's fix pass, 2026-09-05), per
-    /// mechanism, on the two-hole plate, R2's filleted bracket, R1's
-    /// annulus and M10-4's stepped shaft:
+    /// Chosen by measurement, per mechanism, on the two-hole plate,
+    /// R2's filleted bracket, R1's annulus, R2's rounded pad and R2's
+    /// link (the module docs carry the tables):
     ///
     /// | mechanism | ceilings moved | cost per leaf | ships |
     /// | --- | --- | --- | --- |
     /// | A0 alongside (`const_fold` + `early`) | bracket 10.4×, annulus 39×, the shaft's ±0.1 study certifies whole; loses nothing | plate 0.35 → 0.65 s, bracket 1.47 → 2.7 s | **yes** |
-    /// | A0 replacing (`const_fold` alone) | the same ceilings | plate 0.37 s, bracket 1.46 s | no: loses theorems to bound freezes (two R2 rows; M10-6's min-clearance boxes refuse) |
-    /// | A/B over the top residual | none | ~0 | no (inert) |
-    /// | A/B per node (`early_ab`) | none measured (138 s per nominal replay) | minutes | no (cost) |
-    /// | C in the early walk (`signed_root`) | none; folds on no document at 256 bits, twice on the plate at 4096 | ~2× | no (inert, cost) |
+    /// | A0 replacing (`const_fold` alone) | the same ceilings | plate 0.37 s, bracket 1.46 s | no: loses theorems to bound freezes |
+    /// | the door (`registered`) | none alone; the `i = 0` sample of the scaffold residual and both endpoint pinnings | ~0 | **yes** |
+    /// | D + A/B per node (`trig_of_atan`, `early_ab`, `sqrt_square`, `pythagoras`) | plate 1.60× and annulus 1.60× (three of the plate's four identity residuals), pad 1.20× | plate 0.13 s at its real study, pad 2.1 → 9.7 s, link 0.47 → 2.5 s | **yes** |
+    /// | C in the early walk (`signed_root`) | none; folds on no document at 256 bits | ~2× | no (inert; reads a value) |
     ///
-    /// The plate's ceiling (`7.81e2 · ε`) is unmoved by every row. The
-    /// counts behind the table are the evidence rows in
-    /// `editor-core/tests/m10_8_arc_family_interval.rs` and
-    /// `m10_8_r1_probes_interval.rs`, and the pins in
-    /// `m10_8_pins_interval.rs` hold this set to what it measured.
+    /// The pins in `m10_8_pins_interval.rs`, `m10_9_pins_interval.rs`
+    /// and `m10_10_pins_interval.rs` hold each layer to what it
+    /// measured, the earlier ones under [`Self::without_the_algebra`].
     #[must_use]
     pub const fn shipped() -> Self {
         Self {
