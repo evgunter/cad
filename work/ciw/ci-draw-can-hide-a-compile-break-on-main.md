@@ -2,9 +2,10 @@
 id: ci-draw-can-hide-a-compile-break-on-main
 kind: issue
 title: The ci.yml filter draw can hide a hard compile break on main for an unbounded number of merges
-status: open
+status: closed
 opened: 2026-09-04
 refs: [blamed-mates-lost-its-exhaustive-arm]
+closed: 2026-09-07
 ---
 
 Split out of `work/view/blamed-mates-lost-its-exhaustive-arm.md`,
@@ -77,3 +78,44 @@ against the code-quality K–X fences. Id, body and header are unchanged;
 the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
+
+## Re-read against the tree (2026-09-06, CIW orchestrator)
+
+**The draw this item is named for does not exist any more.** PR 1823
+un-sampled `LANE` and `EPS` and PR 1850 un-sampled the k-lint row, so every
+code-tier PR run builds both lanes at all three eps rows and all five k-lint
+unifications. The instance above — `MateFault::Unleverable` landing without
+`viewer` ever being built at `--features interval` — cannot recur on a PR
+run: the interval build is no longer drawn, it is unconditional.
+
+So the first of the two shapes this item offered to weigh ("exempt the build
+legs from the draw") is moot, and the second ("leave the draw alone and add a
+scheduled register") has lost its premise.
+
+**The half the item said to check is the half that survives, and it is not
+this item's to answer.** `main` push runs still compile nothing — every
+compiling job carries `github.event_name != 'push'`, and `cache-prime`'s only
+build step is gated on a cache miss (`ci.yml:2230`). That is F3, ratified,
+and restoring the push job set is a ruling for Ev, not a lane's call. Parked
+on `f3-recosting-on-a-public-repo`, which carries the measurement and the
+question.
+
+Nothing here is a reason to keep the row open on its own terms: what is left
+of it is one line of the F3 answer.
+
+## Closed 2026-09-07 — both halves are answered
+
+**The PR-run half was already discharged** by the un-sampling (PRs 1823
+and 1850): the draw this item is named for does not exist, every
+code-tier run builds both lanes at all three eps rows, and the instance
+above cannot recur on a PR run.
+
+**The push-run half is answered by Ev's ruling of 2026-09-07** on
+`f3-recosting-on-a-public-repo`: F3 stands and the push job set is not
+restored, because a detector nobody reads is not a control. So `main`'s
+push run continues to compile nothing, deliberately and on the record,
+and this row is not waiting on anything.
+
+What the two 2026-09-04 instances actually cost was attribution rather
+than detection, and that is `inherited-red-is-not-attributed-to-its-merge`,
+open on this slate.

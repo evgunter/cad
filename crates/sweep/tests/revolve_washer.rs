@@ -219,3 +219,84 @@ fn donut_two_arc_profile_shares_one_torus() {
          {v} to {shifted}, so it is not linear in the lift after all"
     );
 }
+
+/// **M10-9: THE REVOLVE'S LATITUDE CARRIERS STATE THEIR RIM IDENTITY**,
+/// and this row is what keeps their two call sites from being code no
+/// run exercises.
+///
+/// `revolve::surfaces::revolved_strut_spec` and `revolve::full`'s band-2
+/// rim spec both mint a `Curve3::Circle` from a sketch point and the
+/// foot of its perpendicular to the axis, and both now register
+/// `‖q − center‖ = radius` through `swept::register_rim_identity` — A1's
+/// "the unit of scope is the CONSTRUCTOR" applied to the second
+/// constructor that builds the same circle under the same guarantee.
+/// RIM ONLY: neither builder is handed the far endpoint, so the span
+/// identity has nothing to be stated about
+/// (`work/m10/revolve-carriers-state-only-the-rim`).
+///
+/// **The profile has to be PARAMETRIC for this to be readable.** On a
+/// wholly literal washer every value is a constant, the tier's constant
+/// fold reaches the rim residual on its own, and the decision lands in
+/// `symbolic_zero` — the door is asked nothing, because `registered` is
+/// attributed by NECESSITY. Here the inner radius is a parameter over a
+/// narrow box, so the residual is a genuine identity IN the parameters
+/// and only the registration answers it.
+#[cfg(feature = "interval")]
+#[test]
+fn m10_9_the_revolve_carriers_state_their_rim_identity() {
+    use geom_core::sym::with_session_rules;
+    use geom_core::{Interval, ParamSymbol, Point2, Real, Sym, SymBudget, SymRules, Vec2};
+    use profile::{Profile, SketchPlane};
+    use sweep::RevolveAxis;
+
+    type S = Sym<Interval>;
+
+    let budget = SymBudget {
+        max_terms: 4096,
+        max_degree: 128,
+    };
+    let run = |rules: SymRules| {
+        with_session_rules(budget, rules, || {
+            let lit = |v: f64| S::from_f64(v);
+            let eps = Tol::witness().eps();
+            let r0: S = Sym::param(
+                ParamSymbol::of("r0"),
+                Interval::from_bounds(1.0 - eps / 64.0, 1.0 + eps / 64.0),
+            );
+            let (zero, one, two) = (lit(0.0), lit(1.0), lit(2.0));
+            let loop_ = ProfileLoop::polygon([
+                Point2::new(r0, zero),
+                Point2::new(two, zero),
+                Point2::new(two, one),
+                Point2::new(r0, one),
+            ]);
+            let vp = Profile::new(SketchPlane::xy(), vec![loop_])
+                .validate(Tol::witness())
+                .expect("the washer validates over its box");
+            let axis = RevolveAxis {
+                origin: Point2::new(zero, zero),
+                dir: Vec2::new(zero, one),
+            };
+            revolve(&vp, axis, Revolution::Full, Tol::witness()).is_ok()
+        })
+    };
+    let (built_shut, shut) = run(SymRules::shipped_without_the_door());
+    let (built_open, open) = run(SymRules::shipped());
+    println!("   revolve door shut {shut:?}\n   revolve door open {open:?}");
+    assert!(built_shut && built_open, "the washer revolves both ways");
+    assert_eq!(shut.registered, 0, "M10-8's tier registers nothing");
+    assert!(
+        open.registered > 0,
+        "the revolve's latitude carriers state their rim identity and it discharges: {open:?}"
+    );
+    assert_eq!(
+        (open.symbolic_zero, open.sign_gated),
+        (shut.symbolic_zero, shut.sign_gated),
+        "and out of `numeric` only: {open:?} vs {shut:?}"
+    );
+    assert_eq!(
+        (open.registrations_refused, open.registrations_contradicted),
+        (0, 0),
+        "no revolve registration is refused or contradicted here: {open:?}"
+    );
+}

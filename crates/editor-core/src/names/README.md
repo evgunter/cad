@@ -68,7 +68,14 @@ all-or-nothing (`SelectRefusal::TiedDisagrees`), no per-candidate narrowing.
 
 **N3 — Merge policy: names retire into the merge, loudly.** Coplanar-face
 merging (F7) merges only structural or declared-coincident faces, which share a
-recipe source; the merged face is `Merged(sorted, deduped constituents)`. The
+recipe source; the merged face is `Merged(sorted, deduped, flat constituents)`,
+and a constituent is never itself a bare merged face: whatever mints a `Merged`
+mints it flat — a merge of a merged face lists the faces, never the merge — and
+a nested `Merged` is an emission bug, refused at the mint and again at the
+union's collapse rather than flattened (the fragment carve-out is stated once,
+at `RoleSeg::Merged`). A merged row COVERS a name when the name is a constituent
+or is a merged face all of whose faces are (`names/merged.rs`), which is how the
+offers and the union's look-through read a flat set. The
 constituents retire: referencing one fails with the merged name offered, and
 when an edit removes the coincidence the merged name vanishes with its
 constituents offered. Numeric coplanarity never merges, so merges change only at

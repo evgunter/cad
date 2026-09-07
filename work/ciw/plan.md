@@ -60,67 +60,132 @@ now has a dead premise, and several items were costed against it. That
 re-costing is a unit of its own (10 below); until it reports, no figure
 from that document may be quoted forward.
 
-## Unit order
+## The first slate landed (2026-09-05)
 
-1. `render-lanes-red-at-missing-merge-ref` — check out an object that
-   outlives the ref (`github.sha`), or end the lane skipped-with-reason
-   when `refs/pull/N/merge` is gone; the lane says in its log which it
-   did. First because it is the largest single red source in the
-   history (103 jobs in 89 runs) and none of them is about the tree.
-2. `nightly-pin-reading-idiom-four-copies` — one `scripts/` reader
-   anchored on ci.yml's workflow-level `env:`, refusing on a second
-   match. Its `MIRROR_EXEMPT` entry is part of the unit. Second because
-   the class has now fired on main (`c5263958`).
-3. `retire-render-automatic-matplotlib-fallback` — Ev's ruling is in
-   the body and the step order there is strict: `render.sh` fails
-   nonzero first, the workflow's assert step is dropped after.
-4. `hosted-renderer-announces-itself-preview-only` — a second accepted
-   sentence meaning "this pass IS the canonical renderer"; Ev has
-   sanctioned either spelling of the variable name and it is not worth
-   review time.
-5. `perf-history-cannot-identify-its-host` — host identity in all three
-   emitters, same shape, READMEs after. Ahead of cheaper items because
-   the runner class changed on 2026-09-03 and every sample after it is
-   unattributable until this lands.
-6. `geom-brep-test-unused-edgedescription-import` — CIW takes the
-   `--all-features` clippy row; the four trims are VERBS', and go
-   first or together (the row's first run is red otherwise).
-7. `mirror-parity-never-compares-flags` — an allowlist over the small
-   set of semantics-bearing flags, keeping the existing "declare your
-   asymmetry in a sentence" shape rather than adding a second
-   mechanism.
-8. `f3-recosting-on-a-public-repo` — measure, then ask on an `[ev]` PR.
-   Gates 9 and 10.
-9. `doc-gate-two-unread-axes` — axis (a) differential run or accept the
-   hole once; axis (b) needs 8's numbers before a `--release` pass can
-   be argued either way. Carries the contributor-facing sentence
-   inherited from the closed `rustdoc-gate-disagrees-with-workspace-doc`.
-10. `facade-guards-defer-to-rustdoc-json` — an `[ev]` ruling, asked with
-    8's number in it. The format-instability half is the real question;
-    the cost half is now small.
-11. `merge-queue-trial` — **closed 2026-09-05 as a closed avenue, and
-    there is no queue.** GitHub offers merge queues only on
-    organization-owned repositories and `evgunter/cad` is
-    personal-account-owned; Ev has ruled that it stays that way. The
-    design, the measurements and the runbook are kept in the item as
-    what was learned, and the process failure is recorded there and in
-    the log — nobody checked the feature was available before costing
-    it. `gate ok` is live and stays; it is not merge-queue residue. The
-    `merge_group` wiring PR 1845 put in `ci.yml` is dead but harmless
-    and was deliberately not removed.
+All ten units of the 2026-09-04 order merged, and unit 11 closed as an
+avenue that does not exist: GitHub offers merge queues only to
+organization-owned repositories, and Ev has ruled that `evgunter/cad`
+stays personal-account-owned (`work/ciw/merge-queue-trial`, which keeps
+the design, the measurements and the process failure behind it). What
+each unit landed and what carries it on `main` is the table in
+`log.md`'s 2026-09-06 entry; the item files are the record.
 
-`nightly-demotions-have-never-run` is not in the order: it is read from
-tonight's scheduled nightly (Ev, 2026-09-04 — do not force a dispatch),
-and if any of the three demoted rows reds, the repair jumps the queue.
+The one question that survived that slate is **answered**. Ev ruled on
+2026-09-07 that F3 stands and the `push: main` job set is not restored,
+because a detector nobody reads is not a control — an argument this
+program had already evidenced from the other end
+(`nightly-demotions-have-never-run`: three demoted rows ran unattended
+for two nights and their first reading was taken by an orchestrator
+going deliberately to the jobs API). `f3-recosting-on-a-public-repo`,
+`ci-draw-can-hide-a-compile-break-on-main` and
+`merge-order-semantic-break-reaches-main` all close on it; the
+composition-defect class is **accepted with its cost on the record**
+rather than left open as work nobody is doing.
 
-`rustdoc-gate-private-intra-doc-links` stays open on its stated trigger
-(a public-only doc set, or Q9) and is not dispatched. Note the trigger
-moved closer on 2026-09-03: the repository is public, though nothing
-publishes a doc set yet.
+What the ruling does not answer, because the options table never priced
+it, is what the two recorded instances actually cost: **attribution**,
+not detection. Both breaks were found quickly; what they cost was 42 red
+runs on 20 branches and two agents diagnosing one line in the same hour.
+That is `inherited-red-is-not-attributed-to-its-merge`, opened with its
+three unmeasured numbers named and deliberately not dispatched until
+they are taken.
 
-`cache-rendered-cells-on-input-hash` is parked on
-`work/tcost/rust-cache-never-restores-across-branches` — its design
-needs no revision and should be reused as-is when it unparks.
+## The second slate
+
+The residue the first slate's own lanes filed, re-read against the tree
+on 2026-09-06 rather than inherited — the same discipline the
+2026-09-04 re-read used, and it moved four rows again. Two closed as
+already discharged (`closure-tier-scope-hides-whole-tree-census-tests`
+by PR 1909, `probe-interval-lane-has-no-clippy-row` by PR 1795 — the
+same finding as unit 6's, filed twice by lanes that could not see each
+other), and two lost half their premise to the un-sampling
+(`ci-draw-...`, `detached-demo-workspaces-...`).
+
+Units, in order:
+
+1. **One answer to what `ci.yml` pins.**
+   `local-half-restates-ci-pins-as-literals` and
+   `ruff-pin-read-shares-the-first-match-shape` — the two populations
+   `nightly-pin-reading-idiom-four-copies` did not reach: versions
+   hand-restated as literals where nothing compares them, and a second
+   first-match-at-any-indentation reader. `scripts/ci-pin.py` already
+   answers the question; this is wiring the last callers to it. First
+   because the class has fired on `main` once and the reader exists.
+2. **The python suite on a closure run.**
+   `closure-tier-skips-python-suite-on-geom-core-changes`. Measured
+   live on 2026-09-06: a `crates/geom-core/src/lib.rs` change gives
+   `RUN_PNCAD_PY=false` while `pncad-py` IS in `PKGS`, so the crate is
+   built as a cargo target and the suite that exercises it is skipped.
+   `docs/prompts/implementer-discipline.md` §2 says the suite runs on
+   every code-tier run; the filter disagrees. One of the two is wrong
+   and implementers read the doc.
+3. **A demotion verified at the demotion.**
+   `nightly-demotions-have-never-run` (whose reading is taken — all
+   three rows ran green on run `33957138686`, so the convention is what
+   is left) with `opt-level-selftest-runs-nowhere`, which is the same
+   class one file over: a guard nothing has ever been shown to fire,
+   sitting outside `scripts/gates/gate-roster.sh`'s reach. **Fence, new
+   as of 2026-09-06:** `scripts/gates/*` is GATES' program now, so
+   widening `gate-roster.sh`'s scope is announced to GATES and drawn
+   with it — CIW's half is the workflow wiring, per GATES' own
+   `keep_out`.
+4. **A check that reaches the roots `--workspace` cannot see.**
+   `gui-wasm-build-is-not-gated-at-all` and the surviving half of
+   `detached-demo-workspaces-are-gated-only-by-a-sampled-row`. Note
+   before dispatching: the wasm row's `--exclude viewer` is downstream
+   of Ev's viewer-CI-posture ruling, so a fix that makes every code-tier
+   run pay the eframe/wgpu graph is an `[ev]` question, not a lane's
+   call — the seed-keyed treatment `clippy-all-features` uses is the
+   shape that does not need one.
+5. **Mirror parity past argv.** `mirror-pairs-env-divergence-unchecked`
+   — claim 10 (PR 1759) compares cargo flags and reads nothing about
+   the environment the paired commands run under. Direct extension of a
+   row that just landed, with a live correct divergence to keep passing.
+6. **The `PIPESTATUS` sweep.** `pipestatus-after-assignment-in-ci-yml`
+   — one instance is fixed in PR 1725; the sweep is CIW's and the item
+   is the citation. Cheap, and the failure mode is a `case` whose
+   non-zero arms are all unreachable.
+7. **Citations that do not resolve.**
+   `gui-log-citations-do-not-resolve` and the six surviving sites of
+   `rustdoc-d-warnings-breakages-outside-the-doc-gate` (its first
+   bullet is corrected: `SweepStrategy::Idealized` exists behind
+   `#[cfg(feature = "sweep-testing")]`, so those two sites are the
+   in-half hole unit 9 accepted, not rot).
+
+**Review posture** (Ev, 2026-09-06, restating 2026-09-04): no A/B and
+no A/B protocol. One subagent style review per unit against
+`docs/prompts/reviewer-style-lane.md`; a correctness reviewer only
+where a unit earns one, named in its PR with the reason. On this slate
+units 2 and 4 are the candidates — both change what a run executes.
+
+## Not dispatched, and why
+
+- `interval-only-selection-premise-restored` — a cost lever pointing at
+  LESS execution, on a runner whose minutes are free. Its own text says
+  the boundary with S-TCOST's cost levers should be settled before
+  anyone edits the hosted `test-interval` shape. Not this slate's.
+- `reach-cannot-follow-every-ascent` — the tree spells every ascent five
+  ways and the resolver reads all five; no sixth spelling exists to
+  measure against, and `classify` bails to `TIER=all` if the reach finds
+  nothing at all. Open, not scheduled.
+- `dirty-pr-gets-no-actions-run` — three measured occurrences in one
+  day, across three programs, every one of them a tail-append conflict
+  in a log or a ledger rather than a code conflict. The cheap half is
+  one line in `docs/prompts/implementer-discipline.md`'s verification
+  section (a push with no run is a conflict to merge out, not a queue to
+  wait on) and rides the next unit that touches that file; the other
+  half — a workflow that posts a visible "no merge ref" status so the
+  absence becomes a red — is a design question nobody has costed.
+  `no-ci-run-on-a-conflicting-pr` was the same finding filed twice and
+  is closed into it.
+- `green-row-floor-has-no-watcher` — its option 2 is a `DESIGN.md`
+  revision and therefore Ev's; raised on PR #1842 and not re-asked here.
+- `rustdoc-gate-private-intra-doc-links` — on its stated trigger (a
+  public-only doc set, or Q9). The repository is public; nothing
+  publishes a doc set yet.
+- `cache-rendered-cells-on-input-hash` — parked on
+  `work/tcost/rust-cache-never-restores-across-branches`; its design
+  needs no revision and should be reused as-is when it unparks.
 
 ## Closed at the 2026-09-04 re-read, with the reason in each file
 

@@ -511,6 +511,10 @@ fn build_wire<T: Decide>(
             })?
             .he_minus;
         let center = frame.foot3(segs[wseg(i)].a);
+        let rim = qpi[i] - center;
+        // The same rim identity as `revolve::surfaces`', at the same
+        // guarantee (its comment carries the argument).
+        crate::swept::register_rim_identity(rim, cls.verts[wseg(i)].r);
         let spec = EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Scaffold(
                 geom_brep::MappedCurve::RevolvedPoint {
@@ -525,7 +529,7 @@ fn build_wire<T: Decide>(
                 center,
                 axis: axis_c,
                 radius: cls.verts[wseg(i)].r,
-                u_ref: (qpi[i] - center).normalize(),
+                u_ref: rim.normalize(),
             },
             param_start: T::zero(),
             param_end: half.abs(),

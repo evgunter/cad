@@ -35,7 +35,7 @@ use pncad::select::SplitHalf;
 use viewer::combine::{
     BooleanTool, PatternOutputChoice, PatternTool, SplitTool, TransformTool, denotes_body,
 };
-use viewer::pick::PickKinds;
+use viewer::pickindex::PickKinds;
 use viewer::seats::{Seat, SeatError, SeatEvent, seat_line};
 use viewer::session::{
     DatumSpec, DocSession, NodeKindWanted, PatternRuleSpec, ProfileShape, Refusal, Selection,
@@ -1273,24 +1273,29 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
 /// Which tools are actually holding state, read through the per-tool
 /// accessors rather than through `open_kind`.
 ///
-/// `open_kind` is a PRIORITY SCAN: it answers with the first tool it
-/// finds open, so it cannot see a second one left behind it, and in
-/// half of the ordered pairs that is exactly where a leftover would
-/// be. The exclusivity row asserts on this instead.
+/// `open_kind` answers with the ONE open tool's kind, so it cannot
+/// tell a leftover from the tool that displaced it: it reads the
+/// single `Option<OpenTool>`, and a second tool left behind has no
+/// spelling in that value at all. The per-tool accessors are the door
+/// the chrome uses and each answers about its own state, so a leftover
+/// shows up here as a second `true`. The exclusivity row asserts on
+/// this instead.
 ///
-/// The array is `ToolKind::ALL`-wide and indexed by `ordinal`, so a
-/// tool added to the set widens it here and the exclusivity row keeps
-/// covering every pair without a count written out twice.
+/// The array is `ToolKind::ALL`-wide and its position per kind is the
+/// kind's position in `ALL`, stated by an exhaustive match rather than
+/// left to the reader's eye — so a tool added to the set widens the
+/// array, has to be answered for here, and the exclusivity row keeps
+/// covering every pair with no count and no order written out twice.
 fn open_flags(tools: &Tools) -> [bool; ToolKind::ALL.len()] {
-    [
-        tools.mate().is_some(),
-        tools.revolve().is_some(),
-        tools.boolean().is_some(),
-        tools.split().is_some(),
-        tools.transform().is_some(),
-        tools.pattern().is_some(),
-        tools.blend().is_some(),
-    ]
+    ToolKind::ALL.map(|kind| match kind {
+        ToolKind::Mate => tools.mate().is_some(),
+        ToolKind::Revolve => tools.revolve().is_some(),
+        ToolKind::Boolean => tools.boolean().is_some(),
+        ToolKind::Split => tools.split().is_some(),
+        ToolKind::Transform => tools.transform().is_some(),
+        ToolKind::Pattern => tools.pattern().is_some(),
+        ToolKind::Blend => tools.blend().is_some(),
+    })
 }
 
 /// **One modal tool at a time**, and the rule is the tool set's rather
@@ -1313,8 +1318,7 @@ fn only_one_modal_tool_is_open_at_a_time() {
                 Some(opened),
                 "opening {opened:?} over {previous:?}"
             );
-            let mut want = [false; ToolKind::ALL.len()];
-            want[opened.ordinal()] = true;
+            let want = ToolKind::ALL.map(|kind| kind == opened);
             assert_eq!(
                 open_flags(&tools),
                 want,
@@ -1330,23 +1334,6 @@ fn only_one_modal_tool_is_open_at_a_time() {
     );
 }
 
-/// `ToolKind::ALL` is a hand-written list, and `ordinal` is the
-/// exhaustive match beside it: this row reads the two against each
-/// other, so a variant added to the enum and forgotten in the list
-/// fails here rather than quietly narrowing every sweep that iterates
-/// it (this suite's exclusivity row included).
-#[test]
-fn every_tool_kind_is_listed_in_all() {
-    let mut seen = vec![false; ToolKind::ALL.len()];
-    for kind in ToolKind::ALL {
-        let at = kind.ordinal();
-        assert!(at < seen.len(), "{kind:?} ordinal {at} is off the end");
-        assert!(!seen[at], "{kind:?} shares an ordinal with another kind");
-        seen[at] = true;
-    }
-    assert!(seen.into_iter().all(|hit| hit), "every ordinal is listed");
-}
-
 /// **Every seat's wanted kind is the one its own door refuses by.**
 ///
 /// The routing in `viewer::seats` and the gate in `viewer::session`
@@ -1360,7 +1347,9 @@ fn every_tool_kind_is_listed_in_all() {
 /// with its door would either pick a "wrong" node the door happily
 /// accepts (no refusal, and the row fails) or draw a refusal naming a
 /// different kind (and the row fails). `Seat::ALL` is what makes it a
-/// sweep rather than a list somebody remembers to extend.
+/// sweep rather than a list somebody remembers to extend — and it is
+/// projected from `Seat`'s own declaration, so a seat this loop misses
+/// is a seat the enum does not have.
 #[test]
 fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
     let tol = Tol::witness();
@@ -1430,11 +1419,7 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
         NodeKindWanted::SketchAxis => axis,
     };
 
-    let mut seen = vec![false; Seat::ALL.len()];
     for seat in Seat::ALL {
-        let at = seat.ordinal();
-        assert!(!seen[at], "{seat:?} shares an ordinal");
-        seen[at] = true;
         // Every OTHER seat of the same op is filled correctly, so the
         // refusal can only be about the seat under test.
         let filled = |other: Seat| {
@@ -1495,7 +1480,6 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             ),
         }
     }
-    assert!(seen.into_iter().all(|hit| hit), "every seat is listed");
 }
 
 /// **A pick only one seat can hold goes to that seat.**
@@ -2035,6 +2019,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             "union",
             Node::Union {
                 members: vec![body, body_b],
+                declare: None,
             },
         ),
         (
