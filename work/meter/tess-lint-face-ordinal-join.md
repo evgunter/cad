@@ -44,6 +44,39 @@ Code quality: `tools/` is Track K's territory, and the issue is already carried 
 
 Moved from `work/code-quality/` to `work/meter/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, `track:` letter and body unchanged. Unlettered, on K's fence: `tess-lint`'s join key.
 
+
+## Orchestrator note (2026-09-07): both named branches are already closed
+
+**This item's body is #746's text of 2026-08-20 and predates its own
+fix.** `tools/tess-lint/src/lib.rs` now carries `Kind::Rekeyed { face,
+how }` with `Rekey::Absent { in_baseline }` and `Rekey::Column { name,
+was, now }`, and `compare`'s per-face walk runs rule 2 only under a
+rule-4 precondition over `IDENTITY_COLUMNS`: an ordinal whose columns
+disagree is announced with the column and both readings, a one-sided
+ordinal is announced as `Absent`, and the walk STOPS there rather than
+comparing shifted pairs. That is branch 1 and branch 2 of this item.
+`C15` and `D201` both already state the mis-join is closed; only this
+file still reads as though it were open.
+
+**What is NOT settled, and is this unit's actual question.** The
+observation is routed by `compare`'s `gated` flag — whether any row in
+the scene, either side, has `recoverable().is_some()`. A scene with no
+Hessian-sized face has `gated == false`, so its re-key goes to
+`out.notes` rather than `out.findings`. That is precisely #738's
+`diefillet/diefillet`, the live instance this item was written around:
+its 16 permuted ordinals are today reported in the quietest voice the
+lint has, and the item's "it does not fire only because `diefillet` has
+no NURBS faces" is still true in a weaker form — it does not FIND,
+though it does now SPEAK. Whether a deterministic ordinal permutation
+between main and the committed baseline is a note or a finding is a
+judgement nobody has recorded, and it is what the unit should decide.
+
+**Confidence:** sure that both branches are covered and that the
+`gated` split routes ungated re-keys to notes (read at `compare`);
+unsure whether `diefillet`'s permutation still reproduces against
+today's baseline — the unit re-runs #738's sweep rather than inheriting
+its result, which is four baseline re-cuts old.
+
 ## Closed (2026-09-07)
 
 **The body above is #746's text of 2026-08-20 and describes a tree that
@@ -116,3 +149,29 @@ scenes, 12 of them carrying a sized face and 60 not. The figure moved
 to its executable home, `tools/tess-lint/tests/baseline_census.rs`,
 which now derives all three from the committed baseline, and the test's
 doc points there.
+
+## Adjudicated (2026-09-07)
+
+The `## Orchestrator note` above is kept as the dispatch record and is
+**superseded on two points by the lane that answered it**, both of which
+were re-verified independently before this line was written:
+
+- Its "nobody has recorded whether that is right" was **wrong**. The
+  note-vs-finding rule was already stated on main at
+  `tools/tess-lint/src/lib.rs:177` — *"a re-key is a finding where it
+  can cost a measurement, judged per SCENE"* — with the principle on
+  `Report` and the ungated case spelled out in `main.rs`'s recourse
+  item 4. What was actually missing was the answer to the strongest
+  objection against it (rule 5's harness-register precedent) and the
+  note's conversion property, and that is what the unit added. The
+  change is an EXTENSION of a recorded decision, not a first statement
+  of an unrecorded one.
+- Its "unsure whether `diefillet`'s permutation still reproduces" is
+  **answered: it does not.** The lane ran the sweep rather than
+  reasoning about it — 1353 rows over 72 scenes, every `(scene, face)`
+  ordinal agreeing on all eight identity columns, `tess-lint` against
+  the committed baseline reporting 0 findings and 0 notes at exit 0.
+  The permutation was absorbed by a later re-cut, which is the outcome
+  the item's own body predicted ("re-cutting hides today's instance and
+  leaves the key"). The decision below was therefore made on the merits
+  and not under the pressure of a live red.
