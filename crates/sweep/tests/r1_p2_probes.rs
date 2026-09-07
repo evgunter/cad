@@ -541,9 +541,8 @@ fn r1_wall_seam_arm_mints_and_certifies_the_interior_column() {
 
 /// **No lane fabricates a foot.** At `Dual64` — a scalar with no
 /// certified projection (`PcurveFittedLane`'s statically-refusing
-/// impl) — the wall–seam arm on the same widened chart answers what it
-/// answered before the measurement existed: the typed "neither chart
-/// boundary" refusal. The dual body is the same loft at the same
+/// impl) — the wall–seam arm on the same widened chart refuses typed,
+/// naming the missing lane rather than a boundary it never measured. The dual body is the same loft at the same
 /// scale, its bowed wall re-charted with the same widened net lifted
 /// constant.
 #[test]
@@ -645,8 +644,8 @@ fn r1_dual_scalar_wall_seam_arm_answers_no_boundary() {
             panic!("a dual body has no foot to measure, so the arm refuses typed: {out:?}")
         };
         assert!(
-            what.contains("neither chart boundary"),
-            "with the boundary refusal, not a fabricated column: {what}"
+            what.contains("no lane measures a chart foot at this scalar"),
+            "naming the missing lane, not a fabricated column: {what}"
         );
     }
     assert!(seams >= 1, "the wall face has its seams: found {seams}");

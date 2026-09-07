@@ -725,9 +725,10 @@ pub enum PcurveCertifyError {
     FittedMateMissing,
     /// An iso image was offered outside the iso lane's certified
     /// inventory, with the exact boundary named. The refused set is:
-    /// a chart that is still the mvfs placeholder; an interior ROW
+    /// a chart that is still the mvfs placeholder; a non-boundary ROW
     /// under the cap and arc-rim classes (the seam class certifies an
-    /// interior COLUMN by the de Boor collapse, `crate::nurbs_iso`); an
+    /// interior COLUMN by the de Boor collapse, `crate::nurbs_iso`, and
+    /// refuses a column outside the domain); an
     /// interior column of a chart whose weight net varies along both
     /// parameters (the collapsed row's weights are computed, so no
     /// stored carrier shares its space); a DIAGONAL line in UV; a
@@ -3555,9 +3556,9 @@ fn run_iso_arc_checks<T: Decide>(
     )?
     else {
         return Err(bad(
-            "an arc rim on an interior ROW of the chart — the arc-rim class compares the \
-             chart's boundary column against the circle's rational-quadratic form, and \
-             an interior row is no construction's rim",
+            "an arc rim on a row that is not a chart boundary — the arc-rim class compares \
+             the chart's boundary column against the circle's rational-quadratic form, and \
+             no construction mints a rim off a boundary",
         ));
     };
     let b = crate::nurbs_iso::boundary_iso_v(payload, end)
@@ -3710,7 +3711,7 @@ fn run_iso_arc_checks<T: Decide>(
         return Err(bad(
             "an arc rim whose u-start is on neither domain end — the class is a \
              FULL-DOMAIN traversal of the chart's column, forward or reversed, and a \
-             start strictly inside the domain is neither",
+             start that is not a domain end is neither",
         ));
     };
     let forward = !reversed;
@@ -3776,10 +3777,12 @@ fn run_iso_arc_checks<T: Decide>(
 /// whole-span motion bound, `arm` the stretch that meters both into
 /// metres. `Zero` at `lo` → `Some((false, slack))`, the start row; at
 /// `hi` → `Some((true, slack))`, the end row; two definite non-zero
-/// verdicts → `None`, an INTERIOR channel value. A decider, not a
-/// refusal: what an interior value means differs per class (the seam
-/// class collapses the row there; the cap and arc classes have no
-/// construction there), so each call site owns its own text.
+/// verdicts → `None`, NOT a boundary — a value strictly inside the
+/// domain or outside it, which this decider does not distinguish. A
+/// decider, not a refusal: what a non-boundary value means differs
+/// per class (the seam class meters it against the domain and
+/// collapses the row inside; the cap and arc classes have no
+/// construction off a boundary), so each call site owns its own text.
 /// Escalations escalate. Shared by the iso-line and iso-arc classes.
 ///
 /// **The domain, not the unit square (#327).** A chart the kernel
@@ -3958,6 +3961,30 @@ fn run_iso_checks<T: Decide>(
                     slack_u,
                 ),
                 None => {
+                    // Not a boundary: inside the domain it is a column
+                    // the collapse bounds; outside it the collapse is a
+                    // span's polynomial EXTENSION, which the chart does
+                    // not have — metered through the same stretch the
+                    // boundary decide used, refused typed.
+                    let outside = (T::from_f64(cu0) - u_start)
+                        .max(u_start - T::from_f64(cu1))
+                        .max(T::zero());
+                    match decide(
+                        "pcurve_iso_domain",
+                        Margin::metered(outside, stretch_u),
+                        band,
+                    )
+                    .map_err(esc)?
+                    {
+                        Sign::Zero => {}
+                        Sign::Positive | Sign::Negative => {
+                            return Err(PcurveCertifyError::IsoUnsupported {
+                                what: "the iso line's fixed channel sits outside the chart's \
+                                       u domain — not a boundary column, and the collapsed row \
+                                       bounds the chart on its domain only",
+                            });
+                        }
+                    }
                     let row =
                         crate::nurbs_iso::interior_iso_u(payload, u_start).map_err(|error| {
                             match error {
@@ -4055,9 +4082,10 @@ fn run_iso_checks<T: Decide>(
             )?
             else {
                 return Err(PcurveCertifyError::IsoUnsupported {
-                    what: "a LINE cap rim on an interior ROW — the exact class certifies \
-                           interior COLUMNS (the seam class) only; the cap class's interior \
-                           row arrives with its first minting construction",
+                    what: "a LINE cap rim on a row that is not a chart boundary — the exact \
+                           class certifies non-boundary COLUMNS (the seam class) only; the \
+                           cap class's interior row arrives with its first minting \
+                           construction",
                 });
             };
             let b = crate::nurbs_iso::boundary_iso_v(payload, end)

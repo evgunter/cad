@@ -16,7 +16,10 @@
 //! u-rows rather than one of them. It is exact in ℝ and computed at
 //! the caller's scalar, so at the interval scalar each control point
 //! ENCLOSES the exact one — the collapse's rounding lives inside the
-//! enclosure the caller certifies, never in a separate term.
+//! enclosure the caller certifies, never in a separate term. The
+//! collapsed row's WEIGHTS must be structure a carrier can share, so
+//! the collapse is offered only for a weight net constant along `u`
+//! or along `v`; a net varying along both refuses typed.
 //!
 //! # Why this lives in `geom-brep` and not beside the payloads
 //!
@@ -157,19 +160,32 @@ pub fn interior_iso_u<T: SpanLocate>(
         };
         let n = basis_funs(span, u);
         let base = span.first_control();
+        // `λᵢ = Nᵢ·ωᵢ / Σₖ Nₖ·ωₖ`, the denominator once per span (it
+        // does not depend on `j`). In case (a) `ωᵢ = 1` and the
+        // denominator is the partition of unity, identically 1 in ℝ:
+        // dividing by its enclosure would only widen the row, so the
+        // row is the bare sum there — which still encloses the exact
+        // point, because the exact `Σ Nᵢ` IS 1.
+        let lam: Vec<T> = n
+            .iter()
+            .enumerate()
+            .map(|(r, nr)| *nr * T::from_f64(omega[base + r]))
+            .collect();
+        let den = lam.iter().fold(T::zero(), |acc, l| acc + *l);
         let row: Vec<Point3<T>> = (0..nv)
             .map(|j| {
-                let (mut x, mut y, mut z, mut den) = (T::zero(), T::zero(), T::zero(), T::zero());
-                for (r, nr) in n.iter().enumerate() {
-                    let i = base + r;
-                    let lam = *nr * T::from_f64(omega[i]);
-                    let p = s.control()[i * nv + j];
-                    x = x + lam * p.x;
-                    y = y + lam * p.y;
-                    z = z + lam * p.z;
-                    den = den + lam;
+                let (mut x, mut y, mut z) = (T::zero(), T::zero(), T::zero());
+                for (r, l) in lam.iter().enumerate() {
+                    let p = s.control()[(base + r) * nv + j];
+                    x = x + *l * p.x;
+                    y = y + *l * p.y;
+                    z = z + *l * p.z;
                 }
-                Point3::new(x / den, y / den, z / den)
+                if along_u_constant {
+                    Point3::new(x, y, z)
+                } else {
+                    Point3::new(x / den, y / den, z / den)
+                }
             })
             .collect();
         hulled = Some(match hulled {
@@ -405,9 +421,10 @@ mod tests {
     }
 
     /// A rational net whose weights vary along `u` only (a quarter
-    /// circle swept in `v`): the collapse carries the weights through
-    /// `λ`, the row is wrapped polynomial, and a net varying both ways
-    /// refuses typed.
+    /// circle swept in `v`, case (b)): the collapse carries the weights
+    /// through `λ` and the row is wrapped polynomial. The transposed
+    /// net (the quarter circle as the `v` profile, case (a)) wraps row
+    /// 0's weights. A net varying both ways refuses typed.
     #[test]
     fn interior_iso_rational_cases() {
         let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
@@ -432,6 +449,37 @@ mod tests {
             let t = f64::from(i) / 4.0;
             let p = c.eval(t);
             assert!(p.distance(s.eval(0.3, t)) < 1e-14);
+            assert!(
+                (p.x.hypot(p.y) - 1.0).abs() < 1e-14,
+                "on the cylinder: {p:?}"
+            );
+        }
+        // Case (a): the same quarter circle as the PROFILE in `v`, swept
+        // along `u` — weights vary along `v` only, so the collapsed row
+        // carries row 0's weights and is the rational arc itself.
+        let sa = {
+            let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+            let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+            let mut control = Vec::new();
+            let mut weights = Vec::new();
+            for z in [0.0, 2.0] {
+                for (x, y, w) in [(1.0, 0.0, 1.0), (1.0, 1.0, h), (0.0, 1.0, 1.0)] {
+                    control.push(Point3::new(x, y, z));
+                    weights.push(w);
+                }
+            }
+            NurbsSurface::<f64>::new(ku, kv, control, weights).unwrap()
+        };
+        let c = interior_iso_u(&sa, 0.3).unwrap();
+        assert_eq!(
+            c.weights(),
+            &[1.0, h, 1.0],
+            "case (a) wraps row 0's weights"
+        );
+        for i in 0..=4 {
+            let t = f64::from(i) / 4.0;
+            let p = c.eval(t);
+            assert!(p.distance(sa.eval(0.3, t)) < 1e-14);
             assert!(
                 (p.x.hypot(p.y) - 1.0).abs() < 1e-14,
                 "on the cylinder: {p:?}"

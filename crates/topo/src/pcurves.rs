@@ -655,9 +655,11 @@ fn nurbs_iso_derive<T: PcurveFittedLane>(
                 None => {
                     let Some(foot) = derive_chart_foot(carrier.eval(t0), surface, half_edge)?
                     else {
-                        // No lane measures a foot at this scalar, so
-                        // the interior column is not derivable here.
-                        return Err(no_boundary());
+                        return Err(refuse(
+                            "the carrier's start point lies on neither chart boundary, and \
+                             no lane measures a chart foot at this scalar, so the interior \
+                             seam column it sits on cannot be positioned",
+                        ));
                     };
                     side_pick(&column, &[T::from_f64(foot.x)])?.ok_or_else(|| {
                         refuse(

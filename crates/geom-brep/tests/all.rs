@@ -73,6 +73,8 @@ mod decoration_plane_mint;
 mod imported_chart_arc_rim;
 #[path = "interior_iso_column.rs"]
 mod interior_iso_column;
+#[path = "interior_iso_review.rs"]
+mod interior_iso_review;
 #[path = "intersect_table.rs"]
 mod intersect_table;
 #[path = "m4_remint_headroom.rs"]
