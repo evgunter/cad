@@ -59,8 +59,23 @@ fn plen(n: &str) -> Expr {
     Expr::param(ParamName::new(n), Dimension::Length)
 }
 
+/// M10-9's tier with the door shut — M10-8's. The rows here are
+/// M10-9's claims, so they are pinned under M10-9's tier
+/// (`SymRules::without_the_algebra`, which is that tier bit for bit);
+/// with the form-level algebra on the door DOES move verdicts, because
+/// rule D makes the scaffold residual's trig meet and the rim identity
+/// the door states is what closes it at every sample
+/// (`m10_10_pins_interval`).
 fn shut() -> SymRules {
-    SymRules::shipped_without_the_door()
+    SymRules {
+        registered: false,
+        ..opened()
+    }
+}
+
+/// M10-9's tier exactly.
+fn opened() -> SymRules {
+    SymRules::without_the_algebra()
 }
 
 // ------------------------------------------------- R2's own document
@@ -259,7 +274,7 @@ fn r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture() {
             .map(|v| v.serialize())
             .map_err(|e| format!("{e:?}"))
         };
-        let on = run(SymRules::shipped());
+        let on = run(opened());
         let off = run(shut());
         let split = |s: &Result<String, String>| -> (Vec<String>, Option<String>) {
             match s {
@@ -460,7 +475,7 @@ fn r2_link_end_to_end_with_and_without_the_door() {
     let mut lows = Vec::new();
     for (label, rules) in [
         ("door OFF (M10-8)", shut()),
-        ("door ON  (M10-9)", SymRules::shipped()),
+        ("door ON  (shipped)", SymRules::shipped()),
     ] {
         let (lo, hi, per) = ceiling(&at, rules, tol, 1.0e-1 * eps, 1.0e6 * eps, 12);
         println!(

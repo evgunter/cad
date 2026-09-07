@@ -32,30 +32,29 @@ use crate::m10_7_plate::plate;
 use crate::m10_7_r2_probes_interval::bracket as r2_bracket;
 use crate::m10_8_harness::{ceiling, dials};
 
-/// **The shipped set is A0 alone, alongside** — one default, carried by
-/// `SymbolicDials::default()` and `with_session` alike. Pinned as the
-/// measured decision it is (`geom_core::SymRules::shipped`'s docs carry
-/// the numbers): A0 in the early walk beside an untouched plain form;
-/// A/B over the top residual add no discharge on the documents; A/B per
-/// node are minutes per replay; rule C folds on no document and moves
-/// no ceiling.
+/// **M10-8's set is A0 alone, alongside** — the shipped set with the
+/// form-level algebra off (`SymRules::without_the_algebra`) and the
+/// door shut, which is that tier bit for bit: A0 in the early walk
+/// beside an untouched plain form; nothing else on. The shipped set
+/// builds on it (the door, then rules A/B per node and rule D —
+/// `m10_9_pins_interval`, `m10_10_pins_interval`), and one default
+/// carries the shipped set.
 #[test]
-fn m10_8_the_shipped_set_is_a0_alone() {
-    let s = SymRules::shipped();
-    assert_eq!(SymRules::default(), s, "one default");
+fn m10_8_the_a0_set_is_a0_alone() {
+    let s = a0_alone();
     assert!(
         s.const_fold && s.early,
-        "A0 ships, in the early walk alongside the plain form"
+        "A0, in the early walk alongside the plain form"
     );
     assert!(
         !s.signed_root,
         "rule C is built and dial-selectable, and does not ship (inert)"
     );
-    assert!(!s.early_ab, "per-node A/B does not ship (cost)");
     assert!(
-        !s.sqrt_square && !s.pythagoras,
-        "top-residual A/B do not ship (inert on the documents)"
+        !s.early_ab && !s.trig_of_atan && !s.sqrt_square && !s.pythagoras && !s.registered,
+        "nothing else: {s:?}"
     );
+    assert_eq!(SymRules::default(), SymRules::shipped(), "one default");
     // A default drive serializes exactly what a `shipped()` drive does.
     let tol = Tol::witness();
     let doc = plate(5.0e-5 * 1.0e-6, 1.0e-5 * 1.0e-6, tol).0;
@@ -75,6 +74,15 @@ fn m10_8_the_shipped_set_is_a0_alone() {
         .serialize()
     };
     assert_eq!(run(SymRules::default()), run(SymRules::shipped()));
+}
+
+/// **M10-8's set (A0 alone) is exactly the tier with the algebra off
+/// and the door shut.**
+fn a0_alone() -> SymRules {
+    SymRules {
+        registered: false,
+        ..SymRules::without_the_algebra()
+    }
 }
 
 /// **The shipped set is inert on straight geometry**: the M10-3 slab
@@ -188,17 +196,16 @@ fn measured_ceiling(
     (c_lo, c_hi)
 }
 
-/// **The two-hole plate's ceiling is UNMOVED**: M10-7's `7.81e-7` is
-/// `7.81e2 · ε` at every row (the ceiling is the numeric channel's and
-/// scales with the band; measured `7.8e-4`, `7.8e-7`, `7.8e-10` at
-/// `1e-6`, `1e-9`, `1e-12`), under the plain tier and the shipped one
-/// alike — the rim residual `carrier_endpoint_start` is bounded by a
-/// nested `sqrt(…)²` no shipped rule reaches
-/// (`work/m10/plate-rim-residual-needs-the-wide-coefficient-ring`).
-/// Both tiers' brackets are asserted at both ends and must contain the
-/// same `7.81e2 · ε`.
+/// **The two-hole plate's ceiling under the plain tier and under A0
+/// alone**: M10-7's `7.81e-7` is `7.81e2 · ε` at every row (the
+/// ceiling is the numeric channel's and scales with the band; measured
+/// `7.8e-4`, `7.8e-7`, `7.8e-10` at `1e-6`, `1e-9`, `1e-12`) under
+/// both — the constant fold reaches none of the plate's arc residuals.
+/// What moves it is the form-level algebra on top of the door
+/// (`m10_10_pins_interval`). Both brackets are asserted at both ends
+/// and must contain the same `7.81e2 · ε`.
 #[test]
-fn m10_8_the_plate_ceiling_under_the_plain_and_the_shipped_tier() {
+fn m10_8_the_plate_ceiling_under_the_plain_tier_and_a0_alone() {
     let tol = Tol::witness();
     let eps = tol.eps();
     let at = |scale: f64| plate(5.0e-5 * scale, 1.0e-5 * scale, tol).0;
@@ -215,22 +222,12 @@ fn m10_8_the_plate_ceiling_under_the_plain_and_the_shipped_tier() {
         lo <= m10_7 && m10_7 <= hi,
         "the plain bracket [{lo:e}, {hi:e}] must contain M10-7's 7.81e-7 restated at this epsilon, {m10_7:e}"
     );
-    let (s_lo, s_hi) = measured_ceiling(
-        "plate, shipped tier",
-        &at,
-        SymRules::shipped(),
-        tol,
-        eps,
-        eps * 1.0e6,
-    );
+    let (s_lo, s_hi) = measured_ceiling("plate, A0 alone", &at, a0_alone(), tol, eps, eps * 1.0e6);
     assert!(
         s_lo <= m10_7 && m10_7 <= s_hi,
-        "the shipped bracket [{s_lo:e}, {s_hi:e}] must contain the same {m10_7:e}: unmoved"
+        "the A0 bracket [{s_lo:e}, {s_hi:e}] must contain the same {m10_7:e}: unmoved"
     );
-    assert!(
-        s_lo >= lo,
-        "the shipped tier never certifies less than the plain one"
-    );
+    assert!(s_lo >= lo, "A0 never certifies less than the plain tier");
 }
 
 /// **The filleted bracket's ceiling MOVES**: M10-7's "factor exactly

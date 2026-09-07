@@ -65,10 +65,19 @@ const MIN_WEB: f64 = 0.0005;
 /// interval arithmetic cannot see that the radius cancels out of the
 /// centre — the dependency problem, M10-3's headline — so the recovered
 /// axis widens by the radius's own width, once per hole. The padding is
-/// therefore proportional to the BOX (`2·half`, exactly, plus the
-/// rounding below), not to the machine epsilon. A bound, not a target
-/// — if it grows, the question is why the lane widened.
-const PLATE_PADDING_PER_HALF_WIDTH: f64 = 2.0;
+/// therefore proportional to the width of the LEAF each enclosure is
+/// taken over, not to the machine epsilon — and the hull is the union
+/// of the certified leaves' enclosures, so a tier that certifies the
+/// study in fewer, wider leaves reports a wider hull at the same leaf
+/// budget. Under A0 alone this `ε/8` study certified in 16 leaves and
+/// the padding was `2·half`; under the form-level algebra (rule D with
+/// A/B per node) it certifies in 4 leaves of twice the width and the
+/// padding is `4·half`, exactly, plus the rounding below
+/// (`m10_10_evidence_interval::m10_10_the_stackup_hulls_under_both_rule_sets`
+/// prints both; `work/m10/certified-hull-padding-is-the-leaf-width-not-the-lane`
+/// is the row). A bound, not a target — if it grows, the question is
+/// which leaves widened.
+const PLATE_PADDING_PER_HALF_WIDTH: f64 = 4.0;
 /// The rounding on top of the dependency padding: a 0.2-scale quantity
 /// through a few dozen outward-rounded operations (measured ~1e-15).
 const PLATE_ROUNDING: f64 = 1.0e-14;
@@ -89,7 +98,7 @@ fn param(n: &str, dim: Dimension) -> Expr {
     Expr::param(name(n), dim)
 }
 
-fn uniform(half: f64) -> Distribution {
+pub(crate) fn uniform(half: f64) -> Distribution {
     Distribution::Uniform {
         lo: -half,
         hi: half,
@@ -189,7 +198,7 @@ fn vertex_at(ev: &Evaluation<f64>, node: RecipeNodeId, at: [f64; 3]) -> SitedRef
 /// only through the guided lift — with the web measure
 /// `distance(wall, wall) − 2·hole_r` and an assertion on it. Returns
 /// the document, the measure node and the assertion node.
-fn plate(
+pub(crate) fn plate(
     radius: Option<Distribution>,
     depth: Option<Distribution>,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {

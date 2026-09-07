@@ -2488,7 +2488,7 @@ const EARLY_STEPS: usize = 64;
 /// is about to freeze in its next product whether or not its squares
 /// were cleared. The arc family's residuals are a handful of terms per
 /// node; this is a cost wall, not a reach.
-const EARLY_AB_TERMS: usize = 512;
+const EARLY_AB_TERMS: usize = 128;
 
 /// The early-reduced form of `root` (`SymRules::early`), memoized in
 /// its own table beside the plain one: the same walk as

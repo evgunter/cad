@@ -317,10 +317,10 @@ fn r1_split_bore_disc_end_to_end() {
                 }
             }
         }
-        let (_, refusal, counts) = replay(&doc, &ParamBox::of(&analyzed), SymRules::shipped(), tol);
+        let (shapes, _, counts) = replay(&doc, &ParamBox::of(&analyzed), SymRules::shipped(), tol);
         println!(
-            "   whole-box replay (door ON): {counts:?}; first refusal {}",
-            refusal.as_deref().map(pred).unwrap_or_else(|| "-".into())
+            "   whole-box replay (door ON): {counts:?}\n{}",
+            crate::m10_8_harness::render_over_band(&crate::m10_8_harness::over_band_set(&shapes))
         );
     }
     // And the ceiling, both ways.

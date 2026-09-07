@@ -60,9 +60,16 @@ use fixture::{Recorder, fname, len, scl, wall};
 
 /// The bore/pin worst-case hull's enclosure padding per analyzed
 /// half-width, measured at every CI ε row (see the consumer-walk row).
-/// A bound, not a target — if it grows, the question is why the lane
+/// The padding is proportional to the width of the LEAF each enclosure
+/// is taken over: under A0 alone the `ε/8` study certified in 4 leaves
+/// and the padding was `1·half`; under the form-level algebra (rule D
+/// with A/B per node) it certifies in 2 leaves of twice the width and
+/// the padding is `2·half`
+/// (`m10_10_evidence_interval::m10_10_the_stackup_hulls_under_both_rule_sets`;
+/// `work/m10/certified-hull-padding-is-the-leaf-width-not-the-lane`).
+/// A bound, not a target — if it grows, the question is which leaves
 /// widened.
-const BORE_PIN_PADDING_PER_HALF_WIDTH: f64 = 1.0;
+const BORE_PIN_PADDING_PER_HALF_WIDTH: f64 = 2.0;
 /// The rounding on top of the dependency padding (measured ~1e-15 at
 /// the 1e-12 row, where it is largest relative to the half-width).
 const BORE_PIN_ROUNDING: f64 = 1.0e-14;
@@ -88,7 +95,7 @@ fn continuous(dim: Dimension, value: f64, distribution: Option<Distribution>) ->
     }
 }
 
-fn uniform(lo: f64, hi: f64) -> Distribution {
+pub(crate) fn uniform(lo: f64, hi: f64) -> Distribution {
     Distribution::Uniform { lo, hi }
 }
 
@@ -289,7 +296,7 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
 /// `gap(bore wall, pin wall) = 0.5 − r − 0.1`, so ∂gap/∂r = −1 exactly
 /// — and exactly 0 under the pinned lift, since nothing but the
 /// carrier's radius carries `r`.
-fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId) {
+pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
         name: name("r"),
@@ -1325,13 +1332,16 @@ fn the_bore_pin_fit_as_a_consumer_reads_it() {
     // The hull ENCLOSES the true range `0.2 ± half` (the gap is linear
     // in the radius with slope −1) and exceeds it by the interval
     // lane's enclosure padding alone. The padding is proportional to
-    // the box, not to ε: measured at every CI ε row (default, 1e-6,
-    // 1e-12) the hull is 3·half wide — 2·half of spread plus exactly
-    // 1·half of padding (3.000, 3.000, 3.003 × half) — so the bound is
-    // stated per half-width plus the rounding of a 0.2-scale quantity
-    // through a few dozen outward-rounded operations (~1e-15). No
-    // absolute slack: an ε-independent term says nothing at the tight
-    // rows and the wrong thing at the loose ones (issue 1646).
+    // the certified LEAF's width, not to ε: measured at every CI ε row
+    // (default, 1e-6, 1e-12) the hull is 4·half wide — 2·half of spread
+    // plus exactly 2·half of padding over the two leaves the drive
+    // certifies (2.000 × half at every row; it was 1·half over four
+    // leaves before rule D, `BORE_PIN_PADDING_PER_HALF_WIDTH`'s docs) —
+    // so the bound is stated per half-width plus the rounding of a
+    // 0.2-scale quantity through a few dozen outward-rounded operations
+    // (~1e-15). No absolute slack: an ε-independent term says nothing
+    // at the tight rows and the wrong thing at the loose ones (issue
+    // 1646).
     assert!(wc.lo <= 0.2 - half && wc.hi >= 0.2 + half, "{wc:?}");
     let padding = (wc.hi - wc.lo) - 2.0 * half;
     println!(
