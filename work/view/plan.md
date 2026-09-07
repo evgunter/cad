@@ -129,6 +129,8 @@ should be visible on its own.
 | `view/marks` (the second split, and the rename) | #2083 | style + fix pass |
 | `view/homes` (`cursor_projection` to `camera`; `Generation::get` deleted) | #2089 | style + fix pass |
 | `view/debug-walk` (five field censuses made exhaustive) | #2093 | style + fix pass |
+| `view/censuses` (the remaining seven, in four hats) | #2103 | style — **in flight** |
+| `view/all-gate` (the `const ALL` gate, filed by #2046) | — | dispatched 2026-09-07 |
 
 **Fifteen units on main. Two rules this wave earned**, both about
 evidence rather than code:
@@ -178,6 +180,15 @@ said the test counts "must still be 24/1 and 501/0/1"; they came back
 invariant that survives is *the count must not move against your own
 merge base* — checked here as `#[test]` at 533 on both sides. A number
 in a brief goes stale the moment anything else lands.
+
+**Check the arithmetic, including the orchestrator's.** Five counts
+came back wrong across this wave — four from lanes (a receipt's `60`
+with no enumeration rule, "six move by -13" for five, "twelve lines"
+for eight, "two public items" for three) and one from here, when a
+lane's miscount of the VIEW citations was propagated into a check-in
+before the fix pass established the real figure. A count is a claim
+like any other: it carries its enumeration rule, and it is re-derived
+rather than copied forward.
 
 **Operational, for whoever reads the log's CI notes**: the slow interval
 shard is not a FIXED shard. `1/2` was slow on #2026/#2046 and `2/2` on
