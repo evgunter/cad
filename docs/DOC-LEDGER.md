@@ -1428,3 +1428,18 @@ re-cut — on the P-2 fixture the tessellation lane stops at
 unit's record is `work/trim/interior-iso-curve-de-boor-extractor.md`'s
 `## Closed` and the MERGED entry in `work/trim/log.md`; its A/B row is
 MODEL-AB-LOG T1.
+
+## Per-merge deletion — DOCM-8's spec (2026-09-07)
+
+Recoverable at `git show 4b4ec3213b69cbeef7e10a312f7aa4714ad1ac09:docs/DOCM-8-SPEC.md`
+(the DOCM-8 unit head, before the state-sync commit that deleted it;
+AMENDED once, 2026-09-06, at its stop clause — item 1's flat mint reads
+a constituent's name through its descent wrappers, A2's walker peels
+them, the stop clause resolved; the amendment is commit `0cf4a650`).
+Its acceptance letter that "reordering the members changes nothing
+about whether a declaration resolves" is bounded in the unit's record
+to faces consumed by merges (a split, a containment, a fragmented
+merge stay order-shaped — filed). The rule above; the unit's record is
+its row in `MODEL-AB-LOG.md` and its MERGED entry in `work/docm/log.md`.
+
+- `DOCM-8-SPEC.md` — DOCM-8, a merged face's name is a flat constituent set; a member-space declaration resolves through the fold's merges (#2073)
