@@ -3770,3 +3770,4 @@ review dispatch goes to main on its own.
 
 Block TRIM-B1 slot record (branch-side, appended as each slot concludes):
 slot 0 = TRIM-3 PR-1 (OPUS) — concluded 2026-09-07 at merge 498418dbb, ordinal 2500, sample #151 (pair EXCLUDED from the tally under 3(e): R1 killed by a Fable 429 and resumed; two unilateral code-class MAJORs noted as would-be candidates).
+slot 1 = TRIM-1 (FABLE) — concluded 2026-09-07 at merge, ordinal 2501, sample #153 (no unilateral candidate — every finding bilateral; no reviewer killed by a limit; the implementer arm paused four times and once by a Fable-side outage).
