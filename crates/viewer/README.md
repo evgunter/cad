@@ -219,9 +219,9 @@ are never overridden here.
 | G1 layer 3 values and operations | `src/camera.rs` (`Camera`, `CameraOp`, `camera::apply`), `src/session.rs` (`DocSession`, `DocSession::perform`, the operation doors) and its vocabularies `session::{select, refuse, op, author, delete, probe}` (Module boundaries, below), `src/history.rs` (tree-shaped undo), `src/input.rs` (`ViewportEvent`), `src/tools.rs` and the per-tool modules |
 | G3 free-move and hiding as display state | `src/display.rs` |
 | G3 mate definition | `src/matetool.rs` |
-| Feature tree, property panel, open/save, evaluation seam, scene | `src/tree.rs`, `src/props.rs`, `src/docio.rs`, `src/evalseam.rs`, `src/scene.rs` |
+| Feature tree, property panel, open/save, evaluation seam, scene | `src/tree.rs`, `src/props.rs`, `src/docio.rs`, `src/evalseam.rs` (both seams and both workers) with `src/generation.rs` (`Generation`, the counter both seams key their answers by), `src/scene.rs` |
 | Colour, themes, preferences | `src/theme.rs`, `src/prefs.rs`, `tests/theme.rs` |
-| GQ7 picking | `src/pick.rs` (`EDGE_PICK_RADIUS_PX`, `PickKinds`), `crates/bvh` (`Bvh::ray`) |
+| GQ7 picking | `src/pickindex.rs` (the index and every query over it, up to what a pick MEANS — `PickIndex`, `IdMap`, `EDGE_PICK_RADIUS_PX`, `PickKinds`, `op_for`, `hovered_for`), `src/marks.rs` (what a frame marks over a built index — `highlight`, `edge_overlay`, `focus`), `src/pickcache.rs` (the index's lifecycle — `IndexInputs`, `PickCache`, `NotIndexed`), `crates/bvh` (`Bvh::ray`) and `camera::cursor_projection` (the id pass's 1×1 target transform, which is projection algebra rather than a mark) |
 | GQ6 toolkit, viewport, docking | `src/app.rs` (the frame loop and `ViewerApp`) with `src/pane/*` (the pane bodies), `src/widgets.rs` and `src/gpu.rs`, all behind the `app` feature; `Cargo.toml`. `src/frame.rs` is a vocabulary and is built unconditionally. The authoring vocabularies the panels offer are `src/forms.rs` and `src/drafts.rs`, which name no toolkit type and are behind the feature only because the panels are |
 
 ## Module boundaries
@@ -320,7 +320,7 @@ vocabulary is not a forbidden import path.
 |---|---|
 | `session::select` | `Selection`, `FaceSelection`, `EdgeSelection`, `Hovered`, `Standing` — what is selected and whether it still denotes anything |
 | `session::refuse` | `Refusal` with its `rank`/`preferred` ladder, its `Display`, and the recourse composers `affordance`/`exists_wording`/`offer_wording`; `NodeKindWanted` and `admits`, since they are a `Refusal` payload and its predicate |
-| `session::op` | `SessionOp` and `OpOutcome` — already the crate's shared vocabulary, read by `tools`, `pick`, `frame`, `blend`, `combine`, `matetool`, `revolvetool` |
+| `session::op` | `SessionOp` and `OpOutcome` — already the crate's shared vocabulary, read by `tools`, `pickindex`, `frame`, `blend`, `combine`, `matetool`, `revolvetool` |
 | `session::author` | `DatumSpec`, `PatternRuleSpec`, `datum_node`, the `ProfileShape` re-export — the authoring specs and their lowering to nodes, which hold no session state at all |
 | `session::delete` | `DeleteAffordance` and `kind_census` — the cascade's wording |
 | `session::probe` | `BoundsTarget`, `BoundsReading` and the range probe |
@@ -428,6 +428,136 @@ says about the other. The behaviour is older than the block above and
 has its own item
 (`work/view/free-move-drag-dissolved-by-open.md`).
 
+**The dump is held to the same declaration.** This paragraph is the one
+home for the rule; the four walks that follow it state their own `_`
+arms and point here rather than restating it.
+
+`Debug` for `DocSession`, for `Derived` and for `LandedRun`
+destructures its own value exhaustively, so a new field stops the
+rendering compiling. The error is E0027, pattern-does-not-mention-field
+— a *different* error from `Derived::none`'s, which is a struct literal
+and so raises E0063, missing-field-in-initializer. The property is the
+same at both sites and the two errors are not, which is worth saying
+because a reader looking for one and finding the other concludes the
+mechanism is not there. `DocSession` renders `Derived` as one field
+rather than reaching through it, so those members travel with their
+declaration instead of being listed a second time.
+
+**A field the walk will not carry is bound to `_` rather than left out
+of the pattern**, which is what makes the omission a decision a reader
+can see, and those `_` arms are precisely what a `finish_non_exhaustive`
+here stands for — one reason each, never a blanket one:
+
+| walk | `_` arms | why |
+|---|---|---|
+| `LandedRun` | `evaluation`, `doc` | the result DAG and the recipe DAG it answers |
+| `DocSession` | `tol` | `Tol(())`, a ZST with no content |
+| | `eval` | a `dyn` service implementing no `Debug` |
+| | `requested_doc` | a whole recipe DAG |
+| | `display` | not derived from the document, as large as its hidden and moved sets, and reachable through `DocSession::display` |
+| `PickCache` | `seam` | a `dyn` service implementing no `Debug` |
+| `Derived` | — | none, so it `finish`es |
+
+**A carried field may be summarised, and several are.** `states` is the
+history's length, `gesture`, `scratch`, `resolver` and `body` are their
+presence, `index` is the generation it describes, and `checks` is its
+two counts — `ChecksReport` is a `Vec` per finding with no bound, and a
+dump that inlined it would be the thing these walks exist to keep
+readable. Summarising is what a `#[derive(Debug)]` cannot do at all,
+which is the reason these are written out rather than derived; the
+recipe and result DAGs are what makes that reason bite. What
+`finish`/`finish_non_exhaustive` cannot express is the difference
+between summarised and not-carried, and it is not asked to —
+`work/view/finish-marker-cannot-say-summarised.md` carries that.
+
+`PickCache::forget` takes the same destructuring for the same reason
+one seam further: it clears the four fields that describe a picture and
+must not miss a fifth, since a missed `attempted` is what lets a late
+build install an index of a document nobody is looking at.
+
+**The rule is a field census, not a `Debug` rule.** A CENSUS is a walk
+whose correctness argument is that its list IS the value's fields —
+*forget everything*, *drop every pick*, *every number equality is on*,
+*this sentence is the value's whole account*. Every census in this
+crate destructures the value instead of listing its fields by hand, so
+the list cannot fall behind the declaration; which trait the census
+sits in decides only what a missed field COSTS, and the sharpest cost
+is not a dump's. Eight of these are not dumps:
+
+| census | costs, if it misses a field |
+|---|---|
+| `PartialEq for Camera` | equality answers **wrong**. `camera::fold` is checked against sequential `apply` by comparing whole cameras, so a coordinate outside `eq` is a coordinate that property does not check |
+| `DisplayState::clear` | display state survives into a different document — the stale-across-`Open` defect the `Derived` walk closed |
+| `BlendTool::clear` | a pick survives `Clear picks`, so the tool is not the fresh tool the button promises and the next click is judged against something the panel says it is not holding |
+| `Display for StoreError` | a store's failure carries a fact the sentence does not say |
+| `Display for Message` | **nothing, by design** — this account is deliberately partial, and that is exactly why the tie is worth having: it makes the NEXT field's omission a decision someone made rather than one nobody noticed |
+| `Display for Withdrawal` | a field joins a value whose whole job is to word itself and goes unworded |
+| `Display for Disagreement` | the doc above it argues both halves are load-bearing; a third field left out would falsify that sentence silently |
+| `Display for BlendTarget` | a refusal names a scope narrower than the target it refused on |
+
+`Camera`'s census reaches one type further out: `target` is a
+`Point3<f64>` expanded coordinate by coordinate, so a second pattern
+names `x`, `y` and `z` rather than reading them — the boundary is where
+a census of this crate's fields would otherwise stop. It reads the
+fields and not the six public accessors beside it for the same reason
+it destructures at all: an accessor call is a field READ, so a census
+assembled from accessors is a hand list again and a seventh field
+would leave it silently short.
+
+Two of the eight name a field the walk deliberately does not spend.
+`DisplayState::clear` binds `revision` and does not clear it: the
+counter is the chrome's rebuild key, it is bumped when the reset was
+visible, and a counter that went backwards would name a picture the
+chrome has already drawn. `Display for Message` binds `subject: _` — a
+bare `_`, with the argument in the doc above the impl rather than at
+the arm — because the subject ROUTES the message: it is what retires
+it (`frame::StatusUpdate::Expire`) and what a joined rank-2 line takes
+as its own subject. It does not RANK; `frame::frame_status` ranks by
+SOURCE. A line that printed its own routing would say to the user what
+the chrome says to itself.
+
+**A `match` is exhaustive over VARIANTS, not over a variant's FIELDS.**
+The five `Display`s above are the struct half of a population of 36
+`Display` impls under `src/`; the other 31 are over enums, and being a
+`match` settles nothing about their fields. Sweeping those 31 for a
+pattern that drops a field of the variant it renders — `{ .. }` or
+`, ..}` in a pattern, a catch-all `_ =>` or bare-binding arm over the
+subject enum, and a tuple variant matched at less than its arity —
+finds **no catch-all over a subject enum, no tuple-arity drop, and
+exactly two `..`**: `CameraOp::Frame` drops `bounds`, and
+`MateToolEvent::PickLost` drops `resolution`. Both stay dropped —
+rendering either would change what the chrome says — and both carry
+the argument for the drop, `MateToolEvent`'s at its impl (the payload
+stays typed and full in the value; the sentence is what a person
+reads) and `CameraOp`'s at the arm. That is the property this rule is
+after: an omission that is a decision someone made. The rule matched
+two more sites that are not instances, and the distinction is the same
+one: `frame.rs`'s `matches!(w.cause, DisplayFault::FusedGeometry { .. })`
+is a variant test on another type, and its `count =>` arm is a
+catch-all over `withdrawn.len()`, not over the subject.
+
+**What was swept for the writing hat, and what it could not see.**
+Every `fn` under `src/` naming two or more distinct `self.<field>`
+assignments, `.clear()`s or `.take()`s, each hit read against its
+struct's declaration: **23 hits, and none is a census**. A converted
+census does not match the rule at all — it has no `self.<field>` write
+left — so a clean sweep is the receipt. The 23 are bookkeeping, where
+the field list comes from the walk's INPUTS rather than from the
+declaration and a new field has no claim on it: `ViewerApp::sync_scene`
+installs a rebuild's eleven outputs, `BlendTool::load_all_edges` seats
+a computed pick set, `PickCache::sync` and `land` install a landing's
+fate, and the two `Drop`s in `evalseam` close a channel and leave the
+language's own drop glue to be exhaustive.
+`DocSession::clear_for_new_document` is the case the rule matches and
+the design answers: its two statements are `Derived::none()` and
+`display.clear()`, and its doc says so — the census is collapsed into
+one value rebuilt from nothing rather than a field-by-field walk each
+door has to remember. What neither rule can see: a census spelled
+through accessors rather than fields (no grep for `self.` finds one), a
+census over a value that is not `self`, and an impl written by a macro
+— `vocab.rs` holds the crate's only `macro_rules!` and it generates
+neither.
+
 ### The app's vocabularies
 
 | Module | Holds |
@@ -457,7 +587,7 @@ the sentence exists on a frame where nobody acted.
 not a decision procedure**, and the sweep that sorted eighteen writers
 on this rule needed the three ways it falls short. It is a property of the FACT and not of a
 signature — `frame::unindexed_refusal` takes a `&NotIndexed`, and what
-makes it an outcome is that `pick::unindexed` raises it for a `Select`
+makes it an outcome is that `pickcache::unindexed` raises it for a `Select`
 and nothing else. Tracing to the raiser does not settle it either:
 `frame::Disagreement` reads only held state and is recomputed every
 frame the cursor holds still, and what sorts it onto the line is *a
@@ -577,12 +707,12 @@ values the receiving module already defines, and none names `egui`.
 
 ### What a vocabulary reads, it is handed
 
-`pick` and `parts` each took a `&DocSession` as a read-only argument —
+`pickcache` and `parts` each took a `&DocSession` as a read-only argument —
 `PickCache::sync`, `PartChooser::opened` and `PartChooser::rescan` —
 which made the rule above false of the tree at five sites, and false
 before `viewer-module-kinds.sh` existed to find them. Ev ruled
 (`#1883`) to **hoist the read**, not to widen the rule: the session
-mints `pick::IndexInputs` (the landed pair, its generation, ε) and
+mints `pickcache::IndexInputs` (the landed pair, its generation, ε) and
 `parts::PartCensus` (the directory scanned and what the scan answered),
 and the two vocabularies take those. *No vocabulary may name a driver*
 stays unqualified.
@@ -616,6 +746,64 @@ withdrawal of the offer: a per-seam entry ended when its seam did, in
 the same change, which a file-granular one would not have. That
 argument is made where the entries were deleted, in
 `scripts/gates/viewer-module-kinds.sh`.
+
+### The seam modules are a chain; the crate is not acyclic
+
+The rule above is about what a module NAMES and says nothing about
+cycles between vocabularies, so a cycle here breaks no clause — and
+`evalseam` and `pickcache` held one anyway, because the index seam's payload
+and the policy that drives the seam were the same file. **Neither of
+the obvious repairs reaches it**: a third module for the index seam
+relocates the cycle (`IndexDone` carries a `PickIndex`), and hoisting
+the seam's request and answer types does the same. What the cycle is a
+symptom of is that one file held two layers with the seam running
+between them.
+
+So the modules are a chain, each naming only what is below it:
+
+    generation  ←  pickindex  ←  evalseam  ←  pickcache
+
+- `generation` is `Generation` and nothing else, depending on
+  nothing. It is a request counter, not part of either seam's
+  machinery, and six modules compare one;
+- `pickindex` is the index and every query over it — the structure a
+  build produces;
+- `evalseam` keeps BOTH seams and therefore **both sets of threads**,
+  which is the property that made this shape win: *the one place in
+  this crate that owns a thread* stays one sentence;
+- `pickcache` is the index's LIFECYCLE over the seam — what a build is
+  handed, when one is asked for, and what a pick means while there is
+  none.
+
+The two moves only work together. `Generation` alone leaves
+`PickIndex` beside `PickCache`, so `evalseam → pickcache → evalseam`
+survives on the seam types; the split alone leaves `pickindex` needing
+`Generation` from `evalseam`, which needs `pickindex`. (Ev, 2026-09-06.)
+
+**The chain above is four modules, and the crate around them still
+holds a ring** — said here because a picture of a chain is exactly the
+sentence that stops the next reader looking:
+
+    pickcache.rs:61   use crate::pickindex::{PickIndex, PickIndexError}
+    pickindex.rs:81   use crate::session::{…, SessionOp}
+    session.rs:78     use crate::pickcache       (for `IndexInputs`)
+
+`pickcache → pickindex → session → pickcache` is live, it predates the
+seam split — at that split's merge base the same ring was two modules
+long, this file naming `session` and `session` naming it — and it is
+held open **on purpose**, by the hoist argued for in *What a vocabulary reads, it is
+handed* below: the session mints `pickcache::IndexInputs` so that the
+vocabulary names no driver, and the price of not widening the rule is
+that the driver's own module names the vocabulary back.
+
+So the two rings are different diagnoses and only the first is fixed
+here. `evalseam ↔ pickcache` was **one file holding two layers** with a seam
+running between them, which no placement of the seam could repair —
+that is what this section is about. `pickcache ↔ session` is **a vocabulary
+and its driver trading a minted value**, which is the boundary rule
+working rather than failing. Nothing in this section generalises to the
+second, and `work/view/seam-split-leaves-a-cycle-through-the-session`
+is where the question of whether it should be broken at all is kept.
 
 ### `Refusal`'s delegation discipline
 
@@ -1009,7 +1197,7 @@ received, which is the previous document's, and three things say so
 rather than letting it pass for the current one: the toolbar shows one
 progress state and it reads `indexing…` (`frame::progress` — one
 value, so an evaluation and an index build cannot light two spinners
-for one wait), a click is refused typed as `pick::NotIndexed`, which
+for one wait), a click is refused typed as `pickcache::NotIndexed`, which
 is a different answer from *nothing under the cursor*, and a hover is
 left alone because it is an observation pushed on every frame and not
 an act.

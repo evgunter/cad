@@ -202,6 +202,56 @@ fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign
     classify_in(name, margin, band, true)
 }
 
+/// **THE STAGED-CEILING DIAL** (`identity-pass-testing`, a test-only
+/// cargo feature — see this crate's manifest for why it is a feature
+/// and not a flag): the comma-separated predicate names whose
+/// INDETERMINATE answers pass as `Zero`.
+///
+/// It exists for one measurement and is worth stating plainly because
+/// it is the one thing this funnel must never do in a run that decides
+/// anything: it lets a document be driven AS IF a named identity
+/// residual were discharged, so "what would bound this document next"
+/// is a measurement instead of a guess. It walks the two-hole plate
+/// from `7.812e2 · ε` to `2.630e8 · ε` — four identity residuals, of
+/// which the first three are worth 2× between them and the fourth is
+/// worth 1.68·10⁵×, and then a REAL assertion margin. That shape is
+/// the finding that says what the next unit is: a per-identity door
+/// can only ever be on the 2× side of that cliff
+/// (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`).
+///
+/// Process-global and empty by default. An evidence row sets it, reads
+/// its ceiling, and clears it; it is never set in a gating run, and
+/// with the feature off none of this compiles.
+#[cfg(feature = "identity-pass-testing")]
+static IDENTITY_PASS: std::sync::RwLock<String> = std::sync::RwLock::new(String::new());
+
+/// Sets [`IDENTITY_PASS`] (empty clears it). Test-only.
+///
+/// `doc(hidden)` for the reason `topo`'s failure-injection doors carry
+/// it: the doc job runs `--all-features`, so a rendered page here would
+/// advertise, in this crate's public API, the one call that makes the
+/// funnel answer `Zero` where it could not decide. It exists for the
+/// evidence rows named in [`IDENTITY_PASS`]'s docs and for nothing else.
+#[doc(hidden)]
+#[cfg(feature = "identity-pass-testing")]
+pub fn identity_pass_set(list: &str) {
+    // A poisoned lock is recovered rather than re-panicked: this is
+    // an evidence dial, and a test that panicked while holding it has
+    // already reported its own failure.
+    *IDENTITY_PASS
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = list.to_owned();
+}
+
+/// Whether the pass list names this predicate. Test-only.
+#[cfg(feature = "identity-pass-testing")]
+fn identity_pass(name: &str) -> bool {
+    let list = IDENTITY_PASS
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    !list.is_empty() && list.split(',').any(|n| n.trim() == name)
+}
+
 /// The one body behind [`classify`] and [`check_unlogged`]: the scoped
 /// name, the classification, and — for a certification predicate — the
 /// verdict-log push. `logged` is the only difference between the two
@@ -224,6 +274,15 @@ fn classify_in<T: Decide>(
     let prev = CURRENT.with(|c| c.replace(name));
     let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
     CURRENT.with(|c| c.set(prev));
+    // THE STAGED-CEILING DIAL, and it exists only under the test-only
+    // `identity-pass-testing` feature ([`IDENTITY_PASS`]): with the
+    // feature off there is no branch here at all, which is the whole
+    // reason it is a cargo feature rather than a runtime flag.
+    #[cfg(feature = "identity-pass-testing")]
+    let outcome = match outcome {
+        Err(_) if identity_pass(name) => Ok(Sign::Zero),
+        o => o,
+    };
     // Both channels of the innermost open bracket — a definite sign as
     // a verdict, an indeterminate outcome as an escalation — for a
     // certification predicate; an evaluator check (`logged == false`)
@@ -582,6 +641,22 @@ pub enum SampleOutcome {
     /// never a rule sample — the margin was never classified against
     /// the band.
     SignGated,
+    /// **The symbolic tier answered through a REGISTERED IDENTITY**
+    /// (`crate::sym::Sym::register_equal`, ERROR-DESIGN E12's
+    /// provenance reserve): the margin's expression is zero once two of
+    /// its nodes are taken to be one real, because the constructor that
+    /// built them guarantees it — a swept arc's rim distance and its
+    /// radius. An AXIOM about the construction, verified at the leaf's
+    /// witness, and therefore its own outcome beside
+    /// [`Self::SymbolicZero`] and [`Self::SignGated`] rather than
+    /// folded into either: the tier's theorems rest on exact rational
+    /// arithmetic alone, and this one rests additionally on the
+    /// registrant's argument. Reading the three columns apart is how a
+    /// document's discharge is read honestly.
+    ///
+    /// Like both of them, never a rule sample — the margin was never
+    /// classified against the band.
+    Registered,
 }
 
 #[cfg(feature = "probe")]
@@ -593,7 +668,7 @@ impl SampleOutcome {
     /// prove the list is complete, so adding one without listing it
     /// here reds a test rather than leaving a silent hole in whatever
     /// derives from it.
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::Definite(Sign::Negative),
         Self::Definite(Sign::Zero),
         Self::Definite(Sign::Positive),
@@ -601,6 +676,7 @@ impl SampleOutcome {
         Self::Invalid,
         Self::SymbolicZero,
         Self::SignGated,
+        Self::Registered,
     ];
 
     /// **The one spelling of this outcome**, and the K sweep's CSV
@@ -625,6 +701,7 @@ impl SampleOutcome {
             Self::Invalid => "invalid",
             Self::SymbolicZero => "symbolic_zero",
             Self::SignGated => "sign_gated",
+            Self::Registered => "registered",
         }
     }
 }
@@ -803,6 +880,13 @@ impl Real for Probe {
         Self(x)
     }
 
+    /// The recording scalar's value channel IS an `f64`, so the
+    /// registered-identity witness is `f64`'s verbatim
+    /// ([`Real::register_equal`]).
+    fn register_equal(self, other: Self) -> crate::sym::SymRegistration {
+        self.0.register_equal(other.0)
+    }
+
     fn zero() -> Self {
         Self(<f64 as Real>::zero())
     }
@@ -971,7 +1055,8 @@ mod tests {
                 | SampleOutcome::Indeterminate
                 | SampleOutcome::Invalid
                 | SampleOutcome::SymbolicZero
-                | SampleOutcome::SignGated => true,
+                | SampleOutcome::SignGated
+                | SampleOutcome::Registered => true,
             };
             assert!(seen, "{o:?} is listed in ALL");
         }

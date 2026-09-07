@@ -137,3 +137,23 @@ as untouched; TOPO's D265 (PR 2013) rewrites that function (now
 own refusals. The spec's premise — a non-`Op` variant is never an
 arena fault — still holds; the line cite and "untouched" do not.
 Found by D265's reviews; the file is this program's.
+
+## CURVED-TORUS PR-1 merged (2026-09-07)
+
+PR #1907, ordinal 2201, sample #152; block CURVED-B1 slot 1 concluded.
+The dual (R1 Fable, R2 Opus) both MERGEABLE-AFTER-FIXES; adjudication
+on the PR (comment 5563489727); twelve union items all taken. The
+substantive change from review: the box lane carries the Decide lane's
+ring and wrap guards (R1's lone-circle-loop face, a latent wrong box).
+R1's MAJOR is a tally candidate (no reviewer interruption). Filed at
+adjudication: `sphere-operand-box-is-the-whole-ball` (CURVED),
+`pcurve-chart-box-is-looser-than-harmonic-extent` (TRIM). Logged, not
+filed: `ARC_SAMPLES` over a full `2π` of `v` makes the `v` charge
+dominate (1.2e-3 m vs 3.6e-4 m on the lily; 2 % of the tube radius
+against an 8 mm headline) — a follow-up if a consumer measures the
+need; the sibling `!= 1.0` rational gates across three programs'
+fences (from TRIM-1's dual) are over-strict by that unit's own insight.
+Operations (2026-09-05/06): a Fable-side limit blocked this session and
+every Fable lane for ~24 h; three lanes were resumed from transcript
+without loss. `work.py --selftest`'s date-pinned fixture expired on
+2026-09-07 UTC and reddened one run before main cleared it.

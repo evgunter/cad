@@ -744,18 +744,24 @@ def selftest() -> int:
             if not any(n in e for e in errors):
                 failures.append(f"{name}: no error containing {n!r}; got {errors}")
 
+    # The fixture is COMMITTED now, so "untouched" ages are measured from
+    # the real today, not from the items' authored dates: a render date
+    # fixed in the calendar stopped being STALE_DAYS past the commit the
+    # day the calendar caught up with it (2026-09-07, every run red).
+    far = dt.date.today() + dt.timedelta(days=STALE_DAYS + 5)
+
     with tempfile.TemporaryDirectory() as root:
         _fixture(root)
         warns: list[str] = []
         expect("clean fixture", lint(root, warns))
         expect("clean fixture (warnings)", warns)
-        text = render(root, today=dt.date(2026, 9, 20))
+        text = render(root, today=far)
         for needle in ("## Waiting on Ev", "`MESH-2`", "`stray-thing`", "## Blocked", "MESH-2, #1601", "`topo`"):
             if needle not in text:
                 failures.append(f"render lacks {needle!r}")
         if "MESH-1" not in text.split("## Untouched")[1]:
-            failures.append("render: fixture items committed 'today' should still be listed stale at +19 days")
-        p = render(root, only_program="mesh", today=dt.date(2026, 9, 20))
+            failures.append(f"render: fixture items committed 'today' should still be listed stale at +{STALE_DAYS + 5} days")
+        p = render(root, only_program="mesh", today=far)
         if "## Waiting on Ev" in p or "`topo`" in p:
             failures.append("--program render leaked whole-board sections")
 
@@ -834,7 +840,7 @@ def selftest() -> int:
         warns = []
         expect("a deferred row needs no blocker", lint(root, warns))
         expect("a deferred row raises no warning", warns)
-        text = render(root, today=dt.date(2026, 9, 20))
+        text = render(root, today=far)
         if "| parked | deferred | closed |" not in text:
             failures.append("render: the programs table has no deferred column")
         if "`MESH-2` | issue | deferred" not in text:

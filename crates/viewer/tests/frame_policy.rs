@@ -29,10 +29,12 @@ use pncad::prelude::{EntityKind, StableName};
 use pncad::select::{ContactClass, Ray};
 use viewer::camera::{Camera, CameraOp};
 use viewer::display::{DisplayFault, DisplayView};
-use viewer::evalseam::{Generation, IndexDone, IndexRequest, IndexService, InlineIndexer};
+use viewer::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer};
 use viewer::frame::{self, IdQueryLog, IdStep, StatusUpdate};
+use viewer::generation::Generation;
 use viewer::input::{self, InputMap, ViewportSize};
-use viewer::pick::{self, CacheStep, IdMap, IndexLanding, PickCache, PickIndex};
+use viewer::pickcache::{self, CacheStep, IndexLanding, PickCache};
+use viewer::pickindex::{self, IdMap, PickIndex};
 use viewer::props::SlotValue;
 use viewer::scene::{self, DisplayTolerance, FittedDelta, PLATE_EXTENT};
 use viewer::session::{
@@ -226,7 +228,7 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
     for (message, what) in [
         (frame::delta_refusal(&delta), "a δ the display refused"),
         (
-            frame::unindexed_refusal(&pick::NotIndexed::Building),
+            frame::unindexed_refusal(&pickcache::NotIndexed::Building),
             "a pick against an index still building",
         ),
         (
@@ -261,7 +263,7 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
 
     for (message, what) in [
         (
-            frame::pick_refusal(&pick::PickError::Camera(projection)),
+            frame::pick_refusal(&pickindex::PickError::Camera(projection)),
             "a cursor action the pick index refused",
         ),
         (
@@ -294,7 +296,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
         .view_projection(0.0)
         .expect_err("a zero aspect has no projection");
     let delta = DisplayTolerance::new(0.0).expect_err("zero is not a δ");
-    let build = pick::PickIndexError::DrawnTwice {
+    let build = pickindex::PickIndexError::DrawnTwice {
         node: RecipeNodeId(3),
         body: 0,
     };
@@ -395,7 +397,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
          will not form is a READ, and both are about the camera"
     );
     assert_eq!(
-        frame::unindexed_refusal(&pick::NotIndexed::Building).subject(),
+        frame::unindexed_refusal(&pickcache::NotIndexed::Building).subject(),
         frame::index_badge(Some(&build))
             .expect("a held refusal badges")
             .subject(),
@@ -1093,7 +1095,7 @@ fn the_highlight_narrows_a_twice_drawn_name_to_exactly_one_id() {
         index.ids_of(&face.name).len() > 1,
         "the name is drawn twice"
     );
-    let marked = viewer::pick::highlight(&index, &Selection::Face(face.clone()), None);
+    let marked = viewer::marks::highlight(&index, &Selection::Face(face.clone()), None);
     let key = index
         .ids()
         .key_of(marked.selected)
@@ -1533,18 +1535,18 @@ fn an_answer_built_at_another_delta_is_discarded_too() {
 fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
     let click = [input::PickAction::Select([10.0, 10.0])];
     assert_eq!(
-        pick::unindexed(&click, true),
-        Some(pick::NotIndexed::Building),
+        pickcache::unindexed(&click, true),
+        Some(pickcache::NotIndexed::Building),
     );
     assert_eq!(
-        pick::unindexed(&click, false),
-        Some(pick::NotIndexed::Absent),
+        pickcache::unindexed(&click, false),
+        Some(pickcache::NotIndexed::Absent),
         "a refused build is not a build that is still running, and the \
          sentence must not promise an answer that is not coming",
     );
     for indexing in [true, false] {
         assert_eq!(
-            pick::unindexed(
+            pickcache::unindexed(
                 &[
                     input::PickAction::Hover([10.0, 10.0]),
                     input::PickAction::ClearHover,
@@ -1554,13 +1556,16 @@ fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
             None,
             "an observation asked every frame is not a refusal to report",
         );
-        assert_eq!(pick::unindexed(&[], indexing), None);
+        assert_eq!(pickcache::unindexed(&[], indexing), None);
     }
     assert_ne!(
-        pick::NotIndexed::Building.to_string(),
-        pick::NotIndexed::Absent.to_string(),
+        pickcache::NotIndexed::Building.to_string(),
+        pickcache::NotIndexed::Absent.to_string(),
     );
-    for refusal in [pick::NotIndexed::Building, pick::NotIndexed::Absent] {
+    for refusal in [
+        pickcache::NotIndexed::Building,
+        pickcache::NotIndexed::Absent,
+    ] {
         assert!(
             refusal.to_string().contains("index"),
             "and each sentence says which of the two answers it is",
