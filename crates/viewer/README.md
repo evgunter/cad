@@ -891,21 +891,50 @@ rather than an exception:
   cannot be projected from a declaration that is not here. That is the
   neighbouring MIRROR question and has its own tracker item.
 
-**A gate is owed, and it is filed rather than written here.** The
-argument this section first gave — that a gate would be "redundant for
-every converted one" — was wrong and is withdrawn: a converted
-vocabulary has no array literal left, so it is not a hit, and
-redundancy was never the objection. The cheap gate is real and would
-work: hit on any new `const ALL: [Self; N] = [ … ]` under
-`crates/viewer/src`, allowlist the three kinds above. What it costs is
-not the scan but the siting — a gate must fire on its own inputs, so
-it needs a `ci.yml` step, a `gate-roster.sh` registration and a
-`check-ci-mirror-parity.py` tier decision, none of which is a question
-about `const ALL`. It is
-`work/view/a-new-hand-written-all-table-meets-no-gate.md`, which is a
-named schedule; a paragraph is not one, and this crate's own
-`scripts/gates/viewer-module-kinds.sh` exists because a rule sold as
-mechanically checkable went its first life with nothing reading it.
+**A gate holds this, and the table below is its allowlist.**
+`scripts/gates/viewer-vocab-declared-once.sh` scans `crates/viewer/src`
+for a hand-written membership list in either of two shapes — a `const
+ALL`, and any `const` array literal of two or more `Type::Variant`
+entries, which is the same list under a different word — and reds on
+one the table does not carry. A converted vocabulary is not a hit:
+`vocabulary!`'s `pub const ALL;` declares no array literal, so the nine
+are quiet without an entry. What the gate reads is this section rather
+than a list of its own: the ROWS below are the allowlist, and the KINDS
+they may claim are the three **bolded bullets** above, so a fourth kind
+is an amendment argued here and not a new word in a table cell. The
+roster retires itself in both directions — a list added without a row
+reds, and a row whose list has been converted reds too, because an
+allowlist entry with nothing behind it is a ratification the next thing
+written at that name inherits.
+
+The gate runs in the `mirror` job, which carries no `if:`, because half
+its subject is this page: a change set of only the README is TIER=docs,
+and sited under `if: run_build` the arms that exist for an edit to this
+table could not fire on an edit to this table.
+`scripts/check-ci-mirror-parity.py`'s `TIER_BLIND` names it, so the
+siting is enforced rather than remembered.
+
+What it does not see is `crates/viewer/tests/`, deliberately: the
+suites' hand-written variant lists are inline arrays in a row, not
+`const` tables, so this scan would not find one if it looked —
+`work/view/viewer-suites-hold-hand-written-complete-variant-lists.md`
+is theirs. Nor does it see a list that is not a `const`, which is why
+each tool's seat list is named in the bullet above rather than in the
+table.
+
+#### The lists that stay hand-written
+
+| List | Module | Kind |
+|---|---|---|
+| `BOOLEAN_OPS` | `forms` | A mirror of an enum declared in another crate |
+| `MATE_PRIMITIVES` | `forms` | A deliberately partial list |
+| `SUBJECTS_WITH_AN_EXPIRY_ISSUER` | `frame` | A deliberately partial list |
+| `Theme::ALL` | `theme` | A registry of struct constants |
+
+**This table is the roster**, not a summary of one. `Module` is the
+module the `const` is declared in, `List` is how it is written there
+(an associated constant carries its type, `Theme::ALL`), and `Kind` is
+the bolded bullet above that ratifies it, word for word.
 
 ### What the boundary does not decide
 

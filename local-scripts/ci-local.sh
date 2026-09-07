@@ -259,6 +259,7 @@ fi
 # HOSTED MIRROR: mirror / gate roster parity (both halves run every gate)
 # HOSTED MIRROR: mirror / probe type-check loop citations
 # HOSTED MIRROR: mirror / viewer module kinds (vocabulary/driver boundary)
+# HOSTED MIRROR: mirror / viewer vocabularies are declared once (no hand-written ALL)
 # HOSTED MIRROR: mirror / CI half parity (both halves name the same checks)
 # HOSTED MIRROR: mirror / change filter selftest (the docs tier fails open)
 # HOSTED MIRROR: mirror / tess-budget cut-stamp selftest (the baseline's provenance)
@@ -275,6 +276,8 @@ tier_blind_rows() {
   scripts/gates/probe-suite-census.sh --citations || rc=1
   scripts/gates/viewer-module-kinds.sh --selftest || rc=1
   scripts/gates/viewer-module-kinds.sh || rc=1
+  scripts/gates/viewer-vocab-declared-once.sh --selftest || rc=1
+  scripts/gates/viewer-vocab-declared-once.sh || rc=1
   python3 scripts/check-ci-mirror-parity.py --selftest || rc=1
   python3 scripts/check-ci-mirror-parity.py || rc=1
   python3 scripts/ci-filter.py --selftest || rc=1
