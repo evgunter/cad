@@ -586,3 +586,27 @@ and, first, R2's off-target measurement that a DECLARED pair is
 reported `UndeclaredContact` on a three-neighbour star in ten of 24
 orders — a silent drop in the routing if it is the union's, to be
 traced before anything else. Both enter the tally as candidates.
+
+## DOCM-8 MERGED (2026-09-07, PR 2073, ordinal 1807, sample #154)
+
+Block DOCM-B3 slot 1 (FABLE), concluded; slot 2 (OPUS) remains. One
+stop (the pass-through shape; spec amended, same arm); the v6 dual
+(R1 opus APPROVE-WITH-FIXES 1/4/6, R2 fable APPROVE-WITH-FIXES 1/2/5;
+R2 restarted ~19 h after R1 on the same frozen head after the account's
+API credits ran out) and its union fix pass. Adjudicated: no bilateral
+MAJOR and two unilateral MAJORs, one per slot — R1's prose over-claim
+(a split member face is still order-shaped; the base refused every
+such order) and R2's lost N3 offer (a consumed merged face was no
+longer a constituent of the outer flat row). Ruled: one `covers` home
+for reading a flat set behind the offers, the paint-follow hook and the
+look-through; the prose bounded to merges with the residue filed and
+pinned; a mint-site refusal so N3 holds for both emitters; the
+declared-pair report traced first — the kernel's (an area-overlap cap
+contact admitted without a merge), filed. Both enter the tally as
+candidates. Closed: `member-space-declarations-are-order-shaped-across-a-chain`.
+Filed by the fix pass: the look-through's residue (DOCM), two emitter
+refusals a legal declared union reaches (DOCM), the area-overlap
+contact (kernel), the star's `JoinDesync` (`topo`). The spec is deleted
+into the ledger; DM4 carries the bound. Next: block B3 slot 2 (OPUS)
+banks for the certified range query (waits on M10); the v6 readout
+stays owed.
