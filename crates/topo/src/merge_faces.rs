@@ -319,7 +319,12 @@ pub enum MergeCoplanarError {
     /// where the kernel constructs it, not something the type
     /// enforces.
     DeclaredCarrierUnsupported {
-        /// The declared surface pair, as the caller passed it.
+        /// The declared surface pair, as the caller passed it. Both
+        /// keys resolved when the door read them; a caller that
+        /// re-describes edges after this call may drop a surface the
+        /// pair names (a surface held only by an edge curve's
+        /// reference goes with that curve), so a consumer walks the
+        /// record's `faces`, not the pair, for what is live.
         pair: (SurfaceKey, SurfaceKey),
         /// The carrier kind both surfaces share.
         kind: SurfaceKind,
