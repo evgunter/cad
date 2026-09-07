@@ -23,23 +23,23 @@ added two more of them for the sphere parse and, in its fix pass, a
 third for the forward half `0 < Δt` — which is the second half of
 the same certification premise, `interval_span_forward`
 (`certify.rs:1488`). Of the sites below, `certify.rs`,
-`props/curved.rs:1638` and `fold_chain` (`props/curved.rs:2288`)
+`props/curved.rs:1639` and `fold_chain` (`props/curved.rs:2288`)
 decide both halves; whether each of the others does was not read for
 this filing, and at any that does not, a reversed span reads as
 headroom `τ + |Δt|`, definitely `Positive`, and is admitted — the
 defect MESH-12's fix pass closed at the sphere parse.
 
-The sites, each line read at this head (merge base `f729fbaf4`,
+The sites, each line read at this head (PR 1617's landing merge `267e2510f`, merge base `522e8840a`,
 PR 1617's fix-pass tree), with its predicate name:
 
 | site | name | lever |
 |---|---|---|
 | `crates/geom-brep/src/certify.rs:1496` | `interval_span_winding` (circle) | carrier radius |
 | `crates/geom-brep/src/certify.rs:1515` | `interval_span_winding` (ellipse) | minor semi-axis |
-| `crates/geom-brep/src/pcurve_cache.rs:2630` | `pcurve_azimuth_period` | `arm` |
-| `crates/geom-brep/src/pcurve_cache.rs:3335` | `pcurve_azimuth_period` | `u_arm` |
-| `crates/geom-brep/src/props/curved.rs:1647` | `props_meridian_span_winding` | sphere radius |
-| `crates/geom-brep/src/props/curved.rs:2296` | `props_meridian_pieces_winding` | torus minor radius |
+| `crates/geom-brep/src/pcurve_cache.rs:2658` | `pcurve_azimuth_period` | `arm` |
+| `crates/geom-brep/src/pcurve_cache.rs:3363` | `pcurve_azimuth_period` | `u_arm` |
+| `crates/geom-brep/src/props/curved.rs:1650` | `props_meridian_span_winding` | sphere radius |
+| `crates/geom-brep/src/props/curved.rs:2299` | `props_meridian_pieces_winding` | torus minor radius |
 | `crates/topo/src/boolean/reduce.rs:2120` | `bool_split_span_period` | radius |
 | `crates/topo/src/boolean/solid_contain.rs:892` | `bool_cone_trim_period` | `max(|v0|, |v1|)` |
 | `crates/topo/src/boolean/solid_contain.rs:1118` | closure over `name` (two callers) | `lever` |
