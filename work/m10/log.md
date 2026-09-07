@@ -1327,3 +1327,14 @@ retired, the four residuals rendered and classified (an iterated
 witness is S-CERT's, not ours) before a rule ships. Acceptance is the
 program's exit condition verbatim.
 
+
+## Orchestrator-direct hotfix: main red at the selftest since 2026-09-07 (2026-09-07)
+
+Every run from 00:00Z was red at `gate ok`: `scripts/work.py
+--selftest` renders its committed fixture at a calendar date
+(2026-09-20) and expects the fixture's items stale by then — 19 days
+when written, 13 on the day the calendar caught up, one short of
+`STALE_DAYS`. Found on the memories PR (#2098), reproduced locally,
+fixed as #2099 (the three renders at `today + STALE_DAYS + 5`),
+merged at f30aabc36 on its own green run; #2098 re-based onto it by
+merge. The M10-10 lane was told not to chase it.
