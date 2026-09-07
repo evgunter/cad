@@ -16,7 +16,12 @@ counterexample search. Its decision vectors come from proptest, which
 seeds its RNG from entropy — correct for the shape (varying seed,
 monotone in the safe direction) — but proptest prints **nothing** on a
 green run and records a failing case only by appending to
-`crates/topo/proptest-regressions/seqgen.txt`.
+`crates/topo/proptest-regressions/seqgen/random_op_sequences.txt`
+— proptest names that file after the row's SOURCE FILE, and the row
+moved into `seqgen/random_op_sequences.rs` before this was written.
+(The tracked `proptest-regressions/seqgen.txt` beside it is the path
+from before that move and is no longer read at all;
+`work/topo/orphaned-proptest-corpus-for-seqgen.md` carries that.)
 
 `memories/test-suite-cost.md` asks every fuzzer for three properties
 together, and the first is *"a varying seed, logged
