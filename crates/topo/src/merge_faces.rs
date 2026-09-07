@@ -38,6 +38,7 @@
 use std::collections::BTreeMap;
 
 use geom::Surface;
+use geom_brep::SurfaceKind;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Tol};
 use slotmap::SecondaryMap;
 
@@ -75,7 +76,10 @@ pub struct MergedGroup {
 
 /// A merge group that was NOT glued: its shape is outside the merge's
 /// never-elide Euler inventory. Loud in the record, never a silent
-/// drop — and never a partial commit.
+/// drop — and never a partial commit. The same record also carries a
+/// declared pair the door has NO RUNG for — a legal declaration on a
+/// non-planar carrier ([`MergeCoplanarError::DeclaredCarrierUnsupported`]),
+/// whose `faces` are every live face on either declared surface.
 ///
 /// **The scope statements below are the KERNEL's, not the type's.**
 /// Both fields are public and there is no private constructor, so
@@ -108,7 +112,9 @@ pub struct MergeCoplanarOutcome {
     /// Groups left unmerged as outside the inventory, with the
     /// refusal that stopped each. Non-empty needs no declaration: a
     /// curved run that would close its chart's full period is
-    /// recorded here through either entry point.
+    /// recorded here through either entry point. Declared pairs on a
+    /// non-planar carrier are recorded here too, ahead of the group
+    /// records, and survive a call that found nothing to merge.
     pub skipped: Vec<SkippedMerge>,
 }
 
@@ -275,8 +281,10 @@ pub enum MergeCoplanarError {
         error: EulerOpError,
     },
     /// A declared surface pair references a key that does not
-    /// resolve, or a non-plane surface (M4 PR 5) — a caller bug,
-    /// refused up front.
+    /// resolve, or names two surfaces of DIFFERENT kinds — a torn
+    /// argument, refused up front. A pair on one non-planar kind is
+    /// NOT this: it is a legal declaration recorded as
+    /// [`MergeCoplanarError::DeclaredCarrierUnsupported`].
     InvalidDeclaration {
         /// The offending surface key.
         surface: SurfaceKey,
@@ -298,6 +306,23 @@ pub enum MergeCoplanarError {
         f1: FaceKey,
         /// The second face.
         f2: FaceKey,
+    },
+    /// A declared surface pair lies on one NON-PLANAR carrier kind.
+    /// The declaration is legal — the boolean's declarable inventory
+    /// admits it and it served the consuming op's classification —
+    /// but this door's declared-pair rung is planar and has no arm
+    /// for the kind, so the pair is left unmerged and RECORDED. Scope
+    /// is the pair: the kernel constructs this only as a
+    /// [`SkippedMerge::reason`], never as an `Err` of the door, and
+    /// it is an inventory statement, not an arena fault. Like
+    /// [`MergeCoplanarError::GroupNotClosed`], that is a fact about
+    /// where the kernel constructs it, not something the type
+    /// enforces.
+    DeclaredCarrierUnsupported {
+        /// The declared surface pair, as the caller passed it.
+        pair: (SurfaceKey, SurfaceKey),
+        /// The carrier kind both surfaces share.
+        kind: SurfaceKind,
     },
     /// After absorbing a group, the survivor's loops admit no unique
     /// positively-wound outline (zero or several positive windings) —
@@ -387,6 +412,16 @@ impl core::fmt::Display for MergeCoplanarError {
                 f,
                 "merge_coplanar_faces: declared pair ({f1:?}, {f2:?}) meets with opposite \
                  orientations — unmergeable in a closed solid"
+            ),
+            Self::DeclaredCarrierUnsupported {
+                pair: (k1, k2),
+                kind,
+            } => write!(
+                f,
+                "merge_coplanar_faces: declared pair ({k1:?}, {k2:?}) lies on a {kind} carrier — \
+                 the declaration is legal and served the op, but this door's declared-pair \
+                 rung is planar and has no {kind} arm; the pair is left unmerged and recorded",
+                kind = kind.name()
             ),
             Self::MergedFaceRoleAmbiguous { face } => write!(
                 f,
@@ -559,18 +594,24 @@ impl<T: Decide> Body<T> {
 
     /// [`Body::merge_coplanar_faces`] with declared coincident
     /// SURFACE pairs (M4 PR 5, F5): each pair's surfaces are declared
-    /// to describe one plane by recipe intent — they become
-    /// equivalent for the adjacency test (fragments inherit surface
-    /// keys, so every fragment of a declared face is covered),
-    /// verified at each meeting edge through `plane_eq`'s declared
-    /// rung (contradiction refuses typed). Same-source surfaces (N6)
-    /// glue with zero declarations — the retired bit rung's
-    /// replacement.
+    /// to describe one carrier by recipe intent. A PLANAR pair's
+    /// surfaces become equivalent for the adjacency test (fragments
+    /// inherit surface keys, so every fragment of a declared face is
+    /// covered), verified at each meeting edge through `plane_eq`'s
+    /// declared rung (contradiction refuses typed). Same-source
+    /// surfaces (N6) glue with zero declarations — the retired bit
+    /// rung's replacement.
     ///
     /// A declared pair whose surfaces never meet at an edge licenses
     /// nothing and is a no-op (the equivalence is consulted only
-    /// across shared edges); a pair whose keys do not resolve is a
-    /// typed refusal.
+    /// across shared edges); a pair whose keys do not resolve, or
+    /// whose surfaces are of two kinds, is a typed refusal. A pair on
+    /// one NON-PLANAR kind is a legal declaration this door has no
+    /// rung for: it is recorded in [`MergeCoplanarOutcome::skipped`]
+    /// as [`MergeCoplanarError::DeclaredCarrierUnsupported`] (the
+    /// declared-licensed regime's own rule — the declaration served
+    /// the calling op) and never refused, even when the call has
+    /// nothing else to merge.
     ///
     /// # Two failure regimes, one refusal vocabulary
     ///
@@ -626,26 +667,57 @@ impl<T: Decide> Body<T> {
         if let Err(errors) = validate_closed(self) {
             return Err(MergeCoplanarError::InputNotClosed { errors });
         }
-        // ---- Declared pairs: validate, then class the surfaces. ----
-        let planar = |body: &Self, k: SurfaceKey| -> Result<(), MergeCoplanarError> {
-            match body.get_surface(k) {
-                Some(Surface::Plane { .. }) => Ok(()),
-                Some(_) => Err(MergeCoplanarError::InvalidDeclaration {
-                    surface: k,
-                    what: "declared surface is not a plane",
-                }),
-                None => Err(MergeCoplanarError::InvalidDeclaration {
+        // ---- Declared pairs: validate, then class each by carrier kind. ----
+        //
+        // A key that does not resolve, or a pair of two kinds, is a
+        // torn argument and refuses. A planar pair joins the surface
+        // equivalence. A pair on one non-planar kind is a LEGAL
+        // declaration this door has no rung for: it is declined here
+        // and recorded below, never refused — the declaration served
+        // the calling op, and an inventory limit of this door is not
+        // the caller's error.
+        let kind_of = |k: SurfaceKey| -> Result<SurfaceKind, MergeCoplanarError> {
+            self.get_surface(k)
+                .map(SurfaceKind::of)
+                .ok_or(MergeCoplanarError::InvalidDeclaration {
                     surface: k,
                     what: "declared surface key does not resolve",
-                }),
-            }
+                })
         };
         let mut eq = DeclaredSurfaceEq::default();
+        let mut declined: Vec<((SurfaceKey, SurfaceKey), SurfaceKind)> = Vec::new();
         for &(k1, k2) in declared {
-            planar(self, k1)?;
-            planar(self, k2)?;
-            eq.union(k1, k2);
+            let (kind1, kind2) = (kind_of(k1)?, kind_of(k2)?);
+            if kind1 != kind2 {
+                // Named: the second key, whose kind disagrees with the first's.
+                return Err(MergeCoplanarError::InvalidDeclaration {
+                    surface: k2,
+                    what: "declared surfaces are not one kind",
+                });
+            }
+            if kind1 == SurfaceKind::Plane {
+                eq.union(k1, k2);
+            } else {
+                declined.push(((k1, k2), kind1));
+            }
         }
+        // The declined pairs' records name every live face on either
+        // declared surface, read off the body the caller RECEIVES —
+        // `self` when nothing merges, the staged result otherwise —
+        // so a recorded face is never a dead key.
+        let declined_records = |body: &Self| -> Vec<SkippedMerge> {
+            declined
+                .iter()
+                .map(|&(pair, kind)| SkippedMerge {
+                    faces: body
+                        .faces()
+                        .filter(|(_, face)| face.surface == pair.0 || face.surface == pair.1)
+                        .map(|(key, _)| key)
+                        .collect(),
+                    reason: MergeCoplanarError::DeclaredCarrierUnsupported { pair, kind },
+                })
+                .collect()
+        };
         let declared_ctx = if eq.is_empty() {
             None
         } else {
@@ -680,7 +752,10 @@ impl<T: Decide> Body<T> {
             }
         }
         if !any {
-            return Ok(MergeCoplanarOutcome::default());
+            return Ok(MergeCoplanarOutcome {
+                groups: Vec::new(),
+                skipped: declined_records(self),
+            });
         }
         // ---- Group labeling (face-arena order seeds, DFS worklist). ----
         //
@@ -782,6 +857,9 @@ impl<T: Decide> Body<T> {
             crate::pcurves::mint_pcurves(&mut work, tol)
                 .map_err(|source| MergeCoplanarError::Pcurve { source })?;
         }
+        let mut skipped = declined_records(&work);
+        skipped.append(&mut outcome.skipped);
+        outcome.skipped = skipped;
         *self = work;
         Ok(outcome)
     }
