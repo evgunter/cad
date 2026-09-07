@@ -1363,3 +1363,27 @@ on main) admits it with its negative pins; the lane resumed on it
 before the freeze. The other two routes in the finding — a rule-C
 sign read at the funnel's own certified decision, a structural phase
 from PCURVE — stay filed.
+
+## M10-10 frozen and under dual review: the acceptance is met (2026-09-07)
+
+The second report under A1: `atan2(zero-form, manifestly non-negative)
+= 0` and, unnamed by the amendment, trig at exact half-multiples of π
+(D14, without which two negative-frame rims stayed numeric) — the
+plate's last residual folds and the door closes the rest; the plate
+certifies 0.237/0.263/0.263 of its real study at the three ε rows,
+the ceiling stops scaling with ε, the first refusal beyond is
+`assert_bound`; driven whole, 431 of 1,024 leaves certify (89 % of the
+mass, hull `[0.419, 0.845]` mm vs the 0.5 mm floor, refusals all
+`Budget`); the tour's stop 1 is the certified study. The annulus
+certifies 0.70/0.84 of its study bounded by real margins; link,
+bracket and pad stay at identity residuals (the link's carrier frame
+past the cap). The K row lints 48,039 symbolic per CSV, rule 1 = 0.
+Knock-on: the bore/pin ±0.05 study certifies, so M10-3/M10-4 rows
+that pinned refusals are re-scaled to real studies and the padding
+pins re-baselined with the reason (D15). Frozen at e904d9691; ordinal
+511 drawn (branch-side). What the reviews are pointed at beyond
+soundness: whether the `Budget` refusals are bounded by the real flip
+or by something the finer leaves see; whether the re-baselined
+goldens assert the mechanism; why the link, bracket and pad's identity
+residuals do not fold.
+
