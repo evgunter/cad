@@ -69,6 +69,7 @@ use pncad::document::{Doc, Evaluation, Expr, ProfileProgram, RecipeNodeId};
 use pncad::prelude::StableName;
 
 use crate::session::{EdgeSelection, Selection, SessionOp};
+use crate::vocab::vocabulary;
 
 /// **What the tool's panel says about the freeze**, so the ratified
 /// #217 semantics reach the user at the moment they are committing to
@@ -124,35 +125,43 @@ impl BlendTarget {
     }
 }
 
+/// **Destructured rather than field-read**, so a field added to
+/// [`BlendTarget`] is E0027 here. The pair above is the scope an
+/// accumulator opens on and the scope a refusal names, and this
+/// sentence is how the refusal names it: a target that grew a third
+/// component while the sentence still named two would name the wrong
+/// scope.
 impl core::fmt::Display for BlendTarget {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "feature {} body {}", self.node.0, self.body)
+        let Self { node, body } = self;
+        write!(f, "feature {} body {body}", node.0)
     }
 }
 
-/// Which blend is being authored — the tool's kind choice, and the
-/// discrimination that picks which commit door the panel calls.
-///
-/// Two variants rather than a flag on one op, because the two nodes
-/// are two nodes: a fillet's size is a rolling-ball RADIUS and a
-/// chamfer's is a SETBACK, they live in different slots, and
-/// `Node::Chamfer`'s docs give the argument for why a recipe must not
-/// have a boolean deciding which one a number means.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum BlendKindChoice {
-    /// A constant-radius rolling-ball fillet (`Node::Fillet`).
-    #[default]
-    Fillet,
-    /// An equal-setback flat chamfer (`Node::Chamfer`).
-    Chamfer,
+vocabulary! {
+    /// Which blend is being authored — the tool's kind choice, and the
+    /// discrimination that picks which commit door the panel calls.
+    ///
+    /// Two variants rather than a flag on one op, because the two nodes
+    /// are two nodes: a fillet's size is a rolling-ball RADIUS and a
+    /// chamfer's is a SETBACK, they live in different slots, and
+    /// `Node::Chamfer`'s docs give the argument for why a recipe must not
+    /// have a boolean deciding which one a number means.
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub enum BlendKindChoice {
+        /// A constant-radius rolling-ball fillet (`Node::Fillet`).
+        #[default]
+        Fillet = "fillet",
+        /// An equal-setback flat chamfer (`Node::Chamfer`).
+        Chamfer = "chamfer",
+    }
+
+    /// Both kinds with their button labels — the chrome's radio row
+    /// and a test that sweeps them.
+    pub const ALL;
 }
 
 impl BlendKindChoice {
-    /// Both kinds with their button labels — the chrome's radio row
-    /// and a test that sweeps them.
-    pub const ALL: [(Self, &'static str); 2] =
-        [(Self::Fillet, "fillet"), (Self::Chamfer, "chamfer")];
-
     /// What the one Length field means for this kind, for the field's
     /// own label.
     ///
@@ -356,7 +365,7 @@ impl BlendTool {
     ///
     /// **One pass over the target's drawn edges**, testing set
     /// membership per drawn edge, rather than one
-    /// `crate::pick::edge_segments` search per held name: the search
+    /// `crate::marks::edge_segments` search per held name: the search
     /// scans the body's whole edge run for each name, so the obvious
     /// spelling costs `O(E²)` name comparisons every frame on a body
     /// with `E` edges — fine for a cube, not for a real part. This is
@@ -369,7 +378,7 @@ impl BlendTool {
     /// else.
     pub fn mark_segments(
         &self,
-        index: &crate::pick::PickIndex,
+        index: &crate::pickindex::PickIndex,
         display: &crate::display::DisplayView,
     ) -> Vec<[f32; 3]> {
         let Some(target) = self.target else {
@@ -381,7 +390,7 @@ impl BlendTool {
                 .edge_name_of(id)
                 .is_ok_and(|name| self.edges.contains(name))
             {
-                out.extend(crate::pick::edge_id_segments(index, display, id));
+                out.extend(crate::marks::edge_id_segments(index, display, id));
             }
         }
         out
@@ -457,7 +466,7 @@ impl BlendTool {
         &mut self,
         target: BlendTarget,
         eval: &Evaluation<f64>,
-        index: &crate::pick::PickIndex,
+        index: &crate::pickindex::PickIndex,
     ) -> Option<BlendEvent> {
         let named: BTreeSet<StableName> = pncad::select::all_edges(eval, target.node)
             .into_iter()
@@ -479,9 +488,16 @@ impl BlendTool {
 
     /// Drop every pick — the panel's `Clear picks` button, and what
     /// Cancel's whole-tool replacement amounts to for the picks alone.
+    ///
+    /// **Destructured rather than field-cleared**, so a field added to
+    /// [`BlendTool`] is E0027 here rather than surviving a door whose
+    /// whole contract is that the tool holds nothing afterwards — the
+    /// state a fresh tool is in, which is what lets the next click
+    /// start on any body.
     pub fn clear(&mut self) {
-        self.target = None;
-        self.edges.clear();
+        let Self { target, edges } = self;
+        *target = None;
+        edges.clear();
     }
 
     /// Release the target when the last edge leaves, keeping the

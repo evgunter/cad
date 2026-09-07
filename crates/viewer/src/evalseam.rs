@@ -66,7 +66,7 @@
 //! # The index seam, and the two ways it is WEAKER than this one
 //!
 //! [`IndexService`] carries the second half of the same journey: a
-//! landed evaluation plus a δ becomes a [`crate::pick::PickIndex`],
+//! landed evaluation plus a δ becomes a [`crate::pickindex::PickIndex`],
 //! which is the tessellation the viewport draws AND the structure
 //! every pick is answered from. It is the same vocabulary —
 //! submit / poll over a [`Generation`] — and its two implementations
@@ -109,45 +109,9 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 
-use crate::pick::{PickIndex, PickIndexError};
+use crate::generation::Generation;
+use crate::pickindex::{PickIndex, PickIndexError};
 use crate::scene::DisplayTolerance;
-
-/// A request's identity: the seam's own monotone counter, minted by
-/// the session on every submit.
-///
-/// Distinct from the shipped evaluation `Epoch`, which identifies the
-/// RUN. This identifies the REQUEST, and the session mints a fresh one
-/// for every submit — including a re-submit of an unchanged document
-/// (`SessionOp::Reevaluate`). That is deliberately stricter than
-/// "identifies the document version": a result may land only against
-/// the request that asked for it, so a run canceled and then re-asked
-/// can never have its abandoned answer accepted for the new ask.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Generation(u64);
-
-impl Generation {
-    /// The first generation.
-    pub const FIRST: Self = Self(0);
-
-    /// The next generation after this one.
-    ///
-    /// Saturating, not wrapping. A wrap would make a stale result
-    /// compare equal to the current request — the one thing this type
-    /// exists to prevent — and it is unreachable at `u64` anyway, so
-    /// the arithmetic that cannot produce the failure is the one to
-    /// write. At the ceiling every request shares a generation and the
-    /// staleness filter degrades to accepting everything, which is the
-    /// pre-existing behaviour of a counter that never advances; no run
-    /// of this application gets within astronomical distance of it.
-    pub fn next(self) -> Self {
-        Self(self.0.saturating_add(1))
-    }
-
-    /// The raw counter, for a caller displaying it.
-    pub fn get(self) -> u64 {
-        self.0
-    }
-}
 
 /// What the seam was asked to evaluate.
 #[derive(Clone, Debug)]
@@ -356,7 +320,7 @@ impl EvalService for InlineEvaluator {
 
 /// What the index seam was asked to build.
 ///
-/// Everything [`crate::pick::PickIndex::build`] reads, as owned values,
+/// Everything [`crate::pickindex::PickIndex::build`] reads, as owned values,
 /// so the worker holds its own copy of the document and a handle on the
 /// evaluation while the interaction layer keeps editing.
 #[derive(Clone, Debug)]
@@ -415,7 +379,7 @@ pub trait IndexService {
 
 /// Run one index build, stamping the answer with the request's own key.
 ///
-/// The seam's one call into [`crate::pick::PickIndex::build`], shared
+/// The seam's one call into [`crate::pickindex::PickIndex::build`], shared
 /// by both implementations, so the generation the index is built under
 /// and the generation the answer is filed under are read from one
 /// place and cannot disagree.
@@ -812,7 +776,7 @@ mod threaded {
     /// The worker loop: build each index and answer with its key.
     ///
     /// No memo and nothing kept between runs: an index is discarded
-    /// whole and rebuilt whole (`crate::pick`'s staleness rule), so
+    /// whole and rebuilt whole (`crate::pickindex`'s staleness rule), so
     /// there is nothing here for a later build to prime from.
     fn index_work(requests: &Receiver<IndexRequest>, results: &Sender<IndexDone>) {
         while let Ok(request) = requests.recv() {

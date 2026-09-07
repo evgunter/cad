@@ -265,6 +265,48 @@ ERROR-DESIGN's own "Open after this doc" list.
   form; the validated arc registers, the sweep's carrier consumes.
   Acceptance is E12's: the plate's real study certifies. Plan
   approved by Ev in chat, 2026-09-04.
+- **M10-9 — the registered-identity door (E12's reserve, taken);
+  after M10-8, block M10-B4 slot 3.** Opened from M10-8's measured
+  miss: the plate's real study still bounded at `7.81e2 · ε` by the
+  arc rim's `‖q − c‖ = r`, whose expansion needs a coefficient ring
+  the bracket cannot afford. A constructor registers the identity it
+  guarantees (the sagitta arc, the fillet's tangency), verified at
+  the witness, refused typed when it lies, counted apart from the
+  tier's theorems; the numeric bits untouched; the ring width measured
+  in one table. Acceptance is E12's: the plate certifies, ε-free.
+  Option 1 of two put to Ev after M10-8; ruled in chat ("proceeding
+  with 1"). **MEASURED**: the door ships with one registrant (the
+  swept arc's rim identity, at the sagitta construction's site) and
+  discharges `carrier_endpoint_start` outright on all four documents.
+  Amendment A1 (the unit of scope is the CONSTRUCTOR) added the SPAN
+  identity at the same builder, discharging `carrier_endpoint_end` too;
+  still no ceiling moves and none stops scaling with ε. Read as the
+  over-band SET at the refusing end of the bisection, **all five
+  measured documents** (plate, R2's bracket, R1's annulus, R2's pad,
+  R2's link) are bounded by ONE predicate,
+  `carrier_matches_mapped_source` — the carrier against the scaffold
+  pushforward, two independently built objects
+  (`plate-ceiling-is-now-the-scaffold-pushforward`). The earlier
+  reading, that two of them were bounded by `line_span`, was an
+  artefact of asking one drive for its first refusal at twice the
+  ceiling; `line_span` is itself an identity residual
+  (`symbolic-tier-census`). The fillet's declared tangency cannot be
+  registered: the CENTRE the joint classifier asks about is re-derived
+  by `build_seg`, not the constructor's node
+  (`fillet-tangency-is-not-the-constructors-node`).
+- **M10-10 — the form-level mechanism (rule D: trig of `atan`
+  exact; A/B per node made affordable); after M10-9, block M10-B5
+  slot 1.** Opened from M10-9's staged walk: four identity residuals
+  stand between the plate and a macroscopic real margin, worth 2×
+  together for the first three and 1.68e5× for the fourth (0.263 of
+  the real study against `assert_bound`), so the family must go at
+  once and no per-identity door can. The arc's two spellings meet
+  once their `sin`/`cos` of `q · atan(bulge)` are written in closed
+  form — theorems of the reals, no value read — with rules A/B
+  closing the ring per node in the early walk, memoized and bounded;
+  the ring width measured. Acceptance is the exit condition itself:
+  the plate's real study certifies, ε-free, bounded by a genuine
+  flip. Ruled in chat ("1 sounds good!").
 
 Cross-program interfaces, named so "error" does not become a
 bucket: the PARAM-LINT unit (DISCIPLINES) is not ours and blocks

@@ -470,8 +470,10 @@ Lanes, each in its own order:
   to the declaration ladder; the M9-3 join-lane emission; a red-first
   witness is live) → `torus-declared-rest-lane-banked` (the 0/2π kissing
   arm; routed by `MATE-7-TANGENCY-DESIGN`) → item 5's consumer sweep.
-- *Torus lane completion*: `torus-operand-boxes-span-whole-ring` (retires
-  lily wall 1) → `circle-residual-harmonics-needs-torus-arm`.
+- *Torus lane completion*: `torus-operand-boxes-span-whole-ring` (RE-AIMS
+  lily wall 1 from a box artifact to the weld pair; it cannot retire it —
+  `docs/CURVED-TORUS-SPEC.md` §R3) → `circle-residual-harmonics-needs-torus-arm`
+  → `torus-operand-gate-admission`, which is the unit that can.
 - *Germ and pierce*: `arc-aware-point-in-loop` (BOOL-2/3's ignored probes
   show wrong-not-conservative answers; with #1077) →
   `pierce-ring-has-no-join-arm` → `boolean-refuses-on-arc-carrier-not-arc`
@@ -911,3 +913,99 @@ Everything else has a branch dated 09-03 or 09-04. `bool`, `mesh` and
 `lib` are quiet but **blocked rather than unclaimed** — `BOOL-12` is in
 review on Ev, S-MESH's next unit is a slate decision put to Ev, and
 LIB's log says its mechanical feedstock is spent.
+
+---
+
+# Addendum 2 — the 2026-09-06 cut: four programs from the pile
+
+Non-binding like the survey and the first addendum, and written here
+for the same reason. **Executed on Ev's direction (in-chat,
+2026-09-06)**; `work/<id>/plan.md` supersedes it as each program's
+charter.
+
+## What the measurement found
+
+Three programs closed in two days — FILLET (sweep 7), S-CERT (sweep 7)
+and SEAT (sweep 8) — and `work/issues/` held **29 open files**, twenty
+of them opened on 09-04 or 09-05. Unlike the 09-04 sweep, most did NOT
+name an owner that existed: fourteen were FILLET's residue, parked
+there by its sweep with the note "the next blend program's opening
+slate"; six were SEAT's, on ground no program's `paths` covered once
+SEAT left; the rest were single findings whose `## Home` named a
+program by prose. Code-quality held **101 open rows**, of which Track
+K's nineteen had `smell/k-*` branches dated 09-03 and no PR on any,
+and Track V's rows on the eval seat had no program since SEAT's sweep.
+
+`work/README.md`'s re-home rule was amended the same day (Ev, PR
+#2022): residue goes to a fitting live program or to a new program
+opened for it, and `work/issues/` only when it coheres with nothing.
+This addendum is that rule applied.
+
+## The four programs
+
+Every path each claims was in no live program's `paths` at this cut,
+measured by `fnmatch` over every `work/*/program.md`.
+
+| program | ground | items | class | band |
+|---|---|---|---|---|
+| **BLEND** (`blend/`) | `crates/sweep/src/*` less `loft.rs`; the profile fillet door by announced seam with S-BOOL | 13 issues + 2 rows (1 closed as a record) | H core, 5 E openers, 1 `[ev]` | 2900–2999 |
+| **EVAL** (`eval/`) | `editor-core/src/eval/{mod,wire,anchor,schedule,slots}.rs`, `verbs/*`, `names/*` less `role.rs`, `crates/verbs/*`, `topo/src/{query,flush}.rs` | 6 issues (1 deferred) + 4 V rows | E, 2 `[ev]` shared with DOCM | 3000–3099 |
+| **GATES** (`gates/`) | `scripts/gates/*` whole | 10 K rows + 4 unlettered | E throughout, no ruling | 3100–3199 |
+| **METER** (`meter/`) | `tools/*`, `docs/{K-REPORT,TESS-BUDGET}.md` and their data | 8 K rows + 3 unlettered | E, one design question first | 3200–3299 |
+
+BLEND is FILLET's successor and inherits its posture and its seam on
+`crates/profile`. EVAL is the ground SEAT held plus Track V's rows on
+it; it is not DOCM (custody of the document model) and says why in its
+plan. GATES and METER are the two halves of Track K, split at the one
+line — `scripts/gates/` versus `tools/` — where two orchestrators can
+run without touching one file; a single K program would have been
+twenty-five rows.
+
+## The routings
+
+The other twelve open `work/issues/` files and two more code-quality
+rows went to a live program's slate by the README rule, each with a
+`## Re-homed` record naming why:
+
+- **PROPS** (4): `approx-surface-tolerance-is-now-always-the-runs-eps`,
+  `offset-fit-at-tight-eps-refuses-every-curved-nurbs-chart` (names
+  PROPS itself), `mapped-curve-restrict-composes-placements-per-split`
+  and `tangent-parallel-certifier-passes-a-transverse-arc` — the last
+  two on `geom-brep/src/{mapped,certify}.rs`, in no program's `paths`;
+  PROPS draws that fence when it takes them.
+- **DOCM** (1): `product-refuses-naming-when-one-instance-is-placed-under-two-roots`.
+- **CIW** (1): `dirty-pr-gets-no-actions-run`.
+- **FIX** (1): `compile-fail-blocks-without-error-codes`.
+- **code-quality** (2): `tour-scenes-lift-componentwise-not-through-map`
+  as a Track X row, and
+  `described-net-two-state-reads-hand-a-poisoned-net-the-described-arm`
+  as the cross-fence class it is.
+- **Stays in `work/issues/`** (1): `axis-flavoured-declarations-have-no-channel`
+  — the `[ev]`-shaped choice between a placement-level declaration
+  (CURVED's) and frame-level identity (TOPO's), which the first
+  addendum already judged correctly parked.
+
+## Surveyed and deliberately not cut
+
+- **Track X** (`demos/`): three rows (`D403`, the new tour sweep, `D79`
+  parked on `L2`). Too thin for an orchestrator; stays code-quality's.
+- **The certifier remainder** (`geom-brep/src/{certify,dihedral,mapped}.rs`,
+  three issues): PROPS' charter is enclosure certificates, so its
+  slate rather than a fourth kernel program.
+- **The error-payload honesty and one-rule-two-homes classes** and the
+  five `L` sweeps: the first addendum's answer stands.
+- **The nine rulings on Ev** (`D6`, `S14`, `S65`, `S70`, `S82`, `S107`,
+  `S116p`, `C-namespace`, `D283`) plus BLEND's and EVAL's three: never
+  work; a single `[ev]` sitting when Ev is next available would clear
+  most of them, and that is a suggestion, not a track.
+- **Stale parks, noticed and left for their owners**: `G4` on merged
+  #1647 (dispatchable; `D212` rides it), `S190` on fired #855
+  (verify-and-close, DOCM's file), `S66` on #862 (the deviation terms
+  are gone from `boxes.rs`; verify-and-close, CURVED's file).
+
+## Overlap rules this cut respects
+
+The first addendum's, unchanged: one file territory per program, a
+claimed letter taken whole (K split at a file boundary so both halves
+are still whole letters' worth of fence), rulings stay with Ev, ids
+stable, re-homing by header and `git mv` and never by copy.

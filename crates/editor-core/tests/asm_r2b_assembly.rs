@@ -38,7 +38,7 @@ use editor_core::{
     ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName, assemble, content_pin, evaluate,
     inline, product_recorded, split,
 };
-use fixture::{insert, len, on_frame, step};
+use fixture::{insert, len, on_frame, relations, step};
 use geom_core::Tol;
 
 // ---- The stub store (the ASM-2A/R2a shape, verbatim in spirit) ----
@@ -286,18 +286,6 @@ fn gate_records(
              geometry: {other}"
         ),
     }
-}
-
-/// Every declaration the findings name, and in what relation.
-fn relations(findings: &[editor_core::AtRestFinding]) -> Vec<(RecipeNodeId, &'static str)> {
-    findings
-        .iter()
-        .map(|f| match &f.attribution {
-            editor_core::Attribution::Refuted(m) => (m.mate, "refuted"),
-            editor_core::Attribution::Declined(m) => (m.mate, "declined"),
-            editor_core::Attribution::Unattributed => (RecipeNodeId(u64::MAX), "unattributed"),
-        })
-        .collect()
 }
 
 fn names_of(table: &editor_core::NameTable, key: EntityKey) -> Option<StableName> {
@@ -1694,7 +1682,7 @@ fn the_refusal_renders_attribution_prose_never_debug_guts() {
         "{msg}"
     );
     assert!(
-        msg.contains("mate 4's declared Rest contact, uncertified:"),
+        msg.contains("mate 4's declared Rest contact, declined:"),
         "{msg}"
     );
     assert!(

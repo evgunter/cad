@@ -40,19 +40,41 @@ refusal goes to stderr and exits 2, so `set -euo pipefail` plus
 `test -n` guard each site used to carry is now this script's job and does not
 need restating at the call site.
 
-WHAT THIS DOES NOT REACH, AND IT IS MORE THAN IT LOOKS. This closes the copies
-that READ the pin. It does nothing about the copies that RESTATE its VALUE:
-`local-scripts/ci-local.sh` names `0.9.140` in its prereq note, in its
-`nextest_check()` error text and in a comment, `local-scripts/gate.sh` names
-sccache `0.16.0`, and `.claude/hooks/session-start.sh` names three pins as
-shell literals. Nothing reconciles any of them with this file's `env:` block,
-so they drift the day a pin is bumped and no gate says a word —
-`work/ciw/local-half-restates-ci-pins-as-literals` carries that population.
-It is worth knowing how they were missed: the sweep that produced this script
-looked for the READING IDIOM and for `_VERSION` names, and a bare `0.9.140` in
-an `echo` carries neither. **A sweep for this class starts from the `env:`
-block — each pinned name and each pinned value — and asks where else in the
-tree they appear.** Not from the shape of whichever idiom is in front of you.
+THE OTHER POPULATION IS THE COPIES THAT RESTATE A PIN'S VALUE, and reading is
+not what closes those. `local-scripts/ci-local.sh` names `0.9.140` in its
+prereq note, in its `nextest_check()` error text and in a comment, and
+`local-scripts/gate.sh` names sccache `0.16.0` — text a human is meant to read
+and paste on a box whose tooling is broken, which is exactly where a
+`$(scripts/ci-pin.py ...)` substitution would be one more thing to get wrong.
+So those stay literals and are RECONCILED instead:
+`scripts/check-ci-mirror-parity.py`'s pin-literal claim derives every version
+literal in the local half's TRACKED files and reds when one names no pin this
+file sets, or when a line naming a pinned tool carries the wrong one. That
+check reads the block through `read_pins` below, which is why this reader
+enumerates as well as answering — a check about restated values cannot start
+from a hand-written roster of pin names without being one more copy itself.
+
+It is worth knowing how that population was missed: the sweep that produced
+this script looked for the READING IDIOM and for `_VERSION` names, and a bare
+`0.9.140` in an `echo` carries neither. **A sweep for this class starts from
+the `env:` block — each pinned name and each pinned value — and asks where else
+in the tree they appear.** Not from the shape of whichever idiom is in front of
+you. `.claude/hooks/session-start.sh` is the piece still out of reach: it
+restates three pins as shell literals, and hosted CI deletes `.claude/` at
+checkout, so no hosted gate can see it —
+`work/ciw/session-start-hook-restates-ci-pins` carries it.
+
+IMPORTING THIS READER. Two lines, and they are the same two at both callers:
+
+    sys.path.insert(0, <the directory this file is in>)
+    ci_pin = importlib.import_module("ci-pin")
+
+The hyphen is why it is `import_module` and not `import`: the name on a command
+line is the name of the file, and the file is not renamed to suit an importer.
+A caller frames its own failure — EVERY exception, not just the import
+machinery's, because a `SyntaxError` here is the same event to a caller as a
+missing file, and a traceback would name a Python line instead of what the
+caller therefore did not decide.
 
     ci-pin.py NAME [--file PATH]
     ci-pin.py --selftest
@@ -79,6 +101,12 @@ NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 # optional comment. `env:` indented under a job or a step does not match, which
 # is the entire anchoring claim.
 TOP_ENV_RE = re.compile(r"^env:[ \t]*(#.*)?$")
+
+# One `NAME: value` entry inside that block: indented, and a name this reader
+# would look for. A line that is a comment, a blank, or a nested mapping is not
+# an entry and is passed over — `read_pins` enumerates keys, it does not parse
+# YAML any more than `read_pin` does.
+ENTRY_RE = re.compile(r"^[ \t]+([A-Z][A-Z0-9_]*):")
 
 
 class Refuse(Exception):
@@ -125,6 +153,63 @@ def unquote(raw: str, name: str, lineno: int) -> str:
     return val
 
 
+def block_bounds(lines: list[str], path: str) -> tuple[int, int]:
+    """The workflow-level `env:` block, as a half-open index range.
+
+    THE ANCHORING LIVES HERE AND NOWHERE ELSE, so `read_pin` (one name) and
+    `read_pins` (the whole block) cannot disagree about which lines are the
+    workflow's own `env:`. A second implementation of this scan would be the
+    defect this file exists to close, one level up.
+    """
+    tops = [i for i, ln in enumerate(lines) if TOP_ENV_RE.match(ln)]
+    if len(tops) != 1:
+        raise Refuse(f"{path} has {len(tops)} workflow-level `env:` block(s) (a mapping key at column "
+                     "0). This reader is anchored to exactly one, because 'the version this "
+                     "workflow declares' is only a well-formed question when there is one")
+    start = tops[0]
+    end = len(lines)
+    for i in range(start + 1, len(lines)):
+        ln = lines[i]
+        # A BLANK LINE AND A COMMENT ARE NOT THE END OF THE BLOCK, at any
+        # indentation. YAML ends a block mapping at the next line that is a
+        # KEY at a shallower indent, and a flush-left `#` is not a key. This
+        # scan used to stop at one, which for `read_pin` merely produced a
+        # refusal with the wrong diagnosis, and for `read_pins` produced
+        # SILENT TRUNCATION: the entries below the comment simply were not
+        # there, so a caller enumerating the block got a short answer with no
+        # sign that it was short. The trailing comments that follow the block
+        # in a real workflow are harmless here — an entry line has to be
+        # indented, and the next column-0 KEY still ends the scan.
+        if ln.strip() and not ln.startswith((" ", "\t")) and not ln.lstrip().startswith("#"):
+            end = i
+            break
+    return start, end
+
+
+def read_pins(text: str, path: str) -> dict[str, str]:
+    """EVERY name the workflow-level `env:` block sets, with its value.
+
+    `read_pin` answers "what is NAME"; this answers "what does this workflow
+    pin at all", which is the question a check about RESTATED VALUES has to ask
+    — it cannot start from a hand-written roster of names without becoming one
+    more copy to fall behind the block. `scripts/check-ci-mirror-parity.py`'s
+    pin-literal claim is the caller.
+
+    Each name found is resolved BY `read_pin`, so every refusal that reader
+    carries — a name set twice in the file, a scalar it will not guess at —
+    applies here too and to the same names. This walks the block's keys; it
+    does not re-decide any of them.
+    """
+    lines = text.splitlines()
+    start, end = block_bounds(lines, path)
+    out: dict[str, str] = {}
+    for i in range(start + 1, end):
+        m = ENTRY_RE.match(lines[i])
+        if m:
+            out[m.group(1)] = read_pin(text, m.group(1), path)
+    return out
+
+
 def read_pin(text: str, name: str, path: str) -> str:
     """`name`'s value from `text`'s workflow-level `env:` block.
 
@@ -154,23 +239,7 @@ def read_pin(text: str, name: str, path: str) -> str:
         raise Refuse(f"{path} does not set {name} anywhere. That pin is this caller's input, and "
                      "this repo keeps every tool version in that file's workflow-level `env:` block")
 
-    tops = [i for i, ln in enumerate(lines) if TOP_ENV_RE.match(ln)]
-    if len(tops) != 1:
-        raise Refuse(f"{path} has {len(tops)} workflow-level `env:` block(s) (a mapping key at column "
-                     "0). This reader is anchored to exactly one, because 'the version this "
-                     "workflow declares' is only a well-formed question when there is one")
-    start = tops[0]
-    end = len(lines)
-    for i in range(start + 1, len(lines)):
-        ln = lines[i]
-        # A COLUMN-0 COMMENT INSIDE THE BLOCK ENDS IT EARLY, for this scan.
-        # YAML would keep reading; this stops. The consequence is a refusal
-        # with the wrong diagnosis ("OUTSIDE the workflow-level `env:` block")
-        # rather than a wrong value, so it fails closed — but a reader who
-        # meets that message should check for a flush-left `#` first.
-        if ln.strip() and not ln.startswith((" ", "\t")):
-            end = i
-            break
+    start, end = block_bounds(lines, path)
 
     lineno = hits[0]
     if not start + 1 < lineno <= end:
@@ -339,7 +408,97 @@ def selftest() -> int:
             check("not an env-key name" in err,
                   f"{bad!r} was refused for the wrong reason: {err!r}")
 
-        # 8. A MISSING FILE is a refusal, not an empty string. The callers run
+        # 8. `read_pins`, IN PROCESS. Every case above runs the command line
+        # because the command line is what the workflows invoke; this one is an
+        # API with no command line, and inventing a flag to test it through
+        # would widen the tool's surface to suit its own test.
+        with open(os.path.join(t, "wf.yml"), encoding="utf-8") as fh:
+            body = fh.read()
+        pins = read_pins(body, "wf.yml")
+        check(pins == {"SCCACHE_VERSION": "0.16.0", "NEXTEST_VERSION": "0.9.140",
+                       "BARE_VERSION": "1.2.3", "SINGLE_VERSION": "4.5.6"},
+              f"read_pins enumerated {pins}, which is not the fixture's whole block")
+        # It walks the BLOCK, so a pin under a job is not in it — the same
+        # anchoring `read_pin` refuses on, seen from the enumerating side.
+        scoped = write(FIXTURE.replace(
+            "      - run: echo hi",
+            '      - run: echo hi\n    env:\n      JOB_VERSION: "9.9.9"'), "scoped.yml")
+        with open(os.path.join(t, scoped), encoding="utf-8") as fh:
+            check("JOB_VERSION" not in read_pins(fh.read(), "scoped.yml"),
+                  "read_pins picked up a job-level pin, which is the scope confusion this "
+                  "file exists to end")
+
+        # 9. THE BLOCK'S EDGES, which is where the anchoring actually lives
+        # and where every fixture above was silent. Each of these is a
+        # one-character change away from a reader that answers confidently and
+        # wrongly, and none of them is visible in a block that ends at a blank
+        # line — which every fixture above happens to be.
+        #
+        # (a) THE LAST ENTRY, WITH THE NEXT COLUMN-0 KEY DIRECTLY UNDER IT.
+        # An off-by-one at either end drops it: `read_pins` returns a block
+        # missing its last pin, `read_pin` calls it OUTSIDE the block.
+        flush = write("""env:
+  A_VERSION: "1.0.0"
+  Z_VERSION: "9.0.0"
+jobs:
+  build:
+    steps:
+      - run: echo hi
+""", "flush.yml")
+        with open(os.path.join(t, flush), encoding="utf-8") as fh:
+            body = fh.read()
+        pins = read_pins(body, flush)
+        check(pins == {"A_VERSION": "1.0.0", "Z_VERSION": "9.0.0"},
+              f"the block's LAST entry was dropped when a column-0 key follows it directly: {pins}")
+        rc, out, err = _run(["Z_VERSION", "--file", flush], t)
+        check(rc == 0 and out == "9.0.0", f"the block's last entry did not read back: {out!r} {err!r}")
+
+        # (b) AN EMPTY BLOCK DOES NOT SWALLOW `jobs:`. If the scan for the
+        # block's end starts one line too late, the whole of `jobs:` is inside
+        # the block and a JOB-LEVEL pin is returned as the workflow's — the
+        # exact confusion this file exists to end, arrived at from the inside.
+        empty = write("""env:
+jobs:
+  build:
+    env:
+      NEXTEST_VERSION: "9.9.9"
+""", "empty.yml")
+        rc, out, err = _run(["NEXTEST_VERSION", "--file", empty], t)
+        check(rc != 0, f"a job-level pin under an EMPTY workflow env: block was returned: {out!r}")
+        check("OUTSIDE" in err, f"it was refused for the wrong reason: {err!r}")
+
+        # (c) A COLUMN-0 KEY AFTER THE BLOCK IS OUTSIDE IT. If the end index
+        # is one line too far, the first key below the block reads as a pin.
+        after = write("""env:
+  A_VERSION: "1.0.0"
+B_VERSION: "2.0.0"
+""", "after.yml")
+        rc, out, err = _run(["B_VERSION", "--file", after], t)
+        check(rc != 0 and "OUTSIDE" in err,
+              f"a column-0 key BELOW the block was read as part of it: {out!r} {err!r}")
+
+        # (d) A FLUSH-LEFT COMMENT INSIDE THE BLOCK IS NOT THE END OF IT.
+        # YAML keeps reading; so does this. When this scan stopped there,
+        # `read_pin` refused with the wrong diagnosis and `read_pins` returned
+        # a SHORT BLOCK with nothing to say it was short — the caller then
+        # reports every restatement of the dropped pin as naming no pin at all.
+        hashed = write("""env:
+  A_VERSION: "1.0.0"
+# a flush-left comment, which YAML does not treat as the end of the mapping
+  B_VERSION: "2.0.0"
+jobs:
+  build:
+    steps:
+      - run: echo hi
+""", "hashed.yml")
+        with open(os.path.join(t, hashed), encoding="utf-8") as fh:
+            pins = read_pins(fh.read(), hashed)
+        check(pins == {"A_VERSION": "1.0.0", "B_VERSION": "2.0.0"},
+              f"a flush-left comment truncated the block: {pins}")
+        rc, out, _err = _run(["B_VERSION", "--file", hashed], t)
+        check(rc == 0 and out == "2.0.0", f"the entry below the flush-left comment: {out!r}")
+
+        # 10. A MISSING FILE is a refusal, not an empty string. The callers run
         # under `set -e`, so this is what stops them installing from PATH.
         rc, out, err = _run(["NEXTEST_VERSION", "--file", "nope.yml"], t)
         check(rc != 0 and out == "", f"a missing workflow yielded {out!r}")

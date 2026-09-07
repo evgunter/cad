@@ -294,7 +294,7 @@ fn both_sweeps_evaluate_in_one_document() {
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0x6049_75e9_75f5_d9ed),
-        ("corner_table", 0xc8b5_844d_cf13_f03b),
+        ("corner_table", 0x01cf_cc62_a3f3_d986),
         ("cut_cylinder", 0xeaea_81fa_b3df_29e3),
         ("boss_union", 0x519a_7998_6394_49a3),
         ("kitchen_sink", 0x8826_0b67_1ded_0c08),

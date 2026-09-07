@@ -78,7 +78,7 @@ use pncad::document::{
     ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, apply, assemble, content_pin, evaluate,
     inline, load, mixed_pins, parse_expr, product_named, save, solve_document, split,
 };
-use pncad::geom_core::Tol;
+use pncad::geom_core::{Band, Tol};
 use pncad::prelude::StableName;
 use pncad::select::{
     CapEnd, ContactClass, EntityKind, NamePat, NameTable, RoleSeg, SegPat, SegTag, Selector,
@@ -390,7 +390,9 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
                 [0.0, 1.0, 0.0],
                 -PI / 2.0,
                 [FLAT_PACK_GAP + POST_HEIGHT, 0.0, 0.0],
-            ),
+                Band::linear(tol).expect("the demo's tolerance forms a band"),
+            )
+            .expect("the post lies down about +y"),
         },
         tol,
     );

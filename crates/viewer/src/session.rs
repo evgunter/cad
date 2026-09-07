@@ -6,9 +6,12 @@
 //! The driver, and nothing else. `session` owns [`DocSession`] and
 //! dispatches [`SessionOp`]; what stays here is that state, its
 //! `Gesture`, its [`Derived`] block with the [`LandedRun`] inside it,
-//! [`Landing`], [`AtRestBadge`], [`DocSession::perform`]
+//! [`Landing`], [`AtRestBadge`], [`Outstanding`],
+//! [`DocSession::perform`]
 //! and the operation doors — every door mutates the session, and
 //! `perform`'s dispatch is the one place an operation becomes state.
+//! The three values are what the session says about itself and are
+//! minted nowhere else.
 //!
 //! The values those doors speak in are vocabularies beside it, six of
 //! them: what is selected is [`select`], the refusal ladder with its
@@ -68,9 +71,11 @@ use crate::blend::BlendKindChoice;
 use crate::combine::{self, PatternOutputChoice};
 use crate::display::{DisplayState, DisplayView};
 use crate::docio::{self, DirResolver};
-use crate::evalseam::{EvalRequest, EvalService, Generation, InlineEvaluator};
+use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator};
+use crate::generation::Generation;
 use crate::history::History;
 use crate::parts;
+use crate::pickcache;
 use crate::props::{self, SlotDriver, SlotValue};
 use crate::tree::{self, TreeRow};
 
@@ -294,6 +299,33 @@ impl Derived {
     }
 }
 
+/// Exhaustive by destructuring; every field is carried, so this walk
+/// `finish`es. The rule the four walks share is one paragraph in
+/// `crates/viewer/README.md` ("The dump is held to the same
+/// declaration"), not restated here.
+///
+/// `scratch` is carried as its presence: it is a whole `Doc`, and that
+/// one is in flight is the fact — it is `Some` exactly while
+/// [`DocSession::gesture`] is.
+impl core::fmt::Debug for Derived {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            selection,
+            hover,
+            scratch,
+            landed,
+            bounds,
+        } = self;
+        f.debug_struct("Derived")
+            .field("selection", selection)
+            .field("hover", hover)
+            .field("scratch", &scratch.is_some())
+            .field("landed", landed)
+            .field("bounds", bounds)
+            .finish()
+    }
+}
+
 /// One completed evaluation, landed: the pair it answers and every
 /// verdict taken for that pair.
 ///
@@ -380,6 +412,45 @@ struct LandedRun {
     body: Option<Arc<Body<f64>>>,
 }
 
+/// Exhaustive by destructuring; the shared rule is
+/// `crates/viewer/README.md`'s.
+///
+/// The two `_` arms are the run's DATA — `evaluation` is the result
+/// DAG and `doc` is the recipe DAG it answers — and everything else
+/// here is a verdict ABOUT that pair. `checks` is a `Vec` per finding
+/// and is carried as its two counts; `body` is a gathered aggregate
+/// and is carried as its presence, which is whether the landing's
+/// gather is still memoized.
+impl core::fmt::Debug for LandedRun {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            evaluation: _,
+            doc: _,
+            generation,
+            fault,
+            at_rest,
+            checks,
+            body,
+        } = self;
+        let mut out = f.debug_struct("LandedRun");
+        out.field("generation", generation)
+            .field("fault", fault)
+            .field("at_rest", at_rest);
+        match checks {
+            Some(report) => out.field(
+                "checks",
+                &format_args!(
+                    "{} finding(s), {} skipped",
+                    report.findings.len(),
+                    report.skipped.len()
+                ),
+            ),
+            None => out.field("checks", &Option::<()>::None),
+        };
+        out.field("body", &body.is_some()).finish_non_exhaustive()
+    }
+}
+
 /// The A5 at-rest verdict for the landed pair — a mated document's
 /// declarations run through the kernel's own verification door
 /// (`assemble`), once per landed evaluation, so a committed mate's
@@ -419,6 +490,30 @@ pub enum Landing {
     /// the completed prefix of a run nobody asked to see half of. The
     /// last good evaluation stays on screen and the session goes on
     /// owing an answer.
+    Canceled,
+}
+
+/// What the session owes at one moment: the picture against the
+/// document, and the seam against the picture.
+///
+/// [`DocSession::busy`] and [`DocSession::running`] answer those two
+/// separately and both stay, because each is useful alone. **Read
+/// together they are one three-state fact**, and this is that fact as
+/// a value — the only thing a consumer of it is handed
+/// ([`DocSession::outstanding`] is the one site that reads both).
+/// `crates/viewer/README.md`, The session's vocabularies, argues why.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Outstanding {
+    /// The picture answers the document the session holds: nothing is
+    /// owed and nothing is running.
+    Current,
+    /// The picture is older than the document and the seam is working
+    /// on it.
+    Evaluating,
+    /// The picture is older than the document and NOTHING is working
+    /// on it — a cancel. [`SessionOp::Reevaluate`] is what recovers
+    /// from it, and the state exists so the chrome does not spin over
+    /// an idle seam forever.
     Canceled,
 }
 
@@ -684,6 +779,34 @@ impl DocSession {
     /// [`SessionOp::Reevaluate`] recovers from.
     pub fn running(&self) -> bool {
         self.eval.busy()
+    }
+
+    /// The two reads above as [`Outstanding`] — the one value a
+    /// consumer of "is there work outstanding" is given, read here by
+    /// NAME rather than paired into an argument list.
+    ///
+    /// `!busy() && running()` reaches the first arm and reads as
+    /// [`Outstanding::Current`], because the picture is what the
+    /// chrome describes. **That combination is unreachable through
+    /// both shipped seams, by two mechanisms and not by the shape of
+    /// this function**: [`DocSession::request_eval`] bumps the
+    /// generation on EVERY submit, so `!busy()` means the newest
+    /// generation submitted is the one that landed; and both seams
+    /// keep at most one request outstanding
+    /// (`crates/viewer/src/evalseam.rs`, the module header), so a
+    /// landed newest generation leaves the seam nothing to be doing.
+    /// The second is a property of the two implementations rather than
+    /// of [`EvalService`], which is why the arm is executed by a row
+    /// holding a seam that reports work anyway
+    /// (`tests/eval_seam.rs`) instead of being left to the comment.
+    pub fn outstanding(&self) -> Outstanding {
+        if !self.busy() {
+            Outstanding::Current
+        } else if self.running() {
+            Outstanding::Evaluating
+        } else {
+            Outstanding::Canceled
+        }
     }
 
     /// The feature tree's rows for the shown document.
@@ -1013,6 +1136,50 @@ impl DocSession {
             .ok_or(Refusal::NoDocumentDirectory)?;
         parts::catalogue(resolver, self.committed_doc().id())
             .map_err(|error| Refusal::Workspace(Box::new(error)))
+    }
+
+    /// **One scan of the document's directory, as a value**
+    /// ([`parts::PartCensus`]) — the directory that was read and what
+    /// reading it answered, taken together because they are about one
+    /// moment.
+    ///
+    /// The chooser is a vocabulary and may not name this driver, so
+    /// the read is hoisted to here rather than the rule widened
+    /// (`crates/viewer/README.md`, *What a vocabulary reads, it is
+    /// handed*); the derivation moving into the driver is what that
+    /// costs.
+    #[must_use]
+    pub fn part_census(&self) -> parts::PartCensus {
+        parts::PartCensus::taken(
+            self.resolve_dir().map(Path::to_path_buf),
+            self.part_catalogue(),
+        )
+    }
+
+    /// **What a pick index is built from** ([`pickcache::IndexInputs`]):
+    /// the landed pair, the generation it answered and the ε to
+    /// tessellate at — or `None` when nothing has landed, which is the
+    /// cache's own "forget everything" case.
+    ///
+    /// Three of the four are read together for the same reason the
+    /// pair is one value: one landing writes them, so a caller cannot
+    /// pick up a generation without the run it answers. The fourth,
+    /// `tol`, is this session's ε — construction-time, never rewritten
+    /// by a landing — and rides along because the build needs it.
+    ///
+    /// `pickcache` is a vocabulary and may not name this driver, so
+    /// the read is hoisted rather than the rule widened
+    /// (`crates/viewer/README.md`, *What a vocabulary reads, it is
+    /// handed*, carries the argument).
+    #[must_use]
+    pub fn index_inputs(&self) -> Option<pickcache::IndexInputs<'_>> {
+        let run = self.derived.landed.as_ref()?;
+        Some(pickcache::IndexInputs::of(
+            run.generation,
+            run.doc.as_ref(),
+            &run.evaluation,
+            self.tol,
+        ))
     }
 
     /// Insert an instance of the part `id` names, minting its
@@ -1775,16 +1942,38 @@ fn session_dir(path: &Path) -> PathBuf {
     }
 }
 
-impl std::fmt::Debug for DocSession {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+/// Exhaustive by destructuring; the shared rule is
+/// `crates/viewer/README.md`'s. [`Derived`] renders as ONE field, so
+/// its members travel with their declaration rather than being listed
+/// a second time here.
+///
+/// The four `_` arms, one reason each: `tol` is `Tol(())`, a ZST with
+/// no content to print; `eval` is a `dyn` service and implements no
+/// `Debug`; `requested_doc` is a whole recipe DAG; and `display` is
+/// not derived from the document, is as large as the document's hidden
+/// and moved sets, and has its own [`DocSession::display`] door to be
+/// dumped through.
+impl core::fmt::Debug for DocSession {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            history,
+            tol: _,
+            gesture,
+            eval: _,
+            generation,
+            requested_doc: _,
+            derived,
+            path,
+            display: _,
+            resolver,
+        } = self;
         f.debug_struct("DocSession")
-            .field("generation", &self.generation)
-            .field("landed_generation", &self.landed_generation())
-            .field("selection", &self.derived.selection)
-            .field("hover", &self.derived.hover)
-            .field("states", &self.history.len())
-            .field("gesture", &self.gesture.is_some())
-            .field("path", &self.path)
+            .field("generation", generation)
+            .field("states", &history.len())
+            .field("gesture", &gesture.is_some())
+            .field("path", path)
+            .field("resolver", &resolver.is_some())
+            .field("derived", derived)
             .finish_non_exhaustive()
     }
 }

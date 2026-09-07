@@ -321,3 +321,38 @@ horizontal in the plane, `b2` up). `boxes.rs:2512,2563,2634,3033` are
 re-read for an assumption about the old frame and not re-spelled; any
 golden they feed re-blesses with its reason. Announced by the spec
 §Seams. Signed (PROPS orchestrator).
+
+## BOOL-12 merged (2026-09-03; recorded 2026-09-07)
+
+PR 1573 merged at 5a64c45de on 2026-09-03 after Ev released the hold
+in-session; the merge was made by another session while this
+orchestrator was out (usage limit), and the state-sync it owed —
+the A/B row and this entry — is written now. The row is BOOL12 in
+`docs/MODEL-AB-LOG.md`, sample #156 assigned at recording, with the
+late numbering disclosed on the row.
+
+What landed: the declared arrival at the seam under three of Ev's
+rulings — the token classifies the joint (nothing at the seam reads
+the following carrier), and the sixth round retired carrier identity
+from the lattice entirely, so `Start.arrives_tangent()` is the one
+seam token, `SameCarrierJunction` and `TangencyContradicted
+{same_carrier}` are gone, and the continuation kernels declare their
+joints (tour and die corpus byte-identical: nothing moved). Lily
+authors through the lattice in every rotation; `RawLoop` leaves
+`demos/tour`; BOOL-11's `ContinueTo` wire spelling rides.
+
+**The dual (ordinal 1106)**: R1 fable mergeable-after-MINORs 0/6/5,
+R2 opus not-mergeable 1/7/3; the one MAJOR (the seam check was
+entry-side carrier-blind) was bilateral at split severity, so no
+tally candidate; pair counts. The reviews' product: the carrier-blind
+seam (which became the question Ev answered with the joint ruling),
+the unpinned lever (mutation-proven), the escalation template with
+the wrong direction, zero coverage of the wire arm, the pasted
+`StartArriving` arm, lily's shoulder knife edge measured.
+
+Slate next: BOOL-9 (the RawLoop demotion, survey-first, L) and
+BOOL-10 (the `arc_continue` retirement, PR held for Ev, L) — both
+specs on main since 2026-09-02, both sequenced behind this merge, not
+yet dispatched. BOOL-B3's remaining slots are BOOL-9 opus (slot 1) and
+BOOL-10 fable (slot 2).
+

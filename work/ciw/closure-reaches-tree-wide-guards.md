@@ -2,11 +2,12 @@
 id: closure-reaches-tree-wide-guards
 kind: unit
 title: The change closure reaches tree-wide guards, derived from what a suite reads
-status: review
+status: closed
 opened: 2026-09-05
 branch: ciw/closure-reaches-tree-wide-guards
 refs: [f3-recosting-on-a-public-repo, 1829, 1859, 1871, 1884, 1889]
 pr: 1909
+closed: 2026-09-06
 ---
 
 Ev, 2026-09-05: *"oh yeah the closure should reach tree wide guards"*, and
@@ -77,3 +78,12 @@ measured cost on both tiers.
 
 - `work/ciw/reach-cannot-follow-every-ascent.md` — the class of ascent the
   chain resolver does not follow, and what the fail-closed sweep leaves.
+
+## Closed 2026-09-06
+
+PR 1909. `_read_reach()` at `scripts/ci-filter.py:988` derives the reach from
+what each crate's sources open, so a guard whose subject is the tree is in
+scope for any change that could invalidate it; nothing is hand-listed. The
+announced cross-fence change to `scripts/ci-filter.py` stands with S-TCOST
+invited to own the result, and the residue
+`reach-cannot-follow-every-ascent` is open on this slate.
