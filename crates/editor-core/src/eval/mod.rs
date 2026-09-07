@@ -22,12 +22,12 @@ pub(crate) mod parts;
 
 pub use parts::PartFault;
 mod schedule;
-mod slots;
+pub(crate) mod slots;
 mod wire;
 
 pub(crate) use wire::{
-    DATUM_AXIS_ROLE, PATTERN_DIRECTION_ROLE, SteppedOperands, TRANSFORM_AXIS_ROLE,
-    stepped_rule_map, transform_map, unit as unit_direction,
+    DATUM_AXIS_ROLE, PATTERN_DIRECTION_ROLE, SteppedOperands, TRANSFORM_AXIS_ROLE, need_scalar,
+    need_vec3, stepped_rule_map, transform_map, unit as unit_direction,
 };
 
 pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue, embed_profile};
@@ -413,6 +413,48 @@ impl<T: Decide> ValuePayload<T> {
     }
 }
 
+/// **The value family a node's evaluation lands in**, in
+/// [`ValuePayload::kind_name`]'s own words — the RECIPE-side reading
+/// of the same question, for the one road that re-derives a node from
+/// its expressions and never holds its value (the mate solve's
+/// derived offset, refusing a circular rule's `axis` operand).
+///
+/// It is that match written a second time, over node kinds rather
+/// than over payloads, which is a correspondence a reader has to
+/// believe. What checks it is behavioural and partial: the mate
+/// suite's `msolve3_placer_refused` compares the refusal this word
+/// lands in against the one the operand's own evaluation raises, for
+/// the two families a circular rule's axis is actually authored as —
+/// a datum and a body. The other families are by inspection, and this
+/// sentence is where that is said.
+pub(crate) fn node_value_kind<P>(node: &crate::node::Node<P>) -> &'static str {
+    use crate::node::Node;
+    match node {
+        Node::Datum(_) => "datum",
+        Node::Profile(_) => "profile",
+        Node::Boolean { .. } => "boolean",
+        Node::Split { .. } => "split",
+        Node::Pattern { .. } => "instances",
+        Node::Declare { .. } => "declarations",
+        Node::Mate { .. } => "mate",
+        Node::Measure { .. } => "measure",
+        Node::Assertion { .. } => "assertion",
+        Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Tube { .. }
+        | Node::HollowTube { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
+        | Node::Fillet { .. }
+        | Node::Chamfer { .. }
+        | Node::Transform { .. }
+        | Node::Union { .. }
+        | Node::PlacedUnion { .. }
+        | Node::Part { .. }
+        | Node::InstantiatePart { .. } => "body",
+    }
+}
+
 /// A boolean node's typed result (F8: ∅ is a value, not an error).
 #[derive(Debug, Clone)]
 pub enum BooleanValue<T: Decide> {
@@ -487,6 +529,58 @@ pub struct NodeError {
     /// channels are two `Arc`s at this seam rather than one record:
     /// the value carries both, the error only this one.
     pub escalations: Arc<EscalationLog>,
+}
+
+/// **An evaluation refusal, carried into a document-layer
+/// vocabulary** — [`MateFault::PlacerRefused`](crate::MateFault) and
+/// [`EditError::PlacementAxis`](crate::EditError) hold one.
+///
+/// It exists because [`NodeErrorKind`] carries kernel refusals
+/// UNALTERED (D2) and those kernel types have neither `Clone` nor
+/// equality of their own, while the two document-layer error enums
+/// have both. Sharing the refusal rather than copying it is what makes
+/// the carriage possible without stringifying anything: the payload
+/// reaching a reader is the very value the evaluation raised.
+#[derive(Debug, Clone)]
+pub struct NodeRefusal(std::sync::Arc<NodeErrorKind>);
+
+impl NodeRefusal {
+    /// The refusal, as the evaluation layer typed it.
+    #[must_use]
+    pub fn kind(&self) -> &NodeErrorKind {
+        &self.0
+    }
+}
+
+impl From<NodeErrorKind> for NodeRefusal {
+    fn from(kind: NodeErrorKind) -> Self {
+        Self(std::sync::Arc::new(kind))
+    }
+}
+
+/// **Equality is over the refusal's `Debug` structure**, which is the
+/// derived one on [`NodeErrorKind`] and on every payload it carries,
+/// so two refusals compare equal exactly when they are the same
+/// variant carrying the same fields.
+///
+/// It is written rather than derived because the kernel error types
+/// [`NodeErrorKind`] carries unaltered do not implement `PartialEq`,
+/// and inventing equality for them here would be this layer deciding
+/// something the kernel owns. Two float differences follow from
+/// comparing renderings rather than values, and both are the ones a
+/// diagnostic wants: `NaN` payloads compare EQUAL to themselves, and
+/// `0.0` and `-0.0` compare DIFFERENT.
+impl PartialEq for NodeRefusal {
+    fn eq(&self, other: &Self) -> bool {
+        std::sync::Arc::ptr_eq(&self.0, &other.0)
+            || format!("{:?}", self.0) == format!("{:?}", other.0)
+    }
+}
+
+impl core::fmt::Display for NodeRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.0.fmt(f)
+    }
 }
 
 /// The closed set of node-evaluation failures. Kernel errors are
@@ -704,8 +798,10 @@ pub enum NodeErrorKind {
         /// How many instances the value holds.
         count: usize,
     },
-    /// A direction-valued vector decided to zero length (datum
-    /// normal/direction, transform rotation axis, pattern direction).
+    /// A direction-valued vector decided to zero length. Which
+    /// vectors those are is the ROLE constants' to say, not this
+    /// doc's: `wire`'s `DATUM_AXIS_ROLE`, `PATTERN_DIRECTION_ROLE` and
+    /// `TRANSFORM_AXIS_ROLE`, and `placement`'s `PLACEMENT_AXIS_ROLE`.
     DegenerateDirection {
         /// Which vector, by role.
         role: &'static str,
@@ -1312,9 +1408,10 @@ impl core::fmt::Display for NodeErrorKind {
                 input.0,
                 count.saturating_sub(1)
             ),
-            // Every role word is already a complete noun phrase for the
-            // vector ("pattern direction", "transform rotation axis"),
-            // so the sentence names the role and nothing after it.
+            // Every role word is already a complete noun phrase for
+            // the vector (the `*_ROLE` constants are where they are
+            // written), so the sentence names the role and nothing
+            // after it.
             Self::DegenerateDirection { role } => {
                 write!(f, "the {role} has zero length")
             }

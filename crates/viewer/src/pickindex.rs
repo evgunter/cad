@@ -1,10 +1,18 @@
-//! Turning a cursor into a selection: the per-generation pick index,
-//! the id↔patch mapping the GPU pass rides on, and the highlight.
+//! The pick index, and what is under the cursor.
 //!
-//! # One index, four consumers
+//! [`PickIndex`] is built once per (evaluation generation, δ) — the
+//! tessellations the picture is drawn from, the addresses into them,
+//! and the queries that turn a cursor into a name, up to and
+//! including what a pick MEANS.
 //!
-//! [`PickIndex`] is built once per evaluation generation and answers
-//! everything the viewport asks about what is under the cursor:
+//! What a frame MARKS because of a pick is not here: that is
+//! [`crate::marks`], which takes a built index as an argument, reads
+//! it through the public doors below only, and answers *what should
+//! be lit* for a different set of consumers (`gpu`, `blend`,
+//! `datums`, `app`, and `pane::viewport` alongside the cursor paths,
+//! which are `pane::viewport`'s alone).
+//!
+//! # What is under the cursor
 //!
 //! - the **ray path** — [`PickIndex::pick_for`] (and its
 //!   display-view-less wrapper [`PickIndex::pick`]) un-projects
@@ -22,7 +30,14 @@
 //! - the **drawn mesh** — [`PickIndex::parts`] are the very
 //!   tessellations the picture is built from, so what is drawn and
 //!   what is picked are one tessellation rather than two that agree
-//!   most of the time.
+//!   most of the time;
+//! - **what a pick MEANS** — [`PickIndex::op_for`] and
+//!   [`PickIndex::op_under`] turn a [`PickAction`] into a
+//!   [`SessionOp`], including the miss rule, and
+//!   [`PickIndex::hovered_for`] carries the priority rule that an edge
+//!   within [`EDGE_PICK_RADIUS_PX`] beats the face behind it. **The
+//!   picking POLICY is here**, in the one door hovering and clicking
+//!   both read, so the two cannot disagree.
 //!
 //! # Why the index holds `NodePick`s and not meshes
 //!
@@ -31,37 +46,36 @@
 //! confidently wrong name instead of an error (issue #1098, and
 //! `PickTarget`'s own contract). `NodePick` establishes that pairing
 //! by construction and offers no other constructor, so the pairing
-//! cannot drift as this cache grows a field. **Nothing here re-pairs a
-//! mesh with a node by hand, and this type offers no door through
-//! which it could** — said about `PickIndex` and about nothing else:
-//! whether the FAÇADE hands a consumer the raw-assembly lane is a
-//! separate question, answered in `pncad::select`'s own docs.
+//! cannot drift as this structure grows a field. **Nothing here
+//! re-pairs a mesh with a node by hand, and this type offers no door
+//! through which it could** — said about `PickIndex` and about nothing
+//! else: whether the FAÇADE hands a consumer the raw-assembly lane is
+//! a separate question, answered in `pncad::select`'s own docs.
 //!
 //! # Staleness is by generation, and it is a discard
 //!
-//! The key is [`crate::Generation`] — the session's evaluation
-//! generation. A [`PickIndex`] built under one generation is never
-//! repaired against another: [`PickIndex::current_for`] answers
-//! whether the index still describes the run on screen, and a stale
-//! one is dropped and rebuilt whole. Re-pairing by hand is the
-//! failure #1098 exists to name.
+//! The key is [`crate::generation::Generation`] — the session's
+//! evaluation generation. A [`PickIndex`] built under one generation
+//! is never repaired against another: [`PickIndex::current_for`]
+//! answers whether the index still describes the run on screen, and a
+//! stale one is dropped and rebuilt whole. Re-pairing by hand is the
+//! failure #1098 exists to name. WHEN a rebuild is asked for, and what
+//! is done with the answer, is not this module's: that is
+//! [`crate::pickcache::PickCache`] over the index seam.
 //!
 //! Module kind: **vocabulary** (`crates/viewer/README.md`, Module
-//! boundaries). It names no driver type and no `app`-only crate: what
-//! the pick cache needs from a session arrives as [`IndexInputs`],
-//! which the session mints.
+//! boundaries). It names no driver type and no `app`-only crate.
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::collections::{BTreeMap, BTreeSet};
 
-use pncad::document::{Doc, Evaluation, Frame, ParamName, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Evaluation, Frame, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};
-use pncad::prelude::{NameOrigin, StableName, attribute};
+use pncad::prelude::StableName;
 use pncad::select::{HitTestError, NodePick, NodePickError, PickHit, PickTarget, Ray, pick_face};
 
 use crate::camera::{Camera, CameraError};
 use crate::display::DisplayView;
-use crate::evalseam::{Generation, IndexDone, IndexRequest, IndexService, InlineIndexer};
+use crate::generation::Generation;
 use crate::input::{PickAction, ViewportSize};
 use crate::scene::{DisplayTolerance, SceneError, SceneMesh, ScenePart};
 use crate::session::{EdgeSelection, FaceSelection, Hovered, Selection, SessionOp};
@@ -868,11 +882,11 @@ impl PickIndex {
     /// gives [`SceneMesh::nothing`], which has no extent to carry.
     /// Either way the picture is never left stale behind a refusal.
     pub fn scene_for(&self, display: &DisplayView) -> Result<SceneMesh, SceneError> {
-        self.scene_focused(display, &std::collections::BTreeSet::new())
+        self.scene_focused(display, &BTreeSet::new())
     }
 
     /// [`PickIndex::scene_for`], marking the patches in `focus` — what
-    /// the side panel is showing (see [`focus`]).
+    /// the side panel is showing (see [`crate::marks::focus`]).
     ///
     /// # Errors
     ///
@@ -880,7 +894,7 @@ impl PickIndex {
     pub fn scene_focused(
         &self,
         display: &DisplayView,
-        focus: &std::collections::BTreeSet<u32>,
+        focus: &BTreeSet<u32>,
     ) -> Result<SceneMesh, SceneError> {
         let mut parts: Vec<ScenePart<'_>> = Vec::with_capacity(self.parts.len());
         for part in &self.parts {
@@ -1800,821 +1814,6 @@ impl core::fmt::Display for PickError {
 }
 
 impl core::error::Error for PickError {}
-
-/// Which drawn patches the viewport should mark, and how.
-///
-/// **A pure function of (index, selection, hover)** — see
-/// [`highlight`]. Nothing is retained: the value is recomputed each
-/// frame from state that lives in exactly one place, which is the
-/// discipline the panels established and the reason no widget here
-/// holds a "currently highlighted" field.
-///
-/// Both fields are [`IdMap::NOTHING`] when nothing is marked, so the
-/// GPU consumes them as plain uniforms with no branch for absence.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Highlight {
-    /// The selected patch's id, or [`IdMap::NOTHING`].
-    pub selected: u32,
-    /// The hovered patch's id, or [`IdMap::NOTHING`].
-    pub hovered: u32,
-}
-
-/// The highlight for a selection and a hover, against the index that
-/// describes what is drawn.
-///
-/// **Scoped to the selection's own (node, body)**, not merely to its
-/// name. A name can be drawn twice — two `Transform` roots over one
-/// extrude carry the same names on both copies — and marking "the
-/// first id of the name" then lights the OTHER placement, which is the
-/// deliverable failing at exactly the shape it is hardest to notice.
-/// [`PickIndex::ids_of_target`] does the narrowing, and it narrows to
-/// at most one id because a node's name table is a bijection.
-///
-/// A selection whose name is not drawn in this index — the vanished
-/// case — yields [`IdMap::NOTHING`], which is how "nothing lights up"
-/// falls out of the resolution-failure semantics rather than being a
-/// second implementation of them. So does a selection whose name IS
-/// drawn but not on the body it was picked from, which is the same
-/// statement said about a stale index.
-pub fn highlight(index: &PickIndex, selection: &Selection, hover: Option<&Hovered>) -> Highlight {
-    let mark = |face: &FaceSelection| {
-        index
-            .ids_of_target(face)
-            .first()
-            .copied()
-            .unwrap_or(IdMap::NOTHING)
-    };
-    Highlight {
-        selected: selection.face().map_or(IdMap::NOTHING, mark),
-        hovered: hover.and_then(Hovered::face).map_or(IdMap::NOTHING, mark),
-    }
-}
-
-/// The edge marks a frame draws: the drawn polylines of the selected
-/// and hovered edges, as line-list segment pairs in world space.
-///
-/// **A value, so the marking is checkable without pixels.** A test
-/// asserts which segments a selection lights and where they are; what
-/// colour they come out is the theme's answer and the shader's, and
-/// neither is asserted here.
-///
-/// The buffers are `f32` because that is what a GPU consumes and this
-/// is the display seam — the same cast, at the same boundary, that
-/// [`crate::scene::SceneMesh`] makes.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct EdgeOverlay {
-    /// The selected edge's segments, two positions per segment.
-    pub selected: Vec<[f32; 3]>,
-    /// The hovered edge's segments, two positions per segment.
-    pub hovered: Vec<[f32; 3]>,
-    /// Whether the selected edge belongs to a free-moved instance.
-    ///
-    /// **The base a mark composites over is the same base the shaded
-    /// pass uses**, and on a probed part that base already carries the
-    /// probe tint — G3's honesty requirement, which a mark drawn over
-    /// the un-probed body colour would quietly undo on exactly the
-    /// geometry it is about.
-    ///
-    /// One flag per marked edge rather than per segment, which is
-    /// enough while the marks are single-select. A consumer holding a
-    /// SET spanning several instances wants a flag per member and
-    /// should build its overlay through [`edge_segments`], asking the
-    /// display view per edge as this function does.
-    pub selected_probed: bool,
-    /// Whether the hovered edge belongs to a free-moved instance. See
-    /// [`EdgeOverlay::selected_probed`].
-    pub hovered_probed: bool,
-    /// **Segments that are not in the document at all**: the
-    /// wireframe of something a form is composing, in the same
-    /// line-list shape as the marks above.
-    ///
-    /// It rides here rather than in a pass of its own because it is
-    /// the same drawing — world-space segments over the solid, depth
-    /// tested, writing no depth — and a second pass would be a second
-    /// place for that to be got right. What separates it is the MARK:
-    /// a preview is drawn in the theme's probe tint, the mark that
-    /// means "this placement is not committed" (G3's honesty
-    /// requirement), so a wireframe can never be mistaken for a
-    /// selection of something that exists.
-    pub preview: Vec<[f32; 3]>,
-    /// **Construction geometry that is in the document but is not
-    /// material**: the datum wireframes `crate::datums` draws, in the
-    /// same line-list shape as everything above.
-    ///
-    /// It rides this overlay for [`EdgeOverlay::preview`]'s reason —
-    /// one pass for every world-space segment drawn over the solid —
-    /// and it is a separate LANE for the same reason that one is: the
-    /// mark is what differs. A datum is drawn in `Theme::datum`, the
-    /// colour that means "not material", so it can never be mistaken
-    /// for a marked face of something that is.
-    pub datums: Vec<[f32; 3]>,
-}
-
-impl EdgeOverlay {
-    /// Whether there is nothing to draw.
-    pub fn is_empty(&self) -> bool {
-        self.selected.is_empty()
-            && self.hovered.is_empty()
-            && self.preview.is_empty()
-            && self.datums.is_empty()
-    }
-
-    /// How many line segments this overlay draws.
-    pub fn segments(&self) -> usize {
-        (self.selected.len() + self.hovered.len() + self.preview.len() + self.datums.len()) / 2
-    }
-}
-
-/// **The edge half of the highlight**, as a pure function of (index,
-/// display view, selection, hover) — the twin of [`highlight`], which
-/// answers the face half by patch id.
-///
-/// Edges are drawn rather than tinted, so they cannot ride the id
-/// comparison the face marks use: a face mark is a patch the shader
-/// recognises, and an edge mark is geometry that has to be handed to
-/// the renderer. What the two share is the RULE — the mark is scoped
-/// to the selection's own (node, body), so an edge whose name is drawn
-/// twice lights the copy it was picked from and not the other one, and
-/// a selection whose name is not drawn at all lights nothing. That is
-/// the resolution-failure semantics falling out of the same narrowing
-/// rather than being implemented a second time.
-///
-/// A hover on the edge that is already selected draws only the
-/// selected mark: selection is the state the user committed to, which
-/// is the precedence the shader's face path already states.
-pub fn edge_overlay(
-    index: &PickIndex,
-    display: &DisplayView,
-    selection: &Selection,
-    hover: Option<&Hovered>,
-) -> EdgeOverlay {
-    let mark = |edge: &EdgeSelection| edge_segments(index, display, edge);
-    let selected_edge = selection.edge();
-    let hovered_edge = hover.and_then(Hovered::edge).filter(|edge| {
-        // The one already marked as selected is not marked twice.
-        selected_edge != Some(*edge)
-    });
-    let probed = |edge: &EdgeSelection| display.moved_roots.contains_key(&edge.node);
-    EdgeOverlay {
-        selected: selected_edge.map(mark).unwrap_or_default(),
-        hovered: hovered_edge.map(mark).unwrap_or_default(),
-        selected_probed: selected_edge.is_some_and(probed),
-        hovered_probed: hovered_edge.is_some_and(probed),
-        // Nothing a SELECTION implies: a preview is about something
-        // that is not in the document, so it is added by whoever is
-        // composing it, not derived from what is picked. Datums are
-        // not derived from a pick either — they are simply what the
-        // document holds — so the same line covers both.
-        preview: Vec::new(),
-        datums: Vec::new(),
-    }
-}
-
-/// **One edge selection's drawn segments**, as the line-list pairs a
-/// renderer consumes — the conversion [`edge_overlay`] is built from,
-/// public because the next consumer holds a SET.
-///
-/// A blend tool accumulates edges in tool state and wants all of them
-/// marked; [`EdgeOverlay`]'s fields are public, so it concatenates
-/// these instead of copying the polyline-to-line-list step. The
-/// narrowing is the same one a single selection gets — scoped to the
-/// selection's own (node, body), empty for a name this index does not
-/// draw there — so a set marks exactly the members that still denote
-/// something.
-///
-/// **A SET is marked through [`edge_id_segments`] instead.** This door
-/// SEARCHES the target's whole edge run for the name, so one call per
-/// held name costs `O(E²)` name comparisons on a body with `E` edges,
-/// every frame. A set-held tool walks the run once and tests
-/// membership — `crate::blend::BlendTool::mark_segments`.
-pub fn edge_segments(
-    index: &PickIndex,
-    display: &DisplayView,
-    edge: &EdgeSelection,
-) -> Vec<[f32; 3]> {
-    index
-        .edges_of_target(edge)
-        .first()
-        .map(|id| edge_id_segments(index, display, *id))
-        .unwrap_or_default()
-}
-
-/// **One DRAWN edge's segments**, addressed by the id this index
-/// assigned it — [`edge_segments`] without the name search, for a
-/// caller already walking the index's own edge run.
-///
-/// Empty for an id this index did not assign and for an edge whose
-/// part is hidden: [`PickIndex::edge_polyline_for`]'s rule unaltered,
-/// so the two doors cannot disagree about what is in the picture.
-pub fn edge_id_segments(index: &PickIndex, display: &DisplayView, id: EdgeId) -> Vec<[f32; 3]> {
-    segments_of(&index.edge_polyline_for(id, display))
-}
-
-/// A polyline as the line-list pairs a GPU draws.
-fn segments_of(polyline: &[Point3<f64>]) -> Vec<[f32; 3]> {
-    let corner = |point: &Point3<f64>| [point.x as f32, point.y as f32, point.z as f32];
-    polyline
-        .windows(2)
-        .flat_map(|pair| [corner(&pair[0]), corner(&pair[1])])
-        .collect()
-}
-
-/// **What the picture marks because it is what the side panel is
-/// showing.** The ids of every drawn patch the selection MADE.
-///
-/// Distinct from [`highlight`], and the distinction is the point.
-/// `highlight` marks the ONE patch a pick landed on — an answer about
-/// the cursor. This marks the whole extent of the thing being EDITED,
-/// which for a feature is every face it made, and for a document
-/// parameter is every face of every feature that parameter drives.
-/// Selecting an extrude in the feature tree lights its walls; clicking
-/// one of those walls lights the same set, with the picked patch
-/// additionally tinted by `highlight` — and that holds however many
-/// features later carried the wall, because a click resolves to the
-/// feature that MADE the face (`FaceSelection::feature`) rather than
-/// to whichever root drew it.
-///
-/// **Made, not merely drawn under.** A patch belongs to the node that
-/// MINTED the entity its name denotes, which
-/// [`pncad::select::attribute`] reads off the name's own
-/// carry-through segments: a fillet's `FromTarget(f)` face is still
-/// the target's face `f`, so a fillet's extent is the blends and
-/// corners it created and nothing else. Which node DRAWS a patch is a
-/// different question with a different answer — on a body whose whole
-/// history ends in one outer feature, that feature draws every face
-/// and made almost none of them.
-///
-/// **A node that made nothing drawn still focuses something**, in two
-/// steps. A `Transform`, or a tool body a boolean consumed, mints no
-/// drawn entity but drawn entities pass THROUGH it, and those are its
-/// extent — the geometry built on top of it. Passing through is read
-/// off the name where the op re-named what it carried, and off the
-/// recipe where it did not: a `Transform` contributes no role segment
-/// by construction, so what it carries is what was minted below it
-/// (`display::derives_from`). Failing that, a node no
-/// drawn name mentions at all — a profile, a datum plane, a sketch —
-/// marks the drawn roots deriving from it
-/// (`display::roots_deriving_from`): a profile's line and the wall it
-/// swept are one thing seen twice. That last step is also where a name
-/// the vocabulary walk cannot classify degrades to, so an
-/// unclassified role costs the whole-body picture rather than an empty
-/// one.
-///
-/// **What it does NOT do yet (issue 1182)**, stated so the gap is not
-/// mistaken for a decision: the marking is per NODE, so selecting a
-/// profile lights the whole body built from it rather than the walls of
-/// the one segment being edited. Per-segment marking is expressible in
-/// this type — the answer is a set of patch ids and nothing about the
-/// shape assumes a whole node's worth — and wants the profile-step ↔
-/// `RoleSeg::Lateral(ProfileEdgeRef)` correspondence established rather
-/// than guessed: a slot's `step` is an index in the AUTHORING chain and
-/// the name's `segment` an index in the LOWERED one, and one authored
-/// step can lower to several segments. A wrong guess there lights a
-/// confidently wrong face, silently.
-///
-/// A selection whose referent is not drawn — vanished, unevaluated,
-/// hidden, or a feature that produces no body at all — answers the
-/// empty set, which is how "nothing lights up" falls out of the same
-/// rule rather than being a case.
-pub fn focus(
-    index: &PickIndex,
-    doc: &Doc<ProfileProgram>,
-    selection: &Selection,
-) -> std::collections::BTreeSet<u32> {
-    let nodes: Vec<RecipeNodeId> = match selection {
-        Selection::None => Vec::new(),
-        Selection::Node(node) => vec![*node],
-        // The feature the face IS, not the root that drew it — the
-        // same inversion the tree and the panel read
-        // (`FaceSelection::feature`), so a click and a tree selection
-        // of one feature mark one set.
-        Selection::Face(face) => vec![face.feature()],
-        // The feature the EDGE is, by the same inversion: an edge is
-        // the same kind of picked entity a face is, and selecting one
-        // shows the same feature's rows.
-        Selection::Edge(edge) => vec![edge.feature()],
-        // Every node the parameter drives. A parameter is the one
-        // selection with no geometry of its own, and the useful
-        // question about it is exactly "what does this number move".
-        Selection::Param(name) => doc
-            .order()
-            .iter()
-            .copied()
-            .filter(|&id| drives(doc, id, name))
-            .collect(),
-    };
-    if nodes.is_empty() {
-        return std::collections::BTreeSet::new();
-    }
-    // One walk of the names per call, not one per selected node: a
-    // parameter selection asks the same question of every node it
-    // drives.
-    let made: Vec<(u32, NameOrigin)> = index
-        .ids()
-        .ids()
-        .filter_map(|id| Some((id, attribute(index.name_of(id)?.as_ref().ok()?))))
-        .collect();
-    let mut out = std::collections::BTreeSet::new();
-    for node in nodes {
-        out.extend(marked_for(index, doc, &made, node));
-    }
-    out
-}
-
-/// The patches ONE node is responsible for: what it minted, else what
-/// passes through it, else the roots built from it (see [`focus`]).
-fn marked_for(
-    index: &PickIndex,
-    doc: &Doc<ProfileProgram>,
-    made: &[(u32, NameOrigin)],
-    node: RecipeNodeId,
-) -> std::collections::BTreeSet<u32> {
-    let pick = |keep: &dyn Fn(&NameOrigin) -> bool| -> std::collections::BTreeSet<u32> {
-        made.iter()
-            .filter(|(_, at)| keep(at))
-            .map(|(id, _)| *id)
-            .collect()
-    };
-    let minted = pick(&|at| at.minted_by() == Some(node));
-    if !minted.is_empty() {
-        return minted;
-    }
-    // Passing through, by the name and by the recipe. A name records
-    // the ops that RE-NAMED the entity, so an op that contributes no
-    // role segment — a `Transform` — is invisible to the walk; the
-    // entities it carries are the ones minted anywhere below it.
-    let below: std::collections::BTreeSet<RecipeNodeId> = made
-        .iter()
-        .filter_map(|(_, at)| at.minted_by())
-        .collect::<std::collections::BTreeSet<_>>()
-        .into_iter()
-        .filter(|&minter| crate::display::derives_from(doc, node, minter))
-        .collect();
-    let through =
-        pick(&|at| at.passes_through(node) || at.minted_by().is_some_and(|m| below.contains(&m)));
-    if !through.is_empty() {
-        return through;
-    }
-    crate::display::roots_deriving_from(doc, node)
-        .into_iter()
-        .flat_map(|root| index.ids_of_node(root))
-        .collect()
-}
-
-/// Whether any of `node`'s slot expressions reads the parameter
-/// `name` — through `Expr::param_refs`, the public read side, so a
-/// reference nested inside arithmetic counts exactly as a bare one
-/// does.
-fn drives(doc: &Doc<ProfileProgram>, node: RecipeNodeId, name: &ParamName) -> bool {
-    let Some(recipe_node) = doc.node(node) else {
-        return false;
-    };
-    recipe_node.slots().into_iter().any(|slot| {
-        recipe_node.expr(slot).is_some_and(|expr| {
-            let mut refs = Vec::new();
-            expr.param_refs(&mut refs);
-            refs.iter().any(|(referenced, _)| referenced == name)
-        })
-    })
-}
-
-/// The view-projection that puts ONE source pixel over the whole 1×1
-/// target the GPU id pass renders into.
-///
-/// A pixel centred at `cursor_ndc` spans `2 / width` by `2 / height` of
-/// normalized device space, so translating that point to the origin and
-/// scaling by the viewport's pixel dimensions maps exactly that pixel
-/// onto the target's `[−1, 1]²`. In a column-major clip-space matrix
-/// the translation is a subtraction of `cursor · w`, which is why the
-/// `w` row participates.
-///
-/// **It lives here, out of the render module, because it is the one
-/// part of the id pass a machine with no GPU can check**: composed
-/// with [`Camera::project`] it says that the world point the ray path
-/// un-projects to is the point the id pass rasterizes at the centre of
-/// its target. That composition is the headless half of "both picking
-/// paths answer the same question".
-pub fn cursor_projection(
-    view_projection: &[[f32; 4]; 4],
-    cursor_ndc: [f32; 2],
-    viewport_px: [f32; 2],
-) -> [[f32; 4]; 4] {
-    let [cx, cy] = cursor_ndc;
-    let [sx, sy] = viewport_px;
-    let mut out = *view_projection;
-    for column in &mut out {
-        let w = column[3];
-        column[0] = (column[0] - cx * w) * sx;
-        column[1] = (column[1] - cy * w) * sy;
-    }
-    out
-}
-
-/// **What a pick index is built from**: a landed run, its generation
-/// and the ε to tessellate at.
-///
-/// **Three of the four move together, and that is the point of the
-/// value.** The generation, the document and the evaluation are
-/// written by one landing and describe one run, so a caller cannot
-/// pick up a generation without the pair it answers — the property
-/// [`PickCache::sync`] used to spell out by hand across three
-/// accessors. `tol` is not one of them: it is the session's ε, fixed
-/// at construction and never rewritten by a landing. It rides here
-/// because the build needs it and this is what the build is handed.
-///
-/// The session mints it ([`crate::session::DocSession::index_inputs`])
-/// so that this module names no driver; the argument for hoisting
-/// rather than widening the rule has one home, in
-/// `crates/viewer/README.md`'s *What a vocabulary reads, it is
-/// handed*.
-pub struct IndexInputs<'a> {
-    generation: Generation,
-    doc: &'a Doc<ProfileProgram>,
-    evaluation: &'a Arc<Evaluation<f64>>,
-    tol: Tol,
-}
-
-impl<'a> IndexInputs<'a> {
-    /// One landing's inputs, minted together.
-    ///
-    /// The fields are private and this is the only door, so the
-    /// pairing the doc above claims is held BY THE TYPE and not by
-    /// every caller remembering: nothing in this crate can write a
-    /// generation beside another run's document.
-    #[must_use]
-    pub fn of(
-        generation: Generation,
-        doc: &'a Doc<ProfileProgram>,
-        evaluation: &'a Arc<Evaluation<f64>>,
-        tol: Tol,
-    ) -> Self {
-        Self {
-            generation,
-            doc,
-            evaluation,
-            tol,
-        }
-    }
-}
-
-/// A [`PickIndex`] kept current with a session — **the rebuild-on-stale
-/// loop, owned once**.
-///
-/// Two things made this a type rather than a habit. Ergonomics: a
-/// consumer that only wanted to pick had to notice `current_for` said
-/// stale, then rebuild with four arguments (document, evaluation,
-/// generation, δ) it had to keep in step by hand, three of which are
-/// one landing's and arrive together as [`IndexInputs`]. And
-/// correctness: the application's own
-/// rebuild loop retried on **every repainted frame** whenever a build
-/// refused — a failed or poisoned root is an ordinary editing state,
-/// and each frame then re-tessellated every healthy root before
-/// reaching the failing one, behind a picture that was already stale.
-///
-/// So the retry policy is stated once, here: **at most one attempt per
-/// (landed generation, δ)**, success or failure. A failure is kept and
-/// readable ([`PickCache::error`]) rather than retried into a stall.
-/// [`PickCache::attempted`] is written when the attempt is SUBMITTED
-/// rather than when it is answered, so the policy costs the same one
-/// comparison whether the answer is in this frame or several seconds
-/// away. It is cleared in exactly one place, and never as part of the
-/// retry rule: [`PickCache::forget`] drops it when the picture it
-/// names stops existing at all.
-///
-/// # Current or absent, never behind
-///
-/// The build happens on the [`IndexService`] seam, so between the
-/// submit and the answer there is no index at all: [`PickCache::sync`]
-/// drops the held one the moment it submits. That is the whole of the
-/// staleness rule and it is deliberate — an index that is never READ
-/// while stale is not derived data that can be wrong, so nothing here
-/// has to reason about how far behind it is. What the window costs is
-/// carried elsewhere: the viewport keeps drawing the mesh it last got
-/// (an older picture), the chrome says a build is under way
-/// (`crate::frame::progress`), and a pick made meanwhile is refused
-/// typed ([`NotIndexed`]) rather than answered from something older.
-pub struct PickCache {
-    index: Option<PickIndex>,
-    /// What the last attempt was for. `Some` after any attempt is
-    /// SUBMITTED, answered or not — which is what stops the retry loop.
-    attempted: Option<(Generation, DisplayTolerance)>,
-    /// The attempt that has been submitted and not yet answered — what
-    /// [`PickCache::indexing`] reports.
-    ///
-    /// Distinct from `attempted`, which outlives the answer: together
-    /// they separate "asked, still waiting" from "asked, and the answer
-    /// was a refusal we are not retrying".
-    outstanding: Option<(Generation, DisplayTolerance)>,
-    error: Option<PickIndexError>,
-    seam: Box<dyn IndexService>,
-}
-
-impl std::fmt::Debug for PickCache {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PickCache")
-            .field("index", &self.index.as_ref().map(PickIndex::generation))
-            .field("attempted", &self.attempted)
-            .field("outstanding", &self.outstanding)
-            .field("error", &self.error)
-            .finish_non_exhaustive()
-    }
-}
-
-/// What one [`PickCache::sync`] did.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CacheStep {
-    /// The held index already describes the run on screen.
-    Current,
-    /// A build for a new generation or δ was submitted to the seam.
-    /// The held index is gone from this moment, not from the moment
-    /// the answer arrives.
-    Submitted,
-    /// A build for exactly this (generation, δ) is already with the
-    /// seam — nothing was done and nothing was resubmitted.
-    Indexing,
-    /// This attempt was already made and refused — nothing was done.
-    Held,
-    /// No evaluation has landed, so there is nothing to index.
-    Nothing,
-}
-
-/// What one answer from the seam did to the cache.
-///
-/// [`crate::session::Landing`]'s counterpart for the second seam, and
-/// the same two filters read the same way: a build for a key the cache
-/// is no longer asking about is discarded here rather than installed
-/// and compared later.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum IndexLanding {
-    /// The index landed and is what picks are answered from.
-    Built,
-    /// The build refused; the error is on the cache and will NOT be
-    /// retried until the generation or δ moves.
-    Refused,
-    /// The answer was for a (generation, δ) the cache has moved past,
-    /// so it was dropped. Restart-without-cancel produces exactly
-    /// this: the superseded build was allowed to finish.
-    Stale,
-}
-
-impl PickCache {
-    /// A cache over `seam`.
-    pub fn new(seam: Box<dyn IndexService>) -> Self {
-        Self {
-            index: None,
-            attempted: None,
-            outstanding: None,
-            error: None,
-            seam,
-        }
-    }
-
-    /// A cache that builds its index inside [`PickCache::pump`] —
-    /// the browser's shape and the tests' ([`InlineIndexer`]).
-    pub fn inline() -> Self {
-        Self::new(Box::new(InlineIndexer::new()))
-    }
-
-    /// Ask the seam for an index of a landed evaluation at `delta`, at
-    /// most one attempt per (generation, δ).
-    ///
-    /// **δ is built at, verbatim.** `scene::TRIANGLE_BUDGET` chooses
-    /// the δ a document OPENS at (`app`'s `fit_delta_on_scene`), and
-    /// that is the whole of the budget's authority: once a δ is in
-    /// force it is the value someone asked for, and a cache that
-    /// quietly built a different picture would make the View pane's δ
-    /// field a control that does nothing.
-    ///
-    /// The document is CLONED into the request and the evaluation is
-    /// shared, so the worker owns everything it reads and the session
-    /// goes on being edited. Both arrive on [`IndexInputs`], already
-    /// paired: this cache is HANDED a landing and never reads one.
-    pub fn sync(&mut self, landed: Option<IndexInputs<'_>>, delta: DisplayTolerance) -> CacheStep {
-        // **The one way out on "nothing landed", and it FORGETS.**
-        let Some(IndexInputs {
-            generation,
-            doc,
-            evaluation,
-            tol,
-        }) = landed
-        else {
-            self.forget();
-            return CacheStep::Nothing;
-        };
-        if self
-            .index
-            .as_ref()
-            .is_some_and(|index| index.current_for(Some(generation), delta))
-        {
-            return CacheStep::Current;
-        }
-        let wanted = (generation, delta);
-        if self.outstanding == Some(wanted) {
-            // Asked, and the answer is not here yet. Asking again
-            // would be the per-frame rebuild loop with a thread in it.
-            return CacheStep::Indexing;
-        }
-        if self.attempted == Some(wanted) {
-            // Attempted and refused for this exact picture. Retrying
-            // is the per-frame rebuild loop; the error is already
-            // recorded and the caller has already seen it.
-            return CacheStep::Held;
-        }
-        self.attempted = Some(wanted);
-        self.outstanding = Some(wanted);
-        // **Dropped before the answer, not after it.** What is held
-        // from here describes a run nobody is looking at any more, and
-        // the one thing this cache must never do is answer a pick from
-        // it.
-        self.index = None;
-        // The refusal on the cache is a statement about the attempt
-        // that produced it, and this is a different attempt.
-        //
-        // **No row reds if this line goes**, and the reason is stated
-        // rather than left to be rediscovered: what it buys is
-        // narrower than the two lines above it. A refusal is only ever
-        // read alongside the `Held` step that keeps it, and that step
-        // is unreachable for a key still being built — so a stale
-        // refusal surviving this window is readable through
-        // [`PickCache::error`] and shown by nothing. It is cleared
-        // because a cache whose error outlives its subject is a
-        // question a later reader would have to answer, not because a
-        // caller can tell.
-        self.error = None;
-        self.seam.submit(IndexRequest {
-            generation,
-            delta,
-            doc: doc.clone(),
-            evaluation: Arc::clone(evaluation),
-            tol,
-        });
-        CacheStep::Submitted
-    }
-
-    /// Drop everything that describes a picture: the held index, the
-    /// attempt that produced it or is producing it, and its refusal.
-    ///
-    /// **This is where "current or absent, never behind" is
-    /// enforced**, and the one place it can be. Every other transition
-    /// replaces one picture's key with another's, so a late answer is
-    /// compared against a key and discarded. Here there is no next
-    /// key: the session has no landed run at all, because a document
-    /// was opened or a new one authored under a build that is still
-    /// with the seam. Leaving `attempted` set would leave that build a
-    /// key to match on arrival, and it would install — an index of a
-    /// document nobody is looking at, over a scene of a third one,
-    /// with nothing running and nothing said. Clearing `attempted` is
-    /// what turns that answer into [`IndexLanding::Stale`]; the other
-    /// three fields go with it because all four describe the same
-    /// vanished picture.
-    fn forget(&mut self) {
-        self.index = None;
-        self.attempted = None;
-        self.outstanding = None;
-        self.error = None;
-    }
-
-    /// Take whatever the seam has finished, discarding answers for
-    /// pictures the cache has moved past.
-    ///
-    /// Returns one entry per answer handled, so a caller can assert on
-    /// what was discarded rather than infer it.
-    pub fn pump(&mut self) -> Vec<IndexLanding> {
-        let mut landings = Vec::new();
-        while let Some(done) = self.seam.poll() {
-            landings.push(self.land(done));
-        }
-        landings
-    }
-
-    /// Decide one answer's fate. Public so the staleness rule is
-    /// testable without a scheduler.
-    ///
-    /// **The key is the PAIR.** A build carrying the generation on
-    /// screen at a δ the user has since moved off is a picture nobody
-    /// asked for, and it would install without complaint if only the
-    /// generation were compared — the sharper half of the same failure
-    /// a wrong generation is, because the document is right and only
-    /// the tessellation is not.
-    pub fn land(&mut self, done: IndexDone) -> IndexLanding {
-        if self.attempted != Some((done.generation, done.delta)) {
-            return IndexLanding::Stale;
-        }
-        self.outstanding = None;
-        match done.index {
-            Ok(index) => {
-                self.index = Some(index);
-                self.error = None;
-                IndexLanding::Built
-            }
-            Err(error) => {
-                self.error = Some(error);
-                IndexLanding::Refused
-            }
-        }
-    }
-
-    /// The held index, if the last attempt produced one — `None` for
-    /// every frame between a submit and its answer.
-    pub fn index(&self) -> Option<&PickIndex> {
-        self.index.as_ref()
-    }
-
-    /// Whether a build is outstanding: the indexing state the chrome
-    /// reads, as a value (`crate::frame::progress`).
-    pub fn indexing(&self) -> bool {
-        self.outstanding.is_some()
-    }
-
-    /// Why the last attempt refused, if it did.
-    pub fn error(&self) -> Option<&PickIndexError> {
-        self.error.as_ref()
-    }
-}
-
-/// **A pick attempted while no index describes the document on
-/// screen** — the typed *not indexed yet*.
-///
-/// Distinct from a miss, and that distinction is the whole of it. A
-/// miss is an answer: the index was asked and there is nothing under
-/// the cursor, so clearing the selection is right. This is the absence
-/// of anybody to ask, and doing nothing quietly is what made the
-/// window between two indexes look like a viewport that had decided
-/// the user was pointing at empty space.
-///
-/// **Two arms, because waiting and not waiting are different advice.**
-/// They are named for what is observably true rather than for a cause,
-/// so neither can be shown over a state it does not describe: a
-/// refused build and a document that has never been evaluated are both
-/// "no index and nobody building one", and a sentence promising an
-/// answer shortly would be false in both.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum NotIndexed {
-    /// A build is under way ([`PickCache::indexing`]): the answer is
-    /// coming, and the toolbar is already saying so.
-    Building,
-    /// No index, and no build under way — the last attempt refused
-    /// (its reason is [`PickCache::error`]), or nothing has been
-    /// evaluated yet. Waiting will not help; the retry policy holds
-    /// until the generation or δ moves.
-    Absent,
-}
-
-impl core::fmt::Display for NotIndexed {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Building => write!(
-                f,
-                "not picked: the picture is still being indexed, and a pick \
-                 is answered from the index or not at all"
-            ),
-            Self::Absent => write!(
-                f,
-                "not picked: the picture on screen has no pick index and none \
-                 is being built — the last index build refused, or nothing has \
-                 been evaluated yet"
-            ),
-        }
-    }
-}
-
-impl core::error::Error for NotIndexed {}
-
-/// The refusal a pick stream earns when there is no index to answer it
-/// — `Some` for an ACT, `None` for an observation.
-///
-/// **A hover is not news.** It is pushed on every frame the pointer is
-/// inside the pane, so a refusal raised for one would rewrite the
-/// status line sixty times a second and erase every other writer's
-/// sentence with it (`crate::frame`, the chrome's two channels);
-/// the indexing indicator is what tells a reader why the model is
-/// inert while they move over it. A click is an act — the user asked
-/// for something and did not get it — and that is exactly what the
-/// line carries.
-///
-/// `indexing` is [`PickCache::indexing`] — which of the two sentences
-/// is true, asked of the one value that knows.
-pub fn unindexed<'a>(
-    actions: impl IntoIterator<Item = &'a PickAction>,
-    indexing: bool,
-) -> Option<NotIndexed> {
-    actions
-        .into_iter()
-        .any(|action| match action {
-            // An ACT: the user asked for something and did not get it.
-            PickAction::Select(_) => true,
-            // Observations. Exhaustive on purpose, the way
-            // `ToolKind::pick_kinds` is: a fifth action added to the
-            // stream must be classified here rather than falling into
-            // "not news" because a wildcard put it there.
-            PickAction::Hover(_) | PickAction::ClearHover => false,
-        })
-        .then_some(if indexing {
-            NotIndexed::Building
-        } else {
-            NotIndexed::Absent
-        })
-}
 
 #[cfg(test)]
 mod tests {

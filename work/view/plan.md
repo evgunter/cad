@@ -125,6 +125,10 @@ should be visible on its own.
 | `view/const-all` (the `vocabulary!` declaration) | #2046 | style + fix pass |
 | `view/refusal-all` (`Refusal` has no `ALL`) | #2053 | style + fix pass |
 | `view/progress` (the swappable bool pair) | #2055 | style + fix pass |
+| `view/index-seam` (Ev's (d): the seam cycle broken) | #2079 | style + fix pass |
+| `view/marks` (the second split, and the rename) | #2083 | style + fix pass |
+| `view/homes` (`cursor_projection` to `camera`; `Generation::get` deleted) | #2089 | style + fix pass |
+| `view/debug-walk` (five field censuses made exhaustive) | #2093 | style + fix pass |
 
 **Fifteen units on main. Two rules this wave earned**, both about
 evidence rather than code:
@@ -136,6 +140,44 @@ evidence rather than code:
   same file. Parse the parameter list. A receipt offered as evidence and
   wrong about its own file is worse than no receipt, because a reader
   stops looking.
+
+**Prove a claim by COMPILING, not by grepping, when the compiler can
+answer it.** #2093's reviewer was asked whether any test observed a
+`Debug` dump; instead of grepping for `{:?}` it deleted both impls and
+built the workspace — zero errors answers the question completely,
+where a grep answers to the limit of its pattern. It also tested a
+rejected alternative by writing it and compiling it. Counterpart to
+*a grep over a signature is a grep over one line of it*.
+
+**Take a base measurement in a SEPARATE worktree.** #2089's lane ran
+`git checkout HEAD -- crates/viewer` to measure its base and clobbered
+its own uncommitted edits; it caught and re-applied them, but the safe
+shape is a throwaway worktree with its own target dir, which is what
+#2079's and #2083's lanes used.
+
+**A §6 report is not a durable artifact.** The same out-of-fence stale
+citations were reported through §6 twice — #1848 and #2089 — with
+nothing a later reader could find either time, which is the case §6
+itself warns about. When a report is a REPEAT, file it in
+`work/issues/` instead.
+
+**Re-derive a citation, never shift it — and verify every one by
+reading the line.** The class cost this program five instances in one
+day, including two lanes each shifting a number by a delta computed
+correctly somewhere else, and one orchestrator propagating a lane's
+miscount into a check-in. No grep finds it: a citation pointing at the
+wrong line still parses. The instrument that works is #2083's —
+enumerate every `file:line` in every row a branch touches, `sed -n Np`
+each, and read whether the subject is there (39/39 there). Re-run it
+after the LAST edit, because a header rewrite moves every line under
+it.
+
+**A merge criterion is a TEST, never an absolute.** #2079's fix brief
+said the test counts "must still be 24/1 and 501/0/1"; they came back
+503 because a concurrent merge of `main` brought two new rows in. The
+invariant that survives is *the count must not move against your own
+merge base* — checked here as `#[test]` at 533 on both sides. A number
+in a brief goes stale the moment anything else lands.
 
 **Operational, for whoever reads the log's CI notes**: the slow interval
 shard is not a FIXED shard. `1/2` was slow on #2026/#2046 and `2/2` on
