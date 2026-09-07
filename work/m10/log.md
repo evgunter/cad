@@ -1338,3 +1338,28 @@ when written, 13 on the day the calendar caught up, one short of
 fixed as #2099 (the three renders at `today + STALE_DAYS + 5`),
 merged at f30aabc36 on its own green run; #2098 re-based onto it by
 merge. The M10-10 lane was told not to chase it.
+
+## M10-10 amended before the freeze: the chart's phase (2026-09-07)
+
+The implementer's first report (PR #2100, green on the full matrix,
+~3 h 40 min): rule D and the per-node A/B walk made linear (one shared
+monomial denominator; caps 64/512; a zero normalization `0/d → 0`
+found through a new explain instrument) discharge three of the plate's
+four residuals — `carrier_on_surface_2` and `witness_on_surface_2` as
+theorems, `carrier_matches_mapped_source` through the door once D
+makes the trig meet — the 2× instrument retired and its finding
+closed, the driver K row at 48,842 symbolic per CSV (+160), the ring
+at 256 (512/1024 buy no reach), leaf costs within the line. The plate
+moved 1.60× to `1.25e3 · ε` and is bounded by ONE residual,
+`pcurve_map_residual`: the cylinder chart's phase `cos(atan2(0,
+‖a_r‖))` from `stable_azimuth`, with `‖a_r‖ = r²/sqrt(r²)`; with it
+passed the plate certifies 0.237/0.263/0.263 of its real study at the
+three ε rows, the ceiling no longer scaling with ε, the first refusal
+`assert_bound` — at 1e-12 a genuine flip. The spec's "nothing folds at
+an argument that is not `q · atan(X)`" excluded a fold that is
+value-free by the same argument as D's half-angle branch:
+`atan2(zero-form, manifestly non-negative) = 0`. Amendment A1 (#2102,
+on main) admits it with its negative pins; the lane resumed on it
+before the freeze. The other two routes in the finding — a rule-C
+sign read at the funnel's own certified decision, a structural phase
+from PCURVE — stay filed.
