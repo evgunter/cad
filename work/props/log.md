@@ -877,3 +877,25 @@ tested; `QuadratureBudget` is FILED for the rational quad lane (its
 budgets are `quad2-rational-max-rounds-dial-decision`'s subject), not
 fixed in the rider. Fix pass on the branch (the same lane resumed);
 the reviewer's two probe rows are adopted.
+
+**Outage and resumption (2026-09-07 23:50 UTC).** The orchestrator
+session and its three live lanes (sign-hull implementer, MESH-12 fix
+pass, budget-faces fix pass) were cut by a usage limit at 2026-09-06
+~08:10 UTC and resumed 39 hours later; each lane's worktree survived
+(sign-hull with ~300 uncommitted lines; MESH-12 with two fix-pass
+commits pushed and green, run 34021118980; budget-faces with its fix
+pass uncommitted) and each is resumed in place with its cwd re-pinned.
+
+**MESH-12 record corrected (2026-09-07).** The S-MESH orchestrator on
+#1617: the v6 dual under ordinal 1210 DID run on `0e053a727` before
+that session was cut on 2026-09-03 — R1 opus 0/4/7 and R2 fable 0/1/5,
+both 4/4/3, tally +0, one bilateral finding (the winding headroom
+levered at the sphere radius where certification levers at the
+carrier radius; the PROPS fix pass's `0e4a1b57a` lands the same shape)
+— with probe branches `mesh/12r1-probes` @ 6beab58a1 and
+`mesh/12r2-probes` @ e3d913b88. The takeover note's "never reviewed"
+was wrong; the row records both duals, PROPS's (on `3daab7d80`, the
+bilateral reversed-span MAJOR that the prior dual did not find — a v6
+data point) as the sample. S-MESH also pushed a landing merge of main
+(`267e2510f`) minutes after asking who lands; answered on the PR:
+PROPS lands per Ev's direction, S-MESH pushes nothing further.
