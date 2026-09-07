@@ -1,6 +1,6 @@
 # M10-10 — the form-level mechanism: the arc's trig atoms made exact, so the plate's four identity residuals go at once
 
-STATUS: BINDING (dispatched 2026-09-06; opened from M10-9's measured
+STATUS: BINDING (dispatched 2026-09-06; amended A1 2026-09-07, §2; opened from M10-9's measured
 result on Ev's standing ruling — a form-level unit before the exit
 walk is re-cut, "1 sounds good"; block M10-B5 slot 1). Unit branch
 `m10/m10-10-form-level`. Program plan `work/m10/plan.md`; design
@@ -106,6 +106,37 @@ prescribes, never at 2× the ceiling).
   forms at every width and for negative and straddling `X`, and NOTHING
   is folded at an argument form that is not `q · atan(X)` (an `atan2`,
   an `atan` of a sum plus a constant, `q` not exact).
+- **Amendment A1 (orchestrator, 2026-09-07, after the implementer's
+  report and before the review freeze).** Rule D as written folds only
+  at `sin`/`cos` of `q · atan(X)`, and three of the plate's four
+  residuals discharged under it; the fourth, `pcurve_map_residual`,
+  carries the cylinder chart's phase `cos(atan2(0, ‖a_r‖))` from
+  `stable_azimuth` (`crates/geom-brep/src/pcurve_cache.rs`), with
+  `‖a_r‖ = r²/sqrt(r²)` — a form that is NON-NEGATIVE BY ITS OWN
+  SYNTAX. `atan2(Z, N) = 0` when `Z` is the zero form and `N` is
+  manifestly non-negative (a `sqrt` atom, an `abs` atom, an even power,
+  a positive literal, and products, quotients and sums of such) is a
+  theorem of the reals at every parameter point where `N > 0`, which is
+  everywhere the arc is defined; at `N = 0` the geometry is degenerate
+  and clause 1 (the numeric channel's own domain answer) decides first,
+  and IEEE's `atan2(0, 0) = 0` agrees with the fold where a value
+  exists. No value is read: the positivity is syntactic, exactly as
+  rule D's half-angle branch is a fact about `atan`'s range. Rule D
+  gains this fold (its own dial or D's — say which), with the argument
+  at the impl and pinned: `atan2(0, sqrt(X))`, `atan2(0, X²)`,
+  `atan2(0, r²/sqrt(r²))` decide `Zero` at every width and for
+  straddling `r`; `atan2(0, X)` for a plain parameter `X` NEVER;
+  `atan2(Y, N)` with `Y` not the zero form NEVER; a `Z` that is zero
+  only numerically (a coincidence) NEVER. Then the plate re-measured:
+  the over-band set at ceiling + δ, the whole-certifying box at three
+  ε rows against the staged walk's 0.237/0.263/0.263, the first
+  refusal beyond it, and the tour's stop 1. The finding
+  `pcurve-chart-phase-is-atan2-of-the-start-radial` is this
+  amendment's input; its other two routes (a rule-C sign read at the
+  funnel's own certified decision; a structural phase from PCURVE)
+  stay filed as the alternatives, not built. The unit's "nothing folds
+  at an argument that is not `q · atan(X)`" is amended to "…that is not
+  `q · atan(X)` or `atan2(zero-form, manifestly non-negative)`".
 - **A/B per node, bounded and memoized.** `early_ab` as built costs
   138 s per nominal plate replay; the reduction per node must be
   memoized by content-hash id across the leaf and bounded by the step
