@@ -2,8 +2,10 @@
 id: tess-lint-face-ordinal-join
 kind: issue
 title: tess-lint's budget gate joins on the face ORDINAL, so a face reorder either compares the wrong faces or drops them silently
-status: open
+status: closed
 opened: 2026-08-20
+closed: 2026-09-07
+branch: meter/join-gated-voice
 github: 746
 refs: [738, C15, D201]
 ---
@@ -41,3 +43,76 @@ Code quality: `tools/` is Track K's territory, and the issue is already carried 
 ## Claimed by METER (2026-09-06)
 
 Moved from `work/code-quality/` to `work/meter/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, `track:` letter and body unchanged. Unlettered, on K's fence: `tess-lint`'s join key.
+
+## Closed (2026-09-07)
+
+**The body above is #746's text of 2026-08-20 and describes a tree that
+no longer exists.** Both branches it names are closed, and the one
+question the closure left open — which voice an ordinal permutation
+speaks in — is decided here.
+
+### 1. Both branches, verified by mutation rather than by reading
+
+`compare` runs rule 2 only under a rule-4 precondition
+(`first_disagreement` over `IDENTITY_COLUMNS`), announces a disagreeing
+ordinal as `Kind::Rekeyed` with `Rekey::Column { name, was, now }`,
+announces a one-sided ordinal as `Rekey::Absent { in_baseline }`, and
+STOPS the walk at the first disagreement rather than comparing shifted
+pairs. Four mutations of `tools/tess-lint/src/lib.rs`, each run against
+the suite:
+
+* `first_disagreement` returns `None` always (branch 1 restored) — **4
+  red**, including `a_shifted_face_above_the_disagreement_is_not_compared`.
+* the one-sided arms `continue` instead of announcing (branch 2, the
+  silent drop) — **5 red**, including
+  `a_face_missing_from_a_surviving_scene_is_a_finding`.
+* `if gated` forced true — **1 red**
+  (`a_re_key_in_a_scene_with_no_sized_face_is_a_note`).
+* `if gated` forced false — **8 red**.
+
+The routing is therefore pinned in both directions, not only in the one
+the current answer takes.
+
+### 2. #738's instance does not reproduce
+
+Re-run rather than inherited: a fresh `scripts/tess_budget_sweep.sh
+--sizing-only` on a tree identical to `origin/main` (`a742c3425`) plus
+one tracker file, compared against
+`docs/tess-budget-data/tess-budget-baseline.csv` (cut
+`aba2625f8f84 2026-09-04`). **1353 rows on both sides, 72 scenes on both
+sides, and every `(scene, face)` ordinal agrees on all eight identity
+columns** — `diefillet/diefillet` included, where the baseline's face 0
+is a plane, as the sweep's is. `tess-lint` reports 0 findings and 0
+notes. The permutation #738 measured was absorbed by a later re-cut of
+the baseline; the ordinal key that let it happen is unchanged, which is
+`D201`'s subject and `C15`'s.
+
+### 3. The decision: a note, and the reason is now at the site
+
+An ordinal permutation between main and the committed baseline, in a
+scene where neither side carries a Hessian-sized face, stays a
+**note**. Rule 5 is the counter-example that had to be answered — it
+exits FINDINGS in the harness register, and an ungated re-key looks
+like the same shape — and the answer is that an uncovered scene makes
+the gate's coverage claim FALSE until someone folds it, while a scene
+with no sized face gives rule 2 no claim to be false and rule 1's
+per-scene comparison never reads an ordinal. The note is also not a
+silence that outlives its reason: `gated` reads BOTH sides, so the same
+drift is a finding the day that scene carries a sized face
+(`a_scene_that_gains_its_first_sized_face_reds_rather_than_notes`).
+
+Written into `lib.rs`'s module docs and at `compare`'s `gated` binding,
+so the next reader inherits the argument rather than re-litigating it.
+What the decision accepts is stated there too: a permutation in a scene
+rule 2 never reaches can be folded into a re-cut with nobody reading
+it, and the cure for that is a durable per-face name — **`D201` and
+`C15`**, both live on this program's slate, not a louder voice here.
+
+### 4. One correction carried in the same PR
+
+`a_re_key_in_a_scene_with_no_sized_face_is_a_note`'s doc transcribed
+"58 of the committed baseline's 70 scenes"; the baseline holds 72
+scenes, 12 of them carrying a sized face and 60 not. The figure moved
+to its executable home, `tools/tess-lint/tests/baseline_census.rs`,
+which now derives all three from the committed baseline, and the test's
+doc points there.

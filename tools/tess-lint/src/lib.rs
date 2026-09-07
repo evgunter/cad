@@ -183,6 +183,29 @@
 //! learn to route around. Rule 3 only looks like a counter-example: a
 //! vanished scene loses rule 1 with it.
 //!
+//! **Rule 5 is the counter-example that has to be answered**, because
+//! it exits FINDINGS while speaking in the harness register, and an
+//! ungated re-key has the same shape at a glance: a reference the
+//! baseline no longer supplies, whose recourse is a re-cut. The
+//! difference is what the gate CLAIMS. An uncovered scene was swept
+//! and measured against nothing, so the gate's coverage of it is
+//! asserted and false, and stays false until someone folds it. A
+//! scene with no sized face gives rule 2 no claim there to be false,
+//! and rule 1's per-scene comparison does not read an ordinal —
+//! nothing this gate says about that scene is wrong while the note
+//! stands.
+//!
+//! Nor is the note a permanent silence, which is the other half of
+//! why it is safe where rule 5's would not be. The judgement reads
+//! BOTH sides, so the same drift in the same scene is a FINDING the
+//! day that scene carries a sized face: the announcement waits for
+//! the comparison it would cost, and arrives with it. **What that
+//! accepts, said plainly:** an ordinal permutation in a scene rule 2
+//! never reaches can be folded into a re-cut with nobody reading it.
+//! The cure for that is a durable per-face name in the sweep's own
+//! column — a key that does not move — and not a louder voice for
+//! the cases where the ordinal has already moved.
+//!
 //! **A measurement that could not be read is none of the five, and
 //! must not be resolved into one.** Rules 1 and 2 fire on GROWTH
 //! only, so any in-band fallback for an unreadable value is the
@@ -1294,6 +1317,9 @@ pub fn compare(baseline: &[Row], fresh: &[Row]) -> Report {
         };
         // Whether rule 2 has anything to lose in this scene, which is
         // what puts a re-key on the findings side or the notes side.
+        // BOTH sides are read, so the note is not a silence that
+        // outlives its reason: the day a noted scene carries a sized
+        // face, the same drift is a finding.
         let gated = base_faces
             .values()
             .chain(fresh_faces.values())
@@ -2230,8 +2256,10 @@ mod tests {
 
     /// …and a NOTE where it cannot. Rule 1 still runs over this
     /// scene's total, so no comparison was lost; reddening here is how
-    /// a gate teaches people to route around it. 58 of the committed
-    /// baseline's 70 scenes are this shape.
+    /// a gate teaches people to route around it. How much of the
+    /// committed corpus is this shape is a reading of the baseline,
+    /// which a re-cut moves, so it is derived in
+    /// `tests/baseline_census.rs` rather than written here.
     #[test]
     fn a_re_key_in_a_scene_with_no_sized_face_is_a_note() {
         let base = parse(&format!(

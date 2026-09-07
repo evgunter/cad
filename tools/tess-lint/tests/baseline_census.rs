@@ -68,7 +68,7 @@
 //! write it in. The failure exists so that the paragraph in `lib.rs`
 //! cannot go on describing a file it no longer describes.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use tess_lint::{IDENTITY_COLUMNS, Row, identity_readings, parse};
 
@@ -248,4 +248,44 @@ fn six_of_the_eight_identity_entries_discriminate_nothing_among_the_sized_rows()
             r.face
         );
     }
+}
+
+/// The other quantity `lib.rs` used to transcribe: how much of the
+/// committed corpus is a scene where a re-key is a NOTE rather than a
+/// finding.
+///
+/// Rule 4's judgement is per SCENE — does either side carry a sized
+/// face — so a scene with none of them is one where rule 2 has no
+/// comparison for an ordinal permutation to cost, and the drift is
+/// announced without reddening the row. That is most of this corpus,
+/// and the share moves with every re-cut, so it is counted here
+/// rather than stated in the rule's prose.
+///
+/// **One of the three is determined by the other two and it is said
+/// rather than hidden**, as the pair census above says it of its own
+/// scene count: a scene either carries a sized face or does not, so
+/// the note count is the corpus minus the finding count however it is
+/// derived. It is asserted because it is the figure the rule's reader
+/// wants, not because it discriminates on its own. The scene count IS
+/// independent, and it is the one this file did not previously pin —
+/// the census above counts scenes carrying an indistinguishable pair,
+/// which is a different set that happens to be all of them.
+#[test]
+fn most_of_the_committed_corpus_is_a_scene_where_a_re_key_is_a_note() {
+    let rows = parse(BASELINE).expect("the committed baseline parses");
+    let scenes: BTreeSet<&str> = rows.iter().map(|r| r.scene.as_str()).collect();
+    let sized: BTreeSet<&str> = rows
+        .iter()
+        .filter(|r| r.nurbs.is_some())
+        .map(|r| r.scene.as_str())
+        .collect();
+    let noted: Vec<&str> = scenes.difference(&sized).copied().collect();
+
+    assert_eq!(scenes.len(), 72, "scenes in the committed baseline");
+    assert_eq!(
+        sized.len(),
+        12,
+        "…carrying a sized face, where a re-key is a FINDING"
+    );
+    assert_eq!(noted.len(), 60, "…carrying none, where a re-key is a NOTE");
 }
