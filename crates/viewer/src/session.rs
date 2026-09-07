@@ -57,8 +57,8 @@ use std::sync::Arc;
 
 use pncad::document::{
     Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
-    DocEdit, DocParam, DocRef, DocumentId, Evaluation, Expr, LoopProgram, Node, ParamName,
-    PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId, Subject, apply,
+    DocEdit, DocParam, DocRef, DocumentId, EvalOptions, Evaluation, Expr, LoopProgram, Node,
+    ParamName, PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId, Subject, apply,
     assemble_gathered, cascade_delete_order, parse_expr, product_recorded, run_checks_on,
 };
 use pncad::geom_core::Tol;
@@ -740,6 +740,22 @@ impl DocSession {
     /// (the [`DirResolver`] directory rule).
     pub fn resolve_dir(&self) -> Option<&Path> {
         self.resolver.as_deref().map(DirResolver::dir)
+    }
+
+    /// **The options this session's document evaluates under**: its
+    /// resolver (the directory rule, above), the defaults otherwise —
+    /// the same options the evaluation seam submits, so a caller that
+    /// solves the document outside a run (the mate tool's proposal,
+    /// a suite reading the solve back) resolves each mated part the
+    /// way the landed evaluation resolved it.
+    pub fn eval_options(&self) -> EvalOptions {
+        EvalOptions {
+            resolver: self
+                .resolver
+                .as_ref()
+                .map(|ws| Arc::clone(ws) as Arc<dyn PartResolver>),
+            ..EvalOptions::default()
+        }
     }
 
     /// The generation the session is waiting for a result on.

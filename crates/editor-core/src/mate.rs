@@ -30,10 +30,14 @@
 //!
 //! [`Alignment`] carries two mate frames — one per side, in that
 //! instance's OWN part coordinates — plus the primitive relating
-//! them, the axis sense, and the clocking rider. Nothing here reads
-//! geometry: the frames are authored data, so the whole solve is a
-//! decided-predicate computation over the recipe (A11's "no geometry
-//! inspection, no numerics beyond decided predicates").
+//! them, the axis sense, and the clocking rider. The frames are
+//! authored data, so the whole solve is a decided-predicate
+//! computation over the recipe (A11's "no geometry inspection, no
+//! numerics beyond decided predicates" — with the one qualifier A11
+//! states: the solve reads no geometry except each mated part's own
+//! extent, an upper bound taken from its evaluated body, which enters
+//! only as the lever a parallelism verdict is decided over —
+//! [`reach`]).
 //!
 //! Each primitive pins the pair's relative pose to a COSET of an
 //! SE(3) subgroup, and multiple mates on one pair fold by exact coset
@@ -67,10 +71,12 @@ use geom_core::predicate::{BandError, Indeterminate};
 
 pub mod coset;
 pub mod member;
+pub mod reach;
 pub mod solve;
 
 pub use coset::{Coset, Subgroup};
 pub use member::{Member, member_of};
+pub use reach::{MateReach, body_reach};
 pub use solve::{
     ClusterMaintenance, MateRole, SolvedPoses, clusters, gauge_of, reading_edges,
     relative_freedom_components, solve_document,
@@ -253,125 +259,62 @@ pub struct Alignment {
 }
 
 impl Alignment {
-    /// The **lever arm** this mate's angular decisions turn on: the
-    /// largest distance in its own authored data over which an angular
-    /// error accumulates into a gap (D4 ¶1 — an angle only means
-    /// something through the displacement it induces at a length
-    /// scale, and the scale is named at the call site).
+    /// **The datum's own contribution to the lever** this mate's angular
+    /// decisions turn on: both mate frames' distances from their parts'
+    /// origins, plus every length the primitive authors, all summed.
     ///
-    /// **The datum's own extent wherever it has one** (ERROR-DESIGN
-    /// E3's amendment, ratified at revision E12), and the metre ONLY
-    /// where it has none.
+    /// The lever itself is formed in the solve (`mate/solve.rs`), as
     ///
-    /// The amendment's complaint was that `max(extent, 1 m)` made the
-    /// constant the operative lever for every model smaller than a
-    /// metre: a 10 mm datum's tilt was priced across a metre it does not
-    /// span, and the separation never entered. That half is fixed — a
-    /// datum with any authored length is levered by ITS OWN extent, at
-    /// whatever scale the author works, and no absolute constant
-    /// participates.
+    /// ```text
+    /// L  =  (R_a + ‖a.origin‖)  +  (R_b + ‖b.origin‖)  +  Σ |authored lengths|
+    /// ```
     ///
-    /// **The other half cannot be taken here, and the reason is the
-    /// data this type carries.** `eval::measure`'s sibling arm has no
-    /// floor at all because its operands are FACES and a validated face
-    /// has positive extent by construction. A mate's operands are the
-    /// mated PARTS, which also have extent — but an [`Alignment`]
-    /// carries only the authored DATUM, and a datum authored at the
-    /// origin with no length (`Coaxial` on two frames at their parts'
-    /// origins is the common spelling) has none. Levering that at zero
-    /// would price every tilt at zero and read every pair as parallel:
-    /// an answer, in the direction that reports rather than refuses.
-    /// MEASURED, removing the floor without the parts' extent: twelve
-    /// rows of `asm_r2a_mate_solve` turn into refusals, every one of
-    /// them a document a user may legitimately author.
+    /// where each `R` is the mated part's own reach from its origin
+    /// ([`MateReach`]) — an UPPER bound on the extent of the two parts
+    /// together from the datum, with no floor and no constant
+    /// (ERROR-DESIGN E3's amendment, ratified at revision E12, shipped
+    /// whole at this site). This function is the part of that sum an
+    /// [`Alignment`] can answer alone: `R + ‖origin‖` bounds a part's
+    /// reach from its mate frame by the triangle inequality, and the
+    /// authored lengths (a planar rest's offset) are the separation the
+    /// datum names between the two frames once mated. Every term is an
+    /// upper bound and none is dropped, because over-refusal is the
+    /// safe direction: a lever larger than the truth prices a tilt
+    /// higher and refuses sooner.
     ///
-    /// So the metre survives exactly where D4 ¶4 put it — as the
-    /// session box's own order of magnitude, for a datum that names no
-    /// scale at all — and it is named as that rather than as a lever.
-    /// The full amendment needs the mated parts' extent to reach this
-    /// door, which is issue `mate-lever-needs-the-parts-extent`.
+    /// Pure, and never a refusal: a datum authored at the origin with
+    /// no length contributes nothing, and that is not a degenerate
+    /// case — `Coaxial` on two origin frames is how an axis-to-axis
+    /// mate is ordinarily written. With a real part on each side the
+    /// lever is never zero, so no floor guards this door.
     ///
-    /// # The gap between "no scale" and "a usable scale"
+    /// # Why there is no floor, and why there once was one
     ///
-    /// The first shipped form of this function was
-    /// `if extent > 0.0 { extent } else { 1.0 }`, and a reviewer took it
-    /// apart in one line: a datum at the origin is levered at 1 m, and a
-    /// datum ONE NANOMETRE from the origin is levered at 1e-9 m. The
-    /// second is the failure the paragraph above warns about — a lever
-    /// that prices every tilt at ~zero and reads every pair as parallel
-    /// — sitting a nanometre away from the case the metre is there to
-    /// cover. A bit-exact test against `0.0` was choosing between two
-    /// answers nine orders apart.
-    ///
-    /// Three cases now, and the middle one is a REFUSAL rather than a
-    /// number:
-    ///
-    /// * **no scale named at all** ([`Self::names_a_scale`]) — the
-    ///   session box's [`SESSION_SCALE`]. This is D4 ¶4's arm and it is
-    ///   the case `Coaxial` on two origin frames lands in, which is a
-    ///   spelling users author constantly.
-    /// * **a scale named, at or above [`MIN_LEVER_ARM`]** — that scale.
-    /// * **a scale named BELOW it** — [`LeverRefusal::DatumTooSmall`].
-    ///   The author named a length, so the metre is not theirs to
-    ///   borrow; and the length they named cannot decide anything,
-    ///   because a lever of `L` makes the smallest decidable tilt
-    ///   `ε/L`, which at `L = 1 nm` and ε = 1e-9 is a whole radian. A
-    ///   verdict there is not wrong, it is vacuous, and reporting a
-    ///   vacuous parallel is the direction this kernel refuses.
-    ///
-    /// The branch is on WHAT WAS AUTHORED, not on a computed magnitude
-    /// against zero: `names_a_scale` asks the recipe whether a length or
-    /// a non-origin coordinate was written down.
-    ///
-    /// # Errors
-    ///
-    /// [`LeverRefusal::DatumTooSmall`] — see above.
-    ///
-    /// [`arm`]: crate::eval::measure
-    pub fn lever_arm(&self) -> Result<f64, LeverRefusal> {
-        if !self.names_a_scale() {
-            return Ok(SESSION_SCALE);
-        }
-        let extent = self.authored_extent();
-        if extent < MIN_LEVER_ARM {
-            return Err(LeverRefusal::DatumTooSmall {
-                extent,
-                floor: MIN_LEVER_ARM,
-            });
-        }
-        Ok(extent)
-    }
-
-    /// The largest length this alignment names — its authored lengths
-    /// and its frames' distances from the origin.
-    fn authored_extent(&self) -> f64 {
+    /// The first shipped form of the lever was
+    /// `if extent > 0.0 { extent } else { 1.0 }` over the datum alone,
+    /// and a reviewer took it apart in one line: a datum at the origin
+    /// was levered at 1 m, and a datum ONE NANOMETRE from the origin at
+    /// 1e-9 m — nine orders apart, chosen by a bit-exact test against
+    /// zero, with the small side being exactly the failure the lever
+    /// exists to prevent: a lever of `L` makes the smallest decidable
+    /// tilt `ε / L`, which at 1 nm and the default ε is a whole radian,
+    /// so every tilt read parallel. A micron floor with a typed refusal
+    /// under it closed that gap while the datum was the only scale in
+    /// hand. The mated parts' extent is now in hand, and a part's reach
+    /// is its size at whatever scale the author works, so the case the
+    /// floor guarded — a scale named, too small to decide over — has no
+    /// document left that reaches it: the nanometre datum is levered by
+    /// the parts on either side of it.
+    pub fn lever_arm(&self) -> f64 {
         let norm = |v: [f64; 3]| (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
         self.primitive
             .authored_lengths()
             .into_iter()
             .flatten()
             .fold(
-                norm(self.a.origin).max(norm(self.b.origin)),
-                |lever, length| lever.max(length.abs()),
+                norm(self.a.origin) + norm(self.b.origin),
+                |lever, length| lever + length.abs(),
             )
-    }
-
-    /// **Whether this alignment names a length scale at all** — a
-    /// question about the RECIPE, asked of what was authored rather than
-    /// of a computed magnitude against zero.
-    ///
-    /// A primitive with an authored length names one. A frame placed
-    /// away from its part's origin names one. `Coaxial` on two frames
-    /// both at the origin names none, and that is not a degenerate case
-    /// — it is how an axis-to-axis mate is ordinarily written.
-    fn names_a_scale(&self) -> bool {
-        self.primitive
-            .authored_lengths()
-            .into_iter()
-            .flatten()
-            .any(|l| l != 0.0)
-            || self.a.origin != [0.0; 3]
-            || self.b.origin != [0.0; 3]
     }
 
     /// Whether every authored coordinate is finite — the edit door's
@@ -477,53 +420,82 @@ pub fn class_admission(class: ContactClass) -> ClassAdmission {
     }
 }
 
-/// **The order of magnitude a datum that names NO scale is read at** —
-/// D4 ¶4's session box, not a lever.
-///
-/// One metre, and it is a statement about the working envelope of a CAD
-/// session rather than about any part: a mate written as two coincident
-/// origin frames says where things meet and nothing about how big they
-/// are, so the only honest scale left is the session's own.
-pub const SESSION_SCALE: f64 = 1.0;
-
-/// **The smallest datum extent a parallelism verdict can be levered
-/// over** — one micron.
-///
-/// Below it the verdict is vacuous rather than wrong: a lever of `L`
-/// makes the smallest decidable tilt `ε / L`, so at 1 nm and the default
-/// ε the smallest tilt this door could call non-parallel is about a
-/// radian, and everything under that reads parallel. A micron is three
-/// decades above the default ε and below any datum offset a drawing
-/// means, so nothing authorable falls in the gap without deserving to.
-///
-/// It is NOT an ε and it is not compared against a margin: it is a
-/// precondition on the ARM, checked before any predicate runs. No
-/// decision is made here.
-pub const MIN_LEVER_ARM: f64 = 1.0e-6;
-
-/// Why a lever arm could not be formed ([`Alignment::lever_arm`]).
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// Why a lever could not be formed for a mate: one of its parts' reach
+/// ([`MateReach`]) is not in hand. Every arm names the instance whose
+/// part it is about.
+#[derive(Debug, Clone, PartialEq)]
 pub enum LeverRefusal {
-    /// The datum names a length scale, and the scale it names is too
-    /// small to decide a tilt over ([`MIN_LEVER_ARM`]).
-    DatumTooSmall {
-        /// The extent the datum names.
-        extent: f64,
-        /// The floor it is under.
-        floor: f64,
+    /// The instance's part does not resolve, in the resolver's own
+    /// voice: a mate on a part that does not exist has no pose, so the
+    /// mate faults with the part rather than solving over nothing.
+    PartUnresolved {
+        /// The instance.
+        instance: RecipeNodeId,
+        /// The evaluation layer's own typed cause, unaltered.
+        fault: crate::eval::PartFault,
+    },
+    /// The part's body has a face whose reach this module cannot
+    /// bound ([`body_reach`]'s per-kind table), so no upper bound on
+    /// the part's extent can be stated.
+    FaceUnbounded {
+        /// The instance.
+        instance: RecipeNodeId,
+        /// Its part.
+        part: crate::ident::DocRef,
+        /// The face, in the part body's own arena.
+        face: topo::entity::FaceKey,
+        /// The face's surface kind, by name.
+        kind: &'static str,
+    },
+    /// The part's body has no faces, so it has no extent to lever
+    /// over: a verdict formed over nothing is vacuous, and reporting
+    /// a vacuous parallel is the direction this kernel refuses.
+    NoExtent {
+        /// The instance.
+        instance: RecipeNodeId,
+        /// Its part.
+        part: crate::ident::DocRef,
+    },
+    /// The member stands on a node that is not a live instantiate
+    /// node, so there is no part whose reach could be asked.
+    NotAnInstance {
+        /// The node.
+        node: RecipeNodeId,
     },
 }
 
 impl core::fmt::Display for LeverRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::DatumTooSmall { extent, floor } => write!(
+            Self::PartUnresolved { instance, fault } => write!(
                 f,
-                "this mate's datum names a scale of {extent:e} m, under the {floor:e} m floor a \
-                 parallelism verdict can be levered over: at that arm the smallest tilt the \
-                 predicate could call non-parallel is about eps/{extent:e} radians, so every \
-                 tilt would read parallel. Author the datum at the scale the parts actually \
-                 have, or place the frames where the feature is"
+                "instance {}'s part is not in hand, so the mate has no extent to lever a \
+                 verdict over: {fault}",
+                instance.0
+            ),
+            Self::FaceUnbounded {
+                instance,
+                part,
+                face,
+                kind,
+            } => write!(
+                f,
+                "instance {}'s part {part} has a {kind} face ({face:?}) whose reach from the \
+                 part's origin cannot be bounded, so no upper bound on the part's extent can \
+                 be stated",
+                instance.0
+            ),
+            Self::NoExtent { instance, part } => write!(
+                f,
+                "instance {}'s part {part} has no faces, so it has no extent to lever a \
+                 verdict over",
+                instance.0
+            ),
+            Self::NotAnInstance { node } => write!(
+                f,
+                "node {} is not a live instantiate node, so it has no part whose extent \
+                 could lever a verdict",
+                node.0
             ),
         }
     }
@@ -730,8 +702,9 @@ pub enum MateFault {
         /// The instance it names twice.
         instance: RecipeNodeId,
     },
-    /// The mate's datum names a length scale too small to lever a
-    /// parallelism verdict over ([`Alignment::lever_arm`]).
+    /// The mate's lever could not be formed: one of its parts' reach
+    /// ([`MateReach`]) is not in hand, so no verdict over the parts'
+    /// extent can be levered ([`Alignment::lever_arm`] for the sum).
     Unleverable {
         /// The mate.
         mate: RecipeNodeId,

@@ -11,7 +11,7 @@ use crate::common;
 
 use common::asm;
 use common::{ang, len, scl};
-use pncad::document::{ClassAdmission, MateSide, RecipeNodeId, solve_document};
+use pncad::document::{ClassAdmission, MateSide, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{ContactClass, Ray, RoleSeg, face_frame};
 use viewer::matetool::{MateTool, MateToolError, MateToolEvent, MateToolState, admitted_classes};
@@ -84,7 +84,7 @@ fn two_picks_one_choice_one_committed_edit() {
     // into part coordinates through each instance's placement.
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, tol, asm::seat())
+        .proposal(doc, eval, &session.eval_options(), tol, asm::seat())
         .expect("the seat proposes");
     assert_eq!(proposal.class, ContactClass::Rest);
     assert_eq!(proposal.admission, ClassAdmission::Mints);
@@ -107,7 +107,7 @@ fn two_picks_one_choice_one_committed_edit() {
     // now coincide in world space (composition through the solved
     // poses reproduces the coincidence the alignment declares).
     let (doc, _) = session.landed_pair().expect("landed");
-    let poses = solve_document(doc, tol);
+    let poses = common::solve(&session, doc, tol);
     let placed_a = poses
         .placement(doc, bench.post_b)
         .expect("post_b is placed")
@@ -147,7 +147,7 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
     // No picks yet: NotTwoPicks.
     let tool = MateTool::new();
     assert!(matches!(
-        tool.proposal(doc, eval, tol, asm::seat()),
+        tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat()),
         Err(MateToolError::NotTwoPicks)
     ));
 
@@ -157,7 +157,7 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
     tool.pick(post_top.clone());
     tool.pick(post_top.clone());
     assert!(matches!(
-        tool.proposal(doc, eval, tol, asm::seat()),
+        tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat()),
         Err(MateToolError::SamePick { head }) if head == bench.post_b
     ));
 
@@ -174,7 +174,7 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
     session2.pump();
     let (doc2, eval2) = session2.landed_pair().expect("landed");
     assert!(matches!(
-        tool.proposal(doc2, eval2, tol, asm::seat()),
+        tool.proposal(doc2, eval2, &session2.eval_options(), tol, asm::seat()),
         Err(MateToolError::NotAnInstancePick {
             side: MateSide::B,
             ..
@@ -291,7 +291,7 @@ fn a_pattern_placed_pick_mates_through_an_instance_headed_reference() {
     tool.pick(shelf_bottom.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, tol, asm::seat())
+        .proposal(doc, eval, &session.eval_options(), tol, asm::seat())
         .expect("a pattern copy is a member");
 
     // The reference is `Instance(i)`-headed, on the pattern node —
@@ -318,7 +318,7 @@ fn a_pattern_placed_pick_mates_through_an_instance_headed_reference() {
     zero.pick(copy_pick(&session, 0));
     zero.pick(shelf_bottom.clone());
     let from_zero = zero
-        .proposal(doc, eval, tol, asm::seat())
+        .proposal(doc, eval, &session.eval_options(), tol, asm::seat())
         .expect("copy 0 is a member too");
     assert_eq!(
         from_zero.alignment.a.origin, proposal.alignment.a.origin,
@@ -336,9 +336,9 @@ fn a_pattern_placed_pick_mates_through_an_instance_headed_reference() {
     let mate = committed_mate(&session);
     let (doc, _) = session.landed_pair().expect("landed");
     assert!(
-        solve_document(doc, tol).fault(mate).is_none(),
+        common::solve(&session, doc, tol).fault(mate).is_none(),
         "the pattern member solves: {:?}",
-        solve_document(doc, tol).fault(mate)
+        common::solve(&session, doc, tol).fault(mate)
     );
     assert_faces_meet(&session, &copy_one, &shelf_bottom, "the pattern member");
     for row in session.tree_rows() {
@@ -396,7 +396,7 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
     tool.pick(shelf_bottom);
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, tol, asm::seat())
+        .proposal(doc, eval, &session.eval_options(), tol, asm::seat())
         .expect("a pattern copy over a transform carries a member");
     assert_eq!(
         proposal.a.at, pattern,
@@ -461,7 +461,7 @@ fn a_pick_on_a_fused_body_is_not_an_instance_pick() {
     let (doc, eval) = session.landed_pair().expect("landed");
     assert!(
         matches!(
-            tool.proposal(doc, eval, tol, asm::seat()),
+            tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat()),
             Err(MateToolError::NotAnInstancePick {
                 side: MateSide::A,
                 node
@@ -514,7 +514,7 @@ fn a_pick_on_a_moved_instance_authors_the_transform_and_seats() {
     tool.pick(shelf_bottom.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, tol, asm::seat())
+        .proposal(doc, eval, &session.eval_options(), tol, asm::seat())
         .expect("a moved instance carries a member");
     assert_eq!(proposal.a.at, moved, "authored at the node the ray met");
     assert_eq!(proposal.a.name.node, bench.post_b, "naming the instance");
@@ -659,7 +659,7 @@ fn a_circular_pattern_copy_authors_the_masters_unrotated_frame() {
         let mut tool = MateTool::new();
         tool.pick(copy.clone());
         tool.pick(shelf_bottom.clone());
-        tool.proposal(doc, eval, tol, asm::seat())
+        tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat())
             .expect("a pattern copy is a member")
     };
     let spun = proposal_of(&copy_one);
@@ -711,9 +711,9 @@ fn a_circular_pattern_copy_authors_the_masters_unrotated_frame() {
     let mate = committed_mate(&session);
     let (doc, _) = session.landed_pair().expect("landed");
     assert!(
-        solve_document(doc, tol).fault(mate).is_none(),
+        common::solve(&session, doc, tol).fault(mate).is_none(),
         "the spun member solves: {:?}",
-        solve_document(doc, tol).fault(mate)
+        common::solve(&session, doc, tol).fault(mate)
     );
     assert_faces_meet(&session, &copy_one, &shelf_bottom, "the spun member");
 }
@@ -878,7 +878,7 @@ fn a_nested_copy_pick_reads_the_master_and_seats() {
     tool.pick(shelf_bottom.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, tol, asm::seat())
+        .proposal(doc, eval, &session.eval_options(), tol, asm::seat())
         .expect("a nested copy is a member");
 
     // The reference wears one `Instance(i)` per level, outermost
@@ -910,9 +910,9 @@ fn a_nested_copy_pick_reads_the_master_and_seats() {
     let mate = committed_mate(&session);
     let (doc, _) = session.landed_pair().expect("landed");
     assert!(
-        solve_document(doc, tol).fault(mate).is_none(),
+        common::solve(&session, doc, tol).fault(mate).is_none(),
         "the nested member solves: {:?}",
-        solve_document(doc, tol).fault(mate)
+        common::solve(&session, doc, tol).fault(mate)
     );
     assert_faces_meet(&session, &nested, &shelf_bottom, "a nested copy");
     for row in session.tree_rows() {
@@ -945,7 +945,7 @@ fn a_part_over_a_pattern_pick_is_a_member_and_seats() {
     tool.pick(shelf_bottom.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, tol, asm::seat())
+        .proposal(doc, eval, &session.eval_options(), tol, asm::seat())
         .expect("a Part-selected copy is a member");
 
     // Read AT the `Part`, under the PATTERN's own name: the Part
@@ -973,9 +973,9 @@ fn a_part_over_a_pattern_pick_is_a_member_and_seats() {
     let mate = committed_mate(&session);
     let (doc, _) = session.landed_pair().expect("landed");
     assert!(
-        solve_document(doc, tol).fault(mate).is_none(),
+        common::solve(&session, doc, tol).fault(mate).is_none(),
         "the Part-selected member solves: {:?}",
-        solve_document(doc, tol).fault(mate)
+        common::solve(&session, doc, tol).fault(mate)
     );
     assert_faces_meet(&session, &picked, &shelf_bottom, "a Part-selected copy");
     for row in session.tree_rows() {

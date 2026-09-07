@@ -22,9 +22,9 @@ use std::sync::Arc;
 use editor_core::{
     Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions,
     Evaluation, MateFault, MateFrame, MatePrimitive, MateRole, Node, NodeErrorKind, NodeResult,
-    ProfileDoc, RecipeNodeId, SitedRef, ValuePayload, evaluate, solve_document,
+    ProfileDoc, RecipeNodeId, SitedRef, ValuePayload, evaluate,
 };
-use fixture::{insert, len, on_frame, step};
+use fixture::{insert, len, on_frame, solve, step};
 use geom_core::Tol;
 
 // ---- substrate ----
@@ -288,7 +288,7 @@ fn a_contradiction_faults_the_mate_that_evaluated_before_it() {
     let added = s.seat_on_base(s.top_a, 2.0, 1.0, MatePrimitive::FrameCoincidence);
     let second = s.eval(Some(&first));
 
-    let poses = solve_document(&s.doc, Tol::witness());
+    let poses = solve(&s.doc, &s.opts, Tol::witness());
     for (mate, what) in [
         (held, "the mate that evaluated first"),
         (added, "the mate that broke the pair"),
@@ -351,7 +351,7 @@ fn a_cluster_refusal_faults_the_sound_mate_that_evaluated_before_it() {
     );
     // The sound mate is not in the fault's words at all, and it is
     // faulted all the same, with the blame the solve recorded.
-    let poses = solve_document(&s.doc, Tol::witness());
+    let poses = solve(&s.doc, &s.opts, Tol::witness());
     let carried = row_fault(&second, sound, "the sound mate");
     assert_eq!(
         Some(&carried),
@@ -398,7 +398,7 @@ fn deleting_the_contradiction_returns_the_faulted_mate_to_ok() {
         "the repaired document evaluates the mate on its own solve"
     );
     assert!(
-        solve_document(&s.doc, Tol::witness()).fault(held).is_none(),
+        solve(&s.doc, &s.opts, Tol::witness()).fault(held).is_none(),
         "and the solve records no blame against it"
     );
 }
@@ -430,7 +430,7 @@ fn a_role_change_on_an_unedited_mate_reaches_its_value() {
     let second = s.eval(Some(&first));
 
     assert_eq!(
-        solve_document(&s.doc, Tol::witness()).role(stacked),
+        solve(&s.doc, &s.opts, Tol::witness()).role(stacked),
         Some(MateRole::Declaring),
         "the premise: the solve moved the unedited mate off the tree"
     );

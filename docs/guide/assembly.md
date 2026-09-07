@@ -485,11 +485,17 @@ than the one it might become.
 
 Two doors, and they check different things.
 
-`solve_document(doc)` folds the mates: per-pair cosets along a
-deterministic spanning tree, producing each instance's pose relative
-to its cluster gauge. It is **total** — a refusing cluster must not
-fail an unrelated one, so refusals are read back per node through
-`SolvedPoses.fault` rather than raised. It inspects **no geometry**.
+`solve_document(doc, resolver=store)` folds the mates: per-pair
+cosets along a deterministic spanning tree, producing each instance's
+pose relative to its cluster gauge. It is **total** — a refusing
+cluster must not fail an unrelated one, so refusals are read back per
+node through `SolvedPoses.fault` rather than raised. It inspects no
+geometry except each mated part's own extent — an upper bound taken
+from its evaluated body, which is why it crosses the same `resolver=`
+seam `evaluate` does — and that extent enters only as the lever a
+parallelism verdict is decided over: a tilt is priced across the parts
+that carry it, at their scale. Without a resolver every mate on a part
+faults `mate_unleverable`.
 
 `assemble(doc, evaluation)` is the **at-rest gate**: it gathers the
 product, mints every solved mate's declaration into contact records,
@@ -580,7 +586,7 @@ def bench(primitive=None, class_=ContactClass.Rest):
 
 stand, (post_a, shelf_i, post_b), mates = bench()
 
-solved = solve_document(stand)
+solved = solve_document(stand, resolver=store)
 assert all(solved.fault(n) is None for n in (post_a, shelf_i, post_b, *mates))
 # Both mates PLACED a child — that is what `Determining` means. A
 # mate that solved nothing and is carried to evaluation as a pure

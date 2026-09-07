@@ -3017,18 +3017,16 @@ class Alignment:
     @property
     def clocking(self) -> Optional[Angle]: ...
     @property
-    def lever_arm(self) -> Optional[Length]:
-        """The largest distance in this mate's own authored data over
-        which an angular error accumulates into a gap.
+    def lever_arm(self) -> Length:
+        """The datum's own contribution to the lever this mate's angular
+        decisions turn on: both mate frames' distances from their parts'
+        origins plus every length the primitive authors, summed.
 
-        `None` when the alignment names a scale but names one too small
-        to lever anything: a lever of `L` makes the smallest decidable
-        tilt `eps/L`, so a datum at a nanometre buys a threshold of a
-        whole radian, and a verdict there is vacuous rather than tight.
-        The solve records that case as the
-        `mate_datum_too_small_to_lever` fault. An alignment that names
-        NO scale at all is not this case — it borrows the session box's
-        scale and answers with a number."""
+        The lever itself adds the two mated parts' own extent (an upper
+        bound from each evaluated body), which only the solve has in
+        hand — so this is the part an alignment can answer alone, never
+        the whole. Zero for a datum authored at both origins with no
+        length, the ordinary spelling of an axis-to-axis mate."""
 
 class ClassAdmission:
     """How far a contact class gets in v1, as a value BOTH enforcing
@@ -3171,7 +3169,7 @@ class SolvedPoses:
         tag `mate_poses_of_another_document` before any frame is
         read. Raises MateError when the cluster did not solve."""
 
-def solve_document(doc: Doc) -> SolvedPoses:
+def solve_document(doc: Doc, *, resolver: Optional[Workspace] = None) -> SolvedPoses:
     """Solve the document's mates: the per-pair coset fold along a
     deterministic spanning tree.
 
@@ -3179,9 +3177,15 @@ def solve_document(doc: Doc) -> SolvedPoses:
     unrelated one, so refusals are read back through
     `SolvedPoses.fault`.
 
-    Nothing here inspects geometry. In particular it does NOT check
-    that a mate's frames match the faces its references name, which is
-    why a document can solve cleanly and still refuse at the gate."""
+    The solve reads no geometry except each mated part's own extent —
+    an upper bound taken from its evaluated body, entering only as the
+    lever a parallelism verdict is decided over — so `resolver` is the
+    same document seam `evaluate(doc, resolver=)` crosses. Without one
+    every mate on a part faults `mate_unleverable` in the resolver's
+    own voice rather than levering over nothing. In particular the
+    solve does NOT check that a mate's frames match the faces its
+    references name, which is why a document can solve cleanly and
+    still refuse at the gate."""
 
 def clusters(doc: Doc) -> list[list[NodeId]]:
     """The placement clusters: instances coupled by mates, members in

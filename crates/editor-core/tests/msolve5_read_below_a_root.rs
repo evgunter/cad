@@ -24,13 +24,13 @@ use std::sync::Arc;
 
 use editor_core::{
     Alignment, AssemblyError, AxisSense, BooleanOp, CapEnd, ContactClass, Datum, DocEdit,
-    DocumentId, EntityKind, Entry, EvalOptions, Evaluation, Expr, MateFrame, MatePrimitive,
-    MateRole, MateSide, NameTable, Node, NodeResult, PartSelect, PatternKind, ProductError,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, RoleSeg, SitedRef, StableName,
-    ValuePayload, product, solve_document,
+    DocumentId, EntityKind, Entry, EvalOptions, Evaluation, Expr, LeverRefusal, MateFault,
+    MateFrame, MatePrimitive, MateRole, MateSide, NameTable, Node, NodeErrorKind, NodeResult,
+    PartSelect, PatternKind, ProductError, ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef,
+    RoleSeg, SitedRef, StableName, product,
 };
 use fixture::resolver::{PART_BODY, PartStore, in_part};
-use fixture::{gate, in_copy, insert, len, on_frame, run, scl, step, xform};
+use fixture::{gate, in_copy, insert, len, on_frame, run, scl, solve, step, xform};
 use geom_core::Tol;
 
 // ---- the scene ----
@@ -294,7 +294,7 @@ fn the_issues_document_refuses_read_below_a_root_naming_the_transform() {
     let b = SitedRef::new(s.xf, in_part(s.top, CapEnd::Start));
     let (doc, mate) = mated(s.doc, seat(a, b));
 
-    let poses = solve_document(&doc, Tol::witness());
+    let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(
         poses.fault(mate).is_none(),
         "the solve places a mate read at the transform: {:?}",
@@ -329,7 +329,7 @@ fn read_at_the_pattern_with_the_instance_spelling_the_gate_holds() {
         in_copy(s.pattern, 0, in_part(s.top, CapEnd::Start)),
     );
     let (doc, mate) = mated(s.doc, seat(a, b));
-    let poses = solve_document(&doc, Tol::witness());
+    let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(poses.fault(mate).is_none(), "{:?}", poses.fault(mate));
     let ev = run(&doc, &s.opts);
     assert!(
@@ -363,7 +363,7 @@ fn a_mate_read_at_a_part_root_over_the_pattern_holds() {
     let a = SitedRef::at_mint(in_part(s.base, CapEnd::End));
     let b = SitedRef::new(part, in_copy(s.pattern, 0, in_part(s.top, CapEnd::Start)));
     let (doc, mate) = mated(doc, seat(a, b));
-    let poses = solve_document(&doc, Tol::witness());
+    let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(poses.fault(mate).is_none(), "{:?}", poses.fault(mate));
     let ev = run(&doc, &s.opts);
     assert!(
@@ -615,9 +615,10 @@ fn an_operand_under_an_empty_boolean_root_still_refuses_read_below_a_root() {
 // ---- an operand that is not live never reaches the gate ----
 
 /// The top part cannot be resolved, so `top`, `T` and `P` are failed
-/// or poisoned — while the SOLVE, which evaluates nothing, places the
-/// mate (`Determining`) and the mate IS a live value. What keeps the
-/// gate from reading a table that does not exist is not the solve:
+/// or poisoned — and the SOLVE, whose lever is the mated parts' own
+/// extent, faults the mate with the part (`Unleverable`, carrying the
+/// resolver's fault), so the mate is a failed node too. What keeps the
+/// gate from reading a table that does not exist is still not the solve:
 /// every live node sits under some root, so the gather's first pass
 /// refuses the document at that root before any mate is read.
 #[test]
@@ -655,12 +656,28 @@ fn a_poisoned_operand_never_reaches_the_gate() {
     let a = SitedRef::at_mint(in_part(base, CapEnd::End));
     let b = SitedRef::new(xf, in_part(top, CapEnd::Start));
     let (doc, mate) = mated(doc, seat(a, b));
-    let poses = solve_document(&doc, Tol::witness());
-    assert_eq!(poses.role(mate), Some(MateRole::Determining));
+    // The mate has no lever without its part: it faults in the
+    // resolver's own voice, and the fault reaches its cluster.
+    let poses = solve(&doc, &opts, Tol::witness());
+    assert_eq!(poses.role(mate), Some(MateRole::Refused));
+    let fault = poses
+        .fault(mate)
+        .cloned()
+        .expect("the mate faults with its part");
+    assert!(
+        matches!(
+            &fault,
+            MateFault::Unleverable {
+                refusal: LeverRefusal::PartUnresolved { instance, .. },
+                ..
+            } if *instance == top
+        ),
+        "{fault:?}"
+    );
     let ev = run(&doc, &opts);
     assert!(
         matches!(ev.result(top), Some(NodeResult::Failed(_))),
-        "the instance fails to resolve: {:?}",
+        "the instance fails: {:?}",
         ev.result(top)
     );
     assert!(
@@ -669,17 +686,22 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         ev.result(xf)
     );
     assert!(
-        matches!(ev.result(mate), Some(NodeResult::Ok(v)) if matches!(v.payload, ValuePayload::Mate(_))),
-        "the mate itself is live: {:?}",
+        matches!(ev.result(mate), Some(NodeResult::Failed(e)) if matches!(&e.kind, NodeErrorKind::Mate(f) if **f == fault)),
+        "the mate carries the same fault: {:?}",
         ev.result(mate)
     );
+    // The mate fault reached the base instance — the cluster's other
+    // member, and the document's first root — so the gather refuses
+    // at THAT failed root, before the poisoned pattern root and before
+    // any reference is read.
     let err = gate(&doc, &ev).expect_err("the gather refuses");
     assert!(
         matches!(
             &err,
             AssemblyError::Product(e)
-                if matches!(**e, ProductError::RootPoisoned { node, .. } if node == pattern)
+                if matches!(**e, ProductError::RootFailed { node } if node == base)
         ),
-        "the gather refuses at the poisoned root before any reference is read: {err:?}"
+        "the gather refuses at the failed root before any reference is read: {err:?}"
     );
+    let _ = pattern;
 }

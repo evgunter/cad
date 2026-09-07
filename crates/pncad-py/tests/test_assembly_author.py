@@ -471,7 +471,7 @@ class TestBenchStand(BenchWorkspace):
 
     def test_the_solve_places_every_instance_where_the_scene_puts_it(self):
         doc, (post_a, shelf_i, post_b), (mate_1, mate_2) = self.stand()
-        solved = solve_document(doc)
+        solved = solve_document(doc, resolver=self.ws)
         for node in (post_a, shelf_i, post_b, mate_1, mate_2):
             self.assertIsNone(solved.fault(node), f"{node} records no fault")
         for mate in (mate_1, mate_2):
@@ -550,7 +550,7 @@ class TestAssemblyRefusals(BenchWorkspace):
 
     def test_a_single_planar_rest_leaves_the_pair_free_and_refuses(self):
         doc, (post_a, shelf_i, _), (mate_1, _) = self.stand_planar()
-        fault = solve_document(doc).fault(mate_1)
+        fault = solve_document(doc, resolver=self.ws).fault(mate_1)
         # One planar rest between two parts fixes the seating plane and
         # nothing else — the pair may still slide and spin in it. The
         # solve refuses and names the RESIDUAL in class vocabulary
@@ -577,12 +577,62 @@ class TestAssemblyRefusals(BenchWorkspace):
         # is untouched, which is the whole reason the solve is total.
         self.assertIsNone(solve_document(other).fault(lone))
 
+    def test_the_lever_is_the_parts_extent(self):
+        """The lever a mate's angular decisions turn on is the mated
+        parts' own extent: a 10 mm part tilted by 1e-8 rad deviates a
+        few 1e-10 m across itself, under the default eps, so the rider
+        is redundant and the mate solves — where a metre lever priced
+        the same tilt at 1e-8 and refused it. A 10 m part tilted the
+        same way deviates 1e-7 m and is refused. Without a resolver
+        there is no extent and the mate faults in the resolver's voice."""
+        tilt = 1e-8 * pncad.rad
+
+        def clocked(size):
+            part = prism(f"pncad-lever-{size}", size, size, size)
+            self.ws.create(part)
+            ref = DocRef(part.id, content_pin(part))
+            doc = Doc(f"pncad-lever-doc-{size}")
+            a_i = doc.insert(Node.instantiate_part(ref))
+            b_i = doc.insert(Node.instantiate_part(ref))
+            a_top = self.instance_face(doc, a_i, CapEnd.End)
+            b_bottom = self.instance_face(doc, b_i, CapEnd.Start)
+            alignment = Alignment(
+                mate_frame((0.0, 0.0, size)),
+                mate_frame((0.0, 0.0, 0.0)),
+                MatePrimitive.frame_coincidence(),
+                AxisSense.Aligned,
+                clocking=tilt,
+            )
+            mate = doc.insert(
+                Node.mate(a_i, a_top, b_i, b_bottom, ContactClass.Rest, alignment)
+            )
+            return doc, mate
+
+        small, small_mate = clocked(0.01)
+        self.assertIsNone(solve_document(small, resolver=self.ws).fault(small_mate))
+        self.assertEqual(
+            solve_document(small, resolver=self.ws).role(small_mate),
+            MateRole.Determining,
+        )
+        # No resolver, no extent: the typed refusal, not a guess.
+        fault = solve_document(small).fault(small_mate)
+        self.assertEqual(fault.variant, "mate_unleverable")
+        self.assertIn("part resolver", str(fault))
+
+        large, large_mate = clocked(10.0)
+        fault = solve_document(large, resolver=self.ws).fault(large_mate)
+        self.assertEqual(fault.variant, "mate_contradictory")
+        self.assertEqual(fault.predicate, "mate_clocking_redundant")
+        # The clash is the tilt priced across the parts: 1e-8 rad over
+        # tens of metres, well past the document's eps.
+        self.assertGreater(fault.clash.meters(), small.epsilon)
+
     def test_a_mate_naming_one_instance_twice_refuses(self):
         doc = Doc("self-mate")
         post_i = doc.insert(Node.instantiate_part(self.post_ref))
         face = self.instance_face(doc, post_i, CapEnd.End)
         mate = doc.insert(Node.mate(post_i, face, post_i, face, ContactClass.Rest, seat(POST_SEAT, POST_SEAT)))
-        fault = solve_document(doc).fault(mate)
+        fault = solve_document(doc, resolver=self.ws).fault(mate)
         # A pair is two instances; a self-mate constrains nothing and
         # is a recipe mistake, refused rather than folded into a
         # tautology.
@@ -622,7 +672,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         # The transform is invisible to NAMING (the reference resolves
         # through it to the minting instance) and visible to the SOLVE
         # (which walks from the operand and composes its map).
-        self.assertIsNone(solve_document(doc).fault(mate))
+        self.assertIsNone(solve_document(doc, resolver=self.ws).fault(mate))
         self.assertEqual(pncad.clusters(doc), [[post_a, shelf_i]])
         # Read at the instance instead and it is a different node: the
         # operand is part of what a mate says.
@@ -662,7 +712,7 @@ class TestAssemblyRefusals(BenchWorkspace):
                 seat(POST_SEAT, SEAT_A),
             )
         )
-        fault = solve_document(doc).fault(mate)
+        fault = solve_document(doc, resolver=self.ws).fault(mate)
         self.assertEqual(fault.variant, "mate_placer_refused")
         self.assertEqual(fault.placer, lifted)
         self.assertEqual(fault.error, "non_finite_direction")
@@ -766,8 +816,8 @@ class TestAssemblyRefusals(BenchWorkspace):
                 seat(POST_SEAT, SEAT_A),
             )
         )
-        self.assertIsNone(solve_document(doc).fault(mate))
-        self.assertEqual(solve_document(doc).role(mate), MateRole.Determining)
+        self.assertIsNone(solve_document(doc, resolver=self.ws).fault(mate))
+        self.assertEqual(solve_document(doc, resolver=self.ws).role(mate), MateRole.Determining)
         ev = evaluate(doc, resolver=self.ws)
         product(doc, ev)
         # The union is the root the shelf reaches the product through;

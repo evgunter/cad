@@ -25,10 +25,9 @@ use editor_core::{
     DocumentId, EditError, EntityKind, EvalOptions, Evaluation, Expr, MateFault, MateFrame,
     MatePrimitive, MateRole, MateSide, Node, PartResolver, PatternKind, ProfileDoc, RecipeNodeId,
     ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName, content_pin, load, product, save,
-    solve_document,
 };
 use fixture::seat::{assert_seated, map_gap, seat_map};
-use fixture::{gate, in_copy, insert, len, on_frame, run, scl, step, xform};
+use fixture::{gate, in_copy, insert, len, on_frame, run, scl, solve, step, xform};
 use geom_core::Tol;
 use geom_core::linalg::Affine3;
 
@@ -288,7 +287,7 @@ impl Scene {
     /// check that says the declaration the document makes is the one
     /// the geometry keeps.
     fn assert_green_and_seated(&self, control: &Affine3<f64>, what: &str) {
-        let poses = solve_document(&self.doc, Tol::witness());
+        let poses = solve(&self.doc, &self.opts, Tol::witness());
         assert!(
             poses.fault(self.mate).is_none() && poses.fault(self.top).is_none(),
             "{what}: the solve refused: {:?} / {:?}",
@@ -348,10 +347,10 @@ fn a1_a_translated_instance_seats_in_the_product() {
     // comparison: the solve moved the instance by exactly the
     // transform's translation, in the opposite sense, so the placed
     // body lands where the un-transformed one did.
-    let c = solve_document(&control.doc, Tol::witness())
+    let c = solve(&control.doc, &control.opts, Tol::witness())
         .relative(control.top)
         .expect("the control solves");
-    let t = solve_document(&test.doc, Tol::witness())
+    let t = solve(&test.doc, &test.opts, Tol::witness())
         .relative(test.top)
         .expect("the test solves");
     assert_eq!(
@@ -475,7 +474,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
             },
         );
         let mate = mate.unwrap();
-        let poses = solve_document(&doc, Tol::witness());
+        let poses = solve(&doc, &opts, Tol::witness());
         assert!(
             poses.fault(mate).is_none(),
             "A3 pattern-of-transform refused: {:?}",
@@ -544,7 +543,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
             },
         );
         let mate = mate.unwrap();
-        let poses = solve_document(&doc, Tol::witness());
+        let poses = solve(&doc, &opts, Tol::witness());
         assert!(
             poses.fault(mate).is_none(),
             "A3 transform-of-pattern refused at the solve: {:?}",
@@ -661,7 +660,7 @@ fn a4_the_two_non_commuting_orders_place_different_geometry() {
     // above — so the two chains being different maps has to be read
     // off the pose the solve hands the instance.
     let absorbed = |s: &Scene| {
-        solve_document(&s.doc, Tol::witness())
+        solve(&s.doc, &s.opts, Tol::witness())
             .relative(s.top)
             .expect("the mated instance solves")
     };
@@ -771,7 +770,7 @@ fn a5_two_operands_over_one_instance_are_two_members() {
         std::f64::consts::FRAC_PI_2,
     );
     let (doc, opts, [m1, m2]) = two_operands("msolve1-a5-consistent", quarter_turn);
-    let poses = solve_document(&doc, Tol::witness());
+    let poses = solve(&doc, &opts, Tol::witness());
     assert!(
         poses.fault(m1).is_none() && poses.fault(m2).is_none(),
         "A5 consistent: {:?} / {:?}",
@@ -807,7 +806,7 @@ fn a5_two_operands_over_one_instance_are_two_members() {
         "msolve1-a5-inconsistent",
         ([0.0, 0.0, 3.0], [0.0, 0.0, 1.0], 0.0),
     );
-    let poses = solve_document(&doc, Tol::witness());
+    let poses = solve(&doc, &opts, Tol::witness());
     assert!(
         poses.fault(m1).is_none() && poses.fault(m2).is_none(),
         "A5 inconsistent: the SOLVE places on the tree edge and does \
@@ -842,7 +841,6 @@ fn a6_a_residual_tree_edge_refuses_under_with_or_without_the_transform() {
         let mut store = StubStore::default();
         let base_ref = store.insert(block(&format!("{label}-base"), 1.0), Tol::witness());
         let top_ref = store.insert(block(&format!("{label}-top"), 3.0), Tol::witness());
-        let _ = &store;
         let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
         let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
         let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
@@ -862,7 +860,11 @@ fn a6_a_residual_tree_edge_refuses_under_with_or_without_the_transform() {
                 ),
             },
         );
-        solve_document(&doc, Tol::witness())
+        let o = EvalOptions {
+            resolver: Some(Arc::new(store)),
+            ..EvalOptions::default()
+        };
+        solve(&doc, &o, Tol::witness())
             .fault(mate.unwrap())
             .cloned()
             .expect("a residual tree edge refuses")
@@ -912,7 +914,7 @@ fn a6_a_residual_tree_edge_refuses_under_with_or_without_the_transform() {
 #[test]
 fn a7_a_document_with_no_placer_solves_bit_for_bit() {
     let s = scene("msolve1-a7", &[], &[]);
-    let poses = solve_document(&s.doc, Tol::witness());
+    let poses = solve(&s.doc, &s.opts, Tol::witness());
     let f = poses.relative(s.top).expect("the mated instance solves");
     println!("A7 relative(top) = {f:?}");
     assert_eq!(
@@ -965,7 +967,7 @@ fn a8a_an_operand_that_never_existed_refuses_at_the_insert_door() {
 fn a8b_deleting_the_operand_leaves_a_dangling_head() {
     let s = scene("msolve1-a8b", &[], &[LIFT]);
     let (doc, _) = step(s.doc, DocEdit::DeleteNode { id: s.b_at });
-    let poses = solve_document(&doc, Tol::witness());
+    let poses = solve(&doc, &s.opts, Tol::witness());
     let fault = poses.fault(s.mate).expect("the stranded mate refuses");
     // The head the fault names is where the WALK STOPPED — the
     // stranded operand — not the reference's own head node, which is
@@ -1052,7 +1054,7 @@ fn a8d_a_transform_operand_round_trips_through_persistence() {
     };
     assert_eq!(a.at, s.base, "the `a` operand rode the wire");
     assert_eq!(b.at, s.b_at, "the `b` operand rode the wire");
-    let poses = solve_document(&back, Tol::witness());
+    let poses = solve(&back, &s.opts, Tol::witness());
     assert!(poses.fault(s.mate).is_none(), "the loaded document solves");
     let ev = run(&back, &s.opts);
     assert_seated(
@@ -1082,7 +1084,6 @@ fn a10_a_nested_pattern_head_is_a_member() {
     let mut store = StubStore::default();
     let base_ref = store.insert(block("msolve1-a10-base", 1.0), Tol::witness());
     let top_ref = store.insert(block("msolve1-a10-top", 3.0), Tol::witness());
-    let _ = &store;
     let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a10"), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
@@ -1117,7 +1118,11 @@ fn a10_a_nested_pattern_head_is_a_member() {
         },
     );
     let mate = mate.unwrap();
-    let poses = solve_document(&doc, Tol::witness());
+    let o = EvalOptions {
+        resolver: Some(Arc::new(store)),
+        ..EvalOptions::default()
+    };
+    let poses = solve(&doc, &o, Tol::witness());
     assert!(
         poses.fault(mate).is_none(),
         "a nested-pattern head resolves through both levels: {:?}",
@@ -1176,7 +1181,6 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
     let mut store = StubStore::default();
     let base_ref = store.insert(block("msolve1-a8f-base", 1.0), Tol::witness());
     let top_ref = store.insert(block("msolve1-a8f-top", 3.0), Tol::witness());
-    let _ = &store;
     // Local geometry FIRST, so the cut takes the low ids and the
     // instances and the mate all shift.
     let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a8f"), Tol::witness());
@@ -1250,8 +1254,12 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
         matches!(out.remainder.node(a.at), Some(Node::InstantiatePart { .. })),
         "which is a live instance in the remainder"
     );
+    let o = EvalOptions {
+        resolver: Some(Arc::new(store)),
+        ..EvalOptions::default()
+    };
     assert!(
-        solve_document(&out.remainder, Tol::witness())
+        solve(&out.remainder, &o, Tol::witness())
             .fault(moved_mate)
             .is_none(),
         "and the remainder still solves"

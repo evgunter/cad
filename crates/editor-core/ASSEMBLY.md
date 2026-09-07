@@ -296,7 +296,16 @@ CHAIN of copies the walk consumed (outermost first) and the operand it
 was read at: two references to one instance read at different operands
 are two members, and so are two references to sibling copies at any
 level. Nothing in the walk is evaluated, so the partitions never
-depend on a slot value. The two questions that DO need a number are
+depend on a slot value. The solve reads no geometry except each mated
+part's own extent — an upper bound taken from its evaluated body
+(`mate::MateReach`, asked lazily per pair; the evaluation answers it
+from its own part cache, so a mated part is evaluated once) — which
+enters only as the lever a parallelism verdict is decided over:
+`(R_a + ‖a.origin‖) + (R_b + ‖b.origin‖) + Σ|authored lengths|`, no
+floor and no constant. A mated part that does not resolve faults its
+mate `MateFault::Unleverable` in the resolver's own voice, carrying
+the part fault unaltered, and that fault poisons the cluster as any
+mate fault does. The two questions that DO need a number are
 asked once per reference, where the solve reads it — for every
 reference of every live mate, not only the ones a tree edge's offset
 derives: the named copy must exist (its index against the pattern's

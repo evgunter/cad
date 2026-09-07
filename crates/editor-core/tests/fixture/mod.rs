@@ -39,7 +39,8 @@ pub mod seat;
 use editor_core::{
     AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKind,
     EvalOptions, Evaluation, Expr, LoopProgram, Node, ParamName, ProfileDoc, ProfileEdgeRef,
-    ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, assemble, evaluate,
+    ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg, SolvedPoses, StableName, assemble,
+    evaluate, mate_reach, solve_document,
 };
 use geom_core::Tol;
 
@@ -49,6 +50,17 @@ use geom_core::Tol;
 /// for itself.
 pub fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
     evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
+}
+
+/// **The mate solve, through the ordinary door** — levered by the
+/// parts `o`'s resolver reaches, built through the evaluation's own
+/// public door (`mate_reach`) at `f64` and the witness tolerance. A
+/// row that solves with a store it does not hand here levers nothing:
+/// every mate on a part faults in the resolver's voice, which is the
+/// kernel's answer and not a fixture default.
+pub fn solve(doc: &ProfileDoc, o: &EvalOptions, tol: Tol) -> SolvedPoses {
+    let reach = mate_reach::<f64>(doc, o, tol);
+    solve_document(doc, &reach, tol)
 }
 
 /// **The at-rest gate's verdict**, as a mate row wants to read it:

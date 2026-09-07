@@ -38,7 +38,7 @@ use editor_core::{
     ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName, assemble, content_pin, evaluate,
     inline, product_recorded, split,
 };
-use fixture::{insert, len, on_frame, relations, step};
+use fixture::{insert, len, on_frame, relations, solve, step};
 use geom_core::Tol;
 
 // ---- The stub store (the ASM-2A/R2a shape, verbatim in spirit) ----
@@ -478,7 +478,8 @@ fn row2_b_a_declaring_mate_mints_identically() {
         },
     );
     let second = second.expect("the third mate mints");
-    let poses = editor_core::solve_document(&doc, Tol::witness());
+    let o = opts(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(
         poses.role(second),
         Some(editor_core::MateRole::Declaring),
@@ -490,7 +491,7 @@ fn row2_b_a_declaring_mate_mints_identically() {
     // frontier — one declaration is genuinely contradicted, and the
     // gate refuses either way. What the row reads out of the refusal
     // is who was ATTRIBUTED, which is the set that got minted.
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &o);
     let err =
         assemble(&doc, &ev, Tol::witness()).expect_err("the column's declarations do not all hold");
     let AssemblyError::AtRest { findings } = &err else {
@@ -1197,7 +1198,8 @@ fn a_tangent_mate_solves_and_then_refuses_at_the_mint_door() {
 
     // Door one: the solve admits it — no fault, and it took a role in
     // the pair. (A class the table DEFERS refuses here instead.)
-    let poses = editor_core::solve_document(&doc, Tol::witness());
+    let o = opts(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert!(
         poses.fault(tangent).is_none(),
         "the solve door admits Tangent: {:?}",
@@ -1209,7 +1211,7 @@ fn a_tangent_mate_solves_and_then_refuses_at_the_mint_door() {
     );
 
     // Door two: the mint refuses it, naming the class.
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &o);
     match assemble(&doc, &ev, Tol::witness()) {
         Err(AssemblyError::NoAtRestRecord {
             class,

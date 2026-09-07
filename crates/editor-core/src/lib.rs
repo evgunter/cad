@@ -116,8 +116,8 @@ pub use edit::{Applied, DocEdit, EditError, EditRecord, apply, cascade_delete_or
 pub use eval::{
     Arity, BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, Epoch, EvalOptions,
     EvalOutcome, EvalScalar, Evaluation, NamingKey, NodeError, NodeErrorKind, NodeRefusal,
-    NodeResult, NodeValue, PartFault, ProfileLift, SectionScalar, SplitSide, UnitVec3,
-    UnitVec3Error, ValuePayload, VerbKind, evaluate,
+    NodeResult, NodeValue, PartFault, PartReach, ProfileLift, SectionScalar, SplitSide, UnitVec3,
+    UnitVec3Error, ValuePayload, VerbKind, evaluate, mate_reach,
 };
 pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, UnitSym, eval,
@@ -125,10 +125,10 @@ pub use expr::{
 };
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use mate::{
-    Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, ClusterMaintenance, Coset, MateFault,
-    MateFrame, MatePrimitive, MateRole, MateSide, Member, SolvedPoses, Subgroup, UNDER_RECOURSE,
-    class_admission, clusters, gauge_of, member_of, reading_edges, relative_freedom_components,
-    solve_document,
+    Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, ClusterMaintenance, Coset, LeverRefusal,
+    MateFault, MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, SolvedPoses,
+    Subgroup, UNDER_RECOURSE, class_admission, clusters, gauge_of, member_of, reading_edges,
+    relative_freedom_components, solve_document,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport,

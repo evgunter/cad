@@ -2,8 +2,11 @@
 //! constructive placement (ASM-R2a D-2/D-3/D-4/D-5; A9/A10/A11/A12).
 //!
 //! Everything here is recipe data plus decided predicates: no geometry
-//! is inspected, nothing derived is stored beside the DAG. The
-//! entry points, in the order the layers use them:
+//! is inspected except each mated part's own extent — an upper bound
+//! taken from its evaluated body ([`MateReach`]), entering only as the
+//! lever a parallelism verdict is decided over — and nothing derived
+//! is stored beside the DAG. The entry points, in the order the
+//! layers use them:
 //!
 //! - [`reading_edges`] — A12's second sort of edge, RECOMPUTED by
 //!   walking from each reference's OPERAND every time it is wanted.
@@ -34,6 +37,7 @@ use geom_core::predicate::Band;
 
 use super::coset::{Coset, FoldStop, Subgroup};
 use super::member::{Member, Walk, check_reference, derived_offset, walk_of};
+use super::reach::MateReach;
 use super::{Alignment, AxisSense, MateFault, MatePrimitive, MateSide};
 use crate::doc::Doc;
 use crate::node::{Node, RecipeNodeId};
@@ -385,15 +389,18 @@ fn opposed() -> Affine3<f64> {
 /// onto the `a` side, and read off the subgroup the primitive leaves.
 /// The clocking RIDER is applied here too, because it never stands
 /// alone: it modifies its carrier's target frame and cuts its residual.
+///
+/// `parts_reach` is the two mated parts' reach from their own origins,
+/// summed ([`pair_reach`]); with the datum's own terms it is the lever
+/// the rider's redundancy is decided over ([`Alignment::lever_arm`]).
 fn mate_coset(
     mate: RecipeNodeId,
     alignment: &Alignment,
+    parts_reach: f64,
     band: Band,
     tol: Tol,
 ) -> Result<Coset, Box<MateFault>> {
-    let arm = alignment
-        .lever_arm()
-        .map_err(|refusal| Box::new(MateFault::Unleverable { mate, refusal }))?;
+    let arm = parts_reach + alignment.lever_arm();
     let frame = |side: MateSide, f: &super::MateFrame| {
         f.placement(tol)
             .map_err(|error| Box::new(MateFault::Frame { mate, side, error }))
@@ -533,16 +540,21 @@ fn fold_pair<P: crate::ProfilePayload>(
     parent: &Member,
     child: &Member,
     mates: &[PairMate],
+    reach: &dyn MateReach,
     band: Band,
     tol: Tol,
 ) -> Result<Coset, Box<MateFault>> {
     let mut held = Coset::unconstrained();
     let mut held_mate = None;
-    // The fold's lever is the largest of the mates' own, and it starts
-    // at nothing: the constant, where one is still needed, is
-    // [`Alignment::lever_arm`]'s own and is argued there rather than
-    // seeded here.
+    // The fold's lever is the largest of the mates' own: each is the
+    // pair's two part reaches plus that mate's datum terms, so it
+    // starts at nothing and no constant seeds it. The reaches are
+    // asked ONCE per pair, lazily, at the first mate that forms a
+    // lever — after that mate's own class and self-mate checks, so a
+    // part that does not resolve never pre-empts a refusal the mate
+    // earns on its own.
     let mut arm = 0.0_f64;
+    let mut parts_reach: Option<f64> = None;
     for pm in mates {
         let mate = pm.mate;
         let Some(Node::Mate {
@@ -565,12 +577,17 @@ fn fold_pair<P: crate::ProfilePayload>(
                 instance: ha.instance,
             }));
         }
-        arm = arm.max(
-            alignment
-                .lever_arm()
-                .map_err(|refusal| Box::new(MateFault::Unleverable { mate, refusal }))?,
-        );
-        let mut coset = mate_coset(mate, alignment, band, tol)?;
+        let parts = match parts_reach {
+            Some(parts) => parts,
+            None => {
+                let parts = pair_reach(reach, parent, child)
+                    .map_err(|refusal| Box::new(MateFault::Unleverable { mate, refusal }))?;
+                parts_reach = Some(parts);
+                parts
+            }
+        };
+        arm = arm.max(parts + alignment.lever_arm());
+        let mut coset = mate_coset(mate, alignment, parts, band, tol)?;
         // The authored order is `a`'s coordinates from `b`'s; the tree
         // may need the other direction.
         if (ha, hb) != (parent, child) {
@@ -603,6 +620,23 @@ fn fold_pair<P: crate::ProfilePayload>(
         held_mate.get_or_insert(mate);
     }
     Ok(held)
+}
+
+/// **The two mated parts' reach, summed** — the body terms of the
+/// pair's lever ([`Alignment::lever_arm`] states the whole sum). Each
+/// member's part is the one its instance stands on: a pattern copy or
+/// a transform on the chain moves the part rigidly and changes no
+/// reach, so the member's chain is not consulted.
+///
+/// # Errors
+///
+/// The first part whose reach is not in hand, in pair order.
+fn pair_reach(
+    reach: &dyn MateReach,
+    parent: &Member,
+    child: &Member,
+) -> Result<f64, super::LeverRefusal> {
+    Ok(reach.reach(parent.instance)? + reach.reach(child.instance)?)
 }
 
 /// **The pair's static left factor**: what conjugating the members'
@@ -666,7 +700,18 @@ fn pair_left_factor<P: crate::ProfilePayload>(
 ///
 /// Total by construction — a refusing cluster records its fault against
 /// its own mates and instances and leaves every other cluster solved.
-pub fn solve_document<P: crate::ProfilePayload>(doc: &Doc<P>, tol: Tol) -> SolvedPoses {
+///
+/// `reach` is the one geometric read the solve makes: each mated
+/// part's own extent, asked lazily per pair and entering only as the
+/// lever a parallelism verdict is decided over. The evaluation hands
+/// its own part cache (`eval::mate_reach` is the door every other
+/// caller builds one through), so a mated part is evaluated exactly
+/// once and the instantiate node hits the cache afterwards.
+pub fn solve_document<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    reach: &dyn MateReach,
+    tol: Tol,
+) -> SolvedPoses {
     let mut out = SolvedPoses::empty(doc.id());
     let band = match Band::linear(tol) {
         Ok(band) => band,
@@ -749,7 +794,7 @@ pub fn solve_document<P: crate::ProfilePayload>(doc: &Doc<P>, tol: Tol) -> Solve
         let Some(&gauge) = cluster.first() else {
             continue;
         };
-        match solve_cluster(doc, &cluster, gauge, &by_pair, band, tol) {
+        match solve_cluster(doc, &cluster, gauge, &by_pair, reach, band, tol) {
             Ok(solved) => {
                 // The GAUGE is the cluster's, and every instance in it
                 // is keyed by that gauge whether or not a pair placed
@@ -835,6 +880,7 @@ fn solve_cluster<P: crate::ProfilePayload>(
     cluster: &[RecipeNodeId],
     gauge: RecipeNodeId,
     by_pair: &BTreeMap<(Member, Member), Vec<PairMate>>,
+    reach: &dyn MateReach,
     band: Band,
     tol: Tol,
 ) -> Result<ClusterSolve, Box<MateFault>> {
@@ -888,7 +934,7 @@ fn solve_cluster<P: crate::ProfilePayload>(
             let (x, y) = edge_of[&unordered(parent, child)];
             let (pm, cm) = if x.instance == parent { (x, y) } else { (y, x) };
             let mates = &by_pair[&(x.clone(), y.clone())];
-            let coset = fold_pair(doc, pm, cm, mates, band, tol)?;
+            let coset = fold_pair(doc, pm, cm, mates, reach, band, tol)?;
             if !coset.subgroup.is_determined() {
                 // A11 rule 4: a tree edge that does not determine
                 // refuses, naming the residual and its parameters.
@@ -1003,7 +1049,10 @@ pub(crate) fn reconcile<P: crate::ProfilePayload>(
         .iter()
         .flat_map(|c| c.iter().map(|&id| (id, c[0])))
         .collect();
-    let before_poses = solve_document(before, tol);
+    // The edit door has no resolver in hand, so this solve levers no
+    // mate: every mate on a part faults typed and every relative pose
+    // below reads as the identity.
+    let before_poses = solve_document(before, &super::reach::NoResolver, tol);
     let after_clusters = clusters(after);
 
     let mut rows: BTreeMap<RecipeNodeId, Frame> = BTreeMap::new();

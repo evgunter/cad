@@ -221,9 +221,10 @@ pub use editor_core::{
 // an authoring door must gate on so it admits exactly the heads the
 // solve places (`Member` is its answer).
 pub use editor_core::{
-    Alignment, AxisSense, ClusterMaintenance, MateFault, MateFrame, MatePrimitive, MateRole,
-    MateSide, Member, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of, member_of,
-    reading_edges, relative_freedom_components, solve_document,
+    Alignment, AxisSense, ClusterMaintenance, LeverRefusal, MateFault, MateFrame, MatePrimitive,
+    MateReach, MateRole, MateSide, Member, PartReach, SolvedPoses, Subgroup, UNDER_RECOURSE,
+    clusters, gauge_of, mate_reach, member_of, reading_edges, relative_freedom_components,
+    solve_document,
 };
 
 // The class-admission table (`ClassAdmission`, read through

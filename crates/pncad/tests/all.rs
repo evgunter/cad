@@ -2247,7 +2247,12 @@ fn asm_r2a_child_mated_probe() {
         doc.placements().is_empty(),
         "the pose is solved, not stored"
     );
-    let poses = pncad::document::solve_document(&doc, Tol::witness());
+    let opts = pncad::document::EvalOptions {
+        resolver: Some(std::sync::Arc::new(ws.clone())),
+        ..pncad::document::EvalOptions::default()
+    };
+    let reach = pncad::document::mate_reach::<f64>(&doc, &opts, Tol::witness());
+    let poses = pncad::document::solve_document(&doc, &reach, Tol::witness());
     let placed = poses.placement(&doc, ids[1]).expect("the pair determines");
     let ev = asm2a_eval(&doc, &ws);
     let body = pncad::document::product(&doc, &ev, Tol::witness()).expect("gathers");

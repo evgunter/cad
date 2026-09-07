@@ -484,7 +484,15 @@ fn reference<T: Decide>(c: &Carrier<T>) -> (Point3<T>, T) {
 /// no bound this module can state — a refusal, never a guess, because
 /// an under-estimate here would price a tilt too low and certify a
 /// parallelism that does not hold.
-fn reach_of<T: Decide>(body: &Body<T>, k: topo::entity::FaceKey, origin: Point3<T>) -> Option<T> {
+///
+/// Crate-visible because the mate solve's lever reads the same walk
+/// for a part body's faces (`mate::reach`): one boundary walk, one
+/// bound, read at both lever sites.
+pub(crate) fn reach_of<T: Decide>(
+    body: &Body<T>,
+    k: topo::entity::FaceKey,
+    origin: Point3<T>,
+) -> Option<T> {
     let face = body.get_face(k)?;
     let mut reach = T::zero();
     for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {

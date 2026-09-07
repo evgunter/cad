@@ -76,7 +76,7 @@ use pncad::document::{
     DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame,
     InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, Node, ParamName, PatternKind,
     ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, apply, assemble, content_pin, evaluate,
-    inline, load, mixed_pins, parse_expr, product_named, save, solve_document, split,
+    inline, load, mate_reach, mixed_pins, parse_expr, product_named, save, solve_document, split,
 };
 use pncad::geom_core::{Band, Tol};
 use pncad::prelude::StableName;
@@ -651,7 +651,9 @@ fn stand_scene(ws: &Workspace, stand: &Stand, tol: Tol) -> SceneBody {
     // The solve, read the way an author reads it: which instance is
     // the cluster's gauge, and what role each mate took (A11 rules
     // 3-4 — tree mates DETERMINE, the rest DECLARE).
-    let poses = solve_document(&stand.doc, tol);
+    let opts = with_store(ws);
+    let reach = mate_reach::<f64>(&stand.doc, &opts, tol);
+    let poses = solve_document(&stand.doc, &reach, tol);
     let gauge = poses.gauge(stand.shelf_i).expect("the shelf is placed");
     assert_eq!(
         gauge, stand.post_a,
@@ -867,7 +869,9 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         MatePrimitive::PlanarRest { offset: 0.0 },
         tol,
     );
-    let poses = solve_document(&under.doc, tol);
+    let opts = with_store(ws);
+    let reach = mate_reach::<f64>(&under.doc, &opts, tol);
+    let poses = solve_document(&under.doc, &reach, tol);
     let fault = poses
         .fault(under.mate_1)
         .expect("a planar rest alone does not determine the pair");
@@ -907,7 +911,8 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         },
         tol,
     );
-    let poses = solve_document(&contra.doc, tol);
+    let reach = mate_reach::<f64>(&contra.doc, &opts, tol);
+    let poses = solve_document(&contra.doc, &reach, tol);
     let fault = poses
         .fault(clash)
         .or_else(|| poses.fault(contra.mate_1))

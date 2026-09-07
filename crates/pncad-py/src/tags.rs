@@ -458,7 +458,7 @@ pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
         MateFault::PlacerRefused { .. } => "mate_placer_refused",
         MateFault::PartSelectsAnotherCopy { .. } => "mate_part_selects_another_copy",
         MateFault::SelfMate { .. } => "mate_self",
-        MateFault::Unleverable { .. } => "mate_datum_too_small_to_lever",
+        MateFault::Unleverable { .. } => "mate_unleverable",
     }
 }
 

@@ -89,9 +89,9 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, Doc, Evaluation, Frame, MateFault,
-    MateFrame, MatePrimitive, MateSide, Member, ProfileProgram, RecipeNodeId, SitedRef,
-    class_admission, member_of, solve_document,
+    Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, Doc, EvalOptions, Evaluation, Frame,
+    MateFault, MateFrame, MatePrimitive, MateSide, Member, ProfileProgram, RecipeNodeId, SitedRef,
+    class_admission, mate_reach, member_of, solve_document,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -491,6 +491,9 @@ impl MateTool {
     /// wrong placement — silently, since both reads succeed. Nothing
     /// in the types can enforce the pairing; this sentence is the
     /// contract, and the application's one call site satisfies it.
+    /// `opts` are the options that evaluation ran under (the
+    /// session's `eval_options()`): the solve's lever is each mated
+    /// part's own extent, resolved through the same seam.
     ///
     /// # Errors
     ///
@@ -499,6 +502,7 @@ impl MateTool {
         &self,
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
+        opts: &EvalOptions,
         tol: Tol,
         choice: MateChoice,
     ) -> Result<MateProposal, MateToolError> {
@@ -526,7 +530,8 @@ impl MateTool {
         // The shipped constructive solve answers each instance's
         // CURRENT placement; for a completely-unconstrained instance
         // that is its recorded (or identity) frame verbatim.
-        let poses = solve_document(doc, tol);
+        let reach = mate_reach::<f64>(doc, opts, tol);
+        let poses = solve_document(doc, &reach, tol);
         let frame_of = |side: MateSide,
                         member: &Member,
                         read: &StableName|

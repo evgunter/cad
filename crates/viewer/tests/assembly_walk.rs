@@ -40,7 +40,7 @@
 use crate::common;
 
 use common::asm;
-use pncad::document::{AxisSense, ClassAdmission, Frame, MatePrimitive, solve_document};
+use pncad::document::{AxisSense, ClassAdmission, Frame, MatePrimitive};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{ContactClass, Ray};
 use viewer::display::DisplayFault;
@@ -197,6 +197,7 @@ fn the_exit_demo_walk() {
         .proposal(
             doc,
             eval,
+            &session.eval_options(),
             tol,
             MateChoice {
                 class: ContactClass::Rest,
@@ -244,7 +245,7 @@ fn the_exit_demo_walk() {
     // alignment_…` — the latter under a ROTATED placement).
     session.pump();
     let (doc, _) = session.landed_pair().expect("landed");
-    let poses = solve_document(doc, tol);
+    let poses = common::solve(&session, doc, tol);
     let placed_a = poses
         .placement(doc, bench.post_b)
         .expect("post_b is solved")
@@ -347,7 +348,7 @@ fn the_exit_demo_walk() {
     // assertion tolerance: the mate is the document, the probe never
     // was.
     let (doc2, _) = reopened.landed_pair().expect("landed");
-    let re_placed = solve_document(doc2, tol)
+    let re_placed = common::solve(&reopened, doc2, tol)
         .placement(doc2, bench.post_b)
         .expect("post_b is solved after reopen")
         .affine::<f64>();

@@ -21,7 +21,7 @@ use std::sync::Arc;
 
 use pncad::document::{
     Doc, Evaluation, MateFault, MateRole, Node, NodeErrorKind, NodeResult, ProfileProgram,
-    RecipeNodeId, SitedRef, ValuePayload, solve_document,
+    RecipeNodeId, SitedRef, ValuePayload,
 };
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
@@ -32,8 +32,13 @@ use viewer::tree::RowStatus;
 /// rows, over every live node: a faulted node must be `Failed` with
 /// that exact fault; an unfaulted mate must be `Ok` with the solve's
 /// role.
-fn disagreements(doc: &Doc<ProfileProgram>, ev: &Evaluation<f64>, tol: Tol) -> Vec<String> {
-    let poses = solve_document(doc, tol);
+fn disagreements(
+    session: &DocSession,
+    doc: &Doc<ProfileProgram>,
+    ev: &Evaluation<f64>,
+    tol: Tol,
+) -> Vec<String> {
+    let poses = common::solve(session, doc, tol);
     let mut out = Vec::new();
     for &id in doc.order() {
         let is_mate = matches!(doc.node(id), Some(Node::Mate { .. }));
@@ -118,7 +123,7 @@ fn check(
     what: &str,
 ) -> (Doc<ProfileProgram>, Arc<Evaluation<f64>>) {
     let (doc, ev) = landed(session);
-    let bad = disagreements(&doc, &ev, tol);
+    let bad = disagreements(session, &doc, &ev, tol);
     assert!(bad.is_empty(), "{what}: blame and rows disagree: {bad:#?}");
     (doc, ev)
 }
@@ -155,7 +160,10 @@ fn a_cluster_refusal_reaches_the_mate_that_evaluated_before_it() {
     session.pump();
     let (doc, second) = check(&session, tol, "after the offender");
     let carried = mate_row_fault(&second, sound);
-    assert_eq!(Some(&carried), solve_document(&doc, tol).fault(sound));
+    assert_eq!(
+        Some(&carried),
+        common::solve(&session, &doc, tol).fault(sound)
+    );
     assert!(second.recomputed >= 1, "the sound mate must have re-run");
 
     let rows = session.tree_rows();

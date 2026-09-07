@@ -40,7 +40,7 @@ use std::path::Path;
 
 use common::asm;
 use common::{body_volume, insert, len, near, shape};
-use pncad::document::{Doc, DocumentId, Frame, RecipeNodeId, solve_document};
+use pncad::document::{Doc, DocumentId, Frame, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{Ray, Resolution, RunCtx, resolve};
 use viewer::camera::{self, Camera, CameraOp};
@@ -482,7 +482,7 @@ fn the_windmill_story() {
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
     let seat_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
-        tool.proposal(doc, eval, tol, asm::seat())
+        tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat())
             .expect("the seat proposes")
     };
     let outcome = session.perform(seat_proposal.op());
@@ -523,7 +523,7 @@ fn the_windmill_story() {
     // CERTIFIES at rest: one declared contact, nested, answered.
     {
         let (doc, _) = session.landed_pair().expect("landed");
-        let poses = solve_document(doc, tol);
+        let poses = common::solve(&session, doc, tol);
         let placed_hub = poses
             .placement(doc, hub_i)
             .expect("the hub is solved")
@@ -641,7 +641,7 @@ fn the_windmill_story() {
     tool.pick(front_wall);
     let sail_a_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
-        tool.proposal(doc, eval, tol, asm::seat())
+        tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat())
             .expect("the first sail proposes")
     };
     let outcome = session.perform(sail_a_proposal.op());
@@ -674,7 +674,7 @@ fn the_windmill_story() {
     let long_axis = Vec3::new(1.0, 0.0, 0.0);
     let (blade_a_dir, hub_placed) = {
         let (doc, _) = session.landed_pair().expect("landed");
-        let poses = solve_document(doc, tol);
+        let poses = common::solve(&session, doc, tol);
         let placed = |node: RecipeNodeId| {
             poses
                 .placement(doc, node)
@@ -690,7 +690,7 @@ fn the_windmill_story() {
     let sail_b_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
         let base = tool
-            .proposal(doc, eval, tol, asm::seat())
+            .proposal(doc, eval, &session.eval_options(), tol, asm::seat())
             .expect("the second sail proposes");
         // Turn the roll: of the derived reference and its in-plane
         // quarter turn (for unit vectors, r turned 90° about n is
@@ -765,7 +765,7 @@ fn the_windmill_story() {
     }
     let (blade_a_dir, blade_b_dir) = {
         let (doc, _) = session.landed_pair().expect("landed");
-        let poses = solve_document(doc, tol);
+        let poses = common::solve(&session, doc, tol);
         let placed = |node: RecipeNodeId| {
             poses
                 .placement(doc, node)
@@ -897,7 +897,7 @@ fn the_windmill_story() {
     );
     {
         let (doc, _) = reopened.landed_pair().expect("landed");
-        let poses = solve_document(doc, tol);
+        let poses = common::solve(&reopened, doc, tol);
         let placed_hub = poses
             .placement(doc, hub_i)
             .expect("the hub is solved after reopen")

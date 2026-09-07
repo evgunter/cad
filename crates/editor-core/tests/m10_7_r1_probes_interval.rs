@@ -298,12 +298,14 @@ fn r1_max_leaves_zero_with_the_tier_on() {
 /// small side being exactly the "prices every tilt at zero" failure the
 /// function's own docs warn about.
 ///
-/// Three cases now, and the middle one refuses rather than answering:
-/// a datum that names NO scale gets the session box's metre (D4 para 4,
-/// and the `Coaxial`-at-origin spelling users author constantly); a
-/// datum naming a scale at or above `MIN_LEVER_ARM` gets that scale; a
-/// datum naming a scale BELOW it is refused typed, because the author
-/// named a length and the length they named cannot decide a tilt.
+/// Now the datum's own contribution is CONTINUOUS and pure — the sum
+/// of both origins' norms and every authored length, with no branch
+/// on whether a scale was named, no constant and no floor — because
+/// the lever is completed in the solve by the two mated parts' own
+/// reach, which is never zero for a real part. A datum at the origin
+/// contributes nothing, a datum at a nanometre contributes a
+/// nanometre, and neither is a case the solve has to guard
+/// (`msolve6_part_extent` pins the whole lever, parts included).
 #[test]
 fn r1_mate_lever_is_discontinuous_at_zero_extent() {
     use editor_core::mate::{Alignment, AxisSense, MateFrame, MatePrimitive};
@@ -325,26 +327,23 @@ fn r1_mate_lever_is_discontinuous_at_zero_extent() {
         at(1e-9).lever_arm(),
         at(1e-3).lever_arm()
     );
-    // Names no scale: the session box, unchanged, and the case the
-    // twelve `asm_r2a_mate_solve` rows live in.
-    assert_eq!(at(0.0).lever_arm(), Ok(editor_core::mate::SESSION_SCALE));
-    // Names a scale that cannot decide anything: REFUSED, where it used
-    // to answer 1e-9 and read every tilt as parallel.
-    assert_eq!(
-        at(1e-9).lever_arm(),
-        Err(editor_core::mate::LeverRefusal::DatumTooSmall {
-            extent: 1e-9,
-            floor: editor_core::mate::MIN_LEVER_ARM,
-        })
-    );
-    // Names a usable scale: its own, with no constant in sight.
-    assert_eq!(at(1e-3).lever_arm(), Ok(1e-3));
-    // And the floor itself is admitted rather than refused — the
-    // comparison is `<`, so the stated floor is a usable arm.
-    assert_eq!(
-        at(editor_core::mate::MIN_LEVER_ARM).lever_arm(),
-        Ok(editor_core::mate::MIN_LEVER_ARM)
-    );
+    // A datum at the origin contributes NOTHING — no metre stands in
+    // for the parts, which the solve adds from their own bodies.
+    assert_eq!(at(0.0).lever_arm(), 0.0);
+    // A datum at a nanometre contributes a nanometre: no floor, no
+    // refusal, no cliff — the parts on either side carry the lever.
+    assert_eq!(at(1e-9).lever_arm(), 1e-9);
+    assert_eq!(at(1e-3).lever_arm(), 1e-3);
+    // Both origins and every authored length SUM: an upper bound on
+    // the datum's own extent, never the larger of them.
+    let rest = Alignment {
+        a: frame([3.0e-3, 0.0, 0.0]),
+        b: frame([0.0, 4.0e-3, 0.0]),
+        primitive: MatePrimitive::PlanarRest { offset: -2.0e-3 },
+        sense: AxisSense::Opposed,
+        clocking: None,
+    };
+    assert_eq!(rest.lever_arm(), 3.0e-3 + 4.0e-3 + 2.0e-3);
 }
 
 // ------------------------------------------------------------ e2e
