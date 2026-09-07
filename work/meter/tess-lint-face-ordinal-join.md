@@ -41,3 +41,35 @@ Code quality: `tools/` is Track K's territory, and the issue is already carried 
 ## Claimed by METER (2026-09-06)
 
 Moved from `work/code-quality/` to `work/meter/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, `track:` letter and body unchanged. Unlettered, on K's fence: `tess-lint`'s join key.
+
+## Orchestrator note (2026-09-07): both named branches are already closed
+
+**This item's body is #746's text of 2026-08-20 and predates its own
+fix.** `tools/tess-lint/src/lib.rs` now carries `Kind::Rekeyed { face,
+how }` with `Rekey::Absent { in_baseline }` and `Rekey::Column { name,
+was, now }`, and `compare`'s per-face walk runs rule 2 only under a
+rule-4 precondition over `IDENTITY_COLUMNS`: an ordinal whose columns
+disagree is announced with the column and both readings, a one-sided
+ordinal is announced as `Absent`, and the walk STOPS there rather than
+comparing shifted pairs. That is branch 1 and branch 2 of this item.
+`C15` and `D201` both already state the mis-join is closed; only this
+file still reads as though it were open.
+
+**What is NOT settled, and is this unit's actual question.** The
+observation is routed by `compare`'s `gated` flag — whether any row in
+the scene, either side, has `recoverable().is_some()`. A scene with no
+Hessian-sized face has `gated == false`, so its re-key goes to
+`out.notes` rather than `out.findings`. That is precisely #738's
+`diefillet/diefillet`, the live instance this item was written around:
+its 16 permuted ordinals are today reported in the quietest voice the
+lint has, and the item's "it does not fire only because `diefillet` has
+no NURBS faces" is still true in a weaker form — it does not FIND,
+though it does now SPEAK. Whether a deterministic ordinal permutation
+between main and the committed baseline is a note or a finding is a
+judgement nobody has recorded, and it is what the unit should decide.
+
+**Confidence:** sure that both branches are covered and that the
+`gated` split routes ungated re-keys to notes (read at `compare`);
+unsure whether `diefillet`'s permutation still reproduces against
+today's baseline — the unit re-runs #738's sweep rather than inheriting
+its result, which is four baseline re-cuts old.
