@@ -1,11 +1,12 @@
 ---
 id: cylindrical-rest-pair-hits-planar-merge
-kind: issue
+kind: unit
 title: A surviving cylindrical declared Rest pair reaches the planar-only F7 merge door
-status: open
+status: dispatched
 opened: 2026-08-31
 github: 1415
 refs: [1032, 1417]
+branch: curved/merge-door
 ---
 
 ## From GitHub issue 1415
