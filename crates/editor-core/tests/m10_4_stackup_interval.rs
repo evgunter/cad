@@ -71,13 +71,16 @@ const MIN_WEB: f64 = 0.0005;
 /// study in fewer, wider leaves reports a wider hull at the same leaf
 /// budget. Under A0 alone this `ε/8` study certified in 16 leaves and
 /// the padding was `2·half`; under the form-level algebra (rule D with
-/// A/B per node) it certifies in 4 leaves of twice the width and the
-/// padding is `4·half`, exactly, plus the rounding below
+/// A/B per node) in 4 leaves of twice the width with padding `4·half`;
+/// with amendment A1 (the chart phase folds too) the whole box is ONE
+/// leaf and the padding is `8·half` — four times the leaf's width
+/// each time, exactly, plus the rounding below
 /// (`m10_10_evidence_interval::m10_10_the_stackup_hulls_under_both_rule_sets`
-/// prints both; `work/m10/certified-hull-padding-is-the-leaf-width-not-the-lane`
+/// prints all three; `work/m10/certified-hull-padding-is-the-leaf-width-not-the-lane`
 /// is the row). A bound, not a target — if it grows, the question is
-/// which leaves widened.
-const PLATE_PADDING_PER_HALF_WIDTH: f64 = 4.0;
+/// which leaves widened; it cannot grow past this without a leaf wider
+/// than the box.
+const PLATE_PADDING_PER_HALF_WIDTH: f64 = 8.0;
 /// The rounding on top of the dependency padding: a 0.2-scale quantity
 /// through a few dozen outward-rounded operations (measured ~1e-15).
 const PLATE_ROUNDING: f64 = 1.0e-14;
@@ -574,9 +577,18 @@ fn the_two_hole_plate_stackup() {
 /// band contributor is named — never the first of several. The
 /// contributions stay (a band's limits are real limits) and so does
 /// the gating worst case.
+///
+/// At ±0.05 on both axes — a real study — rather than `ε/8`: under
+/// M10-10's tier the `ε/8` box certifies in ONE leaf, and a leaf that
+/// covers a band's whole support prices as 1 by the band's own rule
+/// (`box_mass`), so the coverage refusal this row also asserts needs a
+/// leaf that covers PART of a band, i.e. a drive that split. The
+/// fixture's whole-certifying half-width is about 0.018 at the default
+/// ε (`m10_10_evidence_interval::m10_10_the_stackup_hulls_under_both_rule_sets`
+/// with `CAD_M10_10_CEILINGS`), so ±0.05 splits at every row.
 #[test]
 fn a_band_contributor_refuses_the_rss_whole_naming_every_band() {
-    let half = eps() / 8.0;
+    let half = 0.05;
     let (doc, measure, _) = plate(Some(band(half)), Some(band(half)));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");

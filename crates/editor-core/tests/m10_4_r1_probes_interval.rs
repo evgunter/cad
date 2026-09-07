@@ -971,13 +971,15 @@ fn r1_seed_env_refuses_a_foreign_name() {
 /// **The document moved under M10-8's shipped tier**: the stepped shaft
 /// at `ε/8` — and at ±0.1 — now certifies WHOLE in one leaf (the row
 /// above), so it no longer splits and cannot carry this measurement.
-/// The two-hole plate at `1.6e3 · ε` of its study does: just above its
-/// whole-certifying ceiling (`1.25e3 · ε` at every ε row), the driver
-/// splits once and certifies both halves (the same fixture the E6
-/// driver population carries as `two_hole_plate_narrow`).
+/// The two-hole plate at HALF its real study does: its
+/// whole-certifying ceiling is 0.24–0.26 of the study at every ε row
+/// (`m10_10_pins_interval`; a real margin, so the scale here is a
+/// fraction of the study rather than a multiple of ε), and at 0.5 the
+/// driver splits into 22 leaves, every one certified, with the nominal
+/// in a certified chamber.
 #[test]
 fn r1_the_contribution_extrapolates_past_its_certified_chamber() {
-    let scale = 1.6e3 * eps();
+    let scale = 0.5;
     let (doc, m, _) = crate::m10_7_plate::plate(5.0e-5 * scale, 1.0e-5 * scale, Tol::witness());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");

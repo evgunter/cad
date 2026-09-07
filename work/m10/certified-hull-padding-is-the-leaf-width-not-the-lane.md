@@ -22,8 +22,18 @@ default ε; the same at `1e-6` and `1e-12`):
 | --- | --- | --- | --- |
 | two-hole plate (`depth`, `hole_r`) | A0 + the door (M10-9) | 16 | `2 · half` |
 | two-hole plate | + rule D, A/B per node (M10-10) | 4 | `4 · half` |
+| two-hole plate | + amendment A1 (the chart phase folds) | 1 — the whole box | `8 · half` |
 | bore/pin fit (`r`) | A0 + the door | 4 | `1 · half` |
 | bore/pin fit | + rule D, A/B per node | 2 | `2 · half` |
+| bore/pin fit | + amendment A1 | 1 — the whole box | `4 · half` |
+
+With A1 both `ε/8` studies are one leaf, so the padding is at the
+ceiling this mechanism can reach — a leaf cannot be wider than the
+box — and the two pins are re-baselined to `8 · half` and `4 · half`.
+Both fixtures' whole-certifying half-widths are now REAL margins at
+about 0.018 (the same number on both, which share a 0.2 radius;
+`m10_10_the_stackup_hulls_under_both_rule_sets` with
+`CAD_M10_10_CEILINGS`), so the bore/pin fit's ±0.05 study certifies.
 
 The hulls all ENCLOSE the true range (the assertions on that hold);
 what moved is the slack, exactly in proportion to the leaf width.
