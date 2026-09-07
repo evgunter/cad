@@ -118,3 +118,20 @@ channel, and its consumer must re-chart every plane and read the
 METRED hull. Operations: `chart_region::SCHEDULE_2D` became
 `pub(crate)` for the new consumer — a visibility change on Track Q's
 file, doc-only otherwise, recorded here as the announcement.
+
+## TRIM-1 merged (2026-09-07)
+
+PR #2095, ordinal 2501, sample #153; block TRIM-B1 slot 1 concluded.
+The dual (R1 Fable, R2 Opus) both MERGEABLE-AFTER-FIXES and converged
+on everything (adjudication comment 5564847666); eleven union items all
+taken. Substantive fix: the seam class meters its fixed channel against
+the chart's u domain (an out-of-domain `u` had certified through the end
+span's polynomial extension). The P-2 body now mints and validates at
+rest; TRIM-2's opening measurement is re-cut — on that fixture the
+tessellation lane stops at `patch_bound::Degree1Crease`, not at any of
+the six filed sites, so TRIM-2's spec must start from a fixture the
+crease gate admits (a degree-2+ chart) or take the crease gate as its
+first door. Filed at adjudication: `step-adopt-let-ok-iso-discards`
+(`work/issues/`, EXCH's), `rational-gates-test-unit-weights-not-constancy`
+(TRIM). Next on this program: TRIM-3 PR-2 (the clearance seam; announce
+to SHELL/M10 first) and TRIM-2's spec.
