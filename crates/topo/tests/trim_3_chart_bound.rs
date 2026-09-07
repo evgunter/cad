@@ -618,7 +618,7 @@ fn t9_a_nurbs_carrier_on_a_plane_chart_refuses_typed() {
 }
 
 // ---------------------------------------------------------------- //
-// T10 — F18's dimensional claim, guarded
+// T10 — the audit's dimensional claim (F19), guarded
 // ---------------------------------------------------------------- //
 
 /// **T10** — the segment-normal axis divides by the normal's own
@@ -638,7 +638,7 @@ fn t9_a_nurbs_carrier_on_a_plane_chart_refuses_typed() {
 /// standing against it. This is the something.
 /// Kills: `Margin::of(n·w)` in place of `Margin::over_lever(n·w, |n|)`.
 #[test]
-fn t10_a_long_edge_guards_f18s_dimensional_claim() {
+fn t10_a_long_edge_guards_the_dimensional_claim() {
     let long = 1.0e3_f64;
     // Material below `v = 0`; the long edge is the top of a flat slab.
     let bound = ChartBound::assembled(

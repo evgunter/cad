@@ -89,3 +89,43 @@ kept: `driver_of` must run anyway to get the driver for
 projection — not the node's slot vocabulary, so the two conditions are
 not the same set. Recorded here because "a lookup, not a pre-check" is
 the load-bearing distinction and the case that most nearly fails it.
+
+## Blind spot 2 — RUN, and empty (VIEW orchestrator, 2026-09-04)
+
+The shape this item said to look for was *"an early
+`return OpOutcome::default()` guarded by a condition about the
+document"* — a door that declines silently instead of refusing, and so
+is invisible to both of #1846's patterns because neither fires without
+a `Refusal` being constructed.
+
+Run against the tree at `8604dfb3`:
+
+- `return OpOutcome::default()` across `crates/viewer/src/` — **one
+  hit**, `session.rs:1088`, inside `commit_gesture`. It is **not an
+  instance.** It is the ratified no-move rule (*a gesture that never
+  previewed commits nothing*), it is argued for six lines above itself,
+  and the condition it tests is about the GESTURE, not about the
+  document — there is no lower door that refuses it, because there is
+  no edit.
+- `OpOutcome::default()` in any position — 19 hits, all tail-position
+  successes.
+- No guarded (`if` / `let Some` / `let Ok` / `match`-arm) construction
+  precedes any of them in `session.rs`.
+
+**What this sweep could not match**, stated because the item's own
+argument is that an undisclosed blind spot is an unverified claim:
+
+- a door that declines by returning a *non-default* outcome that
+  nonetheless does nothing (an empty `previewed`, a `superseded` with
+  no entries) — the pattern keys on the constructor, not on the
+  emptiness;
+- a decline expressed as an `if` with no `else` around the commit,
+  where the function falls through to a shared tail — the commonest
+  spelling of "quietly do nothing" and the one a `return` grep cannot
+  see;
+- anything outside `crates/viewer/src/`.
+
+**Blind spot 2 is CLOSED for the `return`-shaped spelling and stays
+open for the fall-through spelling**, which nobody has looked for.
+Blind spot 3 (the rule generalises past `Refusal` to the other 21
+typed fault enums in the crate) is untouched and is the large one.

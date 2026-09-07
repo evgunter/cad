@@ -215,15 +215,15 @@ its ground stated under *What this partition leaves out*.
 
 | Track | Territory (the fence) | Block | Claimed by |
 |---|---|---|---|
-| **K** | `scripts/gates/` less `gate-roster.sh` and `probe-suite-census.sh`, `tools/`, `docs/K-REPORT.md` | `D200`–`D219` / `S270`–`S289` | this program |
+| **K** | `scripts/gates/` less `gate-roster.sh` and `probe-suite-census.sh`, `tools/`, `docs/K-REPORT.md` | `D200`–`D219` / `S270`–`S289` | **`gates` (`scripts/gates/*`, the two roster gates included) and `meter` (`tools/*`, the documents), whole, 2026-09-06** |
 | **M** | `crates/geom-core/src/{real,ring_interval,dual,interval,k_stats}.rs`, `interval-transcendentals/`, `crates/bvh/`, `crates/topo/src/props.rs` | `D220`–`D239` / `S290`–`S309` | `cert` (`CERT-M3`) |
 | **N** | `crates/geom/src/`, `crates/geom-core/src/{spline/,linalg/}` | `D240`–`D259` / `S310`–`S329` | `cert` (`CERT-N3`) |
 | **P** | `crates/topo/src/{euler.rs,euler_ring.rs,euler_kill.rs,split.rs,attach.rs,movefac.rs,revert.rs,live.rs,merge_faces.rs,seqgen.rs,validate.rs,review_d18.rs,review_d18_probes.rs,fixtures.rs,source_walk.rs}` | `D260`–`D279` / `S330`–`S349` | **`topo`, whole track, 2026-09-04** |
 | **Q** | `crates/topo/src/{boolean/,splitting/,census.rs,chord_join.rs,chart_region.rs,face_normal.rs}`, `crates/geom-brep/src/{ssi*,pcurve_cache.rs,nurbs_iso.rs,edge_nurbs.rs}`, `docs/predicate-dimension-audit.md` | `D280`–`D299` / `S350`–`S369` | `bool` (`BOOL-Q`), `trim` |
 | **R** | `crates/geom-brep/src/` **less the four paths Q names**, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` | `mesh` (`MESH-R`) |
-| **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` | `fillet` |
+| **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` | `fillet` (closed 2026-09-06); its remainder `blend`, whole, 2026-09-06 |
 | **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | `exch`, `lib` |
-| **V** | `crates/editor-core/` **less the DOCM program's paths** (`persist/`, `program.rs`, `doc.rs`, `edit.rs`, `node.rs`, `names/role.rs`, `eval/{parts,memo}.rs`, `resolve/` less `vdiff.rs`, `mate*`, `assembly.rs` — ceded 2026-09-03 with rows `C6`, `D365`, `D366` and the `debug-in-prose` finding, which moved to `work/docm/` keeping their ids), `crates/profile/` | `D360`–`D379` / `S430`–`S449` | `docm` and seven others |
+| **V** | `crates/editor-core/` **less the DOCM program's paths** (`persist/`, `program.rs`, `doc.rs`, `edit.rs`, `node.rs`, `names/role.rs`, `eval/{parts,memo}.rs`, `resolve/` less `vdiff.rs`, `mate*`, `assembly.rs` — ceded 2026-09-03 with rows `C6`, `D365`, `D366` and the `debug-in-prose` finding, which moved to `work/docm/` keeping their ids), `crates/profile/` | `D360`–`D379` / `S430`–`S449` | `docm`, `eval` (the eval seat — `eval/{mod,wire,anchor,schedule,slots}.rs`, `verbs/*`, `names/*` less `role.rs` — 2026-09-06) and six others |
 | **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | **`tcost`, whole track, 2026-09-04** |
 | **X** | `demos/` (Rust and Markdown; its Python is not X's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` | this program |
 
@@ -260,6 +260,8 @@ ambiguous:
   as nobody's: a row's work reaching an unowned path is not a licence to
   edit it, it is a fence that has not been drawn, and R takes this
   ground because `mesh` is what consumes it.
+
+**Track `K` left this directory on 2026-09-06**, claimed whole by two programs opened for it (`gates` and `meter`, the fence split at `scripts/gates/` versus `tools/`), and **Track `T`'s remainder with it** (`blend`); the same rules as for `P` and `W` below apply — their blocks stay here and a new row on their ground goes straight to the claimant.
 
 **Track `P` and Track `W` both left this directory on 2026-09-04**,
 each claimed whole by a program: **P by `topo`** at its opening — P's

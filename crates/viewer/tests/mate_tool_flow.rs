@@ -296,14 +296,14 @@ fn a_pattern_placed_pick_mates_through_an_instance_headed_reference() {
 
     // The reference is `Instance(i)`-headed, on the pattern node —
     // which is what makes it a MEMBER rather than a bare pattern head.
-    assert_eq!(proposal.a.node, pattern);
+    assert_eq!(proposal.a.name.node, pattern);
     assert!(
         matches!(
-            proposal.a.path.first(),
+            proposal.a.name.path.first(),
             Some(RoleSeg::Instance { i: 1, .. })
         ),
         "the copy rides in the head: {:?}",
-        proposal.a.path.first()
+        proposal.a.name.path.first()
     );
 
     // The alignment is in the MASTER's part coordinates — the same
@@ -333,35 +333,26 @@ fn a_pattern_placed_pick_mates_through_an_instance_headed_reference() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
     session.pump();
-    let (doc, eval) = session.landed_pair().expect("landed");
+    let mate = committed_mate(&session);
+    let (doc, _) = session.landed_pair().expect("landed");
     assert!(
-        solve_document(doc, tol).fault(pattern).is_none(),
-        "the pattern member solves"
+        solve_document(doc, tol).fault(mate).is_none(),
+        "the pattern member solves: {:?}",
+        solve_document(doc, tol).fault(mate)
     );
-    let a = face_frame(eval, copy_one.node, &copy_one.name).expect("copy 1's cap");
-    let b = face_frame(eval, shelf_bottom.node, &shelf_bottom.name).expect("the shelf's underside");
-    for (got, want) in [
-        (a.origin.x, b.origin.x),
-        (a.origin.y, b.origin.y),
-        (a.origin.z, b.origin.z),
-    ] {
-        assert!(
-            (got - want).abs() < 1e-9,
-            "the mated faces meet in the world: {:?} vs {:?}",
-            a.origin,
-            b.origin
-        );
-    }
+    assert_faces_meet(&session, &copy_one, &shelf_bottom, "the pattern member");
     for row in session.tree_rows() {
         assert_eq!(row.status, viewer::tree::RowStatus::Ok, "{row:?}");
     }
 }
 
-/// **What is still outside the vocabulary is still refused.** A
-/// pattern over something that is not a live instance carries no
-/// member, however `Instance(i)`-qualified its faces are.
+/// **A9 — a pick on a pattern copy OVER A TRANSFORM is admitted**,
+/// and authors its reference at the node the ray met. The pattern is
+/// what the ray hits and what the reference is read at; the walk goes
+/// on through the transform to the minting instance, and the composed
+/// offset is the solve's to apply.
 #[test]
-fn a_pattern_over_a_non_instance_is_still_not_an_instance_pick() {
+fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
     let tol = Tol::witness();
     let bench = asm::bench("matepatternnon", tol);
     let mut session = asm::open_bench(&bench, tol);
@@ -404,15 +395,163 @@ fn a_pattern_over_a_non_instance_is_still_not_an_instance_pick() {
     tool.pick(copy_one);
     tool.pick(shelf_bottom);
     let (doc, eval) = session.landed_pair().expect("landed");
+    let proposal = tool
+        .proposal(doc, eval, tol, asm::seat())
+        .expect("a pattern copy over a transform carries a member");
+    assert_eq!(
+        proposal.a.at, pattern,
+        "the reference is read at the node the ray met"
+    );
+    assert_eq!(proposal.a.name.node, pattern, "and names that copy");
+    assert!(
+        matches!(
+            proposal.a.name.path.first(),
+            Some(RoleSeg::Instance { i: 1, .. })
+        ),
+        "the copy the ray hit: {:?}",
+        proposal.a.name.path.first()
+    );
+    assert_eq!(
+        proposal.b.at, bench.shelf_i,
+        "an untransformed pick is read at its own instance"
+    );
+    let _ = moved;
+}
+
+/// **A9 — a pick on a FUSED body is still refused.** A boolean is not
+/// a pass-through: it mints its own geometry and its own names, and
+/// no member of A11's vocabulary stands on it, so no frame read there
+/// is in any member's part coordinates. The walk refuses for the
+/// reason the tool's own hand-written guard used to — reaching the
+/// operand's node and finding neither a transform to continue
+/// through nor a live instance to stop on.
+#[test]
+fn a_pick_on_a_fused_body_is_not_an_instance_pick() {
+    let tol = Tol::witness();
+    let bench = asm::bench("matefused", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let fused = common::insert(
+        &mut session,
+        SessionOp::AddBoolean {
+            op: pncad::document::BooleanOp::Union,
+            a: bench.post_b,
+            b: bench.post_a,
+        },
+    );
+    session.pump();
+    let post_top = pick_at(
+        &session,
+        &asm::down_at(
+            asm::POST_B_AT[0] + asm::POST_SECTION / 2.0,
+            asm::POST_B_AT[1] + asm::POST_SECTION / 2.0,
+        ),
+    );
+    assert_eq!(post_top.node, fused, "the ray met the fusion's body");
+    let _ = bench.post_a;
+    let shelf_bottom = pick_at(
+        &session,
+        &asm::up_at(
+            asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
+            asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
+        ),
+    );
+    let mut tool = MateTool::new();
+    tool.pick(post_top);
+    tool.pick(shelf_bottom);
+    let (doc, eval) = session.landed_pair().expect("landed");
     assert!(
         matches!(
             tool.proposal(doc, eval, tol, asm::seat()),
             Err(MateToolError::NotAnInstancePick {
                 side: MateSide::A,
                 node
-            }) if node == pattern
+            }) if node == fused
         ),
-        "a pattern over a transform carries no member"
+        "a boolean is not a pass-through"
+    );
+}
+
+/// **A9 — a pick on a TRANSFORMED instance is admitted, and the mate
+/// it authors SEATS.** The reference the tool writes is read at the
+/// node the ray met — the transform — not at the instance, which is
+/// the only thing that tells a mate on the moved body from a mate on
+/// the body it was moved from: a transform mints no name. The row
+/// carries it all the way through the session's commit door and
+/// measures the landed geometry, so a proposal that authored the
+/// right operand and then seated the wrong body would still fail.
+#[test]
+fn a_pick_on_a_moved_instance_authors_the_transform_and_seats() {
+    let tol = Tol::witness();
+    let bench = asm::bench("matexformseat", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    // A quarter turn about z through the world origin plus an offset:
+    // post_b's centre (0.07, 0.01) lands at (-0.01, 0.07) + (0.015, -0.005).
+    let moved = common::insert(
+        &mut session,
+        SessionOp::AddTransform {
+            input: bench.post_b,
+            translation: [len(0.015), len(-0.005), len(0.02)],
+            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+            rotation_angle: ang(core::f64::consts::FRAC_PI_2),
+        },
+    );
+    session.pump();
+    let post_top = pick_at(&session, &asm::down_at(0.005, 0.065));
+    assert_eq!(post_top.node, moved, "the ray met the transform's body");
+    assert_eq!(
+        post_top.name.node, bench.post_b,
+        "and the name still points at the minting instance (N1)"
+    );
+    let shelf_bottom = pick_at(
+        &session,
+        &asm::up_at(
+            asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
+            asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
+        ),
+    );
+    let mut tool = MateTool::new();
+    tool.pick(post_top.clone());
+    tool.pick(shelf_bottom.clone());
+    let (doc, eval) = session.landed_pair().expect("landed");
+    let proposal = tool
+        .proposal(doc, eval, tol, asm::seat())
+        .expect("a moved instance carries a member");
+    assert_eq!(proposal.a.at, moved, "authored at the node the ray met");
+    assert_eq!(proposal.a.name.node, bench.post_b, "naming the instance");
+    // The alignment is in the POST's own part coordinates — the top
+    // cap at z = POST_HEIGHT — because the frame is read at the
+    // member's instance and divided by that instance's placement.
+    // The transform's map is the SOLVE's to apply, not the tool's.
+    assert!(
+        (proposal.alignment.a.origin[2] - asm::POST_HEIGHT).abs() < 1e-12,
+        "the authored frame is the master's: {:?}",
+        proposal.alignment.a
+    );
+
+    let outcome = session.perform(proposal.op());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    for row in session.tree_rows() {
+        assert_eq!(row.status, viewer::tree::RowStatus::Ok, "{row:?}");
+    }
+
+    // THE SEAT, in the landed evaluation: the moved post's top cap —
+    // the face the product gathers — against the shelf's underside.
+    let (_doc, eval) = session.landed_pair().expect("landed");
+    let top = face_frame(eval, moved, &post_top.name).expect("the moved post's top cap");
+    let under = face_frame(eval, bench.shelf_i, &shelf_bottom.name).expect("the shelf underside");
+    // The OUTWARD normal: the pose's axis times the face's own
+    // orientation sense — the direction material is not.
+    let outward = |f: &pncad::select::Pose<f64>| if f.sense { f.axis } else { -f.axis };
+    let (n_top, n_under) = (outward(&top), outward(&under));
+    let gap = (under.origin - top.origin).dot(n_top).abs();
+    let slide = (under.origin - top.origin - n_top * (under.origin - top.origin).dot(n_top)).norm();
+    assert!(gap < 1e-9, "the mated faces are {gap} apart");
+    assert!(slide < 1e-9, "the mated frames are {slide} apart in-plane");
+    assert!(
+        (n_top.dot(n_under) + 1.0).abs() < 1e-9,
+        "outward normals not opposed: {}",
+        n_top.dot(n_under)
     );
 }
 
@@ -569,23 +708,277 @@ fn a_circular_pattern_copy_authors_the_masters_unrotated_frame() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
     session.pump();
-    let (doc, eval) = session.landed_pair().expect("landed");
+    let mate = committed_mate(&session);
+    let (doc, _) = session.landed_pair().expect("landed");
     assert!(
-        solve_document(doc, tol).fault(pattern).is_none(),
-        "the spun member solves"
+        solve_document(doc, tol).fault(mate).is_none(),
+        "the spun member solves: {:?}",
+        solve_document(doc, tol).fault(mate)
     );
-    let a = face_frame(eval, copy_one.node, &copy_one.name).expect("copy 1's cap");
-    let b = face_frame(eval, shelf_bottom.node, &shelf_bottom.name).expect("the shelf's underside");
+    assert_faces_meet(&session, &copy_one, &shelf_bottom, "the spun member");
+}
+
+// ---- the member chain: a nested copy, and a `Part`-selected one ----
+
+/// The step the nested assembly's two rules take, metres.
+const NEST_STEP: f64 = 0.04;
+
+/// **A nested-copy assembly, authored into the bench's workspace and
+/// opened through the ordinary `Open` door** — which is what wires
+/// the resolver, so the picks below are real rays onto real bodies.
+///
+/// `Pattern` over `Part { Instance(1) }` over `Pattern` over the
+/// post: the shape a nested copy is reachable through, since a
+/// pattern's value is many bodies and a pattern's input is one. A
+/// second `Part` selecting inner copy 0 is left as a ROOT beside it,
+/// so the same document offers both picks this pair of rows wants:
+/// one on a nested copy, one on a `Part` over a pattern.
+///
+/// Returns the session and `(post instance, shelf instance, inner,
+/// part, outer, loose part)`.
+fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [RecipeNodeId; 6]) {
+    use pncad::document::{
+        Doc, DocEdit, DocumentId, Expr, Node, PartSelect, PatternKind, ProfileProgram, apply,
+    };
+    let mut doc: Doc<ProfileProgram> = Doc::empty(DocumentId::derive(tag), tol);
+    let insert = |doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>| {
+        let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the insert applies");
+        *doc = applied.doc;
+        applied.record.minted.expect("an insert mints an id")
+    };
+    let shelf_i = insert(&mut doc, Node::instantiate_part(bench.shelf));
+    let post_i = insert(&mut doc, Node::instantiate_part(bench.post));
+    for (node, at) in [(shelf_i, asm::SHELF_AT), (post_i, asm::POST_B_AT)] {
+        let applied = apply(
+            &doc,
+            &DocEdit::SetPlacement {
+                node,
+                frame: pncad::document::Frame::translation(at),
+            },
+            tol,
+        )
+        .expect("the placement applies");
+        doc = applied.doc;
+    }
+    let rule = |dir: [f64; 3]| PatternKind::Linear {
+        direction: dir.map(scl),
+        spacing: len(NEST_STEP),
+    };
+    let inner = insert(
+        &mut doc,
+        Node::Pattern {
+            input: post_i,
+            count: Expr::count(2),
+            kind: rule([1.0, 0.0, 0.0]),
+        },
+    );
+    let part = insert(
+        &mut doc,
+        Node::Part {
+            of: inner,
+            select: PartSelect::Instance(Expr::count(1)),
+        },
+    );
+    let outer = insert(
+        &mut doc,
+        Node::Pattern {
+            input: part,
+            count: Expr::count(2),
+            kind: rule([0.0, 1.0, 0.0]),
+        },
+    );
+    let loose = insert(
+        &mut doc,
+        Node::Part {
+            of: inner,
+            select: PartSelect::Instance(Expr::count(0)),
+        },
+    );
+    let mut ws = pncad::workspace::Workspace::open(&bench.dir).expect("the workspace opens");
+    let path = ws.create(&doc, tol).expect("the nested assembly stores");
+    let mut session = DocSession::inline(Doc::empty_derived("nested-boot", tol), tol);
+    let outcome = session.perform(SessionOp::Open(path));
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    (session, [post_i, shelf_i, inner, part, outer, loose])
+}
+
+/// The shelf's underside, picked.
+fn shelf_underside(session: &DocSession) -> FaceSelection {
+    pick_at(
+        session,
+        &asm::up_at(
+            asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
+            asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
+        ),
+    )
+}
+
+/// **The mate the tool just committed** — the document's last
+/// `Node::Mate`, which is the node the solve keys a fault by.
+///
+/// A pattern node, a `Part` node or an instance is NOT such a key:
+/// `SolvedPoses::fault` maps refusing MATES and the instances of a
+/// cluster that consequently has no pose, so `fault(pattern)` answers
+/// `None` for every document ever written and asserts nothing.
+///
+/// # Panics
+///
+/// If the document holds no mate.
+fn committed_mate(session: &DocSession) -> RecipeNodeId {
+    let (doc, _) = session.landed_pair().expect("landed");
+    *doc.order()
+        .iter()
+        .rev()
+        .find(|&&id| matches!(doc.node(id), Some(pncad::document::Node::Mate { .. })))
+        .expect("the tool committed a mate")
+}
+
+/// The two picked faces meet in the world the evaluation draws.
+fn assert_faces_meet(session: &DocSession, a: &FaceSelection, b: &FaceSelection, what: &str) {
+    let (_, eval) = session.landed_pair().expect("landed");
+    let fa = face_frame(eval, a.node, &a.name).expect("the picked cap");
+    let fb = face_frame(eval, b.node, &b.name).expect("the shelf's underside");
     for (got, want) in [
-        (a.origin.x, b.origin.x),
-        (a.origin.y, b.origin.y),
-        (a.origin.z, b.origin.z),
+        (fa.origin.x, fb.origin.x),
+        (fa.origin.y, fb.origin.y),
+        (fa.origin.z, fb.origin.z),
     ] {
         assert!(
             (got - want).abs() < 1e-9,
-            "the mated faces meet in the world: {:?} vs {:?}",
-            a.origin,
-            b.origin
+            "{what}: the mated faces meet in the world: {:?} vs {:?}",
+            fa.origin,
+            fb.origin
         );
+    }
+}
+
+/// **A pick on a NESTED copy is a member, and it seats.** The tool
+/// reads the master through BOTH `Instance(i)` levels — the frame it
+/// authors is the one copy `(0, 0)` would author — and the composed
+/// offset `M₂(1) ∘ M₁(1)` is the solve's to apply.
+#[test]
+fn a_nested_copy_pick_reads_the_master_and_seats() {
+    let tol = Tol::witness();
+    let bench = asm::bench("matenest", tol);
+    let (mut session, [_post, _shelf, inner, _part, outer, _loose]) =
+        nested_session(&bench, "gui4-nested-copy", tol);
+
+    let nested = pick_at(
+        &session,
+        &asm::down_at(
+            asm::POST_B_AT[0] + NEST_STEP + asm::POST_SECTION / 2.0,
+            asm::POST_B_AT[1] + NEST_STEP + asm::POST_SECTION / 2.0,
+        ),
+    );
+    assert_eq!(nested.node, outer, "the ray met the outer pattern's body");
+    let shelf_bottom = shelf_underside(&session);
+    let mut tool = MateTool::new();
+    tool.pick(nested.clone());
+    tool.pick(shelf_bottom.clone());
+    let (doc, eval) = session.landed_pair().expect("landed");
+    let proposal = tool
+        .proposal(doc, eval, tol, asm::seat())
+        .expect("a nested copy is a member");
+
+    // The reference wears one `Instance(i)` per level, outermost
+    // first, and is read at the node the ray met.
+    assert_eq!(proposal.a.at, outer);
+    assert_eq!(proposal.a.name.node, outer);
+    let Some(RoleSeg::Instance { i: 1, of }) = proposal.a.name.path.first() else {
+        panic!("the outer copy rides in the head: {:?}", proposal.a.name);
+    };
+    assert_eq!(of.node, inner, "and the inner name under it");
+    assert!(
+        matches!(of.path.first(), Some(RoleSeg::Instance { i: 1, .. })),
+        "the inner copy rides in the inner head: {of:?}"
+    );
+
+    // The alignment is in the MASTER's part coordinates, read through
+    // both levels — the same numbers a mate on the unpatterned post
+    // authors.
+    assert!(
+        (proposal.alignment.a.origin[2] - asm::POST_HEIGHT).abs() < 1e-12,
+        "part coordinates: {:?}",
+        proposal.alignment.a.origin
+    );
+
+    let outcome = session.perform(proposal.op());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(outcome.committed.len(), 1);
+    session.pump();
+    let mate = committed_mate(&session);
+    let (doc, _) = session.landed_pair().expect("landed");
+    assert!(
+        solve_document(doc, tol).fault(mate).is_none(),
+        "the nested member solves: {:?}",
+        solve_document(doc, tol).fault(mate)
+    );
+    assert_faces_meet(&session, &nested, &shelf_bottom, "a nested copy");
+    for row in session.tree_rows() {
+        assert_eq!(row.status, viewer::tree::RowStatus::Ok, "{row:?}");
+    }
+}
+
+/// **A pick on a `Part` over a pattern is a member, and it seats.**
+/// The `Part` is pose-neutral and renames nothing, so the member is
+/// the pattern's copy and the frame is read at the master; what the
+/// `Part` changes is the OPERAND the reference is read at.
+#[test]
+fn a_part_over_a_pattern_pick_is_a_member_and_seats() {
+    let tol = Tol::witness();
+    let bench = asm::bench("matepart", tol);
+    let (mut session, [_post, _shelf, inner, _part, _outer, loose]) =
+        nested_session(&bench, "gui4-part-pick", tol);
+
+    let picked = pick_at(
+        &session,
+        &asm::down_at(
+            asm::POST_B_AT[0] + asm::POST_SECTION / 2.0,
+            asm::POST_B_AT[1] + asm::POST_SECTION / 2.0,
+        ),
+    );
+    assert_eq!(picked.node, loose, "the ray met the Part's body");
+    let shelf_bottom = shelf_underside(&session);
+    let mut tool = MateTool::new();
+    tool.pick(picked.clone());
+    tool.pick(shelf_bottom.clone());
+    let (doc, eval) = session.landed_pair().expect("landed");
+    let proposal = tool
+        .proposal(doc, eval, tol, asm::seat())
+        .expect("a Part-selected copy is a member");
+
+    // Read AT the `Part`, under the PATTERN's own name: the Part
+    // carries every name verbatim, so the reference's head is the
+    // pattern node the copy was minted by.
+    assert_eq!(proposal.a.at, loose, "the operand is the node the ray met");
+    assert_eq!(proposal.a.name.node, inner);
+    assert!(
+        matches!(
+            proposal.a.name.path.first(),
+            Some(RoleSeg::Instance { i: 0, .. })
+        ),
+        "the copy rides in the head: {:?}",
+        proposal.a.name
+    );
+    assert!(
+        (proposal.alignment.a.origin[2] - asm::POST_HEIGHT).abs() < 1e-12,
+        "part coordinates: {:?}",
+        proposal.alignment.a.origin
+    );
+
+    let outcome = session.perform(proposal.op());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    let mate = committed_mate(&session);
+    let (doc, _) = session.landed_pair().expect("landed");
+    assert!(
+        solve_document(doc, tol).fault(mate).is_none(),
+        "the Part-selected member solves: {:?}",
+        solve_document(doc, tol).fault(mate)
+    );
+    assert_faces_meet(&session, &picked, &shelf_bottom, "a Part-selected copy");
+    for row in session.tree_rows() {
+        assert_eq!(row.status, viewer::tree::RowStatus::Ok, "{row:?}");
     }
 }

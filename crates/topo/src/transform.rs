@@ -739,8 +739,8 @@ mod tests {
         ];
         Surface::Nurbs(Arc::new(
             NurbsSurface::new(
-                KnotVector::unit_segment(1),
-                KnotVector::unit_segment(1),
+                KnotVector::unit_segment(core::num::NonZeroUsize::MIN),
+                KnotVector::unit_segment(core::num::NonZeroUsize::MIN),
                 corners,
                 vec![1.0; 4],
             )
@@ -752,7 +752,7 @@ mod tests {
     fn described_carrier() -> Curve3<f64> {
         Curve3::Nurbs(Arc::new(
             NurbsCurve3::new(
-                KnotVector::unit_segment(1),
+                KnotVector::unit_segment(core::num::NonZeroUsize::MIN),
                 vec![Point3::new(0.0, 0.0, 0.0), Point3::new(2.0, 1.0, 0.0)],
                 vec![1.0, 2.0],
             )

@@ -97,7 +97,6 @@
 
 use geom_core::ring_interval::RingInterval;
 use geom_core::spline::derivative_knot_slice;
-use geom_core::spline::hull::{derivative_coeffs, span_hull};
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{KnotVector, Span};
 use geom_core::{Band, Decide, Margin, Sign};
@@ -632,16 +631,24 @@ fn bspline_eval_ring(kv: &KnotVector, coeffs: &[RingInterval], t: f64) -> RingIn
     d[p]
 }
 
-/// Hull of a scalar B-spline over `[lo, hi]`: the hull of the active
-/// spans' coefficient hulls (conservative to span granularity).
-fn bspline_range_hull(kv: &KnotVector, coeffs: &[RingInterval], lo: f64, hi: f64) -> RingInterval {
+/// Hull of a scalar B-spline over `[lo, hi]`: `coeffs` minted as
+/// `kv`'s, then the hull of the active spans' coefficient hulls
+/// (conservative to span granularity). Poison when the mint refuses
+/// the pair — a count the ladder's own structure never produces, kept
+/// as the answer a bound gives for structure it cannot license.
+fn range_hull(kv: &KnotVector, coeffs: &[RingInterval], lo: f64, hi: f64) -> RingInterval {
+    let Some(pair) = kv.with_coeffs(coeffs) else {
+        return RingInterval::poison();
+    };
     let (s0, s1) = kv.span_range(lo, hi);
     let mut acc = RingInterval::poison();
     let mut seeded = false;
     for index in s0.index()..=s1.index() {
-        // Emptiness check and span validation are one step.
-        let Some(span) = kv.span(index) else { continue };
-        let h = span_hull(kv, coeffs, span);
+        // Emptiness check and window construction are one step.
+        let Some(win) = pair.span(index) else {
+            continue;
+        };
+        let h = win.hull();
         acc = if seeded {
             RingInterval::hull(acc, h)
         } else {
@@ -690,7 +697,7 @@ impl DerivLadder {
             if cur_coeffs.len() < 2 {
                 break;
             }
-            let q = derivative_coeffs(k, &cur_coeffs);
+            let q = k.difference_coeffs(&cur_coeffs);
             let next_kv = deriv_kv(k);
             *level = Some((next_kv.clone(), q.clone()));
             cur_kv = next_kv;
@@ -705,7 +712,7 @@ impl DerivLadder {
         match &self.levels[order - 1] {
             // In-span polynomial zero (degree exhausted).
             None => RingInterval::zero(),
-            Some((Some(kv), q)) => bspline_range_hull(kv, q, lo, hi),
+            Some((Some(kv), q)) => range_hull(kv, q, lo, hi),
             // Coefficients exist but their kv does not (piecewise
             // constants): the whole-domain coefficient hull is a sound
             // range bound for any sub-interval.
@@ -792,9 +799,9 @@ pub fn bspline_green_integral(
         let p_lo = a + span * (i as f64 / pieces as f64);
         let p_hi = p_lo + h;
         let straddles = interior.iter().any(|k| *k > p_lo && *k < p_hi);
-        let uh = bspline_range_hull(kv, u_coeffs, p_lo, p_hi);
+        let uh = range_hull(kv, u_coeffs, p_lo, p_hi);
         let v1h = match v1_kv {
-            Some(k) => bspline_range_hull(k, v1, p_lo, p_hi),
+            Some(k) => range_hull(k, v1, p_lo, p_hi),
             None => v_ladder.hull(1, p_lo, p_hi),
         };
         if straddles {
@@ -995,7 +1002,7 @@ fn raw_eval(knots: &[f64], degree: usize, coeffs: &[RingInterval], t: f64) -> Ri
 
 /// Hull of a [`Dir::Raw`] spline over `[lo, hi]`: the local control
 /// blocks of every touched span (the same convexity fact
-/// [`bspline_range_hull`] uses).
+/// [`range_hull`] uses).
 fn raw_range_hull(
     knots: &[f64],
     degree: usize,
@@ -1075,19 +1082,20 @@ impl Dir {
 /// `t`, exact-in-kind for the Newton–Cotes nodes, which lie in the
 /// span's closure.
 fn bspline_eval_ring_in_span(
-    kv: &KnotVector,
     coeffs: &[RingInterval],
-    span: Span,
+    span: Span<'_>,
     t: RingInterval,
 ) -> RingInterval {
+    let kv = span.knots();
     if coeffs.len() != kv.control_count() {
         return RingInterval::poison();
     }
     let p = kv.degree();
     let u = kv.knots();
     // The window's base, off the `Span` — as in [`bspline_eval_ring`],
-    // whose recurrence this is. The length check above is the only
-    // structure left to verify: in-range-ness came with the `Span`.
+    // whose recurrence this is. Degree, knots and window all come from
+    // the one borrow, so the length check against `coeffs` is the only
+    // structure left to verify.
     let first = span.first_control();
     let mut d: Vec<RingInterval> = (0..=p).map(|j| coeffs[first + j]).collect();
     for r in 1..=p {
@@ -1170,7 +1178,7 @@ impl PatchGrid {
                 let kv = kv.clone();
                 (
                     Self::deriv_dir(&kv),
-                    Box::new(move |c: &[RingInterval]| derivative_coeffs(&kv, c)),
+                    Box::new(move |c: &[RingInterval]| kv.difference_coeffs(c)),
                 )
             }
             // A `Raw` direction differentiates too — its own
@@ -1220,7 +1228,7 @@ impl PatchGrid {
                 let kv = kv.clone();
                 (
                     Self::deriv_dir(&kv),
-                    Box::new(move |c: &[RingInterval]| derivative_coeffs(&kv, c)),
+                    Box::new(move |c: &[RingInterval]| kv.difference_coeffs(c)),
                 )
             }
             Dir::Raw { knots, degree } => {
@@ -1257,9 +1265,9 @@ impl PatchGrid {
         match (dir, op) {
             (Dir::Kv(kv), Collapse::At(t)) => bspline_eval_ring(kv, coeffs, t),
             (Dir::Kv(kv), Collapse::AtSpan { mid, t }) => {
-                bspline_eval_ring_in_span(kv, coeffs, kv.span_at(mid), *t)
+                bspline_eval_ring_in_span(coeffs, kv.span_at(mid), *t)
             }
-            (Dir::Kv(kv), Collapse::Over(lo, hi)) => bspline_range_hull(kv, coeffs, lo, hi),
+            (Dir::Kv(kv), Collapse::Over(lo, hi)) => range_hull(kv, coeffs, lo, hi),
             (Dir::Raw { knots, degree }, Collapse::At(t)) => raw_eval(knots, *degree, coeffs, t),
             (Dir::Raw { knots, degree }, Collapse::AtSpan { mid, t }) => {
                 // The node lies in the closure of `mid`'s span; the
@@ -3879,7 +3887,7 @@ mod tests {
     fn nurbs_patch_flux_matches_flat_and_warped_oracles() {
         let band = Band::linear(Tol::witness()).unwrap();
         let eps = Tol::witness().get().eps;
-        let kv = KnotVector::unit_segment(1);
+        let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
         // Row-major iu·nv+iv, nu = nv = 2: [(u0v0), (u0v1), (u1v0), (u1v1)].
         let flat = [
@@ -3980,7 +3988,7 @@ mod tests {
     #[test]
     fn rational_patch_encloses_the_reparameterized_square() {
         let band = Band::linear(Tol::witness()).unwrap();
-        let kv = KnotVector::unit_segment(1);
+        let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
         let flat = [
             p(0.0, 0.0, 1.0),
@@ -4013,7 +4021,7 @@ mod tests {
     fn rational_two_span_quarter_cylinder() {
         let band = Band::linear(Tol::witness()).unwrap();
         let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
-        let kv_v = KnotVector::unit_segment(1);
+        let kv_v = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
         let h = 2.0;
         let d = core::f64::consts::FRAC_PI_4;
@@ -4074,7 +4082,7 @@ mod tests {
     fn interior_multiplicity_ladder_never_certifies_a_wrong_enclosure() {
         use geom_core::spline::basis::ders_basis_funs;
         let band = Band::linear(Tol::witness()).unwrap();
-        let kv_v = KnotVector::unit_segment(1);
+        let kv_v = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         // `pv` is gone: the oracle's v-window base is the `Span`'s own
         // `first_control()`, not a re-derived `span − degree`.
         let (pu, nv, height) = (3usize, 2usize, 2.0f64);
@@ -4115,8 +4123,8 @@ mod tests {
                 // basis ladder, S_d by the quotient rule.
                 let at = |u: f64, v: f64| -> ([f64; 3], [f64; 3], [f64; 3]) {
                     let (su, sv) = (kv_u.span_at(u), kv_v.span_at(v));
-                    let bu = ders_basis_funs::<f64>(&kv_u, su, u, 1);
-                    let bv = ders_basis_funs::<f64>(&kv_v, sv, v, 1);
+                    let bu = ders_basis_funs::<f64>(su, u, 1);
+                    let bv = ders_basis_funs::<f64>(sv, v, 1);
                     // The `iu * nv + iv` stride stays written out on
                     // purpose: this oracle shares NO derivation with
                     // the code under test, so it does not borrow the
@@ -4146,7 +4154,7 @@ mod tests {
                 // copies of one value and divides by N. Two premises,
                 // both visible in the construction above — check them
                 // before touching the net:
-                //   (i)  `kv_v` is `unit_segment(1)`: degree 1, two
+                //   (i)  `kv_v` is `unit_segment(core::num::NonZeroUsize::MIN)`: degree 1, two
                 //        control points, no interior knot;
                 //   (ii) the weight pushed for BOTH v-rows of profile
                 //        point `i` is the same `ws[i]` — the weight is
@@ -4261,7 +4269,7 @@ mod tests {
     fn rational_quarter_cylinder_brackets_the_closed_form() {
         let band = Band::linear(Tol::witness()).unwrap();
         let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
-        let kv_v = KnotVector::unit_segment(1);
+        let kv_v = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
         let h = 2.0;
         let net = [

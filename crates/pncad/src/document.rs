@@ -57,8 +57,8 @@ pub use editor_core::{
 // name the outer type and not the inner one can see that there is a
 // reason and never read it.
 pub use editor_core::{
-    ASSERT_BOUND, AssertionDir, AssertionVerdict, MeasureExpr, MeasurePrimitive, MeasureRef,
-    MeasureUnavailableAt, MinClearanceRefusal, UnevaluatedReason,
+    ASSERT_BOUND, AssertionDir, AssertionVerdict, MeasureExpr, MeasurePrimitive,
+    MeasureUnavailableAt, MinClearanceRefusal, SitedRef, UnevaluatedReason,
 };
 
 // Expressions and their text door.
@@ -140,6 +140,10 @@ pub use editor_core::{Distribution, DistributionFault, DistributionField};
 // they are `VerbArity`'s payload, so a consumer can match the variant
 // but not name what it caught without them (the prelude's `BlendKind`
 // rule — the discriminant crosses with the refusal).
+// `NodeRefusal` rides with `NodeErrorKind` by the same rule: it is
+// what `MateFault::PlacerRefused` and `EditError::PlacementAxis` carry
+// an evaluation refusal in, so a consumer can match either variant but
+// not read the cause out of it without naming the wrapper.
 // `Mispaired` rides with `Evaluation` by the same rule: it is
 // `Evaluation::prior_refused`'s payload, so a consumer cannot read why
 // a memo was refused without naming it. The name is not the memo's —
@@ -147,7 +151,7 @@ pub use editor_core::{Distribution, DistributionFault, DistributionField};
 // why it is spelled for the QUESTION rather than for any one door.
 pub use editor_core::{
     Arity, BooleanValue, CancelToken, DatumValue, EvalOptions, EvalOutcome, Evaluation, Mispaired,
-    NodeError, NodeErrorKind, NodeResult, NodeValue, ProfileLift, SplitSide, UnitVec3,
+    NodeError, NodeErrorKind, NodeRefusal, NodeResult, NodeValue, ProfileLift, SplitSide, UnitVec3,
     UnitVec3Error, ValuePayload, VerbKind, evaluate,
 };
 
@@ -204,7 +208,7 @@ pub use editor_core::gathers_on_this_thread;
 // carries the product's stable names — what an instance's own names
 // are minted from.
 pub use editor_core::{
-    Frame, PartFault, PartResolver, ResolveFailure, ResolveFault, product_named,
+    AxisRefusal, Frame, PartFault, PartResolver, ResolveFailure, ResolveFault, product_named,
 };
 
 // Mates: the declaration node's
@@ -248,9 +252,18 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission};
 // holds — the canonical door, of which `assemble` is the gather plus a
 // call to it. A caller with several consumers of one product gathers
 // once and finishes here, since this door CONSUMES the product.
+// A declaration a document BELOW this one authored crosses the
+// instantiation seam with its records: `CarriedDeclaration` is the row
+// that says whose mate it was, `Route` is by what path this document
+// reached it (one type, on every carrier of that fact), `Relation` is
+// what a finding says about a declaration it names — this document's
+// own or a part's — and `CarriedDeclarations` is what an instantiated
+// value carries up. `AssemblyError::CarriedMintRefusal` is the
+// outermost gate's refusal over an inner mate that could not be minted
+// at all.
 pub use editor_core::{
-    Assembly, AssemblyError, AtRestFinding, Attribution, MintedDeclaration, RefusedRef, assemble,
-    assemble_gathered,
+    Assembly, AssemblyError, AtRestFinding, Attribution, CarriedDeclaration, CarriedDeclarations,
+    MintedDeclaration, RefusedRef, Relation, Route, assemble, assemble_gathered,
 };
 
 // Split and inline: the first-class

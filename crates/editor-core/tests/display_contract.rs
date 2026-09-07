@@ -607,6 +607,12 @@ fn refusals_that_name_a_stable_name_forward_its_display() {
         shown.contains(&format!("(a {phrase})")),
         "the mate reference re-spells the name instead of forwarding it: {shown:?}"
     );
+    assert!(
+        shown.contains(
+            "no entity answers to it, in the product or at the node the mate reads it at"
+        ),
+        "a vanished name is one neither table answers to: {shown:?}"
+    );
 
     let both = NodeErrorKind::DeclareBothOperands {
         name: Box::new(face_name()),
@@ -615,6 +621,49 @@ fn refusals_that_name_a_stable_name_forward_its_display() {
     assert!(
         shown.contains(&format!("the declared {phrase} resolves")),
         "the declaration refusal re-spells the name instead of forwarding it: {shown:?}"
+    );
+}
+
+/// The WHY clause of a mate-reference refusal says what the gate
+/// checked and no more: a name read below a root names the operand
+/// and the rule (a reference resolves against a root's own rows); a
+/// tie names its width. Every other row asserting these sentences
+/// compares against the impl, so this is their one home.
+#[test]
+fn a_mate_reference_refusal_says_what_the_gate_checked() {
+    let below = AssemblyError::Reference {
+        mate: RecipeNodeId(2),
+        side: MateSide::B,
+        name: Box::new(face_name()),
+        why: RefusedRef::ReadBelowARoot {
+            at: RecipeNodeId(5),
+        },
+    };
+    assert_f6(
+        &below,
+        &[
+            "mate 2's b reference",
+            "does not name a face of the product",
+            "it is read at node 5, which is not a root of the product, and a reference \
+             resolves against a root's own rows",
+        ],
+        &["ReadBelowARoot", "Reference"],
+    );
+
+    let tied = AssemblyError::Reference {
+        mate: RecipeNodeId(2),
+        side: MateSide::A,
+        name: Box::new(face_name()),
+        why: RefusedRef::Ambiguous { width: 2 },
+    };
+    assert_f6(
+        &tied,
+        &[
+            "mate 2's a reference",
+            "2 entities answer to it",
+            "a tie is never broken by picking",
+        ],
+        &["Ambiguous", "Reference"],
     );
 }
 

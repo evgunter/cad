@@ -80,7 +80,8 @@ That gap is tracked at
 **A3 — The node vocabulary; mates are declarations.**
 `Node::InstantiatePart { doc_ref, interface }` has no placement field
 (A11 puts it on the cluster). `Node::Mate { a, b, class, alignment }`:
-`a`/`b` are instance-qualified stable names; `class` is the kernel
+`a`/`b` are `SitedRef`s — an instance-qualified stable name plus the
+operand node it is read at; `class` is the kernel
 `topo::ContactClass`; `Alignment` is two `MateFrame`s in each side's
 part coordinates, a `MatePrimitive` (`FrameCoincidence`, `Coaxial`,
 `PlanarRest { offset }`; `Clocking` exists only to be refused as a bare
@@ -95,13 +96,24 @@ mint door (`AssemblyError::NoAtRestRecord`, no witness edge at rest);
 anything else, including the reserved and unbuilt `Fit { gap }`,
 refuses at the solve door.
 
-**A12 — Mate edges and roots.** A mate is a DAG leaf (`inputs()` is
-empty) contributing *reading edges* to the member each reference's head
-resolves through, recomputed by `reading_edges`, never stored. A9's
-partition and A11's clusters run over consuming ∪ reading edges; A10's
-invariants, maintenance and gather run over consuming edges only, so a
-mate is an ordinary non-body root: an isolated sink, listed, ignored by
-the gather. A dangling head contributes no edge until `Rebind`.
+**A12 — Mate edges and roots.** A mate's two references are `SitedRef`s
+— a name, and the OPERAND node it is read at — and each contributes a
+*reading edge* to the member that operand resolves to — the walk's
+minting instance, whatever the depth of the copy chain above it —
+recomputed by `reading_edges`, never stored. `inputs()` stays empty because a reading
+edge is not consuming: making an operand consuming would take the mated
+bodies out of A10's root set. A9's partition and A11's clusters run over
+consuming ∪ reading edges; A10's invariants, maintenance and gather run
+over consuming edges only, so a mate is an ordinary non-body root: an
+isolated sink, listed, ignored by the gather. A dangling reference —
+name or operand — contributes no edge, and the fault names the node the
+walk stopped at; `Rebind` repairs a name and carries an at-mint operand
+with it, and a stranded operand is re-authored. A cut that would leave a
+mate and one of its operands on opposite sides is refused at the split
+door (`SplitError::OperandSeveredFromMate`), the reading edge's twin of
+D-2's closure rule — except for the interface crossing itself, where a
+kept mate's at-mint operand re-anchors through the minted instance with
+the name it is authored on.
 
 ## Identity, pins, split and inline
 
@@ -111,7 +123,7 @@ and is the SHA-256 of the canonical semantic bytes
 (`persist::canonical_bytes`); `DocRef` pairs them. Edits to a referenced
 document never retarget a reference: the resolver returns a document
 only when its bytes hash to the pin, else `ResolveFault::PinMismatch`;
-moving a pin is a recorded edit (A13). That refusal is the SEAM's, and
+moving a pin is a recorded edit (A13). A save is two acts (Ev, PR 2016): saving a document at a path keeps its identity, and refuses typed when the target directory already holds that id under another filename; saving it AS A NEW DOCUMENT mints a fresh id, an explicit fork that leaves every inbound `DocRef` pointing at the original. That refusal is the SEAM's, and
 only the seam's (DI2): an evaluation that crosses the seam refuses a
 moved pin, and an evaluation served from a prior serves what the
 document pins — the memo is a pure function of the document, since for
@@ -152,16 +164,50 @@ re-evaluation, which re-verifies crossings (A4).
 (`product::product_recorded`), mints every solved mate's declaration as
 a `MintedDeclaration` (declaring mates mint like determining ones), and
 runs the scalar's at-rest policy, `topo::validate_pseudomanifold`, over
-body plus records. It runs no predicate of its own; kernel findings
+body plus records. Minting resolves each reference against the
+product's table and, when that is silent, asks the operand the mate
+reads at whether the name is spelled in its own table — a name spelled
+there at a node the product does not list refuses
+`RefusedRef::ReadBelowARoot { at }` in the operand's voice, so
+`RefusedRef::Vanished` means a name nothing answers to where the mate
+reads it. The operand's entry decides its kind first: a non-face
+entry refuses `RefusedRef::NotAFace` wherever it is read, and only a
+face entry at a non-root refuses `ReadBelowARoot`. It runs no predicate of its own; kernel findings
 come back as `AtRestFinding`s attributed to the mate whose declaration
 they concern. Undeclared contact between instances is a hard error,
 never blessed. `AssemblyError::AtRest` is a verdict against the
 document; `AssemblyError::Uncertified` is the declared direction's
 frontier (every finding declined, none refuted). A disjoint assembly
 certifies as a multi-solid tier-3 body. A sub-assembly's declarations
-ride through the seam as records (`PartValue::contacts`), but
-attribution stops at the seam. Interference fits through recorded
-gate-skips are not implemented.
+ride through the seam as records (`PartValue::contacts`) **and so does
+the bookkeeping that names them**: `PartValue::minted`/`unminted` carry
+each inner mate's declaration and each mate the inner document could
+not mint, into `Product::carried`/`carried_unminted`, each tagged with
+the `Route` it arrived by — the instantiating node, the document that
+minted it, and the instances below. A DECLARATION's faces are re-keyed
+at every graft through the graft's own descendant map, exactly as its
+record is; a mint REFUSAL names no entity, so it carries verbatim. A
+finding against a carried declaration attributes
+`Attribution::Carried`, naming that mate, that document and that
+route, in the same `Relation` — `refuted` or `declined` — the
+own-minted arms use. A carried DECLINE therefore reaches
+`AssemblyError::Uncertified` under its own name, which is what that
+arm has always meant (nothing refuted, nothing undeclared, nothing
+decided) and what the seam previously hid: before the rows crossed,
+such a finding was `Unattributed` and the whole refusal fell through
+to `AtRest`. `Attribution::Unattributed` is now a finding no
+declaration this document holds a row for answers for — its own or a
+part's, which today is every declaration in the tree, since the only
+path a record can take without its row (a boolean over a source) is
+one no instance carrying a declaration can reach: such an instance is
+a multi-solid product, which the pair boolean refuses. An inner mate
+that could not be minted refuses the outer gate
+(`AssemblyError::CarriedMintRefusal`), on the head row in gather order,
+before this document's own unminted head and before the at-rest gate —
+an outer assembly is unusable while an inner part's contact is
+unverified. Nothing is re-verified or re-minted across the seam:
+verification runs once, at the outermost gate. Interference fits
+through recorded gate-skips are not implemented.
 
 ## Mirror
 
@@ -238,10 +284,31 @@ per-node: a refusing cluster faults its own mate and instances
 composes the cluster frame onto the solved relative pose; a singleton
 cluster returns its recorded frame bit for bit. It is one of A2a's
 pairing doors: the document it is handed must be the one solved, else
-`MateFault::PosesOfAnotherDocument` before any frame is read. A reference head is a
-live `InstantiatePart` or a pattern's `Instance(i)`; a pattern member's
-frame is its static pattern-derived offset on its input's pose, so
-mates never solve pattern parameters or give one copy its own pose.
+`MateFault::PosesOfAnotherDocument` before any frame is read. A
+reference resolves by walking from its OPERAND down to a live
+`InstantiatePart`, through any number of `Transform`s and `Part`
+instance selections and any number of `Pattern` levels (each of which
+the name qualifies `Instance(i)`); the member's frame is the composed
+static offset of every node that walk passed, on that instance's pose,
+so mates never solve pattern or transform parameters or give one
+placed body its own pose. A member's identity is its instance, the
+CHAIN of copies the walk consumed (outermost first) and the operand it
+was read at: two references to one instance read at different operands
+are two members, and so are two references to sibling copies at any
+level. Nothing in the walk is evaluated, so the partitions never
+depend on a slot value. The two questions that DO need a number are
+asked once per reference, where the solve reads it — for every
+reference of every live mate, not only the ones a tree edge's offset
+derives: the named copy must exist (its index against the pattern's
+evaluated count, else `MateFault::DanglingHead` at the pattern), and a
+`Part` directly above a pattern must select the copy the NAME names
+(else `MateFault::PartSelectsAnotherCopy`, which reports both). The
+name is the authority; the `Part` is checked against it. A member's derived pose refuses in
+the PLACER's own voice: a pattern copy or a transform on the chain
+whose pose cannot be derived refuses `MateFault::PlacerRefused`,
+carrying the evaluation layer's own typed cause unaltered, because a
+mate fault poisons the document and the placer node never gets to
+state that cause itself.
 
 ## Open questions
 
@@ -260,3 +327,13 @@ mates never solve pattern parameters or give one copy its own pose.
   its ends into one cluster and `TornCluster` refuses cutting through
   one, so split never populates `InterfaceRecord`. The conversion door
   (crossing mates passed at split and converted) is not implemented.
+  **Only a mate EDGE can cross** (ruled, option (b) SKIP): a mate that
+  is not an A12 edge — a head outside A11's member vocabulary, or a
+  node not in the document — contributes no interface crossing however
+  its names fall across a cut. Such a mate never solved, and a record
+  minted from it would assert a relationship evaluation never
+  established: trusted-at-rest state, which this design forbids. The
+  mate stays in the document and its names rebind like any other (N5);
+  it says nothing about the seam. The split collector gates on
+  `member_of` for both heads — the same predicate A12's reading edges
+  and A11's clusters ask.

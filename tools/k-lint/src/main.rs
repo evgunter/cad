@@ -113,6 +113,8 @@ fn main() {
     // most of its rows never met a threshold at all.
     let mut total_scanned = 0usize;
     let mut total_symbolic = 0usize;
+    let mut total_gated = 0usize;
+    let mut total_registered = 0usize;
     for path in &paths {
         let text = match std::fs::read_to_string(path) {
             Ok(t) => t,
@@ -153,12 +155,16 @@ fn main() {
         }
         total_scanned += scanned;
         total_symbolic += scan.symbolic;
+        total_gated += scan.sign_gated;
+        total_registered += scan.registered;
         say(format_args!(
-            "k-lint: {path}: {scanned} samples ({} symbolic_zero, {} classified), {} flagged \
-             — rule 1 (undecided/invalid): {}, rule 2 (near a threshold): {}, rule 3 (below a \
-             floor): {}",
+            "k-lint: {path}: {scanned} samples ({} symbolic_zero, {} sign_gated, {} registered, \
+             {} classified), {} flagged — rule 1 (undecided/invalid): {}, rule 2 (near a \
+             threshold): {}, rule 3 (below a floor): {}",
             scan.symbolic,
-            scanned - scan.symbolic,
+            scan.sign_gated,
+            scan.registered,
+            scanned - scan.symbolic - scan.sign_gated - scan.registered,
             flags.len(),
             file_rule[1],
             file_rule[2],
@@ -206,10 +212,11 @@ fn main() {
     }
     say(format_args!(
         "k-lint: TOTAL over {} file(s): {total_scanned} samples ({total_symbolic} \
-         symbolic_zero, {} classified), rule 1 (undecided/invalid) {}, rule 2 (near a \
-         threshold) {}, rule 3 (below a floor) {}",
+         symbolic_zero, {total_gated} sign_gated, {total_registered} registered, {} \
+         classified), rule 1 (undecided/invalid) {}, rule 2 (near a threshold) {}, rule 3 \
+         (below a floor) {}",
         paths.len(),
-        total_scanned - total_symbolic,
+        total_scanned - total_symbolic - total_gated - total_registered,
         per_rule[1],
         per_rule[2],
         per_rule[3]

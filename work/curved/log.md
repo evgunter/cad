@@ -109,3 +109,31 @@ orchestrator's; design forks are Ev's):
   now use `--no-verify`; implementer briefs say what to do. GraphQL on
   the shared GitHub account is periodically exhausted; PR create/merge
   go through the REST API.
+
+## VERBS-C5ARMS PR-2 merged (2026-09-05) — the first CURVED unit
+
+PR #1864, ordinal 2200, sample #143; block CURVED-B1 slot 0 concluded.
+The dual (R1 Opus, R2 Fable) both MERGEABLE-AFTER-FIXES; adjudication
+on the PR (comment 5551363172); fifteen union items all taken. The
+substantive design change from review: admission on the STATION
+`|R·cot α|` against `extent` rather than an angular guard (R1's
+measured ~101 ε off-surface mint at α = 1e-10 / extent = 100). The
+pair is EXCLUDED from the A/B tally under 3(e) — R2 was killed twice
+by the account's usage limit and resumed. Class findings filed:
+`teapot-walls-have-no-suite-row`,
+`c5-gate-admits-every-pose-of-an-implemented-pair`; log-only: the
+predicate-dimension audit's counts go stale with every new name and
+nothing re-takes them; three coaxiality policies now coexist in
+`intersect.rs` (declared-and-verified, measured-and-refused,
+measured-and-admitted). Operations: the `CI-Config` commit-trailer
+path was deleted on main (`eeb912512`, 2026-09-04) — briefs must stop
+mentioning it; the k-lint draw is retired and all five rows run.
+
+## Doc rot relayed by TOPO (2026-09-06)
+
+`docs/CURVED-MERGEDOOR-SPEC.md:185` cites `is_arena_fault (:447-452)`
+as untouched; TOPO's D265 (PR 2013) rewrites that function (now
+`crates/topo/src/merge_faces.rs:583-618`) to classify the merge door's
+own refusals. The spec's premise — a non-`Op` variant is never an
+arena fault — still holds; the line cite and "untouched" do not.
+Found by D265's reviews; the file is this program's.

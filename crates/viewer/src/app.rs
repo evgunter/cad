@@ -56,19 +56,21 @@ use eframe::egui;
 use egui_tiles::{ContainerKind, EditAction, Tile, TileId, Tiles, Tree, UiResponse};
 use pncad::geom_core::Tol;
 
-use crate::camera::{self, Camera};
+use crate::camera::{self, Camera, CameraError};
 use crate::display::DisplayView;
 use crate::drafts::Drafts;
-use crate::evalseam::Generation;
 #[cfg(not(target_family = "wasm"))]
 use crate::evalseam::ThreadEvaluator;
 use crate::frame::{self, IdQueryLog, StatusUpdate};
+use crate::generation::Generation;
 use crate::gpu::{DEPTH_BITS, ViewportRenderer};
 use crate::input::InputMap;
+use crate::marks;
 use crate::parts::PartChooser;
-use crate::pick::{self, PickCache, PickIndex};
+use crate::pickcache::{self, PickCache};
+use crate::pickindex::PickIndex;
 use crate::prefs::{self, Prefs, PrefsStore};
-use crate::scene::{self, DisplayTolerance, SceneMesh};
+use crate::scene::{self, DisplayTolerance, SceneError, SceneMesh};
 use crate::session::{DocSession, Refusal, Selection, SessionOp};
 use crate::sketch::{self, PreviewError, ProfilePreview};
 use crate::theme::{Polarity, Theme};
@@ -177,6 +179,40 @@ pub(crate) fn chrome(color: Rgba8) -> egui::Color32 {
     egui::Color32::from_rgb(color.r, color.g, color.b)
 }
 
+/// **Draw one standing-fact badge**, and hand the response back.
+///
+/// The one draw the badge family has. What a badge SAYS, how loud it
+/// is, whether it has more to say on hover and whether it is a control
+/// are all the value's (`frame::Badge`); what a click on a control
+/// MEANS is the caller's, which is why this returns the response
+/// instead of naming a window.
+///
+/// The separator rides here too: a badge that is drawn is a badge that
+/// is separated from what precedes it, and a badge that is silent
+/// leaves no gap behind.
+fn draw_badge(ui: &mut egui::Ui, theme: &Theme, badge: &frame::Badge) -> egui::Response {
+    ui.separator();
+    let text = egui::RichText::new(badge.label());
+    // The tone's two spellings, in the one place the mapping is made.
+    // `Theme::unresolved`'s contract is that the colour is REDUNDANT —
+    // every badge wearing it says its own words — so this decides
+    // salience and never meaning.
+    let text = match badge.tone() {
+        frame::Tone::Advisory => text.weak(),
+        frame::Tone::Actionable => text.color(chrome(theme.unresolved)),
+    };
+    let response = match badge.affordance() {
+        frame::Affordance::Read => ui.label(text),
+        // Frameless, so a control the reader can open still reads as a
+        // badge in a row of badges.
+        frame::Affordance::Opens => ui.add(egui::Button::new(text).frame(false)),
+    };
+    match badge.detail() {
+        Some(detail) => response.on_hover_text(detail),
+        None => response,
+    }
+}
+
 /// Put the toolkit's chrome on `polarity`'s ground.
 ///
 /// **The one place a [`Polarity`] meets `egui`**, and the reason
@@ -258,7 +294,7 @@ pub struct ViewerApp {
     /// rebuild exactly as a new evaluation does.
     scene_display: Option<u64>,
     /// The focus set `scene` was built under — the ids of what the side
-    /// panel is showing (`pick::focus`), which the scene carries as a
+    /// panel is showing (`marks::focus`), which the scene carries as a
     /// per-corner flag and therefore has to be rebuilt for.
     ///
     /// Compared as a SET rather than counted by a revision, because
@@ -268,6 +304,23 @@ pub struct ViewerApp {
     /// between two faces of the same feature leaves the set equal and
     /// correctly rebuilds nothing.
     scene_focus: BTreeSet<u32>,
+    /// **What the last scene rebuild refused**, held until one
+    /// succeeds — the state `frame::scene_badge` reads.
+    ///
+    /// Held rather than announced: the viewport keeps drawing the mesh
+    /// it already has, so "the picture is older than the document and
+    /// the rebuild will not run" is true on every frame until a
+    /// rebuild lands, and a badge is a read of exactly this.
+    scene_fault: Option<SceneError>,
+    /// **What the last projection refused**, written by the viewport
+    /// as it paints and read by `frame::projection_badge`.
+    ///
+    /// The toolbar draws before the panes, so the badge appears on the
+    /// frame after the refusal. A view matrix that cannot be formed is
+    /// not a one-frame condition — nothing is drawn until the camera
+    /// moves somewhere it can be — so a badge one frame behind is a
+    /// badge that appears.
+    projection_fault: Option<CameraError>,
     /// Whether the next scene to land should have its δ CHOSEN by the
     /// triangle budget, rather than drawn at the δ already in force.
     ///
@@ -355,19 +408,33 @@ pub struct ViewerApp {
     /// fitting immediately would frame the outgoing picture.
     fit_on_scene: bool,
     /// The last thing that went wrong, kept so a refused operation is
-    /// visible instead of silently dropped.
-    status: Option<String>,
-    /// **What THIS frame has to say that is not a refusal** — the open
-    /// tool's declined picks and survival drops, and the display state
-    /// the frame's own operations withdrew (the free-move placements
-    /// superseded and the hides dropped) — collected as they happen
-    /// and applied with the batch verdict rather than before it.
+    /// visible instead of silently dropped — with what it is ABOUT, so
+    /// the next event about that subject can retire it
+    /// (`frame::Subject`).
+    status: Option<frame::Message>,
+    /// **Everything THIS frame has to say**, collected as it happens
+    /// and ranked with the batch verdict rather than before it. It was
+    /// the open tool's declined picks and survival drops plus the
+    /// display state the frame's own operations withdrew; the sweep
+    /// that routed every writer through the ranking made it the whole
+    /// list, refusals included — the δ the display budget declined,
+    /// the preferences store that would not write, the δ field's
+    /// unparseable text, ten tool refusals from the create pane, the
+    /// pick refusal, the unindexed-click refusal, the two picking
+    /// paths' disagreement, and a camera fold's refusal through
+    /// [`frame::deliver`].
+    ///
+    /// A refusal is not a special case here and never was: what makes
+    /// it belong is that it HAPPENED on this frame, which is the whole
+    /// test. What it is not is a RETIREMENT — nothing on this list
+    /// takes a sentence away — which is why [`ViewerApp::status`]
+    /// survives beside it.
     ///
     /// They cannot be written straight to [`ViewerApp::status`] —
     /// `frame::frame_status` carries that argument, and it is the one
     /// place it is made. Drained every frame by `perform_batch`, so
     /// nothing here survives into the next one.
-    notices: Vec<String>,
+    notices: Vec<frame::Message>,
     /// Whether the environment can show a file dialog at all — probed
     /// once at startup ([`frame::chooser_backend`]); the Open/Save As
     /// controls read it every frame.
@@ -403,17 +470,23 @@ pub enum StartupError {
     /// `eframe` handed the application no wgpu render state — the
     /// application was built against a renderer it does not have.
     NoWgpuRenderState,
-    /// The evaluation worker could not be started. Fatal on purpose: a
-    /// seam with no worker accepts every submit and answers none, so
-    /// the application would open onto a permanent "evaluating…".
+    /// A seam's worker thread could not be started — the evaluation
+    /// worker or the index one; [`crate::evalseam::Worker`] names
+    /// which, inside the payload, which is where a set of two belongs
+    /// rather than as two arms here. Fatal on purpose: a seam with no
+    /// worker accepts every submit and answers none, so the
+    /// application would open onto a permanent "evaluating…" or a
+    /// permanent "indexing…".
     ///
-    /// Absent on wasm, where the seam is [`crate::evalseam::InlineEvaluator`]
-    /// — nothing is spawned, so nothing can refuse to spawn. The arm
+    /// Absent on wasm, where the seams are
+    /// [`crate::evalseam::InlineEvaluator`] and
+    /// [`crate::evalseam::InlineIndexer`] — nothing is spawned, so
+    /// nothing can refuse to spawn. The arm
     /// is `cfg`-ed away rather than kept and never constructed,
     /// because a closed enum (D4 ¶3) whose reader must ask which arms
     /// are reachable is no longer telling the truth about its states.
     #[cfg(not(target_family = "wasm"))]
-    Evaluator(crate::evalseam::SpawnError),
+    Worker(crate::evalseam::SpawnError),
 }
 
 impl core::fmt::Display for StartupError {
@@ -439,7 +512,7 @@ impl core::fmt::Display for StartupError {
                  against a renderer it does not have",
             ),
             #[cfg(not(target_family = "wasm"))]
-            Self::Evaluator(error) => write!(f, "{error}"),
+            Self::Worker(error) => write!(f, "{error}"),
         }
     }
 }
@@ -469,19 +542,41 @@ impl core::error::Error for StartupError {}
 ///
 /// # Errors
 ///
-/// [`StartupError::Evaluator`] if the OS refuses the worker thread.
+/// [`StartupError::Worker`] if the OS refuses the worker thread.
 /// The wasm arm is infallible — it spawns nothing — and returns
 /// `Ok` unconditionally.
 fn evaluator() -> Result<Box<dyn crate::evalseam::EvalService>, StartupError> {
     #[cfg(not(target_family = "wasm"))]
     {
         Ok(Box::new(
-            ThreadEvaluator::spawn().map_err(StartupError::Evaluator)?,
+            ThreadEvaluator::spawn().map_err(StartupError::Worker)?,
         ))
     }
     #[cfg(target_family = "wasm")]
     {
         Ok(Box::new(crate::evalseam::InlineEvaluator::new()))
+    }
+}
+
+/// The index seam this build runs on — the same choice
+/// [`evaluator`] makes, for the same reason.
+///
+/// # Errors
+///
+/// [`StartupError::Worker`] if the OS refuses the thread. A viewer
+/// whose index seam never started would draw its opening picture and
+/// then refuse every pick on every document forever, which is a
+/// failure to meet at startup rather than to discover by clicking.
+fn indexer() -> Result<Box<dyn crate::evalseam::IndexService>, StartupError> {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        Ok(Box::new(
+            crate::evalseam::ThreadIndexer::spawn().map_err(StartupError::Worker)?,
+        ))
+    }
+    #[cfg(target_family = "wasm")]
+    {
+        Ok(Box::new(crate::evalseam::InlineIndexer::new()))
     }
 }
 
@@ -550,13 +645,15 @@ impl ViewerApp {
             session: DocSession::new(document, tol, evaluator()?),
             delta,
             scene: Arc::new(mesh),
-            picks: PickCache::new(),
+            picks: PickCache::new(indexer()?),
             id_answer: Arc::new(AtomicU64::new(0)),
             id_log: IdQueryLog::new(),
             revision: 1,
             scene_generation: None,
             scene_display: None,
             scene_focus: BTreeSet::new(),
+            scene_fault: None,
+            projection_fault: None,
             // The startup document goes through the same door an
             // opened one does: it is small enough that the budget will
             // not move its δ, and a first picture that took a
@@ -579,7 +676,7 @@ impl ViewerApp {
             fit_on_scene: false,
             // Whatever the preferences file had to say, in the one
             // place this crate puts a thing that went wrong.
-            status: (!notices.is_empty()).then(|| notices.join(frame::NOTICE_SEPARATOR)),
+            status: frame::startup_notices(&notices),
             notices: Vec::new(),
             chooser: frame::chooser_backend(),
             store,
@@ -602,41 +699,78 @@ impl ViewerApp {
         let dropped = self
             .tools
             .reconcile(self.session.doc(), self.session.landed_pair());
-        self.notices.extend(dropped.iter().map(ToString::to_string));
+        self.notices.extend(dropped.iter().map(|dropped| {
+            // A tool's survival drop is provoked by the document
+            // transition it did not survive, so the act that accepts
+            // the next one is what retires it.
+            frame::tool_news(dropped.to_string())
+        }));
         // **The budget picks the δ a document opens at**, once, before
         // anything is built at the δ in force — so the un-budgeted
         // build is never paid for, only avoided. `scene::fit_delta`
         // carries the method and the numbers; `TRIANGLE_BUDGET` says
         // why there is a budget at all.
         //
-        // A fit that refuses leaves δ alone: the document is one whose
-        // roots do not gather or whose probe will not tessellate, and
-        // the index build below is about to say so with its own typed
-        // refusal. Two opinions about that would be one too many.
+        // A fit that cannot run leaves δ alone: the document is one
+        // whose roots do not gather (no landed body) or whose probe
+        // will not tessellate, and the index build below is about to
+        // say so with its own typed refusal. Two opinions about that
+        // would be one too many.
         if self.fit_delta_on_scene
             && let Some((doc, evaluation)) = self.session.landed_pair()
         {
             self.fit_delta_on_scene = false;
-            if let Ok(fitted) = scene::fit_delta(doc, evaluation, self.delta, self.session.tol()) {
+            // The LANDING's body, which its own gather already paid
+            // for. The gather below runs for one landing shape only —
+            // an assembly whose A5 gate refused ate the product it
+            // judged — and is spelled out rather than hidden behind
+            // the getter, so the one path that costs a gather is the
+            // one path that names one.
+            let fitted = match self.session.landed_body() {
+                Some(body) => scene::fit_delta(body, self.delta, self.session.tol()),
+                None => scene::product_of_evaluation(doc, evaluation, self.session.tol())
+                    .and_then(|body| scene::fit_delta(&body, self.delta, self.session.tol())),
+            };
+            if let Ok(fitted) = fitted {
                 self.delta = fitted.delta;
                 self.budget_delta = fitted.requested_cost.map(|_| fitted);
+            }
+        }
+        // **The index seam answers here.** A build that finished is
+        // installed or refused now, before the currency check below
+        // reads the cache — so an index that landed for the picture on
+        // screen is used on the frame it arrives rather than the next
+        // one. A refusal is held by the cache and badged, not
+        // announced; a superseded answer is nothing to say
+        // (`pickcache::IndexLanding::Stale` is what restart-without-cancel
+        // produces, once per δ changed mid-build).
+        let mut rebuilt = false;
+        for landing in self.picks.pump() {
+            match landing {
+                pickcache::IndexLanding::Built => rebuilt = true,
+                // Nothing to say here: the cache HOLDS the refusal
+                // under its one-attempt-per (generation, δ) policy,
+                // and `frame::index_badge` reads it every frame the
+                // toolbar draws. Announcing it once put a read on a
+                // line the next acting batch sweeps.
+                pickcache::IndexLanding::Refused => {}
+                pickcache::IndexLanding::Stale => {}
             }
         }
         // The cache owns the retry policy: one attempt per (landed
         // generation, δ). A refused build is reported and held, not
         // re-attempted every frame behind a stale picture.
-        let rebuilt = match self.picks.sync(&self.session, self.delta) {
-            pick::CacheStep::Held | pick::CacheStep::Nothing => return,
-            pick::CacheStep::Refused => {
-                self.status = self
-                    .picks
-                    .error()
-                    .map(|error| format!("pick index: {error}"));
-                return;
-            }
-            pick::CacheStep::Rebuilt => true,
-            pick::CacheStep::Current => false,
-        };
+        //
+        // Every arm but `Current` leaves the viewport drawing the mesh
+        // it already has — an older picture, which the indexing
+        // indicator names and `pickcache::unindexed` refuses picks against.
+        match self.picks.sync(self.session.index_inputs(), self.delta) {
+            pickcache::CacheStep::Held
+            | pickcache::CacheStep::Nothing
+            | pickcache::CacheStep::Submitted
+            | pickcache::CacheStep::Indexing => return,
+            pickcache::CacheStep::Current => {}
+        }
         // The scene is a function of (index, display state, focus): a
         // display or selection change over a current index still owes
         // exactly one rebuild.
@@ -644,7 +778,7 @@ impl ViewerApp {
         let Some(index) = self.picks.index() else {
             return;
         };
-        let focus = pick::focus(index, self.session.doc(), self.session.selection());
+        let focus = marks::focus(index, self.session.doc(), self.session.selection());
         if !rebuilt && self.scene_display == Some(display_revision) && self.scene_focus == focus {
             return;
         }
@@ -659,6 +793,9 @@ impl ViewerApp {
                 self.scene_focus = focus;
                 self.scene = Arc::new(mesh);
                 self.revision = self.revision.wrapping_add(1);
+                // The badge's read, ended by the rebuild it was
+                // waiting for.
+                self.scene_fault = None;
                 if self.fit_on_scene {
                     self.fit_on_scene = false;
                     self.pending_fit = true;
@@ -673,7 +810,10 @@ impl ViewerApp {
                 // read of held state and so cannot be stale here or
                 // erased by anything the rest of the frame does.
             }
-            Err(error) => self.status = Some(format!("scene: {error}")),
+            // Held, not announced: this pair is deliberately left
+            // unmarked above so the rebuild is retried, and the fault
+            // is true of the picture on screen until one succeeds.
+            Err(error) => self.scene_fault = Some(error),
         }
     }
 
@@ -696,7 +836,7 @@ impl ViewerApp {
                 self.budget_delta = None;
                 self.sync_scene();
             }
-            Err(error) => self.status = Some(format!("{error}")),
+            Err(error) => self.notices.push(frame::delta_refusal(&error)),
         }
     }
 
@@ -782,12 +922,18 @@ impl ViewerApp {
             // placements this operation's document transition
             // discarded, onto the frame's notices like every other
             // one (`frame::frame_status` carries the argument).
-            notices.extend(frame::supersession_notice(&outcome.superseded));
+            notices.extend(
+                frame::Withdrawal::superseded(&outcome.superseded)
+                    .map(|withdrawal| withdrawal.notice()),
+            );
             // And the hides the same transition dropped, ranked
             // beside them — the same class of fact (display state an
             // accepted edit withdrew) and a different sentence
             // (`frame::dropped_hide_notice` carries the argument).
-            notices.extend(frame::dropped_hide_notice(&outcome.dropped_hides));
+            notices.extend(
+                frame::Withdrawal::dropped_hide(&outcome.dropped_hides)
+                    .map(|withdrawal| withdrawal.notice()),
+            );
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 // A replaced document owes a re-frame AND a fresh δ
@@ -867,20 +1013,58 @@ impl ViewerApp {
             keys: self.keys_pref.clone(),
         };
         if let Err(error) = self.store.save(&prefs.to_toml()) {
-            self.status = Some(error.to_string());
+            self.notices.push(frame::store_refusal(&error));
         }
     }
 
-    /// This application's door onto [`frame::apply`]: the batch policy
-    /// and the dialog policy hand their verdict here rather than
-    /// assigning the field.
+    /// This application's door onto [`frame::apply`], for the verdict
+    /// the ranking has ALREADY WEIGHED: `perform_batch` hands
+    /// `frame::frame_status`'s answer here rather than assigning the
+    /// field. Its one live caller, and deliberately so — a `Show` that
+    /// has been through the ranking must reach the field, and handing
+    /// it to [`ViewerApp::deliver_status`] instead would loop it back
+    /// onto `notices` to be ranked a second time.
     ///
     /// **Not the one place a [`StatusUpdate`] becomes the field** —
-    /// that is `frame::apply`, and `pane::viewport::land` reaches it
-    /// directly, having a `&mut Option<String>` and no `&mut self` to
-    /// come through. This is the `&mut self` shorthand, nothing more.
+    /// that is `frame::apply`, which `pane::viewport` reaches directly
+    /// at both of its doors: `land` through [`frame::deliver`], and the
+    /// cursor's retirement through `frame::apply` itself. Neither has a
+    /// `&mut self` to come through; both take the `&mut
+    /// Option<frame::Message>` this is shorthand for. This is the
+    /// `&mut self` shorthand, nothing more.
     fn apply_status(&mut self, update: StatusUpdate) {
         frame::apply(&mut self.status, update);
+    }
+
+    /// The `&mut self` shorthand onto [`frame::deliver`], for a policy
+    /// whose verdict has NOT been through the ranking.
+    ///
+    /// [`ViewerApp::apply_status`] is for the ranked verdict — what
+    /// [`frame::frame_status`] already weighed — and applying an
+    /// unranked `Show` there is the defect this door exists to stop: a
+    /// sentence written straight to the field on a frame whose batch
+    /// then clears it, before the toolbar that would have painted it
+    /// runs again.
+    ///
+    /// **No `Show` reaches this today, at either call site.** Both are
+    /// `frame::dialog_status`, and its `Show` arm is
+    /// `(chose: false, usable: false)` while the Open… and Save As…
+    /// buttons are `add_enabled(chooser.usable(), …)` over one copy of
+    /// `self.chooser` — so a click implies usable and every reachable
+    /// verdict here is `Keep`. The arm is latent, not dead: it is the
+    /// belt to that disabling's braces, and `frame::chooser_backend`
+    /// can only be confident about `Absent`.
+    ///
+    /// **The door is still the right one, and that is the point of
+    /// saying the traffic is empty.** The alternative is
+    /// `apply_status`, which is correct for exactly as long as the
+    /// guard above holds — and the day the guard is loosened, or a
+    /// second policy with a `Show` arm is routed here, the defect
+    /// comes back at a diff where nothing looks wrong. Insurance whose
+    /// premium is one call is not worth removing because the claim has
+    /// not been made.
+    fn deliver_status(&mut self, update: StatusUpdate) {
+        frame::deliver(&mut self.notices, &mut self.status, update);
     }
 
     /// **The advisory-check findings, in a window a reader can keep
@@ -1032,7 +1216,7 @@ impl eframe::App for ViewerApp {
                         if let Some(path) = path {
                             ops.push(SessionOp::Open(path));
                         }
-                        self.apply_status(update);
+                        self.deliver_status(update);
                     }
                 }
                 if ui
@@ -1049,7 +1233,7 @@ impl eframe::App for ViewerApp {
                         if let Some(path) = path {
                             ops.push(SessionOp::Save(path));
                         }
-                        self.apply_status(update);
+                        self.deliver_status(update);
                     }
                 }
                 ui.separator();
@@ -1080,13 +1264,13 @@ impl eframe::App for ViewerApp {
                 // buttons beside it are the shipped token and its pair.
                 // Neither knows whether a thread is involved.
                 //
-                // THREE states, not two, because a cancel leaves a
-                // fourth thing to say: the picture is older than the
-                // document AND nothing is running. A spinner there
-                // would be a lie about work nobody is doing.
-                if self.session.busy() {
-                    ui.separator();
-                    if self.session.running() {
+                // ONE indicator for one wait: `progress` ranks what
+                // the session owes against what the index seam is
+                // doing, so the toolbar never lights two spinners for
+                // the same moment.
+                match frame::progress(self.session.outstanding(), self.picks.indexing()) {
+                    Some(frame::Progress::Evaluating) => {
+                        ui.separator();
                         ui.spinner();
                         ui.label("evaluating…");
                         if ui.button("Cancel").clicked() {
@@ -1096,100 +1280,105 @@ impl eframe::App for ViewerApp {
                         // nothing else would wake the frame loop to
                         // collect it.
                         ui.ctx().request_repaint();
-                    } else {
+                    }
+                    Some(frame::Progress::Canceled { indexing }) => {
+                        ui.separator();
+                        // The recourse is UNCONDITIONAL: the cancel is
+                        // what the reader has to act on, and an index
+                        // build behind it must not take the button
+                        // away for the seconds it runs. The spinner
+                        // reads left of the label because that is
+                        // where the other two arms put theirs.
+                        if indexing {
+                            ui.spinner();
+                        }
                         ui.label("canceled — showing an older result");
                         if ui.button("Re-evaluate").clicked() {
                             ops.push(SessionOp::Reevaluate);
                         }
+                        if indexing {
+                            ui.weak("indexing…")
+                                .on_hover_text(crate::pickcache::NotIndexed::Building.to_string());
+                            ui.ctx().request_repaint();
+                        }
                     }
-                }
-                // The A5 at-rest badge, for assembly-shaped documents:
-                // the verification verdict living past the commit.
-                match self.session.at_rest() {
-                    Some(crate::session::AtRestBadge::Certified { minted }) => {
+                    // No Cancel button beside it, and that is the
+                    // seam's promise showing through the chrome: the
+                    // build cannot be stopped, only outrun by a newer
+                    // one (`evalseam`, the index seam).
+                    Some(frame::Progress::Indexing) => {
                         ui.separator();
-                        ui.weak(format!("at rest: certified ({minted} declaration(s))"));
-                    }
-                    Some(crate::session::AtRestBadge::Refused { message }) => {
-                        ui.separator();
-                        ui.colored_label(
-                            chrome(self.theme.unresolved),
-                            format!("at rest: {message}"),
-                        );
+                        ui.spinner();
+                        ui.label("indexing…")
+                            .on_hover_text(crate::pickcache::NotIndexed::Building.to_string());
+                        ui.ctx().request_repaint();
                     }
                     None => {}
                 }
-                // The advisory-check badge. It REPORTS: the scene below
-                // is drawn either way, because a product whose roots
+                // **The reads, one draw each.** Each is a function of
+                // the typed value it reads — including its silence,
+                // which is what lets a row assert the `None`
+                // — and each states its own tone and affordance, so
+                // nothing about how a badge looks is decided here
+                // (`frame::Badge`).
+                //
+                // The A5 at-rest verdict, for assembly-shaped
+                // documents: the verification verdict living past the
+                // commit.
+                if let Some(badge) = frame::at_rest_badge(self.session.at_rest()) {
+                    draw_badge(ui, &self.theme, &badge);
+                }
+                // The advisory checks. It REPORTS: the scene below is
+                // drawn either way, because a product whose roots
                 // interpenetrate renders a picture that looks almost
                 // right and the finding is the only thing that says
-                // otherwise. Hover for the findings' own sentences —
-                // each carries its recourse, so the badge never
-                // composes one here.
-                if let Some(report) = self.session.checks()
-                    && !report.findings.is_empty()
+                // otherwise. The badge OPENS the window the findings'
+                // own sentences live in, and what a click means is
+                // this call site's — which is why the draw hands the
+                // response back rather than naming a window.
+                let checks = frame::checks_badge(self.session.checks());
+                if let Some(badge) = checks
+                    && draw_badge(ui, &self.theme, &badge).clicked()
                 {
-                    ui.separator();
-                    // **A button, not a label.** The findings were
-                    // reachable only by hovering the badge, which is
-                    // a poor home for text a reader needs to keep
-                    // open while they act on it: a tooltip is gone
-                    // the moment the pointer moves toward the feature
-                    // it names. The badge opens the window instead,
-                    // and the window is where the sentences live.
-                    if ui
-                        .add(
-                            egui::Button::new(
-                                egui::RichText::new(format!(
-                                    "checks: {} finding(s)",
-                                    report.findings.len()
-                                ))
-                                .color(chrome(self.theme.unresolved)),
-                            )
-                            .frame(false),
-                        )
-                        .on_hover_text("show what the checks found")
-                        .clicked()
-                    {
-                        self.checks_shown = !self.checks_shown;
-                    }
+                    self.checks_shown = !self.checks_shown;
                 }
-                // The gather's verdict, for the landed pair. **A
-                // standing fact, so a badge** — the status line beside
-                // it carries one frame's news and is cleared by the
-                // next acting batch, while "the product on screen does
-                // not gather" is true until another pair lands.
-                //
-                // Drawn in the unresolved colour, like the at-rest
-                // refusal and the checks findings and unlike the
-                // budget's weak advisory below: the colour is
-                // REDUNDANT here, in `Theme::unresolved`'s own sense —
-                // the badge says "product: …" in words either way — and
-                // it is the spelling this toolbar already uses for a
-                // verdict a reader may need to act on.
+                // The gather's verdict, for the landed pair. **A read
+                // a reader consults, so a badge** — the line beside it
+                // carries what just happened and is cleared by the next
+                // acting batch, while "the product on screen does not
+                // gather" is true until another pair lands.
                 //
                 // Which faults reach it is `frame::product_badge`'s,
                 // and it declines every state another channel carries:
                 // the three per-node arms are the feature tree's, and
                 // an empty document is the blank viewport's.
-                if let Some(fault) = frame::product_badge(self.session.product_fault()) {
-                    ui.separator();
-                    ui.colored_label(chrome(self.theme.unresolved), fault);
+                if let Some(badge) = frame::product_badge(self.session.product_fault()) {
+                    draw_badge(ui, &self.theme, &badge);
                 }
-                // The display budget's badge: shown while the δ on
-                // screen is the one the budget CHOSE when the document
-                // opened, and gone the moment the user picks their
-                // own. A read of held state, like the badges above,
-                // which is why it is here rather than in the status
-                // line below — that line carries one frame's news, and
-                // "this δ was chosen for you" has to outlive a mouse
-                // drag.
-                if let Some(fitted) = self.budget_delta
-                    && let Some(wording) = fitted.wording()
+                // The display budget's: shown while the δ on screen is
+                // the one the budget CHOSE when the document opened,
+                // and gone the moment the user picks their own.
+                if let Some(badge) = frame::delta_badge(self.budget_delta.as_ref()) {
+                    draw_badge(ui, &self.theme, &badge);
+                }
+                // **The three display seams that hold a refusal.**
+                // Each is a read of held state — the scene fault kept
+                // until a rebuild lands, the pick cache's own held
+                // refusal, the projection the viewport could not form
+                // — so each stands for as long as the picture is stale
+                // rather than until the next acting batch sweeps a
+                // line. What a pick aimed at the missing index gets is
+                // still the line's, because that is an outcome
+                // (`frame::unindexed_refusal`).
+                for badge in [
+                    frame::scene_badge(self.scene_fault.as_ref()),
+                    frame::index_badge(self.picks.error()),
+                    frame::projection_badge(self.projection_fault.as_ref()),
+                ]
+                .into_iter()
+                .flatten()
                 {
-                    ui.separator();
-                    ui.weak(format!("δ {:.3} mm chosen", fitted.delta.get() * 1.0e3))
-                        .on_hover_text(wording);
+                    draw_badge(ui, &self.theme, &badge);
                 }
                 ui.separator();
                 // The palette picker. Every registered theme, by the
@@ -1205,7 +1394,7 @@ impl eframe::App for ViewerApp {
                     });
                 if let Some(status) = &self.status {
                     ui.separator();
-                    ui.label(status.as_str());
+                    ui.label(status.text());
                 }
             });
         });
@@ -1271,6 +1460,7 @@ impl eframe::App for ViewerApp {
                     budget_delta: self.budget_delta,
                     scene: &self.scene,
                     index: self.picks.index(),
+                    indexing: self.picks.indexing(),
                     revision: self.revision,
                     camera: &mut self.camera,
                     input: self.input,
@@ -1282,6 +1472,8 @@ impl eframe::App for ViewerApp {
                     profile_preview: &profile_preview,
                     profile_form_drawn: &mut profile_form_drawn,
                     pending_fit: &mut self.pending_fit,
+                    projection_fault: &mut self.projection_fault,
+                    notices: &mut self.notices,
                     status: &mut self.status,
                     id_answer: &self.id_answer,
                     id_log: &mut self.id_log,
@@ -1323,8 +1515,11 @@ impl eframe::App for ViewerApp {
         // `Tools::feed`'s to know, and a pick a tool DECLINED comes
         // back as a notice shown exactly as a survival drop is.
         let declined = self.tools.feed(self.session.doc(), &ops);
-        self.notices
-            .extend(declined.iter().map(ToString::to_string));
+        self.notices.extend(declined.iter().map(|declined| {
+            // A declined pick answers an act the user aimed at the
+            // document, like every other rank-2 notice this frame.
+            frame::tool_news(declined.to_string())
+        }));
 
         self.perform_batch(ops);
     }
@@ -1358,6 +1553,13 @@ pub(crate) struct ViewerBehavior<'a> {
     pub(crate) budget_delta: Option<crate::scene::FittedDelta>,
     pub(crate) scene: &'a Arc<SceneMesh>,
     pub(crate) index: Option<&'a PickIndex>,
+    /// Whether a build for the picture this frame WANTS is under way —
+    /// the other half of what `index: None` means, and the half that
+    /// decides which sentence a refused pick gets
+    /// (`pickcache::NotIndexed`). Carried as a value rather than re-derived
+    /// from the session, because "someone is building one" is the pick
+    /// cache's answer and nothing else's.
+    pub(crate) indexing: bool,
     pub(crate) revision: u64,
     pub(crate) camera: &'a mut Camera,
     pub(crate) input: InputMap,
@@ -1384,7 +1586,30 @@ pub(crate) struct ViewerBehavior<'a> {
     /// Set by the add-profile form while it draws; read next frame.
     pub(crate) profile_form_drawn: &'a mut bool,
     pub(crate) pending_fit: &'a mut bool,
-    pub(crate) status: &'a mut Option<String>,
+    /// Where the viewport leaves a view matrix it could not form, for
+    /// [`frame::projection_badge`] to read: a read of the camera, so
+    /// the pane holds it rather than writing a sentence the toolbar
+    /// had already painted past and the next accepted act would
+    /// sweep.
+    pub(crate) projection_fault: &'a mut Option<CameraError>,
+    /// **What this frame's panes have to SAY**, joined and ranked by
+    /// [`frame::frame_status`] with everything else the frame
+    /// produced. A pane that assigned `status` instead had no way to
+    /// say "I have nothing to add", and its sentence was erased by the
+    /// batch this frame accepted before it was ever painted —
+    /// `perform_batch` runs after the panes have drawn.
+    pub(crate) notices: &'a mut Vec<frame::Message>,
+    /// The line itself, for the one thing a notice cannot do: RETIRE a
+    /// sentence. `frame::cursor_status` and a clean camera fold expire
+    /// what they last said and add nothing, so both reach the field
+    /// directly — by different doors, because the two policies are not
+    /// the same shape. `cursor_status` answers only `Keep` or `Expire`,
+    /// so it can never have news and goes straight through
+    /// `frame::apply` (`pane::viewport`, the id pass). `fold_status`
+    /// can answer either way, so `land` hands it to
+    /// [`frame::deliver`], which routes the refusal to `notices` above
+    /// and the clean fold's retirement here.
+    pub(crate) status: &'a mut Option<frame::Message>,
     pub(crate) id_answer: &'a Arc<AtomicU64>,
     pub(crate) id_log: &'a mut IdQueryLog,
     pub(crate) ops: &'a mut Vec<SessionOp>,

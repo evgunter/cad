@@ -356,13 +356,13 @@ fn the_pipped_cube_fillets_in_place_with_rings_carried() {
 /// battery measures.
 #[test]
 fn the_composed_die_certifies_and_tessellates_watertight() {
-    use geom_core::k_stats::{start_verdict_log, take_verdict_log};
+    use geom_core::k_stats::Bracket;
     // The log must be installed BEFORE the build (it records through
     // `decide` as the surgery runs) and taken straight after, so the
     // certification battery below runs unlogged exactly as it did.
-    start_verdict_log();
+    let bracket = Bracket::open();
     let die = composed_die();
-    let log = take_verdict_log();
+    let log = bracket.finish().verdicts;
     assert!(
         log.iter().any(|v| v.predicate == "fillet3_ring_clearance"),
         "K-FUNNEL: fillet3_ring_clearance never reached the funnel"

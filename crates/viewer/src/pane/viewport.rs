@@ -14,7 +14,9 @@ use crate::datums::{self, datum_view};
 use crate::frame::{self, IdStep};
 use crate::gpu::{IdQuery, ViewportCallback};
 use crate::input::{self, PointerButton, ViewportEvent, ViewportSize};
-use crate::pick::{self, PickIndex};
+use crate::marks;
+use crate::pickcache;
+use crate::pickindex::PickIndex;
 use crate::session::SessionOp;
 use crate::sketch::{heading, tip_mark};
 
@@ -30,9 +32,20 @@ use crate::sketch::{heading, tip_mark};
 /// has, and one that assigned the line on every clean fold would erase
 /// the news of whichever writer shares its frame — including, on the
 /// frame a document lands, the landing's own.
-pub(crate) fn land(camera: &mut Camera, status: &mut Option<String>, folded: &camera::Folded) {
+pub(crate) fn land(
+    camera: &mut Camera,
+    notices: &mut Vec<frame::Message>,
+    status: &mut Option<frame::Message>,
+    folded: &camera::Folded,
+) {
     *camera = folded.camera;
-    frame::apply(status, frame::fold_status(folded));
+    // Both halves of the verdict, each by its own route
+    // ([`frame::deliver`]): a refused fold is NEWS and joins this
+    // frame's notices, where the ranking can weigh it against whatever
+    // else the frame produced; a clean fold RETIRES the camera
+    // sentence and reaches the field directly, because a notice cannot
+    // un-say anything.
+    frame::deliver(notices, status, frame::fold_status(folded));
 }
 
 /// Direction the light travels, world space; a unit vector over the
@@ -51,6 +64,18 @@ impl ViewerBehavior<'_> {
             height_px: f64::from(rect.height()) * pixels_per_point,
         };
         let Some(aspect) = viewport.aspect() else {
+            // **A pane with no extent projects nothing, so it holds no
+            // projection refusal.** `view_projection` is not reached
+            // below, so the fault would otherwise be a claim about a
+            // camera nobody is asking to project — and unlike the
+            // sentence this replaced, a badge has no `Clear` to sweep
+            // it. Dragging a splitter to zero is an ordinary gesture.
+            //
+            // This closes that arm and NOT the one where the pane is
+            // not drawn at all, which needs a "the viewport did not
+            // draw this frame" latch and is
+            // `work/view/projection-fault-has-no-sweeper.md`.
+            *self.projection_fault = None;
             return;
         };
 
@@ -118,7 +143,7 @@ impl ViewerBehavior<'_> {
                 aspect,
             };
             let folded = camera::fold_recorded(self.camera, std::slice::from_ref(&fit));
-            land(self.camera, self.status, &folded);
+            land(self.camera, self.notices, self.status, &folded);
         }
 
         // ONE fold, the same one `map_stream` gives the tests.
@@ -132,7 +157,7 @@ impl ViewerBehavior<'_> {
         // does and does not buy now that a clean fold clears nothing.
         let folded = input::fold_events(&self.input, self.camera, viewport, &events);
         if frame::folded_moved(&folded) {
-            land(self.camera, self.status, &folded);
+            land(self.camera, self.notices, self.status, &folded);
         }
 
         // **One movement verdict for both picking paths.** The id
@@ -145,10 +170,18 @@ impl ViewerBehavior<'_> {
         // is inside the pane — true of every frame of a drag.
         let generation = self.index.map(PickIndex::generation);
         let step = self.id_log.step(cursor_px, generation);
+        // **A cursor event retires what the cursor last said.** The id
+        // log has just judged whether the outstanding pick question
+        // still describes this cursor and this picture; a message
+        // about what was under the cursor is stale on exactly that
+        // judgement, so `frame::cursor_status` reads it. It only ever
+        // expires — what the cursor has to SAY is raised below, where
+        // the two picking paths are compared.
+        frame::apply(self.status, frame::cursor_status(step));
 
         // The cursor path: actions in, session operations out. Every
         // step of it — the un-projection, the ray service, the miss
-        // rule — lives in `pick::PickIndex::op_for`, so this is the
+        // rule — lives in `pickindex::PickIndex::op_for`, so this is the
         // same path a headless test drives.
         let actions = input::pick_stream(&self.input, &events);
         // **An open tool narrows the priority rule, it does not
@@ -173,22 +206,29 @@ impl ViewerBehavior<'_> {
                     // is churn in the one log a test reads.
                     Ok(SessionOp::Hover(face)) if face.as_ref() == self.session.hover() => {}
                     Ok(op) => self.ops.push(op),
-                    Err(error) => *self.status = Some(error.to_string()),
+                    Err(error) => self.notices.push(frame::pick_refusal(&error)),
                 }
             }
+        } else if let Some(refusal) = pickcache::unindexed(&actions, self.indexing) {
+            // **Not indexed yet is not a miss.** There is no index to
+            // ask, because one is being built on its own seam, and a
+            // click that quietly did nothing here is the fail-quiet
+            // this window's indexing indicator would otherwise be
+            // painted over.
+            self.notices.push(frame::unindexed_refusal(&refusal));
         }
 
         // What to mark, as a pure function of what is drawn and what is
         // selected. Recomputed every frame; nothing retains it.
         let highlight = self
             .index
-            .map(|index| pick::highlight(index, self.session.selection(), self.session.hover()));
+            .map(|index| marks::highlight(index, self.session.selection(), self.session.hover()));
         // The edge half of the same question, and the same discipline:
         // recomputed every frame from state that lives in one place.
         let mut edges = self
             .index
             .map(|index| {
-                pick::edge_overlay(
+                marks::edge_overlay(
                     index,
                     self.display,
                     self.session.selection(),
@@ -322,10 +362,21 @@ impl ViewerBehavior<'_> {
             }
         }
 
+        // **Held, not said.** A view matrix that cannot be formed is
+        // true of this camera on every frame until it moves somewhere
+        // one can be, so it is a read the toolbar badges
+        // (`frame::projection_badge`) rather than a sentence. As a
+        // sentence it was written here, AFTER the toolbar had already
+        // painted the line, and `perform_batch` then ran after this
+        // pane — so on every frame whose batch acted cleanly the
+        // `Clear` took it before any frame drew it.
         let matrix = match self.camera.view_projection(aspect) {
-            Ok(matrix) => matrix,
+            Ok(matrix) => {
+                *self.projection_fault = None;
+                matrix
+            }
             Err(error) => {
-                *self.status = Some(format!("projection: {error}"));
+                *self.projection_fault = Some(error);
                 return;
             }
         };
@@ -364,7 +415,7 @@ impl ViewerBehavior<'_> {
                 from_ray.as_ref().map(|face| &face.name),
             )
         }) {
-            *self.status = Some(report.to_string());
+            self.notices.push(report.notice());
         }
 
         let id_query = match (step, cursor_px) {
@@ -421,7 +472,7 @@ mod tests {
 
     use super::land;
     use crate::camera::{Camera, CameraOp, fold_recorded};
-    use crate::frame::product_badge;
+    use crate::frame::{self, product_badge};
     use crate::props::SlotValue;
     use crate::scene;
     use crate::session::{DocSession, SessionOp};
@@ -448,27 +499,117 @@ mod tests {
         let folded = fold_recorded(&camera, std::slice::from_ref(&fit));
         assert!(folded.refused.is_none(), "the re-frame applies");
 
-        let mut status = Some("product: the landing's own news".to_owned());
-        land(&mut camera, &mut status, &folded);
+        // A message about the DOCUMENT: a clean fold retires what the
+        // camera said and nothing else, so this row goes red if the
+        // expiry reaches past its own subject.
+        let landing =
+            frame::Message::new(frame::Subject::Document, "product: the landing's own news");
+        let mut status = Some(landing.clone());
+        let mut notices = Vec::new();
+        land(&mut camera, &mut notices, &mut status, &folded);
         assert_eq!(camera, folded.camera, "the camera still lands");
         assert_eq!(
-            status.as_deref(),
-            Some("product: the landing's own news"),
+            status,
+            Some(landing),
             "and the line is not the fold's to clear"
         );
     }
 
+    /// **A refused fold is NEWS, so it joins the frame rather than
+    /// writing the line.**
+    ///
+    /// It used to assign the field here, which is what this sweep
+    /// removed: `perform_batch` runs after the panes have drawn, so a
+    /// sentence written straight to the field was erased by the same
+    /// frame's accepted batch before the toolbar painted it. Going
+    /// through `notices` puts it in `frame::frame_status`'s rank 2,
+    /// where the batch's verdict can no longer outrank it.
+    ///
+    /// The older sentence on the line is left ALONE — a notice adds to
+    /// what the frame has to say and takes nothing away — and the
+    /// ranking is what decides between them.
     #[test]
-    fn landing_a_refused_fold_shows_the_refusal() {
+    fn landing_a_refused_fold_is_news_and_joins_the_frames_notices() {
         let mut camera = framed();
         let refuses = CameraOp::Dolly { factor: 0.0 };
         let folded = fold_recorded(&camera, std::slice::from_ref(&refuses));
-        let mut status = Some("older news".to_owned());
-        land(&mut camera, &mut status, &folded);
-        let shown = status.expect("a refused fold is news");
+        let older = frame::Message::new(frame::Subject::Document, "older news");
+        let mut status = Some(older.clone());
+        let mut notices = Vec::new();
+        land(&mut camera, &mut notices, &mut status, &folded);
+
+        assert_eq!(
+            notices.len(),
+            1,
+            "a refused fold is one notice: {notices:?}"
+        );
+        let raised = notices.first().expect("the notice just asserted");
         assert!(
-            shown.contains("camera:") && shown.contains("dolly by a factor"),
-            "{shown}"
+            raised.text().contains("camera:") && raised.text().contains("dolly by a factor"),
+            "{raised}"
+        );
+        assert_eq!(raised.subject(), frame::Subject::Camera);
+        assert_eq!(
+            status,
+            Some(older),
+            "and it writes nothing: the ranking decides, not the writer"
+        );
+    }
+
+    /// **The refusal is put on the line by the RANKING, not by hand.**
+    ///
+    /// The two frames are composed the way the frame loop composes
+    /// them: `land` on the first, then `frame::frame_status` over the
+    /// notices it produced and `frame::apply` for the verdict — which
+    /// is `perform_batch`'s own pair, with an empty batch because
+    /// navigating acts on nothing. Reaching into `notices` for the
+    /// message would assert the retirement against a sentence this row
+    /// placed rather than one the frame landed, and the subject is
+    /// exactly what the ranking decides: `frame::joined_subject`
+    /// answers `Document` for two notices that disagree, and the
+    /// `Expire(Camera)` below would then retire nothing. One notice is
+    /// the case where the two answers coincide, and that coincidence
+    /// is the row's premise rather than a step it skips.
+    #[test]
+    fn landing_a_clean_fold_retires_the_camera_refusal_it_landed_before() {
+        // The item's own reproduction, through the driver: refuse a
+        // camera operation, then navigate. Nothing acts, so nothing
+        // clears the line, and before the subject rule the refusal
+        // stayed for as long as the user orbited.
+        let mut camera = framed();
+        let refuses = CameraOp::Dolly { factor: 0.0 };
+        let mut status = None;
+        let folded = fold_recorded(&camera, std::slice::from_ref(&refuses));
+        let mut notices = Vec::new();
+        land(&mut camera, &mut notices, &mut status, &folded);
+        assert_eq!(notices.len(), 1, "the refusal is news the frame carries");
+
+        // The end of that frame: the ranking weighs what the frame
+        // said against a batch that did nothing, and the winner
+        // becomes the line.
+        frame::apply(&mut status, frame::frame_status(&notices, &[], None));
+        let landed = status.clone().expect("the ranking put the refusal up");
+        assert_eq!(
+            landed.subject(),
+            frame::Subject::Camera,
+            "and it is the RANKING that says what the line is about: {landed}"
+        );
+
+        let orbit = CameraOp::Orbit {
+            yaw: 0.2,
+            pitch: 0.1,
+        };
+        let folded = fold_recorded(&camera, std::slice::from_ref(&orbit));
+        assert!(folded.refused.is_none(), "the orbit applies");
+        let mut notices = Vec::new();
+        land(&mut camera, &mut notices, &mut status, &folded);
+        assert!(
+            notices.is_empty(),
+            "a clean fold has nothing to say: {notices:?}"
+        );
+        assert_eq!(
+            status, None,
+            "and the next camera event retires it, whatever that event says"
         );
     }
 
@@ -527,11 +668,16 @@ mod tests {
         let mut camera = framed();
         let fit = the_re_frame_an_open_books();
         let folded = fold_recorded(&camera, std::slice::from_ref(&fit));
-        let mut status = Some("product: two roots collide in the name table".to_owned());
-        land(&mut camera, &mut status, &folded);
+        let raised = frame::Message::new(
+            frame::Subject::Document,
+            "product: two roots collide in the name table",
+        );
+        let mut status = Some(raised.clone());
+        let mut notices = Vec::new();
+        land(&mut camera, &mut notices, &mut status, &folded);
         assert_eq!(
-            status.as_deref(),
-            Some("product: two roots collide in the name table"),
+            status,
+            Some(raised),
             "the re-frame an Open books is not news and erases none"
         );
     }

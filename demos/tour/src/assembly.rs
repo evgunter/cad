@@ -75,10 +75,10 @@ use pncad::document::{
     Alignment, Assembly, AssemblyError, Attribution, AxisSense, CancelToken, Datum, Dimension,
     DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame,
     InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, Node, ParamName, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, apply, assemble, content_pin, evaluate, inline, load,
-    mixed_pins, parse_expr, product_named, save, solve_document, split,
+    ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, apply, assemble, content_pin, evaluate,
+    inline, load, mixed_pins, parse_expr, product_named, save, solve_document, split,
 };
-use pncad::geom_core::Tol;
+use pncad::geom_core::{Band, Tol};
 use pncad::prelude::StableName;
 use pncad::select::{
     CapEnd, ContactClass, EntityKind, NamePat, NameTable, RoleSeg, SegPat, SegTag, Selector,
@@ -390,7 +390,9 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
                 [0.0, 1.0, 0.0],
                 -PI / 2.0,
                 [FLAT_PACK_GAP + POST_HEIGHT, 0.0, 0.0],
-            ),
+                Band::linear(tol).expect("the demo's tolerance forms a band"),
+            )
+            .expect("the post lies down about +y"),
         },
         tol,
     );
@@ -454,8 +456,8 @@ fn stand_doc(
     let mate_1 = insert(
         &mut doc,
         Node::Mate {
-            a: in_part(post_a, post_top),
-            b: in_part(shelf_i, shelf_bottom),
+            a: SitedRef::at_mint(in_part(post_a, post_top)),
+            b: SitedRef::at_mint(in_part(shelf_i, shelf_bottom)),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(POST_SEAT),
@@ -470,8 +472,8 @@ fn stand_doc(
     let mate_2 = insert(
         &mut doc,
         Node::Mate {
-            a: in_part(shelf_i, shelf_bottom),
-            b: in_part(post_b, post_top),
+            a: SitedRef::at_mint(in_part(shelf_i, shelf_bottom)),
+            b: SitedRef::at_mint(in_part(post_b, post_top)),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(SEAT_B),
@@ -890,8 +892,8 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     let clash = insert(
         &mut contra.doc,
         Node::Mate {
-            a: in_part(contra.post_a, post_top),
-            b: in_part(contra.shelf_i, shelf_bottom),
+            a: SitedRef::at_mint(in_part(contra.post_a, post_top)),
+            b: SitedRef::at_mint(in_part(contra.shelf_i, shelf_bottom)),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame([POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT]),

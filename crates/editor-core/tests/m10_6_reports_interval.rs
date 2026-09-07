@@ -29,8 +29,8 @@ use editor_core::report::{Dials, MassBasis, MassBudget, ReportCache, leaf_histog
 use editor_core::stackup::stackup;
 use editor_core::{
     AssertionDir, Dimension, Distribution, DocEdit, DocParam, Expr, LoopProgram, MeasureExpr,
-    MeasurePrimitive, MeasureRef, Node, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId,
-    UnitSym, save,
+    MeasurePrimitive, Node, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, UnitSym,
+    save,
 };
 use geom_core::Tol;
 
@@ -99,8 +99,8 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::measure(
             web,
             vec![
-                MeasureRef::new(placed, fixture::fname(solid, fixture::wall(0))),
-                MeasureRef::new(placed, fixture::fname(solid, fixture::wall(2))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(0))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(2))),
             ],
         )
         .expect("both indices in range"),

@@ -390,6 +390,15 @@ pub enum SnapshotError {
         /// The forward input.
         input: RecipeNodeId,
     },
+    /// A node's `declare` input names a node that is not a
+    /// `Node::Declare` — the edit door's rule, asked of file data
+    /// (`Node::bad_declare_input`, one predicate, both doors).
+    DeclareInput {
+        /// The consuming node.
+        node: RecipeNodeId,
+        /// What its `declare` input names.
+        input: RecipeNodeId,
+    },
     /// A witness attached to a missing or non-sketch-bearing node.
     WitnessSite {
         /// The offending node id.
@@ -536,6 +545,11 @@ impl core::fmt::Display for SnapshotError {
                 "node {} takes input from node {}, which does not precede it in `order`",
                 node.0, input.0
             ),
+            Self::DeclareInput { node, input } => write!(
+                f,
+                "node {}'s declare input names node {}, which is not a declaration",
+                node.0, input.0
+            ),
             Self::WitnessSite { node } => write!(
                 f,
                 "a witness is attached to node {}, which is missing or bears no sketch",
@@ -676,6 +690,13 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
                 check_id(n)?;
             }
         }
+        // And every node a reference is READ AT that is not also an
+        // input (`Node::payload_read_sites` — a mate's two operands):
+        // an id past the counter inside an operand is as corrupt as
+        // one inside the name beside it, and as unrepairable.
+        for at in node.payload_read_sites() {
+            check_id(at)?;
+        }
         // A blend's selection carries one check of its own (M6-5): the
         // canonical form. `Node::fillet`/`Node::chamfer` are the only
         // construction doors and they canonicalize, so a non-canonical
@@ -709,6 +730,15 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         // DATA, and both of these are refused at the edit door.
         if let Some(fault) = node.measure_fault() {
             return Err(SnapshotError::MeasureRefs { node: id, fault });
+        }
+        // The declaration edge's kind rule
+        // (`Node::bad_declare_input`, the same answer the edit door
+        // asks of), for the reason above it: the edit door refuses a
+        // `declare` input that is not a `Declare`, and a snapshot is
+        // the one way a node reaches a document without passing that
+        // door.
+        if let Some(input) = node.bad_declare_input(doc) {
+            return Err(SnapshotError::DeclareInput { node: id, input });
         }
         if let Node::Assertion { measure, bound, .. } = node {
             let measured = match doc.nodes.get(measure) {

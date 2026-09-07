@@ -56,13 +56,32 @@ use geom_core::Tol;
 pub(crate) const MAX_DEPTH: usize = 1024;
 
 /// A resolved part: the referenced document's product, the product
-/// entities' part-local stable names, and the product's DECLARED
-/// CONTACT RECORDS (ASM-R2b D-1 — a part's own declarations cross the
-/// document seam with its geometry, in the same keys).
+/// entities' part-local stable names, the product's DECLARED CONTACT
+/// RECORDS (ASM-R2b D-1 — a part's own declarations cross the document
+/// seam with its geometry, in the same keys), and the MATE BOOKKEEPING
+/// that says whose declaration each record is and which of the
+/// document's mates it could not mint at all.
 pub(crate) struct PartValue<T: Decide> {
     pub body: Arc<Body<T>>,
     pub names: Arc<NameTable>,
     pub contacts: Arc<topo::ContactRecords>,
+    /// The referenced document's OWN minted declarations — which of
+    /// its mates authored which of those records, keyed in the same
+    /// arena the records are. The records already crossed the seam;
+    /// without these rows a finding against one names nobody.
+    pub minted: Arc<Vec<crate::assembly::MintedDeclaration>>,
+    /// The referenced document's own MINT REFUSALS: mates it could not
+    /// mint at all. Carried because inner mint health is the outermost
+    /// gate's business — a part with an unverifiable contact is a
+    /// broken part, and the document that instantiates it is not at
+    /// rest over it.
+    pub unminted: Arc<Vec<crate::assembly::MintRefusal>>,
+    /// What the referenced document itself carried up from ITS parts,
+    /// route and all. Instantiation extends the route; nothing below
+    /// is re-read.
+    pub carried: Arc<Vec<crate::assembly::CarriedDeclaration>>,
+    /// The same for the refusals it carried up.
+    pub carried_unminted: Arc<Vec<crate::assembly::CarriedRefusal>>,
 }
 
 impl<T: Decide> Clone for PartValue<T> {
@@ -71,6 +90,10 @@ impl<T: Decide> Clone for PartValue<T> {
             body: Arc::clone(&self.body),
             names: Arc::clone(&self.names),
             contacts: Arc::clone(&self.contacts),
+            minted: Arc::clone(&self.minted),
+            unminted: Arc::clone(&self.unminted),
+            carried: Arc::clone(&self.carried),
+            carried_unminted: Arc::clone(&self.carried_unminted),
         }
     }
 }
@@ -270,6 +293,17 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
     /// makes "evaluated ONCE" true when two instances of one part race,
     /// and a nested evaluation builds its own cache, so the lock is
     /// never re-entered.
+    ///
+    /// **The miss path runs inside a shielding verdict bracket.** The
+    /// instantiate node's log is the decisions its op made about its
+    /// own content, the same on a hit and on a miss (same content key
+    /// ⇒ same decisions, D9), so the part's unbracketed decisions —
+    /// its mate solve, its profile pre-passes, the gather of its
+    /// product — must land on neither instance. The shield sits HERE
+    /// rather than at the op door because the miss path is the one
+    /// thing a hit does not run: shielding the whole op would also
+    /// hide the placement and validation the op does on every path,
+    /// which ARE the node's decisions.
     pub(crate) fn get(&self, doc_ref: &DocRef, tol: Tol) -> Result<PartValue<T>, PartFault> {
         let key = (*doc_ref, self.eps_bits);
         let mut entries = match self.entries.lock() {
@@ -282,6 +316,7 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         if let Some(hit) = entries.get(&key) {
             return hit.clone();
         }
+        let _shield = geom_core::k_stats::Bracket::open();
         let value = self.resolve_and_evaluate(doc_ref, tol);
         entries.insert(key, value.clone());
         value
@@ -351,10 +386,19 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         // truth about what instantiating a document means.
         let product = crate::product::product_recorded(&doc, &evaluation, tol)
             .map_err(|e| product_fault(&e, &evaluation))?;
+        // The whole product crosses the seam, not a slice of it: what
+        // a document MEANS is its product, and its mates' identity and
+        // mint health are as much part of that as its records are. The
+        // `Arc`s are the cache's, so every instance of one part shares
+        // one row set.
         Ok(PartValue {
             body: Arc::new(product.body),
             names: Arc::new(product.names),
             contacts: Arc::new(product.contacts),
+            minted: Arc::new(product.minted),
+            unminted: Arc::new(product.unminted),
+            carried: Arc::new(product.carried),
+            carried_unminted: Arc::new(product.carried_unminted),
         })
     }
 }

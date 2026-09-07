@@ -27,7 +27,7 @@ use crate::common;
 use common::{profile, tol};
 use geom_core::Point2;
 use geom_core::Tol;
-use profile::path::PathNoCornerReason;
+use profile::path::{CornerReason, CornerWindow, PathNoCornerReason};
 use profile::{
     ArcSweep, Center, FilletLeg, FilletLegCarrier, NoCornerReason, Open, PathError, Profile,
     ProfileLoop, Start,
@@ -336,26 +336,33 @@ fn oversized_radius_on_an_arc_side_names_the_carrier_and_angular_margin() {
             Tol::witness(),
         )
         .expect_err("the short arc side must refuse");
-    match err {
-        PathError::AnchorOutsideTrimmedExtent {
-            side,
-            carrier:
-                FilletLegCarrier::Arc {
-                    radius,
-                    angular_margin,
-                },
-            setback,
-            available,
-        } => {
-            assert_eq!(side, FilletLeg::Outgoing);
-            assert!((radius - 2.0).abs() < 1e-15, "carrier radius {radius}");
-            assert!(angular_margin < 0.0, "angular margin {angular_margin}");
-            assert!(setback > available, "{setback} vs {available}");
-            // The angular margin is the arc-length margin over R.
-            assert!((angular_margin - (available - setback) / 2.0).abs() < 1e-15);
-        }
-        other => panic!("expected an arc-side AnchorOutsideTrimmedExtent, got {other:?}"),
-    }
+    // WHICH corner: the ray leaves the arrival carrier's own centre, so
+    // its two crossings are (±2, 0) and only the one ahead is reached.
+    crate::common::assert_corners(&err, &[(2.0, 0.0)], "the crossing ahead of the ray");
+    let hit = crate::common::corners(&err)
+        .iter()
+        .find_map(|c| match &c.reason {
+            CornerReason::AnchorOutsideTrimmedExtent {
+                side,
+                carrier:
+                    FilletLegCarrier::Arc {
+                        radius,
+                        angular_margin,
+                    },
+                setback,
+                available,
+            } => Some((*side, *radius, *angular_margin, *setback, *available)),
+            _ => None,
+        });
+    let Some((side, radius, angular_margin, setback, available)) = hit else {
+        panic!("expected an arc-side anchor-fit entry, got {err:?}")
+    };
+    assert_eq!(side, FilletLeg::Outgoing);
+    assert!((radius - 2.0).abs() < 1e-15, "carrier radius {radius}");
+    assert!(angular_margin < 0.0, "angular margin {angular_margin}");
+    assert!(setback > available, "{setback} vs {available}");
+    // The angular margin is the arc-length margin over R.
+    assert!((angular_margin - (available - setback) / 2.0).abs() < 1e-15);
 }
 
 #[test]
@@ -376,13 +383,23 @@ fn oversized_radius_on_a_straight_side_still_names_the_straight_carrier() {
             Tol::witness(),
         )
         .expect_err("the short straight side must refuse");
-    match err {
-        PathError::AnchorOutsideTrimmedExtent { side, carrier, .. } => {
-            assert_eq!(side, FilletLeg::Incoming);
-            assert_eq!(carrier, FilletLegCarrier::Line);
-        }
-        other => panic!("expected a straight-side AnchorOutsideTrimmedExtent, got {other:?}"),
-    }
+    // WHICH corner: the ray starts at (1.9, 0) inside the R = 2
+    // carrier, so the crossing behind it is window-discarded and the
+    // one ahead, (2, 0), is the whole envelope.
+    crate::common::assert_corners(&err, &[(2.0, 0.0)], "the crossing ahead of the ray");
+    let hit = crate::common::corners(&err)
+        .iter()
+        .find_map(|c| match &c.reason {
+            CornerReason::AnchorOutsideTrimmedExtent { side, carrier, .. } => {
+                Some((*side, *carrier))
+            }
+            _ => None,
+        });
+    let Some((side, carrier)) = hit else {
+        panic!("expected a straight-side anchor-fit entry, got {err:?}")
+    };
+    assert_eq!(side, FilletLeg::Incoming);
+    assert_eq!(carrier, FilletLegCarrier::Line);
 }
 
 #[test]
@@ -391,16 +408,19 @@ fn radius_too_large_for_the_corner_has_no_tangent_circle() {
     // only while r ≤ 1; beyond that no circle of radius r is tangent to
     // both carriers anywhere. The constructor door's own vocabulary is
     // carried through rather than flattened.
-    match line_arc_internal(1.5).expect_err("no tangent circle exists") {
-        PathError::NoCornerForFillet { reason, radius } => {
-            assert_eq!(
-                reason,
-                PathNoCornerReason::NoTangentCircle(NoCornerReason::OffsetCarriersDisjoint)
-            );
-            assert_eq!(radius, 1.5);
-        }
-        other => panic!("expected NoCornerForFillet, got {other:?}"),
-    }
+    let err = line_arc_internal(1.5).expect_err("no tangent circle exists");
+    let PathError::NoCornerOfPair { radius, .. } = &err else {
+        panic!("expected a NoCornerOfPair envelope, got {err:?}")
+    };
+    assert_eq!(*radius, 1.5);
+    crate::common::assert_corners(&err, &[(2.0, 0.0)], "the reachable crossing");
+    assert!(
+        matches!(
+            crate::common::corners(&err)[0].reason,
+            CornerReason::NoTangentCircle(NoCornerReason::OffsetCarriersDisjoint)
+        ),
+        "that corner reports the disjoint offset carriers, got {err:?}"
+    );
 }
 
 #[test]
@@ -464,14 +484,31 @@ fn an_arc_arc_radius_larger_than_both_carriers_refuses_as_the_enclosing_class() 
     };
     let err = arc_arc_at(2.0)
         .expect_err("a radius that swallows both carriers cannot round their corner");
-    match err {
-        PathError::FilletEnclosesLegCarrier {
-            side,
-            carrier_radius,
-            offset_radius,
-            radius,
-            largest_tangent_radius,
-        } => {
+    let PathError::NoCornerOfPair { radius, .. } = &err else {
+        panic!("expected a NoCornerOfPair envelope, got {err:?}")
+    };
+    let radius = *radius;
+    // WHICH corner: the two unit-scale carriers cross twice, and the
+    // enclosing entry is the crossing the anchors bracket.
+    crate::common::assert_corners(&err, &[(0.0, 0.0)], "the bracketed crossing");
+    let enclosing = crate::common::corners(&err)
+        .iter()
+        .find_map(|c| match &c.reason {
+            CornerReason::EnclosesLegCarrier {
+                side,
+                carrier_radius,
+                offset_radius,
+                largest_tangent_radius,
+            } => Some((
+                *side,
+                *carrier_radius,
+                *offset_radius,
+                *largest_tangent_radius,
+            )),
+            _ => None,
+        });
+    match enclosing {
+        Some((side, carrier_radius, offset_radius, largest_tangent_radius)) => {
             // BOTH carriers are swallowed here, and the bound named is
             // the tighter of the two: naming the incoming R = 1 would
             // endorse radii from 0.99 down to 0.51 that all re-refuse
@@ -502,7 +539,7 @@ fn an_arc_arc_radius_larger_than_both_carriers_refuses_as_the_enclosing_class() 
             );
             arc_arc_at(0.99 * bound).expect("the endorsed radius must build");
         }
-        other => panic!("expected FilletEnclosesLegCarrier, got {other:?}"),
+        None => panic!("expected an enclosing entry, got {err:?}"),
     }
     // The refusal renders the constructor door's own sentence: what it
     // would swallow, and a radius that exists.
@@ -733,12 +770,26 @@ fn a_side_with_no_extent_is_refused_before_any_angle_is_classified() {
             Tol::witness(),
         )
         .expect_err("a zero-extent side must refuse");
-    match err {
-        PathError::NoCornerForFillet { reason, radius } => {
-            assert_eq!(reason, PathNoCornerReason::BehindIncomingRay);
-            assert_eq!(radius, 0.5);
-        }
-        other => panic!("expected NoCornerForFillet, got {other:?}"),
+    let PathError::NoCornerOfPair { radius, .. } = &err else {
+        panic!("expected a NoCornerOfPair envelope, got {err:?}")
+    };
+    assert_eq!(*radius, 0.5);
+    // WHICH corners: the ray starts ON the R = 2 carrier at (2, 0) and
+    // heads out of it, so BOTH crossings are behind its origin and both
+    // are listed — the window channel answers, and it answers in full.
+    crate::common::assert_corners(
+        &err,
+        &[(2.0, 0.0), (-2.0, 0.0)],
+        "both crossings, behind the ray's own start",
+    );
+    for c in crate::common::corners(&err) {
+        assert!(
+            matches!(
+                c.reason,
+                CornerReason::OutsideAnchors(CornerWindow::BehindIncomingRay)
+            ),
+            "each entry sits behind the incoming ray's start, got {err:?}"
+        );
     }
 }
 
@@ -759,8 +810,9 @@ fn an_arc_side_with_no_extent_is_refused_the_same_way() {
             0.5,
             Center {
                 // The ray STARTS at the arrival carrier's centre, so
-                // every candidate corner sits behind the ray's own
-                // origin once the offset carriers are taken.
+                // neither crossing is admitted: the far one is not
+                // behind the arrival anchor and the near one is behind
+                // the ray's own origin (the row reads both windows).
                 c: p2(0.0, 0.0),
                 winding: ArcSweep::Ccw,
                 p: p2(2.0, 0.0),
@@ -768,13 +820,35 @@ fn an_arc_side_with_no_extent_is_refused_the_same_way() {
             Tol::witness(),
         )
         .expect_err("an empty arrival extent must refuse");
-    match empty_sweep {
-        PathError::NoCornerForFillet { reason, radius } => {
-            assert_eq!(reason, PathNoCornerReason::BehindIncomingRay);
-            assert_eq!(radius, 0.5);
-        }
-        other => panic!("expected NoCornerForFillet, got {other:?}"),
-    }
+    let PathError::NoCornerOfPair { radius, .. } = &empty_sweep else {
+        panic!("expected a NoCornerOfPair envelope, got {empty_sweep:?}")
+    };
+    assert_eq!(*radius, 0.5);
+    // WHICH corners: the ray leaves the arrival carrier's own centre,
+    // so the crossings are (±2, 0) and the windows discard both.
+    crate::common::assert_corners(
+        &empty_sweep,
+        &[(2.0, 0.0), (-2.0, 0.0)],
+        "both crossings of the ray with its own centre's carrier",
+    );
+    // And each entry names its OWN window, which is not the same window
+    // on the two crossings: the far one is not behind the arrival
+    // anchor, the near one is behind the ray's start.
+    let windows: Vec<CornerWindow> = crate::common::corners(&empty_sweep)
+        .iter()
+        .map(|c| match c.reason {
+            CornerReason::OutsideAnchors(w) => w,
+            _ => panic!("every entry is a window refusal here, got {empty_sweep:?}"),
+        })
+        .collect();
+    assert_eq!(
+        windows,
+        [
+            CornerWindow::BehindArrivalAnchor,
+            CornerWindow::BehindIncomingRay
+        ],
+        "got {empty_sweep:?}"
+    );
     assert!(
         empty_sweep
             .to_string()

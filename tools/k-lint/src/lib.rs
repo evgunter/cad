@@ -437,6 +437,21 @@ pub struct Scan {
     /// here ([`lint_sample`]'s arm says why) and are reported as their
     /// own number rather than folded into the clean count.
     pub symbolic: usize,
+    /// How many of [`Scan::scanned`] were `sign_gated` — decisions the
+    /// symbolic tier answered through its clause-3 fold (a theorem
+    /// conditional on a sign it certified over the box). Never a rule
+    /// sample, for the same reason as `symbolic_zero`, and reported as
+    /// its own number because the two claims differ in kind.
+    pub sign_gated: usize,
+    /// How many of [`Scan::scanned`] were `registered` — decisions the
+    /// symbolic tier answered through a REGISTERED IDENTITY (a
+    /// constructor's axiom about what it built, verified at the leaf's
+    /// witness; ERROR-DESIGN E12's provenance reserve). Never a rule
+    /// sample, for the same reason as the two columns above, and its
+    /// own number because the claim differs in kind from both: those
+    /// two are theorems of exact arithmetic, this one additionally
+    /// rests on the registrant's argument.
+    pub registered: usize,
     pub flags: Vec<Flag>,
     /// `Some((10²·Kε, floor))` when this file's ambient rows are loose
     /// enough that rule (2)'s definite arm was capped at the baseline
@@ -465,13 +480,15 @@ const EXPECTED_HEADER: &str = "shape,predicate,margin,band_zero,band_escalate,ou
 /// `tests::the_accepted_outcomes_are_exactly_the_recorders` pins this
 /// list against `SampleOutcome::ALL` variant by variant, so the next
 /// variant reds a test here instead of silently disarming a gate.
-pub const ACCEPTED_OUTCOMES: [&str; 6] = [
+pub const ACCEPTED_OUTCOMES: [&str; 8] = [
     "zero",
     "positive",
     "negative",
     "indeterminate",
     "invalid",
     "symbolic_zero",
+    "sign_gated",
+    "registered",
 ];
 
 /// What a numeric column of the sweep may say.
@@ -608,7 +625,22 @@ pub fn lint_sample(
         // make. The row still counts — in its own column, `Scan::
         // symbolic` — because the ratio of symbolic to numeric
         // decisions is the evidence the tier exists to produce.
-        "symbolic_zero" => {}
+        //
+        // A `sign_gated` row is the same tier's answer through its
+        // clause-3 fold: zero as a theorem CONDITIONAL on a sign the
+        // funnel certified over the leaf's box. The margin was still
+        // never classified against the band, so it is no rule's
+        // sample either; it counts in `Scan::sign_gated`, apart from
+        // the unconditional column, because the two claims differ.
+        // A `registered` row is the same tier's answer through the
+        // registered-identity door: zero because a CONSTRUCTOR stated
+        // that two of the expression's nodes are one real and the
+        // leaf's witness agreed. Still never classified against the
+        // band — no rule has a comparison to make — and still its own
+        // column (`Scan::registered`), because an axiom about a
+        // construction is not a theorem of the arithmetic and reading
+        // the three together as one number would hide exactly that.
+        "symbolic_zero" | "sign_gated" | "registered" => {}
         "positive" | "negative" if band_zero >= AMBIENT_BAND_MIN => {
             if is_eps_coupled(predicate) {
                 if m < EPS_COUPLED_FLOOR_RATIO * band_zero {
@@ -642,6 +674,8 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
     let mut flags = Vec::new();
     let mut scanned = 0usize;
     let mut symbolic = 0usize;
+    let mut sign_gated = 0usize;
+    let mut registered = 0usize;
     let mut proximity_capped = None;
     for (i, line) in text.lines().enumerate() {
         if i == 0 {
@@ -736,6 +770,12 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
         if out == "symbolic_zero" {
             symbolic += 1;
         }
+        if out == "sign_gated" {
+            sign_gated += 1;
+        }
+        if out == "registered" {
+            registered += 1;
+        }
         // Record (once) that rule (2)-above is running capped on this
         // file's ambient rows, so the CLI can say so out loud.
         if band_zero >= AMBIENT_BAND_MIN && proximity_capped.is_none() {
@@ -759,6 +799,8 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
     Ok(Scan {
         scanned,
         symbolic,
+        sign_gated,
+        registered,
         flags,
         proximity_capped,
     })

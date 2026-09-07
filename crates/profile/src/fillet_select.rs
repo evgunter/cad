@@ -173,9 +173,9 @@ pub(crate) fn nearest_candidate(setbacks: &[[f64; 2]]) -> usize {
 /// `Dual64` the ranked channel is the plain-`f64` run's bit for bit
 /// (D9), so the dual run picks the candidate the `f64` run picks.
 ///
-/// `joints` is never empty at the call site (the caller refuses
-/// `NoCornerForFillet` first); an empty slice returns 0, matching
-/// [`nearest_candidate`]'s own total shape.
+/// `joints` is never empty at the call site (the caller refuses with
+/// the `NoCornerOfPair` envelope first); an empty slice returns 0,
+/// matching [`nearest_candidate`]'s own total shape.
 pub(crate) fn nearest_joint<T: Bounds>(joints: &[ArcFilletCandidate<T>]) -> usize {
     let setbacks: Vec<[f64; 2]> = joints
         .iter()

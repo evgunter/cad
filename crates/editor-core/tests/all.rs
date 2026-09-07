@@ -110,6 +110,10 @@ mod docm3_union;
 mod docm4_evaluation_identity;
 #[path = "docm5_subject.rs"]
 mod docm5_subject;
+#[path = "docm6_seam_declarations.rs"]
+mod docm6_seam_declarations;
+#[path = "docm7_union_declare.rs"]
+mod docm7_union_declare;
 #[path = "dsc_checks.rs"]
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
@@ -119,8 +123,6 @@ mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
 mod fix_pattern_mate_crossing;
 
-#[path = "fix_xblind_probe.rs"]
-mod fix_xblind_probe;
 #[path = "gui1_pick.rs"]
 mod gui1_pick;
 #[path = "gui1_pick_r2.rs"]
@@ -171,6 +173,18 @@ mod m10_3_r2_probes_interval;
 mod m10_4_r1_probes_interval;
 #[path = "m10_4_seed.rs"]
 mod m10_4_seed;
+#[path = "msolve1_transform_aware.rs"]
+mod msolve1_transform_aware;
+#[path = "msolve2_member_chain.rs"]
+mod msolve2_member_chain;
+#[path = "msolve3_placer_refused.rs"]
+mod msolve3_placer_refused;
+#[path = "msolve4_mate_memo.rs"]
+mod msolve4_mate_memo;
+#[path = "msolve5_read_below_a_root.rs"]
+mod msolve5_read_below_a_root;
+#[path = "onb_wall_normal_census.rs"]
+mod onb_wall_normal_census;
 
 #[path = "m10_4_r2_probes_interval.rs"]
 mod m10_4_r2_probes_interval;
@@ -326,6 +340,8 @@ mod mate6r2_probes;
 mod pirad_wire;
 #[path = "placedunion_wire.rs"]
 mod placedunion_wire;
+#[path = "props_verdict_shapes.rs"]
+mod props_verdict_shapes;
 
 #[path = "r1_bool11_ec_probe.rs"]
 mod r1_bool11_ec_probe;
@@ -369,6 +385,12 @@ mod ring_r1_names_probe;
 mod seat4_verb_lowering;
 #[path = "seat6_param_source.rs"]
 mod seat6_param_source;
+#[path = "seat7_sweep_lowering.rs"]
+mod seat7_sweep_lowering;
+#[path = "seat8_split_lowering.rs"]
+mod seat8_split_lowering;
+#[path = "seatfw_curved_flush.rs"]
+mod seatfw_curved_flush;
 #[path = "switch_display_units.rs"]
 mod switch_display_units;
 #[path = "switch_dump.rs"]
@@ -417,3 +439,28 @@ mod lib_tube_r2_probes;
 
 #[path = "m10_7_r2_probes_interval.rs"]
 mod m10_7_r2_probes_interval;
+#[path = "m10_8_arc_family_interval.rs"]
+mod m10_8_arc_family_interval;
+#[path = "m10_8_harness.rs"]
+mod m10_8_harness;
+#[path = "m10_8_pins_interval.rs"]
+mod m10_8_pins_interval;
+#[path = "m10_8_r1_probes_interval.rs"]
+mod m10_8_r1_probes_interval;
+
+#[path = "m10_8_r2_probes_interval.rs"]
+mod m10_8_r2_probes_interval;
+
+#[path = "m10_9_evidence_interval.rs"]
+mod m10_9_evidence_interval;
+#[path = "m10_9_pins_interval.rs"]
+mod m10_9_pins_interval;
+
+#[path = "m10_9_r2_probes_interval.rs"]
+mod m10_9_r2_probes_interval;
+
+#[path = "kstats_bracket_rows.rs"]
+mod kstats_bracket_rows;
+
+#[path = "m10_9_r1_probes_interval.rs"]
+mod m10_9_r1_probes_interval;

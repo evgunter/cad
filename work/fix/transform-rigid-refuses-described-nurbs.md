@@ -115,9 +115,10 @@ maps by its control points with the knot vectors and the weight channel
 carried over verbatim. The refusal keeps `TransformError::NurbsPlaceholder`
 and its existing text, which is now accurate. The point map itself is
 `map_points` on `NurbsSurface` and on the `nurbs_curve!` macro (so both
-curve dimensions) — `crates/geom/src/*` is S-CERT's ground and the row is
+curve dimensions) — `crates/geom/src/*` was S-CERT's ground and the row was
 filed there as `work/cert/nurbs-net-point-map-helper.md`, per this
-program's `keep_out`.
+program's `keep_out`; since S-CERT's exit it is
+`work/fix/nurbs-net-point-map-helper.md`, on this slate.
 
 The nets are stored **Euclidean** with the weights in a separate channel,
 so evaluation is an affine combination of the control points and a rigid
@@ -201,5 +202,5 @@ descriptions, which resolve through the iso resolver that admits described
 nets — and the new acceptance row proves that path end to end. What is now
 reachable and refuses is the M7-8 plane x described-NURBS `Intersection`
 class: a body tier 3 calls valid that `transform_rigid` cannot move. The
-fix is a `T: EdgeNurbsLane` bound and the lane-wired door, a public generic
-signature change out of this unit's scope.
+fix is a `T: Decide + geom_core::CertifiedBounds` bound and the lane-wired
+door, a public generic signature change out of this unit's scope.

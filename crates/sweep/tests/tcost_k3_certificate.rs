@@ -81,7 +81,7 @@ test_utils::gated_to![
 ];
 
 use crate::common::{arc_section, stacked};
-use geom_core::k_stats::{start_verdict_log, take_verdict_log};
+use geom_core::k_stats::Bracket;
 use geom_core::{Point2, Tol};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
@@ -190,9 +190,11 @@ fn flip_all(body: &Body<f64>) -> Body<f64> {
 /// over one body at one band contributes a fixed number of
 /// `props_quad_*` verdicts; two contribute twice that.
 fn quad_verdicts(run: impl FnOnce()) -> usize {
-    start_verdict_log();
+    let bracket = Bracket::open();
     run();
-    take_verdict_log()
+    bracket
+        .finish()
+        .verdicts
         .iter()
         .filter(|v| v.predicate.starts_with("props_quad"))
         .count()

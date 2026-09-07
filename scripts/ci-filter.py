@@ -17,10 +17,14 @@ per-crate):
                 convention: floors apply to CODE PRs.)
   TIER=all      a workspace-level file changed — the change can move any
                 crate's build, so everything runs, unscoped.
-  TIER=closure  only crate sources changed. PKGS is the DEPENDENT CLOSURE:
-                the changed members plus every member that transitively
-                depends on them, dev-dependencies INCLUDED (a dev-dep edge
-                is a real build edge for `cargo test`).
+  TIER=closure  only crate sources changed. PKGS is the DEPENDENT CLOSURE
+                PLUS THE READ REACH: the changed members, every member that
+                transitively depends on them (dev-dependencies INCLUDED — a
+                dev-dep edge is a real build edge for `cargo test`), and every
+                member whose own sources READ outside their crate. The second
+                half is Ev's ruling of 2026-09-05, *"the closure should reach
+                tree wide guards"*, and its derivation is at THE READ REACH
+                below; `REACHED` names what it added.
 
 Classification is an ALLOWLIST, so it fails CLOSED by construction: a path
 is scopable only if `_is_docs` recognises it as non-triggering or it lives
@@ -68,6 +72,11 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
 
   TIER=docs|all|closure
   PKGS=<comma-separated members, empty for docs, all members for `all`>
+  REACHED=<the members PKGS holds for what they READ rather than for what they
+                depend on — the read reach's addition to the dependent closure,
+                empty on tiers docs and all and on a closure that already held
+                them. `decorate` subtracts it again before keying JOB_ROOTS, so
+                pinning a guard cannot silently switch a named job row on>
   CARGO_SCOPE=--workspace | -p a -p b ...
   RUN_BUILD=true|false          any cargo/grep row at all (false only for docs)
   RUN_EDITOR_CORE=true|false    the editor-core rows (see JOB_ROOTS)
@@ -593,18 +602,485 @@ def _markdown_read_by_python(root: str) -> frozenset[str]:
     return frozenset(out)
 
 
+# ------------------------------------------------------------------ THE READ
+# REACH: a guard whose subject is the TREE, reached because of what it reads.
+#
+# WHAT THIS IS FOR (Ev, 2026-09-05: *"the closure should reach tree wide
+# guards"*). TIER=closure's `PKGS` is the DEPENDENT closure, so a crate enters
+# a run's scope only when it is touched or something it depends on is. That is
+# the right answer for a suite whose subject is its own crate and the WRONG one
+# for a suite whose subject is the repository: `crates/test-utils/Cargo.toml`
+# says the leaf has *"ZERO dependencies, deliberately"*, which is exactly right
+# for the layering and puts the tree's most tree-wide guard —
+# `reader_census.rs`'s `every_site_that_reads_rust_source_is_in_the_ledger` —
+# in scope for 1 of 18 members. It reddened `main` twice on 2026-09-04, both
+# times from a PR that was fully green because the guard was never built in it
+# (work/ciw/tree-wide-guards-outside-the-change-closure.md measures both).
+#
+# THE RULE, AND IT IS DERIVED RATHER THAN LISTED. A source file that reads a
+# path outside its own crate has a BUILD EDGE ITS MANIFEST DOES NOT DECLARE,
+# and this resolves those edges by reading them:
+#
+#   lands at the repository root, or at `crates/` itself
+#       -> the file reads EVERY member, so its crate is pinned into every
+#          non-docs closure. That is a tree-wide guard.
+#   lands inside another MEMBER
+#       -> a read edge: the reader's crate joins the closure when that
+#          member's own files change (SEEDS, not the closure — the subject is
+#          the other crate's TEXT, which only its own seeds move).
+#   lands anywhere else that is tracked (`docs/`, `demos/`, a root file)
+#       -> a path edge, checked against the diff. A `.md` reached this way is
+#          also a page a SUITE CONSUMES, so `_consumed_markdown` takes it and
+#          it leaves the docs tier — the same disposition an `include_str!`ed
+#          page already gets, for the same reason.
+#   lands under `target/`
+#       -> nothing is tracked there, so no diff can name it. Ignored.
+#
+# A HAND-MAINTAINED ROSTER WAS THE ALTERNATIVE AND IS THE ONE SHAPE THE RULING
+# EXISTS TO REMOVE. The five guards this was written for were found by a sweep,
+# a sixth (`crates/bvh/tests/aggregator_headers.rs`, whose own header says
+# *"its subject is workspace-wide, so no crate owns it and any home is
+# arbitrary"*) was found by this scanner and not by the sweep, and a seventh
+# written next week would be found by neither. Nothing here names a guard.
+#
+# WHAT IT READS, AND WHAT IT CANNOT. Resolution follows `join`/`push` with a
+# string literal, `parent`/`pop`, `ancestors`, the `concat!` and array
+# spellings, and ONE level of `let`/`fn` binding — every spelling in this tree,
+# which spells the same ascent five different ways across six files. It FAILS
+# CLOSED on the rest: a chain it cannot resolve, and any `..`-bearing literal
+# in an anchor-carrying file that no resolved chain consumed, are measured from
+# the crate directory, so an unfollowable ascent lands at the root and pins the
+# crate rather than going missing. What it does not see is an ascent whose base
+# is an expression it cannot follow AND whose literal climbs no further than a
+# sibling; that residue is what the empty-set check below is the floor under.
+_ANCHOR_RE = re.compile(
+    r'env!\s*\(\s*"CARGO_MANIFEST_DIR"\s*\)'
+    r'|env!\s*\(\s*"CARGO_(?:WORKSPACE_DIR|RUSTC_CURRENT_DIR)"\s*\)'
+    r"|env::current_dir\s*\(\s*\)"
+)
+# The two that name the WORKSPACE root rather than the crate's own directory.
+_ROOT_ANCHOR_RE = re.compile(r"CARGO_(?:WORKSPACE_DIR|RUSTC_CURRENT_DIR)")
+_METHOD_RE = re.compile(r"\.\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(")
+_STR_LIT_RE = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
+_BIND_RE = re.compile(
+    r"(?:let\s+(?:mut\s+)?([A-Za-z_][A-Za-z0-9_]*)|fn\s+([A-Za-z_][A-Za-z0-9_]*))"
+)
+# The macros and literals whose elements are PATH FRAGMENTS rather than
+# arguments. `assert!(p.join(x), "…")` must not read its message as a fragment,
+# which is what a comma-blind scan does.
+_GROUP_HEAD_RE = re.compile(r"(concat|format|vec)!\s*$")
+
+
+def _rust_code_view(text: str) -> str:
+    """Comments blanked, string literals kept — the same view this tree's own
+    source-text guards read through `test_utils::source::code_and_literals`.
+    A path spelled in a doc comment is prose, not a read."""
+    out: list[str] = []
+    i, n = 0, len(text)
+    while i < n:
+        c = text[i]
+        if c == '"':
+            j = i + 1
+            while j < n:
+                if text[j] == "\\":
+                    j += 2
+                    continue
+                if text[j] == '"':
+                    j += 1
+                    break
+                j += 1
+            out.append(text[i:j])
+            i = j
+            continue
+        if text.startswith("//", i):
+            j = text.find("\n", i)
+            j = n if j < 0 else j
+            out.append(" " * (j - i))
+            i = j
+            continue
+        if text.startswith("/*", i):
+            depth, j = 0, i
+            while j < n:
+                if text.startswith("/*", j):
+                    depth += 1
+                    j += 2
+                    continue
+                if text.startswith("*/", j):
+                    depth -= 1
+                    j += 2
+                    if depth == 0:
+                        break
+                    continue
+                j += 1
+            out.append(" " * (j - i))
+            i = j
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def _skip_space(s: str, i: int) -> int:
+    while i < len(s) and s[i].isspace():
+        i += 1
+    return i
+
+
+_BRACKETS = {"(": ")", "[": "]", "{": "}"}
+
+
+def _past_close(s: str, i: int) -> int:
+    """`s[i]` is an opening bracket; the index just past its match."""
+    stack = [_BRACKETS[s[i]]]
+    i += 1
+    while i < len(s) and stack:
+        c = s[i]
+        if c == '"':
+            i += 1
+            while i < len(s):
+                if s[i] == "\\":
+                    i += 2
+                    continue
+                if s[i] == '"':
+                    break
+                i += 1
+        elif c in _BRACKETS:
+            stack.append(_BRACKETS[c])
+        elif c == stack[-1]:
+            stack.pop()
+        i += 1
+    return i
+
+
+# The verdict of a resolution: a list of repo-relative components, or None for
+# "this climbed somewhere I cannot name", which is the tree.
+_UNRESOLVED = None
+
+
+def _walk_fragment(comps: list[str] | None, lit: str) -> list[str] | None:
+    if comps is _UNRESOLVED:
+        return _UNRESOLVED
+    out = list(comps)
+    for part in lit.split("/"):
+        if part in ("", "."):
+            continue
+        if part == "..":
+            if not out:
+                # Above the repository root: unnameable, so the tree.
+                return _UNRESOLVED
+            out.pop()
+        elif "{" in part or "}" in part:
+            # A `format!` placeholder. It is ONE component and it cannot be an
+            # ascent — `..` is spelled literally — so it goes down, unnamed.
+            out.append("*")
+        else:
+            out.append(part)
+    return out
+
+
+def _group_is_path_list(code: str, pos: int) -> bool:
+    """Is the expression at `pos` an element of a `concat!`/array path list?
+
+    Scanning backwards for the innermost unclosed opener is what tells
+    `concat!(MANIFEST_DIR, "/../x")` — where the neighbour IS a fragment —
+    from `assert!(p.join(x), "message")`, where it is prose.
+    """
+    depth = 0
+    i = pos - 1
+    while i >= 0:
+        c = code[i]
+        if c in ")]}":
+            depth += 1
+        elif c in "([{":
+            if depth == 0:
+                if c == "[":
+                    return True
+                return bool(_GROUP_HEAD_RE.search(code[max(0, i - 12):i]))
+            depth -= 1
+        i -= 1
+    return False
+
+
+def _resolve_chain(
+    code: str, i: int, comps: list[str] | None, consumed: list[tuple[int, int]]
+) -> list[str] | None:
+    """Follow the path-building chain at `code[i:]`, recording the spans of the
+    ascent tokens it accounted for."""
+    in_group = _group_is_path_list(code, i)
+    while True:
+        i = _skip_space(code, i)
+        if i >= len(code):
+            return comps
+        c = code[i]
+        if c in ")]":
+            # Closing a wrapper the anchor sits inside — `Path::new(…)`,
+            # `PathBuf::from(…)`, `test_utils::source::crate_dir(…)`. The chain
+            # continues on the far side of it.
+            in_group = False
+            i += 1
+            continue
+        if c == "," and in_group:
+            i += 1
+            while True:
+                i = _skip_space(code, i)
+                m = _STR_LIT_RE.match(code, i)
+                if m:
+                    if ".." in m.group(1):
+                        consumed.append((m.start(), m.end()))
+                    comps = _walk_fragment(comps, m.group(1))
+                    i = m.end()
+                else:
+                    j = i
+                    while j < len(code):
+                        ch = code[j]
+                        if ch in "([{":
+                            j = _past_close(code, j)
+                            continue
+                        if ch in ",)]":
+                            break
+                        j += 1
+                    if j == i:
+                        break
+                    comps = _walk_fragment(comps, "{}")
+                    i = j
+                i = _skip_space(code, i)
+                if i < len(code) and code[i] == ",":
+                    i += 1
+                    continue
+                break
+            continue
+        if c == ".":
+            m = _METHOD_RE.match(code, i)
+            if not m:
+                return comps
+            name = m.group(1)
+            opener = m.end() - 1
+            end = _past_close(code, opener)
+            arg = code[opener + 1 : end - 1]
+            if name in ("join", "push"):
+                lits = _STR_LIT_RE.findall(arg)
+                if lits:
+                    for lit in lits:
+                        if ".." in lit:
+                            consumed.append((opener, end))
+                        comps = _walk_fragment(comps, lit)
+                elif arg.strip():
+                    comps = _walk_fragment(comps, "{}")
+            elif name in ("parent", "pop"):
+                consumed.append((i, end))
+                comps = (
+                    _UNRESOLVED
+                    if comps is _UNRESOLVED or not comps
+                    else comps[:-1]
+                )
+            elif name == "ancestors":
+                consumed.append((i, end))
+                return _UNRESOLVED
+            i = end
+            continue
+        return comps
+
+
+def _file_destinations(text: str, crate_dir: str) -> set[str]:
+    """Every place outside its own crate that this file's crate-anchored path
+    expressions reach, `/`-joined and repo-relative; `""` for the root."""
+    # THE CHEAP REFUSAL FIRST, AND IT IS A LATENCY DECISION, NOT A STYLE ONE.
+    # This runs over every `.rs` file in `crates/` on every classification —
+    # including a docs-tier one, because `_consumed_markdown` reads it — and
+    # about 95 % of those files never name a crate root at all. Building the
+    # comment-blanked view for them cost 3.4 s of a job whose whole fixed cost
+    # is 21-27 s; a substring test over the raw text costs nothing and cannot
+    # be wrong in the dangerous direction, since the anchors below are spelled
+    # with these tokens and a file without them has no chain to follow. (A
+    # mention inside a COMMENT survives this test and is dropped by the view.)
+    if "CARGO_MANIFEST_DIR" not in text and "current_dir" not in text and (
+        "CARGO_WORKSPACE_DIR" not in text and "CARGO_RUSTC_CURRENT_DIR" not in text
+    ):
+        return set()
+    code = _rust_code_view(text)
+    if not _ANCHOR_RE.search(code):
+        return set()
+    here = ["crates", crate_dir]
+    dests: set[str] = set()
+    consumed: list[tuple[int, int]] = []
+    bindings: dict[str, list[str] | None] = {}
+    for _ in range(4):
+        before = dict(bindings)
+        starts: list[tuple[int, int, list[str] | None]] = []
+        for m in _ANCHOR_RE.finditer(code):
+            starts.append(
+                (m.start(), m.end(), [] if _ROOT_ANCHOR_RE.search(m.group(0)) else here)
+            )
+        for name, bound in bindings.items():
+            for m in re.finditer(r"\b" + re.escape(name) + r"\b\s*(?:\(\s*\))?", code):
+                if m.start() and code[m.start() - 1] == ".":
+                    continue
+                starts.append((m.start(), m.end(), bound))
+        for at, after, start in starts:
+            comps = _resolve_chain(
+                code, after, _UNRESOLVED if start is _UNRESOLVED else list(start), consumed
+            )
+            dests.add("" if comps is _UNRESOLVED else "/".join(comps))
+            stop = max(
+                code.rfind(";", 0, at) + 1,
+                code.rfind("{", 0, at) + 1,
+                code.rfind("}", 0, at) + 1,
+            )
+            b = _BIND_RE.search(code, stop, at)
+            if b:
+                nm = b.group(1) or b.group(2)
+                cur = _UNRESOLVED if comps is _UNRESOLVED else list(comps)
+                if nm not in bindings or (
+                    bindings[nm] is not _UNRESOLVED and cur is _UNRESOLVED
+                ):
+                    bindings[nm] = cur
+        if bindings == before:
+            break
+    # AN `include!` ARGUMENT IS NOT A RUNTIME READ and is accounted for
+    # elsewhere. It resolves against the FILE's directory rather than against
+    # any path expression here, `_compiled_markdown` already reads the whole
+    # family for the docs tier, and what it names is compiled in rather than
+    # opened — so leaving it in the sweep below would measure a
+    # `include_str!("../../../docs/guide/north-star-audit.md")` from the crate
+    # root and pin `pncad` for a page rustdoc pulls in.
+    for m in _INCLUDE_RE.finditer(code):
+        end = _past_close(code, code.index("(", m.start()))
+        consumed.append((m.start(), end))
+    # THE FAIL-CLOSED HALF. Every `..`-bearing literal no chain above accounted
+    # for is measured FROM THE CRATE DIRECTORY, which is the most it could be
+    # anchored at. A spelling this cannot follow therefore lands somewhere real
+    # — at a sibling crate, or at the root, where it pins — rather than being
+    # skipped for being unreadable.
+    for m in _STR_LIT_RE.finditer(code):
+        body = m.group(1)
+        if ".." not in body.split("/"):
+            continue
+        if any(a <= m.start() and m.end() <= b for a, b in consumed):
+            continue
+        comps = _walk_fragment(list(here), body)
+        dests.add("" if comps is _UNRESOLVED else "/".join(comps))
+    # WITHIN ITS OWN CRATE IS NOT A DESTINATION, compared by PATH COMPONENT
+    # and not by string prefix: `crates/geom` is a prefix of
+    # `crates/geom-core/src/lib.rs` and this workspace has both, so a prefix
+    # test would silently drop a real cross-crate read from `geom` into
+    # `geom-core`.
+    mine = ("crates", crate_dir)
+    return {d for d in dests if tuple(d.split("/")[:2]) != mine}
+
+
+class Reach:
+    """What each crate DIRECTORY reads outside itself.
+
+    Directory names, not package names: the mapping between them needs
+    `cargo metadata`, and the docs tier must not start depending on cargo to
+    decide whether anything builds.
+    """
+
+    def __init__(self) -> None:
+        self.tree: set[str] = set()
+        self.crates: dict[str, set[str]] = {}
+        self.paths: dict[str, set[str]] = {}
+
+
+_REACH_CACHE: dict[str, Reach] = {}
+
+
+def _read_reach(root: str) -> Reach:
+    if root in _REACH_CACHE:
+        return _REACH_CACHE[root]
+    reach = Reach()
+    crates_dir = os.path.join(root, "crates")
+    if not os.path.isdir(crates_dir):
+        raise Bail("no crates/ directory to read the tree-wide guards out of")
+    for member in sorted(os.listdir(crates_dir)):
+        here = os.path.join(crates_dir, member)
+        if not os.path.isdir(here):
+            continue
+        for base, dirs, names in os.walk(here):
+            dirs[:] = [d for d in dirs if d != "target"]
+            for name in sorted(names):
+                if not name.endswith(".rs"):
+                    continue
+                src = os.path.join(base, name)
+                try:
+                    with open(src, encoding="utf-8") as fh:
+                        text = fh.read()
+                except OSError as exc:
+                    raise Bail(f"cannot read {src}: {exc}") from exc
+                for dest in _file_destinations(text, member):
+                    if dest in ("", "crates"):
+                        reach.tree.add(member)
+                    elif "*" in dest or any(c.isspace() for c in dest):
+                        # A family rather than a path: it names no file a diff
+                        # can name either.
+                        continue
+                    elif dest.startswith("target/") or dest == "target":
+                        continue
+                    elif dest.startswith("crates/"):
+                        other = dest.split("/")[1]
+                        # A directory that is not there is not a member. The
+                        # fail-closed sweep measures every unattributed ascent
+                        # from the crate root, so it manufactures plausible
+                        # non-paths (`crates/src/lib.rs` out of a
+                        # `"../src/lib.rs"` that was relative to `tests/`);
+                        # those name nothing a diff can name either.
+                        if other != member and os.path.isdir(
+                            os.path.join(crates_dir, other)
+                        ):
+                            reach.crates.setdefault(member, set()).add(other)
+                    else:
+                        reach.paths.setdefault(member, set()).add(dest)
+    _REACH_CACHE[root] = reach
+    return reach
+
+
+def _suite_read_markdown(root: str) -> frozenset[str]:
+    """Repo-relative `.md` paths a RUST SUITE opens at run time.
+
+    The third half of `_consumed_markdown`, and the same argument as the other
+    two one language over: `crates/geom-core/tests/flagged_census.rs` reads
+    `docs/predicate-dimension-audit.md` and fails when a shipped
+    `decide_flagged` site has no row in it, so an edit to that page can turn a
+    suite red exactly as an edit to an `include_str!`ed page can turn a doctest
+    red. Neither of the other two halves can see it: there is no `include!` to
+    match and it is not python.
+    """
+    reach = _read_reach(root)
+    return frozenset(
+        dest
+        for dests in reach.paths.values()
+        for dest in dests
+        if dest.endswith(".md")
+    )
+
+
 def _consumed_markdown(root: str) -> frozenset[str]:
     """Markdown a BUILD OR A SUITE consumes, from both directions.
 
-    Both halves fail closed on every consumption they can see, which is what
+    THREE HALVES NOW, and the third arrived with the read reach above
+    (2026-09-05): a `.md` a RUST SUITE opens at run time is consumed exactly as
+    one an `include_str!` compiles in is. `crates/geom-core/tests/flagged_census.rs`
+    reads `docs/predicate-dimension-audit.md` and reds when a shipped site has
+    no row in it — a page that classified as documentation, on a tier that
+    builds nothing, so the one edit that could break that guard was the one
+    edit guaranteed not to run it. **THIS MOVES A PAGE OUT OF THE DOCS TIER**,
+    which is the same disposition `docs/GUIDE.md` already has and is reached by
+    the same rule: what a build or a suite reads is not prose.
+
+    Every half fails closed on every consumption it can see, which is what
     makes the union safe to take: an `include!` that cannot be resolved and a
-    `.md` literal that cannot be resolved each raise `Bail`, so a consumer
-    re-spelled out of one parser's reach becomes TIER=all rather than becoming
-    a page in the docs tier. Neither half can see a page whose name is never
-    written down; that residue is `_markdown_read_by_python`'s to state and it
-    does.
+    `.md` literal that cannot be resolved each raise `Bail`, and a path
+    expression the reach cannot follow is measured from the crate directory
+    rather than dropped — so a consumer re-spelled out of one parser's reach
+    becomes TIER=all rather than becoming a page in the docs tier. No half can
+    see a page whose name is never written down; that residue is
+    `_markdown_read_by_python`'s to state and it does.
     """
-    return _compiled_markdown(root) | _markdown_read_by_python(root)
+    return (
+        _compiled_markdown(root)
+        | _markdown_read_by_python(root)
+        | _suite_read_markdown(root)
+    )
 
 
 def _run(cmd: list[str], cwd: str) -> str:
@@ -687,7 +1163,8 @@ def classify(files: list[str], root: str) -> dict[str, str]:
 
     consumed = _consumed_markdown(root)
     if all(_is_docs(f, consumed) for f in files):
-        return {"TIER": "docs", "PKGS": "", "SEEDS": "", "CARGO_SCOPE": ""}
+        return {"TIER": "docs", "PKGS": "", "SEEDS": "", "REACHED": "",
+                "CARGO_SCOPE": ""}
 
     dir_of, deps = _members(root)
     seeds: set[str] = set()
@@ -718,10 +1195,55 @@ def classify(files: list[str], root: str) -> dict[str, str]:
 
     if not seeds:
         raise Bail("no member attributed")
-    pkgs = _closure(seeds, deps)
+    closed = set(_closure(seeds, deps))
+
+    # THE READ REACH, ADDED TO THE DEPENDENT CLOSURE AND REPORTED SEPARATELY
+    # (Ev, 2026-09-05: *"the closure should reach tree wide guards"*). The
+    # derivation is at `_read_reach`; this is where it lands.
+    #
+    # A WALK THAT MATCHED NOTHING IS NOT A PASS, which is `reader_census.rs`'s
+    # own sentence about its own walk and is the floor under this one. If the
+    # reach comes back with no tree-wide guard at all, the scanner has stopped
+    # reading rather than the tree having stopped having them — and the failure
+    # mode of a silently empty reach is EXACTLY the defect this closes,
+    # restored without a tell. So it bails, and the run is TIER=all: loud, and
+    # everything runs.
+    reach = _read_reach(root)
+    if not reach.tree:
+        raise Bail(
+            "the read reach found no tree-wide guard in crates/ — this tree has "
+            "several, so the scan has stopped reading rather than the tree "
+            "having stopped guarding"
+        )
+    pinned: set[str] = set()
+    for member, pkg in dir_of.items():
+        if member in reach.tree:
+            # Its subject is the repository, so every seed can invalidate it.
+            pinned.add(pkg)
+            continue
+        # A read edge fires on SEEDS, not on the closure: what this crate reads
+        # is another crate's TEXT, and only that crate's own files move it.
+        #
+        # A DESTINATION OUTSIDE `crates/` NEEDS NO BRANCH HERE and must not
+        # have one: the allowlist above already makes every tracked path that
+        # is not inside a member unscopable, so a change to `demos/tour/src`,
+        # to the workspace manifest or to a page a suite reads is TIER=all
+        # before this runs. `reach.paths` is read by `_suite_read_markdown`
+        # instead, which is the one place a destination like that decides
+        # anything — and what it decides is that the page is not documentation.
+        if {dir_of[o] for o in reach.crates.get(member, ()) if o in dir_of} & seeds:
+            pinned.add(pkg)
+    pkgs = sorted(closed | pinned)
     return {
         "TIER": "closure",
         "PKGS": ",".join(pkgs),
+        # WHAT THE REACH ADDED, and nothing the dependent closure already held.
+        # RECORDED, NEVER SILENT, like every other widening here: a reader of
+        # the filter's output can see which crates are in scope for what they
+        # READ rather than for what they depend on, and `decorate` subtracts
+        # this set again so that no job axis keyed on the closure flips
+        # because a guard was pinned.
+        "REACHED": ",".join(sorted(pinned - closed)),
         # THE SEEDS, kept and reported alongside the closure they generate.
         # The closure answers "what must be rebuilt"; the seeds answer "what
         # did the author actually touch", and those are different questions
@@ -753,7 +1275,8 @@ def _all_tier(root: str) -> dict[str, str]:
     # seed-keyed axis must read it as "all seeds", not as none. Each
     # such axis in `decorate` branches on the tier FIRST, before it
     # looks at this field.
-    return {"TIER": "all", "PKGS": pkgs, "SEEDS": "", "CARGO_SCOPE": "--workspace"}
+    return {"TIER": "all", "PKGS": pkgs, "SEEDS": "", "REACHED": "",
+            "CARGO_SCOPE": "--workspace"}
 
 
 # Root packages per pipeline job. A job runs iff one of its roots is in the
@@ -1580,6 +2103,18 @@ def decorate(
 ) -> dict[str, str]:
     tier = res["TIER"]
     pkgs = set(p for p in res["PKGS"].split(",") if p)
+    # THE DEPENDENT CLOSURE, WITH THE READ REACH TAKEN BACK OFF. `PKGS` is the
+    # archive's scope and the reach widens it; `JOB_ROOTS` below asks a
+    # different question — whether a NAMED job's own subject can have moved —
+    # and the answer to that is still the dependency graph. `editor-core` is
+    # pinned into every code-tier closure by `fix_loop_polygon_expr.rs`, whose
+    # subject is `crates/*/src`; that is no reason to run the two named
+    # `cargo test -p editor-core --test …` interval rows, whose subject is
+    # editor-core's own behaviour and which ride the ordinary closure. Keying
+    # these on `PKGS` would have flipped all four of them permanently true as a
+    # SIDE EFFECT of pinning a guard, which is a cost change nobody asked for
+    # and nothing would have announced.
+    closed = pkgs - set(p for p in res.get("REACHED", "").split(",") if p)
     res["RUN_BUILD"] = "false" if tier == "docs" else "true"
     for key, roots in JOB_ROOTS.items():
         if tier == "docs":
@@ -1587,7 +2122,7 @@ def decorate(
         elif tier == "all":
             res[key] = "true"
         else:
-            res[key] = "true" if pkgs & roots else "false"
+            res[key] = "true" if closed & roots else "false"
     # interval-transcendentals is its OWN workspace, so no file under it can
     # appear in TIER=closure (any such change is TIER=all). Its job therefore
     # has nothing to verify in the closure tier.
@@ -1767,6 +2302,19 @@ _FIXTURE_PKGS = {
     "geom-core": [],
     "topo": [("geom-core", "normal")],
     "stl": [("topo", "dev")],
+    # `verbs` DEPENDS ON NOTHING AND NOTHING DEPENDS ON IT, so it is in no
+    # dependent closure this fixture can draw and it moves none of the
+    # expectations below. Its only route into a run is the READ EDGE
+    # `_plant_reach` gives it — which is what makes it able to tell a read edge
+    # from the closure, and to tell a SEED from a closure member.
+    "verbs": [],
+    # `geom` IS HERE FOR ITS NAME. It is a string PREFIX of `geom-core`, which
+    # is the shape this workspace actually has twice (`geom`/`geom-core`,
+    # `step-export`/`step-import`), and it reads `geom-core`'s source. A
+    # within-own-crate test written as a string prefix rather than over path
+    # COMPONENTS drops that read silently, and every other case here stays
+    # green. Same graph position as `verbs`: no deps, no dependents.
+    "geom": [],
 }
 
 
@@ -1805,7 +2353,11 @@ _PY_FIXTURE_PKGS = {
 }
 
 
-def _plant_seed_axis_fixture(t: str, pkgs: dict[str, list] = _VIEWER_FIXTURE_PKGS) -> str:
+def _plant_seed_axis_fixture(
+    t: str,
+    pkgs: dict[str, list] = _VIEWER_FIXTURE_PKGS,
+    tree_reaching: str = "viewer",
+) -> str:
     """A minimal workspace exercising a SEED-keyed axis — `RUN_VIEWER_TOOLKIT`
     by default, `RUN_PNCAD_PY` with `_PY_FIXTURE_PKGS`.
 
@@ -1820,6 +2372,22 @@ def _plant_seed_axis_fixture(t: str, pkgs: dict[str, list] = _VIEWER_FIXTURE_PKG
         os.makedirs(os.path.join(t, "crates", pkg, "src"), exist_ok=True)
         open(os.path.join(t, "crates", pkg, "Cargo.toml"), "w").close()
         open(os.path.join(t, "crates", pkg, "src", "lib.rs"), "w").close()
+    # EVERY FIXTURE NEEDS ONE, because `classify` bails when the reach finds no
+    # tree-wide guard at all — a tree that has none is a scanner that has
+    # stopped reading. It goes in the SINK crate of each graph here, the one
+    # already in every closure these cases assert, so this battery keeps
+    # testing the axis it is about rather than restating the reach.
+    os.makedirs(os.path.join(t, "crates", tree_reaching, "tests"), exist_ok=True)
+    with open(
+        os.path.join(t, "crates", tree_reaching, "tests", "tree_census.rs"), "w"
+    ) as fh:
+        fh.write(
+            "#[test]\n"
+            "fn every_crate_is_walked() {\n"
+            '    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");\n'
+            "    let _ = root;\n"
+            "}\n"
+        )
     os.makedirs(os.path.join(t, "scripts"), exist_ok=True)
     os.makedirs(os.path.join(t, "bin"), exist_ok=True)
     shutil.copy(os.path.abspath(__file__), os.path.join(t, "scripts", "ci-filter.py"))
@@ -1840,6 +2408,102 @@ def _plant_seed_axis_fixture(t: str, pkgs: dict[str, list] = _VIEWER_FIXTURE_PKG
         fh.write("cat <<'JSON'\n" + json.dumps(meta) + "\nJSON\n")
     os.chmod(stub, 0o700)
     return t
+
+
+# THE READ REACH'S FIXTURE FILES, planted into `_plant_fixture`'s miniature
+# workspace. They are the shapes this tree actually spells, one arm each, and
+# the pinning one is deliberately in the LEAF: `geom-core` here sits below
+# `topo` and `stl` exactly as `test-utils` sits below everything, so a case
+# that seeds `stl` and expects `geom-core` in its scope is the real defect in
+# miniature. Remove the reach from `classify` and that case is the one that
+# reds.
+def _plant_reach(t: str) -> None:
+    def write(rel: str, body: str) -> None:
+        path = os.path.join(t, *rel.split("/"))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as fh:
+            fh.write(body)
+
+    # THE TREE-WIDE GUARD, through the shared `crate_dir` wrapper and the
+    # `../..` ascent — the spelling four of this repo's six real ones use.
+    write(
+        "crates/geom-core/tests/tree_census.rs",
+        'fn repo_root() -> PathBuf {\n'
+        '    test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("../..")\n'
+        "}\n"
+        "#[test]\n"
+        "fn every_crate_is_walked() {\n"
+        "    let root = repo_root();\n"
+        '    for f in rust_sources(&root.join("crates")) { let _ = f; }\n'
+        "}\n",
+    )
+    # A READ EDGE, in the crate that has no other way in. `verbs` reads `stl`'s
+    # source and neither depends on it nor is depended on by anything, so this
+    # edge is the ONLY thing that can put `verbs` in a scope — and it must fire
+    # on `stl` being a SEED, not on `stl` being in the closure.
+    write(
+        "crates/verbs/tests/reads_stl.rs",
+        "#[test]\n"
+        "fn the_writer_spells_it_once() {\n"
+        '    let lib = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../stl/src/lib.rs");\n'
+        "    let _ = std::fs::read_to_string(lib);\n"
+        "}\n",
+    )
+    # THE PREFIX PAIR. `geom` reads `geom-core`'s source, and `crates/geom` is
+    # a string prefix of `crates/geom-core/src/lib.rs`.
+    write(
+        "crates/geom/tests/reads_geom_core.rs",
+        "#[test]\n"
+        "fn the_kernel_lib_still_re_exports_it() {\n"
+        '    let lib = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../geom-core/src/lib.rs");\n'
+        "    let _ = std::fs::read_to_string(lib);\n"
+        "}\n",
+    )
+    # A PAGE A SUITE READS. Same shape as `flagged_census.rs` reading
+    # `docs/predicate-dimension-audit.md`: the page leaves the docs tier.
+    write("docs/AUDIT.md", "- **F1** a row\n")
+    write(
+        "crates/stl/tests/reads_page.rs",
+        "#[test]\n"
+        "fn every_site_cites_a_row() {\n"
+        '    let page = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"))\n'
+        '        .join("../../docs/AUDIT.md");\n'
+        "    let _ = std::fs::read_to_string(page);\n"
+        "}\n",
+    )
+    # THE NEGATIVES, one per way a path expression stays put. Without these the
+    # reach could widen to "any file naming a path" and every case above would
+    # still pass, which is the shape that turns a scoped run into TIER=all.
+    write(
+        "crates/topo/tests/fixture_path.rs",
+        "#[test]\n"
+        "fn a_golden_is_read_from_this_crate() {\n"
+        '    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");\n'
+        "    let _ = dir;\n"
+        "}\n",
+    )
+    write(
+        "crates/topo/tests/scratch_path.rs",
+        "#[test]\n"
+        "fn a_scratch_file_is_written_under_target() {\n"
+        '    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/scratch");\n'
+        "    let _ = dir;\n"
+        "}\n",
+    )
+    # THE BINDING SHAPE, and it is the one a statement-local reader gets wrong:
+    # the anchor is bound in one statement and the ascent happens in the next.
+    # `crates/mesh/tests/profile_overrides.rs` is spelled exactly like this, and
+    # what it reaches is the workspace manifest — a root FILE, which is
+    # unscopable already and is not the tree.
+    write(
+        "crates/topo/tests/manifest_probe.rs",
+        "#[test]\n"
+        "fn the_dev_profile_still_optimises() {\n"
+        '    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));\n'
+        '    let root = manifest_dir.join("..").join("..").join("Cargo.toml");\n'
+        "    let _ = std::fs::read_to_string(root);\n"
+        "}\n",
+    )
 
 
 def _plant_fixture(t: str) -> str:
@@ -1878,6 +2542,7 @@ def _plant_fixture(t: str) -> str:
     os.makedirs(os.path.join(t, "crates", "stl", "tests"), exist_ok=True)
     with open(os.path.join(t, "crates", "stl", "tests", "test_pages.py"), "w") as fh:
         fh.write('PAGE = ROOT / "docs" / "guide" / "PYPAGE.md"\n')
+    _plant_reach(t)
     os.makedirs(os.path.join(t, "scripts"), exist_ok=True)
     os.makedirs(os.path.join(t, "bin"), exist_ok=True)
     shutil.copy(os.path.abspath(__file__), os.path.join(t, "scripts", "ci-filter.py"))
@@ -2067,12 +2732,75 @@ def selftest() -> None:
                 {"TIER": "all", "RUN_BUILD": "true", "RUN_INTERVAL_ORACLE": "true"})
 
         # --- the dependent closure, including the dev-dependency edge.
+        #
+        # `geom-core` HOUSES THIS FIXTURE'S TREE-WIDE GUARD, so it is in every
+        # closure below and `REACHED` is what says whether the closure or the
+        # reach put it there. It is the leaf here for the same reason
+        # `test-utils` is the leaf in the real tree.
         _files_case(t, "a leaf crate seeds its dependents", ["crates/geom-core/src/lib.rs"],
-                    TIER="closure", PKGS="geom-core,stl,topo", RUN_STL="true",
-                    CARGO_SCOPE="-p geom-core -p stl -p topo")
+                    TIER="closure", PKGS="geom,geom-core,stl,topo", REACHED="geom",
+                    RUN_STL="true",
+                    CARGO_SCOPE="-p geom -p geom-core -p stl -p topo")
         _files_case(t, "a dependent crate does not seed its dependencies",
-                    ["crates/stl/src/lib.rs"], TIER="closure", PKGS="stl",
-                    RUN_STL="true", RUN_TOPO_RELEASE="false")
+                    ["crates/stl/src/lib.rs"], TIER="closure",
+                    PKGS="geom-core,stl,verbs", RUN_STL="true",
+                    RUN_TOPO_RELEASE="false")
+
+        # --- THE READ REACH (Ev, 2026-09-05: the closure reaches tree-wide
+        # guards). Every case here is a change that the DEPENDENT closure alone
+        # gets wrong, which is the whole population the ruling is about.
+        #
+        # THE DEFECT, IN MINIATURE. `geom-core` is this fixture's leaf: nothing
+        # it depends on can change, so a dependent closure puts it in scope for
+        # exactly one member's changes. Its `tree_census.rs` walks the
+        # repository. Delete the reach from `classify` and this is the case
+        # that reds — and it is the same case, one crate over, as
+        # `test-utils::reader_census` sitting out both of 2026-09-04's breaks.
+        _files_case(t, "a tree-wide guard is in scope for a change that cannot reach it",
+                    ["crates/stl/src/lib.rs"], TIER="closure",
+                    PKGS="geom-core,stl,verbs", REACHED="geom-core,verbs",
+                    CARGO_SCOPE="-p geom-core -p stl -p verbs")
+        # THE READ EDGE, and the SEED keying that makes it mean something.
+        # `verbs` reads `crates/stl/src/lib.rs` and has no dependency relation
+        # to anything, so the first case is the edge firing and the second is
+        # it correctly not firing: a `geom-core` change puts `stl` in the
+        # CLOSURE without seeding it, and what `verbs` reads is `stl`'s TEXT,
+        # which only `stl`'s own files move. Without the second case a
+        # closure-keyed edge passes this battery.
+        _files_case(t, "a crate that reads another crate's source rides its seeds",
+                    ["crates/stl/src/lib.rs"], TIER="closure", SEEDS="stl",
+                    PKGS="geom-core,stl,verbs")
+        _files_case(t, "a read edge does NOT fire on a crate that is only in the closure",
+                    ["crates/geom-core/src/lib.rs"], TIER="closure", SEEDS="geom-core",
+                    PKGS="geom,geom-core,stl,topo")
+        # THE PREFIX PAIR, and it is a case rather than a comment because the
+        # bug it catches is invisible: `geom` reads `crates/geom-core/src/lib.rs`,
+        # and a within-own-crate test spelled `d.startswith("crates/" + mine)`
+        # reads that destination as `geom`'s own and drops the edge. `geom`
+        # then never appears and every other case here is still green.
+        _files_case(t, "a crate whose name prefixes another's still reads across the boundary",
+                    ["crates/geom-core/src/lib.rs"], TIER="closure", REACHED="geom")
+        # THE NEGATIVES. `topo` carries three anchored path expressions and not
+        # one of them leaves the crate: a fixture directory under its own
+        # `tests/`, a scratch file under `target/` (nothing tracked lives
+        # there), and the workspace manifest reached through a BINDING — the
+        # anchor in one statement and the ascent in the next, which is how
+        # `crates/mesh/tests/profile_overrides.rs` spells it and what a
+        # statement-local reader gets wrong. `topo` must therefore be in a
+        # scope only when the closure puts it there. Widen the reach — read a
+        # `..` anywhere in an anchored file as an escape — and `topo` appears
+        # in the case above, where it does not belong.
+        _files_case(t, "a within-crate, a target/ and a bound-then-ascended path do not pin",
+                    ["crates/stl/src/lib.rs"], TIER="closure",
+                    PKGS="geom-core,stl,verbs")
+        # A PAGE A RUST SUITE READS IS NOT DOCUMENTATION, the same disposition
+        # `docs/GUIDE.md` gets from `include_str!` and for the same reason:
+        # editing it can red a suite. `crates/stl/tests/reads_page.rs` opens
+        # `docs/AUDIT.md` the way `flagged_census.rs` opens
+        # `docs/predicate-dimension-audit.md`. `docs/PROSE.md`, which nothing
+        # reads, stays in the docs tier one case above.
+        _files_case(t, "a page a Rust suite reads must not classify docs",
+                    ["docs/AUDIT.md"], TIER="all", RUN_BUILD="true")
 
         # --- the oracle signal, which is keyed on PATHS and not on the tier.
         _files_case(t, "certified sources re-certify",
@@ -2108,13 +2836,14 @@ def selftest() -> None:
         _git(t, "commit", "-qm", "rename out of a crate")
         _expect("a crate source renamed to a .md must not classify docs",
                 _selftest_invoke(t, ["--base", "HEAD~1"]),
-                {"TIER": "closure", "PKGS": "stl,topo", "RUN_BUILD": "true"})
+                {"TIER": "closure", "PKGS": "geom-core,stl,topo",
+                 "REACHED": "geom-core", "RUN_BUILD": "true"})
 
         _git(t, "rm", "-q", "crates/geom-core/src/lib.rs")
         _git(t, "commit", "-qm", "delete")
         _expect("a deleted crate source is still a crate change",
                 _selftest_invoke(t, ["--base", "HEAD~1"]),
-                {"TIER": "closure", "PKGS": "geom-core,stl,topo"})
+                {"TIER": "closure", "PKGS": "geom,geom-core,stl,topo", "REACHED": "geom"})
 
         _expect("a base that does not resolve runs everything",
                 _selftest_invoke(t, ["--base", "0000000000000000000000000000000000000000"]),
@@ -2191,6 +2920,79 @@ def selftest() -> None:
                     ["Cargo.toml"], TIER="all", SEEDS="", RUN_PNCAD_PY="true")
         _files_case(t, "a docs-only change runs nothing, the python suite included",
                     ["README.md"], TIER="docs", SEEDS="", RUN_PNCAD_PY="false")
+
+    # --- THE REACH FAILING CLOSED, on its own fixture because it pins a crate
+    # the battery above requires NOT to be pinned. An ascent the chain resolver
+    # cannot follow — here `"../.."` reached through a `const`, which is
+    # anchored to nothing this reads — is measured FROM THE CRATE DIRECTORY, so
+    # it lands at the repository root and pins. A scan that skipped what it
+    # could not follow would leave the next tree-wide guard exactly where the
+    # last five were.
+    with tempfile.TemporaryDirectory() as t:
+        _plant_fixture(t)
+        with open(os.path.join(t, "crates", "topo", "tests", "odd_spelling.rs"), "w") as fh:
+            fh.write(
+                'const UP: &str = "../..";\n'
+                "#[test]\n"
+                "fn it_walks_something() {\n"
+                '    let here = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));\n'
+                "    let _ = here.join(UP);\n"
+                "}\n"
+            )
+        # `RUN_TOPO_RELEASE` IS THE OTHER HALF OF THIS CASE. `topo` is in
+        # `PKGS` here only because the reach pinned it, and `JOB_ROOTS` asks a
+        # different question — whether the named `topo` row's own subject
+        # moved. Key those on `PKGS` instead of on the dependent closure and
+        # pinning a guard silently turns four named job rows permanently on;
+        # this is the assertion that reds when it does.
+        _files_case(t, "an ascent the resolver cannot follow pins the crate anyway",
+                    ["crates/stl/src/lib.rs"], TIER="closure",
+                    PKGS="geom-core,stl,topo,verbs", REACHED="geom-core,topo,verbs",
+                    RUN_TOPO_RELEASE="false")
+
+    # --- `crates/` IS THE TREE TOO, and it is a separate arm because it is a
+    # separate spelling: `crates/bvh/tests/aggregator_headers.rs` and
+    # `crates/geom-core/tests/flagged_census.rs` both reach every member by
+    # taking the PARENT of their own crate directory and listing it, never by
+    # naming the repository root. Narrow the rule to the root alone and both of
+    # those fall out of scope with every other case here still green — which is
+    # how the population this fixes came to be five guards rather than one.
+    with tempfile.TemporaryDirectory() as t:
+        _plant_fixture(t)
+        with open(os.path.join(t, "crates", "topo", "tests", "crates_walk.rs"), "w") as fh:
+            fh.write(
+                "fn crates_dir() -> PathBuf {\n"
+                '    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))\n'
+                "        .parent()\n"
+                '        .expect("crates/topo has a parent")\n'
+                "        .to_path_buf()\n"
+                "}\n"
+                "#[test]\n"
+                "fn every_crate_carries_the_header() {\n"
+                "    for e in std::fs::read_dir(crates_dir()).unwrap() { let _ = e; }\n"
+                "}\n"
+            )
+        _files_case(t, "a guard that reaches every member through crates/ is pinned too",
+                    ["crates/stl/src/lib.rs"], TIER="closure",
+                    PKGS="geom-core,stl,topo,verbs", REACHED="geom-core,topo,verbs",
+                    RUN_TOPO_RELEASE="false")
+
+    # --- A REACH THAT MATCHED NOTHING IS NOT A PASS, which is
+    # `reader_census.rs`'s own sentence about its own walk. A tree with no
+    # tree-wide guard in it is a scanner that has stopped reading, and the
+    # failure mode of a silently empty reach is this defect restored with no
+    # tell — so it bails, loudly, into the tier where everything runs.
+    with tempfile.TemporaryDirectory() as t:
+        _plant_fixture(t)
+        for rel in (
+            "crates/geom-core/tests/tree_census.rs",
+            "crates/verbs/tests/reads_stl.rs",
+            "crates/stl/tests/reads_page.rs",
+        ):
+            os.remove(os.path.join(t, *rel.split("/")))
+        got = _selftest_invoke(t, ["--files", "-"], "crates/stl/src/lib.rs\n")
+        _expect("a tree the reach finds no tree-wide guard in must run everything",
+                got, {"TIER": "all", "RUN_BUILD": "true"})
 
     # An `include!` this reader cannot resolve could name a .md, so it takes
     # the whole change set to TIER=all rather than guessing. Its own fixture:
@@ -2285,7 +3087,16 @@ def selftest() -> None:
         "in — by any include! spelling, from any rust tree — or that a python suite "
         "executes, including one named by a spelling the scan cannot resolve; "
         "the closure follows dev-dependency "
-        "edges upward only; the oracle signal fires on certified sources and lockfile and "
+        "edges upward only; THE READ REACH puts a crate in scope for what its sources READ "
+        "rather than for what they depend on — a guard that walks the repository from its "
+        "own crate root or that lists crates/ pins its home crate into every non-docs "
+        "closure, a crate that reads another crate's source rides that crate's SEEDS and "
+        "not its closure, an ascent the chain resolver cannot follow is measured from the "
+        "crate root and pins anyway, a page a Rust suite opens leaves the docs tier, and a "
+        "reach that finds no tree-wide guard at all bails to TIER=all rather than passing — "
+        "while a path that stays inside its own crate, one under target/ and one bound in "
+        "a let and ascended in the next statement pin nothing, and none of it reaches "
+        "JOB_ROOTS; the oracle signal fires on certified sources and lockfile and "
         "not on their prose; NO CONFIGURATION DIMENSION IS SAMPLED OR PINNED — LANE=both, "
         "EPS=all and KLINT_ROW=all over an ordinary diff, over the two file lists that used "
         "to pin the lane or the k-lint row, over the demo roots the k-lint pin left alone "
@@ -2382,6 +3193,17 @@ def _plant_gated_fixture(t: str) -> str:
     open(os.path.join(t, "crates", "test-utils", "Cargo.toml"), "w").close()
     with open(os.path.join(t, "crates", "test-utils", "src", "lib.rs"), "w") as fh:
         fh.write("// the marker's home; never scanned\n")
+    # One tree-wide guard, for the reason stated at `_plant_seed_axis_fixture`.
+    with open(
+        os.path.join(t, "crates", "geom-core", "tests", "tree_census.rs"), "w"
+    ) as fh:
+        fh.write(
+            "#[test]\n"
+            "fn every_crate_is_walked() {\n"
+            '    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");\n'
+            "    let _ = root;\n"
+            "}\n"
+        )
     os.makedirs(os.path.join(t, "scripts"), exist_ok=True)
     os.makedirs(os.path.join(t, "bin"), exist_ok=True)
     shutil.copy(os.path.abspath(__file__), os.path.join(t, "scripts", "ci-filter.py"))

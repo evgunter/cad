@@ -191,19 +191,19 @@ reach the corner is not a fillet of that corner.
 circular leg (`fillet_enclosing_carrier`, linear band) as soon as σ is
 decided, before any candidate centre exists; both legs are classified so
 the bound named is the tightest. Negative refuses
-`ArcTrimRefusal::EnclosesLegCarrier`, surfaced as
-`PathError::FilletEnclosesLegCarrier { side, carrier_radius,
-offset_radius, radius, largest_tangent_radius }`: `side` is `None` when
-both carriers are swallowed (the ordinary case), `carrier_radius` is the
-class bound (necessary, never sufficient), and `largest_tangent_radius`
-= (R₁ + R₂ − d)/2 is the existence bound the recourse endorses when the
-corner's two circular carriers define one. Zero (r within the band of R)
-escalates with the enclosing recourse. In `path::arc_fillet::resolve`
-the refusal rides `build_refused` with the other corner refusals rather
-than aborting, because the carrier pair's other crossing turns the other
-way and may serve the same radius as an ordinary tangency. It is its own
-variant, not laundered into `NoCornerForFillet`: the corner exists; a
-fillet of it at this radius does not.
+`ArcTrimRefusal::EnclosesLegCarrier`, surfaced as one entry of the
+refusal envelope below — `CornerReason::EnclosesLegCarrier { side,
+carrier_radius, offset_radius, largest_tangent_radius }`: `side` is
+`None` when both carriers are swallowed (the ordinary case),
+`carrier_radius` is the class bound (necessary, never sufficient), and
+`largest_tangent_radius` = (R₁ + R₂ − d)/2 is the existence bound the
+recourse endorses when the corner's two circular carriers define one.
+Zero (r within the band of R) escalates with the enclosing recourse. In
+`path::arc_fillet::resolve` the refusal rides the construction channel
+with the other corner refusals rather than aborting, because the carrier
+pair's other crossing turns the other way and may serve the same radius
+as an ordinary tangency. It is its own reason, not laundered into a "no
+corner" one: the corner exists; a fillet of it at this radius does not.
 
 **What stays.** `Leg::tangent_point`'s antipodal flip (the ρ < 0 tangent
 point) remains as the closed form's sign rule, unit-pinned and
@@ -214,3 +214,60 @@ unreachable by any door. No construction is known to reach
 `enclosing_fillet_swallows_both_leg_carriers` and
 `an_enclosing_leg_forces_an_equally_enclosing_partner`. The 3-D blend
 verbs in `crates/sweep` are outside this decision.
+
+## The refusal envelope: every refusing crossing, named
+
+**A refusal about a corner names the corner, and a refusal about a pair
+names every corner it tried.** A carrier pair derives 0, 1 or 2 corners.
+If any of them takes the fillet the resolve succeeds, so a refusal that
+names a corner at all is `PathError::NoCornerOfPair { radius, corners }`
+— one `CornerRefusal { at, reason }` per corner that refused, the point
+beside the reason, and the deixis of every sentence is "this corner".
+
+`CornerReason` has four arms, and each carries the payload its retired
+variant carried, field for field: `OutsideAnchors(CornerWindow)` (the
+advance and reach windows), `NoTangentCircle(NoCornerReason)`,
+`AnchorOutsideTrimmedExtent { side, carrier, setback, available }` and
+`EnclosesLegCarrier { side, carrier_radius, offset_radius,
+largest_tangent_radius }`. The requested radius is named once, on the
+envelope.
+
+Two refusals stay outside it, for the same reason in both cases — they
+are not about a corner. `NoCornerForFillet { reason, radius }` carries
+the pair-level conditions that name no corner to be about
+(`PathNoCornerReason`: `CarriersParallel`, `CarriersDoNotMeet`), and
+`FilletOffsetLeverTooShort` aborts the resolve where it fires, because a
+lever the band cannot support at one corner is a conditioning fact about
+the run rather than a fact about the pair.
+
+**Which corners are entries.** The resolve keeps two channels — corners
+the anchor windows discarded, and corners that passed them and then
+failed to admit a tangent circle — and the construction's channel
+answers when it is non-empty. So a corner the author did not bracket is
+never listed beside the answer about the corner they did; the entries
+are the whole of the answering channel, never a pick from it, and the
+list is therefore NOT every corner the pair derives.
+
+The reason the two channels are not merged is that the unit's spec asks
+for a one-entry envelope where only one crossing sits in the windows.
+It is not that merging them would re-rank a gate: nothing branches on
+entry order, and both channels yield the same variant, so a merged list
+would rank nothing. What a merged list would add is a sentence about a
+corner the author did not ask about, next to the answer about the one
+they did.
+
+**A refusal that names no corner outranks the envelope.** The pair-level
+conditions (`NoCornerForFillet`) and the M8 conditioning gate
+(`FilletOffsetLeverTooShort`) are facts about the pair and about the
+run; a per-corner sentence instead of one of them would be a smaller
+and weaker claim about a situation the whole pair is in. Nothing is
+discarded silently — the entries such a refusal outranks are statements
+about corners of a pair that has already been refused as a pair.
+
+**Order is presentation, not truth.** Entries are sorted by the sum of
+the distances from the corner to the two bracketing anchors, ascending,
+ties on enumeration order — the first sentence is the corner the author
+most plausibly meant. The sort key is an `f64` enclosure read of a
+quantity nothing decides on; nothing in the kernel branches on the
+order, and no entry outranks another. The pins are
+`tests/fillet_refusal_envelope.rs`.

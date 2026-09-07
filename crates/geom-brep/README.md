@@ -211,9 +211,14 @@ replay certify validity over a parameter box. Every constant-radius arm
 mints a torus or a cylinder (the envelope of equal spheres over a circle
 or a line spine); a cone belongs to the variable-radius family.
 Trimlines are stored as `TangentIntersection`. Scope: the
-three-convex-edge sphere-octant corner is in; every other corner refuses
-with a `CornerConfig` tag and the `RunOutPolicy` that would handle it
-(`RunOutStopAtVertex`, `RunOutFeather`), refusal-payload names only. A
+three-convex-edge sphere-octant corner is in, and so is the ruled band's
+transverse cap (a plane face perpendicular to the ruling, where the
+band ends in the cap's own section of it — `CornerConfig::TransverseCap`,
+`RunOutPolicy::CutOffAtTransverseCap`, decided by
+`fillet3_cap_transverse` at the link's extent); every other corner
+refuses with a `CornerConfig` tag and the `RunOutPolicy` that would
+handle it (`RunOutStopAtVertex`, `RunOutFeather`), refusal-payload names
+only. A
 spine that is neither line nor circle refuses `SpineUnsupported`: the
 canal-surface blend, an approximating surface per O2, is not
 implemented.
@@ -391,8 +396,10 @@ order O1 → O3 meters and fit → O2 storage → face replacement and shell.
 Live gates, each named where it refuses: a multi-shell curved solid
 refuses STEP export (`CurvedShellClassification`, the outward/void
 classifier is planar-only); the area enclosure is unmetered; rational
-pcurve quadrature refuses typed; the Klein bottle's hand-built wall
-pairs wait on the cone×cylinder and tilted plane×torus arms.
+pcurve quadrature refuses typed; the Klein bottle's BULB wall pairs wait on
+the `cylinder × torus` and `cone × torus` arms — its own two rims. The
+bulb has no cone-abutting-cylinder adjacency at all: its flare is
+bracketed by two tori, by construction.
 
 ## Open
 

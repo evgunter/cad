@@ -76,44 +76,76 @@ the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
 
-## Measured tree-wide (2026-09-05, at the TOPO/META merge with main)
+## Measured tree-wide — CORRECTED (2026-09-05)
 
-The instance this was filed on is closed; the state at rest is not. A
-`fnmatch` pass of every open program's `paths` over `git ls-files`
-finds **17 program pairs sharing at least one tracked path**, none of
-them reported by anything today:
+**The first version of this section, landed in PR #1899, got two of its
+three counts wrong** (17 pairs for 16, "four" recorded overlaps for
+three, "eleven" tests-family pairs for nine) and marked DOCM/MSOLVE as
+a recorded overlap when it is only recorded on one side. Corrected
+below by re-deriving on merged main rather than by patching the
+numbers. The mechanised version of this pass is what item (1) builds,
+which is the point: a hand-run census miscounts, and this one did.
+
+The instance this issue was filed on is closed; the state at rest is
+not. A `fnmatch` pass of every open program's `paths` over
+`git ls-files` finds **16 program pairs sharing at least one tracked
+path**, none reported by anything today.
+
+**Recorded on BOTH sides — the tracker working as intended (3):**
+
+| pair | paths | where it is written |
+|---|---|---|
+| `chrome`+`view` | 44 | both `keep_out`s; CHROME lands first, `crates/viewer/src/*` |
+| `bool`+`curved` | 37 | both `keep_out`s; the prose fence on `boolean/*`, `splitting/*` |
+| `cert`+`props` | 1 | both `keep_out`s; `geom-core/src/k_stats.rs` at S-CERT's exit |
+
+**Recorded on ONE side or neither (13):**
 
 | pair | paths | shape |
 |---|---|---|
 | `exch`+`tcost` | 177 | `crates/*/tests/*` against a crate owner |
 | `mesh`+`tcost` | 56 | same |
 | `chrome`+`tcost` | 50 | same |
-| `chrome`+`view` | 44 | **stated** — CHROME lands first, `crates/viewer/src/*` |
-| `bool`+`tcost` | 42 | `crates/*/tests/*` |
-| `bool`+`curved` | 37 | **stated** — the prose fence on `boolean/*`, `splitting/*` |
-| `m10`+`tcost`, `lib`+`tcost` | 32, 30 | `crates/*/tests/*` |
-| `fillet`+`tcost`, `seat`+`tcost`, `shell`+`tcost` | 11, 6, 3 | same |
-| `docm`+`msolve` | 3 | **stated** — `mate.rs`, `mate/*`, announced not assumed |
+| `bool`+`tcost` | 42 | same |
+| `m10`+`tcost` | 32 | same |
+| `lib`+`tcost` | 30 | same |
+| `fillet`+`tcost` | 11 | same |
+| `seat`+`tcost` | 6 | same |
+| `shell`+`tcost` | 3 | same |
+| `docm`+`msolve` | 3 | **one side only** — see below |
 | `bool`+`fillet` | 2 | `profile/src/{fillet_select,path/arc_fillet}.rs` |
-| `cert`+`m10`, `cert`+`props`, `docm`+`lib` | 1 each | `dual.rs`, `k_stats.rs`, `RECIPE-DOORS-DESIGN.md` |
+| `cert`+`m10` | 1 | `geom-core/src/dual.rs` |
+| `docm`+`lib` | 1 | `docs/RECIPE-DOORS-DESIGN.md` |
 
-**This is the argument for shape (1), the lint rule, and it also
-settles the open decision inside it.** Deliberate overlaps plainly
-exist — four of these are written into a `keep_out` on both sides and
-are the tracker working as intended — so a rule that errors on any
-shared path would be unusable on the day it landed. What the rule
-should say instead: **an overlap is an error unless BOTH programs'
-`keep_out` name the other**, which passes CHROME/VIEW, BOOL/CURVED and
-DOCM/MSOLVE today and fires on the eleven `crates/*/tests/*` pairs
-and the three singletons, which nobody has recorded either way.
+**`docm`+`msolve` is the finding the correction turned up.** MSOLVE's
+`keep_out` names DOCM at length — "the two globs overlap until DOCM
+cedes them or declines to, announced on its orchestrator PR and NOT
+assumed" — and **DOCM's `keep_out` does not name MSOLVE at all**. The
+overlap on `mate.rs` and `mate/*` is therefore recorded by the program
+that arrived second and invisible from the side that was there first,
+which is precisely the asymmetry that makes a one-sided record worth
+nothing. It is not a defect in either program: MSOLVE opened on
+2026-09-04 and did exactly what the rule asks. It is what a lint would
+have asked DOCM for on the same day.
 
-The `*/tests/*` family is the interesting one and probably wants its
-own answer rather than eleven `keep_out` lines: S-TCOST's territory is
-every crate's tests by design, and code-quality Track W states the
-seam in prose already ("a track that owns a crate's `src/` does **not**
-otherwise own its `tests/`"). Whether the lint learns that seam or
-eleven programs write it down is the one thing left to decide.
+**This settles the open decision inside shape (1).** Deliberate
+overlaps plainly exist, so a rule erroring on any shared path would be
+unusable the day it landed. The rule instead: **an overlap is an error
+unless BOTH programs' `keep_out` name the other.** That passes the
+three above, and fires on thirteen — nine of them the `*/tests/*`
+family, four of them one-sided or unrecorded pairs that nobody has
+looked at, DOCM/MSOLVE among them.
 
-Method, so it is re-derivable: `fnmatch.fnmatchcase` of each open
-`program.md`'s `paths` globs against `git ls-files`, counting paths
-matched by more than one program. Same matcher `work.py` uses.
+The `*/tests/*` family is the one that wants its own answer rather than
+nine `keep_out` lines: S-TCOST's territory is every crate's tests by
+design, and code-quality Track W already states the seam in prose ("a
+track that owns a crate's `src/` does **not** otherwise own its
+`tests/`"). Whether the lint learns that seam or nine programs write it
+down is the one thing left to decide.
+
+Method, so it is re-derivable and so the next run can be diffed against
+this one: `fnmatch.fnmatchcase` of each open `program.md`'s `paths`
+globs against `git ls-files`, counting paths matched by more than one
+program, then asking for each pair whether each program's `keep_out`
+text names the other. Same matcher `work.py` uses. Measured at
+`a2bcab785`.

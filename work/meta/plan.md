@@ -139,18 +139,24 @@ standing instruction living in `docs/prompts/implementer-discipline.md`
 fence with CIW amending it.
 
 
-**`tracker-has-no-status-for-an-unscheduled-trigger` is this program's
-class and stays on VIEW's board.** It asks what `status` an item whose
-trigger is neither an item nor a PR should carry — "parked lies and
-open overstates" — which is a question about the tracker's own
-vocabulary and would otherwise be item 5 here. It is not moved because
-it carries `needs_ev: true` with a live `[ev]` PR
-(`view/ev-tracker-fired-trigger`), and re-homing an item out from under
-the orchestrator who is waiting to be woken by comments on its PR
-breaks the one channel `work/README.md` gives that conversation. When
-Ev rules and VIEW clears the flag, the ruling lands in `work/README.md`
-and `scripts/work.py`'s status vocabulary — **both this program's
-files** — so the build comes here even though the question does not.
+**`tracker-has-no-status-for-an-unscheduled-trigger` was ruled and
+built before this program existed, and its lesson stands.** It asked
+what `status` an item whose trigger is neither an item nor a PR should
+carry — "parked lies and open overstates". Ev ruled on PR #1857
+(2026-09-04) and VIEW landed the build the same day: `deferred` is now
+a status in `work/README.md`, in `ITEM_STATUS` and in `lint`'s
+"deferred is a ratified not-now, not a wait on a named trigger" check,
+and the ruling is `closed` on VIEW's board.
+
+**Both files the build landed in are now this program's**, and that is
+the whole argument for this program in one instance: a status
+vocabulary change went into `work/README.md` and `scripts/work.py`
+correctly, by a program whose territory is `crates/viewer/src`, because
+on 2026-09-04 those files had no owner to route it to. Nothing about
+that was wrong and nothing is owed back. What it settles is the
+posture: **the next one comes here**, and this program's first job on
+any tracker-vocabulary ruling is to be the place the build lands rather
+than to collect the question.
 
 The same applies in general: a tracker-class item already sitting on a
 program's board with an open `[ev]` PR is left there and the build is
