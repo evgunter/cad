@@ -375,7 +375,7 @@ area `infra`; prefix `meter/`; tag `(METER orchestrator)`; ab_band `3200-3299`.
 | item | kind | status | title | blocked on | PR |
 |---|---|---|---|---|---|
 | `C15` | unit | open | The budget gate's per-face join has no stable face identity — the same-shape face pairs the CSV cannot tell apart |  |  |
-| `D201` | issue | open | The budget CSV carries no stable face identity, and tess-meter's face_rows throws the FaceKey away |  |  |
+| `D201` | unit | open | The budget CSV carries no stable face identity, and tess-meter's face_rows throws the FaceKey away |  |  |
 | `D203` | unit | open | Where a cross-column invariant belongs when an admissions table is per column — the rule, not either instance |  |  |
 | `D206` | unit | open | The split-scan resolution exceeds tess-lint's whole tolerance — raise SPLIT_SCAN_SAMPLES or narrow the range |  |  |
 | `D213` | unit | open | tess-lint's Row::nurbs doc names a reroute the kernel cannot produce, and it is IDENTITY_COLUMNS' only stated reason |  |  |
