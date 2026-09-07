@@ -475,6 +475,40 @@ one seam further: it clears the four fields that describe a picture and
 must not miss a fifth, since a missed `attempted` is what lets a late
 build install an index of a document nobody is looking at.
 
+**The rule is a field census, not a `Debug` rule.** Every place in this
+crate that lists a value's fields by hand destructures the value
+instead, so the list cannot fall behind the declaration; which trait
+the list sits in decides only what a missed field COSTS, and the
+sharpest cost is not a dump's. Seven of these are not dumps:
+
+| census | costs, if it misses a field |
+|---|---|
+| `PartialEq for Camera` | equality answers **wrong**. `camera::fold` is checked against sequential `apply` by comparing whole cameras, so a coordinate outside `eq` is a coordinate that property does not check |
+| `DisplayState::clear` | display state survives into a different document — the stale-across-`Open` defect the `Derived` walk closed |
+| `Display for StoreError` | a store's failure carries a fact the sentence does not say |
+| `Display for Message` | — |
+| `Display for Withdrawal` | — |
+| `Display for Disagreement` | the doc above it argues both halves are load-bearing; a third field left out would falsify that sentence silently |
+| `Display for BlendTarget` | a refusal names a scope narrower than the target it refused on |
+
+`Camera`'s census reaches one type further out: `target` is a
+`Point3<f64>` expanded coordinate by coordinate, so a second pattern
+names `x`, `y` and `z` rather than reading them — the boundary is where
+a census of this crate's fields would otherwise stop.
+
+Two of the seven carry a decision rather than a bare `_`.
+`DisplayState::clear` binds `revision` and does not clear it: the
+counter is the chrome's rebuild key, it is bumped when the reset was
+visible, and a counter that went backwards would name a picture the
+chrome has already drawn. `Display for Message` binds `subject: _`
+because the subject ROUTES the message — it is what expires it and
+what ranks it — and a line that printed its own routing would say to
+the user what the chrome says to itself.
+
+The five `Display`s are over structs, which is the whole population:
+of the `Display` impls under `src/`, every other one is over an enum
+and is exhaustive by its `match` already.
+
 ### The app's vocabularies
 
 | Module | Holds |

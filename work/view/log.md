@@ -5849,3 +5849,69 @@ spent today learning not to mix those.
 `four-debug-walks-are-spelled-and-placed-two-ways` is retitled to that
 move and stays open. All four walks are `core::fmt` now, including the
 pre-existing `std::fmt` the new ones had copied.
+
+## The remaining seven field censuses get their tie, and the compiler names who was watching (2026-09-07)
+
+`field-censuses-inside-view-survived-the-debug-sweep` closes. All seven
+instances across the four hats convert to exhaustive destructuring:
+`impl PartialEq for Camera`, `DisplayState::clear`, and the five
+`impl Display` over structs (`StoreError`, `Message`, `Withdrawal`,
+`Disagreement`, `BlendTarget`).
+
+### The four hats needed four arguments, not one
+
+The `PartialEq` is the sharp one and it moved behind a private
+`Camera::coordinates`, so the census is stated ONCE and both sides of
+`eq` go through it — a census written twice is a census that can
+disagree with itself. That function carries a second pattern over
+`Point3`'s `x`, `y`, `z`, because reading `target.x` by hand was where
+the census stopped at the crate boundary and it did not have to.
+
+`DisplayState::clear` needed no `_` arm: it USES `revision`, bumping it
+when the reset was visible. The pattern's value there is that the
+exception is named at the site the exception lives at.
+
+The five `Display`s all convert, and the argument is deliberately not
+"we did it to the others". The cost is one line, not five, and two of
+the five come out shorter than they went in. What earns it is that four
+of these five renderings are meant to be a COMPLETE account of their
+value — `Disagreement`'s own doc argues exactly that, and the pattern
+is what holds that paragraph to the value rather than leaving it
+asserted. `Message` is the fifth and the opposite: its account is
+deliberately partial, and `subject: _` is now where that decision
+lives.
+
+### The compiler answered both behaviour questions
+
+Deleting `impl PartialEq for Camera` and driving to a fixpoint names
+every consumer of camera equality — seven sites, one of them
+`Folded`'s DERIVED `PartialEq`, which is transitive and invisible to
+any grep for `==`. Two of the others compare whole cameras to check
+that `camera::fold` agrees with sequential `apply` and that
+`map_stream`'s camera agrees with folding its own ops, so a coordinate
+outside `eq` is a coordinate those properties silently do not check.
+That is the concrete cost the item claimed abstractly.
+
+Perturbing all five renderings and running both suites in both feature
+configurations names every assertion on them: four lib tests on
+`Withdrawal`, one integration test on `Disagreement`, and nothing at
+all on `Message`, `StoreError` or `BlendTarget` — though deleting those
+three impls proves all three are rendered, at twelve sites. Rendered
+and unasserted is a different answer from unrendered, and only the
+compiler distinguishes them.
+
+### Witnesses
+
+Seven witness fields in one build: E0027 at all seven converted
+patterns, E0063 at ten struct literals. The `Point3` pattern was
+witnessed separately by dropping `z` from it (E0027, `camera.rs:128`).
+
+### Receipt
+
+Enumeration rule for the `Display` hat: every `impl … Display for T`
+under `crates/viewer/src`, `T`'s declaration looked up and classified
+struct or enum. 36 impls, 5 structs, 31 enums. `PartialEq` hat: 1.
+The rule cannot see a macro-generated or proc-macro-derived impl; both
+are closed by inspection instead — `vocab.rs` is the crate's only
+`macro_rules!` and generates neither trait, and the manifest depends on
+no derive-Display crate.
