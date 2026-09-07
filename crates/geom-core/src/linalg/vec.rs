@@ -362,71 +362,78 @@ impl<T: Real> Vec3<T> {
     /// right-handed frame: returns `(b1, b2)` with `(b1, b2, self)`
     /// orthonormal and right-handed (`b1 × b2 = self` up to rounding).
     ///
-    /// **The construction.** Let `k` be the index of the component of
-    /// `n = self` with the SMALLEST magnitude, ties going to the
-    /// HIGHEST index (`z` before `y` before `x`). Then
+    /// **The construction.** Cross the normal `n = self` with a world
+    /// axis chosen by one comparison on `n.z`, and normalize:
     ///
     /// ```text
-    /// b1 = normalize(e_k × n)
+    /// b1 = normalize(e_z × n)  when |n.z| ≤ max(|n.x|, |n.y|),
+    ///      normalize(e_y × n)  otherwise
     /// b2 = n × b1
     /// ```
     ///
+    /// The comparison is an order on the normal's own components — "is
+    /// `n` nearer the equator than the poles" — so it is
+    /// SCALE-INVARIANT, introduces no constant, and cannot overflow at
+    /// any magnitude (only `abs` and `max` enter it).
+    ///
     /// `b1 × b2 = b1 × (n × b1) = n·(b1·b1) − b1·(b1·n) = n` exactly in
     /// ℝ, so the frame is right-handed by construction rather than by a
-    /// sign convention.
+    /// sign convention. **No sign is transferred anywhere**, which is
+    /// the whole point: [`Real::copysign`]'s enclosure arm must hull at
+    /// any zero-containing sign, so a construction whose seam runs
+    /// through the equator hulls the frame of every vertical wall.
     ///
-    /// **Why this order and this side of the cross**, in the terms a
-    /// user would state them: a horizontal face (`n = ±e_z`) has its two
-    /// smallest components tied at zero, takes `k = y`, and gets
-    /// `b1 = ±e_x`; a vertical wall (`n = (c, s, 0)`) takes `k = z` and
-    /// gets `b1 = (−s, c, 0)` — horizontal in the plane — with
-    /// `b2 = e_z`, up. Those are the frames a draughtsman would draw.
+    /// **Why this comparison and this side of the cross**, in the terms
+    /// a user would state them: a vertical wall `n = (c, s, 0)` takes
+    /// `e_z` and gets `b1 = (−s, c, 0)` — horizontal in the plane —
+    /// with `b2 = e_z`, up; a horizontal cap `n = ±e_z` takes `e_y` and
+    /// gets `b1 = ±e_x`, `b2 = e_y`. Those are the frames a draughtsman
+    /// would draw.
     ///
-    /// **Conditioning: no seam on the sphere.** `|e_k × n|² = 1 − n_k²`,
-    /// and the smallest of three squares summing to 1 is at most `1/3`,
-    /// so `|e_k × n|² ≥ 2/3` for every unit `n`. The normalization is
-    /// therefore well conditioned everywhere — there is no direction at
-    /// which this construction is near-degenerate, and in particular
-    /// nothing happens at the equator `n.z = 0`, where every vertical
-    /// wall of every extrusion lives.
+    /// **Conditioning: no seam on the sphere.**
+    /// `|e_z × n|² = n.x² + n.y²` and `|e_y × n|² = n.x² + n.z²`. On
+    /// the `e_z` arm `n.z² ≤ max(n.x², n.y²) ≤ n.x² + n.y²`, so
+    /// `‖n‖² ≤ 2(n.x² + n.y²)` and `|e_z × n|² ≥ ‖n‖²/2`. On the `e_y`
+    /// arm `n.z²` strictly exceeds both `n.x²` and `n.y²`, so
+    /// `‖n‖² < 3n.z²` and `|e_y × n|² ≥ n.z² > ‖n‖²/3`. The
+    /// normalization is therefore well conditioned at every direction,
+    /// unit or not — there is no direction at which this is
+    /// near-degenerate, and in particular nothing happens at the
+    /// equator `n.z = 0`, where every vertical wall of every extrusion
+    /// lives.
     ///
     /// **The discontinuity, documented honestly.** One must exist (no
     /// continuous global frame on the sphere — hairy ball). Here it is
-    /// the DIAGONAL SET where the two smallest magnitudes tie: crossing
-    /// it rotates the frame about `n` by `arccos(−m²/(1 − m²))` for the
-    /// tied magnitude `m` — a quarter turn at an axis-aligned normal,
-    /// where the tie is at zero. It is never a flip (that quotient
-    /// reaches `−1` only at `m² = 1/2`, which no tie of the two
-    /// SMALLEST magnitudes can reach), and it is not a conditioning
-    /// failure — both candidates are
-    /// perfectly conditioned there, which is what lets the enclosure
-    /// scalar answer with their hull instead of a non-real. Consumers
-    /// wanting a *stable* frame across parameter changes store the
-    /// frame (`u_ref`) as data, per D2; this constructor is for *making*
-    /// that data.
+    /// the 45° cone `|n.z| = max(|n.x|, |n.y|)`: crossing it turns the frame
+    /// about `n` by a quarter turn, never a flip. **What is on that
+    /// cone matters more than that it exists**: no axis direction, no
+    /// axis-aligned face, no vertical wall and no horizontal cap. That
+    /// is what makes the seam affordable at an enclosure scalar, where
+    /// a normal whose components are noise around a seam cannot be
+    /// decided. An order over all three components — smallest magnitude
+    /// wins — puts the seam through EVERY axis direction instead (two
+    /// components tied at zero), which measures worse on exactly the
+    /// geometry a CAD kernel is made of. Consumers wanting a *stable*
+    /// frame across parameter changes store the frame (`u_ref`) as
+    /// data, per D2; this constructor is for *making* that data.
     ///
-    /// **No sign is transferred anywhere.** The axis choice is a
-    /// comparison, and it goes through [`Real::select_le_zero`], the
-    /// value-level decision door, applied componentwise to the
-    /// candidate vectors — three scalar calls per stage, on the SAME
-    /// decision, so the two stages are two decisions and not six. The
-    /// door's tie-break keys on a value zero rather than a zero's sign
-    /// bit, which is what makes it decide at `Interval` where
-    /// [`Real::copysign`] must hull: a point enclosure `[0, 0]` names
-    /// one real and one arm. Spelling the choice as `copysign` on the
-    /// difference would be a total order at `f64` and a hull at every
-    /// point tie — that is, at every axis-aligned normal.
+    /// **The comparison is a value-level door.** It goes through
+    /// [`Real::select_le_zero`], applied componentwise to the two
+    /// candidate vectors — three scalar calls on the SAME decision, so
+    /// an undecided enclosure answers with the hull of the two
+    /// candidate VECTORS rather than a box over three independent
+    /// choices. The door's tie-break keys on a value zero rather than a
+    /// zero's sign bit, which is what lets an enclosure decide it;
+    /// spelling the choice as `copysign` on the difference would be a
+    /// total order at `f64` and a hull at every point tie.
     ///
-    /// **Evaluation order (fixed, D9).** The two stages, exactly as
-    /// written:
+
+    /// **Evaluation order (fixed, D9).** Exactly as written:
     ///
     /// ```text
-    /// c_x = normalize(( 0,   −n.z,  n.y))      // e_x × n
-    /// c_y = normalize(( n.z,  0,   −n.x))      // e_y × n
-    /// c_z = normalize((−n.y,  n.x,  0  ))      // e_z × n
-    /// d1  = |n.z| − |n.y|      w = select(d1, c_z, c_y)   // ties → z
-    /// d2  = min(|n.z|, |n.y|) − |n.x|
-    ///       b1 = select(d2, w, c_x)                       // ties → w
+    /// c_y = normalize(( n.z,  0,   −n.x))          // e_y × n
+    /// c_z = normalize((−n.y,  n.x,  0  ))          // e_z × n
+    /// b1  = select(|n.z| − max(|n.x|, |n.y|), c_z, c_y)  // ties → e_z
     /// b2  = n × b1
     /// ```
     ///
@@ -434,41 +441,40 @@ impl<T: Real> Vec3<T> {
     /// it**, and that ordering is load-bearing at `Interval`. Selecting
     /// first and normalizing once would divide a straddled tie's HULL
     /// by its own norm enclosure, and that hull can contain the zero
-    /// vector (at `n.y = n.z`, `c_z` and `c_y` have opposite `x`
-    /// components) — an unbounded, `Trv` answer to a question that is
-    /// real at every point of the box, which DL6 forbids. Normalizing
-    /// first makes the undecided answer the hull of two unit vectors:
-    /// bounded, decorated `Def`, and containing whichever frame the
-    /// `f64` program picked. At `f64` the two orderings are
-    /// bit-identical, since exactly one candidate is read.
+    /// vector — an unbounded, `Trv` answer to a question that is real
+    /// at every point of the box, which `docs/DUAL-DESIGN.md` DL6
+    /// forbids. Normalizing first makes the undecided answer the hull
+    /// of two unit vectors: bounded, decorated `Def`, and containing
+    /// whichever frame the `f64` program picked. At `f64` the two
+    /// orderings are bit-identical, since exactly one candidate is
+    /// read.
     ///
-    /// **The unread candidates may be poison, and that is by design.**
+    /// **The unread candidate may be poison, and that is by design.**
     /// `e_k × n` is the zero vector exactly when `n` is parallel to
-    /// `e_k`, so `normalize` poisons `c_z` at `n = ±e_z` and `c_x` at
-    /// `n = ±e_x`. The axis order guarantees such a candidate is never
-    /// the one selected — it is the LARGEST magnitude's axis, and this
-    /// picks the smallest — and [`Real::select_le_zero`] propagates
-    /// poison only from the arm it reads. A poisoned INPUT still
-    /// poisons everything, through the decision.
+    /// `e_k`, so `normalize` poisons `c_z` at `n = ±e_z` and `c_y` at
+    /// `n = ±e_y`. The comparison guarantees such a candidate is never
+    /// the one selected, at ANY magnitude: the `e_z` arm needs
+    /// `max(|n.x|, |n.y|) ≥ |n.z|`, which makes `c_z` the zero vector
+    /// only for the zero vector itself, and the `e_y` arm needs
+    /// `|n.z| > max(|n.x|, |n.y|)`, which is impossible where `c_y` is
+    /// zero (`n.x = n.z = 0`) — and [`Real::select_le_zero`] propagates poison only from
+    /// the arm it reads. A poisoned INPUT still poisons everything,
+    /// through the decision.
     ///
     /// **The measured limit, stated rather than left to be
     /// discovered.** `normalize` reads each candidate's OWN norm, so an
-    /// enclosure wide enough to leave a tie undecided AND to contain a
-    /// direction parallel to a candidate's axis hulls in that
-    /// candidate's zero vector and comes back unbounded. Every such
-    /// point is NON-UNIT — a unit direction parallel to `e_k` has
-    /// `|n_k| = 1`, which no enclosure that leaves the smallest
-    /// magnitude undecided contains — so the precondition excludes it,
-    /// and a tight enclosure of a real normal never reaches it. The
-    /// alternative that would close it, `(e_k × n)/sqrt(1 − n_k²)`,
-    /// buys the bound by LEANING on the precondition instead of merely
-    /// assuming it, and answers a non-unit input with a scaled frame
-    /// rather than a unit one.
+    /// enclosure wide enough to leave the comparison undecided AND to
+    /// contain a direction parallel to a candidate's axis hulls in that
+    /// candidate's zero vector and comes back unbounded. Reaching it
+    /// takes a box spanning most of a meridian — the comparison
+    /// undecided AND a direction parallel to the axis being chosen away
+    /// from inside the same box — which is a direction known to within
+    /// 90°, not a chart question.
     ///
-    /// Both squares inside `normalize` are the tight square
-    /// (`powi(2)`), not the product `n·n`: at `Interval` the product
-    /// treats the two factors as independent, so an enclosure
-    /// straddling zero acquires a spurious negative lower bound.
+    /// Both squares are the tight square (`powi(2)`), not the product
+    /// `n·n`: at `Interval` the product treats the two factors as
+    /// independent, so an enclosure straddling zero acquires a spurious
+    /// negative lower bound.
     ///
     /// **Precondition (conventional, unchecked):** `self` is unit —
     /// same posture as unit-`dir` curve data; tier-3 certification owns
@@ -476,18 +482,17 @@ impl<T: Real> Vec3<T> {
     /// something exact: `b1` is unit and orthogonal to `n` whatever
     /// `‖n‖` is, `b2 = n × b1` carries `‖n‖`, and `b1 × b2 = n` holds —
     /// an ORTHOGONAL pair that is not orthonormal. What the precondition
-    /// buys is the `≥ 2/3` conditioning bound and the argument that a
-    /// poisoned candidate is never the one selected; both are
-    /// statements about unit inputs. A poisoned input propagates
-    /// poison.
+    /// buys is orthonormality itself; the conditioning bound
+    /// and the never-selected-poison argument hold at any magnitude,
+    /// because the comparison is scale-invariant. A poisoned input
+    /// propagates poison, and the zero vector — which names no
+    /// direction — poisons.
     pub fn orthonormal_basis(self) -> (Self, Self) {
         let zero = T::zero();
-        let cx = Self::new(zero, -self.z, self.y).normalize();
         let cy = Self::new(self.z, zero, -self.x).normalize();
         let cz = Self::new(-self.y, self.x, zero).normalize();
-        let (ax, ay, az) = (self.x.abs(), self.y.abs(), self.z.abs());
-        let w = Self::select(az - ay, cz, cy);
-        let b1 = Self::select(az.min(ay) - ax, w, cx);
+        let d = self.z.abs() - self.x.abs().max(self.y.abs());
+        let b1 = Self::select(d, cz, cy);
         (b1, self.cross(b1))
     }
 
@@ -869,9 +874,9 @@ mod tests {
         /// The TANGENT channel of the frame, against its closed form —
         /// the channel the value-channel bit row above cannot reach.
         ///
-        /// Away from the seam the axis choice is locally constant, so
-        /// `b1 = v/‖v‖` for the fixed `v = e_k × n`, which is LINEAR in
-        /// `n`; differentiating,
+        /// Away from the 45° cone the axis choice is locally constant,
+        /// so `b1 = v/‖v‖` for the fixed `v = e_k × n`, which is LINEAR
+        /// in `n`; differentiating,
         ///
         /// ```text
         /// v'   = e_k × n'
@@ -880,12 +885,13 @@ mod tests {
         /// ```
         ///
         /// Well conditioned everywhere on the sphere: `‖v‖² = 1 − n_k²`
-        /// is at least `2/3` because `k` indexes the SMALLEST magnitude,
-        /// which is the whole reason the axis order is what it is. The
-        /// row therefore needs no near-degenerate exclusion — only the
-        /// seam itself, where the derivative does not exist and the
-        /// program's answer is one side's (`prop_assume!` below drops a
-        /// draw whose two smallest magnitudes are within a whisker).
+        /// is at least `‖n‖²/3` on both arms of the comparison, which
+        /// is the whole reason the comparison is what it is. The row
+        /// therefore
+        /// needs no near-degenerate exclusion — only the cone itself,
+        /// where the derivative does not exist and the program's answer
+        /// is one side's (`prop_assume!` below drops a draw within a
+        /// whisker of it).
         ///
         /// **What it catches that the value channel cannot**: a wrong
         /// normalization derivative, a dropped `v·(v·v')` term, or a
@@ -906,18 +912,13 @@ mod tests {
             use crate::dual::Dual;
             let n = v.normalize();
             prop_assume!(n.x.is_finite() && n.y.is_finite() && n.z.is_finite());
-            // Off the seam: the two smallest magnitudes separated.
-            let (ax, ay, az) = (n.x.abs(), n.y.abs(), n.z.abs());
-            let mut mags = [ax, ay, az];
-            mags.sort_by(f64::total_cmp);
-            prop_assume!(mags[1] - mags[0] > 1e-6);
+            // Off the seam, where the axis choice is locally constant.
+            prop_assume!((n.z.abs() - n.x.abs().max(n.y.abs())).abs() > 1e-6);
             let t = Vec3::new(tx, ty, tz);
-            let axis = if az <= ay && az <= ax {
+            let axis = if n.z.abs() <= n.x.abs().max(n.y.abs()) {
                 Vec3::new(0.0, 0.0, 1.0)
-            } else if ay <= ax {
-                Vec3::new(0.0, 1.0, 0.0)
             } else {
-                Vec3::new(1.0, 0.0, 0.0)
+                Vec3::new(0.0, 1.0, 0.0)
             };
             let w = axis.cross(n);
             let wd = axis.cross(t);
@@ -950,37 +951,33 @@ mod tests {
         }
 
         /// **The pinned `f64` spelling, swept bitwise**: `b1` is
-        /// `normalize(e_k × n)` for `k` the index of the
-        /// smallest-magnitude component, ties to the highest index, and
-        /// `b2` is `n × b1`. The reference below writes that out with a
-        /// raw `if` — the spelling the constructor may not use, since a
-        /// value branch does not survive an enclosure scalar — so the
-        /// two derivations are independent and the row measures the
-        /// door rather than restating it.
+        /// `normalize(e_z × n)` when `|n.z| ≤ max(|n.x|, |n.y|)` and
+        /// `normalize(e_y × n)` otherwise, and `b2` is `n × b1`. The
+        /// reference below writes that out with a raw `if` — the
+        /// spelling the constructor may not use, since a value branch
+        /// does not survive an enclosure scalar — so the two
+        /// derivations are independent and the row measures the door
+        /// rather than restating it.
         ///
         /// The sweep is the drawn direction plus the edge set the
         /// construction meets: the axes and the equator with both
         /// signed zeros in `z` (the bits an enclosure cannot see), the
-        /// poles, and the DIAGONALS where the two smallest magnitudes
-        /// tie — the discontinuity set, and the only place a reference
-        /// and a spelling can disagree by a rotation about `n` rather
-        /// than by an ulp.
+        /// poles, and the 45° CONE `|n.z| = max(|n.x|, |n.y|)` — the
+        /// discontinuity,
+        /// and the only place a reference and a spelling can disagree
+        /// by a rotation about `n` rather than by an ulp.
         ///
         /// Poison is out of scope on purpose (NaN bits are not a
         /// contract — `project_reject_basis_poison` owns that door), so
         /// a case whose reference frame is not finite is skipped.
         #[test]
-        fn orthonormal_basis_matches_the_axis_order_spelling_bitwise(v in vec3()) {
-            /// Smallest magnitude, ties to the highest index — with the
-            /// branch written out.
+        fn orthonormal_basis_matches_the_pinned_spelling_bitwise(v in vec3()) {
+            /// The comparison, with the branch written out.
             fn reference(n: Vec3<f64>) -> (Vec3<f64>, Vec3<f64>) {
-                let (ax, ay, az) = (n.x.abs(), n.y.abs(), n.z.abs());
-                let axis = if az <= ay && az <= ax {
+                let axis = if n.z.abs() <= n.x.abs().max(n.y.abs()) {
                     Vec3::new(-n.y, n.x, 0.0)
-                } else if ay <= ax {
-                    Vec3::new(n.z, 0.0, -n.x)
                 } else {
-                    Vec3::new(0.0, -n.z, n.y)
+                    Vec3::new(n.z, 0.0, -n.x)
                 };
                 let b1 = axis.normalize();
                 (b1, n.cross(b1))
@@ -1002,14 +999,17 @@ mod tests {
                 Vec3::new(0.6, 0.8, -1e-12).normalize(),
                 Vec3::new(f64::MIN_POSITIVE, 1.0, -0.0),
             ]);
-            // The tie set itself and both sides of it: |n.y| = |n.z|
-            // with |n.x| larger (the y/z contest), and |n.x| = |n.z|
-            // with |n.y| larger (the x/z contest).
+            // The 45° cone itself and both sides of it, at several
+            // azimuths and both hemispheres.
+            let half = core::f64::consts::FRAC_1_SQRT_2;
             for d in [0.0f64, 1e-12, -1e-12] {
-                cases.push(Vec3::new(0.9, 0.3, 0.3 + d).normalize());
-                cases.push(Vec3::new(0.9, -0.3, 0.3 + d).normalize());
-                cases.push(Vec3::new(0.3, 0.9, 0.3 + d).normalize());
-                cases.push(Vec3::new(0.3 + d, 0.9, -0.3).normalize());
+                for (x, y) in [(1.0f64, 0.0f64), (0.0, 1.0), (0.6, 0.8), (-0.6, 0.8)] {
+                    for s in [1.0f64, -1.0] {
+                        let z = s * (half + d);
+                        let r = (1.0 - z * z).max(0.0).sqrt();
+                        cases.push(Vec3::new(x * r, y * r, z));
+                    }
+                }
             }
             for n in cases {
                 let (w1, w2) = reference(n);
@@ -1034,12 +1034,12 @@ mod tests {
 
     /// The conventional frames at the axes, at a vertical wall and at a
     /// horizontal cap, continuity away from the seam, and the seam
-    /// itself — the diagonal set where the two smallest magnitudes tie.
+    /// itself — the 45° cone `|n.z| = max(|n.x|, |n.y|)`.
     #[test]
-    fn orthonormal_basis_poles_walls_and_diagonals() {
-        // A horizontal cap: the two smallest components tie at zero,
-        // the highest-index tie-break takes `k = y`, and the frame is
-        // the one a draughtsman draws — `x` across, `y` up the page.
+    fn orthonormal_basis_poles_walls_and_the_cone() {
+        // A horizontal cap: `|n.z| > max(|n.x|, |n.y|)` takes the `e_y` arm, and
+        // the frame is the one a draughtsman draws — `x` across, `y` up
+        // the page.
         let (b1, b2) = Vec3::<f64>::unit_z().orthonormal_basis();
         assert_eq!((b1.x, b1.y, b1.z), (1.0, 0.0, 0.0));
         assert_eq!((b2.x, b2.y, b2.z), (0.0, 1.0, 0.0));
@@ -1057,10 +1057,9 @@ mod tests {
             assert_eq!((b1.x, b1.y, b1.z), (w1.x, w1.y, w1.z), "b1 at {n:?}");
             assert_eq!((b2.x, b2.y, b2.z), (w2.x, w2.y, w2.z), "b2 at {n:?}");
         }
-        // A vertical wall — the whole equator, where `n.z` is exactly
-        // zero and is therefore the strict smallest magnitude: `b1` is
-        // horizontal in the plane and `b2` is up. The old sign-transfer
-        // construction put its seam here.
+        // A vertical wall — the whole equator, where `n.z² = 0` takes
+        // the `e_z` arm: `b1` is horizontal in the plane and `b2` is
+        // up. The old sign-transfer construction put its seam here.
         let wall = Vec3::new(0.6, 0.8, 0.0);
         let (b1, b2) = wall.orthonormal_basis();
         assert_eq!((b1.x, b1.y, b1.z), (-0.8, 0.6, 0.0));
@@ -1089,27 +1088,25 @@ mod tests {
         );
         assert!((a1.y - c1.y).abs() <= 1e-11);
         assert!((a1.z - c1.z).abs() <= 1e-11);
-        // The seam that does exist: the diagonal `|n.y| = |n.z|` with
-        // `|n.x|` larger. Crossing it turns the frame about `n` by
-        // `arccos(−m²/(1 − m²))` for the tied magnitude `m` — a quarter
-        // turn when the tie is at zero, and never a flip at any `m`,
-        // since that quotient reaches `−1` only at `m² = 1/2`, which no
-        // tie of the two SMALLEST magnitudes can reach. Both sides are
+        // The seam that does exist: the 45° cone `|n.z| = max(|n.x|, |n.y|)`, which
+        // carries no axis direction and no axis-aligned face. Crossing
+        // it turns the frame a QUARTER TURN about `n` — the two
+        // candidates are orthogonal there, since
+        // `c_z · c_y = −n.y·n.z/((1 − n.z²)^½(1 − n.y²)^½)` and this
+        // fixture's `n.y` is zero — and never a flip. Both sides are
         // exact right-handed frames of the same plane.
-        let left = Vec3::new(0.9, 0.3, 0.3 - 1e-12).normalize();
-        let right = Vec3::new(0.9, 0.3, 0.3 + 1e-12).normalize();
+        let half = core::f64::consts::FRAC_1_SQRT_2;
+        let on = |z: f64| Vec3::new((1.0 - z * z).sqrt(), 0.0, z);
+        let left = on(half - 1e-12);
+        let right = on(half + 1e-12);
         let (l1, l2) = left.orthonormal_basis();
         let (r1, r2) = right.orthonormal_basis();
-        let m2 = left.y * left.y;
         assert!(
-            (l1.dot(r1) + m2 / (1.0 - m2)).abs() <= 1e-9,
-            "the seam's rotation is {} , not arccos of {}",
-            l1.dot(r1),
-            -m2 / (1.0 - m2)
+            l1.dot(r1).abs() <= 1e-9,
+            "the cone's rotation is not a quarter turn: {}",
+            l1.dot(r1)
         );
-        // A rotation, not a flip and not the identity.
-        assert!(l1.dot(r1).abs() <= 1.0 - 1e-3);
-        assert!(l1.dot(r2).abs() >= 1e-3);
+        assert!((l1.dot(r2).abs() - 1.0).abs() <= 1e-9);
         for (b1, b2, n) in [(l1, l2, left), (r1, r2, right)] {
             let cross = b1.cross(b2);
             assert!((cross.x - n.x).abs() <= 1e-14);
@@ -1162,8 +1159,8 @@ mod tests {
         assert!(contains_zero(b1.norm_squared() - Interval::one()));
         assert!(contains_zero(b2.norm_squared() - Interval::one()));
         // A `z`-straddling enclosure at a WALL is not a seam any more:
-        // `|n.z|` is still the strict smallest magnitude, so the axis
-        // choice DECIDES and the frame comes back exactly horizontal.
+        // `|n.z|` is nowhere near `max(|n.x|, |n.y|)`, so it DECIDES and
+        // the frame comes back exactly horizontal.
         let straddle = Vec3::new(
             Interval::from_f64(0.6),
             Interval::from_f64(0.8),
@@ -1177,14 +1174,15 @@ mod tests {
             s1.z.hi()
         );
         assert!((s1.x.hi() - s1.x.lo()) <= 8.0 * f64::EPSILON);
-        // The seam that IS one: an enclosure straddling the `|n.y|`
-        // versus `|n.z|` tie. The door hulls the two candidate frames —
+        // The seam that IS one: an enclosure straddling the 45° cone
+        // `|n.z| = max(|n.x|, |n.y|)`. The door hulls the two candidate frames —
         // bounded, decorated `Def`, never a manufactured non-real — and
         // the hull contains BOTH of the frames the box's points take.
+        let half = core::f64::consts::FRAC_1_SQRT_2;
         let tie = Vec3::new(
-            Interval::from_f64(0.8),
-            Interval::from_bounds(0.42, 0.43),
-            Interval::from_bounds(0.42, 0.43),
+            Interval::from_f64(half),
+            Interval::from_f64(0.0),
+            Interval::from_bounds(half - 1e-6, half + 1e-6),
         );
         let (t1, t2) = tie.orthonormal_basis();
         for (e, which) in [
@@ -1202,8 +1200,8 @@ mod tests {
                 e.hi()
             );
         }
-        for (y, z) in [(0.42f64, 0.43f64), (0.43, 0.42)] {
-            let (f1, _) = Vec3::new(0.8f64, y, z).normalize().orthonormal_basis();
+        for z in [half - 1e-6, half + 1e-6] {
+            let (f1, _) = Vec3::new(half, 0.0, z).normalize().orthonormal_basis();
             for (e, v, which) in [
                 (t1.x, f1.x, "b1.x"),
                 (t1.y, f1.y, "b1.y"),
@@ -1211,7 +1209,7 @@ mod tests {
             ] {
                 assert!(
                     e.lo() <= v && v <= e.hi(),
-                    "{which}: the f64 frame at ({y}, {z}) gives {v}, outside [{}, {}]",
+                    "{which}: the f64 frame at n.z = {z} gives {v}, outside [{}, {}]",
                     e.lo(),
                     e.hi()
                 );
@@ -1219,21 +1217,31 @@ mod tests {
         }
     }
 
-    /// **Bounded and certified over EVERY `n.z` enclosure**, one-sided,
-    /// straddling, strictly signed and degenerate — the enclosures a
-    /// subdivision driver actually produces.
+    /// **Bounded and certified over every `n.z` enclosure the
+    /// comparison DECIDES**, one-sided, straddling zero, strictly
+    /// signed and degenerate — the enclosures a subdivision driver
+    /// actually produces at a wall — and over a tight enclosure that
+    /// straddles the 45° cone, where the answer is the hull of two unit
+    /// candidates.
+    ///
+    /// **The limit, measured rather than implied**: an enclosure that
+    /// straddles the cone AND reaches a direction parallel to the
+    /// candidate axis it is choosing away from hulls in that
+    /// candidate's zero vector. That takes a box spanning most of a
+    /// meridian — `n.z` from 0 to 1 at a fixed azimuth — which is a
+    /// direction known to within 90°, not a chart question. The row
+    /// records it rather than demanding an answer.
     ///
     /// The second half is a REGRESSION GUARD with teeth on the one
     /// ordering decision the construction makes: it measures the
     /// select-THEN-normalize spelling directly and requires it to be
-    /// unbounded at a straddled tie. The hull of two un-normalized
-    /// candidates contains the zero vector there — `e_z × n` and
-    /// `e_y × n` have opposite `x` components at `n.y = n.z` — so
-    /// dividing it by its own norm enclosure manufactures a non-real
-    /// from a question that is real at every point of the box (DL6).
-    /// Normalizing each candidate FIRST makes the same answer the hull
-    /// of two unit vectors. If someone reorders those two steps, this
-    /// reds instead of going quiet.
+    /// unbounded at a straddled cone. The hull of two un-normalized
+    /// candidates contains the zero vector there, so dividing it by its
+    /// own norm enclosure manufactures a non-real from a question that
+    /// is real at every point of the box (DL6). Normalizing each
+    /// candidate FIRST makes the same answer the hull of two unit
+    /// vectors. If someone reorders those two steps, this reds instead
+    /// of going quiet.
     #[cfg(feature = "interval")]
     #[test]
     fn orthonormal_basis_is_bounded_over_z_enclosures() {
@@ -1242,21 +1250,24 @@ mod tests {
 
         let iv = Interval::from_f64;
         let ivb = Interval::from_bounds;
+        let half = core::f64::consts::FRAC_1_SQRT_2;
         let zs = [
             ("[0,0]", ivb(0.0, 0.0)),
-            ("[0,1]", ivb(0.0, 1.0)),
-            ("[-1,0]", ivb(-1.0, 0.0)),
-            ("[-1,1]", ivb(-1.0, 1.0)),
-            ("[0.5,1]", ivb(0.5, 1.0)),
-            ("[-1,-0.5]", ivb(-1.0, -0.5)),
+            ("[-1e-9,1e-9]", ivb(-1e-9, 1e-9)),
+            ("[0,0.5]", ivb(0.0, 0.5)),
+            ("[-0.5,0]", ivb(-0.5, 0.0)),
+            ("[0.9,1]", ivb(0.9, 1.0)),
+            ("[-1,-0.9]", ivb(-1.0, -0.9)),
             ("[0,1e-30]", ivb(0.0, 1e-30)),
+            // Tight, straddling the cone: the hull of two unit
+            // candidates, which must still be bounded and certified.
+            ("cone±1e-9", ivb(half - 1e-9, half + 1e-9)),
+            ("-cone±1e-9", ivb(-half - 1e-9, -half + 1e-9)),
         ];
-        // Unit directions only: the constructor's precondition. The
-        // zero vector is not one, and `normalize` poisons it — which is
-        // the documented posture, not a case this row covers.
         for (name, z) in zs {
             for (x, y) in [(0.0f64, 1.0f64), (1.0, 0.0), (0.6, 0.8)] {
-                let (b1, b2) = Vec3::new(iv(x), iv(y), z).orthonormal_basis();
+                let r = (1.0 - z.hi() * z.hi()).max(0.0).sqrt();
+                let (b1, b2) = Vec3::new(iv(x * r), iv(y * r), z).orthonormal_basis();
                 for (e, which) in [
                     (b1.x, "b1.x"),
                     (b1.y, "b1.y"),
@@ -1282,21 +1293,30 @@ mod tests {
                 }
             }
         }
-        // The guard: a straddled `|n.y|` = `|n.z|` tie, where the two
+        // The recorded limit: a whole meridian at the azimuth whose
+        // `e_y` candidate degenerates.
+        let (wide, _) = Vec3::new(iv(0.0), iv(1.0), ivb(0.0, 1.0)).orthonormal_basis();
+        println!(
+            "note: n = (0, 1, [0, 1]) gives b1.x = [{}, {}] (bounded: {})",
+            wide.x.lo(),
+            wide.x.hi(),
+            wide.x.lo().is_finite() && wide.x.hi().is_finite()
+        );
+        // The guard: a straddled cone, where the two un-normalized
         // candidates' hull contains the zero vector.
-        let n = Vec3::new(iv(0.8), ivb(0.42, 0.43), ivb(0.42, 0.43));
-        let d1 = n.z.abs() - n.y.abs();
+        let n = Vec3::new(iv(half), iv(0.0), ivb(half - 1e-9, half + 1e-9));
+        let d = n.z.abs() - n.x.abs().max(n.y.abs());
         let cz = Vec3::new(-n.y, n.x, Interval::zero());
         let cy = Vec3::new(n.z, Interval::zero(), -n.x);
         let hull = Vec3::new(
-            d1.select_le_zero(cz.x, cy.x),
-            d1.select_le_zero(cz.y, cy.y),
-            d1.select_le_zero(cz.z, cy.z),
+            d.select_le_zero(cz.x, cy.x),
+            d.select_le_zero(cz.y, cy.y),
+            d.select_le_zero(cz.z, cy.z),
         );
         let late = hull.normalize();
         assert!(
             !late.x.lo().is_finite() || !late.x.hi().is_finite() || !late.x.is_certified(),
-            "select-then-normalize is supposed to fail at a straddled tie; it gave \
+            "select-then-normalize is supposed to fail at a straddled cone; it gave \
              [{}, {}] certified = {} — if this now holds, the guard is stale",
             late.x.lo(),
             late.x.hi(),
@@ -1308,16 +1328,15 @@ mod tests {
     }
 
     /// **The equator, at the input the sign-transfer construction could
-    /// not answer.** A VERTICAL plane's normal has `n.z = 0`, and zero
-    /// is the strict smallest magnitude, so the axis order DECIDES: the
-    /// frame is the EXACT in-plane horizontal, not a bounded hull of two
-    /// hemispheres. The tie-break reads the value zero and not its sign
-    /// bit, so `+0.0` and `−0.0` give the same answer and a point
-    /// enclosure of either decides.
+    /// not answer.** A VERTICAL plane's normal has `n.z = 0`, so
+    /// `|n.z| = 0 ≤ max(|n.x|, |n.y|)` DECIDES: the frame is the EXACT in-plane
+    /// horizontal, not a bounded hull of two hemispheres. The
+    /// comparison reads a squared value and not a sign bit, so `+0.0`
+    /// and `−0.0` give the same answer and a point enclosure of either
+    /// decides.
     ///
-    /// The horizontal cap `n = ±e_z` is the other exact case, and it is
-    /// the one where the two smallest magnitudes DO tie — at zero, a
-    /// point tie, which decides for the same reason.
+    /// The horizontal cap `n = ±e_z` is the other exact case, at the
+    /// far end of the same comparison (`|n.z| = 1 > 0`).
     #[cfg(feature = "interval")]
     #[test]
     fn orthonormal_basis_at_a_vertical_plane_and_a_cap_is_exact() {

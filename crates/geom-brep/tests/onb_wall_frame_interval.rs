@@ -1,21 +1,22 @@
 //! **The stored wall frame at `Interval`, on M10-5's 12-gon prism** —
-//! the acceptance row for the axis-order orthonormal basis.
+//! the acceptance row for the orthonormal basis's world-axis choice.
 //!
-//! `Vec3::orthonormal_basis` crosses the normal with the world axis of
-//! its smallest-magnitude component and normalizes, so a vertical wall
-//! (`n.z = 0`, the whole equator) is the case the order DECIDES rather
-//! than the case it is degenerate on: `|n.z|` is the strict minimum, no
-//! sign is transferred anywhere, and the stored `u_ref` comes back as a
-//! point enclosure of the exact in-plane horizontal `(−n.y, n.x, 0)`.
+//! `Vec3::orthonormal_basis` crosses the normal with `e_z` when
+//! `n.z² ≤ n.x² + n.y²` and with `e_y` otherwise, and normalizes. A vertical
+//! wall (`n.z = 0`, the whole equator) is therefore as far from the
+//! comparison's seam as a direction can be: the choice DECIDES over any
+//! enclosure a wall's normal comes in, no sign is transferred anywhere,
+//! and the stored `u_ref` is the exact in-plane horizontal
+//! `(−n.y, n.x, 0)`.
 //!
 //! This replays the dumbbell prism at `Interval` over the ε-scaled
 //! parameter box, mints each wall's plane through `newell_plane`, and
 //! asserts, per wall:
 //!
-//! * every `u_ref` component is a point enclosure to within 1e-15 —
-//!   including the two walls whose `n.z` encloses `[−2.2e-16, 2.2e-16]`
-//!   rather than the exact zero, which decide here because
-//!   `|n.z| ≤ 2.2e-16` is far below the other two magnitudes;
+//! * every `u_ref` component is as tight as the wall's own normal —
+//!   including the two walls whose `n.x` and `n.z` come back as
+//!   `±4.4e-16` and `±2.2e-16` rather than exact zeros, which an order
+//!   over the three components could not have decided between;
 //! * the enclosure contains the `f64` frame (the containment the
 //!   `Interval` lane exists to provide);
 //! * the cell `Surface::eval` encloses over the window has the window's
@@ -105,27 +106,22 @@ fn cell_z_width(surface: &Surface<Interval>, u: (f64, f64), v: (f64, f64)) -> f6
     width(p.z)
 }
 
-/// The walls whose axis choice is UNDECIDED over the enclosure, and
-/// why: `newell_plane`'s cross-sum cannot cancel exactly on the two
-/// rings whose `y` is `0.8` and `1.2`, so their normals come back with
-/// `n.x ∈ ±4.4e-16` and `n.z ∈ ±2.2e-16` rather than exact zeros. Which
-/// of those two is the smaller magnitude is then a real question with
-/// no answer over the box — both enclosures contain zero — so the door
-/// hulls the `z`-axis and `x`-axis candidates, which differ by a
-/// quarter turn about the normal. The hull is the honest answer and it
-/// contains the `f64` frame; it is not exact, and pretending otherwise
-/// is what this list refuses to do.
-const UNDECIDED: [usize; 2] = [2, 8];
-
 /// The prism's walls, at both windows.
 ///
-/// **Why the `z`-extent is the window's own span** on a wall whose
-/// frame is decided: the chart is `origin + u·u_ref + v·(n × u_ref)`;
-/// the axis order gives a vertical wall `k = z` and therefore
-/// `u_ref = (−n.y, n.x, 0)` — horizontal in the plane — so `n × u_ref`
-/// is `e_z` and the cell's `z` extent is exactly the `v` span. The old
-/// sign-transferred frame carried `u_ref.z ∈ [−|n.x|, |n.x|]` on every
-/// wall of the equator and added `|u|·|n.x|` to it.
+/// **Why the `z`-extent is the window's own span**: the chart is
+/// `origin + u·u_ref + v·(n × u_ref)`; a wall takes the `e_z` arm and
+/// therefore `u_ref = (−n.y, n.x, 0)` — horizontal in the plane — so
+/// `n × u_ref` is `e_z` and the cell's `z` extent is exactly the `v`
+/// span. The old sign-transferred frame carried
+/// `u_ref.z ∈ [−|n.x|, |n.x|]` on every wall of the equator and added
+/// `|u|·|n.x|` to it.
+///
+/// **All twelve walls decide**, including the two whose `n.x` and `n.z`
+/// are noise around zero: the comparison is `n.z² ≤ n.x² + n.y²`, and a
+/// wall's `n.y²` or `n.x²` is 1 while both sides of the noise are
+/// `1e-32`. An order over the three components would have been
+/// undecided on exactly those two, because which of two enclosures that
+/// both contain zero is the smaller has no answer.
 #[test]
 fn every_wall_of_the_twelve_gon_prism_stores_a_frame_as_exact_as_its_normal() {
     for window in [WINDOW, EPS_WINDOW] {
@@ -148,7 +144,6 @@ fn every_wall_of_the_twelve_gon_prism_stores_a_frame_as_exact_as_its_normal() {
             // not a tolerance anything is tuned to.
             let n_width = width(normal.x).max(width(normal.y)).max(width(normal.z));
             let bound = 4.0 * n_width + 4.0 * f64::EPSILON;
-            let decided = !UNDECIDED.contains(&i);
             for (e, f, which) in [
                 (u_ref.x, uf.x, "u_ref.x"),
                 (u_ref.y, uf.y, "u_ref.y"),
@@ -166,29 +161,34 @@ fn every_wall_of_the_twelve_gon_prism_stores_a_frame_as_exact_as_its_normal() {
                     e.lo(),
                     e.hi()
                 );
-                if decided {
-                    assert!(
-                        width(e) <= bound,
-                        "wall {i} {which} is wider than its own normal: [{}, {}] \
-                         (width {:e} against {bound:e}), n.z = [{}, {}]",
-                        e.lo(),
-                        e.hi(),
-                        width(e),
-                        normal.z.lo(),
-                        normal.z.hi()
-                    );
-                }
+                assert!(
+                    width(e) <= bound,
+                    "wall {i} {which} is wider than its own normal: [{}, {}] \
+                     (width {:e} against {bound:e}), n.z = [{}, {}]",
+                    e.lo(),
+                    e.hi(),
+                    width(e),
+                    normal.z.lo(),
+                    normal.z.hi()
+                );
             }
-            // The undecided pair is undecided for the stated reason and
-            // for no other: both candidate axes' magnitudes enclose
-            // zero. A wall that stopped meeting that description while
-            // staying on the list — or one that started meeting it
-            // while off it — is a census that has moved.
+            // The comparison decides on every wall, and the census
+            // records that two of them have normals an order over the
+            // three components could not have decided between.
             let straddles = |e: Interval| e.lo() <= 0.0 && 0.0 <= e.hi();
+            let noisy = straddles(normal.x) && straddles(normal.z) && width(normal.x) > 0.0;
+            let d = normal.z.powi(2) - (normal.x.powi(2) + normal.y.powi(2));
+            let decided = d.hi() <= 0.0 || d.lo() > 0.0;
+            assert!(
+                decided,
+                "wall {i}: the axis comparison did not decide — n.z = [{}, {}]",
+                normal.z.lo(),
+                normal.z.hi()
+            );
             assert_eq!(
-                !decided,
-                straddles(normal.x) && straddles(normal.z) && width(normal.x) > 0.0,
-                "wall {i}: the undecided census is stale — n.x = [{}, {}], n.z = [{}, {}]",
+                noisy,
+                i == 2 || i == 8,
+                "wall {i}: the noisy-normal census is stale — n.x = [{}, {}], n.z = [{}, {}]",
                 normal.x.lo(),
                 normal.x.hi(),
                 normal.z.lo(),
@@ -200,13 +200,11 @@ fn every_wall_of_the_twelve_gon_prism_stores_a_frame_as_exact_as_its_normal() {
                 u_ref,
             };
             let z = cell_z_width(&surface, window, window);
-            if decided {
-                assert!(
-                    (z - span).abs() <= span * 1e-13 + 16.0 * f64::EPSILON,
-                    "wall {i}: the cell's z-enclosure is {z:e} over a window of span \
-                     {span:e} — a frame with a z-component widened it"
-                );
-            }
+            assert!(
+                (z - span).abs() <= span * 1e-13 + 16.0 * f64::EPSILON,
+                "wall {i}: the cell's z-enclosure is {z:e} over a window of span \
+                 {span:e} — a frame with a z-component widened it"
+            );
             assert!(
                 refines(&surface, window, window),
                 "wall {i}: the stored chart does not refine over [{:e}, {:e}]",

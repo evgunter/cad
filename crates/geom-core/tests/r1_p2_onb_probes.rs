@@ -3,10 +3,11 @@
 //! Independent, adversarial rows exercising the constructor's two
 //! claims from outside its own tests:
 //!
-//! 1. the `f64` path is the axis order's, BITWISE — probed here over
-//!    inputs the unit's own sweep does not draw (non-unit magnitudes
-//!    across ~600 decades, subnormals, signed zeros in `x` and `y` as
-//!    well as `z`, and an LCG sweep seeded independently of proptest);
+//! 1. the `f64` path is the world-axis comparison's, BITWISE — probed
+//!    here over inputs the unit's own sweep does not draw (non-unit
+//!    magnitudes across ~600 decades, subnormals, signed zeros in `x`
+//!    and `y` as well as `z`, and an LCG sweep seeded independently of
+//!    proptest);
 //! 2. the `interval` path answers a vertical plane with a DECIDED,
 //!    exact frame — probed at NEAR-vertical enclosures (sign-definite
 //!    tiny, straddling tiny, straddling wide) rather than only at the
@@ -22,18 +23,15 @@ test_utils::gated_to![
 
 use geom_core::Vec3;
 
-/// The axis order written out with a raw branch — the spelling the
-/// constructor may not use, since a value branch does not survive an
-/// enclosure scalar. PRIVATE to this suite, so the comparison does not
-/// lean on anything the unit wrote.
+/// The world-axis comparison written out with a raw branch — the
+/// spelling the constructor may not use, since a value branch does not
+/// survive an enclosure scalar. PRIVATE to this suite, so the
+/// comparison does not lean on anything the unit wrote.
 fn reference(n: Vec3<f64>) -> (Vec3<f64>, Vec3<f64>) {
-    let (ax, ay, az) = (n.x.abs(), n.y.abs(), n.z.abs());
-    let axis = if az <= ay && az <= ax {
+    let axis = if n.z * n.z <= n.x * n.x + n.y * n.y {
         Vec3::new(-n.y, n.x, 0.0)
-    } else if ay <= ax {
-        Vec3::new(n.z, 0.0, -n.x)
     } else {
-        Vec3::new(0.0, -n.z, n.y)
+        Vec3::new(n.z, 0.0, -n.x)
     };
     let b1 = axis.normalize();
     (b1, n.cross(b1))
@@ -81,14 +79,14 @@ impl Rng {
     }
 }
 
-/// **The f64 path is the axis order's — adversarial sweep.** Unit vectors,
+/// **The f64 path is the comparison's — adversarial sweep.** Unit vectors,
 /// NON-unit vectors across ~600 decades of magnitude (the constructor
 /// documents non-unit inputs as well-defined), subnormal components,
 /// and every signed-zero placement in every coordinate. The unit's own
 /// bitwise row enumerates signed zeros in `z` only; `b1.y`, `b2.x` and
 /// `b2.z` carry signed-zero products of `x` and `y` too.
 #[test]
-fn r1_onb_bits_match_the_axis_order_on_inputs_the_unit_did_not_draw() {
+fn r1_onb_bits_match_the_reference_on_inputs_the_unit_did_not_draw() {
     // Signed zeros and axis values in EVERY coordinate, full cross
     // product: 7^3 = 343 cases including (0,0,0) and all-zero mixes.
     let vals = [0.0f64, -0.0, 1.0, -1.0, 0.6, -0.8, f64::MIN_POSITIVE];
@@ -189,8 +187,8 @@ mod interval_lane {
 
     /// **Near-vertical, not merely vertical.** The unit pins
     /// `n.z = [±0.0, ±0.0]` exactly; these rows ask about the
-    /// neighbourhood, where `|n.z|` is still the strict smallest
-    /// magnitude and the axis choice therefore still DECIDES: a
+    /// neighbourhood, where `n.z²` is still far below `n.x² + n.y²`
+    /// and the axis choice therefore still DECIDES: a
     /// sign-definite tiny `z` (both sides), a straddling tiny
     /// enclosure, and point enclosures at subnormal `z`. Every
     /// component must stay bounded and certified, and must enclose the
@@ -241,9 +239,8 @@ mod interval_lane {
 
     /// **The exact vertical plane, and the sign a zero does not
     /// carry.** `[0, 0]` carries no sign bit — and it does not need
-    /// one: the axis order's tie-break reads the value zero, so `+0.0`
-    /// and `−0.0` give the SAME `f64` frame and the point enclosure
-    /// decides. Both are checked from outside anyway, which is what
+    /// one: the comparison reads `n.z²`, so `+0.0` and `−0.0` give the
+    /// SAME `f64` frame and the point enclosure decides. Both are checked from outside anyway, which is what
     /// makes this a measurement of the claim rather than a restatement.
     #[test]
     fn r1_onb_interval_vertical_encloses_both_signed_zero_frames() {
@@ -270,38 +267,33 @@ mod interval_lane {
     /// **Where the construction genuinely ends** — measured, so the
     /// boundary is on record rather than implied. `normalize` reads
     /// each candidate's own norm, so an enclosure wide enough to leave
-    /// a tie undecided AND to contain a direction parallel to a
-    /// candidate's axis hulls in that candidate's zero vector. Every
-    /// such point is non-unit, so the precondition excludes it and a
-    /// tight enclosure of a real normal never reaches it — but the box
-    /// does, and this row records what it gets.
+    /// the `n.z² ≤ n.x² + n.y²` comparison undecided AND to reach a
+    /// direction parallel to the candidate axis it is choosing away
+    /// from hulls in that candidate's zero vector. That takes a box
+    /// spanning most of a meridian; a tight enclosure of a real normal
+    /// never reaches it.
     #[test]
     fn r1_onb_interval_wide_box_boundary_recorded() {
-        // A straddling but informative `z`: the tie between `|n.z|` and
-        // `|n.y|` is decided by `n.y = 0.2` being the larger, and the
-        // frame must stay bounded.
-        let z = Interval::from_bounds(-0.19, 0.19);
-        let n = Vec3::new(iv(0.1), iv(0.97), z);
+        // A tight enclosure straddling the 45° cone: still bounded,
+        // because both candidates are conditioned at least ‖n‖²/2.
+        let half = core::f64::consts::FRAC_1_SQRT_2;
+        let z = Interval::from_bounds(half - 1e-9, half + 1e-9);
+        let n = Vec3::new(iv(0.6 * half), iv(0.8 * half), z);
         let (b1, b2) = n.orthonormal_basis();
         for (e, which) in components(b1, b2) {
             assert!(
                 e.lo().is_finite() && e.hi().is_finite(),
-                "{which} unbounded at a decided [-0.19, 0.19] straddle: [{}, {}]",
+                "{which} unbounded at a tight cone straddle: [{}, {}]",
                 e.lo(),
                 e.hi()
             );
         }
-        // Wide in two components: the tie is undecided and a candidate
-        // is the zero vector somewhere in the box. Recorded, not
-        // demanded.
-        let n = Vec3::new(
-            iv(0.1),
-            Interval::from_bounds(-1.0, 1.0),
-            Interval::from_bounds(-1.0, 1.0),
-        );
+        // A whole meridian at the azimuth whose `e_y` candidate
+        // degenerates. Recorded, not demanded.
+        let n = Vec3::new(iv(0.0), iv(1.0), Interval::from_bounds(0.0, 1.0));
         let (b1, _) = n.orthonormal_basis();
         println!(
-            "note: n = (0.1, [-1,1], [-1,1]) gives b1.x = [{}, {}] (bounded: {}, certified: {})",
+            "note: n = (0, 1, [0, 1]) gives b1.x = [{}, {}] (bounded: {}, certified: {})",
             b1.x.lo(),
             b1.x.hi(),
             b1.x.lo().is_finite() && b1.x.hi().is_finite(),
