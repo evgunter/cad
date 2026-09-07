@@ -1308,3 +1308,22 @@ that reaches them is the early A/B walk M10-8 built and dialled off
 block was allowed to ship it. Either a form-level unit (a new block,
 M10-B5) before the exit walk is re-cut, or the walk re-cut now with
 the plate's four-identity distance stated as the frontier.
+
+## M10-10 dispatched: the form-level mechanism; block M10-B5 opens (2026-09-06)
+
+Ev ruled the form-level unit first ("1 sounds good!") and, standing:
+sequencing decisions with a recommendation do not wait on him (to
+`memories/` by its own PR). Block M10-B5 drawn (byte 234 ⇒ slot 1
+FABLE). The spec is M10-9's finding read to its conclusion: the arc's
+two spellings meet once their trig atoms of `q · atan(bulge)` are
+written in closed form — theorems of the reals with no value read,
+the half-angles on the positive branch by `atan`'s range — and rules
+A/B close the ring per node in the early walk, which has to be made
+affordable (138 s per replay as built; a reviewer's bounded variant
+at 2.55 s is the order to reach); the ring width measured, not
+assumed. Measurement first, as every unit in this program has had to
+be: the over-band-set instrument as the first commit, the 2× helper
+retired, the four residuals rendered and classified (an iterated
+witness is S-CERT's, not ours) before a rule ships. Acceptance is the
+program's exit condition verbatim.
+
