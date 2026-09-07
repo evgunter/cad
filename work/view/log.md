@@ -5849,3 +5849,40 @@ spent today learning not to mix those.
 `four-debug-walks-are-spelled-and-placed-two-ways` is retitled to that
 move and stays open. All four walks are `core::fmt` now, including the
 pre-existing `std::fmt` the new ones had copied.
+
+## 2026-09-07 — the const-ALL rule stops being prose
+
+`a-new-hand-written-all-table-meets-no-gate` closed on `view/all-gate`.
+PR 2046 converted nine vocabularies and left the tenth author
+unguarded; `scripts/gates/viewer-vocab-declared-once.sh` is the guard.
+It hits on a `const ALL` and on the un-named shape — any `const` array
+literal of two or more `Type::Variant` entries — under
+`crates/viewer/src`, and allowlists what `crates/viewer/README.md`'s
+new `#### The lists that stay hand-written` table carries.
+
+**The work was the siting, as the item said.** A ci.yml step in the
+`mirror` job, a line in `ci-local.sh`'s `tier_blind_rows`, and a
+`TIER_BLIND` entry; `gate-roster.sh` derives its roster from the
+directory and needed no edit, and now counts 21 gates. The
+tier-blindness argument is stronger here than for
+`viewer-module-kinds.sh`: that gate reads the README for two of its
+checks, this one reads it for its whole allowlist, so a docs-only PR
+is precisely the change class it exists to judge.
+
+**Two things this lane learned about the tooling.** `gate_rust_code`'s
+statement view cuts records at `;` and a Rust array TYPE carries one —
+`[(BooleanOp, &str); 3]` — so a `const` table splits in half and its
+initialiser lands in a record with no `const` in it. The gate
+reassembles items by bracket depth instead. And the `|| true` hazard
+this program re-minted at #1953 has an `awk` twin: a reader that dies
+inside a process substitution folds to "the document is empty", which
+here would have printed *"delete this row, its list is gone"* about
+four rows whose lists are fine. The readers write `lib.sh`'s marker and
+the gate reads it where it resumes, not only at `gate_ok`.
+
+**Left open on purpose.**
+`viewer-suites-hold-hand-written-complete-variant-lists` — the suites'
+four lists are inline arrays in a row, not `const` tables, so this scan
+would not see one of them if it were pointed at `tests/`. Scoping the
+gate to `src/` is the honest claim; the suites need their own decision
+per enum.

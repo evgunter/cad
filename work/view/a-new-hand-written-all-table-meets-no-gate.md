@@ -2,8 +2,10 @@
 id: a-new-hand-written-all-table-meets-no-gate
 kind: issue
 title: nothing mechanical stops a new hand-written const ALL table appearing in the viewer
-status: open
+status: closed
 opened: 2026-09-06
+closed: 2026-09-07
+branch: view/all-gate
 ---
 
 
@@ -66,3 +68,45 @@ PR that already converted nine enums is how a review loses the thread.
   so whether the scan covers the suites is a decision, not an
   oversight. They are a different shape — inline arrays in rows, not
   `const ALL` tables — and a scan tuned for one will not see the other.
+
+## Closed (2026-09-07)
+
+`scripts/gates/viewer-vocab-declared-once.sh` is the gate, sited in
+ci.yml's `mirror` job, in `local-scripts/ci-local.sh`'s
+`tier_blind_rows`, and named in `scripts/check-ci-mirror-parity.py`'s
+`TIER_BLIND`. `gate-roster.sh` needed no edit — it derives the roster
+from the directory — and now reports 21 gates rather than 20, which is
+the registration.
+
+**TIER-BLIND, and the argument is the one this item forecast.** Half
+the gate's subject is `crates/viewer/README.md`: the allowlist rows,
+the vocabulary of kinds a row may claim, and the table's own shape. A
+change set of only that file classifies TIER=docs, on which every
+`if: run_build` job is skipped — so sited in `discipline` the arms that
+exist for a table edit could not fire on a table edit. It is the
+`viewer-module-kinds.sh` argument with a sharper subject, because that
+gate's README dependence is two of its checks and this one's is its
+whole allowlist.
+
+**The allowlist is read, not restated.** The README section gained a
+`#### The lists that stay hand-written` table — four rows, `List` /
+`Module` / `Kind` — and the gate reads the rows from it and the KINDS
+from the section's own bolded bullets, so a fourth kind is an amendment
+to the ratification rather than a new word in a cell. The roster
+retires itself in both directions: a list added without a row reds, and
+a row whose list has been converted reds too.
+
+**Both shapes are in scope.** Three of the four hand-written lists in
+the crate are un-named (`BOOLEAN_OPS`, `MATE_PRIMITIVES`,
+`SUBJECTS_WITH_AN_EXPIRY_ISSUER`) and one is named (`Theme::ALL`), so a
+named-only gate would be evaded by calling the next table `KINDS`.
+
+**`crates/viewer/tests/` is out of scope, deliberately.** The scan is
+anchored on `const` items and the suites' lists are inline arrays in a
+row, so it would not find one of the four instances
+`viewer-suites-hold-hand-written-complete-variant-lists` names if it
+looked there. Widening it adds exactly one hit — `tests/theme.rs`'s
+`KINDS`, a deliberately partial list already argued in place — and
+would leave a reader believing the suites are covered. **That item
+stays open**; the argument is at the gate's header and in this PR's
+body.
