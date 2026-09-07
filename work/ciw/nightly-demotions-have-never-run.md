@@ -2,9 +2,10 @@
 id: nightly-demotions-have-never-run
 kind: issue
 title: A row demoted to the nightly is not verified at the demotion - the three from 2026-09-03 first ran two nights later, unwatched
-status: open
+status: dispatched
 opened: 2026-09-04
 refs: [1650, 1654, 1655]
+branch: ciw/demotion-verified
 ---
 
 

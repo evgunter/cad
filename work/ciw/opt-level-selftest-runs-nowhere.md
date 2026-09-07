@@ -2,8 +2,9 @@
 id: opt-level-selftest-runs-nowhere
 kind: issue
 title: opt-level-calibrate.py --selftest is invoked by nothing in the tree - a guard that has never been shown to fire
-status: open
+status: dispatched
 opened: 2026-09-04
+branch: ciw/demotion-verified
 ---
 
 

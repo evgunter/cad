@@ -1354,3 +1354,35 @@ Closing three rows on one ruling tripped `work.py lint`'s fired-trigger
 error, exactly as designed — two rows parked on a trigger that had just
 closed. All three are this program's, so they close in the same PR,
 which is the case the rule's accepted cost (Ev, 2026-09-04) is about.
+
+## 2026-09-07 — unit 3 dispatched: a demotion verified at the demotion
+
+`nightly-demotions-have-never-run` and `opt-level-selftest-runs-nowhere`
+on `ciw/demotion-verified`. One class from two directions: a row that has
+never been shown to execute, and a guard that has never been shown to
+fire.
+
+**Pre-dispatch checks, because the slate was written a day ago.**
+
+- Both rows still open, and `scripts/gates/gate-roster.sh` still does not
+  reach `scripts/opt-level-calibrate.py`.
+- **PR 2077 (`gates/whole-file-skips`) is live on `gate-roster.sh`.**
+  That changes the unit's shape: the systemic fix — widening the roster's
+  scope so the "a guard that has never been shown to fire is not a
+  guard" rule reaches the file it is about — is GATES' file AND is under
+  an open PR, so it is not this unit's to take. The instance fix is
+  entirely CIW's ground: nothing anywhere invokes `--selftest`, and the
+  workflows are ours. The brief says take the instance, announce the
+  systemic half to GATES, and do not touch their file.
+- **Two more nightlies since the 2026-09-06 reading**, both `success`:
+  run 16 (2026-09-06) and run 17 (2026-09-07). Run 16 concluded in
+  **10 minutes** against run 17's 27, which is the shape of the `has main
+  moved` gate skipping the body — on a day `main` certainly moved. That
+  is not what this item was filed about and it may be nothing, but a
+  scheduled workflow that skips a night is the same family as a demoted
+  row nobody reads, so the brief asks for it to be read rather than
+  assumed.
+
+**Style review only.** Neither half moves logic; the deliverable is a
+convention plus one invocation, and the risk is in what a parity claim
+would over-reach into rather than in a subtle bug.
