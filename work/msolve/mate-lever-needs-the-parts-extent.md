@@ -4,7 +4,6 @@ kind: issue
 title: A mate's lever arm cannot reach the mated parts' extent
 status: parked
 opened: 2026-09-03
-needs_ev: false
 blocked_on: [MSOLVE-6]
 ---
 
