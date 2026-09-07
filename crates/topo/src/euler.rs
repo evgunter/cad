@@ -909,6 +909,100 @@ impl fmt::Display for EulerOpError {
 
 impl std::error::Error for EulerOpError {}
 
+/// One sample of every [`EulerOpError`] variant, in declaration
+/// order — the crate's single such array.
+///
+/// The index and the count are the compiler's: `EulerOpErrorKind` is
+/// derived from the enum, so a variant added without a sample fails
+/// by name here and nothing restates the enum. The two derives'
+/// agreement on order — `from(err) as usize` is the declaration index
+/// and `iter()` walks the same sequence — is asserted here rather
+/// than by each caller, so a row that consumes this array inherits
+/// the guarantee instead of quietly relying on another row for it.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+pub(crate) fn every_euler_op_error_once()
+-> [EulerOpError; <EulerOpErrorKind as strum::EnumCount>::COUNT] {
+    use strum::{EnumCount as _, IntoEnumIterator as _};
+    let he = HalfEdgeKey::default();
+    let lp = LoopKey::default();
+    let fc = FaceKey::default();
+    let ek = EdgeKey::default();
+    let vk = VertexKey::default();
+    let errors = [
+        EulerOpError::Certification {
+            error: CertifyError::Unimplemented,
+        },
+        EulerOpError::DescriptionNotAdjacent { edge: ek },
+        EulerOpError::StaleKey {
+            key: EntityId::HalfEdge(he),
+        },
+        EulerOpError::StaleGeometry {
+            key: GeomRef::Point(PointKey::default()),
+        },
+        EulerOpError::FanStartMismatch { he1: he, he2: he },
+        EulerOpError::FanOrbitBroken { he1: he, he2: he },
+        EulerOpError::NotSameLoop { he1: he, he2: he },
+        EulerOpError::LoopCycleBroken { r#loop: lp },
+        EulerOpError::LoopNotEmpty { r#loop: lp },
+        EulerOpError::LoopNotCycle { r#loop: lp },
+        EulerOpError::NotSameEdge { he1: he, he2: he },
+        EulerOpError::UnclaimedHalfEdge { he, edge: ek },
+        EulerOpError::SelfLoopEdge {
+            edge: ek,
+            vertex: vk,
+        },
+        EulerOpError::OrbitBroken { he },
+        EulerOpError::EmptyAnchorsCollide { vertex: vk },
+        EulerOpError::SameLoop { r#loop: lp },
+        EulerOpError::NotSameFace {
+            target: lp,
+            ring: lp,
+        },
+        EulerOpError::RingIsOuter { r#loop: lp },
+        EulerOpError::SameFace { face: fc },
+        EulerOpError::CrossShell { f1: fc, f2: fc },
+        EulerOpError::FaceHasRings { face: fc },
+        EulerOpError::SolidNotSingleShell {
+            solid: SolidKey::default(),
+            shells: 2,
+        },
+        EulerOpError::ShellNotSingleFace {
+            shell: ShellKey::default(),
+            faces: 2,
+        },
+        EulerOpError::NullScaffoldCurve {
+            curve: CurveKey::default(),
+        },
+        EulerOpError::SplitParamNotInterior { edge: ek },
+        EulerOpError::SplitParamEscalated {
+            edge: ek,
+            diag: geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::Value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("split_edge_param_interior"),
+            },
+        },
+        EulerOpError::CrossSolid { f1: fc, f2: fc },
+    ];
+    for (i, kind) in EulerOpErrorKind::iter().enumerate() {
+        assert_eq!(kind as usize, i, "EnumIter order is the discriminant order");
+    }
+    let mut covered = [false; EulerOpErrorKind::COUNT];
+    for error in &errors {
+        covered[EulerOpErrorKind::from(error) as usize] = true;
+    }
+    let missing: Vec<EulerOpErrorKind> = EulerOpErrorKind::iter()
+        .zip(covered)
+        .filter_map(|(kind, seen)| (!seen).then_some(kind))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "every EulerOpError variant needs a sample; missing {missing:?}",
+    );
+    errors
+}
+
 impl EulerOpError {
     /// Whether this refusal reports a **torn arena** — a body that is
     /// already tier-1-invalid — rather than a fact about the
@@ -3406,95 +3500,15 @@ mod tests {
         assert_eq!(deep_snapshot(&with_errs), deep_snapshot(&without_errs));
     }
 
-    /// Display smoke test, one sample per [`EulerOpError`] variant.
-    ///
-    /// The index and the count are the compiler's: `EulerOpErrorKind`
-    /// is derived from the enum, so a variant added without a sample
-    /// fails this row by name and nothing here restates the enum.
+    /// Display smoke test, one sample per [`EulerOpError`] variant,
+    /// over the crate's shared sample array
+    /// ([`every_euler_op_error_once`], which carries the coverage and
+    /// discriminant-order assertions this row used to keep).
     #[test]
     fn every_error_displays() {
-        use strum::{EnumCount as _, IntoEnumIterator as _};
-        let he = HalfEdgeKey::default();
-        let lp = LoopKey::default();
-        let fc = FaceKey::default();
-        let ek = EdgeKey::default();
-        let vk = VertexKey::default();
-        let errors = [
-            EulerOpError::Certification {
-                error: CertifyError::Unimplemented,
-            },
-            EulerOpError::DescriptionNotAdjacent { edge: ek },
-            EulerOpError::StaleKey {
-                key: EntityId::HalfEdge(he),
-            },
-            EulerOpError::StaleGeometry {
-                key: GeomRef::Point(PointKey::default()),
-            },
-            EulerOpError::FanStartMismatch { he1: he, he2: he },
-            EulerOpError::FanOrbitBroken { he1: he, he2: he },
-            EulerOpError::NotSameLoop { he1: he, he2: he },
-            EulerOpError::LoopCycleBroken { r#loop: lp },
-            EulerOpError::LoopNotEmpty { r#loop: lp },
-            EulerOpError::LoopNotCycle { r#loop: lp },
-            EulerOpError::NotSameEdge { he1: he, he2: he },
-            EulerOpError::UnclaimedHalfEdge { he, edge: ek },
-            EulerOpError::SelfLoopEdge {
-                edge: ek,
-                vertex: vk,
-            },
-            EulerOpError::OrbitBroken { he },
-            EulerOpError::EmptyAnchorsCollide { vertex: vk },
-            EulerOpError::SameLoop { r#loop: lp },
-            EulerOpError::NotSameFace {
-                target: lp,
-                ring: lp,
-            },
-            EulerOpError::RingIsOuter { r#loop: lp },
-            EulerOpError::SameFace { face: fc },
-            EulerOpError::CrossShell { f1: fc, f2: fc },
-            EulerOpError::FaceHasRings { face: fc },
-            EulerOpError::SolidNotSingleShell {
-                solid: SolidKey::default(),
-                shells: 2,
-            },
-            EulerOpError::ShellNotSingleFace {
-                shell: ShellKey::default(),
-                faces: 2,
-            },
-            EulerOpError::NullScaffoldCurve {
-                curve: CurveKey::default(),
-            },
-            EulerOpError::SplitParamNotInterior { edge: ek },
-            EulerOpError::SplitParamEscalated {
-                edge: ek,
-                diag: geom_core::Indeterminate {
-                    margin: geom_core::MarginDiag::Value(5e-9),
-                    band: Band::new(1e-9, 1e-8).unwrap(),
-                    predicate: Some("split_edge_param_interior"),
-                },
-            },
-            EulerOpError::CrossSolid { f1: fc, f2: fc },
-        ];
-        // The two derives agree on order: `from(err) as usize` is
-        // the declaration index and `iter()` walks the same
-        // sequence, so zipping them below pairs each flag with the
-        // kind it stands for. Asserted rather than assumed.
-        for (i, kind) in EulerOpErrorKind::iter().enumerate() {
-            assert_eq!(kind as usize, i, "EnumIter order is the discriminant order");
-        }
-        let mut covered = [false; EulerOpErrorKind::COUNT];
-        for error in &errors {
+        for error in every_euler_op_error_once() {
             assert!(!error.to_string().is_empty(), "{error:?}");
-            covered[EulerOpErrorKind::from(error) as usize] = true;
         }
-        let missing: Vec<EulerOpErrorKind> = EulerOpErrorKind::iter()
-            .zip(covered)
-            .filter_map(|(kind, seen)| (!seen).then_some(kind))
-            .collect();
-        assert!(
-            missing.is_empty(),
-            "every EulerOpError variant needs a Display sample; missing {missing:?}",
-        );
     }
 
     /// S6 (two-tolerance, D4 ¶1 addendum): both `split_edge`

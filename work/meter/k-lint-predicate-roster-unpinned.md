@@ -4,7 +4,7 @@ kind: issue
 title: k-lint's EPS_COUPLED_PREDICATES rosters the kernel's predicate vocabulary with no pin in either direction
 status: open
 opened: 2026-09-03
-refs: [D204]
+refs: [D204, k-lint-eps-coupled-criterion-unwritten]
 ---
 
 ## Was
