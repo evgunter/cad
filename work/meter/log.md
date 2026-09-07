@@ -130,3 +130,70 @@ touched the baseline (verified: `aba2625f8f84` does not). Honest by
 `tess_budget_cut.sh`'s third arm and unstated where `tess-lint` READS
 and prints it. Adjacent to unit 4's seam and left separate, because the
 two want different edits and only one of them is a pin.
+
+## Wave 1 in; three dispatcher readings falsified by the lanes (2026-09-07)
+
+Units 2 and 5 are in review (PRs 2114, 2115) and unit 0 is in a fix
+pass off its style review (PR 2111, 19 findings). **All three lanes
+falsified something the orchestrator handed them as settled**, which is
+the dispatch contract working, and is also a pattern worth naming
+rather than filing three times as an isolated slip.
+
+**Unit 2 — the biggest one, and it was published.** The orchestrator
+told the lane that `docs/TESS-BUDGET.md`'s finding block had gone stale
+against a second re-cut, that this "settles the judgement the item
+declined to make", and that only the form of the fix was open. That is
+false. **The block is the #547 pre-fix sweep and every figure in it is
+correct for the tree it was taken from.** The block has FOUR cell lines
+and both the item's table and the orchestrator's re-derivation compared
+only three: the fourth, `44,457 with both`, is today's `span_opt_cells`
+of **44,446** — 0.02% apart — and `95,090 at the cheapest split` is
+`opt_cells` **94,154**, 1.0% apart. The two schedule-INDEPENDENT optima
+have not moved; the schedule-DEPENDENT columns moved several-fold,
+which is a FIX's signature, not a re-cut's. `docs/MODEL-AB-LOG.md:1578`
+corroborates independently, and the document already said so 155 lines
+above the block.
+
+The orchestrator's stated evidence was also unsound where it was most
+confident: *"stale against two successive re-cuts in the same
+direction"* discriminates nothing, because under either hypothesis the
+gap grows monotonically with the corpus. It read like evidence and was
+not. Retracted on the item beside the original text, because the item's
+own `## What` makes the same mis-mapping and a reader deserves to know
+why two successive readers reached the wrong answer. **The claim also
+went out in PR 2110's body, which is merged**; nothing rewrites that,
+so this log entry and the item's retraction are the record.
+
+**Unit 5.** The orchestrator filed
+`k-lint-eps-coupled-criterion-unwritten` asserting a pin "cannot close
+the ADDED direction at all". Half right: no evaluable criterion exists,
+so that issue stands. But the ADDED direction is **not silent** — an
+unrostered ε-coupled predicate keeps flagging under the metre rules,
+and `docs/K-REPORT.md:645-658` is a ratified ruling saying exactly
+that ("a roster omission therefore cannot silently weaken the gate").
+The orchestrator's grep was the constant's name plus "ε-coupled" and
+could not see a ruling that used neither. The same argument kills the
+ITEM's own "both directions are silent". The genuinely silent direction
+is a third one neither file named — a predicate that stays rostered and
+stops being ε-coupled — and unit 5 closed it.
+
+**Unit 0.** The dispatch called a recorded decision unrecorded; already
+logged above, and the fix pass is softening the orchestrator's own
+over-correction (the review's S3: IMPRECISE, not WRONG).
+
+### The pattern, and what changes
+
+Three for three, and the common shape is the same: **the orchestrator
+re-derived a number or ran a grep, got a result consistent with the
+item's framing, and stopped there rather than asking what else would
+produce that result.** Unit 2 is the sharpest case — four columns were
+available and three were read. The dispatch briefs did their job, since
+each said the reading was a hypothesis and invited correction, and each
+lane took the invitation. What did NOT do its job is the orchestrator's
+own confidence, which in unit 2's case reached a merged PR body.
+
+Concretely, from here: a dispatcher's re-derivation gets the same
+treatment the discipline asks of a lane's sweep — **state what the
+pattern could not match, before handing it over** — and a claim that an
+artefact has DRIFTED names the alternative hypothesis (it was correct
+for an older vocabulary) and says what would discriminate them.
