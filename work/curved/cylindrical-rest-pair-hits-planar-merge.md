@@ -7,6 +7,7 @@ opened: 2026-08-31
 github: 1415
 refs: [1032, 1417]
 branch: curved/merge-door
+pr: 2105
 ---
 
 ## From GitHub issue 1415
