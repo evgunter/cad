@@ -301,13 +301,13 @@ pub struct StoreError {
     pub because: String,
 }
 
+/// **Destructured rather than field-read**, so a field added to
+/// [`StoreError`] is E0027 here rather than landing in a value whose
+/// only public face is this sentence and going unsaid in it.
 impl std::fmt::Display for StoreError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "preferences: could not {} ({})",
-            self.doing, self.because
-        )
+        let Self { doing, because } = self;
+        write!(f, "preferences: could not {doing} ({because})")
     }
 }
 

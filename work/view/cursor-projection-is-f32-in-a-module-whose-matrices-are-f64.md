@@ -22,13 +22,13 @@ argument:
 
 Neither is true at the type level:
 
-- `Camera::view_projection` (`camera.rs:623`) returns `[[f64; 4]; 4]`;
-  `cursor_projection` (`camera.rs:882-886`) takes `&[[f32; 4]; 4]`.
-- `Camera::project` (`camera.rs:637`) answers `Option<[f64; 3]>`;
+- `Camera::view_projection` (`camera.rs:658`) returns `[[f64; 4]; 4]`;
+  `cursor_projection` (`camera.rs:914-918`) takes `&[[f32; 4]; 4]`.
+- `Camera::project` (`camera.rs:672`) answers `Option<[f64; 3]>`;
   `cursor_projection` takes `cursor_ndc: [f32; 2]`.
 - The PR body's third check — *"`ray_through` takes a cursor and a
   viewport the same way"* — is the loosest of the three.
-  `Camera::ray_through` (`camera.rs:676`) takes `cursor_px: [f64; 2]`
+  `Camera::ray_through` (`camera.rs:711`) takes `cursor_px: [f64; 2]`
   in **pixels**, `+y` down, plus a typed `crate::input::ViewportSize`;
   `cursor_projection` takes NDC, `+y` up, `f32`, and a bare
   `[f32; 2]`. Same nouns, three different spellings of each.
@@ -50,9 +50,9 @@ The `f64` → `f32` 4×4 matrix cast is written out four times:
 - `crates/viewer/tests/select_pick.rs:403`.
 
 None of the four names the others. The matrix-times-point multiply is
-in the same state: `camera.rs:644` inside `Camera::project`,
+in the same state: `camera.rs:681` inside `Camera::project`,
 `select_pick.rs:452`'s `mul_point`, and an inline `apply` closure at
-`review_gui2_r1.rs:267`, against `camera.rs:979`'s `mul` for the `f64`
+`review_gui2_r1.rs:267`, against `camera.rs:1011`'s `mul` for the `f64`
 matrix-matrix case.
 
 `the-point3-to-gpu-corner-cast-is-at-three-sites` is the open row for

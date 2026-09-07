@@ -47,14 +47,14 @@ gradient and a fix pass should not treat it as flat:
 - `session.rs:1564` `add_revolve(profile, axis)`, `display.rs:325`
   `derives_from(doc, node, source)`, `session/refuse.rs:323`
   `self_instance(open: DocumentId, id: DocumentId)`.
-- `frame.rs:1689` `prefs_path_in(config_home: Option<&OsStr>,
+- `frame.rs:1708` `prefs_path_in(config_home: Option<&OsStr>,
   home: Option<&OsStr>)` — swapped, preferences are written under
   `$HOME/pncad/` or `$XDG_CONFIG_HOME/.config/pncad/`, and the
   test row at `crates/viewer/tests/prefs.rs` names its two readings
   positionally the same way the chooser row does.
 - `pickindex.rs:422`/`459` `address(node, body: u32, position: usize,
   flat: usize)`, `bounds.rs:357` `midpoint(valid: f64, invalid: f64,
-  …)`, `camera.rs:948` `clamp_distance(distance: f64,
+  …)`, `camera.rs:986` `clamp_distance(distance: f64,
   scene_radius: f64)`, `sketch.rs:1000` `arc_points(radius: f64,
   theta: f64, chord: f64)`.
 
