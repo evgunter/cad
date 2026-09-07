@@ -4562,6 +4562,52 @@ FILLET-T RECORDED AT MERGE (2026-09-05, PR #1943, sample **#139** — prior high
 
 | T | 2026-09-05 | FILLET-T (PR #1943; Track T's `D325` + `D326` as one unit; spec `docs/FILLET-T-SPEC.md`): the corner fusion's `first_arc` a VALUE — `CornerLinks::sorted` returns a seeded `(first, rest)` (the minimum carried as the walk runs), the ~40-line arc-mint body hoisted into one closure both the seed and the rest run, the `unreachable!` deleted (24 → 23 in `surgery.rs`); and the `kef`-argument invariant carried at the door — after the fix pass `SourceFaces`, ONE snapshot of every face of the input body taken at `blend_surgery` entry and threaded to all four phases, with `kef_minted` its method (a narrower set unspellable), refusing a source face typed as the new `BlendError::SurgeryInvariant` (D2 row 4 announced, "the body handed in is not what is wrong"); `grep -c 'body.kef('` = 1 in the file, eight call sites; `D323`'s five-sentence argument at `naming::Retired` cut to two; Phase 1 found EIGHT `kef` sites (the spec's six plus H7's two), every one killing a surgery-minted face, two with no local argument at all before this | S / STRUCTURAL (pre-draw, at the spec) | OPUS (block FILLET-B3 slot 0; byte 199 → fable at slot 1; record branch-side on `fillet/b3-block`) | **DUAL (ordinal 2006; byte 129 parity 1 ⇒ R1 FABLE + R2 OPUS; CONCURRENT same-head on frozen `9290f0b21`, briefs stored with sha256 pre-dispatch, private target dirs; v6 instrument; pair FAIR — no glimpse either side, both complete).** R1 MERGEABLE-AFTER-FIXES 1/2/3, rubric 3/3/3 — MAJOR: the door refused the running PHASE's hand-built anchor list, not "a source face": a snapshot source face outside the blank phase's list (the pip's sphere) passed the door and `kef` KILLED it on 4 rows, while the header, `Retired` and `emit_blend.rs` claimed the stronger invariant; MINOR: the refusal rendered through Row 1's Display for the surgery's own logic; no mechanical one-door pin (probe: a source-text census row); NOTE: `sorted` not order-equivalent on equal keys; the code-quality issue's stale quote. R2 MERGEABLE 0/2/4, rubric 4/2/3 — the same door finding by reading (four disjoint per-phase lists; the mixed planar+ruled seam uncovered) as MINOR; MINOR: at one site the OTHER minted half carves green and moves bits (disclosed by deviation 2); NOTE: the ruled dump row missing — R2 WROTE it and took C1 over 14 files (identical); the `sorted` seed contract stated two ways (lowest key vs discovering link) with a dependent read at `:2655` and the min-swap branch measured DEAD across 1159 rows; the empty-anchors arm unreachable and untested; the dump function copied in two test files and DIVERGED (the arms2 copy omits `props`). CORRESPONDENCE: the door's claim vs enforcement BILATERAL (R1 executed, R2 read; adjudicated MAJOR); the refusal row bilateral (R1 MINOR-1 ≡ R2 NOTE-3); the missing ruled row bilateral; the `sorted` seed/order class bilateral. Unilateral: R1's one-door pin, R2's other-half mutant and the dump-copy divergence. **No unilateral MAJOR → v6 tally +0 this pair** | 1 silent (the door's claim overstated at three homes — disclosed nowhere until the reviews; fixed) | R1 3 / R2 4 | R1 3 / R2 2 | R1 3 / R2 3 | substantial, IMPLEMENTER-INHERITED, all seven decisions: the `SourceFaces` carrier (the snapshot mutant now REFUSES; all eight per-site mutants refuse), `BlendError::SurgeryInvariant` with its own Display, `Recourse::None`, witness and D2 class arm; the empty-snapshot guard one home at `SourceFaces::of` (row-4 shape, unreachable once the entry gate admits); both probe rows adopted with the ruled dump row moved INTO `bitdump.rs` and `ruled-band-has-no-bit-identity-corpus-row` CLOSED; the dump function one home with the dome-annulus row now dumping props; the seed contract decided as the MINIMUM (`quad` fixed to read the seed, both docs agreeing, the min-swap kept as the guarantee); the rule at one statement with pointers; the code-quality quote refreshed; differential re-taken over 10 rows / 14 files (base `src/` + head tests vs head) EMPTY; a `BlankPlan` bundle rather than an 8-argument function; one red CI leg on the way (the adopted census row `include_str!`s `surgery.rs` and owed `test-utils`' reader ledger a line — fixed, then `nextest --workspace` 6249 as the scope correction) | impl CI 33948095965 GREEN on 9290f0b21 (full matrix); fix CI 33952266254 GREEN on f240acb1f (full matrix, 37 jobs: 33 success + 4 path-skipped; the run's existence on the head verified); local workspace 6249 | impl ~220k / fix ~146k (harness delta) / R1 ~171k / R2 ~258k | impl ~43 min / fix ~69 min / R1 ~20 min / R2 ~25 min concurrent |
 
+D265 row, recorded AT MERGE (2026-09-07, merge `56af92aaf`, PR #2013;
+`work/topo/D265.md`): the merge door classifies its own refusals —
+`OpPlacement` exhaustive over `EulerOpError` with two arms (the enum's
+verdict, delegated; `Contradicts(EstablishedFact)`), six facts each
+re-checked by a `debug_assert!` immediately before its operator call,
+`reports_tier1_corruption` untouched, five of six contradicted facts
+executed through the public door under both regimes, the (R) column
+corrected (`kef → SameFace` reachable on a valid nested group). Phase 1
+corrected the spec twice: nine raising sites, not two; the (R) column
+not empty. Difficulty **M**, task class STRUCTURAL (logged knowing the
+arm — block drawn 2026-09-05; disclosed). Implementer arm **OPUS**
+(block TOPO-B1 slot 1, byte 92). **DUAL: ordinal 2701; sample #155;
+byte 229 parity 1 ⇒ R1 FABLE + R2 OPUS; CONCURRENT same-head on frozen
+`4dc616d0`; briefs stored with sha256 before dispatch, identical modulo
+lane paths.** R1 MERGEABLE-AFTER-FIXES, counts 0/5/5, rubric idiom 4 /
+tests 3 / docs 3 — re-derived all 27 variants across nine sites,
+executed six of seven contradicted cases under both regimes; MINORs:
+the ninth raising site, the void torn/not-raised split, the regime
+inherited from D263's defect and unasserted, two stale "no test can
+do" sentences, the D263 witness unfiled. R2 NOT-MERGEABLE-AS-IS,
+counts 1/6/4, rubric 3/2/2. **One unilateral executed MAJOR (R2):
+`kef → SameFace` is reachable on a tier-1/2-valid body** — the door's
+own ring drain re-homes the dying loop between the establishing scan
+and the call, so the head turned a legal recorded skip into a refused
+call (`Ok` on the base, `Err` at the head, through the public door,
+built by legal Euler operators). Code class, demonstrated by execution,
+never mentioned by R1: **tally candidate +1**, coded at the blinded
+adjudication per the H4 precedent. Spec deviations: 4 reported (no
+inventory arm; tear point in the door's file; two extra doc sites; the
+extent correction), silent 1 (R1 and R2 both: the ninth raising site).
+Convergent style findings taken: the split collapsed, the fact string
+an enum, the regime asserted on regime-independent planar fixtures,
+the copied sample array shared from `euler.rs`, an RAII tear guard,
+six statements of one rule reduced to one home. Method relaxations:
+none; the shared-box note above applies to both arms; R2's target
+seeded colder (wall-clock asymmetry only). Fix pass by the implementer
+lane (inherited arm), twelve items, union of both reviews; both
+reviewers' probes handed over, R2's fixture adopted as three rows.
+Tokens: impl ≈225k (survey ≈130k, code ≈55k, PR+CI ≈40k), fix ≈125k,
+state-sync ≈15k, R1 ≈219k, R2 ≈250k. Wall: impl ≈55 min, R1 ≈16 min,
+R2 ≈27 min, fix ≈30 min; gaps ANNOTATED: the account's usage limit cut
+the fix-pass lane twice (state-sync delayed ≈15 h across the second
+cut), and the PR went conflicting once against a moving main. Tally
+after this entry: candidates +1 (the program's second; the first was
+S330's doc-class candidate).
+
 ## FILLET-T review ordinal fixed at dispatch (2026-09-05)
 
 FILLET-T (`D325` + `D326`, PR #1943 open — frozen head `9290f0b21`, merge
