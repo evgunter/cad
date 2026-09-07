@@ -46,9 +46,9 @@
 //!   (`Row::nurbs` is `Some`) — every column from `u0` on is filled;
 //! * a row's **identity** is [`identity_readings`], which is
 //!   [`IDENTITY_COLUMNS`] as rule 4 compares it. It is the crate's own
-//!   definition and not a copy of it: a ninth entry in that list
+//!   definition and not a copy of it: an eighth entry in that list
 //!   lengthens the key here, so the census cannot go on grouping on
-//!   eight columns while the gate parses nine;
+//!   seven columns while the gate parses eight;
 //! * a **pair** is two rows OF ONE SCENE with equal identities. They
 //!   necessarily have different ordinals (`parse` refuses a repeated
 //!   `(scene, face)`), so each pair is a swap rule 4 would wave
@@ -171,19 +171,17 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
 
 /// The other half of the paragraph: WHICH identity entries actually
 /// discriminate among the sized rows, which is the honest reading of
-/// how big the hole is. Six of the eight are constant there — `chart`,
-/// the sizing block's presence, and the four trim-box edges — so the
-/// live pair is `nu`/`nv` alone.
+/// how big the hole is. Five of the seven are constant there —
+/// `chart` and the four trim-box edges — so the live pair is
+/// `nu`/`nv` alone.
 ///
 /// The split is DERIVED, column by column, from
 /// [`tess_lint::identity_readings`] rather than spot-checked: the
 /// constant set and the discriminating set are both named in full and
 /// must partition [`IDENTITY_COLUMNS`], so a column that changes side
-/// and a ninth column both land here rather than going uncounted. The
-/// old shape of this test asserted two of the six and left the arithmetic
-/// (5 + `nu`/`nv` = 8) unreachable by any assertion.
+/// and an eighth column both land here rather than going uncounted.
 #[test]
-fn six_of_the_eight_identity_entries_discriminate_nothing_among_the_sized_rows() {
+fn five_of_the_seven_identity_entries_discriminate_nothing_among_the_sized_rows() {
     let rows = parse(BASELINE).expect("the committed baseline parses");
     let sized: Vec<&Row> = rows.iter().filter(|r| r.is_sized()).collect();
     assert!(!sized.is_empty(), "the census needs sized rows to be over");
@@ -216,7 +214,7 @@ fn six_of_the_eight_identity_entries_discriminate_nothing_among_the_sized_rows()
 
     assert_eq!(
         constant,
-        ["chart", "the sizing block", "u0", "u1", "v0", "v1"],
+        ["chart", "u0", "u1", "v0", "v1"],
         "the identity entries that discriminate NOTHING among the \
          sized rows; readings per column {distinct:?}"
     );
@@ -227,16 +225,18 @@ fn six_of_the_eight_identity_entries_discriminate_nothing_among_the_sized_rows()
          rows; readings per column {distinct:?}"
     );
     // The arithmetic the prose states, so the prose cannot drift from
-    // it: six constant plus the live pair is the whole list.
+    // it: five constant plus the live pair is the whole list.
     assert_eq!(
         constant.len() + discriminating.len(),
         IDENTITY_COLUMNS.len(),
         "every identity entry is either constant or discriminating"
     );
 
-    // What the two constant halves ARE, which is why they are constant
-    // — the sizing block is "present" by the definition of sized, so
-    // it is the trivial member of the six and named as such.
+    // What the two constant halves ARE, which is why they are
+    // constant.  `chart` is the trivial member: `parse` admits the
+    // sizing block only under the charts that owe it, so every sized
+    // row of this corpus is one of those tags, and here it is the
+    // same one.
     for r in &sized {
         let n = r.nurbs.expect("filtered to sized rows");
         assert_eq!(r.chart, "nurbs", "{} face {}", r.scene, r.face);

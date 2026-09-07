@@ -70,3 +70,27 @@ together; unit 2 is disjoint (`docs/TESS-BUDGET.md`) and runs beside
 whichever of them is live. `D201` goes out as an `[ev]` PR early rather
 than at step 8 — it is the slate's one design fork and its long pole,
 and the answer wants to be in hand before the cheap end is exhausted.
+
+**Unit 1 (`D213` + `D214`) landed the sizing block as one decision.**
+The two items pointed at the same seam from opposite sides and the
+answer was one edit: `parse` refuses the lane pairing in both
+directions (`SIZED_CHART_TAGS`, the consumer's mirror of
+`tess_meter::FaceRow::csv_row`'s 2x2), which makes `Row::is_sized` a
+function of `chart` on every parsed row, which retires
+`IDENTITY_COLUMNS`' block-presence entry rather than re-justifying it —
+`chart` is entry zero, so the block entry could never have been the
+first disagreement rule 4 reports. `D213`'s mesh chain was re-walked
+against the merge base, `per_cell_candidates`'s `?` included, and
+holds. The census goes six-of-eight to five-of-seven.
+
+Two things the wave should know. The pairing test derives its
+expectation from `SIZED_CHART_TAGS`, so a member gained or lost moves
+the expectation with it and passes in silence — the roster needs the
+written-out literal pin `CHART_TAGS` already carries, and that is the
+only guard on its membership; a cross-root pin against
+`Chart::sized_lane` would want `tools/tess-meter/tests/derivations.rs`,
+which is the meter's file and its ground, exactly as `CHART_TAGS`'s own
+doc says of the ADDED direction. And `docs/TESS-BUDGET.md` enumerates
+the identity list twice, both copies still eight entries — filed as
+`tess-budget-doc-identity-column-list` rather than edited, because unit
+2 holds that file for the wave.
