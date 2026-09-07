@@ -562,3 +562,27 @@ action by the account's API usage credits running out; restarted
 wall-clock asymmetry between the arms (R2 ran ~19 h later), not an
 instrument one: the head, the brief and the isolation are unchanged,
 and R2 saw nothing of R1. Disclosed here and in the row at merge.
+
+## 2026-09-07 — DOCM-8 dual adjudicated; fix pass dispatched
+
+Both reports in (R1 OPUS, R2 FABLE — R2 restarted after the credit
+outage, same frozen head), both APPROVE-WITH-FIXES, no bilateral
+MAJOR, one unilateral MAJOR each. R1's: the three rewritten prose
+sites say reordering never changes whether a declaration resolves,
+and a declared member face SPLIT by a later member (not merged away)
+still refuses in some orders — the base refused every such order, so
+the code is a strict improvement and the sentence is the defect;
+R2 rated the same finding MINOR. R2's: N3's offer is lost for a face
+an outer merge consumed — with the flat set the inner merged face is
+no longer a constituent, so `merge_offers` offers nothing where the
+base offered the outer row (red probe). Ruled: one home for "does this
+merged row cover this name" (constituent, or a merged foot whose set
+is a subset), serving the offers, the paint-follow hook and the
+look-through — a reader interpreting a flat set, not a consumer
+flattening; the prose bounded to merges with the split/containment/
+fragmented residue filed and pinned as a measurement; a fail-loud
+check at the mint site so N3 holds for both emitters in the kernel;
+and, first, R2's off-target measurement that a DECLARED pair is
+reported `UndeclaredContact` on a three-neighbour star in ten of 24
+orders — a silent drop in the routing if it is the union's, to be
+traced before anything else. Both enter the tally as candidates.
