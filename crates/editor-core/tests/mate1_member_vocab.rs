@@ -26,7 +26,7 @@ use editor_core::{
     ResolveFault, RoleSeg, SitedRef, StableName, assemble, clusters, content_pin, evaluate,
     solve_document,
 };
-use fixture::{insert, len, on_frame, scl, step};
+use fixture::{insert, len, on_frame, relations, scl, step};
 use geom_core::Tol;
 
 // ---- Substrate (the stub resolver, as in the sibling suites) ----
@@ -214,18 +214,6 @@ fn four_legs(
         },
     );
     (doc, leg, pattern, top, mate.expect("the mate mints"), store)
-}
-
-/// Every declaration the findings name, and in what relation.
-fn relations(findings: &[editor_core::AtRestFinding]) -> Vec<(RecipeNodeId, &'static str)> {
-    findings
-        .iter()
-        .map(|f| match &f.attribution {
-            editor_core::Attribution::Refuted(m) => (m.mate, "refuted"),
-            editor_core::Attribution::Declined(m) => (m.mate, "declined"),
-            editor_core::Attribution::Unattributed => (RecipeNodeId(u64::MAX), "unattributed"),
-        })
-        .collect()
 }
 
 // ---- The red-first row: four legs, one top ----
@@ -639,11 +627,14 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
 // ---- Pin 2: `Instance(i)` heads are canonical ----
 
 /// INVARIANT (ratified pin): the pattern consumed its master's root,
-/// so the MASTER-NAME spelling of a seat still refuses `Vanished` at
-/// the gate — honestly, and pinned as a refusal, not fixed. The
-/// canonical spelling is the `Instance(i)` head the other rows use.
+/// so the MASTER-NAME spelling of a seat still REFUSES at the gate —
+/// pinned as a refusal, not fixed. The canonical spelling is the
+/// `Instance(i)` head the other rows use. The refusal's word is the
+/// operand's: the name is spelled at `leg`, which is not a root of
+/// the product (`ReadBelowARoot { at: leg }`), rather than a name
+/// that vanished — the leg's face is there, under the pattern's row.
 #[test]
-fn the_master_name_spelling_still_refuses_vanished() {
+fn the_master_name_spelling_refuses_read_below_a_root() {
     let mut store = StubStore::default();
     let leg_ref = store.insert(leg_part("mate1-pin-master-leg"), Tol::witness());
     let top_ref = store.insert(leg_part("mate1-pin-master-top"), Tol::witness());
@@ -688,9 +679,10 @@ fn the_master_name_spelling_still_refuses_vanished() {
     };
     assert_eq!(*named, mate);
     assert_eq!(*side, editor_core::MateSide::A);
-    assert!(
-        matches!(why, editor_core::RefusedRef::Vanished),
-        "the consumed master's face answers to nothing: {why:?}"
+    assert_eq!(
+        *why,
+        editor_core::RefusedRef::ReadBelowARoot { at: leg },
+        "the consumed master's face is spelled at a node the product does not list: {why:?}"
     );
 }
 

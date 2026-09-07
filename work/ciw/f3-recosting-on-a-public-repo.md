@@ -2,10 +2,11 @@
 id: f3-recosting-on-a-public-repo
 kind: unit
 title: F3 and the nightly demotions rest on an Actions allowance this repo no longer has: re-cost them on a public repo
-status: review
+status: closed
 opened: 2026-09-04
 pr: 1796
 branch: ciw/f3-recosting
+closed: 2026-09-07
 ---
 
 
@@ -1123,3 +1124,49 @@ Three consequences for this document specifically:
 
 **F3 itself still needs no revision**, which this document argued under
 either answer.
+
+## THE RULING (Ev, 2026-09-07): no post-merge run
+
+**F3 stands, and the push job set is not restored.** Ev, in chat:
+*"i'd be somewhat inclined to skip the post-merge run, just because i
+don't think anyone would actually check it"*, confirmed when put back as
+a ruling.
+
+This closes the question the 2026-09-04 ruling left open. That ruling
+declined the push gate **in favour of** the merge queue, and the queue
+turned out to be unavailable to a user-owned repository
+(`merge-queue-trial`, closed 2026-09-05), so the decline had to be
+re-taken on its own terms. It has been.
+
+**The reason is a reader, not a cost.** Minutes are free; the objection
+is that a detector nobody reads is not a control. This program produced
+the evidence for that argument while the question was open:
+`nightly-demotions-have-never-run` exists because three rows demoted to
+the nightly ran unattended for two nights and nobody looked — their
+first reading was taken by this orchestrator on 2026-09-06, going
+deliberately to the jobs API. A red push run would land in the same
+place.
+
+**What this document argued for and what the ruling declines are not
+quite the same thing, and the difference is recorded here** so the next
+reader does not re-open the question on the strength of it. The options
+table prices *detection*. The two 2026-09-04 instances were both
+detected, quickly, by lanes tripping over a red `main`; what they cost
+was **attribution** — 42 red runs on 20 branches, four innocent
+branches, and two agents diagnosing the same one-line break in the same
+hour. A push run's real value was never that someone would watch it, it
+was that the red would be attached to the merge that caused it.
+
+That is a different mechanism and it is now its own row:
+`work/ciw/inherited-red-is-not-attributed-to-its-merge`. It is not a
+gate, it costs nothing on a green run, and it does not reopen F3.
+
+**Also unchanged, and worth saying once more**: F3 itself needed no
+revision under either answer, and the push run keeps its three write
+side-effects exactly as F3 left them.
+
+**Do not quote the merge-queue row forward.** Its `44 job-min/h` and
+`442 s` figures are wrong in mechanism — GitHub builds one merge group
+per queued pull request, not per batch — and the re-derivation is
+~99 job-min/h and 528 s flat. The row is kept as the record of what was
+argued, not as a live option.

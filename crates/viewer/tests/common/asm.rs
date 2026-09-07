@@ -275,11 +275,11 @@ pub fn delta() -> viewer::scene::DisplayTolerance {
 }
 
 /// The pick index for a session's landed evaluation.
-pub fn index_of(session: &DocSession) -> viewer::pick::PickIndex {
+pub fn index_of(session: &DocSession) -> viewer::pickindex::PickIndex {
     let (doc, eval) = session.landed_pair().expect("an evaluation has landed");
     let generation = session
         .landed_generation()
         .expect("a landed evaluation has a generation");
-    viewer::pick::PickIndex::build(doc, eval, generation, delta(), session.tol())
+    viewer::pickindex::PickIndex::build(doc, eval, generation, delta(), session.tol())
         .expect("the assembly indexes")
 }

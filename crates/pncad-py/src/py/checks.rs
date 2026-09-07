@@ -467,7 +467,7 @@ impl ChecksReport {
 /// Every attribute is set on every arm, `None` where the arm does not
 /// carry it — the `WorkspaceError` posture: handling reads `err.node`
 /// without first branching on `err.variant`.
-fn checks_err(py: Python<'_>, err: &d::ChecksError) -> PyErr {
+pub(crate) fn checks_err(py: Python<'_>, err: &d::ChecksError) -> PyErr {
     let none = || py.None();
     // Exhaustive on purpose, no wildcard: an arm added kernel-side
     // arrives here as a compile error rather than as a silently

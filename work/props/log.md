@@ -809,3 +809,72 @@ the certificate does. Sweep: one hit of the shape outside the fence,
 `WitnessOutcome::BudgetExhausted`'s two caps, filed as
 `work/issues/witness-budget-exhausted-two-caps-one-name.md`. Territory:
 `crates/geom-brep/tests/offset_fit.rs` (tcost) only.
+
+**Sign-hull unit dispatched (2026-09-06).** `docs/PROPS-SIGN-HULL-SPEC.md`
+on main (#2004): option 1 — `b1 = normalize(e_k × n)`, `k` the
+smallest-magnitude component with ties to the highest index, the choice
+through one value-level `Real` door (decided or point-tie selects;
+a straddled tie hulls at `Def`); every stored `u_ref` re-blesses with
+a locus receipt; M10-5's re-chart retires. M / NUMERIC, block PROPS-B2
+slot 1, dual review; branch `props/sign-hull`. Seam notes to M10, EXCH,
+DOCM, BOOL in the same PR.
+
+**MESH-12 taken over (2026-09-06).** Ev, in chat: "you can take over
+1617". S-MESH's unit (`work/mesh/MESH-12.md`, PR 1617, branch
+`mesh/12-saturated-span`, frozen 0e053a727, never reviewed; its A/B
+claim is ordinal 1210 in S-MESH's band, parity byte 40 ⇒ R1 opus /
+R2 fable, implementer fable) is finished here because the sphere lane
+needs `props/curved.rs`. A merge-forward lane (the unit's own arm) is
+merging main into the branch — one conflict, `mesh11r2_base_probes.rs`
+— getting CI green and self-auditing the unit against
+`docs/MESH-12-SPEC.md`; then the dual under the claimed ordinal, the
+fix pass, and the landing. Recorded in `work/mesh/log.md` too.
+
+**MESH-12 dual dispatched (2026-09-06).** The merge-forward lane
+(the unit's own arm) merged main into `mesh/12-saturated-span` — one
+textual conflict (`mesh11r2_base_probes.rs`, both sides kept) and one
+semantic one (`cert1_sphere_polar.rs:177`, main's `band()` helper) —
+and reported green locally on both lanes (geom-brep/mesh/topo 1942 and
+2046 rows; three-ε 51/51; clippy, fmt, lint; D9 digests identical to
+main at three ε rows) with every spec deliverable delivered; its one
+caveat: the import-door rim-continuation measurement is prose only,
+pinned by no row (it is claim C5 of the briefs). Frozen head
+`3daab7d80` (the last commit is trailer-only, `CI-Config:
+lane=interval eps=default` — noted for the reviewers). Dual under the
+ordinal S-MESH claimed at its dispatch (1210, parity byte 40 ⇒ R1 opus
+/ R2 fable), concurrent, R2 isolated; briefs symmetric, stored on
+`props/b2-block` as `mesh12-review-brief-{r1,r2}.md` (sha256 r1
+03d5d5d2…, r2 071d199c…) before dispatch; hosted run 34016450337 on
+the head at dispatch.
+
+**MESH-12 dual adjudicated (2026-09-06).** Both lanes APPROVE-WITH-FIXES
+on `3daab7d80`. R1 1 MAJOR / 6 MINOR / 3 NOTE, rubric 4/4/3; R2 0 / 3 /
+6, rubric 4/4/4. Correspondence: the one MAJOR — the parse re-decides
+only the upper half of certification's `0 < Δt ≤ τ`, so a hand-built
+REVERSED span (`t0 = 3π, t1 = 0`) is admitted and folds at half the
+area — is BILATERAL (R1 MAJOR 1 ≡ R2 MINOR-1, same site, both
+executed); the import-door rim-continuation record unpinned by any
+row bilateral (R1 MINOR 2 ≡ R2 MINOR-2 — R1 bisected it through
+`mint_pcurves`, R2 through 801 generated STEP files: the intersection
+is EMPTY at all three ε rows, stronger than the PR's "one point"); the
+weak control row bilateral (R2 MINOR-3 ≡ R1 S4); two homes for the
+decide bilateral (S2 both); the period-headroom margin spelled ~18
+times under ~12 names bilateral (S1 both — filed by the fix pass).
+Unilateral: R1's sweep-currency (chart_region +359 lines at the
+merge), inert-trailer, gate-record-per-head and the 3ε-row substring
+findings; R2's §4 history in test docs. **No unilateral MAJOR → v6
+tally +0.** Every headline claim survived both lanes' execution (C1
+ladder on both scalar lanes, C2 algebra and 20–105 pole placements,
+C3 no fifth door, C4 the 36/400 and the `+0.0` residual, C7 D9
+re-taken at the true base by both). Fix pass dispatched to the unit's
+own arm on the PR branch; the ten items are in its brief; state-sync
+(A/B row, item closures) rides last.
+
+**Orchestrator error, disclosed (2026-09-06).** The `CI-Config:`
+trailer is inert text (implementer-discipline §2, 2026-09-04; both
+lanes run on every hosted run). The MESH-12 merge-forward brief and
+`docs/PROPS-SIGN-HULL-SPEC.md` §Posture both asked for it, and the
+merge-forward lane pushed an EMPTY commit to carry it (R1 MINOR 4 /
+N3). Corrected by message to the sign-hull lane; no spec on main asks
+for it after the sign-hull spec's deletion at landing; no empty commit
+is ever pushed for it again.
