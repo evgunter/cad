@@ -28,7 +28,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsSurface;
-use geom::curves::fit::interpolate_columns;
 use geom_brep::offset_fit::{
     OFFSET_FIT_BUDGET, OFFSET_FIT_SAMPLE_CAP, OffsetFitError, OffsetLimb, certify_offset_at,
     fit_offset_at,
@@ -37,7 +36,7 @@ use geom_brep::offset_meters::{MeterError, OFFSET_METER_LADDER, patch_collapse, 
 use geom_brep::patch_bound::patch_cells_refined;
 use geom_core::Point3;
 
-use crate::shared::fixture::{kv1, kv2, quarter_cylinder, sphere_band};
+use crate::shared::fixture::{bumpy_patch, kv1, kv2, quarter_cylinder, sphere_band};
 use crate::shared::sample::{grid, worst_offset_residual};
 use crate::shared::tol::band;
 
@@ -51,48 +50,6 @@ use crate::shared::tol::band;
 // `crate::shared::fixture`'s: four other suites in this crate were
 // building the same two nets. What is left here is the base that has
 // no closed form at all.
-
-/// A non-analytic bicubic patch: a height field with no closed form
-/// as any analytic kind, interpolated through the loft door.
-fn bumpy_patch() -> NurbsSurface<f64> {
-    let n = 7;
-    let params: Vec<f64> = (0..n)
-        .map(|i| {
-            #[allow(clippy::cast_precision_loss)]
-            let t = i as f64 / (n - 1) as f64;
-            t
-        })
-        .collect();
-    let height = |u: f64, v: f64| 0.35 * (2.4 * u).sin() * (1.9 * v + 0.4).cos() + 0.2 * u * v;
-    let rows: Vec<Vec<f64>> = params
-        .iter()
-        .map(|u| {
-            let mut row = Vec::with_capacity(n * 3);
-            for v in &params {
-                row.extend_from_slice(&[*u, *v, height(*u, *v)]);
-            }
-            row
-        })
-        .collect();
-    let (ku, r) = interpolate_columns(&params, 3, &rows).unwrap();
-    let mut rows_v: Vec<Vec<f64>> = Vec::with_capacity(n);
-    for l in 0..n {
-        let mut row = Vec::with_capacity(ku.control_count() * 3);
-        for rr in &r {
-            row.extend_from_slice(&rr[l * 3..l * 3 + 3]);
-        }
-        rows_v.push(row);
-    }
-    let (kv, p) = interpolate_columns(&params, 3, &rows_v).unwrap();
-    let (cu, cv) = (ku.control_count(), kv.control_count());
-    let mut control = Vec::with_capacity(cu * cv);
-    for i in 0..cu {
-        for row in p.iter().take(cv) {
-            control.push(Point3::new(row[i * 3], row[i * 3 + 1], row[i * 3 + 2]));
-        }
-    }
-    NurbsSurface::new(ku, kv, control, vec![1.0; cu * cv]).unwrap()
-}
 
 // ---------------------------------------------------------------------
 // The analytic oracle
@@ -530,6 +487,35 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
             assert!(msg.contains("nothing uncertified is returned"), "{msg}");
         }
         other => panic!("a cap stop with a finite bound did not name the cap: {other:?}"),
+    }
+}
+
+/// **A stall on the last round is a stall.** On the bumpy patch at
+/// `d = 1e-6` the bound falls to 2.5e-9 on round 4, RISES to 1.5e-8 on
+/// round 5 (the guard falls back to marking both directions) and
+/// rises again to 6.9e-7 on round 6, the budget's last. The strongest
+/// step gained nothing, which is the stall guard's own admission set,
+/// and it must be `RefinementStalled` there as on any earlier round:
+/// a refusal that says "still converging, raise the round budget" on
+/// a bound that went up twice sends the caller to the wrong knob.
+#[test]
+fn a_stall_on_the_budgets_last_round_is_the_stall_not_the_budget() {
+    let base = bumpy_patch();
+    match fit_offset_at(&base, 1e-6, 1e-9, band()) {
+        Err(OffsetFitError::RefinementStalled {
+            rounds,
+            grid,
+            achieved,
+            ..
+        }) => {
+            assert_eq!(
+                rounds as usize, OFFSET_FIT_BUDGET,
+                "the stall is on the last round"
+            );
+            assert!(achieved.is_finite());
+            eprintln!("last-round stall: rounds={rounds} grid={grid:?} achieved={achieved:.3e}");
+        }
+        other => panic!("a last-round stall was not refused as a stall: {other:?}"),
     }
 }
 
