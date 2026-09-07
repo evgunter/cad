@@ -70,3 +70,63 @@ together; unit 2 is disjoint (`docs/TESS-BUDGET.md`) and runs beside
 whichever of them is live. `D201` goes out as an `[ev]` PR early rather
 than at step 8 — it is the slate's one design fork and its long pole,
 and the answer wants to be in hand before the cheap end is exhausted.
+
+## Unit 0 landed and adjudicated; two orchestrator errors (2026-09-07)
+
+`tess-lint-face-ordinal-join` is closed on `meter/join-gated-voice`
+(PR 2111), style review dispatched. **The decision: an ungated re-key
+stays a NOTE**, argued from the disanalogy with rule 5 — an uncovered
+scene carries a coverage claim that is asserted and false, while a
+scene with no sized face gives rule 2 no claim there to be false, and
+`gated` reads both sides so the note CONVERTS to a finding the day the
+scene gains a sized face, which rule 5's case never does. The accepted
+cost is written at the site and its cure named (`D201`/`C15`, both
+live here).
+
+Two loads the lane carried that the plan did not anticipate. **#738's
+`diefillet` permutation no longer reproduces** — the lane ran the
+sweep rather than inheriting the claim, and got 1353 rows over 72
+scenes with every ordinal agreeing on all eight identity columns, 0
+findings and 0 notes at exit 0. A later re-cut absorbed it, which is
+what the item's own body predicted would happen. So the decision was
+made on the merits and not under a live red. And **a third instance of
+the transcribed-census class** turned up in the sweep: `lib.rs` claimed
+"58 of the committed baseline's 70 scenes" where the truth is 72
+scenes, 12 sized and 60 not. It moved to `tests/baseline_census.rs`,
+the standing one home. That class has now fired three times in a week
+on this program's ground.
+
+### Two things the orchestrator got wrong, recorded because the board should carry them
+
+**The dispatch asserted an unrecorded decision that was recorded.** The
+brief for unit 0 said nobody had written down whether an ungated re-key
+should be a note or a finding. It was on main at
+`tools/tess-lint/src/lib.rs:177`, with the principle on `Report` and
+the ungated case in `main.rs`'s recourse item 4. The lane checked the
+premise instead of building on it — which is what
+`docs/REVIEW-STYLE-DISPATCH.md` §3 asks of a dispatch and what the
+brief explicitly invited — and the unit became an EXTENSION of a
+recorded decision rather than a first statement of an unrecorded one.
+Re-verified before the correction was accepted onto the item.
+
+**The dispatch did not read `memories/agent-lane-operations.md` before
+sending lanes out, and that memory already carried the hazard that
+bit.** Its *"Where subagents share the orchestrator's checkout (no
+per-lane worktree — the remote-session default)"* clause names exactly
+what happened: three lanes in `/home/user/cad`, one of them
+(`tess-budget-doc-finding-block`) accumulating uncommitted work on
+top of `meter/d201-ev-question` — the open `[ev]` PR's branch — because
+another lane's `git checkout` had silently re-pointed the shared
+directory under it. Caught before any commit landed and the lane moved
+to a private worktree. No memory amendment is owed: the text was
+already right and the orchestrator had not followed `MEMORY.md`'s
+pointer to it. **Every dispatch from here carries the worktree
+instruction explicitly.**
+
+Also filed from unit 0's out-of-fence report:
+`cut-line-commit-names-no-baseline-change` — the baseline's cut line
+stamps the sweeping tree's HEAD, so the commit it names need never have
+touched the baseline (verified: `aba2625f8f84` does not). Honest by
+`tess_budget_cut.sh`'s third arm and unstated where `tess-lint` READS
+and prints it. Adjacent to unit 4's seam and left separate, because the
+two want different edits and only one of them is a pin.
