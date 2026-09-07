@@ -30,11 +30,21 @@
 //!   be: it is the ops whose sites this walk can enumerate.
 //!
 //!   **`movefac` earns its row as the enabler, not only for itself.**
-//!   It is the only door that mints a shell into an existing solid —
-//!   `mvfs` mints one shell per solid, and `mfkrh`'s component split
-//!   leaves the single shell ENTITY in place — so without it no walk
-//!   ever builds the multi-shell solid the fusion form needs, and the
-//!   fusion row would be asked on every step and drawn on none.
+//!   Of the doors THIS CATALOG holds it is the only one that puts a
+//!   second shell in a solid — `mvfs` mints one shell per solid, and
+//!   `mfkrh`'s component split leaves the single shell ENTITY in place
+//!   — so without it no walk ever builds the multi-shell solid the
+//!   fusion form needs, and the fusion row would be asked on every
+//!   step and drawn on none.
+//!
+//!   **Scoped to the catalog on purpose**, because the crate has other
+//!   shell-minting doors and they are not this walk's: the boolean
+//!   pipeline's combine step inserts a whole operand's shells into the
+//!   destination (`crate::boolean::combine`) and `insert_void`
+//!   transplants a cavity's shells into an existing solid
+//!   (`crate::boolean::voids`). Neither is an Euler surgery or a
+//!   structural mutator over one body, which is what this catalog
+//!   enumerates sites for.
 //! - [`apply`] — execute a choice (coordinates for the vertex-minting
 //!   ops come from a caller-owned counter, so every vertex gets distinct
 //!   coordinates and canonical forms are sharp).
@@ -49,7 +59,7 @@
 //!   length carried beside it — checked against derived arena counts
 //!   and eq. 9.2 after every op.
 //!
-//! # The irreversible-by-one-op kill subcases (skipped in roundtrips)
+//! # The sites with no re-make (skipped in roundtrips)
 //!
 //! [`roundtrip`] skips (returns [`RoundtripOutcome::SkippedIrreversible`])
 //! exactly the configurations that are valid ops but have **no
@@ -59,13 +69,21 @@
 //! arms this section covers, and the fuzz row asserts a skip lands in
 //! one of them.
 //!
-//! Two are shell bookkeeping rather than kill sites:
+//! Two of the four are shell bookkeeping rather than kill sites:
 //!
-//! - `movefac`, always: no single op merges two shells. `kfmrh`'s
-//!   fusion form is the only operator that kills a shell at all and it
-//!   kills a face with it, so the partition has no inverse to pair
-//!   with — the pairing is exercised from the fusion's side instead
-//!   (below), which is why this is a skip rather than a gap.
+//! - `movefac`, always — and the reason is that the re-make is
+//!   UNBUILT, not that none exists. The obvious inverse mirrors the
+//!   fusion arm's: `kfmrh` fuses the minted shell back and `mfkrh`
+//!   re-promotes the face that fusion demoted. What stops it here is
+//!   that choosing its `(f1, f2)` is a search — `f2` must be a
+//!   ring-free face of the component that moved — and that search has
+//!   to run BEFORE the partition, since a `roundtrip` that discovers
+//!   mid-way that it cannot finish has already mutated the body. The
+//!   pairing is exercised from the fusion's side instead (below), so
+//!   nothing about the `movefac`/`kfmrh` pair goes untested; what is
+//!   missing is the pair driven from this end.
+//!   `work/topo/movefac-row-skips-three-component-shells.md` carries
+//!   it.
 //! - `kfmrh`'s fusion form, where the three-op re-make
 //!   (`mfkrh` re-promotes the demoted ring, `movefac` re-partitions
 //!   the complex that promotion disconnects again) does not land back
@@ -75,9 +93,9 @@
 //!   its solid's last, the fusion `retain`s it out and the re-make
 //!   appends the replacement at the end, moving a shell order the
 //!   canonical form compares positionally (`crate::iso`'s honest
-//!   limits). Both are read before the kill by [`fusion_remake_sites`].
+//!   limits). Both are read before the kill by [`fusion_remake_shell`].
 //!
-//! The kill sites proper:
+//! The other two are kill sites proper:
 //!
 //! - `kev(he)` where `start(he)` has valence 1 and `end(he)` carries a
 //!   fan (the "mirror" adjacency `next(mate(he)) == he`): restoring it
@@ -260,8 +278,8 @@ impl OpChoice {
     }
 
     /// Whether [`roundtrip`] is DOCUMENTED as possibly skipping this
-    /// choice — the four arms that hold an irreversible-by-one-op
-    /// subcase (module docs). A skip on any other choice is property
+    /// choice — the four arms that hold a site with no re-make
+    /// (module docs). A skip on any other choice is property
     /// (c) quietly ceasing to run, so the fuzz row asserts against
     /// this list rather than against a measured constant.
     pub(crate) fn may_skip_roundtrip(&self) -> bool {
@@ -437,14 +455,19 @@ pub(crate) fn choose_op(body: &Body<f64>, d1: u32, d2: u32, tol: Tol) -> Option<
         // and so exist only after `movefac` has run. Real weight for
         // the same reason `kvfs` has it: the window is narrow and a
         // modest weight would leave the row asked but almost never
-        // drawn.
-        (4, kfmrh_fuse_candidates, None),
+        // drawn. It carries a probe because its enumeration is the
+        // catalog's only `O(F²)` sweep and the window it needs is shut
+        // on most steps.
+        (4, kfmrh_fuse_candidates, Some(any_kfmrh_fuse)),
         (w(2, 1), mfkrh_candidates, None),
-        // The shell partition — the only door to a multi-shell solid,
-        // and make-direction in the shell arena, so it is weighted out
-        // once the body stops growing. Its candidates are the
-        // two-component shells `mfkrh` leaves behind.
-        (w(4, 0), movefac_candidates, None),
+        // The shell partition — the catalog's only door to a
+        // multi-shell solid, and make-direction in the shell arena, so
+        // it is weighted out once the body stops growing. Its
+        // candidates are the two-component shells `mfkrh` leaves
+        // behind, and finding them is a glue walk per shell, so the
+        // row answers emptiness through a probe that stops at the
+        // first one rather than labelling every shell.
+        (w(4, 0), movefac_candidates, Some(any_movefac)),
         // The non-Euler public mutator rides along at modest weight:
         // candidates exist whenever any face carries a ring, which kemr
         // (always-on weight) produces steadily.
@@ -653,19 +676,44 @@ fn kfmrh_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
 fn kfmrh_fuse_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
     let mut out = Vec::new();
     for (f1, face1) in body.faces() {
-        let Some(s1) = body.get_shell(face1.shell) else {
-            continue;
-        };
+        let solid1 = body
+            .get_shell(face1.shell)
+            .expect("valid body: shell resolves")
+            .solid;
         for (f2, face2) in body.faces() {
             if f1 == f2 || face1.shell == face2.shell || !face2.rings.is_empty() {
                 continue;
             }
-            if body.get_shell(face2.shell).map(|s2| s2.solid) == Some(s1.solid) {
+            let solid2 = body
+                .get_shell(face2.shell)
+                .expect("valid body: shell resolves")
+                .solid;
+            if solid1 == solid2 {
                 out.push(OpChoice::KfmrhFuse(f1, f2));
             }
         }
     }
     out
+}
+
+/// Whether [`kfmrh_fuse_candidates`] would return anything, without
+/// building it.
+///
+/// The cheap half is the gate: the form needs two shells in one solid,
+/// so a body whose every solid holds one shell — which is every body
+/// until `movefac` has run, and most bodies after — answers `false`
+/// off the solid list alone and never touches the `O(F²)` sweep. The
+/// sweep still runs when that gate passes, because "two shells in one
+/// solid" is necessary and NOT sufficient (no face of the other shell
+/// need be ring-free) and a probe that says `true` over an empty
+/// enumeration would send the roll to a modulo by zero.
+fn any_kfmrh_fuse(body: &Body<f64>, tol: Tol) -> bool {
+    any_multi_shell_solid(body) && !kfmrh_fuse_candidates(body, tol).is_empty()
+}
+
+/// Whether any solid holds more than one shell.
+fn any_multi_shell_solid(body: &Body<f64>) -> bool {
+    body.solids().any(|(_, solid)| solid.shells.len() > 1)
 }
 
 /// Every shell whose incidence complex has fallen into EXACTLY two
@@ -682,10 +730,37 @@ fn kfmrh_fuse_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
 /// smaller loss than it reads, because the row fires on the
 /// two-component shells that a third component would have grown from.
 fn movefac_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
+    movefac_sites(body).map(OpChoice::Movefac).collect()
+}
+
+/// Whether [`movefac_candidates`] would return anything, without
+/// building it. Same iterator, stopped at the first item, so the two
+/// cannot disagree about emptiness — which is what [`choose_op`]'s
+/// roll needs from this row and all it needs.
+///
+/// The saving is the tail of the shell scan and the `Vec`: a shell
+/// that answers the predicate ends the walk, and a body with no
+/// two-component shell — the common case — still pays one
+/// [`shell_components`] per shell, which is the price of the
+/// predicate itself.
+///
+/// **The shell-count gate [`any_kfmrh_fuse`] uses does not transfer
+/// here, and gating on it would kill the row.** This row's candidates
+/// are the two-component shells inside a ONE-shell solid — that is
+/// the post-`mfkrh` transient the partition exists to resolve, and it
+/// is the state every multi-shell solid is reached THROUGH. A gate of
+/// "some solid holds two shells" would answer `false` on exactly the
+/// bodies this row is for. No cheaper necessary condition is
+/// available either: a second component is what the glue walk
+/// detects, and a face count cannot see one.
+fn any_movefac(body: &Body<f64>, _tol: Tol) -> bool {
+    movefac_sites(body).next().is_some()
+}
+
+fn movefac_sites(body: &Body<f64>) -> impl Iterator<Item = ShellKey> + '_ {
     body.shells()
-        .filter(|&(shell, _)| shell_components(body, shell) == 2)
-        .map(|(shell, _)| OpChoice::Movefac(shell))
-        .collect()
+        .filter(move |&(shell, _)| shell_components(body, shell) == 2)
+        .map(|(shell, _)| shell)
 }
 
 /// The number of connected components of `shell`'s incidence complex,
@@ -705,10 +780,7 @@ fn shell_components(body: &Body<f64>, shell: ShellKey) -> usize {
         let mut pending = vec![seed];
         while let Some(face_key) = pending.pop() {
             let face = body.get_face(face_key).expect("face resolves");
-            let loops: Vec<LoopKey> = core::iter::once(face.outer)
-                .chain(face.rings.iter().copied())
-                .collect();
-            for loop_key in loops {
+            for loop_key in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
                 let LoopBoundary::Cycle { first } =
                     body.get_loop(loop_key).expect("loop resolves").boundary
                 else {
@@ -1001,8 +1073,8 @@ pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32, t
 }
 
 /// The shell [`roundtrip`] must re-partition to invert a shell fusion
-/// of `f1` and `f2` — `f1`'s shell — or `None` when the site is one of
-/// the fusion's irreversible-by-three-ops shapes (module docs).
+/// of `f1` and `f2` — `f1`'s shell — or `None` when the site is one
+/// the three-op re-make does not land back on (module docs).
 ///
 /// Both conditions are read BEFORE the kill, from the same arena the
 /// operator's plan phase reads:
@@ -1015,7 +1087,7 @@ pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32, t
 ///   at the end, so anywhere else the shell ORDER changes — which the
 ///   canonical form compares positionally (`crate::iso`'s honest
 ///   limits).
-fn fusion_remake_sites(body: &Body<f64>, f1: FaceKey, f2: FaceKey) -> Option<ShellKey> {
+fn fusion_remake_shell(body: &Body<f64>, f1: FaceKey, f2: FaceKey) -> Option<ShellKey> {
     let shell1 = body.get_face(f1)?.shell;
     let shell2 = body.get_face(f2)?.shell;
     if shell_components(body, shell1) != 1 || shell_components(body, shell2) != 1 {
@@ -1030,8 +1102,8 @@ fn fusion_remake_sites(body: &Body<f64>, f1: FaceKey, f2: FaceKey) -> Option<She
 pub(crate) enum RoundtripOutcome {
     /// Op and inverse ran; canonical form was asserted restored.
     Done,
-    /// The choice was one of the two documented irreversible-by-one-op
-    /// kill sites (module docs); nothing was executed.
+    /// The choice was one of the documented sites with no re-make
+    /// (module docs); nothing was executed.
     SkippedIrreversible,
 }
 
@@ -1137,20 +1209,25 @@ pub(crate) fn roundtrip(
             // re-partitioning the complex that promotion just
             // disconnected again. Exact on the sites the module docs
             // name; the rest report the skip.
-            let Some(sites) = fusion_remake_sites(body, f1, f2) else {
+            let Some(surviving_shell) = fusion_remake_shell(body, f1, f2) else {
                 return RoundtripOutcome::SkippedIrreversible;
             };
             let result = body.kfmrh(f1, f2).unwrap();
             body.mfkrh_plug(result.ring).unwrap();
-            body.movefac(sites).unwrap();
+            body.movefac(surviving_shell).unwrap();
         }
         OpChoice::Movefac(_) => {
-            // No single op merges two shells: `kfmrh`'s fusion form is
-            // the only one that kills a shell at all and it kills a
-            // face with it, so the partition has no inverse to pair
-            // with here. The pairing is exercised from the fusion's
-            // side instead (the arm above re-makes through `movefac`),
-            // which is why this is a skip rather than a gap.
+            // The re-make here is UNBUILT, not impossible — a one-op
+            // bar would be the wrong one to argue against, since the
+            // arm above re-makes in three. It would mirror that arm:
+            // `kfmrh` fuses the minted shell back, `mfkrh` re-promotes
+            // the face the fusion demoted. What is missing is the
+            // SITE: `f2` must be a ring-free face of the component
+            // that moved, and that search has to succeed before the
+            // partition runs, because a skip decided afterwards has
+            // already mutated the body. The `movefac`/`kfmrh` pair is
+            // exercised from the fusion's side meanwhile; module docs,
+            // and `work/topo/movefac-row-skips-three-component-shells.md`.
             return RoundtripOutcome::SkippedIrreversible;
         }
         OpChoice::Kvfs(solid) => {
@@ -1421,8 +1498,8 @@ mod tests {
 
     /// What one decision vector did to property (c): how many steps the
     /// mode roll SELECTED for a roundtrip, how many of those executed,
-    /// and how many were skipped as documented irreversible-by-one-op
-    /// kills. `skippable` counts the selections that could legally skip
+    /// and how many were skipped as documented sites with no
+    /// re-make. `skippable` counts the selections that could legally skip
     /// at all — see [`RoundtripTally::skippable`].
     #[derive(Clone, Copy, Default)]
     pub(super) struct RoundtripTally {
@@ -1468,14 +1545,14 @@ mod tests {
                 {
                     tally.executed += 1;
                 } else {
-                    // Every documented irreversible subcase sits in an
+                    // Every documented no-re-make subcase sits in an
                     // arm [`OpChoice::may_skip_roundtrip`] names. A
                     // skip anywhere else is property (c) quietly
                     // ceasing to run, not a case the design excuses.
                     prop_assert!(
                         choice.may_skip_roundtrip(),
                         "roundtrip skipped {:?}, which has no documented \
-                         irreversible-by-one-op subcase",
+                         no-re-make subcase",
                         choice
                     );
                     tally.skipped += 1;

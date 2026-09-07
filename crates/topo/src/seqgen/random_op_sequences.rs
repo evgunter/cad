@@ -45,7 +45,7 @@ use super::tests::{RoundtripTally, run_properties};
 /// teardown to empty arenas + empty provenance maps.
 ///
 /// How much of property (c) ran is checked, and the check is
-/// per-step: every documented irreversible-by-one-op subcase lives
+/// per-step: every documented no-re-make subcase lives
 /// in an arm `OpChoice::may_skip_roundtrip` names, so a selection on
 /// any other choice must execute, and `run_properties` asserts
 /// exactly that as each step happens. **That per-step assertion is
