@@ -1787,10 +1787,9 @@ pub(crate) fn face_reach<T: Decide>(
             let (c, ax) = (SpanBox::point(center), SpanBox::vector(axis));
             let whole = torus_extent(&c, &ax, major_radius, minor_radius);
             // The chart window from the boundary's own stored
-            // certified pcurves, mirroring `boolean::boxes`'s arm at
-            // this lane's scalar — the same accumulator and the same
-            // extent, this lane's own arena walk
-            // ([`torus_chart_window`]).
+            // certified pcurves: the same walk, the same guards and
+            // the same extent as the boolean lane, at this lane's
+            // scalar ([`torus_chart_window`]).
             Some(span_pts(
                 match torus_chart_window(body, f, major_radius, minor_radius) {
                     None => whole,
@@ -1860,34 +1859,22 @@ pub(crate) fn face_reach<T: Decide>(
     }
 }
 
-/// A torus face's CHART WINDOW, walked over its loops at this lane's
-/// scalar — [`crate::boolean::boxes::TorusChartWindow`]'s arena walk
-/// here, as [`boundary_axial`] is [`crate::boolean::boxes::edge_axial_span`]'s.
-/// `None` when no window can be read, which keeps the whole tube (the
-/// accumulator's docs carry what answers `None` and why the cost is
-/// not discrete).
+/// A torus face's CHART WINDOW at this lane's scalar — the SAME walk
+/// the boolean lane runs, not a mirror of it: both enter
+/// [`crate::boolean::boxes::face_window_steps`] and
+/// [`crate::boolean::boxes::torus_chart_window`], which is where the
+/// two guards and every fail mode live.
 fn torus_chart_window<T: Decide>(
     body: &Body<T>,
     f: crate::entity::FaceKey,
     major: T,
     minor: T,
 ) -> Option<crate::boolean::boxes::TorusWindowPair<T>> {
-    let face = body.get_face(f)?;
-    let mut acc = crate::boolean::boxes::TorusChartWindow::new();
-    for &lk in core::iter::once(&face.outer).chain(&face.rings) {
-        let l = body.loops.get(lk)?;
-        match l.boundary {
-            LoopBoundary::Empty { .. } => return None,
-            LoopBoundary::Cycle { first } => {
-                for he in body.loop_cycle(first)? {
-                    if !acc.add(body.pcurves.get(he)) {
-                        return None;
-                    }
-                }
-            }
-        }
-    }
-    acc.finish(major, minor)
+    crate::boolean::boxes::torus_chart_window(
+        crate::boolean::boxes::face_window_steps(body, f)?,
+        major,
+        minor,
+    )
 }
 
 /// The face boundary's AXIAL range about `(origin, axis)` — the

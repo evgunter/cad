@@ -1,7 +1,7 @@
 ---
 id: torus-operand-boxes-span-whole-ring
 kind: unit
-title: Torus operand boxes span the whole ring: tighten to the trimmed arc (a boundary-tight box retires lily wall 1 with no declaration at all)
+title: Torus operand boxes span the whole ring: tighten to the trimmed arc (the box RE-AIMS lily wall 1 onto the weld pair; only the gate admission can retire it)
 status: review
 opened: 2026-09-01
 github: 1488
