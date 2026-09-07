@@ -430,3 +430,39 @@ fn r1_rule_a_over_odd_powers_and_in_the_denominator() {
         "1/sqrt(0): {den_at_zero}"
     );
 }
+
+// ---------------------- Q5: the header's own documented limits
+
+/// **THE HEADER'S "DOCUMENTED LIMITS" PARAGRAPH IS NOW FALSE FOR THE
+/// SHIPPED SET.** `sym.rs`'s header still says, of the DEFAULT tier,
+/// that "`sin² + cos² − 1` does not decide symbolically, `sqrt(x)·sqrt(x)
+/// − x` does not" — written when `sqrt_square`, `pythagoras` and
+/// `early_ab` were all dial-off. `SymRules::shipped()` turns all three
+/// on, and both decide as THEOREMS. Only the third sentence of that
+/// paragraph (`|x| − x` on a nonnegative `x`, which is rule C's) still
+/// holds.
+#[test]
+fn r1_two_of_the_headers_documented_limits_no_longer_hold() {
+    let sqrt_square = how(|| {
+        let x = over("x", 0.5, 1.5);
+        x.sqrt() * x.sqrt() - x
+    });
+    let pythagoras = how(|| {
+        let t = over("t", 0.3, 0.7);
+        t.sin() * t.sin() + t.cos() * t.cos() - Sym::from_f64(1.0)
+    });
+    let abs_of_nonneg = how(|| {
+        let x = over("x", 0.5, 1.5);
+        x.abs() - x
+    });
+    println!(
+        "R1: sqrt(x)*sqrt(x) - x => {sqrt_square}; sin^2+cos^2-1 => {pythagoras}; \
+         |x| - x on x > 0 => {abs_of_nonneg} (the header says all three do NOT decide)"
+    );
+    assert_eq!(sqrt_square, "theorem", "the header says this does not decide");
+    assert_eq!(pythagoras, "theorem", "the header says this does not decide");
+    assert_ne!(
+        abs_of_nonneg, "theorem",
+        "rule C is dial-off, so this one still stands"
+    );
+}
