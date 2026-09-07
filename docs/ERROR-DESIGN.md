@@ -645,6 +645,26 @@ number.
   (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`). No
   form-level axiom store was built, and the reason is this clause.
 
+  **The form-level mechanism is ALGEBRA, not registration (M10-10,
+  2026-09-07).** The two spellings of an arc meet once their trig is
+  written in closed form: rule D (`geom_core::sym::SymRules::trig_of_atan`)
+  rewrites `sin`/`cos` of `q · atan(X)` to rational functions of `X`
+  and the atom `sqrt(1 + X²)` — multiples by angle addition, halves on
+  the positive branch, which the RANGE of `atan` fixes and no value
+  reads — and rules A/B per node close the ring. Three of the plate's
+  four identity residuals go (two as theorems, the scaffold residual
+  through the door at every sample, since the rim identity the
+  registrant states is what closes it); the fourth is the chart's own
+  phase, `atan2(0, ‖a_r‖)` from the cylinder chart derivation, zero
+  because `‖a_r‖ > 0` — a sign, which is rule C's kind or the chart
+  derivation's to state structurally
+  (`work/m10/pcurve-chart-phase-is-atan2-of-the-start-radial`). The
+  plate's ceiling moves from `7.81e2 · ε` to `1.25e3 · ε` and is
+  bounded by that one residual at every ε row; with it passed the
+  plate certifies 0.24–0.26 of its REAL study and the first refusal
+  beyond is the assertion's own margin. The exit condition is one named
+  residual away.
+
 Rationale: the driver's job is to certify over the STUDY's box; a
 certifier that can only certify boxes narrower than its own ε is
 correct and useless, and the honest state M10-3 pinned was never the

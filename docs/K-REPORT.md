@@ -2019,3 +2019,73 @@ hosted log in the PR body; the `registered` column is non-zero there
 and zero on every straight-walled fixture, which is the same fact the
 inertness pin makes locally
 (`m10_9_pins_interval::m10_9_the_door_is_inert_on_straight_geometry`).
+
+## M10-10 addendum (2026-09-07): the form-level algebra — no new token, `symbolic_zero` moves
+
+M10-10 shipped the form-level mechanism M10-9's measurement owed: rule
+D (`geom_core::sym::SymRules::trig_of_atan`) — `sin`/`cos` of
+`q · atan(X)` rewritten to closed forms in `X` and `sqrt(1 + X²)`,
+multiples by angle addition, halves on the positive branch, which the
+range of `atan` fixes — with rules A/B per node made affordable (a
+linear substitution over one common denominator, a step cap and a size
+cap) and the zero normalization the reduction needs (`0/d + x = x`).
+Every zero these reach is an unconditional THEOREM: no value read, no
+axiom. So there is **no new token**: a rule-D zero counts in
+`symbolic_zero`, and the K vocabulary is the eight tokens it was.
+
+### What it moved in the population
+
+At the two-hole plate's nominal, theorem/gated/registered/numeric,
+algebra off (M10-9's tier) → on: `carrier_on_surface_2` 108/0/0/72 →
+180/0/0/0 and `witness_on_surface_2` 12/0/0/8 → 20/0/0/0 — theorems;
+`carrier_matches_mapped_source` 180/0/8/64 → 180/0/72/0 — every
+sample through the door, because rule D makes the two spellings' trig
+meet and the rim identity the registrant states is what closes it, so
+the count is `registered` (necessity, as M10-9 defined it, and this is
+what necessity looks like when the algebra reaches further than the
+door alone). `pcurve_map_residual` stays 0/0/0/36: the chart's phase
+`atan2(0, ‖a_r‖)`, a sign no value-free rule reads
+(`work/m10/pcurve-chart-phase-is-atan2-of-the-start-radial`).
+
+### The ceilings
+
+Measured at ε = 1e-6, 1e-9 and 1e-12 as the over-band set at
+ceiling + δ (`m10_10_pins_interval`, both bracket ends asserted):
+
+| document | M10-9 | M10-10 | over the band at ceiling + δ |
+| --- | --- | --- | --- |
+| two-hole plate | `[7.811e2, 7.814e2] · ε` | `[1.2496e3, 1.2506e3] · ε` | `pcurve_map_residual` `[0, 1.0004 · ε]` |
+| R1 annulus | `[7.805e2, 7.810e2] · ε` | `[1.2455e3, 1.2470e3] · ε` | `pcurve_map_residual` `[0, 1.0002 · ε]` |
+| R2 link | `[4.930e2, 4.934e2] · ε` | unmoved | `carrier_matches_mapped_source` `[0, 1.0004 · ε]` |
+| R2 filleted bracket | `[3.871e2, 3.873e2] · ε` | `[3.870e2, 3.874e2] · ε` (unmoved) | `carrier_matches_mapped_source` `[0, 1.0003 · ε]` |
+| R2 rounded pad | `[2.083e3, 2.084e3] · ε` | `[2.4990e3, 2.5010e3] · ε` | `line_span` `[−1.0005 · ε, 1.0005 · ε]` |
+
+Every ceiling still scales with ε — each is bounded by an identity
+residual. With `pcurve_map_residual` passed by the staged dial the
+plate certifies 0.2368, 0.2630 and 0.2631 of its REAL study at the
+three rows and the first refusal beyond is `assert_bound` — a real
+margin, at `1e-12` a genuine flip (`[−4.1e-8, 2.0e-4]`): the ceiling
+stops scaling with ε there, one named residual away.
+
+### The driver row
+
+`m10_3_driver_k_probe_interval`'s `two_hole_plate_narrow` is
+re-scaled to `1.6e3 · ε` (just above the new ceiling, so the driver
+still splits once). Local driver K row, the sweep's own configuration
+(`--features probe,interval`, dev profile, three ε rows, `k-lint
+--gate-rule-1-only`): per file `75836 samples (48842 symbolic_zero, 0
+sign_gated, 208 registered, 26786 classified)`, rule 1 `0` at every
+row; `TOTAL over 3 file(s): 227508 samples (146526 symbolic_zero, 0
+sign_gated, 624 registered, 80358 classified), rule 1 (undecided/invalid)
+0`. Against M10-9's 48,682 `symbolic_zero` per CSV that is +160 per
+row; the hosted log's lines are quoted in the PR body.
+
+### The stackup hull pads by the leaf
+
+A stronger tier certifies a study in fewer, wider leaves, and the
+certified worst-case hull's dependency padding is proportional to the
+leaf's width: the plate's `ε/8` stackup certifies in 4 leaves instead
+of 16 and its hull padding is `4 · half` instead of `2 · half`; the
+bore/pin fit's in 2 instead of 4, `2 · half` instead of `1 · half`.
+Sound (every hull still encloses the true range), looser, and filed
+with what is owed (`work/m10/certified-hull-padding-is-the-leaf-width-not-the-lane`).

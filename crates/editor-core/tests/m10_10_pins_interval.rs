@@ -46,6 +46,15 @@ use crate::m10_8_harness::{certifies_whole, nominal_box, over_band_set};
 /// certifies whole and one that refuses, both asserted.
 type Bracketed<'a> = (&'static str, f64, f64, &'a dyn Fn(f64) -> ProfileDoc);
 
+/// A named study at the refusing end of its bracket, with the
+/// over-band set expected there.
+type Bounded<'a> = (
+    &'static str,
+    f64,
+    &'a [&'a str],
+    &'a dyn Fn(f64) -> ProfileDoc,
+);
+
 /// **The shipped set carries the algebra, and the algebra is the only
 /// difference from M10-9's set.**
 #[test]
@@ -220,7 +229,7 @@ fn m10_10_the_ceilings_under_the_shipped_set_are_the_measured_brackets() {
 fn m10_10_the_bound_at_ceiling_plus_delta_is_named_per_document() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    let docs: [(&str, f64, &[&str], &dyn Fn(f64) -> ProfileDoc); 3] = [
+    let docs: [Bounded<'_>; 3] = [
         (
             "two_hole_plate",
             1.2506e3,

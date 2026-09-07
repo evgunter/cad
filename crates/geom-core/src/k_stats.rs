@@ -211,13 +211,15 @@ fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign
 /// it is the one thing this funnel must never do in a run that decides
 /// anything: it lets a document be driven AS IF a named identity
 /// residual were discharged, so "what would bound this document next"
-/// is a measurement instead of a guess. It walks the two-hole plate
+/// is a measurement instead of a guess. It walked the two-hole plate
 /// from `7.812e2 · ε` to `2.630e8 · ε` — four identity residuals, of
-/// which the first three are worth 2× between them and the fourth is
-/// worth 1.68·10⁵×, and then a REAL assertion margin. That shape is
-/// the finding that says what the next unit is: a per-identity door
-/// can only ever be on the 2× side of that cliff
-/// (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`).
+/// which the first three were worth 2× between them and the fourth
+/// 1.68·10⁵×, and then a REAL assertion margin
+/// (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`); with the
+/// form-level algebra three of the four are discharged and the walk is
+/// one residual long: the chart's phase, from `1.25e3 · ε` to 0.24–0.26
+/// of the real study at every ε row
+/// (`work/m10/pcurve-chart-phase-is-atan2-of-the-start-radial`).
 ///
 /// Process-global and empty by default. An evidence row sets it, reads
 /// its ceiling, and clears it; it is never set in a gating run, and

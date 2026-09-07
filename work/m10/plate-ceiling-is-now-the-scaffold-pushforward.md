@@ -149,6 +149,46 @@ decides the next unit's shape.
   against it. `work/m10/plate-ceiling-is-now-the-arc-span-identity`
   closed with A1 and stays closed.
 
+## What M10-10 measured against this table
+
+The form-level mechanism — rule D (`sin`/`cos` of `q · atan(X)` in
+closed form) with rules A/B per node made affordable, and the zero
+normalization the reduction needs — takes three of the four at once,
+read the way this row asks (the over-band set at ceiling + δ, three ε
+rows; `m10_10_pins_interval`, `m10_10_evidence_interval`):
+
+| residual | at the nominal, M10-9 → M10-10 (theorem/gated/registered/numeric) | how |
+| --- | --- | --- |
+| `carrier_matches_mapped_source` | 180/0/8/64 → 180/0/72/0 | rule D meets the two spellings' trig at every sample; the rim identity `‖q − c‖ = r` the door states closes it — `registered` |
+| `carrier_on_surface_2` | 108/0/0/72 → 180/0/0/0 | theorem: rule D with A/B per node |
+| `witness_on_surface_2` | 12/0/0/8 → 20/0/0/0 | theorem: rule D with A/B per node |
+| `pcurve_map_residual` | 0/0/0/36 → 0/0/0/36 | STANDS: the chart's phase `atan2(0, ‖a_r‖)`, a sign — `work/m10/pcurve-chart-phase-is-atan2-of-the-start-radial` |
+
+The plate's ceiling: `[1.2496e3, 1.2506e3] · ε` at all three rows
+(1.60×), bounded by `pcurve_map_residual` `[0, 1.0004 · ε]`. The
+staged walk is one residual long now: with `pcurve_map_residual`
+passed the plate certifies 0.2368 (ε = 1e-6), 0.2630 (1e-9), 0.2631
+(1e-12) of its real study and the first refusal beyond is
+`assert_bound` — `[1.0e-5, 1.9e-4]`, `[7.29e-9, 2.0e-4]`,
+`[−4.1e-8, 2.0e-4]` — a real margin, and at `1e-12` a genuine flip.
+The cliff this table predicted is real and it is where the table said.
+
+The other four documents, same instrument: R1's annulus moves with
+the plate (`[1.2455e3, 1.2470e3] · ε`, the same chart phase); R2's pad
+moves 1.20× (`[2.4990e3, 2.5010e3] · ε`) and is bounded by the
+identity-shaped `line_span`; R2's link (`[4.930e2, 4.934e2] · ε`) and
+R2's bracket (`[3.870e2, 3.874e2] · ε`) do not move and stay bounded by
+`carrier_matches_mapped_source`. Explained on the link at its ceiling
+(`m10_10_evidence_interval::m10_10_what_stands_rendered`): the
+pushforward's component is a 3-term form and the carrier's is a
+1,020-term form over a 66-term denominator — its frame's `radial · ρ`
+alone is 150 terms of degree 15 — past the per-node reduction's size
+cap, so nothing reduces it, and the squared components freeze at the
+term budget. The trig meets; the frame does not fit. The second
+option above — retiring the scaffold residual for
+arc carriers — is still PCURVE/D3's, and after M10-10 it is what the
+link and the bracket wait on.
+
 ## Two notes carried from review
 
 - The ring table (§4 of the PR) closes

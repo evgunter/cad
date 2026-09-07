@@ -11,38 +11,40 @@
 //! **Stop 1 is what a user gets today, and E12 moved WHY.** ±0.05 mm
 //! on the hole spacing and σ = 0.01 mm on each radius — a real study —
 //! and the answer is still `NothingCertified`. What changed is the
-//! reason, and it is now a single named family rather than "every
+//! reason, and it is now ONE named residual rather than "every
 //! certification identity widens".
 //!
 //! The symbolic identity tier (`geom_core::sym`, ERROR-DESIGN E12)
 //! discharges a margin whose expression is identically zero in the
-//! parameters, at any box width. On this plate it discharges most of
-//! them — the drive's own receipt says how many — and the box still
-//! refuses on ONE: an arc rim's endpoint pinning. A swept arc's carrier
-//! is `Circle { u_ref: (q − c).normalize(), radius: r }`, so the
-//! endpoint residual is zero iff `‖q − c‖ = r`, whose normal form is an
-//! outer `sqrt` over nested `sqrt(…)²` atoms that no shipped rule
-//! reaches. M10-9 gave the tier a door for exactly that residual — a
-//! constructor can REGISTER an identity it guarantees — and the swept
-//! arc carrier's builder registers both of the ones it guarantees: the
-//! rim `‖q − c‖ = r` and the span `carrier.eval(param_end) = q_to`.
-//! BOTH endpoint pinnings are discharged on this plate (16 of 16
-//! numeric decisions each, at the nominal). The ceiling did not move —
-//! and neither did what BOUNDS it. MEASURED: the widest box of this
-//! plate that certifies whole is `7.81e2 · ε` of the real study
-//! (`7.81e-7` at the default ε) under M10-7's tier, M10-8's shipped
-//! tier and M10-9's door alike; and just past it exactly one predicate
-//! is over the band, door open and door SHUT alike —
-//! `carrier_matches_mapped_source`, the carrier against the scaffold
-//! pushforward, enclosure `[0, 1.0001e-9]` against a band of
-//! `zero = 1e-9`. Two independently built objects, which is not
-//! something a node alias reaches. So the identities the door
-//! discharges were never what bounded this plate. On a
-//! straight-walled
-//! extrude, where no normalization stands between a carrier and its
-//! endpoint, the same measurement moves by a factor of about 3.9·10^9
-//! (at the default ε; the slab's ceiling is ε-dependent and the factor
-//! with it).
+//! parameters, at any box width. On this plate it discharges all but
+//! one of them. The arc family took three units: M10-9's door lets
+//! the swept arc carrier's builder REGISTER the two identities it
+//! guarantees (the rim `‖q − c‖ = r` and the span
+//! `carrier.eval(param_end) = q_to`), and both endpoint pinnings go
+//! (16 of 16 each at the nominal); M10-10's form-level algebra writes
+//! the arc's trig in closed form — `sin`/`cos` of `q · atan(bulge)` as
+//! rational functions of the bulge and `sqrt(1 + bulge²)`, a theorem
+//! of the reals with no value read — and rules A/B per node close the
+//! ring, so the carrier against its scaffold pushforward
+//! (`carrier_matches_mapped_source`, 72 decisions), the cylinder
+//! residual at the carrier's samples (`carrier_on_surface_2`, 72) and
+//! at the strut witness (`witness_on_surface_2`, 8) all go too.
+//! MEASURED: the widest box of this plate that certifies whole is
+//! `1.25e3 · ε` of the real study (`1.25e-6` at the default ε), up from
+//! `7.81e2 · ε` under M10-7's, M10-8's and M10-9's tiers alike; and
+//! just past it exactly one predicate is over the band —
+//! `pcurve_map_residual`, enclosure `[0, 1.0001e-9]` against a band of
+//! `zero = 1e-9`: the chart's own phase, `atan2(0, ‖a_r‖)` from the
+//! cylinder chart derivation, which is zero because `‖a_r‖ > 0` and
+//! which no value-free rule can say. With that one residual passed
+//! (the staged dial, evidence-only) the plate certifies 0.24–0.26 of
+//! this very study at every ε row and the next refusal is the
+//! assertion's own margin — a real one. So the exit condition is one
+//! named residual away (`work/m10/pcurve-chart-phase-is-atan2-of-the-start-radial`).
+//! On a straight-walled extrude, where no normalization stands between
+//! a carrier and its endpoint, the same measurement moves by a factor
+//! of about 2.4·10^9 (at the default ε; the slab's ceiling is
+//! ε-dependent and the factor with it).
 //!
 //! **And the family is wider than this plate's rim — and M10-8 moved
 //! part of it.** M10-7's two reviews took the tier to a filleted
@@ -62,9 +64,9 @@
 //! carries what bounds it next, with numbers.
 //!
 //! So the ε-scale ceiling is not gone from THIS document, and the cell
-//! says so rather than reporting a win it did not get. E12's reserved
-//! recourse for exactly this family is a provenance token; it is not
-//! built. The refusal is not silence either way: it carries the
+//! says so rather than reporting a win it did not get: one identity
+//! residual, named, stands between this study and a certified answer.
+//! The refusal is not silence either way: it carries the
 //! nominal, every sensitivity marked `LocalOnly`, the coverage saying
 //! where the mass went, and the drive's receipt. Beside it the
 //! Monte-Carlo lane answers the same question the only way anything can
@@ -437,29 +439,29 @@ fn real_study(tol: Tol) {
             );
             println!("{}", indent(&MassBudget::of(&coverage, &analyzed).render()));
             println!(
-                "     WHY: the symbolic identity tier (E12) discharges most of this \
-                 plate's certification identities, and one it cannot reach — an arc \
-                 rim's endpoint pinning, whose residual is zero because ‖q − c‖ = r \
-                 rather than by algebra — still widens with the box. At ±0.05 mm no \
-                 leaf replays. MEASURED: the widest whole-certifying box is 7.81e2·ε of \
-                 this study (7.81e-7 at the default ε), the same under M10-7's tier, \
-                 under M10-8's shipped one and under M10-9's registered-identity door; \
-                 on a straight-walled extrude the same measurement moves by ~3.9e9. \
-                 WIDER than this plate, M10-8 moved the family: its constant fold lifts \
-                 a filleted L-bracket with bores from 3.7e1·ε to 3.9e2·ε (10.4x) and an \
-                 annulus from 2.0e1·ε to 7.8e2·ε (39x), and a ±0.1 study on a stepped \
-                 shaft certifies whole. M10-9 then DISCHARGED both of this plate's \
-                 endpoint identities outright — the swept arc carrier's builder \
-                 registers the rim ‖q − c‖ = r and the span carrier.eval(4·atan|b|) = \
-                 q_to, and carrier_endpoint_start and _end each go 16-of-16 from \
-                 numeric to registered at the nominal — and the ceiling still did not \
-                 move. Nor did the bound: just past the ceiling exactly one predicate \
-                 is over the band with the door open and with it SHUT, \
-                 carrier_matches_mapped_source, the carrier against the scaffold \
-                 pushforward, enclosure [0, 1.0001e-9] against a band of zero = 1e-9. \
-                 An identity between two INDEPENDENTLY BUILT objects, which a \
-                 node-aliasing door does not reach; filed as \
-                 work/m10/plate-ceiling-is-now-the-scaffold-pushforward."
+                "     WHY: the symbolic identity tier (E12) discharges all but ONE of \
+                 this plate's certification identities, and that one still widens \
+                 with the box. At ±0.05 mm no leaf replays. MEASURED: the widest \
+                 whole-certifying box is 1.25e3·ε of this study (1.25e-6 at the \
+                 default ε), up from 7.81e2·ε under M10-7's, M10-8's and M10-9's tiers \
+                 alike; on a straight-walled extrude the same measurement moves by \
+                 ~2.4e9. What moved it: M10-9's door lets the swept arc carrier's \
+                 builder register the rim ‖q − c‖ = r and the span \
+                 carrier.eval(4·atan|b|) = q_to (both endpoint pinnings go, 16-of-16 \
+                 each at the nominal), and M10-10's form-level algebra writes the arc's \
+                 sin/cos of q·atan(bulge) in closed form — a theorem of the reals, no \
+                 value read — so the carrier against its scaffold pushforward \
+                 (carrier_matches_mapped_source, 72 decisions, through the door), the \
+                 cylinder residual at the carrier's samples (carrier_on_surface_2, 72) \
+                 and at the strut witness (witness_on_surface_2, 8) all go. What \
+                 bounds it now: just past the ceiling exactly one predicate is over \
+                 the band, pcurve_map_residual, enclosure [0, 1.0001e-9] against a \
+                 band of zero = 1e-9 — the chart's phase atan2(0, ‖a_r‖) from the \
+                 cylinder chart derivation, zero because ‖a_r‖ > 0, which no \
+                 value-free rule can say. With that one residual passed (the staged \
+                 dial, evidence-only) this plate certifies 0.24–0.26 of THIS study at \
+                 every ε row and the next refusal is the assertion's own real margin; \
+                 filed as work/m10/pcurve-chart-phase-is-atan2-of-the-start-radial."
             );
         }
         Err(other) => panic!("unexpected stackup refusal: {other}"),

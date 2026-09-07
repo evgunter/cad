@@ -50,7 +50,7 @@
 //!
 //! Only an argument whose form is EXACTLY `q · A` — one term, the
 //! indeterminate `A` an `atan` atom to the first power, the coefficient
-//! `q = k / 2ᵐ` with `|k| ≤` [`MAX_MULTIPLE`] and `m ≤` [`MAX_HALVINGS`]
+//! `q = k / 2ᵐ` with `|k| ≤ MAX_MULTIPLE` and `m ≤ MAX_HALVINGS`
 //! — and nothing else: an `atan2` atom (a different op), `q·atan(X) +
 //! c` (two terms), `atan(X)·atan(Y)` (degree two), a non-dyadic `q`
 //! (`atan(X)/3` has no closed form this module states), or an atom
