@@ -846,16 +846,24 @@ pub fn wall_probes<S: Scalar + CertifiedBounds>(tol: Tol) {
         "cut the flare where the descending neck passes through it",
         pncad::topo::subtract(&bulb_body, &into, tol),
         |e| {
-            // Reviewer pin (r1 probes): finding 4 claims this pair is
-            // (Torus, Torus), and the matcher below pins BOTH kinds as
-            // well as the op — so the claim and the probe say the same
-            // thing, and a pair that changed kind reds here.
+            // The matcher pins BOTH kinds as well as the op, so a pair
+            // that changed kind reds here.
+            //
+            // The pair is (Cone, Plane) — the flare against a planar
+            // face of the descending neck — and not the two tube walls
+            // it used to be. Nothing about the flare moved: the bulb's
+            // torus wall is now boxed by the chart window its own
+            // boundary states rather than as its whole ring, so the
+            // wall no longer reaches the neck at all and the first
+            // overlapping pair in arena order is an earlier one. The
+            // refusal is still the operand gate's, and a SUBTRACT's
+            // revert roster has no covered rung whatever the pair.
             matches!(
                 e,
                 BooleanError::CurvedPairUnsupported {
                     op: Some(BooleanOp::Subtract),
-                    kind: SurfaceKind::Torus,
-                    other_kind: SurfaceKind::Torus,
+                    kind: SurfaceKind::Cone,
+                    other_kind: SurfaceKind::Plane,
                     ..
                 }
             )
@@ -1128,12 +1136,13 @@ mod verbs_gate_r1_probes {
                 trimmed,
                 BooleanError::CurvedPairUnsupported {
                     op: Some(BooleanOp::Subtract),
-                    kind: SurfaceKind::Torus,
-                    other_kind: SurfaceKind::Torus,
+                    kind: SurfaceKind::Cone,
+                    other_kind: SurfaceKind::Plane,
                     ..
                 }
             ),
-            "wall 4 must name the bulb's tube wall against the neck's: {trimmed:?}"
+            "wall 4 must name the flare against a planar face of the neck — the \
+             tube walls no longer reach each other's boxes: {trimmed:?}"
         );
     }
 }

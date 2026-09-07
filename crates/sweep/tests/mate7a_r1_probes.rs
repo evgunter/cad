@@ -157,17 +157,21 @@ fn dist_to_stem_center_arc(p: Point3<f64>) -> f64 {
     (p - on).norm()
 }
 
-/// P1 — the HEADLINE measurement, re-taken from scratch. PR #1477's
-/// deviation 1 claims: (a) the wall-1 refusal names the stem's tube
-/// wall against the arch's FAR cap; (b) those two exact loci never
-/// come within ~2 m of each other; (c) what overlaps is the stem
-/// wall's WHOLE-TORUS box (a 22° arc boxed as the full ring); (d) the
-/// weld has no torus×torus contact to declare (tube 0.060 vs 0.052 —
-/// the walls share only the weld plane). All four are re-derived here
-/// with no `if let` skip-hazard: the far cap MUST exist and MUST be
-/// the named face.
+/// P1 — the HEADLINE measurement, re-taken from scratch.
+///
+/// PR #1477's deviation 1 measured the wall-1 refusal as the stem's
+/// tube wall against the arch's FAR cap, 2.08 m from any contact,
+/// overlapping only because the wall's box was the WHOLE RING. The
+/// ring box is gone (`boolean::boxes`'s `TorusWindow` arm), so what
+/// this row re-derives now is: (a) the refusal names the stem's tube
+/// wall against the arch's WELD cap; (b) the far cap is no longer
+/// inside the wall's box at all; (c) the named pair is a real
+/// approach at the weld's 8 mm annular gap; (d) the weld still has no
+/// torus×torus contact to declare (tube 0.060 vs 0.052 — the walls
+/// share only the weld plane). No `if let` skip-hazard: the far cap
+/// MUST exist and MUST NOT be the named face.
 #[test]
-fn p1_wall1_named_pair_is_a_whole_torus_box_artifact_two_metres_from_contact() {
+fn p1_wall1_named_pair_is_the_welds_annular_gap_not_the_far_cap() {
     let (s, a) = (stem(), arch());
     let (decls, pairs) = weld_declarations(&s, &a);
     assert_eq!(pairs, 1, "exactly one coplanar cross cap pair at the fork");
@@ -190,8 +194,9 @@ fn p1_wall1_named_pair_is_a_whole_torus_box_artifact_two_metres_from_contact() {
         "the named A face is the stem's tube wall"
     );
 
-    // (a) The named plane is the arch's FAR cap — no `if let` escape:
-    // the far cap must exist, and must be the named face.
+    // (a) The named plane is the arch's WELD cap, not its far one —
+    // no `if let` escape: the far cap must exist, and must not be the
+    // named face.
     let frame = arch_frame();
     let far_cap = plane_faces(&a)
         .into_iter()
@@ -201,15 +206,24 @@ fn p1_wall1_named_pair_is_a_whole_torus_box_artifact_two_metres_from_contact() {
         (far_cap.1 - frame.far).norm() < 1e-9,
         "that cap sits at the turtle math's arch end point"
     );
-    assert_eq!(
+    assert_ne!(
         other_face, far_cap.0,
-        "the gate names the stem wall against the arch's FAR cap"
+        "the whole-ring box artifact is gone: the gate must no longer name the FAR cap"
+    );
+    let weld_cap = plane_faces(&a)
+        .into_iter()
+        .find(|&(_, o, _)| (o - frame.fork).norm() < 1e-9)
+        .expect("the arch has a cap at the fork — the weld disc");
+    assert_eq!(
+        other_face, weld_cap.0,
+        "the gate names the stem wall against the arch's WELD cap"
     );
 
-    // (b) The exact loci never approach: every point of the far cap's
-    // disc is more than 1.9 m from the stem's windowed tube wall.
-    // Lower bound: distance to the tube-CENTRE arc minus the tube
-    // radius, taken over a dense disc sampling.
+    // (b) The far cap's loci still never approach — every point of its
+    // disc is more than 1.9 m from the stem's windowed tube wall — and
+    // THAT is now why it is not the named pair. Lower bound: distance
+    // to the tube-CENTRE arc minus the tube radius, over a dense disc
+    // sampling.
     let (e1, e2) = {
         let n = (frame.far - frame.center).cross(Vec3::new(0.0, 1.0, 0.0));
         // The cap plane contains ±y and the in-plane direction
@@ -233,9 +247,10 @@ fn p1_wall1_named_pair_is_a_whole_torus_box_artifact_two_metres_from_contact() {
          measured lower bound {min_lb:.3} m"
     );
 
-    // (c) The whole-torus box artifact: the far cap's CENTRE sits
-    // inside the stem wall's whole-ring box, while a boundary-tight
-    // box of the 22° arc tube would clear it by more than 1.5 m in x.
+    // (c) The box that used to reach the far cap, and the one that
+    // does not. The far cap's CENTRE still sits inside the WHOLE-RING
+    // box the wall used to get; it stands more than 1.5 m clear of the
+    // window box the wall gets now, in x.
     let whole = (
         (-2.0 * STEM_RING - STEM_TUBE, STEM_TUBE),
         (-STEM_TUBE, STEM_TUBE),
@@ -254,8 +269,8 @@ fn p1_wall1_named_pair_is_a_whole_torus_box_artifact_two_metres_from_contact() {
     let tight_min_x = -STEM_RING + STEM_RING * deg(22.0).cos() - STEM_TUBE;
     assert!(
         q.x < tight_min_x - 1.5,
-        "a boundary-tight box of the 22° arc (min x {tight_min_x:.3}) would clear the \
-         far cap (x {:.3}) by more than 1.5 m",
+        "the window box of the 22° arc (min x {tight_min_x:.3}) clears the far cap \
+         (x {:.3}) by more than 1.5 m",
         q.x
     );
 
