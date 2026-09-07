@@ -1,5 +1,5 @@
-//! **The flush detector at the body seat** (`docs/VERB-SEAT-DESIGN.md`
-//! §1 S3; `docs/SELECT-DESIGN.md` §3) — the detect half of the
+//! **The flush detector at the body seat** (VERB-SEAT-DESIGN §1 S3,
+//! `crates/verbs/README.md`; `docs/SELECT-DESIGN.md` §3) — the detect half of the
 //! detect/declare protocol as a pure function of two [`Body`]s, and
 //! the [`BooleanDeclarations`] sugar beside it.
 //!

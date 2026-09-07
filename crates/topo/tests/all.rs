@@ -212,6 +212,8 @@ mod shell_roles;
 mod shell_tolerance_chain;
 #[path = "solid_separation.rs"]
 mod solid_separation;
+#[path = "trim_3_chart_bound.rs"]
+mod trim_3_chart_bound;
 #[path = "void_door.rs"]
 mod void_door;
 

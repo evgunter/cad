@@ -605,7 +605,8 @@ fn a_non_rigid_preview_refuses_typed() {
     }
     // A rotation IS admitted (the probe is any rigid motion).
     let outcome = session.perform(SessionOp::PreviewFreeMove {
-        frame: Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.5, [0.01, 0.0, 0.0]),
+        frame: Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.5, [0.01, 0.0, 0.0], common::band())
+            .expect("a literal axis has a definite direction"),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
 }

@@ -1,4 +1,4 @@
-//! **The kernel query seat** (`docs/VERB-SEAT-DESIGN.md` §1) — the
+//! **The kernel query seat** (VERB-SEAT-DESIGN §1, `crates/verbs/README.md`) — the
 //! geometric half of the selection vocabulary as pure functions of a
 //! [`Body`], at the layer whose types they serve.
 //!
@@ -312,12 +312,12 @@ pub fn edge_carrier_kind<T: Real>(body: &Body<T>, e: EdgeKey) -> Option<CurveKin
 }
 
 /// The surface kind of a face, or `None` for a dangling key or an
-/// unreadable surface reference.
+/// unreadable surface reference: the flattening of the typed readback
+/// door [`crate::readback::face_carrier_kind`], which is the one
+/// reading of a face's carrier tag.
 #[must_use]
 pub fn face_surface_kind<T: Real>(body: &Body<T>, f: FaceKey) -> Option<SurfaceKind> {
-    body.get_face(f)
-        .and_then(|face| body.get_surface(face.surface))
-        .map(SurfaceKind::of)
+    crate::readback::face_carrier_kind(body, f).ok()
 }
 
 /// The surface kind on one side of an edge, or `None` where the
@@ -325,8 +325,7 @@ pub fn face_surface_kind<T: Real>(body: &Body<T>, f: FaceKey) -> Option<SurfaceK
 fn face_kind_across<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<SurfaceKind> {
     let h = body.get_half_edge(he)?;
     let f = body.get_loop(h.parent_loop)?.face;
-    body.get_surface(body.get_face(f)?.surface)
-        .map(SurfaceKind::of)
+    face_surface_kind(body, f)
 }
 
 /// EXACT: whether the edge's certified carrier kind is a member of
@@ -497,12 +496,12 @@ impl std::error::Error for UnitVec3Error {}
 ///   predicate at all: `profile` depends on `geom-core` alone and
 ///   this crate sits above it.
 ///
-/// Two further sites normalize without deciding at all, which is a
+/// One further site normalizes without deciding at all, which is a
 /// different shape and the declined half of the direction family:
-/// `editor-core`'s `Frame::rotate_then_translate` (asks nothing;
-/// refused downstream on the non-finite frame it builds) and its
-/// `clearance::chart_frame` (a bracket read of the normalized
-/// OUTPUT).
+/// `editor-core`'s `clearance::chart_frame` (a bracket read of the
+/// normalized OUTPUT). Its `Frame::rotate_then_translate` used to be
+/// the other; it decides here now, under its own role word, and
+/// refuses on the AXIS rather than downstream on the frame it built.
 pub fn is_finite_length<T: Real>(x: T) -> bool {
     #[allow(clippy::eq_op)]
     let residual = x - x;

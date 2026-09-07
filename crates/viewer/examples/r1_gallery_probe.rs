@@ -34,7 +34,8 @@ fn index_triangles(session: &viewer::session::DocSession) -> Option<usize> {
     let (doc, eval) = session.landed_pair()?;
     let generation = session.landed_generation()?;
     let delta = viewer::scene::DisplayTolerance::new(1.0e-3).ok()?;
-    let index = viewer::pick::PickIndex::build(doc, eval, generation, delta, session.tol()).ok()?;
+    let index =
+        viewer::pickindex::PickIndex::build(doc, eval, generation, delta, session.tol()).ok()?;
     Some(
         index
             .scene_for(&session.display_view())
@@ -49,7 +50,8 @@ fn probe_parts(session: &viewer::session::DocSession) -> Option<usize> {
     let (doc, eval) = session.landed_pair()?;
     let generation = session.landed_generation()?;
     let delta = viewer::scene::DisplayTolerance::new(1.0e-3).ok()?;
-    let index = viewer::pick::PickIndex::build(doc, eval, generation, delta, session.tol()).ok()?;
+    let index =
+        viewer::pickindex::PickIndex::build(doc, eval, generation, delta, session.tol()).ok()?;
     Some(
         index
             .scene_for(&session.display_view())

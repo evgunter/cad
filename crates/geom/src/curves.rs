@@ -287,6 +287,36 @@ impl<T: Decide> Curve3<T> {
     }
 }
 
+impl<T: Real> Curve3<T> {
+    /// **A circle carrier's point at parameter `t`**, as
+    /// [`Curve3::eval`] builds it — `(s, c) = t.sin_cos()`,
+    /// `radial = u_ref·c + v_ref·s` with `v_ref = axis × u_ref`, result
+    /// `center + radial·radius`, exactly as parenthesized (D9).
+    ///
+    /// It is a door rather than a copy: `eval`'s `Circle` arm CALLS
+    /// this, so there is one expression and a caller that builds a
+    /// point here builds the very node `eval` would. That is what
+    /// `sweep::swept::register_span_identity` rests on — node ids are
+    /// content hashes, so "the constructor states the identity about
+    /// the node the certifier will ask about" is a fact of this
+    /// delegation and not a transcription anyone has to keep in step.
+    ///
+    /// Its own bound is [`Real`] alone, and that is the point:
+    /// `eval` carries [`SpanLocate`] for its `Nurbs` arm's sealed span
+    /// selection, and evaluation-code discipline forbids a generic
+    /// caller from carrying a second bound beside `Real` to reach it.
+    pub fn circle_at(
+        center: Point3<T>,
+        axis: Vec3<T>,
+        radius: T,
+        u_ref: Vec3<T>,
+        t: T,
+    ) -> Point3<T> {
+        let radial = azimuth::frame(axis, u_ref, t).radial.0;
+        center + radial * radius
+    }
+}
+
 impl<T: SpanLocate> Curve3<T> {
     /// The point at parameter `t` (see the variant docs for each
     /// parameterization; the crate docs for units and periodicity).
@@ -311,10 +341,7 @@ impl<T: SpanLocate> Curve3<T> {
                 axis,
                 radius,
                 u_ref,
-            } => {
-                let radial = azimuth::frame(*axis, *u_ref, t).radial.0;
-                *center + radial * *radius
-            }
+            } => Self::circle_at(*center, *axis, *radius, *u_ref, t),
             Curve3::Ellipse {
                 center,
                 axis,

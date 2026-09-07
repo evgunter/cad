@@ -6,6 +6,7 @@ status: closed
 opened: 2026-09-04
 closed: 2026-09-05
 refs: [camera-fold-clears-status-line, status-line-writers-bypass-the-ranking, opoutcome-superseded-has-no-production-reader]
+branch: view/news-and-badges
 ---
 
 ## The gap

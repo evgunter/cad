@@ -263,3 +263,201 @@ names versus a tag read, and #1902's "one kernel door, callers keep
 their names" is this item's (a)). Ratified (a). The item is a unit,
 dispatched on `topo/two-homes-face-kind` as a one-door seam on SEAT's
 `query.rs`, announced; single style review, no row.
+
+## D50 delivered; style review out (2026-09-05)
+
+`topo/d50-live-guard` delivered as PR 1949, head `e69760e1`, full
+matrix green (run 33950634858). The guard is one row in `live.rs` over
+the shared `code_only` view: the declaration and `new` carry no
+visibility, every door reaches a closed lookup vocabulary before its
+first construction, and the doors and sites are pinned to the header's
+list plus the crate-wide "no other file builds one". Three mutants red
+by name. `D260` is one sentence. Two deviations: `source_walk.rs`'s
+item scan widened from `pub fn` to every named `fn` (the doors are
+`pub(crate)`), with its own row; and one `Shared` line in the reader
+census, forced by the census's own detector (S-TCOST's file — noted on
+its board at adjudication). One residue filed: the guard proves
+ordering, not that the key looked up is the key wrapped. Single style
+review dispatched on the frozen head.
+
+## D50 adjudicated (2026-09-06)
+
+Style review (single, Fable; the first attempt died on the account's
+usage limit and was relaunched fresh): MERGEABLE-AFTER-FIXES. Every
+planted mutant redded naming its door — the guard is real. Findings:
+D260's sentence claims the header names the doors (it does not); the
+PR body claims a cross-file check with `euler.rs`'s door list that the
+row does not make; one of the new scan rows cannot fail on the mutant
+it was written for; the residue's reason for declining the cheap
+argument-spelling partial was falsified by execution (green on the
+tree, red on the residue's own example) — so the partial is taken and
+the residue narrowed to the two gaps that remain (arena-blind `.get(`,
+nested items unscanned); a stale measured door count; two vocabulary
+spellings no door uses. Ten-item fix pass to the same lane. The item
+scan's missing shared home and two smaller siblings appended to the
+S-TCOST issue filed from D261's review.
+
+## Two-homes unit delivered; orchestrator meta-review (2026-09-06)
+
+PR 1959, head `c1539db5`, full matrix green: two function bodies in
+SEAT's `query.rs`, the mutant receipt showing the delegation is real
+(the door made to refuse → one `topo` row and one `sweep` row red).
+Deliberate deviation from the per-unit style-review posture, recorded:
+for a six-line delegation with an executed receipt, the orchestrator's
+own read is the review — a lane would re-derive the two disclosed
+questions and nothing else. Both questions got files: the missing
+positive row on SEAT's slate (`face-surface-kind-has-no-positive-row-in-topo`),
+the edge side's absent readback door on this one
+(`edge-carrier-kind-has-no-readback-door`). The lane's one-word
+question in `readback.rs` ("twin" → "flattening") taken
+orchestrator-direct on the branch; merges on green.
+
+## Two-homes merged (2026-09-06)
+
+PR 1959 merged at `332bc981` (green run 34014916153 on `bf42c02a`,
+full matrix). `face-kind-read-has-two-homes` closed: the predicate
+seat reads the face kind through the typed readback door and flattens;
+`readback.rs`'s doc names the query seat as its flattening. SEAT's
+`query.rs` edited by announced seam, two function bodies. Fifteen
+items remain on the slate; six closed since opening (`S330`, `S94`,
+`D261`, `D264`, this one, and `D50`/`D260` in fix pass).
+
+## D50 merged (2026-09-06)
+
+PR 1949 merged at `368089da` (green run 34015295339 on `57244699`,
+full matrix). `D50` and `D260` closed; the residue
+`live-guard-proves-ordering-not-identity` narrowed at the fix pass to
+the two gaps that survive the argument check. The ten-item fix pass
+landed whole, the cheap argument-spelling partial included; the
+reviewer's `-> Self`-in-`impl Body` mutant is now correctly green
+because the `Self` check is scoped to the `impl Live` block. One
+census line noted on S-TCOST's board. Two notes for the next briefs:
+a reviewer's probe script that ends in `git checkout --` against a
+hard-coded worktree path discarded a lane's uncommitted fix edits
+when re-run there (lanes commit before running foreign probes;
+reviewer probes must not reset files); and the lane found a stale
+count in prose ("two `macro_rules!`", it was three) — the prose now
+carries the claim without the number. Slate: thirteen open items.
+The liveness-and-generator sub-lane is empty except `D20` (queues on
+the lane budget); the reader sub-lane is `D107` only; the Euler
+sub-lane holds `S93`, `D265`, `D262`, `D263`, `S69`, the H item, the
+census door, and two residues.
+
+## Wave 3 out: D265 and S69 (2026-09-06)
+
+`D265` dispatched on `topo/d265-door-corruption-class`, spec
+`docs/TOPO-D265-SPEC.md`: the merge door's arena-fault class asks the
+enum a question ("torn?") that is not the door's ("contradicts a fact
+I established?"); two homes, the door enumerates its own. Moves a
+kernel answer (an inventory skip becomes an escape for the (C)
+variants) → block TOPO-B1 slot 1, dual at review. `S69` dispatched on
+`topo/s69-kfmrh-fusion-form`, brief in the item: the fusion branch
+generated, the ledger counting shells, the postcondition handed the
+plan's constant. Outside the experiment (generator, ledger, debug
+postcondition). Both briefs pre-log difficulty M; the D265 arm was
+known when its guess was written (block drawn 2026-09-05), disclosed
+in the spec.
+
+## The census door goes to Ev (2026-09-06)
+
+`no-public-census-or-genus-query`: recommendation (A) — a typed
+whole-body read in `readback` (`euler_counts` + `genus() -> Result`),
+shells as the shell term, parity refusing typed. Three viable shapes
+on paper; the API shape is a design question by the item's own words,
+so it goes out as an `[ev]` PR. Re-measured at 26 sites in 22 files,
+and the ledger's solids-for-shells slip (`S69`'s lane) is the row's
+cost already realised.
+
+## Census door ruled (2026-09-06)
+
+PR 2010: Ev ratified (A). `no-public-census-or-genus-query` is a unit
+in `spec`, branch `topo/census-door`, queued behind the two running
+lanes; it draws block TOPO-B1 slot 2 (a new public answer). Seams
+announced: S-TCOST for the fourteen test files; the demos' owner at
+dispatch once `paths` say who that is.
+
+## D265 delivered; dual out at ordinal 2701 (2026-09-06)
+
+`topo/d265-door-corruption-class` delivered as PR 2013, head
+`4dc616d0`, full matrix green (run 34017473814). Phase 1 found
+`merge_group` raising from eight sites, not the spec's two; fifteen
+variants can arrive — eight torn, seven contradicting a fact the door
+established, and NONE reachable on a valid body, so the door was
+recording seven kinds of kernel bug as inventory skips. Executed:
+`kef → FaceHasRings` through the public door recorded as a skip on the
+merge base, escapes at the head. `OpPlacement` is the door's own
+exhaustive classification; `Torn` delegates its verdict to the enum.
+`euler.rs` untouched; `D262`'s helpers untouched. D263 gained a
+sharper witness (the whole placeholder cube grouped as one curved
+group), recorded on its file. Dual dispatched on the frozen head:
+ordinal 2701, parity byte 229 ⇒ R1 FABLE, R2 OPUS; briefs stored with
+sha256 privately.
+
+## D265 adjudicated (2026-09-06)
+
+Both blinded reviews on frozen `4dc616d0`. R1: MERGEABLE-AFTER-FIXES,
+0/5/5, rubric 4/3/3 — re-derived all 27 variants across nine sites
+and executed six of the seven contradicted cases under both regimes.
+R2: NOT-MERGEABLE-AS-IS, 1/6/4, rubric 3/2/2 — **one unilateral
+executed MAJOR**: `kef → SameFace` is reachable on a valid body
+because the door's OWN ring drain re-homes the dying loop between the
+establishing scan and the `kef` call, so the head turns a legal
+recorded skip into a refused call (built by legal Euler operators,
+run through the public door, `Ok` on the base and `Err` at the head).
+Code class, executed, R1 never mentioned it: a tally candidate, and
+the strongest this program has produced. The lesson generalises and
+the fix pass applies it to every arm: a fact the door established is
+a fact only until the door's next mutation, so each surviving
+contradiction arm gets a re-check immediately before the operator
+call, and the classification rests on execution rather than a
+hand-derived reachability table. Convergent findings taken: the
+torn/not-raised split collapsed (void, unpinnable), the fact string
+becomes an enum, the ninth raising site, the regime asserted on a
+regime-independent fixture, the stale "no test can do this"
+sentences, the copied sample array shared from `euler.rs`, an RAII
+guard on the tear flag, the six statements of one rule reduced to a
+home. Twelve-item fix pass to the same lane; both reviewers' probes
+handed over. CURVED's spec cite relayed to its board.
+
+## S69 delivered; style review out (2026-09-06)
+
+`topo/s69-kfmrh-fusion-form` delivered as PR 2014, head `a137b800`,
+full matrix green (run 34018946634). The three defects closed: the
+fusion form enters the catalog as `OpChoice::KfmrhFuse`; the ledger's
+`s` counts shells; `kfmrh`'s postcondition takes the plan phase's
+constant. The brief's premise was wrong and the lane said so: `mfkrh`
+mints no shell ENTITY (it splits a surface), so multi-shell solids come
+only from `mvfs` and `movefac`, and `movefac` had to enter the catalog
+too for the fusion row to be drawn at all. A real finding along the
+way: the fusion form's Euler vector is `Δh = 0, Δs = −1`, not the
+same-shell form's `Δh = +1` the operator's doc asserted for both.
+Three deviations declared, three residues filed inside the fence, the
+fuzz row put on the effort dial. Single style review dispatched on
+the frozen head.
+
+## S69 adjudicated (2026-09-06)
+
+Style review (single, Fable) on frozen `a137b800`: MERGEABLE, 0/1/4.
+Every claim reproduced — the fusion vector derived by hand and by
+counts, both ledger mutants, both halves of the postcondition mutant,
+the rows drawn at the reviewer's own seeds, the re-pinned hash
+recomputed, the coverage row red without the fusion row, sixteen
+postcondition sites re-swept. Findings: the proptest residue names the
+wrong regression path and the tracked corpus is orphaned
+(pre-existing); an over-broad "only doors that mint a shell" premise
+in three places; stale "two kill sites" prose in six; the two new
+enumerators run every step where the probe slot exists for exactly
+that shape (measured +40%); a third copy of the glue relation in test
+support. Eight-item fix pass to the same lane; `fuzz::replay()`'s
+wrong seed under `pinned()` relayed to S-TCOST.
+
+## D265 merged; block TOPO-B1 slot 1 concluded (2026-09-07)
+
+PR 2013 merged at `56af92aa` (green run 34167918624 on `dc2e996e`,
+full matrix). `D265` closed; no residue rides. The A/B row is recorded
+at merge (ordinal 2701, sample #155) in `docs/MODEL-AB-LOG.md`'s TOPO
+section, with R2's unilateral executed MAJOR as the program's second
+tally candidate — and the first of code class. Block TOPO-B1's record
+on `topo/b1-block` marks slot 1 concluded; slot 2 (FABLE) is banked for
+the census door. `S69`'s fix pass, resumed after the second usage-limit
+cut, is the only lane running. Twelve items open on the slate.

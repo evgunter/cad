@@ -2,12 +2,13 @@
 id: geom-brep-test-unused-edgedescription-import
 kind: issue
 title: geom-brep test binary carries an unused EdgeDescription import visible only under --all-features
-status: review
+status: closed
 opened: 2026-09-01
 github: 1525
 refs: [1517, 1523]
 pr: 1795
 branch: ciw/all-features-clippy-row
+closed: 2026-09-06
 ---
 
 ## From GitHub issue 1525
@@ -61,3 +62,12 @@ and `viewer`'s `app` feature (~140 eframe/wgpu crates) is the term that
 decides it — `ci.yml` already treats that graph as a seed-keyed axis
 (`clippy (viewer app feature)`), so the row this item wants may want
 the same treatment rather than a flat `--all-features`.
+
+## Closed 2026-09-06
+
+PR 1795. The CI half landed as the `clippy-all-features` job
+(`.github/workflows/ci.yml:2109`), seed-keyed on the viewer axis rather than
+flat, so the class stops accumulating unseen; the four trims rode with it
+under the drive-by sentence, because the row's first run is red otherwise.
+Blind spot declared at the job and unchanged: `--all-features` is one point,
+not the powerset.
