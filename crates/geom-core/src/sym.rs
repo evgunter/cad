@@ -287,7 +287,7 @@
 //! **What it costs** (release, one whole-box leaf, algebra off → on):
 //! plate at `1e2 · ε` 0.20 s; plate at its REAL study 0.02 → 0.13 s
 //! (the affordability line is 1.6 s); bracket 0.57 → 0.64 s; annulus
-//! 0.09 → 0.18 s; pad 2.1 → 9.7 s; link 0.47 → 2.5 s. The ring stays
+//! 0.09 → 0.18 s; pad 2.1 → 10.1 s; link 0.47 → 5.2 s. The ring stays
 //! at [`COEFF_BITS`] = 256: the three residuals discharge there once
 //! the zero normalization is in, and 512 and 1024 add no discharge
 //! (measured before it: 512 moved nothing, 1024 reached two of the
@@ -1585,7 +1585,7 @@ impl SymRules {
     /// | A0 alongside (`const_fold` + `early`) | bracket 10.4×, annulus 39×, the shaft's ±0.1 study certifies whole; loses nothing | plate 0.35 → 0.65 s, bracket 1.47 → 2.7 s | **yes** |
     /// | A0 replacing (`const_fold` alone) | the same ceilings | plate 0.37 s, bracket 1.46 s | no: loses theorems to bound freezes |
     /// | the door (`registered`) | none alone; the `i = 0` sample of the scaffold residual and both endpoint pinnings | ~0 | **yes** |
-    /// | D + A/B per node (`trig_of_atan`, `early_ab`, `sqrt_square`, `pythagoras`) | plate 1.60× and annulus 1.60× (three of the plate's four identity residuals), pad 1.20× | plate 0.13 s at its real study, pad 2.1 → 9.7 s, link 0.47 → 2.5 s | **yes** |
+    /// | D + A/B per node (`trig_of_atan`, `early_ab`, `sqrt_square`, `pythagoras`) | plate 1.60× and annulus 1.60× (three of the plate's four identity residuals), pad 1.20× | plate 0.13 s at its real study, pad 2.1 → 10.1 s, link 0.47 → 5.2 s | **yes** |
     /// | C in the early walk (`signed_root`) | none; folds on no document at 256 bits | ~2× | no (inert; reads a value) |
     ///
     /// The pins in `m10_8_pins_interval.rs`, `m10_9_pins_interval.rs`
@@ -2553,7 +2553,7 @@ const EARLY_STEPS: usize = 64;
 /// is about to freeze in its next product whether or not its squares
 /// were cleared. The arc family's residuals are a handful of terms per
 /// node; this is a cost wall, not a reach.
-const EARLY_AB_TERMS: usize = 128;
+const EARLY_AB_TERMS: usize = 512;
 
 /// The early-reduced form of `root` (`SymRules::early`), memoized in
 /// its own table beside the plain one: the same walk as
