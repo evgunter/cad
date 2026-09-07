@@ -1463,7 +1463,7 @@ mod tests {
     fn parses_both_chart_shapes() {
         let rows = parse(&csv(100, 2.5e1)).unwrap();
         assert_eq!(rows.len(), 2);
-        assert!(rows[0].nurbs.is_none(), "a plane row carries no sizing");
+        assert!(!rows[0].is_sized(), "a plane row carries no sizing");
         let n = rows[1].nurbs.unwrap();
         assert!((n.grid_cells - 100.0).abs() < 1e-9);
         assert!((n.patch_cells - 200.0).abs() < 1e-9);
