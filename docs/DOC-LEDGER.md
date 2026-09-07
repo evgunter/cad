@@ -1053,6 +1053,24 @@ record is its row in `MODEL-AB-LOG.md` and its item's `## Closed`
 section.
 
 - `PROPS-1-SPEC.md` — PROPS-1, the lost-correlation members of the linalg audit: `mirror_across_plane` and `reject_from` (#1918)
+## Per-merge deletion — TOPO-D265's spec (2026-09-06)
+
+Recoverable at `git show 7253e5efb66c479aa27c7381b878be0d1a2bd52a:docs/TOPO-D265-SPEC.md`
+(the D265 unit head after the review fix pass, before the state-sync
+commit that deleted it). Two of its stated facts were falsified by the
+unit and are corrected in the unit's record, not here: `merge_group`
+has **nine** sites that can return an `EulerOpError`, not the two the
+spec named (`kev` and `kemr`) — four lookups, `loop_winding` through
+`merged_outline_ring`, and four operator calls; and the spec's
+expectation that the site-level argument would sweep nearly every
+variant into corruption is wrong at one cell — the **(R) column is not
+empty**, because `kef`'s `SameFace` is reachable on a tier-1-valid
+nested group, the absorption's own ring drain having re-homed the dying
+loop onto the survivor. The rule above; the unit's record is its row in
+`MODEL-AB-LOG.md` and its item's `## Closed` section.
+
+- `TOPO-D265-SPEC.md` — TOPO-D265, the merge door's arena-fault class, made true at the door (#2013)
+
 ## Per-merge deletion — TOPO-S330's spec (2026-09-05)
 
 Recoverable at `git show 57cd299d8225afe4454bd068fa9e374439975363:docs/TOPO-S330-SPEC.md`
