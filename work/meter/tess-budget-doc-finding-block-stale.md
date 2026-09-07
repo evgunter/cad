@@ -2,8 +2,11 @@
 id: tess-budget-doc-finding-block-stale
 kind: issue
 title: docs/TESS-BUDGET.md's headline finding block is a hand-transcribed census of a sweep it no longer describes
-status: open
+status: closed
+branch: meter/budget-doc-finding-block
 opened: 2026-09-03
+closed: 2026-09-07
+refs: [report-header-column-phrases-unqualified]
 track: K
 ---
 
@@ -43,3 +46,76 @@ unrowed — found by a sweep, not placed by a track.
 ## Claimed by METER (2026-09-06)
 
 Moved from `work/code-quality/` to `work/meter/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, `track:` letter and body unchanged. Track K; `docs/TESS-BUDGET.md` is METER's territory.
+
+## Closed (2026-09-07, METER unit 2)
+
+**The item's premise is wrong and that is the unit's finding.** The
+block is not stale against a re-cut and does not describe a different
+*sweep* in the sense the item meant: it is the #547 PRE-FIX
+measurement, and every figure in it is correct for the tree it was
+taken from. What this item's table, and the orchestrator's
+re-derivation of it at the program's opening, both did was compare a
+pre-TESS-SPAN vocabulary against post-TESS-SPLIT columns of the same
+name.
+
+Re-derived over `docs/tess-budget-data/tess-budget-baseline.csv` at
+cut `aba2625f8f84`, through `tess_lint::parse` and `SceneTotals` (the
+gate's own fold), and independently in Python over the raw CSV:
+
+| the block says | today | why it moved |
+|---|---|---|
+| 1025 faces | 1353 | the tour grew; all of the growth is analytic (`nurbs` rows are 64 in both) |
+| 1,149,528 triangles | 1,552,822 | the tour grew and the NURBS meshes shrank |
+| 64 NURBS faces (6.2%) carrying 782,104 (68.0%) | 64 (4.7%) carrying 164,710 (10.6%) | 4.75x fewer triangles on the same 64 faces — the two fixes landing |
+| 390,100 `grid cells used` | `patch_cells` **110,811** | the block's numerator is `uniform_cells`, the retired whole-patch grid, which is today's `patch_cells` column and no longer the column called `grid_cells` (46,019) |
+| 95,090 `at the cheapest split` | `opt_cells` **94,154** | −1.0%: a schedule-INDEPENDENT optimum over the same 64 faces |
+| 154,129 `sized per knot-span cell` | the removed `span_cells` | the item mapped this onto `span_opt_cells` (44,446). It is the column that was deleted for being identically `grid_cells`; TESS-SPAN realised it at 163,182 |
+| 44,457 `with both` | `span_opt_cells` **44,446** | −0.02%. This is the line `span_opt_cells` actually answers, and it was sitting one row below the one the item compared |
+
+**Two optima within 1%, two shipped-schedule columns moved 3–8x, is
+not what a re-cut looks like** — a re-cut moves all four together.
+`docs/MODEL-AB-LOG.md:1578` (TESS-SPLIT) corroborates it from a dated
+record written at the time: *"tour NURBS cells 163,182 → 46,102,
+leaf_a 84,524 → 43,798 tris atop TESS-SPAN's 261,780 → 84,524"* — and
+261,780 is exactly the `lily/lily_leaf_a` figure in the block's scene
+table. The document also already said so, 155 lines above the block
+(*"It is NOT the cut this document's measurement was taken from"*),
+naming two of the seven figures.
+
+**The mechanism the item named is real; it is one level up from where
+the item put it.** What drifted is not the numbers but the COLUMN
+NAMES they are read against: `grid_cells` was redefined by TESS-SPAN,
+`span_cells` was removed, and "the cheapest split" names `opt_cells`
+in one place and `span_opt_cells` in another. Three readers in a row
+re-derived the same disagreement and each read it as staleness.
+
+**The fix, therefore, is cite-and-label rather than cite-or-restate.**
+`docs/TESS-BUDGET.md` gains: a `## The census today` section pointing
+at the one command and at the census's executable home; a heading and
+preamble on the block naming it the pre-fix sweep, with the tell that
+distinguishes a fix from a drift; a four-row table joining the block's
+retired phrases to today's columns; the "cheapest split" collision
+stated in both directions; and no live count over the committed file
+anywhere in the document (the 1,075 / 46,102 / 163,182 / 1,025 /
+390,100 restatements in the committed-baseline paragraph are gone).
+The pre-fix literals stay literals, and the reason they may is written
+beside them: no artefact holds them and nothing can re-derive them.
+
+`tools/tess-lint/tests/baseline_sizing_census.rs` is the executable
+home, on the `baseline_census.rs` precedent and beside it — rows,
+triangles, sized rows, their triangle share, the four cell sums and
+the two factors, all folded through `SceneTotals` so the census counts
+what the gate counts. A re-cut fails it and names what moved; the
+re-cut runbook now says so and points at both census tests.
+
+**Residue:** the report header names its cell columns by phrase with
+no column name attached, which is the mis-read's actual source and is
+not fixed here — `work/meter/report-header-column-phrases-unqualified.md`.
+
+**Outside this program's fence, reported not filed:**
+`crates/mesh/src/nurbs_cert.rs:632-634` justifies `SAFE_ASPECT = 5.0`
+with a *"measured margin (worst tour face certificate 0.60·δ)"*. That
+is a hand-transcribed reading of this baseline's `worst_cert` column;
+re-derived over the committed file, the tour's worst is **0.125·δ**,
+stale by ~5x in the safe direction. `crates/mesh/*` is S-MESH's by
+METER's `keep_out`.

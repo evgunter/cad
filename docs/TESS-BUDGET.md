@@ -83,18 +83,24 @@ The committed baseline is `docs/tess-budget-data/tess-budget-baseline.csv`
 from, written by `scripts/tess_budget_cut.sh` (which
 `tess_budget_sweep.sh` calls, and which derives the commit rather than
 taking one); `tools/tess-lint` prints it beside every verdict and
-needs it to date an uncovered scene. Its row count is the file's own and grows
-with the tour — 1,075 at the TESS-SPLIT re-cut, and every re-cut since
-is an ordinary commit under "Re-cutting the baseline" below — so read
-the file, not this sentence, for the current count.
-It is NOT the cut this document's measurement was taken from and its
-numbers are not the ones quoted below: "The finding" reports 1,025
-faces and 390,100 grid cells against the shipped whole-patch schedule
-of the time, where the committed file's own `grid_cells` sum was
-46,102 at the TESS-SPLIT re-cut (the TESS-SPAN re-cut's was 163,182)
-and grows with the tour like the row count, and the total-slack
-figures come from that same pre-TESS-SPAN cut. Read the committed file as the gate's reference point and the
-figures below as the pre-fix record they are labelled as. CI runs the
+needs it to date an uncovered scene. Its row count is the file's own
+and grows with the tour, and every re-cut is an ordinary commit under
+"Re-cutting the baseline" below, so **no count over this file is
+written into this document** — what it says today is one command and
+one test, both cited under "The census today".
+
+**It is NOT the cut this document's measurement was taken from, and
+its numbers are not the ones quoted below.** Everything under "The
+finding" and the four sections after it is the pre-fix sweep: taken
+before TESS-SPAN and TESS-SPLIT shipped, against the whole-patch
+schedule of the time, with the total-slack figures from that same cut.
+The tree it was swept from no longer exists and no committed artefact
+holds its numbers, so those figures are history and are not
+re-derivable from anything — which is exactly why they are still
+literals here while the live census is not. Read the committed file as
+the gate's reference point and the figures below as the pre-fix record
+they are labelled as; the block itself says which of its column names
+have since moved. CI runs the
 sweep `--sizing-only` and gates on REGRESSION against it; what the
 rules ARE is rostered in `tools/tess-lint`'s module docs and nowhere
 else, this document included.
@@ -241,7 +247,54 @@ achieved by weakening a certificate.
   sup (so it under-reports deviation and over-reports slack) and the
   `deviation ~ h²` scaling is a first-order extrapolation.
 
-## The finding
+## The census today
+
+What the committed baseline says NOW is not written here, in either
+direction. One command prints it:
+
+```sh
+cd tools/tess-lint && cargo run -- ../../docs/tess-budget-data/tess-budget-baseline.csv
+```
+
+— faces, triangles, the Hessian-sized faces and their two shares, and
+the grid-cell totals with the held and recoverable factors, every one
+of them folded through the same `SceneTotals` the gate uses. Its one
+executable home is `tools/tess-lint/tests/baseline_sizing_census.rs`,
+which re-derives those figures from the committed file on each
+`cargo test` and fails naming what a re-cut moved. A census has one
+home and every other site points at it; this document is one of the
+sites, and the block below is not a second copy of that census — it is
+a different measurement of a different tree.
+
+## The finding (the pre-fix sweep, #547)
+
+**These are not readings of the committed baseline and must not be
+re-derived from one.** They are the #547 measurement, taken before
+TESS-SPAN and TESS-SPLIT shipped; the difference between them and the
+census above is those two fixes landing, which is what this document
+exists to record. The tell is that the two columns which are pure
+OPTIMA over the certified ellipse — `opt_cells` and `span_opt_cells` —
+are schedule-independent and still read within 1% of the figures
+below, while the two that describe a SHIPPED schedule moved by 3–8x. A
+re-cut moves all four together; this moved two.
+
+**Two of the block's column names have since moved, and that is what
+mis-reads it.** The block predates the columns it gets read against:
+
+| the block's phrase | the column then | the column now |
+|---|---|---|
+| `grid cells used` | `uniform_cells` — the shipped whole-patch-sup grid | `patch_cells`, a counterfactual. `grid_cells` now names the shipped PER-CELL grid |
+| `at the cheapest split` | `opt_cells` | `opt_cells`, unchanged |
+| `sized per knot-span cell` | `span_cells` | REMOVED — it was identically `grid_cells` ("The columns after TESS-SPAN") |
+| `with both` | `span_opt_cells` | `span_opt_cells`, unchanged |
+
+**"The cheapest split" names two different columns in this tree and
+the qualifier is the whole of the difference**: `opt_cells` is the
+cheapest split under the WHOLE-PATCH bound, which is what the block
+means, while the report header's *at the cheapest split per cell* is
+`span_opt_cells` — per-cell sizing AND the cheapest split in each
+cell, the block's `with both` line. `tess_meter`'s field docs are the
+definitions of record for both.
 
 Over the whole tour, at each scene's own δ:
 
@@ -354,6 +407,18 @@ scripts/tess_budget_sweep.sh docs/tess-budget-data/tess-budget-baseline.csv
 and say WHY in the commit. A `vanished` finding is never re-baselined
 without reading it first: a scene the sweep stopped covering improves
 every total it used to appear in.
+
+**A re-cut fails both census tests, and that is the alarm working.**
+`tools/tess-lint/tests/baseline_census.rs` (the face-identity census)
+and `tools/tess-lint/tests/baseline_sizing_census.rs` (the sizing
+census this document cites) each read the committed file and name what
+moved. Neither number is a target to preserve: read the new one,
+decide whether the new corpus is what you meant, and write it in with
+the re-cut. They exist so that no prose can go on describing a file it
+no longer describes. A `cargo test` failure is cheap; a number nothing
+can check is what put three successive readers on the block above,
+each re-deriving the same disagreement and none of them able to see
+that it was the fix rather than the drift.
 
 **An `uncovered` scene FAILS the gate, and the PR that grows the
 corpus is the PR that folds it.** (One rule, described here for its
