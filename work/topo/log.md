@@ -450,3 +450,14 @@ enumerators run every step where the probe slot exists for exactly
 that shape (measured +40%); a third copy of the glue relation in test
 support. Eight-item fix pass to the same lane; `fuzz::replay()`'s
 wrong seed under `pinned()` relayed to S-TCOST.
+
+## D265 merged; block TOPO-B1 slot 1 concluded (2026-09-07)
+
+PR 2013 merged at `56af92aa` (green run 34167918624 on `dc2e996e`,
+full matrix). `D265` closed; no residue rides. The A/B row is recorded
+at merge (ordinal 2701, sample #155) in `docs/MODEL-AB-LOG.md`'s TOPO
+section, with R2's unilateral executed MAJOR as the program's second
+tally candidate — and the first of code class. Block TOPO-B1's record
+on `topo/b1-block` marks slot 1 concluded; slot 2 (FABLE) is banked for
+the census door. `S69`'s fix pass, resumed after the second usage-limit
+cut, is the only lane running. Twelve items open on the slate.

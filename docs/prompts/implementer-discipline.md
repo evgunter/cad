@@ -20,8 +20,15 @@ that** (2026-09-04, Ev's two authorisations). A code-tier run gates EVERY point
 of {default features, `interval`} x {default eps, 1e-6, 1e-12} — twelve
 `test (…)` jobs, each naming its lane, its eps row and its shard — and all five
 `k-lint (gate, <row>)` feature unifications. **Nothing is sampled any more.**
-The python suite, the gates, the discipline and parity rows and the render lanes
-are unchanged and still run on every code-tier run. Three things follow for you:
+The gates, the discipline and parity rows and the render lanes are unchanged and
+still run on every code-tier run. **The python suite runs whenever a seed is a
+crate a build of the wheel compiles** — `pncad-py`'s non-dev dependency closure,
+which on this tree is every workspace member except two: `viewer`, which sits
+above the wheel, and `test-utils`, which reaches the bindings along a
+dev-dependency edge `maturin build` does not follow. A closure seeded only in
+one of those two skips it; everything else buys it. The `change filter` job's
+log prints both the seed set and `RUN_PNCAD_PY`, so a run says which way it
+went. Three things follow for you:
 
 - **A green run means green at all six lane/eps points and all five k-lint
   unifications.** That is what the job list shows: if you cannot see twelve
