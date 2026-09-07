@@ -5886,3 +5886,16 @@ four lists are inline arrays in a row, not `const` tables, so this scan
 would not see one of them if it were pointed at `tests/`. Scoping the
 gate to `src/` is the honest claim; the suites need their own decision
 per enum.
+
+**Two fences and a borrowed reader**, recorded because the next VIEW
+gate meets both. The branch touches `scripts/gates/*` (GATES') and
+three CIW wiring surfaces; ruled in — VIEW already authors
+`viewer-module-kinds.sh` in that directory, GATES' `keep_out` admits a
+new gate's wiring row as one announced line, and the `TIER_BLIND` entry
+cannot be split off because a TIER-blind gate without one reds parity
+itself. `work/issues/gate-wiring-fence-is-undrawn-for-the-parity-entry`
+carries the announcement and the proposal to write the clause down.
+Separately, `work/issues/gate-rust-reader-splits-an-array-type-at-its-semicolon`
+is the out-of-fence half of this unit: `lib.sh`'s statement view is
+what forced the gate's own item reader, and that reader should go when
+the shared one is fixed.

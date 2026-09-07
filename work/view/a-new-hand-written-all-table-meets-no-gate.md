@@ -78,6 +78,23 @@ ci.yml's `mirror` job, in `local-scripts/ci-local.sh`'s
 from the directory — and now reports 21 gates rather than 20, which is
 the registration.
 
+**The branch crosses two other programs' territory, ruled in rather
+than avoided**: `scripts/gates/*` is GATES', and the three wiring
+surfaces are CIW's. `work/gates/program.md`'s own `keep_out` admits a
+new gate's wiring row as one announced line, and the parity entry
+cannot be split off — a TIER-blind gate with no `TIER_BLIND` row reds
+parity itself. The announcement and the undrawn half of the fence are
+`work/issues/gate-wiring-fence-is-undrawn-for-the-parity-entry`;
+neither program's `program.md` is edited here.
+
+**One finding went out of fence**: `scripts/gates/lib.sh`'s statement
+view splits a `const` whose type is an array at the `;` inside
+`[T; N]`, so the initialiser lands in a record with no `const` in it.
+The gate carries a bracket-depth item reader as the workaround and says
+so at its own site;
+`work/issues/gate-rust-reader-splits-an-array-type-at-its-semicolon` is
+where the fix belongs.
+
 **TIER-BLIND, and the argument is the one this item forecast.** Half
 the gate's subject is `crates/viewer/README.md`: the allowlist rows,
 the vocabulary of kinds a row may claim, and the table's own shape. A

@@ -133,10 +133,14 @@ TABLE_HEADER='| List | Module | Kind |'
 # name it.
 MACRO='crates/viewer/src/vocab.rs'
 
-# THE ITEM READER. `gate_rust_code`'s statement view cuts at `;`, and an
-# array TYPE carries one — `[(BooleanOp, &str); 3]` — so a statement
-# record splits a `const` item in half and the initialiser lands in a
-# record with no `const` in it. This reassembles instead: from a line
+# THE ITEM READER, AND IT IS A WORKAROUND. `gate_rust_code`'s statement
+# view cuts at `;`, and an array TYPE carries one — `[(BooleanOp,
+# &str); 3]` — so a statement record splits a `const` item in half and
+# the initialiser lands in a record with no `const` in it. That is a
+# defect in the shared reader, not a property of this rule, and it is
+# `work/issues/gate-rust-reader-splits-an-array-type-at-its-semicolon`;
+# when it is fixed there, this reader is what should go. It reassembles
+# instead: from a line
 # declaring a `const` with an upper-case name, accumulate the code view
 # until the `;` that closes the item at bracket depth zero, then emit
 # `FILE|LINE|NAME|INIT` with INIT the text after the first `=` at depth
