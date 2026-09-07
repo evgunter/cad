@@ -56,3 +56,29 @@ for `grep`'s exit codes.
 `sure`. Reproduced directly against `scripts/gates/lib.sh` at
 `79e68d8d0` with the three-line source above; the two records printed
 are quoted verbatim.
+
+## What must not be inherited when this is fixed
+
+Added by the correctness review of #2106, which audited the
+bracket-depth item reader that exists to work around this defect.
+
+`scripts/gates/viewer-vocab-declared-once.sh:139-153` says its own
+reader should be deleted once this is fixed. When that happens, one
+property of the workaround must travel with the fix rather than be
+dropped: **the shared reader does not track `<>` either.** It cuts at
+`{`, `}` and `;`, so a `const` generic parameter — `fn stack<const N:
+usize>(…)` — presents an opening that a `const`-item matcher will take,
+and the item then never closes at the right place.
+
+The review reproduced both directions of that in the workaround
+(a hand-written `const ALL` going green because a const-generic `fn`
+sat three lines above it, and two false reds on the real tree with one
+planted in `forms.rs`), and closed it there by anchoring the opening
+pattern at an item position rather than allowing a bare `const`
+anywhere in the line — verified population-preserving, since all 104
+`const`-opening lines in the crate's code view are already anchored
+that way.
+
+So a `--items` mode added to `gate_rust_code` owes the same anchor. A
+fix that removes the workaround without it re-opens a defect that was
+found once, at the cost of finding it again.
