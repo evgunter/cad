@@ -59,8 +59,18 @@ of committed budget data is a PROPS coordination, not a lane's call.
    Until then, `Kind::Reordered` is the cheap tripwire the join item
    names, and can land as its own small unit ahead of the rest.
 
+9. `report-header-column-phrases-unqualified` — the report header
+   prints the column name beside each cell figure (and prints
+   `opt_cells`), decided together with `SceneTotals`' field docs. Needs
+   `tools/tess-lint/src/lib.rs` free; disclosed by unit 2 and rowed
+   here so the next step has an owner.
+10. `fold-the-two-baseline-census-files` — `baseline_census.rs` and
+   `baseline_sizing_census.rs` folded into one `tests/baseline.rs`.
+   Lands only after unit 2's and unit 0's PRs are both merged, since a
+   fold touches both files or neither.
+
 ## Exit shape
 
-The eight land (with `D201`'s answer either built or ratified as
+The ten land (with `D201`'s answer either built or ratified as
 not-now), Track K's `tools/*` half is empty; the walk convention
 applies.

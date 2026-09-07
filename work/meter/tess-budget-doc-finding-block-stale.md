@@ -72,15 +72,41 @@ gate's own fold), and independently in Python over the raw CSV:
 | 154,129 `sized per knot-span cell` | the removed `span_cells` | the item mapped this onto `span_opt_cells` (44,446). It is the column that was deleted for being identically `grid_cells`; TESS-SPAN realised it at 163,182 |
 | 44,457 `with both` | `span_opt_cells` **44,446** | −0.02%. This is the line `span_opt_cells` actually answers, and it was sitting one row below the one the item compared |
 
-**Two optima within 1%, two shipped-schedule columns moved 3–8x, is
-not what a re-cut looks like** — a re-cut moves all four together.
-`docs/MODEL-AB-LOG.md:1578` (TESS-SPLIT) corroborates it from a dated
-record written at the time: *"tour NURBS cells 163,182 → 46,102,
-leaf_a 84,524 → 43,798 tris atop TESS-SPAN's 261,780 → 84,524"* — and
-261,780 is exactly the `lily/lily_leaf_a` figure in the block's scene
-table. The document also already said so, 155 lines above the block
-(*"It is NOT the cut this document's measurement was taken from"*),
-naming two of the seven figures.
+**Two optima within 1% while the two shipped-schedule columns moved
+~3.4x** — 390,100 → 110,811 (3.52x) on the whole-patch counterfactual
+and 154,129 → 46,019 (3.35x) on the grid the lane builds. (The 8.5x
+that reads off these figures is 390,100 / 46,019, the pre-fix
+whole-patch numerator over today's per-cell denominator: the
+mis-pairing itself, not a factor.)
+
+**What that separates, exactly.** A change of SIZING RULE from
+everything else — and not a fix from a drift. Corpus growth and
+certificate changes move the optima too, so two columns still at 1%
+says the 64 faces and their bounds are still the block's and that
+whatever moved was a schedule; it does not say WHICH schedule change,
+because a re-cut taken after one and the change landing are the same
+event. What settles that is the dated record:
+`docs/MODEL-AB-LOG.md:1578` (TESS-SPLIT), written at the time —
+*"tour NURBS cells 163,182 → 46,102, leaf_a 84,524 → 43,798 tris atop
+TESS-SPAN's 261,780 → 84,524"* — where 261,780 is exactly the
+`lily/lily_leaf_a` figure in the block's scene table and 46,102 is
+what the committed file carried from TESS-SPLIT's cut onward.
+
+**The document already said HALF of it, 155 lines above the block**
+(*"It is NOT the cut this document's measurement was taken from and
+its numbers are not the ones quoted below"*). That clause is the
+corroboration and it is sound. The rest of the same sentence is not:
+it juxtaposed the block's *"1,025 faces and 390,100 grid cells"*
+against *"the committed file's own `grid_cells` sum … 46,102"* — the
+exact mis-pairing this item blames for three readers' error, written
+by the document in its own voice, and the pairing a reader would then
+read as an 8.5x drift. Its 46,102 was correctly dated ("at the
+TESS-SPLIT re-cut") and was correct there; what was false beside it
+was *"and grows with the tour like the row count"* — `grid_cells` does
+not grow with the tour, since the growth is analytic, and its one move
+since was CERT-10's −83 to 46,019 at `a4eb03ae`. So: half a
+corroboration, and the other half one more instance of the defect,
+which is why the sentence was cut rather than kept.
 
 **The mechanism the item named is real; it is one level up from where
 the item put it.** What drifted is not the numbers but the COLUMN
@@ -102,11 +128,16 @@ The pre-fix literals stay literals, and the reason they may is written
 beside them: no artefact holds them and nothing can re-derive them.
 
 `tools/tess-lint/tests/baseline_sizing_census.rs` is the executable
-home, on the `baseline_census.rs` precedent and beside it — rows,
-triangles, sized rows, their triangle share, the four cell sums and
-the two factors, all folded through `SceneTotals` so the census counts
-what the gate counts. A re-cut fails it and names what moved; the
-re-cut runbook now says so and points at both census tests.
+home, on the `baseline_census.rs` precedent and beside it. What it
+ends up asserting is **triangles, NURBS triangles, the four cell sums
+and the two factors**, all folded through `SceneTotals` so the census
+counts what the gate counts. It asserts no row count, no sized-row
+count and neither triangle-share percentage: those are the
+neighbour's, and the dedupe that removed them from this file is the
+one-home rule applied to the pair. A re-cut that moves any of those
+figures fails it and names what moved; a re-cut that moves only the
+descriptive per-face columns fails neither census, and the runbook now
+says which is which rather than claiming both tests catch everything.
 
 **Residue:** the report header names its cell columns by phrase with
 no column name attached, which is the mis-read's actual source and is

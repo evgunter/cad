@@ -24,17 +24,18 @@ is not printed at all. Every phrase is correct against
 record — this is not a wrong name, it is a name that cannot be joined
 to a column without a second lookup.
 
-**"The cheapest split" is the phrase that bites.** It names
-`opt_cells` (cheapest split under the WHOLE-PATCH bound) in
-`tools/tess-meter/src/lib.rs:112` and in `docs/TESS-BUDGET.md`'s
-column list, and `span_opt_cells` (per-cell sizing AND the cheapest
-split in each cell) in the report header's *"at the cheapest split per
-cell"*. Only the trailing qualifier separates them, and dropping it is
-the mis-read that has now been made three times in a row against
-`docs/TESS-BUDGET.md`'s pre-fix block — most recently by this
-program's own opening note, which put the block's `span_cells` line
-(154,129) against `span_opt_cells` (44,446) and read a 3.5x factor as
-staleness.
+**"The cheapest split" is the phrase that bites.** Unqualified, it
+names `opt_cells` in `tools/tess-meter/src/lib.rs:112` and in
+`docs/TESS-BUDGET.md`'s column list; with the trailing *"per cell"* in
+the report header it names `span_opt_cells`. What each column IS is
+stated once, in `NurbsColumns`' field docs
+(`tools/tess-meter/src/lib.rs:337-342`), and is not restated here —
+that is the point of the finding. Only the qualifier separates the two
+phrases, and dropping it is the mis-read that has now been made three
+times in a row against `docs/TESS-BUDGET.md`'s pre-fix block — most
+recently by this program's own opening note, which put the block's
+`span_cells` line (154,129) against `span_opt_cells` (44,446) and read
+a 3.5x factor as staleness.
 
 ## Finding
 
@@ -60,6 +61,13 @@ The header's wording and the module docs' should be decided together.
 (both read at their declaration sites); a judgement call whether the
 header should carry column names at all, since it is a human report
 and not a machine format.
+
+## Next
+
+Rowed in `work/meter/plan.md` as unit 9, after the eight the plan
+opened with: the header's wording and `SceneTotals`' field docs are
+decided together, and `tools/tess-lint/src/lib.rs` has to be free for
+that.
 
 ## Was
 

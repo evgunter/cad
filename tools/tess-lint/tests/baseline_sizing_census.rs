@@ -1,72 +1,98 @@
-//! **The sizing census: its one home.**
+//! **The sizing census: its one home, and the re-cut alarm over it.**
 //!
-//! `docs/TESS-BUDGET.md` is the #547 measurement, taken before
-//! TESS-SPAN and TESS-SPLIT shipped and kept as the pre-fix record.
-//! Its headline block is therefore NOT a reading of the committed
-//! baseline and cannot be re-derived from one — the tree it was swept
-//! from no longer exists and no artefact holds its numbers. What the
-//! committed baseline says TODAY is this file, and the document points
-//! here rather than carrying a second copy: a census has one
-//! executable home and every other site points at it.
+//! What the committed baseline
+//! (`docs/tess-budget-data/tess-budget-baseline.csv`) says TODAY about
+//! the tour's mesh and its sizing, folded through the gate's own
+//! accumulator. `docs/TESS-BUDGET.md` points here rather than carrying
+//! a second copy: a census has one executable home and every other
+//! site points at it.
 //!
-//! The sibling next door, `baseline_census.rs`, is the FACE-IDENTITY
-//! census over the same file — how many rows a rule-4 swap could wave
-//! through, and how much of the corpus is a scene where a re-key costs
-//! no comparison. Two censuses, two homes, one artefact.
+//! # What this file is for
 //!
-//! **They are separate files for a reason, and the reason is not the
-//! artefact.** They answer different questions for different readers:
-//! the neighbour guards `lib.rs`'s prose about rule 4, and fails when
-//! the corpus's identity structure moves; this one guards
-//! `docs/TESS-BUDGET.md`'s citation, and fails when the tour's mesh or
-//! its sizing moves. Folding them would put one file's failure under
-//! two unrelated headings. What the one-home rule forbids is two
-//! copies of ONE census, so **no figure is asserted twice**: the row
-//! count and the sized-row count are the neighbour's and are not
-//! restated here, and the sums below start where those leave off. The
-//! `include_str!` path is the one thing that does appear in both, for
-//! want of a shared `tests/` module; a reader changing the baseline's
-//! location has two sites to change and both are compile errors.
+//! **A re-cut alarm.** It was written to guard the document's
+//! citation, and there is no longer a citation to guard: after METER
+//! unit 2 the document holds no live figure from this file, and it
+//! argues in its own text that a pointer cannot go stale. What is left
+//! is the job a pointer cannot do — go RED when a re-cut moves the
+//! tour's mesh or its sizing, so the move is read and written down
+//! rather than folded in silently. No number here is a target to
+//! preserve; the failure is the product.
+//!
+//! It does not fire on everything a re-cut can move.
+//! `docs/TESS-BUDGET.md`'s "Re-cutting the baseline" says what the two
+//! census files between them do and do not read; the short version is
+//! that the descriptive per-face columns are read by neither.
+//!
+//! # The sibling next door
+//!
+//! `baseline_census.rs` is the FACE-IDENTITY census over the same
+//! file — how many rows a rule-4 swap could wave through, and how much
+//! of the corpus is a scene where a re-key costs no comparison. **No
+//! figure is asserted twice**: the row count and the sized-row count
+//! are the neighbour's and are not restated here, and the sums below
+//! start where those leave off.
+//!
+//! **Whether the two should be one file is open, and filed** —
+//! `work/meter/fold-the-two-baseline-census-files.md`. The reason
+//! previously written here, that folding would put one file's failure
+//! under two unrelated headings, does not survive: a failure is named
+//! by its `#[test]`, not by its file. What is true either way is that
+//! both read the same `include_str!` path, duplicated for want of a
+//! shared `tests/` module, and a reader moving the baseline has two
+//! sites to change — both compile errors.
 //!
 //! # Why the pre-fix block reads as stale when it is not
 //!
-//! Three readers in a row have compared the document's block against
-//! this file column by column and read the difference as drift. It is
-//! the fix landing, and the two halves separate cleanly:
+//! Three readers in a row have compared `docs/TESS-BUDGET.md`'s
+//! pre-fix block against this file column by column and read the
+//! difference as drift. It is the fix landing, and the two halves
+//! separate cleanly:
 //!
 //! * the columns that describe a SHIPPED SCHEDULE moved by the factors
 //!   TESS-SPAN and TESS-SPLIT were built to move them — the tour's
 //!   grid went from a whole-patch AM-GM product to a per-knot-span
-//!   cell grid at the aspect-capped cell minimizer;
+//!   cell grid at the aspect-capped cell minimizer. That is 154,129 to
+//!   46,019, **3.35x**, on the grid the lane actually builds. The
+//!   whole-patch column moved 390,100 to 110,811, **3.52x**, and that
+//!   one is a different point selection rather than a smaller grid
+//!   (the document's decoder table says why);
 //! * the columns that are pure OPTIMA over the certified ellipse —
 //!   `opt_cells` and `span_opt_cells` — are schedule-independent, and
 //!   they sit within 1% of the pre-fix figures because the sized faces
-//!   are the same faces. Everything the corpus has grown by since is
-//!   analytic, so it adds rows and triangles and no cells at all.
+//!   are the same 64 faces.
 //!
-//! A re-cut moves all four together. Two columns still at 1% while two
-//! moved by 3–8x is not a re-cut; it is the measurement's own subject.
+//! **What that separates is a change of SIZING RULE from everything
+//! else, and no more than that.** Corpus growth and certificate
+//! changes move the optima too, so two columns still at 1% says the
+//! faces and their bounds are still the block's. It does not by itself
+//! say which sizing rule changed: a re-cut taken after a schedule
+//! change and the schedule change landing are one event. The dated
+//! record settles that — `docs/MODEL-AB-LOG.md`'s TESS-SPLIT row reads
+//! *"tour NURBS cells 163,182 -> 46,102"*, and 46,102 is what the
+//! committed file carried from that cut on.
+//!
+//! Everything the corpus has grown by since is analytic, so it adds
+//! rows and triangles and no cells. **Cells have moved anyway, once**:
+//! `grid_cells` read 46,102 from TESS-SPLIT's cut through six re-cuts
+//! until CERT-10's (`a4eb03ae`) moved four faces' certified bounds and
+//! 83 cells with them — `lily/lily_sepal_a` faces 3 and 7 and the two
+//! `twisted_duct_shadow_*` face 4s. Neither growth nor a schedule
+//! change; a certificate change, which is the third thing a re-cut
+//! can be.
 //!
 //! # The retired vocabulary, which is what actually mis-reads
 //!
 //! The block predates the columns it is read against, and two of its
-//! phrases name something else now:
+//! phrases name something else now. **The decoder is one table, in
+//! `docs/TESS-BUDGET.md` under "The finding", beside the block it
+//! decodes; `tess_meter`'s field docs are the definitions of record
+//! for every column in it.** Neither is restated here.
 //!
-//! | the block's phrase | then | now |
-//! |---|---|---|
-//! | *grid cells used* | `uniform_cells`, the shipped whole-patch-sup grid | `patch_cells`, a counterfactual — `grid_cells` now names the shipped PER-CELL grid |
-//! | *at the cheapest split* | `opt_cells` | `opt_cells`, unchanged |
-//! | *sized per knot-span cell* | `span_cells` | REMOVED (it was identically `grid_cells`) |
-//! | *with both* | `span_opt_cells` | `span_opt_cells`, unchanged |
-//!
-//! **"The cheapest split" names two different columns across this
-//! tree, and the qualifier is the whole of the difference.**
-//! `opt_cells` is the cheapest split under the WHOLE-PATCH bound;
-//! `span_opt_cells` is per-cell sizing AND the cheapest split in each
-//! cell, which is what the report header prints as *at the cheapest
-//! split per cell*. `tess_meter`'s field docs are the definitions of
-//! record for both. An unqualified "cheapest split" is the mis-read
-//! that put the block's `span_cells` line against `span_opt_cells`.
+//! What is worth carrying at this site is the trap: **an unqualified
+//! "cheapest split" names `opt_cells` in one place and
+//! `span_opt_cells` in another**, and dropping the qualifier is the
+//! mis-read that put the block's `span_cells` line against
+//! `span_opt_cells`.
 //!
 //! # The sweep's definition, beside its result
 //!
@@ -82,8 +108,9 @@
 //! # When this test fails
 //!
 //! No baseline here is a target to preserve. A re-cut that moves these
-//! numbers means the corpus or the schedule moved: read the new
-//! number, decide whether it is what you meant, and write it in. The
+//! numbers means the corpus, the schedule or a certified bound moved:
+//! read the new number, decide whether it is what you meant, and write
+//! it in. The
 //! failure exists so that no prose anywhere can go on describing a
 //! file it no longer describes — which is the defect this file was
 //! written for, one document over.
@@ -107,19 +134,19 @@ fn sweep(rows: &[Row]) -> SceneTotals {
     t
 }
 
-/// The census `docs/TESS-BUDGET.md` cites instead of transcribing:
-/// what the report header prints over the committed baseline, less
+/// What the report header prints over the committed baseline, less
 /// the two face counts `baseline_census.rs` already pins, plus
-/// `opt_cells`, which the header does not print and the document
-/// needs in order to name the pre-fix block's split column.
+/// `opt_cells`, which the header does not print.
 ///
-/// **Two of these are not independently exercisable and it is said
-/// rather than hidden**: the two factors are quotients of sums
-/// asserted above them, so no perturbation reaches a factor without
-/// moving a sum first. They are asserted because they are the figures
-/// the report prints and prose would otherwise copy — through
-/// [`SceneTotals`]'s own methods, so this file cannot re-derive a
-/// factor by hand and disagree with the CLI about what one is.
+/// **The two factors are undiscriminating against a change in the
+/// DATA, and it is said rather than hidden**: each is a quotient of
+/// sums asserted above it, so no perturbation of the baseline reaches
+/// a factor without moving a sum first, and the sum reds first. They
+/// are not inert — they are taken through [`SceneTotals`]'s own
+/// methods, so inverting either method reds its own assertion and no
+/// sum (executed, both directions). That is what they guard: the
+/// CLI's arithmetic for the two figures the report prints and prose
+/// would otherwise copy. They do not add coverage over the CSV.
 #[test]
 fn the_committed_baseline_sizes_this_much() {
     let rows = parse(BASELINE).expect("the committed baseline parses");
@@ -137,9 +164,11 @@ fn the_committed_baseline_sizes_this_much() {
     );
 
     // The grid-cell totals, over the sized rows. `grid_cells` is what
-    // the lane built; `patch_cells` is the retired whole-patch
-    // schedule as a counterfactual; the other two are the optima the
-    // same certificates still admit (whole-patch bound / per cell).
+    // the lane built; `patch_cells` is the whole-patch bound as a
+    // counterfactual, at the SHIPPED point selection rather than the
+    // retired schedule's own (`NurbsColumns::nu` says so); the other
+    // two are the optima the same certificates still admit
+    // (whole-patch bound / per cell).
     assert_eq!(t.grid_cells, 46_019.0, "grid cells the lane built");
     assert_eq!(t.patch_cells, 110_811.0, "the whole-patch counterfactual");
     assert_eq!(
@@ -159,7 +188,7 @@ fn the_committed_baseline_sizes_this_much() {
         "the held span gain, patch_cells / grid_cells; got {held}"
     );
     assert!(
-        (recoverable - 1.035).abs() < 5e-4,
+        (recoverable - 1.0354).abs() < 5e-4,
         "slack still recoverable, grid_cells / span_opt_cells; got {recoverable}"
     );
 }
