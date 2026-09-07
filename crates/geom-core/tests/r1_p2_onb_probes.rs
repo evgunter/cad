@@ -28,7 +28,7 @@ use geom_core::Vec3;
 /// survive an enclosure scalar. PRIVATE to this suite, so the
 /// comparison does not lean on anything the unit wrote.
 fn reference(n: Vec3<f64>) -> (Vec3<f64>, Vec3<f64>) {
-    let axis = if n.z * n.z <= n.x * n.x + n.y * n.y {
+    let axis = if n.z.abs() <= n.x.abs().max(n.y.abs()) {
         Vec3::new(-n.y, n.x, 0.0)
     } else {
         Vec3::new(n.z, 0.0, -n.x)
@@ -187,8 +187,9 @@ mod interval_lane {
 
     /// **Near-vertical, not merely vertical.** The unit pins
     /// `n.z = [±0.0, ±0.0]` exactly; these rows ask about the
-    /// neighbourhood, where `n.z²` is still far below `n.x² + n.y²`
-    /// and the axis choice therefore still DECIDES: a
+    /// neighbourhood, where `|n.z|` is still far below
+    /// `max(|n.x|, |n.y|)` and the axis choice therefore still
+    /// DECIDES: a
     /// sign-definite tiny `z` (both sides), a straddling tiny
     /// enclosure, and point enclosures at subnormal `z`. Every
     /// component must stay bounded and certified, and must enclose the
@@ -265,20 +266,18 @@ mod interval_lane {
     }
 
     /// **Where the construction genuinely ends** — measured, so the
-    /// boundary is on record rather than implied. `normalize` reads
-    /// each candidate's own norm, so an enclosure wide enough to leave
-    /// the `n.z² ≤ n.x² + n.y²` comparison undecided AND to reach a
-    /// direction parallel to the candidate axis it is choosing away
-    /// from hulls in that candidate's zero vector. That takes a box
-    /// spanning most of a meridian; a tight enclosure of a real normal
-    /// never reaches it.
+    /// boundary is on record rather than implied. An unbounded answer
+    /// needs the comparison undecided AND a candidate that is the zero
+    /// vector inside the box, and those two together force the box to
+    /// contain the ZERO VECTOR itself, which names no direction. A box
+    /// that is merely wide does not reach it.
     #[test]
     fn r1_onb_interval_wide_box_boundary_recorded() {
         // A tight enclosure straddling the 45° cone: still bounded,
-        // because both candidates are conditioned at least ‖n‖²/2.
+        // because both candidates are conditioned at least ‖n‖²/3.
         let half = core::f64::consts::FRAC_1_SQRT_2;
         let z = Interval::from_bounds(half - 1e-9, half + 1e-9);
-        let n = Vec3::new(iv(0.6 * half), iv(0.8 * half), z);
+        let n = Vec3::new(iv(half), iv(0.0), z);
         let (b1, b2) = n.orthonormal_basis();
         for (e, which) in components(b1, b2) {
             assert!(
@@ -289,11 +288,24 @@ mod interval_lane {
             );
         }
         // A whole meridian at the azimuth whose `e_y` candidate
-        // degenerates. Recorded, not demanded.
+        // degenerates: the comparison still decides it.
         let n = Vec3::new(iv(0.0), iv(1.0), Interval::from_bounds(0.0, 1.0));
+        let (m1, _) = n.orthonormal_basis();
+        assert!(
+            m1.x.lo() == -1.0 && m1.x.hi() == -1.0,
+            "a whole meridian is not decided: b1.x = [{}, {}]",
+            m1.x.lo(),
+            m1.x.hi()
+        );
+        // The box that contains the zero vector. Recorded, not demanded.
+        let n = Vec3::new(
+            Interval::from_bounds(-1.0, 1.0),
+            Interval::from_bounds(-1.0, 1.0),
+            Interval::from_bounds(-1.0, 1.0),
+        );
         let (b1, _) = n.orthonormal_basis();
         println!(
-            "note: n = (0, 1, [0, 1]) gives b1.x = [{}, {}] (bounded: {}, certified: {})",
+            "note: n = [-1, 1]^3 gives b1.x = [{}, {}] (bounded: {}, certified: {})",
             b1.x.lo(),
             b1.x.hi(),
             b1.x.lo().is_finite() && b1.x.hi().is_finite(),

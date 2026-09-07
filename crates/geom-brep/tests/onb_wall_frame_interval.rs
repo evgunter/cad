@@ -2,7 +2,8 @@
 //! the acceptance row for the orthonormal basis's world-axis choice.
 //!
 //! `Vec3::orthonormal_basis` crosses the normal with `e_z` when
-//! `n.z² ≤ n.x² + n.y²` and with `e_y` otherwise, and normalizes. A vertical
+//! `|n.z| ≤ max(|n.x|, |n.y|)` and with `e_y` otherwise, and
+//! normalizes. A vertical
 //! wall (`n.z = 0`, the whole equator) is therefore as far from the
 //! comparison's seam as a direction can be: the choice DECIDES over any
 //! enclosure a wall's normal comes in, no sign is transferred anywhere,
@@ -117,11 +118,11 @@ fn cell_z_width(surface: &Surface<Interval>, u: (f64, f64), v: (f64, f64)) -> f6
 /// `|u|·|n.x|` to it.
 ///
 /// **All twelve walls decide**, including the two whose `n.x` and `n.z`
-/// are noise around zero: the comparison is `n.z² ≤ n.x² + n.y²`, and a
-/// wall's `n.y²` or `n.x²` is 1 while both sides of the noise are
-/// `1e-32`. An order over the three components would have been
-/// undecided on exactly those two, because which of two enclosures that
-/// both contain zero is the smaller has no answer.
+/// are noise around zero: the comparison is
+/// `|n.z| ≤ max(|n.x|, |n.y|)`, and a wall has one component at 1 while
+/// the noise is at `1e-16`. An order over all three components would
+/// have been undecided on exactly those two, because which of two
+/// enclosures that both contain zero is the smaller has no answer.
 #[test]
 fn every_wall_of_the_twelve_gon_prism_stores_a_frame_as_exact_as_its_normal() {
     for window in [WINDOW, EPS_WINDOW] {
@@ -177,7 +178,7 @@ fn every_wall_of_the_twelve_gon_prism_stores_a_frame_as_exact_as_its_normal() {
             // three components could not have decided between.
             let straddles = |e: Interval| e.lo() <= 0.0 && 0.0 <= e.hi();
             let noisy = straddles(normal.x) && straddles(normal.z) && width(normal.x) > 0.0;
-            let d = normal.z.powi(2) - (normal.x.powi(2) + normal.y.powi(2));
+            let d = normal.z.abs() - normal.x.abs().max(normal.y.abs());
             let decided = d.hi() <= 0.0 || d.lo() > 0.0;
             assert!(
                 decided,

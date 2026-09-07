@@ -461,15 +461,18 @@ impl<T: Real> Vec3<T> {
     /// the arm it reads. A poisoned INPUT still poisons everything,
     /// through the decision.
     ///
-    /// **The measured limit, stated rather than left to be
-    /// discovered.** `normalize` reads each candidate's OWN norm, so an
-    /// enclosure wide enough to leave the comparison undecided AND to
-    /// contain a direction parallel to a candidate's axis hulls in that
-    /// candidate's zero vector and comes back unbounded. Reaching it
-    /// takes a box spanning most of a meridian — the comparison
-    /// undecided AND a direction parallel to the axis being chosen away
-    /// from inside the same box — which is a direction known to within
-    /// 90°, not a chart question.
+    /// **When the answer is unbounded, and why that is honest.**
+    /// `normalize` reads each candidate's OWN norm, so an unbounded
+    /// answer needs the comparison undecided AND a candidate that is
+    /// the zero vector somewhere in the box. Those two together force
+    /// the box to contain the ZERO VECTOR: `c_z` vanishes only where
+    /// `n.x = n.y = 0`, which puts `max(|n.x|, |n.y|)` at zero, and an
+    /// undecided comparison then puts `|n.z|` at zero too; `c_y`
+    /// vanishes only where `n.x = n.z = 0`, and an undecided comparison
+    /// there puts `n.y` at zero as well. The zero vector names no
+    /// direction, so a box containing it poses no question at that
+    /// point and DL6 is satisfied — the construction manufactures a
+    /// non-real only where one entered.
     ///
     /// Both squares are the tight square (`powi(2)`), not the product
     /// `n·n`: at `Interval` the product treats the two factors as
@@ -1217,20 +1220,16 @@ mod tests {
         }
     }
 
-    /// **Bounded and certified over every `n.z` enclosure the
-    /// comparison DECIDES**, one-sided, straddling zero, strictly
-    /// signed and degenerate — the enclosures a subdivision driver
-    /// actually produces at a wall — and over a tight enclosure that
-    /// straddles the 45° cone, where the answer is the hull of two unit
-    /// candidates.
+    /// **Bounded and certified over every `n.z` enclosure** — one-sided,
+    /// straddling zero, strictly signed and degenerate, the enclosures
+    /// a subdivision driver actually produces at a wall — and over a
+    /// tight enclosure straddling the 45° cone, where the answer is the
+    /// hull of two unit candidates, and over a whole meridian, which
+    /// the comparison still decides.
     ///
-    /// **The limit, measured rather than implied**: an enclosure that
-    /// straddles the cone AND reaches a direction parallel to the
-    /// candidate axis it is choosing away from hulls in that
-    /// candidate's zero vector. That takes a box spanning most of a
-    /// meridian — `n.z` from 0 to 1 at a fixed azimuth — which is a
-    /// direction known to within 90°, not a chart question. The row
-    /// records it rather than demanding an answer.
+    /// **The limit, measured rather than implied**: an unbounded answer
+    /// needs a box containing the ZERO VECTOR, which names no direction
+    /// (the constructor's docs derive this). The row measures that too.
     ///
     /// The second half is a REGRESSION GUARD with teeth on the one
     /// ordering decision the construction makes: it measures the
@@ -1293,14 +1292,28 @@ mod tests {
                 }
             }
         }
-        // The recorded limit: a whole meridian at the azimuth whose
-        // `e_y` candidate degenerates.
+        // A whole meridian at the azimuth whose `e_y` candidate
+        // degenerates: still DECIDED, because `max(|n.x|, |n.y|)` is 1
+        // there and `|n.z|` never exceeds it.
         let (wide, _) = Vec3::new(iv(0.0), iv(1.0), ivb(0.0, 1.0)).orthonormal_basis();
+        for (e, want, which) in [(wide.x, -1.0, "b1.x"), (wide.y, 0.0, "b1.y")] {
+            assert!(
+                e.lo() == want && e.hi() == want,
+                "{which} over a whole meridian: [{}, {}] is not the exact {want}",
+                e.lo(),
+                e.hi()
+            );
+        }
+        // The limit: a box containing the zero vector, which names no
+        // direction. Recorded, not demanded.
+        let (origin, _) =
+            Vec3::new(ivb(-1.0, 1.0), ivb(-1.0, 1.0), ivb(-1.0, 1.0)).orthonormal_basis();
         println!(
-            "note: n = (0, 1, [0, 1]) gives b1.x = [{}, {}] (bounded: {})",
-            wide.x.lo(),
-            wide.x.hi(),
-            wide.x.lo().is_finite() && wide.x.hi().is_finite()
+            "note: n = [-1, 1]^3 (contains the zero vector) gives b1.x = [{}, {}] \
+             (bounded: {})",
+            origin.x.lo(),
+            origin.x.hi(),
+            origin.x.lo().is_finite() && origin.x.hi().is_finite()
         );
         // The guard: a straddled cone, where the two un-normalized
         // candidates' hull contains the zero vector.
