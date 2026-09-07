@@ -2,9 +2,10 @@
 id: escalated-recourse-dispatch-has-no-coaxiality-arm
 kind: unit
 title: blend: an in-band fillet3_support_coaxiality escalation renders no recourse
-status: dispatched
+status: review
 opened: 2026-09-05
 branch: blend/1-coaxiality-arm
+pr: 2123
 ---
 
 ## Finding
