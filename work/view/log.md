@@ -5899,3 +5899,55 @@ Separately, `work/issues/gate-rust-reader-splits-an-array-type-at-its-semicolon`
 is the out-of-fence half of this unit: `lib.sh`'s statement view is
 what forced the gate's own item reader, and that reader should go when
 the shared one is fixed.
+
+### The correctness review of that gate, and what it cost (2026-09-07)
+
+A review of #2106 before merge found three defects that a green run
+could not have shown, and each is the same lesson at a different depth.
+
+**A guard is per STAGE, not per pipeline.** The fix that bought the
+resume-time marker read guarded `const_items`; the `awk` that decides
+what a HIT is runs after it, in the same process substitution, and had
+no guard at all. It survived an immediate death only by SIGPIPE
+upstream — which reds naming the wrong reader — and a classifier that
+consumes its input and THEN fails produced `OK` and exit 0 over two
+planted breaches whenever the roster held no data rows, which is a
+docs-tier edit away. The gate now states the RULE that produces its
+reader population (a command that reads the subject and whose status
+the shell discards, one entry per pipeline STAGE) and enumerates the
+six it yields, rather than asserting a universal over a list nobody
+re-derived.
+
+**`const` opens a generic parameter.** `fn stack<const N: usize>` and
+`struct Stack<const N: usize>` match an unanchored `const NAME:`
+opening, and the depth counter counts `()[]{}` and never `<>` — so
+accumulation began mid-signature and the item did not close until the
+next depth-zero `;`, which inside an `impl` is never. Both directions
+were live on a copy of the real tree: a hand-written `ALL` under a
+const-generic `struct` went green, and a const-generic `fn` above
+`BOOLEAN_OPS` produced two reds naming the wrong repair. The opening is
+now anchored to a declaration at the start of a line, one spelling
+shared by the test and the name extraction; the anchored population is
+the same 104 lines the unanchored one matched, under `gawk` and `mawk`
+alike.
+
+**A key that drops the type ratifies a name, not a list.** A roster row
+`Theme::ALL` keys on `theme.rs` and `ALL`, so a second
+`impl Badge { pub const ALL: … }` appended to that module was ratified
+by the row written for `Theme` — the item's own worked example, evaded
+by choosing its home. Using the type was considered and rejected: an
+associated constant's declaration says `[Self; 3]`, so its type is the
+enclosing `impl` header, which the lexed view does not delimit and only
+a parse would find, and three of the four rostered lists are free
+`const`s with no type to use. What holds instead is a COUNT — one row
+ratifies exactly one list, none is the retiring direction and more than
+one is a red — which is loud in the direction that matters and costs no
+parse. Its price is stated where it is paid: two same-named lists in
+one module cannot both be rostered.
+
+**And a self-test that cannot see the name a gate prints.** All twelve
+cases matched a name-independent fragment, so a broken name extraction
+shipped green over three garbage diagnoses. Four cases now match a
+fragment containing the subject, and
+`work/issues/gate-selftest-cannot-observe-the-identity-a-gate-names` is
+the durable half — a harness affordance, not this gate's to build.

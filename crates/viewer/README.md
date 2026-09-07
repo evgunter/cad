@@ -896,16 +896,26 @@ rather than an exception:
 for a hand-written membership list in either of two shapes — a `const
 ALL`, and any `const` array literal of two or more `Type::Variant`
 entries, which is the same list under a different word — and reds on
-one the table does not carry. A converted vocabulary is not a hit:
-`vocabulary!`'s `pub const ALL;` declares no array literal, so the nine
-are quiet without an entry. What the gate reads is this section rather
-than a list of its own: the ROWS below are the allowlist, and the KINDS
-they may claim are the three **bolded bullets** above, so a fourth kind
-is an amendment argued here and not a new word in a table cell. The
-roster retires itself in both directions — a list added without a row
-reds, and a row whose list has been converted reds too, because an
+one the table does not carry. `static` opens an item in both arms, for
+the same reason the second shape exists. A converted vocabulary is not
+a hit: `vocabulary!`'s `pub const ALL;` declares no array literal, so
+the nine are quiet without an entry. What the gate reads is this
+section rather than a list of its own: the ROWS below are the
+allowlist, and the KINDS they may claim are the **bolded bullets**
+above. Both are read only WITHIN this section, so the roster cannot
+drift onto another page's heading and go on being read; and the gate
+carries the NUMBER of bullets as its own constant, so a fourth kind is
+an amendment argued here AND an edit to that file, not a new word in a
+table cell.
+
+The roster retires itself in both directions — a list added without a
+row reds, and a row whose list has been converted reds too, because an
 allowlist entry with nothing behind it is a ratification the next thing
-written at that name inherits.
+written at that name inherits. It does not spread, either: **one row
+ratifies one list.** Two rows for one list red, and so does one row for
+a module that declares two lists under that name, because the row is
+keyed on the module and the name and cannot say which of the two it
+meant.
 
 The gate runs in the `mirror` job, which carries no `if:`, because half
 its subject is this page: a change set of only the README is TIER=docs,
@@ -918,9 +928,13 @@ What it does not see is `crates/viewer/tests/`, deliberately: the
 suites' hand-written variant lists are inline arrays in a row, not
 `const` tables, so this scan would not find one if it looked —
 `work/view/viewer-suites-hold-hand-written-complete-variant-lists.md`
-is theirs. Nor does it see a list that is not a `const`, which is why
-each tool's seat list is named in the bullet above rather than in the
-table.
+is theirs. Nor does it see a list that is not a `const` or `static`
+item, which is why each tool's seat list is named in the bullet above
+rather than in the table. What it decides is that a list is
+hand-written, never that the roster still says what was ratified here:
+a bullet and the cells claiming it, reworded together, are consistent
+and both green. The gate's own header states that blind spot; a review
+is what covers it.
 
 #### The lists that stay hand-written
 
@@ -935,6 +949,15 @@ table.
 module the `const` is declared in, `List` is how it is written there
 (an associated constant carries its type, `Theme::ALL`), and `Kind` is
 the bolded bullet above that ratifies it, word for word.
+
+The type in `List` is for a reader, not for the gate: what the gate
+keys on is the module and the constant's own name, because an
+associated constant's declaration says `[Self; 3]` and the type it
+belongs to is the enclosing `impl` header, which only a parse would
+find. That is why one row ratifying two same-named lists in one module
+is a red rather than a silent second ratification — and why two lists
+that a module and a name cannot tell apart need one of them moved or
+renamed, not a second row.
 
 ### What the boundary does not decide
 

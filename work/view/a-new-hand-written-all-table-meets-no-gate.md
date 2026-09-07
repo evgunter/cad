@@ -109,10 +109,27 @@ whole allowlist.
 **The allowlist is read, not restated.** The README section gained a
 `#### The lists that stay hand-written` table — four rows, `List` /
 `Module` / `Kind` — and the gate reads the rows from it and the KINDS
-from the section's own bolded bullets, so a fourth kind is an amendment
-to the ratification rather than a new word in a cell. The roster
-retires itself in both directions: a list added without a row reds, and
-a row whose list has been converted reds too.
+from the section's own bolded bullets, both scoped to that section. The
+gate holds the NUMBER of bullets as its own constant, so a fourth kind
+costs an edit there as well as here and cannot arrive as a docs-tier
+table cell; reading the bullets alone left a fourth bullet plus a row
+claiming it internally consistent and green. The roster retires itself
+in both directions — a list added without a row reds, and a row whose
+list has been converted reds too — and does not spread: one row
+ratifies exactly one list, so two rows for one list and one row for a
+module declaring two lists under that name both red.
+
+**What the pre-merge correctness review moved.** Three defects, none
+of which a green run could show: the `awk` that decides what a hit IS
+ran unguarded after the guarded `const_items`, and with no data rows in
+the roster it printed `OK` over two planted breaches; `const` also
+opens a GENERIC parameter, so an unanchored opening began accumulating
+inside `fn stack<const N: usize>` and swallowed the `const ALL` three
+lines below it; and a row keyed on module and name ratified any number
+of lists answering to both. The reader population is now stated as a
+rule and guarded per pipeline STAGE, the item opening is anchored to a
+declaration at the start of a line (`static` too), and every row must
+match exactly one hit. `work/view/log.md` carries the full account.
 
 **Both shapes are in scope.** Three of the four hand-written lists in
 the crate are un-named (`BOOLEAN_OPS`, `MATE_PRIMITIVES`,
@@ -120,8 +137,8 @@ the crate are un-named (`BOOLEAN_OPS`, `MATE_PRIMITIVES`,
 named-only gate would be evaded by calling the next table `KINDS`.
 
 **`crates/viewer/tests/` is out of scope, deliberately.** The scan is
-anchored on `const` items and the suites' lists are inline arrays in a
-row, so it would not find one of the four instances
+anchored on `const` and `static` items and the suites' lists are inline
+arrays in a row, so it would not find one of the four instances
 `viewer-suites-hold-hand-written-complete-variant-lists` names if it
 looked there. Widening it adds exactly one hit — `tests/theme.rs`'s
 `KINDS`, a deliberately partial list already argued in place — and
