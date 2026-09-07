@@ -68,3 +68,60 @@ spelling.
 Raised by the METER orchestrator's difficulty pass over this program's
 slate (2026-09-07), reading `k-lint-predicate-roster-unpinned` against
 `tools/k-lint`'s manifest and the `D204` precedent it cites.
+
+## Corrected by the pinning lane (2026-09-07)
+
+The row above dispatched `k-lint-predicate-roster-unpinned` and its two
+substantive claims were checked at the code. **One holds, one does not,
+and a third direction neither file names is the one that was actually
+silent.**
+
+**Holds.** No criterion for ε-coupledness exists that a test can
+evaluate over the kernel's minted names, and the "Confidence" line's
+open half is now closed: the sweep it could not run was run.
+`docs/K-REPORT.md`'s Finding M5-1 (`:935`) is the closest thing in the
+tree — *"the first predicate in the project whose margin is ε-coupled
+rather than model-scale"* — and it is a description of one family, not a
+rule anything can apply to a name. Nothing else in `docs/` states one.
+So this item stays open exactly as filed.
+
+**Does not hold: "a pin cannot close [the ADDED direction] at all"
+overstates what is open, because that direction is not silent.**
+`tools/k-lint/src/lib.rs:160` states the allow-list's posture — a NEW
+ε-coupled predicate is not on the roster, so it stays under rules (2)
+and (3) and **flags** — `tests/review_probes.rs:77` measures it (silent
+at 1e-6, loud at both tight rows, which CI always runs), and
+`docs/K-REPORT.md:645`'s "this roster is a RECORD, and stays
+hand-maintained" ruling decides it: *"an ε-coupled predicate missing
+from it keeps flagging under the metre rules until someone rules. A
+roster omission therefore cannot silently weaken the gate."* That is a
+ratified answer to the ADDED direction, and it says the roster is
+deliberately not machine-derived.
+
+The same argument disposes of `k-lint-predicate-roster-unpinned`'s
+"**Both directions are silent**". A rename is a roster omission too, so
+it is loud by the same mechanism. What both directions cost is not a
+missed finding but a **misdirected** one: the gate fires on the family's
+own margins with the CLI's recourse pointing at a baseline
+re-derivation, and the cause is a name. That is what the pin now landed
+at `tools/k-lint/tests/predicate_roster.rs` buys, and it is worth
+stating as a diagnosis fix rather than as a closed hole.
+
+**The direction that WAS silent, and is now pinned.** A predicate that
+stays on the roster and stops being ε-coupled — re-meter the quadrature
+stopping test against a fixed length instead of `QUAD_TARGET_LEN_FACTOR·ε`
+and the name is still minted, the roster still matches, rule (4) still
+exempts the family from rules (2) and (3), and a model-scale margin is
+judged by a rule that will essentially never fire on it. Nothing flags.
+`the_rostered_familys_margin_is_still_eps_scaled_at_its_mint` closes
+that, textually, for the roster's one entry: the margin at each mint
+derives from `target_len`, and every `target_len` in
+`crates/geom-brep/src/props/quad.rs` is `QUAD_TARGET_LEN_FACTOR * eps`.
+
+**What that leaves for this item.** The general criterion, and only the
+general criterion: that pin is hand-written against one family's
+spelling and does not extend to an entry the kernel has not minted yet.
+A unit writing the criterion would need, from PROPS, a statement at the
+mint of which `props_*` margins are metered against an ε-derived target
+— the thing `QUAD_TARGET_LEN_FACTOR` makes true of this family and
+nothing states in general.
