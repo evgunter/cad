@@ -71,23 +71,39 @@ sites are `crates/geom-brep/src/props/quad.rs:570`, `:3231`, `:3490` and
 parses the call rather than the line, so it carries all four and does
 not restate any of them.
 
-Three tests. `every_rostered_predicate_is_still_minted_by_the_kernel`
+Four tests. `every_rostered_predicate_is_still_minted_by_the_kernel`
 locates every `classify_len::<T>(` call in the code view of
 `crates/geom-brep/src/props/quad.rs` and reads its first argument out of
 the literal view, then asserts every `EPS_COUPLED_PREDICATES` entry is
 among them. `the_rostered_familys_margin_is_still_eps_scaled_at_its_mint`
-pins rule (4)'s premise as well as its key: each rostered mint's margin
-derives from `target_len`, and every `target_len` there is
-`QUAD_TARGET_LEN_FACTOR * eps` with that factor a finite positive
-literal. `the_pin_reads_a_mint_and_a_missing_name_reds_it` puts a doc
-comment and a quoted string spelling the same call above two real ones
-and asserts only the real ones answer, then constructs a mint short the
-rostered name and asserts the containment separates it.
+pins rule (4)'s premise as well as its key, **per mint**: the margin
+uses the WHOLE identifier `target_len`; that identifier is bound exactly
+once in the mint's own enclosing `fn`, to `QUAD_TARGET_LEN_FACTOR * eps`;
+a mint whose `target_len` arrives as a PARAMETER is refused rather than
+answered; and the factor is a finite positive literal.
+`every_target_len_mint_is_rostered_or_excused` runs the converse — a
+mint that acquires such a margin and is neither rostered nor excused by
+name reds. `the_pin_reads_a_mint_a_respelling_and_a_missing_name_red_it`
+is the negative control for all three: a doc comment and a quoted string
+spelling the same call above two real ones, a call respelled out of the
+parse, and a mint short the rostered name, each asserted to red — the
+last through the same function the first test asserts on, not a copy of
+its rule.
 
-Each red was demonstrated by breaking the kernel locally and reverting:
-renaming the minted literal, replacing `QUAD_TARGET_LEN_FACTOR * eps`
-with a fixed length, and replacing the margin expression with one that
-does not read `target_len`. Nothing under `crates/` is edited in the PR.
+**The parse's coverage is pinned too**, which the first version of this
+pin left open: every `classify_len` in the source must be a call the
+parse read or the function's own declaration, so a site respelled
+`classify_len:: <T>(` reds instead of quietly leaving the population the
+other three quantify over.
+
+Each red was demonstrated by mutating the tree and reverting: a
+`fixed_target_len` bound beside the real one and read by a rostered
+margin; a rostered name moved onto the mint whose `target_len` is a
+parameter; one call respelled out of the parse; and the negative
+control's own fixture literal changed. The first version of this pin
+stayed GREEN under the first three of those, which is how they were
+found (style review, 2026-09-07). Nothing under `crates/` is edited in
+the PR.
 
 **The finding's framing was wrong on one point and short on another,
 and both are written up in `k-lint-eps-coupled-criterion-unwritten`'s
@@ -103,7 +119,15 @@ that stops being ε-coupled while keeping its name — and it is the second
 test above.
 
 **Residue, each with its own file.** The general ε-coupling criterion
-stays open as `k-lint-eps-coupled-criterion-unwritten` (the second test
-is hand-written against one family's spelling and does not extend to an
-entry the kernel has not minted yet). The sibling the sweep turned up is
-`k-lint-csv-header-unpinned-against-five-producers`.
+stays open as `k-lint-eps-coupled-criterion-unwritten` (the pins are
+hand-written against one family's spelling of ε-coupling and do not
+extend to an entry the kernel has not minted yet).
+`k-lint-last-round-is-eps-coupled-but-unrostered` is what the converse
+test found: one mint that is ε-coupled by the same reading, excused
+rather than rostered because rule (4)'s floor has never been measured on
+it. `k-lint-roster-wants-a-kernel-side-vocabulary` records that a Rust
+parser is the instrument METER's fence left, not the one the problem
+asked for, and names the two cheaper shapes a PROPS unit could land.
+`reader-census-shared-disposition-survives-partial-reversion` is the
+census gap this PR walked through on its way in. The sibling the sweep
+turned up is `k-lint-csv-header-unpinned-against-five-producers`.

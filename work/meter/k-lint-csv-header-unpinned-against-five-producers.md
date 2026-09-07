@@ -70,3 +70,10 @@ five producers make that answer expensive; the consumer side is one
 `include_str!` per producer over a path table, which is what
 `tools/k-lint/tests/predicate_roster.rs` now does for the predicate
 roster and could be extended to do here.
+
+**The machinery is already hoisted, so a lane here writes none of it.**
+`plain_string_literal`, `initializers`, `sole_initializer` and `blanked`
+live in `crates/test-utils/src/source.rs` beside the lexer and the
+bracket walks; both existing cross-root pins call them there rather than
+carrying their own copies. A third pin is a path table and its
+assertions, not a fourth copy of the reader.
