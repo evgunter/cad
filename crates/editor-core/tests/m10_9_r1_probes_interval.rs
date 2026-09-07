@@ -13,7 +13,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]
 
-use std::collections::BTreeMap;
 use std::time::Instant;
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
@@ -23,7 +22,6 @@ use editor_core::{
     MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
     RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, select_where,
 };
-use geom_core::sym::report::ShapeOutcome;
 use geom_core::{SymRules, Tol};
 
 use crate::fixture::Recorder;
@@ -36,21 +34,6 @@ fn rows() -> [(&'static str, SymRules); 2] {
         ("door OFF", SymRules::shipped_without_the_door()),
         ("door ON ", SymRules::shipped()),
     ]
-}
-
-/// Just the predicate name out of a refusal message.
-fn pred(msg: &str) -> String {
-    msg.split_once("predicate '")
-        .and_then(|(_, r)| {
-            r.split_once('\'').map(|(p, rest)| {
-                let encl = rest
-                    .split_once("enclosure ")
-                    .and_then(|(_, e)| e.split_once(')').map(|(v, _)| v.to_owned()))
-                    .unwrap_or_default();
-                format!("{p} {encl}")
-            })
-        })
-        .unwrap_or_else(|| msg.chars().take(90).collect())
 }
 
 /// **D13 — `Curve3::circle_at` is the old `eval` arm, bit for bit.**
@@ -118,11 +101,12 @@ fn r1_circle_at_and_eval_agree_bit_for_bit() {
     }
 }
 
-/// **THE REFUSAL WALK PAST THE PLATE'S CEILING** (claim 3): at a ladder
-/// of scales above the measured ceiling, what refuses FIRST with the
-/// door open and shut, and every predicate that stayed indeterminate in
-/// the same replay. The question this answers is whether the tail past
-/// the door is more identity-shaped residuals or a real margin.
+/// **THE OVER-BAND SET PAST THE PLATE'S CEILING** (claim 3): at a
+/// ladder of scales above the measured ceiling, every predicate over
+/// the band with its enclosure, door open and shut. The question this
+/// answers is whether the tail past the door is more identity-shaped
+/// residuals or a real margin. The name a drive stops on is not
+/// printed: at any of these scales it is evaluation order.
 #[test]
 #[ignore = "evidence-only: the plate's refusal walk above its ceiling"]
 fn r1_the_refusal_walk_past_the_plates_ceiling() {
@@ -134,21 +118,14 @@ fn r1_the_refusal_walk_past_the_plates_ceiling() {
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         let box_ = ParamBox::of(&analyzed);
         for (label, r) in rows() {
-            let (shapes, refusal, counts) = replay(&doc, &box_, r, tol);
-            let mut blocked: BTreeMap<&'static str, usize> = BTreeMap::new();
-            for sh in shapes.iter().filter(|sh| {
-                matches!(
-                    sh.outcome,
-                    ShapeOutcome::Indeterminate | ShapeOutcome::Invalid
-                )
-            }) {
-                *blocked.entry(sh.predicate).or_default() += 1;
-            }
+            let (shapes, _, counts) = replay(&doc, &box_, r, tol);
             println!(
-                "   x{mult:<7} {label}: first {:<70} blocked {blocked:?} reg={} num={}",
-                refusal.as_deref().map(pred).unwrap_or_else(|| "-".into()),
+                "   x{mult:<7} {label}: reg={} num={}\n{}",
                 counts.registered,
-                counts.numeric
+                counts.numeric,
+                crate::m10_8_harness::render_over_band(&crate::m10_8_harness::over_band_set(
+                    &shapes
+                ))
             );
         }
     }
@@ -434,20 +411,13 @@ fn r1_the_pads_over_band_set_at_multiples_of_its_ceiling() {
         let doc = crate::m10_8_r2_probes_interval::pad(2.083e3 * eps * mult, tol).0;
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         for (label, r) in rows() {
-            let (shapes, refusal, counts) = replay(&doc, &ParamBox::of(&analyzed), r, tol);
-            let mut blocked: BTreeMap<&'static str, usize> = BTreeMap::new();
-            for sh in shapes.iter().filter(|sh| {
-                matches!(
-                    sh.outcome,
-                    ShapeOutcome::Indeterminate | ShapeOutcome::Invalid
-                )
-            }) {
-                *blocked.entry(sh.predicate).or_default() += 1;
-            }
+            let (shapes, _, counts) = replay(&doc, &ParamBox::of(&analyzed), r, tol);
             println!(
-                "   pad x{mult} {label}: first {:<70} blocked {blocked:?} reg={}",
-                refusal.as_deref().map(pred).unwrap_or_else(|| "-".into()),
-                counts.registered
+                "   pad x{mult} {label}: reg={}\n{}",
+                counts.registered,
+                crate::m10_8_harness::render_over_band(&crate::m10_8_harness::over_band_set(
+                    &shapes
+                ))
             );
         }
         println!(

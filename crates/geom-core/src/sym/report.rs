@@ -18,8 +18,8 @@ use core::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 
 use super::{
-    Discharge, Form, INDET_PI, ParamSymbol, Poly, Rat, SESSION, Session, SymId, SymOp, indet_param,
-    plain_form,
+    Discharge, Form, INDET_PI, ParamSymbol, Poly, Rat, SESSION, Session, SymId, SymOp, early_form,
+    indet_param, plain_form,
 };
 use crate::predicate::{Indeterminate, MarginDiag, Sign};
 
@@ -46,6 +46,16 @@ pub enum ShapeOutcome {
     Invalid,
 }
 
+/// The size of one quotient form: numerator and denominator, each as
+/// `(terms, total degree)`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FormSize {
+    /// The numerator's term count and total degree.
+    pub num: (usize, u32),
+    /// The denominator's term count and total degree.
+    pub den: (usize, u32),
+}
+
 /// One recorded decision.
 #[derive(Clone, Debug)]
 pub struct DecisionShape {
@@ -53,10 +63,24 @@ pub struct DecisionShape {
     pub predicate: &'static str,
     /// How it was answered.
     pub outcome: ShapeOutcome,
-    /// The residual's normal form, for a decision that stayed
+    /// The residual's PLAIN normal form, for a decision that stayed
     /// numeric without a definite sign — `None` otherwise, and `None`
     /// outside a session.
     pub form: Option<String>,
+    /// The same residual's EARLY form (the session's rules applied per
+    /// node), rendered beside the plain one, so a reader can see what
+    /// the rules reached and what stood after them. `None` where
+    /// `form` is, and `None` when the session runs no early walk.
+    pub early_form: Option<String>,
+    /// The two forms' SIZES — `(terms, degree)` of the numerator and
+    /// of the denominator, plain then early — so a residual's shape is
+    /// a number and not an eyeballed rendering.
+    pub sizes: Option<[FormSize; 2]>,
+    /// The DAG below the residual, one line per node to the depth
+    /// [`explain_depth`] set: op, early-form size, and `FROZEN` where
+    /// the early walk could not build the node's form — the line that
+    /// says WHICH product the ring or the budget refused.
+    pub explain: Option<String>,
     /// The certified enclosure the numeric channel classified
     /// (`Interval` lane only; `None` at every other scalar). This is
     /// what makes a blocked decision READABLE as a distance from the
@@ -66,6 +90,9 @@ pub struct DecisionShape {
 
 thread_local! {
     static ACTIVE: Cell<bool> = const { Cell::new(false) };
+    /// How many levels below a blocked residual [`explain`] walks
+    /// (zero: no explanation is rendered).
+    static EXPLAIN: Cell<usize> = const { Cell::new(0) };
     static SHAPES: RefCell<Vec<DecisionShape>> = const { RefCell::new(Vec::new()) };
     static NAMES: RefCell<BTreeMap<u128, String>> = const { RefCell::new(BTreeMap::new()) };
 }
@@ -81,6 +108,14 @@ pub fn start_shape_report() {
 pub fn take_shape_report() -> Vec<DecisionShape> {
     ACTIVE.set(false);
     SHAPES.with(|s| core::mem::take(&mut *s.borrow_mut()))
+}
+
+/// Sets how many DAG levels below a blocked residual the report
+/// EXPLAINS ([`DecisionShape::explain`]): per node its op, its early
+/// form's size and whether the early walk FROZE it. Zero (the default)
+/// renders no explanation.
+pub fn explain_depth(levels: usize) {
+    EXPLAIN.set(levels);
 }
 
 /// Registers a parameter's NAME for rendering, on this thread.
@@ -101,7 +136,7 @@ pub(super) fn active() -> bool {
 pub(super) fn record(
     numeric: &Result<Sign, Indeterminate>,
     symbolic: Option<Discharge>,
-    form: Option<String>,
+    rendered: Option<Rendered>,
     enclosure: Option<(f64, f64)>,
 ) {
     if !active() {
@@ -116,20 +151,118 @@ pub(super) fn record(
         (None, Err(e)) if matches!(e.margin, MarginDiag::Invalid) => ShapeOutcome::Invalid,
         (None, Err(_)) => ShapeOutcome::Indeterminate,
     };
+    let (form, early_form, sizes, explain) = match rendered {
+        Some(r) => (Some(r.plain), r.early, Some(r.sizes), r.explain),
+        None => (None, None, None, None),
+    };
     SHAPES.with(|s| {
         s.borrow_mut().push(DecisionShape {
             predicate: crate::k_stats::current_predicate(),
             outcome,
             form,
+            early_form,
+            sizes,
+            explain,
             enclosure,
         });
     });
 }
 
+/// What [`render_node`] hands the recorder: both renderings and both
+/// sizes of one blocked residual.
+pub(super) struct Rendered {
+    pub(super) plain: String,
+    pub(super) early: Option<String>,
+    pub(super) sizes: [FormSize; 2],
+    pub(super) explain: Option<String>,
+}
+
+/// The DAG below `root` to `levels` deep, one line per node: its op,
+/// its early form's size, and `FROZEN` where the early memo holds the
+/// node's own indeterminate — the shape of a refusal, read off the
+/// tree rather than guessed from the residual. Nodes are visited in
+/// child order and a node reached twice is rendered once.
+/// The largest numerator (terms) [`explain`] renders in full.
+const EXPLAIN_RENDER_TERMS: usize = 80;
+
+/// The most characters of one rendered form [`explain`] prints.
+const EXPLAIN_RENDER_CHARS: usize = 1500;
+
+fn explain(sess: &mut Session, root: SymId, levels: usize) -> String {
+    use core::fmt::Write as _;
+    let mut out = String::new();
+    let mut seen: super::IdMap<()> = super::IdMap::default();
+    let mut stack = vec![(root, 0usize)];
+    while let Some((id, depth)) = stack.pop() {
+        if seen.insert(id, ()).is_some() {
+            continue;
+        }
+        let pad = "  ".repeat(depth);
+        let Some(node) = sess.nodes.get(&id).copied() else {
+            let _ = writeln!(out, "{pad}[unrecorded #{:08x}]", id.bits() as u32);
+            continue;
+        };
+        let e = early_form(sess, id);
+        let frozen = e.den == Poly::one()
+            && e.num.terms.len() == 1
+            && e.num
+                .terms
+                .keys()
+                .next()
+                .is_some_and(|m| m.as_slice() == [(id.bits(), 1)]);
+        let payload = match node.op {
+            SymOp::Lit => format!(" {}", f64::from_bits(node.payload)),
+            SymOp::Powi => format!(" ^{}", node.payload as u32 as i32),
+            _ => String::new(),
+        };
+        let shape = if frozen {
+            "FROZEN".to_owned()
+        } else {
+            let sz = size_of(&e);
+            format!("num {:?} den {:?}", sz.num, sz.den)
+        };
+        let _ = writeln!(
+            out,
+            "{pad}{:?}{payload} #{:08x}: {shape}",
+            node.op,
+            id.bits() as u32
+        );
+        // A small form is worth reading in full: the two sides of a
+        // residual that does not cancel are usually a few dozen terms.
+        if !frozen && e.num.terms.len() <= EXPLAIN_RENDER_TERMS {
+            let text = render_form(sess, &e, 0);
+            let cut = text
+                .char_indices()
+                .nth(EXPLAIN_RENDER_CHARS)
+                .map_or(text.len(), |(i, _)| i);
+            let _ = writeln!(
+                out,
+                "{pad}  = {}{}",
+                &text[..cut],
+                if cut < text.len() { "…" } else { "" }
+            );
+        }
+        if depth < levels {
+            for k in node.kids[..node.op.arity()].iter().rev() {
+                stack.push((*k, depth + 1));
+            }
+        }
+    }
+    out
+}
+
+fn size_of(f: &Form) -> FormSize {
+    FormSize {
+        num: (f.num.terms.len(), f.num.degree()),
+        den: (f.den.terms.len(), f.den.degree()),
+    }
+}
+
 /// The rendered PLAIN normal form of `id` in the installed session —
 /// the residual the numeric channel had to answer, with its atoms
-/// spelled out — or `None` outside a session (or the tier off).
-pub(super) fn render_node(id: SymId) -> Option<String> {
+/// spelled out — beside its EARLY form and both sizes; `None` outside
+/// a session (or the tier off).
+pub(super) fn render_node(id: SymId) -> Option<Rendered> {
     SESSION.with(|s| {
         let mut slot = s.borrow_mut();
         let sess = slot.as_mut()?;
@@ -137,7 +270,21 @@ pub(super) fn render_node(id: SymId) -> Option<String> {
             return None;
         }
         let f = plain_form(sess, id);
-        Some(render_form(sess, &f, 0))
+        let plain = render_form(sess, &f, 0);
+        let (early, early_size) = if sess.rules.early {
+            let e = early_form(sess, id);
+            (Some(render_form(sess, &e, 0)), size_of(&e))
+        } else {
+            (None, size_of(&f))
+        };
+        let levels = EXPLAIN.get();
+        let explain = (levels > 0 && sess.rules.early).then(|| explain(sess, id, levels));
+        Some(Rendered {
+            plain,
+            early,
+            sizes: [size_of(&f), early_size],
+            explain,
+        })
     })
 }
 
@@ -154,7 +301,16 @@ pub(super) fn render_node(id: SymId) -> Option<String> {
 /// about together.
 #[must_use]
 pub fn render_of(node: SymId) -> Option<String> {
-    render_node(node)
+    render_node(node).map(|r| r.plain)
+}
+
+/// **The rendered EARLY form of any node** — [`render_of`]'s twin for
+/// the walk the atom algebra runs in, so a probe can quote what the
+/// rules reached beside what the plain form holds. `None` outside a
+/// session, with the tier off, or when the session runs no early walk.
+#[must_use]
+pub fn render_early_of(node: SymId) -> Option<String> {
+    render_node(node).and_then(|r| r.early)
 }
 
 /// Nested atoms render to this depth, then `…`.

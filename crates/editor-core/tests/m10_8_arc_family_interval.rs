@@ -22,7 +22,8 @@
 //!   residual the numeric channel could not decide.
 //!
 //! Then the ceilings: the widest whole-certifying box of the plate and
-//! the bracket per rule set, and what refuses first beyond each.
+//! the bracket per rule set, and what bounds each — the over-band set
+//! at the refusing end of the bracket.
 //!
 //! **NO TEST IN THIS FILE IS EXECUTED BY CI** — every row is an
 //! `#[ignore]`d evidence probe that prints and asserts nothing a gate
@@ -293,39 +294,17 @@ fn m10_8_table_per_predicate_under_each_rule_set() {
 }
 
 /// The widest scale of a document's real study that certifies WHOLE
-/// (`max_depth = 0`), by bisection of the log of the scale
-/// (`m10_8_harness::ceiling`), and the first refusal beyond it.
-///
-/// **THE SECOND HALF IS NOT A BOUND, and must not be read as one.** It
-/// replays at `2 · lo` — a scale the bisection has already shown to be
-/// far past the boundary — and reports the ONE predicate the drive
-/// stops on. At that scale several predicates are over the band at
-/// once, so the name is a fact about EVALUATION ORDER (validation
-/// before certification) and not about the document: on R2's filleted
-/// bracket at `2 · lo` the profile fails validation and the
-/// certification predicates are never asked at all. What bounds a
-/// document is the SET of predicates over the band at the refusing end
-/// of the bracket, with their enclosures —
-/// `m10_9_evidence_interval::over_band_set` reads it that way, and
-/// `work/m10/first-refusal-at-twice-the-ceiling-is-an-order-artefact`
-/// carries the measurement and the list of statements that need
-/// re-reading. This helper is left as it is so M10-8's published
-/// tables keep meaning what they said; do not build on its answer.
+/// (`max_depth = 0`), by bisection of the log of the scale, and WHAT
+/// BOUNDS it: the over-band set at the refusing end of the bracket
+/// (`m10_8_harness::bound`). Never a replay at a multiple of the
+/// ceiling — at that scale the name a drive reports is evaluation
+/// order, not the document.
 pub(crate) fn ceiling(
     doc_at: &dyn Fn(f64) -> ProfileDoc,
     dials: SymbolicDials,
     tol: Tol,
-) -> (f64, Option<String>) {
-    let (lo, hi, _) = crate::m10_8_harness::ceiling(doc_at, dials.rules, tol, 1.0e-14, 1.0e3, 40);
-    if lo.is_nan() || hi.is_infinite() {
-        return (lo, None);
-    }
-    // What refuses first beyond it, from a whole-box replay at twice
-    // the ceiling.
-    let doc = doc_at(lo * 2.0);
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let (_, refusal, _) = replay(&doc, &ParamBox::of(&analyzed), dials.rules, tol);
-    (lo, refusal)
+) -> (f64, f64, Option<Vec<crate::m10_8_harness::OverBand>>) {
+    crate::m10_8_harness::bound(doc_at, dials.rules, tol, 1.0e-14, 1.0e3, 40)
 }
 
 /// **Claim 7 — the cost per LEAF, per rule set**: one whole-box replay
@@ -376,9 +355,10 @@ fn m10_8_leaf_cost_per_rule_set() {
     }
 }
 
-/// **The ceilings, per rule set**, on the plate and on R2's bracket.
+/// **The ceilings, per rule set**, on the plate and on R2's bracket,
+/// each with the over-band set at ceiling + δ.
 #[test]
-#[ignore = "evidence-only: prints the ceilings per rule set and the first refusal beyond each"]
+#[ignore = "evidence-only: prints the ceilings per rule set and what bounds each"]
 fn m10_8_ceilings_per_rule_set() {
     let tol = Tol::witness();
     let plate_at = |scale: f64| plate(5.0e-5 * scale, 1.0e-5 * scale, tol).0;
@@ -408,22 +388,29 @@ fn m10_8_ceilings_per_rule_set() {
                 rules,
                 ..SymbolicDials::default()
             };
-            let (c, refusal) = ceiling(doc_at, dials, tol);
+            let (lo, hi, set) = ceiling(doc_at, dials, tol);
             println!(
-                "   {name} rules={label:<6} ceiling x{c:e} of the real study; beyond: {refusal:?}"
+                "   {name} rules={label:<6} certifies x{lo:e}, refuses x{hi:e} of the real study"
             );
+            if let Some(set) = set {
+                println!("{}", crate::m10_8_harness::render_over_band(&set));
+            }
         }
-        let (c, refusal) = ceiling(doc_at, SymbolicDials::off(), tol);
-        println!("   {name} tier OFF     ceiling x{c:e} of the real study; beyond: {refusal:?}");
+        let (lo, hi, set) = ceiling(doc_at, SymbolicDials::off(), tol);
+        println!("   {name} tier OFF     certifies x{lo:e}, refuses x{hi:e} of the real study");
+        if let Some(set) = set {
+            println!("{}", crate::m10_8_harness::render_over_band(&set));
+        }
     }
 }
 
-/// The blocking shapes just beyond a ceiling, named with their
-/// predicate and enclosure — the numbers the caption and the deviations
-/// table quote.
+/// The blocking shapes at ceiling + δ, named with their predicate,
+/// enclosure and rendered EARLY form — the numbers the caption and the
+/// deviations table quote. Read at the refusing end of the bracket and
+/// nowhere else.
 #[test]
-#[ignore = "evidence-only: prints what bounds each document just past its ceiling"]
-fn m10_8_what_bounds_each_document_past_its_ceiling() {
+#[ignore = "evidence-only: prints what bounds each document at ceiling + delta, with the forms"]
+fn m10_8_what_bounds_each_document_at_its_ceiling() {
     let tol = Tol::witness();
     let plate_at = |scale: f64| plate(5.0e-5 * scale, 1.0e-5 * scale, tol).0;
     let bracket_at = |scale: f64| r2_bracket(scale, tol).0;
@@ -432,30 +419,35 @@ fn m10_8_what_bounds_each_document_past_its_ceiling() {
         ("r2_filleted_bracket", &bracket_at),
     ];
     for (name, doc_at) in docs {
-        let (c, _) = ceiling(doc_at, SymbolicDials::default(), tol);
-        for factor in [2.0, 1.0 / c] {
-            let doc = doc_at(c * factor);
-            let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-            let (shapes, refusal, counts) =
-                replay(&doc, &ParamBox::of(&analyzed), SymRules::all(), tol);
-            println!(
-                "== {name} at x{:e} (ceiling x{c:e}): {counts:?}; first refusal {refusal:?}",
-                c * factor
-            );
-            for s in shapes.iter().filter(|s| {
-                matches!(
-                    s.outcome,
-                    ShapeOutcome::Indeterminate | ShapeOutcome::Invalid
-                )
-            }) {
+        let (lo, hi, _) = ceiling(doc_at, SymbolicDials::default(), tol);
+        if !(lo.is_finite() && hi.is_finite()) {
+            println!("== {name}: no finite bracket ({lo:e}, {hi:e})");
+            continue;
+        }
+        let doc = doc_at(hi);
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        let (shapes, _, counts) = replay(&doc, &ParamBox::of(&analyzed), SymRules::shipped(), tol);
+        println!("== {name} at ceiling + delta (x{hi:e}; certifies x{lo:e}): {counts:?}");
+        println!(
+            "{}",
+            crate::m10_8_harness::render_over_band(&crate::m10_8_harness::over_band_set(&shapes))
+        );
+        let mut shown: std::collections::BTreeSet<&'static str> = Default::default();
+        for s in shapes.iter().filter(|s| {
+            matches!(
+                s.outcome,
+                ShapeOutcome::Indeterminate | ShapeOutcome::Invalid
+            )
+        }) {
+            if shown.insert(s.predicate) {
                 println!(
                     "   [{:?}] {}: {}",
                     s.outcome,
                     s.predicate,
-                    s.form.as_deref().unwrap_or("-")
+                    s.early_form.as_deref().or(s.form.as_deref()).unwrap_or("-")
                 );
             }
-            let _ = Sign::Zero;
         }
+        let _ = Sign::Zero;
     }
 }

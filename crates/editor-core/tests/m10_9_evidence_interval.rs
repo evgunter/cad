@@ -6,7 +6,8 @@
 //! **What a bound IS, here**: the SET of predicates over the band at
 //! the refusing end of a bisection, not the one name a drive reports
 //! when it stops. The two differ, and M10-9's first cut was wrong
-//! because of it — see [`over_band_set`].
+//! because of it — see `m10_8_harness::over_band_set`, the one home of
+//! that instrument.
 //!
 //! Every row here is an `#[ignore]`d evidence probe that prints and
 //! asserts nothing a gate could read ([[test-suite-cost]]); the
@@ -81,67 +82,17 @@ fn documents(tol: Tol) -> Vec<NamedStudy> {
     ]
 }
 
-/// **THE OVER-BAND SET at one scale**: every predicate with at least one
-/// decision the band could not classify, the widest such enclosure, and
-/// how many of that predicate's decisions were over the band.
-///
-/// It exists because reading a SINGLE first refusal answers the wrong
-/// question. A drive stops at its first refusal, and evaluation ORDER —
-/// validation before certification — picks which of several
-/// simultaneously-over-band predicates that is. M10-9's first cut read
-/// the refusal at twice the ceiling and reported `line_span`; at
-/// ceiling + δ the same documents are bounded by other predicates
-/// entirely, with `line_span` over the band as well. The bound is the
-/// SET, and it is read at the tightest refusing scale the bisection
-/// found.
-///
-/// Sorted widest-band first: the predicate furthest over the band is the
-/// one a slightly narrower study would still be stopped by.
-fn over_band_set(
-    shapes: &[geom_core::sym::report::DecisionShape],
-) -> Vec<(&'static str, (f64, f64), usize, usize)> {
-    let mut out: BTreeMap<&'static str, ((f64, f64), usize, usize)> = BTreeMap::new();
-    for s in shapes {
-        let e = out
-            .entry(s.predicate)
-            .or_insert(((f64::INFINITY, f64::NEG_INFINITY), 0, 0));
-        e.2 += 1;
-        if !matches!(
-            s.outcome,
-            ShapeOutcome::Indeterminate | ShapeOutcome::Invalid
-        ) {
-            continue;
-        }
-        e.1 += 1;
-        if let Some((lo, hi)) = s.enclosure {
-            e.0.0 = e.0.0.min(lo);
-            e.0.1 = e.0.1.max(hi);
-        }
-    }
-    let mut rows: Vec<_> = out
-        .into_iter()
-        .filter(|(_, (_, over, _))| *over > 0)
-        .map(|(p, (env, over, all))| (p, env, over, all))
-        .collect();
-    rows.sort_by(|a, b| {
-        (b.1.1 - b.1.0)
-            .partial_cmp(&(a.1.1 - a.1.0))
-            .unwrap_or(core::cmp::Ordering::Equal)
-    });
-    rows
-}
-
 /// **The ceilings, door OFF and door ON, and THE OVER-BAND SET AT
 /// CEILING + DELTA** — the bracket at both ends, and every predicate the
 /// band could not classify at the tightest refusing scale the bisection
 /// found, with its enclosure.
 ///
 /// The last column is a SET and it is read at `hi`, the refusing end of
-/// a 16-step log bisection, for the reason [`over_band_set`] states:
-/// the first refusal a drive reports at a scale well PAST the ceiling
-/// is an artefact of evaluation order, not the bound. Twelve steps and
-/// a doubled scale — M10-9's first cut — were enough to be wrong about
-/// which predicate bounds four of these five documents.
+/// a 16-step log bisection, for the reason `m10_8_harness::over_band_set`
+/// states: the first refusal a drive reports at a scale well PAST the
+/// ceiling is an artefact of evaluation order, not the bound. Twelve
+/// steps and a doubled scale — M10-9's first cut — were enough to be
+/// wrong about which predicate bounds four of these five documents.
 ///
 /// Run it once per ε row (`CAD_TOLERANCE_EPS=1e-6`, `1e-12`): the
 /// tolerance is a `OnceLock`, so one process is one row. `CAD_M10_9_DOCS`
@@ -175,27 +126,18 @@ fn m10_9_ceilings_with_and_without_the_door() {
             if !(lo.is_finite() && hi.is_finite()) {
                 continue;
             }
-            // AT CEILING + DELTA, and again at a round multiple past
-            // it. The second scale is what M10-9's first cut read, and
-            // the two columns side by side are the order artefact: at
-            // ceiling + delta ONE predicate is over the band, at 2x
-            // several are, and the drive names whichever its evaluation
-            // order reaches first.
-            for (what, scale) in [("ceiling+delta", hi), ("2x the ceiling", 2.0 * lo)] {
-                let doc = at(scale);
-                let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-                let (shapes, refusal, counts) = replay(&doc, &ParamBox::of(&analyzed), rules, tol);
-                println!(
-                    "      at {what} ({:.4e}·eps): the drive stops at {refusal:?}",
-                    scale / eps
-                );
-                println!("      {counts:?}");
-                for (pred, (blo, bhi), over, all) in over_band_set(&shapes) {
-                    println!(
-                        "      OVER BAND {pred:<34} [{blo:>11.4e},{bhi:>11.4e}] {over:>3}/{all:<4}"
-                    );
-                }
-            }
+            // AT CEILING + DELTA, and nowhere else: the set there is
+            // the bound.
+            let doc = at(hi);
+            let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+            let (shapes, _, counts) = replay(&doc, &ParamBox::of(&analyzed), rules, tol);
+            println!("      at ceiling+delta ({:.4e}·eps): {counts:?}", hi / eps);
+            println!(
+                "{}",
+                crate::m10_8_harness::render_over_band(&crate::m10_8_harness::over_band_set(
+                    &shapes
+                ))
+            );
         }
     }
 }
