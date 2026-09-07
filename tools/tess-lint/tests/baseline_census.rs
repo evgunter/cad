@@ -68,9 +68,9 @@
 //! write it in. The failure exists so that the paragraph in `lib.rs`
 //! cannot go on describing a file it no longer describes.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
-use tess_lint::{IDENTITY_COLUMNS, Row, identity_readings, parse};
+use tess_lint::{IDENTITY_COLUMNS, Row, identity_readings, parse, totals};
 
 /// The committed baseline, by path relative to this crate's manifest.
 ///
@@ -131,7 +131,7 @@ fn census(rows: &[&Row]) -> (usize, usize, Vec<String>) {
 fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     let rows = parse(BASELINE).expect("the committed baseline parses");
     let all: Vec<&Row> = rows.iter().collect();
-    let sized: Vec<&Row> = rows.iter().filter(|r| r.nurbs.is_some()).collect();
+    let sized: Vec<&Row> = rows.iter().filter(|r| r.is_sized()).collect();
 
     // The corpus the census is over.
     assert_eq!(all.len(), 1353, "rows in the committed baseline");
@@ -185,7 +185,7 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
 #[test]
 fn six_of_the_eight_identity_entries_discriminate_nothing_among_the_sized_rows() {
     let rows = parse(BASELINE).expect("the committed baseline parses");
-    let sized: Vec<&Row> = rows.iter().filter(|r| r.nurbs.is_some()).collect();
+    let sized: Vec<&Row> = rows.iter().filter(|r| r.is_sized()).collect();
     assert!(!sized.is_empty(), "the census needs sized rows to be over");
 
     // Distinct readings per identity column, over the sized rows.
@@ -248,4 +248,89 @@ fn six_of_the_eight_identity_entries_discriminate_nothing_among_the_sized_rows()
             r.face
         );
     }
+}
+
+/// The other quantity `lib.rs` used to transcribe: WHICH scenes of
+/// the committed corpus gate a re-key, and so how much of it is a
+/// scene where one is a NOTE rather than a finding.
+///
+/// Rule 4's judgement is per SCENE and reads BOTH sides of a
+/// comparison — does EITHER carry a sized face. A census is over ONE
+/// corpus, so the most it can pin is the baseline's side of that
+/// question, and the names below are exactly it: the scenes a fresh
+/// sweep re-keys at a FINDING however the fresh side reads, because
+/// the committed side alone already gates them. The remaining 60 are
+/// notes only while the fresh sweep leaves them unsized too — that
+/// half is a two-sided reading this file cannot take, and the
+/// conversion the day one of them gains a sized face is pinned in
+/// `lib.rs` by
+/// `a_scene_that_gains_its_first_sized_face_reds_rather_than_notes`.
+///
+/// **Asserted by NAME rather than by count**, for the reason the pair
+/// census asserts its scene list: a count is the weaker pin, and this
+/// one is already asserted 130 lines up over an identical predicate
+/// over the identical corpus, so a second count here would exercise
+/// nothing. The note count is `72 − 12` by construction — every scene
+/// is one or the other — so it is arithmetic and is stated in this
+/// sentence rather than asserted. An assertion no perturbation can
+/// reach is the defect this file exists to keep out of its own
+/// numbers, and `scenes.difference(&gating).len()` would have been
+/// one.
+#[test]
+fn the_committed_baseline_gates_a_re_key_in_exactly_these_scenes() {
+    let rows = parse(BASELINE).expect("the committed baseline parses");
+    let scenes: BTreeSet<&str> = rows.iter().map(|r| r.scene.as_str()).collect();
+    let gating: Vec<&str> = rows
+        .iter()
+        .filter(|r| r.is_sized())
+        .map(|r| r.scene.as_str())
+        .collect::<BTreeSet<&str>>()
+        .into_iter()
+        .collect();
+
+    assert_eq!(scenes.len(), 72, "scenes in the committed baseline");
+    assert_eq!(
+        gating,
+        [
+            "lily/lily_leaf_a",
+            "lily/lily_leaf_b",
+            "lily/lily_leaf_c",
+            "lily/lily_sepal_a",
+            "lily/lily_sepal_b",
+            "lily/lily_sepal_c",
+            "lofts/loft_prism",
+            "lofts/nonuniform_loft",
+            "s_duct/s_duct",
+            "twisted_duct/twisted_duct",
+            "twisted_duct_shadow_y/twisted_duct_shadow_y",
+            "twisted_duct_shadow_z/twisted_duct_shadow_z",
+        ],
+        "the scenes carrying a sized face, where a re-key is a FINDING; \
+         in every other scene of the 72 it is a NOTE"
+    );
+
+    // The SCENE-level spelling of "carries a sized face", which cannot
+    // share [`Row::is_sized`]'s body: `SceneTotals::recoverable` reads
+    // summed cell counts, and those are above zero exactly when some
+    // row of the scene is sized only because `parse` admits no cell
+    // count below one. That is the crate's argument for having no
+    // second counter; it holds by the floor rather than by
+    // construction, so it is exercised here over the whole committed
+    // corpus rather than left written down.
+    let per_scene = totals(&rows);
+    let by_totals: Vec<&str> = {
+        // `totals` is in tour order; `gating` came out of a `BTreeSet`.
+        let mut v: Vec<&str> = per_scene
+            .iter()
+            .filter(|(_, t)| t.recoverable().is_some())
+            .map(|(s, _)| s.as_str())
+            .collect();
+        v.sort_unstable();
+        v
+    };
+    assert_eq!(
+        by_totals, gating,
+        "the scene-level and row-level readings of \"carries a sized \
+         face\" name the same scenes"
+    );
 }

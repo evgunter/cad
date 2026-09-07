@@ -2,10 +2,11 @@
 id: closure-tier-skips-python-suite-on-geom-core-changes
 kind: issue
 title: TIER=closure on a geom-core/geom public-signature change runs RUN_PNCAD_PY=false — the python wheel is never built although it compiles against those crates
-status: review
+status: closed
 opened: 2026-09-05
 branch: ciw/python-suite-closure
 pr: 2071
+closed: 2026-09-07
 ---
 
 
@@ -72,3 +73,17 @@ UNCOMMITTED tree — `territory` diffs `origin/main...HEAD` — and on the
 committed branch it names both cross-fence paths correctly,
 `scripts/ci-filter.py` (tcost) and `docs/prompts/implementer-discipline.md`
 (meta). The lesson is about when to run it, not about what it can see.
+
+## Closed 2026-09-07
+
+PR 2071. `RUN_PNCAD_PY`'s seed set is `pncad-py`'s non-dev dependency closure,
+read off the member graph: a `geom-core` change runs the suite, and so does a
+`bvh` change — the crate both reviews found reaching Python through
+`editor-core`'s `pub use bvh::Ray`, which the first pass's façade-text
+derivation missed. `viewer` (above the wheel) and `test-utils` (a dev edge)
+stay out. `docs/prompts/implementer-discipline.md` §2 now says what the filter
+does.
+
+The residue is `python-suite-axis-skips-only-two-members`, open on this slate:
+the axis now excludes exactly two members, and the number that would settle
+whether the machinery is worth keeping has not been taken.
