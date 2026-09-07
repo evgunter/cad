@@ -434,6 +434,17 @@ discipline() {
   # never execute on a real run, so nothing but this drives them.
   # HOSTED MIRROR: discipline / run-job gate selftest (the one required check's seven paths)
   python3 scripts/check-run-jobs.py --selftest || rc=1
+  # The opt-level calibration lane's own guard. The LANE has no local half and
+  # is not supposed to: its free arm is read from this repository's hosted run
+  # history and its measured arms are numbers about the 2-vCPU runner class,
+  # which is the entire question — a developer box's ratio is the measurement
+  # that lane exists to distrust. What belongs in both halves, by exactly the
+  # base-test-listing argument above, is the SELFTEST: it drives the readers,
+  # the cadence and the argmin against fixtures, no hosted run produces those
+  # paths on demand, and the `record` mode they guard appends to a history
+  # under docs/perf-data/opt-level/ that cannot be edited afterwards.
+  # HOSTED MIRROR: discipline / opt-level calibrator selftest (the guard over an append-only history)
+  python3 scripts/opt-level-calibrate.py --selftest || rc=1
   return $rc
 }
 
