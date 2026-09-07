@@ -3769,3 +3769,4 @@ when the block's last slot's reviews conclude; each ordinal claim at
 review dispatch goes to main on its own.
 
 Block TRIM-B1 slot record (branch-side, appended as each slot concludes):
+slot 0 = TRIM-3 PR-1 (OPUS) — concluded 2026-09-07 at merge 498418dbb, ordinal 2500, sample #151 (pair EXCLUDED from the tally under 3(e): R1 killed by a Fable 429 and resumed; two unilateral code-class MAJORs noted as would-be candidates).
