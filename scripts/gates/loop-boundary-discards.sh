@@ -141,7 +141,6 @@ REGISTER=(
   "crates/sweep/src/blend/build.rs|face_cycle||1|unaudited"
   "crates/sweep/src/blend/surgery.rs|loop_walk||1|unaudited"
   "crates/sweep/src/swept.rs|describe_face_rim_at_rest||1|unaudited"
-  "crates/topo/src/boolean/boxes.rs|face_box||1|audited: the arm below it in the same walk — a half-edge with no stored certified pcurve — and the same answer, no window. A lone vertex carries no chart image, so the walk cannot see what bounds the face's chart region and the torus arm keeps torus_extent, which is the box every torus face had before the window existed"
   "crates/topo/src/boolean/contain.rs|iso_bounded_wall||1|unaudited"
   "crates/topo/src/boolean/contain.rs|loop_cycle_points||1|unaudited"
   "crates/topo/src/boolean/finish.rs|classify_shell||1|unaudited"
@@ -166,7 +165,6 @@ REGISTER=(
   "crates/topo/src/boolean/vtxfac.rs|classify_vertex_on_face||1|unaudited"
   "crates/topo/src/boolean/zip.rs|zip_seam||1|unaudited"
   "crates/topo/src/census.rs|snapshot||1|unaudited"
-  "crates/topo/src/census.rs|torus_chart_window||1|audited: boolean::boxes::face_box's arm on the same question — this is that walk at the census scalar, and both answer no window, which keeps torus_extent"
   # The hull closure decides nothing about emptiness: its two callers
   # want opposite things from it and each answers at its own call site.
   "crates/topo/src/census.rs|sweep_cross_solid_backstop|else { continue|1|audited: the arm above face_points — a loop this cannot walk contributes nothing, and both callers answer emptiness themselves"
